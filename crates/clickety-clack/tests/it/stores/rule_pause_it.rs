@@ -1,3 +1,4 @@
+use crate::support::create_test_rule;
 use cc::domain::ids::{RuleId, TenantId};
 use cc::domain::rule::{RuleSpec, Severity};
 use cc::stores::PgStore;
@@ -29,7 +30,13 @@ fn spec() -> RuleSpec {
 async fn pause_and_resume_toggle_flag() {
     let s = store().await;
     let tenant = TenantId::from_trusted(Uuid::new_v4().to_string());
-    let rule = s.create_rule(tenant.clone(), &spec()).await.unwrap();
+    let rule = create_test_rule(
+        &s,
+        tenant.clone(),
+        "t/pause_and_resume_toggle_flag",
+        &spec(),
+    )
+    .await;
     assert!(!rule.paused);
 
     assert!(s.pause_rule(tenant.clone(), rule.id).await.unwrap());
@@ -52,7 +59,13 @@ async fn pause_and_resume_toggle_flag() {
 async fn pause_missing_or_wrong_tenant_returns_false() {
     let s = store().await;
     let tenant = TenantId::from_trusted(Uuid::new_v4().to_string());
-    let rule = s.create_rule(tenant.clone(), &spec()).await.unwrap();
+    let rule = create_test_rule(
+        &s,
+        tenant.clone(),
+        "t/pause_missing_or_wrong_tenant_returns_false",
+        &spec(),
+    )
+    .await;
 
     assert!(!s
         .pause_rule(tenant.clone(), RuleId(Uuid::new_v4()))
@@ -69,7 +82,13 @@ async fn pause_missing_or_wrong_tenant_returns_false() {
 async fn resume_resets_pending_instances() {
     let s = store().await;
     let tenant = TenantId::from_trusted(Uuid::new_v4().to_string());
-    let rule = s.create_rule(tenant.clone(), &spec()).await.unwrap();
+    let rule = create_test_rule(
+        &s,
+        tenant.clone(),
+        "t/resume_resets_pending_instances",
+        &spec(),
+    )
+    .await;
 
     // Insert a pending instance with a stale active_since and a nonzero absent_count.
     sqlx::query(
@@ -98,8 +117,20 @@ async fn resume_resets_pending_instances() {
 async fn paused_rules_are_not_claimed() {
     let s = store().await;
     let tenant = TenantId::from_trusted(Uuid::new_v4().to_string());
-    let active = s.create_rule(tenant.clone(), &spec()).await.unwrap();
-    let paused = s.create_rule(tenant.clone(), &spec()).await.unwrap();
+    let active = create_test_rule(
+        &s,
+        tenant.clone(),
+        "t/paused_rules_are_not_claimed-active",
+        &spec(),
+    )
+    .await;
+    let paused = create_test_rule(
+        &s,
+        tenant.clone(),
+        "t/paused_rules_are_not_claimed-paused",
+        &spec(),
+    )
+    .await;
     s.pause_rule(tenant.clone(), paused.id).await.unwrap();
 
     // Past one full interval (create_rule arms next_eval at the rule's jitter
@@ -133,7 +164,13 @@ async fn paused_rules_are_not_claimed() {
 async fn paused_rules_firing_instances_are_not_reconciled() {
     let s = store().await;
     let tenant = TenantId::from_trusted(Uuid::new_v4().to_string());
-    let rule = s.create_rule(tenant.clone(), &spec()).await.unwrap(); // interval_secs=30 -> stale after 60s
+    let rule = create_test_rule(
+        &s,
+        tenant.clone(),
+        "t/paused_rules_firing_instances_are_not_reconciled",
+        &spec(),
+    )
+    .await; // interval_secs=30 -> stale after 60s
 
     // A firing instance last seen an hour ago is stale by the max(4*interval,60s) rule.
     sqlx::query(

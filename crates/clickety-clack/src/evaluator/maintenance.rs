@@ -203,6 +203,7 @@ fn reconcile_transition(s: StaleInstance, now: OffsetDateTime) -> (InstanceState
             // A preview (suppressed) rule's or SLO's synthetic Resolved must not notify
             // either. No source row here, so evidence stays None/untruncated.
             ev.suppressed = s.suppressed;
+            ev.name = s.name;
             Some(ev)
         }
         _ => None,
@@ -309,6 +310,7 @@ mod tests {
             severity: Severity::Critical,
             annotations: std::collections::BTreeMap::new(),
             suppressed: false,
+            name: String::new(),
         }
     }
 
@@ -325,6 +327,19 @@ mod tests {
         assert!(ev.suppressed);
         assert_eq!(ev.evidence, None);
         assert!(!ev.evidence_truncated);
+    }
+
+    /// A stale FIRING instance whose `name` field is set threads it through to the
+    /// synthetic Resolved event's `name`, so the reconciler's event carries the same
+    /// first-class name as one the evaluator would have stamped.
+    #[test]
+    fn reconcile_stamps_name_from_stale_instance() {
+        let now = OffsetDateTime::UNIX_EPOCH + Duration::hours(50);
+        let mut s = stale(Status::Firing);
+        s.name = "default/checkout-latency".to_string();
+        let (_, ev) = reconcile_transition(s, now);
+        let ev = ev.expect("stale firing emits a Resolved event");
+        assert_eq!(ev.name, "default/checkout-latency");
     }
 
     /// An SLO-sourced stale FIRING instance stamps its SLO identity on the synthetic

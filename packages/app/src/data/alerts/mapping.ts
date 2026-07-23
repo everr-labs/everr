@@ -1,12 +1,13 @@
-import type { CcRuleSpec, CcSeverity } from "@/data/cc/types";
+import { formatResourceName, parseResourceName } from "@/data/as-code/identity";
+import type { CcRule, CcRuleInput, CcSeverity } from "@/data/cc/types";
 import {
   ANN_CC_DESCRIPTION,
   ANN_CC_LINK_ALERT,
   ANN_CC_LINK_RUNBOOK,
   ANN_CC_SUMMARY,
+  ANN_DISPLAY_DESCRIPTION,
+  ANN_DISPLAY_NAME,
   ANN_LABEL_PREFIX,
-  OWN_NAME,
-  OWN_PREVIEW,
   OWN_REPO,
 } from "./annotations";
 import {
@@ -22,72 +23,59 @@ import {
   parseWindow,
 } from "./window";
 
-// Ownership annotations (everr.name / everr.repoid / everr.preview) and the
-// everr.label. prefix live in ./annotations, shared with the SLO mapping;
-// re-exported here so the many existing rule-side imports keep one path.
-export { OWN_NAME, OWN_PREVIEW, OWN_REPO } from "./annotations";
+// The ownership annotation (everr.repoid) and the everr.label. prefix live in
+// ./annotations, shared with the SLO mapping; re-exported here so the many
+// existing rule-side imports keep one path. Identity (project/slug,
+// live-vs-preview namespace) is carried on the CC rule's own first-class
+// `name`/`namespace` fields now, not an annotation: see toRuleInput/fromCcRule
+// below.
+export { OWN_REPO } from "./annotations";
 
-// Annotation keys we pack the simple-alert UI fields into. The notification
-// templates live ONLY under CC's own `summary`/`description` keys
-// (annotations.ts): CC renders them, and we read the same keys back, so one
-// key per template is both the write and the read path.
-const ANN_DISPLAY_NAME = "everr.display.name";
-const ANN_DISPLAY_DESCRIPTION = "everr.display.description";
+// ANN_DISPLAY_NAME/ANN_DISPLAY_DESCRIPTION live in ./annotations, shared with
+// the SLO mapping. The notification templates live ONLY under CC's own
+// `summary`/`description` keys (annotations.ts): CC renders them, and we read
+// the same keys back, so one key per template is both the write and the read
+// path.
 // A linked runbook (project/slug), stored canonically so the alert detail can
 // deep-link to it. Replaces the old Postgres runbook_project/runbook_slug
 // columns now that a simple alert IS a CC rule.
 const ANN_RUNBOOK = "everr.runbook";
 
-/** Absolute URL of the everr rule detail page for a CC rule id. */
-function alertDetailUrl(appBaseUrl: string, ruleId: string): string {
-  return new URL(`/alerts/rules/${ruleId}`, appBaseUrl).toString();
-}
-
 /**
- * Return `spec` with its `link.alert` annotation pointing at the everr alert
- * detail page. The CC rule id only exists once CC has stored the rule, so the
- * reconciler stamps this after create (and before diffing/updating an existing
- * rule, where the id is already known).
- */
-export function withAlertLink(
-  spec: CcRuleSpec,
-  appBaseUrl: string,
-  ruleId: string,
-): CcRuleSpec {
-  return {
-    ...spec,
-    annotations: {
-      ...spec.annotations,
-      [ANN_CC_LINK_ALERT]: alertDetailUrl(appBaseUrl, ruleId),
-    },
-  };
-}
-
-/**
- * AlertRule YAML → CC RuleSpec. Shared by the as-code reconciler and tests.
+ * AlertRule YAML → CC rule create/update input: the spec fields flattened
+ * beside the rule's first-class `name`/`namespace` (CcRuleInput's wire
+ * shape, mirroring what CC's own CreateRuleBody accepts and what a GET
+ * response returns). Shared by the as-code reconciler and tests.
+ *
  * `appBaseUrl` (the everr app origin) enables the notification `link.runbook`
- * annotation; `link.alert` needs the CC rule id, see {@link withAlertLink}.
+ * annotation and the `link.alert` annotation; both are computed upfront here
+ * since the rule's identity (project/slug) is known before create, unlike
+ * the old CC-generated rule id `link.alert` needed.
+ *
  * A `previewId` builds the rule for that preview namespace: suppressed (CC
- * evaluates it fully but never notifies) and tagged with the everr.preview
- * annotation so live and preview reconciles never touch each other's rules.
- * `rule.spec.annotations` (user-supplied pass-through) is merged in BEFORE the
- * generated keys below, so the generated `everr.*`/`summary`/`description`/
- * link keys always win (the schema already rejects reserved keys, so this
- * merge order never actually needs to resolve a collision).
+ * evaluates it fully but never notifies) so live and preview reconciles
+ * never touch each other's rules; namespace alone discriminates live vs
+ * preview now, so no identity annotation is written for it.
+ *
+ * `rule.spec.annotations` (user-supplied pass-through) is merged in BEFORE
+ * the generated keys below, so the generated `everr.*`/`summary`/
+ * `description`/link keys always win (the schema already rejects reserved
+ * keys, so this merge order never actually needs to resolve a collision).
  */
-export function toRuleSpec(
+export function toRuleInput(
   rule: AlertRuleYaml,
   repoid: string,
   opts: { appBaseUrl?: string; previewId?: string } = {},
-): CcRuleSpec {
+): CcRuleInput {
+  const project = rule.metadata.project ?? "default";
+  const slug = rule.metadata.name;
+
   const annotations: Record<string, string> = {
     ...rule.spec.annotations,
-    [OWN_NAME]: rule.metadata.name,
     [OWN_REPO]: repoid,
     // The notification templates, under the keys CC's dispatcher renders.
     [ANN_CC_SUMMARY]: rule.spec.notificationMessage.title,
   };
-  if (opts.previewId) annotations[OWN_PREVIEW] = opts.previewId;
   if (rule.spec.notificationMessage.description) {
     annotations[ANN_CC_DESCRIPTION] = rule.spec.notificationMessage.description;
   }
@@ -100,19 +88,26 @@ export function toRuleSpec(
     annotations[`${ANN_LABEL_PREFIX}${k}`] = v;
   }
   if (rule.spec.runbook) {
-    const { project, slug } = parseRunbookRef(
+    const { project: runbookProject, slug: runbookSlug } = parseRunbookRef(
       rule.spec.runbook,
-      rule.metadata.project ?? "default",
+      project,
     );
-    annotations[ANN_RUNBOOK] = formatRunbookRef(project, slug);
+    annotations[ANN_RUNBOOK] = formatRunbookRef(runbookProject, runbookSlug);
     if (opts.appBaseUrl) {
       annotations[ANN_CC_LINK_RUNBOOK] = new URL(
-        `/runbooks/${project}/${slug}`,
+        `/runbooks/${runbookProject}/${runbookSlug}`,
         opts.appBaseUrl,
       ).toString();
     }
   }
-  return {
+  if (opts.appBaseUrl) {
+    annotations[ANN_CC_LINK_ALERT] = new URL(
+      `/alerts/rules/${project}/${slug}`,
+      opts.appBaseUrl,
+    ).toString();
+  }
+
+  const spec = {
     sql: rule.spec.query,
     interval_secs: parseEvaluationInterval(rule.spec.evaluationInterval),
     for_secs: parseForDuration(rule.spec.for),
@@ -130,9 +125,16 @@ export function toRuleSpec(
     // visible in history/SSE, but the dispatcher never notifies on them.
     suppressed: opts.previewId !== undefined,
   };
+
+  return {
+    name: formatResourceName(project, slug),
+    namespace: opts.previewId ?? "",
+    ...spec,
+  };
 }
 
 export type SimpleAlertView = {
+  project: string;
   slug: string;
   repoid: string;
   severity: CcSeverity;
@@ -151,46 +153,59 @@ export type SimpleAlertView = {
   suppressed: boolean;
 };
 
-/** Read the simple-alert fields back out of a CC rule's spec (annotations + columns). */
-export function fromCcRuleSpec(spec: CcRuleSpec): SimpleAlertView {
-  const ann = spec.annotations ?? {};
+/**
+ * Read the simple-alert fields back out of a CC rule: project/slug from the
+ * first-class `name`, the preview id from `namespace`, and the rest
+ * (display/runbook/templates) from `spec.annotations` + columns.
+ */
+export function fromCcRule(
+  rule: Pick<CcRule, "namespace" | "name" | "spec">,
+): SimpleAlertView {
+  const { project, slug } = parseResourceName(rule.name);
+  const ann = rule.spec.annotations ?? {};
   // The stored ref is already canonical (project/slug or a bare slug for the
   // default project), so any alertProject fallback works to split it back out.
   const runbook = ann[ANN_RUNBOOK]
     ? parseRunbookRef(ann[ANN_RUNBOOK], "default")
     : null;
   return {
-    slug: ann[OWN_NAME] ?? "",
+    project,
+    slug,
     repoid: ann[OWN_REPO] ?? "",
-    severity: spec.severity,
+    severity: rule.spec.severity,
     notificationTitleTemplate: ann[ANN_CC_SUMMARY] ?? "",
     notificationDescriptionTemplate: ann[ANN_CC_DESCRIPTION] ?? "",
     displayName: ann[ANN_DISPLAY_NAME] ?? null,
     displayDescription: ann[ANN_DISPLAY_DESCRIPTION] ?? null,
-    instanceLabelColumns: spec.label_columns ?? [],
-    forSeconds: spec.for_secs,
-    resolveAfter: spec.resolve_after,
-    valueColumn: spec.value_column ?? null,
+    instanceLabelColumns: rule.spec.label_columns ?? [],
+    forSeconds: rule.spec.for_secs,
+    resolveAfter: rule.spec.resolve_after,
+    valueColumn: rule.spec.value_column ?? null,
     runbookProject: runbook?.project ?? null,
     runbookSlug: runbook?.slug ?? null,
-    previewId: ann[OWN_PREVIEW] ?? null,
+    previewId: rule.namespace === "" ? null : rule.namespace,
     // `?? false`: hand-built specs (tests, pre-suppression payloads that
     // bypassed the schema default) may omit the field.
-    suppressed: spec.suppressed ?? false,
+    suppressed: rule.spec.suppressed ?? false,
   };
 }
 
 /**
- * CC RuleSpec → the canonical `kind: AlertRule` as-code document, the inverse
- * of {@link toRuleSpec} for everr-owned rules. Used by the resources CLI
+ * CC rule → the canonical `kind: AlertRule` as-code document, the inverse of
+ * {@link toRuleInput} for everr-owned rules. Used by the resources CLI
  * (`everr resources show`) where dashboards/runbooks return their stored YAML
  * document; alerts have no stored document (the CC rule IS the resource), so
- * one is reconstructed from the spec. Generated annotations (`everr.*`,
- * `summary`, `description`, `link.*`) fold back into their source fields;
- * everything else is the user's pass-through `spec.annotations`.
+ * one is reconstructed from the rule. `metadata.name`/`metadata.project` come
+ * from splitting the first-class `name` (project omitted when "default");
+ * generated annotations (`summary`, `description`, `link.*`, `everr.*`) fold
+ * back into their source fields; everything else is the user's pass-through
+ * `spec.annotations`.
  */
-export function toAlertRuleDocument(spec: CcRuleSpec): AlertRuleYaml {
-  const ann = spec.annotations ?? {};
+export function toAlertRuleDocument(
+  rule: Pick<CcRule, "name" | "spec">,
+): AlertRuleYaml {
+  const { project, slug } = parseResourceName(rule.name);
+  const ann = rule.spec.annotations ?? {};
 
   const labels: Record<string, string> = {};
   const passthrough: Record<string, string> = {};
@@ -215,7 +230,8 @@ export function toAlertRuleDocument(spec: CcRuleSpec): AlertRuleYaml {
   return {
     kind: "AlertRule",
     metadata: {
-      name: ann[OWN_NAME] ?? "",
+      name: slug,
+      ...(project !== "default" ? { project } : {}),
       ...(Object.keys(labels).length > 0 ? { labels } : {}),
     },
     spec: {
@@ -224,25 +240,27 @@ export function toAlertRuleDocument(spec: CcRuleSpec): AlertRuleYaml {
       // the default project), which the schema accepts as-is. `undefined`
       // values drop out when the document is serialized to JSON/YAML.
       runbook: ann[ANN_RUNBOOK] ?? undefined,
-      evaluationInterval: formatDurationSeconds(spec.interval_secs),
-      for: formatDurationSeconds(spec.for_secs),
-      resolveAfter: spec.resolve_after,
-      severity: spec.severity,
+      evaluationInterval: formatDurationSeconds(rule.spec.interval_secs),
+      for: formatDurationSeconds(rule.spec.for_secs),
+      resolveAfter: rule.spec.resolve_after,
+      severity: rule.spec.severity,
       notificationMessage: {
         title: ann[ANN_CC_SUMMARY] ?? "",
         ...(ann[ANN_CC_DESCRIPTION]
           ? { description: ann[ANN_CC_DESCRIPTION] }
           : {}),
       },
-      query: spec.sql,
+      query: rule.spec.sql,
       instanceLabels:
-        spec.label_columns && spec.label_columns.length > 0
-          ? spec.label_columns
+        rule.spec.label_columns && rule.spec.label_columns.length > 0
+          ? rule.spec.label_columns
           : undefined,
-      ...(spec.value_column ? { valueColumn: spec.value_column } : {}),
-      ...(spec.max_interval_secs !== undefined &&
-      spec.max_interval_secs !== null
-        ? { maxInterval: formatDurationSeconds(spec.max_interval_secs) }
+      ...(rule.spec.value_column
+        ? { valueColumn: rule.spec.value_column }
+        : {}),
+      ...(rule.spec.max_interval_secs !== undefined &&
+      rule.spec.max_interval_secs !== null
+        ? { maxInterval: formatDurationSeconds(rule.spec.max_interval_secs) }
         : {}),
       ...(Object.keys(passthrough).length > 0
         ? { annotations: passthrough }
@@ -251,14 +269,17 @@ export function toAlertRuleDocument(spec: CcRuleSpec): AlertRuleYaml {
   };
 }
 
-/** True if a CC rule is everr-owned (carries `everr.name`), owned by this repo (or any repo). */
-export function isOwnedRule(spec: CcRuleSpec, repoid?: string): boolean {
-  const ann = spec.annotations ?? {};
-  if (ann[OWN_NAME] === undefined) return false;
+/** True if a CC rule is everr-owned (carries `everr.repoid`), owned by this repo (or any repo). */
+export function isOwnedRule(
+  rule: Pick<CcRule, "spec">,
+  repoid?: string,
+): boolean {
+  const ann = rule.spec.annotations ?? {};
+  if (ann[OWN_REPO] === undefined) return false;
   return repoid === undefined || ann[OWN_REPO] === repoid;
 }
 
 /** The preview registry id a CC rule belongs to, or null for a live rule. */
-export function previewIdOf(spec: CcRuleSpec): string | null {
-  return spec.annotations?.[OWN_PREVIEW] ?? null;
+export function previewIdOf(rule: Pick<CcRule, "namespace">): string | null {
+  return rule.namespace === "" ? null : rule.namespace;
 }

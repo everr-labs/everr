@@ -28,6 +28,8 @@ import {
 } from "@/data/alerts/event-types";
 import type { AlertEventLogRow } from "@/data/alerts/history.server";
 import { ccQueries } from "@/data/cc/queries";
+import { ccSloIdentity } from "@/data/cc/slo";
+import type { CcSlo } from "@/data/cc/types";
 import { useTimeRange } from "@/hooks/use-time-range";
 import {
   CcEmptyState,
@@ -95,7 +97,7 @@ export function AlertEventFeed({
   resolveRuleName,
   resolveRuleSeverity,
   resolveSlo,
-  resolveRuleId,
+  resolveRuleAddress,
   timeRange: timeRangeProp,
 }: {
   /**
@@ -130,16 +132,20 @@ export function AlertEventFeed({
    * Map a row's handle to its SLO when the event is SLO-originated (CC's
    * alert log resolves slugs the same way for both sources: the `everr.name`
    * annotation falling back to the source uuid). A hit renders the SLO's
-   * name with an "SLO" origin marker instead of a rule handle; checked
-   * before resolveRuleName.
+   * display name (falling back to its slug) with an "SLO" origin marker
+   * instead of a rule handle; checked before resolveRuleName.
    */
-  resolveSlo?: (handle: string) => { id: string; name: string } | undefined;
+  resolveSlo?: (
+    handle: string,
+  ) => Pick<CcSlo, "namespace" | "name" | "spec"> | undefined;
   /**
-   * Map a row's rule handle to the rule's id. A hit turns the rule name into
-   * a link to the rule detail page (resolveSlo hits already link to the SLO);
-   * without it names render as plain text, as before.
+   * Map a row's rule handle to the rule's slug address. A hit turns the rule
+   * name into a link to the rule detail page (resolveSlo hits already link
+   * to the SLO); without it names render as plain text, as before.
    */
-  resolveRuleId?: (handle: string) => string | undefined;
+  resolveRuleAddress?: (
+    handle: string,
+  ) => { project: string; slug: string } | undefined;
   /**
    * Pin the feed to a fixed range instead of the global time-range picker.
    * The SLO detail page passes its window range so the feed matches the budget
@@ -253,15 +259,16 @@ export function AlertEventFeed({
         // happened" turns into "go act on it".
         const slo = resolveSlo?.(e.slug);
         if (slo) {
+          const identity = ccSloIdentity(slo);
           return (
             <span className="inline-flex max-w-44 items-center gap-1.5">
               <Link
-                to="/alerts/slos/$sloId"
-                params={{ sloId: slo.id }}
+                to="/alerts/slos/$project/$slug"
+                params={{ project: identity.project, slug: identity.slug }}
                 className="min-w-0 truncate font-mono text-xs underline-offset-2 hover:underline"
-                title={`${slo.name} (${e.slug})`}
+                title={`${identity.name} (${e.slug})`}
               >
-                {slo.name}
+                {identity.name}
               </Link>
               <span className="shrink-0 rounded-sm border border-border bg-muted/40 px-1 font-mono text-[0.625rem] leading-4 text-muted-foreground">
                 SLO
@@ -270,12 +277,12 @@ export function AlertEventFeed({
           );
         }
         const name = resolveRuleName ? resolveRuleName(e.slug) : e.slug;
-        const ruleId = resolveRuleId?.(e.slug);
-        if (ruleId !== undefined) {
+        const address = resolveRuleAddress?.(e.slug);
+        if (address) {
           return (
             <Link
-              to="/alerts/rules/$ruleId"
-              params={{ ruleId }}
+              to="/alerts/rules/$project/$slug"
+              params={address}
               className="inline-block max-w-44 truncate align-bottom font-mono text-xs underline-offset-2 hover:underline"
               title={name === e.slug ? e.slug : `${name} (${e.slug})`}
             >

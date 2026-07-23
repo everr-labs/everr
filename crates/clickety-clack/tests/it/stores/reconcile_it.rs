@@ -1,3 +1,4 @@
+use crate::support::create_test_rule;
 use cc::domain::ids::{InstanceKey, TenantId};
 use cc::domain::instance::{InstanceState, Status};
 use cc::domain::routing::{MatchOp, Matcher};
@@ -50,14 +51,20 @@ fn instance(
 async fn stale_query_uses_per_rule_interval() {
     let (store, _node) = store().await;
     let tenant = TenantId::from_trusted(Uuid::new_v4().to_string());
-    let rule = store
-        .create_rule(tenant.clone(), &spec_interval(30))
-        .await
-        .unwrap(); // threshold max(120,60)=120s
-    let slow = store
-        .create_rule(tenant.clone(), &spec_interval(120))
-        .await
-        .unwrap(); // threshold max(480,60)=480s
+    let rule = create_test_rule(
+        &store,
+        tenant.clone(),
+        "t/stale_query_uses_per_rule_interval-fast",
+        &spec_interval(30),
+    )
+    .await; // threshold max(120,60)=120s
+    let slow = create_test_rule(
+        &store,
+        tenant.clone(),
+        "t/stale_query_uses_per_rule_interval-slow",
+        &spec_interval(120),
+    )
+    .await; // threshold max(480,60)=480s
     let now = OffsetDateTime::now_utc();
 
     store

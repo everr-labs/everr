@@ -4,23 +4,29 @@
 // as-code layer (data/slos) shares the ownership/identity vocabulary below, so
 // the keys live here rather than in either kind's mapping module.
 
-// Ownership annotations on a CC-backed as-code resource (rules and SLOs): the
-// resource's as-code name and the repoid that owns it. A resource carrying
-// everr.name is everr-managed; one without it is engine-native and never
-// touched by any reconciler.
-export const OWN_NAME = "everr.name";
+// Ownership annotation on a CC-backed as-code resource (rules and SLOs): the
+// repoid that owns it. A resource carrying everr.repoid is everr-managed; one
+// without it is engine-native and never touched by any reconciler.
+//
+// Identity (project/slug, live-vs-preview namespace) lives on the CC entity's
+// own first-class `name`/`namespace` fields for both rules (see
+// data/alerts/mapping.ts's toRuleInput/fromCcRule) and SLOs (see
+// data/slos/mapping.ts's toSloInput/fromCcSlo) now, so neither kind writes an
+// identity or preview annotation anymore.
 export const OWN_REPO = "everr.repoid";
-// The preview registry id (previews.id) owning a preview resource. Live
-// resources never carry it: it is the live/preview namespace discriminator on
-// CC-backed resources, the CC analogue of the Postgres resource tables'
-// preview_id column.
-export const OWN_PREVIEW = "everr.preview";
-// The declared metadata.project, stored only when the document sets it (SLOs;
-// resources without it surface under the "default" project). Recorded verbatim
-// so the reconstructed document round-trips exactly.
+// ANN_PROJECT is write-path-retired for both kinds (project now round-trips
+// through the first-class `name`), but stays exported: some downstream
+// readers (e.g. the SLO detail route) still parse it off legacy CC data.
 export const ANN_PROJECT = "everr.project";
 // metadata.labels.<k> → everr.label.<k> (shared by rules and SLOs).
 export const ANN_LABEL_PREFIX = "everr.label.";
+
+// spec.display.name / spec.display.description → these annotations, shared
+// by rules and SLOs. The notification templates live ONLY under CC's own
+// `summary`/`description` keys below (rules stamp their own; SLOs derive
+// `summary` from the display name, see data/slos/mapping.ts's toSloInput).
+export const ANN_DISPLAY_NAME = "everr.display.name";
+export const ANN_DISPLAY_DESCRIPTION = "everr.display.description";
 
 // CC's dispatcher renders these annotations on notifications: `summary` is the
 // headline, `description` an extra body line (both substitute ${<key>} against

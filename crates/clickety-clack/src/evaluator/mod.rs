@@ -471,6 +471,7 @@ async fn evaluate_rule_against_rows(
             // Stamp the rule's preview flag and the bounded source-row evidence. Evidence
             // is event-scoped only: it never touches the instances table.
             ev.suppressed = rule.spec.suppressed;
+            ev.name = rule.name.clone();
             let (evidence, truncated) = build_evidence(&extra);
             ev.evidence = evidence;
             ev.evidence_truncated = truncated;
@@ -495,6 +496,7 @@ async fn evaluate_rule_against_rows(
         if let Some(mut ev) = out.event {
             // Resolved-by-absence has no source row: evidence stays None/untruncated.
             ev.suppressed = rule.spec.suppressed;
+            ev.name = rule.name.clone();
             out_events.push(ev);
         }
         next_states.push(out.next);

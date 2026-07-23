@@ -54,6 +54,11 @@ pub struct Event {
     /// the same uuid for wire compatibility with consumers that key on it.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub slo: Option<crate::domain::ids::SloId>,
+    /// First-class name of the originating rule or SLO ("project/slug" for
+    /// as-code resources). Serde-defaulted so pre-upgrade payloads (Redis
+    /// streams, group buffers, outbox) still deserialize; empty = unknown.
+    #[serde(default)]
+    pub name: String,
     pub instance_key: InstanceKey,
     pub status: EventStatus,
     pub kind: EventKind,
@@ -96,6 +101,7 @@ impl Event {
             tenant,
             rule,
             slo: None,
+            name: String::new(),
             instance_key,
             status,
             kind: EventKind::Alert,
@@ -124,6 +130,7 @@ impl Event {
             tenant,
             rule,
             slo: None,
+            name: String::new(),
             instance_key: InstanceKey::health(rule),
             status,
             kind: EventKind::RuleHealth,

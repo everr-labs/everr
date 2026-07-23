@@ -4,6 +4,8 @@
 // the canonical burn-rate tiers, tier/severity resolution, and the handles an
 // event row may carry for an SLO. Owned here in the data layer so every SLO
 // surface (list, detail, triage, history) reads the same rules.
+import { parseResourceName } from "@/data/as-code/identity";
+import { fromCcSlo } from "@/data/slos/mapping";
 import type { CcSlo, CcSloGroupStatus, CcSloSpec, CcSloTier } from "./types";
 
 /**
@@ -53,13 +55,21 @@ export function ccSloTierSeverity(
 /**
  * The handles an event row may carry for an SLO, mirroring
  * `ccRuleHandles` (data/alerts/rule-identity.ts): CC's alert log resolves the
- * slug as the `everr.name` annotation falling back to the source uuid
- * (otel/alert_log.rs `slug_for` — for SLO events `ev.rule` carries the SLO
- * uuid), so both handles can appear in stored history.
+ * slug as the SLO's first-class `name` (project/slug qualified), falling back
+ * to the source uuid for records stored before CC stamped it (otel/
+ * alert_log.rs `slug_for` — for SLO events `ev.rule` carries the SLO uuid), so
+ * both handles can appear in stored history. When the name is qualified, the
+ * bare slug is added too: pre-deploy ClickHouse rows stamped `alert.slug`
+ * from the old everr.name annotation, which never carried a project prefix.
+ * Restoring that bare-slug handle also restores the pre-branch ambiguity
+ * where two projects sharing a slug both match the same legacy rows; that is
+ * intentional (it matches the old, project-agnostic behavior), not a
+ * regression.
  */
 export function ccSloHandles(slo: CcSlo): string[] {
-  const slug = slo.spec.annotations["everr.name"];
-  return slug ? [slo.id, slug] : [slo.id];
+  const { name, id } = slo;
+  if (!name.includes("/")) return [id, name];
+  return [id, name, parseResourceName(name).slug];
 }
 
 /**
@@ -75,6 +85,30 @@ export function ccSloHandleResolver(
     for (const handle of ccSloHandles(slo)) byHandle.set(handle, slo);
   }
   return (handle) => byHandle.get(handle);
+}
+
+/**
+ * One resolution of "what do we call this SLO", mirroring `ccRuleIdentity`
+ * (data/alerts/rule-identity.ts): the display-name annotation first, then
+ * the as-code slug (always present, carried on the SLO's own first-class
+ * `name`). Every SLO surface (list, detail, triage, feeds) reads names
+ * through this so a display name renders consistently everywhere.
+ */
+export type CcSloIdentity = {
+  /** Human name: displayName || slug. */
+  name: string;
+  project: string;
+  /** The as-code slug, split off the SLO's first-class `name`. */
+  slug: string;
+  /** The display-name annotation, or null when unset (name falls back to slug). */
+  displayName: string | null;
+};
+
+export function ccSloIdentity(
+  slo: Pick<CcSlo, "namespace" | "name" | "spec">,
+): CcSloIdentity {
+  const { project, slug, displayName } = fromCcSlo(slo);
+  return { name: displayName || slug, project, slug, displayName };
 }
 
 // Tier window shorthand (m/h/d/w plus defensive s) → seconds; unparseable
@@ -252,6 +286,98 @@ export function ccSloCurrentBurn(
   return best === null
     ? null
     : { rate: best.rate, effective: best.effective, window: best.window };
+}
+
+/**
+ * One lookback window's measured burn: a distinct trailing span the engine
+ * averaged this group's burn over. Every tier window (short and long alike)
+ * is just "average burn over the last X", so the full set reads as a profile:
+ * where in time the spending sits.
+ */
+export type CcSloWindowBurn = {
+  /** Window shorthand as the tier spec spells it ("5m", "3d"). */
+  window: string;
+  /** The window's length in seconds (the sort key). */
+  secs: number;
+  /** Measured average burn over that trailing window; null = no data. */
+  burn: number | null;
+};
+
+/**
+ * Every distinct lookback window across the SLO's tiers with its measured
+ * burn, sorted longest window first. Windows shared between tiers (the 6h
+ * span is slow-burn's long window and ticket's short window) collapse into
+ * one entry, preferring whichever measurement exists. This is the data the
+ * burn-by-lookback readout plots: long windows = further back, short = now.
+ */
+export function ccSloWindowBurns(
+  specTiers: readonly CcSloTier[],
+  snapshot: CcSloGroupStatus["tiers"],
+): CcSloWindowBurn[] {
+  const byName = new Map(snapshot.map((t) => [t.name, t]));
+  const bySecs = new Map<number, CcSloWindowBurn>();
+  for (const t of specTiers) {
+    const snap = byName.get(t.name);
+    const spans: [string, number | null | undefined][] = [
+      [t.long_window, snap?.long_burn_rate],
+      [t.short_window, snap?.short_burn_rate],
+    ];
+    for (const [window, rate] of spans) {
+      const secs = tierWindowSecs(window);
+      if (!Number.isFinite(secs)) continue;
+      const burn = rate ?? null;
+      const existing = bySecs.get(secs);
+      if (existing === undefined) {
+        bySecs.set(secs, { window, secs, burn });
+      } else if (existing.burn === null && burn !== null) {
+        existing.burn = burn;
+      }
+    }
+  }
+  return [...bySecs.values()].sort((a, b) => b.secs - a.secs);
+}
+
+/**
+ * The time-shape of the burn, read off the lookback profile: `burning` when
+ * the most recent measured window is at or above the 1× sustainable line
+ * (budget is being spent right now), `receding` when only longer windows are
+ * elevated (a past burst still inside the window, current traffic clean) —
+ * the exact shape that makes "ticket firing but recovering" true — `quiet`
+ * when every window is under 1×, `no-data` without any measurement.
+ */
+export type CcSloBurnShape = "burning" | "receding" | "quiet" | "no-data";
+
+export function ccSloBurnShape(
+  burns: readonly CcSloWindowBurn[],
+): CcSloBurnShape {
+  const measured = burns.filter(
+    (b): b is CcSloWindowBurn & { burn: number } => b.burn !== null,
+  );
+  if (measured.length === 0) return "no-data";
+  // Sorted longest-first, so the last measured entry is the most recent view.
+  const recent = measured[measured.length - 1].burn;
+  const peak = Math.max(...measured.map((b) => b.burn));
+  if (recent >= 1) return "burning";
+  if (peak >= 1) return "receding";
+  return "quiet";
+}
+
+/**
+ * The one-line reading of the lookback profile, teaching the short-vs-long
+ * window concept in place ("recent windows clean, older windows elevated" is
+ * a story, not a contradiction). Null when there is nothing to read.
+ */
+export function ccSloBurnShapeCaption(shape: CcSloBurnShape): string | null {
+  switch (shape) {
+    case "burning":
+      return "The most recent windows are over the 1× line: error budget is being spent right now.";
+    case "receding":
+      return "The most recent windows are back under 1×: the elevated burn is older, and rolls out of the longer windows as time passes.";
+    case "quiet":
+      return "Every window is under the 1× line: nothing is spending error budget faster than sustainable.";
+    case "no-data":
+      return null;
+  }
 }
 
 /**
@@ -471,10 +597,20 @@ export function ccSloVerdict(
   opts: {
     burn: { rate: number; effective: number | null; window: string } | null;
     tteSecs: number | null;
+    /**
+     * The lookback profile's time-shape (ccSloBurnShape), when the caller has
+     * it. `receding` rewrites the firing/healthy verdicts as the recovery
+     * story instead of the contradictory "draining while burn reads 0".
+     */
+    shape?: CcSloBurnShape;
   },
 ): string {
   // The confirmed (both-window) spend, so a passed spike reads as recovering.
   const effective = opts.burn?.effective ?? null;
+  // A ticket can keep firing on its long windows after the spending stopped;
+  // treat that as the recovery story, not as active draining.
+  const receding =
+    opts.shape === "receding" || (opts.shape === undefined && effective === 0);
   const emptiesIn =
     opts.tteSecs && opts.tteSecs > 0
       ? `the budget runs out in about ${ccFormatSloDuration(opts.tteSecs)}`
@@ -489,12 +625,18 @@ export function ccSloVerdict(
         ? `Burning fast. A critical alert is firing and ${emptiesIn} at the current rate. A page has gone out.`
         : "Burning fast. A critical alert is firing and a page has gone out.";
     case "firing-warning":
+      if (receding) {
+        return "A ticket is open for budget burned earlier in the window. Current traffic is healthy, so the alert clears as that burn ages out.";
+      }
       return emptiesIn
-        ? `Draining faster than sustainable. A warning alert is firing and ${emptiesIn}.`
-        : "Draining faster than sustainable. A warning alert is firing.";
+        ? `Draining faster than sustainable. A ticket alert is firing and ${emptiesIn}.`
+        : "Draining faster than sustainable. A ticket alert is firing.";
     case "at-risk":
       return "Running low. Nothing is paging yet, but there is little error budget left to spend this window.";
     case "healthy":
+      if (opts.shape === "receding") {
+        return "On track. Budget burned earlier is still visible in the longer windows, but current traffic is healthy.";
+      }
       if (effective === null || effective <= 0) {
         return "On track. Nothing is spending error budget right now.";
       }

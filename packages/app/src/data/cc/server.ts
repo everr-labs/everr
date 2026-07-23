@@ -6,8 +6,15 @@ import {
   queryObservedLabelValues,
 } from "@/data/alerts/history.server";
 import { ccRuleIdentity } from "@/data/alerts/rule-identity";
+import { formatResourceName } from "@/data/as-code/identity";
+import { getPreviewScopes } from "@/data/previews/repoids";
+import {
+  visibleSlosForPreview,
+  withAuthoredSloName,
+} from "@/data/slos/preview-overlay";
 import { createAuthenticatedServerFn } from "@/lib/serverFn";
 import * as cc from "./client";
+import { CcApiError } from "./errors";
 import {
   CcChannelConfigSchema,
   CcInhibitionInputSchema,
@@ -57,19 +64,88 @@ export const getCcRule = createAuthenticatedServerFn({ method: "GET" })
     cc.getRule(orgId(session), ruleId),
   );
 
+// The slug-addressed rule route resolves by first-class name instead of the
+// CC uuid: an exact-match listRulesPage query scoped to the live namespace
+// (previews resolve by their own preview id elsewhere). CC's list endpoint
+// doesn't 404 on a miss, so an empty page reads as the route's 404-equivalent.
+// Engine-native rules and pre-branch migration-backfilled rules carry a
+// slashless stored `name` (just the slug, no "project/" prefix) rather than
+// the qualified form this route builds, so a miss for the "default" project
+// retries with the bare slug before giving up (the qualified attempt goes
+// first so a genuinely qualified name always wins over a same-slug bare one).
+export const getCcRuleByName = createAuthenticatedServerFn({ method: "GET" })
+  .inputValidator(z.object({ project: z.string(), slug: z.string() }))
+  .handler(async ({ data: { project, slug }, context: { session } }) => {
+    const name = formatResourceName(project, slug);
+    const rule = await findRuleByExactName(orgId(session), name, {
+      fallbackName: project === "default" ? slug : undefined,
+    });
+    if (!rule) {
+      throw new CcApiError(404, "not_found", `Rule not found: ${name}`);
+    }
+    return rule;
+  });
+
+async function findRuleByExactName(
+  org: string,
+  name: string,
+  { fallbackName }: { fallbackName?: string },
+) {
+  const page = await cc.listRulesPage(org, { namespace: "", name, limit: 1 });
+  if (page.items[0]) return page.items[0];
+  if (fallbackName === undefined) return undefined;
+  const fallbackPage = await cc.listRulesPage(org, {
+    namespace: "",
+    name: fallbackName,
+    limit: 1,
+  });
+  return fallbackPage.items[0];
+}
+
 export const listCcAlerts = createAuthenticatedServerFn({
   method: "GET",
 }).handler(({ context: { session } }) => cc.listAlerts(orgId(session)));
 
-export const listCcSlos = createAuthenticatedServerFn({
-  method: "GET",
-}).handler(({ context: { session } }) => cc.listSlos(orgId(session)));
+export const listCcSlos = createAuthenticatedServerFn({ method: "GET" })
+  .inputValidator(z.object({ preview: z.string().optional() }).optional())
+  .handler(async ({ data, context: { session } }) => {
+    const org = orgId(session);
+    const preview = data?.preview?.trim() || null;
+    const [slos, scopes] = await Promise.all([
+      cc.listSlos(org),
+      preview === null ? null : getPreviewScopes(org, preview),
+    ]);
+    return visibleSlosForPreview(slos, scopes);
+  });
 
 export const getCcSlo = createAuthenticatedServerFn({ method: "GET" })
   .inputValidator(z.object({ sloId: z.string() }))
-  .handler(({ data: { sloId }, context: { session } }) =>
-    cc.getSlo(orgId(session), sloId),
+  .handler(async ({ data: { sloId }, context: { session } }) =>
+    withAuthoredSloName(await cc.getSlo(orgId(session), sloId)),
   );
+
+// The slug-addressed SLO route's analogue of getCcRuleByName: an exact-match
+// listSlos query scoped to the live namespace. Same 404-equivalent: listSlos
+// doesn't 404 on a miss, so an empty result throws here instead. Same bare-name
+// fallback too: a "default"-project miss retries with the bare slug, since
+// engine-native/migration-backfilled SLOs carry a slashless stored name (the
+// qualified attempt goes first so a genuinely qualified name always wins).
+export const getCcSloByName = createAuthenticatedServerFn({ method: "GET" })
+  .inputValidator(z.object({ project: z.string(), slug: z.string() }))
+  .handler(async ({ data: { project, slug }, context: { session } }) => {
+    const name = formatResourceName(project, slug);
+    const org = orgId(session);
+    const slos = await cc.listSlos(org, { namespace: "", name });
+    const slo =
+      slos[0] ??
+      (project === "default"
+        ? (await cc.listSlos(org, { namespace: "", name: slug }))[0]
+        : undefined);
+    if (!slo) {
+      throw new CcApiError(404, "not_found", `SLO not found: ${name}`);
+    }
+    return withAuthoredSloName(slo);
+  });
 
 // The evaluator's latest status snapshot; null until the first evaluation
 // tick writes one (the detail page's pending state).

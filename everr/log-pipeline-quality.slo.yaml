@@ -2,6 +2,12 @@ kind: SLO
 metadata:
   name: log-pipeline-quality
 spec:
+  display:
+    name: Log pipeline quality
+    description: >-
+      Share of ingested log records below error severity, per service. Burns
+      when a service starts emitting a meaningful fraction of error-or-worse
+      logs.
   sli:
     sql: >-
       SELECT ServiceName,
@@ -14,3 +20,4 @@ spec:
       - ServiceName
   targetPercent: 99.5
   timeWindow: 7d
+  minValidEvents: 100

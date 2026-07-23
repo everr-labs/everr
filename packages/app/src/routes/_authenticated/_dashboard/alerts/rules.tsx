@@ -88,8 +88,8 @@ function CcRulesPage() {
         return (
           <span className="flex flex-col">
             <Link
-              to="/alerts/rules/$ruleId"
-              params={{ ruleId: r.id }}
+              to="/alerts/rules/$project/$slug"
+              params={{ project: identity.project, slug: identity.slug }}
               className={cn(
                 "font-medium text-foreground underline-offset-2 hover:underline",
                 identity.name === identity.shortId && "font-mono",

@@ -1,5 +1,9 @@
 import * as z from "zod";
-import { isEverrAnnotationKey } from "@/data/alerts/annotations";
+import {
+  displaySchema,
+  isReservedAnnotationKey,
+  runbookRefSchema,
+} from "@/data/alerts/schema";
 import { dashboardProjectSchema } from "@/data/dashboards/schema";
 
 const nonEmptyString = z.string().min(1);
@@ -20,6 +24,7 @@ const sloNameSchema = z
 // (api/slos.rs): rolling windows cover at most about a year, and the engine's
 // window arithmetic requires the cap.
 const MAX_WINDOW_SECS = 366 * 86_400;
+const MIN_WINDOW_SECS = 86_400;
 
 // CC's SLO window vocabulary (domain/slo.rs parse_window_secs): m/h/d/w only —
 // note no seconds, unlike AlertRule durations, and no calendar units (M/Q/Y).
@@ -27,8 +32,8 @@ const WINDOW_UNIT_SECONDS = { m: 60, h: 3_600, d: 86_400, w: 604_800 } as const;
 const WINDOW_RE = /^(\d+)([mhdw])$/;
 
 /**
- * Parse an SLO window shorthand ("5m", "1h", "30d", "1w") to seconds,
- * mirroring clickety-clack's `parse_window_secs` plus its 366-day cap. Throws
+ * Parse an SLO window shorthand ("24h", "30d", "1w") to seconds, mirroring
+ * clickety-clack's `parse_window_secs` plus its 1-day..366-day bounds. Throws
  * with a message naming the value.
  */
 export function parseSloWindowSeconds(value: string): number {
@@ -44,6 +49,9 @@ export function parseSloWindowSeconds(value: string): number {
   }
   const seconds =
     amount * WINDOW_UNIT_SECONDS[match[2] as keyof typeof WINDOW_UNIT_SECONDS];
+  if (seconds < MIN_WINDOW_SECS) {
+    throw new Error(`window duration "${value}" is below the minimum of 1 day`);
+  }
   if (seconds > MAX_WINDOW_SECS) {
     throw new Error(
       `window duration "${value}" exceeds the maximum of 366 days`,
@@ -52,7 +60,7 @@ export function parseSloWindowSeconds(value: string): number {
   return seconds;
 }
 
-/** A window shorthand string validated (units, positivity, 366d cap) at parse time. */
+/** A window shorthand string validated (units, positivity, 1d..366d bounds) at parse time. */
 const windowDurationSchema = z.string().superRefine((value, ctx) => {
   try {
     parseSloWindowSeconds(value);
@@ -153,6 +161,10 @@ export const SloYamlSchema = z
       .strict(),
     spec: z
       .object({
+        // A human-facing name/description overlay: the SLO's canonical name
+        // stays the technical slug, but display.name (when set) drives the
+        // burn notification summary too (see toSloInput in ./mapping).
+        display: displaySchema.optional(),
         sli: z
           .object({
             // A single read-only SELECT returning numeric `good` and `valid`
@@ -186,6 +198,10 @@ export const SloYamlSchema = z
         timeWindow: timeWindowSchema,
         // Optional low-traffic floor on each tier's long window; omit = off.
         minValidEvents: z.number().int().nonnegative().optional(),
+        // A linked runbook: bare `slug` (resolved against this SLO's own
+        // project) or `project/slug`. Same grammar AlertRule's spec.runbook
+        // uses, imported rather than duplicated.
+        runbook: runbookRefSchema.optional(),
         // Pass-through annotations merged onto the CC SLO alongside the
         // generated ownership keys; `everr.`-prefixed keys are reserved for
         // those and rejected here so they can never be shadowed.
@@ -194,7 +210,7 @@ export const SloYamlSchema = z
       .strict()
       .superRefine((spec, ctx) => {
         for (const key of Object.keys(spec.annotations ?? {})) {
-          if (isEverrAnnotationKey(key)) {
+          if (isReservedAnnotationKey(key)) {
             ctx.addIssue({
               code: "custom",
               message: `spec.annotations key "${key}" is reserved (generated from other fields)`,

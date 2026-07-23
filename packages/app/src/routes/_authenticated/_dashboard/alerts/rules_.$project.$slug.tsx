@@ -56,7 +56,7 @@ import { pauseCcRule, resumeCcRule, testCcRule } from "@/data/cc/server";
 import type { CcAlert, CcRuleView, CcTestResult } from "@/data/cc/types";
 
 export const Route = createFileRoute(
-  "/_authenticated/_dashboard/alerts/rules_/$ruleId",
+  "/_authenticated/_dashboard/alerts/rules_/$project/$slug",
 )({
   staticData: {
     breadcrumb: "Rule",
@@ -67,7 +67,9 @@ export const Route = createFileRoute(
   loaderDeps: ({ search }) => ({ timeRange: withTimeRange(search).timeRange }),
   loader: ({ context: { queryClient }, params, deps }) =>
     Promise.all([
-      queryClient.prefetchQuery(ccQueries.rule(params.ruleId)),
+      queryClient.prefetchQuery(
+        ccQueries.ruleByName(params.project, params.slug),
+      ),
       queryClient.prefetchQuery(ccQueries.alerts()),
       queryClient.prefetchQuery(ccQueries.eventHistory(deps.timeRange)),
     ]),
@@ -194,20 +196,28 @@ function HealthSection({ health }: { health: CcRuleView["health"] }) {
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 function CcRuleDetailPage() {
-  const { ruleId } = Route.useParams();
+  const { project, slug } = Route.useParams();
   const qc = useQueryClient();
-  const rule = useQuery(ccQueries.rule(ruleId));
+  const rule = useQuery(ccQueries.ruleByName(project, slug));
   const alerts = useQuery(ccQueries.alerts());
   const [test, setTest] = useState<CcTestResult | null>(null);
   const [sqlOpen, setSqlOpen] = useState(false);
 
+  const invalidateRule = () =>
+    qc.invalidateQueries({
+      queryKey: ccQueries.ruleByName(project, slug).queryKey,
+    });
+
   const toggle = useMutation({
-    mutationFn: (paused: boolean) =>
-      paused
+    mutationFn: (paused: boolean) => {
+      const ruleId = rule.data?.id;
+      if (!ruleId) throw new Error("Rule not loaded");
+      return paused
         ? resumeCcRule({ data: { ruleId } })
-        : pauseCcRule({ data: { ruleId } }),
+        : pauseCcRule({ data: { ruleId } });
+    },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ccQueries.rule(ruleId).queryKey });
+      invalidateRule();
       // The rules listing shows the paused state too.
       qc.invalidateQueries({ queryKey: ccQueries.rules().queryKey });
       toast.success("Rule updated");
@@ -215,8 +225,11 @@ function CcRuleDetailPage() {
     onError: (e) => toast.error(ccErrorMessage(e)),
   });
   const runTest = useMutation({
-    mutationFn: (spec: CcRuleView["spec"]) =>
-      testCcRule({ data: { ruleId, spec } }),
+    mutationFn: (spec: CcRuleView["spec"]) => {
+      const ruleId = rule.data?.id;
+      if (!ruleId) throw new Error("Rule not loaded");
+      return testCcRule({ data: { ruleId, spec } });
+    },
     onSuccess: (r) => setTest(r),
     onError: (e) => toast.error(ccErrorMessage(e)),
   });
@@ -234,10 +247,11 @@ function CcRuleDetailPage() {
   }
 
   const r = rule.data;
+  const ruleId = r.id;
   const identity = ccRuleIdentity(r);
   // A rule created outside the as-code flow has no `everr.name` annotation;
   // its display identity still makes a valid document name.
-  const asCodeDoc = toAlertRuleDocument(r.spec);
+  const asCodeDoc = toAlertRuleDocument(r);
   if (!asCodeDoc.metadata.name) {
     asCodeDoc.metadata.name = identity.name;
   }

@@ -26,16 +26,26 @@ function firstMessage(doc: unknown): string {
 
 describe("parseSloWindowSeconds", () => {
   it("parses the m/h/d/w vocabulary", () => {
-    expect(parseSloWindowSeconds("5m")).toBe(300);
-    expect(parseSloWindowSeconds("1h")).toBe(3600);
+    expect(parseSloWindowSeconds("24h")).toBe(86_400);
     expect(parseSloWindowSeconds("3d")).toBe(259_200);
     expect(parseSloWindowSeconds("1w")).toBe(604_800);
   });
 
-  it("rejects calendar units, seconds, zero, and the over-cap window", () => {
+  it("rejects calendar units, seconds, zero, sub-day windows, and the over-cap window", () => {
     // CC's SLO windows have no seconds unit (unlike AlertRule durations) and
-    // no calendar units; values must be positive and at most 366 days.
-    for (const bad of ["30s", "1M", "1Q", "10", "0d", "abc", "", "700000w"]) {
+    // no calendar units; values must be 1 day through 366 days.
+    for (const bad of [
+      "30s",
+      "1M",
+      "1Q",
+      "10",
+      "0d",
+      "23h",
+      "5m",
+      "abc",
+      "",
+      "700000w",
+    ]) {
       expect(() => parseSloWindowSeconds(bad)).toThrow();
     }
     expect(parseSloWindowSeconds("366d")).toBe(366 * 86_400);
@@ -65,7 +75,7 @@ describe("SloYamlSchema", () => {
     ).toMatch(/calendar-aligned windows are not supported/);
   });
 
-  it("accepts a full document (project, labels, tiers, minValidEvents, annotations)", () => {
+  it("accepts a full document (project, labels, minValidEvents, annotations)", () => {
     const parsed = SloYamlSchema.parse({
       kind: "SLO",
       metadata: {
@@ -106,6 +116,9 @@ describe("SloYamlSchema", () => {
 
   it("rejects unparsable and over-cap window durations with the value in the message", () => {
     expect(firstMessage(sloDoc({ timeWindow: "1M" }))).toMatch(/"1M"/);
+    expect(firstMessage(sloDoc({ timeWindow: "1h" }))).toMatch(
+      /minimum of 1 day/,
+    );
     expect(firstMessage(sloDoc({ timeWindow: "700000w" }))).toMatch(
       /exceeds the maximum of 366 days/,
     );
@@ -150,6 +163,22 @@ describe("SloYamlSchema", () => {
     ).toMatch(/"everr\.name" is reserved/);
   });
 
+  it("rejects the CC-consumable annotation keys the mapping layer generates, not just everr.*", () => {
+    expect(
+      firstMessage(
+        sloDoc({ annotations: { "link.runbook": "https://example.com" } }),
+      ),
+    ).toMatch(/"link\.runbook" is reserved/);
+    expect(
+      firstMessage(sloDoc({ annotations: { summary: "custom summary" } })),
+    ).toMatch(/"summary" is reserved/);
+    // A normal custom key is unaffected.
+    expect(
+      SloYamlSchema.safeParse(sloDoc({ annotations: { team: "payments" } }))
+        .success,
+    ).toBe(true);
+  });
+
   it("enforces CC's SLO name rules at parse time", () => {
     const named = (name: string) => ({
       ...sloDoc(),
@@ -161,6 +190,55 @@ describe("SloYamlSchema", () => {
     for (const bad of ["", "has space", "x".repeat(129), "emoji✨"]) {
       expect(firstMessage(named(bad))).toMatch(/1-128 chars/);
     }
+  });
+
+  it("accepts a runbook ref as a bare slug or project/slug", () => {
+    expect(
+      SloYamlSchema.safeParse(sloDoc({ runbook: "checkout-triage" })).success,
+    ).toBe(true);
+    expect(
+      SloYamlSchema.safeParse(sloDoc({ runbook: "payments/checkout-triage" }))
+        .success,
+    ).toBe(true);
+  });
+
+  it("rejects a malformed runbook ref", () => {
+    expect(SloYamlSchema.safeParse(sloDoc({ runbook: "a/b/c" })).success).toBe(
+      false,
+    );
+    expect(SloYamlSchema.safeParse(sloDoc({ runbook: "" })).success).toBe(
+      false,
+    );
+  });
+
+  it("accepts spec.display with a name only, or with both name and description", () => {
+    expect(
+      SloYamlSchema.safeParse(
+        sloDoc({ display: { name: "Checkout availability" } }),
+      ).success,
+    ).toBe(true);
+    expect(
+      SloYamlSchema.safeParse(
+        sloDoc({
+          display: {
+            name: "Checkout availability",
+            description: "Orders complete",
+          },
+        }),
+      ).success,
+    ).toBe(true);
+  });
+
+  it("rejects an empty spec.display.name", () => {
+    expect(
+      SloYamlSchema.safeParse(sloDoc({ display: { name: "" } })).success,
+    ).toBe(false);
+  });
+
+  it("rejects unknown spec.display keys (strict)", () => {
+    expect(
+      SloYamlSchema.safeParse(sloDoc({ display: { title: "x" } })).success,
+    ).toBe(false);
   });
 
   it("is strict: unknown keys anywhere are rejected", () => {

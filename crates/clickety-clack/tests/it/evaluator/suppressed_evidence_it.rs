@@ -3,6 +3,7 @@
 //! - present instances carry bounded evidence (source-row columns minus `label_columns`,
 //!   value column included); resolved-by-absence events carry none.
 
+use crate::support::create_test_rule;
 use async_trait::async_trait;
 use cc::clickhouse::{ChError, ResultRow, RowQuerier};
 use cc::domain::event::EventStatus;
@@ -132,10 +133,13 @@ async fn suppressed_rule_stamps_firing_and_resolved_events() {
     let store = pg().await;
     let queue = redis_queue().await;
     let tenant = TenantId::from_trusted(Uuid::new_v4().to_string());
-    let rule = store
-        .create_rule(tenant.clone(), &spec(true))
-        .await
-        .unwrap();
+    let rule = create_test_rule(
+        &store,
+        tenant.clone(),
+        "t/suppressed_rule_stamps_firing_and_resolved_events",
+        &spec(true),
+    )
+    .await;
     assert!(rule.spec.suppressed, "spec round-trips through the store");
 
     let ctx = Ctx {
@@ -167,10 +171,13 @@ async fn events_carry_bounded_evidence_and_absence_resolves_without_it() {
     let store = pg().await;
     let queue = redis_queue().await;
     let tenant = TenantId::from_trusted(Uuid::new_v4().to_string());
-    let rule = store
-        .create_rule(tenant.clone(), &spec(false))
-        .await
-        .unwrap();
+    let rule = create_test_rule(
+        &store,
+        tenant.clone(),
+        "t/events_carry_bounded_evidence_and_absence_resolves_without_it",
+        &spec(false),
+    )
+    .await;
 
     let ctx = Ctx {
         store,

@@ -4,6 +4,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { CcAlert, CcRuleView, CcSlo } from "@/data/cc/types";
 import { listCcLabelKeys, listCcLabelValues } from "./server";
 
+// ./server transitively imports @/data/previews/repoids -> @/db/client, whose
+// t3-env access throws under jsdom; stub the db module before that chain loads.
+vi.mock("@/db/client", () => ({ db: {} }));
+
 const mocks = vi.hoisted(() => ({
   listAllRules: vi.fn(),
   listSlos: vi.fn(),
@@ -34,6 +38,8 @@ function ccRule(overrides: {
   return {
     id: overrides.id ?? "44444444-4444-4444-4444-444444444444",
     tenant: "org1",
+    namespace: "",
+    name: "",
     spec: {
       sql: "SELECT 1",
       interval_secs: 60,
@@ -79,6 +85,7 @@ function ccSloFixture(overrides: {
   return {
     id: overrides.id ?? "55555555-5555-5555-5555-555555555555",
     tenant: "org1",
+    namespace: "",
     name: overrides.name ?? "checkout-availability",
     spec: {
       sli: {

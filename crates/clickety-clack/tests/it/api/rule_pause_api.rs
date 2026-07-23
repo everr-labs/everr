@@ -41,7 +41,7 @@ async fn pause_then_resume_round_trip() {
         .header("content-type", "application/json")
         .header("X-CC-Tenant", tenant.to_string())
         .body(Body::from(
-            r#"{"sql":"SELECT host FROM t","interval_secs":30,"for_secs":0,"label_columns":["host"],"severity":"warning"}"#,
+            r#"{"name":"t/pause_then_resume_round_trip","sql":"SELECT host FROM t","interval_secs":30,"for_secs":0,"label_columns":["host"],"severity":"warning"}"#,
         ))
         .unwrap();
     let resp = app.clone().oneshot(create).await.unwrap();

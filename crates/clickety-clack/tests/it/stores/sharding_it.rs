@@ -1,3 +1,4 @@
+use crate::support::create_test_rule;
 use cc::domain::ids::TenantId;
 use cc::domain::rule::{RuleSpec, Severity};
 use cc::stores::PgStore;
@@ -32,7 +33,17 @@ async fn sharded_claim_partitions_without_loss_or_overlap() {
     let mut all = HashSet::new();
     for _ in 0..50 {
         let t = TenantId::from_trusted(Uuid::new_v4().to_string());
-        all.insert(store.create_rule(t, &spec()).await.unwrap().id.0);
+        all.insert(
+            create_test_rule(
+                &store,
+                t,
+                "t/sharded_claim_partitions_without_loss_or_overlap",
+                &spec(),
+            )
+            .await
+            .id
+            .0,
+        );
     }
     // Past one full interval: create_rule arms next_eval at the rule's jitter
     // phase in [0, interval_secs), so +31s guarantees every rule is due.
@@ -70,7 +81,12 @@ async fn full_shard_set_claims_all_rules() {
     let mut ids = HashSet::new();
     for _ in 0..20 {
         let t = TenantId::from_trusted(Uuid::new_v4().to_string());
-        ids.insert(store.create_rule(t, &spec()).await.unwrap().id.0);
+        ids.insert(
+            create_test_rule(&store, t, "t/full_shard_set_claims_all_rules", &spec())
+                .await
+                .id
+                .0,
+        );
     }
     // Past one full interval: create_rule arms next_eval at the rule's jitter
     // phase in [0, interval_secs), so +31s guarantees every rule is due.

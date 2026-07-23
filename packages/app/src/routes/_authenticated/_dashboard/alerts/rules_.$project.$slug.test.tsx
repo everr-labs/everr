@@ -11,7 +11,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { CcAlert, CcRuleView } from "@/data/cc/types";
-import { Route as RuleDetailFileRoute } from "./rules_.$ruleId";
+import { Route as RuleDetailFileRoute } from "./rules_.$project.$slug";
 
 // ---------------------------------------------------------------------------
 // Mocks: the data module, sonner, and the event feed (its SSE hook and
@@ -20,7 +20,7 @@ import { Route as RuleDetailFileRoute } from "./rules_.$ruleId";
 // ---------------------------------------------------------------------------
 
 const mocks = vi.hoisted(() => ({
-  getCcRule: vi.fn(),
+  getCcRuleByName: vi.fn(),
   listCcAlerts: vi.fn(),
   pauseCcRule: vi.fn(),
   resumeCcRule: vi.fn(),
@@ -31,7 +31,7 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock("@/data/cc/server", () => ({
-  getCcRule: mocks.getCcRule,
+  getCcRuleByName: mocks.getCcRuleByName,
   listCcAlerts: mocks.listCcAlerts,
   pauseCcRule: mocks.pauseCcRule,
   resumeCcRule: mocks.resumeCcRule,
@@ -57,11 +57,15 @@ vi.mock("@/components/cc/alert-event-feed", () => ({
 // ---------------------------------------------------------------------------
 
 const RULE_ID = "e2abbe03-1111-2222-3333-444444444444";
+const PROJECT = "default";
+const SLUG = "api-errors";
 
 function ruleView(overrides: Partial<CcRuleView> = {}): CcRuleView {
   return {
     id: RULE_ID,
     tenant: "org1",
+    namespace: "",
+    name: `${PROJECT}/${SLUG}`,
     spec: {
       sql: "SELECT svc, count() AS val FROM errors GROUP BY svc",
       interval_secs: 30,
@@ -70,7 +74,6 @@ function ruleView(overrides: Partial<CcRuleView> = {}): CcRuleView {
       value_column: "val",
       severity: "critical",
       annotations: {
-        "everr.name": "flapping",
         "everr.display.name": "Flapping Detector",
         "everr.runbook": "demo/flapping-runbook",
       },
@@ -133,7 +136,7 @@ function renderRuleDetail() {
   });
   const detailRoute = createRoute({
     getParentRoute: () => dashboardRoute,
-    path: "alerts/rules/$ruleId",
+    path: "alerts/rules/$project/$slug",
     component: RuleDetailFileRoute.options.component,
   });
   // Link targets; never rendered here.
@@ -155,7 +158,7 @@ function renderRuleDetail() {
   ]);
 
   const history = createMemoryHistory({
-    initialEntries: [`/alerts/rules/${RULE_ID}`],
+    initialEntries: [`/alerts/rules/${PROJECT}/${SLUG}`],
   });
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
@@ -172,11 +175,11 @@ function renderRuleDetail() {
 
 beforeEach(() => {
   vi.clearAllMocks();
-  mocks.getCcRule.mockResolvedValue(ruleView());
+  mocks.getCcRuleByName.mockResolvedValue(ruleView());
   mocks.listCcAlerts.mockResolvedValue([alert()]);
 });
 
-describe("/alerts/rules/$ruleId", () => {
+describe("/alerts/rules/$project/$slug", () => {
   it("renders every prior fact across the question-shaped sections", async () => {
     renderRuleDetail();
 
@@ -208,7 +211,9 @@ describe("/alerts/rules/$ruleId", () => {
     expect(screen.getByTestId("event-feed")).toBeInTheDocument();
     expect(mocks.feedProps).toHaveBeenCalledWith(
       expect.objectContaining({
-        scopeSlug: [RULE_ID, "flapping"],
+        // The rule's qualified name is "default/api-errors", so the bare
+        // slug "api-errors" is included too as a legacy event handle.
+        scopeSlug: [RULE_ID, `${PROJECT}/${SLUG}`, SLUG],
         // Scoped to one rule: the feed's own Severity/Rule columns and
         // severity filter would be constant noise, so the detail page hides
         // them and hands the feed this rule's severity as a fallback.
@@ -257,7 +262,7 @@ describe("/alerts/rules/$ruleId", () => {
   });
 
   it("keeps a healthy rule's forensics behind a single collapsed line", async () => {
-    mocks.getCcRule.mockResolvedValue(
+    mocks.getCcRuleByName.mockResolvedValue(
       ruleView({
         health: {
           status: "healthy",
@@ -281,7 +286,7 @@ describe("/alerts/rules/$ruleId", () => {
   });
 
   it("auto-expands the forensics when the rule is degraded", async () => {
-    mocks.getCcRule.mockResolvedValue(
+    mocks.getCcRuleByName.mockResolvedValue(
       ruleView({
         health: {
           status: "degraded",
@@ -302,7 +307,7 @@ describe("/alerts/rules/$ruleId", () => {
   });
 
   it("flags a suppressed rule loudly", async () => {
-    mocks.getCcRule.mockResolvedValue(
+    mocks.getCcRuleByName.mockResolvedValue(
       ruleView({
         spec: { ...ruleView().spec, suppressed: true },
       }),

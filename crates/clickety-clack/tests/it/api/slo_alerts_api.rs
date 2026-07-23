@@ -24,7 +24,7 @@ async fn union_includes_rule_and_slo_alerts() {
                 .header("X-CC-Tenant", TENANT)
                 .header("content-type", "application/json")
                 .body(Body::from(
-                    r#"{"sql":"SELECT host FROM t","interval_secs":30,"for_secs":0,"label_columns":["host"],"severity":"warning"}"#,
+                    r#"{"name":"t/union_includes_rule_and_slo_alerts","sql":"SELECT host FROM t","interval_secs":30,"for_secs":0,"label_columns":["host"],"severity":"warning"}"#,
                 ))
                 .unwrap(),
         )

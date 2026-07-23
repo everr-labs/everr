@@ -4,6 +4,7 @@
 //! source-set labeled with their SLO identity so the synthesized `equal: ["slo", ...]`
 //! comparison sees the label on both sides.
 
+use crate::support::create_test_slo;
 use cc::dispatcher::cache::FilterCache;
 use cc::dispatcher::inhibition::is_inhibited;
 use cc::dispatcher::routing::match_labels;
@@ -12,7 +13,7 @@ use cc::domain::ids::{InstanceKey, RuleId, SloId, SourceId, TenantId};
 use cc::domain::instance::{InstanceState, Status};
 use cc::domain::rule::Severity;
 use cc::domain::slo::{SliSpec, SloSpec, TimeWindow};
-use cc::stores::{PgStore, SloCreate};
+use cc::stores::PgStore;
 use std::collections::BTreeMap;
 use time::OffsetDateTime;
 use uuid::Uuid;
@@ -62,6 +63,7 @@ fn tier_event_with_status(
         tenant,
         rule: RuleId(slo.0),
         slo: Some(slo),
+        name: String::new(),
         instance_key: InstanceKey(format!("{service}-{tier}")),
         status,
         kind: EventKind::Alert,
@@ -83,14 +85,9 @@ async fn snapshot_synthesizes_tier_inhibitions_and_feeds_slo_firing_set() {
         .unwrap();
     let tenant = tenant();
 
-    let slo_id = match store
-        .create_slo(tenant.clone(), "checkout-availability", &spec())
+    let slo_id = create_test_slo(&store, tenant.clone(), "checkout-availability", &spec())
         .await
-        .unwrap()
-    {
-        SloCreate::Created(slo) => slo.id,
-        other => panic!("expected Created, got {other:?}"),
-    };
+        .id;
 
     // Seed a FIRING fast-burn slo_instances row: service=api.
     let rule = RuleId(slo_id.0);

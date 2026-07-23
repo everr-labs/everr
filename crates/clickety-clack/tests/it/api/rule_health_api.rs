@@ -44,7 +44,7 @@ async fn get_and_list_expose_rule_health() {
         .header("content-type", "application/json")
         .header("X-CC-Tenant", tenant.to_string())
         .body(Body::from(
-            r#"{"sql":"SELECT host FROM t","interval_secs":30,"for_secs":0,"label_columns":["host"],"severity":"warning"}"#,
+            r#"{"name":"t/get_and_list_expose_rule_health","sql":"SELECT host FROM t","interval_secs":30,"for_secs":0,"label_columns":["host"],"severity":"warning"}"#,
         ))
         .unwrap();
     let resp = app.clone().oneshot(create).await.unwrap();

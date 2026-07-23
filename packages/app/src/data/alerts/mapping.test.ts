@@ -1,14 +1,12 @@
 import { describe, expect, it } from "vitest";
+import type { CcRule, CcRuleInput } from "@/data/cc/types";
 import {
-  fromCcRuleSpec,
+  fromCcRule,
   isOwnedRule,
-  OWN_NAME,
-  OWN_PREVIEW,
   OWN_REPO,
   previewIdOf,
   toAlertRuleDocument,
-  toRuleSpec,
-  withAlertLink,
+  toRuleInput,
 } from "./mapping";
 import { AlertRuleYamlSchema } from "./schema";
 
@@ -45,80 +43,103 @@ function parseRule(
 
 const rule = parseRule();
 
-describe("toRuleSpec", () => {
-  it("maps fields, defaults, and ownership annotations", () => {
-    const spec = toRuleSpec(rule, "repo-1");
-    expect(spec.sql).toBe(rule.spec.query);
-    expect(spec.interval_secs).toBe(300);
-    expect(spec.for_secs).toBe(0);
-    expect(spec.resolve_after).toBe(1);
-    expect(spec.value_column).toBeNull();
-    expect(spec.label_columns).toEqual(["route"]);
-    expect(spec.severity).toBe("warning");
-    expect(spec.annotations[OWN_NAME]).toBe("high-5xx");
-    expect(spec.annotations[OWN_REPO]).toBe("repo-1");
-    expect(spec.annotations.summary).toBe(TITLE_TEMPLATE);
-    expect(spec.annotations["everr.label.team"]).toBe("platform");
+/** Split a CcRuleInput back into the { name, namespace, spec } shape CC's API
+ * actually returns, i.e. Pick<CcRule, "namespace" | "name" | "spec">. */
+function asRule(
+  input: CcRuleInput,
+): Pick<CcRule, "namespace" | "name" | "spec"> {
+  const { name, namespace, ...spec } = input;
+  return { name, namespace, spec };
+}
+
+describe("toRuleInput", () => {
+  it("stamps first-class identity (name/namespace) and drops identity annotations", () => {
+    const input = toRuleInput(rule, "repo-1", {
+      appBaseUrl: "https://app.example.com",
+    });
+    expect(input.name).toBe("default/high-5xx");
+    expect(input.namespace).toBe("");
+    expect(input.annotations["everr.name"]).toBeUndefined();
+    expect(input.annotations["everr.project"]).toBeUndefined();
+    expect(input.annotations["everr.repoid"]).toBe("repo-1");
+    expect(input.annotations["link.alert"]).toBe(
+      "https://app.example.com/alerts/rules/default/high-5xx",
+    );
   });
 
-  it("maps for/resolveAfter/valueColumn onto the CC spec", () => {
-    const spec = toRuleSpec(
+  it("maps fields, defaults, and the ownership annotation", () => {
+    const input = toRuleInput(rule, "repo-1");
+    expect(input.sql).toBe(rule.spec.query);
+    expect(input.interval_secs).toBe(300);
+    expect(input.for_secs).toBe(0);
+    expect(input.resolve_after).toBe(1);
+    expect(input.value_column).toBeNull();
+    expect(input.label_columns).toEqual(["route"]);
+    expect(input.severity).toBe("warning");
+    expect(input.annotations[OWN_REPO]).toBe("repo-1");
+    expect(input.annotations.summary).toBe(TITLE_TEMPLATE);
+    expect(input.annotations["everr.label.team"]).toBe("platform");
+  });
+
+  it("maps for/resolveAfter/valueColumn onto the CC input", () => {
+    const input = toRuleInput(
       parseRule({ for: "10m", resolveAfter: 3, valueColumn: "count" }),
       "repo-1",
     );
-    expect(spec.for_secs).toBe(600);
-    expect(spec.resolve_after).toBe(3);
-    expect(spec.value_column).toBe("count");
+    expect(input.for_secs).toBe(600);
+    expect(input.resolve_after).toBe(3);
+    expect(input.value_column).toBe("count");
   });
 
   it("packs the CC notification-rendering annotations", () => {
-    const spec = toRuleSpec(rule, "repo-1");
+    const input = toRuleInput(rule, "repo-1");
     // The dispatcher renders `summary` as the headline and `description` as an
     // extra body line, substituting ${label} / ${value}.
-    expect(spec.annotations.summary).toBe(TITLE_TEMPLATE);
-    expect(spec.annotations.description).toBe(DESC_TEMPLATE);
+    expect(input.annotations.summary).toBe(TITLE_TEMPLATE);
+    expect(input.annotations.description).toBe(DESC_TEMPLATE);
   });
 
   it("omits the description annotations when the message has none", () => {
-    const spec = toRuleSpec(
+    const input = toRuleInput(
       parseRule({ notificationMessage: { title: TITLE_TEMPLATE } }),
       "repo-1",
     );
-    expect(spec.annotations.description).toBeUndefined();
+    expect(input.annotations.description).toBeUndefined();
   });
 
   it("builds an absolute link.runbook when appBaseUrl is provided", () => {
-    const spec = toRuleSpec(
+    const input = toRuleInput(
       parseRule({ runbook: "payments/triage-5xx" }),
       "repo-1",
-      {
-        appBaseUrl: "https://app.example.com",
-      },
+      { appBaseUrl: "https://app.example.com" },
     );
-    expect(spec.annotations["link.runbook"]).toBe(
+    expect(input.annotations["link.runbook"]).toBe(
       "https://app.example.com/runbooks/payments/triage-5xx",
     );
 
     // No base URL (or no runbook) -> no link annotation.
-    const without = toRuleSpec(
+    const without = toRuleInput(
       parseRule({ runbook: "payments/triage-5xx" }),
       "repo-1",
     );
     expect(without.annotations["link.runbook"]).toBeUndefined();
-    const noRunbook = toRuleSpec(rule, "repo-1", {
+    const noRunbook = toRuleInput(rule, "repo-1", {
       appBaseUrl: "https://app.example.com",
     });
     expect(noRunbook.annotations["link.runbook"]).toBeUndefined();
   });
 
-  it("round-trips through fromCcRuleSpec", () => {
-    const view = fromCcRuleSpec(
-      toRuleSpec(
-        parseRule({ for: "1d", resolveAfter: 2, valueColumn: "count" }),
-        "repo-1",
+  it("round-trips through fromCcRule", () => {
+    const view = fromCcRule(
+      asRule(
+        toRuleInput(
+          parseRule({ for: "1d", resolveAfter: 2, valueColumn: "count" }),
+          "repo-1",
+        ),
       ),
     );
     expect(view).toMatchObject({
+      project: "default",
       slug: "high-5xx",
       repoid: "repo-1",
       severity: "warning",
@@ -132,110 +153,109 @@ describe("toRuleSpec", () => {
     });
   });
 
+  it("parses project/slug off the CC name", () => {
+    const { name, namespace, ...spec } = toRuleInput(rule, "repo-1");
+    void name;
+    void namespace;
+    const view = fromCcRule({
+      namespace: "",
+      name: "payments/checkout",
+      spec,
+    });
+    expect(view.project).toBe("payments");
+    expect(view.slug).toBe("checkout");
+  });
+
   it("carries a linked runbook via the everr.runbook annotation", () => {
     // Bare slug resolves against the alert's own project ("default" here).
-    const bare = toRuleSpec(parseRule({ runbook: "triage-5xx" }), "repo-1");
+    const bare = toRuleInput(parseRule({ runbook: "triage-5xx" }), "repo-1");
     expect(bare.annotations["everr.runbook"]).toBe("triage-5xx");
-    expect(fromCcRuleSpec(bare)).toMatchObject({
+    expect(fromCcRule(asRule(bare))).toMatchObject({
       runbookProject: "default",
       runbookSlug: "triage-5xx",
     });
 
     // A project-qualified ref is stored and read back canonically.
-    const scoped = toRuleSpec(
+    const scoped = toRuleInput(
       parseRule({ runbook: "payments/triage-5xx" }, { project: "payments" }),
       "repo-1",
     );
     expect(scoped.annotations["everr.runbook"]).toBe("payments/triage-5xx");
-    expect(fromCcRuleSpec(scoped)).toMatchObject({
+    expect(fromCcRule(asRule(scoped))).toMatchObject({
       runbookProject: "payments",
       runbookSlug: "triage-5xx",
     });
   });
 
   it("leaves the runbook unset when the alert links none", () => {
-    const view = fromCcRuleSpec(toRuleSpec(rule, "repo-1"));
+    const view = fromCcRule(asRule(toRuleInput(rule, "repo-1")));
     expect(view.runbookProject).toBeNull();
     expect(view.runbookSlug).toBeNull();
   });
 
-  it("builds a suppressed, preview-tagged spec for a preview namespace", () => {
-    const spec = toRuleSpec(rule, "repo-1", { previewId: "prev-1" });
+  it("builds a suppressed rule in the preview namespace, with no identity annotation", () => {
+    const input = toRuleInput(rule, "repo-1", { previewId: "prev-1" });
     // CC evaluates the rule fully but the dispatcher never notifies on it.
-    expect(spec.suppressed).toBe(true);
-    expect(spec.annotations[OWN_PREVIEW]).toBe("prev-1");
-    expect(previewIdOf(spec)).toBe("prev-1");
+    expect(input.namespace).toBe("prev-1");
+    expect(input.suppressed).toBe(true);
+    expect(input.annotations["everr.preview"]).toBeUndefined();
+    expect(previewIdOf({ namespace: input.namespace })).toBe("prev-1");
     // Ownership is unchanged: same repo, same name, still owned.
-    expect(spec.annotations[OWN_REPO]).toBe("repo-1");
-    expect(isOwnedRule(spec, "repo-1")).toBe(true);
+    expect(input.annotations[OWN_REPO]).toBe("repo-1");
+    expect(isOwnedRule(asRule(input), "repo-1")).toBe(true);
     // Round-trip.
-    const view = fromCcRuleSpec(spec);
+    const view = fromCcRule(asRule(input));
     expect(view.previewId).toBe("prev-1");
     expect(view.suppressed).toBe(true);
   });
 
-  it("live specs are not suppressed and carry no preview annotation", () => {
-    const spec = toRuleSpec(rule, "repo-1");
-    expect(spec.suppressed).toBe(false);
-    expect(spec.annotations[OWN_PREVIEW]).toBeUndefined();
-    expect(previewIdOf(spec)).toBeNull();
-    const view = fromCcRuleSpec(spec);
+  it("live rules are not suppressed and use the empty namespace", () => {
+    const input = toRuleInput(rule, "repo-1");
+    expect(input.suppressed).toBe(false);
+    expect(input.namespace).toBe("");
+    expect(previewIdOf({ namespace: input.namespace })).toBeNull();
+    const view = fromCcRule(asRule(input));
     expect(view.previewId).toBeNull();
     expect(view.suppressed).toBe(false);
   });
 
   it("sets max_interval_secs when maxInterval is set, else omits it", () => {
-    const withMax = toRuleSpec(parseRule({ maxInterval: "1h" }), "repo-1");
+    const withMax = toRuleInput(parseRule({ maxInterval: "1h" }), "repo-1");
     expect(withMax.max_interval_secs).toBe(3600);
 
-    const withoutMax = toRuleSpec(rule, "repo-1");
+    const withoutMax = toRuleInput(rule, "repo-1");
     expect(withoutMax.max_interval_secs).toBeUndefined();
   });
 
   it("merges user annotations, generated keys always winning", () => {
-    const spec = toRuleSpec(
+    const input = toRuleInput(
       parseRule({ annotations: { team: "platform-eng", owner: "gio" } }),
       "repo-1",
     );
-    expect(spec.annotations.team).toBe("platform-eng");
-    expect(spec.annotations.owner).toBe("gio");
+    expect(input.annotations.team).toBe("platform-eng");
+    expect(input.annotations.owner).toBe("gio");
     // Generated keys are untouched by the merge.
-    expect(spec.annotations[OWN_NAME]).toBe("high-5xx");
-    expect(spec.annotations[OWN_REPO]).toBe("repo-1");
-  });
-});
-
-describe("withAlertLink", () => {
-  it("stamps link.alert with the alert detail URL, keeping the rest intact", () => {
-    const spec = toRuleSpec(rule, "repo-1");
-    const linked = withAlertLink(spec, "https://app.example.com", "rule-123");
-    expect(linked.annotations["link.alert"]).toBe(
-      "https://app.example.com/alerts/rules/rule-123",
-    );
-    // Non-mutating, and everything else is unchanged.
-    expect(spec.annotations["link.alert"]).toBeUndefined();
-    expect(linked.sql).toBe(spec.sql);
-    expect(linked.annotations[OWN_NAME]).toBe("high-5xx");
+    expect(input.name).toBe("default/high-5xx");
+    expect(input.annotations[OWN_REPO]).toBe("repo-1");
   });
 });
 
 describe("isOwnedRule", () => {
-  it("requires everr.name and (optionally) a matching repo", () => {
-    const spec = toRuleSpec(rule, "repo-1");
-    expect(isOwnedRule(spec)).toBe(true);
-    expect(isOwnedRule(spec, "repo-1")).toBe(true);
-    expect(isOwnedRule(spec, "repo-2")).toBe(false);
-    // A bare CC rule (no everr.name) is never owned, regardless of repoid.
-    expect(isOwnedRule({ ...spec, annotations: {} } as never)).toBe(false);
-    expect(isOwnedRule({ ...spec, annotations: {} } as never, "repo-1")).toBe(
-      false,
-    );
+  it("requires everr.repoid and (optionally) a matching repo", () => {
+    const owned = asRule(toRuleInput(rule, "repo-1"));
+    expect(isOwnedRule(owned)).toBe(true);
+    expect(isOwnedRule(owned, "repo-1")).toBe(true);
+    expect(isOwnedRule(owned, "repo-2")).toBe(false);
+    // A bare CC rule (no everr.repoid) is never owned, regardless of repoid.
+    const unowned = { ...owned, spec: { ...owned.spec, annotations: {} } };
+    expect(isOwnedRule(unowned)).toBe(false);
+    expect(isOwnedRule(unowned, "repo-1")).toBe(false);
   });
 });
 
 describe("toAlertRuleDocument", () => {
-  it("round-trips through the schema and back to an equivalent CC spec", () => {
-    const input = parseRule(
+  it("round-trips through the schema and back to an equivalent CC rule input", () => {
+    const parsed = parseRule(
       {
         for: "10m",
         resolveAfter: 3,
@@ -246,14 +266,14 @@ describe("toAlertRuleDocument", () => {
       },
       { name: "high-5xx" },
     );
-    const spec = toRuleSpec(input, "repo-1");
-    const doc = toAlertRuleDocument(spec);
+    const ruleInput = toRuleInput(parsed, "repo-1");
+    const doc = toAlertRuleDocument(asRule(ruleInput));
 
     // The reconstructed document is valid as-code input...
     const reparsed = AlertRuleYamlSchema.parse(JSON.parse(JSON.stringify(doc)));
     expect(reparsed.metadata.name).toBe("high-5xx");
     expect(reparsed.metadata.labels).toEqual({ team: "platform" });
-    expect(reparsed.spec.display).toEqual(input.spec.display);
+    expect(reparsed.spec.display).toEqual(parsed.spec.display);
     expect(reparsed.spec.runbook).toBe("ops/high-5xx");
     expect(reparsed.spec.evaluationInterval).toBe("5m");
     expect(reparsed.spec.for).toBe("10m");
@@ -261,12 +281,27 @@ describe("toAlertRuleDocument", () => {
     expect(reparsed.spec.maxInterval).toBe("1h");
     expect(reparsed.spec.annotations).toEqual({ "team.pager": "platform" });
 
-    // ...and mapping it forward again reproduces the original CC spec.
-    expect(toRuleSpec(reparsed, "repo-1")).toEqual(spec);
+    // ...and mapping it forward again reproduces the original CC rule input.
+    expect(toRuleInput(reparsed, "repo-1")).toEqual(ruleInput);
+  });
+
+  it("omits the project when it is the default project", () => {
+    const doc = toAlertRuleDocument(asRule(toRuleInput(parseRule(), "repo-1")));
+    const json = JSON.parse(JSON.stringify(doc));
+    expect(json.metadata.project).toBeUndefined();
+  });
+
+  it("recovers a non-default project from the CC name", () => {
+    const doc = toAlertRuleDocument(
+      asRule(toRuleInput(parseRule({}, { project: "payments" }), "repo-1")),
+    );
+    const json = JSON.parse(JSON.stringify(doc));
+    expect(json.metadata.project).toBe("payments");
+    expect(json.metadata.name).toBe("high-5xx");
   });
 
   it("omits optional fields that the spec does not carry", () => {
-    const doc = toAlertRuleDocument(toRuleSpec(parseRule(), "repo-1"));
+    const doc = toAlertRuleDocument(asRule(toRuleInput(parseRule(), "repo-1")));
     const json = JSON.parse(JSON.stringify(doc));
     expect(json.spec.runbook).toBeUndefined();
     expect(json.spec.valueColumn).toBeUndefined();

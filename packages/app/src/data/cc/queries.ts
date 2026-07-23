@@ -17,9 +17,11 @@ import type { TimeRange } from "@everr/ui/lib/time-range";
 import { infiniteQueryOptions, queryOptions } from "@tanstack/react-query";
 import {
   getCcRule,
+  getCcRuleByName,
   getCcSlo,
   getCcSloBudgetNow,
   getCcSloBudgetSeries,
+  getCcSloByName,
   getCcSloStatus,
   listCcAlerts,
   listCcChannels,
@@ -91,19 +93,43 @@ export const ccQueries = {
       queryFn: () => getCcRule({ data: { ruleId } }),
     }),
 
+  // The slug-addressed rule route's lookup: resolves by first-class name
+  // (project/slug) via an exact-match rules-page query, live namespace only.
+  // Keyed by address (not id) so list -> detail navigation and invalidation
+  // both key off the same identity the route URL carries.
+  ruleByName: (project: string, slug: string) =>
+    queryOptions({
+      queryKey: ["cc", "rule-by-name", project, slug] as const,
+      queryFn: () => getCcRuleByName({ data: { project, slug } }),
+    }),
+
   // The tenant's SLOs (bare configs — no status). A config listing like
   // routes/receivers: it changes through user actions (pause/resume/delete,
   // as-code apply), so mutations invalidate it rather than polling.
-  slos: () =>
-    queryOptions({
-      queryKey: ["cc", "slos"] as const,
-      queryFn: () => listCcSlos(),
-    }),
+  slos: (preview?: string) => {
+    const previewName = preview?.trim() || null;
+    return queryOptions({
+      queryKey: ["cc", "slos", previewName] as const,
+      queryFn: () =>
+        previewName === null
+          ? listCcSlos()
+          : listCcSlos({ data: { preview: previewName } }),
+    });
+  },
 
   slo: (sloId: string) =>
     queryOptions({
       queryKey: ["cc", "slo", sloId] as const,
       queryFn: () => getCcSlo({ data: { sloId } }),
+    }),
+
+  // The slug-addressed SLO route's lookup, the SLO analogue of ruleByName:
+  // resolves by first-class name via an exact-match listSlos query, live
+  // namespace only.
+  sloByName: (project: string, slug: string) =>
+    queryOptions({
+      queryKey: ["cc", "slo-by-name", project, slug] as const,
+      queryFn: () => getCcSloByName({ data: { project, slug } }),
     }),
 
   // The evaluator's latest status snapshot for one SLO (null until the first

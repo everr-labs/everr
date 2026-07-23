@@ -3,7 +3,7 @@
 // budget (the evaluator's latest status snapshot per group), Is it healthy
 // (evaluation health, loud only when degraded).
 import { Badge } from "@everr/ui/components/badge";
-import { Button } from "@everr/ui/components/button";
+import { Button, buttonVariants } from "@everr/ui/components/button";
 import {
   Card,
   CardContent,
@@ -22,9 +22,18 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@everr/ui/components/tooltip";
+import { cn } from "@everr/ui/lib/utils";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { ArrowLeft, Info, Pause, Play, TriangleAlert } from "lucide-react";
+import {
+  ArrowLeft,
+  BookOpenText,
+  HeartCrack,
+  Info,
+  Pause,
+  Play,
+  TriangleAlert,
+} from "lucide-react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import {
@@ -39,7 +48,6 @@ import {
 import {
   CcDisclosureTrigger,
   CcEmptyState,
-  CcHealthBadge,
   CcQueryError,
   CcSeverityBadge,
   CcSloTierBadge,
@@ -51,7 +59,7 @@ import {
   SloBudgetChart,
   type SloBudgetEvent,
 } from "@/components/cc/slo-budget-chart";
-import { SloStatusHero } from "@/components/cc/slo-status";
+import { SloStatsRow, SloStatusHero } from "@/components/cc/slo-status";
 import {
   ANN_LABEL_PREFIX,
   ANN_PROJECT,
@@ -67,6 +75,7 @@ import {
   ccSloChartRange,
   ccSloCurrentBurn,
   ccSloHandles,
+  ccSloIdentity,
   ccSloTierSeverity,
   ccSloTiers,
   ccSloWindowLabel,
@@ -80,9 +89,10 @@ import type {
   CcSloTier,
   CcSloView,
 } from "@/data/cc/types";
+import { fromCcSlo } from "@/data/slos/mapping";
 
 export const Route = createFileRoute(
-  "/_authenticated/_dashboard/alerts/slos_/$sloId",
+  "/_authenticated/_dashboard/alerts/slos_/$project/$slug",
 )({
   // This detail route is flat (slos_), so it doesn't inherit the SLOs listing
   // crumb — emit it here so the trail reads Alerts > SLOs > <name>.
@@ -99,10 +109,12 @@ export const Route = createFileRoute(
   },
   loader: async ({ context: { queryClient }, params }) => {
     // Fetch the SLO first: its window sets the range everything else reads.
-    const slo = await queryClient.ensureQueryData(ccQueries.slo(params.sloId));
+    const slo = await queryClient.ensureQueryData(
+      ccQueries.sloByName(params.project, params.slug),
+    );
     const range = ccSloChartRange(slo.spec);
     await Promise.all([
-      queryClient.prefetchQuery(ccQueries.sloStatus(params.sloId)),
+      queryClient.prefetchQuery(ccQueries.sloStatus(slo.id)),
       // Budget series and event history (chart overlay + firing feed) share this
       // window range. Skipped for a spec whose window doesn't parse (nothing to
       // chart a trailing window over); the feed then falls back to defaults.
@@ -113,7 +125,7 @@ export const Route = createFileRoute(
           ]
         : []),
     ]);
-    return { name: slo.name };
+    return { name: ccSloIdentity(slo).name };
   },
   component: CcSloDetailPage,
 });
@@ -127,57 +139,6 @@ function BackLink() {
     >
       <ArrowLeft className="size-4" />
     </Link>
-  );
-}
-
-// A collapsed-by-default plain-language primer on the four concepts this page
-// leans on. Discoverable for a newcomer, one line out of the way for everyone
-// else. Kept in step with the in-hero glosses and verdict copy.
-function SloPrimer() {
-  const [open, setOpen] = useState(false);
-  const terms: Array<{ term: string; gloss: string }> = [
-    {
-      term: "SLO: the promise",
-      gloss:
-        '"99% of requests succeed over the last 7 days." A realistic target, not "zero errors".',
-    },
-    {
-      term: "Error budget: how much you may fail",
-      gloss:
-        "The leftover (here, the other 1%). Full means room to spare; 0% means the promise is broken for this window.",
-    },
-    {
-      term: "Burn rate: how fast you spend it",
-      gloss:
-        "1× is the sustainable pace; 14× means the whole budget would be gone in hours. This is what pages you.",
-    },
-    {
-      term: "Window: the rolling period",
-      gloss:
-        "Everything is measured over a moving span (e.g. 7 days). Old failures age out, so the budget recovers on its own.",
-    },
-  ];
-  return (
-    <Collapsible open={open} onOpenChange={setOpen}>
-      <CcDisclosureTrigger open={open}>
-        <span className="text-xs font-medium">New to SLOs?</span>
-        {!open && (
-          <span className="min-w-0 truncate text-[0.6875rem] text-muted-foreground">
-            error budget, burn rate, and window in plain words
-          </span>
-        )}
-      </CcDisclosureTrigger>
-      <CollapsibleContent>
-        <dl className="mt-2 grid gap-2.5 rounded-md bg-muted/40 p-3 text-xs ring-1 ring-foreground/10 sm:grid-cols-2">
-          {terms.map(({ term, gloss }) => (
-            <div key={term} className="space-y-0.5">
-              <dt className="font-medium">{term}</dt>
-              <dd className="text-muted-foreground">{gloss}</dd>
-            </div>
-          ))}
-        </dl>
-      </CollapsibleContent>
-    </Collapsible>
   );
 }
 
@@ -224,6 +185,9 @@ function ObjectiveSection({ slo }: { slo: CcSlo }) {
   const [sqlOpen, setSqlOpen] = useState(false);
   const [tiersOpen, setTiersOpen] = useState(false);
   const tiers = ccSloTiers(slo.spec);
+  // Grounds each × threshold in time: window / threshold is how fast that
+  // pace would drain a full budget. Null when the window shorthand won't parse.
+  const windowSecs = ccSloWindowSecs(slo.spec);
   const ann = slo.spec.annotations;
   // Surface the as-code identity fields natively instead of behind a YAML dump.
   // `everr.project` and `everr.label.*` fold into first-class fields (as they do
@@ -241,14 +205,12 @@ function ObjectiveSection({ slo }: { slo: CcSlo }) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Objective</CardTitle>
+        <CardTitle>Definition</CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
+        {/* Target and window lead the stats row (the SLO stat), so the
+            definition card carries only what isn't already on screen. */}
         <dl className="divide-y divide-border/60">
-          <DefRow label="Target">
-            {ccFormatSloTarget(slo.spec.targetPercent)}
-          </DefRow>
-          <DefRow label="Window">{ccSloWindowLabel(slo.spec)}</DefRow>
           {slo.spec.min_valid_events !== undefined && (
             <DefRow label="Min valid events">
               {slo.spec.min_valid_events}
@@ -312,12 +274,27 @@ function ObjectiveSection({ slo }: { slo: CcSlo }) {
                     {rows.map((t) => (
                       <dd
                         key={t.name}
-                        className="font-mono text-[0.6875rem] text-muted-foreground"
+                        className="text-[0.6875rem] text-muted-foreground"
                       >
-                        <span className="text-foreground">{t.name}</span> ·{" "}
-                        {ccFmtBurn(t.burn_rate)} over{" "}
-                        {ccFmtWindowLabel(t.long_window)} (short{" "}
-                        {ccFmtWindowLabel(t.short_window)})
+                        <span className="font-mono text-foreground">
+                          {t.name}
+                        </span>{" "}
+                        · burn ≥{" "}
+                        <span className="font-mono tabular-nums">
+                          {ccFmtBurn(t.burn_rate)}
+                        </span>{" "}
+                        over both the last {ccFmtWindowLabel(t.long_window)} and
+                        the last {ccFmtWindowLabel(t.short_window)}
+                        {/* The threshold's real-world meaning: how fast that
+                            pace would drain a full budget (the workbook logic
+                            behind the canonical numbers). */}
+                        {windowSecs !== null && (
+                          <>
+                            {" "}
+                            — a pace that empties the whole budget in ~
+                            {ccFormatSloDuration(windowSecs / t.burn_rate)}
+                          </>
+                        )}
                       </dd>
                     ))}
                   </div>
@@ -357,6 +334,7 @@ function StatusSection({ slo }: { slo: CcSlo }) {
   // meanwhile; this only refines budget/SLI/time-to-exhaustion.
   const fresh = useQuery(ccQueries.sloBudgetNow(slo.id));
   const tiers = ccSloTiers(slo.spec);
+  const [groupsOpen, setGroupsOpen] = useState(false);
 
   const groupCols: Column<CcSloGroupStatus>[] = [
     {
@@ -414,14 +392,14 @@ function StatusSection({ slo }: { slo: CcSlo }) {
               {ccFmtBurn(burn.rate)}
               <span className="text-muted-foreground">
                 {" "}
-                / {ccFmtWindowLabel(burn.window)}
+                · last {ccFmtWindowLabel(burn.window)}
               </span>
             </TooltipTrigger>
             <TooltipContent className="space-y-1.5">
               <p className="max-w-56 text-xs">
-                Error-budget burn over each tier&rsquo;s windows; 1&times;
-                spends exactly the budget over {ccSloWindowLabel(slo.spec)}. A
-                tier fires when both its windows exceed its threshold.
+                Average burn over each alert window; 1&times; spends exactly the
+                budget over {ccSloWindowLabel(slo.spec)}. A tier fires when both
+                its windows reach its threshold.
               </p>
               <table className="font-mono text-[0.6875rem] tabular-nums">
                 <tbody>
@@ -434,13 +412,13 @@ function StatusSection({ slo }: { slo: CcSlo }) {
                           {snap?.long_burn_rate != null
                             ? ccFmtBurn(snap.long_burn_rate)
                             : "—"}{" "}
-                          / {ccFmtWindowLabel(t.long_window)}
+                          last {ccFmtWindowLabel(t.long_window)}
                         </td>
                         <td className="pr-2">
                           {snap?.short_burn_rate != null
                             ? ccFmtBurn(snap.short_burn_rate)
                             : "—"}{" "}
-                          / {ccFmtWindowLabel(t.short_window)}
+                          last {ccFmtWindowLabel(t.short_window)}
                         </td>
                         <td>fires &ge;{ccFmtBurn(t.burn_rate)}</td>
                       </tr>
@@ -546,7 +524,10 @@ function StatusSection({ slo }: { slo: CcSlo }) {
 
   return (
     <div className="space-y-2">
-      {/* At-a-glance: the worst group's budget, burn, and per-tier pressure. */}
+      {/* The headline numbers as one strip: budget, promise, SLI, burn, and
+          the horizon — all the worst group's, same as the hero below. */}
+      <SloStatsRow slo={slo} worst={worst} />
+      {/* At-a-glance: the verdict, state, and per-tier alert pressure. */}
       <SloStatusHero slo={slo} worst={worst} groupCount={groups.length} />
       {/* The budget is computed at read time: "just now" once the scan lands,
           and the stored snapshot (already in the hero) meanwhile. */}
@@ -558,29 +539,36 @@ function StatusSection({ slo }: { slo: CcSlo }) {
       </p>
 
       {/* The full per-group breakdown, only when there is more than one group
-          to break down — a scalar SLO is fully described by the hero above. */}
+          to break down. Keep it available, but not louder than the answer. */}
       {groups.length > 1 && (
-        <Card inset="flush-content">
-          <CardHeader>
-            <CardTitle>All groups</CardTitle>
-            <CardDescription>
-              Per-group SLI, error budget, burn rate, and firing tiers.
-            </CardDescription>
+        <Card>
+          <CardHeader className="pb-1">
+            <Collapsible open={groupsOpen} onOpenChange={setGroupsOpen}>
+              <CcDisclosureTrigger open={groupsOpen}>
+                <span className="text-xs font-medium">All groups</span>
+                {!groupsOpen && (
+                  <span className="text-[0.6875rem] text-muted-foreground">
+                    SLI, budget, burn, and firing tiers for {groups.length}{" "}
+                    groups
+                  </span>
+                )}
+              </CcDisclosureTrigger>
+              <CollapsibleContent>
+                <div className="mt-2">
+                  <DataTable
+                    data={groups}
+                    columns={groupCols}
+                    rowKey={(g) => JSON.stringify(g.labels)}
+                  />
+                </div>
+              </CollapsibleContent>
+            </Collapsible>
           </CardHeader>
-          <CardContent>
-            <DataTable
-              data={groups}
-              columns={groupCols}
-              rowKey={(g) => JSON.stringify(g.labels)}
-            />
-          </CardContent>
         </Card>
       )}
     </div>
   );
 }
-
-// ── History ───────────────────────────────────────────────────────────────────
 
 // ── How's the budget trending ─────────────────────────────────────────────────
 
@@ -623,7 +611,7 @@ function BudgetHistorySection({ slo }: { slo: CcSloView }) {
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-1.5">
-          Error budget over time
+          Budget history
           <Tooltip>
             <TooltipTrigger
               render={
@@ -691,43 +679,35 @@ function HealthSection({ sloId }: { sloId: string }) {
   // state — no card at all beats an empty shell.
   if (!status.data) return null;
   const health: CcSloHealth = status.data.health;
-  const degraded = health.status === "degraded";
+  // The stats row carries the healthy readout; this card exists only for the
+  // degraded forensics, where loud is right — the SLI query is failing, so
+  // every number above is going stale.
+  if (health.status !== "degraded") return null;
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Is it healthy</CardTitle>
+        <CardTitle>Evaluator</CardTitle>
       </CardHeader>
       <CardContent>
-        {degraded ? (
-          // Degraded is loud: the SLI query is failing, so the budget
-          // numbers above are going stale.
-          <div
-            role="alert"
-            className="space-y-2 rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive"
-          >
-            <p className="flex items-center gap-2 font-medium">
-              <TriangleAlert className="size-4 shrink-0" />
-              Evaluation degraded since {ccFormatTs(health.degraded_since)}
+        <div
+          role="alert"
+          className="space-y-2 rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive"
+        >
+          <p className="flex items-center gap-2 font-medium">
+            <TriangleAlert className="size-4 shrink-0" />
+            Evaluation degraded since {ccFormatTs(health.degraded_since)}
+          </p>
+          {health.last_error && (
+            <p className="font-mono text-xs break-all opacity-90">
+              {health.last_error}
             </p>
-            {health.last_error && (
-              <p className="font-mono text-xs break-all opacity-90">
-                {health.last_error}
-              </p>
-            )}
-            <p className="text-xs opacity-90">
-              The SLI query is failing; the error budget snapshot stops updating
-              until it evaluates again.
-            </p>
-          </div>
-        ) : (
-          <div className="flex items-center gap-1.5 text-xs">
-            <CcHealthBadge status={health.status} />
-            <span className="text-muted-foreground">
-              · SLI evaluation is running normally
-            </span>
-          </div>
-        )}
+          )}
+          <p className="text-xs opacity-90">
+            The SLI query is failing; the error budget snapshot stops updating
+            until it evaluates again.
+          </p>
+        </div>
       </CardContent>
     </Card>
   );
@@ -736,19 +716,33 @@ function HealthSection({ sloId }: { sloId: string }) {
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 function CcSloDetailPage() {
-  const { sloId } = Route.useParams();
+  const { project, slug } = Route.useParams();
   const qc = useQueryClient();
-  const slo = useQuery(ccQueries.slo(sloId));
+  const slo = useQuery(ccQueries.sloByName(project, slug));
+  // Evaluator health rides the (cache-shared, polling) status read. Healthy
+  // is the normal system state and stays silent; only degraded surfaces, as
+  // the broken heart beside the title.
+  const sloId = slo.data?.id;
+  const status = useQuery({
+    ...ccQueries.sloStatus(sloId ?? ""),
+    enabled: sloId !== undefined,
+  });
+  const evaluatorBroken = status.data?.health.status === "degraded";
 
   const toggle = useMutation({
-    mutationFn: (paused: boolean) =>
-      paused
-        ? resumeCcSlo({ data: { sloId } })
-        : pauseCcSlo({ data: { sloId } }),
+    mutationFn: (paused: boolean) => {
+      const id = slo.data?.id;
+      if (!id) throw new Error("SLO not loaded");
+      return paused
+        ? resumeCcSlo({ data: { sloId: id } })
+        : pauseCcSlo({ data: { sloId: id } });
+    },
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ccQueries.slo(sloId).queryKey });
+      qc.invalidateQueries({
+        queryKey: ccQueries.sloByName(project, slug).queryKey,
+      });
       // The SLOs listing shows the paused state too.
-      qc.invalidateQueries({ queryKey: ccQueries.slos().queryKey });
+      qc.invalidateQueries({ queryKey: ["cc", "slos"] });
       toast.success("SLO updated");
     },
     onError: (e) => toast.error(ccErrorMessage(e)),
@@ -767,41 +761,88 @@ function CcSloDetailPage() {
   }
 
   const s = slo.data;
+  const view = fromCcSlo(s);
+  const identity = ccSloIdentity(s);
 
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex flex-wrap items-center gap-3">
           <BackLink />
-          <h2 className="text-base font-semibold">{s.name}</h2>
-          <span className="font-mono text-xs text-muted-foreground">
-            {s.id.slice(0, 8)}
-          </span>
-          <span className="font-mono text-xs text-muted-foreground">
-            {ccFormatSloTarget(s.spec.targetPercent)} over{" "}
-            {ccSloWindowLabel(s.spec)}
-          </span>
+          <h2 className="text-base font-semibold">{identity.name}</h2>
+          {/* The slug stays reachable next to a display name; suppressed
+              entirely when it IS the name (no display name set). */}
+          {identity.displayName && (
+            <span className="font-mono text-xs text-muted-foreground">
+              {identity.slug}
+            </span>
+          )}
+          {/* The evaluator breaking is the one system fault worth wearing on
+              the title: the SLI query is failing, so every number below is
+              going stale. Healthy stays silent. */}
+          {evaluatorBroken && (
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <button
+                    type="button"
+                    aria-label="Evaluator degraded"
+                    className="text-destructive"
+                  />
+                }
+              >
+                <HeartCrack className="size-4" />
+              </TooltipTrigger>
+              <TooltipContent className="max-w-xs text-xs">
+                The evaluator is degraded: the SLI query is failing and the
+                numbers below are going stale. Details in the Evaluator card at
+                the bottom.
+              </TooltipContent>
+            </Tooltip>
+          )}
+          {/* The promise itself (target over window) leads the stats row
+              below, so the header carries just the name and its flags. */}
           {s.paused && <Badge variant="secondary">paused</Badge>}
           {s.spec.suppressed && (
             // Evaluates fully but never notifies — worth a loud flag.
             <Badge variant="destructive">suppressed</Badge>
           )}
         </div>
-        <Button
-          variant="outline"
-          disabled={toggle.isPending}
-          onClick={() => toggle.mutate(s.paused)}
-        >
-          {s.paused ? (
-            <Play data-icon="inline-start" />
-          ) : (
-            <Pause data-icon="inline-start" />
+        <div className="flex items-center gap-2">
+          {view.runbookSlug && (
+            <Link
+              to="/runbooks/$project/$slug"
+              params={{
+                project: view.runbookProject ?? "default",
+                slug: view.runbookSlug,
+              }}
+              className={cn(buttonVariants({ variant: "ghost" }))}
+            >
+              <BookOpenText data-icon="inline-start" />
+              Runbook
+            </Link>
           )}
-          {s.paused ? "Resume" : "Pause"}
-        </Button>
+          <Button
+            variant="outline"
+            disabled={toggle.isPending}
+            onClick={() => toggle.mutate(s.paused)}
+          >
+            {s.paused ? (
+              <Play data-icon="inline-start" />
+            ) : (
+              <Pause data-icon="inline-start" />
+            )}
+            {s.paused ? "Resume" : "Pause"}
+          </Button>
+        </div>
       </div>
 
-      <SloPrimer />
+      {view.displayDescription && (
+        <p className="max-w-prose text-xs text-muted-foreground">
+          {view.displayDescription}
+        </p>
+      )}
+
       <StatusSection slo={s} />
       <BudgetHistorySection slo={s} />
       <ObjectiveSection slo={s} />

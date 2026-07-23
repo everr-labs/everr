@@ -1,3 +1,4 @@
+use crate::support::create_test_rule;
 use cc::domain::ids::{RuleId, TenantId};
 use cc::domain::rule::{RuleSpec, Severity};
 use cc::stores::{PgStore, RuleUpdate};
@@ -51,7 +52,13 @@ async fn instance_keys(s: &PgStore, rule: RuleId) -> Vec<String> {
 async fn update_bumps_version_and_preserves_id_pause_and_instances() {
     let s = store().await;
     let tenant = TenantId::from_trusted(Uuid::new_v4().to_string());
-    let rule = s.create_rule(tenant.clone(), &spec()).await.unwrap();
+    let rule = create_test_rule(
+        &s,
+        tenant.clone(),
+        "t/update_bumps_version_and_preserves_id_pause_and_instances",
+        &spec(),
+    )
+    .await;
     assert_eq!(rule.version, 1);
     s.pause_rule(tenant.clone(), rule.id).await.unwrap();
     seed_instance(&s, rule.id, &tenant, "k1").await;
@@ -90,7 +97,7 @@ async fn update_bumps_version_and_preserves_id_pause_and_instances() {
 async fn update_version_guard() {
     let s = store().await;
     let tenant = TenantId::from_trusted(Uuid::new_v4().to_string());
-    let rule = s.create_rule(tenant.clone(), &spec()).await.unwrap();
+    let rule = create_test_rule(&s, tenant.clone(), "t/update_version_guard", &spec()).await;
 
     // Wrong expected version: rejected, nothing written.
     let out = s
@@ -123,7 +130,13 @@ async fn update_version_guard() {
 async fn label_columns_change_clears_instances_and_rollup() {
     let s = store().await;
     let tenant = TenantId::from_trusted(Uuid::new_v4().to_string());
-    let rule = s.create_rule(tenant.clone(), &spec()).await.unwrap();
+    let rule = create_test_rule(
+        &s,
+        tenant.clone(),
+        "t/label_columns_change_clears_instances_and_rollup",
+        &spec(),
+    )
+    .await;
     seed_instance(&s, rule.id, &tenant, "k1").await;
     sqlx::query("UPDATE rules SET alert_state='firing', firing_instance_count=1, last_row_count=3 WHERE id=$1")
         .bind(rule.id.0)
@@ -169,7 +182,13 @@ async fn label_columns_change_clears_instances_and_rollup() {
 async fn sql_change_resets_failure_counter_but_not_health_status() {
     let s = store().await;
     let tenant = TenantId::from_trusted(Uuid::new_v4().to_string());
-    let rule = s.create_rule(tenant.clone(), &spec()).await.unwrap();
+    let rule = create_test_rule(
+        &s,
+        tenant.clone(),
+        "t/sql_change_resets_failure_counter_but_not_health_status",
+        &spec(),
+    )
+    .await;
     sqlx::query(
         "UPDATE rules SET consecutive_failures=4, last_error='boom', last_error_at=now(),
                           health_status='degraded', degraded_since=now()
@@ -216,7 +235,13 @@ async fn sql_change_resets_failure_counter_but_not_health_status() {
 async fn interval_change_pulls_next_eval_forward() {
     let s = store().await;
     let tenant = TenantId::from_trusted(Uuid::new_v4().to_string());
-    let rule = s.create_rule(tenant.clone(), &spec()).await.unwrap();
+    let rule = create_test_rule(
+        &s,
+        tenant.clone(),
+        "t/interval_change_pulls_next_eval_forward",
+        &spec(),
+    )
+    .await;
     // Simulate a slow rule mid-cycle: next eval an hour out.
     sqlx::query("UPDATE rules SET next_eval = now() + interval '1 hour' WHERE id=$1")
         .bind(rule.id.0)

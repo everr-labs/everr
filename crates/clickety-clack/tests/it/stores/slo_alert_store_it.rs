@@ -28,7 +28,11 @@ async fn store() -> PgStore {
 }
 
 async fn make_slo(s: &PgStore, tenant: &TenantId, name: &str) -> SloId {
-    match s.create_slo(tenant.clone(), name, &spec()).await.unwrap() {
+    match s
+        .create_slo(tenant.clone(), "", name, &spec())
+        .await
+        .unwrap()
+    {
         SloCreate::Created(slo) => slo.id,
         _ => panic!(),
     }
@@ -65,6 +69,7 @@ async fn persist_and_load_roundtrip() {
         tenant: t.clone(),
         rule,
         slo: Some(slo_id),
+        name: String::new(),
         instance_key: inst_b.key.clone(),
         status: EventStatus::Firing,
         kind: EventKind::Alert,
@@ -185,7 +190,7 @@ async fn list_for_dispatch_projects_label_columns() {
     // Explicit label_columns are returned verbatim.
     let mut spec_a = spec();
     spec_a.sli.label_columns = vec!["service".to_string()];
-    let slo_a = match s.create_slo(t.clone(), "a", &spec_a).await.unwrap() {
+    let slo_a = match s.create_slo(t.clone(), "", "a", &spec_a).await.unwrap() {
         SloCreate::Created(slo) => slo.id,
         other => panic!("expected Created, got {other:?}"),
     };
@@ -193,7 +198,7 @@ async fn list_for_dispatch_projects_label_columns() {
     // A scalar SLO (no label columns) comes back with an empty list.
     let mut spec_b = spec();
     spec_b.sli.label_columns = vec![];
-    let slo_b = match s.create_slo(t.clone(), "b", &spec_b).await.unwrap() {
+    let slo_b = match s.create_slo(t.clone(), "", "b", &spec_b).await.unwrap() {
         SloCreate::Created(slo) => slo.id,
         other => panic!("expected Created, got {other:?}"),
     };

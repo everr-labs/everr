@@ -76,12 +76,13 @@ fn kv(k: &str, v: AnyValue) -> KeyValue {
     }
 }
 
-/// Resolve the slug: the `everr.name` annotation, falling back to the rule id.
+/// Resolve the slug: the first-class rule/SLO name, falling back to the rule id
+/// for pre-upgrade events whose payload predates the field.
 pub fn slug_for(ev: &Event) -> String {
-    ev.annotations
-        .get("everr.name")
-        .cloned()
-        .unwrap_or_else(|| ev.rule.0.to_string())
+    if !ev.name.is_empty() {
+        return ev.name.clone();
+    }
+    ev.rule.0.to_string()
 }
 
 /// Build one OTLP `LogRecord` for an alert event of `etype`. `time_unix_nano` is
@@ -160,13 +161,14 @@ mod tests {
             tenant: TenantId::from_trusted("tenant-1".to_string()),
             rule: RuleId(Uuid::nil()),
             slo: None,
+            name: "my-slug".to_string(),
             instance_key: InstanceKey("fp123".into()),
             status: EventStatus::Firing,
             kind: EventKind::Alert,
             labels: BTreeMap::from([("svc".to_string(), "api".to_string())]),
             value: Some(42.0),
             severity: Severity::Critical,
-            annotations: BTreeMap::from([("everr.name".to_string(), "my-slug".to_string())]),
+            annotations: BTreeMap::new(),
             eval_ts: time::OffsetDateTime::UNIX_EPOCH,
             suppressed: false,
             evidence: None,
@@ -254,9 +256,19 @@ mod tests {
     }
 
     #[test]
+    fn slug_prefers_first_class_name() {
+        let mut ev = ev(); // the file's existing fixture
+        ev.name = "default/api-errors".to_string();
+        assert_eq!(slug_for(&ev), "default/api-errors");
+        ev.name = String::new();
+        // Pre-upgrade payloads (empty name) fall back to the rule id.
+        assert_eq!(slug_for(&ev), ev.rule.0.to_string());
+    }
+
+    #[test]
     fn slug_falls_back_to_rule_id() {
         let mut e = ev();
-        e.annotations.clear();
+        e.name = String::new();
         assert_eq!(slug_for(&e), Uuid::nil().to_string());
         let rec = build_log_record(
             &e,

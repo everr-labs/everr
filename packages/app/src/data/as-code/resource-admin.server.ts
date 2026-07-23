@@ -1,15 +1,16 @@
 import { and, eq, isNull, ne, or } from "drizzle-orm";
 import {
-  fromCcRuleSpec,
+  fromCcRule,
   isOwnedRule,
   OWN_REPO,
   previewIdOf,
   toAlertRuleDocument,
 } from "@/data/alerts/mapping";
+import { formatResourceName } from "@/data/as-code/identity";
 import * as cc from "@/data/cc/client";
 import type { CcRuleView, CcSloView } from "@/data/cc/types";
 import {
-  fromCcSloSpec,
+  fromCcSlo,
   isOwnedSlo,
   previewIdOfSlo,
   toSloDocument,
@@ -23,8 +24,6 @@ export type ResourceKind = (typeof RESOURCE_KINDS)[number];
 export function isResourceKind(value: string): value is ResourceKind {
   return (RESOURCE_KINDS as readonly string[]).includes(value);
 }
-
-const ALERT_PROJECT = "default";
 
 export interface ResourceSummary {
   kind: ResourceKind;
@@ -155,15 +154,13 @@ function pgBackend(kind: ResourceKind, pgTable: PgTable): KindBackend {
 }
 
 /**
- * The org's live as-code alert rules: everr-owned (tagged `everr.name`) and
- * not part of a preview namespace. Engine-only rules (no `everr.name`) are not
- * as-code resources and never surface here.
+ * The org's live as-code alert rules: everr-owned (tagged `everr.repoid`) and
+ * not part of a preview namespace. Engine-only rules (no `everr.repoid`) are
+ * not as-code resources and never surface here.
  */
 async function listLiveAlertRules(orgId: string): Promise<CcRuleView[]> {
   const rules = await cc.listAllRules(orgId);
-  return rules.filter(
-    (r) => isOwnedRule(r.spec) && previewIdOf(r.spec) === null,
-  );
+  return rules.filter((r) => isOwnedRule(r) && previewIdOf(r) === null);
 }
 
 /** The live as-code alert rule for `(project, slug)`, or null. */
@@ -172,30 +169,30 @@ async function findAlertRule(
   project: string,
   slug: string,
 ): Promise<CcRuleView | null> {
-  if (project !== ALERT_PROJECT) return null;
   const rules = await listLiveAlertRules(orgId);
-  return rules.find((r) => fromCcRuleSpec(r.spec).slug === slug) ?? null;
+  return (
+    rules.find((r) => r.name === formatResourceName(project, slug)) ?? null
+  );
 }
 
 /**
  * The clickety-clack-backed storage for alerts: a simple alert IS a CC rule
- * tagged `everr.name` + `everr.repoid` (see data/alerts/apply.server.ts), so
- * every operation goes to the CC API instead of a Drizzle table. Alerts have
- * no project dimension in CC; they surface under the "default" project, and
- * alerts have no stored document (the CC rule is the resource), so a canonical
- * `kind: AlertRule` document is reconstructed from the rule's spec on read.
- * Adoption rewrites the rule's `everr.repoid` annotation via a version-guarded
- * update, so instance state survives it.
+ * tagged `everr.repoid` (see data/alerts/apply.server.ts), so every operation
+ * goes to the CC API instead of a Drizzle table. Alerts have no stored
+ * document (the CC rule is the resource), so a canonical `kind: AlertRule`
+ * document is reconstructed from the rule on read. Adoption rewrites the
+ * rule's `everr.repoid` annotation via a version-guarded update, so instance
+ * state survives it.
  */
 const alertBackend: KindBackend = {
   async list(orgId, repoid) {
     const rules = await listLiveAlertRules(orgId);
     return rules
-      .map((r) => ({ view: fromCcRuleSpec(r.spec), updatedAt: r.updated_at }))
+      .map((r) => ({ view: fromCcRule(r), updatedAt: r.updated_at }))
       .filter(({ view }) => repoid === undefined || view.repoid === repoid)
       .map(({ view, updatedAt }) => ({
         kind: "alert" as const,
-        project: ALERT_PROJECT,
+        project: view.project,
         slug: view.slug,
         repoid: view.repoid,
         updatedAt,
@@ -203,7 +200,7 @@ const alertBackend: KindBackend = {
   },
   async get(orgId, project, slug) {
     const rule = await findAlertRule(orgId, project, slug);
-    return rule ? toAlertRuleDocument(rule.spec) : null;
+    return rule ? toAlertRuleDocument(rule) : null;
   },
   async delete(orgId, project, slug) {
     const rule = await findAlertRule(orgId, project, slug);
@@ -214,7 +211,7 @@ const alertBackend: KindBackend = {
   async adopt(orgId, project, slug, destRepoid) {
     const rule = await findAlertRule(orgId, project, slug);
     if (!rule) return { found: false, alreadyOwned: false };
-    if (fromCcRuleSpec(rule.spec).repoid === destRepoid) {
+    if (fromCcRule(rule).repoid === destRepoid) {
       return { found: true, alreadyOwned: true };
     }
     await cc.updateRule(
@@ -231,15 +228,13 @@ const alertBackend: KindBackend = {
 };
 
 /**
- * The org's live as-code SLOs: everr-owned (tagged `everr.name`) and not part
- * of a preview namespace. Engine-only SLOs (no `everr.name`, e.g. UI-created)
- * are not as-code resources and never surface here.
+ * The org's live as-code SLOs: everr-owned (tagged `everr.repoid`) and not
+ * part of a preview namespace. Engine-only SLOs (no `everr.repoid`, e.g.
+ * UI-created) are not as-code resources and never surface here.
  */
 async function listLiveOwnedSlos(orgId: string): Promise<CcSloView[]> {
   const slos = await cc.listSlos(orgId);
-  return slos.filter(
-    (s) => isOwnedSlo(s.spec) && previewIdOfSlo(s.spec) === null,
-  );
+  return slos.filter((s) => isOwnedSlo(s) && previewIdOfSlo(s) === null);
 }
 
 /** The live as-code SLO for `(project, slug)`, or null. */
@@ -249,28 +244,23 @@ async function findSlo(
   slug: string,
 ): Promise<CcSloView | null> {
   const slos = await listLiveOwnedSlos(orgId);
-  return (
-    slos.find((s) => {
-      const view = fromCcSloSpec(s.spec);
-      return view.slug === slug && view.project === project;
-    }) ?? null
-  );
+  return slos.find((s) => s.name === formatResourceName(project, slug)) ?? null;
 }
 
 /**
  * The clickety-clack-backed storage for SLOs, the exact analogue of
- * `alertBackend`: an as-code SLO IS a CC SLO tagged `everr.name` +
- * `everr.repoid` (see data/slos/apply.server.ts). SLOs address by their
- * declared `everr.project` annotation ("default" when none) plus the as-code
- * name, have no stored document (a canonical `kind: SLO` document is
- * reconstructed from the spec on read), and adoption rewrites `everr.repoid`
- * via a version-guarded update so burn-rate instance state survives it.
+ * `alertBackend`: an as-code SLO IS a CC SLO tagged `everr.repoid` (see
+ * data/slos/apply.server.ts). SLOs address by their first-class `name`
+ * (project/slug qualified), have no stored document (a canonical `kind: SLO`
+ * document is reconstructed from the spec on read), and adoption rewrites
+ * `everr.repoid` via a version-guarded update so burn-rate instance state
+ * survives it.
  */
 const sloBackend: KindBackend = {
   async list(orgId, repoid) {
     const slos = await listLiveOwnedSlos(orgId);
     return slos
-      .map((s) => ({ view: fromCcSloSpec(s.spec), updatedAt: s.updated_at }))
+      .map((s) => ({ view: fromCcSlo(s), updatedAt: s.updated_at }))
       .filter(({ view }) => repoid === undefined || view.repoid === repoid)
       .map(({ view, updatedAt }) => ({
         kind: "slo" as const,
@@ -282,7 +272,7 @@ const sloBackend: KindBackend = {
   },
   async get(orgId, project, slug) {
     const slo = await findSlo(orgId, project, slug);
-    return slo ? toSloDocument(slo.spec) : null;
+    return slo ? toSloDocument(slo) : null;
   },
   async delete(orgId, project, slug) {
     const slo = await findSlo(orgId, project, slug);
@@ -293,14 +283,13 @@ const sloBackend: KindBackend = {
   async adopt(orgId, project, slug, destRepoid) {
     const slo = await findSlo(orgId, project, slug);
     if (!slo) return { found: false, alreadyOwned: false };
-    if (fromCcSloSpec(slo.spec).repoid === destRepoid) {
+    if (fromCcSlo(slo).repoid === destRepoid) {
       return { found: true, alreadyOwned: true };
     }
     await cc.updateSlo(
       orgId,
       slo.id,
       {
-        name: slo.name,
         ...slo.spec,
         annotations: { ...slo.spec.annotations, [OWN_REPO]: destRepoid },
       },

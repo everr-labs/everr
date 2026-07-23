@@ -1,6 +1,7 @@
 // The frontend mirror of domain/slo.rs: canonical tiers, tier-severity
 // resolution, event handles, and the budget-projection duration format.
 import { describe, expect, it } from "vitest";
+import { ANN_DISPLAY_NAME } from "@/data/alerts/annotations";
 import {
   CC_CANONICAL_SLO_TIERS,
   ccApplyFreshBudget,
@@ -9,13 +10,17 @@ import {
   ccFormatSloDuration,
   ccSloBurnPace,
   ccSloBurnPaceLabel,
+  ccSloBurnShape,
+  ccSloBurnShapeCaption,
   ccSloChartRange,
   ccSloCurrentBurn,
   ccSloGroupBreakdown,
   ccSloHandleResolver,
   ccSloHandles,
+  ccSloIdentity,
   ccSloTierSeverity,
   ccSloVerdict,
+  ccSloWindowBurns,
   ccTiersForWindow,
   ccTimeToExhaustionSecs,
 } from "./slo";
@@ -36,6 +41,7 @@ function slo(overrides: Partial<CcSlo> = {}): CcSlo {
   return {
     id: "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
     tenant: "org1",
+    namespace: "",
     name: "checkout-availability",
     spec: spec(),
     version: 1,
@@ -123,26 +129,58 @@ describe("ccSloTierSeverity", () => {
 });
 
 describe("SLO event handles", () => {
-  it("carries the uuid alone without an everr.name annotation, both with one", () => {
+  it("carries the uuid and the first-class name, with no legacy handle for a slashless name", () => {
     expect(ccSloHandles(slo())).toEqual([
       "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+      "checkout-availability",
     ]);
-    expect(
-      ccSloHandles(
-        slo({ spec: spec({ annotations: { "everr.name": "checkout" } }) }),
-      ),
-    ).toEqual(["aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee", "checkout"]);
   });
 
-  it("resolves either handle to the SLO and misses unknown handles", () => {
-    const resolve = ccSloHandleResolver([
-      slo({ spec: spec({ annotations: { "everr.name": "checkout" } }) }),
+  it("appends the bare slug as a legacy handle for a qualified name", () => {
+    expect(ccSloHandles(slo({ name: "payments/checkout" }))).toEqual([
+      "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+      "payments/checkout",
+      "checkout",
     ]);
-    expect(resolve("checkout")?.name).toBe("checkout-availability");
+  });
+
+  it("resolves any handle to the SLO and misses unknown handles", () => {
+    const resolve = ccSloHandleResolver([slo({ name: "payments/checkout" })]);
+    expect(resolve("payments/checkout")?.name).toBe("payments/checkout");
     expect(resolve("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee")?.name).toBe(
-      "checkout-availability",
+      "payments/checkout",
     );
+    // The legacy bare-slug handle also resolves.
+    expect(resolve("checkout")?.name).toBe("payments/checkout");
     expect(resolve("some-rule-slug")).toBeUndefined();
+  });
+});
+
+describe("ccSloIdentity", () => {
+  it("falls back to the slug when no display name is set", () => {
+    expect(ccSloIdentity(slo({ name: "payments/checkout" }))).toEqual({
+      name: "checkout",
+      project: "payments",
+      slug: "checkout",
+      displayName: null,
+    });
+  });
+
+  it("prefers the display-name annotation over the slug", () => {
+    const identity = ccSloIdentity(
+      slo({
+        name: "payments/checkout",
+        spec: spec({
+          annotations: { [ANN_DISPLAY_NAME]: "Checkout availability" },
+        }),
+      }),
+    );
+    expect(identity).toEqual({
+      name: "Checkout availability",
+      project: "payments",
+      slug: "checkout",
+      displayName: "Checkout availability",
+    });
   });
 });
 
@@ -211,6 +249,87 @@ describe("ccSloCurrentBurn", () => {
   });
 });
 
+describe("ccSloWindowBurns", () => {
+  const tiers = CC_CANONICAL_SLO_TIERS;
+  const tier = (
+    name: string,
+    long: number | null,
+    short: number | null,
+  ): CcSloGroupStatus["tiers"][number] => ({
+    name,
+    long_burn_rate: long,
+    short_burn_rate: short,
+    long_window_valid: null,
+  });
+
+  it("collects every distinct window longest-first, merging shared spans", () => {
+    // The canonical set has five distinct windows: 3d, 6h, 1h, 30m, 5m. The 6h
+    // span is both slow-burn's long window and ticket's short window; slow-burn
+    // has no snapshot here, so the shared entry takes ticket's measurement.
+    const burns = ccSloWindowBurns(tiers, [
+      tier("fast-burn", 0.0, 0.0),
+      tier("ticket", 1.8, 1.1),
+    ]);
+    expect(burns.map((b) => [b.window, b.burn])).toEqual([
+      ["3d", 1.8],
+      ["6h", 1.1],
+      ["1h", 0.0],
+      ["30m", null],
+      ["5m", 0.0],
+    ]);
+  });
+
+  it("keeps unmeasured windows as null instead of inventing a 0", () => {
+    const burns = ccSloWindowBurns(tiers, []);
+    expect(burns).toHaveLength(5);
+    expect(burns.every((b) => b.burn === null)).toBe(true);
+  });
+});
+
+describe("ccSloBurnShape", () => {
+  const burn = (window: string, secs: number, rate: number | null) => ({
+    window,
+    secs,
+    burn: rate,
+  });
+
+  it("reads the payments shape — long windows hot, short clean — as receding", () => {
+    expect(
+      ccSloBurnShape([
+        burn("3d", 259_200, 1.8),
+        burn("6h", 21_600, 1.1),
+        burn("1h", 3_600, 0),
+        burn("5m", 300, 0),
+      ]),
+    ).toBe("receding");
+  });
+
+  it("is burning when the most recent measured window is at or above 1×", () => {
+    expect(ccSloBurnShape([burn("1h", 3_600, 15), burn("5m", 300, 20)])).toBe(
+      "burning",
+    );
+    // Nulls are skipped: the newest MEASURED window decides.
+    expect(ccSloBurnShape([burn("1h", 3_600, 2), burn("5m", 300, null)])).toBe(
+      "burning",
+    );
+  });
+
+  it("is quiet under 1× everywhere and no-data with no measurements", () => {
+    expect(ccSloBurnShape([burn("1h", 3_600, 0.4), burn("5m", 300, 0.2)])).toBe(
+      "quiet",
+    );
+    expect(ccSloBurnShape([burn("1h", 3_600, null)])).toBe("no-data");
+    expect(ccSloBurnShape([])).toBe("no-data");
+  });
+
+  it("captions every readable shape and stays silent without data", () => {
+    expect(ccSloBurnShapeCaption("burning")).toMatch(/right now/);
+    expect(ccSloBurnShapeCaption("receding")).toMatch(/older/);
+    expect(ccSloBurnShapeCaption("quiet")).toMatch(/under the 1× line/);
+    expect(ccSloBurnShapeCaption("no-data")).toBeNull();
+  });
+});
+
 describe("ccSloVerdict", () => {
   const burn = { rate: 1.4, effective: 1.4, window: "1h" };
 
@@ -236,6 +355,37 @@ describe("ccSloVerdict", () => {
     expect(ccSloVerdict("firing-critical", { burn, tteSecs: null })).toBe(
       "Burning fast. A critical alert is firing and a page has gone out.",
     );
+  });
+
+  it("tells the recovery story for a ticket firing on burn that has stopped", () => {
+    // The payments shape: ticket fires on its 3d/6h windows while the recent
+    // windows are clean. The verdict must not read "draining" against a burn
+    // readout of 0 — it names the earlier burn and that the alert ages out.
+    expect(
+      ccSloVerdict("firing-warning", {
+        burn: { rate: 0, effective: 0, window: "1h" },
+        tteSecs: null,
+        shape: "receding",
+      }),
+    ).toMatch(/burned earlier in the window.*ages out/);
+    // Actively draining (recent windows over 1×) keeps the draining verdict.
+    expect(
+      ccSloVerdict("firing-warning", {
+        burn: { rate: 1.4, effective: 1.4, window: "1h" },
+        tteSecs: null,
+        shape: "burning",
+      }),
+    ).toMatch(/Draining faster than sustainable/);
+  });
+
+  it("notes lingering earlier burn on a healthy SLO when the shape recedes", () => {
+    expect(
+      ccSloVerdict("healthy", {
+        burn: { rate: 3, effective: 0, window: "1h" },
+        tteSecs: null,
+        shape: "receding",
+      }),
+    ).toMatch(/burned earlier.*current traffic is healthy/);
   });
 
   it("varies the healthy verdict by how fast budget is being spent", () => {

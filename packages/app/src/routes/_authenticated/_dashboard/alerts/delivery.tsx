@@ -74,7 +74,8 @@ export const Route = createFileRoute(
 )({
   staticData: { breadcrumb: "Delivery" },
   head: () => ({ meta: [{ title: "Everr - Alerts Delivery" }] }),
-  loader: ({ context: { queryClient } }) =>
+  loaderDeps: ({ search: { preview } }) => ({ preview }),
+  loader: ({ context: { queryClient }, deps }) =>
     Promise.all([
       queryClient.prefetchQuery(ccQueries.routes()),
       queryClient.prefetchQuery(ccQueries.receivers()),
@@ -82,7 +83,7 @@ export const Route = createFileRoute(
       queryClient.prefetchQuery(ccQueries.inhibitions()),
       queryClient.prefetchQuery(ccQueries.alerts()),
       queryClient.prefetchQuery(ccQueries.rules()),
-      queryClient.prefetchQuery(ccQueries.slos()),
+      queryClient.prefetchQuery(ccQueries.slos(deps.preview)),
       queryClient.prefetchQuery(ccQueries.subscriptions()),
     ]),
   component: CcDeliveryPage,
@@ -800,12 +801,13 @@ function FirehoseSection() {
 
 function CcDeliveryPage() {
   const location = useLocation();
+  const { preview } = Route.useSearch();
   const routes = useQuery(ccQueries.routes());
   const receivers = useQuery(ccQueries.receivers());
   const channels = useQuery(ccQueries.channels());
   const alerts = useQuery(ccQueries.alerts());
   const rules = useQuery(ccQueries.rules());
-  const slos = useQuery(ccQueries.slos());
+  const slos = useQuery(ccQueries.slos(preview));
   const subscriptions = useQuery(ccQueries.subscriptions());
 
   // The preview's label set; {} = inactive. Evaluated with the dispatcher's

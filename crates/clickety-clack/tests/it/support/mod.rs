@@ -8,6 +8,10 @@
 
 use std::sync::atomic::{AtomicU64, Ordering};
 
+use cc::domain::ids::TenantId;
+use cc::domain::rule::{Rule, RuleSpec};
+use cc::domain::slo::{Slo, SloSpec};
+use cc::stores::{PgStore, RuleCreate, SloCreate};
 use sqlx::{Connection, Executor, PgConnection};
 use testcontainers_modules::postgres::Postgres;
 use testcontainers_modules::testcontainers::core::Mount;
@@ -112,5 +116,30 @@ async fn init_shared() -> SharedPg {
         _container: container,
         base_url,
         create_db: Mutex::new(()),
+    }
+}
+
+/// Create a live rule with a unique test name in the root namespace, unwrapping the
+/// `Created` outcome. Panics on `NameConflict` (a per-test-unique name should never
+/// collide within a fresh tenant).
+pub async fn create_test_rule(
+    store: &PgStore,
+    tenant: TenantId,
+    name: &str,
+    spec: &RuleSpec,
+) -> Rule {
+    match store.create_rule(tenant, "", name, spec).await.unwrap() {
+        RuleCreate::Created(r) => r,
+        other => panic!("expected Created, got {other:?}"),
+    }
+}
+
+/// Create a live SLO with a unique test name in the root namespace, unwrapping the
+/// `Created` outcome. Panics on `NameConflict` (a per-test-unique name should never
+/// collide within a fresh tenant).
+pub async fn create_test_slo(store: &PgStore, tenant: TenantId, name: &str, spec: &SloSpec) -> Slo {
+    match store.create_slo(tenant, "", name, spec).await.unwrap() {
+        SloCreate::Created(s) => s,
+        other => panic!("expected Created, got {other:?}"),
     }
 }

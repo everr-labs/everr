@@ -56,7 +56,19 @@ pub struct EvalCadence {
     pub eval_ts: OffsetDateTime,
 }
 
+/// Outcome of [`PgStore::create_rule`].
+#[allow(clippy::large_enum_variant)]
+#[derive(Debug, Clone, PartialEq)]
+pub enum RuleCreate {
+    Created(Rule),
+    /// A rule with this (tenant, namespace, name) already exists.
+    NameConflict,
+}
+
 /// Outcome of [`PgStore::update_rule`].
+// Same trade-off as `SloCreate` below: boxing `Updated`'s payload would tax every
+// caller for a lint about the outcome enum's stack footprint (never hot-path-cloned).
+#[allow(clippy::large_enum_variant)]
 #[derive(Debug, Clone, PartialEq)]
 pub enum RuleUpdate {
     /// The rule was updated; carries the new stored rule (version already bumped).
@@ -86,7 +98,6 @@ pub enum SloUpdate {
     Updated(crate::domain::slo::Slo),
     NotFound,
     VersionConflict { current: i64 },
-    NameConflict,
 }
 
 /// True if a sqlx error is a Postgres unique-constraint violation (SQLSTATE 23505).
@@ -256,6 +267,8 @@ fn rule_from_row(r: &PgRow, id: RuleId, tenant: TenantId) -> Result<Rule, StoreE
     Ok(Rule {
         id,
         tenant,
+        namespace: r.get("namespace"),
+        name: r.get("name"),
         spec,
         version: r.get("version"),
         paused: r.get("paused"),
@@ -400,35 +413,51 @@ impl PgStore {
     /// the same tick. The claim paths advance by whole intervals afterwards, which
     /// preserves the stagger. First evaluation therefore lands within one interval
     /// of creation rather than immediately.
-    pub async fn create_rule(&self, tenant: TenantId, spec: &RuleSpec) -> Result<Rule, StoreError> {
+    pub async fn create_rule(
+        &self,
+        tenant: TenantId,
+        namespace: &str,
+        name: &str,
+        spec: &RuleSpec,
+    ) -> Result<RuleCreate, StoreError> {
         let id = Uuid::new_v4();
         let spec_json = serde_json::to_value(spec)?;
         let phase = crate::domain::cadence::jitter_offset_secs(id, spec.interval_secs);
-        sqlx::query(
-            "INSERT INTO rules (id, tenant, spec, next_eval)
-             VALUES ($1,$2,$3, now() + make_interval(secs => $4::int))",
+        let res = sqlx::query(
+            "INSERT INTO rules (id, tenant, namespace, name, spec, next_eval)
+             VALUES ($1,$2,$3,$4,$5, now() + make_interval(secs => $6::int))",
         )
         .bind(id)
         .bind(tenant.as_str())
+        .bind(namespace)
+        .bind(name)
         .bind(&spec_json)
         .bind(phase as i32)
         .execute(&self.pool)
-        .await?;
-        Ok(Rule {
-            id: RuleId(id),
-            tenant,
-            spec: spec.clone(),
-            version: 1,
-            paused: false,
-        })
+        .await;
+        match res {
+            Ok(_) => Ok(RuleCreate::Created(Rule {
+                id: RuleId(id),
+                tenant,
+                namespace: namespace.to_string(),
+                name: name.to_string(),
+                spec: spec.clone(),
+                version: 1,
+                paused: false,
+            })),
+            Err(e) if is_unique_violation(&e) => Ok(RuleCreate::NameConflict),
+            Err(e) => Err(e.into()),
+        }
     }
 
     pub async fn get_rule(&self, tenant: TenantId, id: RuleId) -> Result<Option<Rule>, StoreError> {
-        let row = sqlx::query("SELECT spec, version, paused FROM rules WHERE id=$1 AND tenant=$2")
-            .bind(id.0)
-            .bind(tenant.as_str())
-            .fetch_optional(&self.pool)
-            .await?;
+        let row = sqlx::query(
+            "SELECT namespace, name, spec, version, paused FROM rules WHERE id=$1 AND tenant=$2",
+        )
+        .bind(id.0)
+        .bind(tenant.as_str())
+        .fetch_optional(&self.pool)
+        .await?;
         match row {
             None => Ok(None),
             Some(r) => Ok(Some(rule_from_row(&r, id, tenant)?)),
@@ -444,11 +473,12 @@ impl PgStore {
             return Ok(Vec::new());
         }
         let raw: Vec<Uuid> = ids.iter().map(|r| r.0).collect();
-        let rows =
-            sqlx::query("SELECT id, tenant, spec, version, paused FROM rules WHERE id = ANY($1)")
-                .bind(&raw)
-                .fetch_all(&self.pool)
-                .await?;
+        let rows = sqlx::query(
+            "SELECT id, tenant, namespace, name, spec, version, paused FROM rules WHERE id = ANY($1)",
+        )
+        .bind(&raw)
+        .fetch_all(&self.pool)
+        .await?;
         let mut out = Vec::with_capacity(rows.len());
         for r in &rows {
             let tenant = TenantId::from_trusted(r.get::<String, _>("tenant"));
@@ -491,7 +521,7 @@ impl PgStore {
     ) -> Result<RuleUpdate, StoreError> {
         let mut tx = self.pool.begin().await?;
         let row = sqlx::query(
-            "SELECT spec, version, paused FROM rules WHERE id=$1 AND tenant=$2 FOR UPDATE",
+            "SELECT namespace, name, spec, version, paused FROM rules WHERE id=$1 AND tenant=$2 FOR UPDATE",
         )
         .bind(id.0)
         .bind(tenant.as_str())
@@ -593,6 +623,8 @@ impl PgStore {
         Ok(RuleUpdate::Updated(Rule {
             id,
             tenant,
+            namespace: row.get("namespace"),
+            name: row.get("name"),
             spec: spec.clone(),
             version: current + 1,
             paused,
@@ -723,7 +755,7 @@ impl PgStore {
                     LEAST(r.eval_backoff_secs, COALESCE((r.spec->>'max_interval_secs')::int, 0)),
                     (r.spec->>'interval_secs')::int))
              FROM due WHERE r.id = due.id
-             RETURNING r.id, r.tenant, r.spec, r.version, r.paused, due.next_eval AS due_at",
+             RETURNING r.id, r.tenant, r.namespace, r.name, r.spec, r.version, r.paused, due.next_eval AS due_at",
         )
         .bind(now)
         .bind(limit)
@@ -801,7 +833,7 @@ impl PgStore {
                         THEN LEAST(next_eval, now() + make_interval(secs => (spec->>'interval_secs')::int))
                         ELSE next_eval END
               WHERE id = $1 AND tenant = $3
-            RETURNING consecutive_failures, health_status,
+            RETURNING consecutive_failures, health_status, name,
                       (spec->>'suppressed')::bool AS suppressed",
         )
         .bind(rule.0)
@@ -817,6 +849,7 @@ impl PgStore {
         };
         let failures: i32 = row.get("consecutive_failures");
         let status: String = row.get("health_status");
+        let name: String = row.get("name");
         // Specs stored before the key existed read NULL -> not suppressed.
         let suppressed: bool = row.get::<Option<bool>, _>("suppressed").unwrap_or(false);
 
@@ -841,6 +874,7 @@ impl PgStore {
             // A preview (suppressed) rule must never notify, its health events included.
             // Stamped here so the outbox payload carries the flag for the relay too.
             ev.suppressed = suppressed;
+            ev.name = name;
             let id = insert_outbox_event(&mut tx, &ev).await?;
             tx.commit().await?;
             return Ok(Some((ev, id)));
@@ -867,7 +901,7 @@ impl PgStore {
                 SET consecutive_failures = 0, last_error = NULL, last_error_at = NULL
               WHERE id = $1 AND tenant = $2
                 AND (consecutive_failures <> 0 OR last_error IS NOT NULL OR health_status <> 'healthy')
-            RETURNING health_status, (spec->>'suppressed')::bool AS suppressed",
+            RETURNING health_status, name, (spec->>'suppressed')::bool AS suppressed",
         )
         .bind(rule.0)
         .bind(tenant.as_str())
@@ -880,6 +914,7 @@ impl PgStore {
             return Ok(None);
         };
         let status: String = row.get("health_status");
+        let name: String = row.get("name");
         let suppressed: bool = row.get::<Option<bool>, _>("suppressed").unwrap_or(false);
 
         if status == "degraded" {
@@ -894,6 +929,7 @@ impl PgStore {
             ann.insert("summary".to_string(), format!("Rule {} recovered", rule.0));
             let mut ev = Event::rule_health(tenant.clone(), rule, EventStatus::Resolved, ann, now);
             ev.suppressed = suppressed;
+            ev.name = name;
             let id = insert_outbox_event(&mut tx, &ev).await?;
             tx.commit().await?;
             return Ok(Some((ev, id)));
@@ -933,7 +969,7 @@ impl PgStore {
         id: RuleId,
     ) -> Result<Option<(Rule, RuleHealth, RuleRollup, OffsetDateTime)>, StoreError> {
         let row = sqlx::query(
-            "SELECT spec, version, paused, updated_at, health_status, consecutive_failures,
+            "SELECT namespace, name, spec, version, paused, updated_at, health_status, consecutive_failures,
                     degraded_since, last_error, last_error_at,
                     alert_state, firing_instance_count, last_fired_at,
                     last_resolved_at, last_seen_at, last_row_count
@@ -966,6 +1002,8 @@ impl PgStore {
         &self,
         tenant: &TenantId,
         health: Option<&str>,
+        namespace: Option<&str>,
+        name: Option<&str>,
         after: Option<&RulePageKey>,
         limit: i64,
     ) -> Result<
@@ -978,18 +1016,22 @@ impl PgStore {
         // Fetch one extra row: its presence (not its content) tells us whether a
         // next page exists, so `next` is only set when resuming would yield rows.
         let rows = sqlx::query(
-            "SELECT id, created_at, updated_at, spec, version, paused, health_status, consecutive_failures,
+            "SELECT id, created_at, updated_at, namespace, name, spec, version, paused, health_status, consecutive_failures,
                     degraded_since, last_error, last_error_at,
                     alert_state, firing_instance_count, last_fired_at,
                     last_resolved_at, last_seen_at, last_row_count
                FROM rules
               WHERE tenant=$1 AND ($2::text IS NULL OR health_status=$2)
-                AND ($3::timestamptz IS NULL OR (created_at, id) > ($3, $4))
+                AND ($3::text IS NULL OR namespace=$3)
+                AND ($4::text IS NULL OR name=$4)
+                AND ($5::timestamptz IS NULL OR (created_at, id) > ($5, $6))
               ORDER BY created_at, id
-              LIMIT $5",
+              LIMIT $7",
         )
         .bind(tenant.as_str())
         .bind(health)
+        .bind(namespace)
+        .bind(name)
         .bind(after.map(|k| k.created_at))
         .bind(after.map(|k| k.id.0))
         .bind(limit + 1)
@@ -2016,7 +2058,7 @@ impl PgStore {
             "SELECT i.key AS key, i.rule AS rule, i.tenant AS tenant, i.status AS status,
                     i.labels AS labels, i.value AS value,
                     r.spec->'severity' AS severity, r.spec->'annotations' AS annotations,
-                    r.spec->'suppressed' AS suppressed
+                    r.spec->'suppressed' AS suppressed, r.name AS name
              FROM instances i JOIN rules r ON r.id = i.rule
              WHERE i.status IN ('pending','firing')
                AND NOT r.paused
@@ -2065,6 +2107,7 @@ impl PgStore {
                 severity,
                 annotations,
                 suppressed,
+                name: r.get("name"),
             });
         }
         Ok(out)
@@ -2301,23 +2344,28 @@ impl PgStore {
     pub async fn create_slo(
         &self,
         tenant: TenantId,
+        namespace: &str,
         name: &str,
         spec: &crate::domain::slo::SloSpec,
     ) -> Result<SloCreate, StoreError> {
         use crate::domain::ids::SloId;
         let id = Uuid::new_v4();
         let spec_json = serde_json::to_value(spec)?;
-        let res = sqlx::query("INSERT INTO slos (id, tenant, name, spec) VALUES ($1,$2,$3,$4)")
-            .bind(id)
-            .bind(tenant.as_str())
-            .bind(name)
-            .bind(&spec_json)
-            .execute(&self.pool)
-            .await;
+        let res = sqlx::query(
+            "INSERT INTO slos (id, tenant, namespace, name, spec) VALUES ($1,$2,$3,$4,$5)",
+        )
+        .bind(id)
+        .bind(tenant.as_str())
+        .bind(namespace)
+        .bind(name)
+        .bind(&spec_json)
+        .execute(&self.pool)
+        .await;
         match res {
             Ok(_) => Ok(SloCreate::Created(crate::domain::slo::Slo {
                 id: SloId(id),
                 tenant,
+                namespace: namespace.to_string(),
                 name: name.to_string(),
                 spec: spec.clone(),
                 version: 1,
@@ -2346,7 +2394,7 @@ impl PgStore {
         StoreError,
     > {
         let row = sqlx::query(
-            "SELECT id, tenant, name, spec, version, paused, updated_at, budget_epoch FROM slos WHERE id=$1 AND tenant=$2",
+            "SELECT id, tenant, namespace, name, spec, version, paused, updated_at, budget_epoch FROM slos WHERE id=$1 AND tenant=$2",
         )
         .bind(id.0)
         .bind(tenant.as_str())
@@ -2362,8 +2410,9 @@ impl PgStore {
         }
     }
 
-    /// Update an SLO's name/spec in place, preserving its id, tenant, and `paused`
-    /// flag. Bumps `version` by one.
+    /// Update an SLO's spec in place, preserving its id, tenant, namespace, name
+    /// (identity is immutable after create), and `paused` flag. Bumps `version`
+    /// by one.
     ///
     /// `expected_version`: `Some(v)` is an optimistic-concurrency guard — if the stored
     /// version differs, nothing is written and `SloUpdate::VersionConflict` is
@@ -2372,13 +2421,12 @@ impl PgStore {
         &self,
         tenant: TenantId,
         id: crate::domain::ids::SloId,
-        name: &str,
         spec: &crate::domain::slo::SloSpec,
         expected_version: Option<i64>,
     ) -> Result<SloUpdate, StoreError> {
         let mut tx = self.pool.begin().await?;
         let row = sqlx::query(
-            "SELECT version, paused, spec FROM slos WHERE id=$1 AND tenant=$2 FOR UPDATE",
+            "SELECT namespace, name, version, paused, spec FROM slos WHERE id=$1 AND tenant=$2 FOR UPDATE",
         )
         .bind(id.0)
         .bind(tenant.as_str())
@@ -2400,15 +2448,14 @@ impl PgStore {
         // rather than just rename or re-annotate? Shared with the evaluator through
         // `objective_fingerprint` so the two can't disagree. An unparseable stored
         // spec (specs are validated on write) counts as changed — the safe default.
-        let objective_changed = match serde_json::from_value::<crate::domain::slo::SloSpec>(
-            row.get("spec"),
-        ) {
-            Ok(old) => {
-                crate::domain::slo::objective_fingerprint(&old)
-                    != crate::domain::slo::objective_fingerprint(spec)
-            }
-            Err(_) => true,
-        };
+        let objective_changed =
+            match serde_json::from_value::<crate::domain::slo::SloSpec>(row.get("spec")) {
+                Ok(old) => {
+                    crate::domain::slo::objective_fingerprint(&old)
+                        != crate::domain::slo::objective_fingerprint(spec)
+                }
+                Err(_) => true,
+            };
         let spec_json = serde_json::to_value(spec)?;
         // A redefining edit invalidates the status snapshot (its numbers describe
         // the old query) and resets `budget_epoch` (pre-edit history is no longer
@@ -2422,39 +2469,27 @@ impl PgStore {
                 .execute(&mut *tx)
                 .await?;
         }
-        let res = sqlx::query(
-            "UPDATE slos SET name=$3, spec=$4, version = version + 1, updated_at = now(),
-                 budget_epoch = CASE WHEN $5 THEN now() ELSE budget_epoch END
+        sqlx::query(
+            "UPDATE slos SET spec=$3, version = version + 1, updated_at = now(),
+                 budget_epoch = CASE WHEN $4 THEN now() ELSE budget_epoch END
              WHERE id=$1 AND tenant=$2",
         )
         .bind(id.0)
         .bind(tenant.as_str())
-        .bind(name)
         .bind(&spec_json)
         .bind(objective_changed)
         .execute(&mut *tx)
-        .await;
-        match res {
-            Ok(_) => {
-                tx.commit().await?;
-                Ok(SloUpdate::Updated(crate::domain::slo::Slo {
-                    id,
-                    tenant,
-                    name: name.to_string(),
-                    spec: spec.clone(),
-                    version: current + 1,
-                    paused,
-                }))
-            }
-            Err(e) if is_unique_violation(&e) => {
-                tx.rollback().await?;
-                Ok(SloUpdate::NameConflict)
-            }
-            Err(e) => {
-                tx.rollback().await?;
-                Err(e.into())
-            }
-        }
+        .await?;
+        tx.commit().await?;
+        Ok(SloUpdate::Updated(crate::domain::slo::Slo {
+            id,
+            tenant,
+            namespace: row.get("namespace"),
+            name: row.get("name"),
+            spec: spec.clone(),
+            version: current + 1,
+            paused,
+        }))
     }
 
     pub async fn delete_slo(
@@ -2504,11 +2539,14 @@ impl PgStore {
         Ok(res.rows_affected() > 0)
     }
 
-    /// Every SLO of the tenant, each with its `updated_at` and `budget_epoch`
-    /// (see [`Self::get_slo`]).
+    /// SLOs of the tenant, optionally filtered by `namespace` and/or `name`
+    /// (exact match; `None` means unfiltered), each with its `updated_at` and
+    /// `budget_epoch` (see [`Self::get_slo`]).
     pub async fn list_slos(
         &self,
         tenant: &TenantId,
+        namespace: Option<&str>,
+        name: Option<&str>,
     ) -> Result<
         Vec<(
             crate::domain::slo::Slo,
@@ -2518,9 +2556,16 @@ impl PgStore {
         StoreError,
     > {
         let rows = sqlx::query(
-            "SELECT id, tenant, name, spec, version, paused, updated_at, budget_epoch FROM slos WHERE tenant=$1 ORDER BY created_at, id",
+            "SELECT id, tenant, namespace, name, spec, version, paused, updated_at, budget_epoch
+               FROM slos
+              WHERE tenant=$1
+                AND ($2::text IS NULL OR namespace=$2)
+                AND ($3::text IS NULL OR name=$3)
+              ORDER BY created_at, id",
         )
         .bind(tenant.as_str())
+        .bind(namespace)
+        .bind(name)
         .fetch_all(&self.pool)
         .await?;
         rows.iter()
@@ -2541,6 +2586,7 @@ impl PgStore {
         Ok(Slo {
             id: SloId(r.get("id")),
             tenant: TenantId::from_trusted(r.get::<String, _>("tenant")),
+            namespace: r.get("namespace"),
             name: r.get("name"),
             spec,
             version: r.get("version"),
@@ -2605,7 +2651,7 @@ impl PgStore {
              UPDATE slos s
              SET next_eval = $1 + make_interval(secs => $5)
              FROM due WHERE s.id = due.id
-             RETURNING s.id, s.tenant, s.name, s.spec, s.version, s.paused",
+             RETURNING s.id, s.tenant, s.namespace, s.name, s.spec, s.version, s.paused",
         )
         .bind(now)
         .bind(batch)
@@ -2660,7 +2706,7 @@ impl PgStore {
         }
         let raw: Vec<Uuid> = ids.iter().map(|s| s.0).collect();
         let rows = sqlx::query(
-            "SELECT id, tenant, name, spec, version, paused FROM slos WHERE id = ANY($1)",
+            "SELECT id, tenant, namespace, name, spec, version, paused FROM slos WHERE id = ANY($1)",
         )
         .bind(&raw)
         .fetch_all(&self.pool)
@@ -2684,7 +2730,7 @@ impl PgStore {
     ) -> Result<Option<(Event, Uuid)>, StoreError> {
         let mut tx = self.pool.begin().await?;
         let row = sqlx::query(
-            "SELECT health_status, consecutive_failures FROM slos WHERE id=$1 AND tenant=$2 FOR UPDATE",
+            "SELECT health_status, consecutive_failures, name FROM slos WHERE id=$1 AND tenant=$2 FOR UPDATE",
         )
         .bind(slo.0)
         .bind(tenant.as_str())
@@ -2695,6 +2741,7 @@ impl PgStore {
             return Ok(None);
         };
         let was: String = row.get("health_status");
+        let name: String = row.get("name");
         let n: i32 = row.get::<i32, _>("consecutive_failures") + 1;
         let now_degraded = n >= degrade_after as i32;
         let transitioned = now_degraded && was != "degraded";
@@ -2721,7 +2768,8 @@ impl PgStore {
                 format!("SLO {} degraded: {}", slo.0, err),
             );
             ann.insert("last_error".to_string(), err.to_string());
-            let ev = Event::slo_health(tenant.clone(), slo, EventStatus::Firing, ann, now);
+            let mut ev = Event::slo_health(tenant.clone(), slo, EventStatus::Firing, ann, now);
+            ev.name = name;
             let id = insert_outbox_event(&mut tx, &ev).await?;
             tx.commit().await?;
             return Ok(Some((ev, id)));
@@ -2746,7 +2794,7 @@ impl PgStore {
             "UPDATE slos SET consecutive_failures=0, last_error=NULL, last_error_at=NULL
               WHERE id = $1 AND tenant = $2
                 AND (consecutive_failures <> 0 OR last_error IS NOT NULL OR health_status <> 'healthy')
-            RETURNING health_status",
+            RETURNING health_status, name",
         )
         .bind(slo.0)
         .bind(tenant.as_str())
@@ -2758,6 +2806,7 @@ impl PgStore {
             return Ok(None);
         };
         let status: String = row.get("health_status");
+        let name: String = row.get("name");
 
         if status == "degraded" {
             sqlx::query(
@@ -2769,7 +2818,8 @@ impl PgStore {
             .await?;
             let mut ann = BTreeMap::new();
             ann.insert("summary".to_string(), format!("SLO {} recovered", slo.0));
-            let ev = Event::slo_health(tenant.clone(), slo, EventStatus::Resolved, ann, now);
+            let mut ev = Event::slo_health(tenant.clone(), slo, EventStatus::Resolved, ann, now);
+            ev.name = name;
             let id = insert_outbox_event(&mut tx, &ev).await?;
             tx.commit().await?;
             return Ok(Some((ev, id)));
@@ -2903,13 +2953,12 @@ impl PgStore {
         &self,
         tenant: &TenantId,
     ) -> Result<Vec<FiringInstance>, StoreError> {
-        let rows = sqlx::query(
-            "SELECT key, slo, labels FROM slo_instances WHERE tenant=$1 AND status=$2",
-        )
-        .bind(tenant.as_str())
-        .bind(status_str(Status::Firing))
-        .fetch_all(&self.pool)
-        .await?;
+        let rows =
+            sqlx::query("SELECT key, slo, labels FROM slo_instances WHERE tenant=$1 AND status=$2")
+                .bind(tenant.as_str())
+                .bind(status_str(Status::Firing))
+                .fetch_all(&self.pool)
+                .await?;
         let tiers = crate::domain::slo::canonical_tiers();
         let mut out = Vec::with_capacity(rows.len());
         for r in &rows {
@@ -2939,7 +2988,8 @@ impl PgStore {
         let rows = sqlx::query(
             "SELECT i.key AS key, i.slo AS slo, i.tenant AS tenant, i.status AS status,
                     i.labels AS labels, i.value AS value,
-                    s.spec->'annotations' AS annotations, s.spec->'suppressed' AS suppressed
+                    s.spec->'annotations' AS annotations, s.spec->'suppressed' AS suppressed,
+                    s.name AS name
              FROM slo_instances i JOIN slos s ON s.id = i.slo
              WHERE i.status IN ('pending','firing')
                AND NOT s.paused
@@ -2987,6 +3037,7 @@ impl PgStore {
                 severity,
                 annotations,
                 suppressed,
+                name: r.get("name"),
             });
         }
         Ok(out)

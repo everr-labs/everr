@@ -95,6 +95,7 @@ mod tests {
             tenant: TenantId::from_trusted("t"),
             rule: RuleId(Uuid::nil()),
             slo: None,
+            name: String::new(),
             instance_key: InstanceKey("k".into()),
             status,
             kind,

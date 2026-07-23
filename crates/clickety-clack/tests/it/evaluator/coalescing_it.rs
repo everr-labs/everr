@@ -1,4 +1,5 @@
 use crate::common::{NoopBus, RecordingBus};
+use crate::support::create_test_rule;
 use async_trait::async_trait;
 use cc::clickhouse::{ChError, ResultRow, RowQuerier};
 use cc::domain::event::EventStatus;
@@ -83,14 +84,20 @@ async fn identical_sql_runs_one_query_both_rules_fire() {
     let (queue, _redis) = redis_queue().await;
     let tenant = TenantId::from_trusted(Uuid::new_v4().to_string());
 
-    let r1 = store
-        .create_rule(tenant.clone(), &spec("SELECT * FROM m"))
-        .await
-        .unwrap();
-    let r2 = store
-        .create_rule(tenant.clone(), &spec("SELECT * FROM m"))
-        .await
-        .unwrap();
+    let r1 = create_test_rule(
+        &store,
+        tenant.clone(),
+        "t/identical_sql_runs_one_query_both_rules_fire-1",
+        &spec("SELECT * FROM m"),
+    )
+    .await;
+    let r2 = create_test_rule(
+        &store,
+        tenant.clone(),
+        "t/identical_sql_runs_one_query_both_rules_fire-2",
+        &spec("SELECT * FROM m"),
+    )
+    .await;
 
     let now = OffsetDateTime::now_utc();
     for r in [&r1, &r2] {
@@ -135,14 +142,20 @@ async fn identical_sql_different_tenants_runs_two_queries() {
     let ta = TenantId::from_trusted("ta");
     let tb = TenantId::from_trusted("tb");
 
-    let ra = store
-        .create_rule(ta.clone(), &spec("SELECT * FROM m"))
-        .await
-        .unwrap();
-    let rb = store
-        .create_rule(tb.clone(), &spec("SELECT * FROM m"))
-        .await
-        .unwrap();
+    let ra = create_test_rule(
+        &store,
+        ta.clone(),
+        "t/identical_sql_different_tenants_runs_two_queries",
+        &spec("SELECT * FROM m"),
+    )
+    .await;
+    let rb = create_test_rule(
+        &store,
+        tb.clone(),
+        "t/identical_sql_different_tenants_runs_two_queries",
+        &spec("SELECT * FROM m"),
+    )
+    .await;
 
     let now = OffsetDateTime::now_utc();
     for (t, r) in [(&ta, &ra), (&tb, &rb)] {
@@ -184,14 +197,20 @@ async fn differing_sql_runs_two_queries() {
     let (queue, _redis) = redis_queue().await;
     let tenant = TenantId::from_trusted(Uuid::new_v4().to_string());
 
-    let r1 = store
-        .create_rule(tenant.clone(), &spec("SELECT * FROM a"))
-        .await
-        .unwrap();
-    let r2 = store
-        .create_rule(tenant.clone(), &spec("SELECT * FROM b"))
-        .await
-        .unwrap();
+    let r1 = create_test_rule(
+        &store,
+        tenant.clone(),
+        "t/differing_sql_runs_two_queries-1",
+        &spec("SELECT * FROM a"),
+    )
+    .await;
+    let r2 = create_test_rule(
+        &store,
+        tenant.clone(),
+        "t/differing_sql_runs_two_queries-2",
+        &spec("SELECT * FROM b"),
+    )
+    .await;
 
     let now = OffsetDateTime::now_utc();
     for r in [&r1, &r2] {
@@ -234,10 +253,13 @@ async fn paused_rule_inflight_job_is_not_evaluated() {
     let (store, _pg) = pg().await;
     let (queue, _redis) = redis_queue().await;
     let tenant = TenantId::from_trusted(Uuid::new_v4().to_string());
-    let rule = store
-        .create_rule(tenant.clone(), &spec("SELECT * FROM m"))
-        .await
-        .unwrap();
+    let rule = create_test_rule(
+        &store,
+        tenant.clone(),
+        "t/paused_rule_inflight_job_is_not_evaluated",
+        &spec("SELECT * FROM m"),
+    )
+    .await;
 
     // 1) Evaluate once while active with a present row -> the instance fires.
     let t1 = OffsetDateTime::now_utc();
@@ -342,10 +364,13 @@ async fn repeated_query_errors_degrade_then_recover() {
     let (store, _pg) = pg().await;
     let (queue, _redis) = redis_queue().await;
     let tenant = TenantId::from_trusted(Uuid::new_v4().to_string());
-    let rule = store
-        .create_rule(tenant.clone(), &spec("SELECT * FROM m"))
-        .await
-        .unwrap();
+    let rule = create_test_rule(
+        &store,
+        tenant.clone(),
+        "t/repeated_query_errors_degrade_then_recover",
+        &spec("SELECT * FROM m"),
+    )
+    .await;
 
     let ch = FlakyCh::new(true);
     let bus = RecordingBus::default();

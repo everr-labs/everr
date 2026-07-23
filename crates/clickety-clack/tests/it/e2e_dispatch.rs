@@ -1,4 +1,5 @@
 use crate::common;
+use crate::support::create_test_rule;
 use cc::clickhouse::ChClient;
 use cc::domain::ids::TenantId;
 use cc::domain::rule::{RuleSpec, Severity};
@@ -64,7 +65,13 @@ async fn evaluator_publishes_dispatcher_delivers() {
         max_interval_secs: None,
         suppressed: false,
     };
-    let rule = store.create_rule(tenant.clone(), &spec).await.unwrap();
+    let rule = create_test_rule(
+        &store,
+        tenant.clone(),
+        "t/evaluator_publishes_dispatcher_delivers",
+        &spec,
+    )
+    .await;
 
     let dispatcher = common::spawn_dispatcher(&ctx, false);
     let ev_handle = {

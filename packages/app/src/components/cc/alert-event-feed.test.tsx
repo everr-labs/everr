@@ -11,6 +11,7 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { AlertEventLogRow } from "@/data/alerts/history.server";
 import { CC_POLL_INTERVAL_MS, ccQueries } from "@/data/cc/queries";
+import type { CcSlo } from "@/data/cc/types";
 import { AlertEventFeed } from "./alert-event-feed";
 
 // ---------------------------------------------------------------------------
@@ -18,6 +19,10 @@ import { AlertEventFeed } from "./alert-event-feed";
 // imports above by vitest, so the mocked modules are in place before
 // AlertEventFeed (and its dependencies) load.
 // ---------------------------------------------------------------------------
+
+// The feed imports @/data/cc/queries -> server fns -> @/db/client, whose
+// t3-env access throws under jsdom; stub the db module before that chain loads.
+vi.mock("@/db/client", () => ({ db: {} }));
 
 const mockUseQuery = vi.fn();
 vi.mock("@tanstack/react-query", async (importOriginal) => {
@@ -35,6 +40,25 @@ vi.mock("@/hooks/use-time-range", () => ({
 // ---------------------------------------------------------------------------
 // Fixtures
 // ---------------------------------------------------------------------------
+
+function ccSlo(overrides: Partial<CcSlo> = {}): CcSlo {
+  return {
+    id: "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+    tenant: "org1",
+    namespace: "",
+    name: "checkout-availability",
+    spec: {
+      sli: { sql: "SELECT 1 AS good, 1 AS valid", label_columns: [] },
+      targetPercent: 99.9,
+      timeWindow: { duration: "30d", isRolling: true },
+      annotations: {},
+      suppressed: false,
+    },
+    version: 1,
+    paused: false,
+    ...overrides,
+  };
+}
 
 function historyRow(
   overrides: Partial<AlertEventLogRow> = {},
@@ -73,7 +97,7 @@ beforeEach(() => {
 /**
  * Mount the feed inside a minimal router: resolved sources render as Links to
  * the rule/SLO detail routes, which need a live router to build hrefs. Tests
- * that pass resolveSlo/resolveRuleId use this; the rest render bare.
+ * that pass resolveSlo/resolveRuleAddress use this; the rest render bare.
  */
 function renderInRouter(ui: React.ReactElement) {
   const rootRoute = createRootRoute({ component: Outlet });
@@ -84,12 +108,12 @@ function renderInRouter(ui: React.ReactElement) {
   });
   const sloDetailRoute = createRoute({
     getParentRoute: () => rootRoute,
-    path: "/alerts/slos/$sloId",
+    path: "/alerts/slos/$project/$slug",
     component: () => null,
   });
   const ruleDetailRoute = createRoute({
     getParentRoute: () => rootRoute,
-    path: "/alerts/rules/$ruleId",
+    path: "/alerts/rules/$project/$slug",
     component: () => null,
   });
   const router = createRouter({
@@ -137,7 +161,7 @@ describe("AlertEventFeed", () => {
       <AlertEventFeed
         resolveSlo={(handle) =>
           handle === "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
-            ? { id: handle, name: "checkout-availability" }
+            ? ccSlo()
             : undefined
         }
         resolveRuleName={(handle) => (handle === "beta" ? "Beta rule" : handle)}
@@ -146,13 +170,13 @@ describe("AlertEventFeed", () => {
 
     // The SLO row resolves to its name plus the origin marker and links to
     // the SLO detail page; the rule row keeps its resolved rule name,
-    // unmarked (and unlinked without resolveRuleId).
+    // unmarked (and unlinked without resolveRuleAddress).
     const sloLink = await screen.findByRole("link", {
       name: "checkout-availability",
     });
     expect(sloLink).toHaveAttribute(
       "href",
-      "/alerts/slos/aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+      "/alerts/slos/default/checkout-availability",
     );
     expect(screen.getByText("SLO")).toBeInTheDocument();
     expect(
@@ -164,18 +188,50 @@ describe("AlertEventFeed", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("links resolved rule rows to the rule detail page via resolveRuleId", async () => {
+  it("names an SLO row by its display name when the SLO carries one", async () => {
+    mockHistory([historyRow({ slug: "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee" })]);
+
+    renderInRouter(
+      <AlertEventFeed
+        resolveSlo={(handle) =>
+          handle === "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
+            ? ccSlo({
+                spec: {
+                  ...ccSlo().spec,
+                  annotations: {
+                    "everr.display.name": "Checkout Availability",
+                  },
+                },
+              })
+            : undefined
+        }
+      />,
+    );
+
+    const sloLink = await screen.findByRole("link", {
+      name: "Checkout Availability",
+    });
+    expect(sloLink).toHaveAttribute(
+      "href",
+      "/alerts/slos/default/checkout-availability",
+    );
+    expect(screen.queryByText("checkout-availability")).not.toBeInTheDocument();
+  });
+
+  it("links resolved rule rows to the rule detail page via resolveRuleAddress", async () => {
     mockHistory([historyRow({ slug: "beta" })]);
 
     renderInRouter(
       <AlertEventFeed
         resolveRuleName={(handle) => (handle === "beta" ? "Beta rule" : handle)}
-        resolveRuleId={(handle) => (handle === "beta" ? "rule-1" : undefined)}
+        resolveRuleAddress={(handle) =>
+          handle === "beta" ? { project: "default", slug: "rule-1" } : undefined
+        }
       />,
     );
 
     const ruleLink = await screen.findByRole("link", { name: "Beta rule" });
-    expect(ruleLink).toHaveAttribute("href", "/alerts/rules/rule-1");
+    expect(ruleLink).toHaveAttribute("href", "/alerts/rules/default/rule-1");
   });
 
   it("renders evidence chips for a row that carries evidence", () => {

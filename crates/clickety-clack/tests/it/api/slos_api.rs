@@ -120,13 +120,39 @@ async fn duplicate_name_conflicts() {
 }
 
 #[tokio::test]
+async fn duplicate_namespace_style_name_conflicts() {
+    // "default/checkout" exercises the shared `api::identity::validate_name`,
+    // which (unlike the old SLO-local validator) allows the "project/slug"
+    // convention consumers encode into names.
+    let (router, _store) = setup().await;
+    let created = create_slo(&router, "default/checkout").await;
+    assert_eq!(created["name"], "default/checkout");
+
+    let payload = json!({
+        "name": "default/checkout",
+        "sli": { "sql": "SELECT 1 AS good, 1 AS valid FROM t WHERE ts >= {window_start:DateTime} AND ts < {window_end:DateTime}" },
+        "targetPercent": 99.9, "timeWindow": { "duration": "30d" }
+    });
+    let resp = router
+        .oneshot(
+            Request::post("/v1/slos")
+                .header("X-CC-Tenant", TENANT)
+                .header("content-type", "application/json")
+                .body(Body::from(payload.to_string()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::CONFLICT);
+}
+
+#[tokio::test]
 async fn update_version_conflict_then_success() {
     let (router, _store) = setup().await;
     let created = create_slo(&router, "up").await;
     let id = created["id"].as_str().unwrap();
 
     let stale = json!({
-        "name": "up",
         "sli": { "sql": "SELECT 1 AS good, 1 AS valid FROM t WHERE ts >= {window_start:DateTime} AND ts < {window_end:DateTime}" },
         "targetPercent": 99.5, "timeWindow": { "duration": "30d" }, "version": 999
     });
@@ -144,7 +170,6 @@ async fn update_version_conflict_then_success() {
     assert_eq!(resp.status(), StatusCode::CONFLICT);
 
     let good = json!({
-        "name": "up",
         "sli": { "sql": "SELECT 1 AS good, 1 AS valid FROM t WHERE ts >= {window_start:DateTime} AND ts < {window_end:DateTime}" },
         "targetPercent": 99.5, "timeWindow": { "duration": "30d" }, "version": 1
     });

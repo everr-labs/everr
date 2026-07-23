@@ -11,14 +11,14 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { CcSlo, CcSloStatus } from "@/data/cc/types";
-import { Route as SloDetailFileRoute } from "./slos_.$sloId";
+import { Route as SloDetailFileRoute } from "./slos_.$project.$slug";
 
 // ---------------------------------------------------------------------------
 // Mocks at the module boundary the route talks to, same as the sibling tests.
 // ---------------------------------------------------------------------------
 
 const mocks = vi.hoisted(() => ({
-  getCcSlo: vi.fn(),
+  getCcSloByName: vi.fn(),
   getCcSloStatus: vi.fn(),
   getCcSloBudgetSeries: vi.fn(),
   getCcSloBudgetNow: vi.fn(),
@@ -30,7 +30,7 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock("@/data/cc/server", () => ({
-  getCcSlo: mocks.getCcSlo,
+  getCcSloByName: mocks.getCcSloByName,
   getCcSloStatus: mocks.getCcSloStatus,
   getCcSloBudgetSeries: mocks.getCcSloBudgetSeries,
   getCcSloBudgetNow: mocks.getCcSloBudgetNow,
@@ -59,12 +59,15 @@ vi.mock("@/components/cc/alert-event-feed", () => ({
 // ---------------------------------------------------------------------------
 
 const SLO_ID = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee";
+const PROJECT = "default";
+const SLUG = "checkout-availability";
 
 function ccSlo(overrides: Partial<CcSlo> = {}): CcSlo {
   return {
     id: SLO_ID,
     tenant: "org1",
-    name: "checkout-availability",
+    namespace: "",
+    name: `${PROJECT}/${SLUG}`,
     spec: {
       sli: {
         sql: "SELECT countIf(ok) AS good, count() AS valid FROM t WHERE ts >= {window_start:DateTime} AND ts < {window_end:DateTime}",
@@ -135,7 +138,7 @@ function renderSloDetailRoute() {
   });
   const sloDetailRoute = createRoute({
     getParentRoute: () => dashboardRoute,
-    path: "alerts/slos/$sloId",
+    path: "alerts/slos/$project/$slug",
     component: SloDetailFileRoute.options.component,
   });
   // Back-link target; never rendered here.
@@ -144,15 +147,20 @@ function renderSloDetailRoute() {
     path: "alerts/slos",
     component: () => null,
   });
+  const runbookRoute = createRoute({
+    getParentRoute: () => dashboardRoute,
+    path: "runbooks/$project/$slug",
+    component: () => null,
+  });
 
   const routeTree = rootRoute.addChildren([
     authenticatedRoute.addChildren([
-      dashboardRoute.addChildren([sloDetailRoute, slosRoute]),
+      dashboardRoute.addChildren([sloDetailRoute, slosRoute, runbookRoute]),
     ]),
   ]);
 
   const history = createMemoryHistory({
-    initialEntries: [`/alerts/slos/${SLO_ID}`],
+    initialEntries: [`/alerts/slos/${PROJECT}/${SLUG}`],
   });
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
@@ -169,7 +177,7 @@ function renderSloDetailRoute() {
 
 beforeEach(() => {
   for (const fn of Object.values(mocks)) fn.mockReset();
-  mocks.getCcSlo.mockResolvedValue(ccSlo());
+  mocks.getCcSloByName.mockResolvedValue(ccSlo());
   mocks.getCcSloStatus.mockResolvedValue(sloStatus());
   mocks.getCcSloBudgetSeries.mockResolvedValue([]);
   mocks.getCcSloBudgetNow.mockResolvedValue([]);
@@ -177,14 +185,20 @@ beforeEach(() => {
   mocks.resumeCcSlo.mockResolvedValue(ccSlo());
 });
 
-describe("/alerts/slos/$sloId route", () => {
+describe("/alerts/slos/$project/$slug route", () => {
   it("leads with the status hero: state, budget, SLI, burn, and per-tier pressure", async () => {
     renderSloDetailRoute();
 
+    // No display name set: the heading falls back to the bare slug, and
+    // there is no secondary slug chip (it would just repeat the heading).
     expect(
-      await screen.findByRole("heading", { name: "checkout-availability" }),
+      await screen.findByRole("heading", { name: SLUG }),
     ).toBeInTheDocument();
-    expect(screen.getByText("99.9% over 30d rolling")).toBeInTheDocument();
+    expect(screen.queryByText(`${PROJECT}/${SLUG}`)).not.toBeInTheDocument();
+    // The promise leads the stats row (target + window), not the header. The
+    // row rides the async status read, so wait for it.
+    expect(await screen.findByText("over 30d rolling")).toBeInTheDocument();
+    expect(screen.getAllByText("99.9%").length).toBeGreaterThanOrEqual(1);
 
     // The hero leads with a plain-language verdict, before any number.
     expect(
@@ -199,21 +213,24 @@ describe("/alerts/slos/$sloId route", () => {
     expect(screen.getByText("99.92%")).toBeInTheDocument(); // SLI
     expect(screen.getByText("42.00%")).toBeInTheDocument(); // budget remaining
     expect(screen.getByText("3d 4h")).toBeInTheDocument(); // exhaustion
-    // The headline burn and the fast-burn pressure gauge both print 1.4× / 1h.
+    // The headline burn (1h fact) and the lookback readout both print 1.4×.
     expect(screen.getAllByText(/1\.4×/).length).toBeGreaterThanOrEqual(2);
-    expect(screen.getAllByText(/\/ 1h/).length).toBeGreaterThanOrEqual(2);
-    // The short-window burn is now surfaced on the fast-burn gauge (not buried
-    // in a tooltip).
-    expect(screen.getByText(/short window 0\.9×/)).toBeInTheDocument();
-    // fast-burn is named once, in the hero's "what would page you" gauge; the
-    // Objective's static tiers table is collapsed behind a disclosure by default.
-    expect(screen.getAllByText("fast-burn")).toHaveLength(1);
+    // A critical tier fires, so the alerts disclosure opens itself: the
+    // lookback axis names the windows in plain words and the fast-burn row
+    // spells its condition with both live windows in place.
+    expect(screen.getByText("Paging: fast-burn")).toBeInTheDocument();
+    expect(screen.getAllByText(/last 1h/).length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText(/0\.9×/).length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText(/Fires when the last/).length).toBe(3);
+    // fast-burn is named in the hero's tier conditions; the Definition's
+    // static tiers list stays collapsed by default.
+    expect(screen.getAllByText("fast-burn").length).toBeGreaterThanOrEqual(1);
 
     // The read-time scan is empty here (no traffic in the trailing window), so the
     // stored snapshot stands and the freshness line reads "computing", not fresh.
     expect(screen.getByText(/Error budget computing/)).toBeInTheDocument();
 
-    // Objective card: the tiers are foregrounded by outcome behind a collapsed
+    // Definition card: the tiers are foregrounded by outcome behind a collapsed
     // "When it alerts" disclosure (page vs ticket), not a raw tiers table.
     expect(screen.getByText("When it alerts")).toBeInTheDocument();
     expect(
@@ -226,8 +243,12 @@ describe("/alerts/slos/$sloId route", () => {
     expect(screen.getAllByText("slow-burn").length).toBeGreaterThanOrEqual(1);
     expect(screen.getAllByText("ticket").length).toBeGreaterThanOrEqual(1);
 
-    // Health reads healthy, quietly.
-    expect(screen.getByText("healthy")).toBeInTheDocument();
+    // Healthy evaluation is the normal system state: no readout at all — no
+    // broken-heart flag on the title, no Evaluator card.
+    expect(
+      screen.queryByLabelText("Evaluator degraded"),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText("Evaluator")).not.toBeInTheDocument();
 
     // The firing-history feed is scoped to this SLO's handles.
     expect(mocks.feedProps).toHaveBeenCalled();
@@ -235,6 +256,31 @@ describe("/alerts/slos/$sloId route", () => {
       scopeSlug: string[];
     };
     expect(props.scopeSlug).toContain(SLO_ID);
+  });
+
+  it("shows the display name as the heading, with the slug and description alongside", async () => {
+    mocks.getCcSloByName.mockResolvedValue(
+      ccSlo({
+        spec: {
+          ...ccSlo().spec,
+          annotations: {
+            "everr.display.name": "Checkout Availability",
+            "everr.display.description": "Can shoppers complete checkout?",
+          },
+        },
+      }),
+    );
+
+    renderSloDetailRoute();
+
+    expect(
+      await screen.findByRole("heading", { name: "Checkout Availability" }),
+    ).toBeInTheDocument();
+    // The slug stays reachable next to the display name.
+    expect(screen.getByText(SLUG)).toBeInTheDocument();
+    expect(
+      screen.getByText("Can shoppers complete checkout?"),
+    ).toBeInTheDocument();
   });
 
   it("overrides the snapshot's budget with the read-time value on the hero", async () => {
@@ -260,12 +306,10 @@ describe("/alerts/slos/$sloId route", () => {
     ).toBeInTheDocument();
   });
 
-  it("charts the error budget over time, scoped to the SLO's budget window", async () => {
+  it("charts the budget history, scoped to the SLO's budget window", async () => {
     renderSloDetailRoute();
 
-    expect(
-      await screen.findByText("Error budget over time"),
-    ).toBeInTheDocument();
+    expect(await screen.findByText("Budget history")).toBeInTheDocument();
 
     // The series query is scoped to this SLO (the server fetches the SLO for the
     // authoritative SLI/target/window, so the request carries just the id + range).
@@ -284,7 +328,7 @@ describe("/alerts/slos/$sloId route", () => {
   it("describes a scalar SLO without a per-group table", async () => {
     // A scalar SLO: no label columns, one label-less group. The hero fully
     // describes it, so there is no "All groups" breakdown.
-    mocks.getCcSlo.mockResolvedValue(
+    mocks.getCcSloByName.mockResolvedValue(
       ccSlo({
         spec: {
           ...ccSlo().spec,
@@ -336,7 +380,7 @@ describe("/alerts/slos/$sloId route", () => {
       await screen.findByText("No status snapshot yet"),
     ).toBeInTheDocument();
     // Without a snapshot there is no health row either: no health card.
-    expect(screen.queryByText("Is it healthy")).not.toBeInTheDocument();
+    expect(screen.queryByText("Evaluator")).not.toBeInTheDocument();
   });
 
   it("renders degraded health loudly with the SLI failure forensics", async () => {
@@ -356,6 +400,8 @@ describe("/alerts/slos/$sloId route", () => {
       await screen.findByText(/Evaluation degraded since/),
     ).toBeInTheDocument();
     expect(screen.getByText("query failed: boom")).toBeInTheDocument();
+    // The broken heart rides the title while the evaluator is degraded.
+    expect(screen.getByLabelText("Evaluator degraded")).toBeInTheDocument();
   });
 
   it("pauses the SLO from the header and invalidates both queries", async () => {
@@ -373,10 +419,29 @@ describe("/alerts/slos/$sloId route", () => {
   });
 
   it("fails to the shared error card when the SLO read errors", async () => {
-    mocks.getCcSlo.mockRejectedValue(new Error("cc down"));
+    mocks.getCcSloByName.mockRejectedValue(new Error("cc down"));
 
     renderSloDetailRoute();
 
     expect(await screen.findByRole("alert")).toHaveTextContent("cc down");
+  });
+
+  it("links the runbook chip when the SLO carries a runbook annotation", async () => {
+    mocks.getCcSloByName.mockResolvedValue(
+      ccSlo({
+        spec: {
+          ...ccSlo().spec,
+          annotations: { "everr.runbook": "demo/checkout-runbook" },
+        },
+      }),
+    );
+
+    renderSloDetailRoute();
+
+    const runbookLink = await screen.findByRole("link", { name: /Runbook/ });
+    expect(runbookLink).toHaveAttribute(
+      "href",
+      "/runbooks/demo/checkout-runbook",
+    );
   });
 });

@@ -33,8 +33,9 @@ import {
   type SilenceDrawerHandle,
   SilencesPanel,
 } from "@/components/cc/silences-panel";
-import { fromCcRuleSpec } from "@/data/alerts/mapping";
+import { fromCcRule } from "@/data/alerts/mapping";
 import { ccRuleIdentity } from "@/data/alerts/rule-identity";
+import { parseResourceName } from "@/data/as-code/identity";
 import { ccQueries } from "@/data/cc/queries";
 import {
   ccDispatchLabels,
@@ -42,7 +43,11 @@ import {
   ccSelectRoutes,
 } from "@/data/cc/route-resolution";
 import { createCcSilence } from "@/data/cc/server";
-import { CC_CANONICAL_SLO_TIERS, ccSloTierSeverity } from "@/data/cc/slo";
+import {
+  CC_CANONICAL_SLO_TIERS,
+  ccSloIdentity,
+  ccSloTierSeverity,
+} from "@/data/cc/slo";
 import type {
   CcAlert,
   CcMatcher,
@@ -72,11 +77,12 @@ export const Route = createFileRoute(
 )({
   staticData: { breadcrumb: "Triage" },
   head: () => ({ meta: [{ title: "Everr - Alerts Triage" }] }),
-  loader: ({ context: { queryClient } }) =>
+  loaderDeps: ({ search: { preview } }) => ({ preview }),
+  loader: ({ context: { queryClient }, deps }) =>
     Promise.all([
       queryClient.prefetchQuery(ccQueries.alerts()),
       queryClient.prefetchQuery(ccQueries.rules()),
-      queryClient.prefetchQuery(ccQueries.slos()),
+      queryClient.prefetchQuery(ccQueries.slos(deps.preview)),
       queryClient.prefetchQuery(ccQueries.routes()),
       queryClient.prefetchQuery(ccQueries.receivers()),
       queryClient.prefetchQuery(ccQueries.silences()),
@@ -275,9 +281,7 @@ function InstanceDetail({
     .filter((e) => ccEventStatus(e.eventType) !== null)
     .slice(0, 6);
   const runbook = runbookParams(rule);
-  const description = rule
-    ? fromCcRuleSpec(rule.spec).displayDescription
-    : null;
+  const description = rule ? fromCcRule(rule).displayDescription : null;
 
   return (
     <div className="space-y-3 border-t border-border/60 bg-muted/10 px-3 py-3 pl-9">
@@ -550,11 +554,12 @@ const LENSES = [
 type LensKey = (typeof LENSES)[number]["key"];
 
 function CcTriagePage() {
+  const { preview } = Route.useSearch();
   const qc = useQueryClient();
   const silenceDrawer = useRef<SilenceDrawerHandle>(null);
   const alerts = useQuery(ccQueries.alerts());
   const rules = useQuery(ccQueries.rules());
-  const slos = useQuery(ccQueries.slos());
+  const slos = useQuery(ccQueries.slos(preview));
   const routes = useQuery(ccQueries.routes());
   const receivers = useQuery(ccQueries.receivers());
   const silences = useQuery(ccQueries.silences());
@@ -689,7 +694,7 @@ function CcTriagePage() {
           slo,
           sloId,
           name: slo
-            ? slo.name
+            ? ccSloIdentity(slo).name
             : sloId !== undefined
               ? sloId.slice(0, 8)
               : ruleDisplayName(list[0].rule, sourceId),
@@ -828,21 +833,31 @@ function CcTriagePage() {
                 <section key={group.sourceId} className="py-1">
                   <div className="flex items-center gap-2.5 px-3 py-1.5">
                     {group.sloId !== undefined ? (
+                      group.slo ? (
+                        <Link
+                          to="/alerts/slos/$project/$slug"
+                          params={parseResourceName(group.slo.name)}
+                          className="text-sm font-medium text-foreground underline-offset-2 hover:underline"
+                        >
+                          {group.name}
+                        </Link>
+                      ) : (
+                        <span className="text-sm font-medium text-foreground">
+                          {group.name}
+                        </span>
+                      )
+                    ) : group.rule ? (
                       <Link
-                        to="/alerts/slos/$sloId"
-                        params={{ sloId: group.sloId }}
+                        to="/alerts/rules/$project/$slug"
+                        params={parseResourceName(group.rule.name)}
                         className="text-sm font-medium text-foreground underline-offset-2 hover:underline"
                       >
                         {group.name}
                       </Link>
                     ) : (
-                      <Link
-                        to="/alerts/rules/$ruleId"
-                        params={{ ruleId: group.sourceId }}
-                        className="text-sm font-medium text-foreground underline-offset-2 hover:underline"
-                      >
+                      <span className="text-sm font-medium text-foreground">
                         {group.name}
-                      </Link>
+                      </span>
                     )}
                     {group.sloId !== undefined && (
                       // Origin marker: this group is an SLO's burn-rate

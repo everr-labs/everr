@@ -38,8 +38,9 @@ function ccSlo(
   over: Record<string, unknown> = {},
 ) {
   return {
-    id: `slo-${name}`,
+    id: `slo-${name.split("/").pop()}`,
     tenant: "t",
+    namespace: "",
     name,
     version: 4,
     paused: false,
@@ -90,19 +91,15 @@ describe("isResourceKind", () => {
 describe("slo backend", () => {
   it("lists only live everr-owned SLOs with their CC updated_at", async () => {
     mockedListSlos.mockResolvedValue([
-      ccSlo("checkout", {
-        "everr.name": "checkout",
-        "everr.repoid": "repo-1",
-        "everr.project": "payments",
-      }),
-      // UI-created (no everr.name): not an as-code resource.
+      ccSlo("payments/checkout", { "everr.repoid": "repo-1" }),
+      // UI-created (no everr.repoid): not an as-code resource.
       ccSlo("hand-made", {}),
       // Preview copy: never a live resource.
-      ccSlo("checkout.pv-0123456789", {
-        "everr.name": "checkout",
-        "everr.repoid": "repo-1",
-        "everr.preview": "p1",
-      }),
+      ccSlo(
+        "payments/checkout",
+        { "everr.repoid": "repo-1" },
+        { namespace: "p1" },
+      ),
     ]);
 
     const out = await listResources("org-1", { kind: "slo" });
@@ -120,8 +117,8 @@ describe("slo backend", () => {
 
   it("filters by repoid", async () => {
     mockedListSlos.mockResolvedValue([
-      ccSlo("mine", { "everr.name": "mine", "everr.repoid": "repo-1" }),
-      ccSlo("theirs", { "everr.name": "theirs", "everr.repoid": "repo-2" }),
+      ccSlo("default/mine", { "everr.repoid": "repo-1" }),
+      ccSlo("default/theirs", { "everr.repoid": "repo-2" }),
     ]);
 
     const out = await listResources("org-1", { kind: "slo", repoid: "repo-1" });
@@ -130,7 +127,7 @@ describe("slo backend", () => {
 
   it("reconstructs the canonical kind: SLO document on get", async () => {
     mockedListSlos.mockResolvedValue([
-      ccSlo("checkout", { "everr.name": "checkout", "everr.repoid": "r" }),
+      ccSlo("default/checkout", { "everr.repoid": "r" }),
     ]);
 
     const doc = await getResource("org-1", "slo", "default", "checkout");
@@ -149,7 +146,7 @@ describe("slo backend", () => {
 
   it("deletes the matching CC SLO", async () => {
     mockedListSlos.mockResolvedValue([
-      ccSlo("checkout", { "everr.name": "checkout", "everr.repoid": "r" }),
+      ccSlo("default/checkout", { "everr.repoid": "r" }),
     ]);
 
     expect(await deleteResource("org-1", "slo", "default", "checkout")).toBe(
@@ -162,7 +159,7 @@ describe("slo backend", () => {
 
   it("adopts by rewriting everr.repoid via a version-guarded update", async () => {
     mockedListSlos.mockResolvedValue([
-      ccSlo("checkout", { "everr.name": "checkout", "everr.repoid": "repo-2" }),
+      ccSlo("default/checkout", { "everr.repoid": "repo-2" }),
     ]);
 
     const res = await adoptResource(
@@ -178,16 +175,16 @@ describe("slo backend", () => {
     expect(org).toBe("org-1");
     expect(id).toBe("slo-checkout");
     expect(version).toBe(4);
-    expect(input.name).toBe("checkout");
+    // Spec-only update body: no `name` field (CcSloUpdate is CcSloSpecSchema).
+    expect(input).not.toHaveProperty("name");
     expect(input.annotations).toEqual({
-      "everr.name": "checkout",
       "everr.repoid": "repo-1",
     });
   });
 
   it("adopt reports alreadyOwned and not-found without writing", async () => {
     mockedListSlos.mockResolvedValue([
-      ccSlo("checkout", { "everr.name": "checkout", "everr.repoid": "repo-1" }),
+      ccSlo("default/checkout", { "everr.repoid": "repo-1" }),
     ]);
 
     expect(

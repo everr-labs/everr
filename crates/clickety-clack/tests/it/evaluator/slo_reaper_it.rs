@@ -1,6 +1,7 @@
 //! Task 11: the SLO stale reaper (mirrors `maintenance_it.rs`'s rule-side reconcile
 //! sweep, against `slo_instances`) and the maintenance-driven eval-ledger prune.
 
+use crate::support::{create_test_rule, create_test_slo};
 use cc::domain::ids::{InstanceKey, RuleId, SloId, SourceId, TenantId};
 use cc::domain::instance::{InstanceState, Status};
 use cc::domain::rule::{RuleSpec, Severity};
@@ -9,7 +10,7 @@ use cc::domain::EventStatus;
 use cc::evaluator::maintenance::{reconcile_slo_once, run_maintenance};
 use cc::queue::event_bus::RedisEventBus;
 use cc::queue::EventBus;
-use cc::stores::{PgStore, RedisLease, SloCreate};
+use cc::stores::{PgStore, RedisLease};
 use std::collections::BTreeMap;
 use std::time::Duration as StdDuration;
 use time::{Duration, OffsetDateTime};
@@ -88,13 +89,13 @@ async fn reaper_resolves_stale_slo_instance_and_leaves_fresh_untouched() {
     let bus = RedisEventBus::connect(&redis_url).await.unwrap();
 
     let t = tenant();
-    let SloCreate::Created(slo) = store
-        .create_slo(t.clone(), "checkout", &slo_spec())
-        .await
-        .unwrap()
-    else {
-        panic!("slo creation must succeed against a fresh tenant")
-    };
+    let slo = create_test_slo(
+        &store,
+        t.clone(),
+        "t/reaper_resolves_stale_slo_instance_and_leaves_fresh_untouched",
+        &slo_spec(),
+    )
+    .await;
     let slo_rule = slo.id;
     let now = OffsetDateTime::now_utc();
 
@@ -152,15 +153,21 @@ async fn maintenance_loop_reaps_slo_and_prunes_ledgers() {
         std::sync::Arc::new(RedisEventBus::connect(&redis_url).await.unwrap());
 
     let t = tenant();
-    let SloCreate::Created(slo) = store
-        .create_slo(t.clone(), "checkout", &slo_spec())
-        .await
-        .unwrap()
-    else {
-        panic!("slo creation must succeed against a fresh tenant")
-    };
+    let slo = create_test_slo(
+        &store,
+        t.clone(),
+        "t/maintenance_loop_reaps_slo_and_prunes_ledgers",
+        &slo_spec(),
+    )
+    .await;
     let slo_rule = slo.id;
-    let rule = store.create_rule(t.clone(), &rule_spec()).await.unwrap();
+    let rule = create_test_rule(
+        &store,
+        t.clone(),
+        "t/maintenance_loop_reaps_slo_and_prunes_ledgers",
+        &rule_spec(),
+    )
+    .await;
     let now = OffsetDateTime::now_utc();
 
     // A stale firing SLO instance for the reaper pass.

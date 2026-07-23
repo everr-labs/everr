@@ -18,10 +18,12 @@ vi.mock("@/data/slos/apply.server", () => ({
 }));
 // Cross-kind runbook-link validation is exercised in its own suite; mock it
 // here so the orchestration test stays focused on routing and avoids the
-// runbook-links module's transitive DB import.
+// runbook-links module's transitive DB/CC imports.
 const validateRunbookLinks = vi.fn();
-vi.mock("@/data/alerts/runbook-links.server", () => ({
-  validateAlertRunbookLinks: (...a: unknown[]) => validateRunbookLinks(...a),
+const collectOrphanWarnings = vi.fn();
+vi.mock("./runbook-links.server", () => ({
+  validateRunbookLinks: (...a: unknown[]) => validateRunbookLinks(...a),
+  collectOrphanWarnings: (...a: unknown[]) => collectOrphanWarnings(...a),
 }));
 const upsertPreview = vi.fn();
 const findPreviewId = vi.fn();
@@ -59,6 +61,7 @@ beforeEach(() => {
   sloReconciler.mockResolvedValue(empty);
   upsertPreview.mockResolvedValue("prev-1");
   findPreviewId.mockResolvedValue(null);
+  collectOrphanWarnings.mockResolvedValue([]);
 });
 
 describe("applyResources", () => {
@@ -112,6 +115,12 @@ describe("applyResources", () => {
     expect(sloReconciler).toHaveBeenCalledWith(
       expect.objectContaining({ namespace: liveNs, resources: [slo] }),
     );
+    expect(validateRunbookLinks).toHaveBeenCalledWith({
+      namespace: liveNs,
+      alerts: [alert],
+      slos: [slo],
+      runbooks: [runbook],
+    });
     expect(out).toEqual({
       dryRun: false,
       results: [
@@ -477,5 +486,69 @@ describe("applyResources", () => {
     expect(sloReconciler).toHaveBeenCalledWith(
       expect.objectContaining({ adopt: true }),
     );
+  });
+
+  it("appends orphan-link warnings to the Runbook kind's result note, joined with its existing note", async () => {
+    runbookReconciler.mockResolvedValue({
+      created: [],
+      updated: [],
+      deleted: ["triage"],
+      adopted: [],
+      conflicts: [],
+      note: "preview-only advisory",
+    });
+    collectOrphanWarnings.mockResolvedValue([
+      'deleting runbook "default/triage" orphans the link from alert "default/api-errors" (owned by repo-2)',
+    ]);
+    const out = await applyResources({
+      orgId: "org-1",
+      repoid: "repo-1",
+      state: { dashboards: [], runbooks: [], alerts: [], slos: [] },
+      dryRun: false,
+    });
+    expect(collectOrphanWarnings).toHaveBeenCalledWith(
+      expect.objectContaining({
+        namespace: expect.objectContaining({ kind: "live" }),
+      }),
+    );
+    const runbookResult = out.results.find((r) => r.kind === "Runbook");
+    expect(runbookResult?.note).toBe(
+      'preview-only advisory; deleting runbook "default/triage" orphans the link from alert "default/api-errors" (owned by repo-2)',
+    );
+  });
+
+  it("appends orphan-link warnings to the dry-run result too", async () => {
+    runbookReconciler.mockResolvedValue({
+      created: [],
+      updated: [],
+      deleted: ["triage"],
+      adopted: [],
+      conflicts: [],
+    });
+    collectOrphanWarnings.mockResolvedValue([
+      'deleting runbook "default/triage" orphans the link from slo "default/checkout" (owned by repo-2)',
+    ]);
+    const out = await applyResources({
+      orgId: "org-1",
+      repoid: "repo-1",
+      state: { dashboards: [], runbooks: [], alerts: [], slos: [] },
+      dryRun: true,
+    });
+    const runbookResult = out.results.find((r) => r.kind === "Runbook");
+    expect(runbookResult?.note).toBe(
+      'deleting runbook "default/triage" orphans the link from slo "default/checkout" (owned by repo-2)',
+    );
+  });
+
+  it("leaves the Runbook note untouched when there are no orphan warnings", async () => {
+    collectOrphanWarnings.mockResolvedValue([]);
+    const out = await applyResources({
+      orgId: "org-1",
+      repoid: "repo-1",
+      state: { dashboards: [], runbooks: [], alerts: [], slos: [] },
+      dryRun: false,
+    });
+    const runbookResult = out.results.find((r) => r.kind === "Runbook");
+    expect(runbookResult?.note).toBeUndefined();
   });
 });

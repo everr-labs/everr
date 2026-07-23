@@ -93,6 +93,7 @@ fn bench_route_decision(c: &mut Criterion) {
         tenant: tenant(),
         rule: RuleId(Uuid::nil()),
         slo: None,
+        name: String::new(),
         instance_key: InstanceKey("inst-db1".into()),
         status: EventStatus::Firing,
         kind: cc::domain::EventKind::Alert,

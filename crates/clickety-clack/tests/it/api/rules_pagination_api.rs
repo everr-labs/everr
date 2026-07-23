@@ -10,14 +10,17 @@ use tower::ServiceExt;
 use uuid::Uuid;
 
 async fn create_rule(app: &axum::Router, tenant: Uuid) -> String {
+    // Each call may share a tenant with sibling calls (pagination tests create several
+    // rules per tenant), so the name must be unique per call, not just per test.
+    let name = format!("t/rules_pagination_api-{}", Uuid::new_v4());
     let req = Request::builder()
         .method("POST")
         .uri("/v1/rules")
         .header("content-type", "application/json")
         .header("X-CC-Tenant", tenant.to_string())
-        .body(Body::from(
-            r#"{"sql":"SELECT host FROM t","interval_secs":30,"for_secs":0,"label_columns":["host"],"severity":"warning"}"#,
-        ))
+        .body(Body::from(format!(
+            r#"{{"name":"{name}","sql":"SELECT host FROM t","interval_secs":30,"for_secs":0,"label_columns":["host"],"severity":"warning"}}"#,
+        )))
         .unwrap();
     let resp = app.clone().oneshot(req).await.unwrap();
     assert_eq!(resp.status(), StatusCode::OK);

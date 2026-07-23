@@ -1,4 +1,5 @@
 use crate::common;
+use crate::support::create_test_rule;
 use async_trait::async_trait;
 use cc::clickhouse::ChClient;
 use cc::dispatcher::DispatchCtx;
@@ -110,7 +111,13 @@ async fn relay_recovers_dropped_inline_publish() {
         max_interval_secs: None,
         suppressed: false,
     };
-    let rule = store.create_rule(tenant.clone(), &spec).await.unwrap();
+    let rule = create_test_rule(
+        &store,
+        tenant.clone(),
+        "t/relay_recovers_dropped_inline_publish",
+        &spec,
+    )
+    .await;
 
     let dispatcher = common::spawn_dispatcher(&ctx, false);
 
