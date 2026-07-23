@@ -22,9 +22,15 @@ type OtlpLogRecord = {
 };
 
 export type Emitter = {
+  /**
+   * `exitPriority` ranks the record for exit truncation: lower survives
+   * longer (errors 0 > page_leave 1 > vitals 2 > interactions 3, the
+   * default). Signals declare their own rank at the emit site.
+   */
   emit(
     eventName: string,
     attributes?: Record<string, AttrValue | undefined>,
+    exitPriority?: number,
   ): void;
   flush(): Promise<void>;
   /**
@@ -40,15 +46,6 @@ const MAX_QUEUE_SIZE = 100;
 const MAX_BATCH_SIZE = 32;
 const SCHEDULED_DELAY_MS = 5_000;
 
-// Exit truncation: lower survives longer. Unlisted browser.* events rank
-// last; non-browser events (errors) rank first, so the order is
-// errors > page_leave > vitals > interactions.
-const EXIT_PRIORITY: Record<string, number> = {
-  "browser.page_leave": 1,
-  "browser.web_vital": 2,
-};
-const priority = (eventName: string) =>
-  EXIT_PRIORITY[eventName] ?? (eventName.startsWith("browser.") ? 3 : 0);
 // The keepalive in-flight quota, measured in actual bytes (multibyte
 // attribute values would make string length undercount).
 const EXIT_BUDGET = 64_000;
@@ -83,7 +80,7 @@ export function createEmitter(options: {
 }): Emitter {
   const resource = toKeyValues(options.resource);
   const headers = { "Content-Type": "application/json", ...options.headers };
-  let queue: OtlpLogRecord[] = [];
+  let queue: Array<{ p: number; r: OtlpLogRecord }> = [];
   let timer: ReturnType<typeof setTimeout> | undefined;
 
   const build = () =>
@@ -91,7 +88,9 @@ export function createEmitter(options: {
       resourceLogs: [
         {
           resource: { attributes: resource },
-          scopeLogs: [{ scope: options.scope, logRecords: queue }],
+          scopeLogs: [
+            { scope: options.scope, logRecords: queue.map((q) => q.r) },
+          ],
         },
       ],
     });
@@ -105,48 +104,50 @@ export function createEmitter(options: {
     return body;
   };
 
+  // Telemetry must never break the page: delivery is best-effort, sync
+  // throws included. The global fetch is read at call time, which is also
+  // what the tests stub. keepalive survives the page teardown; deliberately
+  // no sendBeacon fallback (it cannot carry the Authorization header, so it
+  // could never deliver to the hosted ingest anyway).
+  const post = (body: string, keepalive?: boolean): Promise<void> => {
+    try {
+      return fetch(options.logsUrl, {
+        method: "POST",
+        headers,
+        body,
+        keepalive,
+      }).then(noop, noop);
+    } catch {
+      return noop();
+    }
+  };
+
   const flush = (): Promise<void> => {
     const body = takeBody();
-    if (!body) return noop();
-    // Telemetry must never break the page: delivery is best-effort. The
-    // global fetch is read at flush time, which is also what the tests stub.
-    return fetch(options.logsUrl, { method: "POST", headers, body }).then(
-      noop,
-      noop,
-    );
+    return body ? post(body) : noop();
   };
 
   const exitFlush = (): void => {
     // Truncate whole records, lowest priority first, until the batch fits
     // the keepalive budget.
-    queue.sort((a, b) => priority(a.eventName) - priority(b.eventName));
+    queue.sort((a, b) => a.p - b.p);
     while (queue.length > 1 && new Blob([build()]).size > EXIT_BUDGET)
       queue.pop();
     const body = takeBody();
-    if (!body) return;
-    // keepalive survives the page teardown. Deliberately no sendBeacon
-    // fallback: it cannot carry the Authorization header, so it could never
-    // deliver to the hosted ingest anyway.
-    try {
-      void fetch(options.logsUrl, {
-        method: "POST",
-        headers,
-        body,
-        keepalive: true,
-      }).then(noop, noop);
-    } catch {
-      // Telemetry must never break the page.
-    }
+    if (body) void post(body, true);
   };
 
   return {
-    emit(eventName, attributes) {
+    emit(eventName, attributes, exitPriority = 3) {
       if (queue.length >= MAX_QUEUE_SIZE) return;
       queue.push({
-        timeUnixNano: `${Date.now()}000000`,
-        severityNumber: 9, // INFO
-        eventName,
-        attributes: toKeyValues({ ...options.envelope(), ...attributes }),
+        p: exitPriority,
+        r: {
+          timeUnixNano: `${Date.now()}000000`,
+          severityNumber: 9, // INFO
+          eventName,
+          attributes: toKeyValues({ ...options.envelope(), ...attributes }),
+        },
       });
       if (queue.length >= MAX_BATCH_SIZE) {
         void flush();

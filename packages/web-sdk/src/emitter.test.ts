@@ -153,12 +153,12 @@ describe("createEmitter", () => {
     expect(sent).toHaveLength(1);
   });
 
-  it("truncates the exit payload by priority within the keepalive budget", () => {
+  it("truncates the exit payload by declared priority within the keepalive budget", () => {
     const filler = "x".repeat(3000);
     for (let i = 0; i < 28; i++) emitter.emit("browser.click", { filler });
-    emitter.emit("browser.web_vital", { filler });
-    emitter.emit("browser.page_leave");
-    emitter.emit("exception");
+    emitter.emit("browser.web_vital", { filler }, 2);
+    emitter.emit("browser.page_leave", {}, 1);
+    emitter.emit("exception", {}, 0);
     emitter.exitFlush();
 
     const names = sentRecords().map((r) => r.eventName);

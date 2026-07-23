@@ -10,6 +10,8 @@ import type { AttrValue, Emitter } from "./emitter.js";
 // an `everr-no-capture` class is invisible.
 
 // Card-number (13-16 digits, optionally spaced/dashed) or SSN shaped.
+// Deliberately independent of @everr/auto-otel-errors' scrub patterns: this
+// package stays zero-dep, so the shapes may drift; revisit if they converge.
 const SENSITIVE_TEXT = /\b(?:\d[ -]?){13,16}\b|\b\d{3}-\d{2}-\d{4}\b/;
 const INTERACTIVE =
   "a,button,input,select,textarea,label,summary,[role=button],[onclick],[tabindex]";
@@ -31,14 +33,18 @@ export function startInteractions(emitter: Emitter): () => void {
   const onActivity = () => {
     lastActivity = Date.now();
   };
+  // Armed only while a dead-click candidate is pending: delivering mutation
+  // records on every DOM change is too expensive to run for the SDK's
+  // lifetime. documentElement, not body: it always exists, even for an init
+  // in <head>.
   const observer = new MutationObserver(onActivity);
-  // documentElement, not body: it always exists, even for an init in <head>.
-  observer.observe(document.documentElement, {
-    subtree: true,
-    childList: true,
-    attributes: true,
-    characterData: true,
-  });
+  const armObserver = () =>
+    observer.observe(document.documentElement, {
+      subtree: true,
+      childList: true,
+      attributes: true,
+      characterData: true,
+    });
 
   const onClick = (event: MouseEvent) => {
     const el = targetOf(event);
@@ -68,7 +74,9 @@ export function startInteractions(emitter: Emitter): () => void {
       const url = location.href;
       // One pending candidate: a newer inert click replaces the older one.
       clearTimeout(deadTimer);
+      armObserver();
       deadTimer = setTimeout(() => {
+        observer.disconnect();
         if (lastActivity < now && location.href === url) {
           emitter.emit("browser.dead_click", attrs);
         }
@@ -132,8 +140,9 @@ function textOf(el: Element): string | undefined {
   if (el.closest(FORM_FIELDS) || el.querySelector(FORM_FIELDS)) {
     return undefined;
   }
-  // Scrub before capping: a card number straddling the cap must still match.
-  const text = el.textContent?.replace(/\s+/g, " ").trim();
+  // Bound the work on huge containers, but keep the scrub window wider than
+  // the cap so a card number straddling the 256 boundary still matches.
+  const text = el.textContent?.slice(0, 1000).replace(/\s+/g, " ").trim();
   return text && !SENSITIVE_TEXT.test(text) ? text.slice(0, 256) : undefined;
 }
 
