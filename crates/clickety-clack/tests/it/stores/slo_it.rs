@@ -206,3 +206,31 @@ async fn list_is_tenant_scoped() {
     assert_eq!(mine.len(), 2);
     assert!(mine.iter().all(|(slo, _, _)| slo.tenant == tenant()));
 }
+
+#[tokio::test]
+async fn slo_identity_scoped_by_namespace() {
+    let s = store().await;
+    let t = tenant();
+    let live = s
+        .create_slo(t.clone(), "", "default/checkout", &spec())
+        .await
+        .unwrap();
+    assert!(matches!(live, SloCreate::Created(_)));
+    // Same name, preview namespace: no conflict (this replaces the old
+    // ".pv-" name-suffix workaround).
+    let preview = s
+        .create_slo(t.clone(), "pv-123", "default/checkout", &spec())
+        .await
+        .unwrap();
+    assert!(matches!(preview, SloCreate::Created(_)));
+    // Duplicate within the live namespace: conflict.
+    let dup = s
+        .create_slo(t.clone(), "", "default/checkout", &spec())
+        .await
+        .unwrap();
+    assert!(matches!(dup, SloCreate::NameConflict));
+    // Listing filtered to the live namespace sees exactly the live row.
+    let rows = s.list_slos(&t, Some(""), None).await.unwrap();
+    assert_eq!(rows.len(), 1);
+    assert_eq!(rows[0].0.namespace, "");
+}

@@ -95,7 +95,6 @@ pub enum SloUpdate {
     Updated(crate::domain::slo::Slo),
     NotFound,
     VersionConflict { current: i64 },
-    NameConflict,
 }
 
 /// True if a sqlx error is a Postgres unique-constraint violation (SQLSTATE 23505).
@@ -2337,25 +2336,28 @@ impl PgStore {
     pub async fn create_slo(
         &self,
         tenant: TenantId,
+        namespace: &str,
         name: &str,
         spec: &crate::domain::slo::SloSpec,
     ) -> Result<SloCreate, StoreError> {
         use crate::domain::ids::SloId;
         let id = Uuid::new_v4();
         let spec_json = serde_json::to_value(spec)?;
-        let res = sqlx::query("INSERT INTO slos (id, tenant, name, spec) VALUES ($1,$2,$3,$4)")
-            .bind(id)
-            .bind(tenant.as_str())
-            .bind(name)
-            .bind(&spec_json)
-            .execute(&self.pool)
-            .await;
+        let res = sqlx::query(
+            "INSERT INTO slos (id, tenant, namespace, name, spec) VALUES ($1,$2,$3,$4,$5)",
+        )
+        .bind(id)
+        .bind(tenant.as_str())
+        .bind(namespace)
+        .bind(name)
+        .bind(&spec_json)
+        .execute(&self.pool)
+        .await;
         match res {
             Ok(_) => Ok(SloCreate::Created(crate::domain::slo::Slo {
                 id: SloId(id),
                 tenant,
-                // TODO(task 4): store assigns real namespace.
-                namespace: String::new(),
+                namespace: namespace.to_string(),
                 name: name.to_string(),
                 spec: spec.clone(),
                 version: 1,
@@ -2384,7 +2386,7 @@ impl PgStore {
         StoreError,
     > {
         let row = sqlx::query(
-            "SELECT id, tenant, name, spec, version, paused, updated_at, budget_epoch FROM slos WHERE id=$1 AND tenant=$2",
+            "SELECT id, tenant, namespace, name, spec, version, paused, updated_at, budget_epoch FROM slos WHERE id=$1 AND tenant=$2",
         )
         .bind(id.0)
         .bind(tenant.as_str())
@@ -2400,8 +2402,9 @@ impl PgStore {
         }
     }
 
-    /// Update an SLO's name/spec in place, preserving its id, tenant, and `paused`
-    /// flag. Bumps `version` by one.
+    /// Update an SLO's spec in place, preserving its id, tenant, namespace, name
+    /// (identity is immutable after create), and `paused` flag. Bumps `version`
+    /// by one.
     ///
     /// `expected_version`: `Some(v)` is an optimistic-concurrency guard — if the stored
     /// version differs, nothing is written and `SloUpdate::VersionConflict` is
@@ -2410,13 +2413,12 @@ impl PgStore {
         &self,
         tenant: TenantId,
         id: crate::domain::ids::SloId,
-        name: &str,
         spec: &crate::domain::slo::SloSpec,
         expected_version: Option<i64>,
     ) -> Result<SloUpdate, StoreError> {
         let mut tx = self.pool.begin().await?;
         let row = sqlx::query(
-            "SELECT version, paused, spec FROM slos WHERE id=$1 AND tenant=$2 FOR UPDATE",
+            "SELECT namespace, name, version, paused, spec FROM slos WHERE id=$1 AND tenant=$2 FOR UPDATE",
         )
         .bind(id.0)
         .bind(tenant.as_str())
@@ -2460,41 +2462,27 @@ impl PgStore {
                 .execute(&mut *tx)
                 .await?;
         }
-        let res = sqlx::query(
-            "UPDATE slos SET name=$3, spec=$4, version = version + 1, updated_at = now(),
-                 budget_epoch = CASE WHEN $5 THEN now() ELSE budget_epoch END
+        sqlx::query(
+            "UPDATE slos SET spec=$3, version = version + 1, updated_at = now(),
+                 budget_epoch = CASE WHEN $4 THEN now() ELSE budget_epoch END
              WHERE id=$1 AND tenant=$2",
         )
         .bind(id.0)
         .bind(tenant.as_str())
-        .bind(name)
         .bind(&spec_json)
         .bind(objective_changed)
         .execute(&mut *tx)
-        .await;
-        match res {
-            Ok(_) => {
-                tx.commit().await?;
-                Ok(SloUpdate::Updated(crate::domain::slo::Slo {
-                    id,
-                    tenant,
-                    // TODO(task 4): store assigns real namespace.
-                    namespace: String::new(),
-                    name: name.to_string(),
-                    spec: spec.clone(),
-                    version: current + 1,
-                    paused,
-                }))
-            }
-            Err(e) if is_unique_violation(&e) => {
-                tx.rollback().await?;
-                Ok(SloUpdate::NameConflict)
-            }
-            Err(e) => {
-                tx.rollback().await?;
-                Err(e.into())
-            }
-        }
+        .await?;
+        tx.commit().await?;
+        Ok(SloUpdate::Updated(crate::domain::slo::Slo {
+            id,
+            tenant,
+            namespace: row.get("namespace"),
+            name: row.get("name"),
+            spec: spec.clone(),
+            version: current + 1,
+            paused,
+        }))
     }
 
     pub async fn delete_slo(
@@ -2544,11 +2532,14 @@ impl PgStore {
         Ok(res.rows_affected() > 0)
     }
 
-    /// Every SLO of the tenant, each with its `updated_at` and `budget_epoch`
-    /// (see [`Self::get_slo`]).
+    /// SLOs of the tenant, optionally filtered by `namespace` and/or `name`
+    /// (exact match; `None` means unfiltered), each with its `updated_at` and
+    /// `budget_epoch` (see [`Self::get_slo`]).
     pub async fn list_slos(
         &self,
         tenant: &TenantId,
+        namespace: Option<&str>,
+        name: Option<&str>,
     ) -> Result<
         Vec<(
             crate::domain::slo::Slo,
@@ -2558,9 +2549,16 @@ impl PgStore {
         StoreError,
     > {
         let rows = sqlx::query(
-            "SELECT id, tenant, name, spec, version, paused, updated_at, budget_epoch FROM slos WHERE tenant=$1 ORDER BY created_at, id",
+            "SELECT id, tenant, namespace, name, spec, version, paused, updated_at, budget_epoch
+               FROM slos
+              WHERE tenant=$1
+                AND ($2::text IS NULL OR namespace=$2)
+                AND ($3::text IS NULL OR name=$3)
+              ORDER BY created_at, id",
         )
         .bind(tenant.as_str())
+        .bind(namespace)
+        .bind(name)
         .fetch_all(&self.pool)
         .await?;
         rows.iter()
@@ -2581,8 +2579,7 @@ impl PgStore {
         Ok(Slo {
             id: SloId(r.get("id")),
             tenant: TenantId::from_trusted(r.get::<String, _>("tenant")),
-            // TODO(task 4): select namespace once the store reads it.
-            namespace: String::new(),
+            namespace: r.get("namespace"),
             name: r.get("name"),
             spec,
             version: r.get("version"),
@@ -2647,7 +2644,7 @@ impl PgStore {
              UPDATE slos s
              SET next_eval = $1 + make_interval(secs => $5)
              FROM due WHERE s.id = due.id
-             RETURNING s.id, s.tenant, s.name, s.spec, s.version, s.paused",
+             RETURNING s.id, s.tenant, s.namespace, s.name, s.spec, s.version, s.paused",
         )
         .bind(now)
         .bind(batch)
@@ -2702,7 +2699,7 @@ impl PgStore {
         }
         let raw: Vec<Uuid> = ids.iter().map(|s| s.0).collect();
         let rows = sqlx::query(
-            "SELECT id, tenant, name, spec, version, paused FROM slos WHERE id = ANY($1)",
+            "SELECT id, tenant, namespace, name, spec, version, paused FROM slos WHERE id = ANY($1)",
         )
         .bind(&raw)
         .fetch_all(&self.pool)

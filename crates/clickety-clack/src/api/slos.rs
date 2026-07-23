@@ -38,7 +38,9 @@ pub async fn create(
     let t = tenant(&state, &headers)?;
     validate_name(&body.name)?;
     validate_slo_spec(&body.spec)?;
-    match state.store.create_slo(t, &body.name, &body.spec).await? {
+    // TODO(task 6): thread the real namespace through the request body instead
+    // of the live-namespace placeholder here.
+    match state.store.create_slo(t, "", &body.name, &body.spec).await? {
         SloCreate::Created(slo) => Ok(Json(slo)),
         SloCreate::NameConflict => Err(ApiError::Conflict(format!(
             "SLO name {:?} already exists",
@@ -95,7 +97,8 @@ pub async fn list(
     headers: HeaderMap,
 ) -> Result<Json<Vec<SloView>>, ApiError> {
     let t = tenant(&state, &headers)?;
-    let slos = state.store.list_slos(&t).await?;
+    // TODO(task 6): thread namespace/name filters from the request.
+    let slos = state.store.list_slos(&t, None, None).await?;
     Ok(Json(slos.into_iter().map(Into::into).collect()))
 }
 
@@ -108,9 +111,12 @@ pub async fn update(
     let t = tenant(&state, &headers)?;
     validate_name(&body.name)?;
     validate_slo_spec(&body.spec)?;
+    // TODO(task 6): UpdateSloBody still carries `name`, but identity (namespace +
+    // name) is immutable after create, so it's ignored here; drop the field once
+    // the request body is reshaped for namespace-scoped identity.
     let outcome = state
         .store
-        .update_slo(t, SloId(id), &body.name, &body.spec, body.version)
+        .update_slo(t, SloId(id), &body.spec, body.version)
         .await?;
     match outcome {
         SloUpdate::Updated(slo) => Ok(Json(slo)),
@@ -118,10 +124,6 @@ pub async fn update(
         SloUpdate::VersionConflict { current } => Err(ApiError::Conflict(format!(
             "slo version mismatch: expected {}, current {current}",
             body.version.unwrap_or_default()
-        ))),
-        SloUpdate::NameConflict => Err(ApiError::Conflict(format!(
-            "SLO name {:?} already exists",
-            body.name
         ))),
     }
 }
