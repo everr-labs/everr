@@ -1,33 +1,25 @@
-import type { LogRecordProcessor, SdkLogRecord } from "@opentelemetry/sdk-logs";
 import type { SessionContext } from "./session.js";
 
-// The context envelope: stamped on EVERY log record emitted through the SDK's
-// provider (analytics and, later, errors), which is what lets any signal
-// slice by page and join by session. Attribute names follow OTel semconv
-// where a convention exists and the `everr.` prefix elsewhere.
+// The context envelope: stamped on EVERY record emitted through the SDK
+// (analytics and, later, errors), which is what lets any signal slice by
+// page and join by session. Attribute names follow OTel semconv where a
+// convention exists and the `everr.` prefix elsewhere.
 
-export function createEnvelopeProcessor(
+export function createEnvelope(
   session: SessionContext,
   attribution: Record<string, string>,
-): LogRecordProcessor {
-  const attributionEntries = Object.entries(attribution);
-  return {
-    onEmit(logRecord: SdkLogRecord): void {
-      const page = session.current();
-      logRecord.setAttribute("session.id", page.sessionId);
-      logRecord.setAttribute("everr.page_view.id", page.pageViewId);
-      logRecord.setAttribute("url.full", page.url);
-      logRecord.setAttribute("url.path", page.path);
-      if (page.referrer) {
-        logRecord.setAttribute("everr.referrer.url", page.referrer);
-      }
+): () => Record<string, string> {
+  return () => {
+    const page = session.current();
+    return {
+      "session.id": page.sessionId,
+      "everr.page_view.id": page.pageViewId,
+      "url.full": page.url,
+      "url.path": page.path,
+      ...(page.referrer ? { "everr.referrer.url": page.referrer } : {}),
       // The $insert_id analogue: a per-record random id for dedup.
-      logRecord.setAttribute("everr.event.id", crypto.randomUUID());
-      for (const [key, value] of attributionEntries) {
-        logRecord.setAttribute(key, value);
-      }
-    },
-    forceFlush: () => Promise.resolve(),
-    shutdown: () => Promise.resolve(),
+      "everr.event.id": crypto.randomUUID(),
+      ...attribution,
+    };
   };
 }

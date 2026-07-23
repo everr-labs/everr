@@ -9,7 +9,6 @@ export default defineConfig({
   format: ["esm"],
   dts: true,
   platform: "browser",
-  external: [/^@opentelemetry\//],
   define: {
     __PACKAGE_VERSION__: JSON.stringify(packageVersion),
   },

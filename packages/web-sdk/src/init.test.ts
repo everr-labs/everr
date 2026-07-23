@@ -1,14 +1,34 @@
-import { SeverityNumber } from "@opentelemetry/api-logs";
-import { InMemoryLogRecordExporter } from "@opentelemetry/sdk-logs";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { initInternal } from "./client.js";
 import type { CaptureConfig, EverrClient } from "./types.js";
 
+type OtlpRecord = {
+  timeUnixNano: string;
+  severityNumber: number;
+  eventName: string;
+  body?: unknown;
+  attributes: Array<{ key: string; value: Record<string, unknown> }>;
+};
+
 let client: EverrClient | undefined;
-let exporter: InMemoryLogRecordExporter;
+let batches: Array<{
+  resource: Array<{ key: string; value: Record<string, unknown> }>;
+  records: OtlpRecord[];
+}>;
 
 function start(options?: { capture?: CaptureConfig }): void {
-  exporter = new InMemoryLogRecordExporter();
+  batches = [];
+  const transportFetch = vi.fn(
+    (_url: RequestInfo | URL, init?: RequestInit) => {
+      const payload = JSON.parse(String(init?.body));
+      const resourceLog = payload.resourceLogs[0];
+      batches.push({
+        resource: resourceLog.resource.attributes,
+        records: resourceLog.scopeLogs[0].logRecords,
+      });
+      return Promise.resolve(new Response(null, { status: 200 }));
+    },
+  ) as typeof fetch;
   client = initInternal(
     {
       mode: "cookieless",
@@ -16,12 +36,26 @@ function start(options?: { capture?: CaptureConfig }): void {
       dev: true,
       capture: options?.capture,
     },
-    { exporter },
+    { transportFetch },
   );
 }
 
-function records() {
-  return exporter.getFinishedLogRecords();
+async function records(): Promise<OtlpRecord[]> {
+  await client?.flush();
+  return batches.flatMap((b) => b.records);
+}
+
+function attrs(record: OtlpRecord): Record<string, unknown> {
+  return Object.fromEntries(
+    record.attributes.map(({ key, value }) => [key, Object.values(value)[0]]),
+  );
+}
+
+async function resourceAttrs(): Promise<Record<string, unknown>> {
+  await client?.flush();
+  return Object.fromEntries(
+    batches[0].resource.map(({ key, value }) => [key, Object.values(value)[0]]),
+  );
 }
 
 afterEach(async () => {
@@ -31,74 +65,78 @@ afterEach(async () => {
 });
 
 describe("init (cookieless)", () => {
-  it("emits an enveloped browser.page_view for the initial load", () => {
+  it("emits an enveloped browser.page_view for the initial load", async () => {
     start();
-    expect(records()).toHaveLength(1);
-    const record = records()[0];
+    const all = await records();
+    expect(all).toHaveLength(1);
+    const record = all[0];
     expect(record.eventName).toBe("browser.page_view");
-    expect(record.severityNumber).toBe(SeverityNumber.INFO);
+    expect(record.severityNumber).toBe(9);
     expect(record.body).toBeUndefined();
-    expect(record.attributes["everr.navigation.type"]).toBe("initial");
-    expect(record.attributes["session.id"]).toMatch(/[0-9a-f-]{36}/);
-    expect(record.attributes["everr.page_view.id"]).toMatch(/[0-9a-f-]{36}/);
-    expect(record.attributes["everr.event.id"]).toMatch(/[0-9a-f-]{36}/);
-    expect(record.attributes["url.full"]).toBe(window.location.href);
-    expect(record.attributes["url.path"]).toBe("/");
-    expect(record.resource.attributes["service.name"]).toBe("everr-docs-test");
-    expect(record.resource.attributes["everr.sdk.name"]).toBe("@everr/web-sdk");
-    expect(record.resource.attributes["user_agent.original"]).toBeTruthy();
+    const a = attrs(record);
+    expect(a["everr.navigation.type"]).toBe("initial");
+    expect(a["session.id"]).toMatch(/[0-9a-f-]{36}/);
+    expect(a["everr.page_view.id"]).toMatch(/[0-9a-f-]{36}/);
+    expect(a["everr.event.id"]).toMatch(/[0-9a-f-]{36}/);
+    expect(a["url.full"]).toBe(window.location.href);
+    expect(a["url.path"]).toBe("/");
+    const resource = await resourceAttrs();
+    expect(resource["service.name"]).toBe("everr-docs-test");
+    expect(resource["everr.sdk.name"]).toBe("@everr/web-sdk");
+    expect(resource["user_agent.original"]).toBeTruthy();
   });
 
-  it("emits history_change pageviews for SPA navigations, rotating the pageview id", () => {
+  it("emits history_change pageviews for SPA navigations, rotating the pageview id", async () => {
     start();
     history.pushState(null, "", "/pricing");
-    expect(records()).toHaveLength(2);
-    const [initial, spa] = records();
+    const [initial, spa] = await records();
     expect(spa.eventName).toBe("browser.page_view");
-    expect(spa.attributes["everr.navigation.type"]).toBe("history_change");
-    expect(spa.attributes["url.path"]).toBe("/pricing");
-    expect(spa.attributes["everr.referrer.url"]).toBe(
-      initial.attributes["url.full"],
+    const spaAttrs = attrs(spa);
+    const initialAttrs = attrs(initial);
+    expect(spaAttrs["everr.navigation.type"]).toBe("history_change");
+    expect(spaAttrs["url.path"]).toBe("/pricing");
+    expect(spaAttrs["everr.referrer.url"]).toBe(initialAttrs["url.full"]);
+    expect(spaAttrs["everr.page_view.id"]).not.toBe(
+      initialAttrs["everr.page_view.id"],
     );
-    expect(spa.attributes["everr.page_view.id"]).not.toBe(
-      initial.attributes["everr.page_view.id"],
-    );
-    expect(spa.attributes["session.id"]).toBe(initial.attributes["session.id"]);
+    expect(spaAttrs["session.id"]).toBe(initialAttrs["session.id"]);
   });
 
-  it("does not emit for a pushState to the same URL", () => {
+  it("does not emit for a pushState to the same URL", async () => {
     start();
     history.pushState(null, "", window.location.href);
-    expect(records()).toHaveLength(1);
+    expect(await records()).toHaveLength(1);
   });
 
-  it("emits on popstate navigations", () => {
+  it("emits on popstate navigations", async () => {
     start();
     history.pushState(null, "", "/a");
     history.replaceState(null, "", "/b");
     window.dispatchEvent(new PopStateEvent("popstate"));
     // /a and /b changed the URL; the popstate with an unchanged URL is deduped.
-    expect(records()).toHaveLength(3);
+    expect(await records()).toHaveLength(3);
   });
 
-  it("writes zero cookies and zero storage", () => {
+  it("writes zero cookies and zero storage", async () => {
     start();
     history.pushState(null, "", "/anywhere");
+    await records();
     expect(document.cookie).toBe("");
     expect(localStorage.length).toBe(0);
     expect(sessionStorage.length).toBe(0);
   });
 
-  it("emits nothing with capture: false", () => {
+  it("emits nothing with capture: false", async () => {
     start({ capture: false });
     history.pushState(null, "", "/nope");
-    expect(records()).toHaveLength(0);
+    expect(await records()).toHaveLength(0);
+    expect(batches).toHaveLength(0);
   });
 
-  it("suppresses pageviews only with capture: { pageviews: false }", () => {
+  it("suppresses pageviews only with capture: { pageviews: false }", async () => {
     start({ capture: { pageviews: false } });
     history.pushState(null, "", "/nope");
-    expect(records()).toHaveLength(0);
+    expect(await records()).toHaveLength(0);
   });
 
   it("keeps watching navigations when pageviews are off, so the envelope stays fresh", () => {
@@ -110,13 +148,12 @@ describe("init (cookieless)", () => {
 
   it("stops emitting and unpatches history after shutdown", async () => {
     start();
-    expect(records()).toHaveLength(1);
+    expect(await records()).toHaveLength(1);
     const pushState = history.pushState;
     await client?.shutdown();
-    // The in-memory exporter clears on shutdown; nothing new may arrive.
     expect(history.pushState).not.toBe(pushState);
     history.pushState(null, "", "/after-shutdown");
-    expect(records()).toHaveLength(0);
+    expect(await records()).toHaveLength(1);
     client = undefined;
   });
 
@@ -135,7 +172,7 @@ describe("structural no-op", () => {
     });
     client = inert;
     expect(inert.mode).toBe("cookieless");
-    // No records anywhere and nothing patched: pushState stays native.
+    // No emitter built and nothing patched: pushState stays native.
     expect(history.pushState.toString()).toContain("native code");
   });
 });

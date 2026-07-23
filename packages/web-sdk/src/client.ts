@@ -1,16 +1,10 @@
-import { OTLPLogExporter } from "@opentelemetry/exporter-logs-otlp-http";
-import { resourceFromAttributes } from "@opentelemetry/resources";
-import {
-  BatchLogRecordProcessor,
-  LoggerProvider,
-  type LogRecordExporter,
-  SimpleLogRecordProcessor,
-} from "@opentelemetry/sdk-logs";
 import { attributionAttributes } from "./attribution.js";
 import { resolveCapture } from "./capture.js";
 import { resolveTransport } from "./config.js";
-import { createEnvelopeProcessor } from "./envelope.js";
+import { createEmitter } from "./emitter.js";
+import { createEnvelope } from "./envelope.js";
 import { type NavigationListener, watchNavigation } from "./navigation.js";
+import type { AttrValue } from "./otlp.js";
 import { startPageviews } from "./pageview.js";
 import { SessionContext } from "./session.js";
 import type {
@@ -27,17 +21,9 @@ const SDK_VERSION =
   typeof __PACKAGE_VERSION__ === "string" ? __PACKAGE_VERSION__ : "0.0.0-dev";
 const SDK_NAME = "@everr/web-sdk";
 
-// Same tuning as the web app's browser telemetry client.
-const BATCH_OPTIONS = {
-  maxQueueSize: 100,
-  maxExportBatchSize: 32,
-  scheduledDelayMillis: 5_000,
-  exportTimeoutMillis: 30_000,
-};
-
-/** Test seam: inject an in-memory exporter instead of the OTLP transport. */
+/** Test seam: inject a fetch to capture the OTLP payloads. */
 export type InitOverrides = {
-  exporter?: LogRecordExporter;
+  transportFetch?: typeof fetch;
 };
 
 export function init(options: CookielessInitOptions): CookielessClient;
@@ -59,10 +45,10 @@ export function initInternal(
   // SSR guard: the SDK is browser-only; server renders get an inert client.
   if (typeof window === "undefined") return inertClient(options.mode);
 
-  const exporter = overrides?.exporter ?? createOtlpExporter(options);
-  // Structural no-op: a keyless production build never constructs a
-  // provider, so nothing can ever issue a network request.
-  if (!exporter) return inertClient(options.mode);
+  // Structural no-op: a keyless production build builds no emitter and no
+  // watcher, so nothing can ever issue a network request.
+  const transport = resolveTransport(options);
+  if (!transport) return inertClient(options.mode);
 
   const capture = resolveCapture(options.capture);
   const session = new SessionContext(
@@ -70,52 +56,37 @@ export function initInternal(
     document.referrer || undefined,
   );
 
-  const provider = new LoggerProvider({
-    resource: resourceFromAttributes(resourceAttributes(options)),
-    processors: [
-      createEnvelopeProcessor(
-        session,
-        attributionAttributes(window.location.href),
-      ),
-      overrides?.exporter
-        ? new SimpleLogRecordProcessor(exporter)
-        : new BatchLogRecordProcessor(exporter, BATCH_OPTIONS),
-    ],
+  const emitter = createEmitter({
+    logsUrl: transport.logsUrl,
+    headers: transport.headers,
+    resource: resourceAttributes(options),
+    scope: { name: SDK_NAME, version: SDK_VERSION },
+    envelope: createEnvelope(
+      session,
+      attributionAttributes(window.location.href),
+    ),
+    transportFetch: overrides?.transportFetch,
   });
-  const logger = provider.getLogger(SDK_NAME, SDK_VERSION);
 
   // The navigation watcher always runs so the envelope's page context stays
   // fresh for every signal; capture flags only gate the signal listeners.
   const navigationListeners: NavigationListener[] = [];
   if (capture.pageviews) {
-    navigationListeners.push(startPageviews(logger));
+    navigationListeners.push(startPageviews(emitter));
   }
   const stopWatching = watchNavigation(session, navigationListeners);
 
   return {
     mode: options.mode,
-    flush: () => provider.forceFlush(),
+    flush: () => emitter.flush(),
     shutdown: async () => {
       stopWatching();
-      await provider.shutdown();
+      await emitter.shutdown();
     },
   };
 }
 
-function createOtlpExporter(
-  options: InitOptions,
-): LogRecordExporter | undefined {
-  const transport = resolveTransport(options);
-  if (!transport) return undefined;
-  return new OTLPLogExporter({
-    url: transport.logsUrl,
-    headers: transport.headers,
-  });
-}
-
-function resourceAttributes(
-  options: InitOptions,
-): Record<string, string | number> {
+function resourceAttributes(options: InitOptions): Record<string, AttrValue> {
   // Viewport is deliberately absent: it changes on resize, so it rides the
   // click payload per event instead of being frozen into the resource.
   return {
