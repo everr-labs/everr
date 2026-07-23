@@ -40,6 +40,7 @@ import {
   ccFormatSloTarget,
   ccSloCurrentBurn,
   ccSloHandleResolver,
+  ccSloIdentity,
   ccSloTierSeverity,
   ccSloTiers,
   ccSloWindowLabel,
@@ -199,6 +200,7 @@ function SloPostureRow({
   const burn = worst
     ? ccSloCurrentBurn(ccSloTiers(slo.spec), worst.tiers)
     : null;
+  const identity = ccSloIdentity(slo);
   return (
     <Link
       to="/alerts/slos/$project/$slug"
@@ -207,7 +209,7 @@ function SloPostureRow({
     >
       <span className="flex min-w-0 flex-1 flex-col gap-0.5">
         <span className="truncate text-xs font-medium text-foreground">
-          {slo.name}
+          {identity.name}
         </span>
         <span className="text-[0.6875rem] whitespace-nowrap text-muted-foreground">
           {ccFormatSloTarget(slo.spec.targetPercent)} over{" "}
@@ -344,7 +346,7 @@ function CcOverviewPage() {
     for (const i of firing.filter((f) => f.silence === null)) {
       const entry = firingSources.get(i.alert.rule) ?? {
         name: i.slo
-          ? i.slo.name
+          ? ccSloIdentity(i.slo).name
           : i.rule
             ? ccRuleIdentity(i.rule).name
             : i.alert.rule.slice(0, 8),
@@ -434,7 +436,9 @@ function CcOverviewPage() {
       params: parseResourceName(p.slo.name),
       text: (
         <>
-          <span className="font-medium text-foreground">{p.slo.name}</span>{" "}
+          <span className="font-medium text-foreground">
+            {ccSloIdentity(p.slo).name}
+          </span>{" "}
           {exhausted && p.firing.length === 0 ? (
             <>has exhausted its error budget</>
           ) : (
@@ -708,7 +712,9 @@ function CcOverviewPage() {
                   const ruleAddress = slo
                     ? undefined
                     : resolveRuleAddress(e.slug);
-                  const name = slo?.name ?? resolveRuleName(e.slug);
+                  const name = slo
+                    ? ccSloIdentity(slo).name
+                    : resolveRuleName(e.slug);
                   return (
                     <li
                       key={`${e.timestamp}-${e.eventType}-${e.instanceFingerprint}`}
