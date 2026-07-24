@@ -1,13 +1,16 @@
-// The slug-addressed rule/SLO by-name lookups: exact-match against the
-// qualified "project/slug" name, with a bare-slug fallback for engine-native
-// and migration-backfilled resources that never got the qualified name.
+// The slug-addressed rule/SLO by-name lookups: a single exact-match query
+// against the qualified "project/slug" name (every stored name is qualified,
+// "default/" included — there are no bare-slug names to fall back to).
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { CcRuleView, CcSlo } from "@/data/cc/types";
-import { getCcRuleByName, getCcSloByName } from "./server";
+import { getPreviewScopes } from "@/data/previews/repoids";
+import { getCcRuleByName, getCcSloByName, listCcAlerts } from "./server";
 
 const mocks = vi.hoisted(() => ({
   listRulesPage: vi.fn(),
   listSlos: vi.fn(),
+  listAlerts: vi.fn(),
+  listAllRules: vi.fn(),
 }));
 
 // The CC client is the fns' only data plane; mocking it at the module
@@ -15,6 +18,8 @@ const mocks = vi.hoisted(() => ({
 vi.mock("./client", () => ({
   listRulesPage: mocks.listRulesPage,
   listSlos: mocks.listSlos,
+  listAlerts: mocks.listAlerts,
+  listAllRules: mocks.listAllRules,
 }));
 
 // server.ts also imports the preview-repoid resolver (unused by the by-name
@@ -94,29 +99,7 @@ beforeEach(() => {
 });
 
 describe("getCcRuleByName", () => {
-  it("resolves a bare-named rule (engine-native / migration-backfilled) at project default", async () => {
-    const rule = ccRule({ name: "rule-ab12cd34" });
-    mocks.listRulesPage.mockImplementation(pagedByName([rule]));
-
-    const result = await getCcRuleByName({
-      data: { project: "default", slug: "rule-ab12cd34" },
-    });
-
-    expect(result).toEqual(rule);
-    // Qualified attempt first, bare-slug fallback second.
-    expect(mocks.listRulesPage).toHaveBeenNthCalledWith(
-      1,
-      "test_org",
-      expect.objectContaining({ name: "default/rule-ab12cd34" }),
-    );
-    expect(mocks.listRulesPage).toHaveBeenNthCalledWith(
-      2,
-      "test_org",
-      expect.objectContaining({ name: "rule-ab12cd34" }),
-    );
-  });
-
-  it("resolves a qualified name on the first attempt, without falling back", async () => {
+  it("resolves a qualified name with a single exact-match lookup", async () => {
     const rule = ccRule({ name: "default/checkout-latency" });
     mocks.listRulesPage.mockImplementation(pagedByName([rule]));
 
@@ -126,53 +109,30 @@ describe("getCcRuleByName", () => {
 
     expect(result).toEqual(rule);
     expect(mocks.listRulesPage).toHaveBeenCalledTimes(1);
+    expect(mocks.listRulesPage).toHaveBeenCalledWith(
+      "test_org",
+      expect.objectContaining({
+        namespace: "",
+        name: "default/checkout-latency",
+      }),
+    );
   });
 
-  it("404s on a genuine miss (both the qualified and bare-slug attempts empty)", async () => {
-    mocks.listRulesPage.mockImplementation(pagedByName([]));
-
-    await expect(
-      getCcRuleByName({ data: { project: "default", slug: "nope" } }),
-    ).rejects.toMatchObject({ status: 404 });
-  });
-
-  it("does not fall back to the bare slug for a non-default project", async () => {
+  it("404s on a miss with no bare-slug retry (stored names are always qualified)", async () => {
     const bareRule = ccRule({ name: "checkout-latency" });
     mocks.listRulesPage.mockImplementation(pagedByName([bareRule]));
 
     await expect(
       getCcRuleByName({
-        data: { project: "payments", slug: "checkout-latency" },
+        data: { project: "default", slug: "checkout-latency" },
       }),
     ).rejects.toMatchObject({ status: 404 });
-    // Only the qualified attempt was made — no bare-slug retry.
     expect(mocks.listRulesPage).toHaveBeenCalledTimes(1);
   });
 });
 
 describe("getCcSloByName", () => {
-  it("resolves a bare-named SLO (engine-native / migration-backfilled) at project default", async () => {
-    const slo = ccSlo({ name: "slo-9f8e7d6c" });
-    mocks.listSlos.mockImplementation(slosByName([slo]));
-
-    const result = await getCcSloByName({
-      data: { project: "default", slug: "slo-9f8e7d6c" },
-    });
-
-    expect(result).toEqual(slo);
-    expect(mocks.listSlos).toHaveBeenNthCalledWith(
-      1,
-      "test_org",
-      expect.objectContaining({ name: "default/slo-9f8e7d6c" }),
-    );
-    expect(mocks.listSlos).toHaveBeenNthCalledWith(
-      2,
-      "test_org",
-      expect.objectContaining({ name: "slo-9f8e7d6c" }),
-    );
-  });
-
-  it("resolves a qualified name on the first attempt, without falling back", async () => {
+  it("resolves a qualified name with a single exact-match lookup", async () => {
     const slo = ccSlo({ name: "default/checkout-availability" });
     mocks.listSlos.mockImplementation(slosByName([slo]));
 
@@ -182,25 +142,147 @@ describe("getCcSloByName", () => {
 
     expect(result).toEqual(slo);
     expect(mocks.listSlos).toHaveBeenCalledTimes(1);
+    expect(mocks.listSlos).toHaveBeenCalledWith(
+      "test_org",
+      expect.objectContaining({
+        namespace: "",
+        name: "default/checkout-availability",
+      }),
+    );
   });
 
-  it("404s on a genuine miss (both the qualified and bare-slug attempts empty)", async () => {
-    mocks.listSlos.mockImplementation(slosByName([]));
-
-    await expect(
-      getCcSloByName({ data: { project: "default", slug: "nope" } }),
-    ).rejects.toMatchObject({ status: 404 });
-  });
-
-  it("does not fall back to the bare slug for a non-default project", async () => {
+  it("404s on a miss with no bare-slug retry (stored names are always qualified)", async () => {
     const bareSlo = ccSlo({ name: "checkout-availability" });
     mocks.listSlos.mockImplementation(slosByName([bareSlo]));
 
     await expect(
       getCcSloByName({
-        data: { project: "payments", slug: "checkout-availability" },
+        data: { project: "default", slug: "checkout-availability" },
       }),
     ).rejects.toMatchObject({ status: 404 });
     expect(mocks.listSlos).toHaveBeenCalledTimes(1);
+  });
+});
+
+// The live alert feed: /v1/alerts returns every non-inactive instance for the
+// tenant — including instances of suppressed preview rules/SLOs, which CC
+// evaluates fully. listCcAlerts must scope them out: live-only by default, and
+// the selected preview's overlay when one is chosen.
+describe("listCcAlerts", () => {
+  function ownedRule(
+    id: string,
+    name: string,
+    namespace: string,
+    repoid = "repo-1",
+  ): CcRuleView {
+    const base = ccRule({ id, name });
+    return {
+      ...base,
+      namespace,
+      spec: { ...base.spec, annotations: { "everr.repoid": repoid } },
+    };
+  }
+
+  function ownedSlo(
+    id: string,
+    name: string,
+    namespace: string,
+    repoid = "repo-1",
+  ): CcSlo {
+    const base = ccSlo({ id, name });
+    return {
+      ...base,
+      namespace,
+      spec: { ...base.spec, annotations: { "everr.repoid": repoid } },
+    };
+  }
+
+  function instance(rule: string, slo?: string) {
+    return {
+      key: `${slo ?? rule}|svc=api`,
+      rule: slo ?? rule,
+      ...(slo !== undefined ? { slo } : {}),
+      tenant: "test_org",
+      status: "firing",
+      labels: { svc: "api" },
+      value: null,
+      active_since: null,
+      last_seen: null,
+      absent_count: 0,
+    };
+  }
+
+  beforeEach(() => {
+    mocks.listAllRules.mockResolvedValue([
+      ownedRule("r-live", "default/high-errors", ""),
+      ownedRule("r-prev", "default/high-errors", "p1"),
+      ownedRule("r-other", "default/other", "p2"),
+      // Engine-native (unowned) live rule: always visible.
+      ccRule({ id: "r-native", name: "rule-ab12cd34" }),
+    ]);
+    mocks.listSlos.mockResolvedValue([
+      ownedSlo("s-live", "default/availability", ""),
+      ownedSlo("s-prev", "default/availability", "p1"),
+    ]);
+    mocks.listAlerts.mockResolvedValue([
+      instance("r-live"),
+      instance("r-prev"),
+      instance("r-other"),
+      instance("r-native"),
+      instance("", "s-live"),
+      instance("", "s-prev"),
+    ]);
+  });
+
+  it("hides preview instances from the live feed when no preview is selected", async () => {
+    const rows = await listCcAlerts();
+
+    expect(rows.map((r) => r.rule).sort()).toEqual([
+      "r-live",
+      "r-native",
+      "s-live",
+    ]);
+    expect(vi.mocked(getPreviewScopes)).not.toHaveBeenCalled();
+  });
+
+  it("overlays the selected preview: its instances replace shadowed live ones", async () => {
+    vi.mocked(getPreviewScopes).mockResolvedValue([
+      { id: "p1", repoid: "repo-1" },
+    ]);
+
+    const rows = await listCcAlerts({ data: { preview: "gio/x" } });
+
+    // r-prev/s-prev (in-scope preview) replace r-live/s-live (covered repo);
+    // r-other (a different preview) stays hidden; the native rule stays.
+    expect(rows.map((r) => r.rule).sort()).toEqual([
+      "r-native",
+      "r-prev",
+      "s-prev",
+    ]);
+    expect(vi.mocked(getPreviewScopes)).toHaveBeenCalledWith(
+      "test_org",
+      "gio/x",
+    );
+  });
+
+  it("keeps live rules from repos the preview does not cover", async () => {
+    vi.mocked(getPreviewScopes).mockResolvedValue([
+      { id: "p1", repoid: "repo-1" },
+    ]);
+    mocks.listAllRules.mockResolvedValue([
+      ownedRule("r-live-other-repo", "default/latency", "", "repo-9"),
+      ownedRule("r-prev", "default/high-errors", "p1"),
+    ]);
+    mocks.listSlos.mockResolvedValue([]);
+    mocks.listAlerts.mockResolvedValue([
+      instance("r-live-other-repo"),
+      instance("r-prev"),
+    ]);
+
+    const rows = await listCcAlerts({ data: { preview: "gio/x" } });
+    expect(rows.map((r) => r.rule).sort()).toEqual([
+      "r-live-other-repo",
+      "r-prev",
+    ]);
   });
 });

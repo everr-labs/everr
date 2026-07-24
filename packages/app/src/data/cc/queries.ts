@@ -44,12 +44,20 @@ const RULES_PAGE_LIMIT = 100;
 const EVENT_HISTORY_LIMIT = 200;
 
 export const ccQueries = {
-  alerts: () =>
-    queryOptions({
-      queryKey: ["cc", "alerts"] as const,
-      queryFn: () => listCcAlerts(),
+  // The instance feed, scoped like the SLO listing: live-only by default, the
+  // selected preview's overlay when one is chosen (preview instances are real
+  // suppressed-rule evaluations and must never leak into the live feed).
+  alerts: (preview?: string) => {
+    const previewName = preview?.trim() || null;
+    return queryOptions({
+      queryKey: ["cc", "alerts", previewName] as const,
+      queryFn: () =>
+        previewName === null
+          ? listCcAlerts()
+          : listCcAlerts({ data: { preview: previewName } }),
       refetchInterval: CC_POLL_INTERVAL_MS,
-    }),
+    });
+  },
 
   // The full rule set in one shot, for surfaces that resolve every rule at
   // once (triage grouping, history handle resolution). The key is a prefix of

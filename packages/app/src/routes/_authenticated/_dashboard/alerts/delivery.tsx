@@ -81,7 +81,7 @@ export const Route = createFileRoute(
       queryClient.prefetchQuery(ccQueries.receivers()),
       queryClient.prefetchQuery(ccQueries.channels()),
       queryClient.prefetchQuery(ccQueries.inhibitions()),
-      queryClient.prefetchQuery(ccQueries.alerts()),
+      queryClient.prefetchQuery(ccQueries.alerts(deps.preview)),
       queryClient.prefetchQuery(ccQueries.rules()),
       queryClient.prefetchQuery(ccQueries.slos(deps.preview)),
       queryClient.prefetchQuery(ccQueries.subscriptions()),
@@ -805,7 +805,7 @@ function CcDeliveryPage() {
   const routes = useQuery(ccQueries.routes());
   const receivers = useQuery(ccQueries.receivers());
   const channels = useQuery(ccQueries.channels());
-  const alerts = useQuery(ccQueries.alerts());
+  const alerts = useQuery(ccQueries.alerts(preview));
   const rules = useQuery(ccQueries.rules());
   const slos = useQuery(ccQueries.slos(preview));
   const subscriptions = useQuery(ccQueries.subscriptions());

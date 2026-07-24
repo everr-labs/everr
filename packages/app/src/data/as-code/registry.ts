@@ -220,16 +220,26 @@ export async function applyResources(opts: {
 
   if (dryRun) return { dryRun: true, results: withOrphanWarnings(validated) };
 
-  // Real apply: one transaction so registration + every kind commit or roll
-  // back together. Register the preview FIRST — its row is the parent every
-  // preview resource row references (FK), and a rollback removes the row along
-  // with any partial writes, so the switcher never lists a half-applied
-  // preview. Live is not registered.
+  // Real apply. The preview registration COMMITS FIRST, on the base executor,
+  // deliberately outside the reconcile transaction: the CC-backed kinds
+  // (alerts, SLOs) write suppressed CC resources tagged with this registry id
+  // over HTTP, which no Postgres rollback can undo. If the row only existed
+  // inside the transaction, a later kind's failure would roll it back and
+  // strand those CC writes under a namespace id that never existed — and the
+  // orphan sweep's "row before resources" invariant (see sweepOrphanCcRules)
+  // would break mid-apply, letting the sweep reap a preview being created. A
+  // registered-but-partially-applied preview is the safe failure mode: the
+  // next apply upserts the same row and every reconciler converges. Live is
+  // not registered. The row is also the parent every preview resource row
+  // references (FK), so it must exist before the kinds write.
+  const applied = await resolveNamespace((name) =>
+    upsertPreview(db, { orgId, repoid, name }),
+  );
+  // One transaction for the reconcile loop: the Postgres-backed kinds
+  // (dashboards, runbooks) commit or roll back together. The CC-backed kinds
+  // mutate over HTTP and recover by convergence on re-apply instead.
   const results: KindResult[] = [];
   await db.transaction(async (tx) => {
-    const applied = await resolveNamespace((name) =>
-      upsertPreview(tx, { orgId, repoid, name }),
-    );
     for (const { key, kind, reconcile } of REGISTRY) {
       const r = await reconcile({
         namespace: applied,

@@ -1,5 +1,5 @@
 import { ApplyValidationError } from "@/data/as-code/errors";
-import { parseResourceName } from "@/data/as-code/identity";
+import { formatResourceName, parseResourceName } from "@/data/as-code/identity";
 import type { OwnershipConflict } from "@/data/as-code/ownership";
 import { stableStringify } from "@/data/as-code/reconcile";
 import type { Reconciler } from "@/data/as-code/registry";
@@ -113,7 +113,12 @@ export const applySloSpecs: Reconciler = async ({
   const seen = new Map<string, string>();
   const parsed = resources.map(({ path, resource }) => {
     const slo = parseSlo(path, resource);
-    const name = slo.metadata.name;
+    // Identity is the qualified project/slug (the CC first-class name), so a
+    // same-slug SLO in two different projects is two resources, not a dupe.
+    const name = formatResourceName(
+      slo.metadata.project ?? "default",
+      slo.metadata.name,
+    );
     const prior = seen.get(name);
     if (prior) {
       throw new ApplyValidationError(

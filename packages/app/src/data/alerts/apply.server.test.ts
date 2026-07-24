@@ -747,13 +747,42 @@ describe("applyAlertSpecs", () => {
       expect(error).toBeInstanceOf(ApplyValidationError);
       expect(error).toMatchObject({
         message: expect.stringMatching(
-          /duplicate alert "same" \(a\.yaml and b\.yaml\)/,
+          /duplicate alert "default\/same" \(a\.yaml and b\.yaml\)/,
         ),
       });
     }
 
     expect(ch).not.toHaveBeenCalled();
     expect(mockedCreateRule).not.toHaveBeenCalled();
+  });
+
+  it("keys duplicate detection on project/slug: same slug in two projects is valid", async () => {
+    const res = await applyAlertSpecs({
+      namespace: { orgId: "o", repoid: "repo-1", kind: "live" },
+      db,
+      resources: [
+        {
+          path: "a.yaml",
+          resource: {
+            ...alert("high-errors"),
+            metadata: { name: "high-errors", project: "payments" },
+          },
+        },
+        {
+          path: "b.yaml",
+          resource: {
+            ...alert("high-errors"),
+            metadata: { name: "high-errors", project: "checkout" },
+          },
+        },
+      ],
+    });
+
+    expect(res.created).toEqual([
+      "payments/high-errors",
+      "checkout/high-errors",
+    ]);
+    expect(mockedCreateRule).toHaveBeenCalledTimes(2);
   });
 
   it("rejects invalid schema, intervals, durations, and unsupported variables with path context", async () => {

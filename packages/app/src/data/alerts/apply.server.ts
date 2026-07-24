@@ -1,5 +1,5 @@
 import { ApplyValidationError } from "@/data/as-code/errors";
-import { parseResourceName } from "@/data/as-code/identity";
+import { formatResourceName, parseResourceName } from "@/data/as-code/identity";
 import type { OwnershipConflict } from "@/data/as-code/ownership";
 import { stableStringify } from "@/data/as-code/reconcile";
 import type { Reconciler } from "@/data/as-code/registry";
@@ -220,13 +220,19 @@ export const applyAlertSpecs: Reconciler = async ({
   const seen = new Map<string, string>();
   const parsed = resources.map(({ path, resource }) => {
     const p = parseAlertRule(path, resource);
-    const prior = seen.get(p.slug);
+    // Identity is the qualified project/slug (the CC first-class name), so a
+    // same-slug alert in two different projects is two resources, not a dupe.
+    const qualified = formatResourceName(
+      p.rule.metadata.project ?? "default",
+      p.slug,
+    );
+    const prior = seen.get(qualified);
     if (prior) {
       throw new ApplyValidationError(
-        `duplicate alert "${p.slug}" (${prior} and ${path})`,
+        `duplicate alert "${qualified}" (${prior} and ${path})`,
       );
     }
-    seen.set(p.slug, path);
+    seen.set(qualified, path);
     return { ...p, path };
   });
 

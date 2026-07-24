@@ -58,7 +58,7 @@ export const Route = createFileRoute("/_authenticated/_dashboard/alerts/")({
   loaderDeps: ({ search: { preview } }) => ({ preview }),
   loader: ({ context: { queryClient }, deps }) =>
     Promise.all([
-      queryClient.prefetchQuery(ccQueries.alerts()),
+      queryClient.prefetchQuery(ccQueries.alerts(deps.preview)),
       queryClient.prefetchQuery(ccQueries.rules()),
       queryClient.prefetchQuery(ccQueries.slos(deps.preview)),
       queryClient.prefetchQuery(ccQueries.routes()),
@@ -281,7 +281,7 @@ function SectionCard({
 
 function CcOverviewPage() {
   const { preview } = Route.useSearch();
-  const alerts = useQuery(ccQueries.alerts());
+  const alerts = useQuery(ccQueries.alerts(preview));
   const rules = useQuery(ccQueries.rules());
   const slos = useQuery(ccQueries.slos(preview));
   const routes = useQuery(ccQueries.routes());

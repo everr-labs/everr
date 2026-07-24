@@ -42,6 +42,7 @@ vi.mock("@/db/client", () => ({
   },
 }));
 
+import { db } from "@/db/client";
 import { ApplyValidationError } from "./errors";
 import { applyResources } from "./registry";
 
@@ -400,8 +401,43 @@ describe("applyResources", () => {
       );
     }
     expect(upsertPreview).toHaveBeenCalledTimes(1);
-    // Registered first, inside the shared transaction (the executor arg).
-    expect(upsertPreview).toHaveBeenCalledWith(expect.anything(), {
+    // Registered on the BASE executor, committed before the reconcile
+    // transaction opens: the CC-backed kinds write suppressed resources tagged
+    // with this id over HTTP, so the row must never be able to roll back out
+    // from under them (orphan namespace), and the orphan sweep's "row before
+    // resources" invariant must hold mid-apply.
+    expect(upsertPreview).toHaveBeenCalledWith(db, {
+      orgId: "org-1",
+      repoid: "repo-1",
+      name: "gio/x",
+    });
+    const registeredAt = upsertPreview.mock.invocationCallOrder[0];
+    const txOpenedAt = vi.mocked(db.transaction).mock.invocationCallOrder[0];
+    expect(registeredAt).toBeLessThan(txOpenedAt);
+  });
+
+  it("keeps the preview registered when a kind fails mid-apply (no orphan namespace)", async () => {
+    // Validation (dry-run) pass succeeds; the real pass fails on the SLO kind,
+    // after the alert kind already wrote to CC.
+    sloReconciler
+      .mockResolvedValueOnce(empty)
+      .mockRejectedValueOnce(new Error("cc unavailable"));
+
+    await expect(
+      applyResources({
+        orgId: "org-1",
+        repoid: "repo-1",
+        preview: "gio/x",
+        state: { dashboards: [], runbooks: [], alerts: [], slos: [] },
+      }),
+    ).rejects.toThrow("cc unavailable");
+
+    // Registration committed on the base executor before the failing
+    // transaction, so the suppressed CC rules the alert kind created stay
+    // under a REGISTERED namespace: the next apply converges them and the
+    // orphan sweep never reaps a live preview.
+    expect(upsertPreview).toHaveBeenCalledTimes(1);
+    expect(upsertPreview).toHaveBeenCalledWith(db, {
       orgId: "org-1",
       repoid: "repo-1",
       name: "gio/x",

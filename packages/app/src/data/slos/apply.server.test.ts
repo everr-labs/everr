@@ -417,12 +417,37 @@ describe("applySloSpecs", () => {
     ).rejects.toMatchObject({
       name: "ApplyValidationError",
       message: expect.stringMatching(
-        /duplicate SLO "same" \(a\.yaml and b\.yaml\)/,
+        /duplicate SLO "default\/same" \(a\.yaml and b\.yaml\)/,
       ),
     });
 
     expect(mockedList).not.toHaveBeenCalled();
     expect(mockedTest).not.toHaveBeenCalled();
+  });
+
+  it("keys duplicate detection on project/slug: same slug in two projects is valid", async () => {
+    const res = await applySloSpecs({
+      namespace: live,
+      db,
+      resources: [
+        {
+          path: "a.yaml",
+          resource: {
+            ...sloDoc("checkout"),
+            metadata: { name: "checkout", project: "payments" },
+          },
+        },
+        {
+          path: "b.yaml",
+          resource: {
+            ...sloDoc("checkout"),
+            metadata: { name: "checkout", project: "web" },
+          },
+        },
+      ],
+    });
+
+    expect(res.created).toEqual(["payments/checkout", "web/checkout"]);
   });
 
   it("rejects invalid documents with path context", async () => {

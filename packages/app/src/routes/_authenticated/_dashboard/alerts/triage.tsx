@@ -80,7 +80,7 @@ export const Route = createFileRoute(
   loaderDeps: ({ search: { preview } }) => ({ preview }),
   loader: ({ context: { queryClient }, deps }) =>
     Promise.all([
-      queryClient.prefetchQuery(ccQueries.alerts()),
+      queryClient.prefetchQuery(ccQueries.alerts(deps.preview)),
       queryClient.prefetchQuery(ccQueries.rules()),
       queryClient.prefetchQuery(ccQueries.slos(deps.preview)),
       queryClient.prefetchQuery(ccQueries.routes()),
@@ -557,7 +557,7 @@ function CcTriagePage() {
   const { preview } = Route.useSearch();
   const qc = useQueryClient();
   const silenceDrawer = useRef<SilenceDrawerHandle>(null);
-  const alerts = useQuery(ccQueries.alerts());
+  const alerts = useQuery(ccQueries.alerts(preview));
   const rules = useQuery(ccQueries.rules());
   const slos = useQuery(ccQueries.slos(preview));
   const routes = useQuery(ccQueries.routes());
