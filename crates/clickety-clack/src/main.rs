@@ -6,7 +6,6 @@ use cc::clickhouse::ChClient;
 use cc::dispatcher::cache::FilterCache;
 use cc::dispatcher::email::EmailNotifier;
 use cc::dispatcher::notify::WebhookNotifier;
-use cc::dispatcher::pagerduty::PagerDutyNotifier;
 use cc::dispatcher::slack::SlackNotifier;
 use cc::dispatcher::telegram::TelegramNotifier;
 use cc::dispatcher::{run_dispatcher, run_group_flusher, Notifiers};
@@ -342,7 +341,6 @@ async fn main() -> anyhow::Result<()> {
         let mut reg = Notifiers::new().with_engine_metrics(engine_metrics.clone());
         reg.register(Arc::new(WebhookNotifier::new()));
         reg.register(Arc::new(SlackNotifier::new()));
-        reg.register(Arc::new(PagerDutyNotifier::new()));
         reg.register(Arc::new(TelegramNotifier::new()));
         if let Some(smtp) = cfg.smtp.clone() {
             reg.register(Arc::new(EmailNotifier::new(

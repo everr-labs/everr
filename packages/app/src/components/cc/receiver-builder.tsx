@@ -86,7 +86,7 @@ export function ReceiverBuilder({
       <CcConceptNote>
         A receiver is a named set of channels; routes send matching alerts to
         every channel in the set. Channels are reusable: the same Slack hook or
-        PagerDuty key can back any number of receivers.
+        Telegram bot can back any number of receivers.
       </CcConceptNote>
       <div className="space-y-1.5">
         <Label htmlFor="receiver-name">Name</Label>

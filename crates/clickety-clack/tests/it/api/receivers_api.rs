@@ -330,7 +330,7 @@ async fn channel_create_is_create_only_and_put_replaces() {
             "PUT",
             "/v1/channels/fresh",
             tenant,
-            r#"{"config":{"type":"pagerduty","routing_key":"k"}}"#,
+            r#"{"config":{"type":"email","to":["oncall@x.test"]}}"#,
         ))
         .await
         .unwrap();

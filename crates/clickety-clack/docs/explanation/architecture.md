@@ -19,7 +19,7 @@ and fail without taking the others down.
                                                   ▼  cc:events (stream)
                                             ┌────────────┐
                                             │ dispatcher │──▶ Slack / email /
-                                            └────────────┘     PagerDuty / webhook
+                                            └────────────┘     webhook
                                               silence · inhibit · route · group · dedup
 ```
 

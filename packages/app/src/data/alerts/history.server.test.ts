@@ -160,9 +160,9 @@ describe("queryAlertEventLog", () => {
 
   it("parses comma-joined delivery targets (CC's current shape)", async () => {
     const row = await runWithRawRow({
-      deliveryTargetsRaw: "ops-slack, pagerduty-primary",
+      deliveryTargetsRaw: "ops-slack, oncall-telegram",
     });
-    expect(row.deliveryTargets).toEqual(["ops-slack", "pagerduty-primary"]);
+    expect(row.deliveryTargets).toEqual(["ops-slack", "oncall-telegram"]);
   });
 
   it("parses JSON-array and JSON-object delivery targets (older shapes)", async () => {

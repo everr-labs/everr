@@ -30,7 +30,6 @@ import { CHANNEL_LABEL, type ChannelType } from "./channel-meta";
 type ConfigDraft = {
   type: ChannelType;
   url: string;
-  routingKey: string;
   to: string[];
   botToken: string;
   chatIds: string[];
@@ -39,7 +38,6 @@ type ConfigDraft = {
 const EMPTY_DRAFT: ConfigDraft = {
   type: "webhook",
   url: "",
-  routingKey: "",
   to: [],
   botToken: "",
   chatIds: [],
@@ -50,8 +48,6 @@ function draftToConfig(d: ConfigDraft): CcChannelConfig | null {
     case "webhook":
     case "slack":
       return d.url ? { type: d.type, url: d.url } : null;
-    case "pagerduty":
-      return d.routingKey ? { type: d.type, routing_key: d.routingKey } : null;
     case "email":
       return d.to.length > 0 ? { type: d.type, to: d.to } : null;
     case "telegram":
@@ -115,9 +111,9 @@ export function ChannelBuilder({
     >
       <CcConceptNote>
         A channel is a named delivery endpoint that any number of receivers can
-        reference. Secret fields (Slack URL, PagerDuty key, Telegram token) are
-        write-only: the engine redacts them on read, and re-creating a channel
-        under the same name rotates its secret in place.
+        reference. Secret fields (Slack URL, Telegram token) are write-only: the
+        engine redacts them on read, and re-creating a channel under the same
+        name rotates its secret in place.
       </CcConceptNote>
       <div className="space-y-1.5">
         <Label htmlFor="channel-name">Name</Label>
@@ -170,18 +166,6 @@ export function ChannelBuilder({
                 ? "https://hooks.slack.com/services/..."
                 : "https://example.com/hook"
             }
-          />
-        </div>
-      )}
-      {draft.type === "pagerduty" && (
-        <div className="space-y-1.5">
-          <Label htmlFor="channel-routing-key">Routing key</Label>
-          <Input
-            id="channel-routing-key"
-            className="font-mono"
-            value={draft.routingKey}
-            onChange={(e) => patch({ routingKey: e.target.value })}
-            placeholder="R0..."
           />
         </div>
       )}

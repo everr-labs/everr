@@ -45,7 +45,6 @@ know the system's actual behavior without reading the source.
 | ---------- | --- | ---------------- | ---------- | ------------------- |
 | webhook    | ok  | permanent        | transient  | transient |
 | slack      | ok  | permanent        | transient  | transient |
-| pagerduty  | ok (202) | permanent   | transient  | transient |
 | email      | ok  | permanent (bad/empty recipients, at build) | — | transient (SMTP errors) |
 
 Permanent → not retried, goes straight to dead-letter after the attempt.

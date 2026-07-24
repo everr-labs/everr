@@ -554,7 +554,7 @@ function ChannelsSection() {
             when: (data ?? []).length === 0,
             icon: Inbox,
             title: "No channels defined",
-            hint: "Add a Slack, webhook, PagerDuty, email, or Telegram endpoint for receivers to deliver through.",
+            hint: "Add a Slack, webhook, email, or Telegram endpoint for receivers to deliver through.",
           }}
         >
           <ul className="divide-y divide-border/60">

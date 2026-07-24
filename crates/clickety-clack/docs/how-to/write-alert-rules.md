@@ -91,9 +91,9 @@ matching, but four keys drive how notifications are rendered:
 
 | Key            | Rendered as |
 | -------------- | ----------- |
-| `summary`      | The notification headline (Slack header, email subject, PagerDuty summary, per-event lines in a grouped notification). Without it, the headline is the instance key. |
+| `summary`      | The notification headline (Slack header, email subject, per-event lines in a grouped notification). Without it, the headline is the instance key. |
 | `description`  | An additional body line under the headline. |
-| `link.alert`   | A "View alert" link (Slack button, Telegram/email link, PagerDuty `links` entry). Must be an `http(s)://` URL or it is ignored. |
+| `link.alert`   | A "View alert" link (Slack button, Telegram/email link). Must be an `http(s)://` URL or it is ignored. |
 | `link.runbook` | A "View runbook" link, same handling as `link.alert`. |
 
 `summary` and `description` are templates: `${<key>}` resolves, in order, to the
