@@ -33,8 +33,11 @@ spec:
   instanceLabels: [ServiceName]  # optional (or its alias `labelColumns`); instance
                                  #   identity columns, ≥1 entry when present.
                                  #   Set at most one of `instanceLabels` or
-                                 #   `labelColumns`, not both. Without either,
-                                 #   all rows collapse into one instance.
+                                 #   `labelColumns`, not both. When omitted,
+                                 #   apply infers identity from the query's
+                                 #   string-typed result columns (all of them,
+                                 #   minus `valueColumn`); set it explicitly
+                                 #   to pin identity.
   valueColumn: n             # optional; numeric column carried as the alert
                              #   value, rendered in messages as ${value}
   maxInterval: 15m           # optional; duration string, ceiling for clickety-clack's
@@ -169,7 +172,7 @@ Prefer rates over raw counts when traffic changes meaningfully. Always add a min
 
 ### Instance Identity
 
-Each returned row becomes a firing-instance candidate, identified by its `instanceLabels` values. Set `instanceLabels` to the columns that distinguish "different things that can alert independently" (usually `ServiceName`, a cluster, an endpoint). Rows with distinct label values are independent alerts; rows that share an identity collapse into one instance. Without `instanceLabels`, all rows collapse into a single instance for the whole rule.
+Each returned row becomes a firing-instance candidate, identified by its `instanceLabels` values. Set `instanceLabels` to the columns that distinguish "different things that can alert independently" (usually `ServiceName`, a cluster, an endpoint). Rows with distinct label values are independent alerts; rows that share an identity collapse into one instance. Without `instanceLabels`, apply infers the identity from the query's string-typed result columns (every string column except `valueColumn`), so per-row instances are preserved; declare `instanceLabels` explicitly when you want a narrower identity than that.
 
 Pick stable identities. A column whose value changes between evaluations (a host or pod name, a sample message) fragments the identity and churns: the old instance resolves and a new one fires every time the value changes, even though the service never recovered.
 
@@ -247,7 +250,7 @@ valueColumn: n
 | --- | --- |
 | `${...}` in the query | Queries are plain SQL; use `${...}` only in `notificationMessage` |
 | `instanceLabels` or `valueColumn` references a missing column | Every referenced column must exist in the query result set |
-| Template references a non-label column (`${n}` without `instanceLabels: [n]`) | Only `${<instanceLabel>}` and `${value}` are substituted; add the column to `instanceLabels` or expose it via `valueColumn` |
+| Adding a column to `instanceLabels` only so a message can reference it | Not needed: `${...}` resolves instance labels first, then `${value}`, then any other returned column via event evidence (capped at 16 non-label columns). Reserve `instanceLabels` for identity; extra entries change alert identity and churn instances |
 | `${value}` without `valueColumn` | Set `valueColumn` to the numeric column the alert should carry |
 | `evaluationInterval` below `1m` | Use `1m` or higher |
 | Query returns thousands of rows | Add `LIMIT` and tighten the `WHERE`/`HAVING` |
