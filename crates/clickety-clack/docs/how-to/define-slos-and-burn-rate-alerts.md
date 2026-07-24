@@ -13,7 +13,7 @@ hood. This guide shows how to define one. For the exact field list see the
 Each evaluation tick runs your SLI query per due window (windows recompute on a
 staggered, coordinated cadence — see [below](#evaluation-cadence)) and derives,
 per label group: the SLI ratio, the error budget remaining, and a burn rate for
-each configured tier. A tier "fires" when its long **and** short window burn
+each tier. A tier "fires" when its long **and** short window burn
 rates both exceed its threshold — exactly the multi-window burn-rate pattern
 from the Google SRE workbook. So:
 
@@ -49,12 +49,13 @@ mirrors rule validation).
 
 ### Window duration cap
 
-Every window duration in an SLO spec — the budget `timeWindow.duration` and
-every tier's `long_window`/`short_window` — is capped at **366 days**
-(`366 * 86400` seconds). A duration over the cap is rejected `422` with a
-message naming the offending value and the cap. v1 only supports rolling
-windows: `timeWindow.isRolling` must be `true` and `calendar` must be omitted,
-else `422` ("calendar-aligned windows are not supported in v1").
+The budget `timeWindow.duration` is capped at **366 days** (`366 * 86400`
+seconds) and floored at **1 day** (below a day the scaled tiers collapse onto
+the same short-window floor and the multi-window method degenerates). A
+duration outside the bounds is rejected `422` with a message naming the
+offending value and the bound. v1 only supports rolling windows:
+`timeWindow.isRolling` must be `true` and `calendar` must be omitted, else
+`422` ("calendar-aligned windows are not supported in v1").
 
 Supported duration units are `m`, `h`, `d`, `w` (minutes/hours/days/weeks) —
 the same shorthand as elsewhere in the engine. Calendar units (`M`, `Q`, `Y`)
@@ -80,15 +81,17 @@ curl -s -X POST localhost:8080/v1/slos \
 
 Note the field-naming split: `targetPercent`/`timeWindow`/`isRolling` are
 OpenSLO-aligned camelCase (this spec deliberately tracks the OpenSLO field
-names); `sli`, `label_columns`, `min_valid_events`, `tiers`, `annotations`, and
+names); `sli`, `label_columns`, `min_valid_events`, `annotations`, and
 `suppressed` are plain snake_case, matching the rest of the engine's spec
 shapes. The response is the stored `Slo`: `{ id, tenant, name, spec, version,
 paused }` — same envelope shape as a rule.
 
-## Tiers: canonical defaults and when to override
+## Tiers: the canonical three, scaled to your window
 
-Omit `tiers` to get the canonical three-tier multi-window burn-rate policy,
-calibrated to a 30-day budget window:
+Tiers are **not part of the spec**: every SLO is evaluated with the canonical
+three-tier multi-window burn-rate policy, calibrated to a 30-day budget
+window. (A `tiers` field in a request body is an unknown field and is silently
+ignored.)
 
 | Tier        | Long window | Short window | Burn rate | Severity |
 | ----------- | ----------- | ------------ | --------- | -------- |
@@ -100,24 +103,17 @@ A tier fires only when **both** its long-window and short-window burn rates
 strictly exceed `burn_rate` — the short window is what lets a resolved spike
 stop paging immediately instead of waiting out the long window.
 
-Override `tiers` when your budget window isn't 30 days, or you want different
-sensitivity. Each tier is validated independently:
-
-- `name` must be non-empty.
-- `burn_rate` must be `> 0`.
-- `long_window` must be strictly greater than `short_window` (after parsing).
-- both windows are subject to the [366-day cap](#window-duration-cap) above.
-
-```json
-"tiers": [
-  { "name": "fast-burn", "long_window": "1h", "short_window": "5m", "burn_rate": 14.4, "severity": "critical" },
-  { "name": "ticket",    "long_window": "3d", "short_window": "6h", "burn_rate": 1.0,  "severity": "warning"  }
-]
-```
+For a budget window other than 30 days, each tier's windows scale
+proportionally (by `timeWindow / 30d`) while the thresholds stay put, keeping
+the fraction of budget consumed over each long window (2%/5%/10%) constant at
+any window size. A scaled short window is floored at 1 minute; when the floor
+kicks in, the tier's long window is pinned to 12× the floor, preserving the
+canonical long:short ratio. Sensitivity is therefore tuned through
+`targetPercent` and `timeWindow`, not by editing tiers.
 
 Tiers are precedence-ordered fastest-first; a faster tier firing inhibits its
 slower siblings for the same group (spec §5) via inhibition rules the
-dispatcher synthesizes automatically from the SLO's own tiers — you don't
+dispatcher synthesizes automatically from the canonical tiers — you don't
 create these inhibitions yourself. So you are not paged separately by
 `slow-burn` and `ticket` for the same underlying budget burn once `fast-burn`
 is already firing.

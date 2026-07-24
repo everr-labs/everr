@@ -22,7 +22,10 @@ import { BellOff, Plus } from "lucide-react";
 import { type Ref, useImperativeHandle, useState } from "react";
 import { toast } from "sonner";
 import { CcDrawer } from "@/components/cc/cc-drawer";
-import { MatchersEditor } from "@/components/cc/matchers-editor";
+import {
+  MatchersEditor,
+  matchersAreScoped,
+} from "@/components/cc/matchers-editor";
 import {
   CcConceptNote,
   CcEmptyState,
@@ -288,7 +291,10 @@ export function SilenceCreateDrawer({
           </Button>
           <Button
             disabled={
-              matchers.length === 0 || !starts || !ends || create.isPending
+              !matchersAreScoped(matchers) ||
+              !starts ||
+              !ends ||
+              create.isPending
             }
             onClick={() => create.mutate()}
           >

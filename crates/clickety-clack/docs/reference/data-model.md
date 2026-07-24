@@ -92,7 +92,6 @@ against a `good`/`valid` SLI query. See
 | `timeWindow.isRolling` | bool                | `true`  | v1 supports rolling windows only. |
 | `timeWindow.calendar` | object \| null       | `null`  | Reserved for a future calendar-aligned window; rejected if present in v1. |
 | `min_valid_events` | u64 \| null            | `null`  | Floor on the long window's `valid` count below which a tier cannot fire. `null` = off. |
-| `tiers`            | [BurnRateTier](#burnratetier)[] \| null | `null` → canonical three tiers | Multi-window burn-rate tiers (see below). |
 | `annotations`      | object<string,string>  | `{}`    | Free-form metadata, passed through onto tier-firing events. `summary`/`description`/`link.*` render into notifications the same as [rule annotations](../how-to/write-alert-rules.md#annotations). |
 | `suppressed`       | bool                   | `false` | Preview mode: the SLO evaluates fully and tracks tier state, but the dispatcher never notifies on its events. |
 
@@ -104,6 +103,9 @@ does not affect `version`).
 
 ### BurnRateTier
 
+Tiers are not stored in the spec: the engine derives them from the SLO's
+`timeWindow` (see [tiers](../how-to/define-slos-and-burn-rate-alerts.md#tiers-the-canonical-three-scaled-to-your-window)).
+
 | Field         | Type                  | Meaning |
 | ------------- | --------------------- | ------- |
 | `name`        | string                | Tier identity (non-empty); becomes the synthetic `slo_tier` label on tier-firing instances/events. |
@@ -112,8 +114,8 @@ does not affect `version`).
 | `burn_rate`   | f64                   | Threshold (`> 0`); a tier fires when **both** its long- and short-window burn rates strictly exceed this. |
 | `severity`    | [Severity](#severity) | Severity attached to the tier's emitted events. |
 
-**Canonical tiers** (used when `tiers` is `null`), calibrated to a 30-day
-budget window:
+**Canonical tiers**, calibrated to a 30-day budget window (windows scale
+proportionally for other `timeWindow` values, thresholds unchanged):
 
 | Tier        | `long_window` | `short_window` | `burn_rate` | `severity` |
 | ----------- | -------------- | -------------- | ----------- | ---------- |
@@ -152,7 +154,7 @@ every successful evaluation tick. Returned (enriched, see below) by
 | `labels`             | object<string,string>              | This group's `label_columns` values. |
 | `sli`                | f64 \| null                        | `good / valid` over the budget window. `null` at zero traffic. |
 | `budget_remaining`   | f64 \| null                        | Fraction of the error budget left over the budget window; may go negative once the objective is breached. `null` at zero traffic. |
-| `tiers[]`            | [SloTierStatus](#slotierstatus)[]  | One entry per configured tier. |
+| `tiers[]`            | [SloTierStatus](#slotierstatus)[]  | One entry per tier. |
 
 At **read time only** (`GET /v1/slos/:id/status`; never persisted), each group
 also gains:

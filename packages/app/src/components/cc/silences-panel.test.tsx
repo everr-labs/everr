@@ -1,9 +1,14 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { render, screen, within } from "@testing-library/react";
+import { act, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { createRef } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { CcSilence } from "@/data/cc/types";
-import { SilencesPanel } from "./silences-panel";
+import {
+  SilenceCreateDrawer,
+  type SilenceDrawerHandle,
+  SilencesPanel,
+} from "./silences-panel";
 
 // ---------------------------------------------------------------------------
 // Mocks, at the same module boundary as the route tests.
@@ -180,6 +185,34 @@ describe("SilencesPanel", () => {
     expect(await screen.findByText("rule")).toBeInTheDocument();
     expect(screen.getByText("=")).toBeInTheDocument();
     expect(screen.getByText("rule-1")).toBeInTheDocument();
+  });
+
+  it("keeps Create disabled while any matcher is missing its label", async () => {
+    const user = userEvent.setup();
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    const ref = createRef<SilenceDrawerHandle>();
+    render(
+      <QueryClientProvider client={queryClient}>
+        <SilenceCreateDrawer ref={ref} />
+      </QueryClientProvider>,
+    );
+
+    // Seeded with a labelled matcher: creatable once the window is set.
+    act(() => {
+      ref.current?.openWith([{ label: "host", op: "eq", value: "web-1" }]);
+    });
+    const create = await screen.findByRole("button", {
+      name: "Create silence",
+    });
+    await user.click(screen.getByRole("button", { name: "8h" }));
+    expect(create).toBeEnabled();
+
+    // An added row has an empty label, which would match every alert; the
+    // form must not allow submitting it.
+    await user.click(screen.getByRole("button", { name: "Add" }));
+    expect(create).toBeDisabled();
   });
 
   it("hands New silence to the page-owned drawer", async () => {

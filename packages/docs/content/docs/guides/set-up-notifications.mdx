@@ -11,7 +11,7 @@ When an alert fires or resolves, it walks a fixed path:
 
 1. **Routes** are checked top to bottom by priority; the first route whose matchers fit the alert's labels decides the receiver.
 2. The matched **receiver** fans the notification out to every **channel** it references (Slack, email, webhook, PagerDuty, or Telegram).
-3. Alerts that match **no route** fall through to the **firehose**: every subscribed webhook receives them.
+3. While the organization has **no routes at all**, every alert instead goes to the **firehose**: every subscribed webhook receives it. Once at least one route exists, an alert that matches no route is **not delivered**, so end the route list with a catch-all (a route with no matchers) if you want a default receiver.
 
 Silences and inhibitions suppress delivery without stopping evaluation.
 
@@ -46,7 +46,7 @@ An inhibition suppresses downstream alerts while a related, higher-level alert i
 
 ## Firehose
 
-The firehose is the fallback and the integration point: every alert that matches no route is delivered to every webhook URL subscribed here. Point it at an internal service to build custom fan-out without defining routes.
+The firehose is the zero-config integration point: while the organization has no routes, every alert is delivered to every webhook URL subscribed here. Point it at an internal service to build custom fan-out without defining routes. The moment the first route is created, delivery switches entirely to the routing table and the firehose stops receiving alerts, including alerts that match no route. To keep a default destination under routing, add a lowest-priority catch-all route (no matchers) instead.
 
 ## Silences
 

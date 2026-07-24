@@ -7,6 +7,7 @@ import type { CcMatcher } from "@/data/cc/types";
 import {
   addMatcher,
   MatchersEditor,
+  matchersAreScoped,
   removeMatcher,
   updateMatcher,
 } from "./matchers-editor";
@@ -28,6 +29,21 @@ it("adds, updates, removes matcher rows", () => {
   expect(m[0]).toEqual({ label: "severity", op: "eq", value: "critical" });
   m = removeMatcher(m, 0);
   expect(m).toEqual([]);
+});
+
+it("treats a set as scoped only when every matcher has a label", () => {
+  expect(matchersAreScoped([])).toBe(false);
+  // A fresh `addMatcher` row has an empty label, which the engine matches
+  // against every alert (missing label reads as ""): not scoped.
+  expect(matchersAreScoped(addMatcher([]))).toBe(false);
+  expect(matchersAreScoped([{ label: "  ", op: "eq", value: "" }])).toBe(false);
+  expect(matchersAreScoped([{ label: "svc", op: "eq", value: "" }])).toBe(true);
+  expect(
+    matchersAreScoped([
+      { label: "svc", op: "eq", value: "api" },
+      { label: "", op: "eq", value: "" },
+    ]),
+  ).toBe(false);
 });
 
 // ---------------------------------------------------------------------------

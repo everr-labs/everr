@@ -122,11 +122,21 @@ curl -s -X POST localhost:8080/v1/routes -H "X-CC-Tenant: $TENANT" \
 
 ### Matching
 
-Matchers run against the event's labels **plus** the synthetic labels `severity`,
-`status` (`firing`/`resolved`), and `rule`. All matchers in a route must match
-(AND); an empty matcher list matches everything (a catch-all). Operators: `eq`,
-`ne`, `regex`, `notregex` (regex is fully anchored). A missing label reads as
-empty string.
+Matchers run against the event's labels **plus** the synthetic labels the
+dispatcher injects (they win over any same-named user label):
+
+- `severity`: the event's severity.
+- `status`: `firing`/`resolved`.
+- `rule`: the originating rule id.
+- `kind`: `alert` for ordinary alerts, `rule_health` for
+  [rule-health events](observe-degraded-rules.md).
+- `slo`: the SLO id, present **only** on SLO-originated events. Match on `slo`
+  (or a tier via the `slo_tier` event label) to route, silence, or inhibit
+  burn-rate alerts without touching ordinary rule alerts.
+
+All matchers in a route must match (AND); an empty matcher list matches
+everything (a catch-all). Operators: `eq`, `ne`, `regex`, `notregex` (regex is
+fully anchored). A missing label reads as empty string.
 
 ### Order, priority, and `continue`
 

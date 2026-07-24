@@ -38,6 +38,15 @@ export function matchersPhrase(m: CcMatcher[]): string {
     .join(" and ");
 }
 
+/**
+ * True when the set genuinely narrows: at least one matcher, each with a
+ * label. The engine reads a missing label as "", so an empty-label row
+ * (what `addMatcher` creates) matches every alert.
+ */
+export function matchersAreScoped(m: CcMatcher[]): boolean {
+  return m.length > 0 && m.every((x) => x.label.trim() !== "");
+}
+
 export function addMatcher(m: CcMatcher[]): CcMatcher[] {
   return [...m, { label: "", op: "eq", value: "" }];
 }

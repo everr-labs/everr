@@ -275,7 +275,6 @@ for how to write one.
   "targetPercent": 99.9,
   "timeWindow": { "duration": "30d", "isRolling": true },
   "min_valid_events": 100,
-  "tiers": null,
   "annotations": { "runbook": "https://…" },
   "suppressed": false
 }
@@ -291,7 +290,6 @@ for how to write one.
 | `timeWindow.isRolling` | bool              | no       | `true`  | v1 supports rolling only; `false` (or a non-null `timeWindow.calendar`) is rejected `422`. |
 | `timeWindow.calendar` | object \| null    | no       | `null`  | Reserved for a future calendar-aligned window; must be omitted/`null` in v1. |
 | `min_valid_events` | u64 \| null           | no       | `null`  | Floor on the long window's `valid` count below which no tier can fire. `null` = off. |
-| `tiers`            | BurnRateTier[] \| null | no      | `null` → canonical three tiers | See [tiers](../how-to/define-slos-and-burn-rate-alerts.md#tiers-canonical-defaults-and-when-to-override). Each tier: `name` (non-empty), `long_window`/`short_window` (`long_window` strictly greater, both capped at 366 days), `burn_rate` (`> 0`), `severity`. |
 | `annotations`      | object<string,string> | no       | `{}`    | Free-form metadata passed through onto tier-firing events; same `summary`/`description`/`link.*` rendering as [rule annotations](../how-to/write-alert-rules.md#annotations). |
 | `suppressed`       | bool                  | no       | `false` | Preview mode: evaluates fully and tracks tier state, but never notifies. See [pause vs. suppressed](../how-to/define-slos-and-burn-rate-alerts.md#pause-vs-suppressed). |
 

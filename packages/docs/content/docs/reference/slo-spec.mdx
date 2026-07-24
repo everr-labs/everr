@@ -30,7 +30,7 @@ spec:
 | `targetPercent` | number | yes | The objective, strictly `> 0` and `< 100`. `99.9` means 99.9% of valid events must be good. |
 | `timeWindow` | string | yes | The rolling budget window: `<int><m\|h\|d\|w>`, for example `30d`. No seconds unit, minimum 1 day, and at most 366 days. The object form `{ duration, isRolling: true }` is also accepted; calendar-aligned windows (`isRolling: false`) are rejected. |
 | `minValidEvents` | int | no | Low-traffic floor: a tier's long window is only allowed to fire once it has seen at least this many valid events, suppressing noise from thin data. Omit to disable. |
-| `annotations` | map (string to string) | no | Free-form key/value pairs passed through to the engine alongside Everr's generated annotations. Keys starting with `everr.` are reserved and rejected. |
+| `annotations` | map (string to string) | no | Free-form key/value pairs passed through to the engine alongside Everr's generated annotations. Keys starting with `everr.` are reserved and rejected, as are the notification keys `summary`, `description`, `link.alert`, and `link.runbook`: Everr generates those from other fields (such as the display name and the `runbook` reference). |
 
 An SLO created directly through the engine API that carries `everr.name` and a matching `everr.repoid` is treated as owned by that repo's config: the next `everr apply` adopts it, and prunes it if no YAML file declares it.
 
@@ -101,5 +101,5 @@ SLO declarations sit flat in `everr/`, named `*.slo.yaml`. `everr apply ./everr`
 - `timeWindow` must be `<int><m|h|d|w>`, minimum 1 day and at most 366 days; calendar windows (`isRolling: false`) are rejected.
 - `minValidEvents`, when set, must be a non-negative integer.
 - `sli.labelColumns` needs ≥1 entry when present; entries may not be `slo`, `slo_tier`, or start with `__cc_`.
-- `annotations` keys starting with `everr.` are rejected: those are reserved for Everr's own generated annotations.
+- `annotations` keys starting with `everr.` are rejected, along with `summary`, `description`, `link.alert`, and `link.runbook`: all are reserved for Everr's own generated annotations.
 - Supported document kinds for apply are `Dashboard`, `AlertRule`, `Runbook`, and `SLO`.

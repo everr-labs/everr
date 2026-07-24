@@ -192,7 +192,15 @@ export const CcInhibitionInputSchema = z.object({
 });
 
 export const CcSilenceInputSchema = z.object({
-  matchers: z.array(CcMatcherSchema).min(1),
+  // A silence is always scoped: the engine reads a missing label as "", so a
+  // matcher with an empty label matches every alert (a global silence).
+  matchers: z
+    .array(
+      CcMatcherSchema.refine((m) => m.label.trim() !== "", {
+        message: "matcher label is required",
+      }),
+    )
+    .min(1),
   starts_at: z.string(),
   ends_at: z.string(),
   comment: z.string().optional(),

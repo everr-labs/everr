@@ -446,8 +446,8 @@ fn sql_without_comments_and_literals(sql: &str) -> String {
     out
 }
 
-/// Upper bound on any window duration (the SLO's `timeWindow.duration` and every
-/// tier's `long_window`/`short_window`): 366 days, i.e. `366 * 86_400` seconds.
+/// Upper bound on the SLO's `timeWindow.duration` (and, via proportional
+/// scaling, every derived tier window): 366 days, i.e. `366 * 86_400` seconds.
 /// Two reasons: (a) product bound — rolling windows are meant to cover up to
 /// about a year, never longer; (b) safety bound — the evaluator computes
 /// `eval_ts - Duration::seconds(secs)` via `time::OffsetDateTime`, which PANICS
