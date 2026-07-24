@@ -33,8 +33,9 @@ async fn make_slo(s: &PgStore, name: &str) -> SloId {
 async fn claims_only_due_and_advances_next_eval() {
     let s = store().await;
     let id = make_slo(&s, "a").await;
-    // new SLO's next_eval defaults to now() -> due immediately
-    let now = OffsetDateTime::now_utc();
+    // create_slo arms next_eval at the SLO's jitter phase within one cadence,
+    // so claim past one full cadence to be sure it's due.
+    let now = OffsetDateTime::now_utc() + Duration::seconds(30);
     let due = s
         .claim_due_slos_sharded(now, 10, &[0], 1, 30)
         .await

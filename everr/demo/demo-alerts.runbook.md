@@ -35,7 +35,7 @@ spec:
               FROM logs
               WHERE Timestamp >= {from:String} AND Timestamp <= {to:String}
                 AND ServiceName = 'alert'
-                AND LogAttributes['alert.slug'] IN ('demo-always-firing', 'demo-flapping')
+                AND LogAttributes['alert.slug'] IN ('demo/demo-always-firing', 'demo/demo-flapping')
               ORDER BY event_time DESC
               LIMIT 100
 ```

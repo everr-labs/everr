@@ -35,6 +35,10 @@ pub struct PgStore {
     /// Engine self-observability (`cc.scheduler.drift` on the claim path). Disabled by
     /// default; attached by `main` when engine telemetry is configured.
     metrics: crate::otel::EngineMetrics,
+    /// The SLO evaluation cadence (`CC_SLO_BASE_CADENCE_SECS`), used to spread
+    /// `next_eval` jitter phases at SLO create/resume the way rules use their
+    /// own `interval_secs`. Defaults to the config default.
+    slo_base_cadence_secs: u32,
 }
 
 /// Cadence outcome of one rule evaluation, applied inside the same transaction as
@@ -442,12 +446,20 @@ impl PgStore {
         Ok(Self {
             pool,
             metrics: crate::otel::EngineMetrics::disabled(),
+            slo_base_cadence_secs: 30,
         })
     }
 
     /// Attach the engine-metrics handle so the claim path records scheduling drift.
     pub fn with_engine_metrics(mut self, metrics: crate::otel::EngineMetrics) -> Self {
         self.metrics = metrics;
+        self
+    }
+
+    /// Attach the configured SLO base cadence so create/resume arm `next_eval`
+    /// at a jitter phase within it.
+    pub fn with_slo_base_cadence(mut self, secs: u32) -> Self {
+        self.slo_base_cadence_secs = secs;
         self
     }
 
@@ -2437,6 +2449,11 @@ impl PgStore {
 
     // ---- slos ----
 
+    /// Create an SLO. Like [`Self::create_rule`], its first `next_eval` is now
+    /// plus a deterministic jitter phase (`hash(slo_id) % base_cadence`), so
+    /// SLOs bulk-created by an apply spread across the cadence instead of all
+    /// becoming due on the same tick and stampeding ClickHouse every cadence
+    /// (the claim path advances by whole cadences, preserving the stagger).
     pub async fn create_slo(
         &self,
         tenant: TenantId,
@@ -2447,14 +2464,17 @@ impl PgStore {
         use crate::domain::ids::SloId;
         let id = Uuid::new_v4();
         let spec_json = serde_json::to_value(spec)?;
+        let phase = crate::domain::cadence::jitter_offset_secs(id, self.slo_base_cadence_secs);
         let res = sqlx::query(
-            "INSERT INTO slos (id, tenant, namespace, name, spec) VALUES ($1,$2,$3,$4,$5)",
+            "INSERT INTO slos (id, tenant, namespace, name, spec, next_eval)
+             VALUES ($1,$2,$3,$4,$5, now() + make_interval(secs => $6::int))",
         )
         .bind(id)
         .bind(tenant.as_str())
         .bind(namespace)
         .bind(name)
         .bind(&spec_json)
+        .bind(phase as i32)
         .execute(&self.pool)
         .await;
         match res {
@@ -2632,16 +2652,25 @@ impl PgStore {
 
     /// Resume a paused SLO. Idempotent. Returns false if no such SLO exists for the
     /// tenant.
+    /// Resume a paused SLO: clear the flag and re-arm `next_eval` at the SLO's
+    /// deterministic jitter phase within one cadence (mirrors
+    /// [`Self::resume_rule`]), so a bulk resume does not make every SLO due at
+    /// once.
     pub async fn resume_slo(
         &self,
         tenant: TenantId,
         id: crate::domain::ids::SloId,
     ) -> Result<bool, StoreError> {
+        let phase = crate::domain::cadence::jitter_offset_secs(id.0, self.slo_base_cadence_secs);
         let res = sqlx::query(
-            "UPDATE slos SET paused = false, updated_at = now() WHERE id=$1 AND tenant=$2",
+            "UPDATE slos
+             SET paused = false, updated_at = now(),
+                 next_eval = now() + make_interval(secs => $3::int)
+             WHERE id=$1 AND tenant=$2",
         )
         .bind(id.0)
         .bind(tenant.as_str())
+        .bind(phase as i32)
         .execute(&self.pool)
         .await?;
         Ok(res.rows_affected() > 0)

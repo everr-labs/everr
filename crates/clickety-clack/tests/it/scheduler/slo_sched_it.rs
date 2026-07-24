@@ -32,6 +32,14 @@ async fn tick_enqueues_due_slo_jobs() {
     };
     let slo = create_test_slo(&store, TenantId::from_trusted("t"), "s", &spec).await;
 
+    // create_slo arms next_eval at the SLO's jitter phase within one cadence;
+    // rewind it so this single tick sees the SLO as due.
+    sqlx::query("UPDATE slos SET next_eval = now() WHERE id=$1")
+        .bind(slo.id.0)
+        .execute(store.pool_for_test())
+        .await
+        .unwrap();
+
     // one tick with a single shard owning everything
     cc::scheduler::tick_slos_once(&store, &queue, 100, &[0], 1, 30)
         .await

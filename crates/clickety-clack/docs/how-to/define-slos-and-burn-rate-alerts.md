@@ -236,7 +236,10 @@ its next transition rather than re-firing.
 
 Unlike rules, an SLO has no per-resource `interval_secs`: every SLO in a
 tenant is claimed by the scheduler on the same fixed cadence,
-`CC_SLO_BASE_CADENCE_SECS` (default `30s`). Within one evaluation, not every
+`CC_SLO_BASE_CADENCE_SECS` (default `30s`). Creation (and resume) arms the
+first evaluation at a deterministic jitter phase within one cadence
+(`hash(slo_id) % base_cadence`, same mechanism as rules), so a bulk apply
+spreads across the cadence instead of stampeding ClickHouse on one tick. Within one evaluation, not every
 window recomputes on every tick: each of a tier's long/short windows (plus the
 budget window) refreshes only when it's "due" — `max(base_cadence,
 window_secs / 12)` since it was last computed — so a `30d` budget window is

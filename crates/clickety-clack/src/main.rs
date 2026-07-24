@@ -70,7 +70,8 @@ async fn main() -> anyhow::Result<()> {
     )?;
     let store = PgStore::connect(&cfg.pg_url)
         .await?
-        .with_engine_metrics(engine_metrics.clone());
+        .with_engine_metrics(engine_metrics.clone())
+        .with_slo_base_cadence(cfg.slo_base_cadence_secs);
     store.migrate().await?;
     let ch_auth = cc::clickhouse::build_ch_auth(
         &cfg.ch_auth_mode,
@@ -81,12 +82,6 @@ async fn main() -> anyhow::Result<()> {
         &cfg.ch_password_suffix,
         cfg.ch_tenant_map.as_deref(),
     )?;
-    let queue: Arc<dyn Queue> = Arc::new(
-        RedisQueue::connect(&cfg.redis_url)
-            .await?
-            .with_engine_metrics(engine_metrics.clone()),
-    );
-    let event_bus: Arc<dyn EventBus> = Arc::new(RedisEventBus::connect(&cfg.redis_url).await?);
     let ch = ChClient::new(&cfg.ch_url, ch_auth);
 
     let (sd_tx, sd_rx) = tokio::sync::watch::channel(false);
@@ -98,6 +93,25 @@ async fn main() -> anyhow::Result<()> {
     let health = RolesHealth::default();
 
     let run = |r: &str| cfg.role == "all" || cfg.role == r;
+
+    // The Redis queue and event bus only serve the pipeline roles below; an
+    // isolated `api` deployment must not fail to start (or hold a connection)
+    // because dispatcher/scheduler infrastructure is unreachable.
+    let queue: Option<Arc<dyn Queue>> = if run("scheduler") || run("evaluator") {
+        Some(Arc::new(
+            RedisQueue::connect(&cfg.redis_url)
+                .await?
+                .with_engine_metrics(engine_metrics.clone()),
+        ))
+    } else {
+        None
+    };
+    let event_bus: Option<Arc<dyn EventBus>> =
+        if run("evaluator") || run("dispatcher") || run("events") {
+            Some(Arc::new(RedisEventBus::connect(&cfg.redis_url).await?))
+        } else {
+            None
+        };
 
     if run("api") {
         let state = AppState {
@@ -157,7 +171,9 @@ async fn main() -> anyhow::Result<()> {
     if run("scheduler") {
         let registry = MembershipRegistry::connect(&cfg.redis_url).await?;
         let store = store.clone();
-        let queue = queue.clone();
+        let queue = queue
+            .clone()
+            .expect("scheduler role: queue connected above");
         let rx = sd_rx.clone();
         let node_id = cfg.node_id.clone();
         let shards = cfg.scheduler_shards;
@@ -190,12 +206,16 @@ async fn main() -> anyhow::Result<()> {
     if run("evaluator") {
         {
             let store = store.clone();
-            let queue = queue.clone();
+            let queue = queue
+                .clone()
+                .expect("evaluator role: queue connected above");
             // Metrics attach to the evaluator's ClickHouse clone only, so API-driven
             // queries never count as evaluation queries.
             let ch: std::sync::Arc<dyn cc::clickhouse::RowQuerier> =
                 std::sync::Arc::new(ch.clone().with_engine_metrics(engine_metrics.clone()));
-            let events = event_bus.clone();
+            let events = event_bus
+                .clone()
+                .expect("evaluator role: event bus connected above");
             let rx = sd_rx.clone();
             let consumer = cfg.node_id.clone();
             let degrade_after = cfg.rule_degrade_after;
@@ -229,7 +249,9 @@ async fn main() -> anyhow::Result<()> {
                 RedisLease::connect(&cfg.redis_url, "cc:maintenance:lease", &cfg.node_id, 10_000)
                     .await?;
             let store = store.clone();
-            let bus = event_bus.clone();
+            let bus = event_bus
+                .clone()
+                .expect("evaluator role: event bus connected above");
             let rx = sd_rx.clone();
             let metrics = engine_metrics.clone();
             roles.push(RoleSpec::restartable("maintenance", move || {
@@ -256,10 +278,14 @@ async fn main() -> anyhow::Result<()> {
         }
         {
             let store = store.clone();
-            let queue = queue.clone();
+            let queue = queue
+                .clone()
+                .expect("evaluator role: queue connected above");
             let ch: std::sync::Arc<dyn cc::clickhouse::RowQuerier> =
                 std::sync::Arc::new(ch.clone().with_engine_metrics(engine_metrics.clone()));
-            let events = event_bus.clone();
+            let events = event_bus
+                .clone()
+                .expect("evaluator role: event bus connected above");
             let rx = sd_rx.clone();
             let consumer = cfg.node_id.clone();
             let degrade_after = cfg.rule_degrade_after;
@@ -353,7 +379,9 @@ async fn main() -> anyhow::Result<()> {
         };
         let ctx = cc::dispatcher::DispatchCtx {
             store: store.clone(),
-            bus: event_bus.clone(),
+            bus: event_bus
+                .clone()
+                .expect("dispatcher role: event bus connected above"),
             notifiers,
             groups,
             cache,
@@ -394,7 +422,9 @@ async fn main() -> anyhow::Result<()> {
         ) {
             (Some(endpoint), Some(secret)) => {
                 let exporter = Arc::new(AlertLogExporter::new(&endpoint, &secret));
-                let bus = event_bus.clone();
+                let bus = event_bus
+                    .clone()
+                    .expect("events role: event bus connected above");
                 let rx = sd_rx.clone();
                 let consumer = cfg.node_id.clone();
                 roles.push(RoleSpec::restartable("events", move || {
@@ -415,16 +445,47 @@ async fn main() -> anyhow::Result<()> {
         }
     }
 
-    // Signal handling stays what it was (ctrl_c / SIGINT flips the shutdown
-    // watch); it just runs beside the supervisor instead of being the only
-    // thing main waits on.
+    // A supervisor with nothing to supervise waits forever, so an empty role
+    // set (a CC_ROLE typo, or `events` without its export env vars) would leave
+    // the process running while doing no work. Fail loudly instead.
+    if roles.is_empty() {
+        anyhow::bail!(
+            "no roles registered for CC_ROLE={:?} (valid: all, api, scheduler, evaluator, \
+             dispatcher, events; the events role also needs CC_TRUSTED_OTLP_ENDPOINT and \
+             CC_TRUSTED_INGEST_SECRET)",
+            cfg.role
+        );
+    }
+
+    // Flip the shutdown watch on SIGINT (ctrl_c) or SIGTERM — orchestrators
+    // stop containers with SIGTERM, and without it the supervised roles would
+    // never get the graceful drain path before the kill. Runs beside the
+    // supervisor instead of being the only thing main waits on.
     {
         let tx = sd_tx.clone();
         tokio::spawn(async move {
-            if tokio::signal::ctrl_c().await.is_ok() {
-                tracing::info!("shutdown signal received");
-                let _ = tx.send(true);
+            let ctrl_c = tokio::signal::ctrl_c();
+            #[cfg(unix)]
+            {
+                match tokio::signal::unix::signal(tokio::signal::unix::SignalKind::terminate()) {
+                    Ok(mut sigterm) => {
+                        tokio::select! {
+                            _ = ctrl_c => {}
+                            _ = sigterm.recv() => {}
+                        }
+                    }
+                    Err(e) => {
+                        tracing::warn!(error = %e, "failed to install SIGTERM handler");
+                        let _ = ctrl_c.await;
+                    }
+                }
             }
+            #[cfg(not(unix))]
+            {
+                let _ = ctrl_c.await;
+            }
+            tracing::info!("shutdown signal received");
+            let _ = tx.send(true);
         });
     }
 

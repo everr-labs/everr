@@ -96,7 +96,7 @@ transition; the coordination primitives are the same either way.
 
 | Role        | Postgres | Redis | ClickHouse | SMTP | Trusted OTLP |
 | ----------- | :------: | :---: | :--------: | :--: | :----------: |
-| `api`       | ✅       | ✅    | ✅         |      |      |
+| `api`       | ✅       |       | ✅         |      |      |
 | `scheduler` | ✅       | ✅    |            |      |      |
 | `evaluator` | ✅       | ✅    | ✅         |      |      |
 | `dispatcher`| ✅       | ✅    |            | ✅ (if email) | ✅ (if set) |
