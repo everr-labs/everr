@@ -243,6 +243,38 @@ describe("validateRunbookLinks", () => {
     ).resolves.toBeUndefined();
   });
 
+  it("accepts a preview ref to another repo's live runbook (parity with live)", async () => {
+    // The same config must validate identically live and as a preview: a
+    // foreign live runbook survives this repo's eventual live apply.
+    mockDbRunbookRows([
+      { project: "default", slug: "triage", owner: "repo-2" },
+    ]);
+    await expect(
+      validateRunbookLinks({
+        namespace: { orgId, repoid: "repo-1", kind: "preview", id: "prev-1" },
+        alerts: [alertEntry({ runbook: "triage" })],
+        slos: [],
+        runbooks: [],
+      }),
+    ).resolves.toBeUndefined();
+  });
+
+  it("rejects a preview ref to this repo's own live runbook not in the batch", async () => {
+    // Same prune reasoning as the live branch: merging this preview's config
+    // would delete that runbook, so the ref must not resolve against it.
+    mockDbRunbookRows([
+      { project: "default", slug: "triage", owner: "repo-1" },
+    ]);
+    await expect(
+      validateRunbookLinks({
+        namespace: { orgId, repoid: "repo-1", kind: "preview", id: "prev-1" },
+        alerts: [alertEntry({ runbook: "triage" })],
+        slos: [],
+        runbooks: [],
+      }),
+    ).rejects.toThrow(/does not exist/);
+  });
+
   it("throws when the linked runbook does not exist", async () => {
     await expect(
       validateRunbookLinks({

@@ -57,11 +57,34 @@ export const listCcRulesPage = createAuthenticatedServerFn({ method: "GET" })
       limit: z.number().int().min(1).max(500).default(100),
       cursor: z.string().optional(),
       health: CcRuleHealthStatusSchema.optional(),
+      preview: z.string().optional(),
     }),
   )
-  .handler(({ data, context: { session } }) =>
-    cc.listRulesPage(orgId(session), data),
-  );
+  .handler(async ({ data, context: { session } }) => {
+    const org = orgId(session);
+    const preview = data.preview?.trim() || null;
+    if (preview === null) {
+      // Live listing stays keyset-paginated, pinned to the live namespace so
+      // suppressed preview rules never leak into the table.
+      return cc.listRulesPage(org, {
+        limit: data.limit,
+        ...(data.cursor ? { cursor: data.cursor } : {}),
+        ...(data.health ? { health: data.health } : {}),
+        namespace: "",
+      });
+    }
+    // Preview: the overlay needs the full cross-namespace set plus the
+    // preview's registry scopes (same resolution as getCcRuleByName), so
+    // pagination collapses to a single page like the other preview surfaces.
+    const [rules, scopes] = await Promise.all([
+      cc.listAllRules(org),
+      getPreviewScopes(org, preview),
+    ]);
+    const items = visibleRulesForPreview(rules, scopes).filter(
+      (r) => !data.health || r.health.status === data.health,
+    );
+    return { items, next_cursor: null };
+  });
 
 export const getCcRule = createAuthenticatedServerFn({ method: "GET" })
   .inputValidator(z.object({ ruleId: z.string() }))

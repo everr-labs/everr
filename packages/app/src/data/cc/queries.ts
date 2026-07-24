@@ -71,16 +71,24 @@ export const ccQueries = {
 
   // Keyset-paginated listing for the rules table: each page is CC's
   // {items, next_cursor} envelope, null cursor = last page, with an optional
-  // server-side health filter.
-  rulesPage: (health?: CcRuleHealthStatus) =>
+  // server-side health filter. Live namespace by default; with a preview
+  // selected, the server returns the overlay as a single page.
+  rulesPage: (health?: CcRuleHealthStatus, preview?: string) =>
     infiniteQueryOptions({
-      queryKey: ["cc", "rules", "page", health ?? "all"] as const,
+      queryKey: [
+        "cc",
+        "rules",
+        "page",
+        health ?? "all",
+        preview?.trim() || null,
+      ] as const,
       queryFn: ({ pageParam }) =>
         listCcRulesPage({
           data: {
             limit: RULES_PAGE_LIMIT,
             ...(pageParam ? { cursor: pageParam } : {}),
             ...(health ? { health } : {}),
+            ...(preview?.trim() ? { preview: preview.trim() } : {}),
           },
         }),
       initialPageParam: null as string | null,

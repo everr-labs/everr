@@ -54,15 +54,17 @@ function sloRunbookRefs(slos: ApplyResourceEntry[]): TaggedRef[] {
 
 /**
  * Validate that every alert's and SLO's `spec.runbook` resolves to a runbook
- * that either ships in this same apply batch, or (live namespace only) is
- * already owned by another repo's live runbook row. Cross-kind, so it runs
- * from the apply orchestration rather than a single-kind reconciler.
+ * that either ships in this same apply batch, or is already owned by another
+ * repo's live runbook row. Cross-kind, so it runs from the apply
+ * orchestration rather than a single-kind reconciler.
  *
- * A same-repo DB row does NOT satisfy a ref: this apply's Runbook reconciler
- * prunes exactly the rows in this repo that aren't in the batch, so such a
- * row is about to disappear and letting it resolve the ref would be a lie.
- * Runbook identity is `(project, slug)`; a preview namespace keeps the prior
- * behavior (the batch, or a row already registered under that preview).
+ * A same-repo live DB row does NOT satisfy a ref: this apply's Runbook
+ * reconciler prunes exactly the rows in this repo that aren't in the batch,
+ * so such a row is about to disappear and letting it resolve the ref would
+ * be a lie. Runbook identity is `(project, slug)`. A preview namespace
+ * additionally accepts rows already registered under that preview, and the
+ * same foreign live rows a live apply accepts, so a config valid live is
+ * valid as a preview.
  */
 export async function validateRunbookLinks(opts: {
   namespace: Namespace;
@@ -100,21 +102,39 @@ export async function validateRunbookLinks(opts: {
     const refs = [...missing.values()];
     // Live: only rows owned by another repo satisfy a ref not in this batch
     // — this repo's own rows absent from the batch are exactly what this
-    // apply is about to prune. Preview: unchanged, the preview's own
-    // registry-scoped rows (or the batch) satisfy a ref.
+    // apply is about to prune. Preview: the preview's own registry-scoped
+    // rows (or the batch) satisfy a ref, and so do OTHER repos' live rows —
+    // a preview simulates this repo's eventual live apply, which foreign
+    // live runbooks survive, so a config that passes live must pass as a
+    // preview too. Own-repo live rows stay excluded for the same prune
+    // reason as the live branch. foreignLiveScope is live-only by contract
+    // (previews skip ownership checks), so probe it with the namespace's
+    // live-shaped identity.
+    const foreignLive = foreignLiveScope(
+      runbooks,
+      {
+        kind: "live",
+        orgId: opts.namespace.orgId,
+        repoid: opts.namespace.repoid,
+      },
+      refs,
+    );
     const scope =
       opts.namespace.kind === "live"
-        ? foreignLiveScope(runbooks, opts.namespace, refs)
-        : and(
-            previewScope(runbooks, opts.namespace),
-            or(
-              ...refs.map((ref) =>
-                and(
-                  eq(runbooks.project, ref.project),
-                  eq(runbooks.slug, ref.slug),
+        ? foreignLive
+        : or(
+            and(
+              previewScope(runbooks, opts.namespace),
+              or(
+                ...refs.map((ref) =>
+                  and(
+                    eq(runbooks.project, ref.project),
+                    eq(runbooks.slug, ref.slug),
+                  ),
                 ),
               ),
             ),
+            foreignLive,
           );
     const dbRows = await db
       .select({ project: runbooks.project, slug: runbooks.slug })

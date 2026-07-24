@@ -196,6 +196,17 @@ describe("deletePreviewCcRules", () => {
       }),
     );
   });
+
+  it("a cleanup failure flags the org on the pending ledger", async () => {
+    mockedListRules.mockRejectedValue(new Error("cc down"));
+    const marked: string[] = [];
+    await deletePreviewCcRules([{ id: "p1", organizationId: "org-a" }], {
+      markCleanupPending: async (orgId) => {
+        marked.push(orgId);
+      },
+    });
+    expect(marked).toEqual(["org-a"]);
+  });
 });
 
 /**
@@ -208,12 +219,22 @@ function fakeSweepDb(
   orgs: string[],
   existing: Set<string>,
   onSnapshot?: (orgId: string) => void,
-): OrphanSweepDb {
+  opts: { pendingOrgs?: string[] } = {},
+): OrphanSweepDb & { pending: Set<string> } {
+  const pending = new Set(opts.pendingOrgs ?? []);
   return {
+    pending,
     listPreviewOrgs: async () => orgs,
     existingPreviewIds: async (orgId, ids) => {
       onSnapshot?.(orgId);
       return new Set([...ids].filter((id) => existing.has(id)));
+    },
+    listPendingCleanupOrgs: async () => [...pending],
+    markCleanupPending: async (orgId) => {
+      pending.add(orgId);
+    },
+    clearCleanupPending: async (orgId) => {
+      pending.delete(orgId);
     },
   };
 }
@@ -415,5 +436,31 @@ describe("sweepOrphanCcRules", () => {
     expect(snapshots).toEqual([]);
     expect(mockedDeleteRule).not.toHaveBeenCalled();
     expect(mockedDeleteSlo).not.toHaveBeenCalled();
+  });
+
+  it("visits a pending-ledger org with zero preview rows and clears it after a clean pass", async () => {
+    // The org's LAST preview is gone from the registry; only the ledger knows
+    // it still has orphans in CC.
+    mockedListRules.mockResolvedValue([ccRule("orphan1", "p-gone")]);
+    mockedListSlos.mockResolvedValue([]);
+    const db = fakeSweepDb([], new Set(), undefined, {
+      pendingOrgs: ["org-a"],
+    });
+
+    await sweepOrphanCcRules(db);
+
+    expect(mockedDeleteRule).toHaveBeenCalledWith("org-a", "orphan1");
+    expect(db.pending.has("org-a")).toBe(false);
+  });
+
+  it("keeps an org on the pending ledger when its sweep pass fails", async () => {
+    mockedListRules.mockResolvedValue([ccRule("orphan1", "p-gone")]);
+    mockedListSlos.mockResolvedValue([]);
+    mockedDeleteRule.mockRejectedValue(new Error("cc down"));
+    const db = fakeSweepDb(["org-a"], new Set());
+
+    await sweepOrphanCcRules(db);
+
+    expect(db.pending.has("org-a")).toBe(true);
   });
 });
