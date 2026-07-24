@@ -63,7 +63,11 @@ export function init(options: InitOptions): EverrClient {
       "everr.language": navigator.language,
     },
     { name: SDK_NAME, version: SDK_VERSION },
-    createEnvelope(current, attributionAttributes(location.search)),
+    createEnvelope(
+      current,
+      attributionAttributes(location.search),
+      options.routePattern,
+    ),
   );
 
   // The navigation watcher always runs so the envelope's page context stays
@@ -78,12 +82,7 @@ export function init(options: InitOptions): EverrClient {
   const stopInteractions = enabled("interactions")
     ? startInteractions(emit)
     : undefined;
-  // Started before the hide listeners below: web-vitals registers its own
-  // hidden-state listeners, and they must observe the transition before the
-  // exit flush ships the final batch.
-  const stopWebVitals = enabled("webVitals")
-    ? startWebVitals(emit, options.routePattern)
-    : undefined;
+  const stopWebVitals = enabled("webVitals") ? startWebVitals(emit) : undefined;
 
   // Exit delivery: the final leave plus whatever is batched rides the
   // keepalive path. pagehide and visibilitychange-hidden, not beforeunload

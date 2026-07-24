@@ -1,52 +1,32 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { init } from "./client.js";
+import {
+  attrs,
+  type OtlpBatch,
+  type OtlpRecord,
+  stubOtlpFetch,
+} from "./test-kit.js";
 import type { CaptureSignal, EverrClient } from "./types.js";
 
-type OtlpRecord = {
-  timeUnixNano: string;
-  severityNumber: number;
-  eventName: string;
-  body?: unknown;
-  attributes: Array<{ key: string; value: Record<string, unknown> }>;
-};
-
 let client: EverrClient | undefined;
-let batches: Array<{
-  resource: Array<{ key: string; value: Record<string, unknown> }>;
-  records: OtlpRecord[];
-}>;
+let batches: OtlpBatch[];
 
-function start(options?: { disable?: true | CaptureSignal[] }): void {
-  batches = [];
-  vi.stubGlobal(
-    "fetch",
-    vi.fn((_url: RequestInfo | URL, init?: RequestInit) => {
-      const payload = JSON.parse(String(init?.body));
-      const resourceLog = payload.resourceLogs[0];
-      batches.push({
-        resource: resourceLog.resource.attributes,
-        records: resourceLog.scopeLogs[0].logRecords,
-      });
-      return Promise.resolve(new Response(null, { status: 200 }));
-    }),
-  );
+function start(options?: {
+  disable?: true | CaptureSignal[];
+  routePattern?: () => string | null | undefined;
+}): void {
+  batches = stubOtlpFetch();
   client = init({
     mode: "cookieless",
     serviceName: "everr-docs-test",
     dev: true,
-    disable: options?.disable,
+    ...options,
   });
 }
 
 async function records(): Promise<OtlpRecord[]> {
   await client?.flush();
   return batches.flatMap((b) => b.records);
-}
-
-function attrs(record: OtlpRecord): Record<string, unknown> {
-  return Object.fromEntries(
-    record.attributes.map(({ key, value }) => [key, Object.values(value)[0]]),
-  );
 }
 
 async function resourceAttrs(): Promise<Record<string, unknown>> {
@@ -149,6 +129,27 @@ describe("init (cookieless)", () => {
     start({ disable: ["pageviews"] });
     dispatchEvent(new Event("pagehide"));
     expect(await records()).toHaveLength(0);
+  });
+
+  it("stamps the route pattern on every record and survives a throwing host callback", async () => {
+    let pattern: string | undefined;
+    start({ routePattern: () => pattern });
+    pattern = "/blog/$slug";
+    history.pushState(null, "", "/blog/hello");
+    const all = await records();
+    // Sampled per record: the initial view predates the pattern, the SPA
+    // navigation's leave and view carry it.
+    expect(attrs(all[0])).not.toHaveProperty("everr.route.pattern");
+    expect(attrs(all[2])["everr.route.pattern"]).toBe("/blog/$slug");
+
+    await client?.shutdown();
+    start({
+      routePattern: () => {
+        throw new Error("host bug");
+      },
+    });
+    const [view] = await records();
+    expect(attrs(view)).not.toHaveProperty("everr.route.pattern");
   });
 
   it("does not emit for a pushState to the same URL", async () => {

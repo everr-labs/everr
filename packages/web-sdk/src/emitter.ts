@@ -88,6 +88,7 @@ export function createEmitter(
   const headers = { "Content-Type": "application/json", ...extraHeaders };
   let queue: Array<[priority: number, record: OtlpLogRecord]> = [];
   let timer: ReturnType<typeof setTimeout> | undefined;
+  let exitScheduled = false;
 
   const build = () =>
     JSON.stringify({
@@ -158,7 +159,20 @@ export function createEmitter(
         attributes: toKeyValues({ ...envelope(), ...attributes }),
       },
     ]);
-    if (queue.length >= MAX_BATCH_SIZE) {
+    // Records emitted while the page is hidden (web-vitals reports CLS and
+    // INP from its own hidden-state listeners, in no guaranteed order
+    // relative to the client's exit flush) must not strand in a queue whose
+    // timer will never fire: a microtask-coalesced exit flush ships them on
+    // the keepalive path regardless of listener ordering.
+    if (document.visibilityState === "hidden") {
+      if (!exitScheduled) {
+        exitScheduled = true;
+        queueMicrotask(() => {
+          exitScheduled = false;
+          exitFlush();
+        });
+      }
+    } else if (queue.length >= MAX_BATCH_SIZE) {
       void flush();
     } else {
       timer ??= setTimeout(() => void flush(), SCHEDULED_DELAY_MS);

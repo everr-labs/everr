@@ -24,15 +24,27 @@ export function pageAttrs(
 export function createEnvelope(
   current: CurrentPage,
   attribution: Record<string, string>,
-): () => Record<string, string | undefined> {
+  /** Host-supplied low-cardinality route pattern, sampled per record. */
+  routePattern?: () => string | null | undefined,
+): () => Record<string, string | null | undefined> {
   return () => {
     const page = current();
     return {
       "session.id": page.sessionId,
       ...pageAttrs(page),
+      "everr.route.pattern": guarded(routePattern),
       // The $insert_id analogue: a per-record random id for dedup.
       "everr.event.id": randomUUID(),
       ...attribution,
     };
   };
+}
+
+function guarded(fn: (() => string | null | undefined) | undefined) {
+  // The host callback must never break capture.
+  try {
+    return fn?.();
+  } catch {
+    return undefined;
+  }
 }

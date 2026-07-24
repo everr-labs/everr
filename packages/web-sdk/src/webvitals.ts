@@ -12,10 +12,10 @@ import type { AttrValue, Emit } from "./emitter.js";
 // (LCP, CLS, INP, FCP, TTFB via the web-vitals v5 attribution build), named
 // after the OTel semconv attributes with attribution flattened under the
 // same namespace. TTFB and FCP report early and ride normal batches; LCP,
-// CLS and INP mostly report when the page goes hidden. web-vitals delivers
-// those callbacks synchronously from a capture-phase visibilitychange
-// listener, so the records are queued before the client's bubble-phase exit
-// flush ships the final keepalive batch; no vitals-side queue is needed.
+// CLS and INP mostly report when the page goes hidden, from web-vitals' own
+// hidden-state listeners. No vitals-side queue is needed: any record emitted
+// while the page is hidden rides the emitter's coalesced exit flush, in
+// whatever order the hidden listeners happen to run.
 //
 // Dedupe is at-most-once per metric id: CLS and INP re-report a grown value
 // when a restored tab is hidden again, and re-emitting the same id would
@@ -25,11 +25,7 @@ import type { AttrValue, Emit } from "./emitter.js";
 
 type Attrs = Record<string, AttrValue | null | undefined>;
 
-export function startWebVitals(
-  emit: Emit,
-  /** Host-supplied low-cardinality route pattern, sampled at report time. */
-  routePattern: (() => string | null | undefined) | undefined,
-): () => void {
+export function startWebVitals(emit: Emit): () => void {
   // Browsers pin every vital to the initial hard navigation, while the
   // envelope's url.* rotate with SPA navigations: the landing url rides each
   // record so late reports still slice by the page that was measured.
@@ -57,7 +53,6 @@ export function startWebVitals(
         "browser.web_vital.navigation_url": soft.navigationURL,
         "everr.landing.url": landingUrl,
         "everr.landing.path": landingPath,
-        "everr.route.pattern": patternOf(routePattern),
         ...attributionAttrs(metric),
       },
       2, // Exit truncation rank: errors > page_leave > vitals > interactions.
@@ -69,15 +64,6 @@ export function startWebVitals(
   return () => {
     stopped = true;
   };
-}
-
-function patternOf(fn: (() => string | null | undefined) | undefined) {
-  // The host callback must never break capture.
-  try {
-    return fn?.();
-  } catch {
-    return undefined;
-  }
 }
 
 function attributionAttrs(metric: MetricWithAttribution): Attrs {

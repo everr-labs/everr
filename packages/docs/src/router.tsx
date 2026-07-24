@@ -1,6 +1,6 @@
+import { registerRouter } from "@everr/web-sdk/tanstack";
 import { createRouter as createTanStackRouter } from "@tanstack/react-router";
 import { NotFound } from "@/components/not-found";
-import { routerRef } from "@/lib/telemetry";
 import { routeTree } from "./routeTree.gen";
 
 export function getRouter() {
@@ -10,6 +10,6 @@ export function getRouter() {
     scrollRestoration: true,
     defaultNotFoundComponent: NotFound,
   });
-  routerRef.current = router;
+  registerRouter(router);
   return router;
 }

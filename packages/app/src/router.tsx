@@ -1,9 +1,9 @@
+import { registerRouter } from "@everr/web-sdk/tanstack";
 import { QueryClient } from "@tanstack/react-query";
 import { createRouteMask, createRouter } from "@tanstack/react-router";
 import { Loader2 } from "lucide-react";
 import { RootErrorComponent } from "./components/root-error";
 import { routeTree } from "./routeTree.gen";
-import { routerRef } from "./telemetry/client";
 
 export interface RouterContext {
   queryClient: QueryClient;
@@ -54,6 +54,6 @@ export const getRouter = () => {
       </div>
     ),
   });
-  routerRef.current = router;
+  registerRouter(router);
   return router;
 };

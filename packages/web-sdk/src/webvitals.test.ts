@@ -5,6 +5,12 @@ import type {
   TTFBMetricWithAttribution,
 } from "web-vitals/attribution";
 import { init } from "./client.js";
+import {
+  attrs,
+  type OtlpBatch,
+  type OtlpRecord,
+  stubOtlpFetch,
+} from "./test-kit.js";
 import type { CaptureSignal, EverrClient } from "./types.js";
 
 // The web-vitals library only reports from real PerformanceObserver entries,
@@ -60,31 +66,15 @@ const cls = (over?: Partial<CLSMetricWithAttribution>) =>
     ...over,
   }) as CLSMetricWithAttribution;
 
-type OtlpRecord = {
-  eventName: string;
-  attributes: Array<{ key: string; value: Record<string, unknown> }>;
-};
-
 let client: EverrClient | undefined;
-let batches: Array<{ keepalive: boolean; records: OtlpRecord[] }>;
+let batches: OtlpBatch[];
 
 function start(options?: {
   disable?: true | CaptureSignal[];
   routePattern?: () => string | null | undefined;
 }): void {
-  batches = [];
   callbacks.length = 0;
-  vi.stubGlobal(
-    "fetch",
-    vi.fn((_url: RequestInfo | URL, init?: RequestInit) => {
-      batches.push({
-        keepalive: Boolean(init?.keepalive),
-        records: JSON.parse(String(init?.body)).resourceLogs[0].scopeLogs[0]
-          .logRecords,
-      });
-      return Promise.resolve(new Response(null, { status: 200 }));
-    }),
-  );
+  batches = stubOtlpFetch();
   client = init({
     mode: "cookieless",
     serviceName: "everr-docs-test",
@@ -98,12 +88,6 @@ async function vitals(): Promise<OtlpRecord[]> {
   return batches
     .flatMap((b) => b.records)
     .filter((r) => r.eventName === "browser.web_vital");
-}
-
-function attrs(record: OtlpRecord): Record<string, unknown> {
-  return Object.fromEntries(
-    record.attributes.map(({ key, value }) => [key, Object.values(value)[0]]),
-  );
 }
 
 afterEach(async () => {
@@ -161,36 +145,29 @@ describe("web vitals", () => {
     expect(a["url.path"]).toBe("/pricing");
   });
 
-  it("stamps the route pattern sampled at report time and survives a throwing host callback", async () => {
-    let pattern: string | undefined;
-    start({ routePattern: () => pattern });
-    pattern = "/blog/$slug";
-    report(ttfb());
-    expect(attrs((await vitals())[0])["everr.route.pattern"]).toBe(
-      "/blog/$slug",
-    );
-
-    await client?.shutdown();
-    start({
-      routePattern: () => {
-        throw new Error("host bug");
-      },
-    });
-    report(ttfb());
-    const [record] = await vitals();
-    expect(attrs(record)).not.toHaveProperty("everr.route.pattern");
-  });
-
-  it("rides the keepalive exit flush when reported at page hide", async () => {
+  it("reaches the keepalive exit batch even when reported after the exit flush", async () => {
     start();
-    // Simulate web-vitals' capture-phase hidden reporting: the record must be
-    // queued in time for the exit flush triggered by the same transition.
-    addEventListener("pagehide", () => report(cls()), true);
+    // Worst-case listener ordering: the vital reports from a bubble-phase
+    // pagehide listener registered after the client's own exit-flush
+    // listeners, while the page is already hidden. The emitter's coalesced
+    // hidden-state flush must still ship it on the keepalive path.
+    Object.defineProperty(document, "visibilityState", {
+      value: "hidden",
+      configurable: true,
+    });
+    const late = () => report(cls());
+    addEventListener("pagehide", late);
     dispatchEvent(new Event("pagehide"));
-    const exit = batches.find((b) => b.keepalive);
-    expect(exit?.records.map((r) => r.eventName)).toContain(
-      "browser.web_vital",
-    );
+    removeEventListener("pagehide", late);
+    await Promise.resolve();
+    Object.defineProperty(document, "visibilityState", {
+      value: "visible",
+      configurable: true,
+    });
+    const exitEvents = batches
+      .filter((b) => b.keepalive)
+      .flatMap((b) => b.records.map((r) => r.eventName));
+    expect(exitEvents).toContain("browser.web_vital");
   });
 
   it('registers nothing with disable: ["webVitals"]', () => {

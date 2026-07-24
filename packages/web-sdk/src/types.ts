@@ -35,9 +35,10 @@ type CommonInitOptions = {
   disable?: true | CaptureSignal[];
   /**
    * Returns the active low-cardinality route pattern (e.g. a TanStack route
-   * id like `/blog/$slug`), sampled when a web vital reports so late metrics
-   * localize to a route, not just a URL. Errors and nullish returns are
-   * treated as "no pattern".
+   * id like `/blog/$slug`), sampled per record and stamped on the envelope
+   * as `everr.route.pattern`, so every signal slices by route, not just by
+   * URL. Errors and nullish returns are treated as "no pattern". TanStack
+   * apps can wire this with the `@everr/web-sdk/tanstack` adapter.
    */
   routePattern?: () => string | null | undefined;
 };
