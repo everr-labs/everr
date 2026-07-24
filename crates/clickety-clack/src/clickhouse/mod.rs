@@ -104,8 +104,17 @@ pub struct ResultRow {
 
 impl ChClient {
     pub fn new(base_url: impl Into<String>, auth: Arc<dyn ChAuthProvider>) -> Self {
+        // `max_execution_time` (sqlguard, 10s) only bounds a query ClickHouse is
+        // actually running; a stalled connect or response would otherwise hang an
+        // evaluator worker indefinitely. 30s leaves headroom for queueing plus the
+        // transfer of a max_result_bytes-capped body.
+        let http = reqwest::Client::builder()
+            .connect_timeout(std::time::Duration::from_secs(5))
+            .timeout(std::time::Duration::from_secs(30))
+            .build()
+            .expect("static reqwest client config is valid");
         Self {
-            http: reqwest::Client::new(),
+            http,
             base_url: base_url.into(),
             auth,
             metrics: crate::otel::EngineMetrics::disabled(),

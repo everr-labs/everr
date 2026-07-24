@@ -2867,7 +2867,9 @@ impl PgStore {
     ) -> Result<Option<(Event, Uuid)>, StoreError> {
         let mut tx = self.pool.begin().await?;
         let row = sqlx::query(
-            "SELECT health_status, consecutive_failures, name FROM slos WHERE id=$1 AND tenant=$2 FOR UPDATE",
+            "SELECT health_status, consecutive_failures, name,
+                    (spec->>'suppressed')::bool AS suppressed
+               FROM slos WHERE id=$1 AND tenant=$2 FOR UPDATE",
         )
         .bind(slo.0)
         .bind(tenant.as_str())
@@ -2879,6 +2881,8 @@ impl PgStore {
         };
         let was: String = row.get("health_status");
         let name: String = row.get("name");
+        // Specs stored before the key existed read NULL -> not suppressed.
+        let suppressed: bool = row.get::<Option<bool>, _>("suppressed").unwrap_or(false);
         let n: i32 = row.get::<i32, _>("consecutive_failures") + 1;
         let now_degraded = n >= degrade_after as i32;
         let transitioned = now_degraded && was != "degraded";
@@ -2907,6 +2911,8 @@ impl PgStore {
             ann.insert("last_error".to_string(), err.to_string());
             let mut ev = Event::slo_health(tenant.clone(), slo, EventStatus::Firing, ann, now);
             ev.name = name;
+            // A preview (suppressed) SLO must never notify, its health events included.
+            ev.suppressed = suppressed;
             let id = insert_outbox_event(&mut tx, &ev).await?;
             tx.commit().await?;
             return Ok(Some((ev, id)));
@@ -2931,7 +2937,7 @@ impl PgStore {
             "UPDATE slos SET consecutive_failures=0, last_error=NULL, last_error_at=NULL
               WHERE id = $1 AND tenant = $2
                 AND (consecutive_failures <> 0 OR last_error IS NOT NULL OR health_status <> 'healthy')
-            RETURNING health_status, name",
+            RETURNING health_status, name, (spec->>'suppressed')::bool AS suppressed",
         )
         .bind(slo.0)
         .bind(tenant.as_str())
@@ -2944,6 +2950,8 @@ impl PgStore {
         };
         let status: String = row.get("health_status");
         let name: String = row.get("name");
+        // Specs stored before the key existed read NULL -> not suppressed.
+        let suppressed: bool = row.get::<Option<bool>, _>("suppressed").unwrap_or(false);
 
         if status == "degraded" {
             sqlx::query(
@@ -2957,6 +2965,8 @@ impl PgStore {
             ann.insert("summary".to_string(), format!("SLO {} recovered", slo.0));
             let mut ev = Event::slo_health(tenant.clone(), slo, EventStatus::Resolved, ann, now);
             ev.name = name;
+            // A preview (suppressed) SLO must never notify, its health events included.
+            ev.suppressed = suppressed;
             let id = insert_outbox_event(&mut tx, &ev).await?;
             tx.commit().await?;
             return Ok(Some((ev, id)));

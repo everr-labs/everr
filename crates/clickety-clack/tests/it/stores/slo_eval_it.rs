@@ -105,6 +105,49 @@ async fn health_degrades_after_k_and_recovers() {
         .is_none());
 }
 
+/// A suppressed (preview) SLO must never notify, its health events included: both the
+/// degrade (Firing) and recovery (Resolved) events are stamped `suppressed: true`, and
+/// the flag survives the outbox payload. Mirrors the rule-health counterpart in
+/// `rule_health_it.rs`.
+#[tokio::test]
+async fn health_events_of_suppressed_slo_are_stamped() {
+    let s = store().await;
+    let mut sp = spec();
+    sp.suppressed = true;
+    let id = match s.create_slo(tenant(), "", "suppressed-health", &sp).await.unwrap() {
+        SloCreate::Created(slo) => slo.id,
+        _ => panic!(),
+    };
+    let now = OffsetDateTime::now_utc();
+
+    let (ev, outbox_id) = s
+        .record_slo_failure(id, &tenant(), "boom", 1, now)
+        .await
+        .unwrap()
+        .expect("threshold 1 degrades on the first failure");
+    assert_eq!(ev.status, EventStatus::Firing);
+    assert!(ev.suppressed, "degrade event carries the SLO's flag");
+
+    // The outbox payload (what the maintenance relay would re-publish) carries it too.
+    let claimed = s
+        .claim_outbox(now + Duration::seconds(60), 10)
+        .await
+        .unwrap();
+    let (_, outbox_ev) = claimed
+        .iter()
+        .find(|(oid, _)| *oid == outbox_id)
+        .expect("outbox row present");
+    assert!(outbox_ev.suppressed);
+
+    let (ev, _) = s
+        .record_slo_success(id, &tenant(), now)
+        .await
+        .unwrap()
+        .expect("recovery from degraded emits an event");
+    assert_eq!(ev.status, EventStatus::Resolved);
+    assert!(ev.suppressed, "recovery event carries the SLO's flag");
+}
+
 #[tokio::test]
 async fn status_snapshot_upsert_and_read() {
     let s = store().await;
