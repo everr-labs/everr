@@ -424,7 +424,11 @@ pub async fn process_batch_inner(
 /// publishes each transition. Identical to the prior logic except rows are supplied.
 ///
 /// `#[tracing::instrument]` produces the eval-latency span the engine OTLP exporter ships.
-#[tracing::instrument(skip_all, fields(rule = %job.rule.0, tenant = %job.tenant, rows = rows.len()))]
+///
+/// `otel.status_code`/`otel.status_message` are recorded from *inside* this function body
+/// (not by the caller): the instrumented span closes when this `.await` resolves, so any
+/// error handling in the caller's loop runs outside the span's scope and cannot mark it.
+#[tracing::instrument(skip_all, fields(rule = %job.rule.0, tenant = %job.tenant, rows = rows.len(), otel.status_code = tracing::field::Empty, otel.status_message = tracing::field::Empty))]
 async fn evaluate_rule_against_rows(
     store: &PgStore,
     events: &dyn EventBus,
@@ -443,7 +447,13 @@ async fn evaluate_rule_against_rows(
         present.insert(key, (row.labels.clone(), row.value, row.extra.clone()));
     }
 
-    let known = store.load_instances(&job.tenant, job.rule).await?;
+    let known = match store.load_instances(&job.tenant, job.rule).await {
+        Ok(known) => known,
+        Err(e) => {
+            crate::otel::span_error(&e);
+            return Err(e.into());
+        }
+    };
     let prev_status_by_key: HashMap<InstanceKey, crate::domain::instance::Status> =
         known.iter().map(|s| (s.key.clone(), s.status)).collect();
     let mut known_keys: HashMap<InstanceKey, InstanceState> =
@@ -536,7 +546,7 @@ async fn evaluate_rule_against_rows(
         max_interval_secs: rule.spec.max_interval_secs,
         eval_ts: job.eval_ts,
     };
-    commit_and_publish_with_rollup(
+    let result = commit_and_publish_with_rollup(
         store,
         events,
         &job.tenant,
@@ -545,7 +555,11 @@ async fn evaluate_rule_against_rows(
         (job.rule, rollup),
         cadence,
     )
-    .await
+    .await;
+    if let Err(e) = &result {
+        crate::otel::span_error(e);
+    }
+    result
 }
 
 #[cfg(test)]

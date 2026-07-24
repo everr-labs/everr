@@ -118,6 +118,20 @@ impl ChClient {
     /// Like `query_rows`, but binds `params` as ClickHouse named query parameters
     /// (`{name:Type}` placeholders in `sql`), sent as `param_<name>=<value>` query-string
     /// entries per ClickHouse's HTTP interface.
+    ///
+    /// One span (`clickhouse.query`) covers the whole HTTP + parse round-trip; `query_rows`
+    /// delegates into this, so callers never see the round-trip double-spanned. The SQL text
+    /// is deliberately NOT recorded on the span (customer content).
+    #[tracing::instrument(
+        name = "clickhouse.query",
+        skip_all,
+        fields(
+            tenant = %tenant,
+            rows = tracing::field::Empty,
+            otel.status_code = tracing::field::Empty,
+            otel.status_message = tracing::field::Empty,
+        )
+    )]
     pub async fn query_rows_params(
         &self,
         tenant: &TenantId,
@@ -136,7 +150,16 @@ impl ChClient {
         };
         self.metrics
             .record_eval_query(started.elapsed().as_secs_f64(), tenant.as_str(), outcome);
-        result
+        match result {
+            Ok(rows) => {
+                tracing::Span::current().record("rows", rows.len());
+                Ok(rows)
+            }
+            Err(e) => {
+                crate::otel::span_error(&e);
+                Err(e)
+            }
+        }
     }
 
     async fn query_rows_inner(
