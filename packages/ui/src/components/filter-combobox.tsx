@@ -74,6 +74,12 @@ export function FilterCombobox<TData>({
   const showCustom =
     allowCustom && offerCustom((q) => items.includes(q) || values.includes(q));
 
+  // Selections the query did not return (custom entries, or values whose
+  // suggestion aged out of the list) still need a checked row: without one
+  // they hide behind the trigger's +N badge with no way to toggle them off
+  // short of clearing everything.
+  const selectedOnly = values.filter((v) => !items.includes(v));
+
   return (
     <div className="flex flex-col gap-1">
       <Label htmlFor={id} className="text-muted-foreground text-xs">
@@ -163,6 +169,16 @@ export function FilterCombobox<TData>({
                     }}
                   />
                 )}
+                {selectedOnly.map((item) => (
+                  <CommandItem
+                    key={item}
+                    value={item}
+                    data-checked
+                    onSelect={() => toggleSelection(item)}
+                  >
+                    <span className="truncate">{item}</span>
+                  </CommandItem>
+                ))}
                 {items.map((item) => (
                   <CommandItem
                     key={item}

@@ -71,6 +71,24 @@ it("offers no Use row without allowCustom", async () => {
   expect(screen.queryByText("Use")).not.toBeInTheDocument();
 });
 
+it("lists selected values the query did not return as checked rows", async () => {
+  const user = userEvent.setup();
+  const { onChange } = renderCombobox({
+    items: ["cluster"],
+    values: ["cluster", "namespace"],
+    allowCustom: true,
+  });
+
+  await user.click(screen.getByRole("combobox", { name: "Equal labels" }));
+  // The custom selection gets its own checked row alongside the loaded item,
+  // so it can be toggled off directly instead of hiding behind the +N badge.
+  const row = await screen.findByRole("option", { name: "namespace" });
+  expect(row).toHaveAttribute("data-checked");
+
+  await user.click(row);
+  expect(onChange).toHaveBeenCalledWith(["cluster"]);
+});
+
 it("hides the Use row when the typed text is already selected or listed", async () => {
   const user = userEvent.setup();
   renderCombobox({

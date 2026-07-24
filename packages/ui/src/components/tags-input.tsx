@@ -55,10 +55,9 @@ function TagsInput({
           {tag}
           <button
             type="button"
-            tabIndex={-1}
             aria-label={`Remove ${tag}`}
             data-icon="inline-end"
-            className="text-muted-foreground hover:text-destructive -mr-0.5 inline-flex items-center justify-center"
+            className="text-muted-foreground hover:text-destructive focus-visible:ring-primary focus-visible:text-destructive -mr-0.5 inline-flex items-center justify-center rounded-full outline-none focus-visible:ring-2"
             disabled={disabled}
             onClick={() => removeTag(tag)}
           >
