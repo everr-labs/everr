@@ -39,6 +39,7 @@ use futures::StreamExt;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
+use tracing::Instrument;
 
 const MAX_ATTEMPTS: u32 = 4;
 /// How often the flusher polls for due groups when none are immediately ready.
@@ -154,28 +155,41 @@ pub async fn run_dispatcher(
         if *shutdown.borrow() {
             break;
         }
-        let entries = match ctx.bus.consume(&consumer, 16, 2000).await {
-            Ok(e) => e,
-            Err(e) => {
-                tracing::error!(error = %e, "event consume failed");
-                tokio::select! {
-                    _ = tokio::time::sleep(Duration::from_millis(500)) => {}
-                    _ = shutdown.changed() => {}
+        let iter_span = tracing::info_span!(
+            "queue.consume",
+            stream = "cc:events",
+            batch = tracing::field::Empty,
+            otel.status_code = tracing::field::Empty,
+            otel.status_message = tracing::field::Empty
+        );
+        async {
+            let entries = match ctx.bus.consume(&consumer, 16, 2000).await {
+                Ok(e) => e,
+                Err(e) => {
+                    crate::otel::span_error(&e);
+                    tracing::error!(error = %e, "event consume failed");
+                    tokio::select! {
+                        _ = tokio::time::sleep(Duration::from_millis(500)) => {}
+                        _ = shutdown.changed() => {}
+                    }
+                    return;
                 }
-                continue;
+            };
+            tracing::Span::current().record("batch", entries.len());
+            let acks = process_event_batch(&ctx, &entries).await;
+            // One variadic ack for the handled subset. Unhandled entries (and, on an
+            // ack error, the whole batch) stay in the PEL — redelivered by the
+            // event-bus XAUTOCLAIM reclaim pre-pass once they go idle.
+            let ack_ids: Vec<crate::queue::EventId> = acks
+                .into_iter()
+                .filter_map(|(id, ack_ok)| ack_ok.then_some(id))
+                .collect();
+            if let Err(e) = ctx.bus.ack_batch(&ack_ids).await {
+                tracing::error!(error = %e, "event ack failed");
             }
-        };
-        let acks = process_event_batch(&ctx, &entries).await;
-        // One variadic ack for the handled subset. Unhandled entries (and, on an
-        // ack error, the whole batch) stay in the PEL — redelivered by the
-        // event-bus XAUTOCLAIM reclaim pre-pass once they go idle.
-        let ack_ids: Vec<crate::queue::EventId> = acks
-            .into_iter()
-            .filter_map(|(id, ack_ok)| ack_ok.then_some(id))
-            .collect();
-        if let Err(e) = ctx.bus.ack_batch(&ack_ids).await {
-            tracing::error!(error = %e, "event ack failed");
         }
+        .instrument(iter_span)
+        .await;
     }
     tracing::info!("dispatcher stopped");
 }

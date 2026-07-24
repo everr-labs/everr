@@ -10,6 +10,7 @@ use crate::stores::PgStore;
 use std::collections::{BTreeMap, HashMap};
 use std::sync::Arc;
 use std::time::Duration;
+use tracing::Instrument;
 
 pub mod maintenance;
 pub mod slo;
@@ -90,56 +91,69 @@ pub async fn run_evaluator(
         if *shutdown.borrow() {
             break;
         }
-        let deliveries = match queue.consume(&consumer, 16, 2000).await {
-            Ok(d) => d,
-            Err(e) => {
-                tracing::error!(error = %e, "consume failed");
-                metrics.record_eval_error(EvalErrorKind::Consume, None);
-                tokio::time::sleep(Duration::from_millis(500)).await;
-                continue;
+        let iter_span = tracing::info_span!(
+            "queue.consume",
+            stream = "cc:eval:jobs",
+            batch = tracing::field::Empty,
+            otel.status_code = tracing::field::Empty,
+            otel.status_message = tracing::field::Empty
+        );
+        async {
+            let deliveries = match queue.consume(&consumer, 16, 2000).await {
+                Ok(d) => d,
+                Err(e) => {
+                    crate::otel::span_error(&e);
+                    tracing::error!(error = %e, "consume failed");
+                    metrics.record_eval_error(EvalErrorKind::Consume, None);
+                    tokio::time::sleep(Duration::from_millis(500)).await;
+                    return;
+                }
+            };
+            tracing::Span::current().record("batch", deliveries.len());
+            // Time only real batches; the consume timeout on an idle queue is not work.
+            let batch_started = (!deliveries.is_empty()).then(std::time::Instant::now);
+            // Per-batch panic isolation: a panic while processing one batch must poison
+            // neither this loop nor the whole evaluator role. The ack ids are computed
+            // up front so a panicked batch is still acked; redelivering it would only
+            // re-panic on every redelivery (a poison pill that stalls the consumer),
+            // and any (rule, eval_ts) pairs claimed before the panic would be skipped
+            // on redelivery anyway. The `health` map is a best-effort cache, so a
+            // half-updated map after a panic is harmless (worst case: one extra
+            // `record_rule_success` round-trip).
+            let ack_ids: Vec<JobId> = deliveries.iter().map(|d| d.id.clone()).collect();
+            let batch = std::panic::AssertUnwindSafe(process_batch_inner(
+                &store,
+                ch.as_ref(),
+                events.as_ref(),
+                degrade_after,
+                deliveries,
+                &mut health,
+                &metrics,
+            ));
+            let to_ack = match futures::FutureExt::catch_unwind(batch).await {
+                Ok(ids) => ids,
+                Err(payload) => {
+                    let msg = crate::supervisor::panic_message(payload);
+                    tracing::error!(
+                        panic = %msg,
+                        deliveries = ack_ids.len(),
+                        "evaluation batch panicked; acking the batch and continuing"
+                    );
+                    metrics.record_eval_error(EvalErrorKind::BatchPanic, None);
+                    ack_ids
+                }
+            };
+            if let Some(started) = batch_started {
+                metrics.record_eval_batch(started.elapsed().as_secs_f64());
             }
-        };
-        // Time only real batches; the consume timeout on an idle queue is not work.
-        let batch_started = (!deliveries.is_empty()).then(std::time::Instant::now);
-        // Per-batch panic isolation: a panic while processing one batch must poison
-        // neither this loop nor the whole evaluator role. The ack ids are computed
-        // up front so a panicked batch is still acked; redelivering it would only
-        // re-panic on every redelivery (a poison pill that stalls the consumer),
-        // and any (rule, eval_ts) pairs claimed before the panic would be skipped
-        // on redelivery anyway. The `health` map is a best-effort cache, so a
-        // half-updated map after a panic is harmless (worst case: one extra
-        // `record_rule_success` round-trip).
-        let ack_ids: Vec<JobId> = deliveries.iter().map(|d| d.id.clone()).collect();
-        let batch = std::panic::AssertUnwindSafe(process_batch_inner(
-            &store,
-            ch.as_ref(),
-            events.as_ref(),
-            degrade_after,
-            deliveries,
-            &mut health,
-            &metrics,
-        ));
-        let to_ack = match futures::FutureExt::catch_unwind(batch).await {
-            Ok(ids) => ids,
-            Err(payload) => {
-                let msg = crate::supervisor::panic_message(payload);
-                tracing::error!(
-                    panic = %msg,
-                    deliveries = ack_ids.len(),
-                    "evaluation batch panicked; acking the batch and continuing"
-                );
-                metrics.record_eval_error(EvalErrorKind::BatchPanic, None);
-                ack_ids
+            // One variadic ack per batch. On failure the unacked ids stay pending and
+            // are redelivered via the reclaim pre-pass, so logging is all that's owed.
+            if let Err(e) = queue.ack_batch(&to_ack).await {
+                tracing::error!(error = %e, "ack failed");
             }
-        };
-        if let Some(started) = batch_started {
-            metrics.record_eval_batch(started.elapsed().as_secs_f64());
         }
-        // One variadic ack per batch. On failure the unacked ids stay pending and
-        // are redelivered via the reclaim pre-pass, so logging is all that's owed.
-        if let Err(e) = queue.ack_batch(&to_ack).await {
-            tracing::error!(error = %e, "ack failed");
-        }
+        .instrument(iter_span)
+        .await;
     }
     tracing::info!("evaluator stopped");
 }

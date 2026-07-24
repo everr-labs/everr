@@ -31,6 +31,7 @@ use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::sync::Arc;
 use std::time::Duration as StdDuration;
 use time::{Duration, OffsetDateTime};
+use tracing::Instrument;
 
 /// A group's label set (the SLI query's `label_columns`, empty for a scalar SLO).
 type GroupKey = BTreeMap<String, String>;
@@ -708,37 +709,50 @@ pub async fn run_slo_evaluator(
         if *shutdown.borrow() {
             break;
         }
-        let deliveries = match queue.consume_slo(&consumer, 16, 2000).await {
-            Ok(d) => d,
-            Err(e) => {
-                tracing::error!(error = %e, "slo consume failed");
-                tokio::time::sleep(StdDuration::from_millis(500)).await;
-                continue;
+        let iter_span = tracing::info_span!(
+            "queue.consume",
+            stream = "cc:slo:jobs",
+            batch = tracing::field::Empty,
+            otel.status_code = tracing::field::Empty,
+            otel.status_message = tracing::field::Empty
+        );
+        async {
+            let deliveries = match queue.consume_slo(&consumer, 16, 2000).await {
+                Ok(d) => d,
+                Err(e) => {
+                    crate::otel::span_error(&e);
+                    tracing::error!(error = %e, "slo consume failed");
+                    tokio::time::sleep(StdDuration::from_millis(500)).await;
+                    return;
+                }
+            };
+            tracing::Span::current().record("batch", deliveries.len());
+            let ack_ids: Vec<JobId> = deliveries.iter().map(|d| d.id.clone()).collect();
+            let batch = std::panic::AssertUnwindSafe(process_slo_batch_inner(
+                &store,
+                ch.as_ref(),
+                events.as_ref(),
+                samples.as_ref(),
+                base_cadence_secs,
+                degrade_after,
+                deliveries,
+            ));
+            if let Err(payload) = futures::FutureExt::catch_unwind(batch).await {
+                let msg = crate::supervisor::panic_message(payload);
+                tracing::error!(
+                    panic = %msg,
+                    deliveries = ack_ids.len(),
+                    "slo evaluation batch panicked; acking the batch and continuing"
+                );
             }
-        };
-        let ack_ids: Vec<JobId> = deliveries.iter().map(|d| d.id.clone()).collect();
-        let batch = std::panic::AssertUnwindSafe(process_slo_batch_inner(
-            &store,
-            ch.as_ref(),
-            events.as_ref(),
-            samples.as_ref(),
-            base_cadence_secs,
-            degrade_after,
-            deliveries,
-        ));
-        if let Err(payload) = futures::FutureExt::catch_unwind(batch).await {
-            let msg = crate::supervisor::panic_message(payload);
-            tracing::error!(
-                panic = %msg,
-                deliveries = ack_ids.len(),
-                "slo evaluation batch panicked; acking the batch and continuing"
-            );
+            // One variadic ack per batch. On failure the unacked ids stay pending and
+            // are redelivered via the reclaim pre-pass, so logging is all that's owed.
+            if let Err(e) = queue.ack_slo_batch(&ack_ids).await {
+                tracing::error!(error = %e, "ack_slo failed");
+            }
         }
-        // One variadic ack per batch. On failure the unacked ids stay pending and
-        // are redelivered via the reclaim pre-pass, so logging is all that's owed.
-        if let Err(e) = queue.ack_slo_batch(&ack_ids).await {
-            tracing::error!(error = %e, "ack_slo failed");
-        }
+        .instrument(iter_span)
+        .await;
     }
     tracing::info!("slo evaluator stopped");
 }
