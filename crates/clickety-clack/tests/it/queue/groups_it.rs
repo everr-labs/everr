@@ -23,6 +23,7 @@ fn ev(inst: &str, status: EventStatus) -> Event {
         suppressed: false,
         evidence: None,
         evidence_truncated: false,
+        traceparent: None,
     }
 }
 

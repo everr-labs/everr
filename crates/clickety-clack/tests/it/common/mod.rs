@@ -384,6 +384,7 @@ pub fn make_event(tenant: &TenantId, rule: RuleId, i: usize) -> Event {
         suppressed: false,
         evidence: None,
         evidence_truncated: false,
+        traceparent: None,
     }
 }
 

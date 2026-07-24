@@ -53,6 +53,7 @@ async fn pagerduty_posts_trigger_and_accepts_202() {
         suppressed: false,
         evidence: None,
         evidence_truncated: false,
+        traceparent: None,
     };
     n.send(
         &ChannelConfig::Pagerduty {

@@ -34,6 +34,7 @@ fn ev(tenant: &str) -> Event {
         suppressed: false,
         evidence: None,
         evidence_truncated: false,
+        traceparent: None,
     }
 }
 

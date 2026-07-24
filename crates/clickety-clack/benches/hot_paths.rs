@@ -108,6 +108,7 @@ fn bench_route_decision(c: &mut Criterion) {
         suppressed: false,
         evidence: None,
         evidence_truncated: false,
+        traceparent: None,
     };
 
     // A handful of routes; the matching one is last (worst case: full walk).

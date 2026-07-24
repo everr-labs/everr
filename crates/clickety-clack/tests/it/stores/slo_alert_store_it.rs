@@ -81,6 +81,7 @@ async fn persist_and_load_roundtrip() {
         suppressed: false,
         evidence: None,
         evidence_truncated: false,
+        traceparent: None,
     };
 
     let ids = s

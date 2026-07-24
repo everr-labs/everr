@@ -507,6 +507,10 @@ async fn evaluate_rule_against_rows(
             let (evidence, truncated) = build_evidence(&extra);
             ev.evidence = evidence;
             ev.evidence_truncated = truncated;
+            // Stamp this eval span's context (must happen inside the
+            // `#[tracing::instrument]`d function body, not the caller): the
+            // dispatcher later parses this back into a span LINK.
+            ev.traceparent = crate::otel::propagation::current_traceparent();
             out_events.push(ev);
         }
         next_states.push(out.next);
@@ -529,6 +533,7 @@ async fn evaluate_rule_against_rows(
             // Resolved-by-absence has no source row: evidence stays None/untruncated.
             ev.suppressed = rule.spec.suppressed;
             ev.name = rule.name.clone();
+            ev.traceparent = crate::otel::propagation::current_traceparent();
             out_events.push(ev);
         }
         next_states.push(out.next);

@@ -542,6 +542,10 @@ pub async fn evaluate_slo(
             ev.name = slo.name.clone();
             ev.evidence = Some(slo_evidence(slo, tf, budget_window_secs));
             ev.evidence_truncated = false;
+            // Stamp this "slo.evaluate" span's context (must happen inside
+            // the `#[tracing::instrument]`d function body): the dispatcher
+            // later parses this back into a span LINK.
+            ev.traceparent = crate::otel::propagation::current_traceparent();
             out_events.push(ev);
         }
         next_states.push(outcome.next);
@@ -581,6 +585,7 @@ pub async fn evaluate_slo(
         if let Some(mut ev) = outcome.event {
             ev.suppressed = slo.spec.suppressed;
             ev.name = slo.name.clone();
+            ev.traceparent = crate::otel::propagation::current_traceparent();
             out_events.push(ev);
         }
         next_states.push(outcome.next);

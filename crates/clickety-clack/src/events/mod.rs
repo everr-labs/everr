@@ -117,6 +117,7 @@ mod tests {
             suppressed: false,
             evidence: None,
             evidence_truncated: false,
+            traceparent: None,
         }
     }
 

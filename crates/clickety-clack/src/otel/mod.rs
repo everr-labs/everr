@@ -2,6 +2,7 @@ pub mod alert_log;
 pub mod engine;
 pub mod exporter;
 pub mod metrics;
+pub mod propagation;
 pub mod slo_samples;
 pub mod status;
 

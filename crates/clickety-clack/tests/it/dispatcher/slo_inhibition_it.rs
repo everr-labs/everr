@@ -75,6 +75,7 @@ fn tier_event_with_status(
         suppressed: false,
         evidence: None,
         evidence_truncated: false,
+        traceparent: None,
     }
 }
 
