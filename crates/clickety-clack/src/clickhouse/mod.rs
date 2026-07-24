@@ -52,6 +52,23 @@ pub fn build_query_url(base_url: &str, params: &[(String, String)]) -> String {
     url
 }
 
+/// Summarize a `ChError` for the `clickhouse.query` span's `otel.status_message`,
+/// which lands in everr's INTERNAL tenant. `ChError`'s `Display` (used everywhere else,
+/// e.g. Postgres `last_error`) is deliberately left untouched: callers there rely on the
+/// full text. But `Status`'s body is the raw ClickHouse HTTP response, and ClickHouse
+/// echoes fragments of the offending query in its syntax/semantic error messages; since
+/// rule SQL is customer-authored, that body must never reach a span attribute. `Json`
+/// only wraps `serde_json::Deserializer` errors over an untyped `Map<String, Value>`
+/// (see `parse_rows`), so it's a position-only syntax error ("expected value at line 1
+/// column 1") that can't embed row content, and `Http` is a transport error with the
+/// request URL already stripped, so both keep their normal `Display`.
+fn span_error_summary(e: &ChError) -> String {
+    match e {
+        ChError::Status(code, _) => format!("clickhouse http status {code}"),
+        ChError::Http(_) | ChError::Json(_) => e.to_string(),
+    }
+}
+
 impl From<reqwest::Error> for ChError {
     /// `without_url()` drops the request URL (which may embed `user:pass@host`) so a
     /// transport error can never carry credentials into a stored `last_error`.
@@ -156,7 +173,7 @@ impl ChClient {
                 Ok(rows)
             }
             Err(e) => {
-                crate::otel::span_error(&e);
+                crate::otel::span_error(&span_error_summary(&e));
                 Err(e)
             }
         }
@@ -385,5 +402,27 @@ mod error_scrub_tests {
         let s = err.to_string();
         assert!(!s.contains("supersecret"), "leaked creds: {s}");
         assert!(!s.contains("127.0.0.1:1"), "leaked url: {s}");
+    }
+
+    /// `Status`'s body echoes the offending query (customer SQL); the span summary must
+    /// drop it entirely while still identifying the HTTP status for triage.
+    #[test]
+    fn status_error_summary_drops_body_keeps_status() {
+        let e = ChError::Status(
+            400,
+            "Syntax error: failed at position 42: SELECT secret FROM t".into(),
+        );
+        let s = span_error_summary(&e);
+        assert!(!s.contains("SELECT"), "leaked query text: {s}");
+        assert!(!s.contains("secret"), "leaked query text: {s}");
+        assert!(s.contains("400"), "missing status code: {s}");
+    }
+
+    /// Non-`Status` variants carry no response-body/row text (transport error, or a
+    /// position-only JSON syntax error), so the span summary keeps the full message.
+    #[test]
+    fn http_error_summary_keeps_full_message() {
+        let e = ChError::Http("connection refused".into());
+        assert_eq!(span_error_summary(&e), e.to_string());
     }
 }
