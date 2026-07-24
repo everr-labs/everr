@@ -59,7 +59,7 @@ Rough scoping from reading the engine (not a written design): **2-6 weeks for on
 
 Already built (reused, not rewritten):
 - Emission pipeline (engine -> collector `metrics/trusted` -> `app.metrics_gauge`); a rollup just changes the granularity of what's emitted.
-- The `sloBurnRate`/`sloBudgetRemaining` UDFs (compute from whatever good/valid they're fed).
+- The burn-rate math as ClickHouse UDFs (parked below; nothing queries them today, so they were removed from `clickhouse/init/` until this work needs them).
 - The "Error budget over time" chart (would get denser data for free).
 
 Work items: SLI shape handling (S with structured form / L with auto-parse) · bucketed emission over the new tail (M) · window read as `sum` over buckets (M) · one-time backfill on enable (M) · relax `/12` for rollup-backed windows (S) · rollup table schema/partition/TTL (S-M) · parity tests rollup-vs-raw (M).
@@ -72,5 +72,44 @@ Work items: SLI shape handling (S with structured form / L with auto-parse) · b
 - Keeping the derived budget/burn identical to the full-scan result (no drift between the two paths).
 - Interaction with the raw-telemetry TTL (rollups can outlive raw data, which is a feature).
 
+## Parked: sloBurnRate / sloBudgetRemaining UDFs
+
+Everr's SLO error-budget math as ClickHouse UDFs, so burn rate and remaining
+budget can be derived at read time from the raw `(good, valid)` counts in
+`app.metrics_gauge` by any SQL surface (rollup reads, dashboards, ad-hoc
+`everr cloud query`) without hand-copying the formula.
+
+They used to live in `clickhouse/init/05-create-slo-functions.sql` (plus a
+`clickhouse/migrate-slo-functions.sql` for existing clusters) but nothing
+queried them: the app's SLO surfaces compute the math in TypeScript
+(`packages/app/src/data/cc/slo-series.server.ts`, byte-for-byte the engine's
+`slo_math.rs`), and prod never had them installed. Parked here until this
+rollup work (or a documented dashboards/ad-hoc story) actually consumes them.
+If revived, they need a real deploy path to prod, not a manual
+clickhouse-client apply nothing tracks.
+
+They MUST stay in step with the engine's canonical implementation in
+`crates/clickety-clack/src/engine/slo_math.rs`. Parity anchor
+(`burn_rate_canonical_example`): `sloBurnRate(9856, 10000, 99.9) = 14.4`.
+
+```sql
+-- Normalized burn rate: observed bad ratio over the window as a multiple of the
+-- error budget. NULL at zero traffic (valid <= 0) or when there is no budget to
+-- spend (target >= 100), matching the engine's `None` in both cases. The bad
+-- ratio is clamped to [0, 1] exactly as `window_bad_ratio` does.
+CREATE OR REPLACE FUNCTION sloBurnRate AS (good, valid, target) ->
+  if(
+    valid <= 0 OR target >= 100,
+    NULL,
+    greatest(0, least(1, 1 - good / valid)) / ((100 - target) / 100)
+  );
+
+-- Fraction of the error budget still available over the window. NULL propagates
+-- from sloBurnRate at zero traffic; may be negative once the objective is
+-- exceeded (burn rate above 1x).
+CREATE OR REPLACE FUNCTION sloBudgetRemaining AS (good, valid, target) ->
+  1 - sloBurnRate(good, valid, target);
+```
+
 ## Related
-Follows the raw-sample work: `cc.slo.good`/`cc.slo.valid` gauges + `sloBurnRate`/`sloBudgetRemaining` UDFs + the "Error budget over time" chart on the SLO detail page.
+Follows the raw-sample work: `cc.slo.good`/`cc.slo.valid` gauges + the "Error budget over time" chart on the SLO detail page.

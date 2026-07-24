@@ -8,8 +8,8 @@
 //! into `app.metrics_gauge` under its own `tenant_id`.
 //!
 //! Burn rate and remaining budget are NOT emitted: they are pure functions of
-//! `(good, valid, target)` and are derived at read time by the `sloBurnRate` /
-//! `sloBudgetRemaining` ClickHouse UDFs, so storage keeps only the raw counts.
+//! `(good, valid, target)` and are derived at read time by consumers (the app
+//! mirrors `engine/slo_math.rs`), so storage keeps only the raw counts.
 
 use opentelemetry_proto::tonic::collector::metrics::v1::ExportMetricsServiceRequest;
 use opentelemetry_proto::tonic::common::v1::{any_value, AnyValue, InstrumentationScope, KeyValue};

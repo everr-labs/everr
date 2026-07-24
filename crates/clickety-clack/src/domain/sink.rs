@@ -34,9 +34,9 @@ impl AlertLogSink for NullSink {
 
 /// One raw SLO measurement: the `(good, valid)` counts a single window's SLI
 /// query returned for one group this evaluation tick. The engine records these
-/// as-is; burn rate and remaining budget are derived at read time (the
-/// `sloBurnRate` / `sloBudgetRemaining` ClickHouse UDFs) so no derived value is
-/// ever frozen into storage.
+/// as-is; burn rate and remaining budget are derived at read time by consumers
+/// (mirroring `engine/slo_math.rs`) so no derived value is ever frozen into
+/// storage.
 #[derive(Debug, Clone, PartialEq)]
 pub struct SloSample {
     pub tenant: String,
