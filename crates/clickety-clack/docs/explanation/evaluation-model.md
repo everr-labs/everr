@@ -40,7 +40,9 @@ On each evaluation, for each instance, the engine looks at whether the row is
   for-duration: if `now - active_since >= for_secs`, fire (so `for_secs: 0` fires
   on first sight).
 - `pending → firing`: once `now - active_since >= for_secs`, **emit one `firing`
-  event** and move to firing.
+  event** and move to firing. If this evaluation follows an absent gap
+  (`absent_count > 0`), `active_since` first restarts at `now`: the condition
+  must hold *continuously*, so absent time never counts toward `for_secs`.
 - `firing → firing`: no event. An alert fires exactly **once** per active episode.
 
 ### Row absent (condition no longer holds)

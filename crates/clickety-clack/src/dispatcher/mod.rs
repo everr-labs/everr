@@ -647,10 +647,19 @@ async fn flush_claimed_group(ctx: &DispatchCtx, gid: &str) {
             tracing::error!(error = %e, group = %gid, "mark_notified failed");
         }
     }
-    // The fan-out has handled every channel (ledger row + delivery/dead-letter, dedup
-    // skip, or a logged begin failure); commit phase two of the take so the buffered
-    // batch clears.
-    commit_drain(ctx, gid, &event_fields, taken_at).await;
+    if outcome.begin_failed {
+        // A channel hit a transient error before its notification row existed: those
+        // events are neither delivered nor dead-lettered for it, so draining would
+        // lose them. Leave the batch buffered and re-arm; the reflush dedup-skips
+        // every channel whose ledger row did commit.
+        tracing::error!(group = %gid,
+            "begin failed on at least one channel; leaving batch buffered for retry");
+        rearm_for_retry(ctx, gid, taken_at).await;
+    } else {
+        // The fan-out has handled every channel (ledger row + delivery/dead-letter,
+        // or dedup skip); commit phase two of the take so the buffered batch clears.
+        commit_drain(ctx, gid, &event_fields, taken_at).await;
+    }
     // One OTLP `delivery` log per flush, keyed by the clean receiver name exactly as
     // before multi-channel receivers (the group key additionally carries grouping
     // values, which don't belong in the target field). Per-channel detail stays in
@@ -671,6 +680,10 @@ struct FanOutOutcome {
     begun: bool,
     /// At least one channel delivered successfully.
     sent: bool,
+    /// At least one channel failed to BEGIN its notification (transient ledger
+    /// error): no row, no delivery, no dead letter — nothing records those
+    /// events for that channel, so the batch must stay buffered for a reflush.
+    begin_failed: bool,
 }
 
 /// Order the loaded channels by the buffered name list, skipping (with an error log,
@@ -715,8 +728,8 @@ async fn deliver_group_channels(
     notif: &Notification,
     rep: &Event,
 ) -> FanOutOutcome {
-    // Per-channel (begun, sent), aggregated after the join. The ledger insert is
-    // atomic on the dedup key, so a name repeated in the buffered list still
+    // Per-channel (begun, sent, begin_failed), aggregated after the join. The ledger
+    // insert is atomic on the dedup key, so a name repeated in the buffered list still
     // collapses to one row/send even with the attempts racing.
     let results = futures::future::join_all(channels.iter().map(|ch| async move {
         // A repeat folds the take timestamp into the key so the identical still-firing
@@ -738,20 +751,21 @@ async fn deliver_group_channels(
         {
             Ok(true) => {}
             // Identical active set already delivered on this channel.
-            Ok(false) => return (false, false),
+            Ok(false) => return (false, false, false),
             Err(e) => {
                 tracing::error!(error = %e, group = %gid, channel = %ch.name,
                     "begin notification failed");
-                return (false, false);
+                return (false, false, true);
             }
         }
         let sent = deliver_one(deps, &ch.config, &key, notif, rep).await;
-        (true, sent)
+        (true, sent, false)
     }))
     .await;
     FanOutOutcome {
-        begun: results.iter().any(|(begun, _)| *begun),
-        sent: results.iter().any(|(_, sent)| *sent),
+        begun: results.iter().any(|(begun, _, _)| *begun),
+        sent: results.iter().any(|(_, sent, _)| *sent),
+        begin_failed: results.iter().any(|(_, _, failed)| *failed),
     }
 }
 
@@ -1103,6 +1117,106 @@ mod fan_out_tests {
             1,
             "only the failed channel dead-letters"
         );
+    }
+
+    /// Ledger whose `try_begin_notification` errors for one channel type,
+    /// delegating everything else to an inner [`MemLedger`].
+    struct FailBeginLedger {
+        inner: MemLedger,
+        fail_channel: &'static str,
+    }
+    #[async_trait]
+    impl NotificationLedger for FailBeginLedger {
+        async fn try_begin_notification(
+            &self,
+            dedup_key: &str,
+            tenant: TenantId,
+            channel: &str,
+            target: &str,
+        ) -> Result<bool, StoreError> {
+            if channel == self.fail_channel {
+                return Err(StoreError::Sqlx(sqlx::Error::PoolTimedOut));
+            }
+            self.inner
+                .try_begin_notification(dedup_key, tenant, channel, target)
+                .await
+        }
+        async fn mark_notification_sent(
+            &self,
+            tenant: &TenantId,
+            dedup_key: &str,
+            attempts: u32,
+        ) -> Result<(), StoreError> {
+            self.inner
+                .mark_notification_sent(tenant, dedup_key, attempts)
+                .await
+        }
+        async fn mark_notification_failed(
+            &self,
+            tenant: &TenantId,
+            dedup_key: &str,
+            attempts: u32,
+            error: &str,
+        ) -> Result<(), StoreError> {
+            self.inner
+                .mark_notification_failed(tenant, dedup_key, attempts, error)
+                .await
+        }
+    }
+
+    #[tokio::test]
+    async fn fan_out_reports_begin_failure_and_leaves_no_trace_for_that_channel() {
+        let ledger = FailBeginLedger {
+            inner: MemLedger::default(),
+            fail_channel: "webhook",
+        };
+        let bus = DeadLetterBus::default();
+        let webhook = Arc::new(FakeNotifier {
+            name: "webhook",
+            fail: false,
+            sends: AtomicUsize::new(0),
+        });
+        let email = Arc::new(FakeNotifier {
+            name: "email",
+            fail: false,
+            sends: AtomicUsize::new(0),
+        });
+        let mut notifiers = Notifiers::new();
+        notifiers.register(webhook.clone());
+        notifiers.register(email.clone());
+        let ev = event();
+        let notif = Notification::single(&ev);
+        let channels = vec![
+            webhook_channel("ops-hook", "http://x/h"),
+            email_channel("ops-mail", "a@x.test"),
+        ];
+
+        let out = deliver_group_channels(
+            &DeliveryDeps {
+                ledger: &ledger,
+                bus: &bus,
+                notifiers: &notifiers,
+            },
+            "gid-1",
+            &channels,
+            None,
+            &ev.tenant,
+            &notif,
+            &ev,
+        )
+        .await;
+
+        // The begin failure must surface so the flush keeps the batch buffered:
+        // that channel has no ledger row, no delivery, and no dead letter, so a
+        // drain would silently lose its events.
+        assert!(out.begin_failed, "transient begin error must be reported");
+        assert!(out.begun && out.sent, "the healthy channel still delivered");
+        assert_eq!(webhook.sends.load(Ordering::SeqCst), 0);
+        assert_eq!(email.sends.load(Ordering::SeqCst), 1);
+        let statuses = ledger.inner.statuses_by_channel();
+        assert_eq!(statuses.len(), 1, "no ledger row for the failed begin");
+        assert_eq!(statuses.get("email").map(String::as_str), Some("sent"));
+        assert_eq!(bus.calls.load(Ordering::SeqCst), 0);
     }
 
     #[tokio::test]

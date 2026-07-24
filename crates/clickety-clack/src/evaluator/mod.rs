@@ -362,7 +362,15 @@ pub async fn process_batch_inner(
                             health.insert(job.rule, true); // crossed into degraded
                             publish_health(store, events, ev, id).await;
                         }
-                        Ok(None) => {}
+                        Ok(None) => {
+                            // Sub-threshold failure: the store is still healthy but
+                            // consecutive_failures/last_error are now dirty. Forget the
+                            // cached "known healthy" so the next successful evaluation
+                            // reconciles (clearing the counters) instead of skipping the
+                            // round-trip; otherwise isolated failures accumulate across
+                            // healthy evals and eventually degrade a healthy rule.
+                            health.remove(&job.rule);
+                        }
                         Err(err) => {
                             tracing::error!(rule = ?job.rule, error = %err, "record_rule_failure failed")
                         }

@@ -55,7 +55,13 @@ pub fn evaluate(prev: InstanceState, input: EvalInput) -> EvalOutcome {
                 maybe_fire(next, eval_ts, for_duration, severity, annotations)
             }
             Status::Pending => {
-                // active_since carried over; check whether `for` has elapsed.
+                // An absent gap broke the continuous hold, so the `for` clock
+                // restarts at reappearance: sub-threshold absence keeps the
+                // instance pending (flap absorption), but absent time must not
+                // count toward for_duration.
+                if prev.absent_count > 0 {
+                    next.active_since = Some(eval_ts);
+                }
                 maybe_fire(next, eval_ts, for_duration, severity, annotations)
             }
             Status::Firing => EvalOutcome { next, event: None },
@@ -202,6 +208,30 @@ mod tests {
         let out2 = evaluate(out1.next, input(false, 60, t(30)));
         assert_eq!(out2.next.status, Status::Inactive);
         assert!(out2.event.is_none());
+    }
+
+    #[test]
+    fn absent_gap_restarts_the_for_clock() {
+        // for=60s, resolve_after=2: one absence keeps the instance pending,
+        // but the condition no longer held continuously, so reappearance must
+        // restart the `for` window instead of firing off the stale
+        // active_since.
+        let out1 = evaluate(base(), input(true, 60, t(0)));
+        assert_eq!(out1.next.status, Status::Pending);
+
+        let mut absent = input(false, 60, t(30));
+        absent.resolve_after = 2;
+        let out2 = evaluate(out1.next, absent);
+        assert_eq!(out2.next.status, Status::Pending); // survives one absence
+
+        let out3 = evaluate(out2.next, input(true, 60, t(60)));
+        assert_eq!(out3.next.status, Status::Pending, "for restarts at t60");
+        assert_eq!(out3.next.active_since, Some(t(60)));
+        assert!(out3.event.is_none());
+
+        let out4 = evaluate(out3.next, input(true, 60, t(120)));
+        assert_eq!(out4.next.status, Status::Firing);
+        assert!(out4.event.is_some());
     }
 
     #[test]
