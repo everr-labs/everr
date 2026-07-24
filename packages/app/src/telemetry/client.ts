@@ -1,76 +1,34 @@
-import { init as initErrorTracking } from "@everr/auto-otel-errors/browser";
-import { logs } from "@opentelemetry/api-logs";
-import { OTLPLogExporter } from "@opentelemetry/exporter-logs-otlp-http";
-import { resourceFromAttributes } from "@opentelemetry/resources";
-import {
-  BatchLogRecordProcessor,
-  LoggerProvider,
-} from "@opentelemetry/sdk-logs";
-import { resolveTelemetryConfig, signalUrl } from "./config";
+import { init } from "@everr/web-sdk";
 
-// Browser error tracking for the web app (dogfooding): captured errors become
-// OTel log records that ship to Everr over OTLP/HTTP. This mirrors the app's
-// server telemetry (`node.ts`) but for the browser, and reuses the same
-// endpoint/key resolution in `config.ts`.
+// Everr-native browser telemetry for the web app (dogfooding), strictly
+// cookieless: pageviews, frustration clicks, and web vitals flow to Everr as
+// OTel log records under the app's service name, next to its server
+// telemetry (`node.ts`). Browser error capture was removed for now and
+// returns through the web SDK once its errors signal ships; until then
+// `captureReactError` in the router's error component is a transport-less
+// no-op.
 //
-// `@everr/auto-otel-errors` is transport-less: its `init()` is a no-op unless a
-// global `LoggerProvider` is registered first, which is exactly what this
-// module does before calling it.
+// init() is inert on the server and, without a key outside dev, never issues
+// a network request; dev sends to the local collector.
 
-const BATCH_OPTIONS = {
-  maxQueueSize: 100,
-  maxExportBatchSize: 32,
-  scheduledDelayMillis: 5_000,
-  exportTimeoutMillis: 30_000,
-};
+/**
+ * Filled by `getRouter()` so web vitals can stamp the matched route pattern
+ * (e.g. `/traces/$traceId`) at report time; a plain ref keeps the router out
+ * of this module's import graph.
+ */
+export const routerRef: {
+  current?: { state: { matches: ReadonlyArray<{ routeId: string }> } };
+} = {};
 
-function initClientErrorTracking(): void {
-  // Runs once at client bundle load (this is a side-effect module). No-op on
-  // the server.
-  if (typeof window === "undefined") return;
-
-  const ingestKey = import.meta.env.VITE_EVERR_PUBLIC_INGEST_KEY?.trim();
-  const endpointOverride = import.meta.env.VITE_EVERR_INGEST_ENDPOINT?.trim();
-
-  // In production, only send when a public key (or explicit endpoint) is
-  // configured, so a keyless deploy never POSTs to a collector that isn't
-  // there. In dev, fall back to the local collector so developers see their
-  // own browser errors with no setup.
-  if (!ingestKey && !endpointOverride && !import.meta.env.DEV) return;
-
-  const config = resolveTelemetryConfig(
-    {
-      EVERR_INGEST_KEY: ingestKey,
-      OTEL_EXPORTER_OTLP_ENDPOINT: endpointOverride,
-      DEPLOYMENT_ENVIRONMENT: import.meta.env.MODE,
-    },
-    crypto.randomUUID(),
-  );
-  if (!config) return;
-
-  const loggerProvider = new LoggerProvider({
-    resource: resourceFromAttributes(config.resourceAttributes),
-    processors: [
-      new BatchLogRecordProcessor(
-        new OTLPLogExporter({
-          url: signalUrl(config.endpoint, "logs"),
-          headers: config.headers,
-        }),
-        BATCH_OPTIONS,
-      ),
-    ],
-  });
-  logs.setGlobalLoggerProvider(loggerProvider);
-
-  // Installs window `error` / `unhandledrejection` handlers and wires manual
-  // `captureError` / the React `ErrorBoundary`. Each capture emits one log
-  // record through the provider above.
-  initErrorTracking();
-
-  // Best-effort flush of anything still batched when the page goes away.
-  window.addEventListener("beforeunload", () => {
-    void loggerProvider.shutdown();
-  });
-}
-
-initClientErrorTracking();
+init({
+  mode: "cookieless",
+  serviceName: "everr-dev-app",
+  deploymentEnvironment: import.meta.env.MODE,
+  ingestKey: import.meta.env.VITE_EVERR_PUBLIC_INGEST_KEY,
+  endpoint: import.meta.env.VITE_EVERR_INGEST_ENDPOINT,
+  dev: import.meta.env.DEV,
+  routePattern: () => {
+    const matches = routerRef.current?.state.matches;
+    return matches?.[matches.length - 1]?.routeId;
+  },
+});

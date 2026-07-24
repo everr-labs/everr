@@ -3,6 +3,7 @@ import { createRouteMask, createRouter } from "@tanstack/react-router";
 import { Loader2 } from "lucide-react";
 import { RootErrorComponent } from "./components/root-error";
 import { routeTree } from "./routeTree.gen";
+import { routerRef } from "./telemetry/client";
 
 export interface RouterContext {
   queryClient: QueryClient;
@@ -36,7 +37,7 @@ export const getRouter = () => {
     unmaskOnReload: true,
   });
 
-  return createRouter({
+  const router = createRouter({
     routeTree,
     routeMasks: [traceDetailModalMask, errorDetailModalMask],
     context: { queryClient },
@@ -53,4 +54,6 @@ export const getRouter = () => {
       </div>
     ),
   });
+  routerRef.current = router;
+  return router;
 };
