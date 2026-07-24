@@ -137,9 +137,12 @@ pub fn build_metrics_request(samples: &[SloSample]) -> ExportMetricsServiceReque
 /// metrics endpoint (`.../v1/metrics`) on the same collector. Falls back to
 /// appending the signal path for a non-standard endpoint.
 pub fn metrics_endpoint_from_logs(logs_endpoint: &str) -> String {
-    match logs_endpoint.strip_suffix("/v1/logs") {
+    // Trim trailing slashes BEFORE the suffix match so `.../v1/logs/` still
+    // resolves to the sibling metrics path instead of `.../v1/logs/v1/metrics`.
+    let trimmed = logs_endpoint.trim_end_matches('/');
+    match trimmed.strip_suffix("/v1/logs") {
         Some(base) => format!("{base}/v1/metrics"),
-        None => format!("{}/v1/metrics", logs_endpoint.trim_end_matches('/')),
+        None => format!("{trimmed}/v1/metrics"),
     }
 }
 
@@ -322,6 +325,11 @@ mod tests {
         // Non-standard endpoint: append the signal path.
         assert_eq!(
             metrics_endpoint_from_logs("http://collector:4418/"),
+            "http://collector:4418/v1/metrics"
+        );
+        // A trailing slash on the standard form still swaps the suffix.
+        assert_eq!(
+            metrics_endpoint_from_logs("http://collector:4418/v1/logs/"),
             "http://collector:4418/v1/metrics"
         );
     }

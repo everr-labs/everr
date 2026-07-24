@@ -15,7 +15,7 @@ use crate::otel::alert_log::{
     build_log_record, AlertEventType, LogExtras, SCOPE_NAME, SERVICE_NAME,
 };
 use async_trait::async_trait;
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 
 /// A record paired with the customer tenant it belongs to (for per-`ResourceLogs` grouping).
 #[derive(Debug, Clone)]
@@ -132,26 +132,51 @@ impl AlertLogExporter {
     }
 }
 
+/// Upper bound on requeued-after-failure records. Under a sustained collector
+/// outage the oldest rows are dropped (with an error log) rather than growing
+/// the buffer without bound; these are observability rows, not alert state.
+const MAX_BUFFERED: usize = 10_000;
+
 /// Buffers dispatcher delivery/silenced records and flushes them per-tenant. A simple
-/// mutex-guarded buffer with an eager flush; the events-role consumer uses its own batching.
+/// mutex-guarded buffer with an eager background flush; the events-role consumer uses
+/// its own batching.
 pub struct ExporterSink {
     exporter: AlertLogExporter,
-    buf: Mutex<Vec<BufferedLog>>,
+    buf: Arc<Mutex<Vec<BufferedLog>>>,
 }
 
 impl ExporterSink {
     pub fn new(exporter: AlertLogExporter) -> Self {
         Self {
             exporter,
-            buf: Mutex::new(Vec::new()),
+            buf: Arc::new(Mutex::new(Vec::new())),
         }
     }
 
     pub async fn flush(&self) {
-        let batch: Vec<BufferedLog> = { std::mem::take(&mut *self.buf.lock().unwrap()) };
-        if let Err(e) = self.exporter.export(&batch).await {
-            tracing::error!(error = %e, "dispatcher alert-log flush failed");
+        flush_buffer(&self.exporter, &self.buf).await;
+    }
+}
+
+/// Drain the buffer and export it. On failure the batch is REQUEUED (in front, so
+/// order is roughly preserved) for the next flush attempt instead of dropped; the
+/// buffer is capped at [`MAX_BUFFERED`], discarding the oldest rows beyond it.
+async fn flush_buffer(exporter: &AlertLogExporter, buf: &Mutex<Vec<BufferedLog>>) {
+    let batch: Vec<BufferedLog> = { std::mem::take(&mut *buf.lock().unwrap()) };
+    if batch.is_empty() {
+        return;
+    }
+    if let Err(e) = exporter.export(&batch).await {
+        let mut b = buf.lock().unwrap();
+        let mut requeued = batch;
+        requeued.append(&mut b);
+        let dropped = requeued.len().saturating_sub(MAX_BUFFERED);
+        if dropped > 0 {
+            requeued.drain(..dropped);
         }
+        *b = requeued;
+        tracing::error!(error = %e, dropped, buffered = b.len(),
+            "dispatcher alert-log flush failed; batch requeued for the next flush");
     }
 }
 
@@ -176,7 +201,37 @@ impl AlertLogSink for ExporterSink {
             tenant: ev.tenant.as_str().to_string(),
             record: rec,
         });
-        // Eager flush for low-latency delivery records (small volume vs transitions).
-        self.flush().await;
+        // Eager flush for low-latency delivery records (small volume vs transitions),
+        // but fire-and-forget: the dispatcher's delivery path must never stall behind
+        // a slow or down collector (the export timeout is seconds). A failed export
+        // requeues the batch, so the next delivery's flush retries it.
+        let exporter = self.exporter.clone();
+        let buf = Arc::clone(&self.buf);
+        tokio::spawn(async move {
+            flush_buffer(&exporter, &buf).await;
+        });
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A failed export must requeue the drained batch (bounded) instead of dropping
+    /// it: these rows are the delivery audit trail, and the next flush retries them.
+    #[tokio::test]
+    async fn failed_flush_requeues_the_batch() {
+        // Port 1 on localhost refuses connections immediately.
+        let exporter = AlertLogExporter::new("http://127.0.0.1:1/v1/logs", "secret");
+        let buf = Mutex::new(vec![BufferedLog {
+            tenant: "t".into(),
+            record: LogRecord::default(),
+        }]);
+        flush_buffer(&exporter, &buf).await;
+        assert_eq!(
+            buf.lock().unwrap().len(),
+            1,
+            "record survives the failed flush"
+        );
     }
 }
