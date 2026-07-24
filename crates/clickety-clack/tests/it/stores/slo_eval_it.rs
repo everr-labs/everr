@@ -114,7 +114,11 @@ async fn health_events_of_suppressed_slo_are_stamped() {
     let s = store().await;
     let mut sp = spec();
     sp.suppressed = true;
-    let id = match s.create_slo(tenant(), "", "suppressed-health", &sp).await.unwrap() {
+    let id = match s
+        .create_slo(tenant(), "", "suppressed-health", &sp)
+        .await
+        .unwrap()
+    {
         SloCreate::Created(slo) => slo.id,
         _ => panic!(),
     };

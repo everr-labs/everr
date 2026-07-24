@@ -81,7 +81,10 @@ mod tests {
 
     #[test]
     fn both_settings_cap_result_size_and_throw_on_overflow() {
-        for s in [resource_limit_settings(), resource_limit_settings_no_readonly()] {
+        for s in [
+            resource_limit_settings(),
+            resource_limit_settings_no_readonly(),
+        ] {
             assert!(s.contains("max_result_rows=100000"));
             assert!(s.contains("max_result_bytes=20000000"));
             assert!(s.contains("result_overflow_mode=throw"));

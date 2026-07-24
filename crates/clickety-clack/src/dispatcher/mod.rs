@@ -562,7 +562,11 @@ pub async fn flush_group(ctx: &DispatchCtx, gid: &str) {
 /// (Redis down), the release of the lease will fail for the same reason and the
 /// lease-expiry reclaim recovers the group.
 async fn rearm_for_retry(ctx: &DispatchCtx, gid: &str, taken_at: i64) {
-    if let Err(e) = ctx.groups.arm_repeat(gid, taken_at + TAKE_RETRY_MS, taken_at).await {
+    if let Err(e) = ctx
+        .groups
+        .arm_repeat(gid, taken_at + TAKE_RETRY_MS, taken_at)
+        .await
+    {
         tracing::error!(error = %e, group = %gid,
             "re-arming flush timer failed; group will be reclaimed on lease expiry");
     }

@@ -478,7 +478,10 @@ async fn long_timers_extend_the_group_hash_ttl() {
     // A reminder armed 20d out (claim first so the 14d timer is off the flush ZSET
     // and arm_repeat actually arms the later deadline) extends the TTL further.
     groups.claim_due(now + 14 * DAY_MS, 16).await.unwrap();
-    groups.arm_repeat("gttl", now + 20 * DAY_MS, now).await.unwrap();
+    groups
+        .arm_repeat("gttl", now + 20 * DAY_MS, now)
+        .await
+        .unwrap();
     let pttl: i64 = redis::cmd("PTTL")
         .arg("cc:group:gttl")
         .query_async(&mut conn)
