@@ -1,5 +1,6 @@
 use crate::dispatcher::notify::{
-    classify_status, config_mismatch, default_http_client, Notification, Notifier, NotifyError,
+    classify_status_429_transient, config_mismatch, default_http_client, Notification, Notifier,
+    NotifyError,
 };
 use crate::domain::channel::ChannelConfig;
 use crate::domain::EventStatus;
@@ -131,7 +132,8 @@ impl Notifier for SlackNotifier {
             // Strip the URL: it is the secret webhook target and must not reach
             // notifications.last_error, the dead-letter stream, or logs.
             .map_err(|e| NotifyError::Transient(e.without_url().to_string()))?;
-        classify_status(resp.status())
+        // Slack webhooks rate-limit with 429: transient (retry), not permanent.
+        classify_status_429_transient(resp.status())
     }
 }
 

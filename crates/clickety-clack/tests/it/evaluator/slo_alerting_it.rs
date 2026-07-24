@@ -109,14 +109,14 @@ async fn pg() -> PgStore {
         .unwrap()
 }
 
-/// A fresh Redis-backed bus. The container is leaked for the test process's
-/// lifetime (mirrors `suppressed_evidence_it.rs`'s `redis_queue` helper) since
-/// dropping it would tear down the container out from under the bus.
-async fn redis_bus() -> RedisEventBus {
+/// A fresh Redis container + bus (mirrors `suppressed_evidence_it.rs`'s
+/// `redis_queue` helper). The caller holds the `RedisInfra` guard for the
+/// test's lifetime so the container is freed afterwards instead of piling up
+/// until process exit.
+async fn redis_bus() -> (crate::common::RedisInfra, RedisEventBus) {
     let redis = crate::common::start_redis().await;
-    let url = redis.url.clone();
-    std::mem::forget(redis);
-    RedisEventBus::connect(&url).await.unwrap()
+    let bus = RedisEventBus::connect(&redis.url).await.unwrap();
+    (redis, bus)
 }
 
 /// Breach at 20x on every window (good=9800/valid=10000 against a 99.9% target:
@@ -125,7 +125,7 @@ async fn redis_bus() -> RedisEventBus {
 #[tokio::test]
 async fn breach_fires_and_recovery_resolves() {
     let store = pg().await;
-    let bus = redis_bus().await;
+    let (_redis, bus) = redis_bus().await;
     let tenant = TenantId::from_trusted(Uuid::new_v4().to_string());
     let slo = create_test_slo(
         &store,
@@ -220,7 +220,7 @@ async fn breach_fires_and_recovery_resolves() {
 #[tokio::test]
 async fn suppressed_slo_marks_events() {
     let store = pg().await;
-    let bus = redis_bus().await;
+    let (_redis, bus) = redis_bus().await;
     let tenant = TenantId::from_trusted(Uuid::new_v4().to_string());
     let slo = create_test_slo(
         &store,
@@ -262,7 +262,7 @@ async fn suppressed_slo_marks_events() {
 #[tokio::test]
 async fn no_events_below_threshold() {
     let store = pg().await;
-    let bus = redis_bus().await;
+    let (_redis, bus) = redis_bus().await;
     let tenant = TenantId::from_trusted(Uuid::new_v4().to_string());
     let slo = create_test_slo(
         &store,
@@ -304,7 +304,7 @@ async fn no_events_below_threshold() {
 #[tokio::test]
 async fn freeze_on_error_freezes_instances() {
     let store = pg().await;
-    let bus = redis_bus().await;
+    let (_redis, bus) = redis_bus().await;
     let tenant = TenantId::from_trusted(Uuid::new_v4().to_string());
     let slo = create_test_slo(
         &store,
@@ -368,7 +368,7 @@ async fn freeze_on_error_freezes_instances() {
 #[tokio::test]
 async fn leftover_instance_with_unknown_tier_resolves_severity_as_critical() {
     let store = pg().await;
-    let bus = redis_bus().await;
+    let (_redis, bus) = redis_bus().await;
     let tenant = TenantId::from_trusted(Uuid::new_v4().to_string());
     let slo = create_test_slo(
         &store,
@@ -423,7 +423,7 @@ async fn leftover_instance_with_unknown_tier_resolves_severity_as_critical() {
 #[tokio::test]
 async fn erroring_slo_publishes_health_event() {
     let store = pg().await;
-    let bus = redis_bus().await;
+    let (_redis, bus) = redis_bus().await;
     let tenant = TenantId::from_trusted(Uuid::new_v4().to_string());
     let slo = create_test_slo(
         &store,

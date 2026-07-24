@@ -72,6 +72,7 @@ exceeds a threshold:
 curl -s -X POST localhost:8080/v1/rules \
   -H "X-CC-Tenant: $TENANT" -H 'Content-Type: application/json' \
   -d '{
+    "name": "default/high-error-rate",
     "sql": "SELECT host, errors FROM error_rates WHERE errors > 100",
     "interval_secs": 30,
     "for_secs": 60,
@@ -83,6 +84,8 @@ curl -s -X POST localhost:8080/v1/rules \
 
 What each field means:
 
+- `name` is the rule's stable identity, unique per tenant. Creating a second
+  rule with the same name is a `409`.
 - `sql` — the query. It must be a read-only `SELECT` (validated on the way in).
 - `interval_secs` — evaluate every 30 seconds.
 - `for_secs` — the condition must hold continuously for 60 seconds before the

@@ -100,11 +100,13 @@ transition; the coordination primitives are the same either way.
 | `scheduler` | ✅       | ✅    |            |      |      |
 | `evaluator` | ✅       | ✅    | ✅         |      |      |
 | `dispatcher`| ✅       | ✅    |            | ✅ (if email) | ✅ (if set) |
-| `events`    |          | ✅    |            |      | ✅   |
+| `events`    | ✅       | ✅    |            |      | ✅   |
 
-All roles build the cipher at startup, so all of them need the
-[secret env vars](manage-secret-encryption.md) even though only `api`,
-`dispatcher`, and `evaluator` actually read/write secrets.
+Every process connects to Postgres and runs migrations at startup regardless of
+role, so Postgres must be reachable even for roles (like `events`) whose steady
+state never queries it. Likewise all roles build the cipher at startup, so all
+of them need the [secret env vars](manage-secret-encryption.md) even though
+only `api`, `dispatcher`, and `evaluator` actually read/write secrets.
 
 ## Scaling each role
 

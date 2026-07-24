@@ -23,6 +23,7 @@ toward resolved. So:
 curl -s -X POST localhost:8080/v1/rules \
   -H "X-CC-Tenant: $TENANT" -H 'Content-Type: application/json' \
   -d '{
+    "name": "default/high-errors",
     "sql": "SELECT host, errors FROM error_rates WHERE errors > 100",
     "interval_secs": 30,
     "for_secs": 60,
@@ -34,6 +35,11 @@ curl -s -X POST localhost:8080/v1/rules \
 ```
 
 ## Choosing each field
+
+### `name`
+The rule's stable identity, unique per tenant (1 to 128 chars of
+`[A-Za-z0-9_./-]`). Creating a second rule with an existing name is a `409`;
+update the existing rule instead.
 
 ### `sql`
 Must be a read-only `SELECT`; anything else is rejected at create time by the SQL

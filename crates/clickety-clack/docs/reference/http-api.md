@@ -102,7 +102,7 @@ See [data model → Rule](data-model.md#rule) for field semantics.
 
 | Method & path             | Description |
 | ------------------------- | ----------- |
-| `POST /v1/rules`          | Create a rule. Body = rule spec (below). Returns the stored `Rule`. |
+| `POST /v1/rules`          | Create a rule. Body = identity (`name`, optional `namespace`) + rule spec (below). Returns the stored `Rule`. |
 | `GET /v1/rules`           | List rules, with cursor pagination and an optional health filter (see [Listing rules](#listing-rules)). |
 | `GET /v1/rules/:id`       | Get one rule by UUID. |
 | `PUT /v1/rules/:id`       | Update a rule's spec in place (see below). Preserves id, tenant, `paused` and instance state; bumps `version`. |
@@ -111,10 +111,14 @@ See [data model → Rule](data-model.md#rule) for field semantics.
 | `POST /v1/rules/:id/pause`  | Pause evaluation. Freezes state, emits no events. Returns the updated `Rule`. Idempotent; unknown id → `404`. |
 | `POST /v1/rules/:id/resume` | Resume evaluation. Re-arms scheduling and restarts pending instances' for-duration. Returns the updated `Rule`. |
 
-### Rule spec (request body)
+### Rule create (request body)
+
+The create body is the rule's identity (`name`, optional `namespace`) with the
+spec fields flattened beside it:
 
 ```json
 {
+  "name": "default/high-errors",
   "sql": "SELECT host, errors FROM error_rates WHERE errors > 100",
   "interval_secs": 30,
   "for_secs": 60,
@@ -130,6 +134,8 @@ See [data model → Rule](data-model.md#rule) for field semantics.
 
 | Field           | Type                  | Required | Default | Notes |
 | --------------- | --------------------- | -------- | ------- | ----- |
+| `name`          | string                | yes      | —       | The rule's first-class identity, unique per `(tenant, namespace)`; `409` on conflict. 1 to 128 chars of `[A-Za-z0-9_./-]` (`422` otherwise). |
+| `namespace`     | string                | no       | `""`    | Identity scope: `""` is the live namespace; consumers stamp preview ids here. At most 128 chars of `[A-Za-z0-9_.-]`. |
 | `sql`           | string                | yes      | —       | Read-only `SELECT`, validated by `cc_sqlguard`. Non-SELECT is rejected `422`. |
 | `interval_secs` | u32                   | yes      | —       | Must be `> 0` (`422` otherwise). Evaluation period. |
 | `for_secs`      | u32                   | yes      | —       | For-duration before firing. `0` fires immediately. |
@@ -154,40 +160,29 @@ The response includes a `paused` boolean — an operational flag (not part of
 
 `GET /v1/rules` returns each rule as a **RuleView**: the `Rule` fields (above)
 plus `health` (status, consecutive failures, last error) and `rollup` (the
-rule's rolled-up alert state). It has two response modes, selected by the query
-parameters:
-
-**Paginated mode** (recommended): supplying `limit` and/or `cursor` returns a
-page envelope:
+rule's rolled-up alert state). The response is always a page envelope; with no
+query parameters the default `limit` applies:
 
 ```json
 { "items": [ { "id": "…", "spec": { … }, "health": { … }, "rollup": { … } }, … ],
   "next_cursor": "djE6MTc2NTQzMj…" }
 ```
 
-| Param    | Type   | Default | Notes |
-| -------- | ------ | ------- | ----- |
-| `limit`  | int    | `100`   | Page size, `1..=500`. Out-of-range or non-integer values yield `422`. |
-| `cursor` | string | (none)  | Opaque resume token from the previous page's `next_cursor`. Do not construct or inspect it; its format may change. An undecodable token yields `400 bad_request`. |
-| `health` | string | (none)  | Optional filter, `degraded` or `healthy` (works in both modes). Anything else yields `422`. |
+| Param       | Type   | Default | Notes |
+| ----------- | ------ | ------- | ----- |
+| `limit`     | int    | `100`   | Page size, `1..=500`. Out-of-range or non-integer values yield `422`. |
+| `cursor`    | string | (none)  | Opaque resume token from the previous page's `next_cursor`. Do not construct or inspect it; its format may change. An undecodable token yields `400 bad_request`. |
+| `health`    | string | (none)  | Optional filter, `degraded` or `healthy`. Anything else yields `422`. |
+| `namespace` | string | (none)  | Optional exact-match filter on the identity namespace (`""` selects live rules). |
+| `name`      | string | (none)  | Optional exact-match filter on the first-class `name`. |
 
 Rules are ordered by creation time (id as tiebreaker), so the order is stable
 across pages. `next_cursor` is `null` on the last page; a non-null value is
 passed back verbatim as `?cursor=…` to fetch the next page. Rules created or
 deleted between page fetches are handled the way keyset pagination always
 handles them: no duplicates and no skipped pre-existing rows, but rows created
-behind the cursor position are not revisited.
-
-**Legacy mode (deprecated)**: with **neither** `limit` nor `cursor`, the
-response is the original bare, **unbounded** array of RuleViews:
-
-```json
-[ { "id": "…", "spec": { … }, "health": { … }, "rollup": { … } }, … ]
-```
-
-This mode exists so callers written before pagination keep working. It is
-deprecated: new callers should always send `limit` and page with `cursor`, and
-the bare-array mode may be removed in a future version.
+behind the cursor position are not revisited. (The pre-pagination bare-array
+mode is gone: every response uses the envelope above.)
 
 ### Updating a rule
 
@@ -385,11 +380,12 @@ tenant in one response, bounded only by how many alerts the tenant has active.
 
 A channel is a named delivery endpoint config, unique per tenant. Channels are
 the secret-bearing resource; receivers reference them by name, so one endpoint
-can back any number of receivers and be rotated in a single upsert.
+can back any number of receivers and be rotated with a single `PUT`.
 
 | Method & path                | Description |
 | ---------------------------- | ----------- |
-| `POST /v1/channels`          | Create/upsert a channel by `name`. |
+| `POST /v1/channels`          | Create a channel. Create-only: an existing `name` is a `409 already_exists`. |
+| `PUT /v1/channels/:name`     | Create or replace the channel's `config` in place (rotation). Body = `{ "config": … }`, same validation as create. |
 | `GET /v1/channels`           | List channels (secrets redacted). Unpaginated; bounded by tenant scale. |
 | `GET /v1/channels/:name`     | Get one channel (secrets redacted). |
 | `DELETE /v1/channels/:name`  | Delete a channel. `409` while any receiver references it. |
@@ -442,7 +438,8 @@ Receiver payloads never carry secrets: `channels` is a list of channel names.
 
 | Method & path                 | Description |
 | ----------------------------- | ----------- |
-| `POST /v1/receivers`          | Create/upsert a receiver by `name`. |
+| `POST /v1/receivers`          | Create a receiver. Create-only: an existing `name` is a `409 already_exists`. |
+| `PUT /v1/receivers/:name`     | Create or replace the receiver's `channels`/`annotations` in place. Body = the request body below without `name`. |
 | `GET /v1/receivers`           | List receivers. Unpaginated; bounded by tenant scale. |
 | `GET /v1/receivers/:name`     | Get one receiver. |
 | `DELETE /v1/receivers/:name`  | Delete a receiver. |
@@ -462,7 +459,7 @@ must exist as a channel (`422` with `detail` listing the unknown names, e.g.
 (`422` with `detail` naming the duplicates, e.g. `duplicate channels: pd`). `annotations` is an optional free-form
 string map (default `{}`): operator metadata such as team ownership or runbook
 links. It is returned as stored on every read (never redacted) and replaced
-wholesale on upsert; an upsert that omits it resets the map to `{}`.
+wholesale on `PUT`; a `PUT` body that omits it resets the map to `{}`.
 
 ---
 

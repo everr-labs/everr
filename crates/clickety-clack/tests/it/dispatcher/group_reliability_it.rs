@@ -221,7 +221,12 @@ async fn batch_taken_but_undelivered_is_redelivered_after_reclaim() {
         "the taken-but-undelivered batch must be re-delivered, not lost"
     );
     // The successful flush committed the drain: nothing is left to deliver.
-    let after = h.groups.take_group(gid, now + 62_000).await.unwrap().unwrap();
+    let after = h
+        .groups
+        .take_group(gid, now + 62_000)
+        .await
+        .unwrap()
+        .unwrap();
     assert!(after.events.is_empty(), "drain committed after delivery");
 }
 

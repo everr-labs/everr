@@ -35,18 +35,19 @@ fn meta() -> GroupMeta {
     }
 }
 
-async fn redis_groups() -> (String, RedisGroups) {
+/// A fresh Redis container + groups store. The caller holds the returned
+/// `RedisInfra` guard for the test's lifetime; dropping it frees the
+/// container (leaking via `mem::forget` piles containers up across the many
+/// tests in this file and can exhaust Docker resources in CI).
+async fn redis_groups() -> (crate::common::RedisInfra, RedisGroups) {
     let redis = crate::common::start_redis().await;
-    let url = redis.url.clone();
-    // Keep the container alive for the duration of the process.
-    std::mem::forget(redis);
-    let groups = RedisGroups::connect(&url).await.unwrap();
-    (url, groups)
+    let groups = RedisGroups::connect(&redis.url).await.unwrap();
+    (redis, groups)
 }
 
 #[tokio::test]
 async fn buffers_batches_and_claims_when_due() {
-    let (_url, groups) = redis_groups().await;
+    let (_redis, groups) = redis_groups().await;
 
     let now = 1_000_000i64;
     // New group, group_wait = 50ms → due at now+50.
@@ -112,7 +113,10 @@ async fn buffers_batches_and_claims_when_due() {
     );
 
     // Phase two: committing the drain with the taken fields clears the batch.
-    groups.commit_drain("g1", &batch.event_fields).await.unwrap();
+    groups
+        .commit_drain("g1", &batch.event_fields)
+        .await
+        .unwrap();
     let after = groups.take_group("g1", now + 200).await.unwrap().unwrap();
     assert!(after.events.is_empty());
     // No repeat interval was ever set and nothing was marked notified.
@@ -122,7 +126,7 @@ async fn buffers_batches_and_claims_when_due() {
 
 #[tokio::test]
 async fn previously_flushed_group_rearms_after_interval() {
-    let (_url, groups) = redis_groups().await;
+    let (_redis, groups) = redis_groups().await;
 
     let now = 2_000_000i64;
     groups
@@ -176,7 +180,7 @@ async fn previously_flushed_group_rearms_after_interval() {
 // and the repeat interval rides along, latest write wins.
 #[tokio::test]
 async fn firing_membership_tracks_resolves_and_survives_takes() {
-    let (_url, groups) = redis_groups().await;
+    let (_redis, groups) = redis_groups().await;
 
     let now = 3_000_000i64;
     let repeat = Some(60_000i64);
@@ -203,7 +207,10 @@ async fn firing_membership_tracks_resolves_and_survives_takes() {
     assert_eq!(batch.repeat_interval_ms, Some(60_000));
 
     // Committing the drain clears the batch, but firing membership survives.
-    groups.commit_drain("g3", &batch.event_fields).await.unwrap();
+    groups
+        .commit_drain("g3", &batch.event_fields)
+        .await
+        .unwrap();
     let again = groups.take_group("g3", now + 20).await.unwrap().unwrap();
     assert!(again.events.is_empty());
     assert_eq!(again.firing.len(), 2, "firing set survives takes");
@@ -258,7 +265,7 @@ async fn firing_membership_tracks_resolves_and_survives_takes() {
 // delivery (new instance) and a newer overwrite of a taken instance both survive.
 #[tokio::test]
 async fn commit_drain_keeps_events_buffered_during_delivery() {
-    let (_url, groups) = redis_groups().await;
+    let (_redis, groups) = redis_groups().await;
 
     let now = 7_000_000i64;
     groups
@@ -304,7 +311,10 @@ async fn commit_drain_keeps_events_buffered_during_delivery() {
         .unwrap();
 
     // Phase two: commit the drain for the taken fields only.
-    groups.commit_drain("g6", &batch.event_fields).await.unwrap();
+    groups
+        .commit_drain("g6", &batch.event_fields)
+        .await
+        .unwrap();
 
     let next = groups.take_group("g6", now + 40).await.unwrap().unwrap();
     let mut insts: Vec<(String, EventStatus)> = next
@@ -325,7 +335,7 @@ async fn commit_drain_keeps_events_buffered_during_delivery() {
 
 #[tokio::test]
 async fn mark_notified_and_arm_repeat_drive_the_reminder_timer() {
-    let (_url, groups) = redis_groups().await;
+    let (_redis, groups) = redis_groups().await;
 
     let now = 4_000_000i64;
     groups
@@ -344,7 +354,10 @@ async fn mark_notified_and_arm_repeat_drive_the_reminder_timer() {
         .unwrap();
     groups.claim_due(now, 16).await.unwrap();
     let batch = groups.take_group("g4", now).await.unwrap().unwrap();
-    groups.commit_drain("g4", &batch.event_fields).await.unwrap();
+    groups
+        .commit_drain("g4", &batch.event_fields)
+        .await
+        .unwrap();
 
     // Simulate a send + the reminder arm the flusher performs.
     groups.mark_notified("g4", now).await.unwrap();
@@ -379,7 +392,7 @@ async fn mark_notified_and_arm_repeat_drive_the_reminder_timer() {
 // armed timer in to the group_interval schedule.
 #[tokio::test]
 async fn new_event_pulls_in_a_far_repeat_timer() {
-    let (_url, groups) = redis_groups().await;
+    let (_redis, groups) = redis_groups().await;
 
     let now = 5_000_000i64;
     groups
@@ -429,7 +442,8 @@ async fn new_event_pulls_in_a_far_repeat_timer() {
 // cleanly: empty firing set, no repeat, never notified.
 #[tokio::test]
 async fn old_format_group_hash_takes_cleanly() {
-    let (url, groups) = redis_groups().await;
+    let (redis, groups) = redis_groups().await;
+    let url = redis.url.clone();
 
     let legacy_meta = r#"{"tenant":"t","channels":["oncall-slack"],"group_key":"oncall|env=prod","receiver":"oncall"}"#;
     let legacy_ev = serde_json::to_string(&ev("a", EventStatus::Firing)).unwrap();
@@ -471,7 +485,7 @@ async fn old_format_group_hash_takes_cleanly() {
 /// does, and `reclaim_expired` returns it to the timer once the lease elapses.
 #[tokio::test]
 async fn claimed_group_is_reclaimed_after_its_lease_expires() {
-    let (_url, groups) = redis_groups().await;
+    let (_redis, groups) = redis_groups().await;
     let now = 5_000_000i64;
     groups
         .add_to_group(
@@ -525,7 +539,7 @@ async fn claimed_group_is_reclaimed_after_its_lease_expires() {
 /// lease) must re-arm the timer instead of stranding the batch with no schedule.
 #[tokio::test]
 async fn releasing_with_undrained_events_and_no_timer_rearms() {
-    let (_url, groups) = redis_groups().await;
+    let (_redis, groups) = redis_groups().await;
     let now = 8_000_000i64;
     groups
         .add_to_group(
@@ -564,7 +578,7 @@ async fn releasing_with_undrained_events_and_no_timer_rearms() {
 /// reclaimed (no duplicate reflush).
 #[tokio::test]
 async fn released_claim_is_not_reclaimed() {
-    let (_url, groups) = redis_groups().await;
+    let (_redis, groups) = redis_groups().await;
     let now = 6_000_000i64;
     groups
         .add_to_group(

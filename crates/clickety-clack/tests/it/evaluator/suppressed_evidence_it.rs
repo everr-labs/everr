@@ -88,11 +88,13 @@ async fn pg() -> PgStore {
     PgStore::connect(&url).await.unwrap()
 }
 
-async fn redis_queue() -> RedisQueue {
+/// A fresh Redis container + queue. The caller holds the `RedisInfra` guard
+/// for the test's lifetime so the container is freed afterwards instead of
+/// piling up until process exit.
+async fn redis_queue() -> (crate::common::RedisInfra, RedisQueue) {
     let redis = crate::common::start_redis().await;
-    let url = redis.url.clone();
-    std::mem::forget(redis);
-    RedisQueue::connect(&url).await.unwrap()
+    let queue = RedisQueue::connect(&redis.url).await.unwrap();
+    (redis, queue)
 }
 
 struct Ctx {
@@ -131,7 +133,7 @@ impl Ctx {
 #[tokio::test]
 async fn suppressed_rule_stamps_firing_and_resolved_events() {
     let store = pg().await;
-    let queue = redis_queue().await;
+    let (_redis, queue) = redis_queue().await;
     let tenant = TenantId::from_trusted(Uuid::new_v4().to_string());
     let rule = create_test_rule(
         &store,
@@ -169,7 +171,7 @@ async fn suppressed_rule_stamps_firing_and_resolved_events() {
 #[tokio::test]
 async fn events_carry_bounded_evidence_and_absence_resolves_without_it() {
     let store = pg().await;
-    let queue = redis_queue().await;
+    let (_redis, queue) = redis_queue().await;
     let tenant = TenantId::from_trusted(Uuid::new_v4().to_string());
     let rule = create_test_rule(
         &store,

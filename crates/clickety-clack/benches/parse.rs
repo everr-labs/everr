@@ -44,11 +44,17 @@ fn parse_lines_baseline(
             }
         }
         let value = value_column.and_then(|c| obj.get(c)).and_then(json_to_f64);
-        // Baseline predates `extra`; leave it empty (the comparison targets parse strategy).
+        // Same per-row work as `parse_rows` (labels, value, AND the non-label
+        // extras): the two sides must produce identical output so the measured
+        // delta is the parse strategy alone, not skipped collection work.
+        let extra: BTreeMap<String, serde_json::Value> = obj
+            .into_iter()
+            .filter(|(k, _)| !label_columns.contains(k))
+            .collect();
         rows.push(ResultRow {
             labels,
             value,
-            extra: BTreeMap::new(),
+            extra,
         });
     }
     rows

@@ -16,7 +16,8 @@ variables are ignored; the variables below are the complete set the binary reads
 
 | Variable      | Default  | Purpose |
 | ------------- | -------- | ------- |
-| `CC_API_KEYS` | *(none)* | Comma-separated static bearer keys gating every `/v1` endpoint; `/healthz` and `/readyz` stay open. Clients send `Authorization: Bearer <key>`; keys are compared in constant time. List two keys during rotation, then drop the old one. **Unset => the gate is off and `/v1` is open** (dev default). Any network-reachable deployment must set this: without it, anyone who can reach the port can assert any tenant via `X-CC-Tenant`. Only the `api` role reads it. |
+| `CC_API_KEYS` | *(none)* | Comma-separated static bearer keys gating every `/v1` endpoint; `/healthz` and `/readyz` stay open. Clients send `Authorization: Bearer <key>`; keys are compared in constant time. List two keys during rotation, then drop the old one. **Auth fails closed: with `CC_API_KEYS` unset and no `CC_DEV_INSECURE_NO_AUTH`, the `api` role refuses to start.** Only the `api` role reads it. |
+| `CC_DEV_INSECURE_NO_AUTH` | `0` | Set to `1` to start the `api` role with no bearer auth: `/v1` is open and any caller picks its tenant via `X-CC-Tenant`. Dev/compose escape hatch only; never set it on a network-reachable deployment. Ignored when `CC_API_KEYS` is set. Only the `api` role reads it. |
 | `CC_ALLOW_PRIVATE_WEBHOOKS` | `0` | Set to `1` (or `true`) to allow webhook URLs targeting private, loopback, or link-local IP literals and `localhost` (subscriptions and `webhook` receivers). Dev/compose escape hatch only, for targets like a local mailpit; never set it in a multi-tenant deployment. Structural rules (http/https scheme, no userinfo) always apply. Only the `api` role reads it. |
 
 Each `CC_API_KEYS` entry is either a plain key or a tenant-bound key of the

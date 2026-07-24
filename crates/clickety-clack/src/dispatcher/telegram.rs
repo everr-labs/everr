@@ -8,6 +8,47 @@ use async_trait::async_trait;
 
 const DEFAULT_API_BASE: &str = "https://api.telegram.org";
 
+/// Telegram's `sendMessage` hard limit on `text`. An oversized body is a 400
+/// ("message is too long"), which classifies as a permanent delivery failure,
+/// so a grouped/noisy notification must be capped before sending.
+pub const TELEGRAM_TEXT_LIMIT: usize = 4096;
+
+/// Longest raw headline admitted into the message's first line. Bounds the
+/// header so [`cap_telegram_text`]'s line-boundary cut always has a first line
+/// that fits (escaping expands each char to at most 5, and the header adds
+/// only small fixed decoration around the headline).
+const HEADLINE_MAX_CHARS: usize = 512;
+
+fn truncate_chars(s: &str, max: usize) -> String {
+    match s.char_indices().nth(max) {
+        Some((i, _)) => format!("{}…", &s[..i]),
+        None => s.to_string(),
+    }
+}
+
+/// Cap a built message at [`TELEGRAM_TEXT_LIMIT`] characters. The cut lands on
+/// a line boundary: every line the builder emits is self-contained HTML
+/// (complete tags, complete entities), so dropping whole trailing lines can
+/// never produce markup Telegram rejects, unlike a mid-line cut.
+fn cap_telegram_text(body: String) -> String {
+    const NOTE: &str = "\n… message truncated";
+    if body.chars().count() <= TELEGRAM_TEXT_LIMIT {
+        return body;
+    }
+    let budget = TELEGRAM_TEXT_LIMIT - NOTE.chars().count();
+    let cut_max = body
+        .char_indices()
+        .nth(budget)
+        .map(|(i, _)| i)
+        .unwrap_or(body.len());
+    // The header line always fits (HEADLINE_MAX_CHARS), so a newline to cut at
+    // exists whenever the message overflows.
+    let cut = body[..cut_max].rfind('\n').unwrap_or(cut_max);
+    let mut s = body[..cut].to_string();
+    s.push_str(NOTE);
+    s
+}
+
 /// Render a Telegram message (HTML parse_mode) for one or more events. Mirrors slack.rs
 /// in content: header line + per-event lines. Alert annotations: each event's line uses
 /// its own substituted `summary` headline, `description` is an extra line, and
@@ -24,12 +65,15 @@ pub fn build_telegram_message(notif: &Notification) -> String {
             "{emoji} <b>[{}] {}</b> — {}",
             crate::dispatcher::render::status_word(ev),
             ev.severity.as_str(),
-            html_escape(&crate::dispatcher::render::headline(ev))
+            html_escape(&truncate_chars(
+                &crate::dispatcher::render::headline(ev),
+                HEADLINE_MAX_CHARS
+            ))
         )
     } else {
         format!(
             "\u{1F6A8} <b>[{n} alerts]</b> {}",
-            html_escape(&notif.group_key)
+            html_escape(&truncate_chars(&notif.group_key, HEADLINE_MAX_CHARS))
         )
     };
     let mut body = String::from(&header);
@@ -63,7 +107,7 @@ pub fn build_telegram_message(notif: &Notification) -> String {
             body.push_str(&format!("\n   {}", links.join(" | ")));
         }
     }
-    body
+    cap_telegram_text(body)
 }
 
 fn html_escape(s: &str) -> String {
@@ -211,6 +255,53 @@ mod tests {
             "href attr-escaped: {msg}"
         );
         assert!(msg.contains("<a href=\"https://wiki/rb\">View runbook</a>"));
+    }
+
+    #[test]
+    fn oversized_batch_is_capped_below_telegrams_limit_on_a_line_boundary() {
+        // Enough long-labelled events to blow well past 4096 characters.
+        let events: Vec<Event> = (0..200)
+            .map(|i| {
+                let mut e = ev();
+                e.labels.insert(
+                    "path".into(),
+                    format!("/very/long/label/value/{i}/{}", "x".repeat(80)),
+                );
+                e
+            })
+            .collect();
+        let notif = Notification {
+            group_key: "svc=api".into(),
+            events,
+        };
+        let msg = build_telegram_message(&notif);
+        assert!(
+            msg.chars().count() <= TELEGRAM_TEXT_LIMIT,
+            "capped at Telegram's limit, got {}",
+            msg.chars().count()
+        );
+        assert!(msg.ends_with("… message truncated"));
+        // The cut lands on a line boundary, so the HTML stays well-formed.
+        assert_eq!(
+            msg.matches("<b>").count(),
+            msg.matches("</b>").count(),
+            "no unclosed tag from truncation"
+        );
+    }
+
+    #[test]
+    fn giant_headline_is_bounded_so_the_header_line_always_fits() {
+        let mut e = ev();
+        e.annotations.insert("summary".into(), "s".repeat(10_000));
+        let msg = build_telegram_message(&Notification::single(&e));
+        assert!(msg.chars().count() <= TELEGRAM_TEXT_LIMIT);
+        assert_eq!(msg.matches("<b>").count(), msg.matches("</b>").count());
+    }
+
+    #[test]
+    fn short_messages_pass_through_uncapped() {
+        let msg = build_telegram_message(&Notification::single(&ev()));
+        assert!(!msg.contains("truncated"));
     }
 
     #[test]
