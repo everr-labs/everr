@@ -10,6 +10,7 @@ pub mod rules;
 pub mod silences;
 pub mod slos;
 pub mod subscriptions;
+pub mod trace;
 pub mod webhook_url;
 
 use crate::clickhouse::ChClient;
@@ -173,4 +174,5 @@ pub fn build_supervised_router(
         .route("/healthz", get(|| async { "ok" }))
         .route("/readyz", get(readyz))
         .merge(v1)
+        .layer(axum::middleware::from_fn(trace::trace_request))
 }
