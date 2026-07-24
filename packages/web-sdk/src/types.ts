@@ -33,6 +33,13 @@ type CommonInitOptions = {
   dev?: boolean;
   /** Signals to turn off; `true` disables all analytics capture. Fixed at init. */
   disable?: true | CaptureSignal[];
+  /**
+   * Returns the active low-cardinality route pattern (e.g. a TanStack route
+   * id like `/blog/$slug`), sampled when a web vital reports so late metrics
+   * localize to a route, not just a URL. Errors and nullish returns are
+   * treated as "no pattern".
+   */
+  routePattern?: () => string | null | undefined;
 };
 
 /**

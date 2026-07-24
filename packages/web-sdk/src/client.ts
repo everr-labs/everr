@@ -15,6 +15,7 @@ import type {
   EverrClient,
   InitOptions,
 } from "./types.js";
+import { startWebVitals } from "./webvitals.js";
 
 declare const __PACKAGE_VERSION__: string | undefined;
 const SDK_VERSION =
@@ -77,6 +78,12 @@ export function init(options: InitOptions): EverrClient {
   const stopInteractions = enabled("interactions")
     ? startInteractions(emit)
     : undefined;
+  // Started before the hide listeners below: web-vitals registers its own
+  // hidden-state listeners, and they must observe the transition before the
+  // exit flush ships the final batch.
+  const stopWebVitals = enabled("webVitals")
+    ? startWebVitals(emit, options.routePattern)
+    : undefined;
 
   // Exit delivery: the final leave plus whatever is batched rides the
   // keepalive path. pagehide and visibilitychange-hidden, not beforeunload
@@ -96,6 +103,7 @@ export function init(options: InitOptions): EverrClient {
     shutdown: () => {
       removeEventListener("pagehide", onHide);
       removeEventListener("visibilitychange", onVisibilityChange);
+      stopWebVitals?.();
       stopInteractions?.();
       pageviews?.[2]();
       stopWatching();
