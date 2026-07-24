@@ -247,8 +247,8 @@ export async function listChannels(orgId: string) {
     .array(CcChannelSchema)
     .parse(await ccRequest(orgId, "GET", "/v1/channels"));
 }
-/** CC's POST /v1/channels is an upsert by name (also the secret-rotation path). */
-export async function upsertChannel(
+/** CC's POST /v1/channels is create-only: an existing name answers 409. */
+export async function createChannel(
   orgId: string,
   body: { name: string; config: CcChannelConfig },
 ) {
@@ -273,7 +273,8 @@ export async function listReceivers(orgId: string) {
     .array(CcReceiverSchema)
     .parse(await ccRequest(orgId, "GET", "/v1/receivers"));
 }
-export async function upsertReceiver(
+/** CC's POST /v1/receivers is create-only: an existing name answers 409. */
+export async function createReceiver(
   orgId: string,
   body: { name: string; channels: string[] },
 ) {

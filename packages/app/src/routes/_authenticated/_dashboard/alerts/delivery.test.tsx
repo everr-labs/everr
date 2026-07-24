@@ -500,7 +500,7 @@ describe("/alerts/delivery channels section", () => {
     );
   });
 
-  it("blocks a duplicate channel name (CC's create is an upsert)", async () => {
+  it("blocks a duplicate channel name before CC answers 409", async () => {
     mocks.listCcChannels.mockResolvedValue([channel({ name: "team-slack" })]);
     const user = userEvent.setup();
 
@@ -682,7 +682,7 @@ describe("/alerts/delivery receivers section", () => {
     ).toBeDisabled();
   });
 
-  it("blocks a duplicate name (CC's create is an upsert that would replace it)", async () => {
+  it("blocks a duplicate receiver name before CC answers 409", async () => {
     mocks.listCcChannels.mockResolvedValue([channel({ name: "oncall-hook" })]);
     mocks.listCcReceivers.mockResolvedValue([receiver({ name: "oncall" })]);
     const user = userEvent.setup();

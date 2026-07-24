@@ -7,7 +7,10 @@ import {
 } from "@/data/alerts/history.server";
 import { visibleRulesForPreview } from "@/data/alerts/preview-overlay";
 import { ccRuleIdentity } from "@/data/alerts/rule-identity";
-import { formatResourceName } from "@/data/as-code/identity";
+import {
+  findByResourceName,
+  formatResourceName,
+} from "@/data/as-code/identity";
 import { getPreviewScopes } from "@/data/previews/repoids";
 import {
   visibleSlosForPreview,
@@ -31,6 +34,7 @@ import {
   CC_SYNTHETIC_LABEL_KEYS,
   CC_SYNTHETIC_LABEL_VALUES,
 } from "./synthetic-labels";
+import type { CcRuleView, CcSloView } from "./types";
 
 const orgId = (session: { session: { activeOrganizationId: string } }) =>
   session.session.activeOrganizationId;
@@ -66,22 +70,41 @@ export const getCcRule = createAuthenticatedServerFn({ method: "GET" })
   );
 
 // The slug-addressed rule route resolves by first-class name instead of the
-// CC uuid: an exact-match listRulesPage query scoped to the live namespace
-// (previews resolve by their own preview id elsewhere). CC's list endpoint
-// doesn't 404 on a miss, so an empty page reads as the route's 404-equivalent.
-// Stored names are always the qualified project/slug ("default/" included).
+// CC uuid: list the namespace scope and match by parsed identity
+// (findByResourceName), the same aliasing the listings use to render links,
+// so legacy/engine-generated bare names resolve under "default" instead of
+// 404ing. Live-only by default; with a preview selected, the scope is fetched
+// across namespaces and resolved through the same live-vs-preview overlay the
+// listings use, so a preview-only or changed rule opens its preview copy
+// instead of the live row (or a 404).
 export const getCcRuleByName = createAuthenticatedServerFn({ method: "GET" })
-  .inputValidator(z.object({ project: z.string(), slug: z.string() }))
-  .handler(async ({ data: { project, slug }, context: { session } }) => {
-    const name = formatResourceName(project, slug);
-    const page = await cc.listRulesPage(orgId(session), {
-      namespace: "",
-      name,
-      limit: 1,
-    });
-    const rule = page.items[0];
+  .inputValidator(
+    z.object({
+      project: z.string(),
+      slug: z.string(),
+      preview: z.string().optional(),
+    }),
+  )
+  .handler(async ({ data, context: { session } }) => {
+    const org = orgId(session);
+    const preview = data.preview?.trim() || null;
+    let candidates: CcRuleView[];
+    if (preview === null) {
+      candidates = await cc.listAllRules(org, { namespace: "" });
+    } else {
+      const [rules, scopes] = await Promise.all([
+        cc.listAllRules(org),
+        getPreviewScopes(org, preview),
+      ]);
+      candidates = visibleRulesForPreview(rules, scopes);
+    }
+    const rule = findByResourceName(candidates, data.project, data.slug);
     if (!rule) {
-      throw new CcApiError(404, "not_found", `Rule not found: ${name}`);
+      throw new CcApiError(
+        404,
+        "not_found",
+        `Rule not found: ${formatResourceName(data.project, data.slug)}`,
+      );
     }
     return rule;
   });
@@ -135,17 +158,39 @@ export const getCcSlo = createAuthenticatedServerFn({ method: "GET" })
     withAuthoredSloName(await cc.getSlo(orgId(session), sloId)),
   );
 
-// The slug-addressed SLO route's analogue of getCcRuleByName: an exact-match
-// listSlos query scoped to the live namespace. Same 404-equivalent: listSlos
-// doesn't 404 on a miss, so an empty result throws here instead.
+// The slug-addressed SLO route's analogue of getCcRuleByName: list the
+// namespace scope, resolve by parsed identity (bare names read as "default"),
+// live-only by default and overlay-resolved when a preview is selected (see
+// getCcRuleByName). listSlos doesn't 404 on a miss, so no match throws the
+// route's 404-equivalent here instead.
 export const getCcSloByName = createAuthenticatedServerFn({ method: "GET" })
-  .inputValidator(z.object({ project: z.string(), slug: z.string() }))
-  .handler(async ({ data: { project, slug }, context: { session } }) => {
-    const name = formatResourceName(project, slug);
-    const slos = await cc.listSlos(orgId(session), { namespace: "", name });
-    const slo = slos[0];
+  .inputValidator(
+    z.object({
+      project: z.string(),
+      slug: z.string(),
+      preview: z.string().optional(),
+    }),
+  )
+  .handler(async ({ data, context: { session } }) => {
+    const org = orgId(session);
+    const preview = data.preview?.trim() || null;
+    let candidates: CcSloView[];
+    if (preview === null) {
+      candidates = await cc.listSlos(org, { namespace: "" });
+    } else {
+      const [slos, scopes] = await Promise.all([
+        cc.listSlos(org),
+        getPreviewScopes(org, preview),
+      ]);
+      candidates = visibleSlosForPreview(slos, scopes);
+    }
+    const slo = findByResourceName(candidates, data.project, data.slug);
     if (!slo) {
-      throw new CcApiError(404, "not_found", `SLO not found: ${name}`);
+      throw new CcApiError(
+        404,
+        "not_found",
+        `SLO not found: ${formatResourceName(data.project, data.slug)}`,
+      );
     }
     return withAuthoredSloName(slo);
   });
@@ -193,16 +238,24 @@ export const listCcEventHistory = createAuthenticatedServerFn({ method: "GET" })
       // Narrow to one alert instance's events (server-side WHERE), for the
       // triage board's expanded-row detail.
       fingerprint: z.string().min(1).optional(),
+      // Narrow to one source's rule handles (server-side WHERE), for scoped
+      // feeds (rule/SLO detail): the tenant-wide newest-N window would let
+      // other sources fill the cap and starve the scoped source.
+      slugs: z.array(z.string().min(1)).min(1).optional(),
     }),
   )
   .handler(
-    ({ data: { limit, timeRange, fingerprint }, context: { clickhouse } }) => {
+    ({
+      data: { limit, timeRange, fingerprint, slugs },
+      context: { clickhouse },
+    }) => {
       const { fromISO, toISO } = resolveTimeRange(timeRange);
       return queryAlertEventLog(clickhouse.query, {
         limit,
         fromISO,
         toISO,
         ...(fingerprint !== undefined ? { fingerprint } : {}),
+        ...(slugs !== undefined ? { slugs } : {}),
       });
     },
   );
@@ -431,8 +484,8 @@ export const resumeCcSlo = createAuthenticatedServerFn({ method: "POST" })
 // re-applying (the resource admin calls cc.deleteSlo directly).
 
 // ---- Channels ----
-// CC's POST /v1/channels is an upsert by name; the UI guards against
-// clobbering an existing channel by checking the listed names client-side.
+// CC's POST /v1/channels is create-only (409 on an existing name); the UI
+// also blocks duplicates up front by checking the listed names client-side.
 export const createCcChannel = createAuthenticatedServerFn({ method: "POST" })
   .inputValidator(
     z.object({
@@ -441,7 +494,7 @@ export const createCcChannel = createAuthenticatedServerFn({ method: "POST" })
     }),
   )
   .handler(({ data, context: { session } }) =>
-    cc.upsertChannel(orgId(session), data),
+    cc.createChannel(orgId(session), data),
   );
 
 // CC refuses to delete a referenced channel: a 409 whose message names the
@@ -453,8 +506,8 @@ export const deleteCcChannel = createAuthenticatedServerFn({ method: "POST" })
   );
 
 // ---- Receivers ----
-// CC's POST /v1/receivers is an upsert by name; the UI guards against
-// clobbering an existing receiver by checking the listed names client-side.
+// CC's POST /v1/receivers is create-only (409 on an existing name); the UI
+// also blocks duplicates up front by checking the listed names client-side.
 // `channels` is a list of channel NAMES; the engine 422s unknown ones.
 export const createCcReceiver = createAuthenticatedServerFn({ method: "POST" })
   .inputValidator(
@@ -464,7 +517,7 @@ export const createCcReceiver = createAuthenticatedServerFn({ method: "POST" })
     }),
   )
   .handler(({ data, context: { session } }) =>
-    cc.upsertReceiver(orgId(session), data),
+    cc.createReceiver(orgId(session), data),
   );
 
 export const deleteCcReceiver = createAuthenticatedServerFn({ method: "POST" })

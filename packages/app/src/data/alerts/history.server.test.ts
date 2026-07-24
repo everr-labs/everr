@@ -62,6 +62,35 @@ describe("queryAlertEventLog", () => {
     expect(params).not.toHaveProperty("fingerprint");
   });
 
+  it("narrows to one source's handles when slugs are given (cap applies after scoping)", async () => {
+    const ch = vi.fn().mockResolvedValue([]);
+    await queryAlertEventLog(ch, {
+      limit: 100,
+      fromISO: "2026-06-01T00:00:00Z",
+      toISO: "2026-06-16T00:00:00Z",
+      slugs: ["rule-id", "demo/high-5xx", "high-5xx"],
+    });
+    const [sql, params] = ch.mock.calls[0];
+    expect(sql).toContain(
+      "LogAttributes['alert.slug'] IN {slugs:Array(String)}",
+    );
+    expect(params).toMatchObject({
+      slugs: ["rule-id", "demo/high-5xx", "high-5xx"],
+    });
+  });
+
+  it("omits the slugs clause and param when no slugs are given", async () => {
+    const ch = vi.fn().mockResolvedValue([]);
+    await queryAlertEventLog(ch, {
+      limit: 100,
+      fromISO: "2026-06-01T00:00:00Z",
+      toISO: "2026-06-16T00:00:00Z",
+    });
+    const [sql, params] = ch.mock.calls[0];
+    expect(sql).not.toContain("{slugs:Array(String)}");
+    expect(params).not.toHaveProperty("slugs");
+  });
+
   const baseRawRow = {
     timestamp: "2026-06-10T00:00:00Z",
     eventType: "instance_fired",

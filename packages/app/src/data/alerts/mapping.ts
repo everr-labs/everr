@@ -65,7 +65,18 @@ const ANN_RUNBOOK = "everr.runbook";
 export function toRuleInput(
   rule: AlertRuleYaml,
   repoid: string,
-  opts: { appBaseUrl?: string; previewId?: string } = {},
+  opts: {
+    appBaseUrl?: string;
+    previewId?: string;
+    /**
+     * Effective instance-label columns resolved by apply-time validation:
+     * the spec's own `instanceLabels`, or the implicit string-column
+     * identity inferred from the query's result schema when omitted (the
+     * pre-CC evaluator's behavior). `spec.instanceLabels` still wins so
+     * callers without a dry-run (tests) keep the explicit semantics.
+     */
+    instanceLabels?: string[];
+  } = {},
 ): CcRuleInput {
   const project = rule.metadata.project ?? "default";
   const slug = rule.metadata.name;
@@ -111,7 +122,7 @@ export function toRuleInput(
     sql: rule.spec.query,
     interval_secs: parseEvaluationInterval(rule.spec.evaluationInterval),
     for_secs: parseForDuration(rule.spec.for),
-    label_columns: rule.spec.instanceLabels ?? [],
+    label_columns: rule.spec.instanceLabels ?? opts.instanceLabels ?? [],
     value_column: rule.spec.valueColumn ?? null,
     severity: rule.spec.severity,
     annotations,

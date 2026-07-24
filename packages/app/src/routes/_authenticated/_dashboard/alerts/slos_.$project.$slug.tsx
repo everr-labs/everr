@@ -107,20 +107,25 @@ export const Route = createFileRoute(
     // always agree with the status hero. Hide the global picker accordingly.
     hideTimeRangePicker: true,
   },
-  loader: async ({ context: { queryClient }, params }) => {
+  loaderDeps: ({ search: { preview } }) => ({ preview }),
+  loader: async ({ context: { queryClient }, params, deps }) => {
     // Fetch the SLO first: its window sets the range everything else reads.
     const slo = await queryClient.ensureQueryData(
-      ccQueries.sloByName(params.project, params.slug),
+      ccQueries.sloByName(params.project, params.slug, deps.preview),
     );
     const range = ccSloChartRange(slo.spec);
     await Promise.all([
       queryClient.prefetchQuery(ccQueries.sloStatus(slo.id)),
-      // Budget series and event history (chart overlay + firing feed) share this
-      // window range. Skipped for a spec whose window doesn't parse (nothing to
-      // chart a trailing window over); the feed then falls back to defaults.
+      // Budget series and event history (chart overlay + firing feed) share
+      // this window range; the history prefetch is scoped to this SLO's
+      // handles, matching what the page reads. Skipped for a spec whose
+      // window doesn't parse (nothing to chart a trailing window over); the
+      // feed then falls back to defaults.
       ...(range
         ? [
-            queryClient.prefetchQuery(ccQueries.eventHistory(range)),
+            queryClient.prefetchQuery(
+              ccQueries.eventHistory(range, { slugs: ccSloHandles(slo) }),
+            ),
             queryClient.prefetchQuery(ccQueries.sloBudgetSeries(slo.id, range)),
           ]
         : []),
@@ -587,9 +592,13 @@ function BudgetHistorySection({ slo }: { slo: CcSloView }) {
   });
   // The same fire/resolve transitions the history feed below shows, overlaid on
   // the budget line so a drop lines up with the tier that fired. Scoped to this
-  // SLO's handles; non-transition events (deliveries, silences) drop out.
+  // SLO's handles server-side, so the row cap applies after scoping and busy
+  // tenants can't push this SLO's markers out of the newest-N window;
+  // non-transition events (deliveries, silences) drop out.
   const events = useQuery({
-    ...ccQueries.eventHistory(range ?? CHART_RANGE_FALLBACK),
+    ...ccQueries.eventHistory(range ?? CHART_RANGE_FALLBACK, {
+      slugs: ccSloHandles(slo),
+    }),
     enabled: range !== null,
   });
   const budgetEvents = useMemo<SloBudgetEvent[]>(() => {
@@ -717,8 +726,9 @@ function HealthSection({ sloId }: { sloId: string }) {
 
 function CcSloDetailPage() {
   const { project, slug } = Route.useParams();
+  const { preview } = Route.useSearch();
   const qc = useQueryClient();
-  const slo = useQuery(ccQueries.sloByName(project, slug));
+  const slo = useQuery(ccQueries.sloByName(project, slug, preview));
   // Evaluator health rides the (cache-shared, polling) status read. Healthy
   // is the normal system state and stays silent; only degraded surfaces, as
   // the broken heart beside the title.
@@ -739,7 +749,7 @@ function CcSloDetailPage() {
     },
     onSuccess: () => {
       qc.invalidateQueries({
-        queryKey: ccQueries.sloByName(project, slug).queryKey,
+        queryKey: ccQueries.sloByName(project, slug, preview).queryKey,
       });
       // The SLOs listing shows the paused state too.
       qc.invalidateQueries({ queryKey: ["cc", "slos"] });

@@ -30,13 +30,13 @@ spec:
 | `notificationMessage` | object | yes | The notification text. See below. |
 | `notificationMessage.title` | string | yes | Supports `${column}` (any query result column) and `${value}`. Non-empty. |
 | `notificationMessage.description` | string | no | Supports `${column}` and `${value}`. |
-| `instanceLabels` (alias `labelColumns`) | [string] | no | The columns that form instance identity; ≥1 entry when present. Each must be a column the query returns. Without it, all returned rows collapse into a single instance. Set at most one of `instanceLabels` or `labelColumns`, the clickety-clack-native alias for the same field. |
+| `instanceLabels` (alias `labelColumns`) | [string] | no | The columns that form instance identity; ≥1 entry when present. Each must be a column the query returns. Without it, apply infers the identity from the query's result schema: every string-typed column (except `valueColumn`) becomes an instance label, so each distinct combination is its own instance; a query with no string columns yields a single instance. Set at most one of `instanceLabels` or `labelColumns`, the clickety-clack-native alias for the same field. |
 | `valueColumn` | string | no | A numeric result column carried onto instances and notifications as the alert's value; referenced in messages as `${value}`. Must be a column the query returns. |
 | `maxInterval` | string | no | Duration string (`<int><s\|m\|h\|d>`), the ceiling for clickety-clack's adaptive evaluation backoff: the interval it may widen out to before flagging the rule degraded. When both parse, it must be greater than or equal to `evaluationInterval`. Omit it to use the engine's default. |
 | `annotations` | map (string to string) | no | Free-form key/value pairs passed straight through to the clickety-clack rule alongside Everr's own generated annotations. Keys starting with `everr.`, and the exact keys `summary`, `description`, `link.alert`, and `link.runbook`, are reserved for Everr's generated sugar and rejected here. |
 | `display` | object | no | `name` and/or `description`, both optional. Human-facing labels. |
 
-A rule created directly through the engine API that carries `everr.name` and a matching `everr.repoid` is treated as owned by that repo's config: the next `everr apply` adopts it, and prunes it if no YAML file declares it.
+Ownership is keyed by the rule's engine name (`<project>/<slug>`) plus the `everr.repoid` annotation. A rule created directly through the engine API under a name your config declares is an ownership conflict at apply time: `everr apply` fails fast unless run with `--adopt`, which takes the rule over in place and stamps it with your repoid. A rule already carrying your repo's `everr.repoid` is treated as part of that config: apply updates it when the spec drifts and prunes it if no YAML file declares it.
 
 ## Message templating
 

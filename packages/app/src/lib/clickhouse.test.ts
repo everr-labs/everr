@@ -130,13 +130,17 @@ describe("querySqlApi", () => {
 describe("querySqlApiWithMeta", () => {
   it("uses JSON format so column metadata is available for empty results", async () => {
     mockJson.mockResolvedValueOnce({
-      meta: [{ name: "route" }, { name: "n" }],
+      meta: [
+        { name: "route", type: "String" },
+        { name: "n", type: "UInt64" },
+      ],
       data: [],
     });
 
     await expect(querySqlApiWithMeta("SELECT 1", ORG)).resolves.toEqual({
       rows: [],
       columns: ["route", "n"],
+      columnTypes: ["String", "UInt64"],
     });
 
     expect(mockQuery).toHaveBeenCalledWith({

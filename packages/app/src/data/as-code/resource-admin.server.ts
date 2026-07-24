@@ -1,20 +1,13 @@
 import { and, eq, isNull, ne, or } from "drizzle-orm";
 import {
   fromCcRule,
-  isOwnedRule,
   OWN_REPO,
   previewIdOf,
   toAlertRuleDocument,
 } from "@/data/alerts/mapping";
-import { formatResourceName } from "@/data/as-code/identity";
 import * as cc from "@/data/cc/client";
 import type { CcRuleView, CcSloView } from "@/data/cc/types";
-import {
-  fromCcSlo,
-  isOwnedSlo,
-  previewIdOfSlo,
-  toSloDocument,
-} from "@/data/slos/mapping";
+import { fromCcSlo, previewIdOfSlo, toSloDocument } from "@/data/slos/mapping";
 import { db } from "@/db/client";
 import { dashboards, runbooks } from "@/db/schema/app";
 
@@ -154,16 +147,22 @@ function pgBackend(kind: ResourceKind, pgTable: PgTable): KindBackend {
 }
 
 /**
- * The org's live as-code alert rules: everr-owned (tagged `everr.repoid`) and
- * not part of a preview namespace. Engine-only rules (no `everr.repoid`) are
- * not as-code resources and never surface here.
+ * The org's live alert rules, unowned ones included: like the Postgres-backed
+ * kinds, an engine/UI-created rule (no `everr.repoid`) is still a resource,
+ * listed with `repoid: ""` and reachable by identity for delete/adopt
+ * (adoption is exactly how an unowned rule becomes as-code). Only preview
+ * copies are excluded.
  */
 async function listLiveAlertRules(orgId: string): Promise<CcRuleView[]> {
   const rules = await cc.listAllRules(orgId);
-  return rules.filter((r) => isOwnedRule(r) && previewIdOf(r) === null);
+  return rules.filter((r) => previewIdOf(r) === null);
 }
 
-/** The live as-code alert rule for `(project, slug)`, or null. */
+/**
+ * The live alert rule for `(project, slug)`, or null. Matches on the parsed
+ * identity rather than the formatted name so an unqualified engine-native
+ * name resolves under its implied "default" project.
+ */
 async function findAlertRule(
   orgId: string,
   project: string,
@@ -171,7 +170,10 @@ async function findAlertRule(
 ): Promise<CcRuleView | null> {
   const rules = await listLiveAlertRules(orgId);
   return (
-    rules.find((r) => r.name === formatResourceName(project, slug)) ?? null
+    rules.find((r) => {
+      const view = fromCcRule(r);
+      return view.project === project && view.slug === slug;
+    }) ?? null
   );
 }
 
@@ -228,23 +230,31 @@ const alertBackend: KindBackend = {
 };
 
 /**
- * The org's live as-code SLOs: everr-owned (tagged `everr.repoid`) and not
- * part of a preview namespace. Engine-only SLOs (no `everr.repoid`, e.g.
- * UI-created) are not as-code resources and never surface here.
+ * The org's live SLOs, unowned ones included (see {@link listLiveAlertRules}:
+ * same ownership semantics as the Postgres-backed kinds). Only preview copies
+ * are excluded.
  */
-async function listLiveOwnedSlos(orgId: string): Promise<CcSloView[]> {
+async function listLiveSlos(orgId: string): Promise<CcSloView[]> {
   const slos = await cc.listSlos(orgId);
-  return slos.filter((s) => isOwnedSlo(s) && previewIdOfSlo(s) === null);
+  return slos.filter((s) => previewIdOfSlo(s) === null);
 }
 
-/** The live as-code SLO for `(project, slug)`, or null. */
+/**
+ * The live SLO for `(project, slug)`, or null. Matches on the parsed
+ * identity rather than the formatted name (see {@link findAlertRule}).
+ */
 async function findSlo(
   orgId: string,
   project: string,
   slug: string,
 ): Promise<CcSloView | null> {
-  const slos = await listLiveOwnedSlos(orgId);
-  return slos.find((s) => s.name === formatResourceName(project, slug)) ?? null;
+  const slos = await listLiveSlos(orgId);
+  return (
+    slos.find((s) => {
+      const view = fromCcSlo(s);
+      return view.project === project && view.slug === slug;
+    }) ?? null
+  );
 }
 
 /**
@@ -258,7 +268,7 @@ async function findSlo(
  */
 const sloBackend: KindBackend = {
   async list(orgId, repoid) {
-    const slos = await listLiveOwnedSlos(orgId);
+    const slos = await listLiveSlos(orgId);
     return slos
       .map((s) => ({ view: fromCcSlo(s), updatedAt: s.updated_at }))
       .filter(({ view }) => repoid === undefined || view.repoid === repoid)

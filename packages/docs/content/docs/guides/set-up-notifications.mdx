@@ -21,7 +21,7 @@ A channel is a named delivery endpoint, created and deleted on the Delivery page
 
 Channel types: **email** (recipient addresses), **Slack** (an [Incoming Webhook](https://api.slack.com/messaging/webhooks) URL), **webhook** (any HTTPS endpoint), **PagerDuty** (an integration key), and **Telegram** (a bot token and chat ID, see Telegram's [BotFather guide](https://core.telegram.org/bots/features#botfather)).
 
-Secret fields (webhook URLs, tokens, keys) are write-only: after saving, Everr shows them redacted. To rotate one, create the channel again under the same name with the new value; every receiver that references it picks up the new secret, no receiver edits needed.
+Slack webhook URLs, PagerDuty integration keys, and Telegram bot tokens are write-only: after saving, Everr shows them redacted (`***`). Generic webhook URLs and email recipients are not secrets and stay visible as entered. To rotate a redacted secret, create a replacement channel with the new value, point the affected receivers at it, then delete the old channel.
 
 A channel that is still referenced cannot be deleted: Everr surfaces the engine's refusal, naming the receivers that still use it. Delete or repoint those receivers first.
 

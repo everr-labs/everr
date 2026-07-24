@@ -158,7 +158,15 @@ export function AlertEventFeed({
   const [typeLens, setTypeLens] = useState<TypeLensKey>("all");
   const { timeRange: pickerRange } = useTimeRange();
   const timeRange = timeRangeProp ?? pickerRange;
-  const history = useQuery(ccQueries.eventHistory(timeRange));
+  // A scoped feed narrows to its handles server-side, so the row cap applies
+  // after scoping: without it, other sources on a busy tenant fill the
+  // newest-N window and starve this source of its older events.
+  const history = useQuery(
+    ccQueries.eventHistory(
+      timeRange,
+      scopeSlug ? { slugs: scopeSlug } : undefined,
+    ),
+  );
 
   const rows = history.data ?? [];
 

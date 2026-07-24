@@ -77,21 +77,26 @@ function ccSlo(overrides: { id?: string; name: string }): CcSlo {
   };
 }
 
-/** A listRulesPage mock that only matches an exact `name` filter. */
-function pagedByName(rules: readonly CcRuleView[]) {
+/** A listAllRules mock honoring CC's exact `namespace` filter. */
+function rulesByNamespace(rules: readonly CcRuleView[]) {
   return async (
     _org: string,
-    opts: { name?: string; limit?: number },
-  ): Promise<{ items: CcRuleView[]; next_cursor: string | null }> => ({
-    items: rules.filter((r) => r.name === opts.name).slice(0, opts.limit),
-    next_cursor: null,
-  });
+    opts?: { namespace?: string },
+  ): Promise<CcRuleView[]> =>
+    rules.filter(
+      (r) => opts?.namespace === undefined || r.namespace === opts.namespace,
+    );
 }
 
-/** A listSlos mock that only matches an exact `name` filter. */
-function slosByName(slos: readonly CcSlo[]) {
-  return async (_org: string, opts?: { name?: string }): Promise<CcSlo[]> =>
-    slos.filter((s) => s.name === opts?.name);
+/** A listSlos mock honoring CC's exact `namespace` filter. */
+function slosByNamespace(slos: readonly CcSlo[]) {
+  return async (
+    _org: string,
+    opts?: { namespace?: string },
+  ): Promise<CcSlo[]> =>
+    slos.filter(
+      (s) => opts?.namespace === undefined || s.namespace === opts.namespace,
+    );
 }
 
 beforeEach(() => {
@@ -99,42 +104,80 @@ beforeEach(() => {
 });
 
 describe("getCcRuleByName", () => {
-  it("resolves a qualified name with a single exact-match lookup", async () => {
+  it("resolves a qualified name from the live namespace in one request", async () => {
     const rule = ccRule({ name: "default/checkout-latency" });
-    mocks.listRulesPage.mockImplementation(pagedByName([rule]));
+    mocks.listAllRules.mockImplementation(rulesByNamespace([rule]));
 
     const result = await getCcRuleByName({
       data: { project: "default", slug: "checkout-latency" },
     });
 
     expect(result).toEqual(rule);
-    expect(mocks.listRulesPage).toHaveBeenCalledTimes(1);
-    expect(mocks.listRulesPage).toHaveBeenCalledWith(
-      "test_org",
-      expect.objectContaining({
-        namespace: "",
-        name: "default/checkout-latency",
-      }),
-    );
+    expect(mocks.listAllRules).toHaveBeenCalledTimes(1);
+    expect(mocks.listAllRules).toHaveBeenCalledWith("test_org", {
+      namespace: "",
+    });
   });
 
-  it("404s on a miss with no bare-slug retry (stored names are always qualified)", async () => {
+  it("resolves a bare stored name under the default project (legacy/engine-created rows)", async () => {
     const bareRule = ccRule({ name: "checkout-latency" });
-    mocks.listRulesPage.mockImplementation(pagedByName([bareRule]));
+    mocks.listAllRules.mockImplementation(rulesByNamespace([bareRule]));
+
+    const result = await getCcRuleByName({
+      data: { project: "default", slug: "checkout-latency" },
+    });
+
+    expect(result).toEqual(bareRule);
+    expect(mocks.listAllRules).toHaveBeenCalledTimes(1);
+  });
+
+  it("prefers the qualified spelling when both coexist, and 404s on a real miss", async () => {
+    const bare = ccRule({ id: "r-bare", name: "checkout-latency" });
+    const qualified = ccRule({
+      id: "r-qual",
+      name: "default/checkout-latency",
+    });
+    mocks.listAllRules.mockImplementation(rulesByNamespace([bare, qualified]));
+
+    const hit = await getCcRuleByName({
+      data: { project: "default", slug: "checkout-latency" },
+    });
+    expect(hit.id).toBe("r-qual");
 
     await expect(
-      getCcRuleByName({
-        data: { project: "default", slug: "checkout-latency" },
-      }),
+      getCcRuleByName({ data: { project: "default", slug: "nope" } }),
     ).rejects.toMatchObject({ status: 404 });
-    expect(mocks.listRulesPage).toHaveBeenCalledTimes(1);
+  });
+
+  it("resolves the preview copy when a preview is selected", async () => {
+    const owned = (id: string, namespace: string): CcRuleView => {
+      const base = ccRule({ id, name: "default/checkout-latency" });
+      return {
+        ...base,
+        namespace,
+        spec: { ...base.spec, annotations: { "everr.repoid": "repo-1" } },
+      };
+    };
+    mocks.listAllRules.mockImplementation(
+      rulesByNamespace([owned("r-live", ""), owned("r-prev", "p1")]),
+    );
+    vi.mocked(getPreviewScopes).mockResolvedValue([
+      { id: "p1", repoid: "repo-1" },
+    ]);
+
+    const result = await getCcRuleByName({
+      data: { project: "default", slug: "checkout-latency", preview: "gio/x" },
+    });
+
+    expect(result.id).toBe("r-prev");
+    expect(mocks.listRulesPage).not.toHaveBeenCalled();
   });
 });
 
 describe("getCcSloByName", () => {
-  it("resolves a qualified name with a single exact-match lookup", async () => {
+  it("resolves a qualified name from the live namespace in one request", async () => {
     const slo = ccSlo({ name: "default/checkout-availability" });
-    mocks.listSlos.mockImplementation(slosByName([slo]));
+    mocks.listSlos.mockImplementation(slosByNamespace([slo]));
 
     const result = await getCcSloByName({
       data: { project: "default", slug: "checkout-availability" },
@@ -142,25 +185,53 @@ describe("getCcSloByName", () => {
 
     expect(result).toEqual(slo);
     expect(mocks.listSlos).toHaveBeenCalledTimes(1);
-    expect(mocks.listSlos).toHaveBeenCalledWith(
-      "test_org",
-      expect.objectContaining({
-        namespace: "",
-        name: "default/checkout-availability",
-      }),
-    );
+    expect(mocks.listSlos).toHaveBeenCalledWith("test_org", {
+      namespace: "",
+    });
   });
 
-  it("404s on a miss with no bare-slug retry (stored names are always qualified)", async () => {
+  it("resolves a bare stored name under the default project (legacy/engine-created rows)", async () => {
     const bareSlo = ccSlo({ name: "checkout-availability" });
-    mocks.listSlos.mockImplementation(slosByName([bareSlo]));
+    mocks.listSlos.mockImplementation(slosByNamespace([bareSlo]));
+
+    const result = await getCcSloByName({
+      data: { project: "default", slug: "checkout-availability" },
+    });
+
+    expect(result).toEqual(bareSlo);
 
     await expect(
-      getCcSloByName({
-        data: { project: "default", slug: "checkout-availability" },
-      }),
+      getCcSloByName({ data: { project: "default", slug: "nope" } }),
     ).rejects.toMatchObject({ status: 404 });
-    expect(mocks.listSlos).toHaveBeenCalledTimes(1);
+  });
+
+  it("resolves the preview copy when a preview is selected", async () => {
+    const owned = (id: string, namespace: string): CcSlo => {
+      const base = ccSlo({ id, name: "default/checkout-availability" });
+      return {
+        ...base,
+        namespace,
+        spec: { ...base.spec, annotations: { "everr.repoid": "repo-1" } },
+      };
+    };
+    mocks.listSlos.mockImplementation(
+      slosByNamespace([owned("s-live", ""), owned("s-prev", "p1")]),
+    );
+    vi.mocked(getPreviewScopes).mockResolvedValue([
+      { id: "p1", repoid: "repo-1" },
+    ]);
+
+    const result = await getCcSloByName({
+      data: {
+        project: "default",
+        slug: "checkout-availability",
+        preview: "gio/x",
+      },
+    });
+
+    expect(result.id).toBe("s-prev");
+    // Across namespaces this time: no live-namespace pin on the query.
+    expect(mocks.listSlos).toHaveBeenCalledWith("test_org");
   });
 });
 

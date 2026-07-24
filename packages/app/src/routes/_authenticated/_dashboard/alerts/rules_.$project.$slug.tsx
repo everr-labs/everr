@@ -64,15 +64,24 @@ export const Route = createFileRoute(
     // event timeline below reads stored history, so this page opts back in.
     hideTimeRangePicker: false,
   },
-  loaderDeps: ({ search }) => ({ timeRange: withTimeRange(search).timeRange }),
-  loader: ({ context: { queryClient }, params, deps }) =>
-    Promise.all([
+  loaderDeps: ({ search }) => ({
+    timeRange: withTimeRange(search).timeRange,
+    preview: search.preview,
+  }),
+  loader: async ({ context: { queryClient }, params, deps }) => {
+    // The rule first: the event timeline prefetch is scoped to its handles.
+    const rule = await queryClient.ensureQueryData(
+      ccQueries.ruleByName(params.project, params.slug, deps.preview),
+    );
+    await Promise.all([
+      queryClient.prefetchQuery(ccQueries.alerts(deps.preview)),
       queryClient.prefetchQuery(
-        ccQueries.ruleByName(params.project, params.slug),
+        ccQueries.eventHistory(deps.timeRange, {
+          slugs: ccRuleHandles(rule),
+        }),
       ),
-      queryClient.prefetchQuery(ccQueries.alerts()),
-      queryClient.prefetchQuery(ccQueries.eventHistory(deps.timeRange)),
-    ]),
+    ]);
+  },
   component: CcRuleDetailPage,
 });
 
@@ -197,15 +206,16 @@ function HealthSection({ health }: { health: CcRuleView["health"] }) {
 
 function CcRuleDetailPage() {
   const { project, slug } = Route.useParams();
+  const { preview } = Route.useSearch();
   const qc = useQueryClient();
-  const rule = useQuery(ccQueries.ruleByName(project, slug));
-  const alerts = useQuery(ccQueries.alerts());
+  const rule = useQuery(ccQueries.ruleByName(project, slug, preview));
+  const alerts = useQuery(ccQueries.alerts(preview));
   const [test, setTest] = useState<CcTestResult | null>(null);
   const [sqlOpen, setSqlOpen] = useState(false);
 
   const invalidateRule = () =>
     qc.invalidateQueries({
-      queryKey: ccQueries.ruleByName(project, slug).queryKey,
+      queryKey: ccQueries.ruleByName(project, slug, preview).queryKey,
     });
 
   const toggle = useMutation({

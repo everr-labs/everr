@@ -25,8 +25,8 @@ export function ReceiverBuilder({
 }: {
   open: boolean;
   onOpenChange: (o: boolean) => void;
-  /** Names already taken. CC's create is an upsert by name, so reusing one
-   * would silently replace that receiver; block it client-side instead. */
+  /** Names already taken. CC's create answers 409 for an existing name; block
+   * duplicates client-side to keep the error out of the happy path. */
   existingNames: string[];
   /** The tenant's channels, to pick references from. */
   channels: CcChannel[];

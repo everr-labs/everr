@@ -68,8 +68,8 @@ export function ChannelBuilder({
 }: {
   open: boolean;
   onOpenChange: (o: boolean) => void;
-  /** Names already taken. CC's create is an upsert by name, so reusing one
-   * would silently replace that channel's config; block it client-side. */
+  /** Names already taken. CC's create answers 409 for an existing name;
+   * blocking duplicates client-side keeps the error out of the happy path. */
   existingNames: string[];
 }) {
   const qc = useQueryClient();

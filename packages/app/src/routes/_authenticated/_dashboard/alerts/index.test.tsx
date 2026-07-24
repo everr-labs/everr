@@ -246,6 +246,20 @@ describe("/alerts overview — SLO identity across the page", () => {
     expect(screen.queryByText("checkout-availability")).not.toBeInTheDocument();
   });
 
+  it("shows an error (not a false 'no events') when the history query fails", async () => {
+    mocks.listCcEventHistory.mockRejectedValue(new Error("clickhouse down"));
+
+    renderOverviewRoute();
+
+    const recent = await cardOf("Recent events");
+    expect(
+      await within(recent).findByText(/Event history unavailable/),
+    ).toBeInTheDocument();
+    expect(
+      within(recent).queryByText(/No stored events/),
+    ).not.toBeInTheDocument();
+  });
+
   it("falls back to the slug in all three places when no display name is set", async () => {
     renderOverviewRoute();
 

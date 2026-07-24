@@ -32,7 +32,7 @@ spec:
 | `minValidEvents` | int | no | Low-traffic floor: a tier's long window is only allowed to fire once it has seen at least this many valid events, suppressing noise from thin data. Omit to disable. |
 | `annotations` | map (string to string) | no | Free-form key/value pairs passed through to the engine alongside Everr's generated annotations. Keys starting with `everr.` are reserved and rejected, as are the notification keys `summary`, `description`, `link.alert`, and `link.runbook`: Everr generates those from other fields (such as the display name and the `runbook` reference). |
 
-An SLO created directly through the engine API that carries `everr.name` and a matching `everr.repoid` is treated as owned by that repo's config: the next `everr apply` adopts it, and prunes it if no YAML file declares it.
+Ownership is keyed by the SLO's engine name (`<project>/<slug>`) plus the `everr.repoid` annotation. An SLO created directly through the engine API under a name your config declares is an ownership conflict at apply time: `everr apply` fails fast unless run with `--adopt`, which takes the SLO over in place and stamps it with your repoid. An SLO already carrying your repo's `everr.repoid` is treated as part of that config: apply updates it when the spec drifts and prunes it if no YAML file declares it.
 
 ## The SLI query
 

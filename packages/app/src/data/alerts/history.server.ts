@@ -185,7 +185,10 @@ type AlertEventLogRawRow = {
  *
  * `fingerprint` narrows to one alert instance's events server-side (the
  * triage board's expanded-row detail), instead of shipping the whole window
- * and filtering client-side.
+ * and filtering client-side. `slugs` narrows to one source's rule handles the
+ * same way: without it, a scoped feed would read the tenant-wide newest-N
+ * window, and on a busy tenant other sources can fill that cap and starve the
+ * scoped source of its older events.
  */
 export async function queryAlertEventLog(
   clickhouse: ClickhouseQuery,
@@ -194,6 +197,7 @@ export async function queryAlertEventLog(
     fromISO: string;
     toISO: string;
     fingerprint?: string;
+    slugs?: readonly string[];
   },
 ): Promise<AlertEventLogRow[]> {
   const rows = await clickhouse<AlertEventLogRawRow>(
@@ -216,6 +220,7 @@ export async function queryAlertEventLog(
         AND TimestampTime >= {fromTime:DateTime64(3)}
         AND TimestampTime <= {toTime:DateTime64(3)}
         ${opts.fingerprint !== undefined ? "AND LogAttributes['alert.instance_fingerprint'] = {fingerprint:String}" : ""}
+        ${opts.slugs !== undefined ? "AND LogAttributes['alert.slug'] IN {slugs:Array(String)}" : ""}
       ORDER BY Timestamp DESC
       LIMIT {limit:UInt32}
     `,
@@ -226,6 +231,7 @@ export async function queryAlertEventLog(
       ...(opts.fingerprint !== undefined
         ? { fingerprint: opts.fingerprint }
         : {}),
+      ...(opts.slugs !== undefined ? { slugs: [...opts.slugs] } : {}),
     },
   );
   return rows.map(

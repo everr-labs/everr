@@ -125,6 +125,8 @@ export async function querySqlApi<T>(
 export interface SqlApiResult<T> {
   rows: T[];
   columns: string[];
+  /** ClickHouse type per column, parallel to `columns` ("" when absent). */
+  columnTypes: string[];
 }
 
 export async function querySqlApiWithMeta<T>(
@@ -141,12 +143,13 @@ export async function querySqlApiWithMeta<T>(
   );
 
   const body = (await result.json()) as {
-    meta?: { name: string }[];
+    meta?: { name: string; type?: string }[];
     data?: T[];
   };
   return {
     rows: body.data ?? [],
     columns: (body.meta ?? []).map((m) => m.name),
+    columnTypes: (body.meta ?? []).map((m) => m.type ?? ""),
   };
 }
 

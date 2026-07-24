@@ -102,14 +102,24 @@ export const ccQueries = {
     }),
 
   // The slug-addressed rule route's lookup: resolves by first-class name
-  // (project/slug) via an exact-match rules-page query, live namespace only.
-  // Keyed by address (not id) so list -> detail navigation and invalidation
-  // both key off the same identity the route URL carries.
-  ruleByName: (project: string, slug: string) =>
-    queryOptions({
-      queryKey: ["cc", "rule-by-name", project, slug] as const,
-      queryFn: () => getCcRuleByName({ data: { project, slug } }),
-    }),
+  // (project/slug) via an exact-match rules-page query; live namespace by
+  // default, the selected preview's overlay otherwise. Keyed by address (not
+  // id) so list -> detail navigation and invalidation both key off the same
+  // identity the route URL carries.
+  ruleByName: (project: string, slug: string, preview?: string) => {
+    const previewName = preview?.trim() || null;
+    return queryOptions({
+      queryKey: ["cc", "rule-by-name", project, slug, previewName] as const,
+      queryFn: () =>
+        getCcRuleByName({
+          data: {
+            project,
+            slug,
+            ...(previewName === null ? {} : { preview: previewName }),
+          },
+        }),
+    });
+  },
 
   // The tenant's SLOs (bare configs — no status). A config listing like
   // routes/receivers: it changes through user actions (pause/resume/delete,
@@ -132,13 +142,22 @@ export const ccQueries = {
     }),
 
   // The slug-addressed SLO route's lookup, the SLO analogue of ruleByName:
-  // resolves by first-class name via an exact-match listSlos query, live
-  // namespace only.
-  sloByName: (project: string, slug: string) =>
-    queryOptions({
-      queryKey: ["cc", "slo-by-name", project, slug] as const,
-      queryFn: () => getCcSloByName({ data: { project, slug } }),
-    }),
+  // resolves by first-class name via an exact-match listSlos query; live
+  // namespace by default, the selected preview's overlay otherwise.
+  sloByName: (project: string, slug: string, preview?: string) => {
+    const previewName = preview?.trim() || null;
+    return queryOptions({
+      queryKey: ["cc", "slo-by-name", project, slug, previewName] as const,
+      queryFn: () =>
+        getCcSloByName({
+          data: {
+            project,
+            slug,
+            ...(previewName === null ? {} : { preview: previewName }),
+          },
+        }),
+    });
+  },
 
   // The evaluator's latest status snapshot for one SLO (null until the first
   // evaluation tick writes one). The live surface of the SLO detail page, so
@@ -212,18 +231,24 @@ export const ccQueries = {
     }),
 
   // Stored CC event history from ClickHouse. `fingerprint` scopes to one
-  // alert instance's events (server-side WHERE); `limit` caps rows (1 = the
-  // newest event only, for freshness readouts).
+  // alert instance's events, `slugs` to one source's rule handles (both
+  // server-side WHEREs, so the row cap applies after scoping); `limit` caps
+  // rows (1 = the newest event only, for freshness readouts).
   eventHistory: (
     timeRange: TimeRange,
-    opts: { limit?: number; fingerprint?: string } = {},
+    opts: {
+      limit?: number;
+      fingerprint?: string;
+      slugs?: readonly string[];
+    } = {},
   ) => {
     const limit = opts.limit ?? EVENT_HISTORY_LIMIT;
+    const slugs = opts.slugs === undefined ? null : [...opts.slugs].sort();
     return queryOptions({
       queryKey: [
         "cc",
         "event-history",
-        { timeRange, limit, fingerprint: opts.fingerprint ?? null },
+        { timeRange, limit, fingerprint: opts.fingerprint ?? null, slugs },
       ] as const,
       queryFn: () =>
         listCcEventHistory({
@@ -233,6 +258,7 @@ export const ccQueries = {
             ...(opts.fingerprint !== undefined
               ? { fingerprint: opts.fingerprint }
               : {}),
+            ...(slugs === null ? {} : { slugs }),
           },
         }),
       refetchInterval: CC_POLL_INTERVAL_MS,

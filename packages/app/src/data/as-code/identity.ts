@@ -16,3 +16,22 @@ export function parseResourceName(name: string): {
   if (i === -1) return { project: "default", slug: name };
   return { project: name.slice(0, i), slug: name.slice(i + 1) };
 }
+
+// Resolve (project, slug) against stored engine names by parsing each name,
+// not by formatting the target: a bare "x" and a qualified "default/x" both
+// address default/x, and every name the listings render must resolve here.
+// The exact qualified form wins if both spellings coexist in the set.
+export function findByResourceName<T extends { name: string }>(
+  items: readonly T[],
+  project: string,
+  slug: string,
+): T | undefined {
+  const exact = formatResourceName(project, slug);
+  return (
+    items.find((item) => item.name === exact) ??
+    items.find((item) => {
+      const parsed = parseResourceName(item.name);
+      return parsed.project === project && parsed.slug === slug;
+    })
+  );
+}

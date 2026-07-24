@@ -20,6 +20,7 @@ import {
   CcQueryError,
   CcSloTierBadge,
   CcStatusDot,
+  ccErrorMessage,
   ccFormatTs,
 } from "@/components/cc/shared";
 import {
@@ -700,6 +701,12 @@ function CcOverviewPage() {
                 <Skeleton className="h-6 w-full" />
                 <Skeleton className="h-6 w-2/3" />
               </div>
+            ) : events.isError ? (
+              // A failed history read is not "no events": saying so would be
+              // a false all-clear on the overview.
+              <p className="px-3 pt-1 pb-3 text-xs text-destructive">
+                Event history unavailable ({ccErrorMessage(events.error)}).
+              </p>
             ) : (events.data ?? []).length === 0 ? (
               <p className="px-3 pt-1 pb-3 text-xs text-muted-foreground">
                 No stored events in the last 24h.

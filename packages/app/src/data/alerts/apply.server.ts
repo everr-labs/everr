@@ -69,18 +69,37 @@ function parseAlertRule(path: string, resource: unknown) {
 // 4096 bytes. Message refs beyond the column cap may render empty.
 const EVIDENCE_COLUMN_CAP = 16;
 
+// ClickHouse types whose JSON serialization is a string, unwrapped from
+// Nullable/LowCardinality. This mirrors the pre-CC evaluator's implicit
+// instance identity, which keyed rows by every `typeof value === "string"`
+// column when `instanceLabels` was omitted.
+function isStringTypedColumn(chType: string): boolean {
+  let t = chType.trim();
+  for (;;) {
+    const wrapped = /^(?:Nullable|LowCardinality)\((.*)\)$/.exec(t);
+    if (!wrapped) break;
+    t = wrapped[1];
+  }
+  return /^(?:String|FixedString|Enum8|Enum16|UUID|Date32|Date|DateTime64|DateTime|IPv4|IPv6)(?:\(|$)/.test(
+    t,
+  );
+}
+
 // Result-dependent validation: run the rule's query against the org's data and
 // check the instance-label, value, and message-template columns against the
 // result schema. Message refs are legal for ANY result column: CC resolves
 // them from the event's instance labels first, then ${value}, then the
 // evidence (the remaining result columns). Returns a warning when a message
 // references evidence but the query has more non-label columns than CC's
-// evidence cap keeps.
+// evidence cap keeps, plus the effective instance-label columns (explicit
+// `instanceLabels`, or the legacy implicit identity inferred from the result
+// schema when omitted, so pre-CC configs keep per-row instances instead of
+// collapsing to one).
 async function validateAlertRuleQuery(
   path: string,
   rule: AlertRuleYaml,
   organizationId: string,
-): Promise<{ warning?: string }> {
+): Promise<{ warning?: string; instanceLabelColumns: string[] }> {
   let queryResult: SqlApiResult<Record<string, unknown>>;
   try {
     queryResult = await querySqlApiWithMeta<Record<string, unknown>>(
@@ -93,7 +112,13 @@ async function validateAlertRuleQuery(
     );
   }
 
-  const instanceLabelColumns = rule.spec.instanceLabels ?? [];
+  const instanceLabelColumns =
+    rule.spec.instanceLabels ??
+    queryResult.columns.filter(
+      (column, i) =>
+        isStringTypedColumn(queryResult.columnTypes[i] ?? "") &&
+        column !== rule.spec.valueColumn,
+    );
   const columnNames = new Set(queryResult.columns);
   for (const column of instanceLabelColumns) {
     if (!columnNames.has(column)) {
@@ -148,7 +173,7 @@ async function validateAlertRuleQuery(
       ? `${path}: the query returns ${nonLabelColumns.length} non-label columns but alert events keep at most ${EVIDENCE_COLUMN_CAP} as evidence, so \${${evidenceRefs[0]}} may render empty in notifications`
       : undefined;
 
-  return { ...(warning ? { warning } : {}) };
+  return { instanceLabelColumns, ...(warning ? { warning } : {}) };
 }
 
 // One repo can declare many alerts; firing every validation query at ClickHouse
@@ -279,6 +304,9 @@ export const applyAlertSpecs: Reconciler = async ({
       input: toRuleInput(p.rule, repoid, {
         appBaseUrl,
         previewId: previewId ?? undefined,
+        // Explicit instanceLabels, or the implicit string-column identity the
+        // validation inferred for a spec that omitted them.
+        instanceLabels: v.value.instanceLabelColumns,
       }),
     };
   });

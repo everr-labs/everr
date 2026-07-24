@@ -89,10 +89,11 @@ describe("isResourceKind", () => {
 });
 
 describe("slo backend", () => {
-  it("lists only live everr-owned SLOs with their CC updated_at", async () => {
+  it("lists live SLOs, unowned included, with their CC updated_at", async () => {
     mockedListSlos.mockResolvedValue([
       ccSlo("payments/checkout", { "everr.repoid": "repo-1" }),
-      // UI-created (no everr.repoid): not an as-code resource.
+      // Engine/UI-created (no everr.repoid): listed as unowned (repoid ""),
+      // like the Postgres-backed kinds, so it can be found and adopted.
       ccSlo("hand-made", {}),
       // Preview copy: never a live resource.
       ccSlo(
@@ -112,17 +113,54 @@ describe("slo backend", () => {
         repoid: "repo-1",
         updatedAt: "2026-07-01T00:00:00Z",
       },
+      {
+        kind: "slo",
+        project: "default",
+        slug: "hand-made",
+        repoid: "",
+        updatedAt: "2026-07-01T00:00:00Z",
+      },
     ]);
   });
 
-  it("filters by repoid", async () => {
+  it('filters by repoid, with "" selecting unowned rows', async () => {
     mockedListSlos.mockResolvedValue([
       ccSlo("default/mine", { "everr.repoid": "repo-1" }),
       ccSlo("default/theirs", { "everr.repoid": "repo-2" }),
+      ccSlo("default/hand-made", {}),
     ]);
 
-    const out = await listResources("org-1", { kind: "slo", repoid: "repo-1" });
-    expect(out.map((r) => r.slug)).toEqual(["mine"]);
+    const mine = await listResources("org-1", {
+      kind: "slo",
+      repoid: "repo-1",
+    });
+    expect(mine.map((r) => r.slug)).toEqual(["mine"]);
+
+    const unowned = await listResources("org-1", { kind: "slo", repoid: "" });
+    expect(unowned.map((r) => r.slug)).toEqual(["hand-made"]);
+  });
+
+  it("adopts an unowned SLO into a repo", async () => {
+    mockedListSlos.mockResolvedValue([ccSlo("default/hand-made", {})]);
+    mockedUpdateSlo.mockResolvedValue(ccSlo("default/hand-made", {}));
+
+    const result = await adoptResource(
+      "org-1",
+      "slo",
+      "default",
+      "hand-made",
+      "repo-1",
+    );
+
+    expect(result).toEqual({ found: true, alreadyOwned: false });
+    expect(mockedUpdateSlo).toHaveBeenCalledWith(
+      "org-1",
+      "slo-hand-made",
+      expect.objectContaining({
+        annotations: expect.objectContaining({ "everr.repoid": "repo-1" }),
+      }),
+      4,
+    );
   });
 
   it("reconstructs the canonical kind: SLO document on get", async () => {

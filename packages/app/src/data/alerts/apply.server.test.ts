@@ -38,6 +38,7 @@ beforeEach(() => {
   ch.mockResolvedValue({
     rows: [{ service: "api", count: 1 }],
     columns: ["service", "count"],
+    columnTypes: ["String", "UInt64"],
   });
   mockedListRules.mockResolvedValue([]);
   mockedCreateRule.mockResolvedValue({ id: "new-rule", version: 1 });
@@ -377,10 +378,11 @@ describe("applyAlertSpecs", () => {
     expect(mockedCreateRule).not.toHaveBeenCalled();
   });
 
-  it("accepts a rule with no instanceLabels whose template references result columns", async () => {
+  it("infers the implicit string-column identity when instanceLabels is omitted", async () => {
     ch.mockResolvedValue({
       rows: [{ failed_replays: 3, last_error: "boom" }],
       columns: ["failed_replays", "last_error"],
+      columnTypes: ["UInt64", "String"],
     });
 
     const res = await applyAlertSpecs({
@@ -402,17 +404,60 @@ describe("applyAlertSpecs", () => {
       ],
     });
 
-    // Non-label columns resolve from CC's event evidence at render time; the
-    // rule maps to empty label_columns (all rows collapse into one instance).
+    // The pre-CC evaluator keyed rows by their string columns when
+    // instanceLabels was omitted; apply infers the same identity from the
+    // result schema so those configs keep per-row instances instead of
+    // collapsing into one.
     expect(res.created).toEqual(["default/replays"]);
     expect(res.note).toBeUndefined();
     const [, input] = mockedCreateRule.mock.calls[0];
-    expect(input.label_columns).toEqual([]);
+    expect(input.label_columns).toEqual(["last_error"]);
+  });
+
+  it("never infers the valueColumn or non-string columns as identity", async () => {
+    ch.mockResolvedValue({
+      rows: [],
+      columns: ["service", "region", "count"],
+      columnTypes: ["LowCardinality(String)", "Nullable(String)", "UInt64"],
+    });
+
+    await applyAlertSpecs({
+      namespace: { orgId: "o", repoid: "repo-1", kind: "live" },
+      db,
+      resources: [
+        {
+          path: "spread.yaml",
+          resource: alert("spread", {
+            instanceLabels: undefined,
+            notificationMessage: { title: `errors in \${service}` },
+          }),
+        },
+      ],
+    });
+
+    const [, input] = mockedCreateRule.mock.calls[0];
+    expect(input.label_columns).toEqual(["service", "region"]);
+  });
+
+  it("keeps explicit instanceLabels authoritative over the inferred identity", async () => {
+    const res = await applyAlertSpecs({
+      namespace: { orgId: "o", repoid: "repo-1", kind: "live" },
+      db,
+      resources: [{ path: "explicit.yaml", resource: alert("explicit") }],
+    });
+
+    expect(res.created).toEqual(["default/explicit"]);
+    const [, input] = mockedCreateRule.mock.calls[0];
+    expect(input.label_columns).toEqual(["service"]);
   });
 
   it("warns (without failing) when evidence refs exceed CC's 16-column evidence cap", async () => {
     const columns = Array.from({ length: 17 }, (_, i) => `c${i}`);
-    ch.mockResolvedValue({ rows: [], columns: ["service", ...columns] });
+    ch.mockResolvedValue({
+      rows: [],
+      columns: ["service", ...columns],
+      columnTypes: ["String", ...columns.map(() => "UInt64")],
+    });
 
     const res = await applyAlertSpecs({
       namespace: { orgId: "o", repoid: "repo-1", kind: "live" },
@@ -876,7 +921,11 @@ describe("applyAlertSpecs", () => {
   });
 
   it("rejects a valueColumn the query does not return", async () => {
-    ch.mockResolvedValueOnce({ rows: [], columns: ["service"] });
+    ch.mockResolvedValueOnce({
+      rows: [],
+      columns: ["service"],
+      columnTypes: ["String"],
+    });
 
     try {
       await applyAlertSpecs({
