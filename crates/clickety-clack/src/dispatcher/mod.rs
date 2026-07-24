@@ -572,6 +572,10 @@ async fn commit_drain(ctx: &DispatchCtx, gid: &str, fields: &[(String, String)],
     }
 }
 
+/// Records the batch size and evaluation-span links via `tracing::Span::current()`, so
+/// this must only ever be awaited directly from `flush_group`'s `#[instrument]`ed body:
+/// never wrapped in its own `.instrument()` or `tokio::spawn`ed, either of which would
+/// detach it from that span.
 async fn flush_claimed_group(ctx: &DispatchCtx, gid: &str) {
     let taken_at = now_ms();
     let batch = match ctx.groups.take_group(gid, taken_at).await {
@@ -1584,6 +1588,78 @@ mod fan_out_tests {
             "a skip never dead-letters"
         );
         assert_eq!(ledger.rows.lock().unwrap().len(), 1);
+    }
+
+    /// Spec: "a failed delivery yields `notify.deliver` with error status." Drives
+    /// `deliver_one` (the smallest seam that creates the `notify.deliver` span) with a
+    /// permanently-failing notifier under an in-memory span exporter, mirroring the
+    /// `SdkTracerProvider` + `InMemorySpanExporter` + `tracing::subscriber` pattern in
+    /// `otel::status`'s tests.
+    #[tokio::test]
+    async fn deliver_one_failure_yields_error_status_span() {
+        use opentelemetry::trace::{Status, TracerProvider as _};
+        use opentelemetry_sdk::trace::{InMemorySpanExporter, SdkTracerProvider};
+        use tracing_subscriber::layer::SubscriberExt;
+
+        let exporter = InMemorySpanExporter::default();
+        let provider = SdkTracerProvider::builder()
+            .with_simple_exporter(exporter.clone())
+            .build();
+        let subscriber = tracing_subscriber::registry()
+            .with(tracing_opentelemetry::layer().with_tracer(provider.tracer("test")));
+        // `set_default` (not `with_default`) so the thread-local dispatcher stays active
+        // across the `.await` below: `deliver_one`'s `#[instrument]` span is created
+        // synchronously at call time, but the delivery future spans several awaits and
+        // this test runs on the current-thread `#[tokio::test]` runtime.
+        let _guard = tracing::subscriber::set_default(subscriber);
+
+        let ledger = MemLedger::default();
+        let bus = DeadLetterBus::default();
+        let notifier = Arc::new(FakeNotifier {
+            name: "webhook",
+            fail: true,
+            sends: AtomicUsize::new(0),
+        });
+        let mut notifiers = Notifiers::new();
+        notifiers.register(notifier.clone());
+        let ev = event();
+        let notif = Notification::single(&ev);
+        let config = ChannelConfig::Webhook {
+            url: "http://x/h".into(),
+        };
+        let deps = DeliveryDeps {
+            ledger: &ledger,
+            bus: &bus,
+            notifiers: &notifiers,
+        };
+        // `deliver_one` assumes the ledger row already exists (normally inserted by its
+        // caller, `deliver_group_channels`, before it delivers); seed it the same way so
+        // the later `mark_notification_failed` write has a row to update.
+        ledger
+            .try_begin_notification("key-1", ev.tenant.clone(), "webhook", "http://x/h")
+            .await
+            .unwrap();
+
+        let sent = deliver_one(&deps, &config, "key-1", &notif, &ev, "webhook").await;
+
+        assert!(!sent, "permanent failure must not report success");
+        drop(_guard);
+        provider.force_flush().unwrap();
+        let spans = exporter.get_finished_spans().unwrap();
+        let span = spans
+            .iter()
+            .find(|s| s.name == "notify.deliver")
+            .expect("notify.deliver span exported");
+        match &span.status {
+            Status::Error { .. } => {}
+            other => panic!("expected error status, got {other:?}"),
+        }
+        assert!(
+            span.attributes
+                .iter()
+                .any(|kv| kv.key.as_str() == "attempts"),
+            "attempts attribute recorded on the span"
+        );
     }
 }
 

@@ -52,17 +52,19 @@ pub fn build_query_url(base_url: &str, params: &[(String, String)]) -> String {
     url
 }
 
-/// Summarize a `ChError` for the `clickhouse.query` span's `otel.status_message`,
-/// which lands in everr's INTERNAL tenant. `ChError`'s `Display` (used everywhere else,
-/// e.g. Postgres `last_error`) is deliberately left untouched: callers there rely on the
-/// full text. But `Status`'s body is the raw ClickHouse HTTP response, and ClickHouse
-/// echoes fragments of the offending query in its syntax/semantic error messages; since
-/// rule SQL is customer-authored, that body must never reach a span attribute. `Json`
-/// only wraps `serde_json::Deserializer` errors over an untyped `Map<String, Value>`
-/// (see `parse_rows`), so it's a position-only syntax error ("expected value at line 1
-/// column 1") that can't embed row content, and `Http` is a transport error with the
-/// request URL already stripped, so both keep their normal `Display`.
-fn span_error_summary(e: &ChError) -> String {
+/// Crate-wide redacted summary of a `ChError`, safe for any everr-internal sink: span
+/// attributes (the `clickhouse.query` span's `otel.status_message`) and log records that
+/// reach the OTLP log bridge, both of which land in everr's INTERNAL tenant. `ChError`'s
+/// `Display` (used everywhere else, e.g. Postgres `last_error`) is deliberately left
+/// untouched: callers there rely on the full text. But `Status`'s body is the raw
+/// ClickHouse HTTP response, and ClickHouse echoes fragments of the offending query in its
+/// syntax/semantic error messages; since rule SQL is customer-authored, that body must
+/// never reach a span attribute or a log line. `Json` only wraps `serde_json::Deserializer`
+/// errors over an untyped `Map<String, Value>` (see `parse_rows`), so it's a position-only
+/// syntax error ("expected value at line 1 column 1") that can't embed row content, and
+/// `Http` is a transport error with the request URL already stripped, so both keep their
+/// normal `Display`.
+pub(crate) fn span_error_summary(e: &ChError) -> String {
     match e {
         ChError::Status(code, _) => format!("clickhouse http status {code}"),
         ChError::Http(_) | ChError::Json(_) => e.to_string(),

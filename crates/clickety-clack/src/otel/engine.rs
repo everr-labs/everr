@@ -38,8 +38,8 @@ pub fn log_bridge_filter(
     tracing_subscriber::filter::FilterFn::new(is_bridgeable as fn(&tracing::Metadata<'_>) -> bool)
 }
 
-/// Held in `main`'s scope; Drop shuts the providers down so buffered spans and the final
-/// metrics collection flush on exit.
+/// Held in `main`'s scope; Drop shuts the providers down so buffered spans, buffered log
+/// records, and the final metrics collection flush on exit.
 pub struct EngineTelemetryGuard {
     provider: SdkTracerProvider,
     meter_provider: SdkMeterProvider,

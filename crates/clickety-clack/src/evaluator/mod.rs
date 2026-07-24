@@ -366,8 +366,22 @@ pub async fn process_batch_inner(
                 // RuleHealth/Firing event on the transition. The error is capped before storage.
                 let now = time::OffsetDateTime::now_utc();
                 let msg: String = e.to_string().chars().take(500).collect();
+                // Log the redacted summary, NOT `msg`: `msg` (which carries the raw
+                // ChError, potentially echoing fragments of customer rule SQL from a
+                // ClickHouse Status body) is passed to `record_rule_failure` below
+                // unchanged, by design, since that populates the customer's own
+                // `last_error`. But this log line is exported via the OTLP log bridge
+                // (see `otel::engine`) into everr's INTERNAL tenant, so it must never
+                // carry customer SQL.
+                let redacted = crate::clickhouse::span_error_summary(&e);
                 for (job, _) in &members {
-                    tracing::error!(rule = ?job.rule, error = %msg, "evaluation query errored");
+                    // warn, not error: this is a handled per-tenant config failure,
+                    // already recorded to the rule-health ledger and owned by rule
+                    // health. At error level, tracing-opentelemetry's default
+                    // event->status mapping would mark the surrounding `queue.consume`
+                    // span Error on every tick of a customer's broken rule, polluting
+                    // engine-error trace queries with customer config noise.
+                    tracing::warn!(rule = ?job.rule, error = %redacted, "evaluation query errored");
                     match store
                         .record_rule_failure(job.rule, &job.tenant, &msg, degrade_after as i32, now)
                         .await

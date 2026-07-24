@@ -251,6 +251,11 @@ pub async fn run_maintenance(
                         metrics.record_outbox_relayed(n as u64)
                     }
                     Err(e) => {
+                        // Recorded on the retained `relay_span` handle, not via
+                        // `crate::otel::span_error` (which records on
+                        // `Span::current()`): the `.instrument()`ed future has already
+                        // returned and exited the span by this point, so it is no
+                        // longer current.
                         relay_span.record("otel.status_code", "ERROR");
                         relay_span.record("otel.status_message", tracing::field::display(&e));
                         tracing::error!(error = %e, "outbox relay failed");
