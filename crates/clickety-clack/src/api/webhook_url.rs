@@ -93,6 +93,19 @@ fn blocked_v4_range(ip: Ipv4Addr) -> Option<&'static str> {
     } else if o[0] == 0 {
         // "This network"; 0.0.0.0 (and on some stacks the whole /8) reaches loopback.
         Some("0.0.0.0/8 (this-network)")
+    } else if o[0] == 100 && (64..=127).contains(&o[1]) {
+        // Carrier-grade NAT space, commonly repurposed for overlay/internal networks
+        // (Tailscale, cloud VPCs).
+        Some("100.64.0.0/10 (shared/CGNAT)")
+    } else if o[0] == 192 && o[1] == 0 && o[2] == 0 {
+        Some("192.0.0.0/24 (IETF protocol assignments)")
+    } else if o[0] == 198 && (o[1] == 18 || o[1] == 19) {
+        // Benchmarking space, in practice another "safe to squat on" internal range.
+        Some("198.18.0.0/15 (benchmarking)")
+    } else if (224..=239).contains(&o[0]) {
+        Some("224.0.0.0/4 (multicast)")
+    } else if o[0] >= 240 {
+        Some("240.0.0.0/4 (reserved/broadcast)")
     } else {
         None
     }
@@ -110,7 +123,19 @@ fn blocked_v6_range(ip: Ipv6Addr) -> Option<&'static str> {
             return blocked_v4_range(v4).map(|_| "an IPv4-compatible blocked range");
         }
     }
-    let seg0 = ip.segments()[0];
+    let seg = ip.segments();
+    let seg0 = seg[0];
+    // NAT64 well-known prefix: the gateway forwards to the embedded IPv4 address,
+    // so judge that address by the IPv4 rules.
+    if seg0 == 0x64 && seg[1] == 0xff9b && seg[2..6] == [0, 0, 0, 0] {
+        let v4 = Ipv4Addr::new(
+            (seg[6] >> 8) as u8,
+            (seg[6] & 0xff) as u8,
+            (seg[7] >> 8) as u8,
+            (seg[7] & 0xff) as u8,
+        );
+        return blocked_v4_range(v4).map(|_| "a NAT64-embedded blocked range (64:ff9b::/96)");
+    }
     if ip.is_loopback() {
         Some("::1 (loopback)")
     } else if ip.is_unspecified() {
@@ -119,6 +144,8 @@ fn blocked_v6_range(ip: Ipv6Addr) -> Option<&'static str> {
         Some("fc00::/7 (unique-local)")
     } else if seg0 & 0xffc0 == 0xfe80 {
         Some("fe80::/10 (link-local)")
+    } else if seg0 & 0xff00 == 0xff00 {
+        Some("ff00::/8 (multicast)")
     } else {
         None
     }
@@ -205,6 +232,19 @@ mod tests {
     }
 
     #[test]
+    fn rejects_each_reserved_nonglobal_v4_range() {
+        rejected("http://100.64.0.1/x"); // shared/CGNAT 100.64/10
+        rejected("http://100.127.255.255/x"); // CGNAT upper bound
+        rejected("http://192.0.0.1/x"); // IETF protocol assignments 192.0.0/24
+        rejected("http://198.18.0.1/x"); // benchmarking 198.18/15
+        rejected("http://198.19.255.255/x"); // benchmarking upper bound
+        rejected("http://224.0.0.1/x"); // multicast 224/4
+        rejected("http://239.255.255.255/x"); // multicast upper bound
+        rejected("http://240.0.0.1/x"); // reserved 240/4
+        rejected("http://255.255.255.255/x"); // broadcast
+    }
+
+    #[test]
     fn boundary_v4_addresses_are_allowed() {
         ok("http://172.15.255.255/x"); // just below 172.16/12
         ok("http://172.32.0.1/x"); // just above 172.16/12
@@ -212,6 +252,12 @@ mod tests {
         ok("http://11.0.0.1/x"); // just above 10/8
         ok("http://192.169.0.1/x"); // just above 192.168/16
         ok("http://169.253.1.1/x"); // just below 169.254/16
+        ok("http://100.63.255.255/x"); // just below 100.64/10
+        ok("http://100.128.0.1/x"); // just above 100.64/10
+        ok("http://192.0.1.1/x"); // just above 192.0.0/24
+        ok("http://198.17.255.255/x"); // just below 198.18/15
+        ok("http://198.20.0.1/x"); // just above 198.18/15
+        ok("http://223.255.255.255/x"); // just below multicast
     }
 
     #[test]
@@ -234,6 +280,10 @@ mod tests {
         rejected("http://[::ffff:127.0.0.1]/x"); // v4-mapped loopback
         rejected("http://[::ffff:10.0.0.1]/x"); // v4-mapped private
         rejected("http://[::ffff:169.254.169.254]/x"); // v4-mapped metadata
+        rejected("http://[::ffff:100.64.0.1]/x"); // v4-mapped CGNAT
+        rejected("http://[ff02::1]/x"); // multicast ff00::/8
+        rejected("http://[64:ff9b::10.0.0.1]/x"); // NAT64 to private v4
+        rejected("http://[64:ff9b::7f00:1]/x"); // NAT64 to loopback
     }
 
     #[test]
@@ -241,6 +291,7 @@ mod tests {
         ok("http://[fec0::1]/x"); // just above fe80::/10 (deprecated site-local, not blocked)
         ok("http://[fb00::1]/x"); // just below fc00::/7
         ok("http://[::ffff:8.8.8.8]/x"); // v4-mapped public
+        ok("http://[64:ff9b::8.8.8.8]/x"); // NAT64 to public v4
     }
 
     #[test]

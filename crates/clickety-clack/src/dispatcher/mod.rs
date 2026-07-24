@@ -480,9 +480,24 @@ enum FilterOutcome {
     DeadLetterFailed,
 }
 
+/// Dead-letter every event of a claimed batch, stopping at the first write failure.
+/// The batch stays buffered when this errors, so a retry may re-dead-letter events
+/// written before the failure: duplicate dead-letter records are the accepted cost of
+/// never losing an event that was neither delivered nor recorded anywhere.
+async fn dead_letter_batch(
+    bus: &dyn EventBus,
+    events: &[Event],
+    reason: &str,
+) -> Result<(), crate::queue::QueueError> {
+    for ev in events {
+        bus.dead_letter(ev, reason).await?;
+    }
+    Ok(())
+}
+
 /// Load the tenant snapshot and drop suppressed events from a claimed flush batch.
 ///
-/// On a snapshot-load failure the representative event is dead-lettered (observable,
+/// On a snapshot-load failure the whole batch is dead-lettered (observable,
 /// recoverable). The returned [`FilterOutcome`] tells the caller whether the buffered
 /// batch may be drained or must stay put for a retry.
 ///
@@ -503,8 +518,7 @@ async fn filter_or_dead_letter(
             let reason = format!("loading tenant snapshot failed: {e}");
             tracing::error!(error = %e, group = %gid,
                 "loading tenant snapshot failed; dead-lettering claimed batch");
-            let rep = events[0].clone();
-            return match bus.dead_letter(&rep, &reason).await {
+            return match dead_letter_batch(bus, &events, &reason).await {
                 Ok(()) => FilterOutcome::DeadLettered,
                 Err(de) => {
                     tracing::error!(dead_letter_error = %de, group = %gid,
@@ -550,7 +564,7 @@ pub async fn flush_group(ctx: &DispatchCtx, gid: &str) {
 /// (Redis down), the release of the lease will fail for the same reason and the
 /// lease-expiry reclaim recovers the group.
 async fn rearm_for_retry(ctx: &DispatchCtx, gid: &str, taken_at: i64) {
-    if let Err(e) = ctx.groups.arm_repeat(gid, taken_at + TAKE_RETRY_MS).await {
+    if let Err(e) = ctx.groups.arm_repeat(gid, taken_at + TAKE_RETRY_MS, taken_at).await {
         tracing::error!(error = %e, group = %gid,
             "re-arming flush timer failed; group will be reclaimed on lease expiry");
     }
@@ -616,7 +630,7 @@ async fn flush_claimed_group(ctx: &DispatchCtx, gid: &str) {
             // Keep the reminder loop alive for still-firing members.
             if firing_count > 0 {
                 if let Some(ln) = batch.last_notified_ms {
-                    if let Err(e) = ctx.groups.arm_repeat(gid, ln + r).await {
+                    if let Err(e) = ctx.groups.arm_repeat(gid, ln + r, taken_at).await {
                         tracing::error!(error = %e, group = %gid, "arm_repeat failed");
                     }
                 }
@@ -653,7 +667,7 @@ async fn flush_claimed_group(ctx: &DispatchCtx, gid: &str) {
     // re-arm and therefore never repeat.
     if let Some(r) = repeat_ms {
         if firing_count > 0 {
-            if let Err(e) = ctx.groups.arm_repeat(gid, taken_at + r).await {
+            if let Err(e) = ctx.groups.arm_repeat(gid, taken_at + r, taken_at).await {
                 tracing::error!(error = %e, group = %gid, "arm_repeat failed");
             }
         }
@@ -695,12 +709,13 @@ async fn flush_claimed_group(ctx: &DispatchCtx, gid: &str) {
         group_key: meta.group_key.clone(),
         events,
     };
-    // Representative event for the dead-letter record (the batch shares a group key).
+    // Representative event for per-channel delivery bookkeeping (the batch shares a
+    // group key).
     let rep = notif.events[0].clone();
     // Resolve the buffered channel NAMES to their stored configs now, at delivery
-    // time. On a load failure the representative event is dead-lettered (observable,
-    // recoverable) and the batch drains; if even the dead-letter write fails, the
-    // batch stays buffered and the re-armed timer retries it.
+    // time. On a load failure the whole batch is dead-lettered (observable,
+    // recoverable) and drains; if a dead-letter write fails, the batch stays
+    // buffered and the re-armed timer retries it.
     let loaded = match ctx
         .store
         .channels_by_names(ctx.cipher.as_ref(), &tenant, &meta.channels)
@@ -712,7 +727,7 @@ async fn flush_claimed_group(ctx: &DispatchCtx, gid: &str) {
             crate::otel::span_error(&e);
             tracing::error!(error = %e, group = %gid,
                 "loading channels failed; dead-lettering claimed batch");
-            match ctx.bus.dead_letter(&rep, &reason).await {
+            match dead_letter_batch(ctx.bus.as_ref(), &notif.events, &reason).await {
                 Ok(()) => commit_drain(ctx, gid, &event_fields, taken_at).await,
                 Err(de) => {
                     tracing::error!(dead_letter_error = %de, group = %gid,
@@ -1758,9 +1773,9 @@ mod flush_dead_letter_tests {
         )
     }
 
-    /// On snapshot-load failure the claimed batch is dead-lettered (representative event,
-    /// descriptive reason) and `None` is returned so the caller stops — the alerts are
-    /// neither silently dropped nor delivered unfiltered.
+    /// On snapshot-load failure EVERY event of the claimed batch is dead-lettered with a
+    /// descriptive reason — the alerts are neither silently dropped nor delivered
+    /// unfiltered, and no event vanishes without a recoverable record.
     #[tokio::test]
     async fn snapshot_failure_dead_letters_the_batch() {
         let bus = RecordingBus::default();
@@ -1783,15 +1798,11 @@ mod flush_dead_letter_tests {
             matches!(out, FilterOutcome::DeadLettered),
             "snapshot failure must stop the flush, with the batch durably dead-lettered"
         );
-        assert_eq!(bus.dead_letter_calls.load(Ordering::SeqCst), 1);
+        assert_eq!(bus.dead_letter_calls.load(Ordering::SeqCst), 2);
         let recorded = bus.dead_lettered.lock().unwrap();
-        assert_eq!(
-            recorded.len(),
-            1,
-            "exactly one representative event dead-lettered"
-        );
-        // The representative is the first event of the claimed batch.
+        assert_eq!(recorded.len(), 2, "every event of the batch dead-lettered");
         assert_eq!(recorded[0].0.labels.get("service").unwrap(), "api");
+        assert_eq!(recorded[1].0.labels.get("service").unwrap(), "web");
         assert!(
             recorded[0].1.contains("loading tenant snapshot failed"),
             "reason is descriptive: {}",

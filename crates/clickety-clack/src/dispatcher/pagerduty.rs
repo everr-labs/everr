@@ -5,7 +5,7 @@ use crate::dispatcher::notify::{
 use crate::domain::channel::ChannelConfig;
 use crate::domain::{Event, EventStatus};
 use async_trait::async_trait;
-use futures::{StreamExt, TryStreamExt};
+use futures::StreamExt;
 use serde_json::{json, Value};
 
 const DEFAULT_ENQUEUE_URL: &str = "https://events.pagerduty.com/v2/enqueue";
@@ -129,19 +129,45 @@ impl Notifier for PagerDutyNotifier {
             return Err(config_mismatch("pagerduty", config));
         };
         // PagerDuty incidents are keyed per-instance (dedup_key), so a batch is sent
-        // as one Events-API call per event, overlapped up to SEND_CONCURRENCY. PD's
-        // own dedup makes a batch-retry (which may re-send already-delivered or
-        // still-in-flight events) idempotent for both trigger and resolve, so the
-        // first error may abort the batch mid-flight and the retry re-sends safely.
+        // as one Events-API call per event, overlapped up to SEND_CONCURRENCY. Every
+        // event gets its send attempt even when others fail: aborting on the first
+        // error would strand the not-yet-sent tail, and once the group-level ledger
+        // row is marked failed the reflush dedup-skips the batch, so those events
+        // would never be retried. Errors are aggregated after the fan-out instead,
+        // preferring Transient so the retry wrapper re-sends the batch (PD's own
+        // dedup makes re-sending already-delivered events idempotent for both
+        // trigger and resolve).
         let sends: Vec<_> = notif
             .events
             .iter()
             .map(|ev| self.send_event(routing_key, ev))
             .collect();
-        futures::stream::iter(sends)
+        let results: Vec<Result<(), NotifyError>> = futures::stream::iter(sends)
             .buffer_unordered(SEND_CONCURRENCY)
-            .try_collect::<()>()
-            .await
+            .collect()
+            .await;
+        let total = results.len();
+        let mut first_transient: Option<String> = None;
+        let mut first_permanent: Option<String> = None;
+        let mut failed = 0usize;
+        for r in results {
+            if let Err(e) = r {
+                failed += 1;
+                match e {
+                    NotifyError::Transient(m) => first_transient.get_or_insert(m),
+                    NotifyError::Permanent(m) => first_permanent.get_or_insert(m),
+                };
+            }
+        }
+        match (first_transient, first_permanent) {
+            (None, None) => Ok(()),
+            (Some(m), _) => Err(NotifyError::Transient(format!(
+                "{failed}/{total} events failed; first transient error: {m}"
+            ))),
+            (None, Some(m)) => Err(NotifyError::Permanent(format!(
+                "{failed}/{total} events failed; first error: {m}"
+            ))),
+        }
     }
 }
 
