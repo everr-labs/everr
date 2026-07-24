@@ -8,6 +8,7 @@ use crate::otel::alert_log::{build_log_record, AlertEventType, LogExtras};
 use crate::otel::exporter::{AlertLogExporter, BufferedLog};
 use std::sync::Arc;
 use std::time::Duration;
+use tracing::Instrument;
 
 /// Map a transition event to its alert-log event type. Transition role only emits the
 /// transition vocabulary: firing/resolved instance transitions and rule-health; delivery
@@ -54,30 +55,39 @@ pub async fn run_events_consumer(
                 continue;
             }
         };
-        if entries.is_empty() {
-            // No work: yield to the runtime and watch for shutdown. `consume_logexport`
-            // normally blocks up to `block_ms`, but a fast-returning backend (or fake)
-            // must not spin a hot loop that starves a single-threaded executor.
-            tokio::select! {
-                _ = tokio::time::sleep(Duration::from_millis(50)) => {}
-                _ = shutdown.changed() => {}
+        let span = tracing::info_span!("events.export_batch", batch = entries.len());
+        async {
+            if entries.is_empty() {
+                // No work: yield to the runtime and watch for shutdown. `consume_logexport`
+                // normally blocks up to `block_ms`, but a fast-returning backend (or fake)
+                // must not spin a hot loop that starves a single-threaded executor.
+                tokio::select! {
+                    _ = tokio::time::sleep(Duration::from_millis(50)) => {}
+                    _ = shutdown.changed() => {}
+                }
+                // `continue` isn't valid inside this async block (it's not a loop);
+                // returning has the same effect of skipping the export below and
+                // falling through to the next `loop` iteration.
+                return;
             }
-            continue;
-        }
-        let buffered: Vec<BufferedLog> = entries.iter().map(|e| to_buffered(&e.event)).collect();
-        match exporter.export(&buffered).await {
-            Ok(()) => {
-                for e in &entries {
-                    if let Err(err) = bus.ack_logexport(&e.id).await {
-                        tracing::error!(error = %err, "logexport ack failed");
+            let buffered: Vec<BufferedLog> =
+                entries.iter().map(|e| to_buffered(&e.event)).collect();
+            match exporter.export(&buffered).await {
+                Ok(()) => {
+                    for e in &entries {
+                        if let Err(err) = bus.ack_logexport(&e.id).await {
+                            tracing::error!(error = %err, "logexport ack failed");
+                        }
                     }
                 }
-            }
-            Err(err) => {
-                // Leave unacked: the group redelivers on the next read (pending entries).
-                tracing::error!(error = %err, n = entries.len(), "alert-log export failed; will retry");
+                Err(err) => {
+                    // Leave unacked: the group redelivers on the next read (pending entries).
+                    tracing::error!(error = %err, n = entries.len(), "alert-log export failed; will retry");
+                }
             }
         }
+        .instrument(span)
+        .await;
     }
     tracing::info!("events consumer stopped");
 }

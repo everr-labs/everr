@@ -69,6 +69,16 @@ pub async fn run_scheduler(
     tracing::info!("scheduler stopped");
 }
 
+#[tracing::instrument(
+    name = "scheduler.tick",
+    skip_all,
+    fields(
+        shards = owned_shards.len(),
+        jobs = tracing::field::Empty,
+        otel.status_code = tracing::field::Empty,
+        otel.status_message = tracing::field::Empty
+    )
+)]
 async fn tick_once(
     store: &PgStore,
     queue: &dyn Queue,
@@ -77,17 +87,30 @@ async fn tick_once(
     shard_count: i32,
 ) -> anyhow::Result<()> {
     let now = OffsetDateTime::now_utc();
-    let due = store
+    let due = match store
         .claim_due_rules_sharded(now, batch, owned_shards, shard_count)
-        .await?;
+        .await
+    {
+        Ok(due) => due,
+        Err(e) => {
+            crate::otel::span_error(&e);
+            return Err(e.into());
+        }
+    };
+    let mut jobs = 0u64;
     for rule in due {
         let job = EvalJob {
             tenant: rule.tenant,
             rule: rule.id,
             eval_ts: now,
         };
-        queue.enqueue(&job).await?;
+        if let Err(e) = queue.enqueue(&job).await {
+            crate::otel::span_error(&e);
+            return Err(e.into());
+        }
+        jobs += 1;
     }
+    tracing::Span::current().record("jobs", jobs);
     Ok(())
 }
 
@@ -96,6 +119,16 @@ async fn tick_once(
 /// evaluation never competes with (or is head-of-line blocked by) rule evaluation.
 /// Unlike rules, SLOs have no per-resource interval — `base_cadence_secs` is the
 /// single fixed cadence applied to every SLO's next `next_eval`.
+#[tracing::instrument(
+    name = "scheduler.tick_slos",
+    skip_all,
+    fields(
+        shards = owned_shards.len(),
+        jobs = tracing::field::Empty,
+        otel.status_code = tracing::field::Empty,
+        otel.status_message = tracing::field::Empty
+    )
+)]
 pub async fn tick_slos_once(
     store: &PgStore,
     queue: &dyn Queue,
@@ -105,16 +138,29 @@ pub async fn tick_slos_once(
     base_cadence_secs: i32,
 ) -> anyhow::Result<()> {
     let now = OffsetDateTime::now_utc();
-    let due = store
+    let due = match store
         .claim_due_slos_sharded(now, batch, owned_shards, shard_count, base_cadence_secs)
-        .await?;
+        .await
+    {
+        Ok(due) => due,
+        Err(e) => {
+            crate::otel::span_error(&e);
+            return Err(e.into());
+        }
+    };
+    let mut jobs = 0u64;
     for slo in due {
         let job = SloEvalJob {
             tenant: slo.tenant,
             slo: slo.id,
             eval_ts: now,
         };
-        queue.enqueue_slo(&job).await?;
+        if let Err(e) = queue.enqueue_slo(&job).await {
+            crate::otel::span_error(&e);
+            return Err(e.into());
+        }
+        jobs += 1;
     }
+    tracing::Span::current().record("jobs", jobs);
     Ok(())
 }
