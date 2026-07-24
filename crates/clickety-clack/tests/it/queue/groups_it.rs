@@ -23,6 +23,7 @@ fn ev(inst: &str, status: EventStatus) -> Event {
         suppressed: false,
         evidence: None,
         evidence_truncated: false,
+        traceparent: None,
     }
 }
 
@@ -361,7 +362,7 @@ async fn mark_notified_and_arm_repeat_drive_the_reminder_timer() {
 
     // Simulate a send + the reminder arm the flusher performs.
     groups.mark_notified("g4", now).await.unwrap();
-    groups.arm_repeat("g4", now + 5_000).await.unwrap();
+    groups.arm_repeat("g4", now + 5_000, now).await.unwrap();
 
     assert!(
         groups.claim_due(now + 4_999, 16).await.unwrap().is_empty(),
@@ -379,8 +380,8 @@ async fn mark_notified_and_arm_repeat_drive_the_reminder_timer() {
     assert_eq!(batch.repeat_interval_ms, Some(5_000));
 
     // arm_repeat never pushes an armed timer OUT; it only pulls it in.
-    groups.arm_repeat("g4", now + 9_000).await.unwrap();
-    groups.arm_repeat("g4", now + 20_000).await.unwrap();
+    groups.arm_repeat("g4", now + 9_000, now).await.unwrap();
+    groups.arm_repeat("g4", now + 20_000, now).await.unwrap();
     assert_eq!(
         groups.claim_due(now + 9_000, 16).await.unwrap(),
         vec!["g4".to_string()],
@@ -412,7 +413,7 @@ async fn new_event_pulls_in_a_far_repeat_timer() {
     groups.claim_due(now, 16).await.unwrap();
     groups.take_group("g5", now).await.unwrap();
     // Reminder armed one hour out.
-    groups.arm_repeat("g5", now + 3_600_000).await.unwrap();
+    groups.arm_repeat("g5", now + 3_600_000, now).await.unwrap();
 
     // A new event at now+10 must be deliverable at last_flush + group_interval,
     // not in an hour.
@@ -434,6 +435,61 @@ async fn new_event_pulls_in_a_far_repeat_timer() {
         groups.claim_due(now + 1_000, 16).await.unwrap(),
         vec!["g5".to_string()],
         "fresh batch pulled the timer in to the group_interval schedule"
+    );
+}
+
+/// Route timings can exceed the default group-hash TTL (7d). Arming a flush timer
+/// past the TTL must extend the hash's lifetime to cover the deadline, or the
+/// flusher would later claim a group whose hash already expired and silently drop
+/// the buffered batch or reminder.
+#[tokio::test]
+async fn long_timers_extend_the_group_hash_ttl() {
+    let (redis, groups) = redis_groups().await;
+    const DAY_MS: i64 = 24 * 60 * 60 * 1000;
+    let now = 1_000_000i64;
+
+    // group_wait of 14d: the buffered batch's flush timer outlives the default TTL.
+    groups
+        .add_to_group(
+            "gttl",
+            &meta(),
+            "a",
+            &ev("a", EventStatus::Firing),
+            now,
+            14 * DAY_MS,
+            1_000,
+            true,
+            None,
+        )
+        .await
+        .unwrap();
+    let client = redis::Client::open(redis.url.as_str()).unwrap();
+    let mut conn = client.get_multiplexed_async_connection().await.unwrap();
+    let pttl: i64 = redis::cmd("PTTL")
+        .arg("cc:group:gttl")
+        .query_async(&mut conn)
+        .await
+        .unwrap();
+    assert!(
+        pttl > 14 * DAY_MS,
+        "add_to_group must keep the hash alive past its armed deadline, got PTTL {pttl}"
+    );
+
+    // A reminder armed 20d out (claim first so the 14d timer is off the flush ZSET
+    // and arm_repeat actually arms the later deadline) extends the TTL further.
+    groups.claim_due(now + 14 * DAY_MS, 16).await.unwrap();
+    groups
+        .arm_repeat("gttl", now + 20 * DAY_MS, now)
+        .await
+        .unwrap();
+    let pttl: i64 = redis::cmd("PTTL")
+        .arg("cc:group:gttl")
+        .query_async(&mut conn)
+        .await
+        .unwrap();
+    assert!(
+        pttl > 20 * DAY_MS,
+        "arm_repeat must keep the hash alive past the reminder deadline, got PTTL {pttl}"
     );
 }
 
@@ -473,7 +529,7 @@ async fn old_format_group_hash_takes_cleanly() {
 
     // The new bookkeeping calls are harmless on such a group.
     groups.mark_notified("old1", 2_000).await.unwrap();
-    groups.arm_repeat("old1", 3_000).await.unwrap();
+    groups.arm_repeat("old1", 3_000, 0).await.unwrap();
     assert_eq!(
         groups.claim_due(3_000, 16).await.unwrap(),
         vec!["old1".to_string()]

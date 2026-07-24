@@ -26,6 +26,7 @@ fn ev(tenant: &str, slug: &str) -> Event {
         suppressed: false,
         evidence: None,
         evidence_truncated: false,
+        traceparent: None,
     }
 }
 

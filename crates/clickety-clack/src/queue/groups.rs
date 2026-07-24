@@ -155,7 +155,7 @@ pub trait GroupStore: Send + Sync {
     /// Arm (or pull in) the group's flush timer so it fires no later than `due_ms`.
     /// Used to schedule the next still-firing reminder check after a flush. No-op if
     /// the group hash no longer exists.
-    async fn arm_repeat(&self, group_id: &str, due_ms: i64) -> Result<(), QueueError>;
+    async fn arm_repeat(&self, group_id: &str, due_ms: i64, now_ms: i64) -> Result<(), QueueError>;
 }
 
 pub struct RedisGroups {
@@ -178,9 +178,22 @@ const ADD_LUA: &str = r#"
 -- anything older; et: survives takes (like fi:) so a stale event that arrives after the
 -- newer one already flushed still cannot resurrect the alert.
 local etk = 'et:'..ARGV[2]
+-- Keep the hash alive past any armed flush deadline (+ 1d slack): route timings
+-- (group_wait/group_interval/repeat_interval) may exceed the default TTL, and an
+-- expired hash under a still-armed timer makes the flusher claim an empty group,
+-- silently dropping the buffered batch or reminder.
+local function extend_ttl()
+  local ttl = tonumber(ARGV[8])
+  local armed = redis.call('ZSCORE', KEYS[2], ARGV[1])
+  if armed then
+    local need = tonumber(armed) - tonumber(ARGV[5]) + 86400000
+    if need > ttl then ttl = need end
+  end
+  redis.call('PEXPIRE', KEYS[1], ttl)
+end
 local prev = redis.call('HGET', KEYS[1], etk)
 if prev and tonumber(ARGV[11]) < tonumber(prev) then
-  redis.call('PEXPIRE', KEYS[1], ARGV[8])
+  extend_ttl()
   return 0
 end
 redis.call('HSET', KEYS[1], etk, ARGV[11])
@@ -196,7 +209,6 @@ else
   redis.call('HDEL', KEYS[1], '__repeat_ms__')
 end
 redis.call('HSETNX', KEYS[1], '__meta__', ARGV[4])
-redis.call('PEXPIRE', KEYS[1], ARGV[8])
 local last = redis.call('HGET', KEYS[1], '__last_flush__')
 local due
 if last then
@@ -210,6 +222,7 @@ local armed = redis.call('ZSCORE', KEYS[2], ARGV[1])
 if (not armed) or (due < tonumber(armed)) then
   redis.call('ZADD', KEYS[2], due, ARGV[1])
 end
+extend_ttl()
 return 1
 "#;
 
@@ -295,7 +308,15 @@ if redis.call('EXISTS', KEYS[1]) == 0 then return 0 end
 local armed = redis.call('ZSCORE', KEYS[2], ARGV[1])
 if (not armed) or (tonumber(ARGV[2]) < tonumber(armed)) then
   redis.call('ZADD', KEYS[2], ARGV[2], ARGV[1])
+  armed = ARGV[2]
 end
+-- Same TTL rule as ADD_LUA's extend_ttl: the hash must outlive the armed
+-- deadline (+ 1d slack) or a long repeat_interval expires the group under
+-- its own reminder timer.
+local ttl = tonumber(ARGV[4])
+local need = tonumber(armed) - tonumber(ARGV[3]) + 86400000
+if need > ttl then ttl = need end
+redis.call('PEXPIRE', KEYS[1], ttl)
 return 1
 "#;
 
@@ -464,13 +485,15 @@ impl GroupStore for RedisGroups {
         Ok(())
     }
 
-    async fn arm_repeat(&self, group_id: &str, due_ms: i64) -> Result<(), QueueError> {
+    async fn arm_repeat(&self, group_id: &str, due_ms: i64, now_ms: i64) -> Result<(), QueueError> {
         let mut conn = self.conn.clone();
         let _: i64 = ARM_REPEAT_SCRIPT
             .key(group_key(group_id))
             .key(FLUSH_ZSET)
             .arg(group_id)
             .arg(due_ms)
+            .arg(now_ms)
+            .arg(GROUP_TTL_MS)
             .invoke_async(&mut conn)
             .await?;
         Ok(())

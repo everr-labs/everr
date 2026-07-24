@@ -571,13 +571,14 @@ mod helper_tests {
             ChannelConfig::Webhook {
                 url: "https://wh/AUTH".into(),
             },
-            ChannelConfig::Pagerduty {
-                routing_key: "PD-KEY".into(),
+            ChannelConfig::Telegram {
+                bot_token: "TG-TOKEN".into(),
+                chat_ids: vec!["1".into()],
             },
         ] {
             let v = encrypt_channel(&c, &ch).unwrap();
             let raw = serde_json::to_string(&v).unwrap();
-            assert!(!raw.contains("SECRET") && !raw.contains("AUTH") && !raw.contains("PD-KEY"));
+            assert!(!raw.contains("SECRET") && !raw.contains("AUTH") && !raw.contains("TG-TOKEN"));
             assert_eq!(v["type"], ch.channel_name());
             assert_eq!(decrypt_channel(&c, &v).unwrap(), ch);
         }

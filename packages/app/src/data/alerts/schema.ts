@@ -9,6 +9,20 @@ import { parseWindow } from "./window";
 
 const nonEmptyString = z.string().min(1);
 
+/**
+ * A tenant-unique rule name, mirroring clickety-clack's `validate_name`
+ * (api/identity.rs): 1..=128 chars of [A-Za-z0-9_.-] (no `/`, which the
+ * composed "project/slug" identity adds). Enforced at parse time so a bad
+ * name fails with the file path instead of a raw CC validation error
+ * mid-apply. Same contract as the SLO schema's name field.
+ */
+const ruleNameSchema = z
+  .string()
+  .regex(
+    /^[A-Za-z0-9_.-]{1,128}$/,
+    "name must be 1-128 chars of [A-Za-z0-9_.-]",
+  );
+
 const alertLabelsSchema = z.record(nonEmptyString, nonEmptyString);
 
 // A human-facing name/description overlay on a resource whose canonical
@@ -116,7 +130,7 @@ export const AlertRuleYamlSchema = z
     kind: z.literal("AlertRule"),
     metadata: z
       .object({
-        name: nonEmptyString,
+        name: ruleNameSchema,
         project: dashboardProjectSchema.optional(),
         labels: alertLabelsSchema.optional(),
       })

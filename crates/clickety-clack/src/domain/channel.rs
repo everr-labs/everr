@@ -2,10 +2,10 @@ use crate::domain::ids::TenantId;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-/// A delivery channel binding. The secret-bearing variants (Slack, PagerDuty,
-/// Telegram) are redacted on API read via [`ChannelConfig::redacted`]. Email
-/// recipients live here; the SMTP relay itself is process-level config held by
-/// the EmailNotifier.
+/// A delivery channel binding. The secret-bearing variants (Slack, Telegram)
+/// are redacted on API read via [`ChannelConfig::redacted`]. Email recipients
+/// live here; the SMTP relay itself is process-level config held by the
+/// EmailNotifier.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "lowercase")]
 pub enum ChannelConfig {
@@ -14,9 +14,6 @@ pub enum ChannelConfig {
     },
     Slack {
         url: String,
-    },
-    Pagerduty {
-        routing_key: String,
     },
     Email {
         to: Vec<String>,
@@ -33,7 +30,6 @@ impl ChannelConfig {
         match self {
             ChannelConfig::Webhook { .. } => "webhook",
             ChannelConfig::Slack { .. } => "slack",
-            ChannelConfig::Pagerduty { .. } => "pagerduty",
             ChannelConfig::Email { .. } => "email",
             ChannelConfig::Telegram { .. } => "telegram",
         }
@@ -56,10 +52,6 @@ impl ChannelConfig {
             ChannelConfig::Slack { .. } => SecretFields {
                 encrypted: &["url"],
                 masked: &["url"],
-            },
-            ChannelConfig::Pagerduty { .. } => SecretFields {
-                encrypted: &["routing_key"],
-                masked: &["routing_key"],
             },
             ChannelConfig::Email { .. } => SecretFields {
                 encrypted: &[],
@@ -107,7 +99,7 @@ pub struct SecretFields {
 
 /// A named, reusable delivery channel. Channels are the secret-bearing endpoint
 /// configs; receivers reference them by name (see [`crate::domain::Receiver`]),
-/// so one Slack hook or PagerDuty key can back any number of receivers and be
+/// so one Slack hook or Telegram bot can back any number of receivers and be
 /// rotated in a single place.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Channel {
@@ -154,9 +146,6 @@ mod tests {
         for ch in [
             ChannelConfig::Webhook { url: "u".into() },
             ChannelConfig::Slack { url: "u".into() },
-            ChannelConfig::Pagerduty {
-                routing_key: "k".into(),
-            },
             ChannelConfig::Email { to: vec![] },
             ChannelConfig::Telegram {
                 bot_token: "t".into(),
@@ -172,11 +161,11 @@ mod tests {
 
     #[test]
     fn redacted_masks_secrets_but_keeps_kind() {
-        let pd = ChannelConfig::Pagerduty {
-            routing_key: "super-secret".into(),
+        let sl = ChannelConfig::Slack {
+            url: "https://hooks.slack.test/super-secret".into(),
         };
-        match pd.redacted() {
-            ChannelConfig::Pagerduty { routing_key } => assert_eq!(routing_key, "***"),
+        match sl.redacted() {
+            ChannelConfig::Slack { url } => assert_eq!(url, "***"),
             _ => panic!("kind changed"),
         }
         let wh = ChannelConfig::Webhook {

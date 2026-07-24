@@ -80,6 +80,12 @@ pub struct Event {
     /// True when evidence was cut down (column cap) or dropped entirely (byte cap).
     #[serde(default)]
     pub evidence_truncated: bool,
+    /// W3C traceparent of the evaluation span that emitted this event, for
+    /// cross-process trace linking in the dispatcher. Serde-defaulted so
+    /// pre-upgrade payloads (Redis streams, group buffers, outbox) still
+    /// deserialize; None when engine telemetry is disabled.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub traceparent: Option<String>,
 }
 
 impl Event {
@@ -113,6 +119,7 @@ impl Event {
             suppressed: false,
             evidence: None,
             evidence_truncated: false,
+            traceparent: None,
         }
     }
 
@@ -142,6 +149,7 @@ impl Event {
             suppressed: false,
             evidence: None,
             evidence_truncated: false,
+            traceparent: None,
         }
     }
 
@@ -325,6 +333,31 @@ mod tests {
         assert_eq!(ev.slo, None);
         let v = serde_json::to_value(&ev).unwrap();
         assert!(!v.as_object().unwrap().contains_key("slo"));
+    }
+
+    #[test]
+    fn traceparent_field_is_optional_and_round_trips() {
+        let mut ev = Event::new(
+            TenantId::from_trusted(Uuid::nil().to_string()),
+            RuleId(Uuid::nil()),
+            InstanceKey("k".into()),
+            EventStatus::Firing,
+            BTreeMap::new(),
+            Some(1.0),
+            Severity::Warning,
+            BTreeMap::new(),
+            OffsetDateTime::UNIX_EPOCH,
+        );
+        // Pre-upgrade payload: no field present.
+        let legacy = serde_json::to_value(&ev).unwrap();
+        assert!(legacy.get("traceparent").is_none());
+        let back: Event = serde_json::from_value(legacy).unwrap();
+        assert_eq!(back.traceparent, None);
+        // Stamped payload round-trips.
+        ev.traceparent = Some("00-0af7651916cd43dd8448eb211c80319c-b7ad6b7169203331-01".into());
+        let json = serde_json::to_value(&ev).unwrap();
+        let back: Event = serde_json::from_value(json).unwrap();
+        assert_eq!(ev.traceparent, back.traceparent);
     }
 
     #[test]

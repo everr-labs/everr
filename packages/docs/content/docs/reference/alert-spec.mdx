@@ -35,6 +35,7 @@ spec:
 | `maxInterval` | string | no | Duration string (`<int><s\|m\|h\|d>`), the ceiling for clickety-clack's adaptive evaluation backoff: the interval it may widen out to before flagging the rule degraded. When both parse, it must be greater than or equal to `evaluationInterval`. Omit it to use the engine's default. |
 | `annotations` | map (string to string) | no | Free-form key/value pairs passed straight through to the clickety-clack rule alongside Everr's own generated annotations. Keys starting with `everr.`, and the exact keys `summary`, `description`, `link.alert`, and `link.runbook`, are reserved for Everr's generated sugar and rejected here. |
 | `display` | object | no | `name` and/or `description`, both optional. Human-facing labels. |
+| `runbook` | string | no | A linked runbook: bare `slug` (resolved against the alert's own project) or `project/slug`. Must resolve at apply time, either to a runbook in the same apply or to one owned by another repo. Generates the `link.runbook` notification annotation. The legacy `notebook` key is an accepted alias. |
 
 Ownership is keyed by the rule's engine name (`<project>/<slug>`) plus the `everr.repoid` annotation. A rule created directly through the engine API under a name your config declares is an ownership conflict at apply time: `everr apply` fails fast unless run with `--adopt`, which takes the rule over in place and stamps it with your repoid. A rule already carrying your repo's `everr.repoid` is treated as part of that config: apply updates it when the spec drifts and prunes it if no YAML file declares it.
 
@@ -66,7 +67,7 @@ repoid: "my-explicit-id"
 
 If there is neither an `origin` remote nor an `everr.yaml` manifest, apply errors and tells you to add a remote or create `everr.yaml`.
 
-Declarations sit flat in `everr/`, named by kind: `*.alert.yaml`, `*.dashboard.yaml`, `*.runbook.yaml` (the legacy `*.notebook.yaml` suffix is still recognized). `everr apply ./everr` discovers every `kind: Dashboard`, `kind: AlertRule`, and `kind: Runbook` document under the directory and makes the live resources for that repoid exactly match the tree: new documents are created, changed ones updated, and removed ones **deleted**. The kind suffix is a naming convention only: apply routes by the `kind:` field. Use `--preview` to stage the changes for review without touching the live state (preview rules evaluate but never notify). See the [`everr apply` reference](/docs/reference/cli#dashboards-gitops).
+Declarations sit flat in `everr/`, named by kind: `*.alert.yaml`, `*.dashboard.yaml`, `*.runbook.yaml`, `*.slo.yaml` (the legacy `*.notebook.yaml` suffix is still recognized). `everr apply ./everr` discovers every `kind: Dashboard`, `kind: AlertRule`, `kind: Runbook`, and `kind: SLO` document under the directory and makes the live resources for that repoid exactly match the tree: new documents are created, changed ones updated, and removed ones **deleted**. The kind suffix is a naming convention only: apply routes by the `kind:` field. Use `--preview` to stage the changes for review without touching the live state (preview rules evaluate but never notify). See the [`everr apply` reference](/docs/reference/cli#dashboards-gitops).
 
 ## Constraints and errors
 

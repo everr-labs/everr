@@ -5,7 +5,6 @@ mod dispatch_it;
 mod email_it;
 mod group_reliability_it;
 mod group_secret_it;
-mod pagerduty_it;
 mod repeat_it;
 mod routing_dispatch_it;
 mod slack_it;

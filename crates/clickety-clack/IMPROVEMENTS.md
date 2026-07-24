@@ -61,8 +61,8 @@ columnar store*, not *streaming rules over a TSDB*.
   **Addressed in §2.**
 - **Three stateful dependencies (Postgres + Redis + ClickHouse).** Operationally heavy versus
   Prometheus+Alertmanager (a couple of single binaries) or Grafana Alerting (one DB).
-- **Narrow integrations.** One data source (ClickHouse). Four notification channels
-  (Slack/email/PagerDuty/webhook) with **fixed per-channel rendering** — no template
+- **Narrow integrations.** One data source (ClickHouse). Three notification channels
+  (Slack/email/webhook) with **fixed per-channel rendering** — no template
   customization, no Opsgenie/Teams/SNS/etc.
 - **No higher-order primitives.** No recording rules, SLO burn-rate primitives, or anomaly
   detection. SQL gives you the rope to hand-roll them, but they're not first-class.

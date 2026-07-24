@@ -1,14 +1,14 @@
 # The security model: secret encryption at rest
 
 This explains how clickety-clack protects the delivery secrets it stores — Slack
-webhook URLs, PagerDuty routing keys, and subscription webhook URLs — and the
+webhook URLs, Telegram bot tokens, and subscription webhook URLs — and the
 design decisions behind it. For the operator steps see
 [manage secret encryption](../how-to/manage-secret-encryption.md).
 
 ## The threat being addressed
 
 clickety-clack stores customer-supplied delivery secrets. A Slack incoming-webhook
-URL or a PagerDuty routing key is a bearer credential: anyone who reads it can post
+URL or a Telegram bot token is a bearer credential: anyone who reads it can post
 as that integration. These values must not sit in cleartext where a database dump,
 a Redis snapshot, an audit-log export, or an error log could expose them.
 
@@ -20,13 +20,13 @@ letters, not in error messages.**
 
 | Secret | At rest in… | Protection |
 | ------ | ----------- | ---------- |
-| Slack URL, PagerDuty routing key, Telegram bot token (`channels.config`) | Postgres | AES-256-GCM encrypted |
+| Slack URL, Telegram bot token (`channels.config`) | Postgres | AES-256-GCM encrypted |
 | Subscription webhook URL (`subscriptions.webhook_url`) | Postgres | AES-256-GCM encrypted |
 | The delivery target in the audit log (`notifications.target`) | Postgres | one-way `sha256:` digest (not recoverable) |
 | The target in dead-letter records and logs | Redis / logs | redacted digest; transport errors strip the URL |
 
 Note what is **not** treated as secret: plain webhook receiver URLs and email
-recipient addresses are structural configuration, stored as-is. Only the three
+recipient addresses are structural configuration, stored as-is. Only the two
 bearer-credential cases above are encrypted.
 
 ## Encryption at the storage boundary

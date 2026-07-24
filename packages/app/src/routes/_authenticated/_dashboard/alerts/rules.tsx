@@ -46,16 +46,21 @@ export const Route = createFileRoute("/_authenticated/_dashboard/alerts/rules")(
     staticData: { breadcrumb: "Rules" },
     head: () => ({ meta: [{ title: "Everr - Alerts Rules" }] }),
     validateSearch: RulesSearchSchema,
-    loaderDeps: ({ search }) => ({ health: search.health }),
+    loaderDeps: ({ search }) => ({
+      health: search.health,
+      preview: search.preview,
+    }),
     loader: ({ context: { queryClient }, deps }) =>
-      queryClient.prefetchInfiniteQuery(ccQueries.rulesPage(deps.health)),
+      queryClient.prefetchInfiniteQuery(
+        ccQueries.rulesPage(deps.health, deps.preview),
+      ),
     component: CcRulesPage,
   },
 );
 
 function CcRulesPage() {
   const qc = useQueryClient();
-  const { health } = Route.useSearch();
+  const { health, preview } = Route.useSearch();
   const {
     data,
     isPending,
@@ -64,7 +69,7 @@ function CcRulesPage() {
     fetchNextPage,
     hasNextPage,
     isFetchingNextPage,
-  } = useInfiniteQuery(ccQueries.rulesPage(health));
+  } = useInfiniteQuery(ccQueries.rulesPage(health, preview));
   const rules = data?.pages.flatMap((p) => p.items) ?? [];
 
   const toggle = useMutation({

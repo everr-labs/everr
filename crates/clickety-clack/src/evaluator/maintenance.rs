@@ -5,6 +5,7 @@ use crate::queue::EventBus;
 use crate::stores::{PgStore, RedisLease};
 use std::time::Duration as StdDuration;
 use time::{Duration, OffsetDateTime};
+use tracing::Instrument;
 
 /// Grace window before the relay re-publishes an unpublished outbox row.
 pub const OUTBOX_GRACE: Duration = Duration::seconds(5);
@@ -232,11 +233,33 @@ pub async fn run_maintenance(
         match lease.acquire_or_refresh().await {
             Ok(true) => {
                 let now = OffsetDateTime::now_utc();
-                match relay_once(&store, bus.as_ref(), now - OUTBOX_GRACE, RELAY_BATCH).await {
+                let relay_span = tracing::info_span!(
+                    "outbox.relay",
+                    rows = tracing::field::Empty,
+                    otel.status_code = tracing::field::Empty,
+                    otel.status_message = tracing::field::Empty
+                );
+                let relay_result =
+                    relay_once(&store, bus.as_ref(), now - OUTBOX_GRACE, RELAY_BATCH)
+                        .instrument(relay_span.clone())
+                        .await;
+                match relay_result {
                     // Every republished row is an event whose first publish never
                     // completed: a cheap standing proxy for outbox backlog health.
-                    Ok(n) => metrics.record_outbox_relayed(n as u64),
-                    Err(e) => tracing::error!(error = %e, "outbox relay failed"),
+                    Ok(n) => {
+                        relay_span.record("rows", n as u64);
+                        metrics.record_outbox_relayed(n as u64)
+                    }
+                    Err(e) => {
+                        // Recorded on the retained `relay_span` handle, not via
+                        // `crate::otel::span_error` (which records on
+                        // `Span::current()`): the `.instrument()`ed future has already
+                        // returned and exited the span by this point, so it is no
+                        // longer current.
+                        relay_span.record("otel.status_code", "ERROR");
+                        relay_span.record("otel.status_message", tracing::field::display(&e));
+                        tracing::error!(error = %e, "outbox relay failed");
+                    }
                 }
                 if let Err(e) = reconcile_once(&store, bus.as_ref(), now).await {
                     tracing::error!(error = %e, "reconciliation failed");

@@ -2,7 +2,7 @@
 
 A headless, multi-tenant alerting engine. It evaluates raw-SQL alert rules against
 ClickHouse, tracks per-instance firing/resolved state with a for-duration state
-machine, and dispatches notifications (Slack, email, PagerDuty, generic webhook)
+machine, and dispatches notifications (Slack, email, generic webhook)
 with Alertmanager-class routing, grouping, deduplication, silencing, and
 inhibition. Durable state lives in PostgreSQL; the hot path runs on Redis Streams.
 

@@ -36,13 +36,11 @@ fn validate_channel(
     // Same SSRF guard as subscription webhooks: the dispatcher POSTs these URLs
     // from inside the deployment network (see `crate::api::webhook_url`). Both the
     // webhook and Slack variants carry a tenant-supplied URL the dispatcher fetches
-    // (see `dispatcher::slack`), so both must pass the guard; Pagerduty/Email/Telegram
+    // (see `dispatcher::slack`), so both must pass the guard; Email/Telegram
     // deliver via fixed provider endpoints, not a caller-chosen URL.
     let url = match config {
         ChannelConfig::Webhook { url } | ChannelConfig::Slack { url } => Some(url),
-        ChannelConfig::Pagerduty { .. }
-        | ChannelConfig::Email { .. }
-        | ChannelConfig::Telegram { .. } => None,
+        ChannelConfig::Email { .. } | ChannelConfig::Telegram { .. } => None,
     };
     if let Some(url) = url {
         crate::api::webhook_url::validate_webhook_url(url, allow_private_webhooks)
@@ -71,11 +69,9 @@ fn validate_channel(
                 )));
             }
         }
-        // Single-value configs (webhook/slack URL, pagerduty routing key) have
-        // no list to repeat an entry in.
-        ChannelConfig::Webhook { .. }
-        | ChannelConfig::Slack { .. }
-        | ChannelConfig::Pagerduty { .. } => {}
+        // Single-value configs (webhook/slack URL) have no list to repeat an
+        // entry in.
+        ChannelConfig::Webhook { .. } | ChannelConfig::Slack { .. } => {}
     }
     Ok(())
 }
@@ -216,9 +212,9 @@ mod tests {
 
     #[test]
     fn non_url_configs_pass_validation() {
-        // Pagerduty/Email/Telegram deliver via fixed provider endpoints, not a
+        // Email/Telegram deliver via fixed provider endpoints, not a
         // caller-chosen URL, so the SSRF guard does not apply to them.
-        let b = body(r#"{"name":"pd","config":{"type":"pagerduty","routing_key":"k"}}"#);
+        let b = body(r#"{"name":"mail","config":{"type":"email","to":["a@x.test"]}}"#);
         assert!(validate_channel(&b.name, &b.config, false).is_ok());
     }
 

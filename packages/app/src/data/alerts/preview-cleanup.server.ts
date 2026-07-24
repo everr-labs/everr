@@ -2,7 +2,7 @@ import { and, eq, inArray } from "drizzle-orm";
 import * as cc from "@/data/cc/client";
 import { previewIdOfSlo } from "@/data/slos/mapping";
 import { db } from "@/db/client";
-import { previews } from "@/db/schema";
+import { ccCleanupPending, previews } from "@/db/schema";
 import { createLimiter } from "@/lib/limiter";
 import { errorMessage, serverLogger } from "@/telemetry/logger";
 import { previewIdOf } from "./mapping";
@@ -74,6 +74,7 @@ function deleteCcSlos(orgId: string, sloIds: readonly string[], cap = 0) {
  */
 export async function deletePreviewCcRules(
   deleted: readonly { id: string; organizationId: string }[],
+  ledger: Pick<OrphanSweepDb, "markCleanupPending"> = productionDb,
 ): Promise<void> {
   const byOrg = new Map<string, Set<string>>();
   for (const p of deleted) {
@@ -93,6 +94,7 @@ export async function deletePreviewCcRules(
         "previews.ids": [...previewIds].join(","),
         "error.message": errorMessage(error),
       });
+      await markPending(ledger, orgId);
       continue;
     }
 
@@ -111,6 +113,7 @@ export async function deletePreviewCcRules(
         "resource.kind": "rule",
         "error.message": errorMessage(error),
       });
+      await markPending(ledger, orgId);
     }
 
     try {
@@ -128,6 +131,7 @@ export async function deletePreviewCcRules(
         "resource.kind": "slo",
         "error.message": errorMessage(error),
       });
+      await markPending(ledger, orgId);
     }
   }
 }
@@ -148,6 +152,17 @@ export interface OrphanSweepDb {
     orgId: string,
     ids: readonly string[],
   ): Promise<Set<string>>;
+  /**
+   * Orgs flagged because a CC cleanup failed or was capped
+   * (`cc_cleanup_pending`). The sweep visits these even when they no longer
+   * hold any preview row, so an org whose LAST preview died during a CC
+   * outage is still revisited.
+   */
+  listPendingCleanupOrgs(): Promise<string[]>;
+  /** Flag `orgId` for revisiting; idempotent. */
+  markCleanupPending(orgId: string): Promise<void>;
+  /** Clear the flag once a sweep pass over `orgId` completes cleanly. */
+  clearCleanupPending(orgId: string): Promise<void>;
 }
 
 const productionDb: OrphanSweepDb = {
@@ -167,7 +182,53 @@ const productionDb: OrphanSweepDb = {
       );
     return new Set(rows.map((row) => row.id));
   },
+  async listPendingCleanupOrgs() {
+    const rows = await db
+      .select({ organizationId: ccCleanupPending.organizationId })
+      .from(ccCleanupPending);
+    return rows.map((row) => row.organizationId);
+  },
+  async markCleanupPending(orgId) {
+    await db
+      .insert(ccCleanupPending)
+      .values({ organizationId: orgId })
+      .onConflictDoNothing();
+  },
+  async clearCleanupPending(orgId) {
+    await db
+      .delete(ccCleanupPending)
+      .where(eq(ccCleanupPending.organizationId, orgId));
+  },
 };
+
+/** Best-effort ledger writes: a failing marker must never break cleanup. */
+async function markPending(
+  ledger: Pick<OrphanSweepDb, "markCleanupPending">,
+  orgId: string,
+): Promise<void> {
+  try {
+    await ledger.markCleanupPending(orgId);
+  } catch (error) {
+    serverLogger.error("previews.cc_cleanup.mark_pending_failed", {
+      "organization.id": orgId,
+      "error.message": errorMessage(error),
+    });
+  }
+}
+
+async function clearPending(
+  ledger: Pick<OrphanSweepDb, "clearCleanupPending">,
+  orgId: string,
+): Promise<void> {
+  try {
+    await ledger.clearCleanupPending(orgId);
+  } catch (error) {
+    serverLogger.error("previews.cc_cleanup.clear_pending_failed", {
+      "organization.id": orgId,
+      "error.message": errorMessage(error),
+    });
+  }
+}
 
 /**
  * Durable backstop for the on-delete fast path: reaps suppressed CC rules and
@@ -176,10 +237,13 @@ const productionDb: OrphanSweepDb = {
  * CC at deletion time; left alone they evaluate forever and never notify.
  *
  * Scope: every org that still has at least one preview registry row — the orgs
- * where preview churn (and therefore orphaning) realistically happens. An org
- * that deleted its last preview while CC was down keeps its orphans until it
- * next applies a preview; that is an accepted, rare gap, not worth listing CC
- * for every tenant in the system.
+ * where preview churn (and therefore orphaning) realistically happens — plus
+ * every org on the `cc_cleanup_pending` ledger. The ledger is written whenever
+ * a CC cleanup fails or a sweep pass is incomplete, and cleared by a clean
+ * pass, so an org that deleted its LAST preview while CC was down is still
+ * revisited (the old behavior silently stranded it forever). Listing CC for
+ * every tenant in the system stays off the table; the ledger names exactly
+ * the orgs that need another look.
  *
  * Race guard: for each org we list the CC rules and SLOs FIRST, then snapshot
  * the registry once, covering ids referenced by either resource kind. A
@@ -200,7 +264,11 @@ const productionDb: OrphanSweepDb = {
 export async function sweepOrphanCcRules(
   sweepDb: OrphanSweepDb = productionDb,
 ): Promise<void> {
-  const orgs = await sweepDb.listPreviewOrgs();
+  const [previewOrgs, pendingOrgs] = await Promise.all([
+    sweepDb.listPreviewOrgs(),
+    sweepDb.listPendingCleanupOrgs(),
+  ]);
+  const orgs = [...new Set([...previewOrgs, ...pendingOrgs])];
   for (const orgId of orgs) {
     try {
       // List first — the registry snapshot below must be strictly newer.
@@ -215,7 +283,11 @@ export async function sweepOrphanCcRules(
         const previewId = previewIdOfSlo(slo);
         if (previewId !== null) referenced.add(previewId);
       }
-      if (referenced.size === 0) continue;
+      if (referenced.size === 0) {
+        // Nothing preview-tagged left in CC: this org is fully clean.
+        await clearPending(sweepDb, orgId);
+        continue;
+      }
 
       const live = await sweepDb.existingPreviewIds(orgId, [...referenced]);
       const orphanRuleIds = rules
@@ -230,8 +302,14 @@ export async function sweepOrphanCcRules(
           return previewId !== null && !live.has(previewId);
         })
         .map((slo) => slo.id);
-      if (orphanRuleIds.length === 0 && orphanSloIds.length === 0) continue;
+      if (orphanRuleIds.length === 0 && orphanSloIds.length === 0) {
+        // Every preview-tagged resource still has its registry row: no
+        // orphans, nothing pending for this org.
+        await clearPending(sweepDb, orgId);
+        continue;
+      }
 
+      let failed = false;
       let ruleResult = { deleted: 0, capped: false };
       if (orphanRuleIds.length > 0) {
         try {
@@ -241,6 +319,7 @@ export async function sweepOrphanCcRules(
             ORPHAN_SWEEP_CAP_PER_ORG,
           );
         } catch (error) {
+          failed = true;
           serverLogger.error("previews.cc_orphan_sweep.failed", {
             "organization.id": orgId,
             "resource.kind": "rule",
@@ -258,6 +337,7 @@ export async function sweepOrphanCcRules(
             ORPHAN_SWEEP_CAP_PER_ORG,
           );
         } catch (error) {
+          failed = true;
           serverLogger.error("previews.cc_orphan_sweep.failed", {
             "organization.id": orgId,
             "resource.kind": "slo",
@@ -273,11 +353,20 @@ export async function sweepOrphanCcRules(
         "previews.orphan_slos_deleted": sloResult.deleted,
         "previews.orphan_slos_sweep_capped": sloResult.capped,
       });
+      // An incomplete pass (failure or cap) keeps the org on the pending
+      // ledger so the next run revisits it even after its last preview row
+      // is gone; a complete pass clears it.
+      if (failed || ruleResult.capped || sloResult.capped) {
+        await markPending(sweepDb, orgId);
+      } else {
+        await clearPending(sweepDb, orgId);
+      }
     } catch (error) {
       serverLogger.error("previews.cc_orphan_sweep.failed", {
         "organization.id": orgId,
         "error.message": errorMessage(error),
       });
+      await markPending(sweepDb, orgId);
     }
   }
 }

@@ -10,6 +10,7 @@ use crate::stores::PgStore;
 use std::collections::{BTreeMap, HashMap};
 use std::sync::Arc;
 use std::time::Duration;
+use tracing::Instrument;
 
 pub mod maintenance;
 pub mod slo;
@@ -90,56 +91,69 @@ pub async fn run_evaluator(
         if *shutdown.borrow() {
             break;
         }
-        let deliveries = match queue.consume(&consumer, 16, 2000).await {
-            Ok(d) => d,
-            Err(e) => {
-                tracing::error!(error = %e, "consume failed");
-                metrics.record_eval_error(EvalErrorKind::Consume, None);
-                tokio::time::sleep(Duration::from_millis(500)).await;
-                continue;
+        let iter_span = tracing::info_span!(
+            "queue.consume",
+            stream = "cc:eval:jobs",
+            batch = tracing::field::Empty,
+            otel.status_code = tracing::field::Empty,
+            otel.status_message = tracing::field::Empty
+        );
+        async {
+            let deliveries = match queue.consume(&consumer, 16, 2000).await {
+                Ok(d) => d,
+                Err(e) => {
+                    crate::otel::span_error(&e);
+                    tracing::error!(error = %e, "consume failed");
+                    metrics.record_eval_error(EvalErrorKind::Consume, None);
+                    tokio::time::sleep(Duration::from_millis(500)).await;
+                    return;
+                }
+            };
+            tracing::Span::current().record("batch", deliveries.len());
+            // Time only real batches; the consume timeout on an idle queue is not work.
+            let batch_started = (!deliveries.is_empty()).then(std::time::Instant::now);
+            // Per-batch panic isolation: a panic while processing one batch must poison
+            // neither this loop nor the whole evaluator role. The ack ids are computed
+            // up front so a panicked batch is still acked; redelivering it would only
+            // re-panic on every redelivery (a poison pill that stalls the consumer),
+            // and any (rule, eval_ts) pairs claimed before the panic would be skipped
+            // on redelivery anyway. The `health` map is a best-effort cache, so a
+            // half-updated map after a panic is harmless (worst case: one extra
+            // `record_rule_success` round-trip).
+            let ack_ids: Vec<JobId> = deliveries.iter().map(|d| d.id.clone()).collect();
+            let batch = std::panic::AssertUnwindSafe(process_batch_inner(
+                &store,
+                ch.as_ref(),
+                events.as_ref(),
+                degrade_after,
+                deliveries,
+                &mut health,
+                &metrics,
+            ));
+            let to_ack = match futures::FutureExt::catch_unwind(batch).await {
+                Ok(ids) => ids,
+                Err(payload) => {
+                    let msg = crate::supervisor::panic_message(payload);
+                    tracing::error!(
+                        panic = %msg,
+                        deliveries = ack_ids.len(),
+                        "evaluation batch panicked; acking the batch and continuing"
+                    );
+                    metrics.record_eval_error(EvalErrorKind::BatchPanic, None);
+                    ack_ids
+                }
+            };
+            if let Some(started) = batch_started {
+                metrics.record_eval_batch(started.elapsed().as_secs_f64());
             }
-        };
-        // Time only real batches; the consume timeout on an idle queue is not work.
-        let batch_started = (!deliveries.is_empty()).then(std::time::Instant::now);
-        // Per-batch panic isolation: a panic while processing one batch must poison
-        // neither this loop nor the whole evaluator role. The ack ids are computed
-        // up front so a panicked batch is still acked; redelivering it would only
-        // re-panic on every redelivery (a poison pill that stalls the consumer),
-        // and any (rule, eval_ts) pairs claimed before the panic would be skipped
-        // on redelivery anyway. The `health` map is a best-effort cache, so a
-        // half-updated map after a panic is harmless (worst case: one extra
-        // `record_rule_success` round-trip).
-        let ack_ids: Vec<JobId> = deliveries.iter().map(|d| d.id.clone()).collect();
-        let batch = std::panic::AssertUnwindSafe(process_batch_inner(
-            &store,
-            ch.as_ref(),
-            events.as_ref(),
-            degrade_after,
-            deliveries,
-            &mut health,
-            &metrics,
-        ));
-        let to_ack = match futures::FutureExt::catch_unwind(batch).await {
-            Ok(ids) => ids,
-            Err(payload) => {
-                let msg = crate::supervisor::panic_message(payload);
-                tracing::error!(
-                    panic = %msg,
-                    deliveries = ack_ids.len(),
-                    "evaluation batch panicked; acking the batch and continuing"
-                );
-                metrics.record_eval_error(EvalErrorKind::BatchPanic, None);
-                ack_ids
+            // One variadic ack per batch. On failure the unacked ids stay pending and
+            // are redelivered via the reclaim pre-pass, so logging is all that's owed.
+            if let Err(e) = queue.ack_batch(&to_ack).await {
+                tracing::error!(error = %e, "ack failed");
             }
-        };
-        if let Some(started) = batch_started {
-            metrics.record_eval_batch(started.elapsed().as_secs_f64());
         }
-        // One variadic ack per batch. On failure the unacked ids stay pending and
-        // are redelivered via the reclaim pre-pass, so logging is all that's owed.
-        if let Err(e) = queue.ack_batch(&to_ack).await {
-            tracing::error!(error = %e, "ack failed");
-        }
+        .instrument(iter_span)
+        .await;
     }
     tracing::info!("evaluator stopped");
 }
@@ -352,8 +366,22 @@ pub async fn process_batch_inner(
                 // RuleHealth/Firing event on the transition. The error is capped before storage.
                 let now = time::OffsetDateTime::now_utc();
                 let msg: String = e.to_string().chars().take(500).collect();
+                // Log the redacted summary, NOT `msg`: `msg` (which carries the raw
+                // ChError, potentially echoing fragments of customer rule SQL from a
+                // ClickHouse Status body) is passed to `record_rule_failure` below
+                // unchanged, by design, since that populates the customer's own
+                // `last_error`. But this log line is exported via the OTLP log bridge
+                // (see `otel::engine`) into everr's INTERNAL tenant, so it must never
+                // carry customer SQL.
+                let redacted = crate::clickhouse::span_error_summary(&e);
                 for (job, _) in &members {
-                    tracing::error!(rule = ?job.rule, error = %msg, "evaluation query errored");
+                    // warn, not error: this is a handled per-tenant config failure,
+                    // already recorded to the rule-health ledger and owned by rule
+                    // health. At error level, tracing-opentelemetry's default
+                    // event->status mapping would mark the surrounding `queue.consume`
+                    // span Error on every tick of a customer's broken rule, polluting
+                    // engine-error trace queries with customer config noise.
+                    tracing::warn!(rule = ?job.rule, error = %redacted, "evaluation query errored");
                     match store
                         .record_rule_failure(job.rule, &job.tenant, &msg, degrade_after as i32, now)
                         .await
@@ -424,7 +452,11 @@ pub async fn process_batch_inner(
 /// publishes each transition. Identical to the prior logic except rows are supplied.
 ///
 /// `#[tracing::instrument]` produces the eval-latency span the engine OTLP exporter ships.
-#[tracing::instrument(skip_all, fields(rule = %job.rule.0, tenant = %job.tenant, rows = rows.len()))]
+///
+/// `otel.status_code`/`otel.status_message` are recorded from *inside* this function body
+/// (not by the caller): the instrumented span closes when this `.await` resolves, so any
+/// error handling in the caller's loop runs outside the span's scope and cannot mark it.
+#[tracing::instrument(skip_all, fields(rule = %job.rule.0, tenant = %job.tenant, rows = rows.len(), otel.status_code = tracing::field::Empty, otel.status_message = tracing::field::Empty))]
 async fn evaluate_rule_against_rows(
     store: &PgStore,
     events: &dyn EventBus,
@@ -443,7 +475,13 @@ async fn evaluate_rule_against_rows(
         present.insert(key, (row.labels.clone(), row.value, row.extra.clone()));
     }
 
-    let known = store.load_instances(&job.tenant, job.rule).await?;
+    let known = match store.load_instances(&job.tenant, job.rule).await {
+        Ok(known) => known,
+        Err(e) => {
+            crate::otel::span_error(&e);
+            return Err(e.into());
+        }
+    };
     let prev_status_by_key: HashMap<InstanceKey, crate::domain::instance::Status> =
         known.iter().map(|s| (s.key.clone(), s.status)).collect();
     let mut known_keys: HashMap<InstanceKey, InstanceState> =
@@ -483,6 +521,10 @@ async fn evaluate_rule_against_rows(
             let (evidence, truncated) = build_evidence(&extra);
             ev.evidence = evidence;
             ev.evidence_truncated = truncated;
+            // Stamp this eval span's context (must happen inside the
+            // `#[tracing::instrument]`d function body, not the caller): the
+            // dispatcher later parses this back into a span LINK.
+            ev.traceparent = crate::otel::propagation::current_traceparent();
             out_events.push(ev);
         }
         next_states.push(out.next);
@@ -505,6 +547,7 @@ async fn evaluate_rule_against_rows(
             // Resolved-by-absence has no source row: evidence stays None/untruncated.
             ev.suppressed = rule.spec.suppressed;
             ev.name = rule.name.clone();
+            ev.traceparent = crate::otel::propagation::current_traceparent();
             out_events.push(ev);
         }
         next_states.push(out.next);
@@ -536,7 +579,7 @@ async fn evaluate_rule_against_rows(
         max_interval_secs: rule.spec.max_interval_secs,
         eval_ts: job.eval_ts,
     };
-    commit_and_publish_with_rollup(
+    let result = commit_and_publish_with_rollup(
         store,
         events,
         &job.tenant,
@@ -545,7 +588,11 @@ async fn evaluate_rule_against_rows(
         (job.rule, rollup),
         cadence,
     )
-    .await
+    .await;
+    if let Err(e) = &result {
+        crate::otel::span_error(e);
+    }
+    result
 }
 
 #[cfg(test)]

@@ -27,15 +27,21 @@ pub fn validate(sql: &str) -> Result<(), GuardError> {
 }
 
 /// ClickHouse settings string appended at execution to bound cost.
+///
+/// The result caps bound what the evaluator buffers in memory (`ChClient` reads the whole
+/// response body before parsing): a sane rule/SLO query returns per-group aggregates, so
+/// 100k rows / 20MB is far past legitimate use. `result_overflow_mode=throw` (also the
+/// server default) fails the query loudly instead of silently truncating groups, which
+/// would suppress alerts.
 pub fn resource_limit_settings() -> &'static str {
-    "max_execution_time=10, max_rows_to_read=50000000, max_memory_usage=2000000000, readonly=1"
+    "max_execution_time=10, max_rows_to_read=50000000, max_memory_usage=2000000000, max_result_rows=100000, max_result_bytes=20000000, result_overflow_mode=throw, readonly=1"
 }
 
 /// Same cost caps as [`resource_limit_settings`] but without `readonly=1`, for CH users
 /// whose profile already pins readonly (sending it again errors "Cannot modify setting in
 /// readonly mode").
 pub fn resource_limit_settings_no_readonly() -> &'static str {
-    "max_execution_time=10, max_rows_to_read=50000000, max_memory_usage=2000000000"
+    "max_execution_time=10, max_rows_to_read=50000000, max_memory_usage=2000000000, max_result_rows=100000, max_result_bytes=20000000, result_overflow_mode=throw"
 }
 
 #[cfg(test)]
@@ -71,6 +77,18 @@ mod tests {
         assert!(s.contains("max_execution_time=10"));
         assert!(s.contains("max_memory_usage=2000000000"));
         assert!(!s.contains("readonly"));
+    }
+
+    #[test]
+    fn both_settings_cap_result_size_and_throw_on_overflow() {
+        for s in [
+            resource_limit_settings(),
+            resource_limit_settings_no_readonly(),
+        ] {
+            assert!(s.contains("max_result_rows=100000"));
+            assert!(s.contains("max_result_bytes=20000000"));
+            assert!(s.contains("result_overflow_mode=throw"));
+        }
     }
 
     #[test]

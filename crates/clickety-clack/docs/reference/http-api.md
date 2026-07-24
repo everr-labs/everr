@@ -410,14 +410,13 @@ address across DIFFERENT channels stays allowed. `config` is a tagged union on
 | ------------ | ----------------------------------- | --------------- |
 | `webhook`    | `url` (string)                      | none (not secret) |
 | `slack`      | `url` (string)                      | `url`           |
-| `pagerduty`  | `routing_key` (string)              | `routing_key`   |
 | `email`      | `to` (string[])                     | none (recipients kept) |
 | `telegram`   | `bot_token` (string), `chat_ids` (string[]) | `bot_token` |
 
 ### Redaction on read
 
 `GET` responses mask secrets in `config`: `slack.url` → `"***"`,
-`pagerduty.routing_key` → `"***"`, `telegram.bot_token` → `"***"`.
+`telegram.bot_token` → `"***"`.
 `webhook.url`, `email.to`, and `telegram.chat_ids` are returned as stored.
 Secrets are also [encrypted at rest](../explanation/security-model.md);
 redaction is the read-API layer on top.

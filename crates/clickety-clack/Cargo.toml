@@ -27,6 +27,7 @@ opentelemetry = "0.30"
 opentelemetry-otlp = { version = "0.30", features = ["grpc-tonic", "trace", "metrics", "logs"] }
 opentelemetry-proto = { version = "0.30", features = ["gen-tonic-messages", "logs", "trace", "metrics"] }
 opentelemetry_sdk = { version = "0.30", features = ["rt-tokio"] }
+opentelemetry-appender-tracing = { version = "0.30", features = ["experimental_use_tracing_span_context"] }
 prost = "0.13"
 redis = { version = "0.27", features = ["tokio-comp", "streams", "connection-manager"] }
 regex = "1"

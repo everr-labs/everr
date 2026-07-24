@@ -1,7 +1,7 @@
 # How to configure receivers and routing
 
 Delivery has three layers: **channels** (named endpoint configs: Slack, email,
-PagerDuty, webhook, Telegram), **receivers** (named sets of channel references),
+webhook, Telegram), **receivers** (named sets of channel references),
 and **routes** (which alerts go to which receivers, and how they are grouped).
 This guide covers all three, plus the no-routes subscription firehose.
 
@@ -11,7 +11,7 @@ For exact field shapes see [data model](../reference/data-model.md) and
 ## 1. Create channels
 
 A channel is a named endpoint config, unique per tenant. Channels are the
-secret-bearing resource: the Slack hook, the PagerDuty routing key, the webhook
+secret-bearing resource: the Slack hook, the Telegram bot token, the webhook
 URL live here and nowhere else. Any number of receivers can reference the same
 channel, and re-POSTing a channel under the same name replaces its config in
 place, so rotating a secret is one call and every referencing receiver picks it
@@ -44,16 +44,6 @@ annotation becomes the attachment text and `link.alert` / `link.runbook` become
 "View alert" / "View runbook" buttons. See
 [rule annotations](write-alert-rules.md#annotations).
 
-### PagerDuty
-
-```bash
--d '{ "name": "pd", "config": { "type": "pagerduty", "routing_key": "R0UT1NGK3Y" } }'
-```
-
-Uses the Events API v2. Each event is sent as its own `trigger`/`resolve` keyed by
-the instance, so PagerDuty correlates resolves with their triggers and
-auto-closes incidents.
-
 ### Email
 
 Requires SMTP configured on the dispatcher (`CC_SMTP_HOST`, …; see
@@ -65,7 +55,7 @@ Requires SMTP configured on the dispatcher (`CC_SMTP_HOST`, …; see
 
 ### Secrets
 
-`slack.url`, `pagerduty.routing_key`, and `telegram.bot_token` are secrets: they
+`slack.url` and `telegram.bot_token` are secrets: they
 are [encrypted at rest](manage-secret-encryption.md) and **redacted to `***` on
 read**. `GET /v1/channels` is safe to expose; it never returns the cleartext
 secret. Receivers never carry secrets at all (they hold channel names only).
@@ -79,15 +69,15 @@ Drop or repoint those receivers first.
 ## 2. Create receivers
 
 A receiver is a named set of channel references. A notification for the
-receiver fans out to every channel in the list, so one receiver can page
-PagerDuty and post to Slack at once; a single-destination receiver is just a
+receiver fans out to every channel in the list, so one receiver can post to
+Slack and hit a webhook at once; a single-destination receiver is just a
 one-element list. Every referenced name must exist as a channel (`422` naming
 the unknown ones otherwise).
 
 ```bash
 curl -s -X POST localhost:8080/v1/receivers -H "X-CC-Tenant: $TENANT" \
   -H 'Content-Type: application/json' \
-  -d '{ "name": "oncall", "channels": ["pd", "team-slack"] }'
+  -d '{ "name": "oncall", "channels": ["oncall-hook", "team-slack"] }'
 ```
 
 ### Annotations
@@ -97,7 +87,7 @@ receiver, where the rota lives, which dashboard to open first.
 
 ```bash
 -d '{ "name": "oncall",
-      "channels": ["pd", "team-slack"],
+      "channels": ["oncall-hook", "team-slack"],
       "annotations": { "team": "core", "rota": "https://rota.example" } }'
 ```
 
@@ -115,7 +105,7 @@ curl -s -X POST localhost:8080/v1/routes -H "X-CC-Tenant: $TENANT" \
   -H 'Content-Type: application/json' \
   -d '{
     "matchers": [{ "label": "severity", "op": "eq", "value": "critical" }],
-    "receiver": "pd",
+    "receiver": "oncall",
     "priority": 0
   }'
 ```
@@ -149,9 +139,9 @@ fully anchored). A missing label reads as empty string.
 A common shape — page criticals, Slack everything, with a catch-all:
 
 ```jsonc
-// priority 0: criticals to PagerDuty, keep going
+// priority 0: criticals to the oncall receiver, keep going
 { "matchers": [{"label":"severity","op":"eq","value":"critical"}],
-  "receiver": "pd", "priority": 0, "continue": true }
+  "receiver": "oncall", "priority": 0, "continue": true }
 // priority 10: everything to Slack
 { "matchers": [], "receiver": "team-slack", "priority": 10 }
 ```
@@ -172,7 +162,7 @@ Example — group page-outs per cluster, send fast, then at most every minute:
 
 ```bash
 -d '{ "matchers": [{"label":"severity","op":"eq","value":"critical"}],
-      "receiver": "pd",
+      "receiver": "oncall",
       "group_by": ["cluster"],
       "group_wait_secs": 5,
       "group_interval_secs": 60 }'
@@ -192,7 +182,7 @@ periodic reminders while alerts are still firing:
 curl -s -X PUT localhost:8080/v1/routes/$ROUTE_ID -H "X-CC-Tenant: $TENANT" \
   -H 'Content-Type: application/json' \
   -d '{ "matchers": [{"label":"severity","op":"eq","value":"critical"}],
-        "receiver": "pd",
+        "receiver": "oncall",
         "repeat_interval_secs": 14400 }'
 ```
 

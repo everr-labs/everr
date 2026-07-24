@@ -8,8 +8,8 @@
 //! into `app.metrics_gauge` under its own `tenant_id`.
 //!
 //! Burn rate and remaining budget are NOT emitted: they are pure functions of
-//! `(good, valid, target)` and are derived at read time by the `sloBurnRate` /
-//! `sloBudgetRemaining` ClickHouse UDFs, so storage keeps only the raw counts.
+//! `(good, valid, target)` and are derived at read time by consumers (the app
+//! mirrors `engine/slo_math.rs`), so storage keeps only the raw counts.
 
 use opentelemetry_proto::tonic::collector::metrics::v1::ExportMetricsServiceRequest;
 use opentelemetry_proto::tonic::common::v1::{any_value, AnyValue, InstrumentationScope, KeyValue};
@@ -137,9 +137,12 @@ pub fn build_metrics_request(samples: &[SloSample]) -> ExportMetricsServiceReque
 /// metrics endpoint (`.../v1/metrics`) on the same collector. Falls back to
 /// appending the signal path for a non-standard endpoint.
 pub fn metrics_endpoint_from_logs(logs_endpoint: &str) -> String {
-    match logs_endpoint.strip_suffix("/v1/logs") {
+    // Trim trailing slashes BEFORE the suffix match so `.../v1/logs/` still
+    // resolves to the sibling metrics path instead of `.../v1/logs/v1/metrics`.
+    let trimmed = logs_endpoint.trim_end_matches('/');
+    match trimmed.strip_suffix("/v1/logs") {
         Some(base) => format!("{base}/v1/metrics"),
-        None => format!("{}/v1/metrics", logs_endpoint.trim_end_matches('/')),
+        None => format!("{trimmed}/v1/metrics"),
     }
 }
 
@@ -322,6 +325,11 @@ mod tests {
         // Non-standard endpoint: append the signal path.
         assert_eq!(
             metrics_endpoint_from_logs("http://collector:4418/"),
+            "http://collector:4418/v1/metrics"
+        );
+        // A trailing slash on the standard form still swaps the suffix.
+        assert_eq!(
+            metrics_endpoint_from_logs("http://collector:4418/v1/logs/"),
             "http://collector:4418/v1/metrics"
         );
     }

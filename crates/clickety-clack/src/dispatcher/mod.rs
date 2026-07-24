@@ -6,7 +6,6 @@ pub mod grouping;
 pub mod inhibition;
 pub mod matching;
 pub mod notify;
-pub mod pagerduty;
 pub mod registry;
 pub mod render;
 pub mod retry;
@@ -19,7 +18,6 @@ pub mod telegram;
 pub use dedup::dedup_key;
 pub use email::EmailNotifier;
 pub use notify::{Notification, Notifier, NotifyError, WebhookNotifier};
-pub use pagerduty::PagerDutyNotifier;
 pub use registry::Notifiers;
 pub use retry::{backoff_delay, deliver_with_retry};
 pub use slack::SlackNotifier;
@@ -39,6 +37,7 @@ use futures::StreamExt;
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
+use tracing::Instrument;
 
 const MAX_ATTEMPTS: u32 = 4;
 /// How often the flusher polls for due groups when none are immediately ready.
@@ -154,28 +153,41 @@ pub async fn run_dispatcher(
         if *shutdown.borrow() {
             break;
         }
-        let entries = match ctx.bus.consume(&consumer, 16, 2000).await {
-            Ok(e) => e,
-            Err(e) => {
-                tracing::error!(error = %e, "event consume failed");
-                tokio::select! {
-                    _ = tokio::time::sleep(Duration::from_millis(500)) => {}
-                    _ = shutdown.changed() => {}
+        let iter_span = tracing::info_span!(
+            "queue.consume",
+            stream = "cc:events",
+            batch = tracing::field::Empty,
+            otel.status_code = tracing::field::Empty,
+            otel.status_message = tracing::field::Empty
+        );
+        async {
+            let entries = match ctx.bus.consume(&consumer, 16, 2000).await {
+                Ok(e) => e,
+                Err(e) => {
+                    crate::otel::span_error(&e);
+                    tracing::error!(error = %e, "event consume failed");
+                    tokio::select! {
+                        _ = tokio::time::sleep(Duration::from_millis(500)) => {}
+                        _ = shutdown.changed() => {}
+                    }
+                    return;
                 }
-                continue;
+            };
+            tracing::Span::current().record("batch", entries.len());
+            let acks = process_event_batch(&ctx, &entries).await;
+            // One variadic ack for the handled subset. Unhandled entries (and, on an
+            // ack error, the whole batch) stay in the PEL — redelivered by the
+            // event-bus XAUTOCLAIM reclaim pre-pass once they go idle.
+            let ack_ids: Vec<crate::queue::EventId> = acks
+                .into_iter()
+                .filter_map(|(id, ack_ok)| ack_ok.then_some(id))
+                .collect();
+            if let Err(e) = ctx.bus.ack_batch(&ack_ids).await {
+                tracing::error!(error = %e, "event ack failed");
             }
-        };
-        let acks = process_event_batch(&ctx, &entries).await;
-        // One variadic ack for the handled subset. Unhandled entries (and, on an
-        // ack error, the whole batch) stay in the PEL — redelivered by the
-        // event-bus XAUTOCLAIM reclaim pre-pass once they go idle.
-        let ack_ids: Vec<crate::queue::EventId> = acks
-            .into_iter()
-            .filter_map(|(id, ack_ok)| ack_ok.then_some(id))
-            .collect();
-        if let Err(e) = ctx.bus.ack_batch(&ack_ids).await {
-            tracing::error!(error = %e, "event ack failed");
         }
+        .instrument(iter_span)
+        .await;
     }
     tracing::info!("dispatcher stopped");
 }
@@ -186,8 +198,31 @@ pub async fn run_dispatcher(
 /// (false only when a required input could not be loaded — leaves it in the PEL).
 ///
 /// Public so the load-test harness can drive a single event; not a stable API.
+#[tracing::instrument(
+    name = "dispatcher.process_event",
+    skip_all,
+    fields(
+        event_id = %entry.id,
+        tenant = %entry.event.tenant,
+        otel.status_code = tracing::field::Empty,
+        otel.status_message = tracing::field::Empty,
+    )
+)]
 pub async fn process_event(ctx: &DispatchCtx, entry: &EventEntry) -> bool {
     let ev: &Event = &entry.event;
+
+    // Link this span to the evaluation span that emitted the event, so a trace query
+    // can walk from "why did this rule fire" to "what did the dispatcher do with it".
+    // A missing/malformed traceparent (telemetry disabled, older event) is silently
+    // skipped: it must never break processing.
+    if let Some(sc) = ev
+        .traceparent
+        .as_deref()
+        .and_then(crate::otel::propagation::span_context_from_traceparent)
+    {
+        use tracing_opentelemetry::OpenTelemetrySpanExt;
+        tracing::Span::current().add_link(sc);
+    }
 
     // Suppressed (preview-rule) events never notify: drop at ingest, before
     // silence/inhibition processing, before group buffering, and before the no-routes
@@ -202,6 +237,7 @@ pub async fn process_event(ctx: &DispatchCtx, entry: &EventEntry) -> bool {
     let snap = match ctx.cache.snapshot(ev.tenant.clone()).await {
         Ok(s) => s,
         Err(e) => {
+            crate::otel::span_error(&e);
             tracing::error!(error = %e, entry_id = %entry.id, tenant = ?ev.tenant,
                 "loading filter snapshot failed; leaving event unacked for reclaim");
             return false;
@@ -283,6 +319,7 @@ pub async fn process_event(ctx: &DispatchCtx, entry: &EventEntry) -> bool {
             )
             .await
         {
+            crate::otel::span_error(&e);
             tracing::error!(error = %e, group = %gid,
                 "buffering event into group failed; leaving event unacked for reclaim");
             all_handled = false;
@@ -321,6 +358,7 @@ async fn firehose_deliver(ctx: &DispatchCtx, ev: &Event, entry_id: &crate::queue
     {
         Ok(s) => s,
         Err(e) => {
+            crate::otel::span_error(&e);
             tracing::error!(error = %e, entry_id = %entry_id, tenant = ?ev.tenant,
                 "loading subscriptions failed; leaving event unacked in PEL for later reclaim");
             return false;
@@ -348,11 +386,25 @@ async fn firehose_deliver(ctx: &DispatchCtx, ev: &Event, entry_id: &crate::queue
             Ok(true) => {}
             Ok(false) => return true, // already delivered (dedup)
             Err(e) => {
+                crate::otel::span_error(&e);
                 tracing::error!(error = %e, "begin notification failed");
                 return false;
             }
         }
-        if deliver_one(&ctx.delivery_deps(), &config, &key, notif, ev).await {
+        // Subscription firehose delivery reuses `deliver_one`'s webhook path, but is
+        // labeled distinctly ("subscription_webhook" vs "webhook") on the `notify.deliver`
+        // span so a trace query can tell the immediate no-routes firehose apart from a
+        // routed group's webhook channel.
+        if deliver_one(
+            &ctx.delivery_deps(),
+            &config,
+            &key,
+            notif,
+            ev,
+            "subscription_webhook",
+        )
+        .await
+        {
             // Record the delivery as an OTLP `delivery` log (target = channel name,
             // matching the pre-multi-channel firehose shape).
             let facts = DeliveryFacts {
@@ -426,9 +478,24 @@ enum FilterOutcome {
     DeadLetterFailed,
 }
 
+/// Dead-letter every event of a claimed batch, stopping at the first write failure.
+/// The batch stays buffered when this errors, so a retry may re-dead-letter events
+/// written before the failure: duplicate dead-letter records are the accepted cost of
+/// never losing an event that was neither delivered nor recorded anywhere.
+async fn dead_letter_batch(
+    bus: &dyn EventBus,
+    events: &[Event],
+    reason: &str,
+) -> Result<(), crate::queue::QueueError> {
+    for ev in events {
+        bus.dead_letter(ev, reason).await?;
+    }
+    Ok(())
+}
+
 /// Load the tenant snapshot and drop suppressed events from a claimed flush batch.
 ///
-/// On a snapshot-load failure the representative event is dead-lettered (observable,
+/// On a snapshot-load failure the whole batch is dead-lettered (observable,
 /// recoverable). The returned [`FilterOutcome`] tells the caller whether the buffered
 /// batch may be drained or must stay put for a retry.
 ///
@@ -449,8 +516,7 @@ async fn filter_or_dead_letter(
             let reason = format!("loading tenant snapshot failed: {e}");
             tracing::error!(error = %e, group = %gid,
                 "loading tenant snapshot failed; dead-lettering claimed batch");
-            let rep = events[0].clone();
-            return match bus.dead_letter(&rep, &reason).await {
+            return match dead_letter_batch(bus, &events, &reason).await {
                 Ok(()) => FilterOutcome::DeadLettered,
                 Err(de) => {
                     tracing::error!(dead_letter_error = %de, group = %gid,
@@ -470,6 +536,19 @@ async fn filter_or_dead_letter(
 /// timer) is followed by the release; only an outright crash skips it, and the lease
 /// reclaim in [`run_group_flusher`] recovers that case. Public so the load-test harness can
 /// drive a single flush; not a stable API.
+#[tracing::instrument(
+    name = "dispatcher.flush_group",
+    skip_all,
+    fields(
+        gid = %gid,
+        events = tracing::field::Empty,
+        begun = tracing::field::Empty,
+        sent = tracing::field::Empty,
+        begin_failed = tracing::field::Empty,
+        otel.status_code = tracing::field::Empty,
+        otel.status_message = tracing::field::Empty,
+    )
+)]
 pub async fn flush_group(ctx: &DispatchCtx, gid: &str) {
     flush_claimed_group(ctx, gid).await;
     if let Err(e) = ctx.groups.release_claim(gid, now_ms()).await {
@@ -483,7 +562,11 @@ pub async fn flush_group(ctx: &DispatchCtx, gid: &str) {
 /// (Redis down), the release of the lease will fail for the same reason and the
 /// lease-expiry reclaim recovers the group.
 async fn rearm_for_retry(ctx: &DispatchCtx, gid: &str, taken_at: i64) {
-    if let Err(e) = ctx.groups.arm_repeat(gid, taken_at + TAKE_RETRY_MS).await {
+    if let Err(e) = ctx
+        .groups
+        .arm_repeat(gid, taken_at + TAKE_RETRY_MS, taken_at)
+        .await
+    {
         tracing::error!(error = %e, group = %gid,
             "re-arming flush timer failed; group will be reclaimed on lease expiry");
     }
@@ -505,6 +588,10 @@ async fn commit_drain(ctx: &DispatchCtx, gid: &str, fields: &[(String, String)],
     }
 }
 
+/// Records the batch size and evaluation-span links via `tracing::Span::current()`, so
+/// this must only ever be awaited directly from `flush_group`'s `#[instrument]`ed body:
+/// never wrapped in its own `.instrument()` or `tokio::spawn`ed, either of which would
+/// detach it from that span.
 async fn flush_claimed_group(ctx: &DispatchCtx, gid: &str) {
     let taken_at = now_ms();
     let batch = match ctx.groups.take_group(gid, taken_at).await {
@@ -515,6 +602,7 @@ async fn flush_claimed_group(ctx: &DispatchCtx, gid: &str) {
             // this group once it expires, but re-arm the flush timer now with a short
             // backoff so a transient Redis/JSON failure retries in seconds rather than
             // waiting out the full lease.
+            crate::otel::span_error(&e);
             tracing::error!(error = %e, group = %gid,
                 "take_group failed; re-arming flush timer for retry");
             rearm_for_retry(ctx, gid, taken_at).await;
@@ -544,7 +632,7 @@ async fn flush_claimed_group(ctx: &DispatchCtx, gid: &str) {
             // Keep the reminder loop alive for still-firing members.
             if firing_count > 0 {
                 if let Some(ln) = batch.last_notified_ms {
-                    if let Err(e) = ctx.groups.arm_repeat(gid, ln + r).await {
+                    if let Err(e) = ctx.groups.arm_repeat(gid, ln + r, taken_at).await {
                         tracing::error!(error = %e, group = %gid, "arm_repeat failed");
                     }
                 }
@@ -555,13 +643,33 @@ async fn flush_claimed_group(ctx: &DispatchCtx, gid: &str) {
         return; // nothing active to deliver (timer fired on an emptied group)
     };
 
+    // Record the taken batch size and link this flush's span to every distinct
+    // evaluation span that emitted a member event, so a trace query can walk from a
+    // firing rule to the group flush that (eventually) delivered it. Deduped before the
+    // OTel-recommended 16-link cap so a large batch of repeats/duplicates from the same
+    // few rules doesn't starve the cap of genuinely distinct evaluations.
+    {
+        use tracing_opentelemetry::OpenTelemetrySpanExt;
+        let span = tracing::Span::current();
+        span.record("events", events.len() as u64);
+        let distinct_traceparents: std::collections::BTreeSet<&str> = events
+            .iter()
+            .filter_map(|e| e.traceparent.as_deref())
+            .collect();
+        for tp in distinct_traceparents.into_iter().take(16) {
+            if let Some(sc) = crate::otel::propagation::span_context_from_traceparent(tp) {
+                span.add_link(sc);
+            }
+        }
+    }
+
     // A still-firing group with a repeat interval always gets its next reminder check
     // armed BEFORE the delivery attempt, so a flush-time silence or a delivery failure
     // cannot kill the reminder loop. Resolved-only groups (empty firing set) never
     // re-arm and therefore never repeat.
     if let Some(r) = repeat_ms {
         if firing_count > 0 {
-            if let Err(e) = ctx.groups.arm_repeat(gid, taken_at + r).await {
+            if let Err(e) = ctx.groups.arm_repeat(gid, taken_at + r, taken_at).await {
                 tracing::error!(error = %e, group = %gid, "arm_repeat failed");
             }
         }
@@ -588,6 +696,7 @@ async fn flush_claimed_group(ctx: &DispatchCtx, gid: &str) {
         }
         FilterOutcome::DeadLetterFailed => {
             // Neither delivered nor dead-lettered: leave the batch buffered and retry.
+            crate::otel::span_error(&"snapshot load failed and dead-letter write also failed");
             rearm_for_retry(ctx, gid, taken_at).await;
             return;
         }
@@ -602,12 +711,13 @@ async fn flush_claimed_group(ctx: &DispatchCtx, gid: &str) {
         group_key: meta.group_key.clone(),
         events,
     };
-    // Representative event for the dead-letter record (the batch shares a group key).
+    // Representative event for per-channel delivery bookkeeping (the batch shares a
+    // group key).
     let rep = notif.events[0].clone();
     // Resolve the buffered channel NAMES to their stored configs now, at delivery
-    // time. On a load failure the representative event is dead-lettered (observable,
-    // recoverable) and the batch drains; if even the dead-letter write fails, the
-    // batch stays buffered and the re-armed timer retries it.
+    // time. On a load failure the whole batch is dead-lettered (observable,
+    // recoverable) and drains; if a dead-letter write fails, the batch stays
+    // buffered and the re-armed timer retries it.
     let loaded = match ctx
         .store
         .channels_by_names(ctx.cipher.as_ref(), &tenant, &meta.channels)
@@ -616,9 +726,10 @@ async fn flush_claimed_group(ctx: &DispatchCtx, gid: &str) {
         Ok(chs) => chs,
         Err(e) => {
             let reason = format!("loading channels for group flush failed: {e}");
+            crate::otel::span_error(&e);
             tracing::error!(error = %e, group = %gid,
                 "loading channels failed; dead-lettering claimed batch");
-            match ctx.bus.dead_letter(&rep, &reason).await {
+            match dead_letter_batch(ctx.bus.as_ref(), &notif.events, &reason).await {
                 Ok(()) => commit_drain(ctx, gid, &event_fields, taken_at).await,
                 Err(de) => {
                     tracing::error!(dead_letter_error = %de, group = %gid,
@@ -640,6 +751,12 @@ async fn flush_claimed_group(ctx: &DispatchCtx, gid: &str) {
         &rep,
     )
     .await;
+    {
+        let span = tracing::Span::current();
+        span.record("begun", outcome.begun);
+        span.record("sent", outcome.sent);
+        span.record("begin_failed", outcome.begin_failed);
+    }
     // A notification was committed for this group on at least one channel; stamp it so
     // the repeat clock measures from the latest send.
     if outcome.begun {
@@ -652,6 +769,7 @@ async fn flush_claimed_group(ctx: &DispatchCtx, gid: &str) {
         // events are neither delivered nor dead-lettered for it, so draining would
         // lose them. Leave the batch buffered and re-arm; the reflush dedup-skips
         // every channel whose ledger row did commit.
+        crate::otel::span_error(&"begin failed on at least one channel");
         tracing::error!(group = %gid,
             "begin failed on at least one channel; leaving batch buffered for retry");
         rearm_for_retry(ctx, gid, taken_at).await;
@@ -758,7 +876,7 @@ async fn deliver_group_channels(
                 return (false, false, true);
             }
         }
-        let sent = deliver_one(deps, &ch.config, &key, notif, rep).await;
+        let sent = deliver_one(deps, &ch.config, &key, notif, rep, ch.config.channel_name()).await;
         (true, sent, false)
     }))
     .await;
@@ -772,12 +890,30 @@ async fn deliver_group_channels(
 /// Shared delivery + bookkeeping: look up the notifier for `config`'s channel, retry,
 /// then record sent/failed and dead-letter on permanent/exhausted failure. `rep` is the
 /// event used for the dead-letter record. Returns true when delivery succeeded.
+///
+/// `span_channel` labels the `notify.deliver` span's `channel` field; it is distinct from
+/// `config.channel_name()` (used for the notifier-registry lookup and delivery metrics)
+/// so the no-routes subscription firehose can trace as "subscription_webhook" while still
+/// dispatching through the same "webhook" notifier as a routed group's webhook channel.
+#[tracing::instrument(
+    name = "notify.deliver",
+    skip_all,
+    fields(
+        otel.kind = "client",
+        channel = span_channel,
+        target = %dedup::redact_target(&dedup::canonical_target(config)),
+        attempts = tracing::field::Empty,
+        otel.status_code = tracing::field::Empty,
+        otel.status_message = tracing::field::Empty,
+    )
+)]
 async fn deliver_one(
     deps: &DeliveryDeps<'_>,
     config: &crate::domain::channel::ChannelConfig,
     key: &str,
     notif: &Notification,
     rep: &Event,
+    span_channel: &'static str,
 ) -> bool {
     let channel = config.channel_name();
     let metrics = deps.notifiers.engine_metrics();
@@ -785,6 +921,7 @@ async fn deliver_one(
         Some(n) => n,
         None => {
             let reason = format!("no notifier registered for channel '{channel}'");
+            crate::otel::span_error(&reason);
             if let Err(e) = deps
                 .ledger
                 .mark_notification_failed(&rep.tenant, key, 0, &reason)
@@ -804,6 +941,7 @@ async fn deliver_one(
     };
     match retry::deliver_with_retry(notifier.as_ref(), config, notif, MAX_ATTEMPTS).await {
         Ok(attempts) => {
+            tracing::Span::current().record("attempts", attempts);
             metrics.record_delivery(
                 channel,
                 rep.tenant.as_str(),
@@ -820,6 +958,8 @@ async fn deliver_one(
             true
         }
         Err((attempts, err)) => {
+            tracing::Span::current().record("attempts", attempts);
+            crate::otel::span_error(&err);
             metrics.record_delivery(
                 channel,
                 rep.tenant.as_str(),
@@ -1466,6 +1606,78 @@ mod fan_out_tests {
         );
         assert_eq!(ledger.rows.lock().unwrap().len(), 1);
     }
+
+    /// Spec: "a failed delivery yields `notify.deliver` with error status." Drives
+    /// `deliver_one` (the smallest seam that creates the `notify.deliver` span) with a
+    /// permanently-failing notifier under an in-memory span exporter, mirroring the
+    /// `SdkTracerProvider` + `InMemorySpanExporter` + `tracing::subscriber` pattern in
+    /// `otel::status`'s tests.
+    #[tokio::test]
+    async fn deliver_one_failure_yields_error_status_span() {
+        use opentelemetry::trace::{Status, TracerProvider as _};
+        use opentelemetry_sdk::trace::{InMemorySpanExporter, SdkTracerProvider};
+        use tracing_subscriber::layer::SubscriberExt;
+
+        let exporter = InMemorySpanExporter::default();
+        let provider = SdkTracerProvider::builder()
+            .with_simple_exporter(exporter.clone())
+            .build();
+        let subscriber = tracing_subscriber::registry()
+            .with(tracing_opentelemetry::layer().with_tracer(provider.tracer("test")));
+        // `set_default` (not `with_default`) so the thread-local dispatcher stays active
+        // across the `.await` below: `deliver_one`'s `#[instrument]` span is created
+        // synchronously at call time, but the delivery future spans several awaits and
+        // this test runs on the current-thread `#[tokio::test]` runtime.
+        let _guard = tracing::subscriber::set_default(subscriber);
+
+        let ledger = MemLedger::default();
+        let bus = DeadLetterBus::default();
+        let notifier = Arc::new(FakeNotifier {
+            name: "webhook",
+            fail: true,
+            sends: AtomicUsize::new(0),
+        });
+        let mut notifiers = Notifiers::new();
+        notifiers.register(notifier.clone());
+        let ev = event();
+        let notif = Notification::single(&ev);
+        let config = ChannelConfig::Webhook {
+            url: "http://x/h".into(),
+        };
+        let deps = DeliveryDeps {
+            ledger: &ledger,
+            bus: &bus,
+            notifiers: &notifiers,
+        };
+        // `deliver_one` assumes the ledger row already exists (normally inserted by its
+        // caller, `deliver_group_channels`, before it delivers); seed it the same way so
+        // the later `mark_notification_failed` write has a row to update.
+        ledger
+            .try_begin_notification("key-1", ev.tenant.clone(), "webhook", "http://x/h")
+            .await
+            .unwrap();
+
+        let sent = deliver_one(&deps, &config, "key-1", &notif, &ev, "webhook").await;
+
+        assert!(!sent, "permanent failure must not report success");
+        drop(_guard);
+        provider.force_flush().unwrap();
+        let spans = exporter.get_finished_spans().unwrap();
+        let span = spans
+            .iter()
+            .find(|s| s.name == "notify.deliver")
+            .expect("notify.deliver span exported");
+        match &span.status {
+            Status::Error { .. } => {}
+            other => panic!("expected error status, got {other:?}"),
+        }
+        assert!(
+            span.attributes
+                .iter()
+                .any(|kv| kv.key.as_str() == "attempts"),
+            "attempts attribute recorded on the span"
+        );
+    }
 }
 
 #[cfg(test)]
@@ -1563,9 +1775,9 @@ mod flush_dead_letter_tests {
         )
     }
 
-    /// On snapshot-load failure the claimed batch is dead-lettered (representative event,
-    /// descriptive reason) and `None` is returned so the caller stops — the alerts are
-    /// neither silently dropped nor delivered unfiltered.
+    /// On snapshot-load failure EVERY event of the claimed batch is dead-lettered with a
+    /// descriptive reason — the alerts are neither silently dropped nor delivered
+    /// unfiltered, and no event vanishes without a recoverable record.
     #[tokio::test]
     async fn snapshot_failure_dead_letters_the_batch() {
         let bus = RecordingBus::default();
@@ -1588,15 +1800,11 @@ mod flush_dead_letter_tests {
             matches!(out, FilterOutcome::DeadLettered),
             "snapshot failure must stop the flush, with the batch durably dead-lettered"
         );
-        assert_eq!(bus.dead_letter_calls.load(Ordering::SeqCst), 1);
+        assert_eq!(bus.dead_letter_calls.load(Ordering::SeqCst), 2);
         let recorded = bus.dead_lettered.lock().unwrap();
-        assert_eq!(
-            recorded.len(),
-            1,
-            "exactly one representative event dead-lettered"
-        );
-        // The representative is the first event of the claimed batch.
+        assert_eq!(recorded.len(), 2, "every event of the batch dead-lettered");
         assert_eq!(recorded[0].0.labels.get("service").unwrap(), "api");
+        assert_eq!(recorded[1].0.labels.get("service").unwrap(), "web");
         assert!(
             recorded[0].1.contains("loading tenant snapshot failed"),
             "reason is descriptive: {}",

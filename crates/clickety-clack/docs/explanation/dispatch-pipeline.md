@@ -86,14 +86,12 @@ The notification is rendered for the channel and sent:
 - **slack** — incoming-webhook message: a header plus one color-coded attachment
   per event.
 - **email** — a plaintext SMTP message summarizing the group.
-- **pagerduty** — one Events-API call per event (`trigger`/`resolve`), keyed by
-  instance so PD correlates and auto-closes.
 
 For the rendered channels, alert events honor the rule's
 [`summary`/`description`/`link.*` annotations](../how-to/write-alert-rules.md#annotations):
 the substituted `summary` is each event's headline (falling back to the instance
-key), and links render channel-natively (Slack buttons, Telegram/email links,
-PagerDuty `links`). Channel escaping is applied after substitution.
+key), and links render channel-natively (Slack buttons, Telegram/email links).
+Channel escaping is applied after substitution.
 
 ## Retry, permanence, and dead-lettering
 

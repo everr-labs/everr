@@ -79,6 +79,7 @@ async fn persist_eval_batch_upserts_and_outboxes() {
         suppressed: false,
         evidence: None,
         evidence_truncated: false,
+        traceparent: None,
     };
     let ids = store
         .persist_eval_batch(&instances, std::slice::from_ref(&ev), None, None, None)

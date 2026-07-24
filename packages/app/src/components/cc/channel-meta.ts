@@ -6,7 +6,6 @@ import {
   Mail,
   MessageSquare,
   Send,
-  Siren,
   Webhook,
 } from "lucide-react";
 import type { CcChannelConfig } from "@/data/cc/types";
@@ -16,7 +15,6 @@ export type ChannelType = CcChannelConfig["type"];
 export const CHANNEL_LABEL: Record<ChannelType, string> = {
   webhook: "Webhook",
   slack: "Slack",
-  pagerduty: "PagerDuty",
   email: "Email",
   telegram: "Telegram",
 };
@@ -24,7 +22,6 @@ export const CHANNEL_LABEL: Record<ChannelType, string> = {
 export const CHANNEL_ICON: Record<ChannelType, LucideIcon> = {
   slack: MessageSquare,
   webhook: Webhook,
-  pagerduty: Siren,
   email: Mail,
   telegram: Send,
 };
@@ -35,8 +32,6 @@ export function channelTarget(c: CcChannelConfig): string {
     case "slack":
     case "webhook":
       return c.url ?? "";
-    case "pagerduty":
-      return c.routing_key ?? "";
     case "email":
       return (c.to ?? []).join(", ");
     case "telegram":

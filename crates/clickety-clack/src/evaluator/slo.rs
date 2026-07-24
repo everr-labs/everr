@@ -31,6 +31,7 @@ use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::sync::Arc;
 use std::time::Duration as StdDuration;
 use time::{Duration, OffsetDateTime};
+use tracing::Instrument;
 
 /// A group's label set (the SLI query's `label_columns`, empty for a scalar SLO).
 type GroupKey = BTreeMap<String, String>;
@@ -185,6 +186,17 @@ fn buffer_slo_samples(
 }
 
 #[allow(clippy::too_many_arguments)]
+#[tracing::instrument(
+    name = "slo.evaluate",
+    skip_all,
+    fields(
+        slo = %slo.id.0,
+        tenant = %slo.tenant,
+        groups = tracing::field::Empty,
+        otel.status_code = tracing::field::Empty,
+        otel.status_message = tracing::field::Empty
+    )
+)]
 pub async fn evaluate_slo(
     store: &PgStore,
     ch: &dyn RowQuerier,
@@ -195,7 +207,14 @@ pub async fn evaluate_slo(
     base_cadence_secs: u64,
     degrade_after: u32,
 ) -> anyhow::Result<()> {
-    let prior: SloStatusPayload = match store.get_slo_status(&slo.tenant, slo.id).await? {
+    let status_row = match store.get_slo_status(&slo.tenant, slo.id).await {
+        Ok(row) => row,
+        Err(e) => {
+            crate::otel::span_error(&e);
+            return Err(e.into());
+        }
+    };
+    let prior: SloStatusPayload = match status_row {
         Some(row) => match serde_json::from_value(row.payload) {
             Ok(payload) => payload,
             Err(e) => {
@@ -293,10 +312,17 @@ pub async fn evaluate_slo(
                 window_values.insert(w.name.clone(), groups);
             }
             Err(msg) => {
-                if let Some((ev, id)) = store
+                let recorded = match store
                     .record_slo_failure(slo.id, &slo.tenant, &msg, degrade_after, eval_ts)
-                    .await?
+                    .await
                 {
+                    Ok(recorded) => recorded,
+                    Err(e) => {
+                        crate::otel::span_error(&e);
+                        return Err(e.into());
+                    }
+                };
+                if let Some((ev, id)) = recorded {
                     publish_health(store, events, ev, id).await;
                 }
                 return Ok(());
@@ -306,10 +332,14 @@ pub async fn evaluate_slo(
 
     // Every due window's query succeeded: record success (recovers a degraded SLO)
     // before building and persisting the new snapshot.
-    if let Some((ev, id)) = store
-        .record_slo_success(slo.id, &slo.tenant, eval_ts)
-        .await?
-    {
+    let recorded = match store.record_slo_success(slo.id, &slo.tenant, eval_ts).await {
+        Ok(recorded) => recorded,
+        Err(e) => {
+            crate::otel::span_error(&e);
+            return Err(e.into());
+        }
+    };
+    if let Some((ev, id)) = recorded {
         publish_health(store, events, ev, id).await;
     }
 
@@ -418,6 +448,7 @@ pub async fn evaluate_slo(
         }
     }
 
+    tracing::Span::current().record("groups", out_groups.len());
     let payload = SloStatusPayload {
         window: slo.spec.time_window.duration.clone(),
         target_percent: slo.spec.target_percent,
@@ -426,14 +457,20 @@ pub async fn evaluate_slo(
         objective_fingerprint: Some(objective),
     };
 
-    store
-        .upsert_slo_status(
-            slo.id,
-            &slo.tenant,
-            &serde_json::to_value(&payload)?,
-            eval_ts,
-        )
-        .await?;
+    let payload_json = match serde_json::to_value(&payload) {
+        Ok(v) => v,
+        Err(e) => {
+            crate::otel::span_error(&e);
+            return Err(e.into());
+        }
+    };
+    if let Err(e) = store
+        .upsert_slo_status(slo.id, &slo.tenant, &payload_json, eval_ts)
+        .await
+    {
+        crate::otel::span_error(&e);
+        return Err(e.into());
+    }
 
     // ---- Firing pipeline: drive each (group x tier) burn-rate verdict through the
     // shared engine state machine, open/resolve `slo_instances` rows, and publish
@@ -444,7 +481,13 @@ pub async fn evaluate_slo(
     // the instances themselves carry typed `SourceId::Slo` identity.
     let rule_id = RuleId(slo.id.0);
     let planned = plan_tier_firing(&slo.spec, &payload);
-    let known = store.load_slo_instances(&slo.tenant, slo.id).await?;
+    let known = match store.load_slo_instances(&slo.tenant, slo.id).await {
+        Ok(known) => known,
+        Err(e) => {
+            crate::otel::span_error(&e);
+            return Err(e.into());
+        }
+    };
     let mut known_by_key: HashMap<InstanceKey, InstanceState> =
         known.into_iter().map(|s| (s.key.clone(), s)).collect();
 
@@ -499,6 +542,10 @@ pub async fn evaluate_slo(
             ev.name = slo.name.clone();
             ev.evidence = Some(slo_evidence(slo, tf, budget_window_secs));
             ev.evidence_truncated = false;
+            // Stamp this "slo.evaluate" span's context (must happen inside
+            // the `#[tracing::instrument]`d function body): the dispatcher
+            // later parses this back into a span LINK.
+            ev.traceparent = crate::otel::propagation::current_traceparent();
             out_events.push(ev);
         }
         next_states.push(outcome.next);
@@ -538,13 +585,17 @@ pub async fn evaluate_slo(
         if let Some(mut ev) = outcome.event {
             ev.suppressed = slo.spec.suppressed;
             ev.name = slo.name.clone();
+            ev.traceparent = crate::otel::propagation::current_traceparent();
             out_events.push(ev);
         }
         next_states.push(outcome.next);
     }
 
     if !(next_states.is_empty() && out_events.is_empty()) {
-        commit_and_publish_slo(store, events, next_states, out_events).await?;
+        if let Err(e) = commit_and_publish_slo(store, events, next_states, out_events).await {
+            crate::otel::span_error(&e);
+            return Err(e);
+        }
     }
 
     Ok(())
@@ -663,37 +714,50 @@ pub async fn run_slo_evaluator(
         if *shutdown.borrow() {
             break;
         }
-        let deliveries = match queue.consume_slo(&consumer, 16, 2000).await {
-            Ok(d) => d,
-            Err(e) => {
-                tracing::error!(error = %e, "slo consume failed");
-                tokio::time::sleep(StdDuration::from_millis(500)).await;
-                continue;
+        let iter_span = tracing::info_span!(
+            "queue.consume",
+            stream = "cc:slo:jobs",
+            batch = tracing::field::Empty,
+            otel.status_code = tracing::field::Empty,
+            otel.status_message = tracing::field::Empty
+        );
+        async {
+            let deliveries = match queue.consume_slo(&consumer, 16, 2000).await {
+                Ok(d) => d,
+                Err(e) => {
+                    crate::otel::span_error(&e);
+                    tracing::error!(error = %e, "slo consume failed");
+                    tokio::time::sleep(StdDuration::from_millis(500)).await;
+                    return;
+                }
+            };
+            tracing::Span::current().record("batch", deliveries.len());
+            let ack_ids: Vec<JobId> = deliveries.iter().map(|d| d.id.clone()).collect();
+            let batch = std::panic::AssertUnwindSafe(process_slo_batch_inner(
+                &store,
+                ch.as_ref(),
+                events.as_ref(),
+                samples.as_ref(),
+                base_cadence_secs,
+                degrade_after,
+                deliveries,
+            ));
+            if let Err(payload) = futures::FutureExt::catch_unwind(batch).await {
+                let msg = crate::supervisor::panic_message(payload);
+                tracing::error!(
+                    panic = %msg,
+                    deliveries = ack_ids.len(),
+                    "slo evaluation batch panicked; acking the batch and continuing"
+                );
             }
-        };
-        let ack_ids: Vec<JobId> = deliveries.iter().map(|d| d.id.clone()).collect();
-        let batch = std::panic::AssertUnwindSafe(process_slo_batch_inner(
-            &store,
-            ch.as_ref(),
-            events.as_ref(),
-            samples.as_ref(),
-            base_cadence_secs,
-            degrade_after,
-            deliveries,
-        ));
-        if let Err(payload) = futures::FutureExt::catch_unwind(batch).await {
-            let msg = crate::supervisor::panic_message(payload);
-            tracing::error!(
-                panic = %msg,
-                deliveries = ack_ids.len(),
-                "slo evaluation batch panicked; acking the batch and continuing"
-            );
+            // One variadic ack per batch. On failure the unacked ids stay pending and
+            // are redelivered via the reclaim pre-pass, so logging is all that's owed.
+            if let Err(e) = queue.ack_slo_batch(&ack_ids).await {
+                tracing::error!(error = %e, "ack_slo failed");
+            }
         }
-        // One variadic ack per batch. On failure the unacked ids stay pending and
-        // are redelivered via the reclaim pre-pass, so logging is all that's owed.
-        if let Err(e) = queue.ack_slo_batch(&ack_ids).await {
-            tracing::error!(error = %e, "ack_slo failed");
-        }
+        .instrument(iter_span)
+        .await;
     }
     tracing::info!("slo evaluator stopped");
 }
