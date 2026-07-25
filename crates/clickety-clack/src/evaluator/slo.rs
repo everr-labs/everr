@@ -11,7 +11,7 @@
 
 use crate::clickhouse::{json_to_f64, RowQuerier};
 use crate::domain::ids::{InstanceKey, RuleId};
-use crate::domain::instance::InstanceState;
+use crate::domain::instance::{InstanceState, Status};
 use crate::domain::rule::Severity;
 use crate::domain::sink::{SloSample, SloSampleSink};
 use crate::domain::slo::{
@@ -524,9 +524,13 @@ pub async fn evaluate_slo<S: SloEvalStore>(
         let annotations = tier_annotations
             .get(tf.tier_name.as_str())
             .unwrap_or(&empty_annotations);
+        // A tier's own numbers can only be missing on an `Unknown` tick (the other
+        // verdicts require both burn rates); keep showing the last ones we measured
+        // rather than blanking the instance's value.
+        let value = tf.value.or(prev.value);
         let input = EvalInput {
-            present: tf.present,
-            value: tf.value,
+            present: present_for(tf.verdict, prev.status),
+            value,
             labels: tf.labels.clone(),
             // Burn windows already smooth the signal: the multi-window (long AND
             // short both over threshold) breach condition IS the for-clause, so no
@@ -800,6 +804,25 @@ pub async fn run_slo_evaluator(
     tracing::info!("slo evaluator stopped");
 }
 
+/// What one tick could establish about a (group × tier) pair.
+///
+/// The third case is load-bearing: a window returns no rows whenever the source
+/// emitted nothing during it, or has not delivered it yet. For the short window
+/// of a small SLO, floored at `SHORT_WINDOW_FLOOR_SECS`, that is routine rather
+/// than exceptional: on sparse telemetry the gap between consecutive rows
+/// exceeds 60s often enough to empty roughly one tick in eight. Collapsing that
+/// into `Clear` reads absence of data as evidence of recovery, which resolves
+/// and re-fires the alert on every gap.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum TierVerdict {
+    /// Both windows measured, both over the tier's threshold.
+    Breaching,
+    /// Both windows measured, and the tier is under threshold.
+    Clear,
+    /// A window returned no rows, so this tick establishes nothing.
+    Unknown,
+}
+
 /// One (group × tier) firing verdict: the pure output of comparing an
 /// already-computed [`SloStatusPayload`] snapshot against the [`SloSpec`]'s
 /// burn-rate tiers. No I/O; [`evaluate_slo`] feeds each verdict through the
@@ -809,7 +832,7 @@ pub(crate) struct TierFiring {
     /// Group labels + "slo_tier" — the instance's label set (identity input).
     pub labels: BTreeMap<String, String>,
     pub tier_name: String,
-    pub present: bool,
+    pub verdict: TierVerdict,
     /// Long-window burn rate when present (the event value).
     pub value: Option<f64>,
     pub severity: Severity,
@@ -821,11 +844,15 @@ pub(crate) struct TierFiring {
 /// For every (group × tier) pair, decide whether the tier is presently
 /// breaching: both the long- and short-window burn rates must strictly
 /// exceed the tier's threshold, and (if `spec.min_valid_events` is set) the
-/// long window's observed `valid` count must meet the floor. A `None` burn on
-/// either window, or a `None` valid count when a floor is configured, fails
-/// open (`present: false`) rather than paging on missing/low-traffic data.
+/// long window's observed `valid` count must meet the floor.
 ///
-/// Every (group × tier) pair yields exactly one entry, including absent ones
+/// A `None` burn rate on either window, or a `None` valid count when a floor is
+/// configured, means that window had no rows to measure: the pair is
+/// [`TierVerdict::Unknown`], neither breaching nor clear. Traffic that is merely
+/// *below* a configured `min_valid_events` floor is a measurement the operator
+/// asked us not to act on, so it stays [`TierVerdict::Clear`].
+///
+/// Every (group × tier) pair yields exactly one entry, including clear ones
 /// — the resolve path downstream relies on seeing every pair each tick.
 pub(crate) fn plan_tier_firing(spec: &SloSpec, payload: &SloStatusPayload) -> Vec<TierFiring> {
     // Firing compares each tier's stored burn against its threshold and matches by
@@ -840,13 +867,23 @@ pub(crate) fn plan_tier_firing(spec: &SloSpec, payload: &SloStatusPayload) -> Ve
             let short_burn = tier_status.and_then(|t| t.short_burn_rate);
             let long_window_valid = tier_status.and_then(|t| t.long_window_valid);
 
+            // `None` is "the floor could not be evaluated": a floor is configured
+            // but the long window produced no count at all, which is missing data
+            // rather than a measurement that came in under the floor.
             let floor_ok = match spec.min_valid_events {
-                Some(n) => long_window_valid.is_some_and(|v| v >= n as f64),
-                None => true,
+                None => Some(true),
+                Some(n) => long_window_valid.map(|v| v >= n as f64),
             };
-            let present = floor_ok
-                && long_burn.is_some_and(|l| l > tier.burn_rate)
-                && short_burn.is_some_and(|s| s > tier.burn_rate);
+            let verdict = match (long_burn, short_burn, floor_ok) {
+                (Some(long), Some(short), Some(ok)) => {
+                    if ok && long > tier.burn_rate && short > tier.burn_rate {
+                        TierVerdict::Breaching
+                    } else {
+                        TierVerdict::Clear
+                    }
+                }
+                _ => TierVerdict::Unknown,
+            };
 
             let mut labels = group.labels.clone();
             labels.insert(
@@ -857,7 +894,7 @@ pub(crate) fn plan_tier_firing(spec: &SloSpec, payload: &SloStatusPayload) -> Ve
             out.push(TierFiring {
                 labels,
                 tier_name: tier.name.clone(),
-                present,
+                verdict,
                 value: long_burn,
                 severity: tier.severity,
                 short_burn,
@@ -866,6 +903,23 @@ pub(crate) fn plan_tier_firing(spec: &SloSpec, payload: &SloStatusPayload) -> Ve
         }
     }
     out
+}
+
+/// Collapse a tier verdict onto the state machine's binary `present` input,
+/// given what the instance already decided.
+///
+/// [`TierVerdict::Unknown`] holds that decision: a tick with no data is not
+/// evidence of recovery, so a firing instance keeps firing, and it is not
+/// evidence of a breach either, so an inactive one stays inactive. Holding
+/// (rather than skipping the instance for the tick) is what keeps `last_seen`
+/// advancing, so a long data gap cannot be resolved out from under us by the
+/// staleness reaper.
+fn present_for(verdict: TierVerdict, prev: Status) -> bool {
+    match verdict {
+        TierVerdict::Breaching => true,
+        TierVerdict::Clear => false,
+        TierVerdict::Unknown => prev != Status::Inactive,
+    }
 }
 
 /// Default notification annotations for one tier, overridden by
@@ -1040,7 +1094,7 @@ mod tier_firing_tests {
     fn fires_only_when_both_windows_breach() {
         let spec = spec_with(None); // canonical tiers, fast-burn threshold 14.4
 
-        // both windows breach -> present
+        // both windows breach -> breaching
         let payload = payload_one_group(
             group_labels(),
             None,
@@ -1048,9 +1102,9 @@ mod tier_firing_tests {
         );
         let firings = plan_tier_firing(&spec, &payload);
         let fast = firings.iter().find(|f| f.tier_name == "fast-burn").unwrap();
-        assert!(fast.present);
+        assert_eq!(fast.verdict, TierVerdict::Breaching);
 
-        // long breaches, short doesn't -> absent
+        // long breaches, short doesn't -> clear
         let payload = payload_one_group(
             group_labels(),
             None,
@@ -1058,9 +1112,9 @@ mod tier_firing_tests {
         );
         let firings = plan_tier_firing(&spec, &payload);
         let fast = firings.iter().find(|f| f.tier_name == "fast-burn").unwrap();
-        assert!(!fast.present);
+        assert_eq!(fast.verdict, TierVerdict::Clear);
 
-        // short breaches, long doesn't -> absent
+        // short breaches, long doesn't -> clear
         let payload = payload_one_group(
             group_labels(),
             None,
@@ -1068,7 +1122,88 @@ mod tier_firing_tests {
         );
         let firings = plan_tier_firing(&spec, &payload);
         let fast = firings.iter().find(|f| f.tier_name == "fast-burn").unwrap();
-        assert!(!fast.present);
+        assert_eq!(fast.verdict, TierVerdict::Clear);
+    }
+
+    /// `fast-burn`'s verdict for a payload carrying just those two burn rates.
+    fn fast_verdict(spec: &SloSpec, long: Option<f64>, short: Option<f64>) -> TierVerdict {
+        let payload = payload_one_group(
+            group_labels(),
+            None,
+            vec![tier_status("fast-burn", long, short)],
+        );
+        plan_tier_firing(spec, &payload)
+            .into_iter()
+            .find(|f| f.tier_name == "fast-burn")
+            .unwrap()
+            .verdict
+    }
+
+    #[test]
+    fn a_missing_burn_window_yields_no_verdict_not_a_clear_one() {
+        let spec = spec_with(None);
+        // Either window returning no rows leaves the tier unmeasured, which is
+        // not the same as measuring it and finding it under threshold.
+        assert_eq!(fast_verdict(&spec, Some(15.0), None), TierVerdict::Unknown);
+        assert_eq!(fast_verdict(&spec, None, Some(15.0)), TierVerdict::Unknown);
+    }
+
+    #[test]
+    fn an_unknown_verdict_holds_whatever_the_instance_already_decided() {
+        assert!(present_for(TierVerdict::Breaching, Status::Inactive));
+        assert!(!present_for(TierVerdict::Clear, Status::Firing));
+
+        // The fix: no measurement must not read as recovery, and must not open
+        // an alert either.
+        assert!(present_for(TierVerdict::Unknown, Status::Firing));
+        assert!(present_for(TierVerdict::Unknown, Status::Pending));
+        assert!(!present_for(TierVerdict::Unknown, Status::Inactive));
+    }
+
+    /// The bug this guards: a firing burn-rate alert used to resolve on the
+    /// first tick whose short window happened to return no rows, then re-fire
+    /// on the next one.
+    #[test]
+    fn a_data_gap_neither_resolves_nor_ages_out_a_firing_instance() {
+        use crate::domain::ids::{SloId, SourceId, TenantId};
+
+        let slo = SloId(uuid::Uuid::nil());
+        let labels = group_labels();
+        let key = InstanceKey::new(RuleId(slo.0), &labels);
+        let fired_at = OffsetDateTime::from_unix_timestamp(1_700_000_000).unwrap();
+        let mut prev = InstanceState::new_inactive(
+            key,
+            SourceId::Slo(slo),
+            TenantId::parse("t").unwrap(),
+            labels,
+        );
+        prev.status = Status::Firing;
+        prev.value = Some(1000.0);
+        prev.active_since = Some(fired_at);
+        prev.last_seen = Some(fired_at);
+
+        let gap_ts = fired_at + Duration::seconds(30);
+        let annotations = BTreeMap::new();
+        let outcome = evaluate(
+            prev,
+            EvalInput {
+                present: present_for(TierVerdict::Unknown, Status::Firing),
+                value: None,
+                labels: group_labels(),
+                for_duration: Duration::ZERO,
+                resolve_after: 1,
+                severity: Severity::Critical,
+                annotations: &annotations,
+                eval_ts: gap_ts,
+            },
+        );
+
+        assert!(outcome.event.is_none(), "a data gap must not resolve");
+        assert_eq!(outcome.next.status, Status::Firing);
+        // last_seen has to keep advancing or the staleness reaper
+        // (`list_stale_slo_instances`) resolves the instance a few ticks later,
+        // reintroducing the bug through the back door.
+        assert_eq!(outcome.next.last_seen, Some(gap_ts));
     }
 
     #[test]
@@ -1081,7 +1216,7 @@ mod tier_firing_tests {
         );
         let firings = plan_tier_firing(&spec, &payload);
         let fast = firings.iter().find(|f| f.tier_name == "fast-burn").unwrap();
-        assert!(!fast.present);
+        assert_eq!(fast.verdict, TierVerdict::Unknown);
         assert_eq!(fast.value, None);
     }
 
@@ -1089,7 +1224,9 @@ mod tier_firing_tests {
     fn min_valid_events_floor() {
         let spec_floored = spec_with(Some(1000));
 
-        // burn 20x on both windows, but valid count under the floor -> absent
+        // burn 20x on both windows, but the count is measured and under the
+        // floor -> a clear verdict, because the operator asked us not to act on
+        // traffic this thin.
         let payload = payload_one_group(
             group_labels(),
             None,
@@ -1102,9 +1239,9 @@ mod tier_firing_tests {
         );
         let firings = plan_tier_firing(&spec_floored, &payload);
         let fast = firings.iter().find(|f| f.tier_name == "fast-burn").unwrap();
-        assert!(!fast.present);
+        assert_eq!(fast.verdict, TierVerdict::Clear);
 
-        // same burns, valid count clears the floor -> present
+        // same burns, valid count clears the floor -> breaching
         let payload = payload_one_group(
             group_labels(),
             None,
@@ -1117,9 +1254,10 @@ mod tier_firing_tests {
         );
         let firings = plan_tier_firing(&spec_floored, &payload);
         let fast = firings.iter().find(|f| f.tier_name == "fast-burn").unwrap();
-        assert!(fast.present);
+        assert_eq!(fast.verdict, TierVerdict::Breaching);
 
-        // floor set, valid count missing -> absent (no data, no page)
+        // floor set, valid count missing -> the floor is unmeasured, so there
+        // is no verdict at all (and still no page)
         let payload = payload_one_group(
             group_labels(),
             None,
@@ -1132,13 +1270,13 @@ mod tier_firing_tests {
         );
         let firings = plan_tier_firing(&spec_floored, &payload);
         let fast = firings.iter().find(|f| f.tier_name == "fast-burn").unwrap();
-        assert!(!fast.present);
+        assert_eq!(fast.verdict, TierVerdict::Unknown);
 
-        // no floor configured, valid count missing -> present purely on burns
+        // no floor configured, valid count missing -> breaching purely on burns
         let spec_no_floor = spec_with(None);
         let firings = plan_tier_firing(&spec_no_floor, &payload);
         let fast = firings.iter().find(|f| f.tier_name == "fast-burn").unwrap();
-        assert!(fast.present);
+        assert_eq!(fast.verdict, TierVerdict::Breaching);
     }
 
     #[test]
@@ -1170,7 +1308,7 @@ mod tier_firing_tests {
         );
         let firings = plan_tier_firing(&spec, &payload);
         let ticket = firings.iter().find(|f| f.tier_name == "ticket").unwrap();
-        assert!(ticket.present);
+        assert_eq!(ticket.verdict, TierVerdict::Breaching);
         assert_eq!(ticket.severity, Severity::Warning);
         assert_eq!(ticket.value, Some(2.0));
     }
@@ -1196,7 +1334,7 @@ mod tier_firing_tests {
 
         let firings = plan_tier_firing(&spec, &payload);
         let fast = firings.iter().find(|f| f.tier_name == "fast-burn").unwrap();
-        assert!(fast.present); // both burns exceed 14.4 threshold
+        assert_eq!(fast.verdict, TierVerdict::Breaching); // both burns exceed 14.4
         assert_eq!(fast.short_burn, Some(16.0));
         assert_eq!(fast.budget_remaining, Some(0.5));
     }
@@ -1211,7 +1349,7 @@ mod tier_firing_tests {
         );
         let firings = plan_tier_firing(&spec, &payload);
         let fast = firings.iter().find(|f| f.tier_name == "fast-burn").unwrap();
-        assert!(!fast.present); // strict >, not >=
+        assert_eq!(fast.verdict, TierVerdict::Clear); // strict >, not >=
     }
 }
 
@@ -1259,7 +1397,7 @@ mod annotations_evidence_tests {
         TierFiring {
             labels: BTreeMap::new(),
             tier_name: "fast-burn".into(),
-            present: true,
+            verdict: TierVerdict::Breaching,
             value,
             severity: Severity::Critical,
             short_burn,

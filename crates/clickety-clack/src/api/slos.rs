@@ -458,9 +458,11 @@ const MAX_WINDOW_SECS: u64 = 366 * 86_400;
 
 /// Lower bound on the SLO's `timeWindow.duration`: 1 day. The burn-rate tiers are
 /// scaled to the budget window (`domain::slo::tiers_for_window`); at exactly a day
-/// the fast- and slow-burn tiers already collapse onto the same short-window floor,
-/// and below a day all three merge, so the multi-window method can no longer
-/// separate a fast page from a slow ticket by timescale. Sub-day monitoring is a
+/// the fast- and slow-burn tiers collapse onto the same short-window floor, which
+/// `tiers_for_window` resolves by keeping the lower threshold, leaving a workable
+/// two-tier page/ticket split. Below a day all three merge, which that same dedup
+/// would flatten to a single tier: the multi-window method can no longer separate
+/// a fast page from a slow ticket by timescale at all. Sub-day monitoring is a
 /// threshold rule's job, not an error-budget SLO's, so reject the window rather
 /// than evaluate a degenerate tier set.
 const MIN_WINDOW_SECS: u64 = 86_400;

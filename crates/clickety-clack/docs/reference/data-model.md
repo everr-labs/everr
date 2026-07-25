@@ -125,6 +125,12 @@ proportionally for other `timeWindow` values, thresholds unchanged):
 | `slow-burn` | `6h`           | `30m`          | `6.0`       | critical   |
 | `ticket`    | `3d`           | `6h`           | `1.0`       | warning    |
 
+A short window never scales below 1 minute, so on small budget windows a tier's
+windows are floored rather than proportional. Where the floor lands two tiers on
+identical windows (a 1-day budget does this to `fast-burn` and `slow-burn`), only
+the lower threshold is kept, since on identical windows it fires whenever the
+other would and earlier. A 1-day SLO therefore has two tiers, not three.
+
 **Tier instance identity.** Each (group × tier) pair is tracked as its own
 instance, keyed like a rule instance but with the SLO id standing in for the
 rule id and an extra `slo_tier` label added to the group's own labels — so a
@@ -177,6 +183,11 @@ verbatim by the API, without either enrichment field, rather than erroring.
 | `long_burn_rate`     | f64 \| null | Burn rate over the tier's `long_window`. `null` at zero traffic in that window. |
 | `short_burn_rate`    | f64 \| null | Burn rate over the tier's `short_window`. `null` at zero traffic in that window. |
 | `long_window_valid`  | f64 \| null | The tier's long-window `valid` count — the input to `min_valid_events`'s floor. `null` when the stored row omits the field (it is additive and defaults to `null` on read). |
+
+A `null` on either burn rate means that window had no rows to measure, so the
+tick produces no firing verdict for the tier at all: an idle tier stays idle and
+a firing tier keeps firing. Only a measured burn rate that has fallen back under
+the threshold resolves an alert.
 
 ---
 

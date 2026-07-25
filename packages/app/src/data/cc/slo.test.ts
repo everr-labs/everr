@@ -85,16 +85,27 @@ describe("ccTiersForWindow", () => {
     expect(t[0].burn_rate).toBe(14.4);
   });
 
-  it("floors short windows and never exceeds a 1-day objective", () => {
+  it("never exceeds a 1-day objective", () => {
     // The bug: the canonical 3-day ticket window is longer than a 1-day SLO.
-    // After scaling every window is <= the window; fast-burn's short scales below
-    // the 60s floor, pinning it to 1m / 12m.
     const t = ccTiersForWindow(86_400);
-    expect(t[0]).toMatchObject({ long_window: "12m", short_window: "1m" });
     for (const x of t) {
       const long = ccTierWinSecs(x.long_window);
       expect(long).toBeLessThanOrEqual(86_400);
     }
+  });
+
+  it("drops a tier the floor collapses onto an earlier tier's windows", () => {
+    // The engine keeps only the lower threshold (domain/slo.rs `tiers_for_window`),
+    // so the UI must not render a fast-burn tier that is never evaluated.
+    const t = ccTiersForWindow(86_400);
+    expect(t).toHaveLength(2);
+    expect(t[0]).toMatchObject({
+      name: "slow-burn",
+      long_window: "12m",
+      short_window: "1m",
+      burn_rate: 6,
+    });
+    expect(t[1]).toMatchObject({ name: "ticket", short_window: "12m" });
   });
 });
 

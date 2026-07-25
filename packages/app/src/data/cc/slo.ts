@@ -207,15 +207,25 @@ export function ccSloTiers(spec: CcSloSpec): CcSloTier[] {
 }
 
 /**
- * The three burn-rate tiers scaled to a `windowSecs` budget window, mirroring
+ * The burn-rate tiers scaled to a `windowSecs` budget window, mirroring
  * domain/slo.rs `tiers_for_window`. The engine measures each tier's burn over
  * these scaled windows (the canonical 1h/6h/3d only for a 30-day SLO), so the
  * SLO surfaces label a burn with the same window. Short windows floor at
  * `CC_SHORT_WINDOW_FLOOR_SECS`, pinning the tier at its 12:1 ratio.
+ *
+ * Fewer than three tiers come back when the floor collapses one onto another's
+ * windows (a 1-day budget does this to fast-burn and slow-burn): identical
+ * windows make them one detector, so the engine keeps only the lower threshold
+ * and never evaluates the other. Rendering the dropped tier would show a row
+ * that can never carry data.
  */
 export function ccTiersForWindow(windowSecs: number): CcSloTier[] {
   const k = windowSecs / CC_CANONICAL_TIER_WINDOW_SECS;
-  return CC_BASE_TIERS.map((b) => {
+  // Keyed on the computed seconds rather than the rendered windows, so the
+  // collapse never depends on ccFmtWindowSecs being injective.
+  const seen: Array<[number, number]> = [];
+  const out: CcSloTier[] = [];
+  for (const b of CC_BASE_TIERS) {
     const shortScaled = Math.round(b.shortSecs * k);
     const [long, short] =
       shortScaled < CC_SHORT_WINDOW_FLOOR_SECS
@@ -224,14 +234,25 @@ export function ccTiersForWindow(windowSecs: number): CcSloTier[] {
             CC_SHORT_WINDOW_FLOOR_SECS,
           ]
         : [Math.round(b.longSecs * k), shortScaled];
-    return {
+    const tier: CcSloTier = {
       name: b.name,
       long_window: ccFmtWindowSecs(long),
       short_window: ccFmtWindowSecs(short),
       burn_rate: b.burn_rate,
       severity: b.severity,
     };
-  });
+    // CC_BASE_TIERS runs fastest-first with strictly decreasing thresholds, so a
+    // collision always means the newcomer is the lower-threshold twin: it takes
+    // the slot of the tier it collided with.
+    const twin = seen.findIndex(([l, s]) => l === long && s === short);
+    if (twin === -1) {
+      seen.push([long, short]);
+      out.push(tier);
+    } else {
+      out[twin] = tier;
+    }
+  }
+  return out;
 }
 
 /**

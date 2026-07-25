@@ -103,13 +103,33 @@ A tier fires only when **both** its long-window and short-window burn rates
 strictly exceed `burn_rate` — the short window is what lets a resolved spike
 stop paging immediately instead of waiting out the long window.
 
+A window that returns no rows is neither: it produces no burn rate at all, so
+the tick carries no verdict and the tier keeps whatever state it already had.
+An idle tier stays idle (a gap never pages you) and a firing tier keeps firing
+(a gap is not evidence of recovery). This matters most on small budget windows,
+where the scaled short window is short enough that a quiet minute, or telemetry
+that has not finished landing, can empty it.
+
 For a budget window other than 30 days, each tier's windows scale
 proportionally (by `timeWindow / 30d`) while the thresholds stay put, keeping
 the fraction of budget consumed over each long window (2%/5%/10%) constant at
-any window size. A scaled short window is floored at 1 minute; when the floor
-kicks in, the tier's long window is pinned to 12× the floor, preserving the
-canonical long:short ratio. Sensitivity is therefore tuned through
-`targetPercent` and `timeWindow`, not by editing tiers.
+any window size. Sensitivity is therefore tuned through `targetPercent` and
+`timeWindow`, not by editing tiers.
+
+Below roughly a 6-day budget window that proportionality gives way to a floor.
+A scaled short window is never allowed under 1 minute, and when the floor kicks
+in the tier's long window is pinned to 12× the floor to preserve the canonical
+long:short ratio (the short window is the anti-flap signal, so its ratio to the
+long one is worth more than exact proportionality). A floored tier therefore
+watches a larger slice of the budget than its threshold was calibrated for, and
+fires later than the table above implies.
+
+At a 1-day window the floor makes `fast-burn` land on exactly `slow-burn`'s
+scaled windows (12m/1m). Two tiers watching identical windows are one detector
+at two sensitivities, so only the lower threshold is kept: a 1-day SLO
+evaluates **two** tiers, `slow-burn` (12m/1m, 6×, critical) and `ticket`
+(144m/12m, 1×, warning). Nothing is lost, because on identical windows the 6×
+tier fires whenever the 14.4× one would and earlier, at the same severity.
 
 Tiers are precedence-ordered fastest-first; a faster tier firing inhibits its
 slower siblings for the same group (spec §5) via inhibition rules the
@@ -129,8 +149,13 @@ against a 99.9% target (a 0.1% budget) is already a 200× burn rate, comfortably
 enough to trip `fast-burn`'s 14.4× threshold on five requests' worth of noise.
 
 There is no auto-derived "smart" default: leaving it `null` means tiers fire
-purely on burn rate, with no floor. A floor with a missing (`None`) valid count
-also fails open — no page on missing data, same as zero traffic.
+purely on burn rate, with no floor.
+
+The floor distinguishes two cases. A `valid` count that is present but under the
+floor is a real measurement you asked the engine not to act on, so it reads as
+"not breaching" and will resolve a firing tier. A **missing** (`None`) valid
+count is no measurement at all, so it carries no verdict and holds the tier's
+state, exactly like a missing burn rate.
 
 ## Test before you commit
 

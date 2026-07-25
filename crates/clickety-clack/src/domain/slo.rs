@@ -147,29 +147,57 @@ const BASE_TIERS: [BaseTier; 3] = [
 /// "budget consumed over the long window" (2%/5%/10%) constant for any window,
 /// with the thresholds unchanged. Short windows are floored (see
 /// `SHORT_WINDOW_FLOOR_SECS`) so a small window can't produce a sub-minute
-/// confirmation window; the floor pins the whole tier at its 12:1 ratio.
+/// confirmation window; the floor pins the whole tier at its 12:1 ratio, which
+/// costs that tier its budget-fraction proportionality (a floored tier measures a
+/// smaller slice of the budget than its threshold was calibrated for).
+///
+/// Flooring can also land one tier on another's windows: at a 1-day budget
+/// fast-burn's 5m short scales to 10s, floors to 1m, and pins its long to 12m,
+/// which is exactly where slow-burn's 30m/6h scale to. Tiers measuring identical
+/// windows are one detector at two sensitivities, so only the lower threshold is
+/// kept: it fires whenever its twin would and earlier, making the twin pure
+/// duplication. Keeping both would emit two events per transition from a single
+/// condition, and because identical windows cross at the same instant, the
+/// auto-provisioned tier inhibition could not suppress the second (it needs the
+/// higher tier to be firing already, not firing simultaneously). The survivor
+/// holds the earlier tier's slot, so inhibition precedence still runs
+/// fastest-to-slowest.
 pub fn tiers_for_window(window_secs: u64) -> Vec<BurnRateTier> {
     let k = window_secs as f64 / CANONICAL_TIER_WINDOW_SECS as f64;
-    BASE_TIERS
-        .iter()
-        .map(|b| {
-            let short_scaled = (b.short_secs as f64 * k).round() as u64;
-            let (long, short) = if short_scaled < SHORT_WINDOW_FLOOR_SECS {
-                // Ratio-preserving floor: long = 12x the floored short.
-                let ratio = b.long_secs / b.short_secs;
-                (SHORT_WINDOW_FLOOR_SECS * ratio, SHORT_WINDOW_FLOOR_SECS)
-            } else {
-                ((b.long_secs as f64 * k).round() as u64, short_scaled)
-            };
-            BurnRateTier {
-                name: b.name.into(),
-                long_window: fmt_window_secs(long),
-                short_window: fmt_window_secs(short),
-                burn_rate: b.burn_rate,
-                severity: b.severity,
+    // Deduplication keys on the computed seconds, not on the rendered windows, so
+    // it never depends on `fmt_window_secs` being injective -- the same choice
+    // `engine::slo_math::required_windows` makes when it collapses tier windows.
+    let mut seen: Vec<(u64, u64)> = Vec::with_capacity(BASE_TIERS.len());
+    let mut out: Vec<BurnRateTier> = Vec::with_capacity(BASE_TIERS.len());
+    for b in BASE_TIERS.iter() {
+        let short_scaled = (b.short_secs as f64 * k).round() as u64;
+        let (long, short) = if short_scaled < SHORT_WINDOW_FLOOR_SECS {
+            // Ratio-preserving floor: long = 12x the floored short.
+            let ratio = b.long_secs / b.short_secs;
+            (SHORT_WINDOW_FLOOR_SECS * ratio, SHORT_WINDOW_FLOOR_SECS)
+        } else {
+            ((b.long_secs as f64 * k).round() as u64, short_scaled)
+        };
+        let tier = BurnRateTier {
+            name: b.name.into(),
+            long_window: fmt_window_secs(long),
+            short_window: fmt_window_secs(short),
+            burn_rate: b.burn_rate,
+            severity: b.severity,
+        };
+        // BASE_TIERS runs fastest-first with strictly decreasing thresholds
+        // (asserted in `base_tiers_are_ordered_fastest_first`), so a collision
+        // always means the newcomer is the lower-threshold twin: it replaces the
+        // tier it collided with, in that tier's slot.
+        match seen.iter().position(|&w| w == (long, short)) {
+            Some(i) => out[i] = tier,
+            None => {
+                seen.push((long, short));
+                out.push(tier);
             }
-        })
-        .collect()
+        }
+    }
+    out
 }
 
 /// The canonical tiers at their calibrated 30-day window. Their names, severities,
@@ -408,10 +436,36 @@ mod tests {
             );
             assert!(long > short, "{} long must exceed short", t.name);
         }
-        // fast-burn's 5m short scales below the floor, so it pins to 1m / 12m.
+    }
+
+    #[test]
+    fn base_tiers_are_ordered_fastest_first() {
+        // `tiers_for_window`'s dedup replaces unconditionally on a window
+        // collision, which is only the lower-threshold survivor if this holds.
+        for pair in BASE_TIERS.windows(2) {
+            assert!(
+                pair[0].burn_rate > pair[1].burn_rate,
+                "{} must outrank {}",
+                pair[0].name,
+                pair[1].name
+            );
+        }
+    }
+
+    #[test]
+    fn tiers_are_never_duplicated_by_the_short_window_floor() {
+        // See `tiers_for_window` for why a twin is dropped rather than kept.
         let t = tiers_for_window(86_400);
-        assert_eq!(t[0].short_window, "1m");
+        assert_eq!(t.len(), 2, "1d collapses fast-burn and slow-burn into one");
+        // The survivor is the lower threshold, in the slot the faster tier held.
+        assert_eq!(t[0].name, "slow-burn");
         assert_eq!(t[0].long_window, "12m");
+        assert_eq!(t[0].short_window, "1m");
+        assert_eq!(t[0].burn_rate, 6.0);
+        assert_eq!(t[0].severity, Severity::Critical);
+        assert_eq!(t[1].name, "ticket");
+        assert_eq!(t[1].long_window, "144m");
+        assert_eq!(t[1].short_window, "12m");
     }
 
     #[test]
