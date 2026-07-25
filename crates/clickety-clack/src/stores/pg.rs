@@ -3347,6 +3347,28 @@ impl PgStore {
     /// Delete evaluation-ledger rows (both the rule-side `evaluations` and SLO-side
     /// `slo_evaluations` idempotency tables) older than `cutoff` (housekeeping).
     /// Returns `(rules rows deleted, slos rows deleted)`.
+    /// Drop delivery-ledger rows last touched before `cutoff`, returning the count.
+    ///
+    /// The ledger is internal dedup state, not user-facing history: nothing reads it
+    /// outside [`Self::begin_notification`]'s claim protocol, and the alert history the
+    /// UI shows comes from the ClickHouse alert-log export. A dedup key is a content
+    /// hash folding in each member event's `eval_ts` at nanosecond precision (see
+    /// `dispatcher::grouping::dedup_hash`), so a key is bound to one evaluation instant
+    /// and cannot recur once its flush is done. Retention therefore only has to outlast
+    /// the paths that legitimately re-present a key -- stream redelivery and the
+    /// notification lease, both minutes -- which [`NOTIFICATION_RETENTION`] clears by a
+    /// wide margin. Pending rows are pruned too: a row stranded that long is past any
+    /// reclaim, and a redelivery after it goes simply claims a fresh one.
+    ///
+    /// [`NOTIFICATION_RETENTION`]: crate::evaluator::maintenance::NOTIFICATION_RETENTION
+    pub async fn prune_notifications(&self, cutoff: OffsetDateTime) -> Result<u64, StoreError> {
+        let res = sqlx::query("DELETE FROM notifications WHERE updated_at < $1")
+            .bind(cutoff)
+            .execute(&self.pool)
+            .await?;
+        Ok(res.rows_affected())
+    }
+
     pub async fn prune_eval_ledgers(
         &self,
         cutoff: OffsetDateTime,

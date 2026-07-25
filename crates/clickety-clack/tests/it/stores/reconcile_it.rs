@@ -174,3 +174,63 @@ async fn gc_silences_deletes_only_expired_before_cutoff() {
     let active = store.list_active_silences(tenant, now).await.unwrap();
     assert_eq!(active.len(), 1);
 }
+
+/// The delivery ledger grows on every send and nothing else ever removes a row, so the
+/// hourly prune is the only thing bounding it. Rows are selected by `updated_at`, which
+/// the claim protocol touches on each state change, so a row stays for its retention
+/// past its LAST activity rather than its creation.
+#[tokio::test]
+async fn prune_notifications_deletes_only_rows_untouched_before_cutoff() {
+    let url = crate::support::fresh_db().await;
+    let store = PgStore::connect(&url).await.unwrap();
+    let pool = sqlx::PgPool::connect(&url).await.unwrap();
+    let tenant = TenantId::from_trusted(Uuid::new_v4().to_string());
+    let now = OffsetDateTime::now_utc();
+
+    // Three rows, aged by writing `updated_at` directly (the column defaults to now()).
+    for (key, status, age_hours) in [
+        ("old-sent", "sent", 48),
+        ("old-pending", "pending", 48),
+        ("recent-sent", "sent", 1),
+    ] {
+        sqlx::query(
+            "INSERT INTO notifications (dedup_key, tenant, channel, target, status, updated_at)
+             VALUES ($1,$2,'webhook','http://x/h',$3,$4)",
+        )
+        .bind(key)
+        .bind(tenant.as_str())
+        .bind(status)
+        .bind(now - Duration::hours(age_hours))
+        .execute(&pool)
+        .await
+        .unwrap();
+    }
+
+    let deleted = store
+        .prune_notifications(now - Duration::hours(24))
+        .await
+        .unwrap();
+    assert_eq!(deleted, 2, "both aged rows go, whatever their status");
+
+    let left: Vec<String> = sqlx::query_scalar(
+        "SELECT dedup_key FROM notifications WHERE tenant=$1 ORDER BY dedup_key",
+    )
+    .bind(tenant.as_str())
+    .fetch_all(&pool)
+    .await
+    .unwrap();
+    assert_eq!(
+        left,
+        vec!["recent-sent".to_string()],
+        "a row touched inside the window survives"
+    );
+
+    // Idempotent: a second pass over the same cutoff removes nothing more.
+    assert_eq!(
+        store
+            .prune_notifications(now - Duration::hours(24))
+            .await
+            .unwrap(),
+        0
+    );
+}

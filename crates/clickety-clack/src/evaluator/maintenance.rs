@@ -23,6 +23,13 @@ const RECONCILE_BATCH: i64 = 256;
 /// [`GC_INTERVAL`] cadence as silence GC rather than a second wall-clock timer.
 const LEDGER_RETENTION: Duration = Duration::days(7);
 
+/// How long a delivery-ledger row outlives its last update. The rows are dedup state
+/// with no reader outside the claim protocol, so this only has to dwarf the redelivery
+/// window (see [`PgStore::prune_notifications`]); it matches [`LEDGER_RETENTION`] so the
+/// two Postgres ledgers age out together. Without it the table grew for the lifetime of
+/// the database.
+pub const NOTIFICATION_RETENTION: Duration = Duration::days(7);
+
 /// Whether the hourly silence GC is due as of `now`, given the last run time.
 /// `None` (never run) is always due. Wall-clock based so it survives lease hand-offs.
 fn gc_due(last_gc: Option<OffsetDateTime>, now: OffsetDateTime) -> bool {
@@ -212,8 +219,9 @@ fn reconcile_transition(s: StaleInstance, now: OffsetDateTime) -> (InstanceState
     (next, ev)
 }
 
-/// Lease-singleton maintenance loop: relay + reconciliation every tick, silence GC
-/// and ledger prune hourly. Mirrors `run_scheduler`'s lease + watch-shutdown pattern.
+/// Lease-singleton maintenance loop: relay + reconciliation every tick, silence GC and
+/// the eval/delivery ledger prunes hourly. Mirrors `run_scheduler`'s lease +
+/// watch-shutdown pattern.
 pub async fn run_maintenance(
     store: PgStore,
     bus: std::sync::Arc<dyn EventBus>,
@@ -282,6 +290,13 @@ pub async fn run_maintenance(
                             "eval ledgers pruned"
                         ),
                         Err(e) => tracing::error!(error = %e, "eval ledger prune failed"),
+                    }
+                    match store
+                        .prune_notifications(now - NOTIFICATION_RETENTION)
+                        .await
+                    {
+                        Ok(n) => tracing::debug!(pruned = n, "delivery ledger pruned"),
+                        Err(e) => tracing::error!(error = %e, "delivery ledger prune failed"),
                     }
                     // Set regardless of Ok/Err so a transient GC error doesn't busy-loop.
                     last_gc = Some(now);
