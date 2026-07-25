@@ -10,6 +10,13 @@ pre-commit:
       # dead-code only — health + dupes will move into a `fallow audit` gate
       # once stage-2 baselines are in place.
       run: pnpm exec fallow dead-code --fail-on-issues --quiet
+    # clickety-clack is its own cargo workspace (the root one excludes it), so a
+    # bare `cargo fmt` at the repo root does not reach it. CI gates it with
+    # `cargo fmt --check`; this fixes it up front instead of failing there.
+    - name: clickety-clack-fmt
+      glob: "crates/clickety-clack/**/*.rs"
+      run: cd crates/clickety-clack && cargo fmt
+      stage_fixed: true
     - name: collector
       glob: "collector/**/*.go"
       group:
