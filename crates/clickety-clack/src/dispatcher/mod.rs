@@ -286,9 +286,11 @@ pub async fn process_event(ctx: &DispatchCtx, entry: &EventEntry) -> bool {
     for target in routing::select_grouping_targets(&snap.routes, ev, &labels) {
         let channel_names = match snap.receivers.get(target.receiver.as_str()) {
             Some(r) => r.channels.as_slice(),
-            // The route targets a receiver that no longer exists: only reachable for a
-            // route stored before route writes locked the receiver and `delete_receiver`
-            // began refusing while a route targets it.
+            // The route targets a receiver the snapshot does not have. The foreign key
+            // keeps the stored rows consistent, but `FilterCache::load` assembles a
+            // snapshot from seven independent concurrent reads: a route delete and a
+            // receiver delete interleaving between the routes read and the receivers
+            // read leave a live route here whose receiver is already gone.
             None => {
                 unknown_receivers.push(target.receiver);
                 continue;

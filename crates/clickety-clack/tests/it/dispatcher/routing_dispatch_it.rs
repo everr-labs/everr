@@ -127,11 +127,10 @@ impl EventBus for DeadLetterSpy {
     }
 }
 
-/// A route left pointing at a receiver that no longer exists (only reachable for a row
-/// written before route writes validated the reference, since create/update now 422 and
-/// `DELETE /v1/receivers/:name` 409s while a route targets it) must never be acked with
-/// no delivery and no record: the event is dead-lettered instead, and if that write
-/// fails the event stays unacked for redelivery.
+/// A route pointing at a receiver the snapshot does not have must never be acked with no
+/// delivery and no record: the event is dead-lettered instead, and if that write fails
+/// the event stays unacked for redelivery. The foreign key rules the state out of the
+/// database, but not out of a snapshot assembled from concurrent reads.
 #[tokio::test]
 async fn route_with_a_dangling_receiver_dead_letters_instead_of_dropping() {
     let infra = common::dispatch_infra().await;
@@ -174,9 +173,18 @@ async fn route_with_a_dangling_receiver_dead_letters_instead_of_dropping() {
         .await
         .unwrap();
 
-    // Strand the route the only way that is still possible: remove the receiver row
-    // behind the store's back, as a database predating the delete guard would have.
+    // What is under test is the in-memory snapshot, not the database: the foreign key
+    // keeps the stored rows consistent, so the constraint has to come off to build the
+    // dangling shape at all. `FilterCache::load` fills a snapshot with seven independent
+    // concurrent reads, and a route delete plus a receiver delete interleaving between
+    // the routes read and the receivers read produces exactly this -- a live route whose
+    // receiver is already gone -- without the database ever holding it. `fresh_db` hands
+    // every test its own database, so dropping the constraint here is isolated.
     let pool = sqlx::PgPool::connect(&infra.pg_url).await.unwrap();
+    sqlx::query("ALTER TABLE routes DROP CONSTRAINT routes_tenant_receiver_fkey")
+        .execute(&pool)
+        .await
+        .unwrap();
     sqlx::query("DELETE FROM receivers WHERE tenant=$1")
         .bind(tenant.as_str())
         .execute(&pool)
