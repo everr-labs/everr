@@ -54,6 +54,8 @@ uuid = { version = "1", features = ["v4", "serde"] }
 [dev-dependencies]
 criterion = { version = "0.5", features = ["html_reports"] }
 http-body-util = "0.1"
+# `atexit`, to reap the shared test container the harness holds in a `static`.
+libc = "0.2"
 # In-memory metric exporter for engine-metrics unit tests (no collector needed).
 opentelemetry_sdk = { version = "0.30", features = ["rt-tokio", "testing"] }
 proptest = "1"

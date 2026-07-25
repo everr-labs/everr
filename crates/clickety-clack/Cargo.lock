@@ -376,6 +376,7 @@ dependencies = [
  "hmac",
  "http-body-util",
  "lettre",
+ "libc",
  "opentelemetry",
  "opentelemetry-appender-tracing",
  "opentelemetry-otlp",

@@ -35,6 +35,34 @@ struct SharedPg {
 static SHARED: OnceCell<SharedPg> = OnceCell::const_new();
 static DB_COUNTER: AtomicU64 = AtomicU64::new(0);
 
+/// The shared container's id, for [`remove_shared_container`].
+static CONTAINER_ID: std::sync::OnceLock<String> = std::sync::OnceLock::new();
+
+/// Remove the shared container as the test process exits.
+///
+/// `SHARED` is a `static`, and Rust never drops statics, so the `Drop` impl that
+/// `ContainerAsync` relies on to reap itself never runs: without this every
+/// `cargo test` invocation orphans a Postgres container, and they accumulate until
+/// Docker runs out of memory. This crate's testcontainers has no Ryuk reaper, and its
+/// `watchdog` feature does not substitute: measured against a killed run it still
+/// orphaned the container, while stretching shutdown from 2s to 28s. So `atexit` is
+/// the process-exit hook the test harness otherwise doesn't offer.
+///
+/// Removal shells out because an `atexit` handler is synchronous while the Docker
+/// client is async, and the runtime it needs is already gone by then. Only this
+/// process's own container is touched, so concurrent test binaries can't reap each
+/// other. A hard kill (SIGKILL) still orphans one; nothing short of a reaper sidecar
+/// can cover that.
+extern "C" fn remove_shared_container() {
+    if let Some(id) = CONTAINER_ID.get() {
+        let _ = std::process::Command::new("docker")
+            .args(["rm", "-f", id])
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .status();
+    }
+}
+
 /// Returns the connection URL of a brand-new database cloned from the fully
 /// migrated template.
 ///
@@ -88,6 +116,15 @@ async fn init_shared() -> SharedPg {
         .start()
         .await
         .expect("start shared postgres container");
+    // Registered before the first `await` below so the handler is in place no matter
+    // how the rest of setup ends.
+    CONTAINER_ID
+        .set(container.id().to_string())
+        .expect("shared container is initialised once");
+    // SAFETY: `remove_shared_container` only reads a `OnceLock` that is already set and
+    // spawns a subprocess; `atexit` handlers run in normal process context, not a
+    // signal handler, so that is permitted.
+    unsafe { libc::atexit(remove_shared_container) };
     let port = container
         .get_host_port_ipv4(5432)
         .await
