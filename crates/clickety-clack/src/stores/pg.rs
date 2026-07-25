@@ -41,6 +41,33 @@ pub struct PgStore {
     slo_base_cadence_secs: u32,
 }
 
+/// How long a sender owns a `pending` notification row before the claim is
+/// reclaimable. Must comfortably exceed a worst-case single-channel delivery
+/// (`MAX_ATTEMPTS` sends at the notifiers' 10s HTTP timeout plus backoff, ~40s), so
+/// a healthy but slow send is never reclaimed under way and delivered twice. The
+/// upper bound is only how long a notification stranded by a crashed sender waits
+/// before it is retried.
+pub const NOTIFICATION_LEASE_MS: i64 = 120_000;
+
+/// What [`PgStore::try_begin_notification`] granted the caller.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum BeginOutcome {
+    /// This caller owns the send: either a fresh row, or a `pending` row whose lease
+    /// expired (its sender died mid-send) and was reclaimed. `claims` counts the
+    /// claims this row has already survived — 0 on the first — so a notification that
+    /// reliably kills its sender can be retired rather than reclaimed forever. It is
+    /// tracked separately from `attempts` (the delivery retries of one send) so
+    /// neither counter has to be read in the light of the other.
+    Claimed { claims: u32 },
+    /// A terminal row (`sent` or `failed`) exists: the notification is genuinely
+    /// handled and this caller must skip it — that is the dedup guarantee.
+    AlreadyHandled,
+    /// A `pending` row is still inside its lease, so another sender may be mid-send.
+    /// NOT handled: the caller must leave the work queued (no ack, no drain) and let
+    /// a later retry re-claim it, rather than dropping the notification.
+    InFlight,
+}
+
 /// Cadence outcome of one rule evaluation, applied inside the same transaction as
 /// the eval batch (see [`PgStore::persist_eval_batch`]).
 ///
@@ -1293,29 +1320,60 @@ impl PgStore {
 
     // ---- notification log ----
 
-    /// Begin a notification: insert a `pending` row keyed by `dedup_key`.
-    /// Returns true if newly inserted (caller should attempt delivery); false if a
-    /// row already exists (already sent, or pending/in-flight) — caller skips to
-    /// avoid a duplicate send. NOTE: a row left `pending` by a crash mid-send blocks
-    /// redelivery of that exact event to that target; Phase 3 adds a stale-pending sweep.
+    /// Claim the right to send one notification, keyed by `dedup_key`.
+    ///
+    /// The row doubles as the dedup record and as a lease: claiming stamps
+    /// `updated_at`, and delivery bookkeeping (`mark_notification_sent` /
+    /// `mark_notification_failed`) moves it to a terminal status. A row left
+    /// `pending` by a sender that died mid-send therefore becomes claimable again
+    /// once its lease expires, instead of suppressing that exact notification
+    /// forever. See [`BeginOutcome`] for how the caller must treat each result.
+    ///
+    /// The insert-or-reclaim is a single statement, so concurrent senders racing
+    /// for the same expired lease serialize on the row and exactly one wins.
     pub async fn try_begin_notification(
         &self,
         dedup_key: &str,
         tenant: TenantId,
         channel: &str,
         target: &str,
-    ) -> Result<bool, StoreError> {
-        let res = sqlx::query(
-            "INSERT INTO notifications (dedup_key, tenant, channel, target)
-             VALUES ($1,$2,$3,$4) ON CONFLICT (dedup_key) DO NOTHING",
+    ) -> Result<BeginOutcome, StoreError> {
+        // `claim` returns a row only when this caller took ownership (fresh insert, or
+        // reclaim of an expired lease). When it returns nothing, `handled` — read from
+        // the pre-statement snapshot — says why: a terminal row is a genuine dedup
+        // skip, and anything else (including no row at all, meaning a concurrent
+        // sender inserted one just now) means someone else holds the lease.
+        let row = sqlx::query(
+            "WITH claim AS (
+                 INSERT INTO notifications (dedup_key, tenant, channel, target)
+                 VALUES ($1,$2,$3,$4)
+                 ON CONFLICT (dedup_key) DO UPDATE
+                     SET claims = notifications.claims + 1, updated_at = now()
+                     WHERE notifications.status = 'pending'
+                       AND notifications.updated_at
+                           < now() - make_interval(secs => $5::double precision)
+                 RETURNING claims
+             )
+             SELECT
+                 (SELECT claims FROM claim) AS claims,
+                 EXISTS (SELECT 1 FROM notifications
+                         WHERE dedup_key=$1 AND status <> 'pending') AS handled",
         )
         .bind(dedup_key)
         .bind(tenant.as_str())
         .bind(channel)
         .bind(target)
-        .execute(&self.pool)
+        .bind(NOTIFICATION_LEASE_MS as f64 / 1000.0)
+        .fetch_one(&self.pool)
         .await?;
-        Ok(res.rows_affected() == 1)
+
+        match row.get::<Option<i32>, _>("claims") {
+            Some(claims) => Ok(BeginOutcome::Claimed {
+                claims: claims as u32,
+            }),
+            None if row.get::<bool, _>("handled") => Ok(BeginOutcome::AlreadyHandled),
+            None => Ok(BeginOutcome::InFlight),
+        }
     }
 
     /// Tenant-scoped for defense in depth: dedup keys are content hashes generated

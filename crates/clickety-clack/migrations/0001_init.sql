@@ -77,7 +77,8 @@ CREATE TABLE notifications (
     channel     TEXT NOT NULL,
     target      TEXT NOT NULL,
     status      TEXT NOT NULL DEFAULT 'pending',   -- pending | sent | failed
-    attempts    INT NOT NULL DEFAULT 0,
+    attempts    INT NOT NULL DEFAULT 0,            -- delivery retries of one send
+    claims      INT NOT NULL DEFAULT 0,            -- senders that have owned this row
     last_error  TEXT,
     created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at  TIMESTAMPTZ NOT NULL DEFAULT now()

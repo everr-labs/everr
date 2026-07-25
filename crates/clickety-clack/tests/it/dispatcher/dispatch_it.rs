@@ -10,6 +10,7 @@ use cc::domain::instance::{InstanceState, Status};
 use cc::domain::routing::{MatchOp, Matcher};
 use cc::domain::rule::{RuleSpec, Severity};
 use cc::domain::sink::{AlertLogSink, DeliveryFacts};
+use sqlx::Connection;
 use std::collections::BTreeMap;
 use std::sync::atomic::Ordering;
 use std::sync::{Arc, Mutex};
@@ -69,6 +70,73 @@ async fn dispatcher_delivers_once_and_dedups() {
     );
 
     dispatcher.shutdown().await;
+}
+
+/// The immediate firehose crash window: a sender claimed the notification and died
+/// before delivering. While the lease holds, the event must NOT be acked (nothing has
+/// delivered it); once the lease expires the redelivery reclaims the row and sends,
+/// instead of reading the leftover `pending` row as "already delivered" and dropping
+/// the notification for good.
+#[tokio::test]
+async fn firehose_recovers_a_notification_stranded_by_a_dead_sender() {
+    let infra = common::dispatch_infra().await;
+    let (url, hits, _hook) = common::start_counting_webhook().await;
+    let ctx = common::dispatch_ctx(&infra);
+    let store = infra.store.clone();
+
+    let tenant = TenantId::from_trusted(Uuid::new_v4().to_string());
+    store
+        .create_subscription(ctx.cipher.as_ref(), tenant.clone(), &url)
+        .await
+        .unwrap();
+
+    let event = ev(tenant.clone());
+    let key = dedup_key("webhook", &url, &event);
+    // Stand in for the sender that claimed this notification and then died: the row
+    // is left `pending`, exactly as a crash mid-send would leave it.
+    store
+        .try_begin_notification(&key, tenant.clone(), "webhook", "redacted")
+        .await
+        .unwrap();
+
+    infra.bus.publish(&event).await.unwrap();
+    let entries = infra.bus.consume("test-consumer", 1, 500).await.unwrap();
+    assert_eq!(entries.len(), 1);
+
+    // Inside the lease: the previous sender may still be in flight, so nothing is
+    // delivered AND the event stays unacked so it comes back.
+    let acked = process_event(&ctx, &entries[0]).await;
+    assert!(
+        !acked,
+        "an in-flight lease must not ack the event; that would lose it"
+    );
+    assert_eq!(hits.load(Ordering::Relaxed), 0, "no duplicate send yet");
+
+    // Age the lease past expiry rather than sleeping it out.
+    let mut conn = sqlx::PgConnection::connect(&infra.pg_url).await.unwrap();
+    sqlx::query(
+        "UPDATE notifications SET updated_at = now() - interval '1 hour' WHERE dedup_key=$1",
+    )
+    .bind(&key)
+    .execute(&mut conn)
+    .await
+    .unwrap();
+    conn.close().await.unwrap();
+
+    // Past the lease the row is reclaimable: the redelivery must actually deliver.
+    let acked = process_event(&ctx, &entries[0]).await;
+    assert!(acked, "the reclaimed notification is delivered and acked");
+    assert_eq!(
+        hits.load(Ordering::Relaxed),
+        1,
+        "the stranded notification is delivered on reclaim"
+    );
+    let (status, _) = store
+        .notification_status(&tenant, &key)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(status, "sent");
 }
 
 /// Capturing `AlertLogSink` that records every `(event, facts)` pair so a test can assert

@@ -450,6 +450,9 @@ pub async fn stub_clickhouse() -> String {
 /// connected the way the dispatcher sees them. Holds the Redis guard alive.
 pub struct DispatchInfra {
     pub redis: RedisInfra,
+    /// The isolated test database behind `store`, for the occasional test that needs
+    /// raw SQL (e.g. ageing a timestamp instead of sleeping).
+    pub pg_url: String,
     pub store: PgStore,
     pub bus: Arc<dyn EventBus>,
     pub groups: Arc<dyn GroupStore>,
@@ -463,6 +466,7 @@ pub async fn dispatch_infra() -> DispatchInfra {
     let groups: Arc<dyn GroupStore> = Arc::new(RedisGroups::connect(&redis.url).await.unwrap());
     DispatchInfra {
         redis,
+        pg_url,
         store,
         bus,
         groups,

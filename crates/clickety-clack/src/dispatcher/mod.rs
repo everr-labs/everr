@@ -31,7 +31,7 @@ use crate::domain::sink::{AlertLogSink, DeliveryFacts};
 use crate::domain::Event;
 use crate::queue::groups::{GroupMeta, GroupStore};
 use crate::queue::{EventBus, EventEntry};
-use crate::stores::{PgStore, StoreError};
+use crate::stores::{BeginOutcome, PgStore, StoreError};
 use async_trait::async_trait;
 use futures::StreamExt;
 use std::collections::HashMap;
@@ -40,6 +40,15 @@ use std::time::Duration;
 use tracing::Instrument;
 
 const MAX_ATTEMPTS: u32 = 4;
+/// How many times a notification may be reclaimed from an expired lease before it is
+/// retired (marked failed and dead-lettered) instead of retried. A send that strands
+/// its ledger row this many times is killing its sender rather than being unlucky, and
+/// reclaiming it forever would replay that crash on every retry.
+const MAX_NOTIFICATION_CLAIMS: u32 = 3;
+/// Backoff before reflushing a group whose notification another sender still holds.
+/// Bounded by `NOTIFICATION_LEASE_MS` (nothing can change sooner than the holder's
+/// terminal write) and traded off against how long a drained-but-buffered batch lingers.
+const IN_FLIGHT_RETRY_MS: i64 = 15_000;
 /// How often the flusher polls for due groups when none are immediately ready.
 const FLUSH_TICK: Duration = Duration::from_millis(200);
 /// Backoff before a claimed group is retried after `take_group` fails. `claim_due` has
@@ -59,7 +68,7 @@ pub trait NotificationLedger: Send + Sync {
         tenant: TenantId,
         channel: &str,
         target: &str,
-    ) -> Result<bool, StoreError>;
+    ) -> Result<BeginOutcome, StoreError>;
     async fn mark_notification_sent(
         &self,
         tenant: &TenantId,
@@ -83,7 +92,7 @@ impl NotificationLedger for PgStore {
         tenant: TenantId,
         channel: &str,
         target: &str,
-    ) -> Result<bool, StoreError> {
+    ) -> Result<BeginOutcome, StoreError> {
         PgStore::try_begin_notification(self, dedup_key, tenant, channel, target).await
     }
     async fn mark_notification_sent(
@@ -373,23 +382,20 @@ async fn firehose_deliver(ctx: &DispatchCtx, ev: &Event, entry_id: &crate::queue
         let channel = config.channel_name();
         let target = dedup::canonical_target(&config);
         let key = dedup::dedup_key(channel, &target, ev);
-        match ctx
-            .store
-            .try_begin_notification(
-                &key,
-                ev.tenant.clone(),
-                channel,
-                &dedup::redact_target(&target),
-            )
-            .await
+        match claim_to_send(
+            &ctx.delivery_deps(),
+            &key,
+            ev,
+            channel,
+            &dedup::redact_target(&target),
+        )
+        .await
         {
-            Ok(true) => {}
-            Ok(false) => return true, // already delivered (dedup)
-            Err(e) => {
-                crate::otel::span_error(&e);
-                tracing::error!(error = %e, "begin notification failed");
-                return false;
-            }
+            Claim::Send => {}
+            Claim::Handled => return true,
+            // Not accounted for by anyone yet, so leave the event unacked and let the
+            // redelivery resolve it (see `Claim::NotAccountedFor`).
+            Claim::NotAccountedFor => return false,
         }
         // Subscription firehose delivery reuses `deliver_one`'s webhook path, but is
         // labeled distinctly ("subscription_webhook" vs "webhook") on the `notify.deliver`
@@ -544,7 +550,7 @@ async fn filter_or_dead_letter(
         events = tracing::field::Empty,
         begun = tracing::field::Empty,
         sent = tracing::field::Empty,
-        begin_failed = tracing::field::Empty,
+        not_accounted_for = tracing::field::Empty,
         otel.status_code = tracing::field::Empty,
         otel.status_message = tracing::field::Empty,
     )
@@ -562,9 +568,25 @@ pub async fn flush_group(ctx: &DispatchCtx, gid: &str) {
 /// (Redis down), the release of the lease will fail for the same reason and the
 /// lease-expiry reclaim recovers the group.
 async fn rearm_for_retry(ctx: &DispatchCtx, gid: &str, taken_at: i64) {
+    rearm_at(ctx, gid, taken_at, TAKE_RETRY_MS).await;
+}
+
+/// Re-arm a group whose fan-out found a notification unaccounted for. Unlike a failed
+/// flush step, nothing here can change until either the lease holder writes a terminal
+/// row or `NOTIFICATION_LEASE_MS` elapses, so retrying on `TAKE_RETRY_MS` would burn a
+/// full flush cycle (Redis take + channel load and decrypt + a ledger round-trip per
+/// channel) every second to re-read one timestamp. This backs off far enough to make
+/// that cheap while still draining the batch promptly once the holder finishes.
+async fn rearm_in_flight(ctx: &DispatchCtx, gid: &str, taken_at: i64) {
+    rearm_at(ctx, gid, taken_at, IN_FLIGHT_RETRY_MS).await;
+}
+
+/// If the re-arm itself fails (Redis down), the release of the lease will fail for the
+/// same reason and the lease-expiry reclaim recovers the group.
+async fn rearm_at(ctx: &DispatchCtx, gid: &str, taken_at: i64, delay_ms: i64) {
     if let Err(e) = ctx
         .groups
-        .arm_repeat(gid, taken_at + TAKE_RETRY_MS, taken_at)
+        .arm_repeat(gid, taken_at + delay_ms, taken_at)
         .await
     {
         tracing::error!(error = %e, group = %gid,
@@ -746,7 +768,6 @@ async fn flush_claimed_group(ctx: &DispatchCtx, gid: &str) {
         gid,
         &channels,
         is_repeat.then_some(taken_at),
-        &tenant,
         &notif,
         &rep,
     )
@@ -755,7 +776,7 @@ async fn flush_claimed_group(ctx: &DispatchCtx, gid: &str) {
         let span = tracing::Span::current();
         span.record("begun", outcome.begun);
         span.record("sent", outcome.sent);
-        span.record("begin_failed", outcome.begin_failed);
+        span.record("not_accounted_for", outcome.not_accounted_for);
     }
     // A notification was committed for this group on at least one channel; stamp it so
     // the repeat clock measures from the latest send.
@@ -764,15 +785,14 @@ async fn flush_claimed_group(ctx: &DispatchCtx, gid: &str) {
             tracing::error!(error = %e, group = %gid, "mark_notified failed");
         }
     }
-    if outcome.begin_failed {
-        // A channel hit a transient error before its notification row existed: those
-        // events are neither delivered nor dead-lettered for it, so draining would
-        // lose them. Leave the batch buffered and re-arm; the reflush dedup-skips
-        // every channel whose ledger row did commit.
-        crate::otel::span_error(&"begin failed on at least one channel");
-        tracing::error!(group = %gid,
-            "begin failed on at least one channel; leaving batch buffered for retry");
-        rearm_for_retry(ctx, gid, taken_at).await;
+    if outcome.not_accounted_for {
+        // Some channel neither delivered nor dead-lettered these events (see
+        // `FanOutOutcome::not_accounted_for`; `claim_to_send` logged which). Draining
+        // would lose them, so keep the batch buffered and re-arm; the reflush
+        // dedup-skips every channel whose ledger row did commit.
+        tracing::warn!(group = %gid,
+            "a channel recorded no outcome; leaving batch buffered for retry");
+        rearm_in_flight(ctx, gid, taken_at).await;
     } else {
         // The fan-out has handled every channel (ledger row + delivery/dead-letter,
         // or dedup skip); commit phase two of the take so the buffered batch clears.
@@ -798,10 +818,20 @@ struct FanOutOutcome {
     begun: bool,
     /// At least one channel delivered successfully.
     sent: bool,
-    /// At least one channel failed to BEGIN its notification (transient ledger
-    /// error): no row, no delivery, no dead letter — nothing records those
-    /// events for that channel, so the batch must stay buffered for a reflush.
-    begin_failed: bool,
+    /// At least one channel recorded no outcome at all: the ledger claim errored, or
+    /// another sender's unexpired lease holds it. Either way nothing delivered or
+    /// dead-lettered those events for that channel, so draining would lose them and
+    /// the batch must stay buffered for a reflush.
+    not_accounted_for: bool,
+}
+
+/// What one channel's fan-out did, as the aggregation in [`deliver_group_channels`]
+/// needs to see it. `Skipped` covers both a dedup skip and a retired claim: in both,
+/// the notification is accounted for and this flush owes it nothing.
+enum ChannelOutcome {
+    Skipped,
+    Begun { sent: bool },
+    NotAccountedFor,
 }
 
 /// Order the loaded channels by the buffered name list, skipping (with an error log,
@@ -836,19 +866,18 @@ fn resolve_channels(gid: &str, names: &[String], loaded: Vec<Channel>) -> Vec<Ch
 /// letter) per channel.
 ///
 /// `repeat_taken_at` is `Some(take timestamp)` when this flush is a still-firing
-/// repeat reminder, `None` for a normal buffered flush.
+/// repeat reminder, `None` for a normal buffered flush. The batch shares one tenant,
+/// so `rep` carries it for every channel's ledger row.
 async fn deliver_group_channels(
     deps: &DeliveryDeps<'_>,
     gid: &str,
     channels: &[Channel],
     repeat_taken_at: Option<i64>,
-    tenant: &TenantId,
     notif: &Notification,
     rep: &Event,
 ) -> FanOutOutcome {
-    // Per-channel (begun, sent, begin_failed), aggregated after the join. The ledger
-    // insert is atomic on the dedup key, so a name repeated in the buffered list still
-    // collapses to one row/send even with the attempts racing.
+    // The claim is atomic on the dedup key, so a name repeated in the buffered list
+    // still collapses to one row/send even with the attempts racing.
     let results = futures::future::join_all(channels.iter().map(|ch| async move {
         // A repeat folds the take timestamp into the key so the identical still-firing
         // set yields a NEW notification instead of deduping against the original send.
@@ -857,33 +886,120 @@ async fn deliver_group_channels(
             None => grouping::group_dedup_key(gid, &ch.name, &notif.events),
         };
         let target = dedup::canonical_target(&ch.config);
-        match deps
-            .ledger
-            .try_begin_notification(
-                &key,
-                tenant.clone(),
-                ch.config.channel_name(),
-                &dedup::redact_target(&target),
-            )
-            .await
+        match claim_to_send(
+            deps,
+            &key,
+            rep,
+            ch.config.channel_name(),
+            &dedup::redact_target(&target),
+        )
+        .await
         {
-            Ok(true) => {}
-            // Identical active set already delivered on this channel.
-            Ok(false) => return (false, false, false),
-            Err(e) => {
-                tracing::error!(error = %e, group = %gid, channel = %ch.name,
-                    "begin notification failed");
-                return (false, false, true);
+            Claim::Send => {
+                let sent =
+                    deliver_one(deps, &ch.config, &key, notif, rep, ch.config.channel_name()).await;
+                ChannelOutcome::Begun { sent }
             }
+            Claim::Handled => ChannelOutcome::Skipped,
+            Claim::NotAccountedFor => ChannelOutcome::NotAccountedFor,
         }
-        let sent = deliver_one(deps, &ch.config, &key, notif, rep, ch.config.channel_name()).await;
-        (true, sent, false)
     }))
     .await;
     FanOutOutcome {
-        begun: results.iter().any(|(begun, _, _)| *begun),
-        sent: results.iter().any(|(_, sent, _)| *sent),
-        begin_failed: results.iter().any(|(_, _, failed)| *failed),
+        begun: results
+            .iter()
+            .any(|o| matches!(o, ChannelOutcome::Begun { .. })),
+        sent: results
+            .iter()
+            .any(|o| matches!(o, ChannelOutcome::Begun { sent: true })),
+        not_accounted_for: results
+            .iter()
+            .any(|o| matches!(o, ChannelOutcome::NotAccountedFor)),
+    }
+}
+
+/// What the caller of [`claim_to_send`] should do with this notification.
+enum Claim {
+    /// This caller owns the send.
+    Send,
+    /// Accounted for by someone: delivered, dead-lettered, or deduped. The caller may
+    /// ack the event / drain the batch.
+    Handled,
+    /// Nobody has recorded an outcome for it yet — another sender holds the lease, or
+    /// the ledger write failed outright. The caller must NOT ack or drain: a later
+    /// retry either dedup-skips (the holder finished) or reclaims the expired lease
+    /// (the holder died).
+    NotAccountedFor,
+}
+
+/// Claim the right to send one notification, applying the reclaim budget. This is the
+/// single place `MAX_NOTIFICATION_CLAIMS` is enforced; both the firehose and the group
+/// fan-out route their ledger claim through here so the policy cannot drift between
+/// them, and map [`Claim`] onto their own ack/drain shape.
+async fn claim_to_send(
+    deps: &DeliveryDeps<'_>,
+    key: &str,
+    rep: &Event,
+    channel: &str,
+    redacted_target: &str,
+) -> Claim {
+    match deps
+        .ledger
+        .try_begin_notification(key, rep.tenant.clone(), channel, redacted_target)
+        .await
+    {
+        // Reclaimed too many times without ever completing: retire it rather than
+        // replay whatever keeps killing the sender. Terminal, so the caller proceeds.
+        Ok(BeginOutcome::Claimed { claims }) if claims >= MAX_NOTIFICATION_CLAIMS => {
+            let reason = format!(
+                "notification reclaimed {claims} times without completing; \
+                 the sender is dying mid-send on channel '{channel}'"
+            );
+            crate::otel::span_error(&reason);
+            fail_and_dead_letter(deps, key, rep, 0, &reason).await;
+            Claim::Handled
+        }
+        Ok(BeginOutcome::Claimed { claims }) => {
+            if claims > 0 {
+                tracing::warn!(channel = %channel, claims = claims, key = %key,
+                    "reclaimed a notification stranded by a previous sender");
+            }
+            Claim::Send
+        }
+        Ok(BeginOutcome::AlreadyHandled) => Claim::Handled,
+        Ok(BeginOutcome::InFlight) => {
+            tracing::debug!(channel = %channel, key = %key,
+                "notification already in flight elsewhere; leaving it for a retry");
+            Claim::NotAccountedFor
+        }
+        Err(e) => {
+            crate::otel::span_error(&e);
+            tracing::error!(error = %e, channel = %channel, "begin notification failed");
+            Claim::NotAccountedFor
+        }
+    }
+}
+
+/// Record a permanent failure for one notification: mark the ledger row failed and
+/// dead-letter the event, logging both writes. `attempts` is the delivery retry count
+/// the failure came from (0 when no send was attempted).
+async fn fail_and_dead_letter(
+    deps: &DeliveryDeps<'_>,
+    key: &str,
+    rep: &Event,
+    attempts: u32,
+    reason: &str,
+) {
+    if let Err(e) = deps
+        .ledger
+        .mark_notification_failed(&rep.tenant, key, attempts, reason)
+        .await
+    {
+        tracing::error!(error = %e, key = %key, "mark_notification_failed write failed");
+    }
+    if let Err(e) = deps.bus.dead_letter(rep, reason).await {
+        tracing::error!(dead_letter_error = %e, original = %reason, key = %key,
+            "delivery failed AND dead-letter write failed");
     }
 }
 
@@ -922,14 +1038,7 @@ async fn deliver_one(
         None => {
             let reason = format!("no notifier registered for channel '{channel}'");
             crate::otel::span_error(&reason);
-            if let Err(e) = deps
-                .ledger
-                .mark_notification_failed(&rep.tenant, key, 0, &reason)
-                .await
-            {
-                tracing::error!(error = %e, key = %key, "mark_notification_failed write failed");
-            }
-            let _ = deps.bus.dead_letter(rep, &reason).await;
+            fail_and_dead_letter(deps, key, rep, 0, &reason).await;
             metrics.record_delivery(
                 channel,
                 rep.tenant.as_str(),
@@ -966,23 +1075,10 @@ async fn deliver_one(
                 crate::otel::metrics::DeliveryOutcome::Failed,
             );
             let reason = err.to_string();
-            if let Err(e) = deps
-                .ledger
-                .mark_notification_failed(&rep.tenant, key, attempts, &reason)
-                .await
-            {
-                tracing::error!(error = %e, key = %key, "mark_notification_failed write failed");
-            }
-            let redacted = dedup::redact_target(&dedup::canonical_target(config));
-            match deps.bus.dead_letter(rep, &reason).await {
-                Ok(()) => {
-                    tracing::warn!(channel = %channel, target = %redacted, error = %err,
-                    "notification dead-lettered")
-                }
-                Err(e) => tracing::error!(dead_letter_error = %e, original = %err,
-                    channel = %channel, target = %redacted,
-                    "delivery failed AND dead-letter write failed"),
-            }
+            fail_and_dead_letter(deps, key, rep, attempts, &reason).await;
+            tracing::warn!(channel = %channel, error = %err,
+                target = %dedup::redact_target(&dedup::canonical_target(config)),
+                "notification dead-lettered");
             false
         }
     }
@@ -998,7 +1094,7 @@ mod fan_out_tests {
     use crate::queue::{EventEntry, EventId, QueueError};
     use async_trait::async_trait;
     use std::collections::BTreeMap;
-    use std::sync::atomic::{AtomicUsize, Ordering};
+    use std::sync::atomic::{AtomicI64, AtomicUsize, Ordering};
     use std::sync::Mutex;
     use uuid::Uuid;
 
@@ -1021,10 +1117,25 @@ mod fan_out_tests {
         )
     }
 
-    /// In-memory `NotificationLedger`: dedup-by-key insert plus final status per row.
+    /// The `MemLedger` lease, mirroring `NOTIFICATION_LEASE_MS`'s role. Tests cross it
+    /// with [`MemLedger::expire_lease`] rather than hard-coding the value.
+    const MEM_LEASE_MS: i64 = 60_000;
+
+    struct MemRow {
+        channel: String,
+        status: String,
+        claims: u32,
+        /// When the current owner claimed the row; its lease runs from here.
+        claimed_at: i64,
+    }
+
+    /// In-memory `NotificationLedger` mirroring the Pg claim semantics: a row is
+    /// claimable when absent, or `pending` with an expired lease. The clock is
+    /// test-advanced so the crash window is exercised without sleeping.
     #[derive(Default)]
     struct MemLedger {
-        rows: Mutex<BTreeMap<String, (String, String)>>, // key -> (channel, status)
+        rows: Mutex<BTreeMap<String, MemRow>>,
+        now: AtomicI64,
     }
     #[async_trait]
     impl NotificationLedger for MemLedger {
@@ -1034,16 +1145,30 @@ mod fan_out_tests {
             _tenant: TenantId,
             channel: &str,
             _target: &str,
-        ) -> Result<bool, StoreError> {
+        ) -> Result<BeginOutcome, StoreError> {
+            let now = self.now.load(Ordering::SeqCst);
             let mut rows = self.rows.lock().unwrap();
-            if rows.contains_key(dedup_key) {
-                return Ok(false);
+            match rows.get_mut(dedup_key) {
+                None => {
+                    rows.insert(
+                        dedup_key.to_string(),
+                        MemRow {
+                            channel: channel.to_string(),
+                            status: "pending".to_string(),
+                            claims: 0,
+                            claimed_at: now,
+                        },
+                    );
+                    Ok(BeginOutcome::Claimed { claims: 0 })
+                }
+                Some(row) if row.status != "pending" => Ok(BeginOutcome::AlreadyHandled),
+                Some(row) if now - row.claimed_at < MEM_LEASE_MS => Ok(BeginOutcome::InFlight),
+                Some(row) => {
+                    row.claims += 1;
+                    row.claimed_at = now;
+                    Ok(BeginOutcome::Claimed { claims: row.claims })
+                }
             }
-            rows.insert(
-                dedup_key.to_string(),
-                (channel.to_string(), "pending".to_string()),
-            );
-            Ok(true)
         }
         async fn mark_notification_sent(
             &self,
@@ -1051,7 +1176,7 @@ mod fan_out_tests {
             dedup_key: &str,
             _attempts: u32,
         ) -> Result<(), StoreError> {
-            self.rows.lock().unwrap().get_mut(dedup_key).unwrap().1 = "sent".to_string();
+            self.rows.lock().unwrap().get_mut(dedup_key).unwrap().status = "sent".to_string();
             Ok(())
         }
         async fn mark_notification_failed(
@@ -1061,7 +1186,7 @@ mod fan_out_tests {
             _attempts: u32,
             _error: &str,
         ) -> Result<(), StoreError> {
-            self.rows.lock().unwrap().get_mut(dedup_key).unwrap().1 = "failed".to_string();
+            self.rows.lock().unwrap().get_mut(dedup_key).unwrap().status = "failed".to_string();
             Ok(())
         }
     }
@@ -1072,8 +1197,30 @@ mod fan_out_tests {
                 .lock()
                 .unwrap()
                 .values()
-                .map(|(ch, st)| (ch.clone(), st.clone()))
+                .map(|r| (r.channel.clone(), r.status.clone()))
                 .collect()
+        }
+
+        /// Plant the row a crashed sender would have left behind, claimed at t=0.
+        fn seed_pending(&self, dedup_key: &str, channel: &str, claims: u32) {
+            self.rows.lock().unwrap().insert(
+                dedup_key.to_string(),
+                MemRow {
+                    channel: channel.to_string(),
+                    status: "pending".to_string(),
+                    claims,
+                    claimed_at: 0,
+                },
+            );
+        }
+
+        fn advance(&self, ms: i64) {
+            self.now.fetch_add(ms, Ordering::SeqCst);
+        }
+
+        /// Move the clock just past the lease of the currently-held claim.
+        fn expire_lease(&self) {
+            self.advance(MEM_LEASE_MS + 1);
         }
     }
 
@@ -1124,6 +1271,19 @@ mod fan_out_tests {
                 Ok(())
             }
         }
+    }
+
+    fn fake_notifier(name: &'static str, fail: bool) -> Arc<FakeNotifier> {
+        Arc::new(FakeNotifier {
+            name,
+            fail,
+            sends: AtomicUsize::new(0),
+        })
+    }
+
+    /// The recorded status of the one ledger row for `channel`.
+    fn status_of(ledger: &MemLedger, channel: &str) -> Option<String> {
+        ledger.statuses_by_channel().get(channel).cloned()
     }
 
     fn named(name: &str, config: ChannelConfig) -> Channel {
@@ -1181,7 +1341,6 @@ mod fan_out_tests {
             "gid-1",
             &channels,
             None,
-            &ev.tenant,
             &notif,
             &ev,
         )
@@ -1236,7 +1395,6 @@ mod fan_out_tests {
             "gid-1",
             &channels,
             None,
-            &ev.tenant,
             &notif,
             &ev,
         )
@@ -1259,22 +1417,30 @@ mod fan_out_tests {
         );
     }
 
-    /// Ledger whose `try_begin_notification` errors for one channel type,
-    /// delegating everything else to an inner [`MemLedger`].
-    struct FailBeginLedger {
+    /// Which ledger write a [`FaultyLedger`] fails; everything else delegates to the
+    /// inner [`MemLedger`]. Mirrors the `FaultInjector` idiom the evaluator's
+    /// durability tests use, so a new fault case is a variant rather than a wrapper.
+    enum FailAt {
+        /// Claiming the notification, for one channel type only.
+        Claim(&'static str),
+        /// Recording a send that actually succeeded, stranding the row `pending`.
+        MarkSent,
+    }
+
+    struct FaultyLedger {
         inner: MemLedger,
-        fail_channel: &'static str,
+        fail: FailAt,
     }
     #[async_trait]
-    impl NotificationLedger for FailBeginLedger {
+    impl NotificationLedger for FaultyLedger {
         async fn try_begin_notification(
             &self,
             dedup_key: &str,
             tenant: TenantId,
             channel: &str,
             target: &str,
-        ) -> Result<bool, StoreError> {
-            if channel == self.fail_channel {
+        ) -> Result<BeginOutcome, StoreError> {
+            if matches!(self.fail, FailAt::Claim(c) if c == channel) {
                 return Err(StoreError::Sqlx(sqlx::Error::PoolTimedOut));
             }
             self.inner
@@ -1287,6 +1453,9 @@ mod fan_out_tests {
             dedup_key: &str,
             attempts: u32,
         ) -> Result<(), StoreError> {
+            if matches!(self.fail, FailAt::MarkSent) {
+                return Err(StoreError::Sqlx(sqlx::Error::PoolTimedOut));
+            }
             self.inner
                 .mark_notification_sent(tenant, dedup_key, attempts)
                 .await
@@ -1306,9 +1475,9 @@ mod fan_out_tests {
 
     #[tokio::test]
     async fn fan_out_reports_begin_failure_and_leaves_no_trace_for_that_channel() {
-        let ledger = FailBeginLedger {
+        let ledger = FaultyLedger {
             inner: MemLedger::default(),
-            fail_channel: "webhook",
+            fail: FailAt::Claim("webhook"),
         };
         let bus = DeadLetterBus::default();
         let webhook = Arc::new(FakeNotifier {
@@ -1340,7 +1509,6 @@ mod fan_out_tests {
             "gid-1",
             &channels,
             None,
-            &ev.tenant,
             &notif,
             &ev,
         )
@@ -1349,7 +1517,10 @@ mod fan_out_tests {
         // The begin failure must surface so the flush keeps the batch buffered:
         // that channel has no ledger row, no delivery, and no dead letter, so a
         // drain would silently lose its events.
-        assert!(out.begin_failed, "transient begin error must be reported");
+        assert!(
+            out.not_accounted_for,
+            "transient claim error must be reported"
+        );
         assert!(out.begun && out.sent, "the healthy channel still delivered");
         assert_eq!(webhook.sends.load(Ordering::SeqCst), 0);
         assert_eq!(email.sends.load(Ordering::SeqCst), 1);
@@ -1392,7 +1563,6 @@ mod fan_out_tests {
             "gid-1",
             &channels,
             None,
-            &ev.tenant,
             &notif,
             &ev,
         )
@@ -1412,7 +1582,6 @@ mod fan_out_tests {
             "gid-1",
             &rotated,
             None,
-            &ev.tenant,
             &notif,
             &ev,
         )
@@ -1457,7 +1626,6 @@ mod fan_out_tests {
             "gid-1",
             &channels,
             None,
-            &ev.tenant,
             &notif,
             &ev,
         )
@@ -1469,6 +1637,186 @@ mod fan_out_tests {
             ledger.rows.lock().unwrap().len(),
             2,
             "one ledger row per channel name"
+        );
+    }
+
+    /// Fixture for the crash-window tests: one webhook channel, the dedup key its
+    /// group flush computes (so a test can plant the row a dead sender left), and the
+    /// delivery deps to fan out with.
+    struct CrashWindow {
+        ev: Event,
+        notif: Notification,
+        channels: Vec<Channel>,
+        key: String,
+        bus: DeadLetterBus,
+        notifiers: Notifiers,
+        webhook: Arc<FakeNotifier>,
+    }
+
+    impl CrashWindow {
+        fn new(repeat_taken_at: Option<i64>) -> Self {
+            let ev = event();
+            let notif = Notification::single(&ev);
+            let key = match repeat_taken_at {
+                Some(at) => grouping::repeat_dedup_key("gid-1", "ops-hook", &notif.events, at),
+                None => grouping::group_dedup_key("gid-1", "ops-hook", &notif.events),
+            };
+            let webhook = fake_notifier("webhook", false);
+            let mut notifiers = Notifiers::new();
+            notifiers.register(webhook.clone());
+            Self {
+                ev,
+                notif,
+                channels: vec![webhook_channel("ops-hook", "http://x/h")],
+                key,
+                bus: DeadLetterBus::default(),
+                notifiers,
+                webhook,
+            }
+        }
+
+        async fn fan_out(
+            &self,
+            ledger: &dyn NotificationLedger,
+            repeat_taken_at: Option<i64>,
+        ) -> FanOutOutcome {
+            deliver_group_channels(
+                &DeliveryDeps {
+                    ledger,
+                    bus: &self.bus,
+                    notifiers: &self.notifiers,
+                },
+                "gid-1",
+                &self.channels,
+                repeat_taken_at,
+                &self.notif,
+                &self.ev,
+            )
+            .await
+        }
+
+        fn sends(&self) -> usize {
+            self.webhook.sends.load(Ordering::SeqCst)
+        }
+        fn dead_letters(&self) -> usize {
+            self.bus.calls.load(Ordering::SeqCst)
+        }
+    }
+
+    /// The crash window: a sender wrote `pending` and died. Once the lease expires the
+    /// flush must reclaim the row and actually deliver, instead of reading the leftover
+    /// row as "already sent" and dropping the notification forever.
+    #[tokio::test]
+    async fn fan_out_reclaims_a_stale_pending_row_and_redelivers() {
+        let cw = CrashWindow::new(None);
+        let ledger = MemLedger::default();
+        ledger.seed_pending(&cw.key, "webhook", 0);
+        ledger.expire_lease();
+
+        let out = cw.fan_out(&ledger, None).await;
+
+        assert!(out.begun && out.sent, "the stranded notification delivers");
+        assert!(!out.not_accounted_for);
+        assert_eq!(cw.sends(), 1);
+        assert_eq!(status_of(&ledger, "webhook"), Some("sent".to_string()));
+        assert_eq!(cw.dead_letters(), 0);
+    }
+
+    /// Repeat reminders key on the take timestamp, so they get their own ledger row —
+    /// and their own crash window, which must recover the same way.
+    #[tokio::test]
+    async fn fan_out_reclaims_a_stale_repeat_reminder() {
+        let taken_at = 1_700_000_000_000;
+        let cw = CrashWindow::new(Some(taken_at));
+        let ledger = MemLedger::default();
+        ledger.seed_pending(&cw.key, "webhook", 0);
+        ledger.expire_lease();
+
+        let out = cw.fan_out(&ledger, Some(taken_at)).await;
+
+        assert!(out.begun && out.sent, "the stranded reminder delivers");
+        assert_eq!(cw.sends(), 1);
+        assert_eq!(status_of(&ledger, "webhook"), Some("sent".to_string()));
+    }
+
+    /// A `pending` row still inside its lease means another sender may be mid-send. Not
+    /// a dedup skip: nothing is delivered, and the flush must be told to keep the batch
+    /// buffered rather than drain it.
+    #[tokio::test]
+    async fn fan_out_reports_in_flight_without_sending_or_draining() {
+        let cw = CrashWindow::new(None);
+        let ledger = MemLedger::default();
+        ledger.seed_pending(&cw.key, "webhook", 0);
+        ledger.advance(1_000); // well inside the lease
+
+        let out = cw.fan_out(&ledger, None).await;
+
+        assert!(
+            out.not_accounted_for,
+            "an unexpired lease must hold the batch"
+        );
+        assert!(!out.begun && !out.sent);
+        assert_eq!(cw.sends(), 0);
+        assert_eq!(status_of(&ledger, "webhook"), Some("pending".to_string()));
+        assert_eq!(cw.dead_letters(), 0);
+    }
+
+    /// A notification that kills its sender every time would otherwise be reclaimed
+    /// forever. Past the claim cap it is dead-lettered and the batch drains.
+    #[tokio::test]
+    async fn fan_out_dead_letters_a_notification_that_keeps_outliving_its_lease() {
+        let cw = CrashWindow::new(None);
+        let ledger = MemLedger::default();
+        ledger.seed_pending(&cw.key, "webhook", MAX_NOTIFICATION_CLAIMS - 1);
+        ledger.expire_lease();
+
+        let out = cw.fan_out(&ledger, None).await;
+
+        assert_eq!(cw.sends(), 0, "no further delivery attempt past the cap");
+        assert_eq!(cw.dead_letters(), 1, "dead-lettered instead");
+        assert_eq!(status_of(&ledger, "webhook"), Some("failed".to_string()));
+        assert!(
+            !out.not_accounted_for,
+            "terminal: the batch must drain rather than retry forever"
+        );
+    }
+
+    /// The one case the lease cannot tell apart: delivery succeeded but the `sent` write
+    /// did not land, so the row still looks stranded. Reclaiming it re-sends. That
+    /// duplicate is the deliberate trade — for alerting, a repeated page beats a page
+    /// that never arrives — and this test pins the behavior so it stays a choice rather
+    /// than a surprise.
+    #[tokio::test]
+    async fn unrecorded_send_is_redelivered_once_its_lease_expires() {
+        let cw = CrashWindow::new(None);
+        let ledger = FaultyLedger {
+            inner: MemLedger::default(),
+            fail: FailAt::MarkSent,
+        };
+
+        let first = cw.fan_out(&ledger, None).await;
+        assert!(first.begun && first.sent);
+        assert_eq!(cw.sends(), 1);
+        assert_eq!(
+            status_of(&ledger.inner, "webhook"),
+            Some("pending".to_string()),
+            "the successful send went unrecorded"
+        );
+
+        // Inside the lease the row is still owned, so nothing re-sends.
+        ledger.inner.advance(1_000);
+        let during = cw.fan_out(&ledger, None).await;
+        assert!(during.not_accounted_for && !during.sent);
+        assert_eq!(cw.sends(), 1);
+
+        // Past it the row is indistinguishable from a crashed send and is retried.
+        ledger.inner.expire_lease();
+        let after = cw.fan_out(&ledger, None).await;
+        assert!(after.begun && after.sent);
+        assert_eq!(
+            cw.sends(),
+            2,
+            "at-least-once: an unrecorded send is repeated rather than dropped"
         );
     }
 
@@ -1542,7 +1890,6 @@ mod fan_out_tests {
             "gid-1",
             &resolved,
             None,
-            &ev.tenant,
             &notif,
             &ev,
         )
@@ -1591,7 +1938,6 @@ mod fan_out_tests {
             "gid-1",
             &channels,
             None,
-            &ev.tenant,
             &notif,
             &ev,
         )
