@@ -18,17 +18,12 @@ const RELAY_BATCH: i64 = 256;
 /// Max stale instances reconciled per transaction. A full sweep loops in chunks of this
 /// size so a backlog after an outage never becomes one unbounded transaction.
 const RECONCILE_BATCH: i64 = 256;
-/// Retention for the rule/SLO evaluation idempotency ledgers (`evaluations` /
-/// `slo_evaluations`) before GC prunes them. Piggybacks on the same hourly
+/// Retention for the Postgres ledgers before GC prunes them: the rule/SLO evaluation
+/// idempotency tables (`evaluations` / `slo_evaluations`) and the delivery/dedup ledger
+/// (`notifications`). All three are internal state with no reader outside their own
+/// protocol, so one window ages them together. Piggybacks on the same hourly
 /// [`GC_INTERVAL`] cadence as silence GC rather than a second wall-clock timer.
 const LEDGER_RETENTION: Duration = Duration::days(7);
-
-/// How long a delivery-ledger row outlives its last update. The rows are dedup state
-/// with no reader outside the claim protocol, so this only has to dwarf the redelivery
-/// window (see [`PgStore::prune_notifications`]); it matches [`LEDGER_RETENTION`] so the
-/// two Postgres ledgers age out together. Without it the table grew for the lifetime of
-/// the database.
-pub const NOTIFICATION_RETENTION: Duration = Duration::days(7);
 
 /// Whether the hourly silence GC is due as of `now`, given the last run time.
 /// `None` (never run) is always due. Wall-clock based so it survives lease hand-offs.
@@ -291,10 +286,7 @@ pub async fn run_maintenance(
                         ),
                         Err(e) => tracing::error!(error = %e, "eval ledger prune failed"),
                     }
-                    match store
-                        .prune_notifications(now - NOTIFICATION_RETENTION)
-                        .await
-                    {
+                    match store.prune_notifications(now - LEDGER_RETENTION).await {
                         Ok(n) => tracing::debug!(pruned = n, "delivery ledger pruned"),
                         Err(e) => tracing::error!(error = %e, "delivery ledger prune failed"),
                     }

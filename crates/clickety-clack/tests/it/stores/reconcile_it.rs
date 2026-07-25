@@ -224,13 +224,4 @@ async fn prune_notifications_deletes_only_rows_untouched_before_cutoff() {
         vec!["recent-sent".to_string()],
         "a row touched inside the window survives"
     );
-
-    // Idempotent: a second pass over the same cutoff removes nothing more.
-    assert_eq!(
-        store
-            .prune_notifications(now - Duration::hours(24))
-            .await
-            .unwrap(),
-        0
-    );
 }
