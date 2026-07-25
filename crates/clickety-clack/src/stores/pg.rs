@@ -60,6 +60,21 @@ pub struct EvalCadence {
     pub eval_ts: OffsetDateTime,
 }
 
+/// Outcome of [`PgStore::persist_eval_batch`]/[`PgStore::persist_slo_eval`] when a
+/// `claim` is supplied: whether this delivery won the `(source, eval_ts)` idempotency
+/// claim (and therefore committed its state), plus the outbox ids to publish.
+///
+/// The claim `INSERT` rides the SAME transaction as the state/outbox writes, so the
+/// idempotency marker can never be durable without its effect (and vice versa). A
+/// `false` here means a prior delivery already applied this `eval_ts`: nothing was
+/// written this call, the caller must NOT publish, and the job is safely acked.
+/// Callers that pass no claim always get `claimed: true`.
+#[derive(Debug, Clone)]
+pub struct PersistOutcome {
+    pub claimed: bool,
+    pub outbox_ids: Vec<Uuid>,
+}
+
 /// Outcome of [`PgStore::create_rule`].
 #[allow(clippy::large_enum_variant)]
 #[derive(Debug, Clone, PartialEq)]
@@ -345,6 +360,32 @@ async fn insert_outbox_event(
         .execute(&mut **tx)
         .await?;
     Ok(id)
+}
+
+/// Record the `(id, eval_ts)` idempotency claim in `tx`, returning whether it was newly
+/// won. A `false` means a prior delivery already applied this `eval_ts`. This is the single
+/// home for the atomicity invariant of the evaluator P0 fix: the claim rides the SAME
+/// transaction as the state/health it guards (in `persist_eval_batch`, `persist_slo_eval`,
+/// `record_rule_failure`, `record_slo_failure`), so a claim can never be durable without its
+/// effect. The caller decides what to do when the claim is lost (roll back or return early).
+/// `table`/`id_column` are static literals (`evaluations`/`rule`, `slo_evaluations`/`slo`),
+/// never user input.
+async fn claim_eval_in_tx(
+    tx: &mut sqlx::Transaction<'_, sqlx::Postgres>,
+    table: &str,
+    id_column: &str,
+    id: Uuid,
+    eval_ts: OffsetDateTime,
+) -> Result<bool, StoreError> {
+    let inserted = sqlx::query(&format!(
+        "INSERT INTO {table} ({id_column}, eval_ts) VALUES ($1, $2) ON CONFLICT DO NOTHING"
+    ))
+    .bind(id)
+    .bind(eval_ts)
+    .execute(&mut **tx)
+    .await?
+    .rows_affected();
+    Ok(inserted == 1)
 }
 
 /// The eval-batch instance upsert, rule side. Differs from
@@ -843,33 +884,6 @@ impl PgStore {
         Ok(out)
     }
 
-    pub async fn record_eval_error(
-        &self,
-        id: RuleId,
-        tenant: &TenantId,
-        err: &str,
-    ) -> Result<(), StoreError> {
-        // An erroring rule is never left on a stretched cadence: drop the adaptive
-        // backoff and, if it was stretched, pull next_eval back to base cadence so
-        // the retry happens within one interval (the CASE keeps this a no-op for
-        // unstretched rules). Tenant-scoped for defense in depth (the caller holds
-        // the claimed rule's tenant).
-        sqlx::query(
-            "UPDATE rules SET last_error=$2, last_eval=now(),
-                    eval_backoff_secs = 0,
-                    next_eval = CASE WHEN eval_backoff_secs > 0
-                        THEN LEAST(next_eval, now() + make_interval(secs => (spec->>'interval_secs')::int))
-                        ELSE next_eval END
-             WHERE id=$1 AND tenant=$3",
-        )
-        .bind(id.0)
-        .bind(err)
-        .bind(tenant.as_str())
-        .execute(&self.pool)
-        .await?;
-        Ok(())
-    }
-
     // ---- rule health ----
 
     /// Record a query failure for `rule`: bump the consecutive-failure counter and store the
@@ -883,10 +897,24 @@ impl PgStore {
         err: &str,
         threshold: i32,
         now: OffsetDateTime,
+        claim: Option<(RuleId, OffsetDateTime)>,
     ) -> Result<Option<(Event, Uuid)>, StoreError> {
         let mut tx = self.pool.begin().await?;
-        // Same cadence guard as `record_eval_error`: a failing query resets any
-        // adaptive stretch immediately so degraded rules retry at base cadence.
+        // Atomic idempotency claim: a deterministic (bad-SQL) query failure must be
+        // recorded to the rule-health ledger exactly once per eval_ts. Inserting the
+        // (rule, eval_ts) row in THIS transaction means the failure record and its
+        // idempotency marker commit together; a redelivery of the same eval_ts loses
+        // the claim, so we roll back the (untouched) transaction and report no event —
+        // the caller acks it as already-recorded. `None` (no claim) keeps the prior
+        // behavior for callers outside the evaluator hot path (tests, maintenance).
+        if let Some((rule_id, eval_ts)) = claim {
+            if !claim_eval_in_tx(&mut tx, "evaluations", "rule", rule_id.0, eval_ts).await? {
+                tx.rollback().await?;
+                return Ok(None);
+            }
+        }
+        // A failing query resets any adaptive stretch immediately so degraded rules
+        // retry at base cadence.
         let row = sqlx::query(
             "UPDATE rules
                 SET consecutive_failures = consecutive_failures + 1,
@@ -1135,93 +1163,6 @@ impl PgStore {
         Ok(res.rows_affected() == 1)
     }
 
-    /// Batch counterpart of [`Self::try_claim_eval`]: claim every `(id, eval_ts)`
-    /// pair in one round trip. Returns one bool per input pair, in input order,
-    /// with the same row-level conflict semantics as the per-pair claim: `true`
-    /// iff this call newly claimed that pair. A pair repeated within one call
-    /// wins at its first occurrence only, matching what the per-pair claim did
-    /// when the loop reached the duplicate.
-    ///
-    /// The mapping back to input positions goes through `WITH ORDINALITY` (never
-    /// timestamp equality in Rust): Postgres rounds `timestamptz` to
-    /// microseconds, so a returned `eval_ts` need not bit-compare to the input.
-    /// Shared by the rule- and SLO-side claims, which differ only in table.
-    async fn try_claim_batch(
-        &self,
-        table: &str,
-        id_column: &str,
-        pairs_ids: Vec<Uuid>,
-        pairs_ts: Vec<OffsetDateTime>,
-        total: usize,
-        dedup_index: &[Option<usize>],
-    ) -> Result<Vec<bool>, StoreError> {
-        let mut claimed = vec![false; total];
-        if pairs_ids.is_empty() {
-            return Ok(claimed);
-        }
-        let sql = format!(
-            "WITH input({id_column}, eval_ts, ord) AS (
-                SELECT * FROM UNNEST($1::uuid[], $2::timestamptz[]) WITH ORDINALITY
-             ), inserted AS (
-                INSERT INTO {table} ({id_column}, eval_ts)
-                SELECT {id_column}, eval_ts FROM input
-                ON CONFLICT DO NOTHING
-                RETURNING {id_column}, eval_ts
-             )
-             SELECT input.ord FROM input JOIN inserted USING ({id_column}, eval_ts)"
-        );
-        let ords: Vec<i64> = sqlx::query_scalar(&sql)
-            .bind(&pairs_ids)
-            .bind(&pairs_ts)
-            .fetch_all(&self.pool)
-            .await?;
-        // `dedup_index[i]` is the position of input pair `i` in the deduped
-        // arrays (None for a repeat, which by definition lost the claim).
-        for (i, unique_pos) in dedup_index.iter().enumerate() {
-            if let Some(pos) = unique_pos {
-                claimed[i] = ords.contains(&(*pos as i64 + 1));
-            }
-        }
-        Ok(claimed)
-    }
-
-    /// Dedup helper for the batch claims: split `(uuid, ts)` pairs into parallel
-    /// unnest arrays of first occurrences, plus the input-position -> unique-position
-    /// mapping (`None` marks a repeated pair).
-    #[allow(clippy::type_complexity)]
-    fn dedup_claim_pairs(
-        pairs: &[(Uuid, OffsetDateTime)],
-    ) -> (Vec<Uuid>, Vec<OffsetDateTime>, Vec<Option<usize>>) {
-        let mut ids = Vec::with_capacity(pairs.len());
-        let mut tss = Vec::with_capacity(pairs.len());
-        let mut index = Vec::with_capacity(pairs.len());
-        let mut seen: std::collections::HashMap<(Uuid, OffsetDateTime), usize> =
-            std::collections::HashMap::new();
-        for &(id, ts) in pairs {
-            match seen.entry((id, ts)) {
-                std::collections::hash_map::Entry::Occupied(_) => index.push(None),
-                std::collections::hash_map::Entry::Vacant(e) => {
-                    e.insert(ids.len());
-                    index.push(Some(ids.len()));
-                    ids.push(id);
-                    tss.push(ts);
-                }
-            }
-        }
-        (ids, tss, index)
-    }
-
-    /// Claim many (rule, eval_ts) pairs in one round trip; see [`Self::try_claim_batch`].
-    pub async fn try_claim_evals(
-        &self,
-        pairs: &[(RuleId, OffsetDateTime)],
-    ) -> Result<Vec<bool>, StoreError> {
-        let raw: Vec<(Uuid, OffsetDateTime)> = pairs.iter().map(|&(r, ts)| (r.0, ts)).collect();
-        let (ids, tss, index) = Self::dedup_claim_pairs(&raw);
-        self.try_claim_batch("evaluations", "rule", ids, tss, pairs.len(), &index)
-            .await
-    }
-
     // ---- instances ----
 
     /// Load a rule's instances, tenant-scoped. Callers already resolve the rule via
@@ -1251,7 +1192,7 @@ impl PgStore {
     /// production write path) so the upsert semantics — including the tenant-guarded
     /// conflict update — cannot drift from it. Test-only convenience today.
     pub async fn upsert_instance(&self, s: &InstanceState) -> Result<(), StoreError> {
-        self.persist_eval_batch(std::slice::from_ref(s), &[], None, None, None)
+        self.persist_eval_batch(std::slice::from_ref(s), &[], None, None, None, None)
             .await?;
         Ok(())
     }
@@ -2251,8 +2192,10 @@ impl PgStore {
                 None,
                 None,
                 None,
+                None,
             )
-            .await?;
+            .await?
+            .outbox_ids;
         Ok(ids[0])
     }
 
@@ -2286,7 +2229,8 @@ impl PgStore {
         rollup: Option<(RuleId, crate::domain::rollup::RuleRollup)>,
         cadence: Option<(RuleId, EvalCadence)>,
         rule_tenant: Option<&TenantId>,
-    ) -> Result<Vec<Uuid>, StoreError> {
+        claim: Option<(RuleId, OffsetDateTime)>,
+    ) -> Result<PersistOutcome, StoreError> {
         debug_assert!(
             (rollup.is_none() && cadence.is_none()) || rule_tenant.is_some(),
             "rule_tenant is required for rollup/cadence writes"
@@ -2299,11 +2243,35 @@ impl PgStore {
              instances belong in persist_slo_eval_batch"
         );
         let cadence_on = matches!(&cadence, Some((_, c)) if c.max_interval_secs.is_some());
-        if instances.is_empty() && events.is_empty() && rollup.is_none() && !cadence_on {
-            return Ok(Vec::new());
+        // With a claim we must still open the transaction to record it (mark the
+        // eval_ts applied), even when the evaluation produced no state change.
+        if claim.is_none()
+            && instances.is_empty()
+            && events.is_empty()
+            && rollup.is_none()
+            && !cadence_on
+        {
+            return Ok(PersistOutcome {
+                claimed: true,
+                outbox_ids: Vec::new(),
+            });
         }
 
         let mut tx = self.pool.begin().await?;
+        // Atomic idempotency claim: insert the (rule, eval_ts) ledger row in the SAME
+        // transaction as the state below. If it conflicts, a prior delivery already
+        // applied this eval_ts, so we abort (rolling back on drop) and report the loss;
+        // the caller acks without publishing. This is what makes the claim and its
+        // effect commit-or-fail together, so a crash between them can never strand a
+        // claim without its state (or vice versa).
+        if let Some((rule_id, eval_ts)) = claim {
+            if !claim_eval_in_tx(&mut tx, "evaluations", "rule", rule_id.0, eval_ts).await? {
+                return Ok(PersistOutcome {
+                    claimed: false,
+                    outbox_ids: Vec::new(),
+                });
+            }
+        }
         let ids = write_eval_batch(&mut tx, INSTANCES_UPSERT_SQL, instances, events).await?;
 
         // Tenant predicate for the per-rule writes below; NULL only on the
@@ -2394,7 +2362,10 @@ impl PgStore {
             }
         }
         tx.commit().await?;
-        Ok(ids)
+        Ok(PersistOutcome {
+            claimed: true,
+            outbox_ids: ids,
+        })
     }
 
     /// Delete a set of outbox rows after their events published successfully. Empty no-op.
@@ -2819,17 +2790,6 @@ impl PgStore {
         Ok(res.rows_affected() == 1)
     }
 
-    /// Claim many (slo, eval_ts) pairs in one round trip; see [`Self::try_claim_batch`].
-    pub async fn try_claim_slo_evals(
-        &self,
-        pairs: &[(crate::domain::ids::SloId, OffsetDateTime)],
-    ) -> Result<Vec<bool>, StoreError> {
-        let raw: Vec<(Uuid, OffsetDateTime)> = pairs.iter().map(|&(s, ts)| (s.0, ts)).collect();
-        let (ids, tss, index) = Self::dedup_claim_pairs(&raw);
-        self.try_claim_batch("slo_evaluations", "slo", ids, tss, pairs.len(), &index)
-            .await
-    }
-
     /// Load many SLOs by id in one round trip (batch counterpart of
     /// [`Self::get_slo`] for the SLO evaluator's claim path). Rows carry their
     /// stored tenant; the caller matches it against each job's tenant, keeping
@@ -2864,8 +2824,20 @@ impl PgStore {
         err: &str,
         degrade_after: u32,
         now: OffsetDateTime,
+        claim: Option<(crate::domain::ids::SloId, OffsetDateTime)>,
     ) -> Result<Option<(Event, Uuid)>, StoreError> {
         let mut tx = self.pool.begin().await?;
+        // Atomic idempotency claim: a frozen (query-failed) SLO tick records its health
+        // failure exactly once per eval_ts. The (slo, eval_ts) ledger row commits with
+        // the failure in this transaction; a redelivery loses the claim, rolls back
+        // untouched, and reports no event so the caller acks it as already-recorded.
+        // `None` keeps the prior behavior for non-hot-path callers (tests).
+        if let Some((slo_id, eval_ts)) = claim {
+            if !claim_eval_in_tx(&mut tx, "slo_evaluations", "slo", slo_id.0, eval_ts).await? {
+                tx.rollback().await?;
+                return Ok(None);
+            }
+        }
         let row = sqlx::query(
             "SELECT health_status, consecutive_failures, name,
                     (spec->>'suppressed')::bool AS suppressed
@@ -2999,6 +2971,9 @@ impl PgStore {
 
     // ---- slo evaluation: status snapshot ----
 
+    /// Standalone snapshot upsert. Test-only now: the production evaluator writes the
+    /// snapshot inside [`Self::persist_slo_eval`]'s single transaction, so there is no
+    /// non-test caller of this on its own.
     pub async fn upsert_slo_status(
         &self,
         slo: crate::domain::ids::SloId,
@@ -3090,6 +3065,59 @@ impl PgStore {
         let ids = write_eval_batch(&mut tx, SLO_INSTANCES_UPSERT_SQL, instances, events).await?;
         tx.commit().await?;
         Ok(ids)
+    }
+
+    /// The authoritative SLO-evaluation write: claim the `(slo, eval_ts)`, upsert the
+    /// status snapshot, and upsert the instance next-states + outbox events, ALL in one
+    /// transaction. This replaces the former two-transaction success path
+    /// (`upsert_slo_status` then `persist_slo_eval_batch`): the snapshot, the instance
+    /// state, and the idempotency claim now commit or fail together, so a crash between
+    /// them can never leave a claimed eval_ts with a half-written snapshot/instances (or
+    /// a snapshot without its claim). A lost claim (`claimed == false`) writes nothing and
+    /// the caller acks without publishing.
+    #[allow(clippy::too_many_arguments)]
+    pub async fn persist_slo_eval(
+        &self,
+        slo: crate::domain::ids::SloId,
+        tenant: &TenantId,
+        payload: &serde_json::Value,
+        computed_at: OffsetDateTime,
+        instances: &[InstanceState],
+        events: &[Event],
+        claim: Option<(crate::domain::ids::SloId, OffsetDateTime)>,
+    ) -> Result<PersistOutcome, StoreError> {
+        debug_assert!(
+            instances
+                .iter()
+                .all(|s| matches!(s.source, SourceId::Slo(_))),
+            "persist_slo_eval writes the `slo_instances` table; rule-sourced instances \
+             belong in persist_eval_batch"
+        );
+        let mut tx = self.pool.begin().await?;
+        if let Some((slo_id, eval_ts)) = claim {
+            if !claim_eval_in_tx(&mut tx, "slo_evaluations", "slo", slo_id.0, eval_ts).await? {
+                return Ok(PersistOutcome {
+                    claimed: false,
+                    outbox_ids: Vec::new(),
+                });
+            }
+        }
+        sqlx::query(
+            "INSERT INTO slo_status (slo, tenant, payload, computed_at) VALUES ($1,$2,$3,$4)
+             ON CONFLICT (slo) DO UPDATE SET payload=EXCLUDED.payload, computed_at=EXCLUDED.computed_at, tenant=EXCLUDED.tenant",
+        )
+        .bind(slo.0)
+        .bind(tenant.as_str())
+        .bind(payload)
+        .bind(computed_at)
+        .execute(&mut *tx)
+        .await?;
+        let ids = write_eval_batch(&mut tx, SLO_INSTANCES_UPSERT_SQL, instances, events).await?;
+        tx.commit().await?;
+        Ok(PersistOutcome {
+            claimed: true,
+            outbox_ids: ids,
+        })
     }
 
     /// Firing SLO instances for a tenant, enriched with the instance's per-tier

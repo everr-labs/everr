@@ -83,6 +83,7 @@ async fn rules_list_and_get_expose_rollup() {
             Some((rid, rollup)),
             None,
             Some(&tid),
+            None,
         )
         .await
         .unwrap();

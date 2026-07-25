@@ -14,6 +14,21 @@ async fn store() -> (PgStore, impl Sized) {
     (store, ())
 }
 
+fn spec() -> RuleSpec {
+    RuleSpec {
+        sql: "SELECT 1".into(),
+        interval_secs: 30,
+        for_secs: 0,
+        label_columns: vec!["svc".into()],
+        value_column: Some("v".into()),
+        severity: Severity::Warning,
+        annotations: BTreeMap::new(),
+        resolve_after: 1,
+        max_interval_secs: None,
+        suppressed: false,
+    }
+}
+
 fn inst(rule: cc::domain::ids::RuleId, tenant: &TenantId, n: usize, value: f64) -> InstanceState {
     let labels = BTreeMap::from([("svc".to_string(), format!("svc-{n}"))]);
     let mut s = InstanceState::new_inactive(
@@ -32,31 +47,20 @@ fn inst(rule: cc::domain::ids::RuleId, tenant: &TenantId, n: usize, value: f64) 
 async fn persist_eval_batch_upserts_and_outboxes() {
     let (store, _node) = store().await;
     let tenant = TenantId::from_trusted(Uuid::new_v4().to_string());
-    let spec = RuleSpec {
-        sql: "SELECT 1".into(),
-        interval_secs: 30,
-        for_secs: 0,
-        label_columns: vec!["svc".into()],
-        value_column: Some("v".into()),
-        severity: Severity::Warning,
-        annotations: BTreeMap::new(),
-        resolve_after: 1,
-        max_interval_secs: None,
-        suppressed: false,
-    };
     let rule = create_test_rule(
         &store,
         tenant.clone(),
         "t/persist_eval_batch_upserts_and_outboxes",
-        &spec,
+        &spec(),
     )
     .await;
 
     // Empty input is a no-op returning no ids.
     assert!(store
-        .persist_eval_batch(&[], &[], None, None, None)
+        .persist_eval_batch(&[], &[], None, None, None, None)
         .await
         .unwrap()
+        .outbox_ids
         .is_empty());
 
     // Batch-insert 3 instances, 1 with an outbox event.
@@ -82,9 +86,17 @@ async fn persist_eval_batch_upserts_and_outboxes() {
         traceparent: None,
     };
     let ids = store
-        .persist_eval_batch(&instances, std::slice::from_ref(&ev), None, None, None)
+        .persist_eval_batch(
+            &instances,
+            std::slice::from_ref(&ev),
+            None,
+            None,
+            None,
+            None,
+        )
         .await
-        .unwrap();
+        .unwrap()
+        .outbox_ids;
     assert_eq!(ids.len(), 1, "one outbox id per event");
 
     let loaded = store.load_instances(&rule.tenant, rule.id).await.unwrap();
@@ -93,7 +105,7 @@ async fn persist_eval_batch_upserts_and_outboxes() {
     // ON CONFLICT update: re-persist same keys with a new value.
     let updated: Vec<InstanceState> = (0..3).map(|i| inst(rule.id, &tenant, i, 99.0)).collect();
     store
-        .persist_eval_batch(&updated, &[], None, None, None)
+        .persist_eval_batch(&updated, &[], None, None, None, None)
         .await
         .unwrap();
     let reloaded = store.load_instances(&rule.tenant, rule.id).await.unwrap();
@@ -114,7 +126,14 @@ async fn persist_eval_batch_upserts_and_outboxes() {
     );
     let null_key = null_inst.key.clone();
     store
-        .persist_eval_batch(std::slice::from_ref(&null_inst), &[], None, None, None)
+        .persist_eval_batch(
+            std::slice::from_ref(&null_inst),
+            &[],
+            None,
+            None,
+            None,
+            None,
+        )
         .await
         .unwrap();
     let after = store.load_instances(&rule.tenant, rule.id).await.unwrap();
@@ -130,4 +149,106 @@ async fn persist_eval_batch_upserts_and_outboxes() {
     store.delete_outbox_batch(&ids).await.unwrap();
     // A second delete of the same ids is a harmless no-op.
     store.delete_outbox_batch(&ids).await.unwrap();
+}
+
+/// The idempotency claim rides `persist_eval_batch`'s transaction: the first delivery of a
+/// `(rule, eval_ts)` wins the claim and commits its state; a redelivery of the SAME
+/// `(rule, eval_ts)` loses the claim, writes nothing, and reports `claimed == false` — so
+/// the state is never double-applied and exactly one ledger row exists.
+#[tokio::test]
+async fn persist_eval_batch_claim_is_atomic_and_idempotent() {
+    let (store, _node) = store().await;
+    let tenant = TenantId::from_trusted(Uuid::new_v4().to_string());
+    let rule = create_test_rule(
+        &store,
+        tenant.clone(),
+        "t/persist_eval_batch_claim_is_atomic_and_idempotent",
+        &spec(),
+    )
+    .await;
+    let eval_ts = OffsetDateTime::from_unix_timestamp(1_700_000_000).unwrap();
+
+    // First delivery: wins the claim, commits its firing instance at value 1.0.
+    let first = store
+        .persist_eval_batch(
+            std::slice::from_ref(&inst(rule.id, &tenant, 0, 1.0)),
+            &[],
+            None,
+            None,
+            None,
+            Some((rule.id, eval_ts)),
+        )
+        .await
+        .unwrap();
+    assert!(first.claimed, "first delivery must win the claim");
+
+    // Second delivery of the SAME (rule, eval_ts) carries a different value; it must
+    // lose the claim, so the state below stays at 1.0 and nothing is published.
+    let second = store
+        .persist_eval_batch(
+            std::slice::from_ref(&inst(rule.id, &tenant, 0, 999.0)),
+            &[],
+            None,
+            None,
+            None,
+            Some((rule.id, eval_ts)),
+        )
+        .await
+        .unwrap();
+    assert!(
+        !second.claimed,
+        "redelivery of the same eval_ts must lose the claim"
+    );
+    assert!(
+        second.outbox_ids.is_empty(),
+        "a lost claim writes no outbox rows"
+    );
+
+    let loaded = store.load_instances(&rule.tenant, rule.id).await.unwrap();
+    assert_eq!(loaded.len(), 1, "exactly one instance");
+    assert_eq!(
+        loaded[0].value,
+        Some(1.0),
+        "the lost-claim redelivery must not overwrite the committed state"
+    );
+
+    // Exactly one ledger row for this (rule, eval_ts): the claim was recorded once.
+    let ledger: i64 =
+        sqlx::query_scalar("SELECT count(*) FROM evaluations WHERE rule = $1 AND eval_ts = $2")
+            .bind(rule.id.0)
+            .bind(eval_ts)
+            .fetch_one(store.pool_for_test())
+            .await
+            .unwrap();
+    assert_eq!(ledger, 1, "the claim ledger holds exactly one row");
+}
+
+/// A claim with an empty evaluation (no instances, no events) must still be recorded, so a
+/// quiet eval_ts is marked applied and a redelivery is a no-op rather than re-running.
+#[tokio::test]
+async fn persist_eval_batch_claim_records_empty_eval() {
+    let (store, _node) = store().await;
+    let tenant = TenantId::from_trusted(Uuid::new_v4().to_string());
+    let rule = create_test_rule(
+        &store,
+        tenant.clone(),
+        "t/persist_eval_batch_claim_records_empty_eval",
+        &spec(),
+    )
+    .await;
+    let eval_ts = OffsetDateTime::from_unix_timestamp(1_700_000_100).unwrap();
+
+    let first = store
+        .persist_eval_batch(&[], &[], None, None, None, Some((rule.id, eval_ts)))
+        .await
+        .unwrap();
+    assert!(first.claimed, "empty eval still wins and records the claim");
+    let second = store
+        .persist_eval_batch(&[], &[], None, None, None, Some((rule.id, eval_ts)))
+        .await
+        .unwrap();
+    assert!(
+        !second.claimed,
+        "the recorded claim makes a redelivery a no-op"
+    );
 }

@@ -147,13 +147,13 @@ async fn stale_scan_excludes_paused_and_degraded() {
     let now = OffsetDateTime::now_utc();
     // threshold 1: first failure degrades immediately
     assert!(s
-        .record_slo_failure(degraded_slo, &t, "boom", 1, now)
+        .record_slo_failure(degraded_slo, &t, "boom", 1, now, None)
         .await
         .unwrap()
         .is_some());
     // threshold 5: one failure stays healthy (consecutive_failures=1).
     assert!(s
-        .record_slo_failure(failing_slo, &t, "boom", 5, now)
+        .record_slo_failure(failing_slo, &t, "boom", 5, now, None)
         .await
         .unwrap()
         .is_none());

@@ -14,6 +14,9 @@ use tracing::Instrument;
 
 pub mod maintenance;
 pub mod slo;
+pub mod store;
+
+pub use store::{OutboxStore, RuleEvalStore, SloEvalStore};
 
 /// Evidence caps (pinned contract with the everr frontend): at most 16 columns, and the
 /// compact-JSON serialization must fit in 4096 bytes or the evidence is dropped entirely.
@@ -160,8 +163,8 @@ pub async fn run_evaluator(
 
 /// Publish a rule-health event written to the outbox in `record_rule_*`, deleting the row
 /// on success. A failed publish leaves the row for the maintenance relay (exactly-once).
-pub(crate) async fn publish_health(
-    store: &PgStore,
+pub(crate) async fn publish_health<S: OutboxStore>(
+    store: &S,
     events: &dyn EventBus,
     ev: Event,
     id: uuid::Uuid,
@@ -189,8 +192,8 @@ pub(crate) fn published_outbox_ids(
 /// only warns — the events already published, so the relay re-publishing those rows
 /// is a duplicate the dispatcher dedups. Unpublished rows are left for the maintenance
 /// relay (exactly-once relative to the committed state is preserved).
-pub(crate) async fn publish_and_clear_outbox(
-    store: &PgStore,
+pub(crate) async fn publish_and_clear_outbox<S: OutboxStore>(
+    store: &S,
     events: &dyn EventBus,
     out_events: &[Event],
     outbox_ids: &[uuid::Uuid],
@@ -207,25 +210,36 @@ pub(crate) async fn publish_and_clear_outbox(
 /// one transaction, then run the [`publish_and_clear_outbox`] tail. Used by the maintenance
 /// sweep (cross-rule batch, no rollup, no cadence); the per-rule evaluator path goes
 /// through [`commit_and_publish_with_rollup`].
-pub(crate) async fn commit_and_publish(
-    store: &PgStore,
+pub(crate) async fn commit_and_publish<S: RuleEvalStore>(
+    store: &S,
     events: &dyn EventBus,
     next_states: Vec<InstanceState>,
     out_events: Vec<Event>,
 ) -> anyhow::Result<()> {
     let outbox_ids = store
-        .persist_eval_batch(&next_states, &out_events, None, None, None)
-        .await?;
+        .persist_eval_batch(&next_states, &out_events, None, None, None, None)
+        .await?
+        .outbox_ids;
     publish_and_clear_outbox(store, events, &out_events, &outbox_ids).await
 }
 
 /// Like `commit_and_publish`, but also writes the rule rollup and the adaptive-cadence
-/// transition in the same transaction. Used by the per-rule evaluator path (which has
-/// the rule's full instance set); the maintenance sweep keeps `commit_and_publish`
-/// (cross-rule batch, no rollup, no cadence).
+/// transition in the same transaction, and — crucially — the `(rule, eval_ts)`
+/// idempotency claim. Used by the per-rule evaluator path (which has the rule's full
+/// instance set); the maintenance sweep keeps `commit_and_publish` (cross-rule batch, no
+/// rollup, no cadence, no claim).
+///
+/// Returns:
+/// - `Err` only for a persist (transaction) failure: nothing committed, so the caller
+///   must leave the job unacked for reclaim (the claim was never taken).
+/// - `Ok(())` when the state is durable: either this delivery won the claim and committed,
+///   or a prior delivery already applied this `eval_ts` (a lost claim). A publish failure
+///   is NOT an error here — the state and outbox rows are committed, so the maintenance
+///   relay re-publishes them exactly-once; re-evaluating would be wasted work. Either way
+///   the caller acks.
 #[allow(clippy::too_many_arguments)]
-pub(crate) async fn commit_and_publish_with_rollup(
-    store: &PgStore,
+pub(crate) async fn commit_and_publish_with_rollup<S: RuleEvalStore>(
+    store: &S,
     events: &dyn EventBus,
     tenant: &crate::domain::ids::TenantId,
     next_states: Vec<InstanceState>,
@@ -237,16 +251,27 @@ pub(crate) async fn commit_and_publish_with_rollup(
     cadence: crate::stores::EvalCadence,
 ) -> anyhow::Result<()> {
     let rule_id = rollup.0;
-    let outbox_ids = store
+    let eval_ts = cadence.eval_ts;
+    let outcome = store
         .persist_eval_batch(
             &next_states,
             &out_events,
             Some(rollup),
             Some((rule_id, cadence)),
             Some(tenant),
+            Some((rule_id, eval_ts)),
         )
         .await?;
-    publish_and_clear_outbox(store, events, &out_events, &outbox_ids).await
+    if outcome.claimed {
+        // Best-effort publish: a failure leaves the committed outbox rows for the relay
+        // (exactly-once), so it must not turn a durable eval into a reclaim.
+        if let Err(e) =
+            publish_and_clear_outbox(store, events, &out_events, &outcome.outbox_ids).await
+        {
+            tracing::warn!(rule = %rule_id.0, error = %e, "eval publish failed; relay will recover");
+        }
+    }
+    Ok(())
 }
 
 /// Process one consume batch with identical-query coalescing. Jobs are claimed via one
@@ -281,8 +306,21 @@ pub async fn process_batch(
 /// Like [`process_batch`], but threads a persistent per-rule degraded-state map so the
 /// long-running evaluator can skip the `record_rule_success` round-trip for rules that are
 /// already known healthy, plus the engine-metrics handle. See spec §2a.
-pub async fn process_batch_inner(
-    store: &PgStore,
+///
+/// # Acknowledgement is by durability, not arrival
+///
+/// A delivery is acked ONLY once its work reached a durable terminal state; a delivery
+/// whose infrastructure step (rule fetch, instance load, persist, or failure-record)
+/// fails is left OUT of the returned set, so it stays pending and the reclaim pre-pass
+/// redelivers it. There is no longer a separate up-front claim round-trip: the
+/// `(rule, eval_ts)` idempotency claim now rides the SAME transaction as the state it
+/// guards (`persist_eval_batch`) or the failure it records (`record_rule_failure`). So a
+/// redelivered job either re-evaluates cleanly (its claim was never committed) or, if a
+/// prior delivery already applied that `eval_ts`, loses the claim INSIDE persist and is
+/// acked without double-writing. This is what closes the P0 where a transient store/Redis/
+/// ClickHouse failure used to permanently consume the job.
+pub async fn process_batch_inner<S: RuleEvalStore>(
+    store: &S,
     ch: &dyn RowQuerier,
     events: &dyn EventBus,
     degrade_after: u32,
@@ -290,66 +328,54 @@ pub async fn process_batch_inner(
     health: &mut HashMap<RuleId, bool>,
     metrics: &EngineMetrics,
 ) -> Vec<JobId> {
-    let ack_ids: Vec<JobId> = deliveries.iter().map(|d| d.id.clone()).collect();
+    // Ack ids accumulate as deliveries reach a durable terminal state (see the doc above).
+    let mut acked: Vec<JobId> = Vec::with_capacity(deliveries.len());
 
-    // 1) Claim + resolve rules in two batched round trips (previously ~2 per
-    // delivery). `try_claim_evals` preserves the per-pair conflict semantics of
-    // the old per-delivery claim: a job that loses the (rule, eval_ts) race is
-    // skipped (and still acked), exactly as before. A store error skips the
-    // whole batch the same way a per-job claim/lookup error skipped that job.
-    let jobs: Vec<crate::queue::EvalJob> = deliveries.into_iter().map(|d| d.job).collect();
-    let claim_pairs: Vec<(RuleId, time::OffsetDateTime)> =
-        jobs.iter().map(|j| (j.rule, j.eval_ts)).collect();
-    let claimed = match store.try_claim_evals(&claim_pairs).await {
-        Ok(c) => c,
-        Err(e) => {
-            tracing::error!(error = %e, "claim_eval failed");
-            return ack_ids;
-        }
-    };
-    let claimed_jobs: Vec<crate::queue::EvalJob> = jobs
-        .into_iter()
-        .zip(claimed)
-        .filter_map(|(job, won)| won.then_some(job))
-        .collect();
-    let mut rule_ids: Vec<RuleId> = claimed_jobs.iter().map(|j| j.rule).collect();
+    // 1) Resolve rules in one batched fetch. A fetch failure has committed nothing (no
+    //    claim is taken before persist), so ack NOTHING: the whole batch stays pending
+    //    and reclaim redelivers it.
+    let mut rule_ids: Vec<RuleId> = deliveries.iter().map(|d| d.job.rule).collect();
     rule_ids.sort_unstable_by_key(|r| r.0);
     rule_ids.dedup();
     let rules_by_id: HashMap<RuleId, Rule> = match store.get_rules_by_ids(&rule_ids).await {
         Ok(rules) => rules.into_iter().map(|r| (r.id, r)).collect(),
         Err(e) => {
-            tracing::error!(error = %e, "get_rule failed");
-            return ack_ids;
+            crate::otel::span_error(&e);
+            tracing::error!(error = %e, "get_rule failed; leaving batch for reclaim");
+            return acked;
         }
     };
-    let mut resolved: Vec<(crate::queue::EvalJob, Rule)> = Vec::new();
-    for job in claimed_jobs {
+
+    // 2) Resolve each delivery. Deterministic drops (rule deleted / tenant mismatch /
+    //    paused) are terminal and acked: they write no state, so a redelivery re-drops.
+    let mut resolved: Vec<(JobId, crate::queue::EvalJob, Rule)> = Vec::new();
+    for Delivery { id, job } in deliveries {
         match rules_by_id.get(&job.rule) {
             // The tenant guard keeps the per-id read's scoping: a job whose tenant
             // doesn't match the stored rule is treated as a miss, never evaluated.
-            Some(r) if r.tenant != job.tenant => {}
-            // Rule paused after this job was enqueued: drop the in-flight job (it is
-            // still acked above) so a paused rule can never evaluate or emit an event.
-            // Scheduler claim-exclusion gates new jobs; this closes the queued-job window.
-            Some(r) if r.paused => {}
-            Some(r) => resolved.push((job, r.clone())),
-            None => {} // rule deleted; nothing to do
+            Some(r) if r.tenant != job.tenant => acked.push(id),
+            // Rule paused after this job was enqueued: drop the in-flight job (still
+            // acked) so a paused rule can never evaluate or emit an event. Scheduler
+            // claim-exclusion gates new jobs; this closes the queued-job window.
+            Some(r) if r.paused => acked.push(id),
+            Some(r) => resolved.push((id, job, r.clone())),
+            None => acked.push(id), // rule deleted; nothing to do
         }
     }
 
-    // 2) Group by query signature.
-    let mut groups: HashMap<QuerySig, Vec<(crate::queue::EvalJob, Rule)>> = HashMap::new();
-    for (job, rule) in resolved {
+    // 3) Group by query signature.
+    let mut groups: HashMap<QuerySig, Vec<(JobId, crate::queue::EvalJob, Rule)>> = HashMap::new();
+    for (id, job, rule) in resolved {
         let auth = ch.auth_identity(&job.tenant);
         groups
             .entry(QuerySig::of(auth, &rule.spec))
             .or_default()
-            .push((job, rule));
+            .push((id, job, rule));
     }
 
-    // 3) Run each distinct query once; 4) fan out to each rule in the group.
+    // 4) Run each distinct query once; fan out to each rule in the group.
     for members in groups.into_values() {
-        let sample = &members[0].1;
+        let sample = &members[0].2;
         let rows = match ch
             .query_rows(
                 &sample.tenant,
@@ -362,8 +388,9 @@ pub async fn process_batch_inner(
             Ok(r) => r,
             Err(e) => {
                 // A query failure fails only this group's jobs; other groups are unaffected.
-                // Each rule records its own health failure (degrading after K), publishing a
-                // RuleHealth/Firing event on the transition. The error is capped before storage.
+                // Each rule records its own health failure (degrading after K), claiming the
+                // eval_ts in the SAME transaction so the record is idempotent under redelivery.
+                // The error is capped before storage.
                 let now = time::OffsetDateTime::now_utc();
                 let msg: String = e.to_string().chars().take(500).collect();
                 // Log the redacted summary, NOT `msg`: `msg` (which carries the raw
@@ -374,7 +401,9 @@ pub async fn process_batch_inner(
                 // (see `otel::engine`) into everr's INTERNAL tenant, so it must never
                 // carry customer SQL.
                 let redacted = crate::clickhouse::span_error_summary(&e);
-                for (job, _) in &members {
+                // Consume `members` by value: this arm ends in `continue`, so the jobs
+                // are used nowhere else and their `JobId`s can move into `acked`.
+                for (id, job, _) in members {
                     // warn, not error: this is a handled per-tenant config failure,
                     // already recorded to the rule-health ledger and owned by rule
                     // health. At error level, tracing-opentelemetry's default
@@ -383,24 +412,40 @@ pub async fn process_batch_inner(
                     // engine-error trace queries with customer config noise.
                     tracing::warn!(rule = ?job.rule, error = %redacted, "evaluation query errored");
                     match store
-                        .record_rule_failure(job.rule, &job.tenant, &msg, degrade_after as i32, now)
+                        .record_rule_failure(
+                            job.rule,
+                            &job.tenant,
+                            &msg,
+                            degrade_after as i32,
+                            now,
+                            Some((job.rule, job.eval_ts)),
+                        )
                         .await
                     {
-                        Ok(Some((ev, id))) => {
+                        Ok(Some((ev, oid))) => {
                             health.insert(job.rule, true); // crossed into degraded
-                            publish_health(store, events, ev, id).await;
+                            publish_health(store, events, ev, oid).await;
+                            acked.push(id); // failure durably recorded
                         }
                         Ok(None) => {
-                            // Sub-threshold failure: the store is still healthy but
-                            // consecutive_failures/last_error are now dirty. Forget the
-                            // cached "known healthy" so the next successful evaluation
-                            // reconciles (clearing the counters) instead of skipping the
-                            // round-trip; otherwise isolated failures accumulate across
-                            // healthy evals and eventually degrade a healthy rule.
+                            // Sub-threshold failure (or a lost claim: already recorded by a
+                            // prior delivery). Either way the failure is durable, so ack.
+                            // Forget the cached "known healthy" so the next successful
+                            // evaluation reconciles (clearing the counters) instead of
+                            // skipping the round-trip; otherwise isolated failures accumulate
+                            // across healthy evals and eventually degrade a healthy rule.
                             health.remove(&job.rule);
+                            acked.push(id);
                         }
                         Err(err) => {
-                            tracing::error!(rule = ?job.rule, error = %err, "record_rule_failure failed")
+                            // The failure was NOT durably recorded (an infra error): leave the
+                            // job unacked so reclaim retries it.
+                            crate::otel::span_error(&err);
+                            metrics.record_eval_error(
+                                EvalErrorKind::RuleEval,
+                                Some(job.tenant.as_str()),
+                            );
+                            tracing::error!(rule = ?job.rule, error = %err, "record_rule_failure failed; leaving job for reclaim")
                         }
                     }
                 }
@@ -408,9 +453,12 @@ pub async fn process_batch_inner(
             }
         };
         // Query succeeded for this group: record per-rule health success (recovery if degraded)
-        // before evaluating, independent of the per-rule evaluate outcome below.
+        // before evaluating, independent of the per-rule evaluate outcome below. This is a
+        // best-effort pre-write on the health axis: a failure here never blocks the ack, since
+        // the authoritative eval below carries the idempotency claim and the store's health
+        // stays correct (the next eval reconciles it).
         let now = time::OffsetDateTime::now_utc();
-        for (job, _) in &members {
+        for (_id, job, _) in &members {
             // Only reconcile health when the rule might be degraded. `None` (unknown) means
             // "not yet observed this process" → reconcile once. `Some(false)` (known healthy)
             // → skip the round-trip; the store's conditional UPDATE would be a no-op anyway.
@@ -421,9 +469,9 @@ pub async fn process_batch_inner(
                 continue;
             }
             match store.record_rule_success(job.rule, &job.tenant, now).await {
-                Ok(Some((ev, id))) => {
+                Ok(Some((ev, oid))) => {
                     health.insert(job.rule, false); // recovered
-                    publish_health(store, events, ev, id).await;
+                    publish_health(store, events, ev, oid).await;
                 }
                 Ok(None) => {
                     health.insert(job.rule, false); // confirmed healthy; suppress future round-trips
@@ -433,18 +481,24 @@ pub async fn process_batch_inner(
                 }
             }
         }
-        for (job, rule) in members {
-            if let Err(e) = evaluate_rule_against_rows(store, events, &rule, &job, &rows).await {
-                tracing::error!(rule = ?job.rule, error = %e, "evaluation errored");
-                metrics.record_eval_error(EvalErrorKind::RuleEval, Some(job.tenant.as_str()));
-                let _ = store
-                    .record_eval_error(job.rule, &job.tenant, &e.to_string())
-                    .await;
+        for (id, job, rule) in members {
+            match evaluate_rule_against_rows(store, events, &rule, &job, &rows).await {
+                // Durably applied (state committed, or a lost claim = already applied by a
+                // prior delivery). A publish failure is swallowed inside as durable, so it
+                // lands here too.
+                Ok(()) => acked.push(id),
+                // Transient infra failure (instance load or persist transaction). The claim
+                // was never committed, so leave the job unacked: reclaim redelivers it and it
+                // re-evaluates cleanly.
+                Err(e) => {
+                    tracing::error!(rule = ?job.rule, error = %e, "evaluation errored; leaving job for reclaim");
+                    metrics.record_eval_error(EvalErrorKind::RuleEval, Some(job.tenant.as_str()));
+                }
             }
         }
     }
 
-    ack_ids
+    acked
 }
 
 /// Evaluate one rule against pre-fetched rows (the per-rule body of the former `process`).
@@ -457,8 +511,8 @@ pub async fn process_batch_inner(
 /// (not by the caller): the instrumented span closes when this `.await` resolves, so any
 /// error handling in the caller's loop runs outside the span's scope and cannot mark it.
 #[tracing::instrument(skip_all, fields(rule = %job.rule.0, tenant = %job.tenant, rows = rows.len(), otel.status_code = tracing::field::Empty, otel.status_message = tracing::field::Empty))]
-async fn evaluate_rule_against_rows(
-    store: &PgStore,
+async fn evaluate_rule_against_rows<S: RuleEvalStore>(
+    store: &S,
     events: &dyn EventBus,
     rule: &Rule,
     job: &crate::queue::EvalJob,

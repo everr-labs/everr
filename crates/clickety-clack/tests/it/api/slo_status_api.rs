@@ -87,6 +87,7 @@ async fn status_404_then_returns_snapshot() {
             "boom",
             1,
             time::OffsetDateTime::now_utc(),
+            None,
         )
         .await
         .unwrap();

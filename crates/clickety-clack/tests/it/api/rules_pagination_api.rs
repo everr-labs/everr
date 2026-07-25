@@ -129,6 +129,7 @@ async fn paginated_mode_honors_health_filter() {
             "boom",
             1,
             OffsetDateTime::now_utc(),
+            None,
         )
         .await
         .unwrap();

@@ -58,20 +58,123 @@ async fn idempotency_ledger_claims_once() {
     assert!(!s.try_claim_slo_eval(id, ts).await.unwrap());
 }
 
+/// `persist_slo_eval` commits the claim, the status snapshot, and the instances in ONE
+/// transaction. A redelivery of the same (slo, eval_ts) loses the claim, writes nothing,
+/// and leaves the first snapshot/instance untouched.
+#[tokio::test]
+async fn persist_slo_eval_claim_is_atomic_and_idempotent() {
+    use cc::domain::ids::{InstanceKey, RuleId, SourceId};
+    use cc::domain::instance::{InstanceState, Status};
+
+    let s = store().await;
+    let id = make_slo(&s, "persist-atomic").await;
+    let eval_ts = OffsetDateTime::from_unix_timestamp(1_700_000_300).unwrap();
+    let rule = RuleId(id.0);
+    let labels = BTreeMap::from([("service".to_string(), "checkout".to_string())]);
+    let mk = |value: f64| {
+        let mut inst = InstanceState::new_inactive(
+            InstanceKey::new(rule, &labels),
+            SourceId::Slo(id),
+            tenant(),
+            labels.clone(),
+        );
+        inst.status = Status::Firing;
+        inst.value = Some(value);
+        inst.last_seen = Some(OffsetDateTime::UNIX_EPOCH);
+        inst
+    };
+
+    let first = s
+        .persist_slo_eval(
+            id,
+            &tenant(),
+            &json!({"groups": [1]}),
+            eval_ts,
+            std::slice::from_ref(&mk(1.0)),
+            &[],
+            Some((id, eval_ts)),
+        )
+        .await
+        .unwrap();
+    assert!(first.claimed, "first delivery wins the claim");
+
+    // Redelivery of the same eval_ts with a different payload/value: loses the claim.
+    let second = s
+        .persist_slo_eval(
+            id,
+            &tenant(),
+            &json!({"groups": [2]}),
+            eval_ts,
+            std::slice::from_ref(&mk(999.0)),
+            &[],
+            Some((id, eval_ts)),
+        )
+        .await
+        .unwrap();
+    assert!(!second.claimed, "redelivery loses the claim");
+    assert!(second.outbox_ids.is_empty());
+
+    let insts = s.load_slo_instances(&tenant(), id).await.unwrap();
+    assert_eq!(insts.len(), 1);
+    assert_eq!(
+        insts[0].value,
+        Some(1.0),
+        "the lost-claim redelivery must not overwrite committed instance state"
+    );
+    // The snapshot is the first payload, not the redelivery's.
+    let status = s.get_slo_status(&tenant(), id).await.unwrap().unwrap();
+    assert_eq!(
+        status.payload,
+        json!({"groups": [1]}),
+        "the snapshot reflects the winning delivery only"
+    );
+}
+
+/// A frozen (query-failed) SLO tick records its failure exactly once per eval_ts: a
+/// redelivery loses the claim and does not double-count consecutive_failures.
+#[tokio::test]
+async fn record_slo_failure_claim_is_idempotent() {
+    let s = store().await;
+    let id = make_slo(&s, "freeze-idem").await;
+    let now = OffsetDateTime::now_utc();
+    let eval_ts = OffsetDateTime::from_unix_timestamp(1_700_000_400).unwrap();
+
+    assert!(s
+        .record_slo_failure(id, &tenant(), "boom", 3, now, Some((id, eval_ts)))
+        .await
+        .unwrap()
+        .is_none());
+    assert!(s
+        .record_slo_failure(id, &tenant(), "boom", 3, now, Some((id, eval_ts)))
+        .await
+        .unwrap()
+        .is_none());
+
+    let failures: i32 = sqlx::query_scalar("SELECT consecutive_failures FROM slos WHERE id = $1")
+        .bind(id.0)
+        .fetch_one(s.pool_for_test())
+        .await
+        .unwrap();
+    assert_eq!(
+        failures, 1,
+        "redelivery must not double-count the SLO failure"
+    );
+}
+
 #[tokio::test]
 async fn health_degrades_after_k_and_recovers() {
     let s = store().await;
     let id = make_slo(&s, "c").await;
     let now = OffsetDateTime::now_utc();
     assert!(s
-        .record_slo_failure(id, &tenant(), "boom", 2, now)
+        .record_slo_failure(id, &tenant(), "boom", 2, now, None)
         .await
         .unwrap()
         .is_none()); // 1st
 
     // 2nd -> degraded: a Firing/RuleHealth event with `slo` set, written to the outbox.
     let (ev, outbox_id) = s
-        .record_slo_failure(id, &tenant(), "boom", 2, now)
+        .record_slo_failure(id, &tenant(), "boom", 2, now, None)
         .await
         .unwrap()
         .expect("crosses threshold");
@@ -125,7 +228,7 @@ async fn health_events_of_suppressed_slo_are_stamped() {
     let now = OffsetDateTime::now_utc();
 
     let (ev, outbox_id) = s
-        .record_slo_failure(id, &tenant(), "boom", 1, now)
+        .record_slo_failure(id, &tenant(), "boom", 1, now, None)
         .await
         .unwrap()
         .expect("threshold 1 degrades on the first failure");

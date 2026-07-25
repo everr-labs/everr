@@ -71,7 +71,7 @@ async fn get_and_list_expose_rule_health() {
     let tid = TenantId::from_trusted(tenant.to_string());
     let rid = RuleId(Uuid::parse_str(&id).unwrap());
     store2
-        .record_rule_failure(rid, &tid, "boom", 1, OffsetDateTime::now_utc())
+        .record_rule_failure(rid, &tid, "boom", 1, OffsetDateTime::now_utc(), None)
         .await
         .unwrap();
 

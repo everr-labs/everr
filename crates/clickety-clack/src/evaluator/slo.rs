@@ -3,10 +3,11 @@
 //! drives each (group x tier) burn-rate verdict through the shared engine state
 //! machine to open/resolve `slo_instances` rows and publish `Event`s.
 //!
-//! The status snapshot (via [`PgStore::upsert_slo_status`]) and the SLO's health
-//! columns (via [`PgStore::record_slo_failure`] / [`PgStore::record_slo_success`])
-//! are always written first, on the success path only; the firing pass below runs
-//! after that snapshot write and never runs on the freeze-on-error path.
+//! On the success path the firing pass runs first, then its status snapshot,
+//! `slo_instances` rows, and idempotency claim all commit together in one
+//! transaction (via [`PgStore::persist_slo_eval`]). The freeze-on-error path takes
+//! neither: it records the health failure (via [`PgStore::record_slo_failure`]),
+//! and health recovery on a later success goes through [`PgStore::record_slo_success`].
 
 use crate::clickhouse::{json_to_f64, RowQuerier};
 use crate::domain::ids::{InstanceKey, RuleId};
@@ -24,7 +25,7 @@ use crate::engine::slo_math::{
     SloTierStatus, WindowReq,
 };
 use crate::engine::{evaluate, EvalInput};
-use crate::evaluator::{publish_and_clear_outbox, publish_health};
+use crate::evaluator::{publish_and_clear_outbox, publish_health, SloEvalStore};
 use crate::queue::{EventBus, JobId, Queue, SloDelivery};
 use crate::stores::PgStore;
 use std::collections::{BTreeMap, BTreeSet, HashMap};
@@ -197,8 +198,8 @@ fn buffer_slo_samples(
         otel.status_message = tracing::field::Empty
     )
 )]
-pub async fn evaluate_slo(
-    store: &PgStore,
+pub async fn evaluate_slo<S: SloEvalStore>(
+    store: &S,
     ch: &dyn RowQuerier,
     events: &dyn EventBus,
     samples: &dyn SloSampleSink,
@@ -313,7 +314,14 @@ pub async fn evaluate_slo(
             }
             Err(msg) => {
                 let recorded = match store
-                    .record_slo_failure(slo.id, &slo.tenant, &msg, degrade_after, eval_ts)
+                    .record_slo_failure(
+                        slo.id,
+                        &slo.tenant,
+                        &msg,
+                        degrade_after,
+                        eval_ts,
+                        Some((slo.id, eval_ts)),
+                    )
                     .await
                 {
                     Ok(recorded) => recorded,
@@ -464,13 +472,10 @@ pub async fn evaluate_slo(
             return Err(e.into());
         }
     };
-    if let Err(e) = store
-        .upsert_slo_status(slo.id, &slo.tenant, &payload_json, eval_ts)
-        .await
-    {
-        crate::otel::span_error(&e);
-        return Err(e.into());
-    }
+    // The status snapshot is NOT written here anymore: it is committed together with the
+    // instance transitions and the idempotency claim in the single `persist_slo_eval`
+    // transaction below, so a crash between the snapshot and the instances can never
+    // strand a claimed eval_ts with only half its state.
 
     // ---- Firing pipeline: drive each (group x tier) burn-rate verdict through the
     // shared engine state machine, open/resolve `slo_instances` rows, and publish
@@ -591,10 +596,38 @@ pub async fn evaluate_slo(
         next_states.push(outcome.next);
     }
 
-    if !(next_states.is_empty() && out_events.is_empty()) {
-        if let Err(e) = commit_and_publish_slo(store, events, next_states, out_events).await {
+    // Commit the status snapshot, the instance next-states, the outbox events, AND the
+    // (slo, eval_ts) idempotency claim in ONE transaction. This always runs (even with no
+    // instance changes) because the snapshot and the claim must be recorded every eval.
+    // - Err => the transaction failed; nothing committed and the claim was never taken, so
+    //   propagate the error and let the caller leave the job unacked for reclaim.
+    // - claimed == false => a prior delivery already applied this eval_ts; nothing was
+    //   written and we must not publish. The caller acks it.
+    // - claimed == true => publish best-effort; a failure leaves the committed outbox rows
+    //   for the maintenance relay (exactly-once), so it never forces a reclaim.
+    let outcome = match store
+        .persist_slo_eval(
+            slo.id,
+            &slo.tenant,
+            &payload_json,
+            eval_ts,
+            &next_states,
+            &out_events,
+            Some((slo.id, eval_ts)),
+        )
+        .await
+    {
+        Ok(o) => o,
+        Err(e) => {
             crate::otel::span_error(&e);
-            return Err(e);
+            return Err(e.into());
+        }
+    };
+    if outcome.claimed {
+        if let Err(e) =
+            publish_and_clear_outbox(store, events, &out_events, &outcome.outbox_ids).await
+        {
+            tracing::warn!(slo = %slo.id.0, error = %e, "slo eval publish failed; relay will recover");
         }
     }
 
@@ -618,59 +651,47 @@ pub(crate) async fn commit_and_publish_slo(
     publish_and_clear_outbox(store, events, &out_events, &outbox_ids).await
 }
 
-/// Claim + resolve + evaluate every delivery in one SLO batch, swallowing per-job
-/// errors (logged) so one bad job never blocks the rest of the batch. The caller
-/// acks every delivery in the batch regardless — a claim/lookup/eval failure for
-/// one job still acks that job, since redelivering it would either re-fail
-/// identically or (if the (slo, eval_ts) pair was already claimed) be a no-op
-/// anyway.
+/// Resolve + evaluate every delivery in one SLO batch and return the ids to ack. Like the
+/// rule path, acknowledgement is by DURABILITY, not arrival: a delivery is acked only once
+/// its work reached a durable terminal state, and a transient store/Redis/ClickHouse
+/// failure leaves it out of the returned set so reclaim redelivers it. There is no separate
+/// up-front claim: the `(slo, eval_ts)` idempotency claim now rides `persist_slo_eval`'s
+/// (success) or `record_slo_failure`'s (freeze) transaction inside [`evaluate_slo`], so a
+/// redelivered job either re-evaluates cleanly or loses the claim inside that transaction
+/// and is acked without double-writing.
 #[allow(clippy::too_many_arguments)]
-async fn process_slo_batch_inner(
-    store: &PgStore,
+pub async fn process_slo_batch_inner<S: SloEvalStore>(
+    store: &S,
     ch: &dyn RowQuerier,
     events: &dyn EventBus,
     samples: &dyn SloSampleSink,
     base_cadence_secs: u64,
     degrade_after: u32,
     deliveries: Vec<SloDelivery>,
-) {
-    // Claim + resolve in two batched round trips (previously ~2 per delivery).
-    // `try_claim_slo_evals` preserves the per-pair conflict semantics of the old
-    // per-delivery claim: a job that loses the (slo, eval_ts) race is skipped
-    // (and still acked by the caller), exactly as before. A store error skips
-    // the whole batch the same way a per-job claim/lookup error skipped that job.
-    let jobs: Vec<crate::queue::SloEvalJob> = deliveries.into_iter().map(|d| d.job).collect();
-    let claim_pairs: Vec<(crate::domain::ids::SloId, time::OffsetDateTime)> =
-        jobs.iter().map(|j| (j.slo, j.eval_ts)).collect();
-    let claimed = match store.try_claim_slo_evals(&claim_pairs).await {
-        Ok(c) => c,
-        Err(e) => {
-            tracing::error!(error = %e, "try_claim_slo_eval failed");
-            return;
-        }
-    };
-    let claimed_jobs: Vec<crate::queue::SloEvalJob> = jobs
-        .into_iter()
-        .zip(claimed)
-        .filter_map(|(job, won)| won.then_some(job))
-        .collect();
-    let mut slo_ids: Vec<crate::domain::ids::SloId> = claimed_jobs.iter().map(|j| j.slo).collect();
+) -> Vec<JobId> {
+    let mut acked: Vec<JobId> = Vec::with_capacity(deliveries.len());
+
+    // Resolve SLOs in one batched fetch. A fetch failure committed nothing (no claim is
+    // taken before persist), so ack NOTHING: the whole batch stays pending for reclaim.
+    let mut slo_ids: Vec<crate::domain::ids::SloId> =
+        deliveries.iter().map(|d| d.job.slo).collect();
     slo_ids.sort_unstable_by_key(|s| s.0);
     slo_ids.dedup();
     let slos_by_id: HashMap<crate::domain::ids::SloId, crate::domain::slo::Slo> =
         match store.get_slos_by_ids(&slo_ids).await {
             Ok(slos) => slos.into_iter().map(|s| (s.id, s)).collect(),
             Err(e) => {
-                tracing::error!(error = %e, "get_slo failed");
-                return;
+                crate::otel::span_error(&e);
+                tracing::error!(error = %e, "get_slo failed; leaving batch for reclaim");
+                return acked;
             }
         };
-    for job in claimed_jobs {
+    for SloDelivery { id, job } in deliveries {
         match slos_by_id.get(&job.slo) {
             // The tenant guard keeps the per-id read's scoping: a job whose tenant
             // doesn't match the stored SLO is treated as a miss, never evaluated.
             Some(slo) if slo.tenant == job.tenant && !slo.paused => {
-                if let Err(e) = evaluate_slo(
+                match evaluate_slo(
                     store,
                     ch,
                     events,
@@ -682,14 +703,23 @@ async fn process_slo_batch_inner(
                 )
                 .await
                 {
-                    tracing::error!(slo = ?job.slo, error = %e, "slo evaluation errored");
+                    // Durably applied (snapshot + instances committed, or a lost claim =
+                    // already applied), or a freeze durably recorded.
+                    Ok(()) => acked.push(id),
+                    // Transient infra failure: the claim was never committed, so leave the
+                    // job unacked and let reclaim redeliver it to re-evaluate.
+                    Err(e) => {
+                        tracing::error!(slo = ?job.slo, error = %e, "slo evaluation errored; leaving job for reclaim");
+                    }
                 }
             }
-            _ => {} // paused, deleted, or tenant mismatch: drop the job (still acked)
+            // paused, deleted, or tenant mismatch: terminal drop, no state written -> ack.
+            _ => acked.push(id),
         }
     }
     // Export every sample buffered across this batch in one request (best-effort).
     samples.flush().await;
+    acked
 }
 
 /// Run the SLO-evaluator consume loop over `cc:slo:jobs` until `shutdown` flips true.
@@ -732,7 +762,11 @@ pub async fn run_slo_evaluator(
                 }
             };
             tracing::Span::current().record("batch", deliveries.len());
-            let ack_ids: Vec<JobId> = deliveries.iter().map(|d| d.id.clone()).collect();
+            // Full batch ids, used only as the panic fallback: a poisoned batch is acked
+            // so a redelivery cannot re-panic forever (a poison pill), exactly as the rule
+            // path does. The normal path acks only the durably-terminal ids the batch
+            // returns.
+            let all_ids: Vec<JobId> = deliveries.iter().map(|d| d.id.clone()).collect();
             let batch = std::panic::AssertUnwindSafe(process_slo_batch_inner(
                 &store,
                 ch.as_ref(),
@@ -742,17 +776,21 @@ pub async fn run_slo_evaluator(
                 degrade_after,
                 deliveries,
             ));
-            if let Err(payload) = futures::FutureExt::catch_unwind(batch).await {
-                let msg = crate::supervisor::panic_message(payload);
-                tracing::error!(
-                    panic = %msg,
-                    deliveries = ack_ids.len(),
-                    "slo evaluation batch panicked; acking the batch and continuing"
-                );
-            }
-            // One variadic ack per batch. On failure the unacked ids stay pending and
+            let to_ack = match futures::FutureExt::catch_unwind(batch).await {
+                Ok(ids) => ids,
+                Err(payload) => {
+                    let msg = crate::supervisor::panic_message(payload);
+                    tracing::error!(
+                        panic = %msg,
+                        deliveries = all_ids.len(),
+                        "slo evaluation batch panicked; acking the batch and continuing"
+                    );
+                    all_ids
+                }
+            };
+            // One variadic ack per batch. Unacked (transient-failure) ids stay pending and
             // are redelivered via the reclaim pre-pass, so logging is all that's owed.
-            if let Err(e) = queue.ack_slo_batch(&ack_ids).await {
+            if let Err(e) = queue.ack_slo_batch(&to_ack).await {
                 tracing::error!(error = %e, "ack_slo failed");
             }
         }

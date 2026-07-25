@@ -61,6 +61,7 @@ async fn rollup_written_in_same_tx_and_advances() {
             Some((rule.id, rollup)),
             None,
             Some(&tenant),
+            None,
         )
         .await
         .unwrap();
@@ -94,7 +95,14 @@ async fn rollup_written_in_same_tx_and_advances() {
         row_count: 1,
     };
     store
-        .persist_eval_batch(&[], &[], Some((rule.id, rollup2)), None, Some(&tenant))
+        .persist_eval_batch(
+            &[],
+            &[],
+            Some((rule.id, rollup2)),
+            None,
+            Some(&tenant),
+            None,
+        )
         .await
         .unwrap();
     let lfa: Option<OffsetDateTime> =

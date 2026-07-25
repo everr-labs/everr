@@ -65,7 +65,7 @@ async fn degraded_rule_firing_instances_are_not_stale() {
 
     // Degrade it (threshold 1), then it must NOT be stale.
     store
-        .record_rule_failure(rule.id, &tenant, "boom", 1, now)
+        .record_rule_failure(rule.id, &tenant, "boom", 1, now, None)
         .await
         .unwrap();
     assert_eq!(
@@ -106,7 +106,7 @@ async fn failing_but_not_degraded_rule_firing_instances_are_not_stale() {
     // One failure below a high threshold (5): health_status stays 'healthy',
     // consecutive_failures=1.
     assert!(store
-        .record_rule_failure(rule.id, &tenant, "boom", 5, now)
+        .record_rule_failure(rule.id, &tenant, "boom", 5, now, None)
         .await
         .unwrap()
         .is_none());
@@ -136,19 +136,19 @@ async fn failure_degrades_exactly_at_threshold() {
 
     // Below threshold (K=3): no event.
     assert!(store
-        .record_rule_failure(rule.id, &tenant, "boom", 3, now)
+        .record_rule_failure(rule.id, &tenant, "boom", 3, now, None)
         .await
         .unwrap()
         .is_none());
     assert!(store
-        .record_rule_failure(rule.id, &tenant, "boom", 3, now)
+        .record_rule_failure(rule.id, &tenant, "boom", 3, now, None)
         .await
         .unwrap()
         .is_none());
 
     // Third failure crosses K -> one Firing/RuleHealth event.
     let (ev, _id) = store
-        .record_rule_failure(rule.id, &tenant, "boom", 3, now)
+        .record_rule_failure(rule.id, &tenant, "boom", 3, now, None)
         .await
         .unwrap()
         .unwrap();
@@ -160,10 +160,60 @@ async fn failure_degrades_exactly_at_threshold() {
 
     // Already degraded: further failures emit nothing.
     assert!(store
-        .record_rule_failure(rule.id, &tenant, "boom", 3, now)
+        .record_rule_failure(rule.id, &tenant, "boom", 3, now, None)
         .await
         .unwrap()
         .is_none());
+}
+
+/// With a claim, a redelivery of the same (rule, eval_ts) must NOT double-count the
+/// failure: the second call loses the claim, rolls back untouched, and leaves
+/// consecutive_failures at 1. This is what lets the query-error path ack exactly once.
+#[tokio::test]
+async fn record_rule_failure_claim_is_idempotent() {
+    let (store, _node) = store().await;
+    let tenant = TenantId::from_trusted(Uuid::new_v4().to_string());
+    let rule = create_test_rule(
+        &store,
+        tenant.clone(),
+        "t/record_rule_failure_claim_is_idempotent",
+        &spec(),
+    )
+    .await;
+    let now = OffsetDateTime::now_utc();
+    let eval_ts = OffsetDateTime::from_unix_timestamp(1_700_000_200).unwrap();
+
+    // First delivery wins the claim and bumps the counter to 1 (threshold 3 -> no event).
+    assert!(store
+        .record_rule_failure(rule.id, &tenant, "boom", 3, now, Some((rule.id, eval_ts)))
+        .await
+        .unwrap()
+        .is_none());
+
+    // Redelivery of the SAME eval_ts loses the claim: no event, and no second bump.
+    assert!(store
+        .record_rule_failure(rule.id, &tenant, "boom", 3, now, Some((rule.id, eval_ts)))
+        .await
+        .unwrap()
+        .is_none());
+
+    let failures: i32 = sqlx::query_scalar("SELECT consecutive_failures FROM rules WHERE id = $1")
+        .bind(rule.id.0)
+        .fetch_one(store.pool_for_test())
+        .await
+        .unwrap();
+    assert_eq!(
+        failures, 1,
+        "the redelivered claim must not double-count the failure"
+    );
+    let ledger: i64 =
+        sqlx::query_scalar("SELECT count(*) FROM evaluations WHERE rule = $1 AND eval_ts = $2")
+            .bind(rule.id.0)
+            .bind(eval_ts)
+            .fetch_one(store.pool_for_test())
+            .await
+            .unwrap();
+    assert_eq!(ledger, 1, "exactly one ledger row for the eval_ts");
 }
 
 // ---- Task 7: record_rule_success ----
@@ -190,7 +240,7 @@ async fn success_recovers_only_if_degraded() {
 
     // Degrade it (K=1), then a success recovers with one Resolved event.
     assert!(store
-        .record_rule_failure(rule.id, &tenant, "boom", 1, now)
+        .record_rule_failure(rule.id, &tenant, "boom", 1, now, None)
         .await
         .unwrap()
         .is_some());
@@ -236,7 +286,7 @@ async fn get_and_list_expose_health() {
 
     // Degrade and confirm get + filtered list reflect it.
     store
-        .record_rule_failure(rule.id, &tenant, "boom", 1, now)
+        .record_rule_failure(rule.id, &tenant, "boom", 1, now, None)
         .await
         .unwrap();
     let (_r, h, _rollup, _updated_at) = store
@@ -285,7 +335,7 @@ async fn health_events_of_suppressed_rule_are_stamped() {
     let now = OffsetDateTime::now_utc();
 
     let (ev, outbox_id) = store
-        .record_rule_failure(rule.id, &tenant, "boom", 1, now)
+        .record_rule_failure(rule.id, &tenant, "boom", 1, now, None)
         .await
         .unwrap()
         .expect("threshold 1 degrades on the first failure");
@@ -329,7 +379,7 @@ async fn health_events_of_normal_rule_are_not_stamped() {
     let now = OffsetDateTime::now_utc();
 
     let (ev, _) = store
-        .record_rule_failure(rule.id, &tenant, "boom", 1, now)
+        .record_rule_failure(rule.id, &tenant, "boom", 1, now, None)
         .await
         .unwrap()
         .expect("threshold 1 degrades on the first failure");
