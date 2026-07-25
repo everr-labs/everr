@@ -2,7 +2,10 @@ use crate::common::test_cipher;
 use cc::domain::channel::ChannelConfig;
 use cc::domain::ids::TenantId;
 use cc::domain::routing::{MatchOp, Matcher};
-use cc::stores::{ChannelDelete, PgStore, ReceiverInsert, ReceiverUpsert};
+use cc::stores::{
+    ChannelDelete, PgStore, ReceiverDelete, ReceiverInsert, ReceiverUpsert, RouteCreate,
+    RouteUpdate,
+};
 use std::collections::BTreeMap;
 use uuid::Uuid;
 
@@ -80,6 +83,16 @@ async fn receivers_upsert_and_routes_order() {
         "upsert replaces annotations wholesale"
     );
 
+    // A route may only target a receiver that exists, so seed the second one.
+    store
+        .create_receiver(
+            tenant.clone(),
+            "pd",
+            &["hook-b".to_string()],
+            &BTreeMap::new(),
+        )
+        .await
+        .unwrap();
     store
         .create_route(
             tenant.clone(),
@@ -120,8 +133,130 @@ async fn receivers_upsert_and_routes_order() {
         .await
         .unwrap());
     assert_eq!(store.routes_for(tenant.clone()).await.unwrap().len(), 1);
-    assert!(store.delete_receiver(tenant.clone(), "ops").await.unwrap());
+    // "pd" is now unreferenced and deletable; "ops" still has its route, so deleting it
+    // would strand that route and is refused with the referring route id.
+    assert_eq!(
+        store.delete_receiver(tenant.clone(), "pd").await.unwrap(),
+        ReceiverDelete::Deleted
+    );
+    assert_eq!(
+        store.delete_receiver(tenant.clone(), "ops").await.unwrap(),
+        ReceiverDelete::InUse(vec![routes[1].id])
+    );
+    assert!(store
+        .delete_route(tenant.clone(), routes[1].id)
+        .await
+        .unwrap());
+    assert_eq!(
+        store.delete_receiver(tenant.clone(), "ops").await.unwrap(),
+        ReceiverDelete::Deleted
+    );
+    assert_eq!(
+        store.delete_receiver(tenant.clone(), "ops").await.unwrap(),
+        ReceiverDelete::NotFound
+    );
     assert!(store.list_receivers(tenant).await.unwrap().is_empty());
+}
+
+/// The routes -> receivers foreign key is what rejects a route naming a receiver that
+/// does not exist, on both write paths, and it is equally what rejects one whose
+/// receiver a concurrent delete removed mid-write. Writing against a name that was never
+/// created is the deterministic proxy for that race.
+#[tokio::test]
+async fn route_write_rejects_unknown_receiver() {
+    let url = crate::support::fresh_db().await;
+    let store = PgStore::connect(&url).await.unwrap();
+    let cipher = test_cipher();
+    let tenant = TenantId::from_trusted(Uuid::new_v4().to_string());
+
+    store
+        .create_channel(
+            cipher.as_ref(),
+            tenant.clone(),
+            "hook",
+            &ChannelConfig::Webhook {
+                url: "http://a".into(),
+            },
+        )
+        .await
+        .unwrap();
+    store
+        .create_receiver(
+            tenant.clone(),
+            "ops",
+            &["hook".to_string()],
+            &BTreeMap::new(),
+        )
+        .await
+        .unwrap();
+
+    // Create path: rejected, and no route row is written.
+    let outcome = store
+        .create_route(
+            tenant.clone(),
+            &[],
+            "gone",
+            false,
+            0,
+            None,
+            None,
+            None,
+            None,
+        )
+        .await
+        .unwrap();
+    assert_eq!(outcome, RouteCreate::MissingReceiver);
+    assert!(
+        store.routes_for(tenant.clone()).await.unwrap().is_empty(),
+        "a rejected route write must not persist a row"
+    );
+
+    // Update path: an existing route cannot be repointed at a missing receiver, and the
+    // stored row keeps its original receiver.
+    let RouteCreate::Created(route) = store
+        .create_route(tenant.clone(), &[], "ops", false, 0, None, None, None, None)
+        .await
+        .unwrap()
+    else {
+        panic!("expected the route to be created");
+    };
+    let outcome = store
+        .update_route(
+            tenant.clone(),
+            route.id,
+            &[],
+            "gone",
+            false,
+            0,
+            None,
+            None,
+            None,
+            None,
+        )
+        .await
+        .unwrap();
+    assert_eq!(outcome, RouteUpdate::MissingReceiver);
+    let routes = store.routes_for(tenant.clone()).await.unwrap();
+    assert_eq!(routes.len(), 1);
+    assert_eq!(routes[0].receiver, "ops");
+
+    // A receiver that exists but a route id that does not is still a 404-shaped miss.
+    let outcome = store
+        .update_route(
+            tenant.clone(),
+            Uuid::new_v4(),
+            &[],
+            "ops",
+            false,
+            0,
+            None,
+            None,
+            None,
+            None,
+        )
+        .await
+        .unwrap();
+    assert_eq!(outcome, RouteUpdate::NotFound);
 }
 
 #[tokio::test]
@@ -196,10 +331,13 @@ async fn channels_upsert_resolve_and_referenced_delete_guard() {
             .unwrap(),
         ChannelDelete::InUse(vec!["oncall".to_string()])
     );
-    assert!(store
-        .delete_receiver(tenant.clone(), "oncall")
-        .await
-        .unwrap());
+    assert_eq!(
+        store
+            .delete_receiver(tenant.clone(), "oncall")
+            .await
+            .unwrap(),
+        ReceiverDelete::Deleted
+    );
     assert_eq!(
         store
             .delete_channel(tenant.clone(), "team-slack")

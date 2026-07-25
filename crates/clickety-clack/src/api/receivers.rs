@@ -2,7 +2,7 @@ use crate::api::auth::tenant;
 use crate::api::error::ApiError;
 use crate::api::{duplicate_entries, AppState};
 use crate::domain::receiver::Receiver;
-use crate::stores::{ReceiverInsert, ReceiverUpsert};
+use crate::stores::{ReceiverDelete, ReceiverInsert, ReceiverUpsert};
 use axum::extract::{Path, State};
 use axum::http::HeaderMap;
 use axum::Json;
@@ -173,14 +173,25 @@ pub async fn get(
         .ok_or(ApiError::NotFound)
 }
 
+/// Delete a receiver. `409 conflict` while any route still targets it: deleting would
+/// leave the route pointing at nothing, silently dropping every alert it matches.
 pub async fn delete(
     State(state): State<AppState>,
     headers: HeaderMap,
     Path(name): Path<String>,
 ) -> Result<Json<Value>, ApiError> {
     let t = tenant(&state, &headers)?;
-    let ok = state.store.delete_receiver(t, &name).await?;
-    crate::api::deleted(ok)
+    match state.store.delete_receiver(t, &name).await? {
+        ReceiverDelete::Deleted => Ok(Json(serde_json::json!({"deleted": true}))),
+        ReceiverDelete::NotFound => Err(ApiError::NotFound),
+        ReceiverDelete::InUse(routes) => Err(ApiError::Conflict(in_use_detail(&routes))),
+    }
+}
+
+/// The 409 detail for a receiver still targeted by routes.
+fn in_use_detail(routes: &[uuid::Uuid]) -> String {
+    let ids: Vec<String> = routes.iter().map(|id| id.to_string()).collect();
+    format!("receiver is referenced by routes: {}", ids.join(", "))
 }
 
 #[cfg(test)]
@@ -189,6 +200,16 @@ mod tests {
 
     fn body(raw: &str) -> CreateReceiver {
         serde_json::from_str(raw).expect("body must deserialize")
+    }
+
+    #[test]
+    fn in_use_detail_names_every_referring_route() {
+        let a = uuid::Uuid::from_u128(1);
+        let b = uuid::Uuid::from_u128(2);
+        assert_eq!(
+            in_use_detail(&[a, b]),
+            format!("receiver is referenced by routes: {a}, {b}")
+        );
     }
 
     #[test]

@@ -278,13 +278,19 @@ pub async fn process_event(ctx: &DispatchCtx, entry: &EventEntry) -> bool {
 
     let now = now_ms();
     let mut all_handled = true;
+    // Receivers this event's routes name but the snapshot does not have. Collected
+    // across targets and dead-lettered once below: the ack decision is per event, so
+    // its durable record must be too.
+    let mut unknown_receivers: Vec<String> = Vec::new();
 
     for target in routing::select_grouping_targets(&snap.routes, ev, &labels) {
         let channel_names = match snap.receivers.get(target.receiver.as_str()) {
             Some(r) => r.channels.as_slice(),
+            // The route targets a receiver that no longer exists: only reachable for a
+            // route stored before route writes locked the receiver and `delete_receiver`
+            // began refusing while a route targets it.
             None => {
-                tracing::warn!(receiver = %target.receiver,
-                    "route references unknown receiver; skipping");
+                unknown_receivers.push(target.receiver);
                 continue;
             }
         };
@@ -331,6 +337,23 @@ pub async fn process_event(ctx: &DispatchCtx, entry: &EventEntry) -> bool {
             crate::otel::span_error(&e);
             tracing::error!(error = %e, group = %gid,
                 "buffering event into group failed; leaving event unacked for reclaim");
+            all_handled = false;
+        }
+    }
+    // Acking an event that nothing delivered and nothing recorded would lose it
+    // silently, so every unresolved receiver gets one durable record and the ack waits
+    // on that write.
+    if !unknown_receivers.is_empty() {
+        let reason = format!(
+            "routes reference unknown receivers: {}",
+            unknown_receivers.join(", ")
+        );
+        tracing::error!(entry_id = %entry.id, receivers = %unknown_receivers.join(", "),
+            "routes reference unknown receivers; dead-lettering event");
+        if let Err(e) = ctx.bus.dead_letter(ev, &reason).await {
+            crate::otel::span_error(&e);
+            tracing::error!(error = %e, entry_id = %entry.id,
+                "dead-lettering unknown-receiver event failed; leaving event unacked for reclaim");
             all_handled = false;
         }
     }

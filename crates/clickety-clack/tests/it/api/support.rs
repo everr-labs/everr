@@ -50,6 +50,40 @@ pub async fn body_json(resp: axum::response::Response) -> serde_json::Value {
     serde_json::from_slice(&bytes).unwrap()
 }
 
+/// Seed a webhook channel plus a receiver of that name for each entry, so route tests
+/// have something to target: a route write rejects a receiver that does not exist.
+pub async fn seed_receivers(app: &axum::Router, tenant: Uuid, names: &[&str]) {
+    use axum::http::StatusCode;
+    use tower::ServiceExt;
+    for name in names {
+        let channel = format!("{name}-hook");
+        let resp = app
+            .clone()
+            .oneshot(req(
+                "POST",
+                "/v1/channels",
+                tenant,
+                &format!(
+                    r#"{{"name":"{channel}","config":{{"type":"webhook","url":"http://x/h"}}}}"#
+                ),
+            ))
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::OK, "seeding channel {channel}");
+        let resp = app
+            .clone()
+            .oneshot(req(
+                "POST",
+                "/v1/receivers",
+                tenant,
+                &format!(r#"{{"name":"{name}","channels":["{channel}"]}}"#),
+            ))
+            .await
+            .unwrap();
+        assert_eq!(resp.status(), StatusCode::OK, "seeding receiver {name}");
+    }
+}
+
 pub fn req(method: &str, uri: &str, tenant: Uuid, body: &str) -> Request<Body> {
     Request::builder()
         .method(method)

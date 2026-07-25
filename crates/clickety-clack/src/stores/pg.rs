@@ -169,6 +169,35 @@ pub enum ReceiverUpsert {
     MissingChannels(Vec<String>),
 }
 
+/// Outcome of [`PgStore::delete_receiver`].
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ReceiverDelete {
+    Deleted,
+    NotFound,
+    /// The foreign key refused the delete because routes still target the receiver;
+    /// carries their ids (the API surfaces them in the 409 detail).
+    InUse(Vec<Uuid>),
+}
+
+/// Outcome of [`PgStore::create_route`].
+#[derive(Debug, Clone, PartialEq)]
+pub enum RouteCreate {
+    Created(Route),
+    /// The referenced receiver does not exist; the routes -> receivers foreign key
+    /// rejected the write (see [`PgStore::create_route`]). The API renders a 422.
+    MissingReceiver,
+}
+
+/// Outcome of [`PgStore::update_route`] (full-body replace).
+#[derive(Debug, Clone, PartialEq)]
+pub enum RouteUpdate {
+    Updated(Route),
+    /// No route with that id exists for the tenant (the API renders a 404).
+    NotFound,
+    /// See [`RouteCreate::MissingReceiver`].
+    MissingReceiver,
+}
+
 /// Lock the referenced channel rows (`FOR KEY SHARE`) inside the caller's write
 /// transaction and return the requested names that do not exist (empty = all present,
 /// order-preserving and deduped). The lock is what makes a receiver write serialize
@@ -202,6 +231,17 @@ fn is_unique_violation(e: &sqlx::Error) -> bool {
     e.as_database_error()
         .and_then(|d| d.code())
         .map(|c| c == "23505")
+        .unwrap_or(false)
+}
+
+/// True if a sqlx error is a Postgres foreign-key violation (SQLSTATE 23503). The only
+/// foreign key in the schema is `routes (tenant, receiver) -> receivers (tenant, name)`,
+/// so this means either a route naming a receiver that does not exist or a receiver
+/// delete blocked by the routes still targeting it.
+fn is_foreign_key_violation(e: &sqlx::Error) -> bool {
+    e.as_database_error()
+        .and_then(|d| d.code())
+        .map(|c| c == "23503")
         .unwrap_or(false)
 }
 
@@ -1571,24 +1611,6 @@ impl PgStore {
         Ok(rows)
     }
 
-    /// Names of the receivers that reference channel `name`.
-    pub async fn receivers_referencing_channel(
-        &self,
-        tenant: &TenantId,
-        name: &str,
-    ) -> Result<Vec<String>, StoreError> {
-        let rows = sqlx::query_scalar::<_, String>(
-            "SELECT name FROM receivers
-             WHERE tenant=$1 AND channels @> to_jsonb(ARRAY[$2::text])
-             ORDER BY name",
-        )
-        .bind(tenant.as_str())
-        .bind(name)
-        .fetch_all(&self.pool)
-        .await?;
-        Ok(rows)
-    }
-
     /// Delete a channel unless a receiver still references it.
     ///
     /// The referrer check races receiver creation: a `FOR SHARE` over the referrers
@@ -1808,17 +1830,49 @@ impl PgStore {
         Ok(out)
     }
 
-    pub async fn delete_receiver(&self, tenant: TenantId, name: &str) -> Result<bool, StoreError> {
+    /// Delete a receiver unless a route still targets it.
+    ///
+    /// Unlike [`Self::delete_channel`] one level down (whose referrers live in a JSON
+    /// array, so the guard has to be a hand-rolled lock protocol), the routes -> receivers
+    /// foreign key restricts this delete for us: no lock, no transaction, and no window
+    /// in which a concurrent route write could slip past a referrer check. The follow-up
+    /// query on rejection is purely to name the offending routes in the 409; the
+    /// constraint, not that read, is what makes the delete safe.
+    pub async fn delete_receiver(
+        &self,
+        tenant: TenantId,
+        name: &str,
+    ) -> Result<ReceiverDelete, StoreError> {
         let res = sqlx::query("DELETE FROM receivers WHERE tenant=$1 AND name=$2")
             .bind(tenant.as_str())
             .bind(name)
             .execute(&self.pool)
-            .await?;
-        Ok(res.rows_affected() > 0)
+            .await;
+        match res {
+            Ok(r) if r.rows_affected() > 0 => Ok(ReceiverDelete::Deleted),
+            Ok(_) => Ok(ReceiverDelete::NotFound),
+            Err(e) if is_foreign_key_violation(&e) => {
+                let referrers: Vec<Uuid> = sqlx::query_scalar(
+                    "SELECT id FROM routes WHERE tenant=$1 AND receiver=$2 ORDER BY created_at ASC",
+                )
+                .bind(tenant.as_str())
+                .bind(name)
+                .fetch_all(&self.pool)
+                .await?;
+                Ok(ReceiverDelete::InUse(referrers))
+            }
+            Err(e) => Err(e.into()),
+        }
     }
 
     // ---- routes ----
 
+    /// Create a route.
+    ///
+    /// The referenced receiver must exist; the routes -> receivers foreign key enforces
+    /// it, so an unknown (or concurrently deleted) receiver surfaces as a 23503 that
+    /// becomes [`RouteCreate::MissingReceiver`] and the API turns into a 422. No
+    /// boundary pre-check duplicates it.
     #[allow(clippy::too_many_arguments)]
     pub async fn create_route(
         &self,
@@ -1831,14 +1885,14 @@ impl PgStore {
         group_wait_secs: Option<u32>,
         group_interval_secs: Option<u32>,
         repeat_interval_secs: Option<u32>,
-    ) -> Result<Route, StoreError> {
+    ) -> Result<RouteCreate, StoreError> {
         let id = Uuid::new_v4();
         let m_json = serde_json::to_value(matchers)?;
         let gb_json: Option<serde_json::Value> = match group_by {
             Some(g) => Some(serde_json::to_value(g)?),
             None => None,
         };
-        sqlx::query(
+        let res = sqlx::query(
             "INSERT INTO routes
                (id, tenant, matchers, receiver, continue_matching, priority,
                 group_by, group_wait_secs, group_interval_secs, repeat_interval_secs)
@@ -1855,8 +1909,15 @@ impl PgStore {
         .bind(group_interval_secs.map(|v| v as i32))
         .bind(repeat_interval_secs.map(|v| v as i32))
         .execute(&self.pool)
-        .await?;
-        Ok(Route {
+        .await;
+        if let Err(e) = res {
+            return if is_foreign_key_violation(&e) {
+                Ok(RouteCreate::MissingReceiver)
+            } else {
+                Err(e.into())
+            };
+        }
+        Ok(RouteCreate::Created(Route {
             id,
             tenant,
             matchers: matchers.to_vec(),
@@ -1867,12 +1928,14 @@ impl PgStore {
             group_wait_secs,
             group_interval_secs,
             repeat_interval_secs,
-        })
+        }))
     }
 
     /// Full-body replace of a route (PUT semantics). `created_at` is preserved, so the
-    /// route keeps its position among equal priorities. Returns None when no route with
-    /// that id exists for the tenant.
+    /// route keeps its position among equal priorities. [`RouteUpdate::NotFound`] when no
+    /// route with that id exists for the tenant, which wins over an unknown receiver: an
+    /// update matching no row runs no foreign-key check, so a request that is wrong about
+    /// both is answered about the route it names (see [`Self::create_route`]).
     #[allow(clippy::too_many_arguments)]
     pub async fn update_route(
         &self,
@@ -1886,7 +1949,7 @@ impl PgStore {
         group_wait_secs: Option<u32>,
         group_interval_secs: Option<u32>,
         repeat_interval_secs: Option<u32>,
-    ) -> Result<Option<Route>, StoreError> {
+    ) -> Result<RouteUpdate, StoreError> {
         let m_json = serde_json::to_value(matchers)?;
         let gb_json: Option<serde_json::Value> = match group_by {
             Some(g) => Some(serde_json::to_value(g)?),
@@ -1910,11 +1973,16 @@ impl PgStore {
         .bind(group_interval_secs.map(|v| v as i32))
         .bind(repeat_interval_secs.map(|v| v as i32))
         .execute(&self.pool)
-        .await?;
+        .await;
+        let res = match res {
+            Ok(r) => r,
+            Err(e) if is_foreign_key_violation(&e) => return Ok(RouteUpdate::MissingReceiver),
+            Err(e) => return Err(e.into()),
+        };
         if res.rows_affected() == 0 {
-            return Ok(None);
+            return Ok(RouteUpdate::NotFound);
         }
-        Ok(Some(Route {
+        Ok(RouteUpdate::Updated(Route {
             id,
             tenant,
             matchers: matchers.to_vec(),

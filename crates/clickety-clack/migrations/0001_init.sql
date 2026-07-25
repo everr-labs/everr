@@ -112,6 +112,11 @@ CREATE TABLE channels (
 );
 CREATE INDEX channels_tenant_idx ON channels (tenant);
 
+-- Routes select a receiver by name. Unlike the receiver -> channel reference (a JSON
+-- array, so it can only be enforced in application code), this one is a real composite
+-- foreign key against `receivers (tenant, name)`: a route naming a receiver that does
+-- not exist is rejected, and a receiver a route still targets cannot be deleted. Without
+-- it a stranded route silently drops every alert it matches.
 CREATE TABLE routes (
     id                UUID PRIMARY KEY,
     tenant            TEXT NOT NULL,
@@ -123,7 +128,8 @@ CREATE TABLE routes (
     group_wait_secs     INT,
     group_interval_secs INT,
     repeat_interval_secs INT,
-    created_at        TIMESTAMPTZ NOT NULL DEFAULT now()
+    created_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
+    FOREIGN KEY (tenant, receiver) REFERENCES receivers (tenant, name) ON UPDATE CASCADE
 );
 CREATE INDEX routes_tenant_idx ON routes (tenant);
 

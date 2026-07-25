@@ -95,10 +95,20 @@ Annotations are returned as stored on every read (they are metadata, not
 secrets) and are replaced wholesale on each upsert: re-POST a receiver without
 `annotations` and the map resets to `{}`.
 
+### Deleting receivers
+
+A receiver that a route still targets cannot be deleted:
+`DELETE /v1/receivers/:name` answers `409` with the referring route ids.
+Deleting it would leave those routes pointing at nothing, so every alert they
+match would be dropped without a notification. Drop or repoint those routes
+first.
+
 ## 3. Create routes
 
 A route says "events matching these labels go to this receiver." Routes form an
-ordered tree evaluated by priority.
+ordered tree evaluated by priority. The receiver must already exist: a route
+naming one that does not is rejected with `422` (`unknown receiver: oncall`),
+so create receivers before the routes that target them.
 
 ```bash
 curl -s -X POST localhost:8080/v1/routes -H "X-CC-Tenant: $TENANT" \

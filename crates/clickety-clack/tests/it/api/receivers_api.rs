@@ -1,4 +1,4 @@
-use crate::api::support::{body_json, req, setup};
+use crate::api::support::{body_json, req, seed_receivers, setup};
 use axum::http::StatusCode;
 use tower::ServiceExt;
 use uuid::Uuid;
@@ -409,4 +409,52 @@ async fn receiver_create_is_create_only_and_put_replaces() {
     assert_eq!(resp.status(), StatusCode::UNPROCESSABLE_ENTITY);
     let v = body_json(resp).await;
     assert_eq!(v["detail"], "unknown channels: nope");
+}
+
+#[tokio::test]
+async fn receiver_delete_is_409_while_a_route_targets_it() {
+    let (app, _) = setup().await;
+    let tenant = Uuid::new_v4();
+    seed_receivers(&app, tenant, &["ops"]).await;
+
+    let resp = app
+        .clone()
+        .oneshot(req(
+            "POST",
+            "/v1/routes",
+            tenant,
+            r#"{"matchers":[],"receiver":"ops"}"#,
+        ))
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+    let id = body_json(resp).await["id"].as_str().unwrap().to_string();
+
+    let resp = app
+        .clone()
+        .oneshot(req("DELETE", "/v1/receivers/ops", tenant, ""))
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::CONFLICT);
+    let v = body_json(resp).await;
+    assert_eq!(v["code"], "conflict");
+    assert_eq!(
+        v["detail"],
+        format!("receiver is referenced by routes: {id}"),
+        "the 409 names the routes that would be stranded"
+    );
+
+    // Drop the route and the receiver becomes deletable.
+    let resp = app
+        .clone()
+        .oneshot(req("DELETE", &format!("/v1/routes/{id}"), tenant, ""))
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+    let resp = app
+        .clone()
+        .oneshot(req("DELETE", "/v1/receivers/ops", tenant, ""))
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
 }

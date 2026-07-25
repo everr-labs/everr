@@ -2,6 +2,7 @@ use crate::api::auth::tenant;
 use crate::api::error::ApiError;
 use crate::api::AppState;
 use crate::domain::routing::{Matcher, Route};
+use crate::stores::{RouteCreate, RouteUpdate};
 use axum::extract::{Path, State};
 use axum::http::HeaderMap;
 use axum::Json;
@@ -47,8 +48,14 @@ fn validate(body: &CreateRoute) -> Result<(), ApiError> {
     Ok(())
 }
 
-/// Create a route. The referenced receiver need not exist yet (resolved at delivery
-/// time; a missing receiver is logged and skipped by the dispatcher).
+/// The 422 detail for a route naming a receiver that does not exist.
+fn unknown_receiver_detail(name: &str) -> String {
+    format!("unknown receiver: {name}")
+}
+
+/// Create a route. The referenced receiver must already exist (422 naming it
+/// otherwise); a receiver cannot be deleted while a route still targets it, so a stored
+/// route always resolves to a receiver at delivery time.
 pub async fn create(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -56,7 +63,7 @@ pub async fn create(
 ) -> Result<Json<Route>, ApiError> {
     let t = tenant(&state, &headers)?;
     validate(&body)?;
-    let route = state
+    match state
         .store
         .create_route(
             t,
@@ -69,8 +76,13 @@ pub async fn create(
             body.group_interval_secs,
             body.repeat_interval_secs,
         )
-        .await?;
-    Ok(Json(route))
+        .await?
+    {
+        RouteCreate::Created(route) => Ok(Json(route)),
+        RouteCreate::MissingReceiver => Err(ApiError::Validation(unknown_receiver_detail(
+            &body.receiver,
+        ))),
+    }
 }
 
 /// Replace a route in full (PUT semantics; same body shape and validation as create).
@@ -83,7 +95,7 @@ pub async fn update(
 ) -> Result<Json<Route>, ApiError> {
     let t = tenant(&state, &headers)?;
     validate(&body)?;
-    let updated = state
+    match state
         .store
         .update_route(
             t,
@@ -97,8 +109,14 @@ pub async fn update(
             body.group_interval_secs,
             body.repeat_interval_secs,
         )
-        .await?;
-    updated.map(Json).ok_or(ApiError::NotFound)
+        .await?
+    {
+        RouteUpdate::Updated(route) => Ok(Json(route)),
+        RouteUpdate::NotFound => Err(ApiError::NotFound),
+        RouteUpdate::MissingReceiver => Err(ApiError::Validation(unknown_receiver_detail(
+            &body.receiver,
+        ))),
+    }
 }
 
 pub async fn list(

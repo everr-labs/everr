@@ -441,7 +441,7 @@ Receiver payloads never carry secrets: `channels` is a list of channel names.
 | `PUT /v1/receivers/:name`     | Create or replace the receiver's `channels`/`annotations` in place. Body = the request body below without `name`. |
 | `GET /v1/receivers`           | List receivers. Unpaginated; bounded by tenant scale. |
 | `GET /v1/receivers/:name`     | Get one receiver. |
-| `DELETE /v1/receivers/:name`  | Delete a receiver. |
+| `DELETE /v1/receivers/:name`  | Delete a receiver. `409` while any route targets it. |
 
 ### Request body
 
@@ -459,6 +459,12 @@ must exist as a channel (`422` with `detail` listing the unknown names, e.g.
 string map (default `{}`): operator metadata such as team ownership or runbook
 links. It is returned as stored on every read (never redacted) and replaced
 wholesale on `PUT`; a `PUT` body that omits it resets the map to `{}`.
+
+`DELETE /v1/receivers/:name` answers `409` (with `detail` naming the referring
+route ids, e.g. `receiver is referenced by routes: 6f1c…, 91ab…`) while any
+route targets the receiver. Deleting it would leave those routes pointing at
+nothing and silently drop every alert they match, so delete or repoint them
+first.
 
 ---
 
@@ -493,7 +499,7 @@ receiver(s).
 | Field                 | Type                | Required | Default | Notes |
 | --------------------- | ------------------- | -------- | ------- | ----- |
 | `matchers`            | Matcher[]           | yes      | —       | All must match (AND). Empty list matches everything. |
-| `receiver`            | string              | yes      | —       | Receiver name. Must not be empty (`422`). Resolved at delivery time. |
+| `receiver`            | string              | yes      | —       | Receiver name. Must not be empty, and must already exist (`422` with `detail` naming it, e.g. `unknown receiver: oncall`). |
 | `continue`            | bool                | no       | `false` | If true, keep evaluating later routes after this match. |
 | `priority`            | i32                 | no       | `0`     | Lower is evaluated first. |
 | `group_by`            | string[] \| null    | no       | null → `["rule","severity"]` | Labels that define a group. |
