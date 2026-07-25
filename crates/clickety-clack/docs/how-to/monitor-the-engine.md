@@ -15,9 +15,9 @@ CC_ENGINE_OTLP_ENDPOINT=http://collector:4317
 CC_ENGINE_INGEST_API_KEY=<ingest key>
 ```
 
-When either is unset the process runs exactly as before: every instrument is a no-op
-handle and no exporter is created. Metrics ship over OTLP/gRPC on a 60 second interval,
-with `service.name` set to `clickety-clack-<role>`.
+When either is unset every instrument is a no-op handle and no exporter is created, so
+the engine runs unchanged without telemetry. Metrics ship over OTLP/gRPC on a 60 second
+interval, with `service.name` set to `clickety-clack-<role>`.
 
 ## Instruments
 
@@ -28,12 +28,19 @@ recorded.
 | Instrument             | Type      | Unit | Attributes | Meaning |
 | ---------------------- | --------- | ---- | ---------- | ------- |
 | `cc.eval.duration`     | histogram | s    | `stage=batch`; or `stage=query`, `outcome` (`success`/`error`), `tenant` | Evaluator latency. `batch` is one whole consume batch (claim, query, evaluate, persist, publish). `query` is one coalesced ClickHouse round-trip (HTTP, body, parse). |
-| `cc.eval.errors`       | counter   | `{error}` | `kind` (`query`/`rule_eval`/`consume`), `tenant` (absent for `consume`) | Evaluation failures. `query`: the ClickHouse query failed (this also feeds rule health). `rule_eval`: the query succeeded but evaluating one rule errored. `consume`: the queue consume call failed. |
+| `cc.eval.errors`       | counter   | `{error}` | `kind` (`query`/`rule_eval`/`consume`/`batch_panic`), `tenant` (absent for `consume` and `batch_panic`) | Evaluation failures. `query`: the ClickHouse query failed (this also feeds rule health). `rule_eval`: the query succeeded but evaluating one rule errored. `consume`: the queue consume call failed. `batch_panic`: a whole consume batch panicked and was caught by the per-batch isolation. |
 | `cc.queue.consume.lag` | histogram | s    | *(none)*   | Age of each consumed eval job: consume time minus enqueue time, taken from the Redis stream entry id. Sustained growth means the evaluators are not keeping up with the scheduler. |
 | `cc.queue.batch.size`  | histogram | `{job}` | *(none)* | Jobs per non-empty consume call. Pinned at the consume cap (16) is another back-pressure signal. |
+| `cc.queue.slo.consume.lag` | histogram | s | *(none)* | The same lag for the SLO job queue, which has its own stream and consumer group so SLO evaluation is never head-of-line blocked by rule evaluation. |
+| `cc.queue.slo.batch.size`  | histogram | `{job}` | *(none)* | Jobs per non-empty SLO-queue consume call. |
 | `cc.notify.deliveries` | counter   | `{delivery}` | `channel`, `outcome` (`sent`/`failed`/`no_notifier`), `tenant` | Notification delivery attempt chains, recorded after retries resolve. `failed` and `no_notifier` deliveries are dead-lettered. |
 | `cc.scheduler.drift`   | histogram | s    | `tenant`   | Per claimed rule: claim time minus the rule's `next_eval` due time. Steady sub-second drift is the scheduler tick; growth means claim batches or the rule set have outgrown the tick. |
 | `cc.outbox.relayed`    | counter   | `{event}` | *(none)* | Outbox rows re-published by the maintenance relay, meaning events whose first publish did not complete. A steady non-zero rate points at an unhealthy event bus or crash-looping evaluators. |
+
+These are the engine's own operational metrics, on the public OTLP path. SLO
+measurements (`cc.slo.good` / `cc.slo.valid`) are customer data and leave over the
+trusted path instead: see
+[alert-log and SLO-sample export](../reference/configuration.md#alert-log-and-slo-sample-export-optional).
 
 ## What to alert on
 

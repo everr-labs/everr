@@ -38,6 +38,11 @@ know the system's actual behavior without reading the source.
 | Max delivery attempts | 4            | Retries before an event is dead-lettered. |
 | Retry backoff         | `50ms · 2^attempt`, capped at 5s | Deterministic exponential backoff between attempts (transient errors only). |
 | Filter cache TTL      | 2 s          | How long a tenant's silence/inhibition/firing snapshot is cached per dispatcher replica. |
+| Notification lease    | 120 s        | How long a `pending` notifications row is treated as held by its sender. Past this, another sender reclaims it. |
+| Max notification claims | 3          | Reclaims of one notification before it is retired (marked failed and dead-lettered) instead of retried. |
+| In-flight reflush backoff | 15 s     | Wait before reflushing a group whose notification another sender still holds. |
+| Take-failure backoff  | 1 s          | Wait before retrying a claimed group whose Redis take failed. |
+| Group claim lease     | 60 s         | Hold time on a claimed group before another flusher may reclaim it. |
 
 ### HTTP status → retry classification
 
@@ -45,6 +50,7 @@ know the system's actual behavior without reading the source.
 | ---------- | --- | ---------------- | ---------- | ------------------- |
 | webhook    | ok  | permanent        | transient  | transient |
 | slack      | ok  | permanent        | transient  | transient |
+| telegram   | ok  | permanent        | transient  | transient |
 | email      | ok  | permanent (bad/empty recipients, at build) | — | transient (SMTP errors) |
 
 Permanent → not retried, goes straight to dead-letter after the attempt.
@@ -59,8 +65,9 @@ Transient → retried up to the max-attempts limit, then dead-lettered.
 | Outbox grace window    | 5 s        | Outbox rows older than this are eligible for relay republish. |
 | Outbox relay batch     | 256        | Max outbox rows republished per tick. |
 | Reconcile staleness    | `max(4 × interval_secs, 60s)` | An instance not seen for longer than this is auto-resolved (firing→synthetic Resolved). |
-| Silence GC cadence     | 1 hour (wall-clock) | How often expired silences are collected; survives lease hand-offs. |
+| Silence GC cadence     | 1 hour (wall-clock) | How often expired silences are collected, and how often the ledgers below are pruned; survives lease hand-offs. |
 | Silence retention      | 24 hours after `ends_at` | When an expired silence is deleted. |
+| Ledger retention       | 7 days     | Cutoff for the hourly prune of `evaluations`, `slo_evaluations` (by `eval_ts`) and `notifications` (by `updated_at`). All three are dedup/idempotency state with no reader past the window; alert history lives in the ClickHouse alert-log export. |
 
 ## Why these matter operationally
 

@@ -36,10 +36,11 @@ The definition of an alert.
 | `resolve_after` | u32                   | `1`     | Consecutive *absent* evaluations needed to resolve. Absorbs flaps. |
 | `suppressed`    | bool                  | `false` | Preview mode: the rule evaluates fully and produces events and history, but the dispatcher never notifies on its events (no routing, grouping, subscriptions, silences, or inhibitions apply). The OTLP alert log still carries the events. |
 
-Stored as a `Rule`: `{ id, tenant, spec, version, paused }` where `spec` is the
-object above, `version` is an optimistic-lock counter (bumped by every
-`PUT /v1/rules/:id` and usable as its concurrency guard), and `paused` is an
-operational flag (not part of `spec`, does not affect `version`).
+Stored as a `Rule`: `{ id, tenant, namespace, name, spec, version, paused }` where
+`name` is unique per `(tenant, namespace)`, `spec` is the object above, `version`
+is an optimistic-lock counter (bumped by every `PUT /v1/rules/:id` and usable as
+its concurrency guard), and `paused` is an operational flag (not part of `spec`,
+does not affect `version`).
 
 **Instance identity.** For each result row, the values of `label_columns` form
 the labels; the labels plus the rule id are hashed (SHA-256, sorted) into a stable
@@ -56,13 +57,14 @@ one rule). Returned by `GET /v1/alerts`.
 | Field          | Type                  | Meaning |
 | -------------- | --------------------- | ------- |
 | `key`          | string                | Deterministic instance identity. |
-| `rule`         | uuid                  | Owning rule. |
+| `rule`         | uuid                  | Owning source: the rule id, or the SLO id for an SLO tier instance. |
+| `slo`          | uuid                  | Present only on SLO tier instances, carrying the same uuid as `rule`. |
 | `tenant`       | uuid                  | Owning tenant. |
 | `status`       | [Status](#status)     | Current state-machine state. |
 | `labels`       | object<string,string> | Labels from the result row. |
 | `value`        | f64 \| null           | Value from `value_column`. |
 | `active_since` | datetime \| null      | When the condition first became true (set on inactive→pending). |
-| `last_seen`    | datetime              | Last evaluation in which the row was present. |
+| `last_seen`    | datetime \| null      | Last evaluation in which the row was present. |
 | `absent_count` | u32                   | Consecutive evaluations with no matching row. |
 
 ### Status
@@ -95,9 +97,9 @@ against a `good`/`valid` SLI query. See
 | `annotations`      | object<string,string>  | `{}`    | Free-form metadata, passed through onto tier-firing events. `summary`/`description`/`link.*` render into notifications the same as [rule annotations](../how-to/write-alert-rules.md#annotations). |
 | `suppressed`       | bool                   | `false` | Preview mode: the SLO evaluates fully and tracks tier state, but the dispatcher never notifies on its events. |
 
-Stored as an `Slo`: `{ id, tenant, name, spec, version, paused }` — same
-envelope shape as a `Rule`: `name` is unique per tenant, `spec` is the object
-above, `version` is an optimistic-lock counter (bumped by every
+Stored as an `Slo`: `{ id, tenant, namespace, name, spec, version, paused }` — same
+envelope shape as a `Rule`: `name` is unique per `(tenant, namespace)`, `spec` is
+the object above, `version` is an optimistic-lock counter (bumped by every
 `PUT /v1/slos/:id`), and `paused` is an operational flag (not part of `spec`,
 does not affect `version`).
 
@@ -164,9 +166,8 @@ also gains:
 | `time_to_exhaustion_secs` | u64 \| null          | Projected seconds until budget exhaustion, from `budget_remaining` and the fastest tier's `long_burn_rate`. `null` when that burn rate is unknown or `<= 0`; `0` when the budget is already exhausted. |
 | `firing_tiers[]`          | object[]             | `{ tier, status }` for this group's currently non-`inactive` tier instances (`pending` or `firing`), read live from the instance store. |
 
-A stored payload that fails to deserialize into the current shape (legacy or
-corrupt) is returned verbatim by the API, without either enrichment field,
-rather than erroring.
+A stored payload that fails to deserialize into the current shape is returned
+verbatim by the API, without either enrichment field, rather than erroring.
 
 ### SloTierStatus
 
@@ -175,7 +176,7 @@ rather than erroring.
 | `name`              | string      | Tier name, matching a `BurnRateTier.name`. |
 | `long_burn_rate`     | f64 \| null | Burn rate over the tier's `long_window`. `null` at zero traffic in that window. |
 | `short_burn_rate`    | f64 \| null | Burn rate over the tier's `short_window`. `null` at zero traffic in that window. |
-| `long_window_valid`  | f64 \| null | The tier's long-window `valid` count — the input to `min_valid_events`'s floor. `null` on rows written before this field existed (additive, defaults to `null` on read). |
+| `long_window_valid`  | f64 \| null | The tier's long-window `valid` count — the input to `min_valid_events`'s floor. `null` when the stored row omits the field (it is additive and defaults to `null` on read). |
 
 ---
 
@@ -194,10 +195,10 @@ Emitted on a firing or resolving transition; carried on the Redis event stream.
 | `severity`     | [Severity](#severity)      | From the rule spec. |
 | `annotations`  | object<string,string>      | From the rule spec. Channel renderers honor `summary`, `description` (with `${key}` substitution resolving labels, then `${value}`, then evidence columns), and `link.alert` / `link.runbook`. |
 | `eval_ts`      | datetime                   | When the transition occurred. |
-| `suppressed`   | bool                       | Mirrors the rule's `suppressed` flag at emit time. Default `false`; older payloads without the field deserialize as `false`. The dispatcher drops suppressed events before any notification processing. |
+| `suppressed`   | bool                       | Mirrors the rule's `suppressed` flag at emit time. Default `false`; a payload without the field deserializes as `false`. The dispatcher drops suppressed events before any notification processing. |
 | `evidence`     | object<string,json> \| null | Source-row context for the instance: the row's columns excluding `label_columns` (the value column is included). Capped at 16 columns and 4096 bytes of compact JSON; over the byte cap it becomes `null` with `evidence_truncated: true`. `null` for resolved-by-absence and rule-health events. |
 | `evidence_truncated` | bool                 | `true` when evidence was cut to the column cap or dropped for the byte cap. Default `false`. |
-| `slo`          | uuid \| null               | Set (to the SLO id) only for SLO tier-firing/resolving events; omitted from the JSON entirely when `null` (a plain rule event, or an event from a replica predating this field). Its presence drives the dispatcher's synthetic `slo` label, the SLO default `group_by`, and tier auto-inhibition — see [define SLOs and burn-rate alerts](../how-to/define-slos-and-burn-rate-alerts.md). |
+| `slo`          | uuid \| null               | Set (to the SLO id) only for SLO tier-firing/resolving events; omitted from the JSON entirely when `null` (a plain rule event). Its presence drives the dispatcher's synthetic `slo` label, the SLO default `group_by`, and tier auto-inhibition — see [define SLOs and burn-rate alerts](../how-to/define-slos-and-burn-rate-alerts.md). |
 
 ---
 
@@ -224,8 +225,11 @@ Rules of matching:
 - An **empty** matcher list matches **everything**.
 
 Matchers can target real labels or the **synthetic labels** the dispatcher injects
-on every event: `severity`, `status` (`firing`/`resolved`), and `rule` (the rule
-UUID as a string). Synthetic labels take precedence if a user label collides.
+on every event: `severity`, `status` (`firing`/`resolved`), `rule` (the source UUID
+as a string), `kind` (`alert` or `rule_health`), and `slo` (the SLO UUID, present
+only on SLO-originated events). Synthetic labels take precedence if a user label
+collides. See
+[matching](../how-to/configure-receivers-and-routing.md#matching) for routing use.
 
 ---
 
@@ -267,15 +271,15 @@ boundary. Receiver payloads carry no secrets.
 `annotations` is a free-form string map (default `{}`) for operator metadata:
 team ownership, escalation notes, dashboard links. It is not secret, is never
 redacted, and is replaced wholesale on every upsert (an upsert without
-`annotations` resets it to `{}`). Rows and payloads written before the field
-existed read as `{}`.
+`annotations` resets it to `{}`); a payload that omits it reads as `{}`.
 
-Receivers are referenced by `name` from routes; the reference is resolved at
-delivery time, not at route-creation time, and the receiver's channel names are
-resolved to their configs at delivery time too. Grouping stays keyed by
-receiver name; one group flush fans out to every channel of the receiver, each
-channel with its own dedup key (keyed by the channel name, stable across config
-edits) and its own notification-ledger row.
+Routes reference receivers by `name`, and a foreign key holds that reference:
+naming a receiver that does not exist is rejected at route-creation time, and a
+receiver a route still targets cannot be deleted. The receiver's channel names
+are resolved to their configs at delivery time. Grouping is keyed by receiver
+name; one group flush fans out to every channel of the receiver, each channel
+with its own dedup key (keyed by the channel name, stable across config edits)
+and its own notification-ledger row.
 
 ---
 

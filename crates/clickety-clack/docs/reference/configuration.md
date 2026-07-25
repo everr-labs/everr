@@ -55,16 +55,17 @@ per-tenant isolation boundary.
 In `derived` and `map` modes the auth provider is built **fail-closed at
 startup**: if a required variable is missing or invalid (no master key, an
 unparseable or empty tenant map, etc.) the process exits immediately with a
-clear error rather than starting with broken auth. `shared` mode is the default
-and preserves the existing single-user behavior.
+clear error rather than starting with broken auth. `shared` mode is the default:
+one ClickHouse user for every tenant.
 
 | Variable                | Default      | Purpose |
 | ----------------------- | ------------ | ------- |
-| `CC_CH_AUTH_MODE`       | `shared`     | How clickety-clack authenticates to ClickHouse per tenant. One of `shared`, `derived`, or `map`. `shared`: all tenants use the single `CC_CH_USER`/`CC_CH_PASSWORD` (the pre-existing behavior; no per-tenant isolation). `derived`: each tenant authenticates as its own ClickHouse user with a password derived from a shared master key. `map`: explicit per-tenant credentials from a JSON map. |
+| `CC_CH_AUTH_MODE`       | `shared`     | How clickety-clack authenticates to ClickHouse per tenant. One of `shared`, `derived`, or `map`. `shared`: all tenants use the single `CC_CH_USER`/`CC_CH_PASSWORD` (no per-tenant isolation). `derived`: each tenant authenticates as its own ClickHouse user with a password derived from a shared master key. `map`: explicit per-tenant credentials from a JSON map. |
 | `CC_CH_USER_TEMPLATE`   | *(none)*     | **Required in `derived` mode.** Per-tenant username template; `{tenant}` is substituted with the tenant id. Example: `sql_api_org_{tenant}`. |
 | `CC_CH_MASTER_KEY`      | *(none)*     | **Required in `derived` mode.** HMAC key from which each tenant's password is derived as `hex(HMAC-SHA256(master_key, tenant_id))` plus the suffix. **High-value secret** — it derives *every* tenant's password. Store it in a secret manager, never in the repo. |
 | `CC_CH_PASSWORD_SUFFIX` | `` (empty)   | *(derived mode, optional)* String appended verbatim to every derived password. Use when a deployment requires a suffix to satisfy password-complexity rules. |
 | `CC_CH_TENANT_MAP`      | *(none)*     | **Required in `map` mode.** Either inline JSON or a path to a JSON file mapping tenant id → credentials: `{"<tenant>": {"user": "...", "password": "..."}, ...}`. |
+| `CC_DEV_INSECURE_CH_DEFAULT_USER` | `0` | Explicit opt-in to run tenant-authored rule SQL as ClickHouse's `default` user. Without it, the roles that evaluate rule SQL (`api`, `evaluator`, `all`) **refuse to start** when `CC_CH_AUTH_MODE=shared` and `CC_CH_USER=default`, since that user typically has full privileges and rule SQL is untrusted input. Accepts `1`/`true`; dev/compose only. See [harden ClickHouse access](../how-to/harden-clickhouse-access.md). |
 
 ## Scheduler
 
@@ -90,7 +91,6 @@ See [Observe and respond to degraded rules](../how-to/observe-degraded-rules.md)
 | Variable                      | Default | Purpose |
 | ------------------------------ | ------- | ------- |
 | `CC_SLO_BASE_CADENCE_SECS`    | `30`    | Fixed scheduling cadence applied to every SLO (SLOs have no per-resource `interval_secs` like rules). Also the floor for each window's own refresh cadence (`max(base_cadence, window_secs / 12)`). A value below `1` (or an unparseable one) falls back to the default `30`. |
-| `CC_SLO_BUDGET_REFRESH_SECS`  | `300`   | **Reserved, not yet read by any code path.** Parsed and clamped the same way as the cadence above (`>= 1`, else falls back to `300`) but has no effect today. |
 
 SLO health (degraded/recovered) reuses `CC_RULE_DEGRADE_AFTER` — see
 [Rule health](#rule-health) above — rather than a separate threshold. See
@@ -139,16 +139,33 @@ to exit at startup:
 | `CC_SECRET_PROVIDER` is not `env` or `kms`        | `unknown CC_SECRET_PROVIDER '<value>'` |
 | Provider is `kms`, `CC_KMS_FAKE_ROOT_KEY` unset   | root-key required / invalid base64 |
 
+## Alert-log and SLO-sample export (optional)
+
+Alert history and SLO measurements leave the engine over the collector's
+**trusted** OTLP/HTTP ingest path, which keeps the customer tenant id the engine
+stamps instead of deriving one from a key. Both variables must be set together;
+when either is unset each exporter below logs that it is disabled at startup and
+becomes a no-op, so local and dev deployments need no collector.
+
+| Variable                   | Default  | Purpose |
+| -------------------------- | -------- | ------- |
+| `CC_TRUSTED_OTLP_ENDPOINT` | *(none)* | Trusted OTLP/HTTP **logs** endpoint, e.g. `http://collector:4418/v1/logs`. The SLO sample exporter derives the sibling `/v1/metrics` path from it. |
+| `CC_TRUSTED_INGEST_SECRET` | *(none)* | Bearer token for that receiver, sent on every export. |
+
+Three producers read them: the `events` role (one alert-log record per
+firing/resolved event), the `dispatcher` (delivery and silenced outcomes, as
+alert-log records), and the SLO evaluator (each group's raw `good`/`valid` counts
+per window, as the `cc.slo.good` / `cc.slo.valid` gauges; burn rate and remaining
+budget are derived by readers, never exported).
+
 ## Engine telemetry and metrics (optional)
 
 The engine can ship its own operational telemetry (traces plus the engine
 metrics listed in [Monitor the engine](../how-to/monitor-the-engine.md)) over
 OTLP/gRPC. Both variables must be set together; when either is unset the
 process logs `engine telemetry disabled` at startup and every trace exporter
-and metric instrument degrades to a no-op. This is the engine's *own*
-telemetry, distinct from the trusted alert-log export
-(`CC_TRUSTED_OTLP_ENDPOINT` / `CC_TRUSTED_INGEST_SECRET`) used by the `events`
-role and the dispatcher.
+and metric instrument degrades to a no-op. This is the engine's *own* telemetry,
+distinct from the trusted export above.
 
 | Variable                    | Default  | Purpose |
 | --------------------------- | -------- | ------- |

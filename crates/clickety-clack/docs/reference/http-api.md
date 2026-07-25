@@ -40,7 +40,8 @@ bound key have their tenant **derived from the key**: the gate stamps
 cannot act as a different tenant. If the caller also sends `X-CC-Tenant`, it
 must equal the bound tenant; a mismatch yields `401` with detail
 `API key is not authorized for the requested tenant`. Unbound (plain) entries
-keep the legacy behavior below. This applies to every `/v1` endpoint.
+take the tenant from the header instead, as described below. This applies to
+every `/v1` endpoint.
 
 ### Tenant (`X-CC-Tenant`)
 
@@ -80,7 +81,8 @@ All errors use a problem-details shape:
 | 400    | `bad_request`       | Malformed opaque input (currently: an undecodable pagination `cursor`). |
 | 401    | `unauthorized`      | Missing/invalid `Authorization` bearer key when `CC_API_KEYS` is set (detail: `missing or invalid API key`), missing/invalid `X-CC-Tenant` (detail: `missing or invalid tenant`), or a tenant-bound key used with a different `X-CC-Tenant` (detail: `API key is not authorized for the requested tenant`). |
 | 404    | `not_found`         | GET/DELETE of an id/name that does not exist. |
-| 409    | `conflict`          | Optimistic-concurrency failure (rule `version` mismatch on `PUT /v1/rules/:id`). |
+| 409    | `conflict`          | Optimistic-concurrency failure (rule or SLO `version` mismatch on `PUT`), or a delete blocked by a live reference (a channel a receiver still references, a receiver a route still targets). |
+| 409    | `already_exists`    | Create-only endpoint given a name that is already taken (rules, SLOs, channels, receivers). Its own `code` so callers can tell it from the conflicts above. |
 | 422    | `validation_failed` | A field failed validation (see per-endpoint notes). |
 | 500    | `internal`          | Unhandled server error. |
 
@@ -181,8 +183,8 @@ across pages. `next_cursor` is `null` on the last page; a non-null value is
 passed back verbatim as `?cursor=…` to fetch the next page. Rules created or
 deleted between page fetches are handled the way keyset pagination always
 handles them: no duplicates and no skipped pre-existing rows, but rows created
-behind the cursor position are not revisited. (The pre-pagination bare-array
-mode is gone: every response uses the envelope above.)
+behind the cursor position are not revisited. Every response uses the envelope
+above.
 
 ### Updating a rule
 
@@ -248,8 +250,8 @@ for how to write one.
 
 | Method & path              | Description |
 | -------------------------- | ----------- |
-| `POST /v1/slos`             | Create an SLO. Body = `{ "name": ..., ...spec }` (below). Returns the stored `Slo`. |
-| `GET /v1/slos`               | List SLOs for the tenant. Unpaginated; bounded by tenant scale. |
+| `POST /v1/slos`             | Create an SLO. Body = identity (`name`, optional `namespace`) + SLO spec (below). Returns the stored `Slo`. |
+| `GET /v1/slos`               | List SLOs for the tenant. Optional `?namespace=` and `?name=` exact-match filters (`""` selects live SLOs). Unpaginated; bounded by tenant scale. |
 | `GET /v1/slos/:id`           | Get one SLO by UUID. |
 | `PUT /v1/slos/:id`           | Update an SLO's spec in place (same body as create, plus optional `version`). Preserves id, tenant, `paused`; bumps `version`. |
 | `DELETE /v1/slos/:id`        | Delete an SLO. |
@@ -277,7 +279,8 @@ for how to write one.
 
 | Field              | Type                  | Required | Default | Notes |
 | ------------------ | --------------------- | -------- | ------- | ----- |
-| `name`             | string                | yes      | —       | Tenant-unique, 1–128 chars of `[A-Za-z0-9_.-]`. `422` otherwise. |
+| `name`             | string                | yes      | —       | The SLO's first-class identity, unique per `(tenant, namespace)`; `409` on conflict. 1 to 128 chars of `[A-Za-z0-9_./-]` (`422` otherwise). |
+| `namespace`        | string                | no       | `""`    | Identity scope: `""` is the live namespace; consumers stamp preview ids here. At most 128 chars of `[A-Za-z0-9_.-]`. |
 | `sli.sql`          | string                | yes      | —       | Read-only `SELECT` returning `good`/`valid` numeric columns; must reference both `{window_start:DateTime}` and `{window_end:DateTime}` (`422` otherwise). |
 | `sli.label_columns`| string[]              | no       | `[]`    | Result columns that fan the SLO into per-group SLIs. May not start with the reserved `__cc_` prefix (`422`). |
 | `targetPercent`    | f64                   | yes      | —       | Objective, e.g. `99.9`. Must be `> 0` and `< 100` (`422` otherwise). |
@@ -342,8 +345,8 @@ tenant yield `409`.
 `payload.groups[*].time_to_exhaustion_secs` and `.firing_tiers` are computed at
 **read time only** from the stored snapshot plus the live `slo_instances` rows
 — they are never persisted. If the stored snapshot fails to deserialize into
-the current shape (a legacy or corrupt row), it is returned verbatim without
-this enrichment rather than erroring. `health` has the same
+the current shape, it is returned verbatim without this enrichment rather than
+erroring. `health` has the same
 `status`/`degraded_since`/`last_error` shape as
 [rule health](../how-to/observe-degraded-rules.md#inspect-health-via-the-api)
 and reuses `CC_RULE_DEGRADE_AFTER` as its degrade threshold — SLOs have no
@@ -355,7 +358,7 @@ separate health-config knob.
 
 | Method & path     | Description |
 | ----------------- | ----------- |
-| `GET /v1/alerts`  | Current alert instances for the tenant (state machine snapshot). |
+| `GET /v1/alerts`  | Active alert instances for the tenant (state machine snapshot), rule-sourced and SLO-sourced together, newest `active_since` first. |
 
 Each element:
 
@@ -368,11 +371,14 @@ Each element:
 }
 ```
 
-`status` ∈ {`inactive`,`pending`,`firing`}. `key` is a deterministic SHA-256 of
-the rule id plus the sorted label set.
+`status` ∈ {`pending`,`firing`}: inactive instances are never listed. `key` is a
+deterministic SHA-256 of the source id plus the sorted label set. An SLO tier
+instance carries the SLO id in an additional `slo` field, with `rule` holding the
+same uuid (matching the event wire convention), and its `labels` include `slo`
+and `slo_tier`.
 
-The listing is unpaginated: it returns every non-inactive instance for the
-tenant in one response, bounded only by how many alerts the tenant has active.
+The listing is unpaginated: it returns every active instance for the tenant in
+one response, bounded only by how many alerts the tenant has active.
 
 ---
 
@@ -455,7 +461,7 @@ Receiver payloads never carry secrets: `channels` is a list of channel names.
 name; an empty or missing list is rejected (`422`), every referenced name
 must exist as a channel (`422` with `detail` listing the unknown names, e.g.
 `unknown channels: nope-1, nope-2`), and a name must not appear more than once
-(`422` with `detail` naming the duplicates, e.g. `duplicate channels: pd`). `annotations` is an optional free-form
+(`422` with `detail` naming the duplicates, e.g. `duplicate channels: ops-hook`). `annotations` is an optional free-form
 string map (default `{}`): operator metadata such as team ownership or runbook
 links. It is returned as stored on every read (never redacted) and replaced
 wholesale on `PUT`; a `PUT` body that omits it resets the map to `{}`.

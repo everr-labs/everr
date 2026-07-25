@@ -50,6 +50,7 @@ The hot path and coordination primitives. Connection: `CC_REDIS_URL`.
 | `cc:events:deadletter`  | Stream      | Permanently undeliverable events and flush-time decrypt failures. | capped |
 | `cc:group:{group_id}`   | Hash        | A notification group's buffered events: fields `ev:{instance}` (event JSON), `__meta__` (group metadata; carries channel NAMES only, resolved to configs at flush time), `__last_flush__`. | 7 days if untouched |
 | `cc:groupflush`         | Sorted set  | Flush-timer index: member = group id, score = due-time ms. | with its groups |
+| `cc:groupflush:inflight` | Sorted set | Groups a flusher has claimed: member = group id, score = claim-lease expiry ms. Once that expiry passes, the reclaim pass moves the group back onto `cc:groupflush`, so a dispatcher dying mid-flush cannot strand a buffered group. | claim lease (60s), not refreshed |
 | `cc:scheduler:members`  | Sorted set  | Scheduler membership: member = `CC_NODE_ID`, score = heartbeat ms (Redis server time). Stale members evicted past the TTL. | `CC_SCHEDULER_MEMBER_TTL_MS` |
 | `cc:maintenance:lease`  | String      | Single-holder lease (`SET NX PX`) gating the maintenance loop (outbox relay, reconciliation, silence GC). | ~10s, refreshed by holder |
 
@@ -81,25 +82,10 @@ SQL targets whatever tables you already have. Connection: `CC_CH_URL` /
 SQL migrations live in `migrations/` and are applied automatically at startup by
 the `api`/`all` path (and any role that connects, via `PgStore::migrate()`).
 
-| File                          | Adds |
-| ----------------------------- | ---- |
-| `0001_init.sql`               | `rules`, `instances`, `evaluations`, `subscriptions`. |
-| `0002_notifications.sql`      | `notifications` (delivery/dedup log). |
-| `0003_routing.sql`            | `receivers`, `routes`. |
-| `0004_grouping.sql`           | Adds `group_by`, `group_wait_secs`, `group_interval_secs` to `routes`. |
-| `0005_silences_inhibitions.sql` | `silences`, `inhibitions`. |
-| `0006_event_outbox.sql`       | `event_outbox`. |
-| `0007_rule_pause.sql`         | Adds `paused` to `rules` (+ partial index on `next_eval WHERE NOT paused`). |
-| `0008_rule_rollup_state.sql`  | Adds rolled-up alert state to `rules` (`alert_state`, `firing_instance_count`, `last_fired_at`, `last_resolved_at`, `last_seen_at`, `last_row_count`) + `(tenant, alert_state)` index. |
-| `0009_rule_suppressed.sql`    | Backfills `suppressed: false` into every `rules.spec` so the key is always present. |
-| `0010_route_repeat_interval.sql` | Adds `repeat_interval_secs` to `routes` (NULL = never re-notify). |
-| `0011_receiver_annotations.sql` | Adds `annotations` (jsonb, default `{}`) to `receivers`. |
-| `0012_rule_eval_backoff.sql`  | Adds `eval_backoff_secs` to `rules` (adaptive evaluation cadence). |
-| `0013_receiver_channels.sql`  | Renames `receivers.channel` to `channels` and wraps single configs into one-element arrays. |
-| `0014_named_channels.sql`     | `channels` table; materializes inline receiver configs as named channels and rewrites receivers to reference them by name. |
-| `0015_slos.sql`               | `slos` table (unique on `(tenant,name)`). |
-| `0016_slo_evaluation.sql`     | Adds scheduling (`next_eval` + due index) and health columns to `slos`; `slo_status` and `slo_evaluations` tables. |
-| `0017_slo_instances.sql`      | `slo_instances` table (per-(SLO, tier, group) alert-instance state). |
+| File            | Adds |
+| --------------- | ---- |
+| `0001_init.sql` | The whole schema: `rules`, `instances`, `evaluations`, `subscriptions`, `notifications`, `receivers`, `routes`, `channels`, `silences`, `inhibitions`, `event_outbox`, `slos`, `slo_status`, `slo_evaluations`, `slo_instances`. |
 
-Phase 3D (secret encryption) added **no** migration — existing column types
-already accommodate ciphertext.
+Schema changes go in a new numbered file. `sqlx` checksums what it has applied
+and refuses to start against a database whose recorded migrations no longer match
+the source, so editing an existing file requires dropping the database.

@@ -86,6 +86,8 @@ The notification is rendered for the channel and sent:
 - **slack** — incoming-webhook message: a header plus one color-coded attachment
   per event.
 - **email** — a plaintext SMTP message summarizing the group.
+- **telegram** — one `sendMessage` per chat id (HTML parse mode), truncated to
+  Telegram's 4096-character `text` limit.
 
 For the rendered channels, alert events honor the rule's
 [`summary`/`description`/`link.*` annotations](../how-to/write-alert-rules.md#annotations):

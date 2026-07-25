@@ -84,8 +84,9 @@ curl -s -X POST localhost:8080/v1/rules \
 
 What each field means:
 
-- `name` is the rule's stable identity, unique per tenant. Creating a second
-  rule with the same name is a `409`.
+- `name` is the rule's stable identity, unique per tenant and namespace (this one
+  leaves `namespace` at its default `""`). Creating a second rule with the same
+  name is a `409`.
 - `sql` — the query. It must be a read-only `SELECT` (validated on the way in).
 - `interval_secs` — evaluate every 30 seconds.
 - `for_secs` — the condition must hold continuously for 60 seconds before the
@@ -150,10 +151,10 @@ curl -s -X POST localhost:8080/v1/routes \
 ```
 
 Now when the rule fires, the dispatcher matches the event's `severity=critical`
-against your route and delivers a batched JSON payload to the webhook. By default
-critical/warning alerts for the same rule are grouped and held briefly before the
-first send (10 seconds) — see [routing and grouping](../how-to/configure-receivers-and-routing.md)
-to tune this.
+against your route and delivers a batched JSON payload to the webhook. Grouping
+defaults to `["rule", "severity"]`, so alerts from this rule at the same severity
+travel as one batch, held briefly before the first send (10 seconds). See
+[routing and grouping](../how-to/configure-receivers-and-routing.md) to tune this.
 
 > **Routes vs. subscriptions.** A tenant with at least one route uses the routing
 > tree above. A tenant with *no* routes falls back to a "firehose": events go

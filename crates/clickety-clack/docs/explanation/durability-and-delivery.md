@@ -12,6 +12,9 @@ end to end, made safe by idempotency and deduplication at every hand-off.**
   distinct alert produces one notification.
 - **No stuck-firing alerts.** An alert whose evaluator dies is eventually
   auto-resolved.
+- **No work consumed by a transient failure.** An eval job is acked only once its
+  outcome is durable; a job whose Postgres, Redis, or ClickHouse step failed stays
+  pending and is redelivered.
 
 These are achieved without distributed transactions across systems — only local
 Postgres transactions plus idempotent replay.
@@ -47,12 +50,17 @@ publish that actually succeeded but whose delete failed). Redis Streams are also
 at-least-once on the consumer side. So duplicates are expected and absorbed in two
 places:
 
-- **Evaluation idempotency.** Before evaluating, the evaluator claims
-  `(rule, eval_ts)` in the `evaluations` ledger. A redelivered job finds it
-  claimed and skips — the state machine never double-steps.
-- **Delivery deduplication.** Before sending, the dispatcher records a dedup key
-  in the `notifications` table. A redelivered (or relayed) event with the same key
-  is not sent again.
+- **Evaluation idempotency.** The evaluator claims `(rule, eval_ts)` in the
+  `evaluations` ledger inside the same transaction as the state it writes. A
+  redelivered job loses that claim at write time and commits nothing, so the
+  state machine never double-steps.
+- **Delivery deduplication.** Before sending, the dispatcher claims a dedup key
+  in the `notifications` table. A key already in a terminal state (`sent` /
+  `failed`) is not sent again. A key left `pending` is a lease: while it is held,
+  a redelivery neither sends nor acks, and once the lease expires another sender
+  reclaims it, so a sender that dies mid-send cannot suppress that notification
+  forever. A row reclaimed more times than the claim cap is retired to the
+  dead-letter stream instead of replaying whatever keeps killing its sender.
 
 This is the core design choice: rather than fight for exactly-once delivery
 (expensive, fragile), the system embraces at-least-once and makes every consumer

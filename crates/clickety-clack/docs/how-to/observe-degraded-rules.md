@@ -40,8 +40,9 @@ alerts, distinguished by a synthetic `kind` label and a fixed `critical` severit
 ```
 
 Put it before catch-all routes, or set `continue: true` if you also want health events to
-fall through to other receivers. Notifications render as `Rule degraded: <id>` /
-`Rule recovered: <id>` with the underlying error in the body.
+fall through to other receivers. The events carry a `summary` annotation reading
+`Rule <id> degraded after <N> consecutive failures` (plus a `last_error` annotation
+with the query error) or `Rule <id> recovered`.
 
 ## Tune the notification cadence
 

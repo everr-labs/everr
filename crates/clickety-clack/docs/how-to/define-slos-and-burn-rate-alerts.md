@@ -202,11 +202,11 @@ enriched at **read time only** — nothing computed here is written back:
   its existing tier instances are frozen rather than evaluated against absent
   data. Recovery is the first successful evaluation, same as a rule.
 
-**A stored payload that fails to deserialize (corrupt or from a future/older
-version) is served back unmodified, without enrichment, instead of erroring
-the endpoint.** The read path must not `500` on old data; if you see a
-`groups[]` entry without `time_to_exhaustion_secs`/`firing_tiers`, that's why —
-it isn't a bug, it's the fallback for a legacy row.
+**A stored payload that fails to deserialize into the current shape is served
+back unmodified, without enrichment, instead of erroring the endpoint.** The
+read path never `500`s on a payload it cannot parse; if you see a `groups[]`
+entry without `time_to_exhaustion_secs`/`firing_tiers`, that's why. It isn't a
+bug, it's the fallback for an unparseable row.
 
 ## Pause vs. suppressed
 

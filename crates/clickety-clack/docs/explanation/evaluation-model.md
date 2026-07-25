@@ -100,10 +100,16 @@ instance not seen for longer than `max(4 × interval_secs, 60s)` is auto-resolve
 ## Idempotent evaluation
 
 Eval jobs arrive over an at-least-once stream, so the same `(rule, eval_ts)` can be
-delivered twice. Before evaluating, the evaluator claims that pair in an
-idempotency ledger (`evaluations` table) — a duplicate delivery finds the pair
-already claimed and is skipped. This keeps the state machine from double-stepping
-on redelivery.
+delivered twice. The evaluator claims that pair in an idempotency ledger (the
+`evaluations` table) in the **same transaction** that writes the instance state,
+health, and outbox events it guards. A redelivered job evaluates, then loses the
+claim at write time: nothing is written and the job is acked without
+double-stepping the state machine.
+
+Claiming inside the write, rather than before the evaluation, is what makes an
+ack mean "durably applied". A job whose store, Redis, or ClickHouse step fails
+committed no claim, so it stays pending and reclaim redelivers it for a clean
+retry instead of being consumed by a transient failure.
 
 ## Rule health — a separate axis
 
