@@ -61,6 +61,27 @@ async fn main() -> anyhow::Result<()> {
             (None, cc::otel::EngineMetrics::disabled())
         }
     };
+    // Tenant-authored rule SQL runs with `CC_CH_USER`'s privileges, and `sqlguard` only
+    // checks statement shape: a valid SELECT can still reach `url(...)`/`remote(...)` or
+    // read `system.*`. The ClickHouse user's grants are the real boundary, so refuse the
+    // one combination the hardening guide calls the worst case rather than let a
+    // deployment that never provisioned a restricted user hand rule authors full
+    // privileges. Only the roles that evaluate rule SQL are gated; a dispatcher or
+    // scheduler never touches ClickHouse. Checked here, before the first connection, so
+    // a misconfigured deployment fails without opening Postgres or running migrations.
+    // See docs/how-to/harden-clickhouse-access.md.
+    let runs_rule_sql = matches!(cfg.role.as_str(), "all" | "api" | "evaluator");
+    if runs_rule_sql && config::unhardened_ch_user(&cfg) && !cfg.dev_insecure_ch_default_user {
+        anyhow::bail!(
+            "refusing to run tenant rule SQL as the ClickHouse `default` user: \
+             CC_CH_AUTH_MODE=shared with CC_CH_USER=default typically has full \
+             privileges, and rule SQL is untrusted input. Provision a restricted user \
+             (see docs/how-to/harden-clickhouse-access.md), switch to derived/map mode \
+             for multi-tenant deployments, or set CC_DEV_INSECURE_CH_DEFAULT_USER=1 to \
+             accept the risk (dev only)"
+        );
+    }
+
     let cipher: std::sync::Arc<dyn cc::crypto::SecretCipher> = cc::crypto::build_cipher(
         cc::crypto::ProviderKind::parse(&cfg.secret_provider)?,
         cfg.secret_keys.as_deref(),

@@ -145,6 +145,11 @@ services:
       CC_CH_USER: default
       CC_CH_PASSWORD: everr
       CC_CH_AUTH_MODE: shared
+      # Rule SQL is untrusted and runs with this user's privileges, so CC refuses the
+      # shared+default pair unless the risk is accepted explicitly. Fine here (throwaway
+      # local data); provision a restricted user for anything else. See
+      # crates/clickety-clack/docs/how-to/harden-clickhouse-access.md.
+      CC_DEV_INSECURE_CH_DEFAULT_USER: "1"
       # Dev-only fake-KMS root key (base64 of 32 bytes). NOT for production.
       CC_SECRET_PROVIDER: kms
       CC_KMS_FAKE_ROOT_KEY: AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE=
