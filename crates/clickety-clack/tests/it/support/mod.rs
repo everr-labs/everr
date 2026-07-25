@@ -14,7 +14,6 @@ use cc::domain::slo::{Slo, SloSpec};
 use cc::stores::{PgStore, RuleCreate, SloCreate};
 use sqlx::{Connection, Executor, PgConnection};
 use testcontainers_modules::postgres::Postgres;
-use testcontainers_modules::testcontainers::core::Mount;
 use testcontainers_modules::testcontainers::runners::AsyncRunner;
 use testcontainers_modules::testcontainers::{ContainerAsync, ImageExt};
 use tokio::sync::{Mutex, OnceCell};
@@ -60,9 +59,15 @@ pub async fn fresh_db() -> String {
 }
 
 async fn init_shared() -> SharedPg {
-    // The data is throwaway, so trade all crash-safety for speed: no fsync,
-    // async commits, no full-page writes, and the data dir on tmpfs. The
-    // connection cap is raised because every test in the binary shares this
+    // The data is throwaway, so trade all crash-safety for speed: no fsync, async
+    // commits, no full-page writes. That is where the speed comes from, so the data
+    // dir deliberately stays on the container filesystem rather than a tmpfs: every
+    // test gets its own `CREATE DATABASE ... TEMPLATE` copy and none are ever dropped,
+    // so the whole suite's databases must fit at once. A RAM disk caps that at a
+    // fraction of the host's memory and the run dies partway through with
+    // "No space left on device"; disk has room to spare for a few seconds of writes
+    // that are never fsynced anyway.
+    // The connection cap is raised because every test in the binary shares this
     // one server (each PgStore pool may open up to 16 connections).
     // Pin to the major version the dev/prod stack runs (docker-compose uses
     // postgres:18.x); the module default is postgres 11, which predates the
@@ -80,9 +85,6 @@ async fn init_shared() -> SharedPg {
             "-c",
             "max_connections=500",
         ])
-        // Postgres 18 images moved PGDATA under /var/lib/postgresql/18/, so
-        // mount the parent to keep the whole data tree (including WAL) on tmpfs.
-        .with_mount(Mount::tmpfs_mount("/var/lib/postgresql"))
         .start()
         .await
         .expect("start shared postgres container");
