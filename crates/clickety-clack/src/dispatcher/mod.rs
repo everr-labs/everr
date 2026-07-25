@@ -1984,6 +1984,11 @@ mod fan_out_tests {
         let provider = SdkTracerProvider::builder()
             .with_simple_exporter(exporter.clone())
             .build();
+        // Sibling tests in this module call `deliver_one` without a subscriber,
+        // which can otherwise cache `notify.deliver` as uninteresting for the
+        // whole process and leave this test's exporter empty.
+        crate::otel::testing::ensure_permissive_callsite_interest();
+
         let subscriber = tracing_subscriber::registry()
             .with(tracing_opentelemetry::layer().with_tracer(provider.tracer("test")));
         // `set_default` (not `with_default`) so the thread-local dispatcher stays active

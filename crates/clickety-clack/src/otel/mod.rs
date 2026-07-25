@@ -5,6 +5,8 @@ pub mod metrics;
 pub mod propagation;
 pub mod slo_samples;
 pub mod status;
+#[cfg(test)]
+pub mod testing;
 
 pub use alert_log::{build_log_record, AlertEventType, LogExtras};
 pub use exporter::{
