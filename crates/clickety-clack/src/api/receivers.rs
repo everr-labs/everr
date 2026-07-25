@@ -182,7 +182,7 @@ pub async fn delete(
 ) -> Result<Json<Value>, ApiError> {
     let t = tenant(&state, &headers)?;
     match state.store.delete_receiver(t, &name).await? {
-        ReceiverDelete::Deleted => Ok(Json(serde_json::json!({"deleted": true}))),
+        ReceiverDelete::Deleted => crate::api::deleted(true),
         ReceiverDelete::NotFound => Err(ApiError::NotFound),
         ReceiverDelete::InUse(routes) => Err(ApiError::Conflict(in_use_detail(&routes))),
     }

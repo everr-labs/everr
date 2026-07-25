@@ -24,9 +24,7 @@ impl EventBus for FailNBus {
     async fn publish(&self, ev: &Event) -> Result<(), QueueError> {
         if self.remaining_failures.load(Ordering::SeqCst) > 0 {
             self.remaining_failures.fetch_sub(1, Ordering::SeqCst);
-            return Err(QueueError::Json(
-                serde_json::from_str::<serde_json::Value>("§ not json").unwrap_err(),
-            ));
+            return Err(crate::common::queue_error());
         }
         self.inner.publish(ev).await
     }

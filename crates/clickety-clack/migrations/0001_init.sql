@@ -62,6 +62,9 @@ CREATE TABLE evaluations (
     error    TEXT,
     PRIMARY KEY (rule, eval_ts)
 );
+-- `eval_ts` is the PK's trailing column, so the hourly retention prune
+-- (`WHERE eval_ts < cutoff`) needs its own index to avoid scanning the whole ledger.
+CREATE INDEX evaluations_eval_ts_idx ON evaluations (eval_ts);
 
 CREATE TABLE subscriptions (
     id          UUID PRIMARY KEY,
@@ -85,6 +88,9 @@ CREATE TABLE notifications (
 );
 CREATE INDEX notifications_tenant_idx ON notifications (tenant);
 CREATE INDEX notifications_status_idx ON notifications (status);
+-- Serves the hourly retention prune (`WHERE updated_at < cutoff`); every other read of
+-- this table goes through the `dedup_key` primary key.
+CREATE INDEX notifications_updated_at_idx ON notifications (updated_at);
 
 -- A receiver is a named set of channel references: its `channels` column holds
 -- a JSON array of channel names (see the `channels` table). Free-form
@@ -131,7 +137,10 @@ CREATE TABLE routes (
     created_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
     FOREIGN KEY (tenant, receiver) REFERENCES receivers (tenant, name) ON UPDATE CASCADE
 );
-CREATE INDEX routes_tenant_idx ON routes (tenant);
+-- Postgres does not index the referencing side of a foreign key, so this covers the
+-- receiver delete and the `ON UPDATE CASCADE` rename, plus the in-use lookup that names
+-- the referring routes in a 409. Tenant-only reads use it as a prefix.
+CREATE INDEX routes_tenant_receiver_idx ON routes (tenant, receiver);
 
 CREATE TABLE silences (
     id          UUID PRIMARY KEY,
@@ -210,6 +219,7 @@ CREATE TABLE slo_evaluations (
     applied_at TIMESTAMPTZ NOT NULL DEFAULT now(),
     PRIMARY KEY (slo, eval_ts)
 );
+CREATE INDEX slo_evaluations_eval_ts_idx ON slo_evaluations (eval_ts);
 
 -- Per-(SLO, tier, group) alert-instance state, mirroring `instances` but owned
 -- by SLOs. Kept separate so the rule pipeline's hot path and FK are untouched.

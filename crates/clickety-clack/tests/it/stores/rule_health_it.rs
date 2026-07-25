@@ -185,14 +185,14 @@ async fn record_rule_failure_claim_is_idempotent() {
 
     // First delivery wins the claim and bumps the counter to 1 (threshold 3 -> no event).
     assert!(store
-        .record_rule_failure(rule.id, &tenant, "boom", 3, now, Some((rule.id, eval_ts)))
+        .record_rule_failure(rule.id, &tenant, "boom", 3, now, Some(eval_ts))
         .await
         .unwrap()
         .is_none());
 
     // Redelivery of the SAME eval_ts loses the claim: no event, and no second bump.
     assert!(store
-        .record_rule_failure(rule.id, &tenant, "boom", 3, now, Some((rule.id, eval_ts)))
+        .record_rule_failure(rule.id, &tenant, "boom", 3, now, Some(eval_ts))
         .await
         .unwrap()
         .is_none());

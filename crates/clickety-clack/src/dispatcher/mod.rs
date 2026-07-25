@@ -45,9 +45,12 @@ const MAX_ATTEMPTS: u32 = 4;
 /// its ledger row this many times is killing its sender rather than being unlucky, and
 /// reclaiming it forever would replay that crash on every retry.
 const MAX_NOTIFICATION_CLAIMS: u32 = 3;
-/// Backoff before reflushing a group whose notification another sender still holds.
-/// Bounded by `NOTIFICATION_LEASE_MS` (nothing can change sooner than the holder's
-/// terminal write) and traded off against how long a drained-but-buffered batch lingers.
+/// Backoff before reflushing a group whose fan-out found a notification unaccounted for
+/// (another sender holds the lease). Nothing can change until the holder writes a terminal
+/// row or `NOTIFICATION_LEASE_MS` elapses, so retrying on `TAKE_RETRY_MS` would burn a
+/// full flush cycle (Redis take + channel load and decrypt + a ledger round-trip per
+/// channel) every second to re-read one timestamp. This backs off far enough to make that
+/// cheap while still draining the batch promptly once the holder finishes.
 const IN_FLIGHT_RETRY_MS: i64 = 15_000;
 /// How often the flusher polls for due groups when none are immediately ready.
 const FLUSH_TICK: Duration = Duration::from_millis(200);
@@ -65,7 +68,7 @@ pub trait NotificationLedger: Send + Sync {
     async fn try_begin_notification(
         &self,
         dedup_key: &str,
-        tenant: TenantId,
+        tenant: &TenantId,
         channel: &str,
         target: &str,
     ) -> Result<BeginOutcome, StoreError>;
@@ -89,7 +92,7 @@ impl NotificationLedger for PgStore {
     async fn try_begin_notification(
         &self,
         dedup_key: &str,
-        tenant: TenantId,
+        tenant: &TenantId,
         channel: &str,
         target: &str,
     ) -> Result<BeginOutcome, StoreError> {
@@ -346,11 +349,9 @@ pub async fn process_event(ctx: &DispatchCtx, entry: &EventEntry) -> bool {
     // silently, so every unresolved receiver gets one durable record and the ack waits
     // on that write.
     if !unknown_receivers.is_empty() {
-        let reason = format!(
-            "routes reference unknown receivers: {}",
-            unknown_receivers.join(", ")
-        );
-        tracing::error!(entry_id = %entry.id, receivers = %unknown_receivers.join(", "),
+        let names = unknown_receivers.join(", ");
+        let reason = format!("routes reference unknown receivers: {names}");
+        tracing::error!(entry_id = %entry.id, receivers = %names,
             "routes reference unknown receivers; dead-lettering event");
         if let Err(e) = ctx.bus.dead_letter(ev, &reason).await {
             crate::otel::span_error(&e);
@@ -596,16 +597,6 @@ async fn rearm_for_retry(ctx: &DispatchCtx, gid: &str, taken_at: i64) {
     rearm_at(ctx, gid, taken_at, TAKE_RETRY_MS).await;
 }
 
-/// Re-arm a group whose fan-out found a notification unaccounted for. Unlike a failed
-/// flush step, nothing here can change until either the lease holder writes a terminal
-/// row or `NOTIFICATION_LEASE_MS` elapses, so retrying on `TAKE_RETRY_MS` would burn a
-/// full flush cycle (Redis take + channel load and decrypt + a ledger round-trip per
-/// channel) every second to re-read one timestamp. This backs off far enough to make
-/// that cheap while still draining the batch promptly once the holder finishes.
-async fn rearm_in_flight(ctx: &DispatchCtx, gid: &str, taken_at: i64) {
-    rearm_at(ctx, gid, taken_at, IN_FLIGHT_RETRY_MS).await;
-}
-
 /// If the re-arm itself fails (Redis down), the release of the lease will fail for the
 /// same reason and the lease-expiry reclaim recovers the group.
 async fn rearm_at(ctx: &DispatchCtx, gid: &str, taken_at: i64, delay_ms: i64) {
@@ -817,7 +808,7 @@ async fn flush_claimed_group(ctx: &DispatchCtx, gid: &str) {
         // dedup-skips every channel whose ledger row did commit.
         tracing::warn!(group = %gid,
             "a channel recorded no outcome; leaving batch buffered for retry");
-        rearm_in_flight(ctx, gid, taken_at).await;
+        rearm_at(ctx, gid, taken_at, IN_FLIGHT_RETRY_MS).await;
     } else {
         // The fan-out has handled every channel (ledger row + delivery/dead-letter,
         // or dedup skip); commit phase two of the take so the buffered batch clears.
@@ -970,7 +961,7 @@ async fn claim_to_send(
 ) -> Claim {
     match deps
         .ledger
-        .try_begin_notification(key, rep.tenant.clone(), channel, redacted_target)
+        .try_begin_notification(key, &rep.tenant, channel, redacted_target)
         .await
     {
         // Reclaimed too many times without ever completing: retire it rather than
@@ -1167,7 +1158,7 @@ mod fan_out_tests {
         async fn try_begin_notification(
             &self,
             dedup_key: &str,
-            _tenant: TenantId,
+            _tenant: &TenantId,
             channel: &str,
             _target: &str,
         ) -> Result<BeginOutcome, StoreError> {
@@ -1461,7 +1452,7 @@ mod fan_out_tests {
         async fn try_begin_notification(
             &self,
             dedup_key: &str,
-            tenant: TenantId,
+            tenant: &TenantId,
             channel: &str,
             target: &str,
         ) -> Result<BeginOutcome, StoreError> {
@@ -2024,7 +2015,7 @@ mod fan_out_tests {
         // caller, `deliver_group_channels`, before it delivers); seed it the same way so
         // the later `mark_notification_failed` write has a row to update.
         ledger
-            .try_begin_notification("key-1", ev.tenant.clone(), "webhook", "http://x/h")
+            .try_begin_notification("key-1", &ev.tenant, "webhook", "http://x/h")
             .await
             .unwrap();
 

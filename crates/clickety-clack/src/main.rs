@@ -70,8 +70,9 @@ async fn main() -> anyhow::Result<()> {
     // scheduler never touches ClickHouse. Checked here, before the first connection, so
     // a misconfigured deployment fails without opening Postgres or running migrations.
     // See docs/how-to/harden-clickhouse-access.md.
-    let runs_rule_sql = matches!(cfg.role.as_str(), "all" | "api" | "evaluator");
-    if runs_rule_sql && config::unhardened_ch_user(&cfg) && !cfg.dev_insecure_ch_default_user {
+    let run = |r: &str| cfg.role == "all" || cfg.role == r;
+    let runs_rule_sql = run("api") || run("evaluator");
+    if runs_rule_sql && cfg.unhardened_ch_user() && !cfg.dev_insecure_ch_default_user {
         anyhow::bail!(
             "refusing to run tenant rule SQL as the ClickHouse `default` user: \
              CC_CH_AUTH_MODE=shared with CC_CH_USER=default typically has full \
@@ -111,8 +112,6 @@ async fn main() -> anyhow::Result<()> {
     // (pools, connection managers, config strings). See cc::supervisor.
     let mut roles: Vec<RoleSpec> = Vec::new();
     let health = RolesHealth::default();
-
-    let run = |r: &str| cfg.role == "all" || cfg.role == r;
 
     // The Redis queue and event bus only serve the pipeline roles below; an
     // isolated `api` deployment must not fail to start (or hold a connection)

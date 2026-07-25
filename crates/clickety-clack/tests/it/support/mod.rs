@@ -158,6 +158,20 @@ async fn init_shared() -> SharedPg {
     }
 }
 
+/// Age a notification's lease past expiry, standing in for the wall-clock wait without
+/// sleeping (and without needing a short, flake-prone test lease). Runs on the store's own
+/// pool: every test in this binary shares one Postgres server, so an extra pool per call
+/// is connection pressure for nothing.
+pub async fn expire_lease(store: &PgStore, dedup_key: &str) {
+    sqlx::query(
+        "UPDATE notifications SET updated_at = now() - interval '1 hour' WHERE dedup_key=$1",
+    )
+    .bind(dedup_key)
+    .execute(store.pool_for_test())
+    .await
+    .unwrap();
+}
+
 /// Create a live rule with a unique test name in the root namespace, unwrapping the
 /// `Created` outcome. Panics on `NameConflict` (a per-test-unique name should never
 /// collide within a fresh tenant).

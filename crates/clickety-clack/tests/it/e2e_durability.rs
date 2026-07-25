@@ -32,11 +32,8 @@ struct FlakyBus {
 impl EventBus for FlakyBus {
     async fn publish(&self, ev: &Event) -> Result<(), QueueError> {
         if !self.failed_once.swap(true, Ordering::SeqCst) {
-            // Simulate the evaluator's inline publish being lost. Explicit variant so a
-            // QueueError refactor breaks at compile time, not at runtime.
-            return Err(QueueError::Json(
-                serde_json::from_str::<serde_json::Value>("§ not json").unwrap_err(),
-            ));
+            // Simulate the evaluator's inline publish being lost.
+            return Err(crate::common::queue_error());
         }
         self.inner.publish(ev).await
     }

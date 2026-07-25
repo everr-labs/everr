@@ -134,6 +134,12 @@ pub fn test_cipher() -> Arc<dyn SecretCipher> {
     )
 }
 
+/// A `QueueError` for bus doubles that must fail a publish. Names an explicit variant so a
+/// `QueueError` refactor breaks at compile time rather than at runtime.
+pub fn queue_error() -> QueueError {
+    QueueError::Json(serde_json::from_str::<serde_json::Value>("x not json").unwrap_err())
+}
+
 /// Wall-clock millis, matching the dispatcher's internal `now_ms`.
 pub fn now_ms() -> i64 {
     (OffsetDateTime::now_utc().unix_timestamp_nanos() / 1_000_000) as i64
@@ -450,9 +456,6 @@ pub async fn stub_clickhouse() -> String {
 /// connected the way the dispatcher sees them. Holds the Redis guard alive.
 pub struct DispatchInfra {
     pub redis: RedisInfra,
-    /// The isolated test database behind `store`, for the occasional test that needs
-    /// raw SQL (e.g. ageing a timestamp instead of sleeping).
-    pub pg_url: String,
     pub store: PgStore,
     pub bus: Arc<dyn EventBus>,
     pub groups: Arc<dyn GroupStore>,
@@ -466,7 +469,6 @@ pub async fn dispatch_infra() -> DispatchInfra {
     let groups: Arc<dyn GroupStore> = Arc::new(RedisGroups::connect(&redis.url).await.unwrap());
     DispatchInfra {
         redis,
-        pg_url,
         store,
         bus,
         groups,

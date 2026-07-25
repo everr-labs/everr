@@ -320,7 +320,7 @@ pub async fn evaluate_slo<S: SloEvalStore>(
                         &msg,
                         degrade_after,
                         eval_ts,
-                        Some((slo.id, eval_ts)),
+                        Some(eval_ts),
                     )
                     .await
                 {
@@ -613,7 +613,7 @@ pub async fn evaluate_slo<S: SloEvalStore>(
             eval_ts,
             &next_states,
             &out_events,
-            Some((slo.id, eval_ts)),
+            Some(eval_ts),
         )
         .await
     {

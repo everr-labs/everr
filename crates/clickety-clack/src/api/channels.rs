@@ -7,7 +7,7 @@ use axum::extract::{Path, State};
 use axum::http::HeaderMap;
 use axum::Json;
 use serde::Deserialize;
-use serde_json::{json, Value};
+use serde_json::Value;
 
 #[derive(Deserialize)]
 pub struct CreateChannel {
@@ -155,7 +155,7 @@ pub async fn delete(
 ) -> Result<Json<Value>, ApiError> {
     let t = tenant(&state, &headers)?;
     match state.store.delete_channel(t, &name).await? {
-        ChannelDelete::Deleted => Ok(Json(json!({"deleted": true}))),
+        ChannelDelete::Deleted => crate::api::deleted(true),
         ChannelDelete::NotFound => Err(ApiError::NotFound),
         ChannelDelete::InUse(referrers) => Err(ApiError::Conflict(in_use_detail(&referrers))),
     }

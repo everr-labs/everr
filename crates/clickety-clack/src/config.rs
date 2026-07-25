@@ -41,7 +41,7 @@ pub struct Config {
     /// in `shared` auth mode (`CC_DEV_INSECURE_CH_DEFAULT_USER=1`; dev/compose only).
     /// Required to boot in that combination so a deployment that never got round to
     /// provisioning a restricted user fails closed instead of handing every rule author
-    /// full privileges. See [`unhardened_ch_user`].
+    /// full privileges. See [`Config::unhardened_ch_user`].
     pub dev_insecure_ch_default_user: bool,
     pub node_id: String,
     pub rule_degrade_after: u32,
@@ -70,6 +70,7 @@ pub struct Config {
 impl Config {
     pub fn from_env() -> Self {
         let var = |k: &str, d: &str| env::var(k).unwrap_or_else(|_| d.to_string());
+        let flag = |k: &str| matches!(var(k, "0").trim(), "1" | "true");
         let smtp = env::var("CC_SMTP_HOST").ok().map(|host| SmtpConfig {
             host,
             port: var("CC_SMTP_PORT", "25").parse().unwrap_or(25),
@@ -81,14 +82,8 @@ impl Config {
             role: var("CC_ROLE", "all"),
             http_addr: var("CC_HTTP_ADDR", "0.0.0.0:8080"),
             api_keys: env::var("CC_API_KEYS").ok(),
-            dev_insecure_no_auth: matches!(
-                var("CC_DEV_INSECURE_NO_AUTH", "0").trim(),
-                "1" | "true"
-            ),
-            allow_private_webhooks: matches!(
-                var("CC_ALLOW_PRIVATE_WEBHOOKS", "0").trim(),
-                "1" | "true"
-            ),
+            dev_insecure_no_auth: flag("CC_DEV_INSECURE_NO_AUTH"),
+            allow_private_webhooks: flag("CC_ALLOW_PRIVATE_WEBHOOKS"),
             pg_url: var(
                 "CC_PG_URL",
                 "postgres://postgres:postgres@127.0.0.1:5432/postgres",
@@ -102,10 +97,7 @@ impl Config {
             ch_master_key: env::var("CC_CH_MASTER_KEY").ok(),
             ch_password_suffix: var("CC_CH_PASSWORD_SUFFIX", ""),
             ch_tenant_map: env::var("CC_CH_TENANT_MAP").ok(),
-            dev_insecure_ch_default_user: matches!(
-                var("CC_DEV_INSECURE_CH_DEFAULT_USER", "0").trim(),
-                "1" | "true"
-            ),
+            dev_insecure_ch_default_user: flag("CC_DEV_INSECURE_CH_DEFAULT_USER"),
             node_id: var("CC_NODE_ID", "node-1"),
             // Clamp to >= 1: a 0 shard count would silently disable all scheduling.
             scheduler_shards: var("CC_SCHEDULER_SHARDS", "1")
@@ -137,19 +129,19 @@ impl Config {
             engine_ingest_api_key: env::var("CC_ENGINE_INGEST_API_KEY").ok(),
         }
     }
-}
 
-/// Whether this config would run tenant-authored rule SQL as ClickHouse's `default`
-/// user, the case the hardening guide calls the worst one.
-///
-/// `sqlguard` only checks statement *shape*; a valid `SELECT` can still reach
-/// `url(...)`/`remote(...)` or read `system.*`, so the ClickHouse user's privileges are
-/// the actual boundary (see `docs/how-to/harden-clickhouse-access.md`). Only the
-/// `shared` + `default` pair is detectable here: `derived`/`map` resolve a user per
-/// tenant, and a `shared` user that is not `default` is the configuration the guide
-/// asks for, whatever its grants turn out to be.
-pub fn unhardened_ch_user(cfg: &Config) -> bool {
-    cfg.ch_auth_mode.trim() == "shared" && cfg.ch_user.trim() == "default"
+    /// Whether this config would run tenant-authored rule SQL as ClickHouse's `default`
+    /// user, the case the hardening guide calls the worst one.
+    ///
+    /// `sqlguard` only checks statement *shape*; a valid `SELECT` can still reach
+    /// `url(...)`/`remote(...)` or read `system.*`, so the ClickHouse user's privileges are
+    /// the actual boundary (see `docs/how-to/harden-clickhouse-access.md`). Only the
+    /// `shared` + `default` pair is detectable here: `derived`/`map` resolve a user per
+    /// tenant, and a `shared` user that is not `default` is the configuration the guide
+    /// asks for, whatever its grants turn out to be.
+    pub fn unhardened_ch_user(&self) -> bool {
+        self.ch_auth_mode.trim() == "shared" && self.ch_user.trim() == "default"
+    }
 }
 
 #[cfg(test)]
@@ -207,17 +199,17 @@ mod tests {
         let mut c = Config::from_env();
         c.ch_auth_mode = "shared".into();
         c.ch_user = "default".into();
-        assert!(unhardened_ch_user(&c), "the documented worst case");
+        assert!(c.unhardened_ch_user(), "the documented worst case");
 
         c.ch_user = "cc_rules".into();
-        assert!(!unhardened_ch_user(&c), "a named shared user is the ask");
+        assert!(!c.unhardened_ch_user(), "a named shared user is the ask");
 
         // Per-tenant modes resolve their user elsewhere, so `ch_user` says nothing.
         c.ch_auth_mode = "derived".into();
         c.ch_user = "default".into();
-        assert!(!unhardened_ch_user(&c));
+        assert!(!c.unhardened_ch_user());
         c.ch_auth_mode = "map".into();
-        assert!(!unhardened_ch_user(&c));
+        assert!(!c.unhardened_ch_user());
     }
 
     #[test]

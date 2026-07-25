@@ -118,10 +118,7 @@ impl EventBus for DeadLetterSpy {
     async fn dead_letter(&self, _ev: &Event, reason: &str) -> Result<(), QueueError> {
         self.reasons.lock().unwrap().push(reason.to_string());
         if self.fail.load(Ordering::SeqCst) {
-            // Explicit variant so a QueueError refactor breaks at compile time.
-            return Err(QueueError::Json(
-                serde_json::from_str::<serde_json::Value>("§ not json").unwrap_err(),
-            ));
+            return Err(crate::common::queue_error());
         }
         Ok(())
     }
@@ -180,14 +177,14 @@ async fn route_with_a_dangling_receiver_dead_letters_instead_of_dropping() {
     // the routes read and the receivers read produces exactly this -- a live route whose
     // receiver is already gone -- without the database ever holding it. `fresh_db` hands
     // every test its own database, so dropping the constraint here is isolated.
-    let pool = sqlx::PgPool::connect(&infra.pg_url).await.unwrap();
+    let pool = infra.store.pool_for_test();
     sqlx::query("ALTER TABLE routes DROP CONSTRAINT routes_tenant_receiver_fkey")
-        .execute(&pool)
+        .execute(pool)
         .await
         .unwrap();
     sqlx::query("DELETE FROM receivers WHERE tenant=$1")
         .bind(tenant.as_str())
-        .execute(&pool)
+        .execute(pool)
         .await
         .unwrap();
 

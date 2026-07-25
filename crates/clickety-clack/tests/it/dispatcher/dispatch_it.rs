@@ -10,7 +10,6 @@ use cc::domain::instance::{InstanceState, Status};
 use cc::domain::routing::{MatchOp, Matcher};
 use cc::domain::rule::{RuleSpec, Severity};
 use cc::domain::sink::{AlertLogSink, DeliveryFacts};
-use sqlx::Connection;
 use std::collections::BTreeMap;
 use std::sync::atomic::Ordering;
 use std::sync::{Arc, Mutex};
@@ -95,7 +94,7 @@ async fn firehose_recovers_a_notification_stranded_by_a_dead_sender() {
     // Stand in for the sender that claimed this notification and then died: the row
     // is left `pending`, exactly as a crash mid-send would leave it.
     store
-        .try_begin_notification(&key, tenant.clone(), "webhook", "redacted")
+        .try_begin_notification(&key, &tenant, "webhook", "redacted")
         .await
         .unwrap();
 
@@ -113,15 +112,7 @@ async fn firehose_recovers_a_notification_stranded_by_a_dead_sender() {
     assert_eq!(hits.load(Ordering::Relaxed), 0, "no duplicate send yet");
 
     // Age the lease past expiry rather than sleeping it out.
-    let mut conn = sqlx::PgConnection::connect(&infra.pg_url).await.unwrap();
-    sqlx::query(
-        "UPDATE notifications SET updated_at = now() - interval '1 hour' WHERE dedup_key=$1",
-    )
-    .bind(&key)
-    .execute(&mut conn)
-    .await
-    .unwrap();
-    conn.close().await.unwrap();
+    crate::support::expire_lease(&store, &key).await;
 
     // Past the lease the row is reclaimable: the redelivery must actually deliver.
     let acked = process_event(&ctx, &entries[0]).await;

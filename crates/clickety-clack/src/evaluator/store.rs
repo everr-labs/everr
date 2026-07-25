@@ -40,7 +40,7 @@ pub trait RuleEvalStore: OutboxStore {
         err: &str,
         threshold: i32,
         now: OffsetDateTime,
-        claim: Option<(RuleId, OffsetDateTime)>,
+        claim: Option<OffsetDateTime>,
     ) -> Result<Option<(Event, Uuid)>, StoreError>;
     async fn record_rule_success(
         &self,
@@ -81,7 +81,7 @@ pub trait SloEvalStore: OutboxStore {
         err: &str,
         degrade_after: u32,
         now: OffsetDateTime,
-        claim: Option<(SloId, OffsetDateTime)>,
+        claim: Option<OffsetDateTime>,
     ) -> Result<Option<(Event, Uuid)>, StoreError>;
     async fn record_slo_success(
         &self,
@@ -103,7 +103,7 @@ pub trait SloEvalStore: OutboxStore {
         computed_at: OffsetDateTime,
         instances: &[InstanceState],
         events: &[Event],
-        claim: Option<(SloId, OffsetDateTime)>,
+        claim: Option<OffsetDateTime>,
     ) -> Result<PersistOutcome, StoreError>;
 }
 
@@ -129,7 +129,7 @@ impl RuleEvalStore for PgStore {
         err: &str,
         threshold: i32,
         now: OffsetDateTime,
-        claim: Option<(RuleId, OffsetDateTime)>,
+        claim: Option<OffsetDateTime>,
     ) -> Result<Option<(Event, Uuid)>, StoreError> {
         PgStore::record_rule_failure(self, rule, tenant, err, threshold, now, claim).await
     }
@@ -180,7 +180,7 @@ impl SloEvalStore for PgStore {
         err: &str,
         degrade_after: u32,
         now: OffsetDateTime,
-        claim: Option<(SloId, OffsetDateTime)>,
+        claim: Option<OffsetDateTime>,
     ) -> Result<Option<(Event, Uuid)>, StoreError> {
         PgStore::record_slo_failure(self, slo, tenant, err, degrade_after, now, claim).await
     }
@@ -207,7 +207,7 @@ impl SloEvalStore for PgStore {
         computed_at: OffsetDateTime,
         instances: &[InstanceState],
         events: &[Event],
-        claim: Option<(SloId, OffsetDateTime)>,
+        claim: Option<OffsetDateTime>,
     ) -> Result<PersistOutcome, StoreError> {
         PgStore::persist_slo_eval(
             self,

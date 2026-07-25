@@ -78,7 +78,7 @@ impl RuleEvalStore for FaultInjector<'_> {
         err: &str,
         threshold: i32,
         now: OffsetDateTime,
-        claim: Option<(RuleId, OffsetDateTime)>,
+        claim: Option<OffsetDateTime>,
     ) -> Result<Option<(Event, Uuid)>, StoreError> {
         if self.fail == FailAt::RecordRuleFailure {
             return Err(boom());
@@ -144,7 +144,7 @@ impl SloEvalStore for FaultInjector<'_> {
         err: &str,
         degrade_after: u32,
         now: OffsetDateTime,
-        claim: Option<(SloId, OffsetDateTime)>,
+        claim: Option<OffsetDateTime>,
     ) -> Result<Option<(Event, Uuid)>, StoreError> {
         if self.fail == FailAt::RecordSloFailure {
             return Err(boom());
@@ -176,7 +176,7 @@ impl SloEvalStore for FaultInjector<'_> {
         computed_at: OffsetDateTime,
         instances: &[InstanceState],
         events: &[Event],
-        claim: Option<(SloId, OffsetDateTime)>,
+        claim: Option<OffsetDateTime>,
     ) -> Result<PersistOutcome, StoreError> {
         if self.fail == FailAt::PersistSlo {
             return Err(boom());
@@ -247,9 +247,7 @@ struct FailBus;
 #[async_trait]
 impl EventBus for FailBus {
     async fn publish(&self, _ev: &Event) -> Result<(), QueueError> {
-        Err(QueueError::Json(
-            serde_json::from_str::<serde_json::Value>("§ not json").unwrap_err(),
-        ))
+        Err(crate::common::queue_error())
     }
     async fn consume(&self, _c: &str, _n: usize, _b: usize) -> Result<Vec<EventEntry>, QueueError> {
         Ok(Vec::new())

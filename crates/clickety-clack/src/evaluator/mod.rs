@@ -350,16 +350,17 @@ pub async fn process_batch_inner<S: RuleEvalStore>(
     //    paused) are terminal and acked: they write no state, so a redelivery re-drops.
     let mut resolved: Vec<(JobId, crate::queue::EvalJob, Rule)> = Vec::new();
     for Delivery { id, job } in deliveries {
+        // Everything but a live, matching, unpaused rule is a terminal drop:
+        // - tenant mismatch keeps the per-id read's scoping (treated as a miss, never
+        //   evaluated),
+        // - paused means the rule was paused after this job was enqueued, so the
+        //   in-flight job is dropped and a paused rule can never emit an event
+        //   (scheduler claim-exclusion gates new jobs; this closes the queued-job
+        //   window),
+        // - a miss means the rule was deleted; nothing to do.
         match rules_by_id.get(&job.rule) {
-            // The tenant guard keeps the per-id read's scoping: a job whose tenant
-            // doesn't match the stored rule is treated as a miss, never evaluated.
-            Some(r) if r.tenant != job.tenant => acked.push(id),
-            // Rule paused after this job was enqueued: drop the in-flight job (still
-            // acked) so a paused rule can never evaluate or emit an event. Scheduler
-            // claim-exclusion gates new jobs; this closes the queued-job window.
-            Some(r) if r.paused => acked.push(id),
-            Some(r) => resolved.push((id, job, r.clone())),
-            None => acked.push(id), // rule deleted; nothing to do
+            Some(r) if r.tenant == job.tenant && !r.paused => resolved.push((id, job, r.clone())),
+            _ => acked.push(id),
         }
     }
 
@@ -418,7 +419,7 @@ pub async fn process_batch_inner<S: RuleEvalStore>(
                             &msg,
                             degrade_after as i32,
                             now,
-                            Some((job.rule, job.eval_ts)),
+                            Some(job.eval_ts),
                         )
                         .await
                     {

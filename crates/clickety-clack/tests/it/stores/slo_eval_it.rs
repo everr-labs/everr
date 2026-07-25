@@ -92,7 +92,7 @@ async fn persist_slo_eval_claim_is_atomic_and_idempotent() {
             eval_ts,
             std::slice::from_ref(&mk(1.0)),
             &[],
-            Some((id, eval_ts)),
+            Some(eval_ts),
         )
         .await
         .unwrap();
@@ -107,7 +107,7 @@ async fn persist_slo_eval_claim_is_atomic_and_idempotent() {
             eval_ts,
             std::slice::from_ref(&mk(999.0)),
             &[],
-            Some((id, eval_ts)),
+            Some(eval_ts),
         )
         .await
         .unwrap();
@@ -140,12 +140,12 @@ async fn record_slo_failure_claim_is_idempotent() {
     let eval_ts = OffsetDateTime::from_unix_timestamp(1_700_000_400).unwrap();
 
     assert!(s
-        .record_slo_failure(id, &tenant(), "boom", 3, now, Some((id, eval_ts)))
+        .record_slo_failure(id, &tenant(), "boom", 3, now, Some(eval_ts))
         .await
         .unwrap()
         .is_none());
     assert!(s
-        .record_slo_failure(id, &tenant(), "boom", 3, now, Some((id, eval_ts)))
+        .record_slo_failure(id, &tenant(), "boom", 3, now, Some(eval_ts))
         .await
         .unwrap()
         .is_none());
