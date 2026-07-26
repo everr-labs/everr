@@ -17,7 +17,7 @@ rendezvous (HRW) hashing** over a Redis-backed membership set.
   `cc:scheduler:members` (score = Redis server time). Replicas that stop
   heartbeating are evicted after `CC_SCHEDULER_MEMBER_TTL_MS` (default 10s).
 - Tenants are partitioned into `CC_SCHEDULER_SHARDS` shards. For each shard, the
-  owner is the live member with the highest rendezvous hash for that shard — every
+  owner is the live member with the highest rendezvous hash for that shard: every
   replica computes the same assignment independently, no coordinator.
 - Each replica claims due rules only for the shards it owns, using
   `FOR UPDATE SKIP LOCKED` so a brief overlap during membership changes is
@@ -36,7 +36,7 @@ Guidance:
 
 - Set `CC_SCHEDULER_SHARDS` **≥ the number of replicas** (ideally a small multiple,
   e.g. 4×) so shards distribute evenly. With `shards=1` you get a single owning
-  replica with automatic failover — correct, just not parallel.
+  replica with automatic failover: correct, just not parallel.
 - **Every replica must agree** on `CC_SCHEDULER_SHARDS`. Mismatched shard counts
   produce inconsistent ownership.
 - Failover is automatic: when a replica dies, its shards are reassigned to
@@ -48,7 +48,7 @@ Guidance:
 
 ## Scale evaluators and dispatchers
 
-These scale by sharing Redis Streams consumer groups — no extra config:
+These scale by sharing Redis Streams consumer groups: no extra config:
 
 - **Evaluators** share the `evaluators` group on `cc:eval:jobs`. Jobs
   load-balance across replicas. Within a batch, jobs with identical
@@ -59,7 +59,7 @@ These scale by sharing Redis Streams consumer groups — no extra config:
   delivery scales too.
 
 Just run more replicas (each with a unique `CC_NODE_ID`). At-least-once
-redelivery is absorbed by the dedup log and idempotency ledger — see
+redelivery is absorbed by the dedup log and idempotency ledger: see
 [durability](../explanation/durability-and-delivery.md).
 
 ## The maintenance singleton

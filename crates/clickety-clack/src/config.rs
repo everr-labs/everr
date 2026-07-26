@@ -4,6 +4,7 @@ use std::env;
 pub struct SmtpConfig {
     pub host: String,
     pub port: u16,
+    pub tls: String,
     pub from: String,
     pub username: Option<String>,
     pub password: Option<String>,
@@ -25,7 +26,7 @@ pub struct Config {
     pub dev_insecure_no_auth: bool,
     /// Dev/compose escape hatch: allow webhook targets on private/loopback IPs
     /// and `localhost` (`CC_ALLOW_PRIVATE_WEBHOOKS=1`). Off by default; see
-    /// `crate::api::webhook_url`. Only the `api` role reads it.
+    /// `crate::api::webhook_url`. The `api` and `dispatcher` roles read it.
     pub allow_private_webhooks: bool,
     pub pg_url: String,
     pub redis_url: String,
@@ -71,12 +72,23 @@ impl Config {
     pub fn from_env() -> Self {
         let var = |k: &str, d: &str| env::var(k).unwrap_or_else(|_| d.to_string());
         let flag = |k: &str| matches!(var(k, "0").trim(), "1" | "true");
-        let smtp = env::var("CC_SMTP_HOST").ok().map(|host| SmtpConfig {
-            host,
-            port: var("CC_SMTP_PORT", "25").parse().unwrap_or(25),
-            from: var("CC_SMTP_FROM", "alerts@localhost"),
-            username: env::var("CC_SMTP_USER").ok(),
-            password: env::var("CC_SMTP_PASSWORD").ok(),
+        let smtp = env::var("CC_SMTP_HOST").ok().map(|host| {
+            let tls = var("CC_SMTP_TLS", "starttls");
+            let default_port = match tls.trim().to_ascii_lowercase().as_str() {
+                "tls" => 465,
+                "starttls" => 587,
+                _ => 25,
+            };
+            SmtpConfig {
+                host,
+                port: var("CC_SMTP_PORT", &default_port.to_string())
+                    .parse()
+                    .unwrap_or(default_port),
+                tls,
+                from: var("CC_SMTP_FROM", "alerts@localhost"),
+                username: env::var("CC_SMTP_USER").ok(),
+                password: env::var("CC_SMTP_PASSWORD").ok(),
+            }
         });
         Config {
             role: var("CC_ROLE", "all"),

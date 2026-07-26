@@ -1,6 +1,6 @@
 # Alerts
 
-Alerts are defined as code: `kind: AlertRule` YAML files reconciled with `everr apply`, the same gitops flow as dashboards and runbooks — see the skill root for the manifest, file layout (`*.alert.yaml`), and apply semantics. The query is the condition — every row it returns is a firing instance, and an empty result means resolved.
+Alerts are defined as code: `kind: AlertRule` YAML files reconciled with `everr apply`, the same gitops flow as dashboards and runbooks: see the skill root for the manifest, file layout (`*.alert.yaml`), and apply semantics. The query is the condition: every row it returns is a firing instance, and an empty result means resolved.
 
 Prerequisite: telemetry already flowing into Everr (traces, logs, or metrics).
 
@@ -51,7 +51,7 @@ spec:
                              #   Everr's generated annotations and rejected.
 ```
 
-All fields are strict — unknown keys are rejected.
+All fields are strict: unknown keys are rejected.
 
 ## Alert Design Checklist
 
@@ -74,7 +74,7 @@ When your human driver asks to suggest them alerts to create, give a response ba
 
 ## Link a Runbook
 
-Every alert should link a runbook that makes it actionable. Set `spec.runbook` to a runbook's slug (a bare `slug` resolves within the alert's own project; use `project/slug` to point at another project). `everr apply` fails if the linked runbook does not exist — apply the runbook in the same run or beforehand. (The legacy `spec.notebook` field is still accepted as an alias.)
+Every alert should link a runbook that makes it actionable. Set `spec.runbook` to a runbook's slug (a bare `slug` resolves within the alert's own project; use `project/slug` to point at another project). `everr apply` fails if the linked runbook does not exist: apply the runbook in the same run or beforehand. (The legacy `spec.notebook` field is still accepted as an alias.)
 
 The runbook should answer, for whoever the alert wakes up:
 
@@ -107,7 +107,7 @@ ORDER BY event_time DESC
 LIMIT 50
 ```
 
-Example — an AlertRule and its runbook applied together:
+Example: an AlertRule and its runbook applied together:
 
 ```yaml
 # everr/db-pool-exhausted.alert.yaml
@@ -194,7 +194,7 @@ Set `valueColumn` to the numeric result column that explains the alert (an error
 
 ### Evaluation Interval and Time Windows
 
-The `evaluationInterval` controls how often the rule runs. Minimum `1m`. Align the query's time window to the interval — a 15-minute window with a 1-minute interval re-evaluates every minute over a sliding 15-minute range.
+The `evaluationInterval` controls how often the rule runs. Minimum `1m`. Align the query's time window to the interval: a 15-minute window with a 1-minute interval re-evaluates every minute over a sliding 15-minute range.
 
 Do not use `${...}` templates in queries. Queries are plain SQL. Template variables (`${column}`) are only for `notificationMessage`.
 
@@ -241,7 +241,7 @@ valueColumn: n
 
 ## Verification
 
-1. Test the query using `everr cloud query` and confirm the result set stays far below 1,000 rows — every returned row is a firing instance.
+1. Test the query using `everr cloud query` and confirm the result set stays far below 1,000 rows: every returned row is a firing instance.
 2. Run `everr apply ./everr --preview` and confirm the summary shows the expected creates/updates, then open the printed `Preview:` link and check the alert's firing/ok state (preview alerts evaluate but never notify).
 
 ## Common Mistakes

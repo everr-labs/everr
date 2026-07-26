@@ -101,6 +101,45 @@ async fn channels_crud_redaction_and_referenced_delete_conflict() {
 }
 
 #[tokio::test]
+async fn generic_webhook_url_is_redacted_on_every_read_path() {
+    let (app, _) = setup().await;
+    let tenant = Uuid::new_v4();
+    let secret = "https://example.com/hooks/SECRET-TOKEN";
+
+    let resp = app
+        .clone()
+        .oneshot(req(
+            "POST",
+            "/v1/channels",
+            tenant,
+            &format!(r#"{{"name":"generic-hook","config":{{"type":"webhook","url":"{secret}"}}}}"#),
+        ))
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+    let created = body_json(resp).await;
+    assert_eq!(created["config"]["url"], "***");
+    assert!(!created.to_string().contains("SECRET-TOKEN"));
+
+    let resp = app
+        .clone()
+        .oneshot(req("GET", "/v1/channels/generic-hook", tenant, ""))
+        .await
+        .unwrap();
+    let fetched = body_json(resp).await;
+    assert_eq!(fetched["config"]["url"], "***");
+    assert!(!fetched.to_string().contains("SECRET-TOKEN"));
+
+    let resp = app
+        .oneshot(req("GET", "/v1/channels", tenant, ""))
+        .await
+        .unwrap();
+    let listed = body_json(resp).await;
+    assert_eq!(listed[0]["config"]["url"], "***");
+    assert!(!listed.to_string().contains("SECRET-TOKEN"));
+}
+
+#[tokio::test]
 async fn receiver_with_unknown_channels_is_rejected_naming_them() {
     let (app, _) = setup().await;
     let tenant = Uuid::new_v4();

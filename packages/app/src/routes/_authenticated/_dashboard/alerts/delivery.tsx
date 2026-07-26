@@ -749,8 +749,8 @@ function FirehoseSection() {
                   <Webhook className="size-3.5" />
                 </span>
                 <div className="min-w-0 flex-1">
-                  <div className="truncate font-mono text-xs">
-                    {s.webhook_url}
+                  <div className="truncate text-sm font-medium">
+                    Firehose webhook
                   </div>
                   <div className="text-xs text-muted-foreground">
                     Added {ccFormatTs(s.created_at)}

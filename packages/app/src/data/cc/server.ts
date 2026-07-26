@@ -16,6 +16,7 @@ import {
   visibleSlosForPreview,
   withAuthoredSloName,
 } from "@/data/slos/preview-overlay";
+import { type ClickhouseQuery, querySqlApi } from "@/lib/clickhouse";
 import { createAuthenticatedServerFn } from "@/lib/serverFn";
 import * as cc from "./client";
 import { CcApiError } from "./errors";
@@ -38,6 +39,11 @@ import type { CcRuleView, CcSloView } from "./types";
 
 const orgId = (session: { session: { activeOrganizationId: string } }) =>
   session.session.activeOrganizationId;
+
+function createSloQuery(organizationId: string): ClickhouseQuery {
+  return <T>(sql: string, params?: Record<string, unknown>) =>
+    querySqlApi<T>(sql, organizationId, params);
+}
 
 // Client-side query definitions (keys, poll cadence) for these server fns
 // live in ./queries.ts.
@@ -287,7 +293,8 @@ export const listCcEventHistory = createAuthenticatedServerFn({ method: "GET" })
 // the SLI over trailing windows against raw telemetry (slo-series.server.ts) —
 // no stored samples, so a fresh SLO charts history as far back as retention. We
 // fetch the SLO server-side for the authoritative SLI/target/window rather than
-// trusting the client. Tenancy rides on the org-scoped clickhouse context.
+// trusting the client. The per-org SQL API user pins tenancy independently of
+// the SLO's tenant-authored SQL and applies readonly resource limits.
 export const getCcSloBudgetSeries = createAuthenticatedServerFn({
   method: "GET",
 })
@@ -299,10 +306,7 @@ export const getCcSloBudgetSeries = createAuthenticatedServerFn({
     }),
   )
   .handler(
-    async ({
-      data: { sloId, timeRange, points },
-      context: { session, clickhouse },
-    }) => {
+    async ({ data: { sloId, timeRange, points }, context: { session } }) => {
       const org = orgId(session);
       const slo = await cc.getSlo(org, sloId);
       const windowSecs = ccSloWindowSecs(slo.spec);
@@ -312,7 +316,7 @@ export const getCcSloBudgetSeries = createAuthenticatedServerFn({
       // The recent edge runs to the range end ("now"): the status hero computes
       // its budget at read time too (getCcSloBudgetNow), so the chart and the
       // hero agree without capping the chart at the engine's throttled last eval.
-      return querySloBudgetSeries(clickhouse.query, {
+      return querySloBudgetSeries(createSloQuery(org), {
         sliSql: slo.spec.sli.sql,
         targetPercent: slo.spec.targetPercent,
         windowSecs,
@@ -328,15 +332,16 @@ export const getCcSloBudgetSeries = createAuthenticatedServerFn({
 // hero and each visible listing row use this to override the stored snapshot's
 // throttled budget with a value as of page view; it's keyed per SLO client-side
 // (ccQueries.sloBudgetNow) so list -> detail navigation reuses the cache. An SLO
-// whose window shorthand doesn't parse returns []. Tenancy rides on the
-// org-scoped clickhouse context (row-level policy), not a SQL filter.
+// whose window shorthand doesn't parse returns []. The SLI runs as the hardened
+// per-org SQL API user because its SQL is tenant-authored.
 export const getCcSloBudgetNow = createAuthenticatedServerFn({ method: "GET" })
   .inputValidator(z.object({ sloId: z.string().min(1) }))
-  .handler(async ({ data: { sloId }, context: { session, clickhouse } }) => {
-    const slo = await cc.getSlo(orgId(session), sloId);
+  .handler(async ({ data: { sloId }, context: { session } }) => {
+    const org = orgId(session);
+    const slo = await cc.getSlo(org, sloId);
     const windowSecs = ccSloWindowSecs(slo.spec);
     if (windowSecs === null) return [];
-    return querySloBudgetNow(clickhouse.query, {
+    return querySloBudgetNow(createSloQuery(org), {
       sliSql: slo.spec.sli.sql,
       labelColumns: slo.spec.sli.label_columns,
       targetPercent: slo.spec.targetPercent,

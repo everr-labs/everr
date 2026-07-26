@@ -26,7 +26,8 @@ async fn email_is_delivered_to_mailpit() {
     let smtp_port = container.get_host_port_ipv4(1025).await.unwrap();
     let http_port = container.get_host_port_ipv4(8025).await.unwrap();
 
-    let notifier = EmailNotifier::new("127.0.0.1", smtp_port, "alerts@x.test", None, None);
+    let notifier =
+        EmailNotifier::new("127.0.0.1", smtp_port, "alerts@x.test", None, None, "none").unwrap();
     notifier
         .send(
             &ChannelConfig::Email {

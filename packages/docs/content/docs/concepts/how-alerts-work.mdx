@@ -6,7 +6,7 @@ Every row the alert query returns is a firing instance. An empty result means re
 
 ## The evaluation loop
 
-Everr runs `spec.query` every `evaluationInterval`. Notifications fire on the **edges** — when an instance newly starts firing and when it resolves, not on every evaluation while it stays firing. A service whose event loop has been blocked for an hour produces one "firing" notification, not one per minute.
+Everr runs `spec.query` every `evaluationInterval`. Notifications fire on the **edges**: when an instance newly starts firing and when it resolves, not on every evaluation while it stays firing. A service whose event loop has been blocked for an hour produces one "firing" notification, not one per minute.
 
 ```yaml
 kind: AlertRule

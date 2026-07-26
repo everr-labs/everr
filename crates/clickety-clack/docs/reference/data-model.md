@@ -26,12 +26,12 @@ The definition of an alert.
 
 | Field           | Type                  | Default | Meaning |
 | --------------- | --------------------- | ------- | ------- |
-| `sql`           | string                | —       | Read-only `SELECT` evaluated against ClickHouse. |
-| `interval_secs` | u32                   | —       | Evaluation period in seconds (`> 0`). |
-| `for_secs`      | u32                   | —       | "For duration": the condition must hold this long before firing. `0` = fire immediately. |
-| `label_columns` | string[]              | —       | Result columns that identify an instance. |
+| `sql`           | string                | none | Read-only `SELECT` evaluated against ClickHouse. |
+| `interval_secs` | u32                   | none | Evaluation period in seconds (`> 0`). |
+| `for_secs`      | u32                   | none | "For duration": the condition must hold this long before firing. `0` = fire immediately. |
+| `label_columns` | string[]              | none | Result columns that identify an instance. |
 | `value_column`  | string \| null        | null    | Numeric column carried as the value. |
-| `severity`      | [Severity](#severity) | —       | Severity attached to emitted events. |
+| `severity`      | [Severity](#severity) | none | Severity attached to emitted events. |
 | `annotations`   | object<string,string> | `{}`    | Free-form metadata, passed through to events. The keys `summary`, `description`, `link.alert`, and `link.runbook` are also rendered into notifications (see [rule annotations](../how-to/write-alert-rules.md#annotations)). |
 | `resolve_after` | u32                   | `1`     | Consecutive *absent* evaluations needed to resolve. Absorbs flaps. |
 | `suppressed`    | bool                  | `false` | Preview mode: the rule evaluates fully and produces events and history, but the dispatcher never notifies on its events (no routing, grouping, subscriptions, silences, or inhibitions apply). The OTLP alert log still carries the events. |
@@ -87,17 +87,17 @@ against a `good`/`valid` SLI query. See
 
 | Field              | Type                   | Default | Meaning |
 | ------------------ | ---------------------- | ------- | ------- |
-| `sli.sql`          | string                 | —       | Read-only `SELECT` returning `good`/`valid` numeric columns, evaluated against ClickHouse with `{window_start:DateTime}`/`{window_end:DateTime}` bound. |
+| `sli.sql`          | string                 | none | Read-only `SELECT` returning `good`/`valid` numeric columns, evaluated against ClickHouse with `{window_start:DateTime}`/`{window_end:DateTime}` bound. |
 | `sli.label_columns`| string[]               | `[]`    | Result columns that fan the SLO into per-group SLIs. Empty = scalar SLO. |
-| `targetPercent`    | f64                    | —       | Objective percentage, `> 0` and `< 100`. |
-| `timeWindow.duration` | string               | —       | Rolling-window shorthand (`m`/`h`/`d`/`w`), capped at 366 days. |
+| `targetPercent`    | f64                    | none | Objective percentage, `> 0` and `< 100`. |
+| `timeWindow.duration` | string               | none | Rolling-window shorthand (`m`/`h`/`d`/`w`), capped at 366 days. |
 | `timeWindow.isRolling` | bool                | `true`  | v1 supports rolling windows only. |
 | `timeWindow.calendar` | object \| null       | `null`  | Reserved for a future calendar-aligned window; rejected if present in v1. |
 | `min_valid_events` | u64 \| null            | `null`  | Floor on the long window's `valid` count below which a tier cannot fire. `null` = off. |
 | `annotations`      | object<string,string>  | `{}`    | Free-form metadata, passed through onto tier-firing events. `summary`/`description`/`link.*` render into notifications the same as [rule annotations](../how-to/write-alert-rules.md#annotations). |
 | `suppressed`       | bool                   | `false` | Preview mode: the SLO evaluates fully and tracks tier state, but the dispatcher never notifies on its events. |
 
-Stored as an `Slo`: `{ id, tenant, namespace, name, spec, version, paused }` — same
+Stored as an `Slo`: `{ id, tenant, namespace, name, spec, version, paused }`: same
 envelope shape as a `Rule`: `name` is unique per `(tenant, namespace)`, `spec` is
 the object above, `version` is an optimistic-lock counter (bumped by every
 `PUT /v1/slos/:id`), and `paused` is an operational flag (not part of `spec`,
@@ -133,18 +133,18 @@ other would and earlier. A 1-day SLO therefore has two tiers, not three.
 
 **Tier instance identity.** Each (group × tier) pair is tracked as its own
 instance, keyed like a rule instance but with the SLO id standing in for the
-rule id and an extra `slo_tier` label added to the group's own labels — so a
+rule id and an extra `slo_tier` label added to the group's own labels, so a
 tier transition drives the same engine state machine (`inactive` →
 `pending`/`firing` → resolved) as any rule instance, and shows up alongside
 rule instances in `GET /v1/alerts`. A faster tier firing auto-inhibits its
-slower siblings for the same (SLO, group) — synthesized by the dispatcher,
+slower siblings for the same (SLO, group): synthesized by the dispatcher,
 never stored, so it cannot be misconfigured away.
 
 ---
 
 ## SLO status snapshot
 
-The evaluator's latest computed read for an SLO — one row per SLO, upserted on
+The evaluator's latest computed read for an SLO: one row per SLO, upserted on
 every successful evaluation tick. Returned (enriched, see below) by
 `GET /v1/slos/:id/status`.
 
@@ -153,7 +153,7 @@ every successful evaluation tick. Returned (enriched, see below) by
 | `window`             | string                            | The SLO's `timeWindow.duration` at the time of the snapshot. |
 | `target_percent`     | f64                               | The SLO's `targetPercent` at the time of the snapshot. |
 | `groups[]`           | [SloGroupStatus](#slogroupstatus)[] | One entry per distinct `label_columns` combination observed. |
-| `window_computed_at` | object<string,i64>                | Per-window freshness ledger: window name (e.g. `"300s"`) → unix seconds it was last recomputed. Drives the coordinated-refresh cadence — see [evaluation cadence](../how-to/define-slos-and-burn-rate-alerts.md#evaluation-cadence). |
+| `window_computed_at` | object<string,i64>                | Per-window freshness ledger: window name (e.g. `"300s"`) → unix seconds it was last recomputed. Drives the coordinated-refresh cadence: see [evaluation cadence](../how-to/define-slos-and-burn-rate-alerts.md#evaluation-cadence). |
 
 ### SloGroupStatus
 
@@ -182,7 +182,7 @@ verbatim by the API, without either enrichment field, rather than erroring.
 | `name`              | string      | Tier name, matching a `BurnRateTier.name`. |
 | `long_burn_rate`     | f64 \| null | Burn rate over the tier's `long_window`. `null` at zero traffic in that window. |
 | `short_burn_rate`    | f64 \| null | Burn rate over the tier's `short_window`. `null` at zero traffic in that window. |
-| `long_window_valid`  | f64 \| null | The tier's long-window `valid` count — the input to `min_valid_events`'s floor. `null` when the stored row omits the field (it is additive and defaults to `null` on read). |
+| `long_window_valid`  | f64 \| null | The tier's long-window `valid` count: the input to `min_valid_events`'s floor. `null` when the stored row omits the field (it is additive and defaults to `null` on read). |
 
 A `null` on either burn rate means that window had no rows to measure, so the
 tick produces no firing verdict for the tier at all: an idle tier stays idle and
@@ -209,7 +209,7 @@ Emitted on a firing or resolving transition; carried on the Redis event stream.
 | `suppressed`   | bool                       | Mirrors the rule's `suppressed` flag at emit time. Default `false`; a payload without the field deserializes as `false`. The dispatcher drops suppressed events before any notification processing. |
 | `evidence`     | object<string,json> \| null | Source-row context for the instance: the row's columns excluding `label_columns` (the value column is included). Capped at 16 columns and 4096 bytes of compact JSON; over the byte cap it becomes `null` with `evidence_truncated: true`. `null` for resolved-by-absence and rule-health events. |
 | `evidence_truncated` | bool                 | `true` when evidence was cut to the column cap or dropped for the byte cap. Default `false`. |
-| `slo`          | uuid \| null               | Set (to the SLO id) only for SLO tier-firing/resolving events; omitted from the JSON entirely when `null` (a plain rule event). Its presence drives the dispatcher's synthetic `slo` label, the SLO default `group_by`, and tier auto-inhibition — see [define SLOs and burn-rate alerts](../how-to/define-slos-and-burn-rate-alerts.md). |
+| `slo`          | uuid \| null               | Set (to the SLO id) only for SLO tier-firing/resolving events; omitted from the JSON entirely when `null` (a plain rule event). Its presence drives the dispatcher's synthetic `slo` label, the SLO default `group_by`, and tier auto-inhibition: see [define SLOs and burn-rate alerts](../how-to/define-slos-and-burn-rate-alerts.md). |
 
 ---
 
@@ -232,7 +232,7 @@ Rules of matching:
 
 - A **missing** label is treated as the empty string. So `severity ne critical`
   is *true* for an event with no `severity` label.
-- A list of matchers is combined with **AND** — all must match.
+- A list of matchers is combined with **AND**: all must match.
 - An **empty** matcher list matches **everything**.
 
 Matchers can target real labels or the **synthetic labels** the dispatcher injects
@@ -260,7 +260,7 @@ receivers reference them by name and never carry configs themselves.
 | `type`      | Fields                | Delivery target | Secret? |
 | ----------- | --------------------- | --------------- | ------- |
 | `webhook`   | `url`: string         | the URL         | no |
-| `slack`     | `url`: string         | the URL         | **yes** — redacted on read, encrypted at rest |
+| `slack`     | `url`: string         | the URL         | **yes**: redacted on read, encrypted at rest |
 | `email`     | `to`: string[]        | the recipients (comma-joined) | no (recipients are not treated as secret) |
 | `telegram`  | `bot_token`: string, `chat_ids`: string[] | bot token + chats | **yes** (`bot_token`): redacted on read, encrypted at rest |
 
@@ -300,8 +300,8 @@ A node in the ordered routing tree.
 
 | Field                 | Type             | Default                      | Meaning |
 | --------------------- | ---------------- | ---------------------------- | ------- |
-| `matchers`            | Matcher[]        | —                            | All must match for the route to apply. |
-| `receiver`            | string           | —                            | Receiver name. |
+| `matchers`            | Matcher[]        | none | All must match for the route to apply. |
+| `receiver`            | string           | none | Receiver name. |
 | `continue`            | bool             | `false`                      | Keep matching later routes after this one. |
 | `priority`            | i32              | `0`                          | Lower evaluated first. |
 | `group_by`            | string[] \| null | null → `["rule","severity"]` | Labels that define a notification group. |
@@ -333,7 +333,7 @@ keeping the **first** match's grouping parameters.
 The no-routes firehose destination.
 
 ```json
-{ "id": "<uuid>", "tenant": "<uuid>", "webhook_url": "https://…", "created_at": "<rfc3339>" }
+{ "id": "<uuid>", "tenant": "<uuid>", "webhook_url": "***", "created_at": "<rfc3339>" }
 ```
 
 When a tenant has no routes, every event is delivered immediately (one
@@ -347,15 +347,15 @@ A time-boxed suppression.
 
 | Field        | Type      | Default | Meaning |
 | ------------ | --------- | ------- | ------- |
-| `matchers`   | Matcher[] | —       | Event must match all (AND). Empty = match everything. |
-| `starts_at`  | datetime  | —       | Window start (inclusive). |
-| `ends_at`    | datetime  | —       | Window end (exclusive). Must be after `starts_at`. |
+| `matchers`   | Matcher[] | none | Event must match all (AND). Empty = match everything. |
+| `starts_at`  | datetime  | none | Window start (inclusive). |
+| `ends_at`    | datetime  | none | Window end (exclusive). Must be after `starts_at`. |
 | `comment`    | string    | `""`    | Free text. |
 | `author`     | string    | `""`    | Free text. |
 | `created_at` | datetime  | server  | Set on create. |
 
 Active when `starts_at <= now < ends_at`. An active, matching silence drops the
-event — **both firing and resolved**. Expired silences are garbage-collected ~24h
+event: **both firing and resolved**. Expired silences are garbage-collected ~24h
 after `ends_at`.
 
 ---
@@ -366,15 +366,15 @@ Suppress a target alert while a related source alert is firing.
 
 | Field             | Type      | Default | Meaning |
 | ----------------- | --------- | ------- | ------- |
-| `source_matchers` | Matcher[] | —       | Identifies the *source* (the alert that does the inhibiting). |
-| `target_matchers` | Matcher[] | —       | Identifies the *target* (the alert to suppress). |
+| `source_matchers` | Matcher[] | none | Identifies the *source* (the alert that does the inhibiting). |
+| `target_matchers` | Matcher[] | none | Identifies the *target* (the alert to suppress). |
 | `equal`           | string[]  | `[]`    | Labels that must be equal between a firing source and the target. |
 | `created_at`      | datetime  | server  | Set on create. |
 
 An event is **inhibited** when all of the following hold:
 
 1. Its labels match `target_matchers`, **and**
-2. some **firing** instance (a different instance — the self-inhibition guard
+2. some **firing** instance (a different instance: the self-inhibition guard
    excludes the event's own instance) matches `source_matchers`, **and**
 3. that source agrees with the target on every label listed in `equal` (a label
    missing on either side means no inhibition), **and**

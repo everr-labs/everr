@@ -1,6 +1,6 @@
 # The evaluation model and state machine
 
-This explains how a SQL query becomes alert state — the heart of clickety-clack's
+This explains how a SQL query becomes alert state: the heart of clickety-clack's
 correctness. Understanding it tells you exactly when an alert fires, stays quiet,
 or resolves.
 
@@ -48,7 +48,7 @@ On each evaluation, for each instance, the engine looks at whether the row is
 ### Row absent (condition no longer holds)
 - `inactive`: nothing to do.
 - `pending`: increment `absent_count`; once it reaches `resolve_after`, drop back
-  to `inactive` **silently** (no event — it never fired).
+  to `inactive` **silently** (no event: it never fired).
 - `firing`: increment `absent_count`; once it reaches `resolve_after`, **emit one
   `resolved` event** and return to `inactive`.
 
@@ -71,8 +71,8 @@ after it has genuinely cleared."
 
 The state machine guarantees (and proptest enforces):
 
-1. Never emit `firing` while already firing — one firing event per episode.
-2. Never emit `resolved` without a preceding `firing` — a pending flap that
+1. Never emit `firing` while already firing: one firing event per episode.
+2. Never emit `resolved` without a preceding `firing`: a pending flap that
    disappears makes no noise.
 3. `resolve_after` absorbs gaps: brief absences below the threshold are ignored.
 
@@ -84,7 +84,7 @@ of repeats.
 
 To resolve an alert, the evaluator must notice that a row that *used* to be there
 is now *gone*. So each evaluation doesn't just process the rows ClickHouse
-returned — it also loads the rule's known instances from Postgres and runs the
+returned: it also loads the rule's known instances from Postgres and runs the
 absent branch for any instance not in the current result. This is how a firing
 instance whose row vanished gets its `resolved` event.
 
@@ -111,24 +111,24 @@ ack mean "durably applied". A job whose store, Redis, or ClickHouse step fails
 committed no claim, so it stays pending and reclaim redelivers it for a clean
 retry instead of being consumed by a transient failure.
 
-## Rule health — a separate axis
+## Rule health: a separate axis
 
 The `inactive/pending/firing/resolved` machine above lives on **instances** (rows). It
-answers "is this thing alerting?" A different question — "is the rule's query even
-working?" — has no row to attach to: when the evaluation query *errors* (ClickHouse down,
+answers "is this thing alerting?" The different question "is the rule's query even
+working?" has no row to attach to. When the evaluation query *errors* (ClickHouse down,
 a dropped column, a timeout, a result-row cap, a misprovisioned per-tenant user), there is
 no result set to step the machine with.
 
 That is tracked on a second axis, on the **rule**: a `healthy ↔ degraded` status with a
 consecutive-failure counter. After `CC_RULE_DEGRADE_AFTER` consecutive query failures the
 rule goes **degraded** and emits a routable `rule_health` notification; the first success
-clears it and emits a recovery. This axis is independent of the instance machine — a
+clears it and emits a recovery. This axis is independent of the instance machine: a
 degraded rule's instances are simply **frozen** (the evaluator never runs the absence path
 on an error), so a broken query can never drain firing alerts to a false `resolved`.
 
 Crucially, the resolution safety net above is **suppressed for degraded rules**: their
 frozen instances are deliberately *not* auto-resolved, because we never learned their truth
-— reaping them would re-introduce the false all-clear from the other direction.
+reaping them would re-introduce the false all-clear from the other direction.
 
 ## See also
 

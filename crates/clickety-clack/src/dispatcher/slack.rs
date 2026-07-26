@@ -1,5 +1,5 @@
 use crate::dispatcher::notify::{
-    classify_status_429_transient, config_mismatch, default_http_client, Notification, Notifier,
+    classify_status_429_transient, config_mismatch, webhook_http_client, Notification, Notifier,
     NotifyError,
 };
 use crate::domain::channel::ChannelConfig;
@@ -96,20 +96,18 @@ pub fn build_slack_payload(notif: &Notification) -> Value {
 /// Slack incoming webhook (`ChannelConfig::Slack`). 2xx ok; 4xx permanent;
 /// else transient.
 pub struct SlackNotifier {
-    http: reqwest::Client,
+    allow_private: bool,
 }
 
 impl SlackNotifier {
-    pub fn new() -> Self {
-        Self {
-            http: default_http_client(),
-        }
+    pub fn new(allow_private: bool) -> Self {
+        Self { allow_private }
     }
 }
 
 impl Default for SlackNotifier {
     fn default() -> Self {
-        Self::new()
+        Self::new(false)
     }
 }
 
@@ -123,8 +121,8 @@ impl Notifier for SlackNotifier {
         let ChannelConfig::Slack { url } = config else {
             return Err(config_mismatch("slack", config));
         };
-        let resp = self
-            .http
+        let http = webhook_http_client(url, self.allow_private).await?;
+        let resp = http
             .post(url)
             .json(&build_slack_payload(notif))
             .send()

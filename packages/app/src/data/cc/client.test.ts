@@ -267,14 +267,14 @@ it("listSubscriptions GETs /v1/subscriptions and validates", async () => {
     {
       id: "sub1",
       tenant: "t",
-      webhook_url: "https://example.com/hook",
+      webhook_url: "***",
       created_at: "2026-06-14T12:00:00Z",
     },
   ];
   const spy = vi.spyOn(transport, "ccRequest").mockResolvedValue(subs);
   const out = await cc.listSubscriptions("org1");
   expect(spy).toHaveBeenCalledWith("org1", "GET", "/v1/subscriptions");
-  expect(out[0].webhook_url).toBe("https://example.com/hook");
+  expect(out[0].webhook_url).toBe("***");
   expect(out[0].created_at).toBe("2026-06-14T12:00:00Z");
 });
 

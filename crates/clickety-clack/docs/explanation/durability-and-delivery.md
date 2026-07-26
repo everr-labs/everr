@@ -16,14 +16,14 @@ end to end, made safe by idempotency and deduplication at every hand-off.**
   outcome is durable; a job whose Postgres, Redis, or ClickHouse step failed stays
   pending and is redelivered.
 
-These are achieved without distributed transactions across systems — only local
+These are achieved without distributed transactions across systems: only local
 Postgres transactions plus idempotent replay.
 
 ## The lost-publish problem and the outbox
 
 A naive evaluator would: update the instance in Postgres, then publish the event
 to Redis. If it crashes between those two steps, the state says "resolved" but no
-event was ever sent — a lost alert.
+event was ever sent: a lost alert.
 
 clickety-clack uses the **transactional outbox** pattern:
 
@@ -35,7 +35,7 @@ clickety-clack uses the **transactional outbox** pattern:
 If it crashes after commit but before publishing (or the publish fails), the
 outbox row survives. A **relay** in the maintenance loop periodically claims
 outbox rows older than a 5-second grace window and republishes them, deleting on
-success. So the event is published either by the inline path or by the relay —
+success. So the event is published either by the inline path or by the relay:
 never lost. The grace window keeps the relay from racing the normal inline
 publish.
 
@@ -69,7 +69,7 @@ idempotent.
 ## Reconciliation
 
 The outbox handles "the event was committed but not published." A different gap is
-"no evaluation ran at all" — e.g. the scheduler or evaluator was down, so a firing
+"no evaluation ran at all": e.g. the scheduler or evaluator was down, so a firing
 instance's row absence was never observed and it's stuck firing.
 
 The **reconciliation** sweep (also in the maintenance loop) handles this. It finds
@@ -86,7 +86,7 @@ recover quickly and slow rules aren't resolved prematurely.
 
 The third maintenance task deletes silences more than 24 hours past their
 `ends_at`, so the silences table doesn't grow forever. Its cadence is **wall-clock
-hourly** and tracked so it survives lease hand-offs — a new maintenance leader
+hourly** and tracked so it survives lease hand-offs: a new maintenance leader
 won't re-run GC early or skip it.
 
 ## The maintenance loop, together
@@ -108,13 +108,13 @@ Delivery itself is bounded, not infinite (see
 [the dispatch pipeline](dispatch-pipeline.md#retry-permanence-and-dead-lettering)):
 transient failures retry with backoff up to 4 attempts; permanent (4xx) failures
 don't retry. Anything that exhausts retries lands on the `cc:events:deadletter`
-stream — durable, inspectable, and recoverable, rather than dropped. A flush-time
+stream: durable, inspectable, and recoverable, rather than dropped. A flush-time
 secret-decrypt failure likewise dead-letters the batch (the group was already
 claimed from Redis) so the loss is observable.
 
 ## What this means for you
 
-- **Expect occasional reprocessing**, especially around restarts and failovers —
+- **Expect occasional reprocessing**, especially around restarts and failovers:
   it's normal and harmless.
 - **Treat the dead-letter stream as your delivery SLO signal.** A growing backlog
   means a channel is persistently failing; the events are safe but undelivered.
@@ -124,7 +124,7 @@ claimed from Redis) so the loss is observable.
 
 ## See also
 
-- [Operate at scale](../how-to/operate-at-scale.md) — monitoring these signals.
-- [The evaluation model](evaluation-model.md) — the idempotency ledger and absence
+- [Operate at scale](../how-to/operate-at-scale.md): monitoring these signals.
+- [The evaluation model](evaluation-model.md): the idempotency ledger and absence
   path.
 - [Tunables](../reference/tunables.md#maintenance-outbox-relay-reconciliation-silence-gc).

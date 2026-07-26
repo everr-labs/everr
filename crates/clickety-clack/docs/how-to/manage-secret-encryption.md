@@ -57,7 +57,7 @@ env -u CC_SECRET_KEYS CC_ROLE=api CC_SECRET_PROVIDER=env ./cc; echo "exit=$?"
 # exit=1
 ```
 
-This is intentional — it guarantees secrets are never written or read in cleartext
+This is intentional: it guarantees secrets are never written or read in cleartext
 because a key was forgotten. Other fail-closed messages are listed in the
 [configuration reference](../reference/configuration.md#fail-closed-error-messages).
 
@@ -84,7 +84,7 @@ Rotation is graceful because old keys stay available for decryption:
    export CC_SECRET_KEYS="v2:NEW…=="
    ```
    If any ciphertext still references `v1` after you remove it, decryption of that
-   row fails (`unknown key id: v1`) — so retire conservatively.
+   row fails (`unknown key id: v1`), so retire conservatively.
 
 > **Never** remove a key id that produced ciphertext still in the database. The
 > safe order is always: add new → make active → re-encrypt → wait → remove old.
@@ -97,7 +97,7 @@ Rotation is graceful because old keys stay available for decryption:
 - **All roles need the keys.** The cipher is built before role selection, so even
   a scheduler-only process must have valid key vars.
 - **Audit log never holds the secret.** The `notifications.target` column stores a
-  one-way `sha256:` digest, and transport/error logs strip the URL — so logs and
+  one-way `sha256:` digest, and transport/error logs strip the URL, so logs and
   the audit trail are safe to ship to less-trusted systems. A flush-time decrypt
   failure dead-letters the batch (observable) rather than dropping it silently.
 - **What's *not* encrypted:** webhook channel URLs and email recipient addresses

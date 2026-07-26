@@ -1,7 +1,7 @@
 # The dispatch pipeline
 
 This explains what happens to an event between "the evaluator published it" and
-"a notification arrived" — every stage, in order, and why each exists.
+"a notification arrived": every stage, in order, and why each exists.
 
 ## The stages
 
@@ -24,13 +24,13 @@ collision.
 
 ### 1. Silence
 If any **active** silence (now within `[starts_at, ends_at)`) matches the labels,
-the event is **dropped** — both firing and resolved. Silences are operator-driven,
+the event is **dropped**: both firing and resolved. Silences are operator-driven,
 time-boxed muting. See [suppress with silences](../how-to/suppress-with-silences-and-inhibitions.md#silences).
 
 ### 2. Inhibition
-If an inhibition rule applies — the event matches a `target_matchers`, a different
+If an inhibition rule applies: the event matches a `target_matchers`, a different
 **firing** instance matches the `source_matchers`, they agree on the `equal`
-labels, and the event isn't itself a source — the event is **dropped**. This is
+labels, and the event isn't itself a source: the event is **dropped**. This is
 automatic, dependency-driven muting ("cluster down ⇒ hush the per-service
 warnings").
 
@@ -65,11 +65,11 @@ snapshots their events, resolves the receiver's channel names to their stored
 configs (a channel deleted in the meantime is skipped with an error log), and
 delivers them as one batched notification, fanned out to every resolved channel
 (a failing channel never blocks the others). Grouping is
-why a burst of related alerts becomes a single message — and why routed delivery
+why a burst of related alerts becomes a single message, and why routed delivery
 has a latency floor equal to `group_wait_secs`.
 
 ### 5. Deduplication
-Before delivery, a **dedup key** is computed per channel — for groups, over
+Before delivery, a **dedup key** is computed per channel: for groups, over
 `(group_id, channel name, sorted active event set)`, so each channel of a
 multi-channel receiver dedups independently while staying stable across config
 edits (rotating a hook never re-sends an identical active set); for the
@@ -81,12 +81,12 @@ twice; the dedup log ensures the notification is sent only once. A changed group
 ### 6. Delivery
 The notification is rendered for the channel and sent:
 
-- **webhook** — POST `{group_key, events:[…]}` (raw events, annotations included,
+- **webhook**: POST `{group_key, events:[…]}` (raw events, annotations included,
   no rendering).
-- **slack** — incoming-webhook message: a header plus one color-coded attachment
+- **slack**: incoming-webhook message: a header plus one color-coded attachment
   per event.
-- **email** — a plaintext SMTP message summarizing the group.
-- **telegram** — one `sendMessage` per chat id (HTML parse mode), truncated to
+- **email**: a plaintext SMTP message summarizing the group.
+- **telegram**: one `sendMessage` per chat id (HTML parse mode), truncated to
   Telegram's 4096-character `text` limit.
 
 For the rendered channels, alert events honor the rule's
@@ -99,21 +99,21 @@ Channel escaping is applied after substitution.
 
 Delivery results are classified:
 
-- **Success** (2xx / 202) — recorded as sent.
-- **Permanent** (4xx) — not retried; the event is dead-lettered after the attempt.
-- **Transient** (5xx, timeouts, connection errors, 429) — retried with
+- **Success** (2xx / 202): recorded as sent.
+- **Permanent** (4xx): not retried; the event is dead-lettered after the attempt.
+- **Transient** (5xx, timeouts, connection errors, 429): retried with
   deterministic exponential backoff (`50ms · 2^attempt`, capped 5s), up to 4
   attempts, then dead-lettered.
 
 Dead-lettered events go to the `cc:events:deadletter` stream for inspection and
 manual recovery. The audit trail (`notifications` table) records attempts and the
-last error — with any secret in the target stored only as a redacted digest.
+last error: with any secret in the target stored only as a redacted digest.
 
 ## Important properties and trade-offs
 
 - **At-ingest filtering only.** Silence/inhibition decisions are made when the
   event arrives. An event already buffered in a group before you create a silence
-  is *not* retro-silenced — it can still flush. Create silences ahead of the
+  is *not* retro-silenced: it can still flush. Create silences ahead of the
   window.
 - **Grouping is fan-out-safe.** Per-instance buffering plus a dedup key over the
   active set means redeliveries and overlapping flushes don't double-notify, and a

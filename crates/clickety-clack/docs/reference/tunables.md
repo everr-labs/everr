@@ -51,7 +51,7 @@ know the system's actual behavior without reading the source.
 | webhook    | ok  | permanent        | transient  | transient |
 | slack      | ok  | permanent        | transient  | transient |
 | telegram   | ok  | permanent        | transient  | transient |
-| email      | ok  | permanent (bad/empty recipients, at build) | — | transient (SMTP errors) |
+| email      | ok  | permanent (bad/empty recipients, at build) | none | transient (SMTP errors) |
 
 Permanent → not retried, goes straight to dead-letter after the attempt.
 Transient → retried up to the max-attempts limit, then dead-lettered.
@@ -73,7 +73,7 @@ Transient → retried up to the max-attempts limit, then dead-lettered.
 
 - **Delivery latency floor.** A routed alert is held for the group wait (default
   10s) before its first notification. If you need faster, lower `group_wait_secs`
-  on the route — not these constants.
+  on the route, not these constants.
 - **Resolve latency.** A crashed evaluator's firing alerts are auto-resolved by
   reconciliation only after `max(4 × interval_secs, 60s)` of silence, then on the
   next maintenance tick. Tighter `interval_secs` ⇒ faster auto-resolve.

@@ -47,31 +47,31 @@ guard. Return the label columns (and optionally a value column). The query shoul
 return **no rows** in the healthy state.
 
 > **Security.** Rule SQL is executed against ClickHouse and the in-app guard only
-> checks that it's a read-only `SELECT` — it does **not** stop a valid `SELECT`
+> checks that it's a read-only `SELECT`: it does **not** stop a valid `SELECT`
 > from reading other tables or reaching the network via table functions. If
 > tenants you don't fully trust can create rules, you **must**
-> [harden the ClickHouse user](harden-clickhouse-access.md) — that is the real
+> [harden the ClickHouse user](harden-clickhouse-access.md): that is the real
 > boundary.
 
 ### `interval_secs`
 The evaluation period. Drives both detection latency and ClickHouse load. Must be
 `> 0`. It also feeds the auto-resolve safety net: a rule that stops being
 evaluated has its firing instances reconciled to resolved after
-`max(4 × interval_secs, 60s)` — so very large intervals delay that safety net.
+`max(4 × interval_secs, 60s)`, so very large intervals delay that safety net.
 
 ### `for_secs` (the "for duration")
 How long the condition must hold *continuously* before firing. This is your
 anti-flap control:
 
-- `for_secs: 0` — fire on the first matching evaluation.
-- `for_secs: 60` with `interval_secs: 30` — must match ~2 evaluations in a row.
+- `for_secs: 0`: fire on the first matching evaluation.
+- `for_secs: 60` with `interval_secs: 30`: must match ~2 evaluations in a row.
 
 While waiting, the instance is `pending` (visible in `GET /v1/alerts`) but emits
 no event.
 
 ### `label_columns`
 The identity of an instance. Pick the columns that distinguish "different things
-that can alert independently" — usually `host`, `service`, `cluster`, etc.
+that can alert independently": usually `host`, `service`, `cluster`, etc.
 
 > Identity is derived from label **values**, hashed with the rule id. If you add
 > or remove a label column later, existing instances get new identities.
@@ -117,7 +117,7 @@ is applied after substitution.
 
 ### `resolve_after`
 Consecutive **absent** evaluations required to resolve a firing instance (default
-`1`). Raise it to tolerate gaps in your data — e.g. `resolve_after: 3` means three
+`1`). Raise it to tolerate gaps in your data: e.g. `resolve_after: 3` means three
 consecutive empty evaluations before the resolve fires. Must be `>= 1`.
 
 ### `max_interval_secs` (adaptive cadence)
@@ -200,7 +200,7 @@ So: `SELECT host, errors, p99_ms, top_path FROM ... WHERE errors > 100` with
 ## Test before you commit
 
 `POST /v1/rules/:id/test` evaluates a spec ad hoc against ClickHouse with **no
-state change and no events** — ideal for tuning the SQL and threshold:
+state change and no events**: ideal for tuning the SQL and threshold:
 
 ```bash
 curl -s -X POST localhost:8080/v1/rules/$RULE_ID/test \
@@ -245,7 +245,7 @@ curl -s -X POST localhost:8080/v1/rules/$RULE_ID/resume  -H "X-CC-Tenant: $TENAN
 ```
 
 Pause **freezes** state: evaluation (and the ClickHouse query) stops, currently
-firing instances stay firing, and **no `Resolved` is emitted** — so on-call is not
+firing instances stay firing, and **no `Resolved` is emitted**, so on-call is not
 told "all clear" for an unfixed problem. On resume, evaluation restarts and a real
 `Resolved` fires only if the condition has actually cleared; pending instances
 restart their for-duration clock.

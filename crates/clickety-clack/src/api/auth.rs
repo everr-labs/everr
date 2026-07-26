@@ -4,6 +4,7 @@ use axum::extract::{Request, State};
 use axum::http::{header, HeaderMap, HeaderValue};
 use axum::middleware::Next;
 use axum::response::{IntoResponse, Response};
+use sha2::{Digest, Sha256};
 use std::sync::Arc;
 use subtle::ConstantTimeEq;
 
@@ -42,7 +43,7 @@ impl Authenticator for HeaderAuth {
 
 /// One configured API key, optionally bound to a single tenant.
 struct KeyEntry {
-    key: String,
+    key_digest: [u8; 32],
     /// `Some` = requests with this key act as exactly this tenant.
     tenant: Option<TenantId>,
 }
@@ -82,6 +83,10 @@ pub struct ApiKeySet {
 }
 
 impl ApiKeySet {
+    fn digest(key: &str) -> [u8; 32] {
+        Sha256::digest(key.as_bytes()).into()
+    }
+
     /// Parse the raw `CC_API_KEYS` value. Entries are comma-separated;
     /// whitespace around entries is trimmed and empty entries are dropped.
     /// `None` (or a value with no non-empty entries) yields a disabled set.
@@ -98,12 +103,12 @@ impl ApiKeySet {
             configured = true;
             match item.rsplit_once('@') {
                 None => entries.push(KeyEntry {
-                    key: item.to_string(),
+                    key_digest: Self::digest(item),
                     tenant: None,
                 }),
                 Some((key, tenant_raw)) => match TenantId::parse(tenant_raw) {
                     Ok(tenant) if !key.is_empty() => entries.push(KeyEntry {
-                        key: key.to_string(),
+                        key_digest: Self::digest(key),
                         tenant: Some(tenant),
                     }),
                     _ => {
@@ -125,14 +130,14 @@ impl ApiKeySet {
         self.configured
     }
 
-    /// Constant-time membership check. Every configured entry is compared (no
-    /// early return on match) so timing reveals nothing about key contents or
-    /// which entry matched. On duplicate keys the first matching entry wins.
+    /// Constant-time membership check over fixed-size key digests. Every
+    /// configured entry is compared, so timing does not reveal key lengths,
+    /// contents, or which entry matched. On duplicate keys the first wins.
     fn check(&self, presented: &str) -> KeyMatch {
-        let presented = presented.as_bytes();
+        let presented = Self::digest(presented);
         let mut first_hit: Option<&KeyEntry> = None;
         for entry in self.entries.iter() {
-            let hit = bool::from(entry.key.as_bytes().ct_eq(presented));
+            let hit = bool::from(entry.key_digest.ct_eq(&presented));
             if hit && first_hit.is_none() {
                 first_hit = Some(entry);
             }

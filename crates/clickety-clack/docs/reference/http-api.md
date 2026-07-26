@@ -136,14 +136,14 @@ spec fields flattened beside it:
 
 | Field           | Type                  | Required | Default | Notes |
 | --------------- | --------------------- | -------- | ------- | ----- |
-| `name`          | string                | yes      | —       | The rule's first-class identity, unique per `(tenant, namespace)`; `409` on conflict. 1 to 128 chars of `[A-Za-z0-9_./-]` (`422` otherwise). |
+| `name`          | string                | yes      | none | The rule's first-class identity, unique per `(tenant, namespace)`; `409` on conflict. 1 to 128 chars of `[A-Za-z0-9_./-]` (`422` otherwise). |
 | `namespace`     | string                | no       | `""`    | Identity scope: `""` is the live namespace; consumers stamp preview ids here. At most 128 chars of `[A-Za-z0-9_.-]`. |
-| `sql`           | string                | yes      | —       | Read-only `SELECT`, validated by `cc_sqlguard`. Non-SELECT is rejected `422`. |
-| `interval_secs` | u32                   | yes      | —       | Must be `> 0` (`422` otherwise). Evaluation period. |
-| `for_secs`      | u32                   | yes      | —       | For-duration before firing. `0` fires immediately. |
-| `label_columns` | string[]              | yes      | —       | Result columns forming instance identity. |
+| `sql`           | string                | yes      | none | Read-only `SELECT`, validated by `cc_sqlguard`. Non-SELECT is rejected `422`. |
+| `interval_secs` | u32                   | yes      | none | Must be `> 0` (`422` otherwise). Evaluation period. |
+| `for_secs`      | u32                   | yes      | none | For-duration before firing. `0` fires immediately. |
+| `label_columns` | string[]              | yes      | none | Result columns forming instance identity. |
 | `value_column`  | string                | no       | null    | Numeric column carried as the instance value. |
-| `severity`      | enum                  | yes      | —       | `info` \| `warning` \| `critical`. |
+| `severity`      | enum                  | yes      | none | `info` \| `warning` \| `critical`. |
 | `annotations`   | object<string,string> | no       | `{}`    | Free-form metadata, passed through onto events. |
 | `resolve_after` | u32                   | no       | `1`     | Consecutive absent evaluations required to resolve. Must be `>= 1` (`422` otherwise). |
 | `max_interval_secs` | u32 \| null       | no       | null    | Opt-in adaptive cadence: cap for the stretched evaluation interval. Must be `>= interval_secs` (`422` otherwise). While set, each quiet evaluation (no rows, nothing pending or firing) doubles the effective interval from `interval_secs` up to this cap; any active or erroring evaluation snaps it back to `interval_secs`. Null (the default) keeps the fixed cadence. Accepted by `POST /v1/rules`, `PUT /v1/rules/:id`, and `POST /v1/rules/:id/test`; returned when set. See [write alert rules](../how-to/write-alert-rules.md#max_interval_secs-adaptive-cadence). |
@@ -155,7 +155,7 @@ spec fields flattened beside it:
 { "id": "<uuid>", "tenant": "<uuid>", "spec": { … }, "version": 1, "paused": false }
 ```
 
-The response includes a `paused` boolean — an operational flag (not part of
+The response includes a `paused` boolean: an operational flag (not part of
 `spec`; toggling it does not affect `version`).
 
 ### Listing rules
@@ -279,12 +279,12 @@ for how to write one.
 
 | Field              | Type                  | Required | Default | Notes |
 | ------------------ | --------------------- | -------- | ------- | ----- |
-| `name`             | string                | yes      | —       | The SLO's first-class identity, unique per `(tenant, namespace)`; `409` on conflict. 1 to 128 chars of `[A-Za-z0-9_./-]` (`422` otherwise). |
+| `name`             | string                | yes      | none | The SLO's first-class identity, unique per `(tenant, namespace)`; `409` on conflict. 1 to 128 chars of `[A-Za-z0-9_./-]` (`422` otherwise). |
 | `namespace`        | string                | no       | `""`    | Identity scope: `""` is the live namespace; consumers stamp preview ids here. At most 128 chars of `[A-Za-z0-9_.-]`. |
-| `sli.sql`          | string                | yes      | —       | Read-only `SELECT` returning `good`/`valid` numeric columns; must reference both `{window_start:DateTime}` and `{window_end:DateTime}` (`422` otherwise). |
+| `sli.sql`          | string                | yes      | none | Read-only `SELECT` returning `good`/`valid` numeric columns; must reference both `{window_start:DateTime}` and `{window_end:DateTime}` (`422` otherwise). |
 | `sli.label_columns`| string[]              | no       | `[]`    | Result columns that fan the SLO into per-group SLIs. May not start with the reserved `__cc_` prefix (`422`). |
-| `targetPercent`    | f64                   | yes      | —       | Objective, e.g. `99.9`. Must be `> 0` and `< 100` (`422` otherwise). |
-| `timeWindow.duration` | string             | yes      | —       | Rolling-window shorthand (`m`/`h`/`d`/`w`), capped at 366 days (`422` over the cap). |
+| `targetPercent`    | f64                   | yes      | none | Objective, e.g. `99.9`. Must be `> 0` and `< 100` (`422` otherwise). |
+| `timeWindow.duration` | string             | yes      | none | Rolling-window shorthand (`m`/`h`/`d`/`w`), capped at 366 days (`422` over the cap). |
 | `timeWindow.isRolling` | bool              | no       | `true`  | v1 supports rolling only; `false` (or a non-null `timeWindow.calendar`) is rejected `422`. |
 | `timeWindow.calendar` | object \| null    | no       | `null`  | Reserved for a future calendar-aligned window; must be omitted/`null` in v1. |
 | `min_valid_events` | u64 \| null           | no       | `null`  | Floor on the long window's `valid` count below which no tier can fire. `null` = off. |
@@ -303,7 +303,7 @@ part of `spec`, and does not affect `version`.
 ### Updating an SLO
 
 `PUT /v1/slos/:id` takes the full body above (same validation as create) plus
-one optional top-level field, `version` (i64) — an optimistic-concurrency
+one optional top-level field, `version` (i64): an optimistic-concurrency
 guard: must equal the stored `version`, else `409 conflict` and nothing is
 written. Omit for last-write-wins. `name` conflicts with another SLO in the
 tenant yield `409`.
@@ -343,13 +343,13 @@ tenant yield `409`.
 ```
 
 `payload.groups[*].time_to_exhaustion_secs` and `.firing_tiers` are computed at
-**read time only** from the stored snapshot plus the live `slo_instances` rows
-— they are never persisted. If the stored snapshot fails to deserialize into
+**read time only** from the stored snapshot plus the live `slo_instances` rows;
+they are never persisted. If the stored snapshot fails to deserialize into
 the current shape, it is returned verbatim without this enrichment rather than
 erroring. `health` has the same
 `status`/`degraded_since`/`last_error` shape as
 [rule health](../how-to/observe-degraded-rules.md#inspect-health-via-the-api)
-and reuses `CC_RULE_DEGRADE_AFTER` as its degrade threshold — SLOs have no
+and reuses `CC_RULE_DEGRADE_AFTER` as its degrade threshold: SLOs have no
 separate health-config knob.
 
 ---
@@ -421,9 +421,9 @@ address across DIFFERENT channels stays allowed. `config` is a tagged union on
 
 ### Redaction on read
 
-`GET` responses mask secrets in `config`: `slack.url` → `"***"`,
-`telegram.bot_token` → `"***"`.
-`webhook.url`, `email.to`, and `telegram.chat_ids` are returned as stored.
+`GET` responses mask secrets in `config`: `webhook.url`, `slack.url`, and
+`telegram.bot_token` are returned as `"***"`.
+`email.to` and `telegram.chat_ids` are returned as stored.
 Secrets are also [encrypted at rest](../explanation/security-model.md);
 redaction is the read-API layer on top.
 
@@ -504,8 +504,8 @@ receiver(s).
 
 | Field                 | Type                | Required | Default | Notes |
 | --------------------- | ------------------- | -------- | ------- | ----- |
-| `matchers`            | Matcher[]           | yes      | —       | All must match (AND). Empty list matches everything. |
-| `receiver`            | string              | yes      | —       | Receiver name. Must not be empty, and must already exist (`422` with `detail` naming it, e.g. `unknown receiver: oncall`). |
+| `matchers`            | Matcher[]           | yes      | none | All must match (AND). Empty list matches everything. |
+| `receiver`            | string              | yes      | none | Receiver name. Must not be empty, and must already exist (`422` with `detail` naming it, e.g. `unknown receiver: oncall`). |
 | `continue`            | bool                | no       | `false` | If true, keep evaluating later routes after this match. |
 | `priority`            | i32                 | no       | `0`     | Lower is evaluated first. |
 | `group_by`            | string[] \| null    | no       | null → `["rule","severity"]` | Labels that define a group. |
@@ -530,7 +530,7 @@ every event immediately, one notification per event, to every subscription.
 | Method & path                  | Description |
 | ------------------------------ | ----------- |
 | `POST /v1/subscriptions`       | Register a webhook URL. Body: `{ "webhook_url": "https://…" }`. |
-| `GET /v1/subscriptions`        | List this tenant's subscriptions (sorted by creation time). Unpaginated; bounded by tenant scale. |
+| `GET /v1/subscriptions`        | List this tenant's subscriptions with `webhook_url` masked (sorted by creation time). Unpaginated; bounded by tenant scale. |
 | `DELETE /v1/subscriptions/:id` | Delete a subscription by UUID. Unknown id or another tenant's id yields `404`. |
 
 Webhook URLs are validated at create time (`422` on failure): the scheme must
@@ -538,10 +538,10 @@ be `http` or `https`, the URL must have a host and no userinfo, and the target
 must not be `localhost` or an IP literal in a private, loopback, link-local, or
 metadata range (10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 127.0.0.0/8,
 169.254.0.0/16, 0.0.0.0/8, ::1, ::, fc00::/7, fe80::/10, and IPv4-mapped forms
-of the blocked v4 ranges). The same rules apply to `webhook` receiver channels.
-Non-IP hostnames (internal DNS, compose service names) are allowed; blocking
-names that *resolve* to internal addresses is a deployment-level egress-policy
-concern, since a create-time DNS check is defeated by rebinding. Set
+of the blocked v4 ranges). The same rules apply to generic webhook and Slack
+channels. At delivery time the dispatcher repeats validation, resolves domain
+names, rejects the target if any result is internal, pins approved addresses,
+and refuses redirects. Set
 `CC_ALLOW_PRIVATE_WEBHOOKS=1` (dev only) to allow private targets; see
 [configuration](configuration.md#http-api-authentication).
 
@@ -550,7 +550,7 @@ Create response (list elements have the same shape):
 ```json
 {
   "id": "<uuid>", "tenant": "<uuid>",
-  "webhook_url": "https://…", "created_at": "2026-06-14T12:00:00Z"
+  "webhook_url": "***", "created_at": "2026-06-14T12:00:00Z"
 }
 ```
 

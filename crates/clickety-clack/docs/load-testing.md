@@ -30,7 +30,7 @@ cargo test --release --test load_dispatcher -- --ignored --nocapture
   state**: workers hold a persistent health map warmed by an untimed pass, so the measured
   pass skips the `record_rule_success` round-trip (as the long-running evaluator does) rather
   than paying the cold-start cost once per rule. The measured pass re-evaluates already-firing
-  rows, so there are no status transitions — it excludes per-transition event publish + outbox
+  rows, so there are no status transitions: it excludes per-transition event publish + outbox
   cost (which `NoopBus` also isolates) and reflects the no-transition steady state.
 - **dispatcher-ingest** -> `events/sec`: consume -> route -> group-buffer into Redis.
 - **dispatcher-flush** -> `deliveries/sec`, `groups/sec`: claim_due -> take_group -> decrypt ->

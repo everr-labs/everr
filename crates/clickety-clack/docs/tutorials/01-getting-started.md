@@ -12,7 +12,7 @@ hardening. For production wiring see the
 ## What you will need
 
 - The clickety-clack repository checked out, with the Rust toolchain it pins
-  (1.94.1 — `rustup` installs it automatically from `rust-toolchain.toml`).
+  (1.94.1: `rustup` installs it automatically from `rust-toolchain.toml`).
 - **PostgreSQL**, **Redis**, and **ClickHouse** reachable locally. The defaults
   expect:
   - Postgres at `postgres://postgres:postgres@127.0.0.1:5432/postgres`
@@ -29,10 +29,10 @@ echo "Acting as tenant: $TENANT"
 > the `X-CC-Tenant` header. There is no login; the header *is* the identity in
 > this build.
 
-## Step 1 — Provide a key and start the engine
+## Step 1: Provide a key and start the engine
 
 clickety-clack encrypts delivery secrets at rest and **refuses to start** without
-a key (this is deliberate — see the [security model](../explanation/security-model.md)).
+a key (this is deliberate: see the [security model](../explanation/security-model.md)).
 For the tutorial we generate one throwaway 256-bit key and register it as the
 active key:
 
@@ -55,14 +55,14 @@ a second terminal (re-export `TENANT` there).
 > If it exits immediately with `CC_SECRET_KEYS required for env provider`, the
 > key variables above are not set in the shell that launched it.
 
-## Step 2 — Check it is alive
+## Step 2: Check it is alive
 
 ```bash
 curl -s localhost:8080/healthz   # => ok
 curl -s localhost:8080/readyz    # => ok
 ```
 
-## Step 3 — Create an alert rule
+## Step 3: Create an alert rule
 
 A rule is a SQL `SELECT` against ClickHouse plus the metadata that turns its
 result rows into alert instances. This one fires when any host's error rate
@@ -87,14 +87,14 @@ What each field means:
 - `name` is the rule's stable identity, unique per tenant and namespace (this one
   leaves `namespace` at its default `""`). Creating a second rule with the same
   name is a `409`.
-- `sql` — the query. It must be a read-only `SELECT` (validated on the way in).
-- `interval_secs` — evaluate every 30 seconds.
-- `for_secs` — the condition must hold continuously for 60 seconds before the
+- `sql`: the query. It must be a read-only `SELECT` (validated on the way in).
+- `interval_secs`: evaluate every 30 seconds.
+- `for_secs`: the condition must hold continuously for 60 seconds before the
   alert actually fires (this is the "for duration"; set `0` to fire immediately).
-- `label_columns` — the `host` column identifies *which* instance each row is.
+- `label_columns`: the `host` column identifies *which* instance each row is.
   Two rows with different `host` values are two independent alerts.
-- `value_column` — carry `errors` along as the numeric value.
-- `severity` — one of `info`, `warning`, `critical`.
+- `value_column`: carry `errors` along as the numeric value.
+- `severity`: one of `info`, `warning`, `critical`.
 
 The response echoes the stored rule including its server-assigned `id`. Save it:
 
@@ -102,7 +102,7 @@ The response echoes the stored rule including its server-assigned `id`. Save it:
 export RULE_ID=...   # the "id" from the response
 ```
 
-## Step 4 — Watch the alert state
+## Step 4: Watch the alert state
 
 In your second terminal, poll the alert list. It returns every pending/firing
 instance for your tenant:
@@ -119,7 +119,7 @@ seconds; when the rows drop below the threshold, the instance leaves the list.
 > into ClickHouse that matches the `WHERE` clause to drive it, or adjust the SQL
 > to something you can control.
 
-## Step 5 — Deliver to a receiver instead of just watching
+## Step 5: Deliver to a receiver instead of just watching
 
 Polling is handy for humans, but real delivery goes through **channels**,
 **receivers**, and **routes**. Create a webhook channel (use any URL you can
@@ -162,7 +162,7 @@ travel as one batch, held briefly before the first send (10 seconds). See
 > `POST /v1/subscriptions`. Subscriptions are the zero-config path; routes are the
 > real one.
 
-## Step 6 — Silence it while you work
+## Step 6: Silence it while you work
 
 Suppose you are doing maintenance on `host=web-1` and don't want pages. Create a
 silence that suppresses anything labelled `host=web-1` for the next hour:
@@ -179,7 +179,7 @@ curl -s -X POST localhost:8080/v1/silences \
   }'
 ```
 
-While the silence is active, matching events are dropped before delivery — both
+While the silence is active, matching events are dropped before delivery: both
 firing *and* resolved. (Adjust the timestamps to span "now".)
 
 ## What you built

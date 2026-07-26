@@ -79,28 +79,42 @@ pub struct EmailNotifier {
 }
 
 impl EmailNotifier {
-    /// Build a notifier against a plaintext SMTP relay (no TLS). Optional credentials.
+    /// Build a notifier using required STARTTLS (`starttls`), implicit TLS
+    /// (`tls`), or explicitly insecure plaintext (`none`).
     pub fn new(
         host: &str,
         port: u16,
         from: &str,
         username: Option<&str>,
         password: Option<&str>,
-    ) -> Self {
-        // builder_dangerous: plaintext connection (relay reachable on a trusted network
-        // or a local test server such as Mailpit). TLS relays are a later refinement.
-        let mut builder = AsyncSmtpTransport::<Tokio1Executor>::builder_dangerous(host).port(port);
-        if let (Some(u), Some(p)) = (username, password) {
-            builder =
-                builder.credentials(lettre::transport::smtp::authentication::Credentials::new(
-                    u.to_string(),
-                    p.to_string(),
-                ));
+        tls: &str,
+    ) -> anyhow::Result<Self> {
+        let mut builder = match tls.trim().to_ascii_lowercase().as_str() {
+            "starttls" => AsyncSmtpTransport::<Tokio1Executor>::starttls_relay(host)?,
+            "tls" => AsyncSmtpTransport::<Tokio1Executor>::relay(host)?,
+            "none" => AsyncSmtpTransport::<Tokio1Executor>::builder_dangerous(host),
+            other => {
+                anyhow::bail!("CC_SMTP_TLS must be 'starttls', 'tls', or 'none' (got {other:?})")
+            }
         }
-        Self {
+        .port(port);
+        match (username, password) {
+            (Some(u), Some(p)) => {
+                builder =
+                    builder.credentials(lettre::transport::smtp::authentication::Credentials::new(
+                        u.to_string(),
+                        p.to_string(),
+                    ));
+            }
+            (None, None) => {}
+            _ => anyhow::bail!(
+                "CC_SMTP_USER and CC_SMTP_PASSWORD must either both be set or both be unset"
+            ),
+        }
+        Ok(Self {
             transport: builder.build(),
             from: from.to_string(),
-        }
+        })
     }
 }
 
@@ -197,5 +211,14 @@ mod tests {
         let err =
             build_email_message("from@x.test", &[], &Notification::single(&ev())).unwrap_err();
         assert!(matches!(err, NotifyError::Permanent(_)));
+    }
+
+    #[test]
+    fn smtp_transport_rejects_invalid_tls_mode_and_partial_credentials() {
+        assert!(EmailNotifier::new("smtp.test", 25, "a@x.test", None, None, "optional").is_err());
+        assert!(
+            EmailNotifier::new("smtp.test", 587, "a@x.test", Some("user"), None, "starttls",)
+                .is_err()
+        );
     }
 }

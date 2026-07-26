@@ -43,7 +43,7 @@ async fn subscriptions_create_list_delete_round_trip() {
     assert_eq!(resp.status(), StatusCode::OK);
     let created = body_json(resp).await;
     let id_a = created["id"].as_str().unwrap().to_string();
-    assert_eq!(created["webhook_url"], "https://example.com/hook-a");
+    assert_eq!(created["webhook_url"], "***");
     assert!(
         created["created_at"].as_str().unwrap().contains('T'),
         "created_at must be an RFC 3339 string, got {}",
@@ -61,7 +61,7 @@ async fn subscriptions_create_list_delete_round_trip() {
         .unwrap();
     assert_eq!(resp.status(), StatusCode::OK);
 
-    // List returns both, decrypted, with id + webhook_url + created_at.
+    // List returns both with the secret URL masked.
     let resp = app
         .clone()
         .oneshot(req("GET", "/v1/subscriptions", tenant, None))
@@ -75,8 +75,7 @@ async fn subscriptions_create_list_delete_round_trip() {
         .iter()
         .map(|s| s["webhook_url"].as_str().unwrap())
         .collect();
-    assert!(urls.contains(&"https://example.com/hook-a"));
-    assert!(urls.contains(&"https://example.com/hook-b"));
+    assert_eq!(urls, vec!["***", "***"]);
     for s in arr {
         assert!(s["id"].as_str().is_some());
         assert!(s["created_at"].as_str().unwrap().contains('T'));

@@ -23,7 +23,7 @@ that matches what you are trying to do:
 
 *Learning-oriented. Start here if you are new.*
 
-- [Getting started](tutorials/01-getting-started.md) — bring up the dependencies,
+- [Getting started](tutorials/01-getting-started.md): bring up the dependencies,
   run the engine, create your first rule, route it to a webhook, and watch it
   fire and resolve.
 

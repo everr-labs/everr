@@ -359,18 +359,26 @@ async fn main() -> anyhow::Result<()> {
 
     if run("dispatcher") {
         let mut reg = Notifiers::new().with_engine_metrics(engine_metrics.clone());
-        reg.register(Arc::new(WebhookNotifier::new()));
-        reg.register(Arc::new(SlackNotifier::new()));
+        reg.register(Arc::new(WebhookNotifier::new(cfg.allow_private_webhooks)));
+        reg.register(Arc::new(SlackNotifier::new(cfg.allow_private_webhooks)));
         reg.register(Arc::new(TelegramNotifier::new()));
         if let Some(smtp) = cfg.smtp.clone() {
-            reg.register(Arc::new(EmailNotifier::new(
+            let email = EmailNotifier::new(
                 &smtp.host,
                 smtp.port,
                 &smtp.from,
                 smtp.username.as_deref(),
                 smtp.password.as_deref(),
-            )));
-            tracing::info!(host = %smtp.host, "email channel enabled");
+                &smtp.tls,
+            )?;
+            if smtp.tls.trim().eq_ignore_ascii_case("none") {
+                tracing::warn!(
+                    host = %smtp.host,
+                    "CC_SMTP_TLS=none: SMTP traffic is unencrypted (dev only)"
+                );
+            }
+            reg.register(Arc::new(email));
+            tracing::info!(host = %smtp.host, tls = %smtp.tls, "email channel enabled");
         } else {
             tracing::info!("email channel disabled (set CC_SMTP_HOST to enable)");
         }

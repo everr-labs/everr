@@ -480,7 +480,7 @@ pub async fn dispatch_infra() -> DispatchInfra {
 /// more override individual fields with struct-update syntax.
 pub fn dispatch_ctx(infra: &DispatchInfra) -> DispatchCtx {
     let mut reg = Notifiers::new();
-    reg.register(Arc::new(WebhookNotifier::new()));
+    reg.register(Arc::new(WebhookNotifier::new(true)));
     DispatchCtx {
         store: infra.store.clone(),
         bus: infra.bus.clone(),

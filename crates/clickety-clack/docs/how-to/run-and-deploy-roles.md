@@ -124,15 +124,15 @@ processing is safe.
 
 ## Rolling upgrades: SLO awareness on the dispatcher
 
-The dispatcher's SLO-aware behavior — the synthetic `slo` label, the auto-
+The dispatcher's SLO-aware behavior: the synthetic `slo` label, the auto-
 provisioned tier inhibitions that stop a burn from paging on all three tiers
-at once, and the `slo`-first default `group_by` for SLO events — all depend on
+at once, and the `slo`-first default `group_by` for SLO events: all depend on
 the dispatcher binary knowing about an event's `slo` field. During a rolling
 upgrade where evaluator and dispatcher replicas are on mixed versions, a
 **previous-version dispatcher replica simply doesn't know the field exists**:
 it deserializes the event fine (unknown/absent fields don't break
 deserialization) but treats every SLO tier-firing event exactly like a rule
-event —
+event:
 
 - no synthetic `slo` label is added, so route/silence/inhibition matchers on
   `slo` never match against it there;
@@ -143,7 +143,7 @@ event —
   the SLO's `["slo", ...group labels]` default (an explicit route `group_by`
   is unaffected either way).
 
-None of this corrupts state — it's a temporary loss of the SLO-specific
+None of this corrupts state: it's a temporary loss of the SLO-specific
 notification shaping, not a data-loss or evaluation-correctness issue, and it
 self-resolves as soon as that replica is upgraded.
 
@@ -164,5 +164,5 @@ SIGKILL) for clean shutdown.
 The `api` role exposes `GET /healthz` (liveness) and `GET /readyz` (readiness),
 both returning `ok` with no auth. Point your orchestrator's probes at these. The
 non-api roles have no HTTP surface; supervise them by process liveness and by
-watching their work (queue depth, lease ownership) — see
+watching their work (queue depth, lease ownership): see
 [Operate at scale](operate-at-scale.md#what-to-monitor).

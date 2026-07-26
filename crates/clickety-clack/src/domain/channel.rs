@@ -2,7 +2,7 @@ use crate::domain::ids::TenantId;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-/// A delivery channel binding. The secret-bearing variants (Slack, Telegram)
+/// A delivery channel binding. The secret-bearing variants (webhook, Slack, Telegram)
 /// are redacted on API read via [`ChannelConfig::redacted`]. Email recipients
 /// live here; the SMTP relay itself is process-level config held by the
 /// EmailNotifier.
@@ -42,12 +42,9 @@ impl ChannelConfig {
     /// the exhaustive match forces the edit.
     pub fn secret_fields(&self) -> SecretFields {
         match self {
-            // Webhook URLs can carry auth tokens, so they are encrypted at rest,
-            // but the URL IS the user-facing config (shown in the channel list),
-            // so it stays readable on API responses.
             ChannelConfig::Webhook { .. } => SecretFields {
                 encrypted: &["url"],
-                masked: &[],
+                masked: &["url"],
             },
             ChannelConfig::Slack { .. } => SecretFields {
                 encrypted: &["url"],
@@ -92,8 +89,7 @@ pub struct SecretFields {
     /// Fields stored as encryption envelopes at rest by the crypto codec. Every
     /// secret field must be a JSON string in the serde form.
     pub encrypted: &'static [&'static str],
-    /// Fields masked to `"***"` on API read. A subset of `encrypted`; webhook
-    /// URLs are the deliberate gap (encrypted at rest, readable on the API).
+    /// Fields masked to `"***"` on API read. A subset of `encrypted`.
     pub masked: &'static [&'static str],
 }
 
@@ -171,7 +167,10 @@ mod tests {
         let wh = ChannelConfig::Webhook {
             url: "http://x.test/h".into(),
         };
-        assert_eq!(wh.redacted(), wh);
+        match wh.redacted() {
+            ChannelConfig::Webhook { url } => assert_eq!(url, "***"),
+            _ => panic!("kind changed"),
+        }
     }
 
     #[test]

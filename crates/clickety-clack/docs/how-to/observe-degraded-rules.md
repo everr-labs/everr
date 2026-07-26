@@ -2,7 +2,7 @@
 
 An alerting engine has a blind spot of its own: if a rule's evaluation **query** keeps
 failing, that rule silently stops producing truthful results. clickety-clack surfaces this
-as a first-class, routable signal — **rule health** — so on-call finds out.
+as a first-class, routable signal called **rule health**, so on-call finds out.
 
 For *why* this is a separate axis from the alert state machine, see
 [the evaluation model](../explanation/evaluation-model.md#rule-health--a-separate-axis).
@@ -16,14 +16,14 @@ evaluation-query failures. Causes include:
 - A `SELECT` referencing a dropped or renamed column or table (schema drift).
 - A result-row cap hit (`max_result_rows` with `result_overflow_mode='throw'`).
 - In per-tenant auth (`derived`/`map` mode), a tenant whose ClickHouse user was never
-  provisioned — every evaluation auth-fails. See
+  provisioned: every evaluation auth-fails. See
   [harden ClickHouse access](harden-clickhouse-access.md).
 
 A single blip does not page: the rule must fail `CC_RULE_DEGRADE_AFTER` times in a row.
 The **first** successful evaluation clears the degraded state and emits a recovery.
 
-While degraded, the rule's existing alert instances are **frozen** — never evaluated
-against absent rows, and never auto-resolved by the stale-instance sweep — so a broken
+While degraded, the rule's existing alert instances are **frozen**: never evaluated
+against absent rows, and never auto-resolved by the stale-instance sweep, so a broken
 query cannot produce a false all-clear.
 
 ## Route degraded notifications to on-call
@@ -47,12 +47,12 @@ with the query error) or `Rule <id> recovered`.
 ## Tune the notification cadence
 
 Health events flow through the same grouping as data alerts, and grouping is **load-bearing**
-here: when ClickHouse is unreachable, *every* rule degrades at once — grouping collapses that
+here. When ClickHouse is unreachable, *every* rule degrades at once, and grouping collapses that
 into a single "N rules degraded" notification instead of one email per rule. So you want
 grouping on, just tuned for health.
 
 The catch with the defaults: a group's first notification fires after `group_wait` (prompt),
-but every *subsequent* change to that group — including the **recovery** — fires only at the
+but every *subsequent* change to that group, including the **recovery**, fires only at the
 next `group_interval` tick (default **300s**). That's standard Alertmanager behaviour, but it
 means a recovered rule can take up to 5 minutes to send its all-clear. For an operational
 health signal you usually want the recovery to track your fix more closely.
@@ -71,14 +71,14 @@ Set the cadence on the route rather than in the engine:
 
 The two knobs:
 
-- **`group_interval_secs`** — lower means prompter recovery, but more frequent re-pages during
-  a sustained outage. **30–60s** is a good range for health.
-- **`group_by`** — `["kind"]` batches all health into one notification (best for a mass outage);
+- **`group_interval_secs`**: lower means prompter recovery, but more frequent re-pages during
+  a sustained outage. **30 to 60s** is a good range for health.
+- **`group_by`**: `["kind"]` batches all health into one notification (best for a mass outage);
   `["rule"]` isolates each rule (prompter per-rule, but an outage fans out to one per rule).
 
 ## Silence health notifications
 
-A degraded rule you already know about can be muted like any other alert — with a silence
+A degraded rule you already know about can be muted like any other alert: with a silence
 matching `kind="rule_health"` (optionally narrowed by `rule=<id>`):
 
 ```json
@@ -119,13 +119,13 @@ The filter accepts `degraded` or `healthy`; any other value returns `422`.
 ## Respond
 
 1. Read `last_error` on the degraded rule to see the failure.
-2. Fix the cause — restore ClickHouse, repair the SQL after a schema change, provision the
+2. Fix the cause: restore ClickHouse, repair the SQL after a schema change, provision the
    tenant's ClickHouse user, or widen a too-tight result cap.
 3. The next successful evaluation flips the rule back to `healthy` and sends a recovery
    notification. The rule's frozen alert instances resume normal evaluation; a recovery does
-   **not** retroactively resolve them — their truth is re-established by the next evaluation.
+   **not** retroactively resolve them: their truth is re-established by the next evaluation.
 
 ## Related configuration
 
-- `CC_RULE_DEGRADE_AFTER` — failures before degrading. See
+- `CC_RULE_DEGRADE_AFTER`: failures before degrading. See
   [configuration](../reference/configuration.md#rule-health).

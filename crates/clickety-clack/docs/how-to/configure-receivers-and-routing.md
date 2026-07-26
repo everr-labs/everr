@@ -36,7 +36,7 @@ The dispatcher POSTs `{ "group_key": …, "events": [ … ] }` to the URL.
 ```
 
 Renders an incoming-webhook message: a header line (`:rotating_light: [FIRING]
-critical — <headline>`, or `[N alerts] <group_key>` for a batch) plus one
+critical: <headline>`, or `[N alerts] <group_key>` for a batch) plus one
 color-coded attachment per event (red firing, green resolved) with the labels,
 severity, and instance as fields. The headline is the rule's substituted
 `summary` annotation when set (the instance key otherwise); a `description`
@@ -146,7 +146,7 @@ fully anchored). A missing label reads as empty string.
   considered (fan-out to multiple receivers). Duplicate receivers are collapsed,
   keeping the first match's grouping parameters.
 
-A common shape — page criticals, Slack everything, with a catch-all:
+A common shape: page criticals, Slack everything, with a catch-all:
 
 ```jsonc
 // priority 0: criticals to the oncall receiver, keep going
@@ -168,7 +168,7 @@ Four per-route knobs (all optional, with defaults):
 | `group_interval_secs` | `300`                  | Minimum spacing between subsequent sends for the same group. |
 | `repeat_interval_secs` | none                  | Re-send a reminder for still-firing alerts after this long (min 60). Unset = never remind, the classic "notify on change only" behavior. |
 
-Example — group page-outs per cluster, send fast, then at most every minute:
+Example: group page-outs per cluster, send fast, then at most every minute:
 
 ```bash
 -d '{ "matchers": [{"label":"severity","op":"eq","value":"critical"}],
@@ -243,7 +243,7 @@ subscriptions are no longer used for that tenant.
 ## 6. Verify delivery
 
 - Every delivery attempt is logged in the `notifications` table (status
-  pending/sent/failed, attempt count, last error — with the secret target stored
+  pending/sent/failed, attempt count, last error: with the secret target stored
   only as a redacted digest).
 - Permanently-undeliverable events land on the `cc:events:deadletter` Redis stream
   (`redis-cli XLEN cc:events:deadletter`).

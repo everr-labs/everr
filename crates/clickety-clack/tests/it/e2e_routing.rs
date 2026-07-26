@@ -22,8 +22,8 @@ async fn fan_out_to_webhook_and_slack_receivers() {
 
     // Register both notifier kinds the two receivers fan out to.
     let mut reg = Notifiers::new();
-    reg.register(Arc::new(WebhookNotifier::new()));
-    reg.register(Arc::new(SlackNotifier::new()));
+    reg.register(Arc::new(WebhookNotifier::new(true)));
+    reg.register(Arc::new(SlackNotifier::new(true)));
     let ctx = DispatchCtx {
         notifiers: Arc::new(reg),
         ..common::dispatch_ctx(&infra)

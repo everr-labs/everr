@@ -13,7 +13,7 @@ runs itself at startup (see [migrations](#migrations)). Connection: `CC_PG_URL`.
 | --------------- | --------------------------------------------------------------------- | ------- |
 | `rules`         | `id` (uuid PK), `tenant`, `spec` (jsonb), `version`, `paused`, `next_eval`, `last_eval`, `last_error`, plus rolled-up alert state (`alert_state`, `firing_instance_count`, `last_fired_at`, `last_resolved_at`, `last_seen_at`, `last_row_count`) and `eval_backoff_secs` | Rule definitions. `next_eval` indexes the scheduler scan; the rollup columns feed the alert list without an `instances` scan. |
 | `instances`     | `key` (text PK), `rule`, `tenant`, `status`, `labels` (jsonb), `value`, `active_since`, `last_seen`, `absent_count` | Per-instance state machine. Indexed by `rule` and `(tenant,status)`. |
-| `evaluations`   | `(rule, eval_ts)` PK, `applied_at`, `error`                            | Idempotency ledger — one row per evaluated `(rule, eval_ts)` so redeliveries don't double-evaluate. |
+| `evaluations`   | `(rule, eval_ts)` PK, `applied_at`, `error`                            | Idempotency ledger: one row per evaluated `(rule, eval_ts)` so redeliveries don't double-evaluate. |
 | `subscriptions` | `id` (uuid PK), `tenant`, `webhook_url`                                | Firehose webhooks. `webhook_url` is **encrypted at rest**. |
 | `notifications` | `dedup_key` (text PK), `tenant`, `channel`, `target`, `status`, `attempts`, `claims`, `last_error`, `created_at`, `updated_at` | Delivery/dedup log, and the send lease. `target` holds a **redacted** `sha256:` digest, never the cleartext secret. `status` ∈ pending/sent/failed; `sent`/`failed` are terminal and dedup every later attempt. A `pending` row is a lease stamped at `updated_at`: once it expires (`NOTIFICATION_LEASE_MS`) another sender reclaims it and bumps `claims`, so a sender that dies mid-send cannot suppress that notification forever. `attempts` counts the delivery retries of one send; `claims` counts the senders that have owned the row. Pruned hourly at `LEDGER_RETENTION` (7 days past last update): the rows are dedup state with no reader outside the claim protocol, and the alert history the UI shows comes from the ClickHouse alert-log export, not from here. |
 | `channels`      | `id` (uuid PK), `tenant`, `name`, `config` (jsonb)                     | Named delivery endpoints. Unique on `(tenant,name)`. `config` secrets are **encrypted at rest**. |
@@ -21,7 +21,7 @@ runs itself at startup (see [migrations](#migrations)). Connection: `CC_PG_URL`.
 | `routes`        | `id` (uuid PK), `tenant`, `matchers` (jsonb), `receiver`, `continue_matching`, `priority`, `group_by` (jsonb), `group_wait_secs`, `group_interval_secs`, `repeat_interval_secs` | Routing tree. `(tenant,receiver)` is a foreign key onto `receivers (tenant,name)`: a route cannot name a receiver that does not exist, and a receiver a route targets cannot be deleted. |
 | `silences`      | `id` (uuid PK), `tenant`, `matchers` (jsonb), `starts_at`, `ends_at`, `comment`, `author`, `created_at` | Suppression windows. Indexed by `(tenant, ends_at)`. |
 | `inhibitions`   | `id` (uuid PK), `tenant`, `source_matchers` (jsonb), `target_matchers` (jsonb), `equal` (jsonb) | Inhibition rules. |
-| `event_outbox`  | `id` (uuid PK), `tenant`, `payload` (jsonb), `created_at`              | Transactional outbox — events written in the same tx as the instance update; a relay republishes stragglers. Indexed oldest-first. |
+| `event_outbox`  | `id` (uuid PK), `tenant`, `payload` (jsonb), `created_at`              | Transactional outbox: events written in the same tx as the instance update; a relay republishes stragglers. Indexed oldest-first. |
 | `slos`          | `id` (uuid PK), `tenant`, `name`, `spec` (jsonb), `version`, `paused`, `next_eval`, plus health columns (`health_status`, `consecutive_failures`, `degraded_since`, `last_error`, `last_error_at`) | SLO definitions, mirroring `rules`. Unique on `(tenant,name)`; `next_eval` indexes the SLO scheduler scan. |
 | `slo_status`    | `slo` (uuid PK, FK to `slos`, cascade), `tenant`, `payload` (jsonb), `computed_at` | One status snapshot per SLO: per-group budget/burn plus per-window freshness timestamps. |
 | `slo_evaluations` | `(slo, eval_ts)` PK, `applied_at`                                    | Idempotency ledger for SLO evaluations, mirroring `evaluations`. |
@@ -29,11 +29,11 @@ runs itself at startup (see [migrations](#migrations)). Connection: `CC_PG_URL`.
 
 ### What is encrypted at rest
 
-- `channels.config` — the secret fields inside each channel config (Slack
+- `channels.config`: the secret fields inside each channel config (Slack
   URL, Telegram bot token; webhook URL and email recipients are structural).
   Receivers hold channel names only.
 - `subscriptions.webhook_url`.
-- `notifications.target` — stored as a one-way `sha256:` digest, not encryption;
+- `notifications.target`: stored as a one-way `sha256:` digest, not encryption;
   it is an audit/dedup value, never recoverable to the secret.
 
 See [the security model](../explanation/security-model.md).
@@ -66,14 +66,14 @@ redis-cli ZRANGE cc:scheduler:members 0 -1 WITHSCORES
 # Dead-letter backlog size:
 redis-cli XLEN cc:events:deadletter
 
-# A specific group's buffered metadata (target is ciphertext — safe to view):
+# A specific group's buffered metadata (target is ciphertext: safe to view):
 redis-cli HGET cc:group:<id> __meta__
 ```
 
 ## ClickHouse
 
 Read-only from clickety-clack's perspective: the evaluator runs each rule's `sql`
-against it. clickety-clack does **not** manage the ClickHouse schema — your alert
+against it. clickety-clack does **not** manage the ClickHouse schema: your alert
 SQL targets whatever tables you already have. Connection: `CC_CH_URL` /
 `CC_CH_USER` / `CC_CH_PASSWORD`.
 

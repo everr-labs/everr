@@ -4,13 +4,21 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { CcRuleView, CcSlo } from "@/data/cc/types";
 import { getPreviewScopes } from "@/data/previews/repoids";
-import { getCcRuleByName, getCcSloByName, listCcAlerts } from "./server";
+import { query, querySqlApi } from "@/lib/clickhouse";
+import {
+  getCcRuleByName,
+  getCcSloBudgetNow,
+  getCcSloBudgetSeries,
+  getCcSloByName,
+  listCcAlerts,
+} from "./server";
 
 const mocks = vi.hoisted(() => ({
   listRulesPage: vi.fn(),
   listSlos: vi.fn(),
   listAlerts: vi.fn(),
   listAllRules: vi.fn(),
+  getSlo: vi.fn(),
 }));
 
 // The CC client is the fns' only data plane; mocking it at the module
@@ -20,6 +28,7 @@ vi.mock("./client", () => ({
   listSlos: mocks.listSlos,
   listAlerts: mocks.listAlerts,
   listAllRules: mocks.listAllRules,
+  getSlo: mocks.getSlo,
 }));
 
 // server.ts also imports the preview-repoid resolver (unused by the by-name
@@ -232,6 +241,43 @@ describe("getCcSloByName", () => {
     expect(result.id).toBe("s-prev");
     // Across namespaces this time: no live-namespace pin on the query.
     expect(mocks.listSlos).toHaveBeenCalledWith("test_org");
+  });
+});
+
+describe("SLO budget queries", () => {
+  it("runs current and historical SLI scans as the hardened per-org SQL API user", async () => {
+    const slo = ccSlo({ name: "default/checkout-availability" });
+    mocks.getSlo.mockResolvedValue(slo);
+    vi.mocked(querySqlApi).mockResolvedValue([{ good: "999", valid: "1000" }]);
+
+    await getCcSloBudgetNow({ data: { sloId: slo.id } });
+
+    expect(querySqlApi).toHaveBeenCalledWith(slo.spec.sli.sql, "test_org", {
+      window_start: expect.any(String),
+      window_end: expect.any(String),
+    });
+    expect(query).not.toHaveBeenCalled();
+
+    vi.mocked(querySqlApi).mockClear();
+    await getCcSloBudgetSeries({
+      data: {
+        sloId: slo.id,
+        timeRange: { from: "now-1m", to: "now" },
+        points: 2,
+      },
+    });
+
+    expect(querySqlApi).toHaveBeenCalled();
+    for (const [sql, organizationId, params] of vi.mocked(querySqlApi).mock
+      .calls) {
+      expect(sql).toBe(slo.spec.sli.sql);
+      expect(organizationId).toBe("test_org");
+      expect(params).toEqual({
+        window_start: expect.any(String),
+        window_end: expect.any(String),
+      });
+    }
+    expect(query).not.toHaveBeenCalled();
   });
 });
 

@@ -36,7 +36,7 @@ async fn start_server(status: u16, body_sink: Arc<Mutex<Option<serde_json::Value
 async fn slack_posts_payload_and_2xx_ok() {
     let sink = Arc::new(Mutex::new(None));
     let url = start_server(200, sink.clone()).await;
-    SlackNotifier::new()
+    SlackNotifier::new(true)
         .send(&ChannelConfig::Slack { url }, &Notification::single(&ev()))
         .await
         .unwrap();
@@ -48,7 +48,7 @@ async fn slack_posts_payload_and_2xx_ok() {
 async fn slack_4xx_is_permanent() {
     let sink = Arc::new(Mutex::new(None));
     let url = start_server(400, sink).await;
-    let err = SlackNotifier::new()
+    let err = SlackNotifier::new(true)
         .send(&ChannelConfig::Slack { url }, &Notification::single(&ev()))
         .await
         .unwrap_err();

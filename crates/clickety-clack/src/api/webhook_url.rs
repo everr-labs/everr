@@ -6,19 +6,17 @@
 //! as an internal target: non-HTTP schemes, URLs with userinfo, `localhost`,
 //! and IP-literal hosts in private / loopback / link-local / metadata ranges.
 //!
-//! What this deliberately does NOT do: resolve DNS. A resolver check at create
-//! time is TOCTOU-broken (the record can change between validation and
-//! dispatch, i.e. DNS rebinding), so names that resolve to internal addresses
-//! must be stopped by deployment-level egress policy (network segmentation, an
-//! egress proxy, or a filtering resolver on the dispatcher's network). Non-IP
-//! hostnames are therefore allowed by default, which also keeps docker-compose
-//! service names (e.g. `http://mailpit:8025/...`) working.
+//! Create-time validation deliberately does not resolve DNS because that check
+//! would be stale by dispatch time. The dispatcher resolves names immediately
+//! before delivery, rejects any blocked result, pins the approved addresses into
+//! its HTTP client, and refuses redirects. Deployment-level egress policy remains
+//! useful as a second boundary.
 //!
 //! `allow_private` (from `CC_ALLOW_PRIVATE_WEBHOOKS=1`) is the dev/compose
 //! escape hatch: it skips only the private-address and localhost checks;
 //! scheme, host-presence, and userinfo rules always apply.
 
-use std::net::{Ipv4Addr, Ipv6Addr};
+use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 use url::{Host, Url};
 
 /// Validate a tenant-supplied webhook URL. `Err` carries a human-readable
@@ -74,6 +72,20 @@ pub fn validate_webhook_url(raw: &str, allow_private: bool) -> Result<(), String
             }
             Ok(())
         }
+    }
+}
+
+/// Validate one address returned by the dispatch-time resolver.
+pub(crate) fn validate_resolved_ip(ip: IpAddr) -> Result<(), String> {
+    let blocked = match ip {
+        IpAddr::V4(ip) => blocked_v4_range(ip),
+        IpAddr::V6(ip) => blocked_v6_range(ip),
+    };
+    match blocked {
+        Some(range) => Err(format!(
+            "webhook URL resolved to a private or internal address ({ip} is in {range})"
+        )),
+        None => Ok(()),
     }
 }
 
@@ -176,10 +188,16 @@ mod tests {
 
     #[test]
     fn accepts_internal_dns_names_by_default() {
-        // Compose service names and internal DNS are a deployment-level concern
-        // (see module docs); only IP literals and localhost are blocked statically.
+        // Names are resolved and checked by the dispatcher immediately before use.
         ok("http://mailpit:8025/hook");
         ok("http://collector.internal/v1/hook");
+    }
+
+    #[test]
+    fn dispatch_time_ip_validation_rejects_private_results() {
+        assert!(validate_resolved_ip("169.254.169.254".parse().unwrap()).is_err());
+        assert!(validate_resolved_ip("fd00::1".parse().unwrap()).is_err());
+        assert!(validate_resolved_ip("8.8.8.8".parse().unwrap()).is_ok());
     }
 
     #[test]

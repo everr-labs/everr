@@ -156,6 +156,7 @@ services:
       # Email delivery → mailpit (plaintext SMTP; web UI at http://localhost:8025).
       CC_SMTP_HOST: mailpit
       CC_SMTP_PORT: "1025"
+      CC_SMTP_TLS: none
       CC_SMTP_FROM: alerts@everr.dev
       # Trusted OTLP path: the `events` role + dispatcher ship alert-event logs
       # here (one ResourceLogs per tenant, everr.tenant.id preserved) → app.logs.

@@ -20,26 +20,25 @@ pub async fn create(
     Json(body): Json<CreateSub>,
 ) -> Result<Json<Subscription>, ApiError> {
     let t = tenant(&state, &headers)?;
-    // SSRF guard: reject statically-recognizable internal targets at create time.
-    // DNS-rebinding-resistant egress filtering is a deployment-level concern
-    // (see `crate::api::webhook_url` module docs).
+    // Reject statically recognizable internal targets at create time. The
+    // dispatcher repeats validation and pins approved DNS results at delivery.
     crate::api::webhook_url::validate_webhook_url(&body.webhook_url, state.allow_private_webhooks)
         .map_err(ApiError::Validation)?;
     let sub = state
         .store
         .create_subscription(&*state.cipher, t, &body.webhook_url)
         .await?;
-    Ok(Json(sub))
+    Ok(Json(sub.redacted()))
 }
 
-/// List this tenant's subscriptions (webhook URLs are returned decrypted, as stored).
+/// List this tenant's subscriptions with webhook URLs masked.
 pub async fn list(
     State(state): State<AppState>,
     headers: HeaderMap,
 ) -> Result<Json<Vec<Subscription>>, ApiError> {
     let t = tenant(&state, &headers)?;
     let subs = state.store.subscriptions_for(&*state.cipher, t).await?;
-    Ok(Json(subs))
+    Ok(Json(subs.iter().map(Subscription::redacted).collect()))
 }
 
 /// Delete a subscription by id. Another tenant's id is a 404.

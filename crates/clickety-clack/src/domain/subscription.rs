@@ -17,6 +17,18 @@ pub struct Subscription {
     pub created_at: OffsetDateTime,
 }
 
+impl Subscription {
+    /// Copy with the secret-bearing webhook URL masked for API responses.
+    pub fn redacted(&self) -> Self {
+        Self {
+            id: self.id,
+            tenant: self.tenant.clone(),
+            webhook_url: "***".into(),
+            created_at: self.created_at,
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -33,5 +45,19 @@ mod tests {
         assert_eq!(v["created_at"], "1970-01-01T00:00:00Z");
         let back: Subscription = serde_json::from_value(v).unwrap();
         assert_eq!(back, s);
+    }
+
+    #[test]
+    fn redacted_masks_webhook_url() {
+        let s = Subscription {
+            id: Uuid::nil(),
+            tenant: TenantId::from_trusted(Uuid::nil().to_string()),
+            webhook_url: "https://example.com/hook/secret".into(),
+            created_at: OffsetDateTime::UNIX_EPOCH,
+        };
+        let redacted = s.redacted();
+        assert_eq!(redacted.webhook_url, "***");
+        assert_eq!(redacted.id, s.id);
+        assert_eq!(redacted.tenant, s.tenant);
     }
 }

@@ -1,12 +1,12 @@
 # Architecture overview
 
 This explains how clickety-clack is put together and why. It is background reading,
-not a task list — for those see the [how-to guides](../how-to/run-and-deploy-roles.md).
+not a task list: for those see the [how-to guides](../how-to/run-and-deploy-roles.md).
 
 ## The big picture
 
 clickety-clack is a pipeline of four roles connected only through shared
-infrastructure — Postgres (durable state) and Redis Streams (the hot path). There
+infrastructure: Postgres (durable state) and Redis Streams (the hot path). There
 is no direct RPC between roles; each one reads its work from a queue or table and
 writes its results to another. This is what lets every role scale independently
 and fail without taking the others down.
@@ -76,13 +76,13 @@ which tenant" without a leader election.
 The answer is **rendezvous (highest-random-weight) hashing**. Tenants map to
 `CC_SCHEDULER_SHARDS` shards (by hashing the tenant). For each shard, every replica
 independently computes `hash(node_id, shard)` for all live members and the highest
-wins — so all replicas agree on ownership with zero coordination, just a shared
+wins, so all replicas agree on ownership with zero coordination, just a shared
 view of the live membership set (`cc:scheduler:members`, maintained by
 heartbeats). When membership changes, only the affected shards move, and the brief
 window where two replicas both think they own a shard is harmless because rule
 claims use `FOR UPDATE SKIP LOCKED` plus the per-evaluation idempotency ledger.
 
-This is "leaderless": no lock, no election, no split-brain to resolve — just a
+This is "leaderless": no lock, no election, no split-brain to resolve, just a
 deterministic function of (node id, shard, live members). The trade-off is that
 the hash must be identical across replicas, so they must run the same binary
 build.
@@ -92,7 +92,7 @@ build.
 Every rule, instance, receiver, route, silence, inhibition, and event carries a
 `TenantId`. The API scopes by the `X-CC-Tenant` header; the dispatcher's filter
 caches and the scheduler's sharding are per-tenant. Tenants are isolated by data,
-not by process — one deployment serves many tenants.
+not by process: one deployment serves many tenants.
 
 ## Process supervision
 
@@ -132,18 +132,18 @@ What ops should alert on:
 
 ## What's deliberately not here (yet)
 
-- **No metrics endpoint** — observability is via the datastores (see
+- **No metrics endpoint**: observability is via the datastores (see
   [operate at scale](../how-to/operate-at-scale.md#what-to-monitor)).
-- **No Kafka** — but the queue layer is abstracted (opaque ids, a
+- **No Kafka.** The queue layer is abstracted (opaque ids, a
   backend-contract test) so a Kafka backend can replace Redis Streams
   without touching the roles.
-- **No cache-invalidation pub/sub** — silence/inhibition/routing changes propagate
+- **No cache-invalidation pub/sub**: silence/inhibition/routing changes propagate
   via short TTL caches (~2s) rather than push invalidation.
 
 ## Further reading
 
-- [The evaluation model](evaluation-model.md) — how SQL rows become firing state.
-- [The dispatch pipeline](dispatch-pipeline.md) — how an event becomes a notification.
-- [Durability and delivery](durability-and-delivery.md) — the guarantees and how
+- [The evaluation model](evaluation-model.md): how SQL rows become firing state.
+- [The dispatch pipeline](dispatch-pipeline.md): how an event becomes a notification.
+- [Durability and delivery](durability-and-delivery.md): the guarantees and how
   they're achieved.
-- [Security model](security-model.md) — secret encryption at rest.
+- [Security model](security-model.md): secret encryption at rest.

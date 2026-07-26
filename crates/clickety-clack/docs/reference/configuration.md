@@ -18,7 +18,7 @@ variables are ignored; the variables below are the complete set the binary reads
 | ------------- | -------- | ------- |
 | `CC_API_KEYS` | *(none)* | Comma-separated static bearer keys gating every `/v1` endpoint; `/healthz` and `/readyz` stay open. Clients send `Authorization: Bearer <key>`; keys are compared in constant time. List two keys during rotation, then drop the old one. **Auth fails closed: with `CC_API_KEYS` unset and no `CC_DEV_INSECURE_NO_AUTH`, the `api` role refuses to start.** Only the `api` role reads it. |
 | `CC_DEV_INSECURE_NO_AUTH` | `0` | Set to `1` to start the `api` role with no bearer auth: `/v1` is open and any caller picks its tenant via `X-CC-Tenant`. Dev/compose escape hatch only; never set it on a network-reachable deployment. Ignored when `CC_API_KEYS` is set. Only the `api` role reads it. |
-| `CC_ALLOW_PRIVATE_WEBHOOKS` | `0` | Set to `1` (or `true`) to allow webhook URLs targeting private, loopback, or link-local IP literals and `localhost` (subscriptions and `webhook` receivers). Dev/compose escape hatch only, for targets like a local mailpit; never set it in a multi-tenant deployment. Structural rules (http/https scheme, no userinfo) always apply. Only the `api` role reads it. |
+| `CC_ALLOW_PRIVATE_WEBHOOKS` | `0` | Set to `1` (or `true`) to allow webhook URLs targeting private, loopback, or link-local addresses and `localhost` (subscriptions, webhook channels, and Slack channels). Dev/compose escape hatch only; never set it in a multi-tenant deployment. Structural rules (http/https scheme, no userinfo) and the no-redirect policy always apply. The `api` and `dispatcher` roles read it. |
 
 Each `CC_API_KEYS` entry is either a plain key or a tenant-bound key of the
 form `<key>@<tenant-id>` (split at the last `@`; tenant ids cannot contain
@@ -62,7 +62,7 @@ one ClickHouse user for every tenant.
 | ----------------------- | ------------ | ------- |
 | `CC_CH_AUTH_MODE`       | `shared`     | How clickety-clack authenticates to ClickHouse per tenant. One of `shared`, `derived`, or `map`. `shared`: all tenants use the single `CC_CH_USER`/`CC_CH_PASSWORD` (no per-tenant isolation). `derived`: each tenant authenticates as its own ClickHouse user with a password derived from a shared master key. `map`: explicit per-tenant credentials from a JSON map. |
 | `CC_CH_USER_TEMPLATE`   | *(none)*     | **Required in `derived` mode.** Per-tenant username template; `{tenant}` is substituted with the tenant id. Example: `sql_api_org_{tenant}`. |
-| `CC_CH_MASTER_KEY`      | *(none)*     | **Required in `derived` mode.** HMAC key from which each tenant's password is derived as `hex(HMAC-SHA256(master_key, tenant_id))` plus the suffix. **High-value secret** — it derives *every* tenant's password. Store it in a secret manager, never in the repo. |
+| `CC_CH_MASTER_KEY`      | *(none)*     | **Required in `derived` mode.** HMAC key from which each tenant's password is derived as `hex(HMAC-SHA256(master_key, tenant_id))` plus the suffix. **High-value secret**: it derives *every* tenant's password. Store it in a secret manager, never in the repo. |
 | `CC_CH_PASSWORD_SUFFIX` | `` (empty)   | *(derived mode, optional)* String appended verbatim to every derived password. Use when a deployment requires a suffix to satisfy password-complexity rules. |
 | `CC_CH_TENANT_MAP`      | *(none)*     | **Required in `map` mode.** Either inline JSON or a path to a JSON file mapping tenant id → credentials: `{"<tenant>": {"user": "...", "password": "..."}, ...}`. |
 | `CC_DEV_INSECURE_CH_DEFAULT_USER` | `0` | Explicit opt-in to run tenant-authored rule SQL as ClickHouse's `default` user. Without it, the roles that evaluate rule SQL (`api`, `evaluator`, `all`) **refuse to start** when `CC_CH_AUTH_MODE=shared` and `CC_CH_USER=default`, since that user typically has full privileges and rule SQL is untrusted input. Accepts `1`/`true`; dev/compose only. See [harden ClickHouse access](../how-to/harden-clickhouse-access.md). |
@@ -92,11 +92,11 @@ See [Observe and respond to degraded rules](../how-to/observe-degraded-rules.md)
 | ------------------------------ | ------- | ------- |
 | `CC_SLO_BASE_CADENCE_SECS`    | `30`    | Fixed scheduling cadence applied to every SLO (SLOs have no per-resource `interval_secs` like rules). Also the floor for each window's own refresh cadence (`max(base_cadence, window_secs / 12)`). A value below `1` (or an unparseable one) falls back to the default `30`. |
 
-SLO health (degraded/recovered) reuses `CC_RULE_DEGRADE_AFTER` — see
-[Rule health](#rule-health) above — rather than a separate threshold. See
+SLO health (degraded/recovered) reuses `CC_RULE_DEGRADE_AFTER`: see
+[Rule health](#rule-health) above: rather than a separate threshold. See
 [define SLOs and burn-rate alerts](../how-to/define-slos-and-burn-rate-alerts.md#evaluation-cadence).
 
-## Email (SMTP) — optional
+## Email (SMTP): optional
 
 The email channel is **disabled unless `CC_SMTP_HOST` is set**. When unset, the
 dispatcher logs `email channel disabled` and email receivers cannot deliver.
@@ -104,15 +104,17 @@ dispatcher logs `email channel disabled` and email receivers cannot deliver.
 | Variable          | Default            | Purpose |
 | ----------------- | ------------------ | ------- |
 | `CC_SMTP_HOST`    | *(none)*           | SMTP server hostname. Setting this **enables** the email channel. |
-| `CC_SMTP_PORT`    | `25`               | SMTP port. |
+| `CC_SMTP_PORT`    | `587` (`starttls`), `465` (`tls`), `25` (`none`) | SMTP port. |
+| `CC_SMTP_TLS`     | `starttls`         | Transport security: required STARTTLS (`starttls`), implicit TLS (`tls`), or plaintext (`none`). `none` is for local development only. |
 | `CC_SMTP_FROM`    | `alerts@localhost` | `From:` address on outgoing mail. |
 | `CC_SMTP_USER`    | *(none)*           | SMTP auth username (optional). |
 | `CC_SMTP_PASSWORD`| *(none)*           | SMTP auth password (optional). |
 
-> The current SMTP transport relays in plaintext (no STARTTLS). Treat it as
-> trusted-network only until TLS lands.
+`CC_SMTP_USER` and `CC_SMTP_PASSWORD` must be set together. STARTTLS is
+required by default, so the client will not send credentials or mail if the
+server cannot upgrade the connection.
 
-## Secret encryption — required
+## Secret encryption: required
 
 clickety-clack encrypts delivery secrets at rest and is **fail-closed**: if the
 cipher cannot be built from these variables, the process exits before serving any
