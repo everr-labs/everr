@@ -14,6 +14,11 @@ import {
   ToggleGroup,
   ToggleGroupItem,
 } from "@everr/ui/components/toggle-group";
+import {
+  type Tone as HealthTone,
+  toneDot,
+  toneText,
+} from "@everr/ui/components/tone";
 import { cn } from "@everr/ui/lib/utils";
 import { useQueryClient } from "@tanstack/react-query";
 import { ChevronRight, Info, type LucideIcon, RotateCw } from "lucide-react";
@@ -106,32 +111,31 @@ type Tone =
   | "resolved"
   | "warning";
 
-const TONE_DOT: Record<Tone, string> = {
-  firing: "bg-destructive",
-  // Rule health (evaluation success), distinct from alert/instance state
-  // above: green/amber rather than the firing red, so a degraded rule reads
-  // as "needs attention" without being confused with an actual firing alert.
-  degraded: "bg-amber-500",
-  // Warning severity shares degraded's amber: both mean "attention, not an
-  // emergency". Signal Lime (bg-primary) stays reserved for live/selected.
-  warning: "bg-amber-500",
-  pending: "bg-primary",
-  healthy: "bg-emerald-500",
-  inactive: "bg-muted-foreground/50",
-  resolved: "bg-muted-foreground/50",
+// Each status tone maps onto one health tone; the colour itself lives in
+// ./tone.ts. `degraded` is rule-health rather than alert state, so it shares
+// warning's amber: "needs attention", never confused with a firing alert.
+const TONE_KIND: Record<Tone, HealthTone> = {
+  firing: "danger",
+  degraded: "warning",
+  warning: "warning",
+  pending: "live",
+  healthy: "healthy",
+  inactive: "muted",
+  resolved: "muted",
 };
 
-const TONE_TEXT: Record<Tone, string> = {
-  firing: "text-destructive",
-  // Matches the amber degraded dot above — degraded is a health warning, not
-  // the firing red.
-  degraded: "text-amber-600 dark:text-amber-400",
-  warning: "text-amber-600 dark:text-amber-400",
-  pending: "text-foreground",
-  healthy: "text-muted-foreground",
-  inactive: "text-muted-foreground",
-  resolved: "text-muted-foreground",
-};
+const TONE_DOT: Record<Tone, string> = Object.fromEntries(
+  Object.entries(TONE_KIND).map(([k, tone]) => [k, toneDot({ tone })]),
+) as Record<Tone, string>;
+
+const TONE_TEXT: Record<Tone, string> = Object.fromEntries(
+  Object.entries(TONE_KIND).map(([k, tone]) => [
+    k,
+    // Healthy status text stays quiet: the dot already carries the state, and a
+    // green word on every calm row would shout as loudly as a red one.
+    toneText({ tone: tone === "healthy" ? "muted" : tone }),
+  ]),
+) as Record<Tone, string>;
 
 export function CcStatusDot({
   tone,

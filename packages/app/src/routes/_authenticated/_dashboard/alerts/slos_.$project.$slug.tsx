@@ -17,6 +17,7 @@ import {
 } from "@everr/ui/components/collapsible";
 import { type Column, DataTable } from "@everr/ui/components/data-table";
 import { Skeleton } from "@everr/ui/components/skeleton";
+import { toneText } from "@everr/ui/components/tone";
 import {
   Tooltip,
   TooltipContent,
@@ -382,11 +383,11 @@ function StatusSection({ slo }: { slo: CcSlo }) {
           ccSloTierSeverity(tiers, { slo_tier: f.tier }),
         );
         const tone = firingSeverities.includes("critical")
-          ? "font-medium text-destructive"
+          ? toneText({ tone: "danger", emphasis: "strong" })
           : firingSeverities.length > 0
-            ? "font-medium text-amber-600 dark:text-amber-400"
+            ? toneText({ tone: "warning", emphasis: "strong" })
             : (burn.effective ?? 0) >= 1
-              ? "text-foreground"
+              ? toneText({ tone: "live" })
               : "text-muted-foreground";
         return (
           <Tooltip>

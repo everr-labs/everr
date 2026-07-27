@@ -1,5 +1,5 @@
 // SLO listing, distilled to what decides whether to open one: which promise,
-// whether it needs a human now, how much budget is left, and when it runs out.
+// whether it needs a human now, when the budget runs out, and how much is left.
 // The status detail the row used to pile on — burn multiples, per-group
 // breakdown, firing tier names — is one click behind the name on the detail
 // page. Rows sort by name: a fixed order that never depends on the
@@ -9,6 +9,7 @@ import { Button } from "@everr/ui/components/button";
 import { Card, CardContent } from "@everr/ui/components/card";
 import { type Column, DataTable } from "@everr/ui/components/data-table";
 import { Skeleton } from "@everr/ui/components/skeleton";
+import { toneText } from "@everr/ui/components/tone";
 import {
   useMutation,
   useQueries,
@@ -68,10 +69,10 @@ type SloRow = {
 /** How many rows the listing shows per page (also the fresh-budget scan fan-out). */
 const SLO_PAGE_SIZE = 10;
 
-const TONE_URGENT = "font-medium text-destructive";
-const TONE_WARNING = "font-medium text-amber-600 dark:text-amber-400";
-const TONE_ACTIVE = "text-foreground";
-const TONE_QUIET = "text-muted-foreground";
+const TONE_URGENT = toneText({ tone: "danger", emphasis: "strong" });
+const TONE_WARNING = toneText({ tone: "warning", emphasis: "strong" });
+const TONE_ACTIVE = toneText({ tone: "live" });
+const TONE_QUIET = toneText({ tone: "muted" });
 
 /**
  * The one thing the budget column cannot say: is anything alerting, and is the
@@ -79,6 +80,10 @@ const TONE_QUIET = "text-muted-foreground";
  * already prints that — so a stopped burn on a drained budget reads
  * "exhausted / Steady". Pause and suppression outrank both, since neither one is
  * evaluating or alerting, and saying so is what explains the silence.
+ *
+ * A firing row reports the tier's *severity*, never a delivery outcome: no
+ * channel type here is a pager, and where an alert actually lands is the routing
+ * tree's business, which the SLO knows nothing about.
  */
 function rowStatus(row: SloRow): { label: string; tone: string } {
   if (row.slo.paused) return { label: "Paused", tone: TONE_QUIET };
@@ -92,10 +97,10 @@ function rowStatus(row: SloRow): { label: string; tone: string } {
     ccSloTierSeverity(tiers, { slo_tier: f.tier }),
   );
   if (severities.includes("critical")) {
-    return { label: "Paging", tone: TONE_URGENT };
+    return { label: "Critical", tone: TONE_URGENT };
   }
   if (severities.length > 0) {
-    return { label: "Alert firing", tone: TONE_WARNING };
+    return { label: "Warning", tone: TONE_WARNING };
   }
 
   // Nothing firing: the pace word. Firing is passed as empty because the cases
@@ -119,9 +124,9 @@ function SloPromiseCell({ slo }: { slo: CcSlo }) {
       <Link
         to="/alerts/slos/$project/$slug"
         params={{ project: identity.project, slug: identity.slug }}
-        // The action column absorbs the row's spare width, so this cell sits at
-        // min-content: without nowrap a name wraps to three lines. Not truncate
-        // either — `overflow:hidden` would let the column collapse to nothing.
+        // Never wrap a name onto a second line: this column is the flexible one,
+        // so it is what gives when the viewport tightens. Not truncate either —
+        // `overflow:hidden` would let the column collapse to nothing.
         className="font-medium whitespace-nowrap text-foreground underline-offset-2 hover:underline"
       >
         {identity.name}
@@ -168,10 +173,10 @@ function SloExhaustionCell({ row }: { row: SloRow }) {
     <span
       className={`text-xs tabular-nums whitespace-nowrap ${
         readout.kind === "exhausted"
-          ? "font-medium text-destructive"
+          ? TONE_URGENT
           : readout.kind === "forecast"
-            ? "text-foreground"
-            : "text-muted-foreground"
+            ? TONE_ACTIVE
+            : TONE_QUIET
       }`}
     >
       {readout.label}
@@ -287,7 +292,13 @@ function CcSlosPage() {
 
   const columns: Column<SloRow>[] = [
     {
+      // Promise soaks up every spare pixel, so the reading columns and the
+      // action hold the right edge at any width. (`className` replaces
+      // DataTable's padding defaults rather than extending them, hence
+      // restating them here.)
       header: "Promise",
+      className: "w-full pb-2 pr-4 pl-3",
+      cellClassName: "w-full py-2 pr-4 pl-3",
       cell: ({ slo }) => <SloPromiseCell slo={slo} />,
     },
     {
@@ -295,21 +306,20 @@ function CcSlosPage() {
       cell: (row) => <SloStatusCell row={row} />,
     },
     {
-      header: "Budget",
-      cell: (row) => <SloBudgetCell row={row} />,
-    },
-    {
-      // Next to the budget: where it stands, then when it runs out.
+      // Ahead of the budget: when it runs out, then how much is left.
       header: "Time to exhaustion",
       cell: (row) => <SloExhaustionCell row={row} />,
     },
     {
-      // Soaks up every spare pixel so the facts stay a snug left cluster instead
-      // of being stretched apart on a wide viewport. `className` replaces
-      // DataTable's padding defaults rather than extending them, hence restating.
+      // Sized here rather than on the meter: the bar fills whatever the column
+      // gives it, so the width lives with the layout that owns it.
+      header: "Budget",
+      className: "w-28 pb-2 pr-4",
+      cellClassName: "w-28 py-2 pr-4",
+      cell: (row) => <SloBudgetCell row={row} />,
+    },
+    {
       header: "",
-      className: "w-full pb-2 pr-3",
-      cellClassName: "w-full py-2 pr-3",
       cell: ({ slo }) => (
         <span className="flex items-center justify-end">
           <SloPauseButton
@@ -366,8 +376,8 @@ function CcSlosPage() {
                             />
                           </div>
                           <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
-                            <SloBudgetCell row={row} />
                             <SloExhaustionCell row={row} />
+                            <SloBudgetCell row={row} />
                           </span>
                         </article>
                       ))}

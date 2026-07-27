@@ -155,7 +155,7 @@ beforeEach(() => {
 });
 
 describe("/alerts/slos route", () => {
-  it("carries four columns: promise, status, budget, exhaustion, plus the one action", async () => {
+  it("carries four columns: promise, status, exhaustion, budget, plus the one action", async () => {
     renderSlosRoute();
 
     const table = await screen.findByRole("table");
@@ -163,7 +163,7 @@ describe("/alerts/slos route", () => {
       within(table)
         .getAllByRole("columnheader")
         .map((h) => h.textContent),
-    ).toEqual(["Promise", "Status", "Budget", "Time to exhaustion", ""]);
+    ).toEqual(["Promise", "Status", "Time to exhaustion", "Budget", ""]);
 
     const link = within(table).getByRole("link", {
       name: "checkout-availability",
@@ -472,9 +472,10 @@ describe("/alerts/slos route", () => {
     renderSlosRoute();
     const table = await screen.findByRole("table");
 
-    // fast-burn is a critical tier, so the status names who gets woken rather
-    // than restating the budget the next column already prints.
-    expect(await within(table).findByText("Paging")).toBeInTheDocument();
+    // fast-burn is a critical tier. The status names the severity, never a
+    // delivery outcome: no channel type here is a pager, and where it lands is
+    // the routing tree's business.
+    expect(await within(table).findByText("Critical")).toBeInTheDocument();
     // The horizon rides in its own column.
     expect(within(table).getByText("1h")).toBeInTheDocument();
     // The tier's own name is detail-page material.
@@ -490,7 +491,7 @@ describe("/alerts/slos route", () => {
     expect(within(table).queryByText(/1 at risk/)).not.toBeInTheDocument();
   });
 
-  it("says Alert firing for a warning tier, without the burn-story line", async () => {
+  it("says Warning for a warning tier, without the burn-story line", async () => {
     mocks.getCcSloStatus.mockResolvedValue({
       computed_at: new Date().toISOString(),
       health: { status: "healthy", degraded_since: null, last_error: null },
@@ -527,8 +528,8 @@ describe("/alerts/slos route", () => {
     renderSlosRoute();
     const table = await screen.findByRole("table");
 
-    // ticket is a warning tier: an alert is up, but nobody is being paged.
-    expect(await within(table).findByText("Alert firing")).toBeInTheDocument();
+    // ticket is a warning tier.
+    expect(await within(table).findByText("Warning")).toBeInTheDocument();
     // The receding-burn narration and the missing forecast were both said in
     // the old Now column. Neither survives the cut.
     expect(

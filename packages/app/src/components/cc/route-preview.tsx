@@ -9,6 +9,7 @@
 // highlight.
 import { Button } from "@everr/ui/components/button";
 import { SuggestCombobox } from "@everr/ui/components/suggest-combobox";
+import { toneText } from "@everr/ui/components/tone";
 import { cn } from "@everr/ui/lib/utils";
 import { ArrowRight, X, Zap } from "lucide-react";
 import { useState } from "react";
@@ -152,9 +153,9 @@ export function RoutePreview({
           <span
             className={cn(
               "font-mono",
-              subscriberCount === 0
-                ? "text-amber-600 dark:text-amber-400"
-                : "text-foreground",
+              toneText({
+                tone: subscriberCount === 0 ? "warning" : "live",
+              }),
             )}
           >
             no route matches{" "}
@@ -183,7 +184,7 @@ export function RoutePreview({
                       />
                     ))
                   ) : (
-                    <span className="text-amber-600 dark:text-amber-400">
+                    <span className={toneText({ tone: "warning" })}>
                       receiver not found
                     </span>
                   )}

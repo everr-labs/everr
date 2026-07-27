@@ -5,6 +5,8 @@
 // vocabulary (emerald, amber when running low, red when exhausted) and is
 // always paired with the printed percentage so the state never rides on color
 // alone (the Status-Plus-Shape rule).
+import { Meter, type MeterFillTone } from "@everr/ui/components/meter";
+import { toneText } from "@everr/ui/components/tone";
 import { cn } from "@everr/ui/lib/utils";
 
 /** "99.95%" — SLI/budget fractions with enough precision to be honest. */
@@ -38,16 +40,59 @@ const LOW_BUDGET = 0.25;
 
 /**
  * The budget health band for a remaining fraction: `exhausted` (<= 0), `low`
- * (< 25% left), or neither. Shared so every budget readout (the inline bar,
- * the detail hero) turns amber and red on exactly the same thresholds.
+ * (< 25% left), or neither. The single source of both thresholds, so the bar,
+ * the figure's colour and the detail hero always turn amber and red together.
  */
-export function ccBudgetTone(remaining: number | null): {
+function ccBudgetTone(remaining: number | null): {
   exhausted: boolean;
   low: boolean;
 } {
   if (remaining === null) return { exhausted: false, low: false };
   const exhausted = remaining <= 0;
   return { exhausted, low: !exhausted && remaining < LOW_BUDGET };
+}
+
+/**
+ * The colour a budget figure takes at this level, so no caller has to re-derive
+ * it (the detail hero used to pick it by string-comparing a CSS class).
+ * Undefined at a healthy budget: inherit whatever the surface already sets.
+ */
+export function ccBudgetTextTone(remaining: number | null): string | undefined {
+  const { exhausted, low } = ccBudgetTone(remaining);
+  if (!exhausted && !low) return undefined;
+  return toneText({ tone: exhausted ? "danger" : "warning" });
+}
+
+/** The budget's health band as the shared meter/text tone vocabulary. */
+function budgetToneName(remaining: number | null): MeterFillTone {
+  const { exhausted, low } = ccBudgetTone(remaining);
+  return exhausted ? "danger" : low ? "warning" : "healthy";
+}
+
+/** The depleting meter on its own, sized by the caller via `className`. */
+export function CcBudgetMeter({
+  remaining,
+  className,
+  ...variants
+}: {
+  remaining: number | null;
+  className?: string;
+} & Omit<React.ComponentProps<typeof Meter>, "layers">) {
+  const { exhausted } = ccBudgetTone(remaining);
+  return (
+    <Meter
+      {...variants}
+      className={className}
+      tone={exhausted ? "danger" : "neutral"}
+      layers={[
+        {
+          pct:
+            remaining === null ? 0 : Math.max(0, Math.min(1, remaining)) * 100,
+          tone: budgetToneName(remaining),
+        },
+      ]}
+    />
+  );
 }
 
 export function CcBudgetBar({
@@ -61,43 +106,22 @@ export function CcBudgetBar({
   if (remaining === null) {
     return <span className="text-xs text-muted-foreground">—</span>;
   }
-  const clamped = Math.max(0, Math.min(1, remaining));
-  const { exhausted, low } = ccBudgetTone(remaining);
+  const tone = ccBudgetTextTone(remaining);
   return (
-    <span className={cn("inline-flex items-center gap-2", className)}>
-      {/* The printed percentage below is the accessible value; the bar is a
+    <span className={cn("flex w-full flex-col items-start gap-1", className)}>
+      {/* The printed figure is the accessible value; the meter under it is a
           purely visual double-encoding of the same number. */}
-      <span
-        aria-hidden
-        className={cn(
-          "h-1.5 w-24 shrink-0 overflow-hidden rounded-full",
-          exhausted ? "bg-destructive/25" : "bg-muted",
-        )}
-      >
-        <span
-          className={cn(
-            "block h-full rounded-full transition-[width] duration-500 ease-[cubic-bezier(0.19,1,0.22,1)]",
-            exhausted
-              ? "bg-destructive"
-              : low
-                ? "bg-amber-500"
-                : "bg-emerald-500",
-          )}
-          style={{ width: `${clamped * 100}%` }}
-        />
-      </span>
       <span
         className={cn(
           "font-mono text-xs tabular-nums whitespace-nowrap",
-          exhausted
-            ? "font-medium text-destructive"
-            : low
-              ? "font-medium text-amber-600 dark:text-amber-400"
-              : "text-foreground",
+          tone === undefined ? "text-foreground" : `font-medium ${tone}`,
         )}
       >
         {ccFmtBudgetRemaining(remaining)}
       </span>
+      {/* Thinner than the detail hero's: an inline row readout, not the page's
+          headline figure. */}
+      <CcBudgetMeter remaining={remaining} size="sm" />
     </span>
   );
 }

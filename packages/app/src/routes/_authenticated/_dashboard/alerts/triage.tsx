@@ -2,6 +2,7 @@ import { Button, buttonVariants } from "@everr/ui/components/button";
 import { Card, CardContent } from "@everr/ui/components/card";
 import { RelativeTime } from "@everr/ui/components/relative-time";
 import { Skeleton } from "@everr/ui/components/skeleton";
+import { toneText } from "@everr/ui/components/tone";
 import type { TimeRange } from "@everr/ui/lib/time-range";
 import { cn } from "@everr/ui/lib/utils";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -195,11 +196,16 @@ function StripCell({
       <span
         className={cn(
           "text-sm font-semibold tabular-nums",
-          tone === "firing" && value > 0
-            ? "text-destructive"
-            : tone === "degraded" && value > 0
-              ? "text-amber-600 dark:text-amber-400"
-              : "text-foreground",
+          toneText({
+            tone:
+              value === 0
+                ? "live"
+                : tone === "firing"
+                  ? "danger"
+                  : tone === "degraded"
+                    ? "warning"
+                    : "live",
+          }),
         )}
       >
         {value}
@@ -229,7 +235,10 @@ function DeliveryFact({
         to="/alerts/delivery"
         hash="firehose"
         onClick={(e) => e.stopPropagation()}
-        className="whitespace-nowrap text-xs text-amber-600 underline-offset-2 hover:underline dark:text-amber-400"
+        className={cn(
+          "whitespace-nowrap text-xs underline-offset-2 hover:underline",
+          toneText({ tone: "warning" }),
+        )}
       >
         {hasSubscribers
           ? "not routed · firehose only"

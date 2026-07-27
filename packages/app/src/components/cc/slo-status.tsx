@@ -12,10 +12,13 @@ import {
   Collapsible,
   CollapsibleContent,
 } from "@everr/ui/components/collapsible";
+import { Meter, type MeterFillTone } from "@everr/ui/components/meter";
+import { toneText } from "@everr/ui/components/tone";
 import { cn } from "@everr/ui/lib/utils";
 import { useState } from "react";
 import {
-  ccBudgetTone,
+  CcBudgetMeter,
+  ccBudgetTextTone,
   ccFmtBudgetRemaining,
   ccFmtBurn,
   ccFmtFraction,
@@ -58,47 +61,34 @@ const STATE_READOUT: Record<
   exhausted: {
     label: "Budget exhausted",
     dot: "firing",
-    text: "text-destructive",
+    text: toneText({ tone: "danger" }),
   },
   "firing-critical": {
     label: "Firing",
     dot: "firing",
-    text: "text-destructive",
+    text: toneText({ tone: "danger" }),
   },
   "firing-warning": {
     label: "Firing",
     dot: "warning",
-    text: "text-amber-600 dark:text-amber-400",
+    text: toneText({ tone: "warning" }),
   },
   "at-risk": {
     label: "At risk",
     dot: "warning",
-    text: "text-amber-600 dark:text-amber-400",
+    text: toneText({ tone: "warning" }),
   },
   healthy: {
     label: "On track",
     dot: "healthy",
-    text: "text-emerald-600 dark:text-emerald-400",
+    text: toneText({ tone: "healthy" }),
   },
   unknown: {
     label: "No data yet",
     dot: "inactive",
-    text: "text-muted-foreground",
+    text: toneText({ tone: "muted" }),
   },
 };
-
-function budgetFill(remaining: number | null): {
-  width: number;
-  bar: string;
-  track: string;
-} {
-  const { exhausted, low } = ccBudgetTone(remaining);
-  return {
-    width: remaining === null ? 0 : Math.max(0, Math.min(1, remaining)) * 100,
-    bar: exhausted ? "bg-destructive" : low ? "bg-amber-500" : "bg-emerald-500",
-    track: exhausted ? "bg-destructive/25" : "bg-muted",
-  };
-}
 
 // ── Stats row ─────────────────────────────────────────────────────────────────
 // The page's headline numbers as one strip above everything: budget, promise,
@@ -140,7 +130,6 @@ export function SloStatsRow({
   const state = ccSloGroupState(tiers, worst);
   const readout = STATE_READOUT[state];
   const budget = worst?.budget_remaining ?? null;
-  const fill = budgetFill(budget);
   const burn = worst ? ccSloCurrentBurn(tiers, worst.tiers) : null;
   const tte = worst?.time_to_exhaustion_secs ?? null;
   const exhaustion = ccSloExhaustion(budget, tte, burn?.effective ?? null);
@@ -151,34 +140,13 @@ export function SloStatsRow({
         <dl className="grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-3 lg:grid-cols-5 lg:divide-x lg:divide-border/60">
           <Stat
             label="Error budget left"
-            hint={
-              <div
-                className={cn(
-                  "h-1 w-full max-w-32 overflow-hidden rounded-full",
-                  fill.track,
-                )}
-              >
-                <div
-                  className={cn(
-                    "h-full rounded-full transition-[width] duration-500 ease-[cubic-bezier(0.19,1,0.22,1)]",
-                    fill.bar,
-                  )}
-                  style={{ width: `${fill.width}%` }}
-                />
-              </div>
-            }
+            // Same meter, formatter and thresholds as the listing's inline bar,
+            // one size up: this is the page's headline figure. The number takes
+            // the hero's own type scale, hence the two Stat slots rather than a
+            // whole CcBudgetBar.
+            hint={<CcBudgetMeter remaining={budget} />}
           >
-            <span
-              className={cn(
-                fill.bar === "bg-destructive"
-                  ? "text-destructive"
-                  : fill.bar === "bg-amber-500"
-                    ? "text-amber-600 dark:text-amber-400"
-                    : undefined,
-              )}
-            >
-              {/* Same formatter as the inline meter and the chart tooltip; this
-                  used to clamp an overspend to a misleading "0%". */}
+            <span className={ccBudgetTextTone(budget)}>
               {budget === null ? "—" : ccFmtBudgetRemaining(budget)}
             </span>
           </Stat>
@@ -218,10 +186,10 @@ export function SloStatsRow({
             <span
               className={
                 exhaustion.kind === "exhausted"
-                  ? "text-destructive"
+                  ? toneText({ tone: "danger" })
                   : exhaustion.kind === "forecast"
                     ? undefined
-                    : "text-muted-foreground"
+                    : toneText({ tone: "muted" })
               }
             >
               {exhaustion.label}
@@ -254,9 +222,10 @@ function TierWindowValue({
       className={cn(
         "font-mono tabular-nums",
         over &&
-          (severity === "critical"
-            ? "font-medium text-destructive"
-            : "font-medium text-amber-600 dark:text-amber-400"),
+          toneText({
+            tone: severity === "critical" ? "danger" : "warning",
+            emphasis: "strong",
+          }),
       )}
     >
       {ccFmtBurn(rate)}
@@ -288,44 +257,30 @@ function TierMeter({
   const pct = (v: number) => Math.max(0, Math.min(1, v / tier.burn_rate)) * 100;
   const confirmedPct = confirmed === null ? 0 : pct(confirmed);
   const laggingPct = pct(lagging);
-  // Tone from real state: firing takes the tier's severity color; otherwise
+  // Tone from real state: firing takes the tier's severity colour; otherwise
   // the confirmed fill warms past halfway and stays calm below.
-  const fill = firing
+  const tone: MeterFillTone = firing
     ? tier.severity === "critical"
-      ? "bg-destructive"
-      : "bg-amber-500"
+      ? "danger"
+      : "warning"
     : confirmed !== null && confirmed / tier.burn_rate >= 0.5
-      ? "bg-amber-500"
-      : "bg-emerald-500";
+      ? "warning"
+      : "healthy";
   return (
-    <div
-      aria-hidden
-      className={cn(
-        "relative h-1.5 w-full overflow-hidden rounded-full",
+    <Meter
+      tone={
         firing
           ? tier.severity === "critical"
-            ? "bg-destructive/15"
-            : "bg-amber-500/15"
-          : "bg-muted",
-      )}
-    >
-      {/* Older, unconfirmed burn: what the slower window still remembers. */}
-      {laggingPct > confirmedPct && (
-        <div
-          className="absolute inset-y-0 left-0 rounded-full bg-muted-foreground/30"
-          style={{ width: `${laggingPct}%` }}
-        />
-      )}
-      {confirmedPct > 0 && (
-        <div
-          className={cn(
-            "absolute inset-y-0 left-0 rounded-full transition-[width] duration-500 ease-[cubic-bezier(0.19,1,0.22,1)]",
-            fill,
-          )}
-          style={{ width: `${confirmedPct}%` }}
-        />
-      )}
-    </div>
+            ? "danger"
+            : "warning"
+          : "neutral"
+      }
+      layers={[
+        // Older, unconfirmed burn: what the slower window still remembers.
+        { pct: laggingPct > confirmedPct ? laggingPct : 0, tone: "ghost" },
+        { pct: confirmedPct, tone },
+      ]}
+    />
   );
 }
 
@@ -512,11 +467,14 @@ export function SloStatusHero({
                 <span
                   className={cn(
                     "text-xs font-medium",
-                    summary.tone === "critical"
-                      ? "text-destructive"
-                      : summary.tone === "warning"
-                        ? "text-amber-600 dark:text-amber-400"
-                        : "text-foreground",
+                    toneText({
+                      tone:
+                        summary.tone === "critical"
+                          ? "danger"
+                          : summary.tone === "warning"
+                            ? "warning"
+                            : "live",
+                    }),
                   )}
                 >
                   {summary.label}

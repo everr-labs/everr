@@ -6,6 +6,7 @@
 import { Card, CardContent } from "@everr/ui/components/card";
 import { RelativeTime } from "@everr/ui/components/relative-time";
 import { Skeleton } from "@everr/ui/components/skeleton";
+import { toneText } from "@everr/ui/components/tone";
 import type { TimeRange } from "@everr/ui/lib/time-range";
 import { cn } from "@everr/ui/lib/utils";
 import { useQueries, useQuery } from "@tanstack/react-query";
@@ -107,9 +108,7 @@ function Stage({
         <span
           className={cn(
             "text-[0.6875rem] whitespace-nowrap",
-            tone === "degraded"
-              ? "text-amber-600 dark:text-amber-400"
-              : "text-muted-foreground",
+            toneText({ tone: tone === "degraded" ? "warning" : "muted" }),
           )}
         >
           {secondary}
@@ -223,7 +222,11 @@ function SloPostureRow({
         <span className="text-xs text-muted-foreground">no snapshot yet</span>
       ) : (
         <>
-          <CcBudgetBar remaining={worst.budget_remaining} />
+          {/* A flex row, so the bar's width is set here rather than inside it. */}
+          <CcBudgetBar
+            remaining={worst.budget_remaining}
+            className="w-24 shrink-0"
+          />
           <span className="w-20 text-right font-mono text-xs tabular-nums whitespace-nowrap text-muted-foreground">
             {burn ? (
               <>

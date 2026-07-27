@@ -8,6 +8,8 @@
 // clean (the exact shape behind "ticket firing but recovering"). One series,
 // one axis; the 1× sustainable line is the only reference. Values are printed
 // at every point, so the chart never rides on color or hover alone.
+
+import { toneText } from "@everr/ui/components/tone";
 import { cn } from "@everr/ui/lib/utils";
 import { ccFmtBurn } from "@/components/cc/budget-bar";
 import { type CcSloWindowBurn, ccFmtWindowLabel } from "@/data/cc/slo";
@@ -139,9 +141,7 @@ export function SloBurnLookback({
                 <span
                   className={cn(
                     "absolute -translate-x-1/2 -translate-y-full pb-1.5 font-mono text-[0.6875rem] leading-none font-medium tabular-nums",
-                    over
-                      ? "text-amber-600 dark:text-amber-400"
-                      : "text-muted-foreground",
+                    toneText({ tone: over ? "warning" : "muted" }),
                   )}
                   style={{ left, top: `${yPct(b.burn)}%` }}
                 >

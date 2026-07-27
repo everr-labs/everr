@@ -18,6 +18,7 @@ import {
 } from "@everr/ui/components/collapsible";
 import { Input } from "@everr/ui/components/input";
 import { Label } from "@everr/ui/components/label";
+import { toneText } from "@everr/ui/components/tone";
 import { cn } from "@everr/ui/lib/utils";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, useLocation } from "@tanstack/react-router";
@@ -209,7 +210,7 @@ function PipelineRoute({
               />
             ))
           ) : (
-            <span className="text-xs text-amber-600 dark:text-amber-400">
+            <span className={`text-xs ${toneText({ tone: "warning" })}`}>
               receiver not found
             </span>
           )}
@@ -371,9 +372,9 @@ function PipelineSection({
                 <span
                   className={cn(
                     "font-mono",
-                    subscriberCount === 0
-                      ? "text-amber-600 dark:text-amber-400"
-                      : "text-muted-foreground",
+                    toneText({
+                      tone: subscriberCount === 0 ? "warning" : "muted",
+                    }),
                   )}
                 >
                   ·{" "}
