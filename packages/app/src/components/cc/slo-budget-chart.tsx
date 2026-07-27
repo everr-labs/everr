@@ -24,6 +24,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import { ccFmtBudgetRemaining } from "@/components/cc/budget-bar";
 import { CursorTooltip } from "@/components/cursor-tooltip";
 import type { CcSloBudgetPoint } from "@/data/cc/slo-series.server";
 import { SeriesTooltipContent } from "../dashboards/visualizations/series-tooltip";
@@ -68,12 +69,12 @@ export type SloBudgetEvent = {
 /** "1,234" — event counts in the tooltip stay readable at scale. */
 const fmtCount = (n: number) => n.toLocaleString();
 
-// Report the true budget: a deeply-overspent SLO reads as the fact
-// ("exhausted"), not an absurd negative percentage.
+// Report the true budget as a number at every depth, on the same formatter the
+// inline meter uses, so the tooltip and the meter never word the same value
+// differently. `raw` is already a percentage, hence the /100.
 function budgetValue(raw: number | null): string {
   if (raw == null) return "—";
-  if (raw <= -100) return "exhausted";
-  return `${raw.toFixed(2)}%`;
+  return ccFmtBudgetRemaining(raw / 100);
 }
 
 export function SloBudgetChart({

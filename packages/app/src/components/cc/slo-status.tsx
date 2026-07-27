@@ -16,6 +16,7 @@ import { cn } from "@everr/ui/lib/utils";
 import { useState } from "react";
 import {
   ccBudgetTone,
+  ccFmtBudgetRemaining,
   ccFmtBurn,
   ccFmtFraction,
 } from "@/components/cc/budget-bar";
@@ -28,12 +29,12 @@ import { SloBurnLookback } from "@/components/cc/slo-burn-lookback";
 import {
   type CcSloState,
   ccFmtWindowLabel,
-  ccFormatSloDuration,
   ccFormatSloTarget,
   ccSloBurnShape,
   ccSloBurnShapeCaption,
   ccSloCurrentBurn,
   ccSloDescription,
+  ccSloExhaustion,
   ccSloGroupState,
   ccSloTiers,
   ccSloVerdict,
@@ -142,6 +143,7 @@ export function SloStatsRow({
   const fill = budgetFill(budget);
   const burn = worst ? ccSloCurrentBurn(tiers, worst.tiers) : null;
   const tte = worst?.time_to_exhaustion_secs ?? null;
+  const exhaustion = ccSloExhaustion(budget, tte, burn?.effective ?? null);
 
   return (
     <Card>
@@ -175,11 +177,9 @@ export function SloStatsRow({
                     : undefined,
               )}
             >
-              {budget === null
-                ? "—"
-                : ccBudgetTone(budget).exhausted
-                  ? "0%"
-                  : ccFmtFraction(budget)}
+              {/* Same formatter as the inline meter and the chart tooltip; this
+                  used to clamp an overspend to a misleading "0%". */}
+              {budget === null ? "—" : ccFmtBudgetRemaining(budget)}
             </span>
           </Stat>
           <Stat label="SLO" hint={`over ${ccSloWindowLabel(slo.spec)}`}>
@@ -215,15 +215,17 @@ export function SloStatsRow({
             )}
           </Stat>
           <Stat label="Time to exhaustion">
-            {tte === null ? (
-              <span className="text-muted-foreground">
-                {burn?.effective === 0 ? "not shrinking" : "—"}
-              </span>
-            ) : tte === 0 ? (
-              <span className="text-destructive">exhausted</span>
-            ) : (
-              ccFormatSloDuration(tte)
-            )}
+            <span
+              className={
+                exhaustion.kind === "exhausted"
+                  ? "text-destructive"
+                  : exhaustion.kind === "forecast"
+                    ? undefined
+                    : "text-muted-foreground"
+              }
+            >
+              {exhaustion.label}
+            </span>
           </Stat>
         </dl>
       </CardContent>

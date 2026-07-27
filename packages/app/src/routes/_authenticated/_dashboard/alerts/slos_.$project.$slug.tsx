@@ -74,6 +74,7 @@ import {
   ccFormatSloTarget,
   ccSloChartRange,
   ccSloCurrentBurn,
+  ccSloExhaustion,
   ccSloHandles,
   ccSloIdentity,
   ccSloTierSeverity,
@@ -440,11 +441,13 @@ function StatusSection({ slo }: { slo: CcSlo }) {
       header: "Time to exhaustion",
       cell: (g) => (
         <span className="whitespace-nowrap font-mono text-xs tabular-nums">
-          {g.time_to_exhaustion_secs === null
-            ? "—"
-            : g.time_to_exhaustion_secs === 0
-              ? "exhausted"
-              : ccFormatSloDuration(g.time_to_exhaustion_secs)}
+          {
+            ccSloExhaustion(
+              g.budget_remaining,
+              g.time_to_exhaustion_secs,
+              ccSloCurrentBurn(tiers, g.tiers)?.effective ?? null,
+            ).label
+          }
         </span>
       ),
     },

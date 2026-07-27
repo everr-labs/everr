@@ -14,7 +14,7 @@ import {
   ccSloBurnShapeCaption,
   ccSloChartRange,
   ccSloCurrentBurn,
-  ccSloGroupBreakdown,
+  ccSloExhaustion,
   ccSloHandleResolver,
   ccSloHandles,
   ccSloIdentity,
@@ -204,6 +204,29 @@ describe("ccFormatSloDuration", () => {
     expect(ccFormatSloDuration(3 * 86400 + 4 * 3600 + 30 * 60)).toBe("3d 4h");
     expect(ccFormatSloDuration(3 * 86400)).toBe("3d");
     expect(ccFormatSloDuration(0)).toBe("0s");
+  });
+});
+
+describe("ccSloExhaustion", () => {
+  it("says exhausted from the budget alone, with no burn to forecast from", () => {
+    // The regression this exists for: the engine's forecast checks burn before
+    // budget and returns null when nothing is burning, which made a definitively
+    // spent budget read as "no data" instead of "exhausted".
+    expect(ccSloExhaustion(-20.8, null, null).label).toBe("exhausted");
+    expect(ccSloExhaustion(0, null, null).label).toBe("exhausted");
+  });
+
+  it("passes a live forecast through, already formatted", () => {
+    expect(ccSloExhaustion(0.3, 7200, 2)).toEqual({
+      kind: "forecast",
+      label: "2h",
+    });
+  });
+
+  it("distinguishes a stopped burn from an unknown one", () => {
+    expect(ccSloExhaustion(0.4, null, 0).label).toBe("not shrinking");
+    expect(ccSloExhaustion(0.4, null, null).label).toBe("—");
+    expect(ccSloExhaustion(null, null, null).label).toBe("—");
   });
 });
 
@@ -629,54 +652,5 @@ describe("ccSloBurnPace", () => {
     expect(ccSloBurnPaceLabel("draining")).toBe("Draining");
     expect(ccSloBurnPaceLabel("sustainable")).toBe("Sustainable");
     expect(ccSloBurnPaceLabel("steady")).toBe("Steady");
-  });
-});
-
-describe("ccSloGroupBreakdown", () => {
-  const tiers = CC_CANONICAL_SLO_TIERS;
-  const g = (
-    over: Partial<CcSloGroupStatus> & { labels: Record<string, string> },
-  ): CcSloGroupStatus => ({
-    sli: 0.99,
-    budget_remaining: 0.5,
-    tiers: [],
-    time_to_exhaustion_secs: null,
-    firing_tiers: [],
-    ...over,
-  });
-
-  it("counts firing, exhausted, and at-risk groups; healthy ones drop out", () => {
-    const breakdown = ccSloGroupBreakdown(tiers, [
-      g({ labels: { g: "healthy" }, budget_remaining: 0.8 }),
-      g({ labels: { g: "at-risk" }, budget_remaining: 0.1 }),
-      g({ labels: { g: "exhausted" }, budget_remaining: 0 }),
-      g({
-        labels: { g: "firing" },
-        budget_remaining: 0.4,
-        firing_tiers: [{ tier: "fast-burn", status: "firing" }],
-      }),
-    ]);
-    expect(breakdown).toEqual({
-      total: 4,
-      firing: 1,
-      exhausted: 1,
-      atRisk: 1,
-    });
-  });
-
-  it("counts an exhausted-and-firing group as exhausted (state resolves first)", () => {
-    const breakdown = ccSloGroupBreakdown(tiers, [
-      g({
-        labels: { g: "both" },
-        budget_remaining: 0,
-        firing_tiers: [{ tier: "fast-burn", status: "firing" }],
-      }),
-    ]);
-    expect(breakdown).toEqual({
-      total: 1,
-      firing: 0,
-      exhausted: 1,
-      atRisk: 0,
-    });
   });
 });

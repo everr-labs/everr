@@ -500,6 +500,41 @@ export function ccTimeToExhaustionSecs(
   return Math.floor((windowSecs * budgetRemaining) / burnRate);
 }
 
+/**
+ * What a "time to exhaustion" readout should say for a group.
+ *
+ * Budget is consulted before the forecast, deliberately reversing the engine's
+ * `time_to_exhaustion_secs` (engine/slo_math.rs), which returns None on a
+ * non-positive burn before it looks at the budget. Right for a forecast; wrong
+ * for a readout, where a spent budget is exhausted whether or not anything is
+ * burning right now.
+ */
+export type CcSloExhaustion = {
+  kind: "exhausted" | "forecast" | "not-shrinking" | "unknown";
+  /** What every surface prints; only the tone is left to the caller. */
+  label: string;
+};
+
+export function ccSloExhaustion(
+  budgetRemaining: number | null,
+  tteSecs: number | null,
+  effectiveBurn: number | null,
+): CcSloExhaustion {
+  if (budgetRemaining !== null && budgetRemaining <= 0) {
+    return { kind: "exhausted", label: "exhausted" };
+  }
+  // A zero forecast needs no case of its own: the engine only produces one when
+  // the budget is already spent, which the check above has taken.
+  if (tteSecs !== null) {
+    return { kind: "forecast", label: ccFormatSloDuration(tteSecs) };
+  }
+  // No forecast: say why, when the reason is that nothing is being spent.
+  if (effectiveBurn === 0) {
+    return { kind: "not-shrinking", label: "not shrinking" };
+  }
+  return { kind: "unknown", label: "—" };
+}
+
 /** Order-independent, collision-safe key identifying a group by its label set. */
 function sloLabelsKey(labels: Record<string, string>): string {
   const sorted: Record<string, string> = {};
@@ -574,37 +609,6 @@ export function ccSloGroupState(
     return "at-risk";
   }
   return "healthy";
-}
-
-/**
- * How a multi-group SLO's groups are distributed across the risk states, so a
- * listing row can say "worst of 12 · 3 firing" instead of hiding everything
- * behind the single worst group. Counts each group's `ccSloGroupState` into the
- * three that warrant attention; a group that is both exhausted and firing counts
- * as exhausted (the state resolves exhausted first).
- */
-export function ccSloGroupBreakdown(
-  tiers: readonly CcSloTier[],
-  groups: readonly CcSloGroupStatus[],
-): { total: number; firing: number; exhausted: number; atRisk: number } {
-  let firing = 0;
-  let exhausted = 0;
-  let atRisk = 0;
-  for (const g of groups) {
-    switch (ccSloGroupState(tiers, g)) {
-      case "firing-critical":
-      case "firing-warning":
-        firing++;
-        break;
-      case "exhausted":
-        exhausted++;
-        break;
-      case "at-risk":
-        atRisk++;
-        break;
-    }
-  }
-  return { total: groups.length, firing, exhausted, atRisk };
 }
 
 /**

@@ -17,6 +17,21 @@ export function ccFmtBurn(b: number): string {
   return `${b.toFixed(1)}×`;
 }
 
+/**
+ * Budget remaining as a number, always — never a state word, so an overspend
+ * says how far past the line it is. Precision recedes as magnitude grows, which
+ * is what keeps that readable: -99900.00% becomes "-99.9k%". Non-negative values
+ * are untouched.
+ */
+export function ccFmtBudgetRemaining(remaining: number): string {
+  if (remaining >= 0) return ccFmtFraction(remaining);
+  const pct = remaining * 100;
+  const magnitude = -pct;
+  if (magnitude >= 1000) return `-${(magnitude / 1000).toFixed(1)}k%`;
+  if (magnitude >= 100) return `${pct.toFixed(0)}%`;
+  return ccFmtFraction(remaining);
+}
+
 // Below a quarter of budget left the meter turns amber: still inside the
 // objective, but close enough that a sustained burn deserves attention.
 const LOW_BUDGET = 0.25;
@@ -81,9 +96,7 @@ export function CcBudgetBar({
               : "text-foreground",
         )}
       >
-        {/* A deeply-overspent budget prints as the state, not an absurd
-            negative percentage ("-99900.00%" is noise, "exhausted" is the fact). */}
-        {exhausted ? "exhausted" : ccFmtFraction(remaining)}
+        {ccFmtBudgetRemaining(remaining)}
       </span>
     </span>
   );
