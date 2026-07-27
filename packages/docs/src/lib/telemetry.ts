@@ -1,6 +1,6 @@
 import { init } from "@everr/web-sdk";
-import { routePattern } from "@everr/web-sdk/tanstack";
 import { env } from "@/env";
+import { routePattern } from "@/lib/route-pattern";
 
 // Everr-native browser telemetry, strictly cookieless: pageviews, frustration
 // clicks, and web vitals flow to Everr as OTel log records. Runs alongside

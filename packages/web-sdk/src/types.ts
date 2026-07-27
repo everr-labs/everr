@@ -38,7 +38,9 @@ type CommonInitOptions = {
    * id like `/blog/$slug`), sampled per record and stamped on the envelope
    * as `everr.route.pattern`, so every signal slices by route, not just by
    * URL. Errors and nullish returns are treated as "no pattern". TanStack
-   * apps can wire this with the `@everr/web-sdk/tanstack` adapter.
+   * apps can wire this with a small app-owned bridge: register the router
+   * instance where it is created, and sample the deepest match of
+   * `router.state.matches` here.
    */
   routePattern?: () => string | null | undefined;
 };

@@ -1,5 +1,5 @@
 import { init } from "@everr/web-sdk";
-import { routePattern } from "@everr/web-sdk/tanstack";
+import { routePattern } from "@/telemetry/route-pattern";
 
 // Everr-native browser telemetry for the web app (dogfooding), strictly
 // cookieless: pageviews, frustration clicks, and web vitals flow to Everr as

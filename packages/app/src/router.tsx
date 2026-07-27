@@ -1,7 +1,7 @@
-import { registerRouter } from "@everr/web-sdk/tanstack";
 import { QueryClient } from "@tanstack/react-query";
 import { createRouteMask, createRouter } from "@tanstack/react-router";
 import { Loader2 } from "lucide-react";
+import { registerRouter } from "@/telemetry/route-pattern";
 import { RootErrorComponent } from "./components/root-error";
 import { routeTree } from "./routeTree.gen";
 

@@ -1,10 +1,15 @@
 import {
+  type CLSAttribution,
+  type FCPAttribution,
+  type INPAttribution,
+  type LCPAttribution,
   type MetricWithAttribution,
   onCLS,
   onFCP,
   onINP,
   onLCP,
   onTTFB,
+  type TTFBAttribution,
 } from "web-vitals/attribution";
 import type { AttrValue, Emit } from "./emitter.js";
 
@@ -24,6 +29,51 @@ import type { AttrValue, Emit } from "./emitter.js";
 // those still land as new records.
 
 type Attrs = Record<string, AttrValue | null | undefined>;
+
+// Attribute keys are derived, not written out: `browser.web_vital.<metric>.`
+// + the snake_cased attribution field. Listing each field once (instead of a
+// camelCase read plus a snake_case key literal) is what keeps this module
+// small; the `keyof` constraints keep the lists honest against web-vitals.
+const ATTRIBUTION_FIELDS: { [M in MetricWithAttribution["name"]]: string[] } = {
+  LCP: [
+    "target",
+    "url",
+    "timeToFirstByte",
+    "resourceLoadDelay",
+    "resourceLoadDuration",
+    "elementRenderDelay",
+  ] satisfies (keyof LCPAttribution)[],
+  INP: [
+    "interactionTarget",
+    "interactionType",
+    "inputDelay",
+    "processingDuration",
+    "presentationDelay",
+    "loadState",
+    "totalScriptDuration",
+  ] satisfies (keyof INPAttribution)[],
+  CLS: [
+    "largestShiftTarget",
+    "largestShiftValue",
+    "largestShiftTime",
+    "loadState",
+  ] satisfies (keyof CLSAttribution)[],
+  FCP: [
+    "timeToFirstByte",
+    "firstByteToFCP",
+    "loadState",
+  ] satisfies (keyof FCPAttribution)[],
+  TTFB: [
+    "waitingDuration",
+    "cacheDuration",
+    "dnsDuration",
+    "connectionDuration",
+    "requestDuration",
+  ] satisfies (keyof TTFBAttribution)[],
+};
+
+const snakeCase = (field: string) =>
+  field.replace(/[A-Z]+/g, (run) => `_${run.toLowerCase()}`);
 
 export function startWebVitals(emit: Emit): () => void {
   // Browsers pin every vital to the initial hard navigation, while the
@@ -67,62 +117,20 @@ export function startWebVitals(emit: Emit): () => void {
 }
 
 function attributionAttrs(metric: MetricWithAttribution): Attrs {
-  switch (metric.name) {
-    case "LCP": {
-      const a = metric.attribution;
-      return {
-        "browser.web_vital.lcp.target": a.target,
-        "browser.web_vital.lcp.url": a.url,
-        "browser.web_vital.lcp.time_to_first_byte": a.timeToFirstByte,
-        "browser.web_vital.lcp.resource_load_delay": a.resourceLoadDelay,
-        "browser.web_vital.lcp.resource_load_duration": a.resourceLoadDuration,
-        "browser.web_vital.lcp.element_render_delay": a.elementRenderDelay,
-      };
-    }
-    case "INP": {
-      const a = metric.attribution;
-      const script = a.longestScript?.entry;
-      return {
-        "browser.web_vital.inp.interaction_target": a.interactionTarget,
-        "browser.web_vital.inp.interaction_type": a.interactionType,
-        "browser.web_vital.inp.input_delay": a.inputDelay,
-        "browser.web_vital.inp.processing_duration": a.processingDuration,
-        "browser.web_vital.inp.presentation_delay": a.presentationDelay,
-        "browser.web_vital.inp.load_state": a.loadState,
-        "browser.web_vital.inp.longest_script_source_url": script?.sourceURL,
-        "browser.web_vital.inp.longest_script_function_name":
-          script?.sourceFunctionName,
-        "browser.web_vital.inp.longest_script_invoker_type":
-          script?.invokerType,
-        "browser.web_vital.inp.total_script_duration": a.totalScriptDuration,
-      };
-    }
-    case "CLS": {
-      const a = metric.attribution;
-      return {
-        "browser.web_vital.cls.largest_shift_target": a.largestShiftTarget,
-        "browser.web_vital.cls.largest_shift_value": a.largestShiftValue,
-        "browser.web_vital.cls.largest_shift_time": a.largestShiftTime,
-        "browser.web_vital.cls.load_state": a.loadState,
-      };
-    }
-    case "FCP": {
-      const a = metric.attribution;
-      return {
-        "browser.web_vital.fcp.time_to_first_byte": a.timeToFirstByte,
-        "browser.web_vital.fcp.first_byte_to_fcp": a.firstByteToFCP,
-        "browser.web_vital.fcp.load_state": a.loadState,
-      };
-    }
-    case "TTFB": {
-      const a = metric.attribution;
-      return {
-        "browser.web_vital.ttfb.waiting_duration": a.waitingDuration,
-        "browser.web_vital.ttfb.cache_duration": a.cacheDuration,
-        "browser.web_vital.ttfb.dns_duration": a.dnsDuration,
-        "browser.web_vital.ttfb.connection_duration": a.connectionDuration,
-        "browser.web_vital.ttfb.request_duration": a.requestDuration,
-      };
-    }
+  const prefix = `browser.web_vital.${metric.name.toLowerCase()}.`;
+  const attribution = metric.attribution as Record<
+    string,
+    AttrValue | null | undefined
+  >;
+  const attrs: Attrs = {};
+  for (const field of ATTRIBUTION_FIELDS[metric.name]) {
+    attrs[prefix + snakeCase(field)] = attribution[field];
   }
+  if (metric.name === "INP") {
+    const script = metric.attribution.longestScript?.entry;
+    attrs[`${prefix}longest_script_source_url`] = script?.sourceURL;
+    attrs[`${prefix}longest_script_function_name`] = script?.sourceFunctionName;
+    attrs[`${prefix}longest_script_invoker_type`] = script?.invokerType;
+  }
+  return attrs;
 }

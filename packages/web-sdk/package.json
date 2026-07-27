@@ -12,8 +12,7 @@
   "type": "module",
   "sideEffects": false,
   "exports": {
-    ".": "./src/index.ts",
-    "./tanstack": "./src/tanstack.ts"
+    ".": "./src/index.ts"
   },
   "scripts": {
     "build": "tsdown",
