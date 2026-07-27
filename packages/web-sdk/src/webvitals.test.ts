@@ -4,12 +4,11 @@ import type {
   MetricWithAttribution,
   TTFBMetricWithAttribution,
 } from "web-vitals/attribution";
-import { init } from "./client.js";
 import {
   attrs,
   type OtlpBatch,
   type OtlpRecord,
-  stubOtlpFetch,
+  startClient,
 } from "./test-kit.js";
 import type { CaptureSignal, EverrClient } from "./types.js";
 
@@ -74,13 +73,7 @@ function start(options?: {
   routePattern?: () => string | null | undefined;
 }): void {
   callbacks.length = 0;
-  batches = stubOtlpFetch();
-  client = init({
-    mode: "cookieless",
-    serviceName: "everr-docs-test",
-    dev: true,
-    ...options,
-  });
+  [client, batches] = startClient(options);
 }
 
 async function vitals(): Promise<OtlpRecord[]> {

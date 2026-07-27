@@ -1,4 +1,6 @@
 import { vi } from "vitest";
+import { init } from "./client.js";
+import type { CookielessInitOptions, EverrClient } from "./types.js";
 
 // Shared OTLP capture harness for the package's integration tests: stubs
 // the global fetch (which the emitter reads at call time) and decodes each
@@ -19,7 +21,7 @@ export type OtlpBatch = {
 };
 
 /** Stubs the global fetch; returns the live list of captured batches. */
-export function stubOtlpFetch(): OtlpBatch[] {
+function stubOtlpFetch(): OtlpBatch[] {
   const batches: OtlpBatch[] = [];
   vi.stubGlobal(
     "fetch",
@@ -42,4 +44,21 @@ export function attrs(record: OtlpRecord): Record<string, unknown> {
   return Object.fromEntries(
     record.attributes.map(({ key, value }) => [key, Object.values(value)[0]]),
   );
+}
+
+/**
+ * The one true test boot: stubs fetch and inits a cookieless dev client, so
+ * every test file exercises the same init shape.
+ */
+export function startClient(
+  options?: Partial<Omit<CookielessInitOptions, "mode">>,
+): [client: EverrClient, batches: OtlpBatch[]] {
+  const batches = stubOtlpFetch();
+  const client = init({
+    mode: "cookieless",
+    serviceName: "everr-docs-test",
+    dev: true,
+    ...options,
+  });
+  return [client, batches];
 }

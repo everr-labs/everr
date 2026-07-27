@@ -4,7 +4,7 @@ import {
   attrs,
   type OtlpBatch,
   type OtlpRecord,
-  stubOtlpFetch,
+  startClient,
 } from "./test-kit.js";
 import type { CaptureSignal, EverrClient } from "./types.js";
 
@@ -15,13 +15,7 @@ function start(options?: {
   disable?: true | CaptureSignal[];
   routePattern?: () => string | null | undefined;
 }): void {
-  batches = stubOtlpFetch();
-  client = init({
-    mode: "cookieless",
-    serviceName: "everr-docs-test",
-    dev: true,
-    ...options,
-  });
+  [client, batches] = startClient(options);
 }
 
 async function records(): Promise<OtlpRecord[]> {

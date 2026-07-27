@@ -2,6 +2,7 @@ import { attributionAttributes } from "./attribution.js";
 import { resolveTransport } from "./config.js";
 import { createEmitter, noop } from "./emitter.js";
 import { createEnvelope } from "./envelope.js";
+import { startErrors } from "./errors.js";
 import { startInteractions } from "./interactions.js";
 import { watchNavigation } from "./navigation.js";
 import { startPageviews } from "./pageview.js";
@@ -83,6 +84,9 @@ export function init(options: InitOptions): EverrClient {
     ? startInteractions(emit)
     : undefined;
   const stopWebVitals = enabled("webVitals") ? startWebVitals(emit) : undefined;
+  // Errors have no disable key and no options: capture is native and always
+  // on whenever the SDK emits at all.
+  const stopErrors = startErrors(emit);
 
   // Exit delivery: the final leave plus whatever is batched rides the
   // keepalive path. pagehide and visibilitychange-hidden, not beforeunload
@@ -102,6 +106,7 @@ export function init(options: InitOptions): EverrClient {
     shutdown: () => {
       removeEventListener("pagehide", onHide);
       removeEventListener("visibilitychange", onVisibilityChange);
+      stopErrors();
       stopWebVitals?.();
       stopInteractions?.();
       pageviews?.[2]();

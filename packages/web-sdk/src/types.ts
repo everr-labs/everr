@@ -6,7 +6,7 @@
  * - `interactions` governs rage and dead click detection.
  * - `webVitals` governs `browser.web_vital` reporting.
  *
- * Errors have no signal key (`@everr/auto-otel-errors` options govern them)
+ * Errors have no signal key (capture is native, always on, and option-free)
  * and replay is never a signal (the mode system owns it).
  */
 export type CaptureSignal = "pageviews" | "interactions" | "webVitals";
