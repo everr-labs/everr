@@ -107,7 +107,7 @@ describe("web vitals", () => {
     expect(a["browser.web_vital.id"]).toBe("v5-ttfb-1");
     expect(a["browser.web_vital.rating"]).toBe("good");
     expect(a["browser.web_vital.navigation_type"]).toBe("navigate");
-    expect(a["browser.web_vital.ttfb.request_duration"]).toBe(85.5);
+    expect(a["browser.web_vital.ttfb.requestDuration"]).toBe(85.5);
     // Absent-in-this-browser attribution stays absent, not empty.
     expect(a).not.toHaveProperty("browser.web_vital.navigation_id");
     // The shared analytics envelope makes vitals join the session.
