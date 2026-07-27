@@ -43,9 +43,9 @@ describe("init (cookieless)", () => {
     const all = await records();
     expect(all).toHaveLength(1);
     const record = all[0];
-    expect(record.eventName).toBe("browser.page_view");
+    expect(record.eventName).toBe("everr.browser.page_view");
     expect(record.severityNumber).toBe(9);
-    expect(record.body).toEqual({ stringValue: "browser.page_view" });
+    expect(record.body).toEqual({ stringValue: "everr.browser.page_view" });
     const a = attrs(record);
     expect(a["everr.navigation.type"]).toBe("initial");
     expect(a["session.id"]).toMatch(/[0-9a-f-]{36}/);
@@ -65,7 +65,7 @@ describe("init (cookieless)", () => {
     start();
     history.pushState(null, "", "/pricing");
     const [initial, leave, spa] = await records();
-    expect(spa.eventName).toBe("browser.page_view");
+    expect(spa.eventName).toBe("everr.browser.page_view");
     const spaAttrs = attrs(spa);
     const initialAttrs = attrs(initial);
     expect(spaAttrs["everr.navigation.type"]).toBe("history_change");
@@ -78,7 +78,7 @@ describe("init (cookieless)", () => {
 
     // The outgoing page's leave sits between the two views, linked to the
     // initial pageview and carrying duration and scroll depth.
-    expect(leave.eventName).toBe("browser.page_leave");
+    expect(leave.eventName).toBe("everr.browser.page_leave");
     const leaveAttrs = attrs(leave);
     expect(leaveAttrs["everr.page_view.id"]).toBe(
       initialAttrs["everr.page_view.id"],
@@ -94,8 +94,8 @@ describe("init (cookieless)", () => {
     const all = await records();
     // The exit flush sorts the batch by priority; timestamps carry ordering.
     expect(all.map((r) => r.eventName).sort()).toEqual([
-      "browser.page_leave",
-      "browser.page_view",
+      "everr.browser.page_leave",
+      "everr.browser.page_view",
     ]);
     // A repeated hide (tab restored, hidden again) does not duplicate the leave.
     dispatchEvent(new Event("pagehide"));
@@ -114,8 +114,8 @@ describe("init (cookieless)", () => {
       configurable: true,
     });
     expect((await records()).map((r) => r.eventName).sort()).toEqual([
-      "browser.page_leave",
-      "browser.page_view",
+      "everr.browser.page_leave",
+      "everr.browser.page_view",
     ]);
   });
 
@@ -194,7 +194,7 @@ describe("init (cookieless)", () => {
     }
     const all = await records();
     const rageRecord = all.find(
-      (r) => r.eventName === "browser.interaction.rage_click",
+      (r) => r.eventName === "everr.browser.interaction.rage_click",
     );
     expect(rageRecord).toBeDefined();
     const a = attrs(rageRecord as OtlpRecord);
@@ -212,7 +212,7 @@ describe("init (cookieless)", () => {
       );
     }
     const all = await records();
-    expect(all.map((r) => r.eventName)).toEqual(["browser.page_view"]);
+    expect(all.map((r) => r.eventName)).toEqual(["everr.browser.page_view"]);
     document.body.innerHTML = "";
   });
 

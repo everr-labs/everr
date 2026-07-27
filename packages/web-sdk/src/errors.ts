@@ -49,7 +49,7 @@ export function captureReactError(
     "react",
     true,
     errorInfo?.componentStack
-      ? { "react.component_stack": errorInfo.componentStack }
+      ? { "everr.react.component_stack": errorInfo.componentStack }
       : undefined,
   );
 }

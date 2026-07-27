@@ -3,9 +3,10 @@ import { pageAttrs } from "./envelope.js";
 import type { NavigationListener } from "./navigation.js";
 import type { CurrentPage } from "./session.js";
 
-// The pageviews signal: one `browser.page_view` for the hard navigation that
-// loaded the page and one per SPA navigation, plus one `browser.page_leave`
-// per pageview (on navigation away or page hide) carrying its duration and
+// The pageviews signal: one `everr.browser.page_view` for the hard navigation
+// that loaded the page and one per SPA navigation, plus one
+// `everr.browser.page_leave` (no semconv event exists for either, hence the
+// prefix) per pageview (on navigation away or page hide) carrying its duration and
 // max scroll depth. The navigation watcher rotates the page context before
 // listeners run, so the leave overrides the envelope with the outgoing
 // page's context (shared `pageAttrs` keys).
@@ -33,14 +34,16 @@ export function startPageviews(emit: Emit, current: CurrentPage): Pageviews {
   onScroll();
 
   const emitView = (navigationType: "initial" | "history_change") =>
-    emit("browser.page_view", { "everr.navigation.type": navigationType });
+    emit("everr.browser.page_view", {
+      "everr.navigation.type": navigationType,
+    });
 
   const onHide = () => {
     if (left) return;
     left = true;
     const height = document.documentElement.scrollHeight;
     emit(
-      "browser.page_leave",
+      "everr.browser.page_leave",
       {
         // The leave belongs to the page being left: override the envelope.
         ...pageAttrs(page),

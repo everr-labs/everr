@@ -105,11 +105,11 @@ describe("web vitals", () => {
     expect(a["browser.web_vital.value"]).toBe(120.5);
     expect(a["browser.web_vital.delta"]).toBe(120.5);
     expect(a["browser.web_vital.id"]).toBe("v5-ttfb-1");
-    expect(a["browser.web_vital.rating"]).toBe("good");
-    expect(a["browser.web_vital.navigation_type"]).toBe("navigate");
-    expect(a["browser.web_vital.ttfb.requestDuration"]).toBe(85.5);
+    expect(a["everr.browser.web_vital.rating"]).toBe("good");
+    expect(a["everr.browser.web_vital.navigation_type"]).toBe("navigate");
+    expect(a["everr.browser.web_vital.ttfb.request_duration"]).toBe(85.5);
     // Absent-in-this-browser attribution stays absent, not empty.
-    expect(a).not.toHaveProperty("browser.web_vital.navigation_id");
+    expect(a).not.toHaveProperty("everr.browser.web_vital.navigation_id");
     // The shared analytics envelope makes vitals join the session.
     expect(a["session.id"]).toMatch(/[0-9a-f-]{36}/);
     expect(a["everr.page_view.id"]).toMatch(/[0-9a-f-]{36}/);

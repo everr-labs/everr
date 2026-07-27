@@ -9,9 +9,10 @@ import {
 import type { AttrValue, Emit } from "./emitter.js";
 
 // The webVitals signal: one `browser.web_vital` record per finalized metric
-// (LCP, CLS, INP, FCP, TTFB via the web-vitals v5 attribution build), named
-// after the OTel semconv attributes with attribution flattened under the
-// same namespace. TTFB and FCP report early and ride normal batches; LCP,
+// (LCP, CLS, INP, FCP, TTFB via the web-vitals v5 attribution build). The
+// semconv-defined attributes (name/value/delta/id) keep their bare names;
+// everything else, including flattened attribution, is custom and lives
+// under `everr.`. TTFB and FCP report early and ride normal batches; LCP,
 // CLS and INP mostly report when the page goes hidden, from web-vitals' own
 // hidden-state listeners. No vitals-side queue is needed: any record emitted
 // while the page is hidden rides the emitter's coalesced exit flush, in
@@ -47,10 +48,10 @@ export function startWebVitals(emit: Emit): () => void {
         "browser.web_vital.value": metric.value,
         "browser.web_vital.delta": metric.delta,
         "browser.web_vital.id": metric.id,
-        "browser.web_vital.rating": metric.rating,
-        "browser.web_vital.navigation_type": metric.navigationType,
-        "browser.web_vital.navigation_id": soft.navigationId,
-        "browser.web_vital.navigation_url": soft.navigationURL,
+        "everr.browser.web_vital.rating": metric.rating,
+        "everr.browser.web_vital.navigation_type": metric.navigationType,
+        "everr.browser.web_vital.navigation_id": soft.navigationId,
+        "everr.browser.web_vital.navigation_url": soft.navigationURL,
         "everr.landing.url": landingUrl,
         "everr.landing.path": landingPath,
         ...attributionAttrs(metric),
@@ -66,16 +67,17 @@ export function startWebVitals(emit: Emit): () => void {
   };
 }
 
-// Attribution keys are raw pass-through: `browser.web_vital.<metric>.` + the
-// field exactly as web-vitals spells it, scalars only (the typeof filter
-// drops PerformanceEntry objects, DOM nodes, and entry arrays). The verbatim
-// camelCase is deliberate (2026-07-27): the OTel semconv browser.web_vital
-// event (in Development) covers only name/value/delta/id, so these keys are
-// not semconv either way, and library spelling makes them findable in the
-// web-vitals docs and follows upgrades without a code change. INP's longest
-// script is the one nested value worth flattening by hand.
+// Attribution keys are `everr.browser.web_vital.<metric>.` + the web-vitals
+// field snake_cased (the semconv browser.web_vital event, in Development,
+// covers only name/value/delta/id, so attribution is custom and takes the
+// everr prefix), scalars only (the typeof filter drops PerformanceEntry
+// objects, DOM nodes, and entry arrays). Fields are auto-derived, so keys
+// follow web-vitals upgrades without a code change. INP's longest script is
+// the one nested value worth flattening by hand.
+const snake = (s: string) => s.replace(/[A-Z]+/g, (m) => `_${m.toLowerCase()}`);
+
 function attributionAttrs(metric: MetricWithAttribution): Attrs {
-  const prefix = `browser.web_vital.${metric.name.toLowerCase()}.`;
+  const prefix = `everr.browser.web_vital.${metric.name.toLowerCase()}.`;
   const attrs: Attrs = {};
   for (const [field, value] of Object.entries(metric.attribution)) {
     if (
@@ -83,15 +85,15 @@ function attributionAttrs(metric: MetricWithAttribution): Attrs {
       typeof value === "number" ||
       typeof value === "boolean"
     ) {
-      attrs[prefix + field] = value;
+      attrs[prefix + snake(field)] = value;
     }
   }
   if (metric.name === "INP") {
     const script = metric.attribution.longestScript?.entry;
-    attrs[`${prefix}longestScript.sourceURL`] = script?.sourceURL;
-    attrs[`${prefix}longestScript.sourceFunctionName`] =
+    attrs[`${prefix}longest_script.source_url`] = script?.sourceURL;
+    attrs[`${prefix}longest_script.source_function_name`] =
       script?.sourceFunctionName;
-    attrs[`${prefix}longestScript.invokerType`] = script?.invokerType;
+    attrs[`${prefix}longest_script.invoker_type`] = script?.invokerType;
   }
   return attrs;
 }

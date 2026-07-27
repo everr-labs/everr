@@ -1,9 +1,10 @@
 import type { AttrValue, Emit } from "./emitter.js";
 
 // The interactions signal: frustration detection only. The derived
-// browser.interaction.rage_click / browser.interaction.dead_click events
-// carry the full element payload; plain clicks, changes, and submits are
-// deliberately not captured (amended 2026-07-23).
+// everr.browser.interaction.rage_click / everr.browser.interaction.dead_click
+// events (no semconv interaction events exist, hence the prefix) carry the
+// full element payload; plain clicks, changes, and submits are deliberately
+// not captured (amended 2026-07-23).
 //
 // Privacy guardrails are structural, not configurable: element values are
 // never read, password and hidden inputs are skipped entirely, captured text
@@ -49,7 +50,7 @@ export function startInteractions(emit: Emit): () => void {
         ? [x, y, now, rage[3] + 1]
         : [x, y, now, 1];
     if (rage[3] === 3) {
-      emit("browser.interaction.rage_click", clickAttrs(el, x, y));
+      emit("everr.browser.interaction.rage_click", clickAttrs(el, x, y));
       rage = undefined;
     }
 
@@ -69,7 +70,7 @@ export function startInteractions(emit: Emit): () => void {
       deadTimer = setTimeout(() => {
         observer.disconnect();
         if (lastActivity < now && location.href === url) {
-          emit("browser.interaction.dead_click", attrs);
+          emit("everr.browser.interaction.dead_click", attrs);
         }
       }, 3_000);
     }

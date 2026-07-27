@@ -85,7 +85,7 @@ A numerical time-series measurement, such as a gauge, counter, or histogram.
 ### Browser telemetry
 
 **Analytics event**:
-A browser interaction or page lifecycle moment captured as a Log with an event name (`browser.page_view`, `browser.click`, and the like). Not a separate signal kind: analytics events are Logs.
+A browser interaction or page lifecycle moment captured as a Log with an event name (`everr.browser.page_view`, `everr.browser.interaction.rage_click`, and the like). Not a separate signal kind: analytics events are Logs.
 _Avoid_: autocapture event, tracking event
 
 **Session**:

@@ -56,7 +56,7 @@ describe("startInteractions", () => {
       '<nav class="top main extra fourth"><a id="docs-link" href="/docs">Read the docs</a></nav>';
     rageBurst(document.getElementById("docs-link") as Element, 15, 25);
 
-    expect(names()).toEqual(["browser.interaction.rage_click"]);
+    expect(names()).toEqual(["everr.browser.interaction.rage_click"]);
     const attrs = emitted[0].attrs ?? {};
     expect(attrs["everr.element.tag"]).toBe("a");
     expect(attrs["everr.element.text"]).toBe("Read the docs");
@@ -97,7 +97,7 @@ describe("startInteractions", () => {
     document.body.innerHTML =
       '<div id="wrap"><textarea>prefilled secret</textarea></div>';
     rageBurst(document.getElementById("wrap") as Element);
-    expect(names()).toEqual(["browser.interaction.rage_click"]);
+    expect(names()).toEqual(["everr.browser.interaction.rage_click"]);
     expect(JSON.stringify(emitted[0].attrs)).not.toContain("prefilled secret");
   });
 
@@ -110,7 +110,7 @@ describe("startInteractions", () => {
   it("drops text that looks like a card number or SSN", () => {
     document.body.innerHTML = "<button>4242 4242 4242 4242</button>";
     rageBurst(document.querySelector("button") as Element);
-    expect(names()).toEqual(["browser.interaction.rage_click"]);
+    expect(names()).toEqual(["everr.browser.interaction.rage_click"]);
     expect(emitted[0].attrs?.["everr.element.text"]).toBeUndefined();
   });
 
@@ -119,7 +119,7 @@ describe("startInteractions", () => {
     const button = document.querySelector("button") as Element;
     rageBurst(button);
     click(button, 11, 11);
-    expect(names()).toEqual(["browser.interaction.rage_click"]);
+    expect(names()).toEqual(["everr.browser.interaction.rage_click"]);
   });
 
   it("does not rage on spread-out clicks", () => {
@@ -136,7 +136,7 @@ describe("startInteractions", () => {
     document.body.innerHTML = "<div><p>just text</p></div>";
     click(document.querySelector("p") as Element);
     vi.advanceTimersByTime(3_100);
-    expect(names()).toEqual(["browser.interaction.dead_click"]);
+    expect(names()).toEqual(["everr.browser.interaction.dead_click"]);
     expect(emitted[0].attrs?.["everr.element.tag"]).toBe("p");
   });
 

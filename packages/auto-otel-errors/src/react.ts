@@ -18,7 +18,7 @@ export function captureReactError(
     mechanism: "react",
     handled: true,
     attributes: errorInfo?.componentStack
-      ? { "react.component_stack": errorInfo.componentStack }
+      ? { "everr.react.component_stack": errorInfo.componentStack }
       : {},
   });
 }

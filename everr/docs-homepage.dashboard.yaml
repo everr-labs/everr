@@ -33,7 +33,7 @@ spec:
                     FROM logs
                     WHERE Timestamp >= {from:String} AND Timestamp <= {to:String}
                       AND ServiceName = 'everr-docs'
-                      AND EventName = 'browser.page_view'
+                      AND EventName = 'everr.browser.page_view'
                     GROUP BY ts
                     ORDER BY ts
     sessions:
@@ -54,7 +54,7 @@ spec:
                     FROM logs
                     WHERE Timestamp >= {from:String} AND Timestamp <= {to:String}
                       AND ServiceName = 'everr-docs'
-                      AND EventName = 'browser.page_view'
+                      AND EventName = 'everr.browser.page_view'
     scroll-depth:
       kind: Panel
       spec:
@@ -76,7 +76,7 @@ spec:
                     FROM logs
                     WHERE Timestamp >= {from:String} AND Timestamp <= {to:String}
                       AND ServiceName = 'everr-docs'
-                      AND EventName = 'browser.page_leave'
+                      AND EventName = 'everr.browser.page_leave'
     frustration:
       kind: Panel
       spec:
@@ -98,8 +98,8 @@ spec:
                 kind: ClickHouseSQL
                 spec:
                   query: |
-                    SELECT countIf(EventName = 'browser.interaction.rage_click') AS rage,
-                           countIf(EventName = 'browser.interaction.dead_click') AS dead
+                    SELECT countIf(EventName = 'everr.browser.interaction.rage_click') AS rage,
+                           countIf(EventName = 'everr.browser.interaction.dead_click') AS dead
                     FROM logs
                     WHERE Timestamp >= {from:String} AND Timestamp <= {to:String}
                       AND ServiceName = 'everr-docs'
@@ -123,7 +123,7 @@ spec:
                     FROM logs
                     WHERE Timestamp >= {from:String} AND Timestamp <= {to:String}
                       AND ServiceName = 'everr-docs'
-                      AND EventName = 'browser.page_view'
+                      AND EventName = 'everr.browser.page_view'
                     GROUP BY ts
                     ORDER BY ts
     top-pages:
@@ -146,7 +146,7 @@ spec:
                     FROM logs
                     WHERE Timestamp >= {from:String} AND Timestamp <= {to:String}
                       AND ServiceName = 'everr-docs'
-                      AND EventName = 'browser.page_view'
+                      AND EventName = 'everr.browser.page_view'
                     GROUP BY path
                     ORDER BY views DESC
                     LIMIT 10
@@ -165,12 +165,12 @@ spec:
                 spec:
                   query: |
                     SELECT toStartOfInterval(Timestamp, INTERVAL {step:UInt32} SECOND) AS ts,
-                           countIf(EventName = 'browser.interaction.rage_click') AS rage_clicks,
-                           countIf(EventName = 'browser.interaction.dead_click') AS dead_clicks
+                           countIf(EventName = 'everr.browser.interaction.rage_click') AS rage_clicks,
+                           countIf(EventName = 'everr.browser.interaction.dead_click') AS dead_clicks
                     FROM logs
                     WHERE Timestamp >= {from:String} AND Timestamp <= {to:String}
                       AND ServiceName = 'everr-docs'
-                      AND EventName IN ('browser.interaction.rage_click', 'browser.interaction.dead_click')
+                      AND EventName IN ('everr.browser.interaction.rage_click', 'everr.browser.interaction.dead_click')
                     GROUP BY ts
                     ORDER BY ts
   layouts:

@@ -67,8 +67,8 @@ afterEach(() => {
 
 describe("createEmitter", () => {
   it("batches on the scheduled delay rather than per event", async () => {
-    emit("browser.page_view");
-    emit("browser.page_view");
+    emit("everr.browser.page_view");
+    emit("everr.browser.page_view");
     expect(sent).toHaveLength(0);
     await vi.advanceTimersByTimeAsync(5_000);
     expect(sent).toHaveLength(1);
@@ -76,13 +76,13 @@ describe("createEmitter", () => {
   });
 
   it("flushes immediately when the batch size is reached", () => {
-    for (let i = 0; i < 32; i++) emit("browser.page_view");
+    for (let i = 0; i < 32; i++) emit("everr.browser.page_view");
     expect(sent).toHaveLength(1);
     expect(sentRecords()).toHaveLength(32);
   });
 
   it("flush() sends whatever is pending and clears the timer", async () => {
-    emit("browser.page_view");
+    emit("everr.browser.page_view");
     await flush();
     expect(sentRecords()).toHaveLength(1);
     await vi.advanceTimersByTimeAsync(10_000);
@@ -91,7 +91,7 @@ describe("createEmitter", () => {
 
   it("posts OTLP JSON with resource, scope, headers, and typed attributes", async () => {
     [emit, flush, exitFlush] = makeEmitter(() => ({ "session.id": "s1" }));
-    emit("browser.page_view", { "everr.navigation.type": "initial" });
+    emit("everr.browser.page_view", { "everr.navigation.type": "initial" });
     await flush();
 
     const batch = sent[0];
@@ -110,7 +110,7 @@ describe("createEmitter", () => {
       value: { intValue: "1920" },
     });
     const record = resourceLog.scopeLogs[0].logRecords[0];
-    expect(record.eventName).toBe("browser.page_view");
+    expect(record.eventName).toBe("everr.browser.page_view");
     expect(record.severityNumber).toBe(9);
     expect(record.timeUnixNano).toMatch(/^\d+$/);
     expect(record.attributes).toContainEqual({
@@ -126,7 +126,7 @@ describe("createEmitter", () => {
   it("stamps the envelope at emit time, not flush time", async () => {
     let sessionId = "before";
     [emit, flush, exitFlush] = makeEmitter(() => ({ "session.id": sessionId }));
-    emit("browser.page_view");
+    emit("everr.browser.page_view");
     sessionId = "after";
     await flush();
     expect(sentRecords()[0].attributes).toContainEqual({
@@ -138,7 +138,7 @@ describe("createEmitter", () => {
   it("drops events beyond the queue cap instead of growing unbounded", async () => {
     // Cap is 100; batches of 32 auto-flush, so fill without flushing: emit 31,
     // flush manually... instead verify the cap by disabling time passage.
-    for (let i = 0; i < 250; i++) emit("browser.page_view");
+    for (let i = 0; i < 250; i++) emit("everr.browser.page_view");
     await flush();
     // 32-batches auto-flushed along the way; total delivered must be <= 250
     // and nothing threw. The cap only guards a stalled transport, which the
@@ -147,7 +147,7 @@ describe("createEmitter", () => {
   });
 
   it("exitFlush posts with keepalive and empties the queue", () => {
-    emit("browser.page_view");
+    emit("everr.browser.page_view");
     exitFlush();
     expect(sent).toHaveLength(1);
     expect(sent[0].keepalive).toBe(true);
@@ -157,9 +157,9 @@ describe("createEmitter", () => {
 
   it("truncates the exit payload by declared priority within the keepalive budget", () => {
     const filler = "x".repeat(3000);
-    for (let i = 0; i < 28; i++) emit("browser.click", { filler });
+    for (let i = 0; i < 28; i++) emit("everr.browser.click", { filler });
     emit("browser.web_vital", { filler }, 2);
-    emit("browser.page_leave", {}, 1);
+    emit("everr.browser.page_leave", {}, 1);
     emit("exception", {}, 0);
     exitFlush();
 
@@ -168,9 +168,11 @@ describe("createEmitter", () => {
     // errors > page_leave > vitals > interactions: the high-priority records
     // survive, interactions absorb the truncation.
     expect(names).toContain("exception");
-    expect(names).toContain("browser.page_leave");
+    expect(names).toContain("everr.browser.page_leave");
     expect(names).toContain("browser.web_vital");
-    expect(names.filter((n) => n === "browser.click").length).toBeLessThan(28);
+    expect(
+      names.filter((n) => n === "everr.browser.click").length,
+    ).toBeLessThan(28);
   });
 
   it("never throws from exitFlush, even when fetch throws synchronously", () => {
@@ -180,7 +182,7 @@ describe("createEmitter", () => {
         throw new Error("keepalive unsupported");
       }),
     );
-    emit("browser.page_view");
+    emit("everr.browser.page_view");
     expect(() => exitFlush()).not.toThrow();
   });
 
@@ -196,7 +198,7 @@ describe("createEmitter", () => {
       { name: "s", version: "v" },
       () => ({}),
     );
-    failingEmit("browser.page_view");
+    failingEmit("everr.browser.page_view");
     await expect(failingFlush()).resolves.toBeUndefined();
   });
 });

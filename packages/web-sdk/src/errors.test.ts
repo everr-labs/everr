@@ -74,7 +74,7 @@ describe("error capture through the SDK", () => {
     const a = attrs(record as OtlpRecord);
     expect(a["everr.error.mechanism"]).toBe("react");
     expect(a["everr.error.handled"]).toBe(true);
-    expect(String(a["react.component_stack"])).toContain("Broken");
+    expect(String(a["everr.react.component_stack"])).toContain("Broken");
     expect(a["session.id"]).toMatch(/[0-9a-f-]{36}/);
   });
 

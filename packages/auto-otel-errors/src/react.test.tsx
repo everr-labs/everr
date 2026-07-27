@@ -35,7 +35,7 @@ describe("ErrorBoundary", () => {
     expect(record.eventName).toBe("exception");
     expect(record.attributes["everr.error.mechanism"]).toBe("react");
     expect(record.attributes["exception.message"]).toBe("render boom");
-    expect(String(record.attributes["react.component_stack"])).toContain("Boom");
+    expect(String(record.attributes["everr.react.component_stack"])).toContain("Boom");
   });
 
   it("supports a function fallback and onError callback", () => {
@@ -55,6 +55,6 @@ describe("captureReactError", () => {
     captureReactError(new Error("manual react"), { componentStack: "\n at App" });
     const [record] = otel.records();
     expect(record.attributes["everr.error.mechanism"]).toBe("react");
-    expect(record.attributes["react.component_stack"]).toBe("\n at App");
+    expect(record.attributes["everr.react.component_stack"]).toBe("\n at App");
   });
 });
