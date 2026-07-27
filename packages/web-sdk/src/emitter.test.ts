@@ -157,7 +157,8 @@ describe("createEmitter", () => {
 
   it("truncates the exit payload by declared priority within the keepalive budget", () => {
     const filler = "x".repeat(3000);
-    for (let i = 0; i < 28; i++) emit("everr.browser.click", { filler });
+    for (let i = 0; i < 28; i++)
+      emit("everr.browser.interaction.dead_click", { filler });
     emit("browser.web_vital", { filler }, 2);
     emit("everr.browser.page_leave", {}, 1);
     emit("exception", {}, 0);
@@ -171,7 +172,7 @@ describe("createEmitter", () => {
     expect(names).toContain("everr.browser.page_leave");
     expect(names).toContain("browser.web_vital");
     expect(
-      names.filter((n) => n === "everr.browser.click").length,
+      names.filter((n) => n === "everr.browser.interaction.dead_click").length,
     ).toBeLessThan(28);
   });
 

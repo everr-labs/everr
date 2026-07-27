@@ -7,6 +7,17 @@
 
 export type AttrValue = string | number | boolean;
 
+// The full event taxonomy in one typed home: the semconv-registered names
+// stay bare, everything else carries the everr prefix. Type-only (zero
+// runtime bytes), so a missed prefix or stale name is a compile error.
+export type EventName =
+  | "browser.web_vital"
+  | "exception"
+  | "everr.browser.page_view"
+  | "everr.browser.page_leave"
+  | "everr.browser.interaction.rage_click"
+  | "everr.browser.interaction.dead_click";
+
 type AnyValue =
   | { stringValue: string }
   | { intValue: string }
@@ -30,7 +41,7 @@ type OtlpLogRecord = {
  * to INFO (9) and `body` to the event name; the error signal overrides both.
  */
 export type Emit = (
-  eventName: string,
+  eventName: EventName,
   attributes?: Record<string, AttrValue | null | undefined>,
   exitPriority?: number,
   severityNumber?: number,

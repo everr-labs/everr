@@ -67,15 +67,13 @@ export function startWebVitals(emit: Emit): () => void {
   };
 }
 
-// Attribution keys are `everr.browser.web_vital.<metric>.` + the web-vitals
-// field snake_cased (the semconv browser.web_vital event, in Development,
-// covers only name/value/delta/id, so attribution is custom and takes the
-// everr prefix), scalars only (the typeof filter drops PerformanceEntry
-// objects, DOM nodes, and entry arrays). Fields are auto-derived, so keys
-// follow web-vitals upgrades without a code change. INP's longest script is
-// the one nested value worth flattening by hand.
 const snake = (s: string) => s.replace(/[A-Z]+/g, (m) => `_${m.toLowerCase()}`);
 
+// Attribution keys are `everr.browser.web_vital.<metric>.` + the web-vitals
+// field snake_cased, scalars only (the typeof filter drops PerformanceEntry
+// objects, DOM nodes, and entry arrays); fields are auto-derived, so keys
+// follow web-vitals upgrades without a code change. INP's longest script is
+// the one nested value worth flattening by hand.
 function attributionAttrs(metric: MetricWithAttribution): Attrs {
   const prefix = `everr.browser.web_vital.${metric.name.toLowerCase()}.`;
   const attrs: Attrs = {};
@@ -90,10 +88,13 @@ function attributionAttrs(metric: MetricWithAttribution): Attrs {
   }
   if (metric.name === "INP") {
     const script = metric.attribution.longestScript?.entry;
-    attrs[`${prefix}longest_script.source_url`] = script?.sourceURL;
-    attrs[`${prefix}longest_script.source_function_name`] =
-      script?.sourceFunctionName;
-    attrs[`${prefix}longest_script.invoker_type`] = script?.invokerType;
+    for (const field of [
+      "sourceURL",
+      "sourceFunctionName",
+      "invokerType",
+    ] as const) {
+      attrs[prefix + snake(`longestScript.${field}`)] = script?.[field];
+    }
   }
   return attrs;
 }

@@ -2,9 +2,8 @@ import type { AttrValue, Emit } from "./emitter.js";
 
 // The interactions signal: frustration detection only. The derived
 // everr.browser.interaction.rage_click / everr.browser.interaction.dead_click
-// events (no semconv interaction events exist, hence the prefix) carry the
-// full element payload; plain clicks, changes, and submits are deliberately
-// not captured (amended 2026-07-23).
+// events carry the full element payload; plain clicks, changes, and submits
+// are deliberately not captured (amended 2026-07-23).
 //
 // Privacy guardrails are structural, not configurable: element values are
 // never read, password and hidden inputs are skipped entirely, captured text

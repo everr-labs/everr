@@ -2,7 +2,8 @@
  * Analytics signals that can be disabled at init; everything is on by default
  * and only exclusions are named.
  *
- * - `pageviews` governs `browser.page_view` and `browser.page_leave` together.
+ * - `pageviews` governs `everr.browser.page_view` and
+ *   `everr.browser.page_leave` together.
  * - `interactions` governs rage and dead click detection.
  * - `webVitals` governs `browser.web_vital` reporting.
  *

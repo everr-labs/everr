@@ -7,7 +7,7 @@ import type { Emit } from "./emitter.js";
 // handling the browser needs instead of depending on @everr/auto-otel-errors:
 // the SDK stays a fraction of the bytes and never contends for that package's
 // global client. The attribute names below are a wire contract shared with it
-// (`exception.*`, `everr.error.*`), so browser and server errors group
+// (`exception.*`, `everr.error.*`, `everr.react.*`), so browser and server errors group
 // identically through the errorFingerprint UDF. Errors have no `disable` key
 // and no options.
 //

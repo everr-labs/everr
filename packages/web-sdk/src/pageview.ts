@@ -5,9 +5,8 @@ import type { CurrentPage } from "./session.js";
 
 // The pageviews signal: one `everr.browser.page_view` for the hard navigation
 // that loaded the page and one per SPA navigation, plus one
-// `everr.browser.page_leave` (no semconv event exists for either, hence the
-// prefix) per pageview (on navigation away or page hide) carrying its duration and
-// max scroll depth. The navigation watcher rotates the page context before
+// `everr.browser.page_leave` per pageview (on navigation away or page hide)
+// carrying its duration and max scroll depth. The navigation watcher rotates the page context before
 // listeners run, so the leave overrides the envelope with the outgoing
 // page's context (shared `pageAttrs` keys).
 

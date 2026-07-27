@@ -38,7 +38,7 @@ afterEach(async () => {
 });
 
 describe("init (cookieless)", () => {
-  it("emits an enveloped browser.page_view for the initial load", async () => {
+  it("emits an enveloped everr.browser.page_view for the initial load", async () => {
     start();
     const all = await records();
     expect(all).toHaveLength(1);

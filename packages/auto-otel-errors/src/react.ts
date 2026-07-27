@@ -13,6 +13,9 @@ export function captureReactError(
     return;
   }
 
+  // The attribute name is a wire contract shared with @everr/web-sdk's
+  // captureReactError: keep the spelling in lockstep so React errors from
+  // both packages group identically.
   client.capture({
     error,
     mechanism: "react",
