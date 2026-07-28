@@ -58,7 +58,7 @@ import {
   SloBudgetChart,
   type SloBudgetEvent,
 } from "@/components/cc/slo-budget-chart";
-import { SloStatsRow, SloStatusHero } from "@/components/cc/slo-status";
+import { SloStatsRow } from "@/components/cc/slo-status";
 import {
   ANN_LABEL_PREFIX,
   ANN_PROJECT,
@@ -439,10 +439,8 @@ function StatusSection({ slo }: { slo: CcSlo }) {
   return (
     <div className="space-y-2">
       {/* The headline numbers as one strip: budget, promise, SLI, burn, and
-          the horizon — all the worst group's, same as the hero below. */}
+          the horizon — all the worst group's, same as the chart below. */}
       <SloStatsRow slo={slo} worst={worst} />
-      {/* At-a-glance: the verdict, state, and per-tier alert pressure. */}
-      <SloStatusHero slo={slo} worst={worst} groupCount={groups.length} />
       {/* The budget is computed at read time. Only the freshness is said here:
           the window and the target are already two of the stats above. */}
       <p className="px-1 text-[0.6875rem] text-muted-foreground">

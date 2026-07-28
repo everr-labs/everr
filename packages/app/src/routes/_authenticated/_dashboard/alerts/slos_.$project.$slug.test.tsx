@@ -200,41 +200,27 @@ describe("/alerts/slos/$project/$slug route", () => {
     expect(await screen.findByText("over 30d rolling")).toBeInTheDocument();
     expect(screen.getAllByText("99.9%").length).toBeGreaterThanOrEqual(1);
 
-    // The hero leads with a plain-language verdict, before any number.
-    expect(
-      await screen.findByText(/Burning fast\. A critical alert is firing/),
-    ).toBeInTheDocument();
-
-    // The hero state pill: fast-burn is firing (critical), so the SLO is Firing.
-    expect(screen.getByText("Firing")).toBeInTheDocument();
-    // The worst group's identity rides next to the state.
-    expect(screen.getByText("checkout")).toBeInTheDocument();
-    // Headline numbers: SLI, budget remaining, time to exhaustion.
+    // Headline numbers: SLI, budget remaining, burn, time to exhaustion.
     expect(screen.getByText("99.92%")).toBeInTheDocument(); // SLI
     expect(screen.getByText("42.00%")).toBeInTheDocument(); // budget remaining
     expect(screen.getByText("3d 4h")).toBeInTheDocument(); // exhaustion
-    // The headline burn (1h fact) and the lookback readout both print 1.4×.
-    expect(screen.getAllByText(/1\.4×/).length).toBeGreaterThanOrEqual(2);
-    // A critical tier fires, so the alerts disclosure opens itself: the
-    // lookback axis names the windows in plain words and the fast-burn row
-    // spells its condition with both live windows in place.
-    expect(screen.getByText("Paging: fast-burn")).toBeInTheDocument();
-    expect(screen.getAllByText(/last 1h/).length).toBeGreaterThanOrEqual(1);
-    expect(screen.getAllByText(/0\.9×/).length).toBeGreaterThanOrEqual(1);
-    expect(screen.getAllByText(/Fires when the last/).length).toBe(3);
-    // fast-burn is named in the hero's tier conditions.
-    expect(screen.getAllByText("fast-burn").length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByText(/1\.4×/)).toBeInTheDocument(); // burn (1h)
+    expect(screen.getByText("last 1h")).toBeInTheDocument(); // its window
+
+    // The stats strip is the whole status readout now. Nothing restates it: no
+    // state pill, no plain-language verdict, no per-tier pressure panel, and
+    // no per-tier firing conditions anywhere on the page.
+    expect(screen.queryByText("Firing")).not.toBeInTheDocument();
+    expect(
+      screen.queryByText(/A critical alert is firing/),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText("Paging: fast-burn")).not.toBeInTheDocument();
+    expect(screen.queryByText(/Fires when the last/)).not.toBeInTheDocument();
+    expect(screen.queryByText("When it alerts")).not.toBeInTheDocument();
 
     // The read-time scan is empty here (no traffic in the trailing window), so the
     // stored snapshot stands and the freshness line reads "computing", not fresh.
     expect(screen.getByText(/Error budget computing/)).toBeInTheDocument();
-
-    // The hero's tier conditions are the only statement of what alerts: the
-    // Definition card no longer restates the tiers.
-    expect(screen.queryByText("When it alerts")).not.toBeInTheDocument();
-    // slow-burn / ticket are named in the pressure gauges.
-    expect(screen.getAllByText("slow-burn").length).toBeGreaterThanOrEqual(1);
-    expect(screen.getAllByText("ticket").length).toBeGreaterThanOrEqual(1);
 
     // Healthy evaluation is the normal system state: no readout at all — no
     // broken-heart flag on the title, no Evaluator card.
@@ -355,14 +341,14 @@ describe("/alerts/slos/$project/$slug route", () => {
 
     renderSloDetailRoute();
 
-    // The hero leads with the verdict; a calm scalar SLO reads "on track".
+    // Budget and SLI both read 100% for a perfectly healthy scalar SLO. These
+    // ride the async status read, so wait on them rather than on the objective
+    // (which renders straight from the SLO and lands first).
     expect(
-      await screen.findByText(/On track\. Nothing is spending error budget/),
-    ).toBeInTheDocument();
+      (await screen.findAllByText("100.00%")).length,
+    ).toBeGreaterThanOrEqual(1);
     // Scalar: the objective states there are no grouping columns.
     expect(screen.getByText(/\(scalar SLI\)/)).toBeInTheDocument();
-    // Budget and SLI both read 100% for a perfectly healthy scalar SLO.
-    expect(screen.getAllByText("100.00%").length).toBeGreaterThanOrEqual(1);
     // No multi-group breakdown for a single group.
     expect(screen.queryByText("All groups")).not.toBeInTheDocument();
   });
