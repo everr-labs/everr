@@ -155,6 +155,37 @@ beforeEach(() => {
 });
 
 describe("/alerts/slos route", () => {
+  it("links the runbook from the row when the SLO names one", async () => {
+    // The runbook is what you want the moment a budget starts draining, so it
+    // is reachable from the listing without opening the SLO first.
+    mocks.listCcSlos.mockResolvedValue([
+      ccSlo({
+        spec: {
+          ...ccSlo().spec,
+          annotations: { "everr.runbook": "platform/log-pipeline" },
+        },
+      }),
+    ]);
+
+    renderSlosRoute();
+
+    const link = await screen.findByRole("link", {
+      name: "Open runbook for checkout-availability",
+    });
+    expect(link).toHaveAttribute("href", "/runbooks/platform/log-pipeline");
+  });
+
+  it("renders nothing in the runbook slot when the SLO has none", async () => {
+    // An absent runbook is not a value: no dash, no disabled glyph on a row
+    // that has nothing to link to.
+    renderSlosRoute();
+
+    await screen.findByRole("table");
+    expect(
+      screen.queryByRole("link", { name: /Open runbook/ }),
+    ).not.toBeInTheDocument();
+  });
+
   it("carries four columns: promise, status, exhaustion, budget, plus the one action", async () => {
     renderSlosRoute();
 
@@ -163,7 +194,8 @@ describe("/alerts/slos route", () => {
       within(table)
         .getAllByRole("columnheader")
         .map((h) => h.textContent),
-    ).toEqual(["Promise", "Status", "TTE", "Budget", ""]);
+      // The runbook slot sits unlabelled next to the name, as on the rules list.
+    ).toEqual(["Promise", "", "Status", "TTE", "Budget", ""]);
     // TTE is only acceptable as a header because the expansion stays one
     // hover away; without this the column is an unexplained acronym.
     expect(

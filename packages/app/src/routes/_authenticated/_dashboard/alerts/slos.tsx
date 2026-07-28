@@ -23,6 +23,7 @@ import {
 } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import {
+  BookOpenText,
   ChevronLeft,
   ChevronRight,
   CircleHelp,
@@ -57,6 +58,7 @@ import {
   ccWorstSloGroup,
 } from "@/data/cc/slo";
 import type { CcSlo, CcSloGroupStatus } from "@/data/cc/types";
+import { fromCcSlo } from "@/data/slos/mapping";
 
 export const Route = createFileRoute("/_authenticated/_dashboard/alerts/slos")({
   staticData: { breadcrumb: "SLOs" },
@@ -154,6 +156,26 @@ function SloPromiseCell({ slo }: { slo: CcSlo }) {
         )}
       </span>
     </span>
+  );
+}
+
+// The runbook, when the SLO names one: the thing you actually want the moment a
+// budget is draining. Nothing at all when it does not, rather than a dash — an
+// absent runbook is not a value worth a glyph on every row.
+function SloRunbookCell({ slo }: { slo: CcSlo }) {
+  const { runbookProject, runbookSlug } = fromCcSlo(slo);
+  if (!runbookSlug) return null;
+  const { name } = ccSloIdentity(slo);
+  return (
+    <Link
+      to="/runbooks/$project/$slug"
+      params={{ project: runbookProject ?? "default", slug: runbookSlug }}
+      aria-label={`Open runbook for ${name}`}
+      title="Open runbook"
+      className="inline-flex size-7 items-center justify-center rounded-md text-muted-foreground outline-2 outline-dotted outline-transparent transition-colors duration-150 hover:bg-muted/50 hover:text-foreground focus-visible:outline-primary"
+    >
+      <BookOpenText className="size-3.5" />
+    </Link>
   );
 }
 
@@ -312,6 +334,14 @@ function CcSlosPage() {
       className: "w-full pb-2 pr-4 pl-3",
       cellClassName: "w-full py-2 pr-4 pl-3",
       cell: ({ slo }) => <SloPromiseCell slo={slo} />,
+    },
+    {
+      // Unlabelled and only as wide as the icon: most SLOs have no runbook, and
+      // a titled column would spend header width on a mostly-empty cell. Mirrors
+      // the same slot on the rules listing, so both alert lists reach a runbook
+      // the same way.
+      header: "",
+      cell: ({ slo }) => <SloRunbookCell slo={slo} />,
     },
     {
       header: "Status",
