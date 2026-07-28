@@ -121,7 +121,7 @@ function currentBudget(group: CcSloBudgetGroupSeries): number {
 /**
  * The chart's key. It names every group on the plot, plus the marks that repeat
  * (alert transitions) and so cannot carry inline labels. The once-per-chart
- * marks — "applied", the "exhausted" line, the reconstructed band — label
+ * marks — "applied", the "exhausted" floor, the reconstructed band — label
  * themselves on the plot instead and are deliberately absent here.
  */
 function ChartKey({
@@ -483,14 +483,15 @@ export function SloBudgetChart({
               <Line key={s.dataKey} dataKey={s.dataKey} {...common} />,
             ];
           })}
-          {/* Exhausted is now the axis floor rather than a level inside the
-            plot, so this tints that floor and names it instead of ruling across
-            the chart. A line resting here has no budget left. */}
+          {/* Exhausted is the axis floor, not a level inside the plot, so this
+            only names it. A rule here would trace the bottom edge the axis
+            already draws, and an overspent group is clamped onto that exact
+            line: the mark would be buried under the data it marks, precisely
+            when it matters. The word still earns its place, since 0% has to
+            read as "budget gone" rather than "nothing measured". */}
           <ReferenceLine
             y={0}
-            stroke="var(--destructive)"
-            strokeWidth={1}
-            strokeOpacity={0.7}
+            stroke="none"
             label={{
               value: "exhausted",
               position: "insideBottomLeft",
