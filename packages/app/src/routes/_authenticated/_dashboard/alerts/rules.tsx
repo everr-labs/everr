@@ -20,7 +20,6 @@ import { z } from "zod";
 import { CcPageIntro } from "@/components/cc/page-intro";
 import {
   CcEmptyState,
-  CcHealthBadge,
   CcPauseToggle,
   CcQueryError,
   CcSeverityBadge,
@@ -92,25 +91,18 @@ function CcRulesPage() {
       cell: (r) => {
         const identity = ccRuleIdentity(r);
         return (
-          <span className="flex flex-col">
-            <Link
-              to="/alerts/rules/$project/$slug"
-              params={{ project: identity.project, slug: identity.slug }}
-              className={cn(
-                "font-medium text-foreground underline-offset-2 hover:underline",
-                identity.name === identity.shortId && "font-mono",
-              )}
-            >
-              {identity.name}
-            </Link>
-            {/* The id stays reachable (copy/grep against as-code specs) but
-                steps back; suppressed entirely when it IS the name. */}
-            {identity.name !== identity.shortId && (
-              <span className="font-mono text-[0.6875rem] text-muted-foreground">
-                {identity.shortId}
-              </span>
+          <Link
+            to="/alerts/rules/$project/$slug"
+            params={{ project: identity.project, slug: identity.slug }}
+            className={cn(
+              "font-medium text-foreground underline-offset-2 hover:underline",
+              // A rule with no display name IS its id, so it keeps the mono
+              // face that makes an id readable.
+              identity.name === identity.shortId && "font-mono",
             )}
-          </span>
+          >
+            {identity.name}
+          </Link>
         );
       },
     },
@@ -179,25 +171,6 @@ function CcRulesPage() {
           </span>
         ) : (
           <span className="text-muted-foreground">—</span>
-        ),
-    },
-    {
-      header: "Health",
-      cell: (r) => <CcHealthBadge status={r.health.status} />,
-    },
-    {
-      header: "State",
-      cell: (r) =>
-        r.paused ? (
-          <span className="inline-flex items-center gap-1.5 text-muted-foreground">
-            <CcStatusDot tone="inactive" />
-            paused
-          </span>
-        ) : (
-          <span className="inline-flex items-center gap-1.5">
-            <CcStatusDot tone="healthy" />
-            active
-          </span>
         ),
     },
     {

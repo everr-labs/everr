@@ -171,7 +171,7 @@ describe("/alerts/rules route", () => {
     });
   });
 
-  it("names rules by display name with the id as muted secondary", async () => {
+  it("names rules by display name, without repeating the id", async () => {
     mocks.listCcRulesPage.mockResolvedValue(
       page(
         [
@@ -194,8 +194,9 @@ describe("/alerts/rules route", () => {
     expect(
       await screen.findByRole("link", { name: "Flapping Detector" }),
     ).toBeInTheDocument();
-    // The id survives as the muted secondary line.
-    expect(screen.getByText("11111111")).toBeInTheDocument();
+    // The id is not repeated under the name: it is in the row's link target,
+    // and a column of ids nobody reads costs every row a second line.
+    expect(screen.queryByText("11111111")).not.toBeInTheDocument();
   });
 
   it("shows a runbook icon link only when the rule links a runbook", async () => {
@@ -249,6 +250,31 @@ describe("/alerts/rules route", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("carries only the columns a listing needs", async () => {
+    mocks.listCcRulesPage.mockResolvedValue(page([ccRuleView()], null));
+
+    renderRulesRoute();
+
+    const table = await screen.findByRole("table");
+    // The two unlabelled slots are the runbook link and the pause control.
+    // No Health or State column: paused reads off the Pause/Resume button
+    // beside it, and health has its own server-side filter (?health=degraded,
+    // which Triage links to) rather than a badge on every row.
+    expect(
+      within(table)
+        .getAllByRole("columnheader")
+        .map((h) => h.textContent),
+    ).toEqual([
+      "Rule",
+      "",
+      "Severity",
+      "Interval",
+      "Alert state",
+      "Last fired",
+      "",
+    ]);
+  });
+
   it("pauses a rule only after the confirmation is accepted", async () => {
     mocks.listCcRulesPage.mockResolvedValue(page([ccRuleView()], null));
     const user = userEvent.setup();
@@ -297,15 +323,37 @@ describe("/alerts/rules route", () => {
   });
 
   it("shows load-more with a next_cursor and fetches the next page with it", async () => {
+    // Rows are told apart by name now that the id is not rendered.
+    const named = (n: string, id: string) =>
+      ccRuleView({
+        id,
+        spec: {
+          ...ccRuleView().spec,
+          annotations: { "everr.display.name": n },
+        },
+      });
     mocks.listCcRulesPage.mockImplementation(
       ({ data }: { data: { cursor?: string } }) =>
         Promise.resolve(
           data.cursor === "tok-1"
             ? page(
-                [ccRuleView({ id: "22222222-2222-2222-2222-222222222222" })],
+                [
+                  named(
+                    "Second page rule",
+                    "22222222-2222-2222-2222-222222222222",
+                  ),
+                ],
                 null,
               )
-            : page([ccRuleView()], "tok-1"),
+            : page(
+                [
+                  named(
+                    "First page rule",
+                    "11111111-1111-1111-1111-111111111111",
+                  ),
+                ],
+                "tok-1",
+              ),
         ),
     );
     const user = userEvent.setup();
@@ -315,14 +363,14 @@ describe("/alerts/rules route", () => {
     const loadMore = await screen.findByRole("button", { name: "Load more" });
     await user.click(loadMore);
 
-    expect(await screen.findByText("22222222")).toBeInTheDocument();
+    expect(await screen.findByText("Second page rule")).toBeInTheDocument();
     await waitFor(() =>
       expect(mocks.listCcRulesPage).toHaveBeenLastCalledWith({
         data: { limit: 100, cursor: "tok-1" },
       }),
     );
     // Both pages stay on screen; the exhausted cursor removes the control.
-    expect(screen.getByText("11111111")).toBeInTheDocument();
+    expect(screen.getByText("First page rule")).toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: "Load more" }),
     ).not.toBeInTheDocument();
