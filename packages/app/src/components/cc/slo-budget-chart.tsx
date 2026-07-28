@@ -121,8 +121,8 @@ function currentBudget(group: CcSloBudgetGroupSeries): number {
 /**
  * The chart's key. It names every group on the plot, plus the marks that repeat
  * (alert transitions) and so cannot carry inline labels. The once-per-chart
- * marks — "applied", the "exhausted" floor, the reconstructed band — label
- * themselves on the plot instead and are deliberately absent here.
+ * marks — "applied", the reconstructed band — label themselves on the plot
+ * instead and are deliberately absent here.
  */
 function ChartKey({
   items,
@@ -449,7 +449,7 @@ export function SloBudgetChart({
           {/* Painted worst-last so the group the hero names sits on top of the
             healthier ones wherever they cross. The reference lines below are
             declared after these: SVG paints in document order, so the fixed
-            references (exhausted, applied, alert transitions) stay legible
+            references (applied, alert transitions) stay legible
             wherever a series would otherwise cover them. */}
           {[...series].reverse().flatMap((s, i) => {
             const worst = i === series.length - 1;
@@ -483,22 +483,6 @@ export function SloBudgetChart({
               <Line key={s.dataKey} dataKey={s.dataKey} {...common} />,
             ];
           })}
-          {/* Exhausted is the axis floor, not a level inside the plot, so this
-            only names it. A rule here would trace the bottom edge the axis
-            already draws, and an overspent group is clamped onto that exact
-            line: the mark would be buried under the data it marks, precisely
-            when it matters. The word still earns its place, since 0% has to
-            read as "budget gone" rather than "nothing measured". */}
-          <ReferenceLine
-            y={0}
-            stroke="none"
-            label={{
-              value: "exhausted",
-              position: "insideBottomLeft",
-              fontSize: 10,
-              fill: "var(--destructive)",
-            }}
-          />
           {/* Alert transitions: a burn tier firing (red) or resolving (green),
             snapped to the nearest instant. Thin and semi-transparent so they
             read as annotation rather than data, but painted over the series so
