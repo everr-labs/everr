@@ -95,6 +95,47 @@ export function generateTimeTicks(
   return ticks;
 }
 
+/** A step of 1, 2, 2.5 or 5 times a power of ten, at least as large as `raw`. */
+function niceStep(raw: number): number {
+  const magnitude = 10 ** Math.floor(Math.log10(raw));
+  const f = raw / magnitude;
+  const m = f <= 1 ? 1 : f <= 2 ? 2 : f <= 2.5 ? 2.5 : f <= 5 ? 5 : 10;
+  return m * magnitude;
+}
+
+/**
+ * A value axis stated outright: round bounds, round ticks, and the numbers
+ * available to the caller.
+ *
+ * recharts will size a value axis on its own, but it keeps the result to
+ * itself, so anything that has to turn a cursor height back into a value (the
+ * hover highlight) has nowhere to read it from. Declaring the axis fixes that
+ * and picks rounder steps besides: recharts' own algorithm is happy to land on
+ * 35, 65 or 1500, where this one holds to 1, 2, 2.5 and 5.
+ *
+ * The floor is pinned at zero unless the data goes below it, so a series'
+ * height on the plot stays proportional to its value.
+ */
+export function niceLinearDomain(
+  min: number,
+  max: number,
+  tickCount = 5,
+): { domain: [number, number]; ticks: number[] } {
+  const lo0 = Math.min(0, Number.isFinite(min) ? min : 0);
+  const hi0 = Math.max(lo0, Number.isFinite(max) ? max : 0);
+  // A flat series still needs an axis with height, or it plots on the edge.
+  const step = niceStep(Math.max(hi0 - lo0, Number.EPSILON) / (tickCount - 1));
+  const lo = Math.floor(lo0 / step) * step;
+  const hi = Math.ceil(hi0 / step) * step;
+  const ticks: number[] = [];
+  // Rounded per tick: repeated addition of a step like 0.2 accumulates binary
+  // error into labels such as "0.6000000000000001".
+  for (let i = 0; lo + i * step <= hi + step / 2; i++) {
+    ticks.push(Number((lo + i * step).toPrecision(12)));
+  }
+  return { domain: [lo, hi === lo ? lo + step : hi], ticks };
+}
+
 const QUERY_LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
 
 /** Display name for a panel query by index: "Query A", "Query B", … */

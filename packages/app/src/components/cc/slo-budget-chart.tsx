@@ -23,7 +23,6 @@ import {
   Line,
   LineChart,
   ReferenceArea,
-  ReferenceDot,
   ReferenceLine,
   XAxis,
   YAxis,
@@ -31,6 +30,12 @@ import {
 import { ccFmtBudgetRemaining } from "@/components/cc/budget-bar";
 import { CursorTooltip } from "@/components/cursor-tooltip";
 import type { CcSloBudgetGroupSeries } from "@/data/cc/slo-series.server";
+import {
+  hoverMarkers,
+  markerTolerance,
+  nearestSeriesKeys,
+  valueAtCursorY,
+} from "../dashboards/visualizations/chart-hover";
 import { SERIES_COLORS } from "../dashboards/visualizations/data-utils";
 import {
   SeriesTooltipContent,
@@ -52,52 +57,12 @@ const CEIL_PCT = 100;
 const CHART_H = 240;
 const MARGIN_TOP = 8;
 const XAXIS_H = 30;
-const PLOT_TOP = MARGIN_TOP;
-const PLOT_H = CHART_H - MARGIN_TOP - XAXIS_H;
+const PLOT = { top: MARGIN_TOP, height: CHART_H - MARGIN_TOP - XAXIS_H };
 
-/** A vertical pixel distance as a budget percentage on this plot. */
-const pctPerPx = (px: number) => (px / PLOT_H) * (CEIL_PCT - FLOOR_PCT);
-
-// Hover markers this close together visibly overlap, so every series within
-// this distance of the nearest one is highlighted rather than just the single
-// closest. Matches the highlighted marker's radius.
-const HOVER_TIE_PX = 6;
+const Y_DOMAIN: [number, number] = [FLOOR_PCT, CEIL_PCT];
+const HOVER_TIE_PCT = markerTolerance(PLOT.height, CEIL_PCT - FLOOR_PCT);
 
 const EMPTY_KEYS: ReadonlySet<string> = new Set();
-
-/**
- * Every series whose plotted value is nearest the cursor — PLURAL, because the
- * overlap this exists to resolve is usually a tie. Two groups both sitting at
- * 100%, or both resting on the exhausted floor, are equally near the pointer,
- * and singling out one of them would be arbitrary and would hide the other.
- * Anything within `tolerancePct` of the closest counts as tied too: at that
- * distance the markers visibly overlap, so the card has to name them all.
- *
- * Series with no measurement at this instant are never nearest to anything.
- */
-export function ccNearestSeries(
-  points: readonly { key: string; pct: number | null }[],
-  cursorPct: number | null,
-  tolerancePct: number,
-): ReadonlySet<string> {
-  if (cursorPct === null) return EMPTY_KEYS;
-  let nearest = Number.POSITIVE_INFINITY;
-  for (const p of points) {
-    if (p.pct !== null)
-      nearest = Math.min(nearest, Math.abs(p.pct - cursorPct));
-  }
-  if (!Number.isFinite(nearest)) return EMPTY_KEYS;
-  const keys = new Set<string>();
-  for (const p of points) {
-    if (
-      p.pct !== null &&
-      Math.abs(p.pct - cursorPct) <= nearest + tolerancePct
-    ) {
-      keys.add(p.key);
-    }
-  }
-  return keys;
-}
 
 // As many lines as the shared palette has distinct colours. Past this a budget
 // chart stops being readable, so the worst groups win the slots and the caller
@@ -365,13 +330,13 @@ export function SloBudgetChart({
   const nearestKeys =
     hover === null
       ? EMPTY_KEYS
-      : ccNearestSeries(
+      : nearestSeriesKeys(
           series.map((s) => {
             const v = data[hover.index]?.[s.dataKey];
-            return { key: s.dataKey, pct: typeof v === "number" ? v : null };
+            return { key: s.dataKey, value: typeof v === "number" ? v : null };
           }),
           hover.pct,
-          pctPerPx(HOVER_TIE_PX),
+          HOVER_TIE_PCT,
         );
   // A marker hover owns the card, so the point readout stands down for it.
   const pointHover = markerHover === null ? hover : null;
@@ -405,13 +370,8 @@ export function SloBudgetChart({
               return;
             }
             // Turn the pointer's height into a budget value so the nearest
-            // series can be singled out. The y axis is linear over
-            // [FLOOR_PCT, CEIL_PCT] across the plot box declared above.
-            const cy = state.chartY;
-            const pct =
-              typeof cy === "number"
-                ? CEIL_PCT - ((cy - PLOT_TOP) / PLOT_H) * (CEIL_PCT - FLOOR_PCT)
-                : null;
+            // series can be singled out.
+            const pct = valueAtCursorY(state.chartY, PLOT, Y_DOMAIN);
             setHover({ x: e.clientX, y: e.clientY, index: i, pct });
           }}
           onMouseLeave={() => setHover(null)}
@@ -435,7 +395,7 @@ export function SloBudgetChart({
             // Full budget at the top, exhausted at the bottom. The axis has
             // the same bounds as the quantity, so a line's height IS the budget
             // and the floor is a real limit rather than a chosen viewport.
-            domain={[FLOOR_PCT, CEIL_PCT]}
+            domain={Y_DOMAIN}
             tickFormatter={(v: number) => `${v}%`}
           />
           {/* Everything left of the epoch is inferred from telemetry that
@@ -536,38 +496,22 @@ export function SloBudgetChart({
             />
           )}
           {/* One marker per line at the hovered instant, so every row of the
-            tooltip can be traced to a point. `isFront` puts them above the
-            series AND the reference rules — a value sitting on the exhausted
-            floor or under an alert marker still shows where it is. The ring is
-            the card colour, not recharts' hardcoded white, so it reads on
-            either theme. */}
+            tooltip can be traced to a point. Drawn in front of the reference
+            rules too, so a line resting on the exhausted floor or crossing an
+            alert marker still shows where it is. */}
           {pointHover !== null &&
-            // Highlighted markers drawn last, so a called-out point is never
-            // buried under a plain one it shares a position with.
-            [...series]
-              .sort(
-                (a, b) =>
-                  Number(nearestKeys.has(a.dataKey)) -
-                  Number(nearestKeys.has(b.dataKey)),
-              )
-              .map((s) => {
+            hoverMarkers({
+              x: instants[pointHover.index].t,
+              points: series.map((s) => {
                 const y = data[pointHover.index]?.[s.dataKey];
-                if (typeof y !== "number") return null;
-                return (
-                  <ReferenceDot
-                    key={`hover-${s.dataKey}`}
-                    x={instants[pointHover.index].t}
-                    y={y}
-                    r={nearestKeys.has(s.dataKey) ? 6 : 4}
-                    fill={s.color}
-                    stroke="var(--card)"
-                    strokeWidth={2}
-                    isFront
-                    // Never swallow a pointer heading for a marker's hit line.
-                    style={{ pointerEvents: "none" }}
-                  />
-                );
-              })}
+                return {
+                  key: s.dataKey,
+                  value: typeof y === "number" ? y : null,
+                  color: s.color,
+                };
+              }),
+              activeKeys: nearestKeys,
+            })}
           {/* Hit targets, painted last of all so they sit above the rules.
             Transparent and wide enough to hover; each reports everything that
             happened at its instant. */}
