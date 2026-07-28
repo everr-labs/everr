@@ -59,19 +59,18 @@ it("listAllRules walks the paginated envelope until next_cursor is null", async 
   expect(out.map((r) => r.id)).toEqual(["r1", "r2"]);
 });
 
-it("listRulesPage GETs the paginated envelope with limit/cursor/health", async () => {
+it("listRulesPage GETs the paginated envelope with limit/cursor", async () => {
   const spy = vi
     .spyOn(transport, "ccRequest")
     .mockResolvedValue({ items: [ruleView], next_cursor: "tok" });
   const out = await cc.listRulesPage("org1", {
     limit: 100,
     cursor: "prev",
-    health: "degraded",
   });
   expect(spy).toHaveBeenCalledWith(
     "org1",
     "GET",
-    "/v1/rules?limit=100&cursor=prev&health=degraded",
+    "/v1/rules?limit=100&cursor=prev",
   );
   expect(out.items[0].id).toBe("r1");
   expect(out.next_cursor).toBe("tok");

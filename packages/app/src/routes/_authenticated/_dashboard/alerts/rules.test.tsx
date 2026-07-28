@@ -258,8 +258,8 @@ describe("/alerts/rules route", () => {
     const table = await screen.findByRole("table");
     // The two unlabelled slots are the runbook link and the pause control.
     // No Health or State column: paused reads off the Pause/Resume button
-    // beside it, and health has its own server-side filter (?health=degraded,
-    // which Triage links to) rather than a badge on every row.
+    // beside it, and evaluation health is a per-rule diagnostic that lives on
+    // the rule's own page.
     expect(
       within(table)
         .getAllByRole("columnheader")

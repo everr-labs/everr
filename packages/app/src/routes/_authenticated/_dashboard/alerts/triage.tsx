@@ -653,9 +653,6 @@ function CcTriagePage() {
       counts: {
         firing: instances.filter((i) => i.alert.status === "firing").length,
         silenced: active.filter((i) => i.silence !== null).length,
-        degradedRules: (rules.data ?? []).filter(
-          (r) => r.health.status === "degraded",
-        ).length,
         activeSilences: (silences.data ?? []).filter(
           (s) =>
             new Date(s.starts_at).getTime() <= now &&
@@ -763,19 +760,6 @@ function CcTriagePage() {
             hint={counts.firing > 0 ? "needs attention" : undefined}
           />
           <StripCell label="silenced" value={counts.silenced} />
-          {counts.degradedRules > 0 && (
-            <Link
-              to="/alerts/rules"
-              search={{ health: "degraded" }}
-              className="outline-2 outline-dotted outline-transparent outline-offset-[-2px] transition-colors duration-150 hover:bg-muted/40 focus-visible:outline-primary"
-            >
-              <StripCell
-                label="degraded rules"
-                value={counts.degradedRules}
-                tone="degraded"
-              />
-            </Link>
-          )}
           <a
             href="#silences"
             className="outline-2 outline-dotted outline-transparent outline-offset-[-2px] transition-colors duration-150 hover:bg-muted/40 focus-visible:outline-primary"

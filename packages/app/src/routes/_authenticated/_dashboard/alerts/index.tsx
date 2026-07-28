@@ -380,9 +380,8 @@ function CcOverviewPage() {
       ).length,
       firingSources: [...firingSources.values()],
       watchingRules: rulesData.filter((r) => !r.paused).length,
+      pausedRules: rulesData.filter((r) => r.paused).length,
       watchingSlos: slosData.filter((s) => !s.paused).length,
-      degradedRules: rulesData.filter((r) => r.health.status === "degraded")
-        .length,
       activeSilences: (silences.data ?? []).filter(
         (s) =>
           new Date(s.starts_at).getTime() <= now &&
@@ -476,23 +475,6 @@ function CcOverviewPage() {
       ),
     });
   }
-  if (facts.degradedRules > 0) {
-    attention.push({
-      key: "degraded",
-      tone: "degraded",
-      to: "/alerts/rules",
-      search: { health: "degraded" },
-      text: (
-        <>
-          <span className="font-medium text-foreground">
-            {facts.degradedRules} {facts.degradedRules === 1 ? "rule" : "rules"}
-          </span>{" "}
-          can&rsquo;t evaluate (degraded) — no alerts are being produced from{" "}
-          {facts.degradedRules === 1 ? "it" : "them"}
-        </>
-      ),
-    });
-  }
   if (facts.unroutedFiring > 0) {
     attention.push({
       key: "unrouted",
@@ -555,11 +537,10 @@ function CcOverviewPage() {
                 </>
               }
               secondary={
-                facts.degradedRules > 0
-                  ? `${facts.degradedRules} degraded`
-                  : "all evaluating"
+                facts.pausedRules > 0
+                  ? `${facts.pausedRules} paused`
+                  : "none paused"
               }
-              tone={facts.degradedRules > 0 ? "degraded" : undefined}
             />
           </Link>
           <StageArrow />

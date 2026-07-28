@@ -24,7 +24,6 @@ import {
   CcChannelConfigSchema,
   CcInhibitionInputSchema,
   CcRouteInputSchema,
-  CcRuleHealthStatusSchema,
   CcRuleSpecSchema,
   CcSilenceInputSchema,
 } from "./schema";
@@ -55,14 +54,13 @@ export const listCcRules = createAuthenticatedServerFn({
   method: "GET",
 }).handler(({ context: { session } }) => cc.listAllRules(orgId(session)));
 
-// One page of the rules listing (CC's {items, next_cursor} envelope) with an
-// optional server-side health filter, for the paginated rules table.
+// One page of the rules listing (CC's {items, next_cursor} envelope), for the
+// paginated rules table.
 export const listCcRulesPage = createAuthenticatedServerFn({ method: "GET" })
   .inputValidator(
     z.object({
       limit: z.number().int().min(1).max(500).default(100),
       cursor: z.string().optional(),
-      health: CcRuleHealthStatusSchema.optional(),
       preview: z.string().optional(),
     }),
   )
@@ -75,7 +73,6 @@ export const listCcRulesPage = createAuthenticatedServerFn({ method: "GET" })
       return cc.listRulesPage(org, {
         limit: data.limit,
         ...(data.cursor ? { cursor: data.cursor } : {}),
-        ...(data.health ? { health: data.health } : {}),
         namespace: "",
       });
     }
@@ -86,10 +83,10 @@ export const listCcRulesPage = createAuthenticatedServerFn({ method: "GET" })
       cc.listAllRules(org),
       getPreviewScopes(org, preview),
     ]);
-    const items = visibleRulesForPreview(rules, scopes).filter(
-      (r) => !data.health || r.health.status === data.health,
-    );
-    return { items, next_cursor: null };
+    return {
+      items: visibleRulesForPreview(rules, scopes),
+      next_cursor: null,
+    };
   });
 
 export const getCcRule = createAuthenticatedServerFn({ method: "GET" })

@@ -16,7 +16,6 @@ import {
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { BookOpenText, SlidersHorizontal } from "lucide-react";
 import { toast } from "sonner";
-import { z } from "zod";
 import { CcPageIntro } from "@/components/cc/page-intro";
 import {
   CcEmptyState,
@@ -30,37 +29,24 @@ import {
 } from "@/components/cc/shared";
 import { ccRuleIdentity } from "@/data/alerts/rule-identity";
 import { ccQueries } from "@/data/cc/queries";
-import { CcRuleHealthStatusSchema } from "@/data/cc/schema";
 import { pauseCcRule, resumeCcRule } from "@/data/cc/server";
 import { ccFormatSloDuration } from "@/data/cc/slo";
 import type { CcRuleView } from "@/data/cc/types";
-
-// `health` narrows the listing server-side (CC's rule-health filter); Triage's
-// degraded-rules count links here with ?health=degraded.
-const RulesSearchSchema = z.object({
-  health: CcRuleHealthStatusSchema.optional().catch(undefined),
-});
 
 export const Route = createFileRoute("/_authenticated/_dashboard/alerts/rules")(
   {
     staticData: { breadcrumb: "Rules" },
     head: () => ({ meta: [{ title: "Everr - Alerts Rules" }] }),
-    validateSearch: RulesSearchSchema,
-    loaderDeps: ({ search }) => ({
-      health: search.health,
-      preview: search.preview,
-    }),
+    loaderDeps: ({ search }) => ({ preview: search.preview }),
     loader: ({ context: { queryClient }, deps }) =>
-      queryClient.prefetchInfiniteQuery(
-        ccQueries.rulesPage(deps.health, deps.preview),
-      ),
+      queryClient.prefetchInfiniteQuery(ccQueries.rulesPage(deps.preview)),
     component: CcRulesPage,
   },
 );
 
 function CcRulesPage() {
   const qc = useQueryClient();
-  const { health, preview } = Route.useSearch();
+  const { preview } = Route.useSearch();
   const {
     data,
     isPending,
@@ -69,7 +55,7 @@ function CcRulesPage() {
     fetchNextPage,
     hasNextPage,
     isFetchingNextPage,
-  } = useInfiniteQuery(ccQueries.rulesPage(health, preview));
+  } = useInfiniteQuery(ccQueries.rulesPage(preview));
   const rules = data?.pages.flatMap((p) => p.items) ?? [];
 
   const toggle = useMutation({
@@ -138,10 +124,10 @@ function CcRulesPage() {
       ),
     },
     {
-      // The rolled-up alert state CC computes per rule. Distinct from the
-      // paused/active "State" column below: this is what the alert is doing,
-      // not whether the rule is scheduled. Optional for rollout safety (a CC
-      // without rollups omits the field).
+      // The rolled-up alert state CC computes per rule: what the alert is
+      // doing, not whether the rule is scheduled (that reads off the
+      // Pause/Resume control). Optional for rollout safety (a CC without
+      // rollups omits the field).
       header: "Alert state",
       cell: (r) =>
         r.rollup ? (
@@ -198,22 +184,10 @@ function CcRulesPage() {
       />
       <Card inset="flush-content">
         <CardHeader>
-          {/* No CardTitle: the page h1 directly above already says "Rules" —
-              the header carries only the hint / active-filter readout. */}
+          {/* No CardTitle: the page h1 directly above already says "Rules",
+              so the header carries only the hint. */}
           <CardDescription>
-            {health ? (
-              <>
-                Showing {health} rules only ·{" "}
-                <Link
-                  to="/alerts/rules"
-                  className="text-foreground underline-offset-2 hover:underline"
-                >
-                  clear filter
-                </Link>
-              </>
-            ) : (
-              "Open a rule to see its query, health, and run an ad-hoc test."
-            )}
+            Open a rule to see its query, health, and run an ad-hoc test.
           </CardDescription>
         </CardHeader>
         <CardContent>

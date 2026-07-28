@@ -26,7 +26,6 @@ import type {
   CcChannelConfig,
   CcInhibitionInput,
   CcRouteInput,
-  CcRuleHealthStatus,
   CcRuleInput,
   CcRuleSpec,
   CcSilenceInput,
@@ -38,8 +37,8 @@ import type {
 /**
  * Paginated listing: sending `limit` (1..=500, CC defaults 100) opts into the
  * `{items, next_cursor}` envelope; `cursor` resumes from a previous page's
- * `next_cursor`. `health` filters server-side by evaluation health;
- * `namespace`/`name` filter by exact match on first-class identity. This is
+ * `next_cursor`. `namespace`/`name` filter by exact match on first-class
+ * identity. This is
  * the only listing mode: GET /v1/rules without pagination (the legacy bare
  * array) is being removed from the CC API.
  */
@@ -48,14 +47,12 @@ export async function listRulesPage(
   opts: {
     limit?: number;
     cursor?: string;
-    health?: CcRuleHealthStatus;
     namespace?: string;
     name?: string;
   } = {},
 ) {
   const params = new URLSearchParams({ limit: String(opts.limit ?? 100) });
   if (opts.cursor) params.set("cursor", opts.cursor);
-  if (opts.health) params.set("health", opts.health);
   if (opts.namespace !== undefined) params.set("namespace", opts.namespace);
   if (opts.name !== undefined) params.set("name", opts.name);
   return CcRulesPageSchema.parse(
