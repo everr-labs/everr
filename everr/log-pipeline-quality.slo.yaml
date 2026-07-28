@@ -2,6 +2,7 @@ kind: SLO
 metadata:
   name: log-pipeline-quality
 spec:
+  runbook: log-pipeline-quality
   display:
     name: Log pipeline quality
     description: >-
