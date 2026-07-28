@@ -246,7 +246,6 @@ function StatusSection({ slo }: { slo: CcSlo }) {
   // meanwhile; this only refines budget/SLI/time-to-exhaustion.
   const fresh = useQuery(ccQueries.sloBudgetNow(slo.id));
   const tiers = ccSloTiers(slo.spec);
-  const [groupsOpen, setGroupsOpen] = useState(false);
 
   const groupCols: Column<CcSloGroupStatus>[] = [
     {
@@ -452,31 +451,21 @@ function StatusSection({ slo }: { slo: CcSlo }) {
         </p>
       )}
 
-      {/* The full per-group breakdown, only when there is more than one group
-          to break down. Keep it available, but not louder than the answer. */}
+      {/* The per-group breakdown, shown outright whenever there is more than
+          one group. The stats above are only the WORST group's, so with
+          several groups this table is the rest of the answer, not detail: a
+          fold would hide the very rows those numbers are not about. */}
       {groups.length > 1 && (
         <Card>
           <CardHeader className="pb-1">
-            <Collapsible open={groupsOpen} onOpenChange={setGroupsOpen}>
-              <CcDisclosureTrigger open={groupsOpen}>
-                <span className="text-xs font-medium">All groups</span>
-                {!groupsOpen && (
-                  <span className="text-[0.6875rem] text-muted-foreground">
-                    SLI, budget, burn, and firing tiers for {groups.length}{" "}
-                    groups
-                  </span>
-                )}
-              </CcDisclosureTrigger>
-              <CollapsibleContent>
-                <div className="mt-2">
-                  <DataTable
-                    data={groups}
-                    columns={groupCols}
-                    rowKey={(g) => JSON.stringify(g.labels)}
-                  />
-                </div>
-              </CollapsibleContent>
-            </Collapsible>
+            <span className="text-xs font-medium">All groups</span>
+            <div className="mt-2">
+              <DataTable
+                data={groups}
+                columns={groupCols}
+                rowKey={(g) => JSON.stringify(g.labels)}
+              />
+            </div>
           </CardHeader>
         </Card>
       )}

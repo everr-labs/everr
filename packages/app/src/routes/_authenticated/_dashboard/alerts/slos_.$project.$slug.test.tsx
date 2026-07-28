@@ -186,7 +186,7 @@ beforeEach(() => {
 });
 
 describe("/alerts/slos/$project/$slug route", () => {
-  it("leads with the status hero: state, budget, SLI, burn, and per-tier pressure", async () => {
+  it("leads with the stats strip: budget, promise, SLI, burn, and horizon", async () => {
     renderSloDetailRoute();
 
     // No display name set: the heading falls back to the bare slug, and
@@ -266,7 +266,7 @@ describe("/alerts/slos/$project/$slug route", () => {
     ).toBeInTheDocument();
   });
 
-  it("overrides the snapshot's budget with the read-time value on the hero", async () => {
+  it("overrides the snapshot's budget with the read-time value in the strip", async () => {
     // The stored snapshot is throttled (budget 42%); the read-time scan returns
     // a thinner current budget for the same group. The hero must show the fresh
     // number and re-derive time-to-exhaustion from it, not the stale snapshot.
@@ -310,8 +310,8 @@ describe("/alerts/slos/$project/$slug route", () => {
   });
 
   it("describes a scalar SLO without a per-group table", async () => {
-    // A scalar SLO: no label columns, one label-less group. The hero fully
-    // describes it, so there is no "All groups" breakdown.
+    // A scalar SLO: no label columns, one label-less group. The stats strip
+    // fully describes it, so there is no "All groups" breakdown.
     mocks.getCcSloByName.mockResolvedValue(
       ccSlo({
         spec: {
@@ -352,6 +352,50 @@ describe("/alerts/slos/$project/$slug route", () => {
     expect(screen.getByText(/\(scalar SLI\)/)).toBeInTheDocument();
     // No multi-group breakdown for a single group.
     expect(screen.queryByText("All groups")).not.toBeInTheDocument();
+  });
+
+  it("shows every group outright once an SLO has more than one", async () => {
+    // The stats strip above is the WORST group only, so with several groups
+    // the rest of the answer is in this table. It must be readable without a
+    // click: a fold would hide exactly the rows the headline is not about.
+    mocks.getCcSloStatus.mockResolvedValue(
+      sloStatus({
+        payload: {
+          window: "30d",
+          target_percent: 99.9,
+          groups: [
+            {
+              labels: { service: "checkout" },
+              sli: 0.9992,
+              budget_remaining: 0.42,
+              tiers: [],
+              time_to_exhaustion_secs: null,
+              firing_tiers: [],
+            },
+            {
+              labels: { service: "search" },
+              sli: 0.9999,
+              budget_remaining: 0.91,
+              tiers: [],
+              time_to_exhaustion_secs: null,
+              firing_tiers: [],
+            },
+          ],
+          window_computed_at: {},
+        },
+      }),
+    );
+
+    renderSloDetailRoute();
+
+    expect(await screen.findByText("All groups")).toBeInTheDocument();
+    // Both rows, with no interaction of any kind first.
+    expect(screen.getByText("search")).toBeInTheDocument();
+    expect(screen.getAllByText("checkout").length).toBeGreaterThanOrEqual(1);
+    // And no disclosure to open: the table is not behind one.
+    expect(
+      screen.queryByRole("button", { name: /All groups/ }),
+    ).not.toBeInTheDocument();
   });
 
   it("shows the pending state when no snapshot exists yet", async () => {
