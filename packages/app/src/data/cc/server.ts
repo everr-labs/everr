@@ -318,6 +318,7 @@ export const getCcSloBudgetSeries = createAuthenticatedServerFn({
       // hero agree without capping the chart at the engine's throttled last eval.
       return querySloBudgetSeries(createSloQuery(org), {
         sliSql: slo.spec.sli.sql,
+        labelColumns: slo.spec.sli.label_columns,
         targetPercent: slo.spec.targetPercent,
         windowSecs,
         fromISO,

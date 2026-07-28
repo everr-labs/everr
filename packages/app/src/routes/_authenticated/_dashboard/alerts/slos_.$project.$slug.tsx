@@ -545,7 +545,7 @@ function BudgetHistorySection({ slo }: { slo: CcSloView }) {
           <Skeleton className="h-[240px] w-full" />
         ) : (
           <SloBudgetChart
-            points={series.data}
+            groups={series.data}
             epoch={slo.budget_epoch}
             events={budgetEvents}
           />
