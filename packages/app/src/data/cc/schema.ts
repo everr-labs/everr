@@ -368,14 +368,4 @@ export const CcSloTestResultSchema = z.object({
   ),
 });
 
-export const CcTestResultSchema = z.object({
-  matched: z.number().int(),
-  rows: z.array(
-    z.object({
-      labels: z.record(z.string(), z.string()),
-      value: z.number().nullable(),
-    }),
-  ),
-});
-
 export const CcDeletedSchema = z.object({ deleted: z.boolean() });

@@ -1,12 +1,10 @@
 // Rule detail, organized by the questions an operator actually asks:
-// What is it (spec facts, SQL behind a disclosure), What's it doing
-// (instances, rollup, the scoped event timeline), Is it healthy (forensics,
-// auto-expanded only when degraded), Try it (ad-hoc test evaluation).
+// What is it (spec facts, SQL behind a disclosure) and What's it doing
+// (instances, rollup, the scoped event timeline).
 import { Badge } from "@everr/ui/components/badge";
-import { Button, buttonVariants } from "@everr/ui/components/button";
+import { buttonVariants } from "@everr/ui/components/button";
 import {
   Card,
-  CardAction,
   CardContent,
   CardHeader,
   CardTitle,
@@ -22,12 +20,7 @@ import { withTimeRange } from "@everr/ui/lib/time-range";
 import { cn } from "@everr/ui/lib/utils";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import {
-  ArrowLeft,
-  BookOpenText,
-  FlaskConical,
-  TriangleAlert,
-} from "lucide-react";
+import { ArrowLeft, BookOpenText } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { AlertEventFeed } from "@/components/cc/alert-event-feed";
@@ -35,7 +28,6 @@ import { CcAsCode } from "@/components/cc/as-code";
 import {
   CcDisclosureTrigger,
   CcEmptyState,
-  CcHealthBadge,
   CcInstanceStatusBadge,
   CcPauseToggle,
   CcQueryError,
@@ -51,8 +43,8 @@ import {
   ccRuleIdentity,
 } from "@/data/alerts/rule-identity";
 import { ccQueries } from "@/data/cc/queries";
-import { pauseCcRule, resumeCcRule, testCcRule } from "@/data/cc/server";
-import type { CcAlert, CcRuleView, CcTestResult } from "@/data/cc/types";
+import { pauseCcRule, resumeCcRule } from "@/data/cc/server";
+import type { CcAlert } from "@/data/cc/types";
 
 export const Route = createFileRoute(
   "/_authenticated/_dashboard/alerts/rules_/$project/$slug",
@@ -111,96 +103,6 @@ function DefRow({
   );
 }
 
-// ── Is it healthy ─────────────────────────────────────────────────────────────
-
-function HealthForensics({ health }: { health: CcRuleView["health"] }) {
-  return (
-    <dl className="divide-y divide-border/60">
-      <DefRow label="Consecutive failures">
-        {health.consecutive_failures}
-      </DefRow>
-      <DefRow label="Degraded since">
-        {ccFormatTs(health.degraded_since)}
-      </DefRow>
-      <DefRow label="Last error">
-        {health.last_error ? (
-          <span className="break-all">{health.last_error}</span>
-        ) : (
-          "—"
-        )}
-      </DefRow>
-      <DefRow label="Last error at">{ccFormatTs(health.last_error_at)}</DefRow>
-    </dl>
-  );
-}
-
-function HealthSection({ health }: { health: CcRuleView["health"] }) {
-  const degraded = health.status === "degraded";
-  const [open, setOpen] = useState(false);
-
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Is it healthy</CardTitle>
-      </CardHeader>
-      <CardContent>
-        {degraded ? (
-          // Degraded is never collapsible: the forensics ARE the point.
-          <div
-            role="alert"
-            className="space-y-2 rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive"
-          >
-            <p className="flex items-center gap-2 font-medium">
-              <TriangleAlert className="size-4 shrink-0" />
-              Evaluation degraded since {ccFormatTs(health.degraded_since)}
-            </p>
-            {health.last_error && (
-              <p className="font-mono text-xs break-all opacity-90">
-                {health.last_error}
-              </p>
-            )}
-            <p className="text-xs opacity-90">
-              {[
-                health.consecutive_failures > 0
-                  ? `${health.consecutive_failures} consecutive failure${
-                      health.consecutive_failures === 1 ? "" : "s"
-                    }`
-                  : null,
-                health.last_error_at
-                  ? `last error at ${ccFormatTs(health.last_error_at)}`
-                  : null,
-              ]
-                .filter(Boolean)
-                .join(" · ")}
-            </p>
-          </div>
-        ) : (
-          <Collapsible open={open} onOpenChange={setOpen}>
-            <CcDisclosureTrigger
-              open={open}
-              variant="bare"
-              className="w-full text-left"
-            >
-              <CcHealthBadge status={health.status} />
-              <span className="text-muted-foreground">
-                ·{" "}
-                {health.last_error_at
-                  ? `last error ${ccFormatTs(health.last_error_at)}`
-                  : "no failures on record"}
-              </span>
-            </CcDisclosureTrigger>
-            <CollapsibleContent>
-              <div className="px-1 pt-1">
-                <HealthForensics health={health} />
-              </div>
-            </CollapsibleContent>
-          </Collapsible>
-        )}
-      </CardContent>
-    </Card>
-  );
-}
-
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 function CcRuleDetailPage() {
@@ -209,7 +111,6 @@ function CcRuleDetailPage() {
   const qc = useQueryClient();
   const rule = useQuery(ccQueries.ruleByName(project, slug, preview));
   const alerts = useQuery(ccQueries.alerts(preview));
-  const [test, setTest] = useState<CcTestResult | null>(null);
   const [sqlOpen, setSqlOpen] = useState(false);
 
   const invalidateRule = () =>
@@ -231,15 +132,6 @@ function CcRuleDetailPage() {
       qc.invalidateQueries({ queryKey: ccQueries.rules().queryKey });
       toast.success("Rule updated");
     },
-    onError: (e) => toast.error(ccErrorMessage(e)),
-  });
-  const runTest = useMutation({
-    mutationFn: (spec: CcRuleView["spec"]) => {
-      const ruleId = rule.data?.id;
-      if (!ruleId) throw new Error("Rule not loaded");
-      return testCcRule({ data: { ruleId, spec } });
-    },
-    onSuccess: (r) => setTest(r),
     onError: (e) => toast.error(ccErrorMessage(e)),
   });
 
@@ -299,14 +191,6 @@ function CcRuleDetailPage() {
     },
   ];
 
-  const testCols: Column<CcTestResult["rows"][number]>[] = [
-    { header: "Labels", cell: (row) => <LabelSet labels={row.labels} /> },
-    {
-      header: "Value",
-      cell: (row) => <span className="tabular-nums">{row.value ?? "—"}</span>,
-    },
-  ];
-
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -319,7 +203,6 @@ function CcRuleDetailPage() {
             </span>
           )}
           <CcSeverityBadge severity={r.spec.severity} />
-          <CcHealthBadge status={r.health.status} />
           {r.spec.suppressed && (
             // A suppressed rule evaluates fully but the dispatcher never
             // notifies on it — worth a loud flag, or the silence is invisible.
@@ -460,53 +343,6 @@ function CcRuleDetailPage() {
         resolveRuleName={resolveRuleName}
         resolveRuleSeverity={resolveRuleSeverity}
       />
-
-      <HealthSection health={r.health} />
-
-      <Card inset={test ? "flush-content" : "default"}>
-        <CardHeader>
-          <CardTitle>Try it</CardTitle>
-          <CardAction>
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={runTest.isPending}
-              onClick={() => runTest.mutate(r.spec)}
-            >
-              <FlaskConical data-icon="inline-start" />
-              {runTest.isPending ? "Running…" : "Run test"}
-            </Button>
-          </CardAction>
-        </CardHeader>
-        <CardContent>
-          {test ? (
-            <>
-              <p className="px-3 pb-2 text-xs text-muted-foreground">
-                Matched{" "}
-                <span className="font-medium text-foreground tabular-nums">
-                  {test.matched}
-                </span>{" "}
-                row(s) — no state change.
-              </p>
-              <DataTable
-                data={test.rows}
-                columns={testCols}
-                rowKey={(_, i) => String(i)}
-                emptyState={
-                  <p className="px-3 py-4 text-sm text-muted-foreground">
-                    Matched {test.matched} row(s); none returned label sets.
-                  </p>
-                }
-              />
-            </>
-          ) : (
-            <p className="text-sm text-muted-foreground">
-              Run an ad-hoc evaluation of this rule&rsquo;s current spec against
-              ClickHouse, without changing any alert state.
-            </p>
-          )}
-        </CardContent>
-      </Card>
     </div>
   );
 }

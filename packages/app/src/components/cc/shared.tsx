@@ -43,7 +43,7 @@ import {
 import type { ReactNode } from "react";
 import { ccErrorInfo } from "@/data/cc/errors";
 import { ccOpSymbol } from "@/data/cc/route-resolution";
-import type { CcMatcher, CcRuleHealthStatus } from "@/data/cc/types";
+import type { CcMatcher } from "@/data/cc/types";
 
 // ── Guidance ──────────────────────────────────────────────────────────────────
 // Plain-language, always-visible explainers. Alerting is hard; the UI should
@@ -251,15 +251,6 @@ export function CcSloTierBadge({
   return (
     <CcStatusLabel tone={tone}>
       <span className="font-mono text-[0.6875rem]">{tier}</span>
-    </CcStatusLabel>
-  );
-}
-
-export function CcHealthBadge({ status }: { status: CcRuleHealthStatus }) {
-  const degraded = status === "degraded";
-  return (
-    <CcStatusLabel tone={degraded ? "degraded" : "healthy"} pulse={degraded}>
-      {status}
     </CcStatusLabel>
   );
 }

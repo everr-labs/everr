@@ -179,7 +179,7 @@ function CcRulesPage() {
     <div className="space-y-3">
       <CcPageIntro
         title="Rules"
-        lede="The queries watching your telemetry: what each one checks, whether it fires, and whether it can still evaluate."
+        lede="The queries watching your telemetry: what each one checks and whether it is firing right now."
         docsHref="https://everr.dev/docs/concepts/how-alerts-work"
       />
       <Card inset="flush-content">
@@ -187,7 +187,7 @@ function CcRulesPage() {
           {/* No CardTitle: the page h1 directly above already says "Rules",
               so the header carries only the hint. */}
           <CardDescription>
-            Open a rule to see its query, health, and run an ad-hoc test.
+            Open a rule to see its query and what it is doing right now.
           </CardDescription>
         </CardHeader>
         <CardContent>

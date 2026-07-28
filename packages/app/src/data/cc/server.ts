@@ -24,7 +24,6 @@ import {
   CcChannelConfigSchema,
   CcInhibitionInputSchema,
   CcRouteInputSchema,
-  CcRuleSpecSchema,
   CcSilenceInputSchema,
 } from "./schema";
 import { CC_CANONICAL_SLO_TIERS, ccSloWindowSecs } from "./slo";
@@ -484,12 +483,6 @@ export const resumeCcRule = createAuthenticatedServerFn({ method: "POST" })
   .inputValidator(z.object({ ruleId: z.string() }))
   .handler(({ data: { ruleId }, context: { session } }) =>
     cc.resumeRule(orgId(session), ruleId),
-  );
-
-export const testCcRule = createAuthenticatedServerFn({ method: "POST" })
-  .inputValidator(z.object({ ruleId: z.string(), spec: CcRuleSpecSchema }))
-  .handler(({ data: { ruleId, spec }, context: { session } }) =>
-    cc.testRule(orgId(session), ruleId, spec),
   );
 
 // ---- SLO operations ----

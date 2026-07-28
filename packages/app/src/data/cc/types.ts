@@ -31,7 +31,6 @@ import type {
   CcSloUpdateSchema,
   CcSloViewSchema,
   CcSubscriptionSchema,
-  CcTestResultSchema,
 } from "./schema";
 
 export type CcSeverity = z.infer<typeof CcSeveritySchema>;
@@ -54,7 +53,6 @@ export type CcSilenceInput = z.infer<typeof CcSilenceInputSchema>;
 export type CcSilence = z.infer<typeof CcSilenceSchema>;
 export type CcInhibition = z.infer<typeof CcInhibitionSchema>;
 export type CcSubscription = z.infer<typeof CcSubscriptionSchema>;
-export type CcTestResult = z.infer<typeof CcTestResultSchema>;
 export type CcSloTier = z.infer<typeof CcSloTierSchema>;
 export type CcSloSpec = z.infer<typeof CcSloSpecSchema>;
 export type CcSlo = z.infer<typeof CcSloSchema>;

@@ -20,7 +20,6 @@ import {
   CcSloUpdateSchema,
   CcSloViewSchema,
   CcSubscriptionSchema,
-  CcTestResultSchema,
 } from "./schema";
 import type {
   CcChannelConfig,
@@ -127,17 +126,6 @@ export async function pauseRule(orgId: string, id: string) {
 export async function resumeRule(orgId: string, id: string) {
   return CcRuleSchema.parse(
     await ccRequest(orgId, "POST", `/v1/rules/${id}/resume`),
-  );
-}
-/** Ad-hoc evaluation. CC's test endpoint takes a full spec body. */
-export async function testRule(orgId: string, id: string, spec: CcRuleSpec) {
-  return CcTestResultSchema.parse(
-    await ccRequest(
-      orgId,
-      "POST",
-      `/v1/rules/${id}/test`,
-      CcRuleSpecSchema.parse(spec),
-    ),
   );
 }
 

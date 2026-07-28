@@ -7,7 +7,7 @@ import {
   Outlet,
   RouterProvider,
 } from "@tanstack/react-router";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { CcAlert, CcRuleView } from "@/data/cc/types";
@@ -24,7 +24,6 @@ const mocks = vi.hoisted(() => ({
   listCcAlerts: vi.fn(),
   pauseCcRule: vi.fn(),
   resumeCcRule: vi.fn(),
-  testCcRule: vi.fn(),
   toastSuccess: vi.fn(),
   toastError: vi.fn(),
   feedProps: vi.fn(),
@@ -35,7 +34,6 @@ vi.mock("@/data/cc/server", () => ({
   listCcAlerts: mocks.listCcAlerts,
   pauseCcRule: mocks.pauseCcRule,
   resumeCcRule: mocks.resumeCcRule,
-  testCcRule: mocks.testCcRule,
 }));
 
 vi.mock("sonner", () => ({
@@ -183,7 +181,7 @@ describe("/alerts/rules/$project/$slug", () => {
   it("renders every prior fact across the question-shaped sections", async () => {
     renderRuleDetail();
 
-    // Header: display name primary, id muted, severity + health, pause.
+    // Header: display name primary, id muted, severity, pause.
     expect(
       await screen.findByRole("heading", { name: "Flapping Detector" }),
     ).toBeInTheDocument();
@@ -221,10 +219,6 @@ describe("/alerts/rules/$project/$slug", () => {
         resolveRuleSeverity: expect.any(Function),
       }),
     );
-
-    // Is it healthy + Try it are present.
-    expect(screen.getByText("Is it healthy")).toBeInTheDocument();
-    expect(screen.getByText("Try it")).toBeInTheDocument();
   });
 
   it("shows the rollup strip as relative time with the absolute datetime in a title", async () => {
@@ -261,31 +255,7 @@ describe("/alerts/rules/$project/$slug", () => {
     );
   });
 
-  it("keeps a healthy rule's forensics behind a single collapsed line", async () => {
-    mocks.getCcRuleByName.mockResolvedValue(
-      ruleView({
-        health: {
-          status: "healthy",
-          consecutive_failures: 0,
-          degraded_since: null,
-          last_error: null,
-          last_error_at: "2026-06-10T08:00:00Z",
-        },
-      }),
-    );
-    const user = userEvent.setup();
-    renderRuleDetail();
-    await screen.findByRole("heading", { name: "Flapping Detector" });
-
-    expect(screen.getByText(/last error/)).toBeInTheDocument();
-    expect(screen.queryByText("Consecutive failures")).not.toBeInTheDocument();
-
-    await user.click(screen.getByText(/last error/));
-    expect(screen.getByText("Consecutive failures")).toBeInTheDocument();
-    expect(screen.getByText("Last error at")).toBeInTheDocument();
-  });
-
-  it("auto-expands the forensics when the rule is degraded", async () => {
+  it("keeps evaluation health off the page, degraded rules included", async () => {
     mocks.getCcRuleByName.mockResolvedValue(
       ruleView({
         health: {
@@ -300,10 +270,10 @@ describe("/alerts/rules/$project/$slug", () => {
     renderRuleDetail();
     await screen.findByRole("heading", { name: "Flapping Detector" });
 
-    const banner = screen.getByRole("alert");
-    expect(banner.textContent).toContain("Evaluation degraded since");
-    expect(banner.textContent).toContain("Unknown identifier: svc");
-    expect(banner.textContent).toContain("4 consecutive failures");
+    expect(screen.queryByText("Is it healthy")).not.toBeInTheDocument();
+    expect(screen.queryByText(/degraded/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Unknown identifier/)).not.toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 
   it("flags a suppressed rule loudly", async () => {
@@ -317,22 +287,15 @@ describe("/alerts/rules/$project/$slug", () => {
     expect(await screen.findByText("suppressed")).toBeInTheDocument();
   });
 
-  it("test-fires the current spec without state change", async () => {
-    mocks.testCcRule.mockResolvedValue({
-      matched: 2,
-      rows: [{ labels: { svc: "flap" }, value: 1 }],
-    });
-    const user = userEvent.setup();
+  it("offers no ad-hoc test run", async () => {
     renderRuleDetail();
     await screen.findByRole("heading", { name: "Flapping Detector" });
 
-    await user.click(screen.getByRole("button", { name: /Run test/ }));
-
-    await waitFor(() =>
-      expect(mocks.testCcRule).toHaveBeenCalledWith({
-        data: { ruleId: RULE_ID, spec: ruleView().spec },
-      }),
-    );
-    expect(await screen.findByText(/no state change/)).toBeInTheDocument();
+    // Rules are as-code: the spec is validated on apply, so a button that
+    // re-runs it here answered a question nobody was asking on this page.
+    expect(screen.queryByText("Try it")).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: /Run test/ }),
+    ).not.toBeInTheDocument();
   });
 });
