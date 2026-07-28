@@ -241,7 +241,7 @@ describe("/alerts/slos/$project/$slug route", () => {
     expect(props.scopeSlug).toContain(SLO_ID);
   });
 
-  it("shows the display name as the heading, with the slug and description alongside", async () => {
+  it("shows the display name as the heading, with the description alongside", async () => {
     mocks.getCcSloByName.mockResolvedValue(
       ccSlo({
         spec: {
@@ -259,8 +259,9 @@ describe("/alerts/slos/$project/$slug route", () => {
     expect(
       await screen.findByRole("heading", { name: "Checkout Availability" }),
     ).toBeInTheDocument();
-    // The slug stays reachable next to the display name.
-    expect(screen.getByText(SLUG)).toBeInTheDocument();
+    // The heading is the name; the slug is not repeated beside it. It is in
+    // the URL, and the breadcrumb and back-link already place the SLO.
+    expect(screen.queryByText(SLUG)).not.toBeInTheDocument();
     expect(
       screen.getByText("Can shoppers complete checkout?"),
     ).toBeInTheDocument();

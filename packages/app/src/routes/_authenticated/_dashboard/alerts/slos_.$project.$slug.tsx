@@ -435,8 +435,12 @@ function StatusSection({ slo }: { slo: CcSlo }) {
   );
   const worst = ccWorstSloGroup(groups);
 
+  // A fragment, not a stack of its own: these are top-level cards of the page,
+  // and the page's own spacing should set the rhythm for all of them. A wrapper
+  // here would space its children on its own terms and read as a tighter
+  // cluster than the cards below it.
   return (
-    <div className="space-y-2">
+    <>
       {/* The headline numbers as one strip: budget, promise, SLI, burn, and
           the horizon — all the worst group's, same as the chart below. */}
       <SloStatsRow slo={slo} worst={worst} />
@@ -456,20 +460,23 @@ function StatusSection({ slo }: { slo: CcSlo }) {
           several groups this table is the rest of the answer, not detail: a
           fold would hide the very rows those numbers are not about. */}
       {groups.length > 1 && (
-        <Card>
-          <CardHeader className="pb-1">
+        // flush-content: the table's own rows carry the horizontal rhythm, so
+        // it runs to the card's edges and its rules read as full-width
+        // separators instead of floating short of both sides.
+        <Card inset="flush-content">
+          <CardHeader>
             <span className="text-xs font-medium">All groups</span>
-            <div className="mt-2">
-              <DataTable
-                data={groups}
-                columns={groupCols}
-                rowKey={(g) => JSON.stringify(g.labels)}
-              />
-            </div>
           </CardHeader>
+          <CardContent>
+            <DataTable
+              data={groups}
+              columns={groupCols}
+              rowKey={(g) => JSON.stringify(g.labels)}
+            />
+          </CardContent>
         </Card>
       )}
-    </div>
+    </>
   );
 }
 
@@ -679,13 +686,6 @@ function CcSloDetailPage() {
         <div className="flex flex-wrap items-center gap-3">
           <BackLink />
           <h2 className="text-base font-semibold">{identity.name}</h2>
-          {/* The slug stays reachable next to a display name; suppressed
-              entirely when it IS the name (no display name set). */}
-          {identity.displayName && (
-            <span className="font-mono text-xs text-muted-foreground">
-              {identity.slug}
-            </span>
-          )}
           {/* The evaluator breaking is the one system fault worth wearing on
               the title: the SLI query is failing, so every number below is
               going stale. Healthy stays silent. */}
