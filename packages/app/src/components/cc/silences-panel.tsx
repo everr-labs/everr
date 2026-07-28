@@ -15,6 +15,7 @@ import {
   CardTitle,
 } from "@everr/ui/components/card";
 import { type Column, DataTable } from "@everr/ui/components/data-table";
+import { DateTimePicker } from "@everr/ui/components/date-time-picker";
 import { Input } from "@everr/ui/components/input";
 import { Label } from "@everr/ui/components/label";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -51,7 +52,7 @@ function toRfc3339(local: string): string {
   return local ? new Date(local).toISOString() : "";
 }
 
-/** A Date as a `datetime-local` input value (local time, minute precision). */
+/** A Date as a `DateTimePicker` value (local time, minute precision). */
 function toLocalInput(date: Date): string {
   const pad = (n: number) => String(n).padStart(2, "0");
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(
@@ -252,9 +253,8 @@ export function SilenceCreateDrawer({
     [],
   );
 
-  // Duration presets: end = start (or now) + h. The raw datetime inputs stay
-  // for the odd shape (a maintenance window next Tuesday); presets carry the
-  // common case.
+  // Duration presets: end = start (or now) + h. The pickers stay for the odd
+  // shape (a maintenance window next Tuesday); presets carry the common case.
   const applyDuration = (h: number) => {
     const base = starts ? new Date(starts) : new Date();
     if (!starts) setStarts(toLocalInput(base));
@@ -331,20 +331,22 @@ export function SilenceCreateDrawer({
       <div className="grid grid-cols-2 gap-3">
         <div className="space-y-1.5">
           <Label htmlFor="silence-starts">Starts</Label>
-          <Input
+          <DateTimePicker
             id="silence-starts"
-            type="datetime-local"
             value={starts}
-            onChange={(e) => setStarts(e.target.value)}
+            onChange={setStarts}
+            placeholder="Pick a start"
+            timeLabel="Start time"
           />
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="silence-ends">Ends</Label>
-          <Input
+          <DateTimePicker
             id="silence-ends"
-            type="datetime-local"
             value={ends}
-            onChange={(e) => setEnds(e.target.value)}
+            onChange={setEnds}
+            placeholder="Pick an end"
+            timeLabel="End time"
           />
         </div>
       </div>
