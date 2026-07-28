@@ -118,33 +118,57 @@ function currentBudget(group: CcSloBudgetGroupSeries): number {
   return Number.POSITIVE_INFINITY;
 }
 
-/**
- * The chart's key. It names every group on the plot, plus the marks that repeat
- * (alert transitions) and so cannot carry inline labels. The once-per-chart
- * marks — "applied", the reconstructed band — label themselves on the plot
- * instead and are deliberately absent here.
- */
-function ChartKey({
-  items,
-}: {
-  items: { label: string; color: string; dashed?: boolean }[];
-}) {
+/** One entry in the chart key: a swatch drawn the way the thing is drawn. */
+type KeyItem = { label: string; color: string; dashed?: boolean };
+
+function KeyEntry({ item, vertical }: { item: KeyItem; vertical?: boolean }) {
+  // Painted as a background rather than a border: a `dashed` border this short
+  // collapses to a solid bar, which would show the alert marks as solid rules
+  // when the plot draws them dashed. A gradient dashes predictably at any size.
+  const axis = vertical ? "to bottom" : "to right";
   return (
-    <ul className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-[0.6875rem] text-muted-foreground">
-      {items.map((it) => (
-        <li key={it.label} className="flex items-center gap-1.5">
-          <span
-            aria-hidden
-            className="h-0 w-4 shrink-0 border-t-2"
-            style={{
-              borderColor: it.color,
-              borderStyle: it.dashed ? "dashed" : "solid",
-            }}
-          />
-          {it.label}
-        </li>
-      ))}
-    </ul>
+    <li className="flex items-center gap-1.5">
+      <span
+        aria-hidden
+        // The swatch matches the mark's own orientation: series run across the
+        // plot, alert transitions cut down through it. A horizontal dash for a
+        // vertical rule makes the reader match by colour alone.
+        className={vertical ? "h-3 w-0.5 shrink-0" : "h-0.5 w-4 shrink-0"}
+        style={
+          item.dashed
+            ? {
+                backgroundImage: `repeating-linear-gradient(${axis}, ${item.color} 0 3px, transparent 3px 6px)`,
+              }
+            : { backgroundColor: item.color }
+        }
+      />
+      {item.label}
+    </li>
+  );
+}
+
+/**
+ * The chart's key. Series on the left, in plot order; the repeating annotations
+ * (alert transitions) pushed to the right, because they are not data and should
+ * not read as one more group in the list. The once-per-chart marks — "applied",
+ * the reconstructed band — label themselves on the plot and are absent here.
+ */
+function ChartKey({ series, marks }: { series: KeyItem[]; marks: KeyItem[] }) {
+  return (
+    <div className="mt-2 flex flex-wrap items-center justify-between gap-x-4 gap-y-1 text-[0.6875rem] text-muted-foreground">
+      <ul className="flex flex-wrap items-center gap-x-4 gap-y-1">
+        {series.map((it) => (
+          <KeyEntry key={it.label} item={it} />
+        ))}
+      </ul>
+      {marks.length > 0 && (
+        <ul className="flex flex-wrap items-center gap-x-4 gap-y-1">
+          {marks.map((it) => (
+            <KeyEntry key={it.label} item={it} vertical />
+          ))}
+        </ul>
+      )}
+    </div>
   );
 }
 
@@ -340,8 +364,8 @@ export function SloBudgetChart({
     markerHits.set(markerT, tip);
   }
 
-  const keyItems = [
-    ...series.map((s) => ({ label: s.label, color: s.color })),
+  const keySeries = series.map((s) => ({ label: s.label, color: s.color }));
+  const keyMarks = [
     ...(eventMarks.some((m) => m.type === "firing")
       ? [{ label: "Alert fired", color: EVENT_COLOR.firing, dashed: true }]
       : []),
@@ -545,7 +569,7 @@ export function SloBudgetChart({
           ))}
         </LineChart>
       </ChartContainer>
-      <ChartKey items={keyItems} />
+      <ChartKey series={keySeries} marks={keyMarks} />
       {hiddenCount > 0 && (
         <p className="mt-1 text-[0.6875rem] text-muted-foreground">
           Showing the {shown.length} groups with the least budget left;{" "}
