@@ -14,13 +14,14 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { BookOpenText, Pause, Play, SlidersHorizontal } from "lucide-react";
+import { BookOpenText, SlidersHorizontal } from "lucide-react";
 import { toast } from "sonner";
 import { z } from "zod";
 import { CcPageIntro } from "@/components/cc/page-intro";
 import {
   CcEmptyState,
   CcHealthBadge,
+  CcPauseToggle,
   CcQueryError,
   CcSeverityBadge,
   CcStatusDot,
@@ -202,19 +203,13 @@ function CcRulesPage() {
     {
       header: "",
       cell: (r) => (
-        <Button
-          variant="ghost"
-          size="sm"
-          disabled={toggle.isPending}
-          onClick={() => toggle.mutate(r)}
-        >
-          {r.paused ? (
-            <Play data-icon="inline-start" />
-          ) : (
-            <Pause data-icon="inline-start" />
-          )}
-          {r.paused ? "Resume" : "Pause"}
-        </Button>
+        <CcPauseToggle
+          paused={r.paused}
+          pending={toggle.isPending}
+          kind="alert rule"
+          name={ccRuleIdentity(r).name}
+          onToggle={() => toggle.mutate(r)}
+        />
       ),
     },
   ];

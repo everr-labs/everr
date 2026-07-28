@@ -7,7 +7,7 @@ import {
   Outlet,
   RouterProvider,
 } from "@tanstack/react-router";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { CcSlo, CcSloStatus } from "@/data/cc/types";
@@ -438,11 +438,15 @@ describe("/alerts/slos/$project/$slug route", () => {
     expect(screen.getByLabelText("Evaluator degraded")).toBeInTheDocument();
   });
 
-  it("pauses the SLO from the header and invalidates both queries", async () => {
+  it("pauses the SLO from the header once the confirmation is accepted", async () => {
     const user = userEvent.setup();
     renderSloDetailRoute();
 
     await user.click(await screen.findByRole("button", { name: /Pause/ }));
+
+    const dialog = await screen.findByRole("alertdialog");
+    expect(mocks.pauseCcSlo).not.toHaveBeenCalled();
+    await user.click(within(dialog).getByRole("button", { name: "Pause SLO" }));
 
     await waitFor(() =>
       expect(mocks.pauseCcSlo).toHaveBeenCalledWith({

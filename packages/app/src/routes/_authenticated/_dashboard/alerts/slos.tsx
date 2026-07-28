@@ -28,8 +28,6 @@ import {
   ChevronRight,
   CircleHelp,
   Gauge,
-  Pause,
-  Play,
 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -37,6 +35,7 @@ import { CcBudgetBar } from "@/components/cc/budget-bar";
 import { CcPageIntro } from "@/components/cc/page-intro";
 import {
   CcEmptyState,
+  CcPauseToggle,
   CcQueryError,
   CcTableSkeleton,
   ccErrorMessage,
@@ -218,32 +217,6 @@ function SloExhaustionCell({ row }: { row: SloRow }) {
   );
 }
 
-function SloPauseButton({
-  slo,
-  pending,
-  onToggle,
-}: {
-  slo: CcSlo;
-  pending: boolean;
-  onToggle: (slo: CcSlo) => void;
-}) {
-  return (
-    <Button
-      variant="ghost"
-      size="sm"
-      disabled={pending}
-      onClick={() => onToggle(slo)}
-    >
-      {slo.paused ? (
-        <Play data-icon="inline-start" />
-      ) : (
-        <Pause data-icon="inline-start" />
-      )}
-      {slo.paused ? "Resume" : "Pause"}
-    </Button>
-  );
-}
-
 function CcSlosPage() {
   const qc = useQueryClient();
   const { preview } = Route.useSearch();
@@ -388,10 +361,12 @@ function CcSlosPage() {
       header: "",
       cell: ({ slo }) => (
         <span className="flex items-center justify-end">
-          <SloPauseButton
-            slo={slo}
+          <CcPauseToggle
+            paused={slo.paused}
             pending={toggle.isPending}
-            onToggle={toggle.mutate}
+            kind="SLO"
+            name={ccSloIdentity(slo).name}
+            onToggle={() => toggle.mutate(slo)}
           />
         </span>
       ),
@@ -435,10 +410,12 @@ function CcSlosPage() {
                               <SloPromiseCell slo={row.slo} />
                               <SloStatusCell row={row} />
                             </span>
-                            <SloPauseButton
-                              slo={row.slo}
+                            <CcPauseToggle
+                              paused={row.slo.paused}
                               pending={toggle.isPending}
-                              onToggle={toggle.mutate}
+                              kind="SLO"
+                              name={ccSloIdentity(row.slo).name}
+                              onToggle={() => toggle.mutate(row.slo)}
                             />
                           </div>
                           <span className="flex flex-wrap items-center gap-x-3 gap-y-1">

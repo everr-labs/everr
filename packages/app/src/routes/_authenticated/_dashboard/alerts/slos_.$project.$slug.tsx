@@ -3,7 +3,7 @@
 // with the alert transitions folded underneath), what is it (the definition),
 // and is the evaluator healthy (loud only when degraded).
 import { Badge } from "@everr/ui/components/badge";
-import { Button, buttonVariants } from "@everr/ui/components/button";
+import { buttonVariants } from "@everr/ui/components/button";
 import {
   Card,
   CardContent,
@@ -30,8 +30,6 @@ import {
   ArrowLeft,
   BookOpenText,
   HeartCrack,
-  Pause,
-  Play,
   TriangleAlert,
 } from "lucide-react";
 import { useMemo, useState } from "react";
@@ -48,6 +46,7 @@ import {
 import {
   CcDisclosureTrigger,
   CcEmptyState,
+  CcPauseToggle,
   CcQueryError,
   CcSloTierBadge,
   ccErrorMessage,
@@ -736,18 +735,14 @@ function CcSloDetailPage() {
               Runbook
             </Link>
           )}
-          <Button
+          <CcPauseToggle
+            paused={s.paused}
+            pending={toggle.isPending}
+            kind="SLO"
+            name={identity.name}
             variant="outline"
-            disabled={toggle.isPending}
-            onClick={() => toggle.mutate(s.paused)}
-          >
-            {s.paused ? (
-              <Play data-icon="inline-start" />
-            ) : (
-              <Pause data-icon="inline-start" />
-            )}
-            {s.paused ? "Resume" : "Pause"}
-          </Button>
+            onToggle={() => toggle.mutate(s.paused)}
+          />
         </div>
       </div>
 

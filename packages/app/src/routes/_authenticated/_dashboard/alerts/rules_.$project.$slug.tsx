@@ -26,8 +26,6 @@ import {
   ArrowLeft,
   BookOpenText,
   FlaskConical,
-  Pause,
-  Play,
   TriangleAlert,
 } from "lucide-react";
 import { useState } from "react";
@@ -39,6 +37,7 @@ import {
   CcEmptyState,
   CcHealthBadge,
   CcInstanceStatusBadge,
+  CcPauseToggle,
   CcQueryError,
   CcSeverityBadge,
   ccErrorMessage,
@@ -338,18 +337,14 @@ function CcRuleDetailPage() {
               Runbook
             </Link>
           )}
-          <Button
+          <CcPauseToggle
+            paused={r.paused}
+            pending={toggle.isPending}
+            kind="alert rule"
+            name={ccRuleIdentity(r).name}
             variant="outline"
-            disabled={toggle.isPending}
-            onClick={() => toggle.mutate(r.paused)}
-          >
-            {r.paused ? (
-              <Play data-icon="inline-start" />
-            ) : (
-              <Pause data-icon="inline-start" />
-            )}
-            {r.paused ? "Resume" : "Pause"}
-          </Button>
+            onToggle={() => toggle.mutate(r.paused)}
+          />
         </div>
       </div>
 

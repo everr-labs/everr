@@ -395,12 +395,22 @@ describe("/alerts/slos route", () => {
     expect(within(table).queryByText("suppressed")).not.toBeInTheDocument();
   });
 
-  it("pauses an active SLO and invalidates the listing", async () => {
+  it("pauses an active SLO only after the confirmation is accepted", async () => {
     const user = userEvent.setup();
     renderSlosRoute();
 
     const table = await screen.findByRole("table");
     await user.click(within(table).getByRole("button", { name: /Pause/ }));
+
+    // The click opens a confirmation and nothing else: pausing takes a detector
+    // offline, and the cost of that is silent, so it is not a one-click action.
+    const dialog = await screen.findByRole("alertdialog");
+    expect(mocks.pauseCcSlo).not.toHaveBeenCalled();
+    expect(
+      within(dialog).getByText(/error budget stops updating/),
+    ).toBeInTheDocument();
+
+    await user.click(within(dialog).getByRole("button", { name: "Pause SLO" }));
 
     await waitFor(() =>
       expect(mocks.pauseCcSlo).toHaveBeenCalledWith({
@@ -408,6 +418,36 @@ describe("/alerts/slos route", () => {
       }),
     );
     expect(mocks.toastSuccess).toHaveBeenCalledWith("SLO updated");
+  });
+
+  it("leaves the SLO running when the pause confirmation is cancelled", async () => {
+    const user = userEvent.setup();
+    renderSlosRoute();
+
+    const table = await screen.findByRole("table");
+    await user.click(within(table).getByRole("button", { name: /Pause/ }));
+    const dialog = await screen.findByRole("alertdialog");
+    await user.click(within(dialog).getByRole("button", { name: "Cancel" }));
+
+    expect(mocks.pauseCcSlo).not.toHaveBeenCalled();
+  });
+
+  it("resumes a paused SLO without a confirmation", async () => {
+    // Resuming restores the normal state and shows its own effect, so a dialog
+    // there would be a click to dismiss rather than a decision to make.
+    mocks.listCcSlos.mockResolvedValue([ccSlo({ paused: true })]);
+    const user = userEvent.setup();
+    renderSlosRoute();
+
+    const table = await screen.findByRole("table");
+    await user.click(within(table).getByRole("button", { name: /Resume/ }));
+
+    await waitFor(() =>
+      expect(mocks.resumeCcSlo).toHaveBeenCalledWith({
+        data: { sloId: SLO_ID },
+      }),
+    );
+    expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
   });
 
   it("offers no delete action — SLOs are removed as code, not from the UI", async () => {

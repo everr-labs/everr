@@ -1,4 +1,15 @@
 // packages/app/src/components/cc/shared.tsx
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@everr/ui/components/alert-dialog";
 import { Badge } from "@everr/ui/components/badge";
 import { Button } from "@everr/ui/components/button";
 import { CollapsibleTrigger } from "@everr/ui/components/collapsible";
@@ -21,7 +32,14 @@ import {
 } from "@everr/ui/components/tone";
 import { cn } from "@everr/ui/lib/utils";
 import { useQueryClient } from "@tanstack/react-query";
-import { ChevronRight, Info, type LucideIcon, RotateCw } from "lucide-react";
+import {
+  ChevronRight,
+  Info,
+  type LucideIcon,
+  Pause,
+  Play,
+  RotateCw,
+} from "lucide-react";
 import type { ReactNode } from "react";
 import { ccErrorInfo } from "@/data/cc/errors";
 import { ccOpSymbol } from "@/data/cc/route-resolution";
@@ -487,4 +505,85 @@ export function ccFormatTs(ts: string | null | undefined): string {
   if (!ts) return "—";
   const d = new Date(ts);
   return Number.isNaN(d.getTime()) ? ts : d.toLocaleString();
+}
+
+// ── Pause / resume ────────────────────────────────────────────────────────────
+
+/** What a pause silences, in the words the confirmation uses. */
+type CcPausableKind = "SLO" | "alert rule";
+
+const PAUSE_CONSEQUENCE: Record<CcPausableKind, string> = {
+  SLO: "It stops being evaluated, so its error budget stops updating and none of its burn-rate alerts can fire. Breaches during the pause pass unnoticed and unrecorded.",
+  "alert rule":
+    "It stops being evaluated, so it cannot fire or resolve while paused. Anything it would have caught passes unnoticed.",
+};
+
+/**
+ * Pause or resume an evaluated resource, confirming before the pause.
+ *
+ * Only the pause asks. Pausing takes a detector offline and the cost of it is
+ * silent by construction: nothing fires, so nothing tells you later that you
+ * paused it. Resuming restores the normal state and shows its own effect, so a
+ * dialog there would be a click to dismiss rather than a decision to make.
+ */
+export function CcPauseToggle({
+  paused,
+  pending,
+  kind,
+  name,
+  variant = "ghost",
+  onToggle,
+}: {
+  paused: boolean;
+  pending: boolean;
+  kind: CcPausableKind;
+  /** The resource's display name, for the confirmation's title. */
+  name: string;
+  /** "ghost" in a table row, "outline" beside a page heading. */
+  variant?: "ghost" | "outline";
+  onToggle: () => void;
+}) {
+  // Table rows use the small ghost button; a page heading uses the default
+  // size, matching the controls beside it.
+  const size = variant === "ghost" ? ("sm" as const) : undefined;
+
+  if (paused) {
+    return (
+      <Button
+        variant={variant}
+        size={size}
+        disabled={pending}
+        onClick={onToggle}
+      >
+        <Play data-icon="inline-start" />
+        Resume
+      </Button>
+    );
+  }
+
+  return (
+    <AlertDialog>
+      <AlertDialogTrigger
+        render={<Button variant={variant} size={size} disabled={pending} />}
+      >
+        <Pause data-icon="inline-start" />
+        Pause
+      </AlertDialogTrigger>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Pause {name}?</AlertDialogTitle>
+          <AlertDialogDescription>
+            {PAUSE_CONSEQUENCE[kind]} Resuming picks evaluation back up from the
+            live data at that moment; the gap is not backfilled.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Cancel</AlertDialogCancel>
+          <AlertDialogAction onClick={onToggle}>
+            Pause {kind === "SLO" ? "SLO" : "rule"}
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
 }

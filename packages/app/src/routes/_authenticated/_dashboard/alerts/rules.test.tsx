@@ -7,7 +7,7 @@ import {
   Outlet,
   RouterProvider,
 } from "@tanstack/react-router";
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { CcRulesPage, CcRuleView } from "@/data/cc/types";
@@ -247,6 +247,53 @@ describe("/alerts/rules route", () => {
     expect(
       screen.queryByRole("button", { name: "Load more" }),
     ).not.toBeInTheDocument();
+  });
+
+  it("pauses a rule only after the confirmation is accepted", async () => {
+    mocks.listCcRulesPage.mockResolvedValue(page([ccRuleView()], null));
+    const user = userEvent.setup();
+    renderRulesRoute();
+
+    await user.click(await screen.findByRole("button", { name: /Pause/ }));
+
+    // A paused rule cannot fire, and nothing announces that later, so the
+    // pause is a decision to confirm rather than a one-click toggle.
+    const dialog = await screen.findByRole("alertdialog");
+    expect(mocks.pauseCcRule).not.toHaveBeenCalled();
+    expect(
+      within(dialog).getByText(/cannot fire or resolve/),
+    ).toBeInTheDocument();
+
+    await user.click(
+      within(dialog).getByRole("button", { name: "Pause rule" }),
+    );
+
+    await waitFor(() => expect(mocks.pauseCcRule).toHaveBeenCalled());
+  });
+
+  it("leaves the rule running when the pause confirmation is cancelled", async () => {
+    mocks.listCcRulesPage.mockResolvedValue(page([ccRuleView()], null));
+    const user = userEvent.setup();
+    renderRulesRoute();
+
+    await user.click(await screen.findByRole("button", { name: /Pause/ }));
+    const dialog = await screen.findByRole("alertdialog");
+    await user.click(within(dialog).getByRole("button", { name: "Cancel" }));
+
+    expect(mocks.pauseCcRule).not.toHaveBeenCalled();
+  });
+
+  it("resumes a paused rule without a confirmation", async () => {
+    mocks.listCcRulesPage.mockResolvedValue(
+      page([ccRuleView({ paused: true })], null),
+    );
+    const user = userEvent.setup();
+    renderRulesRoute();
+
+    await user.click(await screen.findByRole("button", { name: /Resume/ }));
+
+    await waitFor(() => expect(mocks.resumeCcRule).toHaveBeenCalled());
+    expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
   });
 
   it("shows load-more with a next_cursor and fetches the next page with it", async () => {
