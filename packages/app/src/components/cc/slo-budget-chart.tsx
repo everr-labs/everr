@@ -64,6 +64,9 @@ const HOVER_TIE_PCT = markerTolerance(PLOT.height, CEIL_PCT - FLOOR_PCT);
 
 const EMPTY_KEYS: ReadonlySet<string> = new Set();
 
+/** Row key holding a series' pre-epoch (reconstructed) stretch. */
+const reconKey = (dataKey: string) => `${dataKey}_recon`;
+
 // As many lines as the shared palette has distinct colours. Past this a budget
 // chart stops being readable, so the worst groups win the slots and the caller
 // is told how many were left off — a hidden group is the exact failure this
@@ -209,23 +212,6 @@ export function SloBudgetChart({
     color: SERIES_COLORS[i % SERIES_COLORS.length],
   }));
 
-  // One recharts row per instant, carrying every series' floored value. True
-  // (unfloored) values stay out of the rows and are read from `shown` by index
-  // when the tooltip needs them.
-  const data = instants.map((_, pointIdx) => {
-    const row: Record<string, string | number | null> = {
-      t: instants[pointIdx].t,
-    };
-    for (const s of series) {
-      const raw = s.points[pointIdx].budgetRemaining;
-      row[s.dataKey] =
-        raw === null
-          ? null
-          : Math.min(CEIL_PCT, Math.max(raw * 100, FLOOR_PCT));
-    }
-    return row;
-  });
-
   const epochMs = epoch ? Date.parse(epoch) : Number.NaN;
   const hasEpoch = Number.isFinite(epochMs);
   // First instant on/after the epoch: the boundary. Everything before it is
@@ -236,11 +222,48 @@ export function SloBudgetChart({
   // The "applied" marker sits on the boundary, but only when it falls inside
   // the range: boundary 0 is off the left edge, -1 is off the right.
   const markerT = boundary > 0 ? instants[boundary].t : null;
-  // The reconstructed span, shaded rather than dashed: the epoch is a property
-  // of the SLO, not of any one group, so one band says it once instead of every
-  // line having to carry a second dashed copy of itself.
   const reconstructedTo =
     boundary === -1 ? instants[instants.length - 1].t : markerT;
+  /** This instant predates the SLO, so its budget is inferred, not observed. */
+  const isReconstructed = (i: number) =>
+    boundary === -1 || (boundary > 0 && i < boundary);
+
+  // One recharts row per instant, carrying every series' floored value. True
+  // (unfloored) values stay out of the rows and are read from `shown` by index
+  // when the tooltip needs them.
+  //
+  // Each series is split at the epoch into two keys. A `<Line>` carries one
+  // stroke style for its whole length, so a line that turns from dashed to
+  // solid part-way has to be two lines; they share the boundary point, or the
+  // segments would not meet. The split is only in what gets DRAWN, so
+  // `plottedPct` puts them back together for anything that reads a value.
+  const data = instants.map((_, pointIdx) => {
+    const row: Record<string, string | number | null> = {
+      t: instants[pointIdx].t,
+    };
+    for (const s of series) {
+      const raw = s.points[pointIdx].budgetRemaining;
+      const pct =
+        raw === null
+          ? null
+          : Math.min(CEIL_PCT, Math.max(raw * 100, FLOOR_PCT));
+      const reconstructed = isReconstructed(pointIdx);
+      row[s.dataKey] = reconstructed ? null : pct;
+      // The boundary point belongs to both, so the segments meet — but only
+      // when there is a reconstructed stretch for it to close. With nothing
+      // before the epoch, a lone shared point would draw a stray dot.
+      row[reconKey(s.dataKey)] =
+        reconstructed || (boundary > 0 && pointIdx === boundary) ? pct : null;
+    }
+    return row;
+  });
+
+  /** A series' value at an instant, whichever side of the epoch it fell on. */
+  const plottedPct = (pointIdx: number, dataKey: string) => {
+    const row = data[pointIdx];
+    const v = row?.[dataKey] ?? row?.[reconKey(dataKey)];
+    return typeof v === "number" ? v : null;
+  };
 
   // Overlaid vertical markers sit on the categorical X axis, so a marker can
   // only land on an existing tick: snap an instant (ms) to its nearest plotted
@@ -331,10 +354,10 @@ export function SloBudgetChart({
     hover === null
       ? EMPTY_KEYS
       : nearestSeriesKeys(
-          series.map((s) => {
-            const v = data[hover.index]?.[s.dataKey];
-            return { key: s.dataKey, value: typeof v === "number" ? v : null };
-          }),
+          series.map((s) => ({
+            key: s.dataKey,
+            value: plottedPct(hover.index, s.dataKey),
+          })),
           hover.pct,
           HOVER_TIE_PCT,
         );
@@ -428,26 +451,37 @@ export function SloBudgetChart({
             declared after these: SVG paints in document order, so the fixed
             references (exhausted, applied, alert transitions) stay legible
             wherever a series would otherwise cover them. */}
-          {[...series].reverse().map((s, i) => {
+          {[...series].reverse().flatMap((s, i) => {
             const worst = i === series.length - 1;
-            return (
+            const common = {
+              name: s.label,
+              type: "monotone" as const,
+              stroke: s.color,
+              strokeWidth: worst ? 2 : 1.5,
+              strokeOpacity: worst ? 1 : 0.55,
+              dot: worst
+                ? ({ r: 2.5, strokeWidth: 0, fill: s.color } as const)
+                : (false as const),
+              // The hover markers are drawn separately below, in front of
+              // everything; recharts' own activeDot would be stuck inside this
+              // line's layer, under the reference rules.
+              activeDot: false as const,
+              isAnimationActive: false,
+              connectNulls: true,
+            };
+            return [
+              // Before the SLO existed: the same budget, but inferred from
+              // telemetry rather than measured against a promise anyone had
+              // made. Dashed so a line says that about itself, wherever the
+              // reader's eye lands on it.
               <Line
-                key={s.dataKey}
-                dataKey={s.dataKey}
-                name={s.label}
-                type="monotone"
-                stroke={s.color}
-                strokeWidth={worst ? 2 : 1.5}
-                strokeOpacity={worst ? 1 : 0.55}
-                dot={worst ? { r: 2.5, strokeWidth: 0, fill: s.color } : false}
-                // The hover markers are drawn separately below, in front of
-                // everything; recharts' own activeDot would be stuck inside this
-                // line's layer, under the reference rules.
-                activeDot={false}
-                isAnimationActive={false}
-                connectNulls
-              />
-            );
+                key={reconKey(s.dataKey)}
+                dataKey={reconKey(s.dataKey)}
+                strokeDasharray="4 3"
+                {...common}
+              />,
+              <Line key={s.dataKey} dataKey={s.dataKey} {...common} />,
+            ];
           })}
           {/* Exhausted is now the axis floor rather than a level inside the
             plot, so this tints that floor and names it instead of ruling across
@@ -502,14 +536,11 @@ export function SloBudgetChart({
           {pointHover !== null &&
             hoverMarkers({
               x: instants[pointHover.index].t,
-              points: series.map((s) => {
-                const y = data[pointHover.index]?.[s.dataKey];
-                return {
-                  key: s.dataKey,
-                  value: typeof y === "number" ? y : null,
-                  color: s.color,
-                };
-              }),
+              points: series.map((s) => ({
+                key: s.dataKey,
+                value: plottedPct(pointHover.index, s.dataKey),
+                color: s.color,
+              })),
               activeKeys: nearestKeys,
             })}
           {/* Hit targets, painted last of all so they sit above the rules.
