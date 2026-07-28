@@ -441,15 +441,16 @@ function StatusSection({ slo }: { slo: CcSlo }) {
       {/* The headline numbers as one strip: budget, promise, SLI, burn, and
           the horizon — all the worst group's, same as the chart below. */}
       <SloStatsRow slo={slo} worst={worst} />
-      {/* The budget is computed at read time. Only the freshness is said here:
-          the window and the target are already two of the stats above. */}
-      <p className="px-1 text-[0.6875rem] text-muted-foreground">
-        {budgetIsFresh ? (
-          "Error budget computed just now."
-        ) : (
-          <>Error budget computing&hellip;</>
-        )}
-      </p>
+      {/* Said only while the read-time scan is still in flight, because that is
+          the only case a reader can act on: the numbers above are the stored
+          snapshot for another moment. Once the scan lands they are simply
+          current, and a page that announces its own freshness in the steady
+          state is announcing nothing. */}
+      {!budgetIsFresh && (
+        <p className="px-1 text-[0.6875rem] text-muted-foreground">
+          Error budget computing&hellip;
+        </p>
+      )}
 
       {/* The full per-group breakdown, only when there is more than one group
           to break down. Keep it available, but not louder than the answer. */}

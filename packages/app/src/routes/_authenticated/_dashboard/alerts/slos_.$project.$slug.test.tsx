@@ -283,10 +283,11 @@ describe("/alerts/slos/$project/$slug route", () => {
     // -> 3d 8h. The snapshot's stored 3d 4h is gone.
     expect(screen.getByText("3d 8h")).toBeInTheDocument();
     expect(screen.queryByText("3d 4h")).not.toBeInTheDocument();
-    // A non-empty scan landed, so the freshness line reads "computed just now".
+    // A non-empty scan landed, so the in-flight note is gone: current numbers
+    // do not announce that they are current.
     expect(
-      screen.getByText(/Error budget computed just now/),
-    ).toBeInTheDocument();
+      screen.queryByText(/Error budget computing/),
+    ).not.toBeInTheDocument();
   });
 
   it("charts the budget history, scoped to the SLO's budget window", async () => {
