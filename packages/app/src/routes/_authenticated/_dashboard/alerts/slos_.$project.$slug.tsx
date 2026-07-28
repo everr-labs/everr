@@ -196,9 +196,14 @@ function ObjectiveSection({ slo }: { slo: CcSlo }) {
               {slo.spec.min_valid_events}
             </DefRow>
           )}
-          <DefRow label="SLI groups by">
-            {slo.spec.sli.label_columns.join(", ") || "— (scalar SLI)"}
-          </DefRow>
+          {/* Only when the SLI actually groups. A scalar SLI has nothing to
+              list, and "no grouping columns" is not a fact anyone came here
+              for: the page's single set of numbers already says so. */}
+          {slo.spec.sli.label_columns.length > 0 && (
+            <DefRow label="SLI groups by">
+              {slo.spec.sli.label_columns.join(", ")}
+            </DefRow>
+          )}
           {project !== undefined && <DefRow label="Project">{project}</DefRow>}
           {labels.length > 0 && (
             <DefRow label="Labels">

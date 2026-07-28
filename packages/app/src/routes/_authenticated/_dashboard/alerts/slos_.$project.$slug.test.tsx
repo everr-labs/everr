@@ -217,6 +217,10 @@ describe("/alerts/slos/$project/$slug route", () => {
     expect(screen.queryByText("Paging: fast-burn")).not.toBeInTheDocument();
     expect(screen.queryByText(/Fires when the last/)).not.toBeInTheDocument();
     expect(screen.queryByText("When it alerts")).not.toBeInTheDocument();
+    // A grouped SLI does name its grouping columns (the scalar case below
+    // drops the row entirely, so pin the positive case here).
+    expect(screen.getByText("SLI groups by")).toBeInTheDocument();
+    expect(screen.getByText("service")).toBeInTheDocument();
 
     // The read-time scan is empty here (no traffic in the trailing window), so the
     // stored snapshot stands and the freshness line reads "computing", not fresh.
@@ -349,8 +353,9 @@ describe("/alerts/slos/$project/$slug route", () => {
     expect(
       (await screen.findAllByText("100.00%")).length,
     ).toBeGreaterThanOrEqual(1);
-    // Scalar: the objective states there are no grouping columns.
-    expect(screen.getByText(/\(scalar SLI\)/)).toBeInTheDocument();
+    // Scalar: nothing groups, so the definition drops the row rather than
+    // spending one on "no grouping columns".
+    expect(screen.queryByText("SLI groups by")).not.toBeInTheDocument();
     // No multi-group breakdown for a single group.
     expect(screen.queryByText("All groups")).not.toBeInTheDocument();
   });
