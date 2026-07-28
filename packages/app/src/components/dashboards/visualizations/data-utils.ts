@@ -4,15 +4,33 @@ import type { QueryResultRow } from "./index";
 
 export { toNumber };
 
-/** Shared series palette. Index 0 doubles as the accent color for brush
- * selections and sparklines. */
+/**
+ * Shared series palette. Index 0 doubles as the accent color for brush
+ * selections and sparklines.
+ *
+ * ORDER IS LOAD-BEARING and entries are append-only: charts assign colors by
+ * series index, so inserting or reordering re-colors every saved dashboard.
+ *
+ * The first six are the widely-spaced hues. Six hues is about what hue alone
+ * can keep apart, so the rest separate on LIGHTNESS as well — each sits in a
+ * hue gap and is visibly darker or lighter than its nearest neighbour. That
+ * ordering also means the most distinguishable colors are used first, and a
+ * value difference (unlike a hue difference) survives every form of color
+ * blindness.
+ */
 export const SERIES_COLORS = [
-  "hsl(217, 91%, 60%)",
-  "hsl(142, 71%, 45%)",
-  "hsl(0, 84%, 60%)",
-  "hsl(280, 68%, 60%)",
-  "hsl(35, 92%, 50%)",
-  "hsl(190, 90%, 50%)",
+  "hsl(217, 91%, 60%)", // blue
+  "hsl(142, 71%, 45%)", // green
+  "hsl(0, 84%, 60%)", // red
+  "hsl(280, 68%, 60%)", // purple
+  "hsl(35, 92%, 50%)", // orange
+  "hsl(190, 90%, 50%)", // cyan
+  "hsl(330, 80%, 62%)", // rose — the widest remaining hue gap
+  "hsl(85, 62%, 42%)", // olive — darker, so it holds against green
+  "hsl(250, 78%, 70%)", // indigo — lighter, so it holds against blue/purple
+  "hsl(168, 72%, 34%)", // deep teal — darker than both green and cyan
+  "hsl(20, 68%, 44%)", // rust — darker orange
+  "hsl(300, 44%, 48%)", // plum — darker, desaturated purple
 ];
 
 /** Clean clock intervals a time axis may tick at, ascending. */
