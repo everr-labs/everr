@@ -37,7 +37,8 @@ spec:
                       ServiceName AS service,
                       round(100 * countIf(SeverityNumber >= 17) / count(), 3) AS error_pct
                     FROM logs
-                    WHERE TimestampTime >= {from:String} AND TimestampTime <= {to:String}
+                    WHERE TimestampTime >= parseDateTimeBestEffort({from:String})
+                      AND TimestampTime <= parseDateTimeBestEffort({to:String})
                     GROUP BY ts, service
                     ORDER BY ts
     error-volume-by-service:
@@ -67,7 +68,8 @@ spec:
                       ServiceName AS service,
                       countIf(SeverityNumber >= 17) AS errors
                     FROM logs
-                    WHERE TimestampTime >= {from:String} AND TimestampTime <= {to:String}
+                    WHERE TimestampTime >= parseDateTimeBestEffort({from:String})
+                      AND TimestampTime <= parseDateTimeBestEffort({to:String})
                     GROUP BY ts, service
                     ORDER BY ts
     top-error-shapes:
@@ -98,7 +100,8 @@ spec:
                       formatDateTime(min(TimestampTime), '%m-%d %H:%i') AS first_seen,
                       formatDateTime(max(TimestampTime), '%m-%d %H:%i') AS last_seen
                     FROM logs
-                    WHERE TimestampTime >= {from:String} AND TimestampTime <= {to:String}
+                    WHERE TimestampTime >= parseDateTimeBestEffort({from:String})
+                      AND TimestampTime <= parseDateTimeBestEffort({to:String})
                       AND SeverityNumber >= 17
                     GROUP BY service, severity, shape
                     ORDER BY n DESC
@@ -129,7 +132,8 @@ spec:
                       substring(Body, 1, 200) AS body,
                       TraceId AS trace_id
                     FROM logs
-                    WHERE TimestampTime >= {from:String} AND TimestampTime <= {to:String}
+                    WHERE TimestampTime >= parseDateTimeBestEffort({from:String})
+                      AND TimestampTime <= parseDateTimeBestEffort({to:String})
                       AND SeverityNumber >= 17
                     ORDER BY TimestampTime DESC
                     LIMIT 50
