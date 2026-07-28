@@ -5,7 +5,7 @@
 // vocabulary (emerald, amber when running low, red when exhausted) and is
 // always paired with the printed percentage so the state never rides on color
 // alone (the Status-Plus-Shape rule).
-import { Meter, type MeterFillTone } from "@everr/ui/components/meter";
+import { Meter } from "@everr/ui/components/meter";
 import { toneText } from "@everr/ui/components/tone";
 import { cn } from "@everr/ui/lib/utils";
 
@@ -39,17 +39,16 @@ export function ccFmtBudgetRemaining(remaining: number): string {
 const LOW_BUDGET = 0.25;
 
 /**
- * The budget health band for a remaining fraction: `exhausted` (<= 0), `low`
- * (< 25% left), or neither. The single source of both thresholds, so the bar,
- * the figure's colour and the detail hero always turn amber and red together.
+ * The budget's health band, already in the shared tone vocabulary: red when
+ * spent, amber when running low, emerald otherwise. The single source of both
+ * thresholds, so the bar, the figure's colour and the detail hero always turn
+ * amber and red together. Unknown budgets read healthy — nothing to warn about.
  */
-function ccBudgetTone(remaining: number | null): {
-  exhausted: boolean;
-  low: boolean;
-} {
-  if (remaining === null) return { exhausted: false, low: false };
-  const exhausted = remaining <= 0;
-  return { exhausted, low: !exhausted && remaining < LOW_BUDGET };
+function budgetTone(
+  remaining: number | null,
+): "danger" | "warning" | "healthy" {
+  if (remaining === null || remaining >= LOW_BUDGET) return "healthy";
+  return remaining <= 0 ? "danger" : "warning";
 }
 
 /**
@@ -58,15 +57,8 @@ function ccBudgetTone(remaining: number | null): {
  * Undefined at a healthy budget: inherit whatever the surface already sets.
  */
 export function ccBudgetTextTone(remaining: number | null): string | undefined {
-  const { exhausted, low } = ccBudgetTone(remaining);
-  if (!exhausted && !low) return undefined;
-  return toneText({ tone: exhausted ? "danger" : "warning" });
-}
-
-/** The budget's health band as the shared meter/text tone vocabulary. */
-function budgetToneName(remaining: number | null): MeterFillTone {
-  const { exhausted, low } = ccBudgetTone(remaining);
-  return exhausted ? "danger" : low ? "warning" : "healthy";
+  const tone = budgetTone(remaining);
+  return tone === "healthy" ? undefined : toneText({ tone });
 }
 
 /** The depleting meter on its own, sized by the caller via `className`. */
@@ -78,17 +70,18 @@ export function CcBudgetMeter({
   remaining: number | null;
   className?: string;
 } & Omit<React.ComponentProps<typeof Meter>, "layers">) {
-  const { exhausted } = ccBudgetTone(remaining);
+  const tone = budgetTone(remaining);
   return (
     <Meter
       {...variants}
       className={className}
-      tone={exhausted ? "danger" : "neutral"}
+      // An empty track reads as the state when there is no fill left to colour.
+      tone={tone === "danger" ? "danger" : "neutral"}
       layers={[
         {
           pct:
             remaining === null ? 0 : Math.max(0, Math.min(1, remaining)) * 100,
-          tone: budgetToneName(remaining),
+          tone,
         },
       ]}
     />

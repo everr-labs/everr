@@ -1,7 +1,7 @@
-// SLO detail, organized like the rule detail page: What is it (the
-// objective: target, window, tiers, SLI SQL behind a disclosure), How's the
-// budget (the evaluator's latest status snapshot per group), Is it healthy
-// (evaluation health, loud only when degraded).
+// SLO detail, in the order the question is actually asked: how's the budget
+// right now (stats row + status hero), which way is it going (budget history,
+// with the alert transitions folded underneath), what is it (the definition),
+// and is the evaluator healthy (loud only when degraded).
 import { Badge } from "@everr/ui/components/badge";
 import { Button, buttonVariants } from "@everr/ui/components/button";
 import {
@@ -30,7 +30,6 @@ import {
   ArrowLeft,
   BookOpenText,
   HeartCrack,
-  Info,
   Pause,
   Play,
   TriangleAlert,
@@ -50,7 +49,6 @@ import {
   CcDisclosureTrigger,
   CcEmptyState,
   CcQueryError,
-  CcSeverityBadge,
   CcSloTierBadge,
   ccErrorMessage,
   ccFormatTs,
@@ -71,8 +69,6 @@ import { pauseCcSlo, resumeCcSlo } from "@/data/cc/server";
 import {
   ccApplyFreshBudget,
   ccFmtWindowLabel,
-  ccFormatSloDuration,
-  ccFormatSloTarget,
   ccSloChartRange,
   ccSloCurrentBurn,
   ccSloExhaustion,
@@ -88,7 +84,6 @@ import type {
   CcSlo,
   CcSloGroupStatus,
   CcSloHealth,
-  CcSloTier,
   CcSloView,
 } from "@/data/cc/types";
 import { fromCcSlo } from "@/data/slos/mapping";
@@ -159,7 +154,9 @@ function DefRow({
   return (
     <div className="flex items-baseline gap-3 py-1.5">
       <dt className="w-28 shrink-0 text-xs text-muted-foreground">{label}</dt>
-      <dd className="font-mono text-xs">{children}</dd>
+      {/* min-w-0 so a wide value (the SLI query) scrolls inside the row rather
+          than stretching the card. */}
+      <dd className="min-w-0 flex-1 font-mono text-xs">{children}</dd>
     </div>
   );
 }
@@ -167,40 +164,16 @@ function DefRow({
 // Fraction/burn formatting is shared with the listing and overview surfaces
 // (ccFmtFraction / ccFmtBurn from budget-bar.tsx).
 
-// The two alert outcomes, foregrounded over the raw tiers: the critical tiers
-// page, the warning tier tickets. Order = urgency (page before ticket).
-const ALERT_OUTCOMES: {
-  label: string;
-  severity: CcSloTier["severity"];
-  blurb: string;
-}[] = [
-  {
-    label: "Pages you",
-    severity: "critical",
-    blurb: "budget draining fast enough to wake someone",
-  },
-  {
-    label: "Opens a ticket",
-    severity: "warning",
-    blurb: "a slow leak worth fixing, not tonight",
-  },
-];
-
 // ── What is it ────────────────────────────────────────────────────────────────
 
 function ObjectiveSection({ slo }: { slo: CcSlo }) {
-  const [sqlOpen, setSqlOpen] = useState(false);
-  const [tiersOpen, setTiersOpen] = useState(false);
-  const tiers = ccSloTiers(slo.spec);
-  // Grounds each × threshold in time: window / threshold is how fast that
-  // pace would drain a full budget. Null when the window shorthand won't parse.
-  const windowSecs = ccSloWindowSecs(slo.spec);
   const ann = slo.spec.annotations;
   // Surface the as-code identity fields natively instead of behind a YAML dump.
   // `everr.project` and `everr.label.*` fold into first-class fields (as they do
-  // in the applied document); `description`/`summary` lead the status hero; the
-  // rest of the everr.* internals stay hidden. What's left is the author's own
-  // pass-through annotations, shown raw.
+  // in the applied document); `description` is the page header's, and `summary`
+  // is the engine's alert template, so both are dropped here along with the rest
+  // of the everr.* internals. What's left is the author's own pass-through
+  // annotations, shown raw.
   const project = ann[ANN_PROJECT];
   const labels = Object.entries(ann)
     .filter(([k]) => k.startsWith(ANN_LABEL_PREFIX))
@@ -249,84 +222,16 @@ function ObjectiveSection({ slo }: { slo: CcSlo }) {
               </span>
             </DefRow>
           )}
-        </dl>
-
-        {/* What alerts, framed by outcome rather than by tier: the two critical
-            tiers page, the warning tier tickets. The hero's "what would page you"
-            carries the live view; this is the static reference, folded by default.
-            Tiers are the fixed canonical set (not user-configurable). */}
-        <Collapsible open={tiersOpen} onOpenChange={setTiersOpen}>
-          <CcDisclosureTrigger open={tiersOpen}>
-            <span className="text-xs font-medium">When it alerts</span>
-            {!tiersOpen && (
-              <span className="min-w-0 truncate text-[0.6875rem] text-muted-foreground">
-                pages on fast or sustained burn, tickets on a slow leak
-              </span>
-            )}
-          </CcDisclosureTrigger>
-          <CollapsibleContent>
-            <dl className="mt-2 space-y-3">
-              {ALERT_OUTCOMES.map(({ label, severity, blurb }) => {
-                const rows = tiers.filter((t) => t.severity === severity);
-                if (rows.length === 0) return null;
-                return (
-                  <div key={severity} className="flex flex-col gap-1">
-                    <dt className="flex items-baseline gap-2">
-                      <CcSeverityBadge severity={severity} />
-                      <span className="text-xs font-medium">{label}</span>
-                      <span className="text-[0.6875rem] text-muted-foreground">
-                        {blurb}
-                      </span>
-                    </dt>
-                    {rows.map((t) => (
-                      <dd
-                        key={t.name}
-                        className="text-[0.6875rem] text-muted-foreground"
-                      >
-                        <span className="font-mono text-foreground">
-                          {t.name}
-                        </span>{" "}
-                        · burn ≥{" "}
-                        <span className="font-mono tabular-nums">
-                          {ccFmtBurn(t.burn_rate)}
-                        </span>{" "}
-                        over both the last {ccFmtWindowLabel(t.long_window)} and
-                        the last {ccFmtWindowLabel(t.short_window)}
-                        {/* The threshold's real-world meaning: how fast that
-                            pace would drain a full budget (the workbook logic
-                            behind the canonical numbers). */}
-                        {windowSecs !== null && (
-                          <>
-                            {" "}
-                            — a pace that empties the whole budget in ~
-                            {ccFormatSloDuration(windowSecs / t.burn_rate)}
-                          </>
-                        )}
-                      </dd>
-                    ))}
-                  </div>
-                );
-              })}
-            </dl>
-          </CollapsibleContent>
-        </Collapsible>
-
-        {/* Authors have Git; readers get the SLI SQL on demand, not as a wall. */}
-        <Collapsible open={sqlOpen} onOpenChange={setSqlOpen}>
-          <CcDisclosureTrigger open={sqlOpen}>
-            <span className="text-xs font-medium">SLI SQL</span>
-            {!sqlOpen && (
-              <span className="min-w-0 truncate font-mono text-[0.6875rem] text-muted-foreground">
-                {slo.spec.sli.sql}
-              </span>
-            )}
-          </CcDisclosureTrigger>
-          <CollapsibleContent>
-            <pre className="mt-2 overflow-x-auto rounded-md bg-muted/50 p-3 font-mono text-xs ring-1 ring-foreground/10">
+          {/* The query itself, as a field rather than a disclosure: this card is
+              the one place the definition lives, and the SLI is the definition.
+              What alerts is not restated here — the status hero states each
+              tier's rule with its live numbers, which is the same rule. */}
+          <DefRow label="SLI">
+            <pre className="overflow-x-auto rounded-md bg-muted/50 p-3 text-xs ring-1 ring-foreground/10">
               {slo.spec.sli.sql}
             </pre>
-          </CollapsibleContent>
-        </Collapsible>
+          </DefRow>
+        </dl>
       </CardContent>
     </Card>
   );
@@ -538,13 +443,14 @@ function StatusSection({ slo }: { slo: CcSlo }) {
       <SloStatsRow slo={slo} worst={worst} />
       {/* At-a-glance: the verdict, state, and per-tier alert pressure. */}
       <SloStatusHero slo={slo} worst={worst} groupCount={groups.length} />
-      {/* The budget is computed at read time: "just now" once the scan lands,
-          and the stored snapshot (already in the hero) meanwhile. */}
+      {/* The budget is computed at read time. Only the freshness is said here:
+          the window and the target are already two of the stats above. */}
       <p className="px-1 text-[0.6875rem] text-muted-foreground">
-        Error budget {budgetIsFresh ? "computed just now" : "computing"} over
-        the last {ccSloWindowLabel(slo.spec)}, against a{" "}
-        {ccFormatSloTarget(slo.spec.targetPercent)} target
-        {budgetIsFresh ? "." : <>&hellip;</>}
+        {budgetIsFresh ? (
+          "Error budget computed just now."
+        ) : (
+          <>Error budget computing&hellip;</>
+        )}
       </p>
 
       {/* The full per-group breakdown, only when there is more than one group
@@ -611,7 +517,9 @@ function BudgetHistorySection({ slo }: { slo: CcSloView }) {
     for (const e of events.data ?? []) {
       if (!handles.has(e.slug)) continue;
       const type = ccEventStatus(e.eventType);
-      if (type) out.push({ t: e.timestamp, type });
+      // `slo_tier` rides in the instance labels, and is what makes a marker's
+      // tooltip worth having: which tier fired, not just that something did.
+      if (type) out.push({ t: e.timestamp, type, tier: e.labels.slo_tier });
     }
     return out;
   }, [events.data, slo]);
@@ -623,34 +531,14 @@ function BudgetHistorySection({ slo }: { slo: CcSloView }) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="flex items-center gap-1.5">
-          Budget history
-          <Tooltip>
-            <TooltipTrigger
-              render={
-                <button
-                  type="button"
-                  aria-label="How to read this chart"
-                  className="text-muted-foreground transition-colors hover:text-foreground"
-                />
-              }
-            >
-              <Info className="size-3.5" />
-            </TooltipTrigger>
-            <TooltipContent className="max-w-xs text-xs">
-              100% is the full budget, 0% is exhausted. Solid line is measured;
-              the faded dashed section is reconstructed from before this SLO
-              existed. Blue "applied" marks where the budget started counting,
-              red and green bars are alerts firing and resolving, and the line
-              stops at the last evaluation.
-            </TooltipContent>
-          </Tooltip>
-        </CardTitle>
+        {/* Every mark on the chart carries its own label, so no "how to read
+            this" tooltip is owed here. */}
+        <CardTitle>Budget history</CardTitle>
         <CardDescription>
           Budget remaining over a trailing {ccSloWindowLabel(slo.spec)} window.
         </CardDescription>
       </CardHeader>
-      <CardContent>
+      <CardContent className="space-y-3">
         {series.isError ? (
           <CcQueryError error={series.error} />
         ) : series.isPending ? (
@@ -662,24 +550,43 @@ function BudgetHistorySection({ slo }: { slo: CcSloView }) {
             events={budgetEvents}
           />
         )}
+        <FiringHistoryFold slo={slo} />
       </CardContent>
     </Card>
   );
 }
 
-function FiringHistorySection({ slo }: { slo: CcSlo }) {
-  // Scoped to this SLO's handles: the stored fire/resolve transitions and
-  // deliveries for its burn-rate tiers, pinned to the same SLO window as the
-  // budget chart above (the picker is hidden on this page) so the two line up.
-  // hideRuleColumns drops the (constant) source and severity columns, leaving
-  // Time / Event / Labels — the tier rides in the labels as `slo_tier`.
+// The same transitions the chart marks, in full: which tier fired, and whether
+// anyone was told. It sits folded under the chart, where it explains the marks
+// you have just looked at rather than opening a second reading of them.
+//
+// Scoped to this SLO's handles and pinned to the same SLO window as the chart
+// (the picker is hidden on this page) so the two line up. hideRuleColumns drops
+// the (constant) source and severity columns, leaving Time / Event / Labels —
+// the tier rides in the labels as `slo_tier`.
+function FiringHistoryFold({ slo }: { slo: CcSlo }) {
+  const [open, setOpen] = useState(false);
   return (
-    <AlertEventFeed
-      scopeSlug={ccSloHandles(slo)}
-      hideRuleColumns
-      showTypeLens
-      timeRange={ccSloChartRange(slo.spec) ?? undefined}
-    />
+    <Collapsible open={open} onOpenChange={setOpen}>
+      <CcDisclosureTrigger open={open}>
+        <span className="text-xs font-medium">Alert history</span>
+        {!open && (
+          <span className="text-[0.6875rem] text-muted-foreground">
+            every tier that fired or resolved in this window
+          </span>
+        )}
+      </CcDisclosureTrigger>
+      <CollapsibleContent>
+        <div className="mt-2">
+          <AlertEventFeed
+            scopeSlug={ccSloHandles(slo)}
+            hideRuleColumns
+            showTypeLens
+            timeRange={ccSloChartRange(slo.spec) ?? undefined}
+          />
+        </div>
+      </CollapsibleContent>
+    </Collapsible>
   );
 }
 
@@ -860,7 +767,6 @@ function CcSloDetailPage() {
       <StatusSection slo={s} />
       <BudgetHistorySection slo={s} />
       <ObjectiveSection slo={s} />
-      <FiringHistorySection slo={s} />
       <HealthSection sloId={s.id} />
     </div>
   );

@@ -124,19 +124,6 @@ const TONE_KIND: Record<Tone, HealthTone> = {
   resolved: "muted",
 };
 
-const TONE_DOT: Record<Tone, string> = Object.fromEntries(
-  Object.entries(TONE_KIND).map(([k, tone]) => [k, toneDot({ tone })]),
-) as Record<Tone, string>;
-
-const TONE_TEXT: Record<Tone, string> = Object.fromEntries(
-  Object.entries(TONE_KIND).map(([k, tone]) => [
-    k,
-    // Healthy status text stays quiet: the dot already carries the state, and a
-    // green word on every calm row would shout as loudly as a red one.
-    toneText({ tone: tone === "healthy" ? "muted" : tone }),
-  ]),
-) as Record<Tone, string>;
-
 export function CcStatusDot({
   tone,
   pulse = false,
@@ -152,14 +139,14 @@ export function CcStatusDot({
         <span
           className={cn(
             "absolute inline-flex size-full rounded-full opacity-60 motion-safe:animate-ping",
-            TONE_DOT[tone],
+            toneDot({ tone: TONE_KIND[tone] }),
           )}
         />
       )}
       <span
         className={cn(
           "relative inline-flex size-1.5 rounded-full",
-          TONE_DOT[tone],
+          toneDot({ tone: TONE_KIND[tone] }),
         )}
       />
     </span>
@@ -179,7 +166,11 @@ function CcStatusLabel({
     <span
       className={cn(
         "inline-flex items-center gap-1.5 whitespace-nowrap",
-        TONE_TEXT[tone],
+        // Healthy status text stays quiet: the dot already carries the state,
+        // and a green word on every calm row would shout as loudly as a red one.
+        toneText({
+          tone: TONE_KIND[tone] === "healthy" ? "muted" : TONE_KIND[tone],
+        }),
       )}
     >
       <CcStatusDot tone={tone} pulse={pulse} />

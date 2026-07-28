@@ -222,24 +222,17 @@ describe("/alerts/slos/$project/$slug route", () => {
     expect(screen.getAllByText(/last 1h/).length).toBeGreaterThanOrEqual(1);
     expect(screen.getAllByText(/0\.9×/).length).toBeGreaterThanOrEqual(1);
     expect(screen.getAllByText(/Fires when the last/).length).toBe(3);
-    // fast-burn is named in the hero's tier conditions; the Definition's
-    // static tiers list stays collapsed by default.
+    // fast-burn is named in the hero's tier conditions.
     expect(screen.getAllByText("fast-burn").length).toBeGreaterThanOrEqual(1);
 
     // The read-time scan is empty here (no traffic in the trailing window), so the
     // stored snapshot stands and the freshness line reads "computing", not fresh.
     expect(screen.getByText(/Error budget computing/)).toBeInTheDocument();
 
-    // Definition card: the tiers are foregrounded by outcome behind a collapsed
-    // "When it alerts" disclosure (page vs ticket), not a raw tiers table.
-    expect(screen.getByText("When it alerts")).toBeInTheDocument();
-    expect(
-      screen.getByText(
-        /pages on fast or sustained burn, tickets on a slow leak/,
-      ),
-    ).toBeInTheDocument();
-    // slow-burn / ticket are named in the pressure gauges (the objective
-    // outcome list that also names them is collapsed by default).
+    // The hero's tier conditions are the only statement of what alerts: the
+    // Definition card no longer restates the tiers.
+    expect(screen.queryByText("When it alerts")).not.toBeInTheDocument();
+    // slow-burn / ticket are named in the pressure gauges.
     expect(screen.getAllByText("slow-burn").length).toBeGreaterThanOrEqual(1);
     expect(screen.getAllByText("ticket").length).toBeGreaterThanOrEqual(1);
 
@@ -250,7 +243,11 @@ describe("/alerts/slos/$project/$slug route", () => {
     ).not.toBeInTheDocument();
     expect(screen.queryByText("Evaluator")).not.toBeInTheDocument();
 
-    // The firing-history feed is scoped to this SLO's handles.
+    // The alert history sits folded under the budget chart, so it costs the
+    // page nothing until asked for — and is still scoped to this SLO's handles
+    // when it opens.
+    expect(mocks.feedProps).not.toHaveBeenCalled();
+    await userEvent.click(screen.getByText("Alert history"));
     expect(mocks.feedProps).toHaveBeenCalled();
     const props = mocks.feedProps.mock.calls.at(-1)?.[0] as {
       scopeSlug: string[];

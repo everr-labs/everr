@@ -64,7 +64,20 @@ export type SloBudgetEvent = {
   t: string;
   /** `firing` = a burn tier fired; `resolved` = it cleared. */
   type: "firing" | "resolved";
+  /** Which burn tier, from the instance's `slo_tier` label. Absent if unlabelled. */
+  tier?: string;
 };
+
+const EVENT_COLOR = {
+  firing: "var(--color-red-500)",
+  resolved: "var(--color-green-500)",
+} as const;
+const APPLIED_COLOR = "var(--color-blue-500)";
+
+// A 1px dashed rule is far too thin to hover, so each marker instant also gets
+// an invisible wide line over it as the hit target. `transparent` is a paint
+// value, so the stroke still hit-tests under the default `visiblePainted`.
+const MARKER_HIT_WIDTH = 14;
 
 /** "1,234" — event counts in the tooltip stay readable at scale. */
 const fmtCount = (n: number) => n.toLocaleString();
@@ -76,6 +89,42 @@ function budgetValue(raw: number | null): string {
   if (raw == null) return "—";
   return ccFmtBudgetRemaining(raw / 100);
 }
+
+/**
+ * The chart's key. Every mark that can appear more than once (alert
+ * transitions) or that reads as a style rather than a label (the dashed
+ * reconstructed segment) is named here, so nothing on the plot is left to a
+ * tooltip. Entries are only rendered when that mark is actually on screen.
+ */
+function ChartKey({
+  items,
+}: {
+  items: { label: string; color: string; dashed?: boolean }[];
+}) {
+  return (
+    <ul className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-[0.6875rem] text-muted-foreground">
+      {items.map((it) => (
+        <li key={it.label} className="flex items-center gap-1.5">
+          <span
+            aria-hidden
+            className="h-0 w-4 shrink-0 border-t-2"
+            style={{
+              borderColor: it.color,
+              borderStyle: it.dashed ? "dashed" : "solid",
+            }}
+          />
+          {it.label}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+/** What one marker instant reports on hover: everything that happened there. */
+type MarkerTip = {
+  t: string;
+  rows: { key: string; color: string; label: string; value: string }[];
+};
 
 export function SloBudgetChart({
   points,
@@ -103,6 +152,13 @@ export function SloBudgetChart({
     x: number;
     y: number;
     index: number;
+  } | null>(null);
+  // A hovered vertical marker takes precedence over the point readout: the
+  // pointer is on the bar, so the bar is what the card should describe.
+  const [markerHover, setMarkerHover] = useState<{
+    x: number;
+    y: number;
+    tip: MarkerTip;
   } | null>(null);
 
   if (points.length === 0) {
@@ -163,19 +219,91 @@ export function SloBudgetChart({
 
   // Alert transitions overlaid as vertical markers, deduped by (instant, type)
   // so a tick with several same-type transitions draws one bar, not a stack.
-  const eventMarks: { key: string; t: string; type: "firing" | "resolved" }[] =
-    [];
+  // The tiers behind each bar are kept for the marker's tooltip: the bar says
+  // something happened, the tooltip says which tier and when.
+  const eventMarks: {
+    key: string;
+    t: string;
+    type: "firing" | "resolved";
+    tiers: string[];
+  }[] = [];
   if (events?.length) {
-    const seen = new Set<string>();
+    const byKey = new Map<string, (typeof eventMarks)[number]>();
     for (const ev of events) {
       const t = snapToPoint(Date.parse(ev.t));
       if (t === null) continue;
       const key = `${t}|${ev.type}`;
-      if (seen.has(key)) continue;
-      seen.add(key);
-      eventMarks.push({ key, t, type: ev.type });
+      let mark = byKey.get(key);
+      if (!mark) {
+        mark = { key, t, type: ev.type, tiers: [] };
+        byKey.set(key, mark);
+        eventMarks.push(mark);
+      }
+      if (ev.tier && !mark.tiers.includes(ev.tier)) mark.tiers.push(ev.tier);
     }
   }
+
+  // One hit target per instant, not per bar: a fire and a resolve can snap to
+  // the same tick, and two overlapping hit lines would fight for the pointer.
+  const markerHits = new Map<string, MarkerTip>();
+  for (const m of eventMarks) {
+    const tip = markerHits.get(m.t) ?? { t: m.t, rows: [] };
+    for (const tier of m.tiers.length > 0 ? m.tiers : [null]) {
+      tip.rows.push({
+        key: `${m.type}|${tier ?? ""}`,
+        color: EVENT_COLOR[m.type],
+        label: tier ?? "alert",
+        value: m.type === "firing" ? "fired" : "resolved",
+      });
+    }
+    markerHits.set(m.t, tip);
+  }
+  if (markerT) {
+    const tip = markerHits.get(markerT) ?? { t: markerT, rows: [] };
+    tip.rows.push({
+      key: "applied",
+      color: APPLIED_COLOR,
+      label: "applied",
+      value: "budget starts counting",
+    });
+    markerHits.set(markerT, tip);
+  }
+
+  // Named marks, in the order they read on the plot: the line itself, then what
+  // interrupts it. Only what is actually drawn gets an entry.
+  const hasSynthetic = data.some((r) => r.synthPct !== null);
+  const keyItems = [
+    { label: "Budget remaining", color: BUDGET_COLOR },
+    ...(hasSynthetic
+      ? [
+          {
+            label: "Reconstructed (predates this SLO)",
+            color: BUDGET_COLOR,
+            dashed: true,
+          },
+        ]
+      : []),
+    // No "applied" entry: that marker is one per chart and already carries its
+    // own inline label, which is the rule the key exists to cover the gap in.
+    ...(eventMarks.some((m) => m.type === "firing")
+      ? [
+          {
+            label: "Alert fired",
+            color: "var(--color-red-500)",
+            dashed: true,
+          },
+        ]
+      : []),
+    ...(eventMarks.some((m) => m.type === "resolved")
+      ? [
+          {
+            label: "Alert resolved",
+            color: "var(--color-green-500)",
+            dashed: true,
+          },
+        ]
+      : []),
+  ];
 
   return (
     <>
@@ -215,16 +343,26 @@ export function SloBudgetChart({
             domain={[FLOOR_PCT, 100]}
             tickFormatter={(v: number) => `${v}%`}
           />
-          {/* Budget exhausted: the line crossing this is the whole story. */}
+          {/* Budget exhausted: the line crossing this is the whole story. It
+            is the one annotation that can carry its label inline without
+            colliding, since it runs the full width at a fixed height. */}
           <ReferenceLine
             y={0}
             stroke="var(--destructive)"
             strokeDasharray="3 3"
             strokeWidth={1}
+            label={{
+              value: "exhausted",
+              position: "insideBottomLeft",
+              fontSize: 10,
+              fill: "var(--destructive)",
+            }}
           />
           {/* Alert transitions: a burn tier firing (red) or resolving (green),
             snapped to the nearest instant. Thin + faint so the budget line and
-            the applied marker stay dominant. */}
+            the applied marker stay dominant. Unlabelled by construction — there
+            can be dozens, and stacked labels would be unreadable; the key below
+            the chart names them once. */}
           {eventMarks.map((m) => (
             <ReferenceLine
               key={m.key}
@@ -240,7 +378,8 @@ export function SloBudgetChart({
             />
           ))}
           {/* When the budget became real: everything left of this is reconstructed
-            from telemetry that predates the SLO. */}
+            from telemetry that predates the SLO. One per chart, so it labels
+            itself. */}
           {markerT && (
             <ReferenceLine
               x={markerT}
@@ -255,6 +394,21 @@ export function SloBudgetChart({
               }}
             />
           )}
+          {/* Hit targets, painted last so they sit above the visible rules.
+            Transparent and wide enough to hover; each reports everything that
+            happened at its instant. */}
+          {[...markerHits.values()].map((tip) => (
+            <ReferenceLine
+              key={`hit-${tip.t}`}
+              x={tip.t}
+              stroke="transparent"
+              strokeWidth={MARKER_HIT_WIDTH}
+              onMouseMove={(e) =>
+                setMarkerHover({ x: e.clientX, y: e.clientY, tip })
+              }
+              onMouseLeave={() => setMarkerHover(null)}
+            />
+          ))}
           {/* Drives recharts' active index (and active dot); the visible card is
             the portaled CursorTooltip below, shared with the dashboard charts.
             No cursor line — the dashboard tooltip highlights the point, not a
@@ -285,7 +439,16 @@ export function SloBudgetChart({
           />
         </LineChart>
       </ChartContainer>
-      {hover && tipRow && (
+      <ChartKey items={keyItems} />
+      {markerHover && (
+        <CursorTooltip x={markerHover.x} y={markerHover.y}>
+          <SeriesTooltipContent
+            title={new Date(markerHover.tip.t).toLocaleString()}
+            rows={markerHover.tip.rows}
+          />
+        </CursorTooltip>
+      )}
+      {!markerHover && hover && tipRow && (
         <CursorTooltip x={hover.x} y={hover.y}>
           <SeriesTooltipContent
             title={

@@ -672,16 +672,6 @@ export function ccSloVerdict(
   }
 }
 
-/**
- * A human description an author attached via a `description` or `summary`
- * pass-through annotation, or null when none is set. Lets an SLO carry prose
- * intent through the as-code pipeline and surface it above the derived
- * sentence.
- */
-export function ccSloDescription(spec: CcSloSpec): string | null {
-  return spec.annotations.description ?? spec.annotations.summary ?? null;
-}
-
 /** "30d rolling" (v1 is rolling-only; the flag is honored anyway). */
 export function ccSloWindowLabel(spec: CcSloSpec): string {
   const { duration, isRolling } = spec.timeWindow;

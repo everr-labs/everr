@@ -36,7 +36,6 @@ import {
   ccSloBurnShape,
   ccSloBurnShapeCaption,
   ccSloCurrentBurn,
-  ccSloDescription,
   ccSloExhaustion,
   ccSloGroupState,
   ccSloTiers,
@@ -407,7 +406,6 @@ export function SloStatusHero({
   const tiers = ccSloTiers(slo.spec);
   const state = ccSloGroupState(tiers, worst);
   const readout = STATE_READOUT[state];
-  const description = ccSloDescription(slo.spec);
   const burn = worst ? ccSloCurrentBurn(tiers, worst.tiers) : null;
   const burns = worst ? ccSloWindowBurns(tiers, worst.tiers) : [];
   const shape = ccSloBurnShape(burns);
@@ -447,14 +445,12 @@ export function SloStatusHero({
               </span>
             )}
           </div>
+          {/* No description here: the page header already carries one, and the
+              spec's `summary` is an alert-render template (`${slo_tier}` and
+              friends), which only reads as garbage before the engine fills it. */}
           <p className="max-w-prose text-sm font-medium text-foreground">
             {ccSloVerdict(state, { burn, tteSecs: tte, shape })}
           </p>
-          {description && (
-            <p className="max-w-prose text-xs text-muted-foreground">
-              {description}
-            </p>
-          )}
         </div>
 
         {/* What would page you: the live outcome in one phrase, with the burn
