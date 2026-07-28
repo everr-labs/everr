@@ -163,7 +163,12 @@ describe("/alerts/slos route", () => {
       within(table)
         .getAllByRole("columnheader")
         .map((h) => h.textContent),
-    ).toEqual(["Promise", "Status", "Time to exhaustion", "Budget", ""]);
+    ).toEqual(["Promise", "Status", "TTE", "Budget", ""]);
+    // TTE is only acceptable as a header because the expansion stays one
+    // hover away; without this the column is an unexplained acronym.
+    expect(
+      within(table).getByRole("button", { name: "What is TTE?" }),
+    ).toBeInTheDocument();
 
     const link = within(table).getByRole("link", {
       name: "checkout-availability",

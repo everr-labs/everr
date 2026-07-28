@@ -11,13 +11,25 @@ import { type Column, DataTable } from "@everr/ui/components/data-table";
 import { Skeleton } from "@everr/ui/components/skeleton";
 import { toneText } from "@everr/ui/components/tone";
 import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@everr/ui/components/tooltip";
+import {
   useMutation,
   useQueries,
   useQuery,
   useQueryClient,
 } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { ChevronLeft, ChevronRight, Gauge, Pause, Play } from "lucide-react";
+import {
+  ChevronLeft,
+  ChevronRight,
+  CircleHelp,
+  Gauge,
+  Pause,
+  Play,
+} from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { CcBudgetBar } from "@/components/cc/budget-bar";
@@ -307,7 +319,31 @@ function CcSlosPage() {
     },
     {
       // Ahead of the budget: when it runs out, then how much is left.
-      header: "Time to exhaustion",
+      // Abbreviated because the column is narrow and the phrase is not: the
+      // tooltip carries the expansion, and the word "estimate" with it, since
+      // the figure is a projection of the current burn and not a countdown.
+      header: (
+        <span className="inline-flex items-center gap-1">
+          TTE
+          <Tooltip>
+            <TooltipTrigger
+              render={
+                <button
+                  type="button"
+                  className="text-muted-foreground hover:text-foreground"
+                  aria-label="What is TTE?"
+                />
+              }
+            >
+              <CircleHelp className="size-3.5" />
+            </TooltipTrigger>
+            <TooltipContent className="max-w-64">
+              Time to exhaustion: an estimate of how long the error budget lasts
+              if the current burn rate holds.
+            </TooltipContent>
+          </Tooltip>
+        </span>
+      ),
       cell: (row) => <SloExhaustionCell row={row} />,
     },
     {
