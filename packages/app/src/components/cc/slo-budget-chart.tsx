@@ -118,14 +118,41 @@ function currentBudget(group: CcSloBudgetGroupSeries): number {
   return Number.POSITIVE_INFINITY;
 }
 
+/**
+ * How a mark is stroked. One spec drives both the recharts element and its
+ * swatch in the key, so a swatch cannot end up a different weight, dash or
+ * opacity from the rule it stands for.
+ */
+type Stroke = {
+  width: number;
+  /** Dash and gap in px; omit for a solid stroke. */
+  dash?: [on: number, off: number];
+  opacity?: number;
+};
+
+/** The alert transition rules: thin, finely dashed, and deliberately faint. */
+const EVENT_STROKE: Stroke = { width: 1, dash: [2, 2], opacity: 0.6 };
+
+/** A series line in the key. The plot varies weight by rank; the key does not. */
+const SERIES_STROKE: Stroke = { width: 2 };
+
+/** `strokeDasharray` for recharts, or undefined for a solid stroke. */
+const dashArray = (s: Stroke) => s.dash?.join(" ");
+
 /** One entry in the chart key: a swatch drawn the way the thing is drawn. */
-type KeyItem = { label: string; color: string; dashed?: boolean };
+type KeyItem = { label: string; color: string; stroke: Stroke };
+
+/** The swatch's own length; its thickness comes from the stroke. */
+const SWATCH_LEN = { horizontal: 16, vertical: 12 };
 
 function KeyEntry({ item, vertical }: { item: KeyItem; vertical?: boolean }) {
+  const { stroke } = item;
   // Painted as a background rather than a border: a `dashed` border this short
   // collapses to a solid bar, which would show the alert marks as solid rules
   // when the plot draws them dashed. A gradient dashes predictably at any size.
   const axis = vertical ? "to bottom" : "to right";
+  const [on, off] = stroke.dash ?? [];
+  const len = vertical ? SWATCH_LEN.vertical : SWATCH_LEN.horizontal;
   return (
     <li className="flex items-center gap-1.5">
       <span
@@ -133,14 +160,17 @@ function KeyEntry({ item, vertical }: { item: KeyItem; vertical?: boolean }) {
         // The swatch matches the mark's own orientation: series run across the
         // plot, alert transitions cut down through it. A horizontal dash for a
         // vertical rule makes the reader match by colour alone.
-        className={vertical ? "h-3 w-0.5 shrink-0" : "h-0.5 w-4 shrink-0"}
-        style={
-          item.dashed
-            ? {
-                backgroundImage: `repeating-linear-gradient(${axis}, ${item.color} 0 3px, transparent 3px 6px)`,
-              }
-            : { backgroundColor: item.color }
-        }
+        className="shrink-0"
+        style={{
+          width: vertical ? stroke.width : len,
+          height: vertical ? len : stroke.width,
+          opacity: stroke.opacity,
+          ...(on === undefined
+            ? { backgroundColor: item.color }
+            : {
+                backgroundImage: `repeating-linear-gradient(${axis}, ${item.color} 0 ${on}px, transparent ${on}px ${on + (off ?? 0)}px)`,
+              }),
+        }}
       />
       {item.label}
     </li>
@@ -364,13 +394,29 @@ export function SloBudgetChart({
     markerHits.set(markerT, tip);
   }
 
-  const keySeries = series.map((s) => ({ label: s.label, color: s.color }));
+  const keySeries = series.map((s) => ({
+    label: s.label,
+    color: s.color,
+    stroke: SERIES_STROKE,
+  }));
   const keyMarks = [
     ...(eventMarks.some((m) => m.type === "firing")
-      ? [{ label: "Alert fired", color: EVENT_COLOR.firing, dashed: true }]
+      ? [
+          {
+            label: "Alert fired",
+            color: EVENT_COLOR.firing,
+            stroke: EVENT_STROKE,
+          },
+        ]
       : []),
     ...(eventMarks.some((m) => m.type === "resolved")
-      ? [{ label: "Alert resolved", color: EVENT_COLOR.resolved, dashed: true }]
+      ? [
+          {
+            label: "Alert resolved",
+            color: EVENT_COLOR.resolved,
+            stroke: EVENT_STROKE,
+          },
+        ]
       : []),
   ];
 
@@ -518,9 +564,9 @@ export function SloBudgetChart({
               key={m.key}
               x={m.t}
               stroke={EVENT_COLOR[m.type]}
-              strokeDasharray="2 2"
-              strokeWidth={1}
-              strokeOpacity={0.6}
+              strokeDasharray={dashArray(EVENT_STROKE)}
+              strokeWidth={EVENT_STROKE.width}
+              strokeOpacity={EVENT_STROKE.opacity}
             />
           ))}
           {/* When the budget became real. One per chart, so it labels itself. */}
