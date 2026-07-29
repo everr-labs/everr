@@ -33,6 +33,16 @@ fn validate_channel(
     if name.trim().is_empty() {
         return Err(ApiError::Validation("name must not be empty".into()));
     }
+    validate_channel_config(config, allow_private_webhooks)
+}
+
+/// The config half of [`validate_channel`], without the name check. The draft
+/// test path (`POST /v1/channels/test`) validates a config that has no name
+/// yet, and must run the identical guard rather than a lookalike.
+fn validate_channel_config(
+    config: &ChannelConfig,
+    allow_private_webhooks: bool,
+) -> Result<(), ApiError> {
     // Same SSRF guard as subscription webhooks: the dispatcher POSTs these URLs
     // from inside the deployment network (see `crate::api::webhook_url`). Both the
     // webhook and Slack variants carry a tenant-supplied URL the dispatcher fetches
@@ -226,5 +236,44 @@ mod tests {
             validate_channel(&b.name, &b.config, false),
             Err(ApiError::Validation(ref m)) if m == "duplicate telegram chat_ids: -100"
         ));
+    }
+}
+
+#[cfg(test)]
+mod validate_tests {
+    use super::*;
+
+    #[test]
+    fn config_validation_runs_without_a_name() {
+        // The guard that matters (SSRF) applies to the config alone, so the
+        // test path must reach it without inventing a name to satisfy a
+        // signature.
+        let ok = ChannelConfig::Slack {
+            url: "https://hooks.slack.com/services/T/B/x".into(),
+        };
+        assert!(validate_channel_config(&ok, false).is_ok());
+
+        let private = ChannelConfig::Webhook {
+            url: "http://127.0.0.1:8080/hook".into(),
+        };
+        assert!(validate_channel_config(&private, false).is_err());
+        assert!(validate_channel_config(&private, true).is_ok());
+    }
+
+    #[test]
+    fn duplicate_recipients_are_still_rejected() {
+        let dupes = ChannelConfig::Email {
+            to: vec!["a@b.com".into(), "a@b.com".into()],
+        };
+        assert!(validate_channel_config(&dupes, false).is_err());
+    }
+
+    #[test]
+    fn an_empty_name_is_still_rejected_by_the_full_check() {
+        let ok = ChannelConfig::Email {
+            to: vec!["a@b.com".into()],
+        };
+        assert!(validate_channel("", &ok, false).is_err());
+        assert!(validate_channel("ops", &ok, false).is_ok());
     }
 }
