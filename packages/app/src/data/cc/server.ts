@@ -529,6 +529,17 @@ export const deleteCcChannel = createAuthenticatedServerFn({ method: "POST" })
     cc.deleteChannel(orgId(session), name),
   );
 
+// Tests an unsaved channel config before it is created. An email config's `to`
+// is replaced with the caller's own address (see emailTestConfigFor); every
+// other kind forwards untouched.
+export const testCcChannel = createAuthenticatedServerFn({ method: "POST" })
+  .inputValidator(z.object({ config: CcChannelConfigSchema }))
+  .handler(({ data, context: { session } }) =>
+    cc.testChannel(orgId(session), {
+      config: cc.emailTestConfigFor(data.config, session.user.email),
+    }),
+  );
+
 // ---- Receivers ----
 // CC's POST /v1/receivers is create-only (409 on an existing name); the UI
 // also blocks duplicates up front by checking the listed names client-side.

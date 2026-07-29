@@ -3,6 +3,7 @@ import { CcApiError, ccRequest } from "@/lib/clickety-clack.server";
 import {
   CcAlertSchema,
   CcChannelSchema,
+  CcChannelTestResultSchema,
   CcDeletedSchema,
   CcInhibitionSchema,
   CcReceiverSchema,
@@ -249,6 +250,32 @@ export async function deleteChannel(orgId: string, name: string) {
       "DELETE",
       `/v1/channels/${encodeURIComponent(name)}`,
     ),
+  );
+}
+
+/**
+ * An email channel test delivers to the caller's own address, never the typed
+ * recipient list. The test endpoint accepts an arbitrary config and sends it,
+ * so without this any authenticated user could use Everr as a mail relay.
+ * Webhook and Slack URLs are covered instead by CC's SSRF guard.
+ *
+ * The tradeoff is worth stating in the UI: this proves SMTP works, and proves
+ * nothing about whether the typed address is correct.
+ */
+export function emailTestConfigFor(
+  config: CcChannelConfig,
+  callerEmail: string,
+): CcChannelConfig {
+  return config.type === "email" ? { ...config, to: [callerEmail] } : config;
+}
+
+/** Send one synthetic notification through an unsaved channel config. */
+export async function testChannel(
+  orgId: string,
+  body: { config: CcChannelConfig },
+) {
+  return CcChannelTestResultSchema.parse(
+    await ccRequest(orgId, "POST", "/v1/channel-tests", body),
   );
 }
 

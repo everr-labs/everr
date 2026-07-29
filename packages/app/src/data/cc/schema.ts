@@ -375,3 +375,11 @@ export const CcSloTestResultSchema = z.object({
 });
 
 export const CcDeletedSchema = z.object({ deleted: z.boolean() });
+
+// POST /v1/channel-tests: a synthetic notification through an unsaved config.
+export const CcChannelTestResultSchema = z.object({
+  ok: z.boolean(),
+  latency_ms: z.number(),
+  // Present only when ok is false; CC omits the field on success.
+  error: z.string().optional(),
+});

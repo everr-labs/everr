@@ -2,9 +2,10 @@
 // against the qualified "project/slug" name (every stored name is qualified,
 // "default/" included — there are no bare-slug names to fall back to).
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { CcRuleView, CcSlo } from "@/data/cc/types";
+import type { CcChannelConfig, CcRuleView, CcSlo } from "@/data/cc/types";
 import { getPreviewScopes } from "@/data/previews/repoids";
 import { query, querySqlApi } from "@/lib/clickhouse";
+import { emailTestConfigFor } from "./client";
 import {
   getCcRuleByName,
   getCcSloBudgetNow,
@@ -22,8 +23,11 @@ const mocks = vi.hoisted(() => ({
 }));
 
 // The CC client is the fns' only data plane; mocking it at the module
-// boundary leaves the fallback logic real.
-vi.mock("./client", () => ({
+// boundary leaves the fallback logic real. emailTestConfigFor is a pure
+// helper with its own coverage below, so it (and the rest of the real module)
+// passes through untouched.
+vi.mock("./client", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("./client")>()),
   listRulesPage: mocks.listRulesPage,
   listSlos: mocks.listSlos,
   listAlerts: mocks.listAlerts,
@@ -401,5 +405,51 @@ describe("listCcAlerts", () => {
       "r-live-other-repo",
       "r-prev",
     ]);
+  });
+});
+
+describe("emailTestConfigFor", () => {
+  it("sends an email test to the caller, never the typed recipients", () => {
+    // The endpoint accepts an arbitrary config and delivers it. Without this,
+    // any authenticated user could send mail to any address through our relay.
+    const config: CcChannelConfig = {
+      type: "email",
+      to: ["oncall@acme.com", "ops@acme.com"],
+    };
+    expect(emailTestConfigFor(config, "gio@everr.dev")).toEqual({
+      type: "email",
+      to: ["gio@everr.dev"],
+    });
+  });
+
+  it("leaves every other kind untouched", () => {
+    const slack: CcChannelConfig = {
+      type: "slack",
+      url: "https://hooks.slack.com/x",
+    };
+    expect(emailTestConfigFor(slack, "gio@everr.dev")).toEqual(slack);
+
+    const telegram: CcChannelConfig = {
+      type: "telegram",
+      bot_token: "t",
+      chat_ids: ["1"],
+    };
+    expect(emailTestConfigFor(telegram, "gio@everr.dev")).toEqual(telegram);
+
+    const webhook: CcChannelConfig = {
+      type: "webhook",
+      url: "https://example.com/hook",
+    };
+    expect(emailTestConfigFor(webhook, "gio@everr.dev")).toEqual(webhook);
+  });
+
+  it("replaces an empty recipient list too", () => {
+    // An empty list would otherwise reach CC and come back ok:false; the
+    // substitution is unconditional for email so there is one rule, not two.
+    const config: CcChannelConfig = { type: "email", to: [] };
+    expect(emailTestConfigFor(config, "gio@everr.dev")).toEqual({
+      type: "email",
+      to: ["gio@everr.dev"],
+    });
   });
 });
