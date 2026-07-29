@@ -75,6 +75,16 @@ pub fn validate_webhook_url(raw: &str, allow_private: bool) -> Result<(), String
     }
 }
 
+/// Marks a [`validate_resolved_ip`] error so a caller can redact it. The
+/// resolved address was never supplied by the tenant (unlike the literal-IP
+/// rejections in `validate_webhook_url`), so a message built from it is an
+/// internal-DNS-and-address oracle if it reaches an untrusted response body.
+/// `crate::api::channels`'s test handler matches on this prefix to swap the
+/// detail for a generic one before it answers the caller; the dispatcher's
+/// delivery ledger keeps the full detail.
+pub(crate) const RESOLVED_PRIVATE_ADDR_PREFIX: &str =
+    "webhook URL resolved to a private or internal address";
+
 /// Validate one address returned by the dispatch-time resolver.
 pub(crate) fn validate_resolved_ip(ip: IpAddr) -> Result<(), String> {
     let blocked = match ip {
@@ -83,7 +93,7 @@ pub(crate) fn validate_resolved_ip(ip: IpAddr) -> Result<(), String> {
     };
     match blocked {
         Some(range) => Err(format!(
-            "webhook URL resolved to a private or internal address ({ip} is in {range})"
+            "{RESOLVED_PRIVATE_ADDR_PREFIX} ({ip} is in {range})"
         )),
         None => Ok(()),
     }

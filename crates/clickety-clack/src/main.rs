@@ -139,28 +139,51 @@ async fn main() -> anyhow::Result<()> {
     // validation would otherwise fail their startup over settings they never use.
     // A node without CC_SMTP_HOST simply has no email notifier registered, and the
     // test endpoint reports that rather than failing.
+    //
+    // A *present but invalid* CC_SMTP_* is a different case, and the two roles
+    // that reach here need different postures. For the dispatcher, email
+    // delivery is load-bearing, so an invalid config still fails startup hard:
+    // a crashlooping dispatcher is correct when it cannot deliver. For an
+    // api-only node, email delivery is not on the read path, so the same
+    // config error only logs a warning and leaves the email notifier
+    // unregistered; the test endpoint then reports its existing "not
+    // configured on this node" degradation instead of taking `/v1` down. A
+    // node running both roles (or CC_ROLE=all) keeps the dispatcher's
+    // fail-hard behavior, since it also runs the dispatcher.
     let notifiers = if run("api") || run("dispatcher") {
         let mut reg = Notifiers::new().with_engine_metrics(engine_metrics.clone());
         reg.register(Arc::new(WebhookNotifier::new(cfg.allow_private_webhooks)));
         reg.register(Arc::new(SlackNotifier::new(cfg.allow_private_webhooks)));
         reg.register(Arc::new(TelegramNotifier::new()));
         if let Some(smtp) = cfg.smtp.clone() {
-            let email = EmailNotifier::new(
+            match EmailNotifier::new(
                 &smtp.host,
                 smtp.port,
                 &smtp.from,
                 smtp.username.as_deref(),
                 smtp.password.as_deref(),
                 &smtp.tls,
-            )?;
-            if smtp.tls.trim().eq_ignore_ascii_case("none") {
-                tracing::warn!(
-                    host = %smtp.host,
-                    "CC_SMTP_TLS=none: SMTP traffic is unencrypted (dev only)"
-                );
+            ) {
+                Ok(email) => {
+                    if smtp.tls.trim().eq_ignore_ascii_case("none") {
+                        tracing::warn!(
+                            host = %smtp.host,
+                            "CC_SMTP_TLS=none: SMTP traffic is unencrypted (dev only)"
+                        );
+                    }
+                    reg.register(Arc::new(email));
+                    tracing::info!(host = %smtp.host, tls = %smtp.tls, "email channel enabled");
+                }
+                Err(e) if !run("dispatcher") => {
+                    tracing::warn!(
+                        host = %smtp.host,
+                        error = %e,
+                        "invalid SMTP config: email channel disabled on this api-only node \
+                         (the dispatcher role would fail to start over this)"
+                    );
+                }
+                Err(e) => return Err(e),
             }
-            reg.register(Arc::new(email));
-            tracing::info!(host = %smtp.host, tls = %smtp.tls, "email channel enabled");
         } else {
             tracing::info!("email channel disabled (set CC_SMTP_HOST to enable)");
         }

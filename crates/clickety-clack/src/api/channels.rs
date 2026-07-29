@@ -182,13 +182,19 @@ pub struct TestChannelResult {
     pub ok: bool,
     /// Round-trip time of the delivery attempt.
     pub latency_ms: u64,
-    /// The provider's own message when `ok` is false. Mostly caller-supplied:
-    /// the caller sent the config, so an HTTP-channel failure (Slack, webhook)
-    /// echoes only a status code it already gave us. Email is the exception:
-    /// `dispatcher::email` maps every lettre error through `Display`, and the
-    /// SMTP relay's own reply line rides along in it, so a caller can see a
-    /// relay identity it never supplied. (Contrast rule SQL errors, which
-    /// `span_error_summary` strips because they echo customer SQL into
+    /// The provider's own message when `ok` is false, with one redaction: a
+    /// webhook/Slack failure caused by the dispatch-time resolver landing on a
+    /// private address is replaced with the bare
+    /// `webhook_url::RESOLVED_PRIVATE_ADDR_PREFIX` before it reaches this
+    /// field, because the resolved address was never supplied by the caller
+    /// and would otherwise leak an internal hostname's real IP and the
+    /// deployment's private range to whoever typed the URL. The full detail
+    /// still goes to `tracing::warn!` for operators. Everything else here is
+    /// caller-supplied or caller-observable: an HTTP-channel failure (Slack,
+    /// webhook) otherwise echoes only a status code it already gave us, and
+    /// email's lettre-mapped errors carry the SMTP relay's own reply line, a
+    /// relay identity the caller already targeted. (Contrast rule SQL errors,
+    /// which `span_error_summary` strips because they echo customer SQL into
     /// everr-internal sinks.)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub error: Option<String>,
@@ -198,7 +204,16 @@ pub struct TestChannelResult {
 /// dispatcher's background delivery does not: a config carrying many recipients
 /// fans out into that many sequential sends. Past this, the caller gets a
 /// failed test rather than a request that holds a task open indefinitely.
-const TEST_SEND_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(30);
+///
+/// Kept below the app's own `CC_TIMEOUT_MS` (10s, in
+/// `packages/app/src/lib/clickety-clack.server.ts`), which bounds every
+/// request the app makes to this engine. If this timeout were allowed to
+/// reach or exceed that cap, the app would abort the HTTP request first, and
+/// the caller would get a transport-level abort instead of this endpoint's
+/// truthful `ok: false, "timed out after 8s"`; a transport abort cannot tell a
+/// slow-but-working channel from an unreachable engine, and a test a user is
+/// actively watching should not hang for tens of seconds regardless.
+const TEST_SEND_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(8);
 
 /// Send one synthetic notification through an unsaved channel config.
 ///
@@ -232,7 +247,21 @@ pub async fn test(
 
     let (ok, error) = match outcome {
         Ok(Ok(())) => (true, None),
-        Ok(Err(e)) => (false, Some(e.to_string())),
+        Ok(Err(e)) => {
+            let detail = e.to_string();
+            if detail.contains(crate::api::webhook_url::RESOLVED_PRIVATE_ADDR_PREFIX) {
+                tracing::warn!(
+                    tenant = %t, channel = %kind, %detail,
+                    "channel test: redacted resolved-address detail from the response"
+                );
+                (
+                    false,
+                    Some(crate::api::webhook_url::RESOLVED_PRIVATE_ADDR_PREFIX.to_string()),
+                )
+            } else {
+                (false, Some(detail))
+            }
+        }
         Err(_) => (
             false,
             Some(format!("timed out after {}s", TEST_SEND_TIMEOUT.as_secs())),
