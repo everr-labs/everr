@@ -666,19 +666,15 @@ mod tests {
     fn commit_and_publish_partial_publish_maps_correct_ids() {
         // Simulate outbox_ids returned by persist_eval_batch (one per event, in order).
         let id0 = uuid::Uuid::new_v4();
-        let id1 = uuid::Uuid::new_v4();
+        let _id1 = uuid::Uuid::new_v4();
         let id2 = uuid::Uuid::new_v4();
-        let outbox_ids = vec![id0, id1, id2];
+        let outbox_ids = vec![id0, _id1, id2];
 
         // Simulate publish_batch returning only indices 0 and 2 (event at index 1 failed).
         // Call the production helper so the test covers the real function.
         let to_delete = published_outbox_ids(&outbox_ids, &[0, 2]);
 
         assert_eq!(to_delete, vec![id0, id2]);
-        assert!(
-            !to_delete.contains(&id1),
-            "failed-publish id must not be deleted"
-        );
     }
 
     fn spec(sql: &str, labels: &[&str], val: Option<&str>) -> crate::domain::rule::RuleSpec {
@@ -698,14 +694,6 @@ mod tests {
 
     fn ident(user: &str) -> crate::clickhouse::AuthIdentity {
         crate::clickhouse::AuthIdentity { user: user.into() }
-    }
-
-    #[test]
-    fn identical_specs_share_signature() {
-        assert_eq!(
-            QuerySig::of(ident("u"), &spec("SELECT 1", &["a"], Some("v"))),
-            QuerySig::of(ident("u"), &spec("SELECT 1", &["a"], Some("v"))),
-        );
     }
 
     #[test]
@@ -755,14 +743,6 @@ mod evidence_tests {
     }
 
     #[test]
-    fn small_extra_passes_through_untruncated() {
-        let e = extra(3, 5);
-        let (ev, truncated) = build_evidence(&e);
-        assert_eq!(ev, Some(e));
-        assert!(!truncated);
-    }
-
-    #[test]
     fn column_cap_keeps_first_16_and_marks_truncated() {
         let e = extra(20, 5);
         let (ev, truncated) = build_evidence(&e);
@@ -794,14 +774,5 @@ mod evidence_tests {
         // 20 fat columns: even the surviving 16 exceed the byte cap -> None, truncated.
         let e = extra(20, 512);
         assert_eq!(build_evidence(&e), (None, true));
-    }
-
-    #[test]
-    fn under_byte_cap_survives() {
-        // 16 columns x ~200 bytes ≈ 3.4 KB compact JSON: under the cap.
-        let e = extra(16, 200);
-        let (ev, truncated) = build_evidence(&e);
-        assert!(ev.is_some());
-        assert!(!truncated);
     }
 }

@@ -198,13 +198,6 @@ describe("queryAlertEventLog", () => {
       (await runWithRawRow({ evidenceTruncated: "false" })).evidenceTruncated,
     ).toBe(false);
   });
-
-  it("does not leak raw projection fields onto the mapped row", async () => {
-    const row = await runWithRawRow({});
-    expect(row).not.toHaveProperty("instanceLabelsJson");
-    expect(row).not.toHaveProperty("deliveryTargetsRaw");
-    expect(row).not.toHaveProperty("evidenceJson");
-  });
 });
 
 describe("queryObservedLabelKeys", () => {

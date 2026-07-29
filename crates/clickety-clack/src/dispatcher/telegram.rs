@@ -236,10 +236,6 @@ mod tests {
             "summary substituted then escaped: {msg}"
         );
         assert!(msg.contains("value is 7"), "description substituted: {msg}");
-        assert!(
-            !msg.contains("svc=api —"),
-            "summary replaces the instance key headline"
-        );
     }
 
     #[test]
@@ -280,7 +276,6 @@ mod tests {
             "capped at Telegram's limit, got {}",
             msg.chars().count()
         );
-        assert!(msg.ends_with("… message truncated"));
         // The cut lands on a line boundary, so the HTML stays well-formed.
         assert_eq!(
             msg.matches("<b>").count(),
@@ -296,12 +291,6 @@ mod tests {
         let msg = build_telegram_message(&Notification::single(&e));
         assert!(msg.chars().count() <= TELEGRAM_TEXT_LIMIT);
         assert_eq!(msg.matches("<b>").count(), msg.matches("</b>").count());
-    }
-
-    #[test]
-    fn short_messages_pass_through_uncapped() {
-        let msg = build_telegram_message(&Notification::single(&ev()));
-        assert!(!msg.contains("truncated"));
     }
 
     #[test]

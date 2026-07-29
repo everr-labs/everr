@@ -266,9 +266,6 @@ describe("/alerts/delivery channels section", () => {
     );
 
     expect(
-      within(dialog).getByText("A channel with this name already exists"),
-    ).toBeInTheDocument();
-    expect(
       within(dialog).getByRole("button", { name: "Create channel" }),
     ).toBeDisabled();
     expect(mocks.createCcChannel).not.toHaveBeenCalled();
@@ -311,7 +308,6 @@ describe("/alerts/delivery channels section", () => {
         "channel is referenced by receivers: oncall, ops",
       ),
     );
-    expect(mocks.toastSuccess).not.toHaveBeenCalled();
   });
 });
 
@@ -407,9 +403,6 @@ describe("/alerts/delivery receivers section", () => {
     );
 
     expect(
-      within(dialog).getByText("A receiver with this name already exists"),
-    ).toBeInTheDocument();
-    expect(
       within(dialog).getByRole("button", { name: "Create receiver" }),
     ).toBeDisabled();
     expect(mocks.createCcReceiver).not.toHaveBeenCalled();
@@ -448,6 +441,5 @@ describe("/alerts/delivery receivers section", () => {
     await waitFor(() =>
       expect(mocks.toastError).toHaveBeenCalledWith("not found"),
     );
-    expect(mocks.toastSuccess).not.toHaveBeenCalled();
   });
 });

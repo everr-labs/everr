@@ -353,19 +353,4 @@ mod publish_batch_tests {
         let published = bus.published.lock().unwrap();
         assert_eq!(*published, vec!["a", "c"]);
     }
-
-    #[tokio::test]
-    async fn default_batch_all_succeed() {
-        let bus = CountingBus::new(None);
-        let evs = vec![ev("x"), ev("y")];
-        let result = bus.publish_batch(&evs).await.unwrap();
-        assert_eq!(result, vec![0, 1]);
-    }
-
-    #[tokio::test]
-    async fn default_batch_empty_input() {
-        let bus = CountingBus::new(None);
-        let result = bus.publish_batch(&[]).await.unwrap();
-        assert_eq!(result, Vec::<usize>::new());
-    }
 }

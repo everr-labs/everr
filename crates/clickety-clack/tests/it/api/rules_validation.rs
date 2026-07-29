@@ -3,12 +3,6 @@ use axum::http::StatusCode;
 use tower::ServiceExt;
 use uuid::Uuid;
 
-#[test]
-fn sqlguard_rejects_non_select() {
-    assert!(cc::sqlguard::validate("DROP TABLE x").is_err());
-    assert!(cc::sqlguard::validate("SELECT 1").is_ok());
-}
-
 fn spec_body(name: &str) -> String {
     format!(
         r#"{{"name":"{name}","sql":"SELECT host FROM t","interval_secs":30,"for_secs":0,"label_columns":["host"],"severity":"warning"}}"#

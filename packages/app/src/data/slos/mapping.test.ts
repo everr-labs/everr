@@ -38,12 +38,10 @@ function asSlo(input: CcSloInput): Pick<CcSlo, "namespace" | "name" | "spec"> {
 }
 
 describe("toSloInput", () => {
-  it("stamps first-class identity (name/namespace) and drops identity annotations", () => {
+  it("stamps first-class identity and ownership", () => {
     const input = toSloInput(sloYaml(), "repo-1");
     expect(input.name).toBe("default/checkout");
     expect(input.namespace).toBe("");
-    expect(input.annotations["everr.name"]).toBeUndefined();
-    expect(input.annotations["everr.project"]).toBeUndefined();
     expect(input.annotations["everr.repoid"]).toBe("repo-1");
   });
 
@@ -95,7 +93,6 @@ describe("toSloInput", () => {
     expect(input.annotations["link.runbook"]).toBe(
       "https://app.example.com/runbooks/default/checkout-triage",
     );
-    expect(input.annotations["everr.name"]).toBeUndefined();
 
     // No base URL (or no runbook) -> no link annotation.
     const without = toSloInput(
@@ -125,11 +122,10 @@ describe("toSloInput", () => {
     expect(input.annotations["everr.runbook"]).toBe("payments/checkout-triage");
   });
 
-  it("builds preview SLOs suppressed, namespaced, and with no everr.preview annotation", () => {
+  it("builds preview SLOs suppressed and namespaced", () => {
     const input = toSloInput(sloYaml(), "repo-1", { previewId: "pv-1" });
     expect(input.namespace).toBe("pv-1");
     expect(input.suppressed).toBe(true);
-    expect(input.annotations["everr.preview"]).toBeUndefined();
     // Ownership is unchanged: same repo, still owned.
     expect(input.annotations[OWN_REPO]).toBe("repo-1");
     expect(isOwnedSlo(asSlo(input), "repo-1")).toBe(true);

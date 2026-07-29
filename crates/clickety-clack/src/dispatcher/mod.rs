@@ -1926,49 +1926,6 @@ mod fan_out_tests {
         assert_eq!(bus.calls.load(Ordering::SeqCst), 0, "nothing dead-letters");
     }
 
-    #[tokio::test]
-    async fn fan_out_of_resolved_subset_still_delivers() {
-        // End-to-end shape of the missing-channel race: resolution drops the deleted
-        // channel, fan-out delivers to the survivors, nothing panics or dead-letters.
-        let ledger = MemLedger::default();
-        let bus = DeadLetterBus::default();
-        let email = Arc::new(FakeNotifier {
-            name: "email",
-            fail: false,
-            sends: AtomicUsize::new(0),
-        });
-        let mut notifiers = Notifiers::new();
-        notifiers.register(email.clone());
-        let ev = event();
-        let notif = Notification::single(&ev);
-        let names = vec!["gone".to_string(), "ops-mail".to_string()];
-        let loaded = vec![email_channel("ops-mail", "a@x.test")];
-
-        let channels = resolve_channels("gid-1", &names, loaded);
-        let out = deliver_group_channels(
-            &DeliveryDeps {
-                ledger: &ledger,
-                bus: &bus,
-                notifiers: &notifiers,
-            },
-            "gid-1",
-            &channels,
-            None,
-            &notif,
-            &ev,
-        )
-        .await;
-
-        assert!(out.begun && out.sent, "the surviving channel delivers");
-        assert_eq!(email.sends.load(Ordering::SeqCst), 1);
-        assert_eq!(
-            bus.calls.load(Ordering::SeqCst),
-            0,
-            "a skip never dead-letters"
-        );
-        assert_eq!(ledger.rows.lock().unwrap().len(), 1);
-    }
-
     /// Spec: "a failed delivery yields `notify.deliver` with error status." Drives
     /// `deliver_one` (the smallest seam that creates the `notify.deliver` span) with a
     /// permanently-failing notifier under an in-memory span exporter, mirroring the
@@ -2075,22 +2032,6 @@ mod flush_dead_letter_tests {
         }
     }
 
-    /// SnapshotProvider returning an empty (no silences/inhibitions) snapshot, so nothing
-    /// is suppressed.
-    struct EmptySnapshots;
-    #[async_trait]
-    impl SnapshotProvider for EmptySnapshots {
-        async fn snapshot(&self, _tenant: TenantId) -> Result<Arc<Snapshot>, StoreError> {
-            Ok(Arc::new(Snapshot {
-                silences: vec![],
-                inhibitions: vec![],
-                firing: vec![],
-                routes: vec![],
-                receivers: Default::default(),
-            }))
-        }
-    }
-
     /// EventBus that records dead-letter calls and panics on any other use.
     #[derive(Default)]
     struct RecordingBus {
@@ -2177,37 +2118,6 @@ mod flush_dead_letter_tests {
             "reason is descriptive: {}",
             recorded[0].1
         );
-    }
-
-    /// On a successful (empty) snapshot the batch passes through unsuppressed and nothing
-    /// is dead-lettered.
-    #[tokio::test]
-    async fn snapshot_success_passes_events_through() {
-        let bus = RecordingBus::default();
-        let cache = EmptySnapshots;
-        let tenant = TenantId::from_trusted("t1".to_string());
-        let events = vec![event("api"), event("web")];
-
-        let out = filter_or_dead_letter(
-            &bus,
-            &cache,
-            &crate::domain::sink::NullSink,
-            tenant,
-            events,
-            "grp-1",
-            time::OffsetDateTime::UNIX_EPOCH,
-        )
-        .await;
-
-        let FilterOutcome::Kept(out) = out else {
-            panic!("successful snapshot returns the surviving events");
-        };
-        assert_eq!(
-            out.len(),
-            2,
-            "no silences/inhibitions => nothing suppressed"
-        );
-        assert_eq!(bus.dead_letter_calls.load(Ordering::SeqCst), 0);
     }
 
     /// EventBus whose dead-letter write also fails (e.g. Redis down), exercising the

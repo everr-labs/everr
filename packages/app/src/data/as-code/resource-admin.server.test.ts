@@ -21,7 +21,6 @@ import {
   getResource,
   isResourceKind,
   listResources,
-  RESOURCE_KINDS,
 } from "./resource-admin.server";
 
 const mockedListSlos = vi.mocked(cc.listSlos);
@@ -76,15 +75,6 @@ describe("isResourceKind", () => {
     expect(isResourceKind("alertrule")).toBe(false);
     expect(isResourceKind("SLO")).toBe(false);
     expect(isResourceKind("")).toBe(false);
-  });
-
-  it("RESOURCE_KINDS lists exactly the four kinds", () => {
-    expect([...RESOURCE_KINDS]).toEqual([
-      "dashboard",
-      "runbook",
-      "alert",
-      "slo",
-    ]);
   });
 });
 

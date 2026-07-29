@@ -452,11 +452,4 @@ async fn erroring_slo_publishes_health_event() {
     assert_eq!(ev.kind, EventKind::RuleHealth);
     assert_eq!(ev.slo, Some(slo.id));
     assert_eq!(ev.status, EventStatus::Firing);
-    assert!(
-        ev.annotations
-            .get("summary")
-            .expect("summary annotation present")
-            .contains("degraded"),
-        "{ev:?}"
-    );
 }

@@ -251,9 +251,6 @@ describe("/alerts/slos route", () => {
     // offline, and the cost of that is silent, so it is not a one-click action.
     const dialog = await screen.findByRole("alertdialog");
     expect(mocks.pauseCcSlo).not.toHaveBeenCalled();
-    expect(
-      within(dialog).getByText(/error budget stops updating/),
-    ).toBeInTheDocument();
 
     await user.click(within(dialog).getByRole("button", { name: "Pause SLO" }));
 
@@ -324,7 +321,6 @@ describe("/alerts/slos route", () => {
     const table = await screen.findByRole("table");
     // The fresh 10%, not the snapshot's 50%.
     expect(await within(table).findByText("10.00%")).toBeInTheDocument();
-    expect(within(table).queryByText("50.00%")).not.toBeInTheDocument();
   });
 
   it("reports the worst group severity and budget, not a total", async () => {

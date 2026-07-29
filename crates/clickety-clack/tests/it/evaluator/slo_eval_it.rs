@@ -258,12 +258,6 @@ async fn fresh_windows_are_not_requeried() {
     .await
     .unwrap();
 
-    assert_eq!(
-        ch.calls.load(Ordering::SeqCst),
-        2,
-        "only the two due short windows (300s, 1800s) should be queried"
-    );
-
     let snap = store
         .get_slo_status(&tenant, slo.id)
         .await

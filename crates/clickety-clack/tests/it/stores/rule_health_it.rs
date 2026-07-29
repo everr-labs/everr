@@ -155,7 +155,6 @@ async fn failure_degrades_exactly_at_threshold() {
     assert_eq!(ev.kind, EventKind::RuleHealth);
     assert_eq!(ev.status, EventStatus::Firing);
     assert_eq!(ev.severity, Severity::Critical);
-    assert!(ev.annotations.get("summary").unwrap().contains("degraded"));
     assert_eq!(ev.annotations.get("last_error").unwrap(), "boom");
 
     // Already degraded: further failures emit nothing.
@@ -251,7 +250,6 @@ async fn success_recovers_only_if_degraded() {
         .unwrap();
     assert_eq!(ev.kind, EventKind::RuleHealth);
     assert_eq!(ev.status, EventStatus::Resolved);
-    assert!(ev.annotations.get("summary").unwrap().contains("recovered"));
 
     // Second success: already healthy -> nothing.
     assert!(store

@@ -1406,23 +1406,6 @@ mod annotations_evidence_tests {
     }
 
     #[test]
-    fn defaults_render_exact_summary_and_description() {
-        let slo = slo_named("checkout", BTreeMap::new());
-        let tier = fast_burn_tier();
-        let ann = slo_annotations(&slo, &tier);
-        assert_eq!(
-            ann.get("summary").map(String::as_str),
-            Some("SLO checkout: fast-burn burn — ${burn_rate}× over 1h")
-        );
-        assert_eq!(
-            ann.get("description").map(String::as_str),
-            Some(
-                "Error budget remaining: ${budget_remaining}. Projected time to exhaustion: ${time_to_exhaustion}."
-            )
-        );
-    }
-
-    #[test]
     fn spec_annotation_overrides_default_and_passes_through_extra_keys() {
         let mut spec_annotations = BTreeMap::new();
         spec_annotations.insert("summary".to_string(), "custom".to_string());

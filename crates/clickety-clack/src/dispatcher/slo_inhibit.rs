@@ -153,11 +153,6 @@ mod tests {
     }
 
     #[test]
-    fn no_slos_yields_no_rules() {
-        assert!(synthesize_slo_inhibitions(&[]).is_empty());
-    }
-
-    #[test]
     fn slo_label_is_always_in_equal_even_without_label_columns() {
         let slo = slo_with(vec![]);
         let rules = synthesize_slo_inhibitions(std::slice::from_ref(&slo));

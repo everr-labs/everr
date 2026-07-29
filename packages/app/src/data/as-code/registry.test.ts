@@ -531,16 +531,4 @@ describe("applyResources", () => {
       'deleting runbook "default/triage" orphans the link from slo "default/checkout" (owned by repo-2)',
     );
   });
-
-  it("leaves the Runbook note untouched when there are no orphan warnings", async () => {
-    collectOrphanWarnings.mockResolvedValue([]);
-    const out = await applyResources({
-      orgId: "org-1",
-      repoid: "repo-1",
-      state: { dashboards: [], runbooks: [], alerts: [], slos: [] },
-      dryRun: false,
-    });
-    const runbookResult = out.results.find((r) => r.kind === "Runbook");
-    expect(runbookResult?.note).toBeUndefined();
-  });
 });

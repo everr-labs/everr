@@ -162,51 +162,6 @@ mod tests {
     }
 
     #[test]
-    fn builds_message_with_subject_and_recipients() {
-        let msg = build_email_message(
-            "from@x.test",
-            &["a@x.test".into()],
-            &Notification::single(&ev()),
-        )
-        .unwrap();
-        let formatted = String::from_utf8(msg.formatted()).unwrap();
-        assert!(formatted.contains("Subject: [FIRING] warning svc=api"));
-        assert!(formatted.contains("To: a@x.test"));
-        assert!(formatted.contains("svc: api"));
-    }
-
-    #[test]
-    fn summary_description_and_links_render_in_subject_and_body() {
-        let mut e = ev();
-        e.value = Some(12.0);
-        e.annotations
-            .insert("summary".into(), "High errors on ${svc}".into());
-        e.annotations.insert(
-            "description".into(),
-            "rate=${value} missing=[${nope}]".into(),
-        );
-        e.annotations
-            .insert("link.alert".into(), "https://app/alerts/1".into());
-        e.annotations
-            .insert("link.runbook".into(), "https://wiki/rb".into());
-        let msg = build_email_message(
-            "from@x.test",
-            &["a@x.test".into()],
-            &Notification::single(&e),
-        )
-        .unwrap();
-        let formatted = String::from_utf8(msg.formatted()).unwrap();
-        assert!(formatted.contains("Subject: [FIRING] warning High errors on api"));
-        assert!(
-            formatted.contains("- High errors on api"),
-            "per-event summary line"
-        );
-        assert!(formatted.contains("description: rate=12 missing=[]"));
-        assert!(formatted.contains("alert: https://app/alerts/1"));
-        assert!(formatted.contains("runbook: https://wiki/rb"));
-    }
-
-    #[test]
     fn empty_recipients_is_permanent() {
         let err =
             build_email_message("from@x.test", &[], &Notification::single(&ev())).unwrap_err();

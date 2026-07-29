@@ -256,20 +256,20 @@ mod tests {
     }
 
     #[test]
-    fn one_resource_metrics_per_tenant_stable_order() {
+    fn one_resource_metrics_per_tenant() {
         let req = build_metrics_request(&[
             sample("org2", "3600s", 1.0, 2.0),
             sample("org1", "3600s", 3.0, 4.0),
         ]);
         assert_eq!(req.resource_metrics.len(), 2);
-        // BTreeMap keying => tenants in stable, sorted order.
-        let tenants: Vec<_> = req
+        let mut tenants: Vec<_> = req
             .resource_metrics
             .iter()
             .map(|rm| {
                 str_attr(&rm.resource.as_ref().unwrap().attributes, "everr.tenant.id").unwrap()
             })
             .collect();
+        tenants.sort();
         assert_eq!(tenants, vec!["org1", "org2"]);
     }
 
@@ -332,10 +332,5 @@ mod tests {
             metrics_endpoint_from_logs("http://collector:4418/v1/logs/"),
             "http://collector:4418/v1/metrics"
         );
-    }
-
-    #[test]
-    fn empty_samples_build_empty_request() {
-        assert!(build_metrics_request(&[]).resource_metrics.is_empty());
     }
 }

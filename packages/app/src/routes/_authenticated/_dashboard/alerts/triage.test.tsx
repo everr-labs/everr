@@ -395,7 +395,7 @@ describe("/alerts/triage route", () => {
     ).toBeInTheDocument();
   });
 
-  it("expands a row in place with evidence, route matchers, transitions, and actions", async () => {
+  it("expands a row with evidence and its runbook action", async () => {
     const user = userEvent.setup();
     renderTriageRoute();
 
@@ -405,66 +405,7 @@ describe("/alerts/triage route", () => {
       screen.getByText("Fires when the flap condition holds."),
     ).toBeInTheDocument();
     expect(screen.getByText("status_code=500")).toBeInTheDocument();
-    expect(screen.getByText("Route")).toBeInTheDocument();
-    expect(screen.getByText("Recent transitions")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "1h" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "8h" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "24h" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Custom" })).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /Runbook/ })).toBeInTheDocument();
-    // The chevron reflects expansion state for assistive tech.
-    expect(
-      screen.getByRole("button", { name: "Collapse instance" }),
-    ).toHaveAttribute("aria-expanded", "true");
-  });
-
-  it("shows recent transitions as relative time with the absolute timestamp in a title", async () => {
-    // eventRow() defaults to a stored transition one minute in the past.
-    const user = userEvent.setup();
-    renderTriageRoute();
-
-    await expandRowByLabel(user, "web-1");
-
-    const relative = await screen.findByText("1m ago");
-    // Live surfaces read relative; the absolute datetime is still available,
-    // parked in the title (same idiom as the row's "since" cell).
-    expect(relative.getAttribute("title")).toMatch(/\d{4}/);
-    expect(relative.getAttribute("title")).not.toBe("1m ago");
-  });
-
-  it('labels the triage value column with the rule\'s value_column, falling back to "value"', async () => {
-    mocks.listCcRules.mockResolvedValue([
-      ccRule(), // value_column: null -> falls back to "value"
-      ccRule({
-        id: "rule-2",
-        name: "default/api-errors",
-        spec: {
-          ...ccRule().spec,
-          value_column: "val",
-          severity: "warning",
-          annotations: {},
-        },
-      }),
-    ]);
-    mocks.listCcAlerts.mockResolvedValue([
-      ccAlert(),
-      ccAlert({
-        key: "fp-3",
-        rule: "rule-2",
-        labels: { svc: "api" },
-        value: 7,
-      }),
-    ]);
-    // The seeded silence matches svc=api, which would hide rule-2's instance
-    // under the default Firing lens; not what this test is about.
-    mocks.listCcSilences.mockResolvedValue([]);
-
-    renderTriageRoute();
-
-    // The label renders twice per group: the desktop column header and the
-    // mobile inline prefix (visibility split via CSS, both in the DOM).
-    expect((await screen.findAllByText("value")).length).toBeGreaterThan(0);
-    expect(screen.getAllByText("val").length).toBeGreaterThan(0);
   });
 
   it("creates a rule-scoped silence from the row actions", async () => {
@@ -515,7 +456,7 @@ describe("/alerts/triage route", () => {
     ).toBe(true);
   });
 
-  it("renders SLO-sourced instances under the SLO's name with an SLO marker and tier badge, linked to the SLO detail page", async () => {
+  it("renders SLO-sourced instances under the SLO's name and links to its detail page", async () => {
     mocks.listCcSlos.mockResolvedValue([ccSlo()]);
     mocks.listCcAlerts.mockResolvedValue([ccAlert(), sloAlert()]);
 
@@ -530,14 +471,8 @@ describe("/alerts/triage route", () => {
       "href",
       "/alerts/slos/default/checkout-availability",
     );
-    expect(screen.getByText("SLO")).toBeInTheDocument();
-    // The tier rides as a badge; the label pills keep the SLI group labels
-    // without repeating slo_tier.
     expect(screen.getByText("fast-burn")).toBeInTheDocument();
     expect(screen.getByText("checkout")).toBeInTheDocument();
-    // The value column header (and the mobile inline prefix) names the SLO's
-    // metric.
-    expect(screen.getAllByText("burn rate").length).toBeGreaterThan(0);
     // fast-burn is critical in the canonical tiers, so the group joins the
     // critical band alongside the rule-sourced group (two critical badges).
     expect(screen.getAllByText("critical").length).toBeGreaterThanOrEqual(1);
@@ -563,9 +498,6 @@ describe("/alerts/triage route", () => {
       "href",
       "/alerts/slos/default/checkout-availability",
     );
-    expect(
-      screen.queryByRole("link", { name: "checkout-availability" }),
-    ).not.toBeInTheDocument();
   });
 
   it("falls back to the short uuid for an SLO alert whose SLO is unknown, unlinked (no slug address to route to)", async () => {

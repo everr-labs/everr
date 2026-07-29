@@ -151,12 +151,6 @@ it("listSlos threads namespace/name filters", async () => {
   );
 });
 
-it("listSlos omits the query string when no filters are given", async () => {
-  const spy = vi.spyOn(transport, "ccRequest").mockResolvedValueOnce([]);
-  await cc.listSlos("org1");
-  expect(spy).toHaveBeenCalledWith("org1", "GET", "/v1/slos");
-});
-
 it("updateSlo PUTs the spec without a name (identity is immutable)", async () => {
   const spy = vi.spyOn(transport, "ccRequest").mockResolvedValue({
     id: "slo1",

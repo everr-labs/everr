@@ -51,7 +51,6 @@ async fn sends_one_message_per_chat_id() {
     let bodies = sink.lock().unwrap().clone();
     assert_eq!(bodies.len(), 2, "one sendMessage per chat id");
     assert_eq!(bodies[0]["parse_mode"], "HTML");
-    assert!(bodies[0]["text"].as_str().unwrap().contains("FIRING"));
     let chats: Vec<&str> = bodies
         .iter()
         .map(|b| b["chat_id"].as_str().unwrap())

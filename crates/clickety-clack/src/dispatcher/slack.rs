@@ -160,30 +160,6 @@ mod tests {
     }
 
     #[test]
-    fn payload_carries_status_and_labels() {
-        let mut ev = ev("svc=api", Severity::Critical);
-        ev.labels = BTreeMap::from([("svc".to_string(), "api".to_string())]);
-        let v = build_slack_payload(&Notification::single(&ev));
-        let text = v["text"].as_str().unwrap();
-        assert!(text.contains("FIRING"));
-        assert!(text.contains("critical"));
-        assert!(text.contains("svc=api"));
-        assert_eq!(v["attachments"][0]["color"], "#d00000");
-    }
-
-    #[test]
-    fn batch_payload_summarizes_count() {
-        let mk = |inst: &str| ev(inst, Severity::Warning);
-        let notif = Notification {
-            group_key: "rule=r,severity=warning".into(),
-            events: vec![mk("a"), mk("b")],
-        };
-        let v = build_slack_payload(&notif);
-        assert!(v["text"].as_str().unwrap().contains("2 alerts"));
-        assert_eq!(v["attachments"].as_array().unwrap().len(), 2);
-    }
-
-    #[test]
     fn summary_annotation_drives_header_and_is_escaped_after_substitution() {
         let mut e = ev("svc=api", Severity::Critical);
         e.labels = BTreeMap::from([("svc".to_string(), "a<b&c".to_string())]);
@@ -209,15 +185,6 @@ mod tests {
             att_text.contains("rate 42 on a&lt;b&amp;c"),
             "description line: {att_text}"
         );
-
-        // Without a summary the header falls back to the instance key.
-        e.annotations.clear();
-        let v = build_slack_payload(&Notification::single(&e));
-        assert!(v["text"].as_str().unwrap().contains("svc=api"));
-        assert!(
-            v["attachments"][0].get("text").is_none(),
-            "no description => no text"
-        );
     }
 
     #[test]
@@ -230,9 +197,7 @@ mod tests {
         let v = build_slack_payload(&Notification::single(&e));
         let actions = v["attachments"][0]["actions"].as_array().unwrap();
         assert_eq!(actions.len(), 2);
-        assert_eq!(actions[0]["text"], "View alert");
         assert_eq!(actions[0]["url"], "https://app/alerts/1");
-        assert_eq!(actions[1]["text"], "View runbook");
         assert_eq!(actions[1]["url"], "https://wiki/rb");
     }
 

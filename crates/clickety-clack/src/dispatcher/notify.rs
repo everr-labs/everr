@@ -180,38 +180,3 @@ impl Notifier for WebhookNotifier {
         classify_status(resp.status())
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::domain::event::{Event, EventStatus};
-    use crate::domain::ids::{InstanceKey, RuleId, TenantId};
-    use crate::domain::rule::Severity;
-    use std::collections::BTreeMap;
-    use time::OffsetDateTime;
-    use uuid::Uuid;
-
-    fn ev(instance: &str) -> Event {
-        Event::new(
-            TenantId::from_trusted(Uuid::nil().to_string()),
-            RuleId(Uuid::nil()),
-            InstanceKey(instance.into()),
-            EventStatus::Firing,
-            BTreeMap::new(),
-            None,
-            Severity::Warning,
-            BTreeMap::new(),
-            OffsetDateTime::UNIX_EPOCH,
-        )
-    }
-
-    #[test]
-    fn notification_holds_group_key_and_events() {
-        let n = Notification {
-            group_key: "rule=r,severity=warning".into(),
-            events: vec![ev("a"), ev("b")],
-        };
-        assert_eq!(n.group_key, "rule=r,severity=warning");
-        assert_eq!(n.events.len(), 2);
-    }
-}

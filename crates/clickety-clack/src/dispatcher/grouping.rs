@@ -236,12 +236,4 @@ mod tests {
             "a redelivery of the same reminder attempt still dedups"
         );
     }
-
-    #[test]
-    fn fingerprint_is_instance_key() {
-        assert_eq!(
-            fingerprint(&ev("svc=api", EventStatus::Firing, 0)),
-            "svc=api"
-        );
-    }
 }

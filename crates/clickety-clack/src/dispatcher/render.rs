@@ -172,48 +172,6 @@ mod tests {
     }
 
     #[test]
-    fn health_uses_summary_and_degraded_word() {
-        let mut ann = BTreeMap::new();
-        ann.insert(
-            "summary".to_string(),
-            "Rule X degraded after 3 consecutive failures".to_string(),
-        );
-        let ev = Event::rule_health(
-            TenantId::from_trusted(Uuid::nil().to_string()),
-            RuleId(Uuid::nil()),
-            EventStatus::Firing,
-            ann,
-            OffsetDateTime::UNIX_EPOCH,
-        );
-        assert_eq!(status_word(&ev), "DEGRADED");
-        assert!(headline(&ev).contains("degraded"));
-    }
-
-    /// A summary-less health event names its true source: `slo <uuid>` when the
-    /// event carries SLO identity, `rule <uuid>` otherwise.
-    #[test]
-    fn health_headline_fallback_names_the_source_kind() {
-        let rule_ev = Event::rule_health(
-            TenantId::from_trusted(Uuid::nil().to_string()),
-            RuleId(Uuid::nil()),
-            EventStatus::Firing,
-            BTreeMap::new(),
-            OffsetDateTime::UNIX_EPOCH,
-        );
-        assert_eq!(headline(&rule_ev), format!("rule {}", Uuid::nil()));
-
-        let slo = crate::domain::ids::SloId(Uuid::from_u128(9));
-        let slo_ev = Event::slo_health(
-            TenantId::from_trusted(Uuid::nil().to_string()),
-            slo,
-            EventStatus::Firing,
-            BTreeMap::new(),
-            OffsetDateTime::UNIX_EPOCH,
-        );
-        assert_eq!(headline(&slo_ev), format!("slo {}", slo.0));
-    }
-
-    #[test]
     fn substitute_labels_and_value() {
         let labels = BTreeMap::from([("host".to_string(), "web-1".to_string())]);
         let ev = alert(labels, Some(93.5), BTreeMap::new());

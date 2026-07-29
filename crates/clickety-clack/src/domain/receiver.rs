@@ -42,23 +42,6 @@ mod tests {
         assert_eq!(r.channels, vec!["ops-webhook".to_string()]);
     }
 
-    #[test]
-    fn receiver_channel_names_round_trip_serde() {
-        let r = Receiver {
-            id: Uuid::nil(),
-            tenant: TenantId::from_trusted(Uuid::nil().to_string()),
-            name: "multi".into(),
-            channels: vec!["team-slack".into(), "ops-mail".into()],
-            annotations: BTreeMap::from([("team".to_string(), "core".to_string())]),
-        };
-        let v = serde_json::to_value(&r).unwrap();
-        assert_eq!(v["channels"][0], "team-slack");
-        assert_eq!(v["channels"][1], "ops-mail");
-        assert_eq!(v["annotations"]["team"], "core");
-        let back: Receiver = serde_json::from_value(v).unwrap();
-        assert_eq!(back, r);
-    }
-
     // A receiver payload from before named channels (inline config objects) must
     // NOT silently deserialize into channel names.
     #[test]

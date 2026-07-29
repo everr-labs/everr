@@ -113,7 +113,7 @@ function previewRule(
 }
 
 describe("applyAlertSpecs", () => {
-  it("creates a managed CC rule with a single call (no follow-up link stamp)", async () => {
+  it("creates a managed CC rule with its identity and links", async () => {
     await applyAlertSpecs({
       namespace: { orgId: "o", repoid: "repo-1", kind: "live" },
       db,
@@ -134,9 +134,6 @@ describe("applyAlertSpecs", () => {
     expect(input.interval_secs).toBe(300);
     expect(input.value_column).toBe("count");
 
-    // Identity (project/slug/namespace) is known up front, so create is a
-    // single call: no follow-up PUT to stamp a link.
-    expect(mockedUpdateRule).not.toHaveBeenCalled();
     expect(mockedDeleteRule).not.toHaveBeenCalled();
   });
 

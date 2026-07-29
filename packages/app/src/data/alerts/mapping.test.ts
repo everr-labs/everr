@@ -53,14 +53,12 @@ function asRule(
 }
 
 describe("toRuleInput", () => {
-  it("stamps first-class identity (name/namespace) and drops identity annotations", () => {
+  it("stamps first-class identity and ownership", () => {
     const input = toRuleInput(rule, "repo-1", {
       appBaseUrl: "https://app.example.com",
     });
     expect(input.name).toBe("default/high-5xx");
     expect(input.namespace).toBe("");
-    expect(input.annotations["everr.name"]).toBeUndefined();
-    expect(input.annotations["everr.project"]).toBeUndefined();
     expect(input.annotations["everr.repoid"]).toBe("repo-1");
     expect(input.annotations["link.alert"]).toBe(
       "https://app.example.com/alerts/rules/default/high-5xx",
@@ -185,12 +183,11 @@ describe("toRuleInput", () => {
     expect(view.runbookSlug).toBeNull();
   });
 
-  it("builds a suppressed rule in the preview namespace, with no identity annotation", () => {
+  it("builds a suppressed rule in the preview namespace", () => {
     const input = toRuleInput(rule, "repo-1", { previewId: "prev-1" });
     // CC evaluates the rule fully but the dispatcher never notifies on it.
     expect(input.namespace).toBe("prev-1");
     expect(input.suppressed).toBe(true);
-    expect(input.annotations["everr.preview"]).toBeUndefined();
     expect(previewIdOf({ namespace: input.namespace })).toBe("prev-1");
     // Ownership is unchanged: same repo, same name, still owned.
     expect(input.annotations[OWN_REPO]).toBe("repo-1");

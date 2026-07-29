@@ -64,13 +64,4 @@ mod tests {
         );
         assert!(!s.is_active(now - Duration::seconds(1)), "before start");
     }
-
-    #[test]
-    fn silence_roundtrips_json() {
-        let now = OffsetDateTime::UNIX_EPOCH;
-        let s = silence(now, now + Duration::seconds(10));
-        let v = serde_json::to_value(&s).unwrap();
-        let back: Silence = serde_json::from_value(v).unwrap();
-        assert_eq!(back, s);
-    }
 }

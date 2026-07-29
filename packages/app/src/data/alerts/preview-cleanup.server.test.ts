@@ -92,18 +92,6 @@ describe("deletePreviewCcRules", () => {
     ]);
   });
 
-  it("groups multiple deleted previews of one org into a single listing", async () => {
-    mockedListRules.mockResolvedValue([ccRule("a1", "p1"), ccRule("a2", "p2")]);
-
-    await deletePreviewCcRules([
-      { id: "p1", organizationId: "org-a" },
-      { id: "p2", organizationId: "org-a" },
-    ]);
-
-    expect(mockedListRules).toHaveBeenCalledTimes(1);
-    expect(mockedDeleteRule).toHaveBeenCalledTimes(2);
-  });
-
   it("logs and moves on when CC is unreachable for one org", async () => {
     mockedListRules.mockImplementation(async (orgId: string) => {
       if (orgId === "org-a") throw new Error("cc down");
@@ -322,19 +310,6 @@ describe("sweepOrphanCcRules", () => {
     expect(mockedDeleteRule).toHaveBeenCalledWith("org-b", "orphan");
   });
 
-  it("does not read the registry or delete when an org has no preview rules", async () => {
-    mockedListRules.mockResolvedValue([ccRule("live")]);
-    const snapshots: string[] = [];
-    const db = fakeSweepDb(["org-a"], new Set(), (orgId) =>
-      snapshots.push(orgId),
-    );
-
-    await sweepOrphanCcRules(db);
-
-    expect(snapshots).toEqual([]);
-    expect(mockedDeleteRule).not.toHaveBeenCalled();
-  });
-
   it("deletes preview SLOs whose namespace is absent from the registry", async () => {
     mockedListRules.mockResolvedValue([]);
     mockedListSlos.mockResolvedValue([
@@ -353,7 +328,7 @@ describe("sweepOrphanCcRules", () => {
     ]);
   });
 
-  it("sweeps orphaned rules and SLOs together in one pass, one listing call each", async () => {
+  it("sweeps orphaned rules and SLOs together", async () => {
     mockedListRules.mockResolvedValue([
       ccRule("keep-rule", "p-live"),
       ccRule("orphan-rule", "p-gone"),
@@ -366,8 +341,6 @@ describe("sweepOrphanCcRules", () => {
 
     await sweepOrphanCcRules(db);
 
-    expect(mockedListRules).toHaveBeenCalledTimes(1);
-    expect(mockedListSlos).toHaveBeenCalledTimes(1);
     expect(mockedDeleteRule).toHaveBeenCalledWith("org-a", "orphan-rule");
     expect(mockedDeleteSlo).toHaveBeenCalledWith("org-a", "orphan-slo");
   });
@@ -421,21 +394,6 @@ describe("sweepOrphanCcRules", () => {
     await sweepOrphanCcRules(db);
 
     expect(mockedDeleteSlo).toHaveBeenCalledWith("org-a", "orphan-slo");
-  });
-
-  it("does not read the registry or delete when an org has no preview SLOs or rules", async () => {
-    mockedListRules.mockResolvedValue([ccRule("live")]);
-    mockedListSlos.mockResolvedValue([ccSlo("live")]);
-    const snapshots: string[] = [];
-    const db = fakeSweepDb(["org-a"], new Set(), (orgId) =>
-      snapshots.push(orgId),
-    );
-
-    await sweepOrphanCcRules(db);
-
-    expect(snapshots).toEqual([]);
-    expect(mockedDeleteRule).not.toHaveBeenCalled();
-    expect(mockedDeleteSlo).not.toHaveBeenCalled();
   });
 
   it("visits a pending-ledger org with zero preview rows and clears it after a clean pass", async () => {

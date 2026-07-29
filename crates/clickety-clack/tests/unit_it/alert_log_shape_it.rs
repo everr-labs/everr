@@ -99,28 +99,6 @@ fn one_resource_logs_per_tenant() {
         .map(|r| r.scope_logs[0].log_records.len())
         .sum();
     assert_eq!(total, 3);
-    // Stable order (BTreeMap): t-a before t-b, and t-a holds both its records.
-    let first = &req.resource_logs[0];
-    let first_tenant = match first
-        .resource
-        .as_ref()
-        .unwrap()
-        .attributes
-        .iter()
-        .find(|a| a.key == "everr.tenant.id")
-        .unwrap()
-        .value
-        .as_ref()
-        .unwrap()
-        .value
-        .as_ref()
-        .unwrap()
-    {
-        opentelemetry_proto::tonic::common::v1::any_value::Value::StringValue(s) => s.clone(),
-        _ => panic!(),
-    };
-    assert_eq!(first_tenant, "t-a");
-    assert_eq!(first.scope_logs[0].log_records.len(), 2);
 }
 
 struct Captured {

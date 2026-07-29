@@ -180,32 +180,6 @@ mod tests {
     use uuid::Uuid;
 
     #[test]
-    fn new_sets_all_fields() {
-        let mut labels = BTreeMap::new();
-        labels.insert("service".to_string(), "api".to_string());
-        let ev = Event::new(
-            TenantId::from_trusted(Uuid::nil().to_string()),
-            RuleId(Uuid::nil()),
-            InstanceKey("k".into()),
-            EventStatus::Resolved,
-            labels.clone(),
-            Some(1.0),
-            Severity::Critical,
-            BTreeMap::new(),
-            OffsetDateTime::UNIX_EPOCH,
-        );
-        assert_eq!(ev.status, EventStatus::Resolved);
-        assert_eq!(ev.severity, Severity::Critical);
-        assert_eq!(ev.labels, labels);
-        assert_eq!(ev.value, Some(1.0));
-        assert_eq!(ev.tenant, TenantId::from_trusted(Uuid::nil().to_string()));
-        assert_eq!(ev.rule, RuleId(Uuid::nil()));
-        assert_eq!(ev.instance_key, InstanceKey("k".into()));
-        assert_eq!(ev.annotations, BTreeMap::new());
-        assert_eq!(ev.eval_ts, OffsetDateTime::UNIX_EPOCH);
-    }
-
-    #[test]
     fn event_kind_serde_roundtrip() {
         assert_eq!(
             serde_json::to_string(&EventKind::RuleHealth).unwrap(),

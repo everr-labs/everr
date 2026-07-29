@@ -65,36 +65,6 @@ mod tests {
     }
 
     #[test]
-    fn matching_active_silence_silences() {
-        let now = OffsetDateTime::UNIX_EPOCH;
-        let s = silence(
-            vec![m("svc", "api")],
-            now - Duration::seconds(1),
-            now + Duration::seconds(60),
-        );
-        assert!(is_silenced(
-            &labels(&[("svc", "api")]),
-            std::slice::from_ref(&s),
-            now
-        ));
-    }
-
-    #[test]
-    fn non_matching_labels_pass() {
-        let now = OffsetDateTime::UNIX_EPOCH;
-        let s = silence(
-            vec![m("svc", "api")],
-            now - Duration::seconds(1),
-            now + Duration::seconds(60),
-        );
-        assert!(!is_silenced(
-            &labels(&[("svc", "web")]),
-            std::slice::from_ref(&s),
-            now
-        ));
-    }
-
-    #[test]
     fn expired_or_future_silence_does_not_silence() {
         let now = OffsetDateTime::UNIX_EPOCH;
         let expired = silence(

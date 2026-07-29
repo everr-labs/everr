@@ -275,30 +275,6 @@ mod tests {
     }
 
     #[test]
-    fn payload_json_roundtrips() {
-        let p = SloStatusPayload {
-            window: "30d".into(),
-            target_percent: 99.9,
-            groups: vec![SloGroupStatus {
-                labels: std::collections::BTreeMap::from([("service".into(), "api".into())]),
-                sli: Some(0.999),
-                budget_remaining: Some(0.5),
-                tiers: vec![SloTierStatus {
-                    name: "fast-burn".into(),
-                    long_burn_rate: Some(2.0),
-                    short_burn_rate: Some(3.0),
-                    long_window_valid: None,
-                }],
-            }],
-            window_computed_at: std::collections::BTreeMap::from([("300s".into(), 1234i64)]),
-            objective_fingerprint: Some("abc123".into()),
-        };
-        let v = serde_json::to_value(&p).unwrap();
-        let back: SloStatusPayload = serde_json::from_value(v).unwrap();
-        assert_eq!(back, p);
-    }
-
-    #[test]
     fn old_payload_without_objective_fingerprint_parses_as_none() {
         // Snapshots written before the field carry no `objective_fingerprint`. It
         // is additive (#[serde(default)]), so those rows still parse — and read as

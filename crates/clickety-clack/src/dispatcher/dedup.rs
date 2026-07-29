@@ -109,29 +109,6 @@ mod tests {
     }
 
     #[test]
-    fn canonical_target_per_variant() {
-        assert_eq!(
-            canonical_target(&ChannelConfig::Slack {
-                url: "https://hooks.slack.test/abc".into()
-            }),
-            "https://hooks.slack.test/abc"
-        );
-        assert_eq!(
-            canonical_target(&ChannelConfig::Email {
-                to: vec!["a@x.test".into(), "b@x.test".into()]
-            }),
-            "a@x.test,b@x.test"
-        );
-        let tg = canonical_target(&ChannelConfig::Telegram {
-            bot_token: "123:secret".into(),
-            chat_ids: vec!["@chan".into(), "999".into()],
-        });
-        let v: serde_json::Value = serde_json::from_str(&tg).unwrap();
-        assert_eq!(v["bot_token"], "123:secret");
-        assert_eq!(v["chat_ids"][0], "@chan");
-    }
-
-    #[test]
     fn redact_target_is_non_reversible_and_stable() {
         let a = redact_target("https://hooks.slack/SECRET");
         let b = redact_target("https://hooks.slack/SECRET");

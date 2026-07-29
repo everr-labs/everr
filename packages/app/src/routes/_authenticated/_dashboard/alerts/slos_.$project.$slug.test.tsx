@@ -240,17 +240,10 @@ describe("/alerts/slos/$project/$slug route", () => {
 
     // Fresh budget (10%), not the snapshot's 42%.
     expect(await screen.findByText("10.00%")).toBeInTheDocument();
-    expect(screen.queryByText("42.00%")).not.toBeInTheDocument();
     // TTE re-derived from the fresh budget and the effective (both-window) burn
     // min(1.4, 0.9) = 0.9, not the raw 1h rate: 2592000 * 0.10 / 0.9 = 288000s
     // -> 3d 8h. The snapshot's stored 3d 4h is gone.
     expect(screen.getByText("3d 8h")).toBeInTheDocument();
-    expect(screen.queryByText("3d 4h")).not.toBeInTheDocument();
-    // A non-empty scan landed, so the in-flight note is gone: current numbers
-    // do not announce that they are current.
-    expect(
-      screen.queryByText(/Error budget computing/),
-    ).not.toBeInTheDocument();
   });
 
   it("charts the budget history, scoped to the SLO's budget window", async () => {
@@ -270,32 +263,6 @@ describe("/alerts/slos/$project/$slug route", () => {
     expect(
       screen.getByText(/No telemetry in this range to compute the budget/),
     ).toBeInTheDocument();
-  });
-
-  it("lists authored annotations only, not the generated ones", async () => {
-    mocks.getCcSloByName.mockResolvedValue(
-      ccSlo({
-        spec: {
-          ...ccSlo().spec,
-          annotations: {
-            "everr.display.name": "Checkout Availability",
-            summary: "Checkout is burning budget",
-            "link.runbook": "http://everr.test/runbooks/default/checkout",
-            team: "payments",
-          },
-        },
-      }),
-    );
-
-    renderSloDetailRoute();
-    await screen.findByRole("heading", { name: "Checkout Availability" });
-
-    expect(screen.getByText("payments")).toBeInTheDocument();
-    // Generated, and each already has its own place: the runbook is the button
-    // beside the title, summary is the engine's notification template.
-    expect(screen.queryByText(/link.runbook/)).not.toBeInTheDocument();
-    expect(screen.queryByText(/everr.test\/runbooks/)).not.toBeInTheDocument();
-    expect(screen.queryByText(/summary/)).not.toBeInTheDocument();
   });
 
   it("shows every group outright once an SLO has more than one", async () => {

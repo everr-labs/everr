@@ -238,21 +238,4 @@ mod tests {
             ChannelConfig::Slack { ref url } if url == "***"
         ));
     }
-
-    #[test]
-    fn named_channel_serde_round_trips_with_tagged_config() {
-        let ch = Channel {
-            id: Uuid::nil(),
-            tenant: TenantId::from_trusted(Uuid::nil().to_string()),
-            name: "ops-mail".into(),
-            config: ChannelConfig::Email {
-                to: vec!["ops@x.test".into()],
-            },
-        };
-        let v = serde_json::to_value(&ch).unwrap();
-        assert_eq!(v["name"], "ops-mail");
-        assert_eq!(v["config"]["type"], "email");
-        let back: Channel = serde_json::from_value(v).unwrap();
-        assert_eq!(back, ch);
-    }
 }

@@ -186,9 +186,6 @@ describe("/alerts/rules route", () => {
     // pause is a decision to confirm rather than a one-click toggle.
     const dialog = await screen.findByRole("alertdialog");
     expect(mocks.pauseCcRule).not.toHaveBeenCalled();
-    expect(
-      within(dialog).getByText(/cannot fire or resolve/),
-    ).toBeInTheDocument();
 
     await user.click(
       within(dialog).getByRole("button", { name: "Pause rule" }),

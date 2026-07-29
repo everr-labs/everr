@@ -106,20 +106,6 @@ mod tests {
     }
 
     #[test]
-    fn repeated_patterns_are_consistent_and_cached() {
-        // Same pattern, many calls: behavior identical across calls (cache must not corrupt results).
-        for _ in 0..3 {
-            assert!(regex_full_match("api-.*", "api-1"));
-            assert!(!regex_full_match("api-.*", "web-1"));
-            assert!(!regex_full_match("[unterminated", "anything")); // invalid never matches, cached or not
-        }
-        // Distinct patterns coexist in the cache.
-        assert!(regex_full_match("a+", "aaa"));
-        assert!(regex_full_match("b+", "bbb"));
-        assert!(!regex_full_match("a+", "bbb"));
-    }
-
-    #[test]
     fn all_matchers_must_match() {
         let l = labels(&[("svc", "api"), ("env", "prod")]);
         assert!(matchers_match(

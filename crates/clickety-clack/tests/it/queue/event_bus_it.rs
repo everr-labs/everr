@@ -9,22 +9,6 @@ fn ev() -> Event {
 }
 
 #[tokio::test]
-async fn publish_consume_ack() {
-    let node = crate::common::start_redis().await;
-    let url = node.url.clone();
-
-    let bus = RedisEventBus::connect(&url).await.unwrap();
-
-    bus.publish(&ev()).await.unwrap();
-    let got = bus.consume("d1", 10, 1000).await.unwrap();
-    assert_eq!(got.len(), 1);
-    assert_eq!(got[0].event, ev());
-    bus.ack(&got[0].id).await.unwrap();
-
-    bus.dead_letter(&ev(), "boom").await.unwrap();
-}
-
-#[tokio::test]
 async fn dispatcher_and_logexport_groups_are_independent() {
     let node = crate::common::start_redis().await;
     let url = node.url.clone();

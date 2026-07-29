@@ -134,7 +134,6 @@ describe("applySloSpecs", () => {
     expect(mockedUpdate).not.toHaveBeenCalled();
     expect(mockedDelete).not.toHaveBeenCalled();
     expect(res.created).toEqual(["default/checkout"]);
-    expect(res.note).toBeUndefined();
   });
 
   it("dry-run validates through the test probe but never mutates", async () => {

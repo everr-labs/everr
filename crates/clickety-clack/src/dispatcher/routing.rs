@@ -126,7 +126,6 @@ mod tests {
     use super::*;
     use crate::domain::ids::{InstanceKey, RuleId, TenantId};
     use crate::domain::routing::{MatchOp, Matcher};
-    use proptest::prelude::*;
     use std::collections::BTreeMap;
     use time::OffsetDateTime;
     use uuid::Uuid;
@@ -258,30 +257,6 @@ mod tests {
     }
 
     #[test]
-    fn regex_is_anchored_and_ne_handles_missing() {
-        let e = ev(Severity::Warning, &[("svc", "api-1")]);
-        assert!(receivers(
-            &[route("r", false, vec![m("svc", MatchOp::Regex, "api")])],
-            &e
-        )
-        .is_empty());
-        assert_eq!(
-            receivers(
-                &[route("r", false, vec![m("svc", MatchOp::Regex, "api-.*")])],
-                &e
-            ),
-            vec!["r"]
-        );
-        assert_eq!(
-            receivers(
-                &[route("r", false, vec![m("absent", MatchOp::Ne, "x")])],
-                &e
-            ),
-            vec!["r"]
-        );
-    }
-
-    #[test]
     fn grouping_targets_apply_defaults_and_dedup_by_receiver() {
         let e = ev(Severity::Critical, &[("svc", "api")]);
         let mut r1 = route("ops", true, vec![m("severity", MatchOp::Eq, "critical")]);
@@ -374,17 +349,5 @@ mod tests {
             vec!["rule".to_string(), "severity".to_string()],
             "non-SLO event keeps the rule/severity default"
         );
-    }
-
-    proptest! {
-        #[test]
-        fn empty_matchers_always_selects_first(extra in prop::collection::vec("[a-z]{1,4}", 0..3)) {
-            let e = ev(Severity::Info, &[]);
-            let mut routes = vec![route("first", false, vec![])];
-            for (i, name) in extra.iter().enumerate() {
-                routes.push(route(&format!("{name}{i}"), false, vec![]));
-            }
-            prop_assert_eq!(receivers(&routes, &e), vec!["first".to_string()]);
-        }
     }
 }

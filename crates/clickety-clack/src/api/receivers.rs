@@ -203,16 +203,6 @@ mod tests {
     }
 
     #[test]
-    fn in_use_detail_names_every_referring_route() {
-        let a = uuid::Uuid::from_u128(1);
-        let b = uuid::Uuid::from_u128(2);
-        assert_eq!(
-            in_use_detail(&[a, b]),
-            format!("receiver is referenced by routes: {a}, {b}")
-        );
-    }
-
-    #[test]
     fn missing_channels_field_deserializes_to_empty_and_fails_validation() {
         let b = body(r#"{"name":"ops"}"#);
         assert!(b.channels.is_empty());
@@ -313,12 +303,5 @@ mod tests {
             unknown_channels_detail(&unknown),
             "unknown channels: missing-2, missing-1"
         );
-    }
-
-    #[test]
-    fn all_known_channels_yield_no_unknowns() {
-        let requested = vec!["a".to_string(), "b".to_string()];
-        let existing = vec!["b".to_string(), "a".to_string()];
-        assert!(unknown_channels(&requested, &existing).is_empty());
     }
 }

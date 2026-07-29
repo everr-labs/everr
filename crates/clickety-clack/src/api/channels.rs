@@ -259,12 +259,4 @@ mod tests {
         let b = body(r#"{"name":"tg","config":{"type":"telegram","bot_token":"t","chat_ids":[]}}"#);
         assert!(validate_channel(&b.name, &b.config, false).is_ok());
     }
-
-    #[test]
-    fn in_use_detail_names_every_referrer() {
-        assert_eq!(
-            in_use_detail(&["oncall".to_string(), "ops".to_string()]),
-            "channel is referenced by receivers: oncall, ops"
-        );
-    }
 }

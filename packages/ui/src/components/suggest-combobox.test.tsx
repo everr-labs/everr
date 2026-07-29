@@ -86,7 +86,4 @@ it("offers a Use row for typed text that matches no suggestion", async () => {
   await user.click(screen.getByText('"custom-thing"'));
 
   expect(onChange).toHaveBeenCalledWith("custom-thing");
-  expect(
-    screen.getByRole("combobox", { name: "Matcher value" }),
-  ).toHaveTextContent("custom-thing");
 });

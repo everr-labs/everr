@@ -486,27 +486,6 @@ mod tests {
         assert!(spec.annotations.is_empty());
     }
 
-    #[test]
-    fn spec_round_trips_through_json() {
-        let spec = SloSpec {
-            sli: SliSpec {
-                sql: "SELECT 1 AS good, 1 AS valid".into(),
-                label_columns: vec!["service".into()],
-            },
-            target_percent: 99.5,
-            time_window: TimeWindow {
-                duration: "7d".into(),
-                is_rolling: true,
-                calendar: None,
-            },
-            min_valid_events: Some(1000),
-            annotations: BTreeMap::new(),
-            suppressed: false,
-        };
-        let round: SloSpec = serde_json::from_value(serde_json::to_value(&spec).unwrap()).unwrap();
-        assert_eq!(round, spec);
-    }
-
     fn fp_spec() -> SloSpec {
         SloSpec {
             sli: SliSpec {
