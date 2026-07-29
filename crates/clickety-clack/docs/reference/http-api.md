@@ -67,6 +67,9 @@ tenant here; a **tenant-bound** key makes this header optional and enforced
   {`inactive`,`pending`,`firing`}; matcher `op` ∈ {`eq`,`ne`,`regex`,`notregex`}.
 - Successful mutations return `200` with the stored object; deletes return
   `{"deleted": true}`.
+- A channel test (`POST /v1/channel-tests`) is the one endpoint where `200`
+  does not mean success: a delivery failure is a `200` with `ok: false` in the
+  body, because the request succeeded and it is the delivery that did not.
 
 ## Errors
 
@@ -395,6 +398,7 @@ can back any number of receivers and be rotated with a single `PUT`.
 | `GET /v1/channels`           | List channels (secrets redacted). Unpaginated; bounded by tenant scale. |
 | `GET /v1/channels/:name`     | Get one channel (secrets redacted). |
 | `DELETE /v1/channels/:name`  | Delete a channel. `409` while any receiver references it. |
+| `POST /v1/channel-tests`     | Send one synthetic notification through an unsaved config. See [Testing a draft config](#testing-a-draft-config). |
 
 ### Request body
 
@@ -432,6 +436,44 @@ redaction is the read-API layer on top.
 `DELETE /v1/channels/:name` answers `409` (with `detail` naming the referring
 receivers, e.g. `channel is referenced by receivers: oncall, ops`) while any
 receiver references the channel. Delete or repoint those receivers first.
+
+### Testing a draft config
+
+`POST /v1/channel-tests` sends one synthetic alert through the real notifier
+for a config that has not been saved yet, so a caller can answer "did this
+arrive" before committing to a name. The path is `/v1/channel-tests`, not
+`/v1/channels/test`: the latter would shadow a channel actually named `test`,
+which could then never be read, updated, or deleted through
+`/v1/channels/:name`.
+
+Request body: the config only, no `name` (a draft has no identity yet):
+
+```json
+{ "config": { "type": "webhook", "url": "https://example.com/hook" } }
+```
+
+Same validation as [create](#request-body) (`422` on an SSRF-rejected webhook
+URL, a bad scheme, duplicated recipients, etc.), applied before anything is
+sent.
+
+Response:
+
+```json
+{ "ok": true, "latency_ms": 214 }
+```
+
+| Field        | Type            | Notes |
+| ------------ | --------------- | ----- |
+| `ok`         | bool            | Whether the notification was delivered. |
+| `latency_ms` | u64             | Round-trip time of the delivery attempt. |
+| `error`      | string          | Omitted when `ok` is `true`. The provider's own message otherwise. |
+
+A delivery failure is a **`200` with `ok: false`**, not an error status: the
+request succeeded, the delivery did not (see [Conventions](#conventions)).
+If no notifier for the config's `type` is registered on this node (for
+example, an `api`-only node with no `CC_SMTP_HOST` set), the response
+degrades the same way rather than a `5xx`:
+`{ "ok": false, "latency_ms": 0, "error": "<type> channel is not configured on this node" }`.
 
 ---
 
