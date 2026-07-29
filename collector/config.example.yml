@@ -9,9 +9,15 @@ extensions:
   # Trusted first-party ingest. Only clickety-clack holds this token; rotate it
   # like any shared secret. The token gates admission only and carries no
   # tenant — tenant is the per-ResourceLogs everr.tenant.id CC sets.
+  #
+  # Deliberately has NO default. This is the one credential guarding the only
+  # receiver that trusts a caller-supplied tenant, so a placeholder fallback
+  # would mean a forgotten env var yields a working, repo-published key to
+  # every tenant's data. Unset expands to empty, which fails the extension's
+  # own validation ("no bearer token provided") and stops the collector.
   bearertokenauth/trusted:
     scheme: "Bearer"
-    token: ${env:TRUSTED_INGEST_TOKEN:-replace-with-a-long-random-trusted-token}
+    token: ${env:TRUSTED_INGEST_TOKEN}
 
 receivers:
   githubactions:
@@ -46,11 +52,16 @@ receivers:
         auth:
           authenticator: everr_apikey
 
+  # >>> DEV ONLY: DELETE THIS RECEIVER FOR PRODUCTION <<<
   # Dev-only self-telemetry ingest for the locally running app (server and
   # browser) and other first-party dev tools. Unauthenticated on purpose: it
-  # is only exposed on the dev machine by docker-compose and carries no
-  # customer data. Its pipelines stamp the internal dev tenant and ship to
-  # BOTH the dev clickhouse and the desktop everr instance.
+  # is only exposed on the dev machine by docker-compose (bound to loopback)
+  # and carries no customer data. Its pipelines stamp the internal dev tenant
+  # and ship to BOTH the dev clickhouse and the desktop everr instance.
+  #
+  # This writes to the same clickhouse as the public path with no auth at all,
+  # so a production copy of this file must not carry it. Every dev-only block
+  # in this file is marked with the same `DEV ONLY` banner; grep for it.
   otlp/dev:
     protocols:
       http:
@@ -102,6 +113,7 @@ processors:
         key: everr.tenant.id
         from_context: auth.tenant_id
 
+  # >>> DEV ONLY: DELETE THIS PROCESSOR FOR PRODUCTION <<<
   # Dev self-telemetry: stamp everything onto the internal dev tenant (the
   # same org the engine's ingest key resolves to) so it is browsable in the
   # cloud app alongside the engine's telemetry.
@@ -135,6 +147,7 @@ exporters:
     database: otel
     create_schema: false
     ttl: 72h
+  # >>> DEV ONLY: DELETE THIS EXPORTER FOR PRODUCTION <<<
   # Forward to the dev machine's local everr desktop instance so distributed
   # traces assemble whole there (app half + engine half in one store).
   otlphttp/localdev:
@@ -177,6 +190,7 @@ service:
       processors: [attributes/strip_user_tenant, resource/public_tenant, batch]
       exporters: [clickhouse, debug]
 
+    # >>> DEV ONLY: DELETE THESE THREE PIPELINES FOR PRODUCTION <<<
     # Dev self-telemetry (app server + browser, dev tools): both stores.
     traces/dev:
       receivers: [otlp/dev]
@@ -191,20 +205,30 @@ service:
       processors: [attributes/strip_user_tenant, resource/dev_tenant, batch]
       exporters: [clickhouse, otlphttp/localdev]
 
+    # >>> DEV ONLY: DELETE THESE THREE PIPELINES FOR PRODUCTION <<<
     # Engine mirror: copy clickety-clack telemetry from the public path to
     # the local desktop instance. Other public ingest is not mirrored, and
     # the trusted product pipelines (alert log, SLO samples) stay cloud-only.
+    #
+    # Reads otlp/public, so it strips and stamps exactly like the public
+    # pipelines above: anything sourced from that receiver is untrusted, and
+    # service.name is client-supplied, so filter/engine_only admits whatever a
+    # public key claims is the engine. Without the strip a caller could set its
+    # own everr.tenant.id and have it forwarded verbatim.
     traces/engine_mirror:
       receivers: [otlp/public]
-      processors: [filter/engine_only, batch]
+      processors:
+        [attributes/strip_user_tenant, resource/public_tenant, filter/engine_only, batch]
       exporters: [otlphttp/localdev]
     metrics/engine_mirror:
       receivers: [otlp/public]
-      processors: [filter/engine_only, batch]
+      processors:
+        [attributes/strip_user_tenant, resource/public_tenant, filter/engine_only, batch]
       exporters: [otlphttp/localdev]
     logs/engine_mirror:
       receivers: [otlp/public]
-      processors: [filter/engine_only, batch]
+      processors:
+        [attributes/strip_user_tenant, resource/public_tenant, filter/engine_only, batch]
       exporters: [otlphttp/localdev]
 
     # Trusted pipeline: CC alert events. No strip/stamp — the per-ResourceLogs

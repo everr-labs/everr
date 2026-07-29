@@ -1,8 +1,14 @@
+# Dev stack. Everything here uses throwaway credentials that are committed to the
+# repo, so any port carrying one is published on 127.0.0.1 rather than 0.0.0.0:
+# on a shared network an unbound port hands the whole stack (including CC's /v1
+# API, which runs rule SQL as the ClickHouse default user) to anyone on the LAN.
+# Only the authenticated public edge (8080, 4317, 4318) is left reachable, so a
+# tunnel or a device on the network can still reach ingest.
 services:
   clickhouse:
     build: ./clickhouse
     ports:
-      - "8123:8123"
+      - "127.0.0.1:8123:8123"
     healthcheck:
       test: ["CMD-SHELL", "clickhouse-client --query 'SELECT 1'"]
       interval: 5s
@@ -26,7 +32,7 @@ services:
       timeout: 3s
       retries: 20
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
@@ -45,8 +51,8 @@ services:
       # Dev-only unauthenticated self-telemetry ingest (otlp/dev receiver):
       # the locally running app ships here; the collector fans out to both
       # the dev clickhouse and the desktop everr instance.
-      - "4319:4319"
-      - "4320:4320"
+      - "127.0.0.1:4319:4319"
+      - "127.0.0.1:4320:4320"
     extra_hosts:
       - "host.docker.internal:host-gateway"
     volumes:
@@ -77,7 +83,7 @@ services:
   redis:
     image: redis:7-alpine
     ports:
-      - "6379:6379"
+      - "127.0.0.1:6379:6379"
     volumes:
       - ./volumes/redis:/data
     healthcheck:
@@ -128,7 +134,7 @@ services:
         condition: service_started
     # Host 8088 → container 8080 (8080 is taken by the collector service above).
     ports:
-      - "8088:8080"
+      - "127.0.0.1:8088:8080"
     environment:
       CC_ROLE: all
       CC_HTTP_ADDR: 0.0.0.0:8080
