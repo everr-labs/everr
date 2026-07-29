@@ -1,6 +1,7 @@
 //! Container-backed suites for the `api` module.
 
 mod api_key_auth;
+mod channels_test_api;
 mod receivers_api;
 mod routes_api;
 mod rule_health_api;

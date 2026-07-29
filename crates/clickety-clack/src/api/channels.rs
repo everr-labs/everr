@@ -6,7 +6,7 @@ use crate::stores::ChannelDelete;
 use axum::extract::{Path, State};
 use axum::http::HeaderMap;
 use axum::Json;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 #[derive(Deserialize)]
@@ -166,6 +166,70 @@ pub async fn delete(
         ChannelDelete::NotFound => Err(ApiError::NotFound),
         ChannelDelete::InUse(referrers) => Err(ApiError::Conflict(in_use_detail(&referrers))),
     }
+}
+
+/// Request body for `POST /v1/channels/test`. No name: a draft has no identity
+/// yet, and the test says nothing about whether the name is free.
+#[derive(Deserialize)]
+pub struct TestChannel {
+    pub config: ChannelConfig,
+}
+
+/// Outcome of a draft channel test.
+#[derive(Serialize)]
+pub struct TestChannelResult {
+    /// Whether the notification was delivered.
+    pub ok: bool,
+    /// Round-trip time of the delivery attempt.
+    pub latency_ms: u64,
+    /// The provider's own message when `ok` is false. Caller-facing by design:
+    /// the caller supplied the config, so this can hold nothing it did not
+    /// already know. (Contrast rule SQL errors, which `span_error_summary`
+    /// strips because they echo customer SQL into everr-internal sinks.)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error: Option<String>,
+}
+
+/// Send one synthetic notification through an unsaved channel config.
+///
+/// Nothing is stored and no instance row is created. A delivery failure is a
+/// 200 with `ok: false`, not an error status: the request succeeded and the
+/// delivery did not, and the builder wants to render the provider's message.
+pub async fn test(
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(body): Json<TestChannel>,
+) -> Result<Json<TestChannelResult>, ApiError> {
+    let t = tenant(&state, &headers)?;
+    validate_channel_config(&body.config, state.allow_private_webhooks)?;
+
+    let kind = body.config.channel_name();
+    let Some(notifier) = state.notifiers.get(kind) else {
+        return Ok(Json(TestChannelResult {
+            ok: false,
+            latency_ms: 0,
+            error: Some(format!("{kind} channel is not configured on this node")),
+        }));
+    };
+
+    let notif =
+        crate::api::test_notification::test_notification(&t, kind, time::OffsetDateTime::now_utc());
+    let started = std::time::Instant::now();
+    let outcome = notifier.send(&body.config, &notif).await;
+    let latency_ms = started.elapsed().as_millis() as u64;
+
+    Ok(Json(match outcome {
+        Ok(()) => TestChannelResult {
+            ok: true,
+            latency_ms,
+            error: None,
+        },
+        Err(e) => TestChannelResult {
+            ok: false,
+            latency_ms,
+            error: Some(e.to_string()),
+        },
+    }))
 }
 
 #[cfg(test)]

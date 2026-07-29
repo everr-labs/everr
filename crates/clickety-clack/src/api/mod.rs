@@ -130,6 +130,7 @@ pub fn build_supervised_router(
             axum::routing::delete(subscriptions::delete),
         )
         .route("/v1/channels", post(channels::create).get(channels::list))
+        .route("/v1/channels/test", post(channels::test))
         .route(
             "/v1/channels/:name",
             get(channels::get)
