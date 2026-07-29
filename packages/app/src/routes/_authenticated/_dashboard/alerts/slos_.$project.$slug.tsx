@@ -44,11 +44,8 @@ import {
   type SloBudgetEvent,
 } from "@/components/cc/slo-budget-chart";
 import { SloStatsRow } from "@/components/cc/slo-status";
-import {
-  ANN_LABEL_PREFIX,
-  ANN_PROJECT,
-  isEverrAnnotationKey,
-} from "@/data/alerts/annotations";
+import { ANN_LABEL_PREFIX, ANN_PROJECT } from "@/data/alerts/annotations";
+import { isReservedAnnotationKey } from "@/data/alerts/schema";
 import { ccQueries } from "@/data/cc/queries";
 import { pauseCcSlo, resumeCcSlo } from "@/data/cc/server";
 import {
@@ -133,8 +130,8 @@ function DefRow({
   return (
     <div className="flex items-baseline gap-3 py-1.5">
       <dt className="w-28 shrink-0 text-xs text-muted-foreground">{label}</dt>
-      {/* min-w-0 so a wide value (the SLI query) scrolls inside the row rather
-          than stretching the card. */}
+      {/* min-w-0 so a wide value scrolls inside the row rather than
+          stretching the card. */}
       <dd className="min-w-0 flex-1 font-mono text-xs">{children}</dd>
     </div>
   );
@@ -148,18 +145,30 @@ function DefRow({
 function ObjectiveSection({ slo }: { slo: CcSlo }) {
   const ann = slo.spec.annotations;
   // Surface the as-code identity fields natively instead of behind a YAML dump.
-  // `everr.project` and `everr.label.*` fold into first-class fields (as they do
-  // in the applied document); `description` is the page header's, and `summary`
-  // is the engine's alert template, so both are dropped here along with the rest
-  // of the everr.* internals. What's left is the author's own pass-through
-  // annotations, shown raw.
+  // `everr.project` and `everr.label.*` fold into first-class fields (as they
+  // do in the applied document). Everything isReservedAnnotationKey covers is
+  // generated rather than authored, and each already has its own home on this
+  // page: `description` is the header, `summary` the engine's alert template,
+  // `link.runbook` the Runbook button beside the title. What's left is the
+  // author's own pass-through annotations, shown raw.
   const project = ann[ANN_PROJECT];
   const labels = Object.entries(ann)
     .filter(([k]) => k.startsWith(ANN_LABEL_PREFIX))
     .map(([k, v]) => [k.slice(ANN_LABEL_PREFIX.length), v] as const);
   const annotations = Object.entries(ann).filter(
-    ([k]) => !isEverrAnnotationKey(k) && k !== "description" && k !== "summary",
+    ([k]) => !isReservedAnnotationKey(k),
   );
+
+  // Every row here is conditional, so a plain SLO with no grouping, project,
+  // labels or annotations has nothing to define beyond what the stats row
+  // already prints. An empty card is worse than no card.
+  const hasRows =
+    slo.spec.min_valid_events !== undefined ||
+    slo.spec.sli.label_columns.length > 0 ||
+    project !== undefined ||
+    labels.length > 0 ||
+    annotations.length > 0;
+  if (!hasRows) return null;
 
   return (
     <Card>
@@ -206,15 +215,6 @@ function ObjectiveSection({ slo }: { slo: CcSlo }) {
               </span>
             </DefRow>
           )}
-          {/* The query itself, as a field rather than a disclosure: this card is
-              the one place the definition lives, and the SLI is the definition.
-              What alerts is not restated here — the status hero states each
-              tier's rule with its live numbers, which is the same rule. */}
-          <DefRow label="SLI">
-            <pre className="overflow-x-auto rounded-md bg-muted/50 p-3 text-xs ring-1 ring-foreground/10">
-              {slo.spec.sli.sql}
-            </pre>
-          </DefRow>
         </dl>
       </CardContent>
     </Card>

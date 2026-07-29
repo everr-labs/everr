@@ -349,6 +349,42 @@ describe("/alerts/slos/$project/$slug route", () => {
     expect(screen.queryByText("All groups")).not.toBeInTheDocument();
   });
 
+  it("lists authored annotations only, not the generated ones", async () => {
+    mocks.getCcSloByName.mockResolvedValue(
+      ccSlo({
+        spec: {
+          ...ccSlo().spec,
+          annotations: {
+            "everr.display.name": "Checkout Availability",
+            summary: "Checkout is burning budget",
+            "link.runbook": "http://everr.test/runbooks/default/checkout",
+            team: "payments",
+          },
+        },
+      }),
+    );
+
+    renderSloDetailRoute();
+    await screen.findByRole("heading", { name: "Checkout Availability" });
+
+    expect(screen.getByText("payments")).toBeInTheDocument();
+    // Generated, and each already has its own place: the runbook is the button
+    // beside the title, summary is the engine's notification template.
+    expect(screen.queryByText(/link.runbook/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/everr.test\/runbooks/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/summary/)).not.toBeInTheDocument();
+  });
+
+  it("keeps the SLI query off the page", async () => {
+    renderSloDetailRoute();
+    await screen.findByRole("heading", { name: SLUG });
+
+    // The definition card carries the facts that read at a glance; a query
+    // nobody can edit here is not one of them, and it was the widest thing
+    // on the page.
+    expect(screen.queryByText(/SELECT countIf/)).not.toBeInTheDocument();
+  });
+
   it("shows every group outright once an SLO has more than one", async () => {
     // The stats strip above is the WORST group only, so with several groups
     // the rest of the answer is in this table. It must be readable without a
