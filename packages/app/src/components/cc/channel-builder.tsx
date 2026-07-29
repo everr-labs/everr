@@ -24,6 +24,7 @@ import { CcConceptNote, ccErrorMessage } from "@/components/cc/shared";
 import { ccQueries } from "@/data/cc/queries";
 import { createCcChannel, testCcChannel } from "@/data/cc/server";
 import type { CcChannelConfig } from "@/data/cc/types";
+import { authClient } from "@/lib/auth-client";
 import { CcDrawer } from "./cc-drawer";
 import { CHANNEL_LABEL, type ChannelType } from "./channel-meta";
 
@@ -71,12 +72,18 @@ export function ChannelBuilder({
   existingNames: string[];
 }) {
   const qc = useQueryClient();
+  const { data: session } = authClient.useSession();
   const [name, setName] = useState("");
   const [draft, setDraft] = useState<ConfigDraft>(EMPTY_DRAFT);
+  // testedConfig is the JSON.stringify of whatever config the request was
+  // actually issued for. The engine takes up to 30s to answer, and the draft
+  // is free to move on in the meantime, so the result is only trustworthy
+  // while it still describes what's on screen right now.
   const [testResult, setTestResult] = useState<{
     ok: boolean;
     latencyMs: number;
     error?: string;
+    testedConfig: string;
   } | null>(null);
 
   const duplicate = existingNames.includes(name.trim());
@@ -104,18 +111,22 @@ export function ChannelBuilder({
   });
 
   const test = useMutation({
-    mutationFn: () => {
-      if (!config) throw new Error("channel config is incomplete");
-      return testCcChannel({ data: { config } });
-    },
-    onSuccess: (r) =>
+    mutationFn: (testedConfig: CcChannelConfig) =>
+      testCcChannel({ data: { config: testedConfig } }),
+    onSuccess: (r, testedConfig) =>
       setTestResult({
         ok: r.ok,
         latencyMs: r.latency_ms,
         ...(r.error === undefined ? {} : { error: r.error }),
+        testedConfig: JSON.stringify(testedConfig),
       }),
-    onError: (e) =>
-      setTestResult({ ok: false, latencyMs: 0, error: ccErrorMessage(e) }),
+    onError: (e, testedConfig) =>
+      setTestResult({
+        ok: false,
+        latencyMs: 0,
+        error: ccErrorMessage(e),
+        testedConfig: JSON.stringify(testedConfig),
+      }),
   });
 
   return (
@@ -128,7 +139,7 @@ export function ChannelBuilder({
           <Button
             variant="outline"
             disabled={!config || test.isPending}
-            onClick={() => test.mutate()}
+            onClick={() => config && test.mutate(config)}
           >
             {test.isPending ? "Sending..." : "Send test"}
           </Button>
@@ -215,8 +226,9 @@ export function ChannelBuilder({
             onValueChange={(to) => patch({ to })}
           />
           <p className="text-xs text-muted-foreground">
-            A test sends to your own address, not the recipients above, so it
-            proves delivery works without mailing the list.
+            {session?.user?.email
+              ? `A test sends to ${session.user.email}, not the recipients above, so it proves delivery works without mailing the list.`
+              : "A test sends to your own address, not the recipients above, so it proves delivery works without mailing the list."}
           </p>
         </div>
       )}
@@ -243,8 +255,9 @@ export function ChannelBuilder({
           </div>
         </>
       )}
-      {testResult && (
+      {testResult && testResult.testedConfig === JSON.stringify(config) && (
         <p
+          role={testResult.ok ? "status" : "alert"}
           className={cn(
             "text-xs",
             testResult.ok
