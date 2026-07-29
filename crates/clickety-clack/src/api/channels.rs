@@ -204,7 +204,8 @@ const TEST_SEND_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(30
 ///
 /// Nothing is stored and no instance row is created. A delivery failure is a
 /// 200 with `ok: false`, not an error status: the request succeeded and the
-/// delivery did not, and the builder wants to render the provider's message.
+/// delivery did not, and the builder wants to render why rather than a generic
+/// failure. See `TestChannelResult::error` for how much of "why" survives.
 pub async fn test(
     State(state): State<AppState>,
     headers: HeaderMap,
