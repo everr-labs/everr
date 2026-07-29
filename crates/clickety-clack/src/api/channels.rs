@@ -37,7 +37,7 @@ fn validate_channel(
 }
 
 /// The config half of [`validate_channel`], without the name check. The draft
-/// test path (`POST /v1/channels/test`) validates a config that has no name
+/// test path (`POST /v1/channel-tests`) validates a config that has no name
 /// yet, and must run the identical guard rather than a lookalike.
 fn validate_channel_config(
     config: &ChannelConfig,
@@ -168,7 +168,7 @@ pub async fn delete(
     }
 }
 
-/// Request body for `POST /v1/channels/test`. No name: a draft has no identity
+/// Request body for `POST /v1/channel-tests`. No name: a draft has no identity
 /// yet, and the test says nothing about whether the name is free.
 #[derive(Deserialize)]
 pub struct TestChannel {
@@ -182,13 +182,23 @@ pub struct TestChannelResult {
     pub ok: bool,
     /// Round-trip time of the delivery attempt.
     pub latency_ms: u64,
-    /// The provider's own message when `ok` is false. Caller-facing by design:
-    /// the caller supplied the config, so this can hold nothing it did not
-    /// already know. (Contrast rule SQL errors, which `span_error_summary`
-    /// strips because they echo customer SQL into everr-internal sinks.)
+    /// The provider's own message when `ok` is false. Mostly caller-supplied:
+    /// the caller sent the config, so an HTTP-channel failure (Slack, webhook)
+    /// echoes only a status code it already gave us. Email is the exception:
+    /// `dispatcher::email` maps every lettre error through `Display`, and the
+    /// SMTP relay's own reply line rides along in it, so a caller can see a
+    /// relay identity it never supplied. (Contrast rule SQL errors, which
+    /// `span_error_summary` strips because they echo customer SQL into
+    /// everr-internal sinks.)
     #[serde(skip_serializing_if = "Option::is_none")]
     pub error: Option<String>,
 }
+
+/// A channel test is synchronous and caller-triggered, so it needs a bound the
+/// dispatcher's background delivery does not: a config carrying many recipients
+/// fans out into that many sequential sends. Past this, the caller gets a
+/// failed test rather than a request that holds a task open indefinitely.
+const TEST_SEND_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(30);
 
 /// Send one synthetic notification through an unsaved channel config.
 ///
@@ -215,20 +225,24 @@ pub async fn test(
     let notif =
         crate::api::test_notification::test_notification(&t, kind, time::OffsetDateTime::now_utc());
     let started = std::time::Instant::now();
-    let outcome = notifier.send(&body.config, &notif).await;
+    let outcome =
+        tokio::time::timeout(TEST_SEND_TIMEOUT, notifier.send(&body.config, &notif)).await;
     let latency_ms = started.elapsed().as_millis() as u64;
 
-    Ok(Json(match outcome {
-        Ok(()) => TestChannelResult {
-            ok: true,
-            latency_ms,
-            error: None,
-        },
-        Err(e) => TestChannelResult {
-            ok: false,
-            latency_ms,
-            error: Some(e.to_string()),
-        },
+    let (ok, error) = match outcome {
+        Ok(Ok(())) => (true, None),
+        Ok(Err(e)) => (false, Some(e.to_string())),
+        Err(_) => (
+            false,
+            Some(format!("timed out after {}s", TEST_SEND_TIMEOUT.as_secs())),
+        ),
+    };
+    tracing::info!(tenant = %t, channel = %kind, ok, latency_ms, "channel test sent");
+
+    Ok(Json(TestChannelResult {
+        ok,
+        latency_ms,
+        error,
     }))
 }
 

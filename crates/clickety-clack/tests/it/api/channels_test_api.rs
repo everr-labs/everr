@@ -1,16 +1,17 @@
-//! POST /v1/channels/test: the draft-channel test the builder calls.
+//! POST /v1/channel-tests: the draft-channel test the builder calls.
 use crate::api::support::{body_json, state_with_notifiers, FakeNotifier, TENANT};
 use axum::body::Body;
 use axum::http::{Request, StatusCode};
 use cc::api::build_router;
 use cc::dispatcher::{Notifier, NotifyError};
+use cc::domain::channel::ChannelConfig;
 use std::sync::Arc;
 use tower::ServiceExt;
 
 fn req(body: &str) -> Request<Body> {
     Request::builder()
         .method("POST")
-        .uri("/v1/channels/test")
+        .uri("/v1/channel-tests")
         .header("content-type", "application/json")
         .header("X-CC-Tenant", TENANT)
         .body(Body::from(body.to_string()))
@@ -32,7 +33,16 @@ async fn a_delivered_test_reports_ok() {
     assert!(body["error"].is_null());
 
     // It actually sent, with the config the caller supplied.
-    assert_eq!(fake.sent.lock().unwrap().len(), 1);
+    let expected_url = serde_json::from_str::<serde_json::Value>(SLACK).unwrap()["config"]["url"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let sent = fake.sent.lock().unwrap();
+    assert_eq!(sent.len(), 1);
+    match &sent[0].0 {
+        ChannelConfig::Slack { url } => assert_eq!(url, &expected_url),
+        other => panic!("expected Slack config, got {other:?}"),
+    }
 }
 
 #[tokio::test]
