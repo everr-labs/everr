@@ -76,9 +76,9 @@ export function ChannelBuilder({
   const [name, setName] = useState("");
   const [draft, setDraft] = useState<ConfigDraft>(EMPTY_DRAFT);
   // testedConfig is the JSON.stringify of whatever config the request was
-  // actually issued for. The engine takes up to 30s to answer, and the draft
-  // is free to move on in the meantime, so the result is only trustworthy
-  // while it still describes what's on screen right now.
+  // actually issued for. The engine can take a few seconds to answer, and the
+  // draft is free to move on in the meantime, so the result is only
+  // trustworthy while it still describes what's on screen right now.
   const [testResult, setTestResult] = useState<{
     ok: boolean;
     latencyMs: number;

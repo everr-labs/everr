@@ -12,6 +12,7 @@ import {
   getCcSloBudgetSeries,
   getCcSloByName,
   listCcAlerts,
+  testCcChannel,
 } from "./server";
 
 const mocks = vi.hoisted(() => ({
@@ -20,6 +21,7 @@ const mocks = vi.hoisted(() => ({
   listAlerts: vi.fn(),
   listAllRules: vi.fn(),
   getSlo: vi.fn(),
+  testChannel: vi.fn(),
 }));
 
 // The CC client is the fns' only data plane; mocking it at the module
@@ -33,6 +35,7 @@ vi.mock("./client", async (importOriginal) => ({
   listAlerts: mocks.listAlerts,
   listAllRules: mocks.listAllRules,
   getSlo: mocks.getSlo,
+  testChannel: mocks.testChannel,
 }));
 
 // server.ts also imports the preview-repoid resolver (unused by the by-name
@@ -450,6 +453,45 @@ describe("emailTestConfigFor", () => {
     expect(emailTestConfigFor(config, "gio@everr.dev")).toEqual({
       type: "email",
       to: ["gio@everr.dev"],
+    });
+  });
+});
+
+// emailTestConfigFor above only proves the pure helper is correct. This
+// exercises the actual wiring: testCcChannel must call it before forwarding
+// to cc.testChannel, so a refactor that dropped the wrapper would fail here
+// even though every other suite (and typecheck, clippy, dead-code check)
+// would stay green.
+describe("testCcChannel", () => {
+  // test-setup.ts's authenticated-server-fn mock injects this session email.
+  const sessionEmail = "test@example.com";
+
+  it("replaces an email config's recipients with the session's own address", async () => {
+    mocks.testChannel.mockResolvedValue({ ok: true, latency_ms: 12 });
+    const typed: CcChannelConfig = {
+      type: "email",
+      to: ["oncall@acme.com", "ops@acme.com"],
+    };
+
+    await testCcChannel({ data: { config: typed } });
+
+    expect(mocks.testChannel).toHaveBeenCalledTimes(1);
+    expect(mocks.testChannel).toHaveBeenCalledWith("test_org", {
+      config: { type: "email", to: [sessionEmail] },
+    });
+  });
+
+  it("forwards a Slack config unchanged", async () => {
+    mocks.testChannel.mockResolvedValue({ ok: true, latency_ms: 12 });
+    const slack: CcChannelConfig = {
+      type: "slack",
+      url: "https://hooks.slack.com/services/T/B/x",
+    };
+
+    await testCcChannel({ data: { config: slack } });
+
+    expect(mocks.testChannel).toHaveBeenCalledWith("test_org", {
+      config: slack,
     });
   });
 });

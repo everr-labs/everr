@@ -61,8 +61,9 @@ describe("ChannelBuilder test button", () => {
   });
 
   it("ignores a stale result for a config edited while the request was in flight", async () => {
-    // The engine can take up to 30s to answer. If the draft moves on before
-    // it does, the response describes a config that's no longer on screen.
+    // The engine can take a few seconds to answer. If the draft moves on
+    // before it does, the response describes a config that's no longer on
+    // screen.
     let resolveTest:
       | ((r: { ok: boolean; latency_ms: number }) => void)
       | undefined;

@@ -3,6 +3,11 @@ import { env } from "@/env";
 
 export { CcApiError };
 
+// CC's channel-test deadline (`TEST_SEND_TIMEOUT` in
+// crates/clickety-clack/src/api/channels.rs) is deliberately set below this
+// value so CC answers first with a truthful `ok:false` instead of this
+// timeout aborting the request. Lowering CC_TIMEOUT_MS would start cutting
+// off channel tests CC would otherwise have answered.
 const CC_TIMEOUT_MS = 10_000;
 
 export type CcMethod = "GET" | "POST" | "PUT" | "DELETE";
