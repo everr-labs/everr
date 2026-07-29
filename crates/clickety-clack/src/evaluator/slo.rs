@@ -10,8 +10,7 @@ use crate::domain::instance::{InstanceState, Status};
 use crate::domain::rule::Severity;
 use crate::domain::sink::{SloSample, SloSampleSink};
 use crate::domain::slo::{
-    canonical_tiers, objective_fingerprint, parse_window_secs, tiers_for_spec, BurnRateTier, Slo,
-    SloSpec,
+    objective_fingerprint, parse_window_secs, tiers_for_spec, BurnRateTier, Slo, SloSpec,
 };
 use crate::domain::Event;
 use crate::engine::slo_math::{
@@ -829,10 +828,15 @@ pub(crate) struct TierFiring {
 /// Every (group × tier) pair yields exactly one entry, including clear ones
 /// — the resolve path downstream relies on seeing every pair each tick.
 pub(crate) fn plan_tier_firing(spec: &SloSpec, payload: &SloStatusPayload) -> Vec<TierFiring> {
-    // Firing compares each tier's stored burn against its threshold and matches by
-    // name — both window-independent — so the canonical list resolves the same
-    // set as the SLO's scaled tiers, without re-parsing the window.
-    let tiers = canonical_tiers();
+    // Must be the SLO's own scaled tiers, not the canonical three: at small budget
+    // windows `tiers_for_window` collapses two tiers onto identical windows and keeps
+    // only one (a 1-day window yields two tiers, not three). Planning the canonical
+    // list instead would look up a tier the snapshot never carries, get `None` for
+    // both burn rates, and call that `Unknown` on every tick -- which `present_for`
+    // holds, so an instance already firing under the dropped tier's name could never
+    // resolve. Matching the snapshot means a collapsed-away tier is simply not
+    // planned, and the known-but-not-planned path below resolves it.
+    let tiers = tiers_for_spec(spec);
     let mut out = Vec::with_capacity(payload.groups.len() * tiers.len());
     for group in &payload.groups {
         for tier in &tiers {
@@ -1093,6 +1097,39 @@ mod tier_firing_tests {
         let firings = plan_tier_firing(&spec, &payload);
         let fast = firings.iter().find(|f| f.tier_name == "fast-burn").unwrap();
         assert_eq!(fast.verdict, TierVerdict::Clear);
+    }
+
+    /// At a 1-day budget window `tiers_for_window` collapses fast-burn onto slow-burn's
+    /// windows and keeps only slow-burn, so the snapshot carries two tiers. Planning must
+    /// follow the same list: planning the canonical three would look up a "fast-burn" the
+    /// snapshot never has, read `None` for both burn rates, and return `Unknown` forever.
+    /// `present_for` holds `Unknown`, so an instance already firing under that name could
+    /// never resolve, and a phantom instance row would be upserted every tick.
+    #[test]
+    fn a_small_window_plans_its_own_tiers_not_the_canonical_three() {
+        let mut spec = spec_with(None);
+        spec.time_window.duration = "1d".into();
+
+        let scaled = crate::domain::slo::tiers_for_spec(&spec);
+        assert!(
+            !scaled.iter().any(|t| t.name == "fast-burn"),
+            "1d is the window where the short-window floor collapses fast-burn away"
+        );
+
+        // The snapshot carries exactly the scaled tiers.
+        let tiers = scaled
+            .iter()
+            .map(|t| tier_status(&t.name, Some(0.1), Some(0.1)))
+            .collect();
+        let firings = plan_tier_firing(&spec, &payload_one_group(group_labels(), None, tiers));
+
+        let planned: Vec<&str> = firings.iter().map(|f| f.tier_name.as_str()).collect();
+        let expected: Vec<&str> = scaled.iter().map(|t| t.name.as_str()).collect();
+        assert_eq!(planned, expected);
+        assert!(
+            firings.iter().all(|f| f.verdict != TierVerdict::Unknown),
+            "every planned tier is present in the payload, so none is unmeasured"
+        );
     }
 
     /// `fast-burn`'s verdict for a payload carrying just those two burn rates.
