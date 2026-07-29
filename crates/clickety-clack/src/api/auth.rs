@@ -11,7 +11,7 @@ use subtle::ConstantTimeEq;
 /// The header a caller uses to select the tenant it acts for.
 pub const TENANT_HEADER: &str = "X-CC-Tenant";
 
-/// Resolves a request's credentials to a tenant. Real everr auth swaps in here.
+/// Resolves a request's credentials to a tenant.
 pub trait Authenticator: Send + Sync + 'static {
     fn tenant_from(&self, headers: &HeaderMap) -> Option<TenantId>;
 }
@@ -28,10 +28,9 @@ pub(crate) fn tenant(
         .ok_or(ApiError::Unauthorized)
 }
 
-/// Phase 1 stub: trust an `X-CC-Tenant: <uuid>` header. When the API-key gate
-/// runs with a tenant-bound key (see [`ApiKeySet`]), the gate middleware has
-/// already derived and stamped this header from the key, so "trusting" it here
-/// is trusting the key binding.
+/// Trusts an `X-CC-Tenant: <uuid>` header. With a tenant-bound key (see
+/// [`ApiKeySet`]) the gate middleware derives and stamps that header from the key
+/// before handlers run, so trusting it here is trusting the key binding.
 pub struct HeaderAuth;
 
 impl Authenticator for HeaderAuth {
@@ -63,8 +62,7 @@ pub enum KeyMatch {
 ///
 /// Built from `CC_API_KEYS` (comma-separated so a key can rotate: serve the old
 /// and new key together while clients switch, then drop the old one). An empty
-/// set disables the gate entirely, which is the dev default: with no keys
-/// configured the API behaves exactly as before this gate existed.
+/// set disables the gate entirely, which is the dev default.
 ///
 /// Two entry forms may be mixed in one list:
 /// - `<key>`: a plain key; the caller asserts its tenant via `X-CC-Tenant`.
@@ -274,10 +272,7 @@ mod tests {
         );
     }
 
-    /// No early exit: the scan touches every entry whether the match is first,
-    /// last, or absent. Guarded by construction (the loop has no `break` or
-    /// `return`); this test pins the observable first-match-wins semantics that
-    /// the full scan implies for duplicate keys.
+    /// The scan has no early exit, so duplicate keys resolve first-match-wins.
     #[test]
     fn full_scan_first_match_wins_on_duplicates() {
         // Same key bound and unbound: first entry decides.

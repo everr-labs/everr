@@ -13,10 +13,10 @@ use std::hint::black_box;
 use time::{Duration, OffsetDateTime};
 use uuid::Uuid;
 
-// 1c: cached regex match vs. compiling on every call (the pre-change baseline).
+// Cached regex match vs. compiling the pattern on every call.
 fn bench_regex(c: &mut Criterion) {
     let mut g = c.benchmark_group("regex_full_match");
-    // One match per iteration; criterion prints elements/sec == matches/sec.
+    // One match per iteration, so elements/sec == matches/sec.
     g.throughput(Throughput::Elements(1));
     g.bench_function("cached", |b| {
         b.iter(|| {
@@ -83,10 +83,10 @@ fn inhibition(source: Vec<Matcher>, target: Vec<Matcher>, equal: &[&str]) -> Inh
     }
 }
 
-// The per-event routing/filter decision that `process_event` runs on the CPU before any
-// Redis/Postgres I/O: build the matchable label set, test silences, test inhibitions, then
-// select grouping targets. Criterion prints elements/sec == events/sec (the single-core
-// dispatch-decision ceiling; the real system is gated by snapshot load + group writes).
+// The CPU-side decision `process_event` makes before any Redis/Postgres I/O: build the
+// matchable label set, test silences, test inhibitions, select grouping targets. elements/sec
+// is the single-core ceiling for that decision, not for dispatch as a whole, which is gated by
+// snapshot load and group writes.
 fn bench_route_decision(c: &mut Criterion) {
     let now = OffsetDateTime::UNIX_EPOCH;
     let ev = Event {
@@ -125,8 +125,8 @@ fn bench_route_decision(c: &mut Criterion) {
         silence(vec![m("k1", MatchOp::Eq, "other")], now),
         silence(vec![m("severity", MatchOp::Eq, "critical")], now),
     ];
-    // Inhibition rules whose target matches (so the firing set is scanned) but `equal`
-    // never lines up — representative of the common "checked, not inhibited" path.
+    // Target matches (so the firing set is scanned) but `equal` never lines up: the common
+    // "checked, not inhibited" path.
     let inhibitions = vec![inhibition(
         vec![m("severity", MatchOp::Eq, "critical")],
         vec![m("severity", MatchOp::Eq, "warning")],

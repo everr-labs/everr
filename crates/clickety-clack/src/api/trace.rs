@@ -88,9 +88,9 @@ mod tests {
         let provider = SdkTracerProvider::builder()
             .with_simple_exporter(exporter.clone())
             .build();
-        // `trace_request`'s `http.request` callsite lives in production code, so
-        // any future test that drives the router without a subscriber could cache
-        // it as uninteresting and leave this exporter empty.
+        // `tracing` caches callsite interest globally: if another test drives the router
+        // without a subscriber first, `http.request` is cached as uninteresting and this
+        // exporter comes back empty.
         crate::otel::testing::ensure_permissive_callsite_interest();
 
         let subscriber = tracing_subscriber::registry()

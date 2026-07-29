@@ -17,7 +17,7 @@ pub struct CreateChannel {
     pub config: ChannelConfig,
 }
 
-/// `PUT /v1/channels/:name` body: the config only — the name comes from the path.
+/// `PUT /v1/channels/:name` body: the config only, since the name comes from the path.
 #[derive(Deserialize)]
 pub struct UpdateChannel {
     pub config: ChannelConfig,
@@ -46,10 +46,9 @@ fn validate_channel(
         crate::api::webhook_url::validate_webhook_url(url, allow_private_webhooks)
             .map_err(ApiError::Validation)?;
     }
-    // A repeated entry within a config's recipient list is always a caller
-    // mistake (one channel delivers to an address once); reject it loudly
-    // rather than silently deduping. This is strictly WITHIN one config:
-    // overlapping membership across channels is legitimate by design.
+    // A repeat within one config's recipient list is a caller mistake (a channel delivers to
+    // an address once), so reject rather than dedupe. The same address across two channels is
+    // legitimate and unaffected.
     match config {
         ChannelConfig::Email { to } => {
             let dupes = duplicate_entries(to);
@@ -69,8 +68,7 @@ fn validate_channel(
                 )));
             }
         }
-        // Single-value configs (webhook/slack URL) have no list to repeat an
-        // entry in.
+        // Single-URL configs have no list to repeat an entry in.
         ChannelConfig::Webhook { .. } | ChannelConfig::Slack { .. } => {}
     }
     Ok(())
@@ -84,10 +82,9 @@ fn in_use_detail(referrers: &[String]) -> String {
     )
 }
 
-/// Create a channel. Create-only: an existing name is a 409 `already_exists`
-/// (the stored config — including its encrypted secret — is never silently
-/// overwritten). Updates and secret rotation go through `PUT /v1/channels/:name`.
-/// Returns the stored channel redacted.
+/// Create a channel. Create-only: an existing name is a 409 `already_exists`, so a stored
+/// config and its encrypted secret are never silently overwritten. Updates and secret
+/// rotation go through `PUT /v1/channels/:name`. Returns the stored channel redacted.
 pub async fn create(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -253,8 +250,8 @@ mod tests {
         assert!(validate_channel(&b.name, &b.config, false).is_ok());
     }
 
-    // Empty recipient lists keep their current behavior (accepted at this
-    // boundary); the duplicate guard must not tighten anything else.
+    // An empty recipient list is accepted at this boundary; the duplicate guard is the only
+    // list rule here.
     #[test]
     fn empty_recipient_lists_still_pass_validation() {
         let b = body(r#"{"name":"mail","config":{"type":"email","to":[]}}"#);

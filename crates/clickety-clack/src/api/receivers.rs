@@ -235,8 +235,7 @@ mod tests {
 
     #[test]
     fn inline_channel_objects_are_not_accepted() {
-        // The pre-named-channels inline config shape no longer deserializes:
-        // `channels` is a list of names now.
+        // `channels` is a list of names, so an inline config object is not valid input.
         assert!(serde_json::from_str::<CreateReceiver>(
             r#"{"name":"ops","channels":[{"type":"webhook","url":"http://x/h"}]}"#
         )
@@ -283,7 +282,6 @@ mod tests {
             duplicate_entries(&names),
             vec!["a".to_string(), "b".to_string()]
         );
-        // No duplicates: nothing reported, validation passes.
         assert!(duplicate_entries(&["a".to_string(), "b".to_string()]).is_empty());
     }
 

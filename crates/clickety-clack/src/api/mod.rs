@@ -71,8 +71,8 @@ pub(crate) fn deleted(ok: bool) -> Result<axum::Json<serde_json::Value>, error::
     }
 }
 
-/// Router with the API-key gate disabled (dev default, and the pre-gate
-/// behavior). Equivalent to `build_router_with_auth(state, ApiKeySet::default())`.
+/// Router with the API-key gate disabled (the dev default). Equivalent to
+/// `build_router_with_auth(state, ApiKeySet::default())`.
 pub fn build_router(state: AppState) -> Router {
     build_router_with_auth(state, ApiKeySet::default())
 }

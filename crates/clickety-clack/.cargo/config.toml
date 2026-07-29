@@ -1,14 +1,6 @@
-# Dev-only default for the local `CC_ROLE=all cargo run` / `cargo test` flow.
-#
-# The API role fails closed when no CC_API_KEYS is configured (see src/main.rs and
-# src/api/auth.rs): without this, a deployment that forgot the keys would expose every
-# /v1 route with a caller-chosen tenant. That guard would also break the zero-config
-# local dev flow documented in docker-compose.yml, so this sets the explicit dev opt-in
-# for cargo-launched processes only.
-#
-# This never applies in production: the shipped image runs the compiled `cc` binary
-# directly (ENTRYPOINT ["cc"]), not through cargo, so the variable is absent and the
-# API still fails closed. The everr dev stack sets CC_API_KEYS itself, which enables the
-# gate regardless, so this is inert there too. Set CC_API_KEYS locally to override.
+# The API role fails closed without CC_API_KEYS (see src/api/auth.rs); this is the dev
+# opt-in that keeps `cargo run` / `cargo test` zero-config. It only reaches cargo-launched
+# processes, so the shipped image (ENTRYPOINT ["cc"]) still fails closed. Set CC_API_KEYS
+# to override.
 [env]
 CC_DEV_INSECURE_NO_AUTH = "1"

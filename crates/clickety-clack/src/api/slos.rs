@@ -218,10 +218,9 @@ pub async fn test(
     let now = time::OffsetDateTime::now_utc();
     let secs = parse_window_secs(&body.spec.time_window.duration)
         .map_err(|e| ApiError::Validation(e.to_string()))?;
-    // Defensive: `validate_slo_spec` above already caps this to `MAX_WINDOW_SECS`, so
-    // this is unreachable for specs accepted by validation. Kept anyway because
-    // `OffsetDateTime - Duration` PANICS on overflow and this is the second of the
-    // two panic sites (see `evaluator::slo::evaluate_slo`).
+    // `OffsetDateTime - Duration` panics on overflow, so the subtraction below stays checked
+    // even though `validate_slo_spec` has already capped `secs` to `MAX_WINDOW_SECS`. The
+    // other such site is `evaluator::slo::evaluate_slo`.
     let secs_i64 = i64::try_from(secs)
         .map_err(|_| ApiError::Validation("window duration out of range".into()))?;
     let start = now
@@ -446,25 +445,19 @@ fn sql_without_comments_and_literals(sql: &str) -> String {
     out
 }
 
-/// Upper bound on the SLO's `timeWindow.duration` (and, via proportional
-/// scaling, every derived tier window): 366 days, i.e. `366 * 86_400` seconds.
-/// Two reasons: (a) product bound — rolling windows are meant to cover up to
-/// about a year, never longer; (b) safety bound — the evaluator computes
-/// `eval_ts - Duration::seconds(secs)` via `time::OffsetDateTime`, which PANICS
-/// if the result falls outside the representable year range (±9999). Capping
-/// every window here keeps that subtraction always in range for any spec that
-/// passes validation.
+/// Upper bound on the SLO's `timeWindow.duration` (and, via proportional scaling, every
+/// derived tier window): 366 days. Rolling windows are meant to cover up to about a year,
+/// and the cap doubles as a safety bound: the evaluator computes
+/// `eval_ts - Duration::seconds(secs)`, which panics if the result leaves the range
+/// `OffsetDateTime` can represent (±9999).
 const MAX_WINDOW_SECS: u64 = 366 * 86_400;
 
-/// Lower bound on the SLO's `timeWindow.duration`: 1 day. The burn-rate tiers are
-/// scaled to the budget window (`domain::slo::tiers_for_window`); at exactly a day
-/// the fast- and slow-burn tiers collapse onto the same short-window floor, which
-/// `tiers_for_window` resolves by keeping the lower threshold, leaving a workable
-/// two-tier page/ticket split. Below a day all three merge, which that same dedup
-/// would flatten to a single tier: the multi-window method can no longer separate
-/// a fast page from a slow ticket by timescale at all. Sub-day monitoring is a
-/// threshold rule's job, not an error-budget SLO's, so reject the window rather
-/// than evaluate a degenerate tier set.
+/// Lower bound on the SLO's `timeWindow.duration`: 1 day. Burn-rate tiers scale to the
+/// budget window (`domain::slo::tiers_for_window`); at exactly a day two of them collapse
+/// onto the short-window floor, still leaving a page/ticket split, and below a day all
+/// three merge into one. A single tier cannot separate a fast page from a slow ticket by
+/// timescale, so sub-day windows are rejected rather than evaluated: that granularity is a
+/// threshold rule's job.
 const MIN_WINDOW_SECS: u64 = 86_400;
 
 fn validate_window_secs(dur: &str) -> Result<u64, ApiError> {
@@ -482,8 +475,8 @@ fn validate_window_secs(dur: &str) -> Result<u64, ApiError> {
     Ok(secs)
 }
 
-/// Static validation for an SLO spec — never touches ClickHouse. Column
-/// presence (`good`/`valid`) is validated at evaluation/test time (Plan 2).
+/// Static validation for an SLO spec; never touches ClickHouse. Column presence
+/// (`good`/`valid`) is validated at evaluation/test time.
 pub(crate) fn validate_slo_spec(spec: &SloSpec) -> Result<(), ApiError> {
     // 1. SLI SQL must be a single read-only SELECT.
     crate::sqlguard::validate(&strip_ch_params(&spec.sli.sql))

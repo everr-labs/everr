@@ -28,7 +28,7 @@ pub struct CreateRoute {
     pub group_wait_secs: Option<u32>,
     #[serde(default)]
     pub group_interval_secs: Option<u32>,
-    /// Absent/null = never re-notify a still-firing group (the historical behavior).
+    /// Absent/null = never re-notify a still-firing group.
     #[serde(default)]
     pub repeat_interval_secs: Option<u32>,
 }
