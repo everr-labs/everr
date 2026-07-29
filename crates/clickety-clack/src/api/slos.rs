@@ -351,6 +351,95 @@ fn enrich_status_payload(raw: Value, instances: &[InstanceState]) -> Value {
     out
 }
 
+/// Whether a span of SQL is executable code or something the parser treats as opaque.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+enum SpanKind {
+    Code,
+    /// A comment (body and delimiters) or a quoted string/identifier, quotes included.
+    NotCode,
+}
+
+/// Split `sql` into alternating code and non-code spans, concatenating back to the
+/// input exactly.
+///
+/// Both callers below need the same notion of "which characters are really SQL", and
+/// getting it right in only one of them is a bug: ClickHouse binds `{name:Type}` at the
+/// token level, so a brace inside a string literal is ordinary text, and a scanner that
+/// misses that can be steered by rule-authored SQL.
+///
+/// Recognized comment forms are `--` and `#` to end of line and `/* ... */` blocks
+/// (unterminated running to end of input); literal forms are single-quoted strings and
+/// double-quoted / backtick-quoted identifiers, each honoring both backslash and
+/// doubled-quote escaping.
+fn sql_spans(sql: &str) -> Vec<(SpanKind, String)> {
+    fn flush(code: &mut String, out: &mut Vec<(SpanKind, String)>) {
+        if !code.is_empty() {
+            out.push((SpanKind::Code, std::mem::take(code)));
+        }
+    }
+
+    let chars: Vec<char> = sql.chars().collect();
+    let n = chars.len();
+    let mut out: Vec<(SpanKind, String)> = Vec::new();
+    let mut code = String::new();
+    let mut i = 0;
+    while i < n {
+        let c = chars[i];
+        // Line comment: `--` or `#` to the next newline (the newline stays code).
+        if (c == '-' && chars.get(i + 1) == Some(&'-')) || c == '#' {
+            flush(&mut code, &mut out);
+            let start = i;
+            while i < n && chars[i] != '\n' {
+                i += 1;
+            }
+            out.push((SpanKind::NotCode, chars[start..i].iter().collect()));
+            continue;
+        }
+        // Block comment: `/* ... */`.
+        if c == '/' && chars.get(i + 1) == Some(&'*') {
+            flush(&mut code, &mut out);
+            let start = i;
+            while i < n && !(chars[i] == '*' && chars.get(i + 1) == Some(&'/')) {
+                i += 1;
+            }
+            if i < n {
+                i += 2; // the closing `*/`
+            }
+            out.push((SpanKind::NotCode, chars[start..i].iter().collect()));
+            continue;
+        }
+        // Quoted string (`'`) or quoted identifier (`"` / backtick).
+        if c == '\'' || c == '"' || c == '`' {
+            flush(&mut code, &mut out);
+            let start = i;
+            i += 1;
+            while i < n {
+                let d = chars[i];
+                if d == '\\' && i + 1 < n {
+                    i += 2;
+                    continue;
+                }
+                if d == c {
+                    // A doubled quote is an escaped quote, not the close.
+                    if chars.get(i + 1) == Some(&c) {
+                        i += 2;
+                        continue;
+                    }
+                    i += 1;
+                    break;
+                }
+                i += 1;
+            }
+            out.push((SpanKind::NotCode, chars[start..i].iter().collect()));
+            continue;
+        }
+        code.push(c);
+        i += 1;
+    }
+    flush(&mut code, &mut out);
+    out
+}
+
 /// Replace each ClickHouse-native `{name:Type}` query parameter with a
 /// harmless numeric literal. `sqlguard::validate` parses SQL with
 /// `sqlparser`'s `ClickHouseDialect`, which does not tokenize this
@@ -358,21 +447,33 @@ fn enrich_status_payload(raw: Value, instances: &[InstanceState]) -> Value {
 /// to let the guard check statement shape (single read-only SELECT). The
 /// placeholder-presence check in `validate_slo_spec` runs against the
 /// [comment- and literal-stripped][sql_without_comments_and_literals] SQL.
+///
+/// Substitution happens only in code spans. A brace inside a string literal is
+/// ordinary text, and treating it as the start of a placeholder is exploitable: the
+/// span would run to the next `}` anywhere later in the SQL, deleting everything
+/// between (statement separators included) from the copy the guard checks, while the
+/// stored SQL that actually runs still contains it.
 fn strip_ch_params(sql: &str) -> String {
     let mut out = String::with_capacity(sql.len());
-    let mut rest = sql;
-    while let Some(start) = rest.find('{') {
-        out.push_str(&rest[..start]);
-        rest = &rest[start..];
-        match rest.find('}') {
-            Some(end) => {
-                out.push('0');
-                rest = &rest[end + 1..];
-            }
-            None => break,
+    for (kind, text) in sql_spans(sql) {
+        if kind == SpanKind::NotCode {
+            out.push_str(&text);
+            continue;
         }
+        let mut rest = text.as_str();
+        while let Some(start) = rest.find('{') {
+            out.push_str(&rest[..start]);
+            rest = &rest[start..];
+            match rest.find('}') {
+                Some(end) => {
+                    out.push('0');
+                    rest = &rest[end + 1..];
+                }
+                None => break,
+            }
+        }
+        out.push_str(rest);
     }
-    out.push_str(rest);
     out
 }
 
@@ -380,67 +481,16 @@ fn strip_ch_params(sql: &str) -> String {
 /// so a substring search sees only executable SQL. ClickHouse binds `{name:Type}`
 /// query parameters at the token level, never inside a comment or a string/identifier
 /// literal, so a placeholder that appears only there is inert: the window filter would
-/// silently drop and the SLO would scan its whole table. Recognized comment forms are
-/// `--` and `#` to end of line and `/* ... */` blocks; literal forms are single-quoted
-/// strings and double-quoted / backtick-quoted identifiers, each honoring both
-/// backslash and doubled-quote escaping. Spans are blanked in place (not deleted), so
-/// this can never fabricate a `{...}` span by splicing text across a stripped region.
+/// silently drop and the SLO would scan its whole table. Spans are blanked in place
+/// (not deleted), so this can never fabricate a `{...}` span by splicing text across a
+/// stripped region.
 fn sql_without_comments_and_literals(sql: &str) -> String {
-    let chars: Vec<char> = sql.chars().collect();
-    let n = chars.len();
     let mut out = String::with_capacity(sql.len());
-    let mut i = 0;
-    while i < n {
-        let c = chars[i];
-        // Line comment: `--` or `#` to the next newline.
-        if (c == '-' && chars.get(i + 1) == Some(&'-')) || c == '#' {
-            while i < n && chars[i] != '\n' {
-                out.push(' ');
-                i += 1;
-            }
-            continue;
+    for (kind, text) in sql_spans(sql) {
+        match kind {
+            SpanKind::Code => out.push_str(&text),
+            SpanKind::NotCode => out.extend(std::iter::repeat_n(' ', text.chars().count())),
         }
-        // Block comment: `/* ... */` (unterminated => blanked to end of input).
-        if c == '/' && chars.get(i + 1) == Some(&'*') {
-            while i < n && !(chars[i] == '*' && chars.get(i + 1) == Some(&'/')) {
-                out.push(' ');
-                i += 1;
-            }
-            if i < n {
-                out.push_str("  "); // the closing `*/`
-                i += 2;
-            }
-            continue;
-        }
-        // Quoted string (`'`) or quoted identifier (`"` / backtick).
-        if c == '\'' || c == '"' || c == '`' {
-            out.push(' ');
-            i += 1;
-            while i < n {
-                let d = chars[i];
-                if d == '\\' && i + 1 < n {
-                    out.push_str("  ");
-                    i += 2;
-                    continue;
-                }
-                if d == c {
-                    // A doubled quote is an escaped quote, not the close.
-                    if chars.get(i + 1) == Some(&c) {
-                        out.push_str("  ");
-                        i += 2;
-                        continue;
-                    }
-                    out.push(' ');
-                    i += 1;
-                    break;
-                }
-                out.push(' ');
-                i += 1;
-            }
-            continue;
-        }
-        out.push(c);
-        i += 1;
     }
     out
 }
@@ -557,8 +607,51 @@ mod tests {
 
     #[test]
     fn strip_ch_params_does_not_let_a_second_statement_through_the_guard() {
-        let s = spec("SELECT 1 AS good, 1 AS valid FROM t WHERE ts >= {window_start:DateTime} AND ts < {window_end:DateTime}; DROP TABLE t");
-        assert!(validate_slo_spec(&s).is_err());
+        let bounds = "ts >= {window_start:DateTime} AND ts < {window_end:DateTime}";
+        for sql in [
+            // The plain form: a separator sitting in open code.
+            format!("SELECT 1 AS good, 1 AS valid FROM t WHERE {bounds}; DROP TABLE t"),
+            // A brace inside a string literal must not open a strip span. If it does,
+            // everything up to the next `}` (the `;`s and the second statement with
+            // them) vanishes from the copy the guard sees, while the stored SQL still
+            // carries all three statements.
+            format!(
+                "SELECT 1 AS good, 1 AS valid FROM t WHERE {bounds} \
+                 AND a = '{{' ; DROP TABLE t ; SELECT 1 WHERE '}}' = ''"
+            ),
+            // Same trick with a quoted identifier rather than a string.
+            format!(
+                "SELECT 1 AS good, 1 AS valid FROM t WHERE {bounds} \
+                 AND \"{{\" = 1 ; DROP TABLE t ; SELECT 1 WHERE \"}}\" = 1"
+            ),
+            // And with the brace hidden in a comment.
+            format!(
+                "SELECT 1 AS good, 1 AS valid FROM t WHERE {bounds} -- {{\n\
+                 ; DROP TABLE t ; SELECT 1 -- }}\n"
+            ),
+        ] {
+            let s = spec(&sql);
+            assert!(
+                validate_slo_spec(&s).is_err(),
+                "multi-statement SQL must be rejected: {sql}"
+            );
+        }
+    }
+
+    /// The guard must reject the extra statements without rejecting the literals
+    /// themselves: a brace in a string is legal SQL a rule author may well write.
+    #[test]
+    fn a_brace_inside_a_literal_is_left_alone() {
+        assert_eq!(strip_ch_params("SELECT '{' AS a"), "SELECT '{' AS a");
+        assert_eq!(
+            strip_ch_params("SELECT '{a:Int}' AS a, {b:Int} AS b"),
+            "SELECT '{a:Int}' AS a, 0 AS b"
+        );
+        let s = spec(
+            "SELECT 1 AS good, 1 AS valid FROM t \
+             WHERE ts >= {window_start:DateTime} AND ts < {window_end:DateTime} AND a = '{'",
+        );
+        assert!(validate_slo_spec(&s).is_ok());
     }
 
     #[test]

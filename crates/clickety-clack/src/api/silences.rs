@@ -30,6 +30,16 @@ pub async fn create(
     Json(body): Json<CreateSilence>,
 ) -> Result<Json<Silence>, ApiError> {
     let t = tenant(&state, &headers)?;
+    // `matchers_match` treats an empty matcher list as "matches everything" (correct
+    // for a route's catch-all), so an empty list here would blackhole every alert in
+    // the tenant for the whole window. A silence is always a deliberate exclusion of
+    // something specific: require it to name what, rather than let a client bug that
+    // drops the array silently mute the entire product.
+    if body.matchers.is_empty() {
+        return Err(ApiError::Validation(
+            "a silence must carry at least one matcher".into(),
+        ));
+    }
     if body.ends_at <= body.starts_at {
         return Err(ApiError::Validation(
             "ends_at must be after starts_at".into(),
