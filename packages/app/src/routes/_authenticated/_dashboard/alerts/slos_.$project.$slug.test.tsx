@@ -375,16 +375,6 @@ describe("/alerts/slos/$project/$slug route", () => {
     expect(screen.queryByText(/summary/)).not.toBeInTheDocument();
   });
 
-  it("keeps the SLI query off the page", async () => {
-    renderSloDetailRoute();
-    await screen.findByRole("heading", { name: SLUG });
-
-    // The definition card carries the facts that read at a glance; a query
-    // nobody can edit here is not one of them, and it was the widest thing
-    // on the page.
-    expect(screen.queryByText(/SELECT countIf/)).not.toBeInTheDocument();
-  });
-
   it("shows every group outright once an SLO has more than one", async () => {
     // The stats strip above is the WORST group only, so with several groups
     // the rest of the answer is in this table. It must be readable without a

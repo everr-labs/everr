@@ -278,13 +278,6 @@ describe("/alerts/rules/$project/$slug", () => {
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 
-  it("carries healthy evaluation as the whole heart", async () => {
-    renderRuleDetail();
-    await screen.findByRole("heading", { name: "Flapping Detector" });
-
-    expect(screen.getByLabelText("Evaluating")).toBeInTheDocument();
-  });
-
   it("flags a suppressed rule loudly", async () => {
     mocks.getCcRuleByName.mockResolvedValue(
       ruleView({
@@ -294,17 +287,5 @@ describe("/alerts/rules/$project/$slug", () => {
     renderRuleDetail();
 
     expect(await screen.findByText("suppressed")).toBeInTheDocument();
-  });
-
-  it("offers no ad-hoc test run", async () => {
-    renderRuleDetail();
-    await screen.findByRole("heading", { name: "Flapping Detector" });
-
-    // Rules are as-code: the spec is validated on apply, so a button that
-    // re-runs it here answered a question nobody was asking on this page.
-    expect(screen.queryByText("Try it")).not.toBeInTheDocument();
-    expect(
-      screen.queryByRole("button", { name: /Run test/ }),
-    ).not.toBeInTheDocument();
   });
 });

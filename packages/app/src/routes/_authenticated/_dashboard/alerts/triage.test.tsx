@@ -318,6 +318,11 @@ describe("/alerts/triage route", () => {
     const strip = await screen.findByRole("region", {
       name: "Alerting status",
     });
+    // Three cells, and only three. The fixture set includes a degraded rule,
+    // so this also pins that evaluation health is not one of the numbers that
+    // answer "is anything wrong" for the whole estate.
+    expect(strip.children).toHaveLength(3);
+
     // 2 firing (fp-1 + fp-3), 1 silenced (fp-3), 1 active silence.
     expect(within(strip).getByText("needs attention")).toBeInTheDocument();
     expect(within(strip).getByText("firing").previousSibling).toHaveTextContent(
@@ -329,18 +334,6 @@ describe("/alerts/triage route", () => {
     expect(
       within(strip).getByText("active silences").previousSibling,
     ).toHaveTextContent("1");
-  });
-
-  it("keeps rule health off the strip, degraded rules included", async () => {
-    // The default fixture set has a degraded rule. Evaluation health is a
-    // per-rule diagnostic on that rule's page, not one of the numbers that
-    // answer "is anything wrong" for the whole estate.
-    renderTriageRoute();
-
-    const strip = await screen.findByRole("region", {
-      name: "Alerting status",
-    });
-    expect(within(strip).queryByText(/degraded/i)).not.toBeInTheDocument();
   });
 
   // Lens assertions scope to the board region: the silences panel below it

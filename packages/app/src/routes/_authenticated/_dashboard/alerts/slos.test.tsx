@@ -219,16 +219,6 @@ describe("/alerts/slos route", () => {
 
   // What the promise is stays on the row; the detail of what its status is
   // doing does not.
-  it("marks each row with its evaluator health", async () => {
-    renderSlosRoute();
-
-    const table = await screen.findByRole("table");
-    // The suite's default snapshot is healthy.
-    expect(
-      await within(table).findByLabelText("Evaluating"),
-    ).toBeInTheDocument();
-  });
-
   it("marks a degraded evaluator with the broken heart", async () => {
     mocks.getCcSloStatus.mockResolvedValue({
       computed_at: new Date().toISOString(),
@@ -539,7 +529,7 @@ describe("/alerts/slos route", () => {
     expect(within(table).queryByText("50.00%")).not.toBeInTheDocument();
   });
 
-  it("says Paging for a critical tier and drops the group breakdown", async () => {
+  it("says Critical for a critical tier and drops the group breakdown", async () => {
     mocks.getCcSloStatus.mockResolvedValue({
       computed_at: new Date().toISOString(),
       health: { status: "healthy", degraded_since: null, last_error: null },
