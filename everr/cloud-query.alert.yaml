@@ -13,8 +13,17 @@ spec:
     title: "everr cloud query is failing (${system_errors} system errors in 5 min)"
     description: "Kinds: ${kinds}. User errors are excluded; these are infrastructure failures."
   evaluationInterval: 1m
+  # One instance for the whole condition, pinned to a constant. Without an
+  # explicit identity, apply infers it from the query's string columns, which
+  # here means `kinds`: an aggregate whose value changes the moment the mix of
+  # failures does. A timeout alone and then a timeout plus a network error are
+  # different fingerprints, so the open instance would resolve ("recovered")
+  # and a new one fire, mid-incident, every time a new kind appeared.
+  instanceLabels: [scope]
+  valueColumn: system_errors
   query: |
     SELECT
+      'cloud-query' AS scope,
       count() AS system_errors,
       arrayStringConcat(groupUniqArray(SpanAttributes['everr.cloud_query.kind']), ', ') AS kinds
     FROM traces
