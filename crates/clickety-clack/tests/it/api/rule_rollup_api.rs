@@ -35,6 +35,7 @@ async fn rules_list_and_get_expose_rollup() {
             .unwrap(),
         ),
         allow_private_webhooks: false,
+        notifiers: std::sync::Arc::new(cc::dispatcher::Notifiers::new()),
     };
     let app = build_router(state);
     let tenant = Uuid::new_v4();

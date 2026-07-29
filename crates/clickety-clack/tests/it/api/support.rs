@@ -9,9 +9,11 @@ use cc::api::auth::HeaderAuth;
 use cc::api::{build_router, AppState};
 use cc::clickhouse::ChClient;
 use cc::crypto::EnvKeyring;
+use cc::dispatcher::{Notification, Notifier, Notifiers, NotifyError};
+use cc::domain::channel::ChannelConfig;
 use cc::stores::PgStore;
 use std::collections::HashMap;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use uuid::Uuid;
 
 pub const TENANT: &str = "acme";
@@ -34,6 +36,63 @@ pub async fn state() -> AppState {
             .unwrap(),
         ),
         allow_private_webhooks: false,
+        notifiers: Arc::new(Notifiers::new()),
+    }
+}
+
+/// A notifier the API suites can steer: records what it was asked to send and
+/// returns whatever outcome the test set. Registered under a channel name the
+/// test chooses, so one fake can stand in for slack, webhook or email.
+pub struct FakeNotifier {
+    channel: &'static str,
+    pub outcome: Mutex<Result<(), NotifyError>>,
+    pub sent: Mutex<Vec<(ChannelConfig, String)>>,
+}
+
+impl FakeNotifier {
+    pub fn new(channel: &'static str) -> Self {
+        Self {
+            channel,
+            outcome: Mutex::new(Ok(())),
+            sent: Mutex::new(Vec::new()),
+        }
+    }
+
+    pub fn failing(channel: &'static str, err: NotifyError) -> Self {
+        let f = Self::new(channel);
+        *f.outcome.lock().unwrap() = Err(err);
+        f
+    }
+}
+
+#[async_trait::async_trait]
+impl Notifier for FakeNotifier {
+    fn channel(&self) -> &'static str {
+        self.channel
+    }
+
+    async fn send(&self, config: &ChannelConfig, notif: &Notification) -> Result<(), NotifyError> {
+        self.sent
+            .lock()
+            .unwrap()
+            .push((config.clone(), notif.group_key.clone()));
+        match &*self.outcome.lock().unwrap() {
+            Ok(()) => Ok(()),
+            Err(NotifyError::Transient(m)) => Err(NotifyError::Transient(m.clone())),
+            Err(NotifyError::Permanent(m)) => Err(NotifyError::Permanent(m.clone())),
+        }
+    }
+}
+
+/// An `AppState` whose registry holds exactly the given notifiers.
+pub async fn state_with_notifiers(list: Vec<Arc<dyn Notifier>>) -> AppState {
+    let mut reg = Notifiers::new();
+    for n in list {
+        reg.register(n);
+    }
+    AppState {
+        notifiers: Arc::new(reg),
+        ..state().await
     }
 }
 

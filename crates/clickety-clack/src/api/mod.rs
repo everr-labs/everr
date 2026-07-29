@@ -15,6 +15,7 @@ pub mod webhook_url;
 
 use crate::clickhouse::ChClient;
 use crate::crypto::SecretCipher;
+use crate::dispatcher::Notifiers;
 use crate::stores::PgStore;
 use crate::supervisor::RolesHealth;
 use auth::{require_api_key, ApiKeySet, Authenticator};
@@ -32,6 +33,11 @@ pub struct AppState {
     /// Allow private/loopback webhook targets (`CC_ALLOW_PRIVATE_WEBHOOKS=1`,
     /// dev/compose only). See [`webhook_url::validate_webhook_url`].
     pub allow_private_webhooks: bool,
+    /// Delivery notifiers, shared with the dispatcher. The API needs them for
+    /// the draft channel test, which sends synchronously so the builder can
+    /// show a result. A registry missing a kind (email with no SMTP configured
+    /// on this node) is a reportable outcome, not an error.
+    pub notifiers: Arc<Notifiers>,
 }
 
 /// Which values appear more than once in `values` (order-preserving, each

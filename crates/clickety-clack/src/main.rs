@@ -132,6 +132,37 @@ async fn main() -> anyhow::Result<()> {
             None
         };
 
+    // Delivery notifiers are shared by the dispatcher (real alerts) and the API
+    // (the draft channel test, which sends synchronously). Built unconditionally so
+    // an api-only node can still test a channel. A node without CC_SMTP_HOST simply
+    // has no email notifier registered, and the test endpoint reports that rather
+    // than failing.
+    let mut reg = Notifiers::new().with_engine_metrics(engine_metrics.clone());
+    reg.register(Arc::new(WebhookNotifier::new(cfg.allow_private_webhooks)));
+    reg.register(Arc::new(SlackNotifier::new(cfg.allow_private_webhooks)));
+    reg.register(Arc::new(TelegramNotifier::new()));
+    if let Some(smtp) = cfg.smtp.clone() {
+        let email = EmailNotifier::new(
+            &smtp.host,
+            smtp.port,
+            &smtp.from,
+            smtp.username.as_deref(),
+            smtp.password.as_deref(),
+            &smtp.tls,
+        )?;
+        if smtp.tls.trim().eq_ignore_ascii_case("none") {
+            tracing::warn!(
+                host = %smtp.host,
+                "CC_SMTP_TLS=none: SMTP traffic is unencrypted (dev only)"
+            );
+        }
+        reg.register(Arc::new(email));
+        tracing::info!(host = %smtp.host, tls = %smtp.tls, "email channel enabled");
+    } else {
+        tracing::info!("email channel disabled (set CC_SMTP_HOST to enable)");
+    }
+    let notifiers = Arc::new(reg);
+
     if run("api") {
         let state = AppState {
             store: store.clone(),
@@ -139,6 +170,7 @@ async fn main() -> anyhow::Result<()> {
             auth: Arc::new(HeaderAuth),
             cipher: cipher.clone(),
             allow_private_webhooks: cfg.allow_private_webhooks,
+            notifiers: notifiers.clone(),
         };
         if cfg.allow_private_webhooks {
             tracing::warn!(
@@ -358,31 +390,6 @@ async fn main() -> anyhow::Result<()> {
     }
 
     if run("dispatcher") {
-        let mut reg = Notifiers::new().with_engine_metrics(engine_metrics.clone());
-        reg.register(Arc::new(WebhookNotifier::new(cfg.allow_private_webhooks)));
-        reg.register(Arc::new(SlackNotifier::new(cfg.allow_private_webhooks)));
-        reg.register(Arc::new(TelegramNotifier::new()));
-        if let Some(smtp) = cfg.smtp.clone() {
-            let email = EmailNotifier::new(
-                &smtp.host,
-                smtp.port,
-                &smtp.from,
-                smtp.username.as_deref(),
-                smtp.password.as_deref(),
-                &smtp.tls,
-            )?;
-            if smtp.tls.trim().eq_ignore_ascii_case("none") {
-                tracing::warn!(
-                    host = %smtp.host,
-                    "CC_SMTP_TLS=none: SMTP traffic is unencrypted (dev only)"
-                );
-            }
-            reg.register(Arc::new(email));
-            tracing::info!(host = %smtp.host, tls = %smtp.tls, "email channel enabled");
-        } else {
-            tracing::info!("email channel disabled (set CC_SMTP_HOST to enable)");
-        }
-        let notifiers = Arc::new(reg);
         let groups: Arc<dyn GroupStore> = Arc::new(RedisGroups::connect(&cfg.redis_url).await?);
         let cache = Arc::new(FilterCache::new(store.clone()));
         // Sink for dispatcher-side delivery/silenced OTLP logs. Uses the same trusted

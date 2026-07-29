@@ -31,6 +31,7 @@ async fn silence_create_list_delete() {
             .unwrap(),
         ),
         allow_private_webhooks: false,
+        notifiers: std::sync::Arc::new(cc::dispatcher::Notifiers::new()),
     };
     let app = build_router(state);
     let tenant = Uuid::new_v4();
@@ -102,6 +103,7 @@ async fn silence_create_rejects_an_empty_matcher_list() {
             .unwrap(),
         ),
         allow_private_webhooks: false,
+        notifiers: std::sync::Arc::new(cc::dispatcher::Notifiers::new()),
     };
     let app = build_router(state);
     let tenant = Uuid::new_v4();

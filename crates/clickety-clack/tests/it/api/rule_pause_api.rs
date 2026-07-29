@@ -30,6 +30,7 @@ async fn pause_then_resume_round_trip() {
             .unwrap(),
         ),
         allow_private_webhooks: false,
+        notifiers: std::sync::Arc::new(cc::dispatcher::Notifiers::new()),
     };
     let app = build_router(state);
     let tenant = Uuid::new_v4();

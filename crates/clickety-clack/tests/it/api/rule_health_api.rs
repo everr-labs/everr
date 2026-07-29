@@ -33,6 +33,7 @@ async fn get_and_list_expose_rule_health() {
             .unwrap(),
         ),
         allow_private_webhooks: false,
+        notifiers: std::sync::Arc::new(cc::dispatcher::Notifiers::new()),
     };
     let app = build_router(state);
     let tenant = Uuid::new_v4();
