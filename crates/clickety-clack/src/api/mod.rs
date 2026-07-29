@@ -10,6 +10,7 @@ pub mod rules;
 pub mod silences;
 pub mod slos;
 pub mod subscriptions;
+pub mod test_notification;
 pub mod trace;
 pub mod webhook_url;
 
