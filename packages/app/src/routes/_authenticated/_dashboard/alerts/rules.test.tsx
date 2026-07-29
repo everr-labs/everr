@@ -13,12 +13,6 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { CcRulesPage, CcRuleView } from "@/data/cc/types";
 import { Route as RulesFileRoute } from "./rules";
 
-// ---------------------------------------------------------------------------
-// Mocks at the module boundary the route talks to: the data module, built
-// with `vi.hoisted` so the `vi.mock`
-// factory (hoisted above these declarations) can reference them safely.
-// ---------------------------------------------------------------------------
-
 const mocks = vi.hoisted(() => ({
   listCcRulesPage: vi.fn(),
   pauseCcRule: vi.fn(),
@@ -30,10 +24,6 @@ vi.mock("@/data/cc/server", () => ({
   pauseCcRule: mocks.pauseCcRule,
   resumeCcRule: mocks.resumeCcRule,
 }));
-
-// ---------------------------------------------------------------------------
-// Fixtures
-// ---------------------------------------------------------------------------
 
 function ccRuleView(overrides: Partial<CcRuleView> = {}): CcRuleView {
   return {
@@ -78,10 +68,6 @@ function page(items: CcRuleView[], nextCursor: string | null): CcRulesPage {
   return { items, next_cursor: nextCursor };
 }
 
-// ---------------------------------------------------------------------------
-// Harness
-// ---------------------------------------------------------------------------
-
 function renderRulesRoute() {
   const rootRoute = createRootRoute({ component: Outlet });
   const authenticatedRoute = createRoute({
@@ -99,7 +85,6 @@ function renderRulesRoute() {
     path: "alerts/rules",
     component: RulesFileRoute.options.component,
   });
-  // Link targets (per-rule detail, runbooks); never rendered here.
   const ruleDetailRoute = createRoute({
     getParentRoute: () => dashboardRoute,
     path: "alerts/rules/$project/$slug",
@@ -175,52 +160,39 @@ describe("/alerts/rules route", () => {
     );
   });
 
-  it("pauses a rule only after the confirmation is accepted", async () => {
-    mocks.listCcRulesPage.mockResolvedValue(page([ccRuleView()], null));
+  it("gates pausing behind the confirmation; resuming needs none", async () => {
+    mocks.listCcRulesPage.mockResolvedValue(
+      page(
+        [
+          ccRuleView(),
+          ccRuleView({
+            id: "22222222-2222-2222-2222-222222222222",
+            paused: true,
+          }),
+        ],
+        null,
+      ),
+    );
     const user = userEvent.setup();
     renderRulesRoute();
 
-    await user.click(await screen.findByRole("button", { name: /Pause/ }));
-
-    // A paused rule cannot fire, and nothing announces that later, so the
-    // pause is a decision to confirm rather than a one-click toggle.
-    const dialog = await screen.findByRole("alertdialog");
+    await user.click(await screen.findByRole("button", { name: "Pause" }));
+    const cancelled = await screen.findByRole("alertdialog");
+    await user.click(within(cancelled).getByRole("button", { name: "Cancel" }));
     expect(mocks.pauseCcRule).not.toHaveBeenCalled();
 
-    await user.click(
-      within(dialog).getByRole("button", { name: "Pause rule" }),
-    );
+    await user.click(screen.getByRole("button", { name: "Resume" }));
+    await waitFor(() => expect(mocks.resumeCcRule).toHaveBeenCalled());
 
+    await user.click(screen.getByRole("button", { name: "Pause" }));
+    const confirmed = await screen.findByRole("alertdialog");
+    await user.click(
+      within(confirmed).getByRole("button", { name: "Pause rule" }),
+    );
     await waitFor(() => expect(mocks.pauseCcRule).toHaveBeenCalled());
   });
 
-  it("leaves the rule running when the pause confirmation is cancelled", async () => {
-    mocks.listCcRulesPage.mockResolvedValue(page([ccRuleView()], null));
-    const user = userEvent.setup();
-    renderRulesRoute();
-
-    await user.click(await screen.findByRole("button", { name: /Pause/ }));
-    const dialog = await screen.findByRole("alertdialog");
-    await user.click(within(dialog).getByRole("button", { name: "Cancel" }));
-
-    expect(mocks.pauseCcRule).not.toHaveBeenCalled();
-  });
-
-  it("resumes a paused rule without a confirmation", async () => {
-    mocks.listCcRulesPage.mockResolvedValue(
-      page([ccRuleView({ paused: true })], null),
-    );
-    const user = userEvent.setup();
-    renderRulesRoute();
-
-    await user.click(await screen.findByRole("button", { name: /Resume/ }));
-
-    await waitFor(() => expect(mocks.resumeCcRule).toHaveBeenCalled());
-    expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
-  });
-
   it("shows load-more with a next_cursor and fetches the next page with it", async () => {
-    // Rows are told apart by name now that the id is not rendered.
     const named = (n: string, id: string) =>
       ccRuleView({
         id,
@@ -266,7 +238,6 @@ describe("/alerts/rules route", () => {
         data: { limit: 100, cursor: "tok-1" },
       }),
     );
-    // Both pages stay on screen; the exhausted cursor removes the control.
     expect(screen.getByText("First page rule")).toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: "Load more" }),

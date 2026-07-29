@@ -339,19 +339,26 @@ describe("applySloSpecs", () => {
     expect(res.deleted).toEqual([]);
   });
 
-  it("reports a cross-repo name collision as an ownership conflict (no writes)", async () => {
+  it("reports name collisions as ownership conflicts (no writes)", async () => {
+    const bare = managedSlo("cart");
     mockedList.mockResolvedValue([
       managedSlo("checkout", { annotations: { [OWN_REPO]: "repo-2" } }),
+      // A UI-created SLO carries no everr.repoid, so its owner reads as "".
+      { ...bare, spec: { ...bare.spec, annotations: {} } },
     ]);
 
     const res = await applySloSpecs({
       namespace: live,
       db,
-      resources: [{ path: "s.yaml", resource: sloDoc() }],
+      resources: [
+        { path: "s.yaml", resource: sloDoc() },
+        { path: "c.yaml", resource: sloDoc("cart") },
+      ],
     });
 
     expect(res.conflicts).toEqual([
       { project: "default", slug: "checkout", owner: "repo-2" },
+      { project: "default", slug: "cart", owner: "" },
     ]);
     expect(res.created).toEqual([]);
     expect(res.adopted).toEqual([]);
@@ -360,23 +367,6 @@ describe("applySloSpecs", () => {
     expect(mockedTest).not.toHaveBeenCalled();
     expect(mockedCreate).not.toHaveBeenCalled();
     expect(mockedUpdate).not.toHaveBeenCalled();
-  });
-
-  it('reports a UI-created SLO name collision with owner ""', async () => {
-    const bare = managedSlo("checkout");
-    mockedList.mockResolvedValue([
-      { ...bare, spec: { ...bare.spec, annotations: {} } },
-    ]);
-
-    const res = await applySloSpecs({
-      namespace: live,
-      db,
-      resources: [{ path: "s.yaml", resource: sloDoc() }],
-    });
-
-    expect(res.conflicts).toEqual([
-      { project: "default", slug: "checkout", owner: "" },
-    ]);
   });
 
   it("adopts a colliding foreign SLO in place with adopt: true", async () => {

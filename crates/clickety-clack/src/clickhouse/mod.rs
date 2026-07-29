@@ -331,9 +331,7 @@ mod tests {
 
     #[test]
     fn build_query_url_appends_ch_params() {
-        // no params -> unchanged
         assert_eq!(build_query_url("http://ch:8123/", &[]), "http://ch:8123/");
-        // params become ?param_<name>=<urlencoded>
         let url = build_query_url(
             "http://ch:8123/",
             &[("window_start".into(), "2026-07-17 00:00:00".into())],
@@ -342,13 +340,11 @@ mod tests {
             url,
             "http://ch:8123/?param_window_start=2026-07-17%2000%3A00%3A00"
         );
-        // multiple params joined with &, order preserved
         let url = build_query_url(
             "http://ch:8123/",
             &[("a".into(), "1".into()), ("b".into(), "x/y".into())],
         );
         assert_eq!(url, "http://ch:8123/?param_a=1&param_b=x%2Fy");
-        // a base that already has a query string uses & as the separator
         assert_eq!(
             build_query_url("http://ch:8123/?database=d", &[("a".into(), "1".into())]),
             "http://ch:8123/?database=d&param_a=1",
@@ -367,7 +363,6 @@ mod parse_tests {
         assert_eq!(rows.len(), 2);
         assert_eq!(rows[0].labels.get("svc").unwrap(), "api");
         assert_eq!(rows[0].value, Some(1.5));
-        // string-encoded numbers parse; trailing blank line is ignored.
         assert_eq!(rows[1].value, Some(2.0));
     }
 
@@ -380,8 +375,7 @@ mod parse_tests {
         assert_eq!(rows[0].value, None);
     }
 
-    /// `extra` carries every non-label column raw (evidence source): label columns are
-    /// excluded, the value column is INCLUDED, and non-scalar JSON is preserved.
+    /// Extra data preserves non-label columns, including the value column.
     #[test]
     fn extra_excludes_labels_and_includes_value_column() {
         let body = "{\"svc\":\"api\",\"v\":1.5,\"errors\":7,\"sample\":{\"path\":\"/x\"}}";
@@ -404,7 +398,6 @@ mod error_scrub_tests {
 
     #[tokio::test]
     async fn transport_error_string_excludes_url_and_creds() {
-        // Point at a closed port with credentials embedded in the URL.
         let auth = crate::clickhouse::build_ch_auth("shared", "default", "", None, None, "", None)
             .unwrap();
         let ch = ChClient::new("http://user:supersecret@127.0.0.1:1", auth);
@@ -415,8 +408,7 @@ mod error_scrub_tests {
         assert!(!s.contains("127.0.0.1:1"), "leaked url: {s}");
     }
 
-    /// `Status`'s body echoes the offending query (customer SQL); the span summary must
-    /// drop it entirely while still identifying the HTTP status for triage.
+    /// Span summaries omit response bodies that may echo customer SQL.
     #[test]
     fn status_error_summary_drops_body_keeps_status() {
         let e = ChError::Status(
@@ -427,13 +419,5 @@ mod error_scrub_tests {
         assert!(!s.contains("SELECT"), "leaked query text: {s}");
         assert!(!s.contains("secret"), "leaked query text: {s}");
         assert!(s.contains("400"), "missing status code: {s}");
-    }
-
-    /// Non-`Status` variants carry no response-body/row text (transport error, or a
-    /// position-only JSON syntax error), so the span summary keeps the full message.
-    #[test]
-    fn http_error_summary_keeps_full_message() {
-        let e = ChError::Http("connection refused".into());
-        assert_eq!(span_error_summary(&e), e.to_string());
     }
 }

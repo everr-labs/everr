@@ -280,7 +280,6 @@ mod tests {
         let names: Vec<_> = metrics.iter().map(|m| m.name.as_str()).collect();
         assert_eq!(names, vec![METRIC_GOOD, METRIC_VALID]);
 
-        // The good gauge carries the raw good count and the full attribute set.
         let good = &metrics[0];
         let metric::Data::Gauge(g) = good.data.as_ref().unwrap() else {
             panic!("expected gauge");
@@ -300,13 +299,11 @@ mod tests {
             str_attr(&dp.attributes, "slo.window").as_deref(),
             Some("3600s")
         );
-        // Group columns are namespaced under slo.group.*
         assert_eq!(
             str_attr(&dp.attributes, "slo.group.ServiceName").as_deref(),
             Some("checkout")
         );
 
-        // The valid gauge carries the raw valid count.
         let metric::Data::Gauge(g) = metrics[1].data.as_ref().unwrap() else {
             panic!("expected gauge");
         };
@@ -322,12 +319,10 @@ mod tests {
             metrics_endpoint_from_logs("http://collector:4418/v1/logs"),
             "http://collector:4418/v1/metrics"
         );
-        // Non-standard endpoint: append the signal path.
         assert_eq!(
             metrics_endpoint_from_logs("http://collector:4418/"),
             "http://collector:4418/v1/metrics"
         );
-        // A trailing slash on the standard form still swaps the suffix.
         assert_eq!(
             metrics_endpoint_from_logs("http://collector:4418/v1/logs/"),
             "http://collector:4418/v1/metrics"

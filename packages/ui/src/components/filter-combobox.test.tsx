@@ -69,8 +69,6 @@ it("lists selected values the query did not return as checked rows", async () =>
   });
 
   await user.click(screen.getByRole("combobox", { name: "Equal labels" }));
-  // The custom selection gets its own checked row alongside the loaded item,
-  // so it can be toggled off directly instead of hiding behind the +N badge.
   const row = await screen.findByRole("option", { name: "namespace" });
   await user.click(row);
   expect(onChange).toHaveBeenCalledWith(["cluster"]);

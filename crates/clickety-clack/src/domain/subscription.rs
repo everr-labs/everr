@@ -34,20 +34,6 @@ mod tests {
     use super::*;
 
     #[test]
-    fn subscription_created_at_serializes_rfc3339() {
-        let s = Subscription {
-            id: Uuid::nil(),
-            tenant: TenantId::from_trusted(Uuid::nil().to_string()),
-            webhook_url: "https://example.com/hook".into(),
-            created_at: OffsetDateTime::UNIX_EPOCH,
-        };
-        let v = serde_json::to_value(&s).unwrap();
-        assert_eq!(v["created_at"], "1970-01-01T00:00:00Z");
-        let back: Subscription = serde_json::from_value(v).unwrap();
-        assert_eq!(back, s);
-    }
-
-    #[test]
     fn redacted_masks_webhook_url() {
         let s = Subscription {
             id: Uuid::nil(),

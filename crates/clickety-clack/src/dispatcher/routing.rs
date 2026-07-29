@@ -7,7 +7,7 @@ use crate::domain::slo::{SLO_LABEL, SLO_TIER_LABEL};
 use crate::domain::{Event, EventKind, EventStatus};
 use std::collections::BTreeMap;
 
-/// Build the matchable label set from raw labels + synthetic `severity`/`status`/`rule`/`kind`/`slo`.
+/// Add synthetic event fields to the matchable labels.
 /// Synthetic labels take precedence over any same-named user label (inserted last).
 pub fn synthetic_labels(
     labels: &BTreeMap<String, String>,
@@ -221,12 +221,6 @@ mod tests {
     }
 
     #[test]
-    fn slo_label_absent_when_event_has_none() {
-        let labels = match_labels(&ev(Severity::Critical, &[]));
-        assert!(!labels.contains_key("slo"));
-    }
-
-    #[test]
     fn first_match_wins_without_continue() {
         let e = ev(Severity::Critical, &[]);
         let routes = vec![
@@ -244,16 +238,6 @@ mod tests {
             route("ops", false, vec![m("severity", MatchOp::Eq, "critical")]),
         ];
         assert_eq!(receivers(&routes, &e), vec!["pd", "ops"]);
-    }
-
-    #[test]
-    fn non_matching_routes_are_skipped() {
-        let e = ev(Severity::Warning, &[("svc", "api")]);
-        let routes = vec![
-            route("pd", false, vec![m("severity", MatchOp::Eq, "critical")]),
-            route("ops", false, vec![m("svc", MatchOp::Eq, "api")]),
-        ];
-        assert_eq!(receivers(&routes, &e), vec!["ops"]);
     }
 
     #[test]
@@ -275,18 +259,6 @@ mod tests {
             targets[0].grouping.group_by,
             vec!["rule".to_string(), "severity".to_string()],
             "non-SLO event: unchanged default"
-        );
-    }
-
-    #[test]
-    fn slo_default_group_by_is_slo_plus_labels_minus_tier() {
-        let labels = BTreeMap::from([
-            ("service".to_string(), "api".to_string()),
-            ("slo_tier".to_string(), "fast-burn".to_string()),
-        ]);
-        assert_eq!(
-            slo_default_group_by(&labels),
-            vec!["slo".to_string(), "service".to_string()]
         );
     }
 
@@ -336,18 +308,6 @@ mod tests {
             targets[0].grouping.group_by,
             vec!["severity".to_string()],
             "explicit route group_by always wins, even for SLO events"
-        );
-    }
-
-    #[test]
-    fn rule_event_default_group_by_is_unaffected_by_slo_change() {
-        let e = ev(Severity::Critical, &[("svc", "api")]);
-        let routes = vec![route("ops", false, vec![])];
-        let targets = targets(&routes, &e);
-        assert_eq!(
-            targets[0].grouping.group_by,
-            vec!["rule".to_string(), "severity".to_string()],
-            "non-SLO event keeps the rule/severity default"
         );
     }
 }

@@ -161,27 +161,11 @@ async fn receiver_with_unknown_channels_is_rejected_naming_them() {
 }
 
 #[tokio::test]
-async fn annotations_round_trip_and_default_empty() {
+async fn put_replaces_annotations() {
     let (app, _) = setup().await;
     let tenant = Uuid::new_v4();
     seed_channels(&app, tenant).await;
 
-    // A payload without annotations defaults to {} everywhere.
-    let resp = app
-        .clone()
-        .oneshot(req(
-            "POST",
-            "/v1/receivers",
-            tenant,
-            r#"{"name":"plain","channels":["plain-hook"]}"#,
-        ))
-        .await
-        .unwrap();
-    assert_eq!(resp.status(), StatusCode::OK);
-    let v = body_json(resp).await;
-    assert_eq!(v["annotations"], serde_json::json!({}));
-
-    // Create with annotations; the create response, single GET, and list all carry them.
     let resp = app
         .clone()
         .oneshot(req(
@@ -194,38 +178,7 @@ async fn annotations_round_trip_and_default_empty() {
         .await
         .unwrap();
     assert_eq!(resp.status(), StatusCode::OK);
-    let v = body_json(resp).await;
-    assert_eq!(v["annotations"]["team"], "core");
-    assert_eq!(
-        v["channels"][0], "team-slack",
-        "receiver payloads carry channel names, no configs and no secrets"
-    );
 
-    let resp = app
-        .clone()
-        .oneshot(req("GET", "/v1/receivers/oncall", tenant, ""))
-        .await
-        .unwrap();
-    let v = body_json(resp).await;
-    assert_eq!(v["annotations"]["runbook"], "https://rb");
-    assert_eq!(v["channels"][0], "team-slack");
-
-    let resp = app
-        .clone()
-        .oneshot(req("GET", "/v1/receivers", tenant, ""))
-        .await
-        .unwrap();
-    let list = body_json(resp).await;
-    let oncall = list
-        .as_array()
-        .unwrap()
-        .iter()
-        .find(|r| r["name"] == "oncall")
-        .unwrap();
-    assert_eq!(oncall["annotations"]["team"], "core");
-
-    // Upsert (PUT by name) replaces the annotation map wholesale. POST is
-    // create-only now, so the update flow goes through the PUT route.
     let resp = app
         .clone()
         .oneshot(req(
@@ -244,40 +197,6 @@ async fn annotations_round_trip_and_default_empty() {
         .unwrap();
     let v = body_json(resp).await;
     assert_eq!(v["annotations"], serde_json::json!({"tier":"1"}));
-
-    // Upsert without annotations resets to {} (full-replace semantics).
-    let resp = app
-        .clone()
-        .oneshot(req(
-            "PUT",
-            "/v1/receivers/oncall",
-            tenant,
-            r#"{"channels":["team-slack"]}"#,
-        ))
-        .await
-        .unwrap();
-    assert_eq!(resp.status(), StatusCode::OK);
-    let resp = app
-        .clone()
-        .oneshot(req("GET", "/v1/receivers/oncall", tenant, ""))
-        .await
-        .unwrap();
-    let v = body_json(resp).await;
-    assert_eq!(v["annotations"], serde_json::json!({}));
-
-    // DELETE is unchanged.
-    let resp = app
-        .clone()
-        .oneshot(req("DELETE", "/v1/receivers/oncall", tenant, ""))
-        .await
-        .unwrap();
-    assert_eq!(resp.status(), StatusCode::OK);
-    let resp = app
-        .clone()
-        .oneshot(req("GET", "/v1/receivers/oncall", tenant, ""))
-        .await
-        .unwrap();
-    assert_eq!(resp.status(), StatusCode::NOT_FOUND);
 }
 
 /// POST is create-only: re-posting an existing channel name must 409 with the

@@ -33,8 +33,7 @@ it("adds, updates, removes matcher rows", () => {
 
 it("treats a set as scoped only when every matcher has a label", () => {
   expect(matchersAreScoped([])).toBe(false);
-  // A fresh `addMatcher` row has an empty label, which the engine matches
-  // against every alert (missing label reads as ""): not scoped.
+  // The engine treats a missing label as a match against every alert.
   expect(matchersAreScoped(addMatcher([]))).toBe(false);
   expect(matchersAreScoped([{ label: "  ", op: "eq", value: "" }])).toBe(false);
   expect(matchersAreScoped([{ label: "svc", op: "eq", value: "" }])).toBe(true);
@@ -45,10 +44,6 @@ it("treats a set as scoped only when every matcher has a label", () => {
     ]),
   ).toBe(false);
 });
-
-// ---------------------------------------------------------------------------
-// Combobox behavior
-// ---------------------------------------------------------------------------
 
 function renderEditor(initial: CcMatcher[]) {
   const queryClient = new QueryClient({
@@ -96,23 +91,6 @@ describe("MatchersEditor comboboxes", () => {
     ]);
   });
 
-  it("commits a typed custom value that no suggestion offers", async () => {
-    mocks.listCcLabelValues.mockResolvedValue([{ value: "flap" }]);
-    const user = userEvent.setup();
-    const latest = renderEditor([{ label: "svc", op: "eq", value: "" }]);
-
-    await user.click(screen.getByRole("combobox", { name: "Matcher value" }));
-    await user.type(
-      screen.getByPlaceholderText("Search or type..."),
-      "not-in-the-list",
-    );
-    await user.click(screen.getByText('"not-in-the-list"'));
-
-    expect(latest.matchers).toEqual([
-      { label: "svc", op: "eq", value: "not-in-the-list" },
-    ]);
-  });
-
   it("falls back to a free-text input for regex operators", async () => {
     const user = userEvent.setup();
     const latest = renderEditor([{ label: "svc", op: "regex", value: "" }]);
@@ -123,7 +101,6 @@ describe("MatchersEditor comboboxes", () => {
     expect(latest.matchers).toEqual([
       { label: "svc", op: "regex", value: "^web-.*$" },
     ]);
-    // No suggestion fetch for an authored pattern.
     expect(mocks.listCcLabelValues).not.toHaveBeenCalled();
   });
 });

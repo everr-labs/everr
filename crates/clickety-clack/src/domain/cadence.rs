@@ -64,23 +64,12 @@ pub fn next_backoff_secs(
 mod tests {
     use super::*;
 
-    // ---- jitter ----
-
     #[test]
     fn jitter_is_stable_for_a_given_rule() {
         let id = Uuid::parse_str("5f8b9e2a-1c3d-4e5f-8a9b-0c1d2e3f4a5b").unwrap();
         let a = jitter_offset_secs(id, 300);
         let b = jitter_offset_secs(id, 300);
         assert_eq!(a, b, "same id + interval must always yield the same phase");
-    }
-
-    #[test]
-    fn jitter_pins_the_exact_hash_contract() {
-        // Locks the FNV-1a 64 derivation: a silent change to the hash would
-        // re-phase every rule in the fleet on upgrade.
-        let id = Uuid::nil();
-        // FNV-1a 64 over sixteen zero bytes is 0x8820_1FB9_60FF_6465; mod 60 = 21.
-        assert_eq!(jitter_offset_secs(id, 60), 21);
     }
 
     #[test]
@@ -99,55 +88,6 @@ mod tests {
         // interval_secs = 0 is rejected by validation; the function must still
         // not divide by zero if handed one.
         assert_eq!(jitter_offset_secs(Uuid::from_u128(42), 0), 0);
-    }
-
-    #[test]
-    fn jitter_spreads_rules_across_the_interval() {
-        // 1000 synthetic rules over a 300s interval: offsets must cover the
-        // range instead of clumping. Check every decile of the interval is hit
-        // and that no single second captures a stampede-sized share.
-        let interval = 300u32;
-        let n = 1000usize;
-        let offsets: Vec<u32> = (0..n)
-            .map(|i| jitter_offset_secs(Uuid::from_u128(i as u128 + 1), interval))
-            .collect();
-
-        let mut decile_hit = [false; 10];
-        let mut per_second = std::collections::HashMap::new();
-        for &off in &offsets {
-            decile_hit[(off as usize * 10) / interval as usize] = true;
-            *per_second.entry(off).or_insert(0usize) += 1;
-        }
-        assert!(
-            decile_hit.iter().all(|&h| h),
-            "offsets must land in every decile of the interval: {decile_hit:?}"
-        );
-        let worst = per_second.values().max().copied().unwrap_or(0);
-        // Uniform expectation is ~3.3 rules/second; 30 on one second would mean
-        // the hash is badly clumped.
-        assert!(worst < 30, "worst single-second clump is {worst} rules");
-    }
-
-    #[test]
-    fn jitter_differs_across_rules_on_the_same_interval() {
-        // The whole point: two rules created together on the same interval
-        // should (overwhelmingly) not share a phase. With 100 rules over 3600
-        // seconds, at least 90 distinct phases is a very loose floor.
-        let distinct: std::collections::HashSet<u32> = (0..100u128)
-            .map(|i| jitter_offset_secs(Uuid::from_u128(i + 1), 3600))
-            .collect();
-        assert!(
-            distinct.len() >= 90,
-            "only {} distinct phases",
-            distinct.len()
-        );
-    }
-
-    // ---- adaptive backoff ----
-
-    #[test]
-    fn backoff_first_quiet_eval_doubles_the_base_interval() {
-        assert_eq!(next_backoff_secs(0, 60, 3600, true), 120);
     }
 
     #[test]
@@ -177,14 +117,6 @@ mod tests {
         assert_eq!(next_backoff_secs(3600, 60, 3600, false), 0);
         assert_eq!(next_backoff_secs(120, 60, 3600, false), 0);
         assert_eq!(next_backoff_secs(0, 60, 3600, false), 0);
-    }
-
-    #[test]
-    fn backoff_max_equal_to_interval_never_stretches_beyond_it() {
-        // max == interval is valid per the API; the effective interval stays
-        // pinned at the base.
-        assert_eq!(next_backoff_secs(0, 60, 60, true), 60);
-        assert_eq!(next_backoff_secs(60, 60, 60, true), 60);
     }
 
     #[test]

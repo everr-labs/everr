@@ -21,10 +21,6 @@ import type {
 } from "@/data/cc/types";
 import { Route as TriageFileRoute } from "./triage";
 
-// ---------------------------------------------------------------------------
-// Mocks, at the same module boundary as ./rules.test.tsx.
-// ---------------------------------------------------------------------------
-
 const mocks = vi.hoisted(() => ({
   listCcAlerts: vi.fn(),
   listCcRules: vi.fn(),
@@ -48,10 +44,6 @@ vi.mock("@/data/cc/server", () => ({
   listCcEventHistory: mocks.listCcEventHistory,
   createCcSilence: mocks.createCcSilence,
 }));
-
-// ---------------------------------------------------------------------------
-// Fixtures
-// ---------------------------------------------------------------------------
 
 function ccRule(overrides: Partial<CcRuleView> = {}): CcRuleView {
   return {
@@ -127,7 +119,6 @@ function ccSlo(overrides: Partial<CcSlo> = {}): CcSlo {
   };
 }
 
-/** An SLO-sourced burn-rate instance: rule carries the SLO uuid, slo marks it. */
 function sloAlert(overrides: Partial<CcAlert> = {}): CcAlert {
   return ccAlert({
     key: "fp-slo-1",
@@ -196,11 +187,7 @@ function eventRow(overrides: Partial<AlertEventLogRow> = {}): AlertEventLogRow {
   };
 }
 
-/**
- * The default board: one critical rule with a routed firing instance and a
- * pending sibling, one degraded warning rule with a silenced firing instance
- * (its labels match no route), and one inactive instance.
- */
+/** Seed routed, pending, silenced, and inactive instances. */
 function seedBoard() {
   mocks.listCcRules.mockResolvedValue([
     ccRule(),
@@ -245,10 +232,6 @@ function seedBoard() {
   mocks.listCcEventHistory.mockResolvedValue([eventRow()]);
 }
 
-// ---------------------------------------------------------------------------
-// Harness
-// ---------------------------------------------------------------------------
-
 function renderTriageRoute() {
   const rootRoute = createRootRoute({ component: Outlet });
   const authenticatedRoute = createRoute({
@@ -289,7 +272,6 @@ async function expandRowByLabel(
   user: ReturnType<typeof userEvent.setup>,
   text: string,
 ) {
-  // Full-row click: anywhere that is not a link or button toggles expansion.
   await user.click(await screen.findByText(text));
 }
 
@@ -300,13 +282,13 @@ beforeEach(() => {
 });
 
 describe("/alerts/triage route", () => {
-  it("renders the instrument strip counts", async () => {
+  it("counts the board and partitions instances across the three lenses", async () => {
+    const user = userEvent.setup();
     renderTriageRoute();
 
     const strip = await screen.findByRole("region", {
       name: "Alerting status",
     });
-    // 2 firing (fp-1 + fp-3), 1 silenced (fp-3), 1 active silence.
     expect(within(strip).getByText("needs attention")).toBeInTheDocument();
     expect(within(strip).getByText("firing").previousSibling).toHaveTextContent(
       "2",
@@ -317,65 +299,35 @@ describe("/alerts/triage route", () => {
     expect(
       within(strip).getByText("active silences").previousSibling,
     ).toHaveTextContent("1");
-  });
 
-  // Lens assertions scope to the board region: the silences panel below it
-  // renders matcher pills that would otherwise collide with instance labels.
-  it("Firing lens shows unsilenced firing + pending rows and hides silenced ones", async () => {
-    renderTriageRoute();
-
-    // fp-1 (firing) and fp-2 (pending) under the rule's display name.
-    expect(await screen.findByText("Flapping check")).toBeInTheDocument();
-    const board = screen.getByRole("region", { name: "Alert instances" });
-    expect(within(board).getByText("web-1")).toBeInTheDocument();
-    expect(within(board).getByText("pending")).toBeInTheDocument();
-    expect(within(board).getByText("web-2")).toBeInTheDocument();
-    // fp-3 is silenced, fp-4 inactive: neither shows under Firing.
-    expect(within(board).queryByText("api")).not.toBeInTheDocument();
-    expect(within(board).queryByText("web-9")).not.toBeInTheDocument();
-  });
-
-  it("Silenced lens shows only instances matched by an active silence", async () => {
-    const user = userEvent.setup();
-    renderTriageRoute();
-    await screen.findByText("Flapping check");
+    // Firing: unsilenced firing and pending rows, never silenced or inactive.
+    const firing = screen.getByRole("region", { name: "Alert instances" });
+    expect(within(firing).getByText("Flapping check")).toBeInTheDocument();
+    expect(within(firing).getByText("web-1")).toBeInTheDocument();
+    expect(within(firing).getByText("pending")).toBeInTheDocument();
+    expect(within(firing).getByText("web-2")).toBeInTheDocument();
+    expect(within(firing).queryByText("api")).not.toBeInTheDocument();
+    expect(within(firing).queryByText("web-9")).not.toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Silenced" }));
-
-    // fp-3 (svc=api on the api-errors rule) is the one silenced instance.
-    const board = screen.getByRole("region", { name: "Alert instances" });
-    expect(within(board).getByText("api")).toBeInTheDocument();
-    expect(within(board).getByText("api-errors")).toBeInTheDocument();
-    expect(within(board).queryByText("web-1")).not.toBeInTheDocument();
-  });
-
-  it("All lens includes inactive instances", async () => {
-    const user = userEvent.setup();
-    renderTriageRoute();
-    await screen.findByText("Flapping check");
+    const silenced = screen.getByRole("region", { name: "Alert instances" });
+    expect(within(silenced).getByText("api")).toBeInTheDocument();
+    expect(within(silenced).getByText("api-errors")).toBeInTheDocument();
+    expect(within(silenced).queryByText("web-1")).not.toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "All" }));
-
-    const board = screen.getByRole("region", { name: "Alert instances" });
-    expect(within(board).getByText("web-9")).toBeInTheDocument();
-    expect(within(board).getByText("web-1")).toBeInTheDocument();
-    expect(within(board).getByText("api")).toBeInTheDocument();
+    const all = screen.getByRole("region", { name: "Alert instances" });
+    expect(within(all).getByText("web-9")).toBeInTheDocument();
+    expect(within(all).getByText("web-1")).toBeInTheDocument();
+    expect(within(all).getByText("api")).toBeInTheDocument();
   });
 
-  it("resolves the delivery fact through routes: receiver plus channels", async () => {
+  it("resolves the delivery fact through routes and marks the unrouted ones", async () => {
     renderTriageRoute();
 
     expect(await screen.findByText("oncall")).toBeInTheDocument();
     expect(screen.getByText(/team-slack, pd/)).toBeInTheDocument();
-  });
-
-  it("marks unrouted instances as not routed · no subscribers without firehose subscriptions", async () => {
-    renderTriageRoute();
-
-    // fp-2 (host=web-2) matches no route and there are no subscriptions.
-    expect(
-      await screen.findByText("not routed · no subscribers"),
-    ).toBeInTheDocument();
+    expect(screen.getByText("not routed · no subscribers")).toBeInTheDocument();
   });
 
   it("marks unrouted instances as firehose only when subscriptions exist", async () => {
@@ -395,59 +347,24 @@ describe("/alerts/triage route", () => {
     ).toBeInTheDocument();
   });
 
-  it("expands a row with evidence and its runbook action", async () => {
+  it("expands a row into its evidence, runbook, and fingerprint-scoped feed", async () => {
     const user = userEvent.setup();
     renderTriageRoute();
 
     await expandRowByLabel(user, "web-1");
 
+    expect(await screen.findByText("status_code=500")).toBeInTheDocument();
     expect(
       screen.getByText("Fires when the flap condition holds."),
     ).toBeInTheDocument();
-    expect(screen.getByText("status_code=500")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /Runbook/ })).toBeInTheDocument();
-  });
 
-  it("creates a rule-scoped silence from the row actions", async () => {
-    const user = userEvent.setup();
-    renderTriageRoute();
-
-    await expandRowByLabel(user, "web-1");
-    await user.click(screen.getByRole("button", { name: "1h" }));
-
-    expect(mocks.createCcSilence).toHaveBeenCalledTimes(1);
-    const { data } = mocks.createCcSilence.mock.calls[0][0] as {
-      data: {
-        matchers: { label: string; op: string; value: string }[];
-        starts_at: string;
-        ends_at: string;
-      };
-    };
-    // Instance labels pinned with eq, plus the synthetic rule-scoping matcher.
-    expect(data.matchers).toEqual([
-      { label: "host", op: "eq", value: "web-1" },
-      { label: "rule", op: "eq", value: "rule-1" },
-    ]);
-    const windowMs =
-      new Date(data.ends_at).getTime() - new Date(data.starts_at).getTime();
-    expect(windowMs).toBe(3_600_000);
-  });
-
-  it("polls only the newest event for the board and scopes the expanded row's feed by fingerprint", async () => {
-    const user = userEvent.setup();
-    renderTriageRoute();
-
-    await expandRowByLabel(user, "web-1");
-    await screen.findByText("status_code=500");
-
+    // The board polls only the newest event; the expanded row fetches its own
+    // events, narrowed server-side by fingerprint.
     const calls = mocks.listCcEventHistory.mock.calls.map(
       (c) => (c[0] as { data: Record<string, unknown> }).data,
     );
-    // The collapsed board never fetches the full window: its only history
-    // query is the newest-event freshness readout.
     expect(calls).toContainEqual(expect.objectContaining({ limit: 1 }));
-    // The expanded row fetches its own instance's events, narrowed
-    // server-side by fingerprint.
     expect(calls).toContainEqual(
       expect.objectContaining({ fingerprint: "fp-1" }),
     );
@@ -462,8 +379,6 @@ describe("/alerts/triage route", () => {
 
     renderTriageRoute();
 
-    // The group header names the SLO (not the uuid), marks the origin, and
-    // links to the SLO detail page rather than a rule page.
     const sloLink = await screen.findByRole("link", {
       name: "checkout-availability",
     });
@@ -473,38 +388,17 @@ describe("/alerts/triage route", () => {
     );
     expect(screen.getByText("fast-burn")).toBeInTheDocument();
     expect(screen.getByText("checkout")).toBeInTheDocument();
-    // fast-burn is critical in the canonical tiers, so the group joins the
-    // critical band alongside the rule-sourced group (two critical badges).
     expect(screen.getAllByText("critical").length).toBeGreaterThanOrEqual(1);
   });
 
-  it("names an SLO group by its display name when the SLO carries one", async () => {
-    mocks.listCcSlos.mockResolvedValue([
-      ccSlo({
-        spec: {
-          ...ccSlo().spec,
-          annotations: { "everr.display.name": "Checkout Availability" },
-        },
-      }),
+  it("falls back to the short source id, unlinked, when a listing has not caught up", async () => {
+    // Either listing can lag a newly created source, and a short id is no
+    // address to route to.
+    const unknownRuleId = "unknown-rule-id";
+    mocks.listCcAlerts.mockResolvedValue([
+      sloAlert(),
+      ccAlert({ rule: unknownRuleId }),
     ]);
-    mocks.listCcAlerts.mockResolvedValue([sloAlert()]);
-
-    renderTriageRoute();
-
-    const sloLink = await screen.findByRole("link", {
-      name: "Checkout Availability",
-    });
-    expect(sloLink).toHaveAttribute(
-      "href",
-      "/alerts/slos/default/checkout-availability",
-    );
-  });
-
-  it("falls back to the short uuid for an SLO alert whose SLO is unknown, unlinked (no slug address to route to)", async () => {
-    // The SLO list can lag a freshly-created SLO; the group must still render
-    // as SLO-originated (the instance itself carries the slo id), but without
-    // the SLO's own name/slug there is no address to build a slug link from.
-    mocks.listCcAlerts.mockResolvedValue([sloAlert()]);
 
     renderTriageRoute();
 
@@ -513,43 +407,68 @@ describe("/alerts/triage route", () => {
       screen.queryByRole("link", { name: SLO_ID.slice(0, 8) }),
     ).not.toBeInTheDocument();
     expect(screen.getByText("SLO")).toBeInTheDocument();
-  });
-
-  it("falls back to the short rule ID for a rule-sourced alert whose rule is unknown, unlinked (no address to resolve)", async () => {
-    // A rule-sourced alert whose rule is not in the rules list renders
-    // with the short rule ID as plain text, without a link.
-    const unknownRuleId = "unknown-rule-id";
-    mocks.listCcAlerts.mockResolvedValue([ccAlert({ rule: unknownRuleId })]);
-
-    renderTriageRoute();
-
-    await screen.findByText(unknownRuleId.slice(0, 8));
+    expect(screen.getByText(unknownRuleId.slice(0, 8))).toBeInTheDocument();
     expect(
       screen.queryByRole("link", { name: unknownRuleId.slice(0, 8) }),
     ).not.toBeInTheDocument();
   });
 
-  it("creates an slo-scoped silence from an SLO-sourced row", async () => {
-    mocks.listCcSlos.mockResolvedValue([ccSlo()]);
-    mocks.listCcAlerts.mockResolvedValue([sloAlert()]);
-    const user = userEvent.setup();
+  const silenceCases: {
+    source: string;
+    seed: () => void;
+    row: string;
+    matchers: { label: string; op: string; value: string }[];
+  }[] = [
+    {
+      source: "rule-sourced",
+      seed: seedBoard,
+      row: "web-1",
+      matchers: [
+        { label: "host", op: "eq", value: "web-1" },
+        { label: "rule", op: "eq", value: "rule-1" },
+      ],
+    },
+    {
+      source: "SLO-sourced",
+      seed: () => {
+        mocks.listCcSlos.mockResolvedValue([ccSlo()]);
+        mocks.listCcAlerts.mockResolvedValue([sloAlert()]);
+      },
+      row: "checkout",
+      matchers: [
+        { label: "service", op: "eq", value: "checkout" },
+        { label: "slo_tier", op: "eq", value: "fast-burn" },
+        { label: "slo", op: "eq", value: SLO_ID },
+      ],
+    },
+  ];
 
+  it.each(
+    silenceCases,
+  )("silences a $source row for the chosen window, scoped to its source", async ({
+    seed,
+    row,
+    matchers,
+  }) => {
+    seed();
+    const user = userEvent.setup();
     renderTriageRoute();
 
-    await expandRowByLabel(user, "checkout");
+    await expandRowByLabel(user, row);
     await user.click(screen.getByRole("button", { name: "1h" }));
 
     expect(mocks.createCcSilence).toHaveBeenCalledTimes(1);
     const { data } = mocks.createCcSilence.mock.calls[0][0] as {
-      data: { matchers: { label: string; op: string; value: string }[] };
+      data: {
+        matchers: { label: string; op: string; value: string }[];
+        starts_at: string;
+        ends_at: string;
+      };
     };
-    // Instance labels pinned with eq, plus the synthetic slo-scoping matcher
-    // (the dispatcher stamps `slo` on SLO-originated events).
-    expect(data.matchers).toEqual([
-      { label: "service", op: "eq", value: "checkout" },
-      { label: "slo_tier", op: "eq", value: "fast-burn" },
-      { label: "slo", op: "eq", value: SLO_ID },
-    ]);
+    expect(data.matchers).toEqual(matchers);
+    expect(
+      new Date(data.ends_at).getTime() - new Date(data.starts_at).getTime(),
+    ).toBe(3_600_000);
   });
 
   it("shows the all-clear instrument when nothing is firing", async () => {

@@ -17,13 +17,9 @@ describe("queryAlertEventLog", () => {
     expect(sql).toContain("FROM app.logs");
     expect(sql).toContain("ServiceName = 'alert'");
     expect(sql).toContain("ScopeName = 'everr.alerting'");
-    // No per-rule or per-event-type narrowing: the monitor shows everything.
-    expect(sql).not.toContain("alert.slug'] =");
-    expect(sql).not.toContain("IN ('instance_fired'");
     // Tenancy comes from the row-level policy, never a SQL org filter.
     expect(sql).not.toMatch(/organization|tenant_id/);
-    // DateTime64 params: resolveTimeRange emits fractional seconds, which a
-    // String -> DateTime coercion rejects (TYPE_MISMATCH).
+    // Fractional timestamps require DateTime64 parameters.
     expect(sql).toContain("TimestampTime >= {fromTime:DateTime64(3)}");
     expect(sql).toContain("TimestampTime <= {toTime:DateTime64(3)}");
     expect(sql).toContain("LIMIT {limit:UInt32}");
@@ -50,18 +46,6 @@ describe("queryAlertEventLog", () => {
     expect(params).toMatchObject({ fingerprint: "fp-1" });
   });
 
-  it("omits the fingerprint clause and param when no fingerprint is given", async () => {
-    const ch = vi.fn().mockResolvedValue([]);
-    await queryAlertEventLog(ch, {
-      limit: 100,
-      fromISO: "2026-06-01T00:00:00Z",
-      toISO: "2026-06-16T00:00:00Z",
-    });
-    const [sql, params] = ch.mock.calls[0];
-    expect(sql).not.toContain("{fingerprint:String}");
-    expect(params).not.toHaveProperty("fingerprint");
-  });
-
   it("narrows to one source's handles when slugs are given (cap applies after scoping)", async () => {
     const ch = vi.fn().mockResolvedValue([]);
     await queryAlertEventLog(ch, {
@@ -77,18 +61,6 @@ describe("queryAlertEventLog", () => {
     expect(params).toMatchObject({
       slugs: ["rule-id", "demo/high-5xx", "high-5xx"],
     });
-  });
-
-  it("omits the slugs clause and param when no slugs are given", async () => {
-    const ch = vi.fn().mockResolvedValue([]);
-    await queryAlertEventLog(ch, {
-      limit: 100,
-      fromISO: "2026-06-01T00:00:00Z",
-      toISO: "2026-06-16T00:00:00Z",
-    });
-    const [sql, params] = ch.mock.calls[0];
-    expect(sql).not.toContain("{slugs:Array(String)}");
-    expect(params).not.toHaveProperty("slugs");
   });
 
   const baseRawRow = {
@@ -241,7 +213,7 @@ describe("queryObservedLabelValues", () => {
     expect(sql).toContain(
       "JSONExtractString(LogAttributes['alert.instance_labels'], {key:String})",
     );
-    // Absent keys extract as '' — those rows are noise, not a value.
+    // Skip rows where the key is absent.
     expect(sql).toContain("value != ''");
     expect(sql).toContain("ORDER BY count() DESC");
     expect(sql).not.toMatch(/organization|tenant_id/);

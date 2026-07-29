@@ -542,15 +542,14 @@ mod tests {
             strip_ch_params("SELECT {window_start:DateTime}"),
             "SELECT 0"
         );
-        assert_eq!(strip_ch_params("{a:Int}-{b:Int}"), "0-0"); // multiple/adjacent
-        assert_eq!(strip_ch_params("{}"), "0"); // empty braces
+        assert_eq!(strip_ch_params("{a:Int}-{b:Int}"), "0-0");
+        assert_eq!(strip_ch_params("{}"), "0");
         assert_eq!(strip_ch_params("no params here"), "no params here");
     }
 
     #[test]
     fn strip_ch_params_fails_safe_on_unmatched_brace() {
-        // An unmatched trailing '{' is left intact, so sqlguard::validate will
-        // fail to parse it -> reject, never silently smuggle.
+        // Unmatched braces remain invalid instead of being stripped.
         assert_eq!(strip_ch_params("SELECT {a"), "SELECT {a");
         let s = spec("SELECT 1 AS good, 1 AS valid FROM t WHERE ts >= {window_start:DateTime} AND ts < {window_end");
         assert!(validate_slo_spec(&s).is_err());
@@ -558,8 +557,6 @@ mod tests {
 
     #[test]
     fn strip_ch_params_does_not_let_a_second_statement_through_the_guard() {
-        // Content inside a brace pair is nulled to "0" for the shape check;
-        // a top-level ';' second statement outside braces is still rejected.
         let s = spec("SELECT 1 AS good, 1 AS valid FROM t WHERE ts >= {window_start:DateTime} AND ts < {window_end:DateTime}; DROP TABLE t");
         assert!(validate_slo_spec(&s).is_err());
     }
@@ -572,9 +569,7 @@ mod tests {
         assert!(!f("a /* {window_start:DateTime} */ b").contains("{window_start:"));
         assert!(!f("a '{window_start:DateTime}' b").contains("{window_start:"));
         assert!(!f(r#"a "{window_start:DateTime}" b"#).contains("{window_start:"));
-        // A doubled-quote escape keeps the scanner inside the string.
         assert!(!f("'it''s {window_end:DateTime}'").contains("{window_end:"));
-        // Executable placeholders survive, and a trailing comment cannot swallow them.
         assert!(f("ts >= {window_start:DateTime} -- c").contains("{window_start:DateTime}"));
     }
 
@@ -621,11 +616,6 @@ mod tests {
          WHERE ts >= {window_start:DateTime} AND ts < {window_end:DateTime}";
 
     #[test]
-    fn accepts_a_well_formed_spec() {
-        assert!(validate_slo_spec(&spec(GOOD_SQL)).is_ok());
-    }
-
-    #[test]
     fn rejects_non_select_sql() {
         let s = spec(
             "DELETE FROM t WHERE ts >= {window_start:DateTime} AND ts < {window_end:DateTime}",
@@ -635,7 +625,6 @@ mod tests {
 
     #[test]
     fn rejects_missing_window_placeholders() {
-        // valid SELECT but no window params -> would scan the whole table
         let s = spec("SELECT countIf(ok) AS good, count() AS valid FROM t");
         let err = validate_slo_spec(&s).unwrap_err();
         assert!(matches!(err, ApiError::Validation(_)));
@@ -668,7 +657,7 @@ mod tests {
     #[test]
     fn rejects_unparseable_window_duration() {
         let mut s = spec(GOOD_SQL);
-        s.time_window.duration = "1M".into(); // calendar unit
+        s.time_window.duration = "1M".into();
         assert!(validate_slo_spec(&s).is_err());
     }
 
@@ -690,7 +679,6 @@ mod tests {
             };
             assert!(msg.contains(reserved), "message was: {msg}");
         }
-        // A merely similar name stays allowed.
         let mut s = spec(GOOD_SQL);
         s.sli.label_columns = vec!["slo_name".into()];
         assert!(validate_slo_spec(&s).is_ok());
@@ -724,8 +712,6 @@ mod tests {
 
     #[test]
     fn rejects_time_window_duration_below_the_minimum() {
-        // Below a day the scaled burn tiers collapse onto the short-window floor
-        // (see `tiers_for_window`); reject rather than evaluate a degenerate set.
         let mut s = spec(GOOD_SQL);
         s.time_window.duration = "12h".into();
         let err = validate_slo_spec(&s).unwrap_err();

@@ -1,8 +1,7 @@
 import type { ClickhouseQuery } from "@/lib/clickhouse";
 import type { AlertEventType } from "./event-types";
 
-// A JSON value, spelled out so the evidence record stays serializable across the
-// server-fn boundary (a bare `unknown` value trips TanStack's serializer).
+// An explicit JSON type keeps evidence serializable across server functions.
 export type JsonValue =
   | string
   | number
@@ -14,8 +13,7 @@ export type JsonValue =
 // alert.evidence_json decoded: source-row column name -> value.
 export type AlertEvidence = { [key: string]: JsonValue };
 
-// CC's evidence is a JSON object (column -> value). Anything that isn't a plain
-// object (missing attribute, malformed JSON, an array) collapses to null.
+// Evidence must be a JSON object.
 function parseEvidence(json: string): AlertEvidence | null {
   if (!json) return null;
   try {
@@ -24,13 +22,12 @@ function parseEvidence(json: string): AlertEvidence | null {
       return parsed as AlertEvidence;
     }
   } catch {
-    // malformed evidence -> null
+    // Invalid evidence is ignored.
   }
   return null;
 }
 
-// Parse a JSON object of instance labels into a string->string record. CC writes
-// alert.instance_labels as a JSON object of strings; anything else collapses to {}.
+// Parse instance labels into strings.
 function parseStringMap(json: string): Record<string, string> {
   if (!json) return {};
   try {
@@ -44,14 +41,12 @@ function parseStringMap(json: string): Record<string, string> {
       );
     }
   } catch {
-    // malformed labels -> {}
+    // Invalid labels are ignored.
   }
   return {};
 }
 
-// alert.delivery_targets: CC currently emits a comma-joined list of target names,
-// but earlier shapes were JSON (array, or object of channel -> names). Accept all
-// three so the reader survives records from any CC version.
+// Accept current comma-separated targets and legacy JSON shapes.
 function parseDeliveryTargets(raw: string): string[] {
   if (!raw) return [];
   const t = raw.trim();
@@ -67,7 +62,7 @@ function parseDeliveryTargets(raw: string): string[] {
         );
       }
     } catch {
-      // fall through to the comma-joined form
+      // Try the current format.
     }
   }
   return t
@@ -76,12 +71,7 @@ function parseDeliveryTargets(raw: string): string[] {
     .filter((s) => s.length > 0);
 }
 
-/**
- * Distinct label keys alerts have actually carried (the keys of
- * alert.instance_labels across stored CC events), most frequent first. Backs
- * the matcher editors' key suggestions. Row-level security pins the tenant via
- * SQL_everr_tenant_id, so this never filters by organization_id in SQL.
- */
+/** Observed alert label keys, ordered by frequency. */
 export async function queryObservedLabelKeys(
   clickhouse: ClickhouseQuery,
   opts: { limit: number; fromISO: string; toISO: string },
@@ -103,11 +93,7 @@ export async function queryObservedLabelKeys(
   return rows.map((r) => r.key);
 }
 
-/**
- * Distinct values one label key has actually carried across stored CC events,
- * most frequent first. Same tenancy story as queryObservedLabelKeys: the
- * row-level policy handles it, never a SQL org filter.
- */
+/** Observed values for a label key, ordered by frequency. */
 export async function queryObservedLabelValues(
   clickhouse: ClickhouseQuery,
   key: string,
@@ -139,9 +125,7 @@ export type AlertEventLogRow = {
   slug: string; // alert.slug (the rule's first-class `name`, project/slug qualified)
   instanceFingerprint: string;
   labels: Record<string, string>; // alert.instance_labels decoded
-  // alert.severity: CC stamps the rule's severity on alert event logs; empty
-  // on records written before CC started stamping it (readers fall back to the
-  // owning rule's severity for those).
+  // Empty on events written before severity was added.
   severity: string;
   suppressed: boolean; // alert.suppressed === "true"
   silenced: boolean; // alert.silenced === "true" (only on dispatcher records)
@@ -152,8 +136,7 @@ export type AlertEventLogRow = {
 
 type AlertEventLogRawRow = {
   timestamp: string;
-  // Asserted (not validated) at the ClickHouse read boundary: CC is the only
-  // writer of ScopeName='everr.alerting' records and only emits this vocabulary.
+  // CC is the sole writer for this scope and vocabulary.
   eventType: AlertEventType;
   slug: string;
   instanceFingerprint: string;
@@ -167,28 +150,8 @@ type AlertEventLogRawRow = {
 };
 
 /**
- * Rule-agnostic alerting event log from app.logs: every CC event the collector landed
- * (ScopeName='everr.alerting'), regardless of slug or event type. Backs the monitor
- * stream's historical page under the live SSE tail. Row-level security pins the tenant
- * via SQL_everr_tenant_id, so this never filters by organization_id in SQL.
- *
- * ServiceName='alert' is CC's stable resource attribute (src/otel/exporter.rs; the
- * trusted collector pipeline passes it through). Filtering on it lets this scan use
- * the app.logs ORDER BY prefix (tenant_id, ServiceName, TimestampTime) instead of
- * skipping ServiceName. It also skips legacy 'alert-preview' rows from the retired
- * in-process evaluator; CC previews arrive as ServiceName='alert' with
- * alert.suppressed='true'.
- *
- * The time params are DateTime64(3) (not String) because resolveTimeRange emits
- * 'YYYY-MM-DD HH:mm:ss.SSS' and ClickHouse cannot coerce a fractional-seconds
- * string to the column's plain DateTime.
- *
- * `fingerprint` narrows to one alert instance's events server-side (the
- * triage board's expanded-row detail), instead of shipping the whole window
- * and filtering client-side. `slugs` narrows to one source's rule handles the
- * same way: without it, a scoped feed would read the tenant-wide newest-N
- * window, and on a busy tenant other sources can fill that cap and starve the
- * scoped source of its older events.
+ * Reads CC alert history. Row policies enforce tenancy, while optional source
+ * filters apply before the newest-event limit.
  */
 export async function queryAlertEventLog(
   clickhouse: ClickhouseQuery,

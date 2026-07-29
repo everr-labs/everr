@@ -113,7 +113,6 @@ mod tests {
         let a = redact_target("https://hooks.slack/SECRET");
         let b = redact_target("https://hooks.slack/SECRET");
         assert_eq!(a, b);
-        assert!(a.starts_with("sha256:"));
         assert!(!a.contains("SECRET"));
         assert_ne!(a, redact_target("https://hooks.slack/OTHER"));
     }

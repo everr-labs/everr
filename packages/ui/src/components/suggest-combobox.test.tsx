@@ -53,7 +53,6 @@ it("loads suggestions only once opened", async () => {
     ],
   });
 
-  // Closed: nothing fetched, so suggestions can never block typing elsewhere.
   expect(queryFn).not.toHaveBeenCalled();
 
   await user.click(screen.getByRole("combobox", { name: "Matcher value" }));

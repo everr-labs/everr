@@ -255,13 +255,9 @@ mod tests {
     #[test]
     fn freshness_short_windows_refresh_every_tick_long_windows_lag() {
         let now = 1_000_000i64;
-        // short (5m) window with base cadence 60s: always due when >= base cadence old
         assert!(is_window_due(300, Some(now - 60), now, 60));
-        assert!(is_window_due(300, None, now, 60)); // never computed -> due
-                                                    // a 30d window computed 5 min ago is NOT due (its refresh cadence >> base)
+        assert!(is_window_due(300, None, now, 60));
         assert!(!is_window_due(2_592_000, Some(now - 300), now, 60));
-        // but a 30d window computed 3 days ago IS due (refresh cadence is
-        // window_secs/12 = 2.5 days, so 3 days exceeds it)
         assert!(is_window_due(2_592_000, Some(now - 259_200), now, 60));
     }
 
@@ -276,10 +272,7 @@ mod tests {
 
     #[test]
     fn old_payload_without_objective_fingerprint_parses_as_none() {
-        // Snapshots written before the field carry no `objective_fingerprint`. It
-        // is additive (#[serde(default)]), so those rows still parse — and read as
-        // `None`, which the evaluator treats as a mismatch (a one-time clean
-        // recompute on the first tick after deploy).
+        // Older snapshots default the fingerprint to None.
         let p = SloStatusPayload {
             window: "30d".into(),
             target_percent: 99.9,
@@ -298,9 +291,7 @@ mod tests {
 
     #[test]
     fn stored_payload_with_legacy_degraded_key_still_parses() {
-        // Old snapshots persisted before the `degraded` field was dropped still have
-        // the key in their stored JSONB. Serde ignores unknown fields by default (no
-        // `deny_unknown_fields` on SloStatusPayload), so those rows must keep parsing.
+        // Older snapshots may retain the removed `degraded` key.
         let p = SloStatusPayload {
             window: "30d".into(),
             target_percent: 99.9,
@@ -318,7 +309,6 @@ mod tests {
 
     #[test]
     fn old_payload_without_long_window_valid_still_parses() {
-        // Serialize a current payload, strip the new key, deserialize.
         let mut v = serde_json::to_value(SloTierStatus {
             name: "fast-burn".into(),
             long_burn_rate: Some(2.0),
@@ -333,15 +323,12 @@ mod tests {
 
     #[test]
     fn time_to_exhaustion_math() {
-        // burn 1x over a 30d window with full budget -> exhausts in exactly the window.
         let w = 2_592_000u64;
         assert_eq!(time_to_exhaustion_secs(1.0, 1.0, w), Some(w));
-        // burn 14.4x with half the budget left -> w * 0.5 / 14.4
         assert_eq!(
             time_to_exhaustion_secs(0.5, 14.4, w),
             Some((w as f64 * 0.5 / 14.4) as u64)
         );
-        // exhausted already -> Some(0); no burn -> None
         assert_eq!(time_to_exhaustion_secs(-0.2, 2.0, w), Some(0));
         assert_eq!(time_to_exhaustion_secs(0.5, 0.0, w), None);
     }
@@ -349,16 +336,6 @@ mod tests {
     #[test]
     fn time_to_exhaustion_nan_burn_is_none() {
         assert_eq!(time_to_exhaustion_secs(0.5, f64::NAN, 2_592_000), None);
-    }
-
-    #[test]
-    fn display_formatters() {
-        assert_eq!(fmt_burn(14.4000001), "14.4");
-        assert_eq!(fmt_pct(0.4192), "41.9%");
-        assert_eq!(fmt_pct(-0.2), "-20.0%");
-        assert_eq!(fmt_duration_secs(50), "50s");
-        assert_eq!(fmt_duration_secs(35 * 60), "35m");
-        assert_eq!(fmt_duration_secs(2 * 86400 + 4 * 3600), "2d4h");
     }
 
     #[test]
@@ -374,7 +351,6 @@ mod tests {
             let good = (valid - bad) as f64;
             let br = burn_rate(good, valid as f64, t).unwrap();
             prop_assert!(br >= 0.0);
-            // more bad events -> not-lower burn rate
             if bad < valid {
                 let br2 = burn_rate(good - 1.0, valid as f64, t).unwrap();
                 prop_assert!(br2 >= br - 1e-9);

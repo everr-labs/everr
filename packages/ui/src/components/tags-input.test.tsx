@@ -27,8 +27,6 @@ it("removes an earlier tag with the keyboard, not just the last one", async () =
   const user = userEvent.setup();
   const { onChange } = renderTags(["a@x.test", "b@x.test", "c@x.test"]);
 
-  // The per-tag remove buttons are in the tab order: reach the FIRST tag's
-  // button and activate it without touching the later ones.
   await user.tab();
   const removeFirst = screen.getByRole("button", { name: "Remove a@x.test" });
   expect(removeFirst).toHaveFocus();

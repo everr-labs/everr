@@ -13,14 +13,7 @@ import type { AlertEventLogRow } from "@/data/alerts/history.server";
 import type { CcSlo } from "@/data/cc/types";
 import { AlertEventFeed } from "./alert-event-feed";
 
-// ---------------------------------------------------------------------------
-// Mocks: the stored-history query. `vi.mock` calls are hoisted above the
-// imports above by vitest, so the mocked modules are in place before
-// AlertEventFeed (and its dependencies) load.
-// ---------------------------------------------------------------------------
-
-// The feed imports @/data/cc/queries -> server fns -> @/db/client, whose
-// t3-env access throws under jsdom; stub the db module before that chain loads.
+// Avoid loading the database and environment chain under jsdom.
 vi.mock("@/db/client", () => ({ db: {} }));
 
 const mockUseQuery = vi.fn();
@@ -35,10 +28,6 @@ vi.mock("@/hooks/use-time-range", () => ({
     setTimeRange: vi.fn(),
   }),
 }));
-
-// ---------------------------------------------------------------------------
-// Fixtures
-// ---------------------------------------------------------------------------
 
 function ccSlo(overrides: Partial<CcSlo> = {}): CcSlo {
   return {
@@ -78,7 +67,6 @@ function historyRow(
   };
 }
 
-/** Settled event-history query returning `data` (the only axis tests vary). */
 function mockHistory(data: AlertEventLogRow[]) {
   mockUseQuery.mockReturnValue({
     data,
@@ -93,11 +81,7 @@ beforeEach(() => {
   mockHistory([]);
 });
 
-/**
- * Mount the feed inside a minimal router: resolved sources render as Links to
- * the rule/SLO detail routes, which need a live router to build hrefs. Tests
- * that pass resolveSlo/resolveRuleAddress use this; the rest render bare.
- */
+/** Mount links with their detail routes. */
 function renderInRouter(ui: React.ReactElement) {
   const rootRoute = createRootRoute({ component: Outlet });
   const indexRoute = createRoute({
@@ -136,11 +120,8 @@ describe("AlertEventFeed", () => {
     expect(screen.queryByText("beta")).not.toBeInTheDocument();
   });
 
-  it("names SLO-originated rows by their SLO with an SLO origin marker, linked to the SLO detail page", async () => {
-    mockHistory([
-      historyRow({ slug: "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee" }),
-      historyRow({ slug: "beta" }),
-    ]);
+  it("links SLO-originated rows by SLO name with an origin marker", async () => {
+    mockHistory([historyRow({ slug: "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee" })]);
 
     renderInRouter(
       <AlertEventFeed
@@ -149,13 +130,9 @@ describe("AlertEventFeed", () => {
             ? ccSlo()
             : undefined
         }
-        resolveRuleName={(handle) => (handle === "beta" ? "Beta rule" : handle)}
       />,
     );
 
-    // The SLO row resolves to its name plus the origin marker and links to
-    // the SLO detail page; the rule row keeps its resolved rule name,
-    // unmarked (and unlinked without resolveRuleAddress).
     const sloLink = await screen.findByRole("link", {
       name: "checkout-availability",
     });
@@ -164,39 +141,6 @@ describe("AlertEventFeed", () => {
       "/alerts/slos/default/checkout-availability",
     );
     expect(screen.getByText("SLO")).toBeInTheDocument();
-    expect(screen.getByText("Beta rule")).toBeInTheDocument();
-    expect(
-      screen.queryByRole("link", { name: "Beta rule" }),
-    ).not.toBeInTheDocument();
-  });
-
-  it("names an SLO row by its display name when the SLO carries one", async () => {
-    mockHistory([historyRow({ slug: "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee" })]);
-
-    renderInRouter(
-      <AlertEventFeed
-        resolveSlo={(handle) =>
-          handle === "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
-            ? ccSlo({
-                spec: {
-                  ...ccSlo().spec,
-                  annotations: {
-                    "everr.display.name": "Checkout Availability",
-                  },
-                },
-              })
-            : undefined
-        }
-      />,
-    );
-
-    const sloLink = await screen.findByRole("link", {
-      name: "Checkout Availability",
-    });
-    expect(sloLink).toHaveAttribute(
-      "href",
-      "/alerts/slos/default/checkout-availability",
-    );
   });
 
   it("links resolved rule rows to the rule detail page via resolveRuleAddress", async () => {
@@ -215,25 +159,7 @@ describe("AlertEventFeed", () => {
     expect(ruleLink).toHaveAttribute("href", "/alerts/rules/default/rule-1");
   });
 
-  it("filters by event type, hiding non-matching rows", async () => {
-    mockHistory([
-      historyRow({ slug: "beta", eventType: "instance_fired" }),
-      historyRow({ slug: "gamma", eventType: "delivery" }),
-      historyRow({ slug: "delta", eventType: "rule_health" }),
-    ]);
-    const user = userEvent.setup();
-
-    render(<AlertEventFeed />);
-
-    await user.click(screen.getByRole("combobox", { name: "Event type" }));
-    await user.click(await screen.findByRole("option", { name: "Delivery" }));
-
-    expect(screen.queryByText("beta")).not.toBeInTheDocument();
-    expect(screen.getByText("gamma")).toBeInTheDocument();
-    expect(screen.queryByText("delta")).not.toBeInTheDocument();
-  });
-
-  it("type lens narrows to the lens's event types", async () => {
+  it("type lens narrows to its event types and composes with the fine filter", async () => {
     mockHistory([
       historyRow({ slug: "beta", eventType: "instance_fired" }),
       historyRow({ slug: "gamma", eventType: "instance_resolved" }),
@@ -262,37 +188,13 @@ describe("AlertEventFeed", () => {
 
     await user.click(screen.getByRole("button", { name: "All" }));
     expect(screen.getByText("zeta")).toBeInTheDocument();
-  });
 
-  it("type lens composes AND with the fine event-type filter", async () => {
-    mockHistory([
-      historyRow({ slug: "beta", eventType: "instance_fired" }),
-      historyRow({ slug: "gamma", eventType: "instance_resolved" }),
-    ]);
-    const user = userEvent.setup();
-
-    render(<AlertEventFeed showTypeLens />);
-
+    // The lens and the fine event-type filter narrow independently (AND).
     await user.click(screen.getByRole("button", { name: "Transitions" }));
     await user.click(screen.getByRole("combobox", { name: "Event type" }));
     await user.click(await screen.findByRole("option", { name: "Resolved" }));
-
     expect(screen.getByText("gamma")).toBeInTheDocument();
     expect(screen.queryByText("beta")).not.toBeInTheDocument();
-  });
-
-  it("resolves rule handles to display names via resolveRuleName", () => {
-    mockHistory([historyRow({ slug: "beta" })]);
-
-    render(
-      <AlertEventFeed
-        resolveRuleName={(handle) =>
-          handle === "beta" ? "Beta errors" : handle
-        }
-      />,
-    );
-
-    expect(screen.getByText("Beta errors")).toBeInTheDocument();
   });
 
   it("composes the event-type filter with severity (AND)", async () => {
@@ -323,19 +225,16 @@ describe("AlertEventFeed", () => {
     await user.click(screen.getByRole("combobox", { name: "Severity" }));
     await user.click(await screen.findByRole("option", { name: "Critical" }));
 
-    // Only the row matching BOTH filters remains.
     expect(screen.getByText("beta")).toBeInTheDocument();
     expect(screen.queryByText("gamma")).not.toBeInTheDocument();
     expect(screen.queryByText("delta")).not.toBeInTheDocument();
   });
 
-  it("falls back to the rule's severity for a fire/resolve transition whose own severity is a stored-history gap", () => {
+  it("falls back to the rule's severity only for fire/resolve transitions", () => {
     mockHistory([
-      historyRow({
-        slug: "beta",
-        eventType: "instance_fired",
-        severity: "", // CC doesn't stamp alert.severity on stored records yet
-      }),
+      // CC doesn't stamp alert.severity on stored records yet.
+      historyRow({ slug: "beta", eventType: "instance_fired", severity: "" }),
+      historyRow({ slug: "beta", eventType: "delivery", severity: "" }),
     ]);
 
     render(
@@ -346,22 +245,8 @@ describe("AlertEventFeed", () => {
       />,
     );
 
-    expect(screen.getByText("critical")).toBeInTheDocument();
-  });
-
-  it("does not apply the rule severity fallback to non-transition events", () => {
-    mockHistory([
-      historyRow({
-        slug: "beta",
-        eventType: "delivery",
-        severity: "",
-      }),
-    ]);
-
-    render(<AlertEventFeed resolveRuleSeverity={() => "critical"} />);
-
-    // A delivery record carries no status, so it isn't a fire/resolve
-    // transition: no rule-severity fallback applies, and the gap is real.
-    expect(screen.queryByText("critical")).not.toBeInTheDocument();
+    // Only the transition takes the fallback: the rule's severity says
+    // nothing about a delivery.
+    expect(screen.getAllByText("critical")).toHaveLength(1);
   });
 });

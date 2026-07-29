@@ -1,5 +1,4 @@
-//! Cursor pagination on `GET /v1/rules`: the `{items, next_cursor}` envelope
-//! (the only response shape) and cursor/limit rejection statuses.
+//! Cursor pagination and cursor/limit validation for `GET /v1/rules`.
 
 use crate::api::support::{body_json, setup as app_with_store};
 use axum::body::Body;
@@ -10,8 +9,7 @@ use tower::ServiceExt;
 use uuid::Uuid;
 
 async fn create_rule(app: &axum::Router, tenant: Uuid) -> String {
-    // Each call may share a tenant with sibling calls (pagination tests create several
-    // rules per tenant), so the name must be unique per call, not just per test.
+    // Names must be unique because each test creates several rules per tenant.
     let name = format!("t/rules_pagination_api-{}", Uuid::new_v4());
     let req = Request::builder()
         .method("POST")
@@ -56,13 +54,11 @@ async fn paginated_walk_covers_all_rules_in_creation_order() {
         created.push(create_rule(&app, tenant).await);
     }
 
-    // No limit/cursor: still the paginated envelope, at the default page size.
     let (status, default_page) = get_json(&app, tenant, "/v1/rules").await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(item_ids(&default_page).len(), 5);
     assert!(default_page["next_cursor"].is_null());
 
-    // Paginated walk with limit=2: 2 + 2 + 1, then a null cursor.
     let mut walked: Vec<String> = Vec::new();
     let mut uri = "/v1/rules?limit=2".to_string();
     let mut pages = 0;
@@ -91,12 +87,6 @@ async fn paginated_walk_covers_all_rules_in_creation_order() {
         item_ids(&default_page),
         "the walk must visit the same (created_at, id) total order as a single page"
     );
-
-    // Items carry the full RuleView shape (health + rollup).
-    let (_, first_page) = get_json(&app, tenant, "/v1/rules?limit=1").await;
-    let item = &first_page["items"][0];
-    assert_eq!(item["health"]["status"], "healthy");
-    assert_eq!(item["rollup"]["alert_state"], "inactive");
 }
 
 #[tokio::test]

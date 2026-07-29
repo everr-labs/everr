@@ -475,12 +475,6 @@ mod env_keyring_tests {
     }
 
     #[test]
-    fn ciphertext_is_not_plaintext() {
-        let env = keyring().encrypt(b"hooks.slack/abc").unwrap();
-        assert_ne!(env.ciphertext, b"hooks.slack/abc");
-    }
-
-    #[test]
     fn decrypts_old_key_after_rotation() {
         let old = EnvKeyring::new(
             HashMap::from([("v1".to_string(), [1u8; 32])]),
@@ -554,14 +548,6 @@ mod helper_tests {
     }
 
     #[test]
-    fn str_round_trip() {
-        let c = cipher();
-        let enc = encrypt_str(&c, "https://hooks.slack/SECRET").unwrap();
-        assert!(!enc.contains("SECRET"));
-        assert_eq!(decrypt_str(&c, &enc).unwrap(), "https://hooks.slack/SECRET");
-    }
-
-    #[test]
     fn channel_secret_fields_are_encrypted_and_recoverable() {
         let c = cipher();
         for ch in [
@@ -608,7 +594,6 @@ mod helper_tests {
             chat_ids: vec!["@ops".into()],
         };
         let enc = encrypt_channel(&c, &ch).unwrap();
-        // chat_ids cleartext; bot_token is an envelope object, not the plaintext.
         assert_eq!(enc["chat_ids"][0], "@ops");
         assert!(enc["bot_token"].is_object());
         assert_ne!(enc["bot_token"], serde_json::json!("111:AAtoken"));

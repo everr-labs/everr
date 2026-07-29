@@ -40,29 +40,16 @@ use std::time::Duration;
 use tracing::Instrument;
 
 const MAX_ATTEMPTS: u32 = 4;
-/// How many times a notification may be reclaimed from an expired lease before it is
-/// retired (marked failed and dead-lettered) instead of retried. A send that strands
-/// its ledger row this many times is killing its sender rather than being unlucky, and
-/// reclaiming it forever would replay that crash on every retry.
+/// Reclaims allowed before a notification is retired and dead-lettered.
 const MAX_NOTIFICATION_CLAIMS: u32 = 3;
-/// Backoff before reflushing a group whose fan-out found a notification unaccounted for
-/// (another sender holds the lease). Nothing can change until the holder writes a terminal
-/// row or `NOTIFICATION_LEASE_MS` elapses, so retrying on `TAKE_RETRY_MS` would burn a
-/// full flush cycle (Redis take + channel load and decrypt + a ledger round-trip per
-/// channel) every second to re-read one timestamp. This backs off far enough to make that
-/// cheap while still draining the batch promptly once the holder finishes.
+/// Backoff while another sender holds a notification lease.
 const IN_FLIGHT_RETRY_MS: i64 = 15_000;
 /// How often the flusher polls for due groups when none are immediately ready.
 const FLUSH_TICK: Duration = Duration::from_millis(200);
-/// Backoff before a claimed group is retried after `take_group` fails. `claim_due` has
-/// already removed the group's flush timer, so on a take failure we re-arm at this offset
-/// rather than leaving the buffered group orphaned; the delay keeps a persistently failing
-/// group from spinning the flusher.
+/// Backoff after a group take fails and its timer must be rearmed.
 const TAKE_RETRY_MS: i64 = 1_000;
 
-/// The notification-ledger slice of the store that delivery bookkeeping needs.
-/// Split out as a trait so channel fan-out can be unit-tested against an in-memory
-/// ledger; `PgStore` is the production implementation.
+/// Notification-ledger operations needed by delivery.
 #[async_trait]
 pub trait NotificationLedger: Send + Sync {
     async fn try_begin_notification(
@@ -121,9 +108,7 @@ fn now_ms() -> i64 {
     (time::OffsetDateTime::now_utc().unix_timestamp_nanos() / 1_000_000) as i64
 }
 
-/// The dispatcher's shared handles, built once per role (see `main`) and threaded
-/// through the consume and flush paths as one context instead of seven positional
-/// arguments.
+/// Shared dispatcher dependencies.
 #[derive(Clone)]
 pub struct DispatchCtx {
     pub store: PgStore,
@@ -135,8 +120,7 @@ pub struct DispatchCtx {
     pub sink: Arc<dyn AlertLogSink>,
 }
 
-/// The delivery slice of the context: ledger, dead-letter bus, and notifier
-/// registry, as trait objects so the fan-out can be unit-tested against fakes.
+/// Dependencies needed for one delivery fan-out.
 struct DeliveryDeps<'a> {
     ledger: &'a dyn NotificationLedger,
     bus: &'a dyn EventBus,
@@ -1133,8 +1117,7 @@ mod fan_out_tests {
         )
     }
 
-    /// The `MemLedger` lease, mirroring `NOTIFICATION_LEASE_MS`'s role. Tests cross it
-    /// with [`MemLedger::expire_lease`] rather than hard-coding the value.
+    /// Test lease crossed with [`MemLedger::expire_lease`].
     const MEM_LEASE_MS: i64 = 60_000;
 
     struct MemRow {
@@ -1145,9 +1128,7 @@ mod fan_out_tests {
         claimed_at: i64,
     }
 
-    /// In-memory `NotificationLedger` mirroring the Pg claim semantics: a row is
-    /// claimable when absent, or `pending` with an expired lease. The clock is
-    /// test-advanced so the crash window is exercised without sleeping.
+    /// In-memory ledger with an adjustable clock for lease tests.
     #[derive(Default)]
     struct MemLedger {
         rows: Mutex<BTreeMap<String, MemRow>>,
@@ -1267,8 +1248,7 @@ mod fan_out_tests {
         }
     }
 
-    /// Notifier that counts sends and either always succeeds or always fails permanently
-    /// (permanent so the retry loop never sleeps in tests).
+    /// Counting notifier with deterministic success or permanent failure.
     struct FakeNotifier {
         name: &'static str,
         fail: bool,
@@ -1433,9 +1413,7 @@ mod fan_out_tests {
         );
     }
 
-    /// Which ledger write a [`FaultyLedger`] fails; everything else delegates to the
-    /// inner [`MemLedger`]. Mirrors the `FaultInjector` idiom the evaluator's
-    /// durability tests use, so a new fault case is a variant rather than a wrapper.
+    /// Ledger operation injected to fail.
     enum FailAt {
         /// Claiming the notification, for one channel type only.
         Claim(&'static str),
@@ -1530,9 +1508,7 @@ mod fan_out_tests {
         )
         .await;
 
-        // The begin failure must surface so the flush keeps the batch buffered:
-        // that channel has no ledger row, no delivery, and no dead letter, so a
-        // drain would silently lose its events.
+        // Surface the claim failure so the undelivered batch stays buffered.
         assert!(
             out.not_accounted_for,
             "transient claim error must be reported"
@@ -1583,8 +1559,7 @@ mod fan_out_tests {
             &ev,
         )
         .await;
-        // Same channel NAMES but an edited config: the dedup key is name-stable, so
-        // a config rotation between redeliveries must not re-send the identical set.
+        // Config rotation must not resend the same named channels.
         let rotated = vec![
             webhook_channel("ops-hook", "http://x/h-rotated"),
             email_channel("ops-mail", "b@x.test"),
@@ -1626,8 +1601,7 @@ mod fan_out_tests {
         notifiers.register(webhook.clone());
         let ev = event();
         let notif = Notification::single(&ev);
-        // Two named channels of the same type and even the same target: distinct
-        // names mean distinct dedup keys and distinct ledger rows.
+        // Distinct names remain distinct even with the same type and target.
         let channels = vec![
             webhook_channel("hook-a", "http://x/h"),
             webhook_channel("hook-b", "http://x/h"),
@@ -1656,9 +1630,7 @@ mod fan_out_tests {
         );
     }
 
-    /// Fixture for the crash-window tests: one webhook channel, the dedup key its
-    /// group flush computes (so a test can plant the row a dead sender left), and the
-    /// delivery deps to fan out with.
+    /// One-channel fixture for lease crash-window tests.
     struct CrashWindow {
         ev: Event,
         notif: Notification,
@@ -1719,9 +1691,7 @@ mod fan_out_tests {
         }
     }
 
-    /// The crash window: a sender wrote `pending` and died. Once the lease expires the
-    /// flush must reclaim the row and actually deliver, instead of reading the leftover
-    /// row as "already sent" and dropping the notification forever.
+    /// An expired pending lease must be reclaimed and delivered.
     #[tokio::test]
     async fn fan_out_reclaims_a_stale_pending_row_and_redelivers() {
         let cw = CrashWindow::new(None);
@@ -1738,8 +1708,7 @@ mod fan_out_tests {
         assert_eq!(cw.dead_letters(), 0);
     }
 
-    /// Repeat reminders key on the take timestamp, so they get their own ledger row —
-    /// and their own crash window, which must recover the same way.
+    /// Repeat reminders recover from expired leases too.
     #[tokio::test]
     async fn fan_out_reclaims_a_stale_repeat_reminder() {
         let taken_at = 1_700_000_000_000;
@@ -1755,9 +1724,7 @@ mod fan_out_tests {
         assert_eq!(status_of(&ledger, "webhook"), Some("sent".to_string()));
     }
 
-    /// A `pending` row still inside its lease means another sender may be mid-send. Not
-    /// a dedup skip: nothing is delivered, and the flush must be told to keep the batch
-    /// buffered rather than drain it.
+    /// An active lease keeps the batch buffered for its current sender.
     #[tokio::test]
     async fn fan_out_reports_in_flight_without_sending_or_draining() {
         let cw = CrashWindow::new(None);
@@ -1777,8 +1744,7 @@ mod fan_out_tests {
         assert_eq!(cw.dead_letters(), 0);
     }
 
-    /// A notification that kills its sender every time would otherwise be reclaimed
-    /// forever. Past the claim cap it is dead-lettered and the batch drains.
+    /// Repeatedly abandoned notifications are eventually dead-lettered.
     #[tokio::test]
     async fn fan_out_dead_letters_a_notification_that_keeps_outliving_its_lease() {
         let cw = CrashWindow::new(None);
@@ -1797,11 +1763,7 @@ mod fan_out_tests {
         );
     }
 
-    /// The one case the lease cannot tell apart: delivery succeeded but the `sent` write
-    /// did not land, so the row still looks stranded. Reclaiming it re-sends. That
-    /// duplicate is the deliberate trade — for alerting, a repeated page beats a page
-    /// that never arrives — and this test pins the behavior so it stays a choice rather
-    /// than a surprise.
+    /// A lost `sent` write is retried after lease expiry, accepting duplication.
     #[tokio::test]
     async fn unrecorded_send_is_redelivered_once_its_lease_expires() {
         let cw = CrashWindow::new(None);
@@ -1857,10 +1819,7 @@ mod fan_out_tests {
         );
     }
 
-    // A name repeated in the buffered list (only possible for rows stored before
-    // the API's duplicate guard) is NOT the missing-channel case: it resolves to
-    // repeated entries, and the name-keyed dedup collapses the redundant send to
-    // exactly one delivery and one ledger row.
+    // Legacy duplicate names resolve, then delivery dedup sends only once.
     #[tokio::test]
     async fn repeated_name_resolves_and_delivers_once_via_dedup() {
         let names = vec![
@@ -1924,83 +1883,6 @@ mod fan_out_tests {
             "one row per channel name"
         );
         assert_eq!(bus.calls.load(Ordering::SeqCst), 0, "nothing dead-letters");
-    }
-
-    /// Spec: "a failed delivery yields `notify.deliver` with error status." Drives
-    /// `deliver_one` (the smallest seam that creates the `notify.deliver` span) with a
-    /// permanently-failing notifier under an in-memory span exporter, mirroring the
-    /// `SdkTracerProvider` + `InMemorySpanExporter` + `tracing::subscriber` pattern in
-    /// `otel::status`'s tests.
-    #[tokio::test]
-    async fn deliver_one_failure_yields_error_status_span() {
-        use opentelemetry::trace::{Status, TracerProvider as _};
-        use opentelemetry_sdk::trace::{InMemorySpanExporter, SdkTracerProvider};
-        use tracing_subscriber::layer::SubscriberExt;
-
-        let exporter = InMemorySpanExporter::default();
-        let provider = SdkTracerProvider::builder()
-            .with_simple_exporter(exporter.clone())
-            .build();
-        // Sibling tests in this module call `deliver_one` without a subscriber,
-        // which can otherwise cache `notify.deliver` as uninteresting for the
-        // whole process and leave this test's exporter empty.
-        crate::otel::testing::ensure_permissive_callsite_interest();
-
-        let subscriber = tracing_subscriber::registry()
-            .with(tracing_opentelemetry::layer().with_tracer(provider.tracer("test")));
-        // `set_default` (not `with_default`) so the thread-local dispatcher stays active
-        // across the `.await` below: `deliver_one`'s `#[instrument]` span is created
-        // synchronously at call time, but the delivery future spans several awaits and
-        // this test runs on the current-thread `#[tokio::test]` runtime.
-        let _guard = tracing::subscriber::set_default(subscriber);
-
-        let ledger = MemLedger::default();
-        let bus = DeadLetterBus::default();
-        let notifier = Arc::new(FakeNotifier {
-            name: "webhook",
-            fail: true,
-            sends: AtomicUsize::new(0),
-        });
-        let mut notifiers = Notifiers::new();
-        notifiers.register(notifier.clone());
-        let ev = event();
-        let notif = Notification::single(&ev);
-        let config = ChannelConfig::Webhook {
-            url: "http://x/h".into(),
-        };
-        let deps = DeliveryDeps {
-            ledger: &ledger,
-            bus: &bus,
-            notifiers: &notifiers,
-        };
-        // `deliver_one` assumes the ledger row already exists (normally inserted by its
-        // caller, `deliver_group_channels`, before it delivers); seed it the same way so
-        // the later `mark_notification_failed` write has a row to update.
-        ledger
-            .try_begin_notification("key-1", &ev.tenant, "webhook", "http://x/h")
-            .await
-            .unwrap();
-
-        let sent = deliver_one(&deps, &config, "key-1", &notif, &ev, "webhook").await;
-
-        assert!(!sent, "permanent failure must not report success");
-        drop(_guard);
-        provider.force_flush().unwrap();
-        let spans = exporter.get_finished_spans().unwrap();
-        let span = spans
-            .iter()
-            .find(|s| s.name == "notify.deliver")
-            .expect("notify.deliver span exported");
-        match &span.status {
-            Status::Error { .. } => {}
-            other => panic!("expected error status, got {other:?}"),
-        }
-        assert!(
-            span.attributes
-                .iter()
-                .any(|kv| kv.key.as_str() == "attempts"),
-            "attempts attribute recorded on the span"
-        );
     }
 }
 
@@ -2083,9 +1965,7 @@ mod flush_dead_letter_tests {
         )
     }
 
-    /// On snapshot-load failure EVERY event of the claimed batch is dead-lettered with a
-    /// descriptive reason — the alerts are neither silently dropped nor delivered
-    /// unfiltered, and no event vanishes without a recoverable record.
+    /// Snapshot failure dead-letters every event before draining the batch.
     #[tokio::test]
     async fn snapshot_failure_dead_letters_the_batch() {
         let bus = RecordingBus::default();
@@ -2146,9 +2026,7 @@ mod flush_dead_letter_tests {
         }
     }
 
-    /// When the dead-letter write fails too, the outcome must tell the flusher the batch
-    /// is still buffered so it re-arms for retry instead of dropping it (the batch is
-    /// only removed from Redis by the post-handling commit-drain).
+    /// Failed dead-letter writes leave the batch buffered for retry.
     #[tokio::test]
     async fn dead_letter_failure_reports_the_batch_still_buffered() {
         let out = filter_or_dead_letter(

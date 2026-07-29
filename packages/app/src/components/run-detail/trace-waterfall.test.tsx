@@ -112,20 +112,41 @@ const hierarchicalSpans: Span[] = [
   }),
 ];
 
-describe("TraceWaterfall", () => {
-  it("renders span names", () => {
-    renderWaterfall(flatSpans);
-    expectSpansVisible("Job A", "Job B");
-  });
+const mixedSpans: Span[] = [
+  makeSpan({
+    spanId: "fast",
+    name: "Fast Span",
+    startTime: 0,
+    endTime: 100,
+    duration: 100,
+  }),
+  makeSpan({
+    spanId: "medium",
+    name: "Medium Span",
+    startTime: 0,
+    endTime: 500,
+    duration: 500,
+  }),
+  makeSpan({
+    spanId: "slow",
+    name: "Slow Span",
+    startTime: 0,
+    endTime: 1000,
+    duration: 1000,
+  }),
+];
 
-  it("renders duration labels", () => {
+describe("TraceWaterfall", () => {
+  it("renders each span with its duration label", () => {
     renderWaterfall(flatSpans);
+
+    expectSpansVisible("Job A", "Job B");
     expect(screen.getByText("500ms")).toBeInTheDocument();
     expect(screen.getByText("600ms")).toBeInTheDocument();
   });
 
-  it("shows zero-duration markers when totalDuration is 0", () => {
-    const zeroSpans = [
+  it("renders spans when totalDuration is 0", () => {
+    renderWaterfall([
       makeSpan({
         spanId: "z",
         name: "Zero",
@@ -133,284 +154,150 @@ describe("TraceWaterfall", () => {
         endTime: 100,
         duration: 0,
       }),
-    ];
-    renderWaterfall(zeroSpans);
+    ]);
+
     expect(screen.getByRole("button", { name: /Zero/ })).toBeInTheDocument();
   });
 
-  describe("Expand / Collapse", () => {
-    it("Collapse All hides children", async () => {
-      const user = renderWaterfall(hierarchicalSpans);
+  it("renders a framework icon only for spans with a test framework", () => {
+    renderWaterfall([
+      makeSpan({ spanId: "t1", name: "TestAdd", testFramework: "vitest" }),
+      makeSpan({ spanId: "t2", name: "Job A" }),
+    ]);
 
-      // Children visible initially
-      expectSpansVisible("Child One", "Child Two");
-
-      await user.click(screen.getByRole("button", { name: /Collapse All/ }));
-
-      expectSpansHidden("Child One", "Child Two");
-      // Root is still visible
-      expectSpansVisible("Root Span");
-    });
-
-    it("Expand All restores children after collapse", async () => {
-      const user = renderWaterfall(hierarchicalSpans);
-
-      await user.click(screen.getByRole("button", { name: /Collapse All/ }));
-      expectSpansHidden("Child One");
-
-      await user.click(screen.getByRole("button", { name: /Expand All/ }));
-      expectSpansVisible("Child One", "Child Two");
-    });
+    expect(screen.getAllByRole("img")).toHaveLength(1);
   });
 
-  describe("Focus feature", () => {
-    it("each span row has a focus button", () => {
-      renderWaterfall(flatSpans);
-      expect(getFocusButtons()).toHaveLength(2);
-    });
+  it("collapses and re-expands every parent span", async () => {
+    const user = renderWaterfall(hierarchicalSpans);
 
-    it("clicking focus shows the span name in a toolbar badge", async () => {
-      const user = renderWaterfall(flatSpans);
+    expectSpansVisible("Child One", "Child Two");
 
-      // No badge initially
-      expect(
-        screen.queryByRole("button", { name: "Clear focus" }),
-      ).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: /Collapse All/ }));
 
-      await user.click(getFocusButtons()[0]);
+    expectSpansHidden("Child One", "Child Two");
+    expectSpansVisible("Root Span");
 
-      // Badge appears with the focused span's name
-      expect(within(getFocusBadge()).getByText("Job A")).toBeInTheDocument();
-    });
+    await user.click(screen.getByRole("button", { name: /Expand All/ }));
 
-    it("clicking Clear focus removes the badge", async () => {
-      const user = renderWaterfall(flatSpans);
-
-      await user.click(getFocusButtons()[0]);
-
-      await user.click(screen.getByRole("button", { name: "Clear focus" }));
-      expect(
-        screen.queryByRole("button", { name: "Clear focus" }),
-      ).not.toBeInTheDocument();
-    });
-
-    it("time markers update to reflect focused span duration", async () => {
-      // Total range = 700ms. Markers at: 0, 140, 280, 420, 560, 700ms
-      // Span X duration = 400ms is NOT a marker value, so no collision
-      // After focusing Span X: markers at: 0, 80, 160, 240, 320, 400ms
-      const spans: Span[] = [
-        makeSpan({
-          spanId: "x",
-          name: "Span X",
-          startTime: 0,
-          endTime: 400,
-          duration: 400,
-        }),
-        makeSpan({
-          spanId: "y",
-          name: "Span Y",
-          startTime: 100,
-          endTime: 700,
-          duration: 600,
-        }),
-      ];
-      const user = renderWaterfall(spans);
-
-      // Before focus: the last marker is "700ms"
-      expect(screen.getByText("700ms")).toBeInTheDocument();
-
-      // Focus on Span X (400ms)
-      await user.click(getFocusButtons()[0]);
-
-      // After focus: markers should reflect 400ms range, not 700ms
-      expect(screen.queryByText("700ms")).not.toBeInTheDocument();
-      expect(screen.getAllByText("400ms").length).toBeGreaterThanOrEqual(1);
-    });
-
-    it("focusing a different span replaces the badge", async () => {
-      const user = renderWaterfall(flatSpans);
-
-      const focusButtons = getFocusButtons();
-
-      // Focus on Job A
-      await user.click(focusButtons[0]);
-      const badge = getFocusBadge();
-      expect(within(badge).getByText("Job A")).toBeInTheDocument();
-
-      // Focus on Job B instead
-      await user.click(focusButtons[1]);
-      expect(within(badge).queryByText("Job A")).not.toBeInTheDocument();
-      expect(within(badge).getByText("Job B")).toBeInTheDocument();
-    });
+    expectSpansVisible("Child One", "Child Two");
   });
 
-  describe("Duration filter", () => {
-    const mixedSpans: Span[] = [
+  it("focuses a span, replaces the focus, then clears it", async () => {
+    const user = renderWaterfall(flatSpans);
+
+    expect(
+      screen.queryByRole("button", { name: "Clear focus" }),
+    ).not.toBeInTheDocument();
+
+    const focusButtons = getFocusButtons();
+    await user.click(focusButtons[0]);
+
+    const badge = getFocusBadge();
+    expect(within(badge).getByText("Job A")).toBeInTheDocument();
+
+    await user.click(focusButtons[1]);
+
+    expect(within(badge).queryByText("Job A")).not.toBeInTheDocument();
+    expect(within(badge).getByText("Job B")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Clear focus" }));
+
+    expect(
+      screen.queryByRole("button", { name: "Clear focus" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("rescales the time markers to the focused span", async () => {
+    // Total range = 700ms. Markers at: 0, 140, 280, 420, 560, 700ms
+    // Span X duration = 400ms is NOT a marker value, so no collision
+    // After focusing Span X: markers at: 0, 80, 160, 240, 320, 400ms
+    const user = renderWaterfall([
       makeSpan({
-        spanId: "fast",
-        name: "Fast Span",
+        spanId: "x",
+        name: "Span X",
         startTime: 0,
-        endTime: 100,
-        duration: 100,
+        endTime: 400,
+        duration: 400,
       }),
       makeSpan({
-        spanId: "medium",
-        name: "Medium Span",
-        startTime: 0,
-        endTime: 500,
-        duration: 500,
+        spanId: "y",
+        name: "Span Y",
+        startTime: 100,
+        endTime: 700,
+        duration: 600,
+      }),
+    ]);
+
+    expect(screen.getByText("700ms")).toBeInTheDocument();
+
+    await user.click(getFocusButtons()[0]);
+
+    expect(screen.queryByText("700ms")).not.toBeInTheDocument();
+    expect(screen.getAllByText("400ms").length).toBeGreaterThanOrEqual(1);
+  });
+
+  it("hides spans below the minimum duration until the filter is cleared", async () => {
+    const user = renderWaterfall(mixedSpans);
+    const input = await typeMinimumDuration(user, "500ms");
+
+    expectSpansHidden("Fast Span");
+    expectSpansVisible("Medium Span", "Slow Span");
+    expect(screen.getByText("2 of 3 spans")).toBeInTheDocument();
+
+    await user.clear(input);
+
+    expectSpansVisible("Fast Span", "Medium Span", "Slow Span");
+    expect(screen.queryByText("2 of 3 spans")).not.toBeInTheDocument();
+  });
+
+  it("toggles the span detail panel when a span is clicked", async () => {
+    const user = renderWaterfall(flatSpans);
+
+    await user.click(screen.getByRole("button", { name: /Job A/ }));
+    expect(screen.getByRole("heading", { name: "Job A" })).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /Job A/ }));
+    expect(
+      screen.queryByRole("heading", { name: "Job A" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("shows test attributes in the detail panel", async () => {
+    const user = renderWaterfall([
+      makeSpan({
+        spanId: "case",
+        name: "formats milliseconds",
+        testName: "src/test.ts > formatDuration > formats milliseconds",
+        testResult: "pass",
+        testFramework: "vitest",
+        testLanguage: "typescript",
       }),
       makeSpan({
-        spanId: "slow",
-        name: "Slow Span",
-        startTime: 0,
-        endTime: 1000,
-        duration: 1000,
+        spanId: "nested",
+        name: "Nested Suite",
+        testName: "src/test.ts > outer > inner",
+        testResult: "pass",
+        testFramework: "vitest",
+        isSuite: true,
+        isSubtest: true,
       }),
-    ];
+    ]);
 
-    it("hides spans below the minimum duration", async () => {
-      const user = renderWaterfall(mixedSpans);
-      await typeMinimumDuration(user, "500ms");
+    await user.click(
+      screen.getByRole("button", { name: /formats milliseconds/ }),
+    );
 
-      expectSpansHidden("Fast Span");
-    });
+    const frameworkRow = screen.getByText("Framework").parentElement;
+    assert(frameworkRow instanceof HTMLElement, "expected framework row");
+    expect(within(frameworkRow).getByText("vitest")).toBeInTheDocument();
 
-    it("keeps spans at or above the threshold visible", async () => {
-      const user = renderWaterfall(mixedSpans);
-      await typeMinimumDuration(user, "500ms");
+    const languageRow = screen.getByText("Language").parentElement;
+    assert(languageRow instanceof HTMLElement, "expected language row");
+    expect(within(languageRow).getByText("typescript")).toBeInTheDocument();
 
-      expectSpansVisible("Medium Span", "Slow Span");
-    });
+    await user.click(screen.getByRole("button", { name: /Nested Suite/ }));
 
-    it("filters using seconds notation", async () => {
-      const user = renderWaterfall(mixedSpans);
-      await typeMinimumDuration(user, "1s");
-
-      expectSpansHidden("Fast Span", "Medium Span");
-      expectSpansVisible("Slow Span");
-    });
-
-    it("clearing the filter restores all spans", async () => {
-      const user = renderWaterfall(mixedSpans);
-      const input = await typeMinimumDuration(user, "500ms");
-
-      expectSpansHidden("Fast Span");
-
-      await user.clear(input);
-
-      expectSpansVisible("Fast Span", "Medium Span", "Slow Span");
-    });
-
-    it("shows filtered span count when filter is active", async () => {
-      const user = renderWaterfall(mixedSpans);
-      await typeMinimumDuration(user, "500ms");
-
-      expect(screen.getByText("2 of 3 spans")).toBeInTheDocument();
-    });
-
-    it("treats plain numbers as milliseconds", async () => {
-      const user = renderWaterfall(mixedSpans);
-      await typeMinimumDuration(user, "500");
-
-      expectSpansHidden("Fast Span");
-      expectSpansVisible("Medium Span");
-    });
-  });
-
-  describe("Framework icons", () => {
-    it("renders a framework icon for spans with testFramework", () => {
-      const spans: Span[] = [
-        makeSpan({
-          spanId: "t1",
-          name: "TestAdd",
-          testFramework: "vitest",
-        }),
-        makeSpan({
-          spanId: "t2",
-          name: "Job A",
-        }),
-      ];
-      renderWaterfall(spans);
-
-      const icons = screen.getAllByRole("img");
-      expect(icons).toHaveLength(1);
-    });
-  });
-
-  describe("Selection", () => {
-    it("clicking a span opens the detail panel", async () => {
-      const user = renderWaterfall(flatSpans);
-
-      expect(
-        screen.queryByRole("heading", { name: "Job A" }),
-      ).not.toBeInTheDocument();
-
-      await user.click(screen.getByRole("button", { name: /Job A/ }));
-      expect(
-        screen.getByRole("heading", { name: "Job A" }),
-      ).toBeInTheDocument();
-    });
-
-    it("clicking the same span again closes the detail panel", async () => {
-      const user = renderWaterfall(flatSpans);
-
-      await user.click(screen.getByRole("button", { name: /Job A/ }));
-      expect(
-        screen.getByRole("heading", { name: "Job A" }),
-      ).toBeInTheDocument();
-
-      await user.click(screen.getByRole("button", { name: /Job A/ }));
-      expect(
-        screen.queryByRole("heading", { name: "Job A" }),
-      ).not.toBeInTheDocument();
-    });
-
-    it("shows suite and subtest types independently in the detail panel", async () => {
-      const spans: Span[] = [
-        makeSpan({
-          spanId: "suite-subtest",
-          name: "Nested Suite",
-          testName: "src/test.ts > outer > inner",
-          testResult: "pass",
-          testFramework: "vitest",
-          isSuite: true,
-          isSubtest: true,
-        }),
-      ];
-
-      const user = renderWaterfall(spans);
-
-      await user.click(screen.getByRole("button", { name: /Nested Suite/ }));
-
-      expect(screen.getByText("Suite, Subtest")).toBeInTheDocument();
-    });
-
-    it("shows framework and language in the detail panel for test spans", async () => {
-      const spans: Span[] = [
-        makeSpan({
-          spanId: "typed-test",
-          name: "formats milliseconds",
-          testName: "src/test.ts > formatDuration > formats milliseconds",
-          testResult: "pass",
-          testFramework: "vitest",
-          testLanguage: "typescript",
-        }),
-      ];
-
-      const user = renderWaterfall(spans);
-
-      await user.click(
-        screen.getByRole("button", { name: /formats milliseconds/ }),
-      );
-
-      const frameworkRow = screen.getByText("Framework").parentElement;
-      assert(frameworkRow instanceof HTMLElement, "expected framework row");
-      expect(within(frameworkRow).getByText("vitest")).toBeInTheDocument();
-
-      const languageRow = screen.getByText("Language").parentElement;
-      assert(languageRow instanceof HTMLElement, "expected language row");
-      expect(within(languageRow).getByText("typescript")).toBeInTheDocument();
-    });
+    expect(screen.getByText("Suite, Subtest")).toBeInTheDocument();
   });
 });

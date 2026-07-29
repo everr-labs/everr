@@ -17,11 +17,9 @@ const DEADLETTER: &str = "cc:events:deadletter";
 
 pub struct RedisEventBus {
     conn: ConnectionManager,
-    /// Minimum PEL idle time (ms) before a pending entry is reclaimed. Defaults
-    /// to `PEL_RECLAIM_IDLE_MS`; overridable via `with_reclaim_idle_ms`.
+    /// Minimum idle time before a pending entry is reclaimed.
     reclaim_idle_ms: usize,
-    /// Detects when XAUTOCLAIM is unsupported (Redis < 6.2) to skip reclaim probes
-    /// without repeatedly logging. Prevents a warn-per-poll flood on older Redis versions.
+    /// Disables reclaim after detecting Redis without XAUTOCLAIM.
     reclaim_unsupported: Arc<AtomicBool>,
     /// Per-group probe throttles (see [`ReclaimProbe`]): the dispatcher and
     /// log-export groups are consumed by independent loops sharing this handle.
@@ -30,9 +28,7 @@ pub struct RedisEventBus {
 }
 
 impl RedisEventBus {
-    /// Connect and ensure both consumer groups exist (idempotent): the dispatcher group
-    /// and the independent `cc:logexport` group consumed by the `events` role. Competing
-    /// consumer groups each receive every event, so log-export never steals deliveries.
+    /// Connect and create independent dispatcher and log-export consumer groups.
     pub async fn connect(url: &str) -> Result<Self, QueueError> {
         let client = redis::Client::open(url)?;
         let mut conn = ConnectionManager::new(client).await?;
@@ -55,20 +51,13 @@ impl RedisEventBus {
         })
     }
 
-    /// Test seam: shrink the PEL reclaim idle threshold so container tests don't
-    /// have to wait out the full crash-recovery cadence. Production callers should
-    /// leave this at the `PEL_RECLAIM_IDLE_MS` default set by `connect`.
+    /// Override the reclaim threshold for integration tests.
     pub fn with_reclaim_idle_ms(mut self, ms: usize) -> Self {
         self.reclaim_idle_ms = ms;
         self
     }
 
-    /// Steal `cc:events` entries idle for at least `reclaim_idle_ms` in `group`'s
-    /// pending-entries-list and hand them to `consumer`, via the shared
-    /// [`reclaim_pending_raw`] pass (see there for the XAUTOCLAIM semantics, the
-    /// pre-6.2 degrade-to-no-op behavior, and the poison-pill rationale). Returns
-    /// parsed entries; unparseable ones are acked in `group` so they aren't
-    /// reclaimed (and fail) forever.
+    /// Reclaim idle events, acking malformed payloads as poison pills.
     async fn reclaim_pending(
         &self,
         group: &str,
@@ -76,9 +65,6 @@ impl RedisEventBus {
         consumer: &str,
         count: usize,
     ) -> Result<Vec<EventEntry>, QueueError> {
-        // Throttled like `RedisQueue::consume_stream`: entries need
-        // `reclaim_idle_ms` of idleness before they are reclaimable, so probing
-        // on every read is wasted round trips.
         if !probe.due(self.reclaim_idle_ms) {
             return Ok(Vec::new());
         }
@@ -119,9 +105,7 @@ impl RedisEventBus {
         Ok(out)
     }
 
-    /// Shared read path for both consumer groups: reclaim pre-pass over `group`'s
-    /// PEL (crash recovery for a consumer that died mid-delivery), then a blocking
-    /// group read of new entries.
+    /// Reclaim abandoned events, then block for new ones.
     async fn consume_group(
         &self,
         group: &str,
@@ -241,8 +225,7 @@ impl EventBus for RedisEventBus {
             Ok(_) => Ok((0..evs.len()).collect()),
             Err(e) => {
                 tracing::warn!(error = %e, "publish_batch pipeline failed; falling back to per-event publish");
-                // Pipeline failed wholesale: fall back to per-event publish for exact
-                // partial-success accounting (so we only delete outbox rows that landed).
+                // Fall back per event so outbox deletion remains exact.
                 let mut ok = Vec::with_capacity(evs.len());
                 for (i, ev) in evs.iter().enumerate() {
                     if self.publish(ev).await.is_ok() {

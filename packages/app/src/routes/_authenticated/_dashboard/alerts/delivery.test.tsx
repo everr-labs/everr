@@ -13,11 +13,6 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { CcChannel, CcReceiver, CcRoute } from "@/data/cc/types";
 import { Route as DeliveryFileRoute } from "./delivery";
 
-// ---------------------------------------------------------------------------
-// Mocks at the module boundary the route (and the builder drawers it renders)
-// talk to: the data module, plus sonner so surfaced errors are assertable.
-// ---------------------------------------------------------------------------
-
 const mocks = vi.hoisted(() => ({
   listCcRoutes: vi.fn(),
   listCcReceivers: vi.fn(),
@@ -75,10 +70,6 @@ vi.mock("sonner", () => ({
   },
 }));
 
-// ---------------------------------------------------------------------------
-// Fixtures
-// ---------------------------------------------------------------------------
-
 function receiver(overrides: Partial<CcReceiver> = {}): CcReceiver {
   return {
     id: "11111111-1111-1111-1111-111111111111",
@@ -115,10 +106,6 @@ function route(overrides: Partial<CcRoute> = {}): CcRoute {
     ...overrides,
   };
 }
-
-// ---------------------------------------------------------------------------
-// Harness
-// ---------------------------------------------------------------------------
 
 function renderDeliveryRoute() {
   const rootRoute = createRootRoute({ component: Outlet });
@@ -168,8 +155,6 @@ beforeEach(() => {
   mocks.listCcRules.mockResolvedValue([]);
   mocks.listCcSlos.mockResolvedValue([]);
   mocks.listCcSubscriptions.mockResolvedValue([]);
-  // No canned suggestions: the preview helper below always goes through the
-  // custom-entry row, proving a pair outside the suggestion list previews too.
   mocks.listCcLabelKeys.mockResolvedValue([]);
   mocks.listCcLabelValues.mockResolvedValue([]);
 });
@@ -210,7 +195,8 @@ describe("/alerts/delivery route drawer", () => {
 });
 
 describe("/alerts/delivery channels section", () => {
-  it("creates a channel from the drawer with the {name, config} payload shape", async () => {
+  it("creates a channel with the {name, config} payload shape, once the name is free and the config complete", async () => {
+    mocks.listCcChannels.mockResolvedValue([channel({ name: "team-slack" })]);
     mocks.createCcChannel.mockResolvedValue(channel({ name: "hook" }));
     const user = userEvent.setup();
 
@@ -220,20 +206,27 @@ describe("/alerts/delivery channels section", () => {
       await screen.findByRole("button", { name: "New channel" }),
     );
     const dialog = await screen.findByRole("dialog");
-
-    // Incomplete form: no name, no URL yet.
     const create = within(dialog).getByRole("button", {
       name: "Create channel",
     });
+    const name = within(dialog).getByLabelText("Name");
     expect(create).toBeDisabled();
 
-    await user.type(within(dialog).getByLabelText("Name"), "hook");
+    await user.type(name, "hook");
     expect(create).toBeDisabled();
     await user.type(
       within(dialog).getByLabelText("Webhook URL"),
       "https://example.com/hook",
     );
     expect(create).toBeEnabled();
+
+    // A taken name is blocked here rather than by CC's 409.
+    await user.clear(name);
+    await user.type(name, "team-slack");
+    expect(create).toBeDisabled();
+
+    await user.clear(name);
+    await user.type(name, "hook");
     await user.click(create);
 
     await waitFor(() =>
@@ -249,70 +242,38 @@ describe("/alerts/delivery channels section", () => {
     );
   });
 
-  it("blocks a duplicate channel name before CC answers 409", async () => {
+  it("deletes a channel, surfacing the engine's 409 (referring receivers) when it refuses", async () => {
     mocks.listCcChannels.mockResolvedValue([channel({ name: "team-slack" })]);
-    const user = userEvent.setup();
-
-    renderDeliveryRoute();
-
-    await user.click(
-      await screen.findByRole("button", { name: "New channel" }),
-    );
-    const dialog = await screen.findByRole("dialog");
-    await user.type(within(dialog).getByLabelText("Name"), "team-slack");
-    await user.type(
-      within(dialog).getByLabelText("Webhook URL"),
-      "https://example.com/hook",
-    );
-
-    expect(
-      within(dialog).getByRole("button", { name: "Create channel" }),
-    ).toBeDisabled();
-    expect(mocks.createCcChannel).not.toHaveBeenCalled();
-  });
-
-  it("deletes an unreferenced channel", async () => {
-    mocks.listCcChannels.mockResolvedValue([channel({ name: "spare" })]);
-    mocks.deleteCcChannel.mockResolvedValue({ deleted: true });
-    const user = userEvent.setup();
-
-    renderDeliveryRoute();
-
-    await user.click(
-      await screen.findByRole("button", { name: "Delete channel" }),
-    );
-
-    await waitFor(() =>
-      expect(mocks.deleteCcChannel).toHaveBeenCalledWith({
-        data: { name: "spare" },
-      }),
-    );
-    expect(mocks.toastSuccess).toHaveBeenCalledWith("Channel deleted");
-  });
-
-  it("surfaces the engine's 409 (referring receivers) when a referenced channel is deleted", async () => {
-    mocks.listCcChannels.mockResolvedValue([channel({ name: "team-slack" })]);
-    mocks.deleteCcChannel.mockRejectedValue(
+    mocks.deleteCcChannel.mockRejectedValueOnce(
       new Error("channel is referenced by receivers: oncall, ops"),
     );
     const user = userEvent.setup();
 
     renderDeliveryRoute();
 
-    await user.click(
-      await screen.findByRole("button", { name: "Delete channel" }),
-    );
-
+    const remove = await screen.findByRole("button", {
+      name: "Delete channel",
+    });
+    await user.click(remove);
     await waitFor(() =>
       expect(mocks.toastError).toHaveBeenCalledWith(
         "channel is referenced by receivers: oncall, ops",
       ),
     );
+
+    mocks.deleteCcChannel.mockResolvedValue({ deleted: true });
+    await user.click(remove);
+    await waitFor(() =>
+      expect(mocks.deleteCcChannel).toHaveBeenLastCalledWith({
+        data: { name: "team-slack" },
+      }),
+    );
+    expect(mocks.toastSuccess).toHaveBeenCalledWith("Channel deleted");
   });
 });
 
 describe("/alerts/delivery receivers section", () => {
-  it("creates a receiver by picking existing channels (names-only payload)", async () => {
+  it("creates a receiver by picking existing channels (names-only payload), needing a free name and at least one channel", async () => {
     mocks.listCcChannels.mockResolvedValue([
       channel({ name: "team-slack", config: { type: "slack", url: "***" } }),
       channel({
@@ -320,6 +281,7 @@ describe("/alerts/delivery receivers section", () => {
         config: { type: "email", to: ["ops@example.com"] },
       }),
     ]);
+    mocks.listCcReceivers.mockResolvedValue([receiver({ name: "oncall" })]);
     mocks.createCcReceiver.mockResolvedValue(
       receiver({ name: "multi", channels: ["team-slack", "ops-mail"] }),
     );
@@ -334,18 +296,25 @@ describe("/alerts/delivery receivers section", () => {
     const create = within(dialog).getByRole("button", {
       name: "Create receiver",
     });
+    const name = within(dialog).getByLabelText("Name");
+    const teamSlack = within(dialog).getByRole("checkbox", {
+      name: "Channel team-slack",
+    });
 
-    await user.type(within(dialog).getByLabelText("Name"), "multi");
-    // Picker validation: no channel picked yet.
+    // A taken name is blocked here rather than by CC's 409.
+    await user.type(name, "oncall");
+    await user.click(teamSlack);
     expect(create).toBeDisabled();
-    expect(
-      within(dialog).getByText("Pick at least one channel"),
-    ).toBeInTheDocument();
 
-    await user.click(
-      within(dialog).getByRole("checkbox", { name: "Channel team-slack" }),
-    );
+    await user.clear(name);
+    await user.type(name, "multi");
     expect(create).toBeEnabled();
+
+    // The pick is a real requirement, on the way out as well as in.
+    await user.click(teamSlack);
+    expect(create).toBeDisabled();
+
+    await user.click(teamSlack);
     await user.click(
       within(dialog).getByRole("checkbox", { name: "Channel ops-mail" }),
     );
@@ -361,85 +330,28 @@ describe("/alerts/delivery receivers section", () => {
     );
   });
 
-  it("unpicking a channel disables create again (at least one required)", async () => {
-    mocks.listCcChannels.mockResolvedValue([channel({ name: "team-slack" })]);
-    const user = userEvent.setup();
-
-    renderDeliveryRoute();
-
-    await user.click(
-      await screen.findByRole("button", { name: "New receiver" }),
-    );
-    const dialog = await screen.findByRole("dialog");
-    await user.type(within(dialog).getByLabelText("Name"), "picked");
-    const box = within(dialog).getByRole("checkbox", {
-      name: "Channel team-slack",
-    });
-    const create = within(dialog).getByRole("button", {
-      name: "Create receiver",
-    });
-
-    await user.click(box);
-    expect(create).toBeEnabled();
-    await user.click(box);
-    expect(create).toBeDisabled();
-    expect(mocks.createCcReceiver).not.toHaveBeenCalled();
-  });
-
-  it("blocks a duplicate receiver name before CC answers 409", async () => {
-    mocks.listCcChannels.mockResolvedValue([channel({ name: "oncall-hook" })]);
+  it("deletes a receiver, surfacing the engine's message when the deletion is rejected", async () => {
     mocks.listCcReceivers.mockResolvedValue([receiver({ name: "oncall" })]);
+    mocks.deleteCcReceiver.mockRejectedValueOnce(new Error("not found"));
     const user = userEvent.setup();
 
     renderDeliveryRoute();
 
-    await user.click(
-      await screen.findByRole("button", { name: "New receiver" }),
-    );
-    const dialog = await screen.findByRole("dialog");
-    await user.type(within(dialog).getByLabelText("Name"), "oncall");
-    await user.click(
-      within(dialog).getByRole("checkbox", { name: "Channel oncall-hook" }),
-    );
-
-    expect(
-      within(dialog).getByRole("button", { name: "Create receiver" }),
-    ).toBeDisabled();
-    expect(mocks.createCcReceiver).not.toHaveBeenCalled();
-  });
-
-  it("deletes a receiver", async () => {
-    mocks.listCcReceivers.mockResolvedValue([receiver({ name: "oncall" })]);
-    mocks.deleteCcReceiver.mockResolvedValue({ deleted: true });
-    const user = userEvent.setup();
-
-    renderDeliveryRoute();
-
-    await user.click(
-      await screen.findByRole("button", { name: "Delete receiver" }),
-    );
-
+    const remove = await screen.findByRole("button", {
+      name: "Delete receiver",
+    });
+    await user.click(remove);
     await waitFor(() =>
-      expect(mocks.deleteCcReceiver).toHaveBeenCalledWith({
+      expect(mocks.toastError).toHaveBeenCalledWith("not found"),
+    );
+
+    mocks.deleteCcReceiver.mockResolvedValue({ deleted: true });
+    await user.click(remove);
+    await waitFor(() =>
+      expect(mocks.deleteCcReceiver).toHaveBeenLastCalledWith({
         data: { name: "oncall" },
       }),
     );
     expect(mocks.toastSuccess).toHaveBeenCalledWith("Receiver deleted");
-  });
-
-  it("surfaces the engine's error message when a deletion is rejected", async () => {
-    mocks.listCcReceivers.mockResolvedValue([receiver({ name: "oncall" })]);
-    mocks.deleteCcReceiver.mockRejectedValue(new Error("not found"));
-    const user = userEvent.setup();
-
-    renderDeliveryRoute();
-
-    await user.click(
-      await screen.findByRole("button", { name: "Delete receiver" }),
-    );
-
-    await waitFor(() =>
-      expect(mocks.toastError).toHaveBeenCalledWith("not found"),
-    );
   });
 });

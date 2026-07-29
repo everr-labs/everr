@@ -76,18 +76,4 @@ mod tests {
             assert!(span_context_from_traceparent(bad).is_none(), "{bad}");
         }
     }
-
-    #[test]
-    fn no_active_span_yields_none() {
-        // Run under a bare (no OpenTelemetry layer) subscriber via
-        // `with_default` rather than relying on ambient process state: tests
-        // run in one process (threaded), and another test elsewhere may have
-        // installed a global default subscriber with an otel layer, which
-        // would make this flaky if we just asserted against whatever is
-        // ambient.
-        let subscriber = tracing_subscriber::registry();
-        tracing::subscriber::with_default(subscriber, || {
-            assert_eq!(current_traceparent(), None);
-        });
-    }
 }

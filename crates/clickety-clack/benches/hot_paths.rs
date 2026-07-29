@@ -83,10 +83,7 @@ fn inhibition(source: Vec<Matcher>, target: Vec<Matcher>, equal: &[&str]) -> Inh
     }
 }
 
-// The CPU-side decision `process_event` makes before any Redis/Postgres I/O: build the
-// matchable label set, test silences, test inhibitions, select grouping targets. elements/sec
-// is the single-core ceiling for that decision, not for dispatch as a whole, which is gated by
-// snapshot load and group writes.
+// Benchmark the CPU-only routing decision before Redis or Postgres I/O.
 fn bench_route_decision(c: &mut Criterion) {
     let now = OffsetDateTime::UNIX_EPOCH;
     let ev = Event {
@@ -111,7 +108,7 @@ fn bench_route_decision(c: &mut Criterion) {
         traceparent: None,
     };
 
-    // A handful of routes; the matching one is last (worst case: full walk).
+    // Put the matching route last to force a full walk.
     let routes = vec![
         route("a", false, vec![m("svc", MatchOp::Eq, "web")]),
         route("b", false, vec![m("severity", MatchOp::Eq, "critical")]),
@@ -119,14 +116,12 @@ fn bench_route_decision(c: &mut Criterion) {
         route("d", false, vec![m("svc", MatchOp::Regex, "db-.*")]),
         route("ops", false, vec![m("svc", MatchOp::Eq, "api")]),
     ];
-    // Active silences that exercise the matcher path but do not match the event.
     let silences = vec![
         silence(vec![m("svc", MatchOp::Eq, "web")], now),
         silence(vec![m("k1", MatchOp::Eq, "other")], now),
         silence(vec![m("severity", MatchOp::Eq, "critical")], now),
     ];
-    // Target matches (so the firing set is scanned) but `equal` never lines up: the common
-    // "checked, not inhibited" path.
+    // Scan the firing set without finding an inhibition match.
     let inhibitions = vec![inhibition(
         vec![m("severity", MatchOp::Eq, "critical")],
         vec![m("severity", MatchOp::Eq, "warning")],

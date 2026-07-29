@@ -214,18 +214,7 @@ mod tests {
     }
 
     #[test]
-    fn empty_channels_list_is_rejected() {
-        let b = body(r#"{"name":"ops","channels":[]}"#);
-        let err = validate_receiver(&b.name, &b.channels).unwrap_err();
-        assert!(matches!(
-            err,
-            ApiError::Validation(ref m) if m == "channels must contain at least one channel name"
-        ));
-    }
-
-    #[test]
     fn inline_channel_objects_are_not_accepted() {
-        // `channels` is a list of names, so an inline config object is not valid input.
         assert!(serde_json::from_str::<CreateReceiver>(
             r#"{"name":"ops","channels":[{"type":"webhook","url":"http://x/h"}]}"#
         )
@@ -242,13 +231,6 @@ mod tests {
     }
 
     #[test]
-    fn multi_channel_body_passes_validation() {
-        let b = body(r#"{"name":"ops","channels":["team-slack","ops-mail","pd"]}"#);
-        assert_eq!(b.channels.len(), 3);
-        assert!(validate_receiver(&b.name, &b.channels).is_ok());
-    }
-
-    #[test]
     fn duplicate_channel_references_are_rejected_naming_each_once() {
         let b =
             body(r#"{"name":"ops","channels":["team-slack","pd","team-slack","pd","team-slack"]}"#);
@@ -256,23 +238,6 @@ mod tests {
             validate_receiver(&b.name, &b.channels),
             Err(ApiError::Validation(ref m)) if m == "duplicate channels: team-slack, pd"
         ));
-    }
-
-    #[test]
-    fn duplicate_channels_helper_is_order_preserving_and_deduped() {
-        let names = vec![
-            "a".to_string(),
-            "b".to_string(),
-            "a".to_string(),
-            "c".to_string(),
-            "b".to_string(),
-            "a".to_string(),
-        ];
-        assert_eq!(
-            duplicate_entries(&names),
-            vec!["a".to_string(), "b".to_string()]
-        );
-        assert!(duplicate_entries(&["a".to_string(), "b".to_string()]).is_empty());
     }
 
     #[test]

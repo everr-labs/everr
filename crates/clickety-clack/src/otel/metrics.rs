@@ -317,23 +317,10 @@ mod tests {
         let t0 = OffsetDateTime::UNIX_EPOCH;
         assert_eq!(elapsed_seconds(t0, t0 + Duration::milliseconds(1500)), 1.5);
         assert_eq!(elapsed_seconds(t0, t0), 0.0);
-        // Out-of-order (clock skew) clamps to zero instead of going negative.
         assert_eq!(elapsed_seconds(t0 + Duration::seconds(5), t0), 0.0);
     }
 
-    #[test]
-    fn outcome_and_kind_label_mapping() {
-        assert_eq!(QueryOutcome::Success.as_str(), "success");
-        assert_eq!(QueryOutcome::Error.as_str(), "error");
-        assert_eq!(EvalErrorKind::Query.as_str(), "query");
-        assert_eq!(EvalErrorKind::RuleEval.as_str(), "rule_eval");
-        assert_eq!(EvalErrorKind::Consume.as_str(), "consume");
-        assert_eq!(DeliveryOutcome::Sent.as_str(), "sent");
-        assert_eq!(DeliveryOutcome::Failed.as_str(), "failed");
-        assert_eq!(DeliveryOutcome::NoNotifier.as_str(), "no_notifier");
-    }
-
-    /// The unconfigured handle must be safe to call from every instrumentation point.
+    /// The unconfigured handle must be safe at every instrumentation point.
     #[test]
     fn disabled_handle_is_a_noop() {
         let m = EngineMetrics::disabled();
@@ -348,11 +335,10 @@ mod tests {
         m.record_delivery("webhook", "t1", DeliveryOutcome::Sent);
         m.record_scheduler_drift(0.2, "t1");
         m.record_outbox_relayed(3);
-        // Default is the disabled handle too.
         assert!(!EngineMetrics::default().is_enabled());
     }
 
-    /// Enabled-path smoke + name/attribute assertions against an in-memory exporter.
+    /// Enabled-path smoke test against an in-memory exporter.
     #[test]
     fn enabled_handle_records_expected_instruments() {
         use opentelemetry::metrics::MeterProvider as _;

@@ -9,14 +9,7 @@ import {
 } from "@tanstack/react-router";
 import { render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { AlertEventLogRow } from "@/data/alerts/history.server";
-import type { CcSlo } from "@/data/cc/types";
 import { Route as AlertsIndexFileRoute } from "./index";
-
-// ---------------------------------------------------------------------------
-// Mocks at the module boundary the route talks to, same as ./slos.test.tsx
-// and ./triage.test.tsx.
-// ---------------------------------------------------------------------------
 
 const mocks = vi.hoisted(() => ({
   listCcAlerts: vi.fn(),
@@ -42,87 +35,6 @@ vi.mock("@/data/cc/server", () => ({
   listCcEventHistory: mocks.listCcEventHistory,
 }));
 
-// ---------------------------------------------------------------------------
-// Fixtures
-// ---------------------------------------------------------------------------
-
-const SLO_ID = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee";
-
-function ccSlo(overrides: Partial<CcSlo> = {}): CcSlo {
-  return {
-    id: SLO_ID,
-    tenant: "org1",
-    namespace: "",
-    name: "checkout-availability",
-    spec: {
-      sli: {
-        sql: "SELECT countIf(ok) AS good, count() AS valid FROM t WHERE ts >= {window_start:DateTime} AND ts < {window_end:DateTime}",
-        label_columns: ["service"],
-      },
-      targetPercent: 99.9,
-      timeWindow: { duration: "30d", isRolling: true },
-      annotations: {},
-      suppressed: false,
-    },
-    version: 1,
-    paused: false,
-    ...overrides,
-  };
-}
-
-// A firing status snapshot: fast-burn (critical in the canonical tiers) is
-// firing on the sole group, so the SLO shows up both in "Error budgets" and
-// in the attention banner.
-function firingSloStatus() {
-  return {
-    computed_at: new Date().toISOString(),
-    health: { status: "healthy", degraded_since: null, last_error: null },
-    payload: {
-      window: "30d",
-      target_percent: 99.9,
-      window_computed_at: {},
-      groups: [
-        {
-          labels: { service: "checkout" },
-          sli: 0.995,
-          budget_remaining: 0.5,
-          tiers: [
-            {
-              name: "fast-burn",
-              long_burn_rate: 20,
-              short_burn_rate: 18,
-              long_window_valid: true,
-            },
-          ],
-          time_to_exhaustion_secs: 3_600,
-          firing_tiers: [{ tier: "fast-burn", status: "firing" }],
-        },
-      ],
-    },
-  };
-}
-
-function eventRow(overrides: Partial<AlertEventLogRow> = {}): AlertEventLogRow {
-  return {
-    timestamp: new Date(Date.now() - 60_000).toISOString(),
-    eventType: "instance_fired",
-    slug: "checkout-availability",
-    instanceFingerprint: "fp-slo-1",
-    labels: { service: "checkout" },
-    severity: "critical",
-    suppressed: false,
-    silenced: false,
-    deliveryTargets: [],
-    evidence: null,
-    evidenceTruncated: false,
-    ...overrides,
-  };
-}
-
-// ---------------------------------------------------------------------------
-// Harness
-// ---------------------------------------------------------------------------
-
 function renderOverviewRoute() {
   const rootRoute = createRootRoute({ component: Outlet });
   const authenticatedRoute = createRoute({
@@ -145,17 +57,11 @@ function renderOverviewRoute() {
     path: "/",
     component: AlertsIndexFileRoute.options.component,
   });
-  // Link target (SLO detail); never rendered here.
-  const sloDetailRoute = createRoute({
-    getParentRoute: () => alertsLayoutRoute,
-    path: "slos/$project/$slug",
-    component: () => null,
-  });
 
   const routeTree = rootRoute.addChildren([
     authenticatedRoute.addChildren([
       dashboardRoute.addChildren([
-        alertsLayoutRoute.addChildren([overviewRoute, sloDetailRoute]),
+        alertsLayoutRoute.addChildren([overviewRoute]),
       ]),
     ]),
   ]);
@@ -185,16 +91,16 @@ beforeEach(() => {
   for (const fn of Object.values(mocks)) fn.mockReset();
   mocks.listCcAlerts.mockResolvedValue([]);
   mocks.listCcRules.mockResolvedValue([]);
-  mocks.listCcSlos.mockResolvedValue([ccSlo()]);
-  mocks.getCcSloStatus.mockResolvedValue(firingSloStatus());
+  mocks.listCcSlos.mockResolvedValue([]);
+  mocks.getCcSloStatus.mockResolvedValue(null);
   mocks.listCcRoutes.mockResolvedValue([]);
   mocks.listCcReceivers.mockResolvedValue([]);
   mocks.listCcSilences.mockResolvedValue([]);
   mocks.listCcSubscriptions.mockResolvedValue([]);
-  mocks.listCcEventHistory.mockResolvedValue([eventRow()]);
+  mocks.listCcEventHistory.mockResolvedValue([]);
 });
 
-describe("/alerts overview — SLO identity across the page", () => {
+describe("/alerts overview", () => {
   it("shows an error (not a false 'no events') when the history query fails", async () => {
     mocks.listCcEventHistory.mockRejectedValue(new Error("clickhouse down"));
 

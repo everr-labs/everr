@@ -13,8 +13,7 @@ fn body(rows: usize) -> String {
     s
 }
 
-/// Baseline: split on lines, parse each non-empty line into a `Map`. `json_to_string` and
-/// `json_to_f64` are duplicated here because the crate's copies are private.
+/// Parse each non-empty line separately for the benchmark baseline.
 fn parse_lines_baseline(
     text: &str,
     label_columns: &[String],
@@ -43,8 +42,7 @@ fn parse_lines_baseline(
             }
         }
         let value = value_column.and_then(|c| obj.get(c)).and_then(json_to_f64);
-        // `parse_rows` collects the non-label extras too; skipping them here would make the
-        // baseline look faster for doing less work.
+        // Match `parse_rows` by collecting non-label fields too.
         let extra: BTreeMap<String, serde_json::Value> = obj
             .into_iter()
             .filter(|(k, _)| !label_columns.contains(k))
@@ -58,16 +56,14 @@ fn parse_lines_baseline(
     rows
 }
 
-// `stream` is `parse_rows` (streaming serde_json::Deserializer); `line_split_baseline` is
-// line-split + per-line parse. Identical output, so the delta is the parse strategy.
+// Compare streaming deserialization with parsing each line separately.
 const ROWS: usize = 1000;
 
 fn bench_parse(c: &mut Criterion) {
     let text = body(ROWS);
     let labels = vec!["svc".to_string(), "region".to_string()];
     let mut g = c.benchmark_group("parse_rows_1000");
-    // Each iteration parses ROWS rows, so elements/sec == rows/sec: the single-core
-    // JSONEachRow decode ceiling.
+    // Each element is one decoded row.
     g.throughput(Throughput::Elements(ROWS as u64));
     g.bench_function("stream", |b| {
         b.iter(|| black_box(parse_rows(black_box(&text), &labels, Some("v")).unwrap()))

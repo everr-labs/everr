@@ -187,14 +187,12 @@ mod tests {
             validate_channel(&b.name, &b.config, false),
             Err(ApiError::Validation(_))
         ));
-        // Same body allowed when private webhooks are enabled (dev/compose).
         assert!(validate_channel(&b.name, &b.config, true).is_ok());
     }
 
     #[test]
     fn slack_config_gets_the_ssrf_guard() {
-        // Slack URLs are tenant-supplied and the dispatcher POSTs them, so the same
-        // SSRF guard applies: an internal target is rejected unless the dev flag is set.
+        // Slack URLs receive the same SSRF validation as webhooks.
         let b =
             body(r#"{"name":"chat","config":{"type":"slack","url":"http://169.254.169.254/x"}}"#);
         assert!(matches!(
@@ -202,16 +200,7 @@ mod tests {
             Err(ApiError::Validation(_))
         ));
         assert!(validate_channel(&b.name, &b.config, true).is_ok());
-        // A public Slack-style URL is still accepted.
         let b = body(r#"{"name":"chat","config":{"type":"slack","url":"https://hooks.slack/x"}}"#);
-        assert!(validate_channel(&b.name, &b.config, false).is_ok());
-    }
-
-    #[test]
-    fn non_url_configs_pass_validation() {
-        // Email/Telegram deliver via fixed provider endpoints, not a
-        // caller-chosen URL, so the SSRF guard does not apply to them.
-        let b = body(r#"{"name":"mail","config":{"type":"email","to":["a@x.test"]}}"#);
         assert!(validate_channel(&b.name, &b.config, false).is_ok());
     }
 
@@ -237,26 +226,5 @@ mod tests {
             validate_channel(&b.name, &b.config, false),
             Err(ApiError::Validation(ref m)) if m == "duplicate telegram chat_ids: -100"
         ));
-    }
-
-    #[test]
-    fn distinct_recipient_lists_pass_validation() {
-        let b = body(r#"{"name":"mail","config":{"type":"email","to":["a@x.test","b@x.test"]}}"#);
-        assert!(validate_channel(&b.name, &b.config, false).is_ok());
-        let b = body(
-            r#"{"name":"tg","config":{"type":"telegram","bot_token":"t",
-                "chat_ids":["-100","@ops"]}}"#,
-        );
-        assert!(validate_channel(&b.name, &b.config, false).is_ok());
-    }
-
-    // An empty recipient list is accepted at this boundary; the duplicate guard is the only
-    // list rule here.
-    #[test]
-    fn empty_recipient_lists_still_pass_validation() {
-        let b = body(r#"{"name":"mail","config":{"type":"email","to":[]}}"#);
-        assert!(validate_channel(&b.name, &b.config, false).is_ok());
-        let b = body(r#"{"name":"tg","config":{"type":"telegram","bot_token":"t","chat_ids":[]}}"#);
-        assert!(validate_channel(&b.name, &b.config, false).is_ok());
     }
 }

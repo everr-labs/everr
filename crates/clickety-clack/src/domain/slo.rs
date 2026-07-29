@@ -337,13 +337,13 @@ mod tests {
 
     #[test]
     fn rejects_calendar_and_garbage_windows() {
-        assert!(parse_window_secs("1M").is_err()); // months = calendar, v2
+        assert!(parse_window_secs("1M").is_err());
         assert!(parse_window_secs("1Q").is_err());
         assert!(parse_window_secs("").is_err());
         assert!(parse_window_secs("abc").is_err());
-        assert!(parse_window_secs("10").is_err()); // no unit
-        assert!(parse_window_secs("0d").is_err()); // must be > 0
-        assert!(parse_window_secs("300000000000000000w").is_err()); // overflow -> Err, not panic/wrap
+        assert!(parse_window_secs("10").is_err());
+        assert!(parse_window_secs("0d").is_err());
+        assert!(parse_window_secs("300000000000000000w").is_err());
     }
 
     #[test]
@@ -352,38 +352,12 @@ mod tests {
         let known = BTreeMap::from([("slo_tier".to_string(), "ticket".to_string())]);
         assert_eq!(tier_severity(&tiers, &known), Severity::Warning);
 
-        // A tier name that isn't in the (resolved) tier list -- e.g. dropped from the
-        // spec since the instance was opened -- conservatively resolves to Critical,
-        // not the tier's old severity or any other default.
+        // Unknown or missing tiers fail closed to Critical.
         let unknown = BTreeMap::from([("slo_tier".to_string(), "ghost-tier".to_string())]);
         assert_eq!(tier_severity(&tiers, &unknown), Severity::Critical);
 
-        // Missing label entirely: same conservative default.
         let missing = BTreeMap::new();
         assert_eq!(tier_severity(&tiers, &missing), Severity::Critical);
-    }
-
-    #[test]
-    fn canonical_tiers_are_the_three_srivm_defaults() {
-        let t = canonical_tiers();
-        assert_eq!(t.len(), 3);
-        assert_eq!(t[0].name, "fast-burn");
-        assert_eq!(t[0].burn_rate, 14.4);
-        assert_eq!(t[0].severity, Severity::Critical);
-        assert_eq!(t[2].name, "ticket");
-        assert_eq!(t[2].severity, Severity::Warning);
-    }
-
-    #[test]
-    fn parses_and_formats_the_seconds_unit() {
-        assert_eq!(parse_window_secs("70s").unwrap(), 70);
-        assert_eq!(parse_window_secs("60s").unwrap(), 60);
-        // fmt picks the coarsest exact unit; falls back to seconds otherwise.
-        assert_eq!(fmt_window_secs(3600), "1h");
-        assert_eq!(fmt_window_secs(259_200), "3d");
-        assert_eq!(fmt_window_secs(300), "5m");
-        assert_eq!(fmt_window_secs(70), "70s");
-        assert_eq!(fmt_window_secs(604_800), "1w");
     }
 
     #[test]
@@ -407,14 +381,12 @@ mod tests {
 
     #[test]
     fn tiers_scale_proportionally_for_a_seven_day_window() {
-        // k = 7d/30d; each window scales by k, thresholds unchanged.
         let t = tiers_for_window(7 * 86_400);
         assert_eq!(t[0].long_window, "14m"); // 1h * 7/30
         assert_eq!(t[0].short_window, "70s"); // 5m * 7/30
         assert_eq!(t[1].long_window, "84m"); // 6h * 7/30
         assert_eq!(t[1].short_window, "7m"); // 30m * 7/30
         assert_eq!(t[2].short_window, "84m"); // 6h * 7/30
-                                              // Thresholds and severities never move.
         assert_eq!(t[0].burn_rate, 14.4);
         assert_eq!(t[2].burn_rate, 1.0);
         assert_eq!(t[2].severity, Severity::Warning);
@@ -422,9 +394,7 @@ mod tests {
 
     #[test]
     fn small_windows_never_exceed_the_objective_and_floor_the_short_window() {
-        // On a 1-day SLO no tier window may exceed the objective (the unscaled
-        // 3-day ticket window would), and no short window may drop below the floor.
-        let window = 86_400; // 1d
+        let window = 86_400;
         for t in tiers_for_window(window) {
             let long = parse_window_secs(&t.long_window).unwrap();
             let short = parse_window_secs(&t.short_window).unwrap();

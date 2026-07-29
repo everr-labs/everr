@@ -202,15 +202,44 @@ describe("validateRunbookLinks", () => {
     ccSlos = [];
   });
 
-  it("passes when the runbook is in the same apply batch", async () => {
+  it("passes when the alert's and SLO's runbook ships in the same batch, and ignores refless documents", async () => {
     await expect(
       validateRunbookLinks({
         namespace: live("repo-1"),
-        alerts: [alertEntry({ runbook: "runbook" })],
-        slos: [],
+        alerts: [alertEntry({ runbook: "runbook" }), alertEntry({ name: "b" })],
+        slos: [sloEntry({ runbook: "runbook" })],
         runbooks: [runbookEntry("runbook")],
       }),
     ).resolves.toBeUndefined();
+
+    // Nothing links a runbook at all: the check returns before any lookup.
+    await expect(
+      validateRunbookLinks({
+        namespace: live("repo-1"),
+        alerts: [alertEntry({})],
+        slos: [],
+        runbooks: [],
+      }),
+    ).resolves.toBeUndefined();
+  });
+
+  it("rejects a ref that resolves to nothing, for alerts and for SLOs", async () => {
+    await expect(
+      validateRunbookLinks({
+        namespace: live("repo-1"),
+        alerts: [alertEntry({ runbook: "missing" })],
+        slos: [],
+        runbooks: [],
+      }),
+    ).rejects.toBeInstanceOf(ApplyValidationError);
+    await expect(
+      validateRunbookLinks({
+        namespace: live("repo-1"),
+        alerts: [],
+        slos: [sloEntry({ runbook: "missing" })],
+        runbooks: [],
+      }),
+    ).rejects.toThrow(/linked runbook "default\/missing" does not exist/);
   });
 
   it("rejects a same-repo ref that is not in the batch even if a DB row exists", async () => {
@@ -229,7 +258,9 @@ describe("validateRunbookLinks", () => {
     ).rejects.toThrow(/does not exist/);
   });
 
-  it("accepts a ref to another repo's live runbook", async () => {
+  it("accepts a ref to another repo's live runbook, live and as a preview", async () => {
+    // The same config must validate identically live and as a preview: a
+    // foreign live runbook survives this repo's eventual live apply.
     mockDbRunbookRows([
       { project: "default", slug: "triage", owner: "repo-2" },
     ]);
@@ -241,14 +272,6 @@ describe("validateRunbookLinks", () => {
         runbooks: [],
       }),
     ).resolves.toBeUndefined();
-  });
-
-  it("accepts a preview ref to another repo's live runbook (parity with live)", async () => {
-    // The same config must validate identically live and as a preview: a
-    // foreign live runbook survives this repo's eventual live apply.
-    mockDbRunbookRows([
-      { project: "default", slug: "triage", owner: "repo-2" },
-    ]);
     await expect(
       validateRunbookLinks({
         namespace: { orgId, repoid: "repo-1", kind: "preview", id: "prev-1" },
@@ -274,60 +297,13 @@ describe("validateRunbookLinks", () => {
       }),
     ).rejects.toThrow(/does not exist/);
   });
-
-  it("throws when the linked runbook does not exist", async () => {
-    await expect(
-      validateRunbookLinks({
-        namespace: live("repo-1"),
-        alerts: [alertEntry({ runbook: "missing" })],
-        slos: [],
-        runbooks: [],
-      }),
-    ).rejects.toBeInstanceOf(ApplyValidationError);
-  });
-
-  it("ignores alerts with no runbook", async () => {
-    await expect(
-      validateRunbookLinks({
-        namespace: live("repo-1"),
-        alerts: [alertEntry({})],
-        slos: [],
-        runbooks: [],
-      }),
-    ).resolves.toBeUndefined();
-  });
-
-  it("validates SLO runbook refs through the same check", async () => {
-    await expect(
-      validateRunbookLinks({
-        namespace: live("repo-1"),
-        alerts: [],
-        slos: [sloEntry({ runbook: "missing" })],
-        runbooks: [],
-      }),
-    ).rejects.toThrow(/missing/);
-  });
-
-  it("passes an SLO ref shipping in the same batch", async () => {
-    await expect(
-      validateRunbookLinks({
-        namespace: live("repo-1"),
-        alerts: [],
-        slos: [sloEntry({ runbook: "runbook" })],
-        runbooks: [runbookEntry("runbook")],
-      }),
-    ).resolves.toBeUndefined();
-  });
 });
 
 describe("collectOrphanWarnings", () => {
+  // This repo's live "triage" runbook, linked from another repo's alert: the
+  // setup every case below varies one dimension of.
   beforeEach(() => {
-    dbRunbooks = [];
-    ccRules = [];
     ccSlos = [];
-  });
-
-  it("warns when deleting a runbook another repo's alert links", async () => {
     mockDbRunbookRows([
       { project: "default", slug: "triage", owner: "repo-1" },
     ]);
@@ -338,6 +314,9 @@ describe("collectOrphanWarnings", () => {
         runbook: "triage",
       }),
     ]);
+  });
+
+  it("warns when deleting a runbook another repo's alert links", async () => {
     const warnings = await collectOrphanWarnings({
       namespace: live("repo-1"),
       runbooks: [], // batch no longer ships "triage": it will be pruned
@@ -347,46 +326,23 @@ describe("collectOrphanWarnings", () => {
     ]);
   });
 
-  it("returns nothing for a preview namespace", async () => {
-    mockDbRunbookRows([
-      { project: "default", slug: "triage", owner: "repo-1" },
-    ]);
-    mockCcRules([
-      foreignRule({
-        name: "default/api-errors",
-        repoid: "repo-2",
-        runbook: "triage",
+  it("stays quiet for a preview, for a runbook still in the batch, and for the repo's own link", async () => {
+    // A preview namespace never prunes a live runbook.
+    await expect(
+      collectOrphanWarnings({
+        namespace: { orgId, repoid: "repo-1", kind: "preview", id: "prev-1" },
+        runbooks: [],
       }),
-    ]);
-    const warnings = await collectOrphanWarnings({
-      namespace: { orgId, repoid: "repo-1", kind: "preview", id: "prev-1" },
-      runbooks: [],
-    });
-    expect(warnings).toEqual([]);
-  });
+    ).resolves.toEqual([]);
 
-  it("does not warn when the runbook still ships in the batch", async () => {
-    mockDbRunbookRows([
-      { project: "default", slug: "triage", owner: "repo-1" },
-    ]);
-    mockCcRules([
-      foreignRule({
-        name: "default/api-errors",
-        repoid: "repo-2",
-        runbook: "triage",
+    await expect(
+      collectOrphanWarnings({
+        namespace: live("repo-1"),
+        runbooks: [runbookEntry("triage")],
       }),
-    ]);
-    const warnings = await collectOrphanWarnings({
-      namespace: live("repo-1"),
-      runbooks: [runbookEntry("triage")],
-    });
-    expect(warnings).toEqual([]);
-  });
+    ).resolves.toEqual([]);
 
-  it("does not warn about a repo's own link to its own deleted runbook", async () => {
-    mockDbRunbookRows([
-      { project: "default", slug: "triage", owner: "repo-1" },
-    ]);
+    // The link belongs to the applying repo itself: its own business.
     mockCcRules([
       foreignRule({
         name: "default/api-errors",
@@ -394,10 +350,8 @@ describe("collectOrphanWarnings", () => {
         runbook: "triage",
       }),
     ]);
-    const warnings = await collectOrphanWarnings({
-      namespace: live("repo-1"),
-      runbooks: [],
-    });
-    expect(warnings).toEqual([]);
+    await expect(
+      collectOrphanWarnings({ namespace: live("repo-1"), runbooks: [] }),
+    ).resolves.toEqual([]);
   });
 });

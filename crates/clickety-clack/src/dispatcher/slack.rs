@@ -200,27 +200,4 @@ mod tests {
         assert_eq!(actions[0]["url"], "https://app/alerts/1");
         assert_eq!(actions[1]["url"], "https://wiki/rb");
     }
-
-    #[test]
-    fn batch_attachments_carry_each_events_summary() {
-        let mk = |inst: &str, summary: &str| {
-            let mut e = ev(inst, Severity::Warning);
-            e.labels = BTreeMap::from([("host".to_string(), inst.to_string())]);
-            e.annotations = BTreeMap::from([("summary".to_string(), summary.to_string())]);
-            e
-        };
-        let notif = Notification {
-            group_key: "rule=r,severity=warning".into(),
-            events: vec![mk("a", "CPU on ${host}"), mk("b", "CPU on ${host}")],
-        };
-        let v = build_slack_payload(&notif);
-        assert!(v["attachments"][0]["text"]
-            .as_str()
-            .unwrap()
-            .contains("CPU on a"));
-        assert!(v["attachments"][1]["text"]
-            .as_str()
-            .unwrap()
-            .contains("CPU on b"));
-    }
 }

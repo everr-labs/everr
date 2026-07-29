@@ -10,10 +10,6 @@ import {
   SilencesPanel,
 } from "./silences-panel";
 
-// ---------------------------------------------------------------------------
-// Mocks, at the same module boundary as the route tests.
-// ---------------------------------------------------------------------------
-
 const mocks = vi.hoisted(() => ({
   listCcSilences: vi.fn(),
   createCcSilence: vi.fn(),
@@ -30,10 +26,6 @@ vi.mock("@/data/cc/server", () => ({
   listCcLabelValues: mocks.listCcLabelValues,
 }));
 
-// ---------------------------------------------------------------------------
-// Fixtures
-// ---------------------------------------------------------------------------
-
 function ccSilence(overrides: Partial<CcSilence> = {}): CcSilence {
   return {
     id: "sil-1",
@@ -48,7 +40,6 @@ function ccSilence(overrides: Partial<CcSilence> = {}): CcSilence {
   };
 }
 
-/** An active silence relative to the real clock. */
 function activeSilence(overrides: Partial<CcSilence> = {}): CcSilence {
   return ccSilence({
     starts_at: new Date(Date.now() - 3_600_000).toISOString(),
@@ -56,10 +47,6 @@ function activeSilence(overrides: Partial<CcSilence> = {}): CcSilence {
     ...overrides,
   });
 }
-
-// ---------------------------------------------------------------------------
-// Harness
-// ---------------------------------------------------------------------------
 
 function renderPanel(onNewSilence = vi.fn()) {
   const queryClient = new QueryClient({
@@ -80,45 +67,43 @@ describe("SilencesPanel", () => {
     mocks.deleteCcSilence.mockReset();
   });
 
-  it("offers Cancel on active and scheduled silences but not on expired ones", async () => {
+  it("cancels a silence that is still ahead of its end, but not an expired one", async () => {
     mocks.listCcSilences.mockResolvedValue([
       activeSilence({ id: "sil-active", comment: "now" }),
+      ccSilence({
+        id: "sil-scheduled",
+        comment: "later",
+        starts_at: new Date(Date.now() + 3_600_000).toISOString(),
+        ends_at: new Date(Date.now() + 7_200_000).toISOString(),
+      }),
       ccSilence({ id: "sil-expired", comment: "done" }),
-    ]);
-
-    renderPanel();
-
-    await screen.findByText("now");
-    const activeRow = screen.getByText("now").closest("tr");
-    const expiredRow = screen.getByText("done").closest("tr");
-    expect(activeRow).not.toBeNull();
-    expect(expiredRow).not.toBeNull();
-    expect(
-      within(activeRow as HTMLElement).getByRole("button", {
-        name: "Cancel",
-      }),
-    ).toBeInTheDocument();
-    expect(
-      within(expiredRow as HTMLElement).queryByRole("button", {
-        name: "Cancel",
-      }),
-    ).not.toBeInTheDocument();
-  });
-
-  it("cancels a silence via deleteCcSilence", async () => {
-    mocks.listCcSilences.mockResolvedValue([
-      activeSilence({ id: "sil-active", comment: "now" }),
     ]);
     mocks.deleteCcSilence.mockResolvedValue({ deleted: true });
     const user = userEvent.setup();
 
-    renderPanel();
+    const { onNewSilence } = renderPanel();
 
-    await user.click(await screen.findByRole("button", { name: "Cancel" }));
+    await screen.findByText("now");
+    const row = (comment: string) =>
+      screen.getByText(comment).closest("tr") as HTMLElement;
 
+    expect(
+      within(row("later")).getByRole("button", { name: "Cancel" }),
+    ).toBeInTheDocument();
+    expect(
+      within(row("done")).queryByRole("button", { name: "Cancel" }),
+    ).not.toBeInTheDocument();
+
+    await user.click(
+      within(row("now")).getByRole("button", { name: "Cancel" }),
+    );
     expect(mocks.deleteCcSilence).toHaveBeenCalledWith({
       data: { id: "sil-active" },
     });
+
+    // Creating is the page's job: the panel only asks for the drawer.
+    await user.click(screen.getByRole("button", { name: /New silence/ }));
+    expect(onNewSilence).toHaveBeenCalled();
   });
 
   it("keeps Create disabled while any matcher is missing its label", async () => {
@@ -133,7 +118,6 @@ describe("SilencesPanel", () => {
       </QueryClientProvider>,
     );
 
-    // Seeded with a labelled matcher: creatable once the window is set.
     act(() => {
       ref.current?.openWith([{ label: "host", op: "eq", value: "web-1" }]);
     });
@@ -143,22 +127,7 @@ describe("SilencesPanel", () => {
     await user.click(screen.getByRole("button", { name: "8h" }));
     expect(create).toBeEnabled();
 
-    // An added row has an empty label, which would match every alert; the
-    // form must not allow submitting it.
     await user.click(screen.getByRole("button", { name: "Add" }));
     expect(create).toBeDisabled();
-  });
-
-  it("hands New silence to the page-owned drawer", async () => {
-    mocks.listCcSilences.mockResolvedValue([]);
-    const user = userEvent.setup();
-
-    const { onNewSilence } = renderPanel();
-
-    await user.click(
-      await screen.findByRole("button", { name: /New silence/ }),
-    );
-
-    expect(onNewSilence).toHaveBeenCalled();
   });
 });

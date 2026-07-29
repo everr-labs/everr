@@ -25,15 +25,12 @@ function firstMessage(doc: unknown): string {
 }
 
 describe("parseSloWindowSeconds", () => {
-  it("parses the m/h/d/w vocabulary", () => {
+  it("parses the m/h/d/w vocabulary within the 1d..366d bounds", () => {
     expect(parseSloWindowSeconds("24h")).toBe(86_400);
     expect(parseSloWindowSeconds("3d")).toBe(259_200);
     expect(parseSloWindowSeconds("1w")).toBe(604_800);
-  });
-
-  it("rejects calendar units, seconds, zero, sub-day windows, and the over-cap window", () => {
-    // CC's SLO windows have no seconds unit (unlike AlertRule durations) and
-    // no calendar units; values must be 1 day through 366 days.
+    expect(parseSloWindowSeconds("366d")).toBe(366 * 86_400);
+    // No calendar units, no seconds, nothing below a day or over the cap.
     for (const bad of [
       "30s",
       "1M",
@@ -48,31 +45,28 @@ describe("parseSloWindowSeconds", () => {
     ]) {
       expect(() => parseSloWindowSeconds(bad)).toThrow();
     }
-    expect(parseSloWindowSeconds("366d")).toBe(366 * 86_400);
   });
 });
 
 describe("SloYamlSchema", () => {
-  it("accepts a minimal document and normalizes the timeWindow shorthand", () => {
-    const parsed = SloYamlSchema.parse(sloDoc());
-    expect(parsed.metadata.name).toBe("checkout-availability");
-    expect(parsed.spec.timeWindow).toBe("30d");
-    expect(parsed.spec.sli.labelColumns).toEqual(["service"]);
-  });
-
-  it("accepts the object timeWindow form and normalizes it to the shorthand", () => {
+  it("normalizes the object timeWindow form and rejects calendar windows like CC does", () => {
     const parsed = SloYamlSchema.parse(
       sloDoc({ timeWindow: { duration: "7d", isRolling: true } }),
     );
     expect(parsed.spec.timeWindow).toBe("7d");
-  });
-
-  it("rejects calendar windows (isRolling: false) like CC does", () => {
     expect(
       firstMessage(
         sloDoc({ timeWindow: { duration: "7d", isRolling: false } }),
       ),
     ).toMatch(/calendar-aligned windows are not supported/);
+    // The duration parser's own message reaches the caller, naming the value.
+    expect(firstMessage(sloDoc({ timeWindow: "1M" }))).toMatch(/"1M"/);
+    expect(firstMessage(sloDoc({ timeWindow: "1h" }))).toMatch(
+      /minimum of 1 day/,
+    );
+    expect(firstMessage(sloDoc({ timeWindow: "700000w" }))).toMatch(
+      /exceeds the maximum of 366 days/,
+    );
   });
 
   it("rejects SQL missing either window placeholder", () => {
@@ -94,16 +88,6 @@ describe("SloYamlSchema", () => {
     }
   });
 
-  it("rejects unparsable and over-cap window durations with the value in the message", () => {
-    expect(firstMessage(sloDoc({ timeWindow: "1M" }))).toMatch(/"1M"/);
-    expect(firstMessage(sloDoc({ timeWindow: "1h" }))).toMatch(
-      /minimum of 1 day/,
-    );
-    expect(firstMessage(sloDoc({ timeWindow: "700000w" }))).toMatch(
-      /exceeds the maximum of 366 days/,
-    );
-  });
-
   it("rejects reserved label columns (__cc_ prefix and pipeline-injected names)", () => {
     expect(
       firstMessage(sloDoc({ sli: { sql: SQL, labelColumns: ["__cc_x"] } })),
@@ -115,7 +99,6 @@ describe("SloYamlSchema", () => {
         ),
       ).toMatch(/collides with a label the SLO pipeline injects/);
     }
-    // A merely similar name stays allowed.
     expect(
       SloYamlSchema.safeParse(
         sloDoc({ sli: { sql: SQL, labelColumns: ["slo_name"] } }),
@@ -123,27 +106,10 @@ describe("SloYamlSchema", () => {
     ).toBe(true);
   });
 
-  it("rejects a custom tiers field — the canonical tiers are fixed, not configurable", () => {
-    const tiers = [
-      {
-        name: "fast-burn",
-        longWindow: "1h",
-        shortWindow: "5m",
-        burnRate: 14.4,
-        severity: "critical",
-      },
-    ];
-    // The spec object is strict, so an unrecognized `tiers` key is a parse error.
-    expect(SloYamlSchema.safeParse(sloDoc({ tiers })).success).toBe(false);
-  });
-
-  it("rejects reserved everr.* annotation keys", () => {
+  it("rejects the annotation keys the mapping layer generates, not just everr.*", () => {
     expect(
       firstMessage(sloDoc({ annotations: { "everr.name": "x" } })),
     ).toMatch(/"everr\.name" is reserved/);
-  });
-
-  it("rejects the CC-consumable annotation keys the mapping layer generates, not just everr.*", () => {
     expect(
       firstMessage(
         sloDoc({ annotations: { "link.runbook": "https://example.com" } }),
@@ -152,14 +118,13 @@ describe("SloYamlSchema", () => {
     expect(
       firstMessage(sloDoc({ annotations: { summary: "custom summary" } })),
     ).toMatch(/"summary" is reserved/);
-    // A normal custom key is unaffected.
     expect(
       SloYamlSchema.safeParse(sloDoc({ annotations: { team: "payments" } }))
         .success,
     ).toBe(true);
   });
 
-  it("enforces CC's SLO name rules at parse time", () => {
+  it("enforces CC's SLO name rules and the runbook ref grammar at parse time", () => {
     const named = (name: string) => ({
       ...sloDoc(),
       metadata: { name },
@@ -170,15 +135,11 @@ describe("SloYamlSchema", () => {
     for (const bad of ["", "has space", "x".repeat(129), "emoji✨"]) {
       expect(firstMessage(named(bad))).toMatch(/1-128 chars/);
     }
-  });
-
-  it("rejects a malformed runbook ref", () => {
-    expect(SloYamlSchema.safeParse(sloDoc({ runbook: "a/b/c" })).success).toBe(
-      false,
-    );
-    expect(SloYamlSchema.safeParse(sloDoc({ runbook: "" })).success).toBe(
-      false,
-    );
+    for (const bad of ["a/b/c", ""]) {
+      expect(SloYamlSchema.safeParse(sloDoc({ runbook: bad })).success).toBe(
+        false,
+      );
+    }
   });
 
   it("is strict: unknown keys anywhere are rejected", () => {

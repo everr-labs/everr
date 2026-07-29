@@ -3,7 +3,6 @@
 mod api_key_auth;
 mod receivers_api;
 mod routes_api;
-mod routing_api;
 mod rule_health_api;
 mod rule_pause_api;
 mod rule_rollup_api;

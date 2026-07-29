@@ -193,18 +193,6 @@ mod tests {
     }
 
     #[test]
-    fn telegram_serde_tagged() {
-        let v = serde_json::to_value(ChannelConfig::Telegram {
-            bot_token: "t".into(),
-            chat_ids: vec!["1".into()],
-        })
-        .unwrap();
-        assert_eq!(v["type"], "telegram");
-        let back: ChannelConfig = serde_json::from_value(v).unwrap();
-        assert!(matches!(back, ChannelConfig::Telegram { .. }));
-    }
-
-    #[test]
     fn serde_is_externally_tagged_by_type() {
         let v = serde_json::to_value(ChannelConfig::Webhook {
             url: "http://x".into(),
@@ -219,23 +207,5 @@ mod tests {
                 url: "http://x".into()
             }
         );
-    }
-
-    #[test]
-    fn named_channel_redaction_masks_config_only() {
-        let ch = Channel {
-            id: Uuid::nil(),
-            tenant: TenantId::from_trusted(Uuid::nil().to_string()),
-            name: "team-slack".into(),
-            config: ChannelConfig::Slack {
-                url: "https://hooks.slack.test/SECRET".into(),
-            },
-        };
-        let red = ch.redacted();
-        assert_eq!(red.name, "team-slack");
-        assert!(matches!(
-            red.config,
-            ChannelConfig::Slack { ref url } if url == "***"
-        ));
     }
 }

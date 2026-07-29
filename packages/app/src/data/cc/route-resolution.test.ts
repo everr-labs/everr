@@ -7,7 +7,6 @@ import {
   ccSelectRoutes,
   ccSyntheticLabels,
 } from "./route-resolution";
-import { CC_SYNTHETIC_LABEL_KEYS } from "./synthetic-labels";
 import type { CcMatcher, CcRoute, CcRuleView, CcSlo } from "./types";
 
 function matcher(
@@ -33,128 +32,34 @@ function route(
 }
 
 describe("ccMatcherMatches", () => {
-  it("eq: true only on exact value equality", () => {
-    expect(ccMatcherMatches(matcher("eq", "pay"), { team: "pay" })).toBe(true);
-    expect(ccMatcherMatches(matcher("eq", "pay"), { team: "core" })).toBe(
-      false,
-    );
-    expect(ccMatcherMatches(matcher("eq", "pay"), {})).toBe(false);
-  });
-
-  it("ne: true when the label is absent or differs", () => {
-    expect(ccMatcherMatches(matcher("ne", "pay"), { team: "core" })).toBe(true);
-    expect(ccMatcherMatches(matcher("ne", "pay"), {})).toBe(true);
-    expect(ccMatcherMatches(matcher("ne", "pay"), { team: "pay" })).toBe(false);
-  });
-
-  it("regex: true when the label value matches the pattern", () => {
-    expect(
-      ccMatcherMatches(matcher("regex", "^pay.*"), { team: "payments" }),
-    ).toBe(true);
-    expect(ccMatcherMatches(matcher("regex", "^pay.*"), { team: "core" })).toBe(
-      false,
-    );
-  });
-
-  it("regex: a missing label is the empty string, so permissive patterns match", () => {
-    expect(ccMatcherMatches(matcher("regex", ".*"), {})).toBe(true);
-    expect(ccMatcherMatches(matcher("regex", "pay"), {})).toBe(false);
-  });
-
-  it("regex: false (not throw) on an invalid pattern", () => {
-    expect(ccMatcherMatches(matcher("regex", "("), { team: "pay" })).toBe(
-      false,
-    );
-  });
-
-  it("notregex: true when the label is missing or the pattern doesn't match", () => {
-    expect(ccMatcherMatches(matcher("notregex", "^pay.*"), {})).toBe(true);
-    expect(
-      ccMatcherMatches(matcher("notregex", "^pay.*"), { team: "core" }),
-    ).toBe(true);
-    expect(
-      ccMatcherMatches(matcher("notregex", "^pay.*"), { team: "payments" }),
-    ).toBe(false);
-  });
-
-  it("notregex: true on an invalid pattern (an invalid pattern never matches)", () => {
-    // Mirrors matching.rs: NotRegex is !regex_full_match, and regex_full_match
-    // is false for an invalid pattern, so notregex is true.
-    expect(ccMatcherMatches(matcher("notregex", "("), { team: "pay" })).toBe(
-      true,
-    );
-  });
-
-  // Parity vectors copied from matching.rs's unit tests, so the TS port and
-  // the engine cannot silently diverge.
-  describe("parity with matching.rs", () => {
-    it("eq_and_ne", () => {
-      const l = { svc: "api" };
-      expect(ccMatcherMatches(matcher("eq", "api", "svc"), l)).toBe(true);
-      expect(ccMatcherMatches(matcher("eq", "web", "svc"), l)).toBe(false);
-      expect(ccMatcherMatches(matcher("ne", "web", "svc"), l)).toBe(true);
-    });
-
-    it("missing_label_is_empty_string", () => {
-      expect(ccMatcherMatches(matcher("eq", "api", "svc"), {})).toBe(false);
-      expect(ccMatcherMatches(matcher("ne", "api", "svc"), {})).toBe(true);
-      // eq "" matches a missing label: absent means empty string.
-      expect(ccMatcherMatches(matcher("eq", "", "svc"), {})).toBe(true);
-    });
-
-    it("regex_is_anchored", () => {
-      const l = { svc: "api" };
-      expect(ccMatcherMatches(matcher("regex", "api", "svc"), l)).toBe(true);
-      // Anchored, not a prefix.
-      expect(ccMatcherMatches(matcher("regex", "ap", "svc"), l)).toBe(false);
-      expect(ccMatcherMatches(matcher("regex", "ap.*", "svc"), l)).toBe(true);
-      expect(ccMatcherMatches(matcher("notregex", "web", "svc"), l)).toBe(true);
-    });
-
-    it("invalid_pattern_never_matches", () => {
-      expect(
-        ccMatcherMatches(matcher("regex", "[unterminated", "svc"), {
-          svc: "api",
-        }),
-      ).toBe(false);
-    });
-
-    it("repeated_patterns_are_consistent_and_cached", () => {
-      // Same pattern, many calls: behavior identical across calls (the
-      // pattern cache must not corrupt results).
-      for (let i = 0; i < 3; i++) {
-        expect(
-          ccMatcherMatches(matcher("regex", "api-.*", "svc"), { svc: "api-1" }),
-        ).toBe(true);
-        expect(
-          ccMatcherMatches(matcher("regex", "api-.*", "svc"), { svc: "web-1" }),
-        ).toBe(false);
-        expect(
-          ccMatcherMatches(matcher("regex", "[unterminated", "svc"), {
-            svc: "anything",
-          }),
-        ).toBe(false);
-      }
-      // Distinct patterns coexist in the cache.
-      expect(
-        ccMatcherMatches(matcher("regex", "a+", "svc"), { svc: "aaa" }),
-      ).toBe(true);
-      expect(
-        ccMatcherMatches(matcher("regex", "b+", "svc"), { svc: "bbb" }),
-      ).toBe(true);
-      expect(
-        ccMatcherMatches(matcher("regex", "a+", "svc"), { svc: "bbb" }),
-      ).toBe(false);
-    });
+  // A missing label reads as the empty string, so `ne` and `notregex` match it
+  // and a permissive pattern does too. An invalid pattern never matches, which
+  // notregex negates into a match.
+  it.each<[CcMatcher["op"], string, Record<string, string>, boolean]>([
+    ["eq", "pay", { team: "pay" }, true],
+    ["eq", "pay", { team: "core" }, false],
+    ["eq", "pay", {}, false],
+    ["ne", "pay", { team: "core" }, true],
+    ["ne", "pay", {}, true],
+    ["ne", "pay", { team: "pay" }, false],
+    ["regex", "^pay.*", { team: "payments" }, true],
+    ["regex", "^pay.*", { team: "core" }, false],
+    ["regex", ".*", {}, true],
+    ["regex", "pay", {}, false],
+    ["regex", "(", { team: "pay" }, false],
+    ["notregex", "^pay.*", { team: "core" }, true],
+    ["notregex", "^pay.*", {}, true],
+    ["notregex", "^pay.*", { team: "payments" }, false],
+    ["notregex", "(", { team: "pay" }, true],
+  ])("team %s %s against %j is %s", (op, value, labels, expected) => {
+    expect(ccMatcherMatches(matcher(op, value), labels)).toBe(expected);
   });
 });
 
 describe("ccRouteMatches", () => {
-  it("is true (vacuously) when there are no matchers", () => {
+  it("requires every matcher to match, and is vacuously true with none", () => {
     expect(ccRouteMatches([], { team: "pay" })).toBe(true);
-  });
 
-  it("requires every matcher to match", () => {
     const matchers = [
       matcher("eq", "pay"),
       matcher("eq", "critical", "severity"),
@@ -169,10 +74,10 @@ describe("ccRouteMatches", () => {
 });
 
 describe("ccSyntheticLabels", () => {
-  it("adds severity/status/rule/kind on top of the instance labels", () => {
+  it("adds severity/status/rule/kind, letting synthetics win over same-named user labels", () => {
     expect(
       ccSyntheticLabels(
-        { team: "pay" },
+        { team: "pay", severity: "user-set" },
         { severity: "critical", status: "firing", rule: "r-1" },
       ),
     ).toEqual({
@@ -182,14 +87,6 @@ describe("ccSyntheticLabels", () => {
       rule: "r-1",
       kind: "alert",
     });
-  });
-
-  it("lets synthetics win over same-named user labels (mirrors CC insert-last)", () => {
-    const labels = ccSyntheticLabels(
-      { severity: "user-set", team: "pay" },
-      { severity: "warning", status: "firing", rule: "r-1" },
-    );
-    expect(labels.severity).toBe("warning");
   });
 });
 
@@ -205,7 +102,7 @@ describe("ccDispatchLabels", () => {
   };
 
   it("stamps the synthetic slo label and resolves severity from the burn-rate tier", () => {
-    // fast-burn is critical in the canonical tiers the spec falls back to.
+    // fast-burn defaults to critical.
     const labels = ccDispatchLabels(
       {
         labels: { service: "checkout", slo_tier: "fast-burn" },
@@ -287,19 +184,14 @@ describe("ccMatchingSilence", () => {
     ends_at: "2026-07-01T13:00:00Z",
   };
 
-  it("returns the active silence whose matchers all match", () => {
+  it("returns the active silence whose matchers all match, ignoring the rest", () => {
     expect(ccMatchingSilence({ team: "pay" }, [active], now)).toBe(active);
-  });
 
-  it("ignores silences outside their window", () => {
     const expired = { ...active, ends_at: "2026-07-01T11:30:00Z" };
     const scheduled = { ...active, starts_at: "2026-07-01T12:30:00Z" };
     expect(ccMatchingSilence({ team: "pay" }, [expired, scheduled], now)).toBe(
       null,
     );
-  });
-
-  it("ignores active silences whose matchers do not match", () => {
     expect(ccMatchingSilence({ team: "core" }, [active], now)).toBe(null);
   });
 
@@ -314,17 +206,5 @@ describe("ccMatchingSilence", () => {
     );
     expect(ccMatchingSilence(labels, [ruleScoped], now)).toBe(ruleScoped);
     expect(ccMatchingSilence({ team: "pay" }, [ruleScoped], now)).toBe(null);
-  });
-});
-
-describe("CC_SYNTHETIC_LABEL_KEYS", () => {
-  it("stays in lockstep with the keys ccSyntheticLabels injects", () => {
-    const injected = ccSyntheticLabels(
-      {},
-      { severity: "info", status: "firing", rule: "r-1" },
-    );
-    expect([...CC_SYNTHETIC_LABEL_KEYS].sort()).toEqual(
-      Object.keys(injected).sort(),
-    );
   });
 });

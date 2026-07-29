@@ -71,11 +71,16 @@ beforeEach(() => {
 });
 
 describe("deletePreviewCcRules", () => {
-  it("deletes only the rules tagged with a deleted preview id, per org", async () => {
+  it("deletes only the rules and SLOs tagged with a deleted preview id, per org", async () => {
     mockedListRules.mockImplementation(async (orgId: string) =>
       orgId === "org-a"
         ? [ccRule("live"), ccRule("a1", "p1"), ccRule("other", "p9")]
         : [ccRule("b1", "p2")],
+    );
+    mockedListSlos.mockImplementation(async (orgId: string) =>
+      orgId === "org-a"
+        ? [ccSlo("slo-live"), ccSlo("slo-a1", "p1"), ccSlo("slo-other", "p9")]
+        : [ccSlo("slo-b1", "p2")],
     );
 
     await deletePreviewCcRules([
@@ -83,16 +88,21 @@ describe("deletePreviewCcRules", () => {
       { id: "p2", organizationId: "org-b" },
     ]);
 
-    // One listing per affected org, deletions scoped to the deleted ids:
-    // live rules and other previews' rules survive.
+    // One listing per affected org and resource kind, deletions scoped to the
+    // deleted ids: live resources and other previews' survive.
     expect(mockedListRules).toHaveBeenCalledTimes(2);
+    expect(mockedListSlos).toHaveBeenCalledTimes(2);
     expect(mockedDeleteRule.mock.calls).toEqual([
       ["org-a", "a1"],
       ["org-b", "b1"],
     ]);
+    expect(mockedDeleteSlo.mock.calls).toEqual([
+      ["org-a", "slo-a1"],
+      ["org-b", "slo-b1"],
+    ]);
   });
 
-  it("logs and moves on when CC is unreachable for one org", async () => {
+  it("logs, flags the org pending, and moves on when CC is unreachable for one org", async () => {
     mockedListRules.mockImplementation(async (orgId: string) => {
       if (orgId === "org-a") throw new Error("cc down");
       return [ccRule("b1", "p2")];
@@ -100,10 +110,18 @@ describe("deletePreviewCcRules", () => {
 
     // Never throws: the preview rows are already gone and retention must not
     // fail on a CC outage — the orphaned suppressed rules are only logged.
-    await deletePreviewCcRules([
-      { id: "p1", organizationId: "org-a" },
-      { id: "p2", organizationId: "org-b" },
-    ]);
+    const marked: string[] = [];
+    await deletePreviewCcRules(
+      [
+        { id: "p1", organizationId: "org-a" },
+        { id: "p2", organizationId: "org-b" },
+      ],
+      {
+        markCleanupPending: async (orgId) => {
+          marked.push(orgId);
+        },
+      },
+    );
 
     expect(serverLogger.error).toHaveBeenCalledWith(
       "previews.cc_cleanup.failed",
@@ -112,42 +130,9 @@ describe("deletePreviewCcRules", () => {
         "error.message": "cc down",
       }),
     );
+    expect(marked).toEqual(["org-a"]);
     // The other org's cleanup still ran.
     expect(mockedDeleteRule).toHaveBeenCalledWith("org-b", "b1");
-  });
-
-  it("deletes only the SLOs tagged with a deleted preview id, per org", async () => {
-    mockedListRules.mockResolvedValue([]);
-    mockedListSlos.mockImplementation(async (orgId: string) =>
-      orgId === "org-a"
-        ? [ccSlo("live"), ccSlo("a1", "p1"), ccSlo("other", "p9")]
-        : [ccSlo("b1", "p2")],
-    );
-
-    await deletePreviewCcRules([
-      { id: "p1", organizationId: "org-a" },
-      { id: "p2", organizationId: "org-b" },
-    ]);
-
-    // One SLO listing per affected org, deletions scoped to the deleted ids:
-    // live SLOs and other previews' SLOs survive.
-    expect(mockedListSlos).toHaveBeenCalledTimes(2);
-    expect(mockedDeleteSlo.mock.calls).toEqual([
-      ["org-a", "a1"],
-      ["org-b", "b1"],
-    ]);
-  });
-
-  it("deletes both preview rules and preview SLOs for the same org", async () => {
-    mockedListRules.mockResolvedValue([ccRule("r1", "p1"), ccRule("live")]);
-    mockedListSlos.mockResolvedValue([ccSlo("s1", "p1"), ccSlo("live")]);
-
-    await deletePreviewCcRules([{ id: "p1", organizationId: "org-a" }]);
-
-    expect(mockedListRules).toHaveBeenCalledTimes(1);
-    expect(mockedListSlos).toHaveBeenCalledTimes(1);
-    expect(mockedDeleteRule).toHaveBeenCalledWith("org-a", "r1");
-    expect(mockedDeleteSlo).toHaveBeenCalledWith("org-a", "s1");
   });
 
   it("a rule deletion failure does not prevent the SLO cleanup for the same org", async () => {
@@ -184,17 +169,6 @@ describe("deletePreviewCcRules", () => {
       }),
     );
   });
-
-  it("a cleanup failure flags the org on the pending ledger", async () => {
-    mockedListRules.mockRejectedValue(new Error("cc down"));
-    const marked: string[] = [];
-    await deletePreviewCcRules([{ id: "p1", organizationId: "org-a" }], {
-      markCleanupPending: async (orgId) => {
-        marked.push(orgId);
-      },
-    });
-    expect(marked).toEqual(["org-a"]);
-  });
 });
 
 /**
@@ -228,12 +202,18 @@ function fakeSweepDb(
 }
 
 describe("sweepOrphanCcRules", () => {
-  it("deletes preview rules whose namespace is absent from the registry", async () => {
+  it("deletes the rules and SLOs whose namespace is absent from the registry", async () => {
     mockedListRules.mockResolvedValue([
-      ccRule("live"), // no preview annotation → never touched
+      ccRule("live"), // no preview namespace → never touched
       ccRule("keep", "p-live"), // registry row still exists → kept
       ccRule("orphan1", "p-gone"), // no registry row → orphan
       ccRule("orphan2", "p-gone2"),
+    ]);
+    mockedListSlos.mockResolvedValue([
+      ccSlo("slo-live"),
+      ccSlo("slo-keep", "p-live"),
+      ccSlo("slo-orphan1", "p-gone"),
+      ccSlo("slo-orphan2", "p-gone2"),
     ]);
     const db = fakeSweepDb(["org-a"], new Set(["p-live"]));
 
@@ -243,6 +223,19 @@ describe("sweepOrphanCcRules", () => {
       ["org-a", "orphan1"],
       ["org-a", "orphan2"],
     ]);
+    expect(mockedDeleteSlo.mock.calls).toEqual([
+      ["org-a", "slo-orphan1"],
+      ["org-a", "slo-orphan2"],
+    ]);
+
+    // Each kind's deletion is skipped entirely when it has no orphans: here
+    // only the SLOs need reaping.
+    vi.clearAllMocks();
+    mockedListRules.mockResolvedValue([ccRule("live")]);
+    mockedListSlos.mockResolvedValue([ccSlo("slo-orphan", "p-gone")]);
+    await sweepOrphanCcRules(fakeSweepDb(["org-a"], new Set()));
+    expect(mockedDeleteRule).not.toHaveBeenCalled();
+    expect(mockedDeleteSlo.mock.calls).toEqual([["org-a", "slo-orphan"]]);
   });
 
   it("keeps a preview created between the list and the registry snapshot (race guard)", async () => {
@@ -264,24 +257,37 @@ describe("sweepOrphanCcRules", () => {
     expect(mockedDeleteRule).not.toHaveBeenCalled();
   });
 
-  it("caps deletions per org and flags the run as capped", async () => {
-    const rules = Array.from({ length: 150 }, (_, i) =>
-      ccRule(`orphan-${i}`, `p-${i}`),
+  it("caps rule and SLO deletions per org independently and flags the run as capped", async () => {
+    mockedListRules.mockResolvedValue(
+      Array.from({ length: 150 }, (_, i) =>
+        ccRule(`orphan-rule-${i}`, `p-rule-${i}`),
+      ),
     );
-    mockedListRules.mockResolvedValue(rules);
+    mockedListSlos.mockResolvedValue(
+      Array.from({ length: 150 }, (_, i) =>
+        ccSlo(`orphan-slo-${i}`, `p-slo-${i}`),
+      ),
+    );
     const db = fakeSweepDb(["org-a"], new Set());
 
     await sweepOrphanCcRules(db);
 
+    // Each resource kind is capped at ORPHAN_SWEEP_CAP_PER_ORG independently
+    // (200 total deletions across the two kinds, not 100).
     expect(mockedDeleteRule).toHaveBeenCalledTimes(100);
+    expect(mockedDeleteSlo).toHaveBeenCalledTimes(100);
     expect(serverLogger.info).toHaveBeenCalledWith(
       "previews.cc_orphan_sweep.swept",
       expect.objectContaining({
         "organization.id": "org-a",
         "previews.orphan_rules_deleted": 100,
         "previews.orphan_sweep_capped": true,
+        "previews.orphan_slos_deleted": 100,
+        "previews.orphan_slos_sweep_capped": true,
       }),
     );
+    // An incomplete pass keeps the org on the ledger for the next run.
+    expect(db.pending.has("org-a")).toBe(true);
   });
 
   it("logs and continues to the next org when CC is unreachable for one", async () => {
@@ -308,81 +314,6 @@ describe("sweepOrphanCcRules", () => {
     );
     // The healthy org was still swept.
     expect(mockedDeleteRule).toHaveBeenCalledWith("org-b", "orphan");
-  });
-
-  it("deletes preview SLOs whose namespace is absent from the registry", async () => {
-    mockedListRules.mockResolvedValue([]);
-    mockedListSlos.mockResolvedValue([
-      ccSlo("live"), // no preview id → never touched
-      ccSlo("keep", "p-live"), // registry row still exists → kept
-      ccSlo("orphan1", "p-gone"), // no registry row → orphan
-      ccSlo("orphan2", "p-gone2"),
-    ]);
-    const db = fakeSweepDb(["org-a"], new Set(["p-live"]));
-
-    await sweepOrphanCcRules(db);
-
-    expect(mockedDeleteSlo.mock.calls).toEqual([
-      ["org-a", "orphan1"],
-      ["org-a", "orphan2"],
-    ]);
-  });
-
-  it("sweeps orphaned rules and SLOs together", async () => {
-    mockedListRules.mockResolvedValue([
-      ccRule("keep-rule", "p-live"),
-      ccRule("orphan-rule", "p-gone"),
-    ]);
-    mockedListSlos.mockResolvedValue([
-      ccSlo("keep-slo", "p-live"),
-      ccSlo("orphan-slo", "p-gone"),
-    ]);
-    const db = fakeSweepDb(["org-a"], new Set(["p-live"]));
-
-    await sweepOrphanCcRules(db);
-
-    expect(mockedDeleteRule).toHaveBeenCalledWith("org-a", "orphan-rule");
-    expect(mockedDeleteSlo).toHaveBeenCalledWith("org-a", "orphan-slo");
-  });
-
-  it("caps orphan SLO deletions per org independently from the rule cap", async () => {
-    const slos = Array.from({ length: 150 }, (_, i) =>
-      ccSlo(`orphan-${i}`, `p-${i}`),
-    );
-    mockedListRules.mockResolvedValue([]);
-    mockedListSlos.mockResolvedValue(slos);
-    const db = fakeSweepDb(["org-a"], new Set());
-
-    await sweepOrphanCcRules(db);
-
-    expect(mockedDeleteSlo).toHaveBeenCalledTimes(100);
-    expect(serverLogger.info).toHaveBeenCalledWith(
-      "previews.cc_orphan_sweep.swept",
-      expect.objectContaining({
-        "organization.id": "org-a",
-        "previews.orphan_slos_deleted": 100,
-        "previews.orphan_slos_sweep_capped": true,
-      }),
-    );
-  });
-
-  it("caps rule and SLO orphan deletions independently when both exceed the cap in one org", async () => {
-    const rules = Array.from({ length: 150 }, (_, i) =>
-      ccRule(`orphan-rule-${i}`, `p-rule-${i}`),
-    );
-    const slos = Array.from({ length: 150 }, (_, i) =>
-      ccSlo(`orphan-slo-${i}`, `p-slo-${i}`),
-    );
-    mockedListRules.mockResolvedValue(rules);
-    mockedListSlos.mockResolvedValue(slos);
-    const db = fakeSweepDb(["org-a"], new Set());
-
-    await sweepOrphanCcRules(db);
-
-    // Each resource kind is capped at ORPHAN_SWEEP_CAP_PER_ORG independently
-    // (200 total deletions across the two kinds, not 100).
-    expect(mockedDeleteRule).toHaveBeenCalledTimes(100);
-    expect(mockedDeleteSlo).toHaveBeenCalledTimes(100);
   });
 
   it("an orphan rule deletion failure does not prevent the SLO sweep for the same org", async () => {

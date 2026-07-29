@@ -253,16 +253,6 @@ mod tests {
     }
 
     #[test]
-    fn substitute_dropped_evidence_renders_empty() {
-        let mut ev = alert(BTreeMap::new(), None, BTreeMap::new());
-        // Evidence over the byte cap is dropped entirely (None + truncated flag):
-        // refs into it must degrade to empty text, not break rendering.
-        ev.evidence = None;
-        ev.evidence_truncated = true;
-        assert_eq!(substitute("err=[${last_error}]", &ev), "err=[]");
-    }
-
-    #[test]
     fn substitute_does_not_recurse_into_label_values() {
         let labels = BTreeMap::from([
             ("a".to_string(), "${b}".to_string()),

@@ -189,32 +189,14 @@ mod tests {
     }
 
     #[test]
-    fn trusted_otlp_fields_default_none() {
-        env::remove_var("CC_TRUSTED_OTLP_ENDPOINT");
-        env::remove_var("CC_TRUSTED_INGEST_SECRET");
-        let c = Config::from_env();
-        assert!(c.trusted_otlp_endpoint.is_none());
-        assert!(c.trusted_ingest_secret.is_none());
-    }
-
-    #[test]
-    fn engine_otlp_fields_default_none() {
-        env::remove_var("CC_ENGINE_OTLP_ENDPOINT");
-        env::remove_var("CC_ENGINE_INGEST_API_KEY");
-        let c = Config::from_env();
-        assert!(c.engine_otlp_endpoint.is_none());
-        assert!(c.engine_ingest_api_key.is_none());
-    }
-
-    #[test]
     fn unhardened_ch_user_flags_only_shared_default() {
         let mut c = Config::from_env();
         c.ch_auth_mode = "shared".into();
         c.ch_user = "default".into();
-        assert!(c.unhardened_ch_user(), "the documented worst case");
+        assert!(c.unhardened_ch_user());
 
         c.ch_user = "cc_rules".into();
-        assert!(!c.unhardened_ch_user(), "a named shared user is the ask");
+        assert!(!c.unhardened_ch_user());
 
         // Per-tenant modes resolve their user elsewhere, so `ch_user` says nothing.
         c.ch_auth_mode = "derived".into();

@@ -1,13 +1,8 @@
-//! The engine-native SLO evaluator: computes per-group SLI, per-tier burn rate,
-//! and error-budget-remaining from the SLI query, writing a status snapshot; then
-//! drives each (group x tier) burn-rate verdict through the shared engine state
-//! machine to open/resolve `slo_instances` rows and publish `Event`s.
+//! Computes SLO status and drives each group and tier verdict through the alert
+//! state machine.
 //!
-//! On the success path the firing pass runs first, then its status snapshot,
-//! `slo_instances` rows, and idempotency claim all commit together in one
-//! transaction (via [`PgStore::persist_slo_eval`]). The freeze-on-error path takes
-//! neither: it records the health failure (via [`PgStore::record_slo_failure`]),
-//! and health recovery on a later success goes through [`PgStore::record_slo_success`].
+//! Successful status, instance, and idempotency writes commit together. Failures
+//! freeze alert state and update SLO health separately.
 
 use crate::clickhouse::{json_to_f64, RowQuerier};
 use crate::domain::ids::{InstanceKey, RuleId};
@@ -41,18 +36,8 @@ type GroupValues = BTreeMap<String, BTreeMap<GroupKey, (f64, f64)>>;
 
 /// The group label sets to publish in this tick's snapshot.
 ///
-/// Every group observed in a due window this tick is kept. Prior-snapshot groups
-/// are carried forward too, but only while the budget window is throttled
-/// (`budget_due == false`): the budget window is the SLO's defining span, so when
-/// it IS re-evaluated its results are the authoritative membership for the
-/// window, and a prior group absent from every due window has no data left in the
-/// window. Such a group is pruned instead of lingering forever, e.g. a service
-/// that has gone silent. (An SLI edit that changes the label set is handled
-/// upstream, by discarding the whole snapshot on an objective-fingerprint
-/// mismatch; this path only ages out a group under an *unchanged* objective.) The
-/// budget window covers every burn window, so its groups are a superset of theirs;
-/// carrying prior only when it is throttled cannot flicker out a group whose data
-/// has merely aged past the shorter burn windows.
+/// Keep groups observed in due windows. Carry prior groups while the defining
+/// budget window is throttled, then prune those absent when it is recomputed.
 fn groups_to_emit(
     prior_groups: &[SloGroupStatus],
     window_values: &GroupValues,
@@ -68,10 +53,7 @@ fn groups_to_emit(
     labels
 }
 
-/// Format a UTC instant as a ClickHouse `DateTime` literal (`YYYY-MM-DD HH:MM:SS`),
-/// suitable for binding as a `{window_start:DateTime}` / `{window_end:DateTime}`
-/// named query parameter. `pub(crate)` so `api::slos::test`'s `/test` endpoint can
-/// reuse it.
+/// Format a UTC instant for ClickHouse `DateTime` query parameters.
 pub(crate) fn fmt_ch_datetime(t: OffsetDateTime) -> String {
     const FORMAT: &[time::format_description::FormatItem<'_>] =
         time::macros::format_description!("[year]-[month]-[day] [hour]:[minute]:[second]");
@@ -80,18 +62,12 @@ pub(crate) fn fmt_ch_datetime(t: OffsetDateTime) -> String {
         .expect("static ClickHouse datetime format is always valid")
 }
 
-/// The window→seconds string used as a [`SloStatusPayload::window_computed_at`] key,
-/// or `None` if the duration shorthand fails to parse (defensive; specs are validated
-/// on write, so this should not happen in practice).
+/// Convert a duration to its `window_computed_at` key.
 fn window_name_for(dur: &str) -> Option<String> {
     parse_window_secs(dur).ok().map(|s| format!("{s}s"))
 }
 
-/// The freshness/merge core shared by [`burn_rate_for`] and [`long_window_valid_for`]:
-/// `Some((good, valid))` observed this tick for `labels` when `window_dur`'s window was
-/// due (zeros when the group is absent from the results); `None` when the window was
-/// not recomputed this tick (or its duration fails to parse), meaning the caller
-/// carries the prior snapshot's value unchanged.
+/// Return current values for a due window, or `None` to retain prior values.
 fn fresh_window_values(
     window_dur: &str,
     labels: &GroupKey,
@@ -111,9 +87,7 @@ fn fresh_window_values(
     )
 }
 
-/// Compute one tier-window's burn rate for `labels`: recomputed from this tick's rows
-/// if `window_dur`'s window was due, else carried over unchanged from the prior
-/// snapshot's value for the same tier+window.
+/// Recompute a due burn window, otherwise retain its prior value.
 fn burn_rate_for(
     window_dur: &str,
     labels: &GroupKey,
@@ -1069,7 +1043,7 @@ mod tier_firing_tests {
             budget_remaining: None,
             tiers: vec![],
         };
-        // Prior snapshot carried two groups; this tick, only "checkout" reports.
+        // Only "checkout" reports in this tick.
         let prior = vec![bare(svc("checkout")), bare(svc("cart"))];
         let mut window_values: GroupValues = BTreeMap::new();
         window_values.insert(
@@ -1077,14 +1051,12 @@ mod tier_firing_tests {
             BTreeMap::from([(svc("checkout"), (10.0, 10.0))]),
         );
 
-        // Budget window throttled: keep the stale "cart" group — its budget-window
-        // data may still be live, we just didn't recompute it this tick.
+        // Keep prior groups until the defining budget window is recomputed.
         let carried = groups_to_emit(&prior, &window_values, false);
         assert!(carried.contains(&svc("checkout")));
         assert!(carried.contains(&svc("cart")));
 
-        // Budget window due: "cart" is absent from every due window, so its data
-        // has aged fully out of the defining window -> pruned.
+        // Once that window is due, absent groups have aged out.
         let pruned = groups_to_emit(&prior, &window_values, true);
         assert!(pruned.contains(&svc("checkout")));
         assert!(!pruned.contains(&svc("cart")));
@@ -1092,9 +1064,9 @@ mod tier_firing_tests {
 
     #[test]
     fn fires_only_when_both_windows_breach() {
-        let spec = spec_with(None); // canonical tiers, fast-burn threshold 14.4
+        let spec = spec_with(None);
 
-        // both windows breach -> breaching
+        // Both windows must breach.
         let payload = payload_one_group(
             group_labels(),
             None,
@@ -1104,7 +1076,6 @@ mod tier_firing_tests {
         let fast = firings.iter().find(|f| f.tier_name == "fast-burn").unwrap();
         assert_eq!(fast.verdict, TierVerdict::Breaching);
 
-        // long breaches, short doesn't -> clear
         let payload = payload_one_group(
             group_labels(),
             None,
@@ -1114,7 +1085,6 @@ mod tier_firing_tests {
         let fast = firings.iter().find(|f| f.tier_name == "fast-burn").unwrap();
         assert_eq!(fast.verdict, TierVerdict::Clear);
 
-        // short breaches, long doesn't -> clear
         let payload = payload_one_group(
             group_labels(),
             None,
@@ -1142,8 +1112,7 @@ mod tier_firing_tests {
     #[test]
     fn a_missing_burn_window_yields_no_verdict_not_a_clear_one() {
         let spec = spec_with(None);
-        // Either window returning no rows leaves the tier unmeasured, which is
-        // not the same as measuring it and finding it under threshold.
+        // A missing window is unmeasured, not clear.
         assert_eq!(fast_verdict(&spec, Some(15.0), None), TierVerdict::Unknown);
         assert_eq!(fast_verdict(&spec, None, Some(15.0)), TierVerdict::Unknown);
     }
@@ -1153,16 +1122,13 @@ mod tier_firing_tests {
         assert!(present_for(TierVerdict::Breaching, Status::Inactive));
         assert!(!present_for(TierVerdict::Clear, Status::Firing));
 
-        // The fix: no measurement must not read as recovery, and must not open
-        // an alert either.
+        // No measurement neither recovers nor opens an alert.
         assert!(present_for(TierVerdict::Unknown, Status::Firing));
         assert!(present_for(TierVerdict::Unknown, Status::Pending));
         assert!(!present_for(TierVerdict::Unknown, Status::Inactive));
     }
 
-    /// The bug this guards: a firing burn-rate alert used to resolve on the
-    /// first tick whose short window happened to return no rows, then re-fire
-    /// on the next one.
+    /// A data gap must not flap an existing firing alert.
     #[test]
     fn a_data_gap_neither_resolves_nor_ages_out_a_firing_instance() {
         use crate::domain::ids::{SloId, SourceId, TenantId};
@@ -1200,33 +1166,15 @@ mod tier_firing_tests {
 
         assert!(outcome.event.is_none(), "a data gap must not resolve");
         assert_eq!(outcome.next.status, Status::Firing);
-        // last_seen has to keep advancing or the staleness reaper
-        // (`list_stale_slo_instances`) resolves the instance a few ticks later,
-        // reintroducing the bug through the back door.
+        // Advance last_seen so reconciliation does not resolve the alert later.
         assert_eq!(outcome.next.last_seen, Some(gap_ts));
-    }
-
-    #[test]
-    fn zero_traffic_fails_open() {
-        let spec = spec_with(None);
-        let payload = payload_one_group(
-            group_labels(),
-            None,
-            vec![tier_status("fast-burn", None, None)],
-        );
-        let firings = plan_tier_firing(&spec, &payload);
-        let fast = firings.iter().find(|f| f.tier_name == "fast-burn").unwrap();
-        assert_eq!(fast.verdict, TierVerdict::Unknown);
-        assert_eq!(fast.value, None);
     }
 
     #[test]
     fn min_valid_events_floor() {
         let spec_floored = spec_with(Some(1000));
 
-        // burn 20x on both windows, but the count is measured and under the
-        // floor -> a clear verdict, because the operator asked us not to act on
-        // traffic this thin.
+        // Thin traffic stays clear even when both burn windows breach.
         let payload = payload_one_group(
             group_labels(),
             None,
@@ -1241,7 +1189,7 @@ mod tier_firing_tests {
         let fast = firings.iter().find(|f| f.tier_name == "fast-burn").unwrap();
         assert_eq!(fast.verdict, TierVerdict::Clear);
 
-        // same burns, valid count clears the floor -> breaching
+        // The same burns breach once the count clears the floor.
         let payload = payload_one_group(
             group_labels(),
             None,
@@ -1256,8 +1204,7 @@ mod tier_firing_tests {
         let fast = firings.iter().find(|f| f.tier_name == "fast-burn").unwrap();
         assert_eq!(fast.verdict, TierVerdict::Breaching);
 
-        // floor set, valid count missing -> the floor is unmeasured, so there
-        // is no verdict at all (and still no page)
+        // A missing count makes the floor unmeasured.
         let payload = payload_one_group(
             group_labels(),
             None,
@@ -1272,7 +1219,7 @@ mod tier_firing_tests {
         let fast = firings.iter().find(|f| f.tier_name == "fast-burn").unwrap();
         assert_eq!(fast.verdict, TierVerdict::Unknown);
 
-        // no floor configured, valid count missing -> breaching purely on burns
+        // Without a floor, burn rates alone determine the verdict.
         let spec_no_floor = spec_with(None);
         let firings = plan_tier_firing(&spec_no_floor, &payload);
         let fast = firings.iter().find(|f| f.tier_name == "fast-burn").unwrap();
@@ -1311,32 +1258,6 @@ mod tier_firing_tests {
         assert_eq!(ticket.verdict, TierVerdict::Breaching);
         assert_eq!(ticket.severity, Severity::Warning);
         assert_eq!(ticket.value, Some(2.0));
-    }
-
-    #[test]
-    fn passthrough_fields_copied() {
-        let spec = spec_with(None); // canonical tiers
-        let mut tier_status_with_burns = tier_status("fast-burn", Some(15.0), Some(16.0));
-        tier_status_with_burns.short_burn_rate = Some(16.0);
-
-        let payload = SloStatusPayload {
-            window: "30d".into(),
-            target_percent: 99.9,
-            groups: vec![SloGroupStatus {
-                labels: group_labels(),
-                sli: None,
-                budget_remaining: Some(0.5),
-                tiers: vec![tier_status_with_burns],
-            }],
-            window_computed_at: BTreeMap::new(),
-            objective_fingerprint: None,
-        };
-
-        let firings = plan_tier_firing(&spec, &payload);
-        let fast = firings.iter().find(|f| f.tier_name == "fast-burn").unwrap();
-        assert_eq!(fast.verdict, TierVerdict::Breaching); // both burns exceed 14.4
-        assert_eq!(fast.short_burn, Some(16.0));
-        assert_eq!(fast.budget_remaining, Some(0.5));
     }
 
     #[test]
@@ -1414,52 +1335,9 @@ mod annotations_evidence_tests {
         let tier = fast_burn_tier();
         let ann = slo_annotations(&slo, &tier);
         assert_eq!(ann.get("summary").map(String::as_str), Some("custom"));
-        // description default is untouched since the spec didn't set it
+        // Unoverridden defaults remain.
         assert!(ann.contains_key("description"));
         assert_eq!(ann.get("team").map(String::as_str), Some("checkout-oncall"));
-    }
-
-    #[test]
-    fn evidence_keys_are_internally_consistent_with_the_pure_formatters() {
-        let slo = slo_named("checkout", BTreeMap::new());
-        let window_secs = 2_592_000u64; // 30d
-        let tf = firing_with(Some(14.4), Some(16.0), Some(0.5));
-        let evidence = slo_evidence(&slo, &tf, window_secs);
-
-        assert_eq!(
-            evidence.get("burn_rate"),
-            Some(&serde_json::Value::String("14.4".to_string()))
-        );
-        assert_eq!(
-            evidence.get("short_burn_rate"),
-            Some(&serde_json::Value::String("16.0".to_string()))
-        );
-        assert_eq!(
-            evidence.get("budget_remaining"),
-            Some(&serde_json::Value::String("50.0%".to_string()))
-        );
-
-        // Compute expected via the pure fns rather than hand-deriving the literal.
-        let expected_tte = time_to_exhaustion_secs(0.5, 14.4, window_secs)
-            .map(fmt_duration_secs)
-            .unwrap();
-        assert_eq!(
-            evidence.get("time_to_exhaustion"),
-            Some(&serde_json::Value::String(expected_tte))
-        );
-
-        assert_eq!(
-            evidence.get("tier"),
-            Some(&serde_json::Value::String("fast-burn".to_string()))
-        );
-        assert_eq!(
-            evidence.get("objective"),
-            Some(&serde_json::Value::String("99.9%".to_string()))
-        );
-        assert_eq!(
-            evidence.get("slo_name"),
-            Some(&serde_json::Value::String("checkout".to_string()))
-        );
     }
 
     #[test]

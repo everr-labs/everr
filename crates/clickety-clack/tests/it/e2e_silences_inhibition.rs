@@ -70,7 +70,7 @@ async fn silence_and_inhibition_suppress_delivery() {
 
     let ctx = common::dispatch_ctx(&infra);
     let tenant = TenantId::from_trusted(Uuid::new_v4().to_string());
-    // No routes → firehose path → one webhook per delivered event.
+    // No routes uses the subscription firehose.
     store
         .create_subscription(ctx.cipher.as_ref(), tenant.clone(), &hook)
         .await
@@ -210,8 +210,7 @@ async fn silence_and_inhibition_suppress_delivery() {
     dispatcher.shutdown().await;
 }
 
-/// Prove that a silence created AFTER an event is buffered into a group is still
-/// honored when `flush_group` runs, because the cache is reloaded at flush time.
+/// A silence created after buffering must still apply at flush time.
 #[tokio::test]
 async fn flush_time_silence_suppresses_buffered_event() {
     let infra = common::dispatch_infra().await;
@@ -222,16 +221,13 @@ async fn flush_time_silence_suppresses_buffered_event() {
 
     let tenant = TenantId::from_trusted(Uuid::new_v4().to_string());
 
-    // Step 1 — Buffer the event while NO silence is active.
-    // Use a zero-TTL cache so the ingest snapshot has no silences.
+    // Buffer with no active silence.
     let ingest_ctx = DispatchCtx {
         cache: Arc::new(FilterCache::with_ttl(store.clone(), Duration::ZERO)),
         ..common::dispatch_ctx(&infra)
     };
 
-    // Create a channel + receiver and a grouping route so events are buffered (not
-    // immediately delivered via the firehose path). group_wait_secs=0 so the group is
-    // due immediately.
+    // A grouping route buffers the event and makes it immediately due.
     store
         .create_channel(
             ingest_ctx.cipher.as_ref(),
@@ -258,7 +254,7 @@ async fn flush_time_silence_suppresses_buffered_event() {
             false,
             0,
             Some(&["svc".to_string()]),
-            Some(0), // group_wait_secs = 0 → due immediately
+            Some(0),
             Some(300),
             None, // repeat_interval_secs
         )
@@ -273,7 +269,6 @@ async fn flush_time_silence_suppresses_buffered_event() {
         &[("svc", "api")],
     );
 
-    // Publish and consume so we can call process_event directly.
     infra.bus.publish(&event).await.unwrap();
     let entries = infra.bus.consume("test-consumer", 1, 500).await.unwrap();
     assert_eq!(entries.len(), 1, "should consume the published event");
@@ -283,14 +278,13 @@ async fn flush_time_silence_suppresses_buffered_event() {
     assert!(acked, "process_event should ack (route matched)");
     infra.bus.ack(&entry.id).await.unwrap();
 
-    // Verify nothing was delivered yet (event is buffered, not flushed).
     tokio::time::sleep(Duration::from_millis(50)).await;
     assert!(
         captured.lock().unwrap().is_empty(),
         "no delivery expected before flush"
     );
 
-    // Step 2 — Create a silence covering svc=api, starting in the past.
+    // Silence the buffered event before flushing it.
     let now = OffsetDateTime::now_utc();
     store
         .create_silence(
@@ -308,10 +302,8 @@ async fn flush_time_silence_suppresses_buffered_event() {
         .await
         .unwrap();
 
-    // Step 3 — Use a zero-TTL cache so flush_group reloads and sees the silence.
     let flush_cache = Arc::new(FilterCache::with_ttl(store.clone(), Duration::ZERO));
 
-    // Step 4 — Claim the due group and flush it.
     let now_ms = (OffsetDateTime::now_utc().unix_timestamp_nanos() / 1_000_000) as i64;
     let gids = infra.groups.claim_due(now_ms, 32).await.unwrap();
     assert!(!gids.is_empty(), "at least one group should be due");
@@ -324,8 +316,6 @@ async fn flush_time_silence_suppresses_buffered_event() {
         flush_group(&flush_ctx, gid).await;
     }
 
-    // Step 5 — Assert NO notification was delivered.
-    // Give a short window in case a delivery was incorrectly attempted.
     tokio::time::sleep(Duration::from_millis(200)).await;
     let got = captured.lock().unwrap();
     assert!(

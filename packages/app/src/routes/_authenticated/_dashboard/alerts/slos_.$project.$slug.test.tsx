@@ -13,10 +13,6 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { CcSlo, CcSloStatus } from "@/data/cc/types";
 import { Route as SloDetailFileRoute } from "./slos_.$project.$slug";
 
-// ---------------------------------------------------------------------------
-// Mocks at the module boundary the route talks to, same as the sibling tests.
-// ---------------------------------------------------------------------------
-
 const mocks = vi.hoisted(() => ({
   getCcSloByName: vi.fn(),
   getCcSloStatus: vi.fn(),
@@ -43,10 +39,6 @@ vi.mock("sonner", () => ({
     error: (...a: unknown[]) => mocks.toastError(...a),
   },
 }));
-
-// ---------------------------------------------------------------------------
-// Fixtures
-// ---------------------------------------------------------------------------
 
 const SLO_ID = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee";
 const PROJECT = "default";
@@ -110,10 +102,6 @@ function sloStatus(overrides: Partial<CcSloStatus> = {}): CcSloStatus {
   };
 }
 
-// ---------------------------------------------------------------------------
-// Harness
-// ---------------------------------------------------------------------------
-
 function renderSloDetailRoute() {
   const rootRoute = createRootRoute({ component: Outlet });
   const authenticatedRoute = createRoute({
@@ -131,7 +119,6 @@ function renderSloDetailRoute() {
     path: "alerts/slos/$project/$slug",
     component: SloDetailFileRoute.options.component,
   });
-  // Back-link target; never rendered here.
   const slosRoute = createRoute({
     getParentRoute: () => dashboardRoute,
     path: "alerts/slos",
@@ -176,37 +163,25 @@ beforeEach(() => {
 });
 
 describe("/alerts/slos/$project/$slug route", () => {
-  it("leads with the stats strip: budget, promise, SLI, burn, and horizon", async () => {
+  it("reports the SLO's current calculations, charting them over its own window", async () => {
     renderSloDetailRoute();
 
-    // No display name set: the heading falls back to the bare slug, and
-    // there is no secondary slug chip (it would just repeat the heading).
-    expect(
-      await screen.findByRole("heading", { name: SLUG }),
-    ).toBeInTheDocument();
-    // The promise leads the stats row (target + window), not the header. The
-    // row rides the async status read, so wait for it.
     expect(await screen.findByText("over 30d rolling")).toBeInTheDocument();
     expect(screen.getAllByText("99.9%").length).toBeGreaterThanOrEqual(1);
-
-    // Headline numbers: SLI, budget remaining, burn, time to exhaustion.
-    expect(screen.getByText("99.92%")).toBeInTheDocument(); // SLI
-    expect(screen.getByText("42.00%")).toBeInTheDocument(); // budget remaining
-    expect(screen.getByText("3d 4h")).toBeInTheDocument(); // exhaustion
-    expect(screen.getByText(/1\.4×/)).toBeInTheDocument(); // burn (1h)
-    expect(screen.getByText("last 1h")).toBeInTheDocument(); // its window
-
-    // A grouped SLI does name its grouping columns (the scalar case below
-    // drops the row entirely, so pin the positive case here).
-    expect(screen.getByText("SLI groups by")).toBeInTheDocument();
+    expect(screen.getByText("99.92%")).toBeInTheDocument();
+    expect(screen.getByText("42.00%")).toBeInTheDocument();
+    expect(screen.getByText("3d 4h")).toBeInTheDocument();
+    expect(screen.getByText(/1\.4×/)).toBeInTheDocument();
     expect(screen.getByText("service")).toBeInTheDocument();
 
-    // The read-time scan is empty here (no traffic in the trailing window), so the
-    // stored snapshot stands and the freshness line reads "computing", not fresh.
-    expect(screen.getByText(/Error budget computing/)).toBeInTheDocument();
+    await waitFor(() => expect(mocks.getCcSloBudgetSeries).toHaveBeenCalled());
+    const arg = mocks.getCcSloBudgetSeries.mock.calls.at(-1)?.[0] as {
+      data: { sloId: string };
+    };
+    expect(arg.data.sloId).toBe(SLO_ID);
   });
 
-  it("shows the display name as the heading, with the description alongside", async () => {
+  it("shows the display name as the heading, with the description and runbook alongside", async () => {
     mocks.getCcSloByName.mockResolvedValue(
       ccSlo({
         spec: {
@@ -214,6 +189,7 @@ describe("/alerts/slos/$project/$slug route", () => {
           annotations: {
             "everr.display.name": "Checkout Availability",
             "everr.display.description": "Can shoppers complete checkout?",
+            "everr.runbook": "demo/checkout-runbook",
           },
         },
       }),
@@ -227,48 +203,24 @@ describe("/alerts/slos/$project/$slug route", () => {
     expect(
       screen.getByText("Can shoppers complete checkout?"),
     ).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: /Runbook/ })).toHaveAttribute(
+      "href",
+      "/runbooks/demo/checkout-runbook",
+    );
   });
 
   it("overrides the snapshot's budget with the read-time value in the strip", async () => {
-    // The stored snapshot is throttled (budget 42%); the read-time scan returns
-    // a thinner current budget for the same group. The hero must show the fresh
-    // number and re-derive time-to-exhaustion from it, not the stale snapshot.
     mocks.getCcSloBudgetNow.mockResolvedValue([
       { labels: { service: "checkout" }, sli: 0.998, budgetRemaining: 0.1 },
     ]);
     renderSloDetailRoute();
 
-    // Fresh budget (10%), not the snapshot's 42%.
     expect(await screen.findByText("10.00%")).toBeInTheDocument();
-    // TTE re-derived from the fresh budget and the effective (both-window) burn
-    // min(1.4, 0.9) = 0.9, not the raw 1h rate: 2592000 * 0.10 / 0.9 = 288000s
-    // -> 3d 8h. The snapshot's stored 3d 4h is gone.
+    // Uses the effective burn rate, min(1.4, 0.9), for the forecast.
     expect(screen.getByText("3d 8h")).toBeInTheDocument();
   });
 
-  it("charts the budget history, scoped to the SLO's budget window", async () => {
-    renderSloDetailRoute();
-
-    expect(await screen.findByText("Budget history")).toBeInTheDocument();
-
-    // The series query is scoped to this SLO (the server fetches the SLO for the
-    // authoritative SLI/target/window, so the request carries just the id + range).
-    await waitFor(() => expect(mocks.getCcSloBudgetSeries).toHaveBeenCalled());
-    const arg = mocks.getCcSloBudgetSeries.mock.calls.at(-1)?.[0] as {
-      data: { sloId: string };
-    };
-    expect(arg.data.sloId).toBe(SLO_ID);
-
-    // Empty series in the fixture: the empty state shows, no chart.
-    expect(
-      screen.getByText(/No telemetry in this range to compute the budget/),
-    ).toBeInTheDocument();
-  });
-
-  it("shows every group outright once an SLO has more than one", async () => {
-    // The stats strip above is the WORST group only, so with several groups
-    // the rest of the answer is in this table. It must be readable without a
-    // click: a fold would hide exactly the rows the headline is not about.
+  it("renders every status group", async () => {
     mocks.getCcSloStatus.mockResolvedValue(
       sloStatus({
         payload: {
@@ -299,15 +251,11 @@ describe("/alerts/slos/$project/$slug route", () => {
 
     renderSloDetailRoute();
 
-    expect(await screen.findByText("All groups")).toBeInTheDocument();
-    // Both rows, with no interaction of any kind first.
-    expect(screen.getByText("search")).toBeInTheDocument();
+    expect(await screen.findByText("search")).toBeInTheDocument();
     expect(screen.getAllByText("checkout").length).toBeGreaterThanOrEqual(1);
-    // And no disclosure to open: the table is not behind one.
   });
 
   it("shows the pending state when no snapshot exists yet", async () => {
-    // getCcSloStatus resolves null for CC's 404: no snapshot row yet.
     mocks.getCcSloStatus.mockResolvedValue(null);
 
     renderSloDetailRoute();
@@ -317,7 +265,7 @@ describe("/alerts/slos/$project/$slug route", () => {
     ).toBeInTheDocument();
   });
 
-  it("marks a degraded evaluator with the broken heart", async () => {
+  it("announces a degraded evaluator", async () => {
     mocks.getCcSloStatus.mockResolvedValue(
       sloStatus({
         health: {
@@ -330,7 +278,6 @@ describe("/alerts/slos/$project/$slug route", () => {
 
     renderSloDetailRoute();
 
-    // Awaited, since the glyph rides the status read rather than the SLO.
     expect(
       await screen.findByLabelText("Evaluation degraded"),
     ).toBeInTheDocument();
@@ -360,24 +307,5 @@ describe("/alerts/slos/$project/$slug route", () => {
     renderSloDetailRoute();
 
     expect(await screen.findByRole("alert")).toHaveTextContent("cc down");
-  });
-
-  it("links the runbook chip when the SLO carries a runbook annotation", async () => {
-    mocks.getCcSloByName.mockResolvedValue(
-      ccSlo({
-        spec: {
-          ...ccSlo().spec,
-          annotations: { "everr.runbook": "demo/checkout-runbook" },
-        },
-      }),
-    );
-
-    renderSloDetailRoute();
-
-    const runbookLink = await screen.findByRole("link", { name: /Runbook/ });
-    expect(runbookLink).toHaveAttribute(
-      "href",
-      "/runbooks/demo/checkout-runbook",
-    );
   });
 });

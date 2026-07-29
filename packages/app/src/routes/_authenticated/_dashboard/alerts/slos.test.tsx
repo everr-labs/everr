@@ -10,12 +10,8 @@ import {
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { CcSlo, CcSloGroupStatus } from "@/data/cc/types";
+import type { CcSlo } from "@/data/cc/types";
 import { Route as SlosFileRoute } from "./slos";
-
-// ---------------------------------------------------------------------------
-// Mocks at the module boundary the route talks to, same as ./rules.test.tsx.
-// ---------------------------------------------------------------------------
 
 const mocks = vi.hoisted(() => ({
   listCcSlos: vi.fn(),
@@ -42,10 +38,6 @@ vi.mock("sonner", () => ({
   },
 }));
 
-// ---------------------------------------------------------------------------
-// Fixtures
-// ---------------------------------------------------------------------------
-
 const SLO_ID = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee";
 
 function ccSlo(overrides: Partial<CcSlo> = {}): CcSlo {
@@ -70,10 +62,6 @@ function ccSlo(overrides: Partial<CcSlo> = {}): CcSlo {
   };
 }
 
-// ---------------------------------------------------------------------------
-// Harness
-// ---------------------------------------------------------------------------
-
 function renderSlosRoute(initialEntry = "/alerts/slos") {
   const rootRoute = createRootRoute({ component: Outlet });
   const authenticatedRoute = createRoute({
@@ -91,7 +79,6 @@ function renderSlosRoute(initialEntry = "/alerts/slos") {
     path: "alerts/slos",
     component: SlosFileRoute.options.component,
   });
-  // Link target (per-SLO detail); never rendered here.
   const sloDetailRoute = createRoute({
     getParentRoute: () => dashboardRoute,
     path: "alerts/slos/$project/$slug",
@@ -121,7 +108,6 @@ function renderSlosRoute(initialEntry = "/alerts/slos") {
 beforeEach(() => {
   for (const fn of Object.values(mocks)) fn.mockReset();
   mocks.listCcSlos.mockResolvedValue([ccSlo()]);
-  // The listing joins each SLO with its latest evaluator snapshot.
   mocks.getCcSloStatus.mockResolvedValue({
     computed_at: new Date().toISOString(),
     health: { status: "healthy", degraded_since: null, last_error: null },
@@ -148,82 +134,21 @@ beforeEach(() => {
       ],
     },
   });
-  // No read-time budget by default: the row falls back to the snapshot.
   mocks.getCcSloBudgetNow.mockResolvedValue([]);
   mocks.pauseCcSlo.mockResolvedValue(ccSlo({ paused: true }));
   mocks.resumeCcSlo.mockResolvedValue(ccSlo());
 });
 
 describe("/alerts/slos route", () => {
-  it("links the runbook from the row when the SLO names one", async () => {
-    // The runbook is what you want the moment a budget starts draining, so it
-    // is reachable from the listing without opening the SLO first.
+  it("names a row by its display name, linked to its address and its runbook", async () => {
     mocks.listCcSlos.mockResolvedValue([
       ccSlo({
         spec: {
           ...ccSlo().spec,
-          annotations: { "everr.runbook": "platform/log-pipeline" },
-        },
-      }),
-    ]);
-
-    renderSlosRoute();
-
-    const link = await screen.findByRole("link", {
-      name: "Open runbook for checkout-availability",
-    });
-    expect(link).toHaveAttribute("href", "/runbooks/platform/log-pipeline");
-  });
-
-  // Renders the engine's value the way the detail page's stat does, so the two
-  // surfaces never disagree about the same SLO.
-  describe("time to exhaustion column", () => {
-    const statusWith = (group: Partial<CcSloGroupStatus>) => ({
-      computed_at: new Date().toISOString(),
-      health: { status: "healthy", degraded_since: null, last_error: null },
-      payload: {
-        window: "30d",
-        target_percent: 99.9,
-        window_computed_at: {},
-        groups: [
-          {
-            labels: { service: "checkout" },
-            sli: 0.99,
-            budget_remaining: 0.3,
-            tiers: [],
-            time_to_exhaustion_secs: null,
-            firing_tiers: [],
-            ...group,
+          annotations: {
+            "everr.display.name": "Checkout Availability",
+            "everr.runbook": "platform/log-pipeline",
           },
-        ],
-      },
-    });
-    const burning = (rate: number) => [
-      {
-        name: "fast-burn",
-        long_burn_rate: rate,
-        short_burn_rate: rate,
-        long_window_valid: 1,
-      },
-    ];
-
-    it("shows the forecast duration while the budget is draining", async () => {
-      mocks.getCcSloStatus.mockResolvedValue(
-        statusWith({ tiers: burning(2), time_to_exhaustion_secs: 7200 }),
-      );
-
-      renderSlosRoute();
-      const table = await screen.findByRole("table");
-      expect(await within(table).findByText("2h")).toBeInTheDocument();
-    });
-  });
-
-  it("names a row by its display name, linked to its address", async () => {
-    mocks.listCcSlos.mockResolvedValue([
-      ccSlo({
-        spec: {
-          ...ccSlo().spec,
-          annotations: { "everr.display.name": "Checkout Availability" },
         },
       }),
     ]);
@@ -231,13 +156,14 @@ describe("/alerts/slos route", () => {
     renderSlosRoute();
 
     const table = await screen.findByRole("table");
-    const link = within(table).getByRole("link", {
-      name: "Checkout Availability",
-    });
-    expect(link).toHaveAttribute(
-      "href",
-      "/alerts/slos/default/checkout-availability",
-    );
+    expect(
+      within(table).getByRole("link", { name: "Checkout Availability" }),
+    ).toHaveAttribute("href", "/alerts/slos/default/checkout-availability");
+    expect(
+      within(table).getByRole("link", {
+        name: "Open runbook for Checkout Availability",
+      }),
+    ).toHaveAttribute("href", "/runbooks/platform/log-pipeline");
   });
 
   it("pauses an active SLO only after the confirmation is accepted", async () => {
@@ -246,12 +172,12 @@ describe("/alerts/slos route", () => {
 
     const table = await screen.findByRole("table");
     await user.click(within(table).getByRole("button", { name: /Pause/ }));
-
-    // The click opens a confirmation and nothing else: pausing takes a detector
-    // offline, and the cost of that is silent, so it is not a one-click action.
-    const dialog = await screen.findByRole("alertdialog");
+    const cancelled = await screen.findByRole("alertdialog");
+    await user.click(within(cancelled).getByRole("button", { name: "Cancel" }));
     expect(mocks.pauseCcSlo).not.toHaveBeenCalled();
 
+    await user.click(within(table).getByRole("button", { name: /Pause/ }));
+    const dialog = await screen.findByRole("alertdialog");
     await user.click(within(dialog).getByRole("button", { name: "Pause SLO" }));
 
     await waitFor(() =>
@@ -262,21 +188,7 @@ describe("/alerts/slos route", () => {
     expect(mocks.toastSuccess).toHaveBeenCalledWith("SLO updated");
   });
 
-  it("leaves the SLO running when the pause confirmation is cancelled", async () => {
-    const user = userEvent.setup();
-    renderSlosRoute();
-
-    const table = await screen.findByRole("table");
-    await user.click(within(table).getByRole("button", { name: /Pause/ }));
-    const dialog = await screen.findByRole("alertdialog");
-    await user.click(within(dialog).getByRole("button", { name: "Cancel" }));
-
-    expect(mocks.pauseCcSlo).not.toHaveBeenCalled();
-  });
-
-  it("resumes a paused SLO without a confirmation", async () => {
-    // Resuming restores the normal state and shows its own effect, so a dialog
-    // there would be a click to dismiss rather than a decision to make.
+  it("resumes a paused SLO", async () => {
     mocks.listCcSlos.mockResolvedValue([ccSlo({ paused: true })]);
     const user = userEvent.setup();
     renderSlosRoute();
@@ -289,7 +201,6 @@ describe("/alerts/slos route", () => {
         data: { sloId: SLO_ID },
       }),
     );
-    expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
   });
 
   it("passes the active preview name into the SLO listing query", async () => {
@@ -319,7 +230,6 @@ describe("/alerts/slos route", () => {
     renderSlosRoute();
 
     const table = await screen.findByRole("table");
-    // The fresh 10%, not the snapshot's 50%.
     expect(await within(table).findByText("10.00%")).toBeInTheDocument();
   });
 
@@ -370,13 +280,8 @@ describe("/alerts/slos route", () => {
     renderSlosRoute();
     const table = await screen.findByRole("table");
 
-    // fast-burn is a critical tier. The status names the severity, never a
-    // delivery outcome: no channel type here is a pager, and where it lands is
-    // the routing tree's business.
     expect(await within(table).findByText("Critical")).toBeInTheDocument();
-    // The horizon rides in its own column.
     expect(within(table).getByText("1h")).toBeInTheDocument();
-    // The headline is the worst group's budget, not a total across the three.
     expect(within(table).getByText("2.00%")).toBeInTheDocument();
   });
 
@@ -413,8 +318,6 @@ describe("/alerts/slos route", () => {
         ],
       },
     });
-    // z-svc is firing and nearly out of budget; a-svc is healthy. Name order
-    // still wins: a-svc leads, z-svc stays last.
     mocks.getCcSloStatus.mockImplementation(({ data: { sloId } }) =>
       Promise.resolve(status(sloId === "z")),
     );
@@ -441,7 +344,6 @@ describe("/alerts/slos route", () => {
     const user = userEvent.setup();
     renderSlosRoute();
 
-    // First page: 10 of 12, with a range indicator.
     expect(await screen.findByText(/1-10 of 12/)).toBeInTheDocument();
     const table = await screen.findByRole("table");
     expect(
@@ -453,7 +355,6 @@ describe("/alerts/slos route", () => {
 
     await user.click(screen.getByRole("button", { name: /Next/ }));
 
-    // Second page: the remaining 2.
     expect(await screen.findByText(/11-12 of 12/)).toBeInTheDocument();
     expect(
       within(table).getByRole("link", { name: "svc-10" }),

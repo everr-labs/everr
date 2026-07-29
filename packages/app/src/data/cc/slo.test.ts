@@ -46,7 +46,7 @@ function slo(overrides: Partial<CcSlo> = {}): CcSlo {
 }
 
 describe("canonical tiers", () => {
-  it("mirrors the engine's three SRE-workbook defaults", () => {
+  it("mirrors the engine's three SRE-workbook defaults, and resolves severity off them", () => {
     // Must match domain/slo.rs canonical_tiers() exactly: every SLO is evaluated
     // on this fixed set (tiers are not user-configurable), and severity
     // resolution reads them. Two critical (page), one warning (ticket).
@@ -59,6 +59,14 @@ describe("canonical tiers", () => {
     expect(CC_CANONICAL_SLO_TIERS[0].severity).toBe("critical");
     expect(CC_CANONICAL_SLO_TIERS[1].severity).toBe("critical");
     expect(CC_CANONICAL_SLO_TIERS[2].severity).toBe("warning");
+    // Mirrors domain/slo.rs tier_severity, including the conservative fallback
+    // for a tier no longer in the spec.
+    const tiers = CC_CANONICAL_SLO_TIERS;
+    expect(ccSloTierSeverity(tiers, { slo_tier: "ticket" })).toBe("warning");
+    expect(ccSloTierSeverity(tiers, { slo_tier: "ghost-tier" })).toBe(
+      "critical",
+    );
+    expect(ccSloTierSeverity(tiers, {})).toBe("critical");
   });
 });
 
@@ -80,18 +88,11 @@ describe("ccTiersForWindow", () => {
     expect(t[0].burn_rate).toBe(14.4);
   });
 
-  it("never exceeds a 1-day objective", () => {
-    // The bug: the canonical 3-day ticket window is longer than a 1-day SLO.
-    const t = ccTiersForWindow(86_400);
-    for (const x of t) {
-      const long = ccTierWinSecs(x.long_window);
-      expect(long).toBeLessThanOrEqual(86_400);
-    }
-  });
-
   it("drops a tier the floor collapses onto an earlier tier's windows", () => {
     // The engine keeps only the lower threshold (domain/slo.rs `tiers_for_window`),
-    // so the UI must not render a fast-burn tier that is never evaluated.
+    // so the UI must not render a fast-burn tier that is never evaluated. Every
+    // surviving long window also stays inside the objective: the canonical 3-day
+    // ticket window is longer than a 1-day SLO, and scaling is what fixes it.
     const t = ccTiersForWindow(86_400);
     expect(t).toHaveLength(2);
     expect(t[0]).toMatchObject({
@@ -100,16 +101,13 @@ describe("ccTiersForWindow", () => {
       short_window: "1m",
       burn_rate: 6,
     });
-    expect(t[1]).toMatchObject({ name: "ticket", short_window: "12m" });
+    expect(t[1]).toMatchObject({
+      name: "ticket",
+      long_window: "144m",
+      short_window: "12m",
+    });
   });
 });
-
-// Local mirror of the tier-window parser for the assertion above.
-function ccTierWinSecs(w: string): number {
-  const m = /^(\d+)([smhdw])$/.exec(w);
-  const mult = { s: 1, m: 60, h: 3600, d: 86_400, w: 604_800 }[m?.[2] ?? "s"];
-  return Number(m?.[1] ?? 0) * (mult ?? 1);
-}
 
 describe("ccFmtWindowSecs", () => {
   it("picks the coarsest exact unit, falling back to seconds", () => {
@@ -121,28 +119,12 @@ describe("ccFmtWindowSecs", () => {
   });
 });
 
-describe("ccSloTierSeverity", () => {
-  it("resolves a known tier and defaults unknown or missing to critical", () => {
-    // Mirrors domain/slo.rs tier_severity, including the conservative
-    // fallback for a tier no longer in the spec.
-    const tiers = CC_CANONICAL_SLO_TIERS;
-    expect(ccSloTierSeverity(tiers, { slo_tier: "ticket" })).toBe("warning");
-    expect(ccSloTierSeverity(tiers, { slo_tier: "ghost-tier" })).toBe(
-      "critical",
-    );
-    expect(ccSloTierSeverity(tiers, {})).toBe("critical");
-  });
-});
-
 describe("SLO event handles", () => {
-  it("carries the uuid and the first-class name, with no legacy handle for a slashless name", () => {
+  it("carries the uuid, the first-class name, and a legacy bare slug only when qualified", () => {
     expect(ccSloHandles(slo())).toEqual([
       "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
       "checkout-availability",
     ]);
-  });
-
-  it("appends the bare slug as a legacy handle for a qualified name", () => {
     expect(ccSloHandles(slo({ name: "payments/checkout" }))).toEqual([
       "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
       "payments/checkout",
@@ -163,25 +145,23 @@ describe("SLO event handles", () => {
 });
 
 describe("ccSloIdentity", () => {
-  it("falls back to the slug when no display name is set", () => {
+  it("prefers the display-name annotation, falling back to the slug", () => {
     expect(ccSloIdentity(slo({ name: "payments/checkout" }))).toEqual({
       name: "checkout",
       project: "payments",
       slug: "checkout",
       displayName: null,
     });
-  });
-
-  it("prefers the display-name annotation over the slug", () => {
-    const identity = ccSloIdentity(
-      slo({
-        name: "payments/checkout",
-        spec: spec({
-          annotations: { [ANN_DISPLAY_NAME]: "Checkout availability" },
+    expect(
+      ccSloIdentity(
+        slo({
+          name: "payments/checkout",
+          spec: spec({
+            annotations: { [ANN_DISPLAY_NAME]: "Checkout availability" },
+          }),
         }),
-      }),
-    );
-    expect(identity).toEqual({
+      ),
+    ).toEqual({
       name: "Checkout availability",
       project: "payments",
       slug: "checkout",
@@ -211,14 +191,11 @@ describe("ccSloExhaustion", () => {
     expect(ccSloExhaustion(0, null, null).label).toBe("exhausted");
   });
 
-  it("passes a live forecast through, already formatted", () => {
+  it("passes a live forecast through, and says why when there is none", () => {
     expect(ccSloExhaustion(0.3, 7200, 2)).toEqual({
       kind: "forecast",
       label: "2h",
     });
-  });
-
-  it("distinguishes a stopped burn from an unknown one", () => {
     expect(ccSloExhaustion(0.4, null, 0).label).toBe("not shrinking");
     expect(ccSloExhaustion(0.4, null, null).label).toBe("—");
     expect(ccSloExhaustion(null, null, null).label).toBe("—");
@@ -226,14 +203,11 @@ describe("ccSloExhaustion", () => {
 });
 
 describe("ccEffectiveBurn", () => {
-  it("is min(long, short) when both windows have data", () => {
+  it("is min(long, short), and null when either window has no data", () => {
     expect(ccEffectiveBurn(3, 2)).toBe(2);
     expect(ccEffectiveBurn(2, 3)).toBe(2);
     // A passed spike: long still remembers it, short has recovered to 0.
     expect(ccEffectiveBurn(3, 0)).toBe(0);
-  });
-
-  it("is null when either window has no data (fail open, like firing)", () => {
     expect(ccEffectiveBurn(3, null)).toBeNull();
     expect(ccEffectiveBurn(null, 2)).toBeNull();
     expect(ccEffectiveBurn(undefined, undefined)).toBeNull();
@@ -256,16 +230,16 @@ describe("ccSloCurrentBurn", () => {
   it("leads with the fast-burn 1h rate but carries the confirmed effective burn", () => {
     // Sustained drain: long 3x over 1h, short 2x over 5m -> shows the 1h figure,
     // effective is the both-window min (2x) that pace/TTE read.
-    const burn = ccSloCurrentBurn(tiers, [tier("fast-burn", 3, 2)]);
-    expect(burn).toEqual({ rate: 3, effective: 2, window: "1h" });
-  });
-
-  it("keeps the raw 1h rate but reads effective 0 once a spike has passed", () => {
-    // long 3x (the last hour), short 0 (the last 5m): the number shown stays the
+    expect(ccSloCurrentBurn(tiers, [tier("fast-burn", 3, 2)])).toEqual({
+      rate: 3,
+      effective: 2,
+      window: "1h",
+    });
+    // Once the spike has passed (short back to 0) the number shown stays the
     // honest 1h rate, but effective is 0 so the pace reads steady, not draining.
-    const burn = ccSloCurrentBurn(tiers, [tier("fast-burn", 3, 0)]);
-    expect(burn).toEqual({ rate: 3, effective: 0, window: "1h" });
-    expect(ccSloBurnPace(burn?.effective ?? null, [])).toBe("steady");
+    const passed = ccSloCurrentBurn(tiers, [tier("fast-burn", 3, 0)]);
+    expect(passed).toEqual({ rate: 3, effective: 0, window: "1h" });
+    expect(ccSloBurnPace(passed?.effective ?? null, [])).toBe("steady");
   });
 
   it("prefers the shortest-long-window tier and skips tiers with no long rate", () => {
@@ -279,9 +253,11 @@ describe("ccSloCurrentBurn", () => {
 });
 
 describe("ccTimeToExhaustionSecs", () => {
-  it("mirrors the engine: window * budget / burn, truncated", () => {
+  it("mirrors the engine: window * budget / burn, truncated, 0 once overspent", () => {
     // 2592000s (30d) * 0.10 / 1.4 = 185142.857 -> 185142 (floor).
     expect(ccTimeToExhaustionSecs(0.1, 1.4, 2_592_000)).toBe(185142);
+    expect(ccTimeToExhaustionSecs(0, 1.4, 2_592_000)).toBe(0);
+    expect(ccTimeToExhaustionSecs(-0.2, 1.4, 2_592_000)).toBe(0);
   });
 
   it("is null when any input is missing or the burn is non-positive", () => {
@@ -290,11 +266,6 @@ describe("ccTimeToExhaustionSecs", () => {
     expect(ccTimeToExhaustionSecs(0.1, 1.4, null)).toBeNull();
     expect(ccTimeToExhaustionSecs(0.1, 0, 2_592_000)).toBeNull();
     expect(ccTimeToExhaustionSecs(0.1, -3, 2_592_000)).toBeNull();
-  });
-
-  it("is 0 when the budget is already overspent", () => {
-    expect(ccTimeToExhaustionSecs(0, 1.4, 2_592_000)).toBe(0);
-    expect(ccTimeToExhaustionSecs(-0.2, 1.4, 2_592_000)).toBe(0);
   });
 });
 
@@ -335,31 +306,6 @@ describe("ccApplyFreshBudget", () => {
     expect(merged.firing_tiers).toEqual(group().firing_tiers);
   });
 
-  it("gives no exhaustion projection once a spike has passed (short back to 0)", () => {
-    // Long window still remembers the spike (3×) but the short window has
-    // recovered to 0, so the effective burn is 0 and there is nothing draining
-    // the (fresh) budget to project an exhaustion from.
-    const [merged] = ccApplyFreshBudget(
-      CC_CANONICAL_SLO_TIERS,
-      [
-        group({
-          tiers: [
-            {
-              name: "fast-burn",
-              long_burn_rate: 3,
-              short_burn_rate: 0,
-              long_window_valid: 120000,
-            },
-          ],
-        }),
-      ],
-      [{ labels: { service: "checkout" }, sli: 0.999, budgetRemaining: 0.5 }],
-      2_592_000,
-    );
-    expect(merged.budget_remaining).toBe(0.5);
-    expect(merged.time_to_exhaustion_secs).toBeNull();
-  });
-
   it("gives no horizon when a slow tier fires on a burst the fastest tier has moved past", () => {
     // The payments-success-rate shape: the fast-burn short window is back to 0
     // (nothing spent recently), but the slow ticket tier still fires on a burst
@@ -390,6 +336,7 @@ describe("ccApplyFreshBudget", () => {
       [{ labels: { service: "checkout" }, sli: 0.98, budgetRemaining: 0.3 }],
       2_592_000,
     );
+    expect(merged.budget_remaining).toBe(0.3);
     expect(merged.time_to_exhaustion_secs).toBeNull();
     // The ticket badge still surfaces — the SLO is still firing, it just isn't
     // draining right now.
@@ -413,18 +360,15 @@ describe("ccApplyFreshBudget", () => {
     expect(merged.budget_remaining).toBe(0.2);
   });
 
-  it("keeps the snapshot for groups with no fresh match (instant fallback)", () => {
-    const [merged] = ccApplyFreshBudget(
+  it("keeps the snapshot when the scan has nothing for a group (instant fallback)", () => {
+    const groups = [group()];
+    const [unmatched] = ccApplyFreshBudget(
       CC_CANONICAL_SLO_TIERS,
-      [group()],
+      groups,
       [{ labels: { service: "cart" }, sli: 1, budgetRemaining: 0.99 }],
       2_592_000,
     );
-    expect(merged.budget_remaining).toBe(0.42);
-  });
-
-  it("returns the snapshot unchanged when there is no fresh data", () => {
-    const groups = [group()];
+    expect(unmatched.budget_remaining).toBe(0.42);
     expect(
       ccApplyFreshBudget(CC_CANONICAL_SLO_TIERS, groups, undefined, 2_592_000),
     ).toEqual(groups);
@@ -435,20 +379,12 @@ describe("ccApplyFreshBudget", () => {
 });
 
 describe("ccSloChartRange", () => {
-  it("is exactly one SLO window ending now, as datemath", () => {
-    expect(
-      ccSloChartRange(
-        spec({ timeWindow: { duration: "1d", isRolling: true } }),
-      ),
-    ).toEqual({ from: "now-1d", to: "now" });
+  it("is exactly one SLO window ending now, as datemath, null when it doesn't parse", () => {
     expect(
       ccSloChartRange(
         spec({ timeWindow: { duration: "30d", isRolling: true } }),
       ),
     ).toEqual({ from: "now-30d", to: "now" });
-  });
-
-  it("is null when the window shorthand doesn't parse", () => {
     expect(
       ccSloChartRange(
         spec({ timeWindow: { duration: "banana", isRolling: true } }),

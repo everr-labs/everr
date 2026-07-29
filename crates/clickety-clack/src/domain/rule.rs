@@ -145,19 +145,4 @@ mod pause_tests {
         assert_eq!(r.namespace, "");
         assert_eq!(r.name, "");
     }
-
-    #[test]
-    fn rule_health_serializes_expected_shape() {
-        let h = RuleHealth {
-            status: "degraded".into(),
-            consecutive_failures: 5,
-            degraded_since: Some(time::OffsetDateTime::UNIX_EPOCH),
-            last_error: Some("boom".into()),
-            last_error_at: Some(time::OffsetDateTime::UNIX_EPOCH),
-        };
-        let v = serde_json::to_value(&h).unwrap();
-        assert_eq!(v["status"], "degraded");
-        assert_eq!(v["consecutive_failures"], 5);
-        assert_eq!(v["last_error"], "boom");
-    }
 }

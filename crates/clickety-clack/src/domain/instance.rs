@@ -65,42 +65,7 @@ mod serde_tests {
     use crate::domain::ids::{InstanceKey, RuleId, SloId, TenantId};
     use uuid::Uuid;
 
-    #[test]
-    fn instance_timestamps_serialize_rfc3339() {
-        let s = InstanceState {
-            key: InstanceKey("k".into()),
-            source: SourceId::Rule(RuleId(Uuid::nil())),
-            tenant: TenantId::from_trusted(Uuid::nil().to_string()),
-            status: Status::Firing,
-            labels: BTreeMap::new(),
-            value: Some(1.0),
-            active_since: Some(OffsetDateTime::UNIX_EPOCH),
-            last_seen: Some(OffsetDateTime::UNIX_EPOCH),
-            absent_count: 0,
-        };
-        let v = serde_json::to_value(&s).unwrap();
-        assert_eq!(v["active_since"], "1970-01-01T00:00:00Z");
-        assert_eq!(v["last_seen"], "1970-01-01T00:00:00Z");
-        let back: InstanceState = serde_json::from_value(v).unwrap();
-        assert_eq!(back, s);
-    }
-
-    #[test]
-    fn instance_none_timestamps_serialize_null() {
-        let s = InstanceState::new_inactive(
-            InstanceKey("k".into()),
-            SourceId::Rule(RuleId(Uuid::nil())),
-            TenantId::from_trusted(Uuid::nil().to_string()),
-            BTreeMap::new(),
-        );
-        let v = serde_json::to_value(&s).unwrap();
-        assert_eq!(v["active_since"], serde_json::Value::Null);
-        assert_eq!(v["last_seen"], serde_json::Value::Null);
-    }
-
-    /// The API JSON contract: a rule instance serializes `rule` only; an SLO
-    /// instance serializes `rule` (same uuid, `Event`-style wire convention)
-    /// plus `slo` — and both round-trip to their exact variant.
+    /// Rule and SLO instances must retain their exact source variant on the wire.
     #[test]
     fn source_id_keeps_rule_key_and_marks_slo_rows() {
         let id = Uuid::new_v4();

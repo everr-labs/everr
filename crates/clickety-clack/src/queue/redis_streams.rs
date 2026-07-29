@@ -14,22 +14,11 @@ const GROUP: &str = "evaluators";
 const SLO_STREAM: &str = "cc:slo:jobs";
 const SLO_GROUP: &str = "slo-evaluators";
 
-/// Crash-recovery reclaim cadence: how long a job must sit idle in another
-/// consumer's pending-entries-list before `consume`/`consume_slo` will steal it
-/// back via `XAUTOCLAIM`. This is recovery for a consumer that died mid-job, not
-/// a fast-retry knob, so it's set well above normal processing time. Shared with
-/// `RedisEventBus`, which runs the same pre-pass over `cc:events`.
+/// Idle time before reclaiming work from a crashed consumer.
 pub(crate) const PEL_RECLAIM_IDLE_MS: usize = 60_000;
 
-/// Rate limit for the XAUTOCLAIM reclaim pre-pass. Entries only become
-/// reclaimable after sitting idle `reclaim_idle_ms`, so probing on every
-/// consume (~every 2s per loop) almost always returns nothing; probing at
-/// half the idle threshold still catches a newly-eligible entry within
-/// `1.5 * reclaim_idle_ms` of the owning consumer's crash. The first probe on
-/// a fresh handle is never throttled, so crashed-peer messages are reclaimed
-/// promptly on startup. One throttle per (handle, stream/group): a shared
-/// handle serving two streams must not have one stream's probe starve the
-/// other's.
+/// Throttle reclaim probes to half the idle threshold. Each stream gets a
+/// separate probe so one consumer loop cannot starve another.
 pub(crate) struct ReclaimProbe {
     last: Mutex<Option<Instant>>,
 }
@@ -41,9 +30,7 @@ impl ReclaimProbe {
         }
     }
 
-    /// True when a probe is due: never probed on this handle, or at least
-    /// `reclaim_idle_ms / 2` elapsed since the last one. A `true` return
-    /// consumes the budget (the caller is expected to probe).
+    /// Return and consume whether a reclaim probe is due.
     pub(crate) fn due(&self, reclaim_idle_ms: usize) -> bool {
         let interval = Duration::from_millis((reclaim_idle_ms / 2) as u64);
         let mut last = self.last.lock().expect("reclaim probe lock poisoned");
@@ -59,15 +46,11 @@ impl ReclaimProbe {
 
 pub struct RedisQueue {
     conn: ConnectionManager,
-    /// Engine self-observability (`cc.queue.consume.lag`, `cc.queue.batch.size`,
-    /// `cc.queue.slo.consume.lag`, `cc.queue.slo.batch.size`).
-    /// Disabled by default; attached by `main` when engine telemetry is configured.
+    /// Optional queue lag and batch-size metrics.
     metrics: crate::otel::EngineMetrics,
-    /// Minimum PEL idle time (ms) before a pending entry is reclaimed. Defaults
-    /// to `PEL_RECLAIM_IDLE_MS`; overridable via `with_reclaim_idle_ms`.
+    /// Minimum idle time before a pending entry is reclaimed.
     reclaim_idle_ms: usize,
-    /// Detects when XAUTOCLAIM is unsupported (Redis < 6.2) to skip reclaim probes
-    /// without repeatedly logging. Prevents a warn-per-poll flood on older Redis versions.
+    /// Disables reclaim after detecting Redis without XAUTOCLAIM.
     reclaim_unsupported: Arc<AtomicBool>,
     /// Per-stream probe throttles (see [`ReclaimProbe`]); the two job streams
     /// are consumed by independent loops sharing this handle.
@@ -75,9 +58,7 @@ pub struct RedisQueue {
     slo_reclaim_probe: ReclaimProbe,
 }
 
-/// True if `err` is Redis rejecting a command it doesn't recognize (the
-/// `ERR unknown command '...'` reply), as opposed to some other server-side
-/// failure. Used to detect a pre-6.2 server that has no `XAUTOCLAIM`.
+/// Whether Redis rejected an unsupported command.
 pub(crate) fn is_unknown_command(err: &redis::RedisError) -> bool {
     err.kind() == redis::ErrorKind::ResponseError
         && err
@@ -91,31 +72,18 @@ fn entry_enqueue_unix_ms(entry_id: &str) -> Option<i64> {
     entry_id.split('-').next()?.parse().ok()
 }
 
-/// One consumer group's reclaim coordinates: the stream, the group whose PEL is
-/// swept, and the hash field carrying the JSON payload (`"job"` / `"event"`).
+/// Redis coordinates and payload field for one reclaim pass.
 pub(crate) struct ReclaimTarget<'a> {
     pub stream: &'a str,
     pub group: &'a str,
     pub field: &'a str,
 }
 
-/// Steal entries idle for at least `min_idle_ms` in the target group's
-/// pending-entries-list and hand them to `consumer`, via a combined XPENDING+XCLAIM
-/// (`XAUTOCLAIM`) pass starting from the beginning of the PEL. Returns each claimed
-/// entry's id and its raw payload-field bytes (still JSON, undeserialized — callers
-/// know the target type). Shared by `RedisQueue` (both job streams) and
-/// `RedisEventBus` (`cc:events`).
+/// Reclaim idle entries and return their raw payloads.
 ///
-/// `XAUTOCLAIM` needs Redis >= 6.2. Against an older server this degrades to a
-/// no-op instead of failing the consume outright, so the reclaim pre-pass stays
-/// additive rather than a hard requirement on the Redis version in use. Once
-/// detected via `unsupported`, reclaim is disabled for the lifetime of the owning
-/// handle to avoid repeated probe round-trips and log spam.
+/// Redis versions without XAUTOCLAIM disable reclaim without breaking consume.
 ///
-/// Entries with no payload field at all can never be salvaged, so they're acked
-/// here and dropped rather than reclaimed forever (a poison-pill guard, same
-/// philosophy as the batch-panic guard in the evaluator loop). Payloads that are
-/// present but fail to deserialize get the same ack treatment in the callers.
+/// Entries without a payload are acked so they cannot become poison pills.
 pub(crate) async fn reclaim_pending_raw(
     conn: &mut ConnectionManager,
     unsupported: &AtomicBool,
@@ -124,7 +92,6 @@ pub(crate) async fn reclaim_pending_raw(
     min_idle_ms: usize,
     count: usize,
 ) -> Result<Vec<(String, Vec<u8>)>, QueueError> {
-    // If we've already detected XAUTOCLAIM is unsupported, skip the probe entirely.
     if unsupported.load(Ordering::Relaxed) {
         return Ok(Vec::new());
     }
@@ -213,21 +180,13 @@ impl RedisQueue {
         self
     }
 
-    /// Test seam: shrink the PEL reclaim idle threshold so container tests don't
-    /// have to wait out the full crash-recovery cadence. Production callers should
-    /// leave this at the `PEL_RECLAIM_IDLE_MS` default set by `connect`.
+    /// Override the reclaim threshold for integration tests.
     pub fn with_reclaim_idle_ms(mut self, ms: usize) -> Self {
         self.reclaim_idle_ms = ms;
         self
     }
 
-    /// Shared consume path for both streams: an `XAUTOCLAIM` reclaim pre-pass (via
-    /// [`reclaim_pending_raw`]), a blocking group read of new entries, poison-pill
-    /// acking of reclaimed payloads that no longer deserialize, and lag/batch-size
-    /// metrics. `consume`/`consume_slo` are thin wrappers supplying their stream,
-    /// group, job type, and metric channel.
-    // Private two-caller helper: the arg list IS the wrappers' full configuration
-    // surface; a one-off params struct would only relocate the same nine names.
+    /// Shared reclaim, read, poison handling, and metrics path for both streams.
     #[allow(clippy::too_many_arguments)]
     async fn consume_stream<J: serde::de::DeserializeOwned>(
         &self,
@@ -241,10 +200,7 @@ impl RedisQueue {
         record_batch_size: impl Fn(usize),
     ) -> Result<Vec<(JobId, J)>, QueueError> {
         let mut conn = self.conn.clone();
-        // Reclaim pre-pass: hand this consumer any jobs left stuck in another
-        // (presumably crashed) consumer's PEL before reading new work. Throttled
-        // by `probe` (entries need `reclaim_idle_ms` of idleness before they are
-        // reclaimable, so probing on every read is wasted round trips).
+        // Reclaim abandoned jobs before reading new work.
         let reclaimed = if probe.due(self.reclaim_idle_ms) {
             reclaim_pending_raw(
                 &mut conn,
@@ -280,8 +236,7 @@ impl RedisQueue {
                     out.push((JobId(id), job));
                 }
                 Err(e) => {
-                    // Poison pill: this payload will never deserialize, so ack it
-                    // instead of leaving it to be reclaimed (and fail) forever.
+                    // Ack malformed payloads so they cannot be reclaimed forever.
                     tracing::warn!(
                         stream,
                         id = %id,
@@ -298,8 +253,7 @@ impl RedisQueue {
             for entry in key.ids {
                 if let Some(redis::Value::BulkString(bytes)) = entry.map.get("job") {
                     let job: J = serde_json::from_slice(bytes)?;
-                    // Stream ids are `<enqueue-unix-ms>-<seq>`, so enqueue-to-consume
-                    // lag falls out of the id itself. Clamp at 0 against clock skew.
+                    // Stream ids carry enqueue time. Clamp lag against clock skew.
                     if let Some(enq_ms) = entry_enqueue_unix_ms(&entry.id) {
                         record_lag((now_ms - enq_ms).max(0) as f64 / 1000.0);
                     }
@@ -307,8 +261,7 @@ impl RedisQueue {
                 }
             }
         }
-        // Empty replies (the XREAD block timeout on an idle queue) are not batches;
-        // recording them would drown the size distribution in zeros.
+        // Do not record idle read timeouts as empty batches.
         if !out.is_empty() {
             record_batch_size(out.len());
         }
@@ -418,15 +371,6 @@ mod tests {
     use super::{entry_enqueue_unix_ms, ReclaimProbe, PEL_RECLAIM_IDLE_MS};
 
     #[test]
-    fn first_probe_is_always_due() {
-        let probe = ReclaimProbe::new();
-        assert!(
-            probe.due(PEL_RECLAIM_IDLE_MS),
-            "fresh handle must probe immediately so crashed-peer messages are reclaimed on startup"
-        );
-    }
-
-    #[test]
     fn probe_is_throttled_to_half_the_idle_threshold() {
         let probe = ReclaimProbe::new();
         assert!(probe.due(PEL_RECLAIM_IDLE_MS));
@@ -438,8 +382,7 @@ mod tests {
 
     #[test]
     fn tiny_idle_threshold_disables_the_throttle() {
-        // Test seams shrink reclaim_idle_ms to ~1ms; the derived interval rounds
-        // to zero so every read probes, keeping the container suites' expectations.
+        // A sub-2ms threshold rounds to no throttle.
         let probe = ReclaimProbe::new();
         assert!(probe.due(1));
         assert!(probe.due(1));

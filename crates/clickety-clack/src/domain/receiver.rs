@@ -27,8 +27,7 @@ pub struct Receiver {
 mod tests {
     use super::*;
 
-    // A receiver serialized by a binary predating `annotations` must still
-    // deserialize, defaulting to an empty map.
+    // Older payloads default annotations to an empty map.
     #[test]
     fn receiver_without_annotations_deserializes_to_empty() {
         let legacy = serde_json::json!({
@@ -42,8 +41,7 @@ mod tests {
         assert_eq!(r.channels, vec!["ops-webhook".to_string()]);
     }
 
-    // A receiver payload from before named channels (inline config objects) must
-    // NOT silently deserialize into channel names.
+    // Inline channel objects must not silently become names.
     #[test]
     fn inline_channel_objects_do_not_deserialize_as_names() {
         let legacy = serde_json::json!({

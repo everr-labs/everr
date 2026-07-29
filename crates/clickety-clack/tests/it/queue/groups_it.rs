@@ -36,10 +36,7 @@ fn meta() -> GroupMeta {
     }
 }
 
-/// A fresh Redis container + groups store. The caller holds the returned
-/// `RedisInfra` guard for the test's lifetime; dropping it frees the
-/// container (leaking via `mem::forget` piles containers up across the many
-/// tests in this file and can exhaust Docker resources in CI).
+/// Return Redis with its lifetime guard so tests clean up their containers.
 async fn redis_groups() -> (crate::common::RedisInfra, RedisGroups) {
     let redis = crate::common::start_redis().await;
     let groups = RedisGroups::connect(&redis.url).await.unwrap();
@@ -51,7 +48,7 @@ async fn buffers_batches_and_claims_when_due() {
     let (_redis, groups) = redis_groups().await;
 
     let now = 1_000_000i64;
-    // New group, group_wait = 50ms → due at now+50.
+    // The new group is due after its 50 ms wait.
     groups
         .add_to_group(
             "g1",
@@ -92,9 +89,7 @@ async fn buffers_batches_and_claims_when_due() {
     // A second claim finds nothing (timer was removed atomically).
     assert!(groups.claim_due(now + 100, 16).await.unwrap().is_empty());
 
-    // take_group returns meta + both active events. The take is a peek (phase one of
-    // the two-phase take): the buffered fields stay in Redis until the flusher has
-    // durably handled the batch and commits the drain.
+    // Taking peeks; committing the drain removes the buffered fields.
     let batch = groups.take_group("g1", now + 100).await.unwrap().unwrap();
     assert_eq!(batch.meta.channels, vec!["ops-hook".to_string()]);
     let mut insts: Vec<String> = batch
@@ -438,10 +433,7 @@ async fn new_event_pulls_in_a_far_repeat_timer() {
     );
 }
 
-/// Route timings can exceed the default group-hash TTL (7d). Arming a flush timer
-/// past the TTL must extend the hash's lifetime to cover the deadline, or the
-/// flusher would later claim a group whose hash already expired and silently drop
-/// the buffered batch or reminder.
+/// Long timers must extend the group hash TTL to prevent data loss.
 #[tokio::test]
 async fn long_timers_extend_the_group_hash_ttl() {
     let (redis, groups) = redis_groups().await;
@@ -475,8 +467,7 @@ async fn long_timers_extend_the_group_hash_ttl() {
         "add_to_group must keep the hash alive past its armed deadline, got PTTL {pttl}"
     );
 
-    // A reminder armed 20d out (claim first so the 14d timer is off the flush ZSET
-    // and arm_repeat actually arms the later deadline) extends the TTL further.
+    // Remove the first timer before arming the later reminder.
     groups.claim_due(now + 14 * DAY_MS, 16).await.unwrap();
     groups
         .arm_repeat("gttl", now + 20 * DAY_MS, now)
@@ -493,9 +484,7 @@ async fn long_timers_extend_the_group_hash_ttl() {
     );
 }
 
-// Rolling-upgrade safety: a group hash written by a binary predating the repeat
-// feature (no fi:*, __repeat_ms__, or __last_notified__ fields) must still take
-// cleanly: empty firing set, no repeat, never notified.
+// Group hashes written before repeat reminders must remain readable.
 #[tokio::test]
 async fn old_format_group_hash_takes_cleanly() {
     let (redis, groups) = redis_groups().await;
@@ -536,9 +525,7 @@ async fn old_format_group_hash_takes_cleanly() {
     );
 }
 
-/// A claim that is never released (its flusher died before taking the group) does not
-/// strand the buffered group: the flush timer no longer holds it, but the in-flight lease
-/// does, and `reclaim_expired` returns it to the timer once the lease elapses.
+/// An expired claim must return to the timer after a flusher dies.
 #[tokio::test]
 async fn claimed_group_is_reclaimed_after_its_lease_expires() {
     let (_redis, groups) = redis_groups().await;
@@ -558,17 +545,14 @@ async fn claimed_group_is_reclaimed_after_its_lease_expires() {
         .await
         .unwrap();
 
-    // Claim leases the group (score = now + CLAIM_LEASE_MS = now + 60_000).
     assert_eq!(
         groups.claim_due(now, 16).await.unwrap(),
         vec!["g".to_string()]
     );
-    // The timer no longer holds it, so a plain claim finds nothing while the lease is live.
     assert!(
         groups.claim_due(now + 500, 16).await.unwrap().is_empty(),
         "held by the in-flight lease, not the timer"
     );
-    // Not yet reclaimable: the lease has not elapsed.
     assert!(
         groups
             .reclaim_expired(now + 30_000, 16)
@@ -577,7 +561,6 @@ async fn claimed_group_is_reclaimed_after_its_lease_expires() {
             .is_empty(),
         "lease not expired yet"
     );
-    // Once the lease elapses, reclaim requeues it onto the timer for another flusher.
     assert_eq!(
         groups.reclaim_expired(now + 60_001, 16).await.unwrap(),
         vec!["g".to_string()],
@@ -590,9 +573,7 @@ async fn claimed_group_is_reclaimed_after_its_lease_expires() {
     );
 }
 
-/// The release safety net: dropping a lease while buffered events remain and no flush
-/// timer is armed (a slow replica's release crossing another replica's re-acquired
-/// lease) must re-arm the timer instead of stranding the batch with no schedule.
+/// A crossed release must not strand an undrained batch without a timer.
 #[tokio::test]
 async fn releasing_with_undrained_events_and_no_timer_rearms() {
     let (_redis, groups) = redis_groups().await;
@@ -619,8 +600,6 @@ async fn releasing_with_undrained_events_and_no_timer_rearms() {
     let batch = groups.take_group("g7", now).await.unwrap().unwrap();
     assert_eq!(batch.events.len(), 1);
 
-    // The crossed release: the lease is dropped with the batch still buffered and
-    // nothing armed. Without the safety net the group would sit until a new event.
     groups.release_claim("g7", now + 10).await.unwrap();
 
     assert_eq!(
@@ -630,8 +609,7 @@ async fn releasing_with_undrained_events_and_no_timer_rearms() {
     );
 }
 
-/// Releasing a claim drops its lease, so a group whose flush completed cleanly is never
-/// reclaimed (no duplicate reflush).
+/// A released clean flush must not be reclaimed.
 #[tokio::test]
 async fn released_claim_is_not_reclaimed() {
     let (_redis, groups) = redis_groups().await;

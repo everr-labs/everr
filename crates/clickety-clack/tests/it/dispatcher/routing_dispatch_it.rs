@@ -88,10 +88,7 @@ async fn routed_event_delivers_to_matched_receiver() {
     dispatcher.shutdown().await;
 }
 
-/// Bus that records every dead-letter reason, and optionally fails the write, so a test
-/// can tell "durably recorded" apart from "silently dropped". `process_event` reaches
-/// only `dead_letter` on the context bus; the test publishes and consumes on the real
-/// one, so every other method is unreachable here.
+/// Records dead letters and can fail the write to exercise redelivery.
 #[derive(Default)]
 struct DeadLetterSpy {
     reasons: Mutex<Vec<String>>,
@@ -124,10 +121,7 @@ impl EventBus for DeadLetterSpy {
     }
 }
 
-/// A route pointing at a receiver the snapshot does not have must never be acked with no
-/// delivery and no record: the event is dead-lettered instead, and if that write fails
-/// the event stays unacked for redelivery. The foreign key rules the state out of the
-/// database, but not out of a snapshot assembled from concurrent reads.
+/// A missing snapshot receiver must dead-letter or remain unacked for redelivery.
 #[tokio::test]
 async fn route_with_a_dangling_receiver_dead_letters_instead_of_dropping() {
     let infra = common::dispatch_infra().await;
@@ -170,13 +164,8 @@ async fn route_with_a_dangling_receiver_dead_letters_instead_of_dropping() {
         .await
         .unwrap();
 
-    // What is under test is the in-memory snapshot, not the database: the foreign key
-    // keeps the stored rows consistent, so the constraint has to come off to build the
-    // dangling shape at all. `FilterCache::load` fills a snapshot with seven independent
-    // concurrent reads, and a route delete plus a receiver delete interleaving between
-    // the routes read and the receivers read produces exactly this -- a live route whose
-    // receiver is already gone -- without the database ever holding it. `fresh_db` hands
-    // every test its own database, so dropping the constraint here is isolated.
+    // Simulate concurrent snapshot reads observing a route after its receiver vanished.
+    // The test has an isolated database, so dropping the constraint is safe here.
     let pool = infra.store.pool_for_test();
     sqlx::query("ALTER TABLE routes DROP CONSTRAINT routes_tenant_receiver_fkey")
         .execute(pool)
@@ -208,7 +197,6 @@ async fn route_with_a_dangling_receiver_dead_letters_instead_of_dropping() {
         reasons[0]
     );
 
-    // A failing dead-letter write must not ack: the event stays in the PEL for reclaim.
     spy.fail.store(true, Ordering::SeqCst);
     let ack = cc::dispatcher::process_event(&ctx, &entries[0]).await;
     assert!(

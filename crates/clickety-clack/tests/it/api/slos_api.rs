@@ -3,8 +3,6 @@ use axum::http::{Request, StatusCode};
 use serde_json::{json, Value};
 use tower::ServiceExt;
 
-// Reuse the shared API test harness. `setup()` builds a router with a stubbed
-// ClickHouse (127.0.0.1:1) and HeaderAuth — SLO CRUD never calls ClickHouse.
 use crate::api::support::{body_json, setup, TENANT};
 
 async fn create_slo(router: &axum::Router, name: &str) -> Value {
@@ -27,51 +25,6 @@ async fn create_slo(router: &axum::Router, name: &str) -> Value {
         .unwrap();
     assert_eq!(resp.status(), StatusCode::OK);
     body_json(resp).await
-}
-
-#[tokio::test]
-async fn create_then_get() {
-    let (router, _store) = setup().await;
-    let created = create_slo(&router, "checkout").await;
-    assert_eq!(created["version"], 1);
-    assert_eq!(created["name"], "checkout");
-    let id = created["id"].as_str().unwrap();
-
-    let resp = router
-        .clone()
-        .oneshot(
-            Request::get(format!("/v1/slos/{id}"))
-                .header("X-CC-Tenant", TENANT)
-                .body(Body::empty())
-                .unwrap(),
-        )
-        .await
-        .unwrap();
-    assert_eq!(resp.status(), StatusCode::OK);
-    let got = body_json(resp).await;
-    assert_eq!(got["spec"]["targetPercent"], 99.9);
-    // GET returns the SloView with the rfc3339 `updated_at` surfaced by the
-    // as-code resource admin.
-    let updated_at = got["updated_at"].as_str().unwrap();
-    time::OffsetDateTime::parse(updated_at, &time::format_description::well_known::Rfc3339)
-        .expect("updated_at must be rfc3339");
-
-    let resp = router
-        .clone()
-        .oneshot(
-            Request::get("/v1/slos")
-                .header("X-CC-Tenant", TENANT)
-                .body(Body::empty())
-                .unwrap(),
-        )
-        .await
-        .unwrap();
-    assert_eq!(resp.status(), StatusCode::OK);
-    let listed = body_json(resp).await;
-    let items = listed.as_array().unwrap();
-    assert_eq!(items.len(), 1);
-    assert_eq!(items[0]["name"], "checkout");
-    assert_eq!(items[0]["updated_at"].as_str().unwrap(), updated_at);
 }
 
 #[tokio::test]

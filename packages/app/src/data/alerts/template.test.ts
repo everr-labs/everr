@@ -36,9 +36,14 @@ describe("validateMessageRefs", () => {
       validateMessageRefs(`\${errors} on \${route}`, ["route", "errors"], true),
     ).not.toThrow();
     expect(() => validateMessageRefs("no refs", [], false)).not.toThrow();
+    // A result column literally named "value" is fine: CC falls through to it
+    // (via labels or evidence) when the rule has no value column.
+    expect(() =>
+      validateMessageRefs(`\${value}`, ["value"], false),
+    ).not.toThrow();
   });
 
-  it("rejects refs to columns the query does not return, listing the columns", () => {
+  it("rejects refs to columns the query does not return, and the value placeholder without a value column", () => {
     expect(() =>
       validateMessageRefs(`\${n}`, ["route", "errors"], false),
     ).toThrow(
@@ -47,16 +52,8 @@ describe("validateMessageRefs", () => {
     expect(() => validateMessageRefs(`\${n}`, [], false)).toThrow(
       /the query returned no columns/,
     );
-  });
-
-  it("rejects the value placeholder when the rule has no value column", () => {
     expect(() => validateMessageRefs(`\${value}`, ["route"], false)).toThrow(
       /requires spec\.valueColumn/,
     );
-    // A result column literally named "value" is fine: CC falls through to it
-    // (via labels or evidence) when the rule has no value column.
-    expect(() =>
-      validateMessageRefs(`\${value}`, ["value"], false),
-    ).not.toThrow();
   });
 });

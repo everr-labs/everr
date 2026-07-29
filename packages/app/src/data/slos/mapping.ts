@@ -15,40 +15,13 @@ import { formatResourceName, parseResourceName } from "@/data/as-code/identity";
 import type { CcSlo, CcSloInput } from "@/data/cc/types";
 import type { SloYaml } from "./schema";
 
-// The ownership annotation (everr.repoid) and the everr.label. prefix live in
-// data/alerts/annotations, shared with the AlertRule mapping; re-exported here
-// so the many existing SLO-side imports keep one path. Identity (project/slug,
-// live-vs-preview namespace) is carried on the CC SLO's own first-class
-// `name`/`namespace` fields now, not an annotation: see toSloInput/fromCcSlo
-// below.
+// Preserve the existing SLO-side import path for ownership helpers.
 export { OWN_REPO } from "@/data/alerts/annotations";
 
-// A linked runbook (project/slug), stored canonically so the SLO detail can
-// deep-link to it. Mirrors the AlertRule mapping's ANN_RUNBOOK exactly (see
-// data/alerts/mapping.ts) — not exported there, so redefined here rather than
-// reaching into that module's private constant.
+// Canonical linked runbook reference.
 const ANN_RUNBOOK = "everr.runbook";
 
-/**
- * SLO YAML → CC SLO create/update input: the spec fields flattened beside the
- * SLO's first-class `name`/`namespace` (CcSloInput's wire shape, mirroring
- * what CC's own CreateSloBody accepts and what a GET response returns).
- * Shared by the as-code reconciler, the resource admin, and tests.
- *
- * `appBaseUrl` (the everr app origin) enables the `link.runbook` annotation,
- * computed upfront here since the SLO's identity (project/slug) is known
- * before create.
- *
- * A `previewId` builds the SLO for that preview namespace: suppressed (CC
- * evaluates it fully but never notifies) so live and preview reconciles never
- * touch each other's SLOs; namespace alone discriminates live vs preview now,
- * so no identity annotation is written for it.
- *
- * `slo.spec.annotations` (user-supplied pass-through) is merged in BEFORE the
- * generated keys below, so the generated `everr.*`/link keys always win (the
- * schema already rejects `everr.`-prefixed keys, so this merge order never
- * actually needs to resolve a collision).
- */
+/** Maps an as-code SLO to CC's create/update input. */
 export function toSloInput(
   slo: SloYaml,
   repoid: string,
@@ -66,10 +39,7 @@ export function toSloInput(
   }
   if (slo.spec.display?.name) {
     annotations[ANN_DISPLAY_NAME] = slo.spec.display.name;
-    // `${slo_tier}`/`${burn_rate}` stay literal placeholder text: CC's
-    // notification renderer resolves them from the firing event's
-    // labels/evidence at dispatch time, the same way it resolves
-    // notificationMessage templates for alerts.
+    // CC resolves these placeholders when dispatching.
     annotations[ANN_CC_SUMMARY] =
       `${slo.spec.display.name}: \${slo_tier} burn - \${burn_rate}x over budget`;
   }
@@ -98,15 +68,13 @@ export function toSloInput(
       label_columns: slo.spec.sli.labelColumns ?? [],
     },
     targetPercent: slo.spec.targetPercent,
-    // The schema normalizes timeWindow to the duration shorthand; v1 is
-    // rolling-only, so isRolling is always true on the wire.
+    // v1 supports rolling windows only.
     timeWindow: { duration: slo.spec.timeWindow, isRolling: true },
     ...(slo.spec.minValidEvents !== undefined
       ? { min_valid_events: slo.spec.minValidEvents }
       : {}),
     annotations,
-    // Preview SLOs are a full dress rehearsal: evaluated, stateful, and
-    // visible in history, but the dispatcher never notifies on them.
+    // Preview SLOs evaluate without notifying.
     suppressed: opts.previewId !== undefined,
   };
 }
@@ -135,8 +103,7 @@ export function fromCcSlo(
 ): SloOwnershipView {
   const { project, slug } = parseResourceName(slo.name);
   const ann = slo.spec.annotations;
-  // The stored ref is already canonical (project/slug or a bare slug for the
-  // default project), so any fallback project works to split it back out.
+  // Stored refs are canonical, so the fallback only handles legacy bare refs.
   const runbook = ann[ANN_RUNBOOK]
     ? parseRunbookRef(ann[ANN_RUNBOOK], "default")
     : null;
@@ -153,16 +120,7 @@ export function fromCcSlo(
   };
 }
 
-/**
- * CC SLO → the canonical `kind: SLO` as-code document, the inverse of
- * {@link toSloInput} for everr-owned SLOs. Used by the resources CLI (`everr
- * resources show`): SLOs have no stored document (the CC SLO is the
- * resource), so one is reconstructed. `metadata.name`/`metadata.project` come
- * from splitting the first-class `name` (project omitted when "default");
- * generated annotations (`everr.*`, `link.runbook`) fold back into their
- * source fields or are dropped; everything else is the user's pass-through
- * `spec.annotations`.
- */
+/** Reconstructs the canonical as-code document from a CC SLO. */
 export function toSloDocument(slo: Pick<CcSlo, "name" | "spec">): SloYaml {
   const { project, slug } = parseResourceName(slo.name);
   const ann = slo.spec.annotations;
@@ -203,8 +161,7 @@ export function toSloDocument(slo: Pick<CcSlo, "name" | "spec">): SloYaml {
           : {}),
       },
       targetPercent: slo.spec.targetPercent,
-      // The duration shorthand is the canonical as-code form (v1 is
-      // rolling-only, so the flag carries no information).
+      // The shorthand is canonical because v1 is rolling-only.
       timeWindow: slo.spec.timeWindow.duration,
       ...(slo.spec.min_valid_events !== undefined
         ? { minValidEvents: slo.spec.min_valid_events }
@@ -217,7 +174,7 @@ export function toSloDocument(slo: Pick<CcSlo, "name" | "spec">): SloYaml {
   };
 }
 
-/** True if a CC SLO is everr-owned (carries `everr.repoid`), owned by this repo (or any repo). */
+/** Whether an SLO is owned by this repo, or by any repo when omitted. */
 export function isOwnedSlo(slo: Pick<CcSlo, "spec">, repoid?: string): boolean {
   const ann = slo.spec.annotations;
   if (ann[OWN_REPO] === undefined) return false;

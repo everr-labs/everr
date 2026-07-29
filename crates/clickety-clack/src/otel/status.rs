@@ -1,7 +1,4 @@
-//! Span error-status convention: operations that fail mark their span via the
-//! `otel.status_code` magic field (tracing-opentelemetry maps it to the OTel
-//! span status), so trace-side error filtering works. Fields must be declared
-//! on the span (`otel.status_code = Empty`) or `record` is a no-op.
+//! Helpers for marking failed spans with OpenTelemetry error status.
 
 /// Mark the current span as errored. The enclosing span must declare
 /// `otel.status_code` and `otel.status_message` as empty fields.

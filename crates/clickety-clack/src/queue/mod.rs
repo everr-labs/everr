@@ -17,9 +17,7 @@ pub enum QueueError {
     Json(#[from] serde_json::Error),
 }
 
-/// Opaque transport id for a consumed eval job. The backend's id/offset format is sealed
-/// inside this crate; callers only move it around and ack with it (Redis stream id today,
-/// Kafka partition/offset later).
+/// Opaque transport id for a consumed evaluation job.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct JobId(pub(crate) String);
 
@@ -44,10 +42,7 @@ impl EventId {
     pub(crate) fn as_str(&self) -> &str {
         &self.0
     }
-    /// Construct an `EventId` from a raw backend id. Hidden from the public surface; it
-    /// exists so out-of-crate tests (e.g. `cc-events`' fake bus) can fabricate entries
-    /// without a live Redis stream. Production code never needs it — ids come from the
-    /// backend via `consume`.
+    /// Construct an id for out-of-crate test fakes.
     #[doc(hidden)]
     pub fn from_raw(id: impl Into<String>) -> Self {
         EventId(id.into())
@@ -76,9 +71,7 @@ pub struct Delivery {
     pub job: EvalJob,
 }
 
-/// One SLO evaluation job: evaluate `slo` as-of `eval_ts`. Travels on a separate
-/// queue (`cc:slo:jobs`) from rule `EvalJob`s so SLO evaluation never competes with
-/// (or is head-of-line blocked by) rule evaluation.
+/// One SLO evaluation job on the independent `cc:slo:jobs` queue.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct SloEvalJob {
     pub tenant: TenantId,

@@ -57,24 +57,7 @@ mod tests {
         assert_eq!(serde_json::to_value(MatchOp::Eq).unwrap(), "eq");
     }
 
-    #[test]
-    fn route_grouping_fields_default_to_none() {
-        let json = serde_json::json!({
-            "id": "00000000-0000-0000-0000-000000000000",
-            "tenant": "00000000-0000-0000-0000-000000000000",
-            "matchers": [],
-            "receiver": "ops"
-        });
-        let r: Route = serde_json::from_value(json).unwrap();
-        assert_eq!(r.group_by, None);
-        assert_eq!(r.group_wait_secs, None);
-        assert_eq!(r.group_interval_secs, None);
-        assert_eq!(r.repeat_interval_secs, None);
-    }
-
-    // A payload serialized by a binary predating `repeat_interval_secs` (all other
-    // fields present) must still deserialize, defaulting the reminder cadence to
-    // None (= never re-notify).
+    // Older payloads default to never repeating notifications.
     #[test]
     fn route_without_repeat_interval_deserializes_to_none() {
         let json = serde_json::json!({

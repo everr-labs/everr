@@ -1,6 +1,4 @@
-//! Flush-time suppression: re-apply silence + inhibition to a buffered group batch just
-//! before delivery, so a silence created during the group window is honored. See
-//! docs/superpowers/specs/2026-06-15-notify-time-silencing-and-batched-writes-design.md.
+//! Reapply suppression before delivering a buffered group.
 
 use crate::dispatcher::cache::Snapshot;
 use crate::dispatcher::{inhibition, routing, silence};
@@ -8,15 +6,8 @@ use crate::domain::sink::{AlertLogSink, DeliveryFacts};
 use crate::domain::Event;
 use time::OffsetDateTime;
 
-/// Drop events suppressed by an active silence or inhibition in `snap`. Returns the
-/// surviving events in input order. Firing and resolved are both dropped on a silence
-/// match (behavior-preserving with the at-ingest filter).
-///
-/// For each event dropped by a matching SILENCE, a `silenced` audit record is emitted via
-/// `sink`, mirroring the at-ingest path in `process_event`. This is the only place a
-/// late-arriving silence (created during the group window) can be observed, so the record
-/// is essential to keep app.logs consistent. INHIBITION drops emit no record (no
-/// event_type exists for inhibition; out of scope).
+/// Drop currently suppressed events while preserving input order. Silence drops
+/// emit audit records; inhibition drops do not have an event type.
 pub async fn filter_suppressed(
     snap: &Snapshot,
     events: Vec<Event>,
@@ -25,15 +16,12 @@ pub async fn filter_suppressed(
 ) -> Vec<Event> {
     let mut survivors = Vec::with_capacity(events.len());
     for ev in events {
-        // Defense in depth for rolling upgrades: a suppressed (preview-rule) event is
-        // normally dropped at ingest, but one buffered by a pre-upgrade dispatcher must
-        // not be delivered at flush time either. Dropped silently (no audit record;
-        // suppression is a rule property, not a notify-time decision).
+        // Keep buffered preview-rule events suppressed across rolling upgrades.
         if ev.suppressed {
             continue;
         }
         let labels = routing::match_labels(&ev);
-        // Silence takes precedence: if a silence matches, emit the audit record and drop.
+        // Silence takes precedence and emits an audit record.
         if let Some(sid) = silence::matching_silence(&labels, &snap.silences, now) {
             sink.record_delivery(
                 &ev,
@@ -46,7 +34,7 @@ pub async fn filter_suppressed(
             .await;
             continue;
         }
-        // Inhibition drops silently (no audit record; out of scope).
+        // Inhibition drops have no audit event type.
         if inhibition::is_inhibited(&labels, &ev.instance_key, &snap.inhibitions, &snap.firing) {
             continue;
         }
@@ -101,8 +89,7 @@ mod tests {
         }
     }
 
-    /// An active match-all silence: empty matchers match everything (see matching.rs
-    /// `matchers_match` — all() on empty is true), starts_at <= now < ends_at.
+    /// An active match-all silence.
     fn match_all_silence(now: OffsetDateTime) -> Silence {
         Silence {
             id: Uuid::nil(),
@@ -139,8 +126,7 @@ mod tests {
         assert_eq!(result[0].status, ev.status);
     }
 
-    /// Rolling-upgrade backstop: a suppressed (preview-rule) event that reached a group
-    /// buffer anyway must still be dropped at flush time, even with an empty snapshot.
+    /// Buffered preview events remain suppressed during rolling upgrades.
     #[tokio::test]
     async fn suppressed_event_is_dropped_at_flush() {
         let snap = empty_snapshot();
@@ -181,9 +167,7 @@ mod tests {
     async fn inhibition_drops_target_when_source_firing() {
         let now = OffsetDateTime::UNIX_EPOCH;
 
-        // Source: severity=critical, instance=db1
-        // Target: severity=warning,  instance=db1 (matches target_matchers; same instance)
-        // Rule: source_matchers=[severity=critical], target_matchers=[severity=warning], equal=[instance]
+        // A critical db1 source inhibits a warning db1 target.
         let source_labels: BTreeMap<String, String> = [
             ("severity".to_string(), "critical".to_string()),
             ("instance".to_string(), "db1".to_string()),
@@ -208,10 +192,6 @@ mod tests {
             created_at: OffsetDateTime::UNIX_EPOCH,
         };
 
-        // Build the target event. The synthetic labels from match_labels() will include
-        // "severity" from ev.severity (Severity::Warning -> "warning"), but routing::match_labels
-        // also inserts user labels first and then overwrites with synthetic ones. We pass
-        // target_labels as user labels and set Severity::Warning so "severity" stays "warning".
         let target_ev = Event::new(
             tenant(),
             rule_id(),
@@ -224,13 +204,9 @@ mod tests {
             now,
         );
 
-        // The firing set uses synthetic labels as the cache does (source_labels already contain
-        // "severity" explicitly, which routing::match_labels would also set from Severity).
         let snap = Snapshot {
             silences: vec![],
             inhibitions: vec![rule],
-            // firing entry: (instance_key, synthetic_labels). We provide labels matching
-            // source_matchers directly; inhibition::is_inhibited uses these verbatim.
             firing: vec![(source_key, source_labels)],
             routes: vec![],
             receivers: Default::default(),

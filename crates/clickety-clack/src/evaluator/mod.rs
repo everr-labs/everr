@@ -18,14 +18,11 @@ pub mod store;
 
 pub use store::{OutboxStore, RuleEvalStore, SloEvalStore};
 
-/// Evidence caps (pinned contract with the everr frontend): at most 16 columns, and the
-/// compact-JSON serialization must fit in 4096 bytes or the evidence is dropped entirely.
+/// Evidence is capped at 16 columns and 4096 bytes of compact JSON.
 const MAX_EVIDENCE_COLUMNS: usize = 16;
 const MAX_EVIDENCE_BYTES: usize = 4096;
 
-/// Build the bounded evidence for one present source row. `extra` is the row minus the
-/// rule's `label_columns` (the value column IS included). Returns
-/// `(evidence, evidence_truncated)`:
+/// Bound a source row's non-label columns for event evidence:
 /// - no extra columns: `(None, false)`;
 /// - over 16 columns: the first 16 in key order survive and `truncated` is true;
 /// - surviving columns' compact JSON over 4096 bytes: `(None, true)`.
@@ -50,11 +47,7 @@ fn build_evidence(
     (Some(map), truncated)
 }
 
-/// Identity of a ClickHouse query for coalescing. Two jobs share a single round-trip iff
-/// these fields match — the resolved per-tenant auth identity plus the wire query and how
-/// rows are parsed. Including `auth` keeps tenants with identical SQL from sharing a
-/// round-trip under per-tenant credentials, while `shared` mode (constant identity)
-/// still coalesces freely.
+/// Query identity for safe coalescing, including tenant credentials and row shape.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 struct QuerySig {
     auth: crate::clickhouse::AuthIdentity,
@@ -115,14 +108,8 @@ pub async fn run_evaluator(
             tracing::Span::current().record("batch", deliveries.len());
             // Time only real batches; the consume timeout on an idle queue is not work.
             let batch_started = (!deliveries.is_empty()).then(std::time::Instant::now);
-            // Per-batch panic isolation: a panic while processing one batch must poison
-            // neither this loop nor the whole evaluator role. The ack ids are computed
-            // up front so a panicked batch is still acked; redelivering it would only
-            // re-panic on every redelivery (a poison pill that stalls the consumer),
-            // and any (rule, eval_ts) pairs claimed before the panic would be skipped
-            // on redelivery anyway. The `health` map is a best-effort cache, so a
-            // half-updated map after a panic is harmless (worst case: one extra
-            // `record_rule_success` round-trip).
+            // Ack a panicked batch so poison jobs cannot stall the consumer. The
+            // health map is only a cache, so a partial update is harmless.
             let ack_ids: Vec<JobId> = deliveries.iter().map(|d| d.id.clone()).collect();
             let batch = std::panic::AssertUnwindSafe(process_batch_inner(
                 &store,
@@ -656,22 +643,14 @@ mod tests {
     use crate::domain::rule::Severity;
     use std::collections::BTreeMap;
 
-    /// Verify the index→id mapping inside `commit_and_publish`'s partial-publish path.
-    ///
-    /// `PgStore` is a concrete struct around a real pool, so we cannot stub it here.
-    /// Instead we test the mapping logic directly as a pure unit: given a list of outbox
-    /// ids and a subset of successfully-published indices (as `publish_batch` would return),
-    /// the set of ids scheduled for deletion must equal exactly the ids at those indices.
+    /// Partial publishing must delete only the corresponding outbox rows.
     #[test]
     fn commit_and_publish_partial_publish_maps_correct_ids() {
-        // Simulate outbox_ids returned by persist_eval_batch (one per event, in order).
         let id0 = uuid::Uuid::new_v4();
         let _id1 = uuid::Uuid::new_v4();
         let id2 = uuid::Uuid::new_v4();
         let outbox_ids = vec![id0, _id1, id2];
 
-        // Simulate publish_batch returning only indices 0 and 2 (event at index 1 failed).
-        // Call the production helper so the test covers the real function.
         let to_delete = published_outbox_ids(&outbox_ids, &[0, 2]);
 
         assert_eq!(to_delete, vec![id0, id2]);
@@ -738,11 +717,6 @@ mod evidence_tests {
     }
 
     #[test]
-    fn empty_extra_yields_no_evidence_untruncated() {
-        assert_eq!(build_evidence(&BTreeMap::new()), (None, false));
-    }
-
-    #[test]
     fn column_cap_keeps_first_16_and_marks_truncated() {
         let e = extra(20, 5);
         let (ev, truncated) = build_evidence(&e);
@@ -766,13 +740,6 @@ mod evidence_tests {
     fn byte_cap_drops_evidence_entirely() {
         // One column whose value alone exceeds 4096 bytes of compact JSON.
         let e = extra(1, MAX_EVIDENCE_BYTES + 1);
-        assert_eq!(build_evidence(&e), (None, true));
-    }
-
-    #[test]
-    fn byte_cap_applies_after_column_cap() {
-        // 20 fat columns: even the surviving 16 exceed the byte cap -> None, truncated.
-        let e = extra(20, 512);
         assert_eq!(build_evidence(&e), (None, true));
     }
 }

@@ -344,9 +344,7 @@ mod tests {
         }
     }
 
-    /// A stale FIRING instance of a suppressed (preview) rule synthesizes a Resolved
-    /// event that carries the flag, so the dispatcher drops it like any other event of
-    /// that rule. Evidence is absent (no source row for a reconciliation resolve).
+    /// Reconciled preview alerts remain suppressed.
     #[test]
     fn reconcile_stamps_suppressed_from_rule() {
         let now = OffsetDateTime::UNIX_EPOCH + Duration::hours(50);
@@ -359,21 +357,7 @@ mod tests {
         assert!(!ev.evidence_truncated);
     }
 
-    /// A stale FIRING instance whose `name` field is set threads it through to the
-    /// synthetic Resolved event's `name`, so the reconciler's event carries the same
-    /// first-class name as one the evaluator would have stamped.
-    #[test]
-    fn reconcile_stamps_name_from_stale_instance() {
-        let now = OffsetDateTime::UNIX_EPOCH + Duration::hours(50);
-        let mut s = stale(Status::Firing);
-        s.name = "default/checkout-latency".to_string();
-        let (_, ev) = reconcile_transition(s, now);
-        let ev = ev.expect("stale firing emits a Resolved event");
-        assert_eq!(ev.name, "default/checkout-latency");
-    }
-
-    /// An SLO-sourced stale FIRING instance stamps its SLO identity on the synthetic
-    /// Resolved event (`rule` carries the same uuid, the Event wire convention).
+    /// Reconciled SLO alerts preserve their routing identity.
     #[test]
     fn reconcile_stamps_slo_from_source() {
         let now = OffsetDateTime::UNIX_EPOCH + Duration::hours(50);
@@ -387,9 +371,7 @@ mod tests {
         assert_eq!(next.source, crate::domain::ids::SourceId::Slo(slo));
     }
 
-    /// `reconcile_transition` pure: no DB, no async.
-    /// For [Firing, Firing, Pending, Inactive] we expect 4 Inactive next-states and
-    /// exactly 2 Resolved events (one per Firing, none for the others).
+    /// Reconciliation clears stale state and resolves only firing instances.
     #[test]
     fn reconcile_transition_equivalence() {
         let now = OffsetDateTime::UNIX_EPOCH + Duration::hours(50);
@@ -405,7 +387,6 @@ mod tests {
             .map(|s| reconcile_transition(s, now))
             .collect();
 
-        // All next-states must be Inactive.
         assert_eq!(results.len(), 4);
         for (next, _) in &results {
             assert_eq!(
@@ -418,7 +399,6 @@ mod tests {
             assert_eq!(next.absent_count, 0);
         }
 
-        // Collect events.
         let events: Vec<_> = results.iter().filter_map(|(_, ev)| ev.as_ref()).collect();
         assert_eq!(
             events.len(),
@@ -429,13 +409,11 @@ mod tests {
             assert_eq!(ev.status, EventStatus::Resolved);
         }
 
-        // Pending and Inactive produce no event.
         let (_, pending_ev) = &results[2];
         let (_, inactive_ev) = &results[3];
         assert!(pending_ev.is_none(), "Pending must not emit an event");
         assert!(inactive_ev.is_none(), "Inactive must not emit an event");
 
-        // The Firing transitions preserve key, labels, severity.
         let (next0, ev0) = &results[0];
         let ev0 = ev0.as_ref().unwrap();
         assert_eq!(ev0.instance_key, next0.key);

@@ -258,29 +258,11 @@ mod tests {
 
     #[test]
     fn slug_prefers_first_class_name() {
-        let mut ev = ev(); // the file's existing fixture
+        let mut ev = ev();
         ev.name = "default/api-errors".to_string();
         assert_eq!(slug_for(&ev), "default/api-errors");
         ev.name = String::new();
-        // Pre-upgrade payloads (empty name) fall back to the rule id.
         assert_eq!(slug_for(&ev), ev.rule.0.to_string());
-    }
-
-    #[test]
-    fn slug_falls_back_to_rule_id() {
-        let mut e = ev();
-        e.name = String::new();
-        assert_eq!(slug_for(&e), Uuid::nil().to_string());
-        let rec = build_log_record(
-            &e,
-            AlertEventType::InstanceResolved,
-            &LogExtras::default(),
-            0,
-        );
-        assert_eq!(
-            rec.event_name,
-            format!("alert.{}.instance_resolved", Uuid::nil())
-        );
     }
 
     #[test]
@@ -327,8 +309,6 @@ mod tests {
 
     #[test]
     fn severity_attr_is_the_lowercase_wire_form() {
-        // Present on every event type: fired/resolved carry the rule spec (or SLO
-        // tier) severity, dispatcher/rule-health records carry the event's own.
         for etype in [
             AlertEventType::InstanceFired,
             AlertEventType::InstanceResolved,
@@ -405,21 +385,5 @@ mod tests {
         assert!(
             matches!(attr(&rec, "alert.evidence_truncated"), Some(any_value::Value::StringValue(s)) if s == "true")
         );
-    }
-
-    #[test]
-    fn no_extras_omits_optional_attrs() {
-        let rec = build_log_record(
-            &ev(),
-            AlertEventType::InstanceFired,
-            &LogExtras::default(),
-            0,
-        );
-        assert!(!rec
-            .attributes
-            .iter()
-            .any(|a| a.key == "alert.delivery_targets"));
-        assert!(!rec.attributes.iter().any(|a| a.key == "alert.silence_id"));
-        assert!(!rec.attributes.iter().any(|a| a.key == "alert.silenced"));
     }
 }

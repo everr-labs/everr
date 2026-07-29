@@ -12,9 +12,7 @@ fn labels(n: usize) -> BTreeMap<String, String> {
     (0..n).map(|i| (format!("k{i}"), format!("v{i}"))).collect()
 }
 
-// Present-row transition over a realistic label set. `move` is the shipping path, which moves
-// labels into `next.labels`; `clone_baseline` adds back the one per-row label clone `evaluate`
-// used to do, so the delta between the arms is the cost of that clone alone.
+// Compare the shipping path with its former per-row label clone.
 fn bench_evaluate(c: &mut Criterion) {
     let tenant = TenantId::from_trusted(Uuid::nil().to_string());
     let rule = SourceId::Rule(RuleId(Uuid::nil()));
@@ -23,8 +21,7 @@ fn bench_evaluate(c: &mut Criterion) {
     let src = labels(8);
 
     let mut g = c.benchmark_group("evaluate_present_fire");
-    // One call == one instance evaluation, so elements/sec is the single-core ceiling on
-    // state transitions.
+    // One element is one instance evaluation.
     g.throughput(Throughput::Elements(1));
     g.bench_function("move", |b| {
         b.iter(|| {
@@ -44,7 +41,6 @@ fn bench_evaluate(c: &mut Criterion) {
     g.bench_function("clone_baseline", |b| {
         b.iter(|| {
             let labels = src.clone();
-            // The clone `evaluate` used to do internally.
             let extra = black_box(labels.clone());
             let input = EvalInput {
                 present: true,
