@@ -133,35 +133,41 @@ async fn main() -> anyhow::Result<()> {
         };
 
     // Delivery notifiers are shared by the dispatcher (real alerts) and the API
-    // (the draft channel test, which sends synchronously). Built unconditionally so
-    // an api-only node can still test a channel. A node without CC_SMTP_HOST simply
-    // has no email notifier registered, and the test endpoint reports that rather
-    // than failing.
-    let mut reg = Notifiers::new().with_engine_metrics(engine_metrics.clone());
-    reg.register(Arc::new(WebhookNotifier::new(cfg.allow_private_webhooks)));
-    reg.register(Arc::new(SlackNotifier::new(cfg.allow_private_webhooks)));
-    reg.register(Arc::new(TelegramNotifier::new()));
-    if let Some(smtp) = cfg.smtp.clone() {
-        let email = EmailNotifier::new(
-            &smtp.host,
-            smtp.port,
-            &smtp.from,
-            smtp.username.as_deref(),
-            smtp.password.as_deref(),
-            &smtp.tls,
-        )?;
-        if smtp.tls.trim().eq_ignore_ascii_case("none") {
-            tracing::warn!(
-                host = %smtp.host,
-                "CC_SMTP_TLS=none: SMTP traffic is unencrypted (dev only)"
-            );
+    // (the draft channel test, which sends synchronously). Roles that never deliver
+    // get an empty registry rather than nothing, so `AppState` keeps a plain
+    // `Arc<Notifiers>`; they must not build the email notifier, whose config
+    // validation would otherwise fail their startup over settings they never use.
+    // A node without CC_SMTP_HOST simply has no email notifier registered, and the
+    // test endpoint reports that rather than failing.
+    let notifiers = if run("api") || run("dispatcher") {
+        let mut reg = Notifiers::new().with_engine_metrics(engine_metrics.clone());
+        reg.register(Arc::new(WebhookNotifier::new(cfg.allow_private_webhooks)));
+        reg.register(Arc::new(SlackNotifier::new(cfg.allow_private_webhooks)));
+        reg.register(Arc::new(TelegramNotifier::new()));
+        if let Some(smtp) = cfg.smtp.clone() {
+            let email = EmailNotifier::new(
+                &smtp.host,
+                smtp.port,
+                &smtp.from,
+                smtp.username.as_deref(),
+                smtp.password.as_deref(),
+                &smtp.tls,
+            )?;
+            if smtp.tls.trim().eq_ignore_ascii_case("none") {
+                tracing::warn!(
+                    host = %smtp.host,
+                    "CC_SMTP_TLS=none: SMTP traffic is unencrypted (dev only)"
+                );
+            }
+            reg.register(Arc::new(email));
+            tracing::info!(host = %smtp.host, tls = %smtp.tls, "email channel enabled");
+        } else {
+            tracing::info!("email channel disabled (set CC_SMTP_HOST to enable)");
         }
-        reg.register(Arc::new(email));
-        tracing::info!(host = %smtp.host, tls = %smtp.tls, "email channel enabled");
+        Arc::new(reg)
     } else {
-        tracing::info!("email channel disabled (set CC_SMTP_HOST to enable)");
-    }
-    let notifiers = Arc::new(reg);
+        Arc::new(Notifiers::new())
+    };
 
     if run("api") {
         let state = AppState {
