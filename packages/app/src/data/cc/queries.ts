@@ -240,15 +240,25 @@ export const ccQueries = {
       limit?: number;
       fingerprint?: string;
       slugs?: readonly string[];
+      // Live by default: preview-rule records are filtered out server-side, so
+      // another engineer's open preview cannot pollute the live audit trail.
+      preview?: string;
     } = {},
   ) => {
     const limit = opts.limit ?? EVENT_HISTORY_LIMIT;
     const slugs = opts.slugs === undefined ? null : [...opts.slugs].sort();
+    const preview = opts.preview?.trim() || null;
     return queryOptions({
       queryKey: [
         "cc",
         "event-history",
-        { timeRange, limit, fingerprint: opts.fingerprint ?? null, slugs },
+        {
+          timeRange,
+          limit,
+          fingerprint: opts.fingerprint ?? null,
+          slugs,
+          preview,
+        },
       ] as const,
       queryFn: () =>
         listCcEventHistory({
@@ -259,6 +269,7 @@ export const ccQueries = {
               ? { fingerprint: opts.fingerprint }
               : {}),
             ...(slugs === null ? {} : { slugs }),
+            ...(preview === null ? {} : { preview }),
           },
         }),
       refetchInterval: CC_POLL_INTERVAL_MS,

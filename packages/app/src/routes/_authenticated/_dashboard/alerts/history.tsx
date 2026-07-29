@@ -24,7 +24,11 @@ export const Route = createFileRoute(
   }),
   loader: ({ context: { queryClient }, deps }) =>
     Promise.all([
-      queryClient.prefetchQuery(ccQueries.eventHistory(deps.timeRange)),
+      queryClient.prefetchQuery(
+        ccQueries.eventHistory(deps.timeRange, {
+          ...(deps.preview ? { preview: deps.preview } : {}),
+        }),
+      ),
       queryClient.prefetchQuery(ccQueries.rules()),
       queryClient.prefetchQuery(ccQueries.slos(deps.preview)),
     ]),
@@ -58,6 +62,7 @@ function CcHistoryPage() {
         docsHref="https://everr.dev/docs/concepts/how-alerts-work"
       />
       <AlertEventFeed
+        {...(preview ? { preview } : {})}
         showTypeLens
         resolveRuleName={resolveRuleName}
         resolveRuleSeverity={resolveRuleSeverity}

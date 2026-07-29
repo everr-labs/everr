@@ -70,6 +70,7 @@ export const Route = createFileRoute(
       queryClient.prefetchQuery(
         ccQueries.eventHistory(deps.timeRange, {
           slugs: ccRuleHandles(rule),
+          ...(deps.preview ? { preview: deps.preview } : {}),
         }),
       ),
     ]);
@@ -340,6 +341,7 @@ function CcRuleDetailPage() {
       </Card>
 
       <AlertEventFeed
+        {...(preview ? { preview } : {})}
         scopeSlug={scopeHandles}
         hideRuleColumns
         resolveRuleName={resolveRuleName}

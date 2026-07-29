@@ -295,6 +295,7 @@ function CcOverviewPage() {
   const events = useQuery(
     ccQueries.eventHistory(OVERVIEW_EVENT_RANGE, {
       limit: OVERVIEW_EVENT_LIMIT,
+      ...(preview ? { preview } : {}),
     }),
   );
   const slosData = slos.data ?? [];

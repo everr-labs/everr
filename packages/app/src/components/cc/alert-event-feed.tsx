@@ -99,6 +99,7 @@ export function AlertEventFeed({
   resolveSlo,
   resolveRuleAddress,
   timeRange: timeRangeProp,
+  preview,
 }: {
   /**
    * Scope the feed to one rule. Event rows carry the rule's slug when CC
@@ -152,6 +153,12 @@ export function AlertEventFeed({
    * chart above it; callers that omit it follow the global picker.
    */
   timeRange?: TimeRange;
+  /**
+   * The selected preview, when the surrounding page has one. Preview-rule
+   * records are suppressed but carry the same service.name as live ones, so
+   * the feed reads live-only unless a preview asks for them back.
+   */
+  preview?: string;
 }) {
   const [severity, setSeverity] = useState<string>("all");
   const [eventType, setEventType] = useState<string>("all");
@@ -162,10 +169,10 @@ export function AlertEventFeed({
   // after scoping: without it, other sources on a busy tenant fill the
   // newest-N window and starve this source of its older events.
   const history = useQuery(
-    ccQueries.eventHistory(
-      timeRange,
-      scopeSlug ? { slugs: scopeSlug } : undefined,
-    ),
+    ccQueries.eventHistory(timeRange, {
+      ...(scopeSlug ? { slugs: scopeSlug } : {}),
+      ...(preview ? { preview } : {}),
+    }),
   );
 
   const rows = history.data ?? [];

@@ -267,11 +267,15 @@ export const listCcEventHistory = createAuthenticatedServerFn({ method: "GET" })
       // feeds (rule/SLO detail): the tenant-wide newest-N window would let
       // other sources fill the cap and starve the scoped source.
       slugs: z.array(z.string().min(1)).min(1).optional(),
+      // Preview-rule records are suppressed and stamped with the same
+      // service.name as live ones, so the live feed filters them out. A
+      // selected preview asks for them back.
+      preview: z.string().optional(),
     }),
   )
   .handler(
     ({
-      data: { limit, timeRange, fingerprint, slugs },
+      data: { limit, timeRange, fingerprint, slugs, preview },
       context: { clickhouse },
     }) => {
       const { fromISO, toISO } = resolveTimeRange(timeRange);
@@ -279,6 +283,7 @@ export const listCcEventHistory = createAuthenticatedServerFn({ method: "GET" })
         limit,
         fromISO,
         toISO,
+        includeSuppressed: (preview?.trim() ?? "") !== "",
         ...(fingerprint !== undefined ? { fingerprint } : {}),
         ...(slugs !== undefined ? { slugs } : {}),
       });

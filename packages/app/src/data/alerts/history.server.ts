@@ -71,6 +71,19 @@ function parseDeliveryTargets(raw: string): string[] {
     .filter((s) => s.length > 0);
 }
 
+/**
+ * Excludes preview-rule records from a live reader.
+ *
+ * CC stamps `service.name = "alert"` on every record it writes, suppressed
+ * preview evaluations included, so `ServiceName = 'alert'` alone no longer
+ * separates them the way the retired `app.alert_events` MV's 'alert-preview'
+ * service did. Without this an open preview branch interleaves its fired and
+ * resolved events into the live audit trail, which is exactly the wrong thing
+ * to happen mid-incident. The live rules listing pins `namespace: ""` for the
+ * same reason.
+ */
+const NOT_SUPPRESSED = "AND LogAttributes['alert.suppressed'] != 'true'";
+
 /** Observed alert label keys, ordered by frequency. */
 export async function queryObservedLabelKeys(
   clickhouse: ClickhouseQuery,
@@ -84,6 +97,7 @@ export async function queryObservedLabelKeys(
         AND ScopeName = 'everr.alerting'
         AND TimestampTime >= {fromTime:DateTime64(3)}
         AND TimestampTime <= {toTime:DateTime64(3)}
+        ${NOT_SUPPRESSED}
       GROUP BY key
       ORDER BY count() DESC, key ASC
       LIMIT {limit:UInt32}
@@ -107,6 +121,7 @@ export async function queryObservedLabelValues(
         AND ScopeName = 'everr.alerting'
         AND TimestampTime >= {fromTime:DateTime64(3)}
         AND TimestampTime <= {toTime:DateTime64(3)}
+        ${NOT_SUPPRESSED}
         AND value != ''
       GROUP BY value
       ORDER BY count() DESC, value ASC
@@ -161,6 +176,12 @@ export async function queryAlertEventLog(
     toISO: string;
     fingerprint?: string;
     slugs?: readonly string[];
+    /**
+     * Include suppressed (preview-rule) records. Off by default so the live
+     * feed reads only live alerting; the History page turns it on exactly when
+     * a preview is selected, matching how the rules listing swaps namespaces.
+     */
+    includeSuppressed?: boolean;
   },
 ): Promise<AlertEventLogRow[]> {
   const rows = await clickhouse<AlertEventLogRawRow>(
@@ -182,6 +203,7 @@ export async function queryAlertEventLog(
         AND ScopeName = 'everr.alerting'
         AND TimestampTime >= {fromTime:DateTime64(3)}
         AND TimestampTime <= {toTime:DateTime64(3)}
+        ${opts.includeSuppressed === true ? "" : NOT_SUPPRESSED}
         ${opts.fingerprint !== undefined ? "AND LogAttributes['alert.instance_fingerprint'] = {fingerprint:String}" : ""}
         ${opts.slugs !== undefined ? "AND LogAttributes['alert.slug'] IN {slugs:Array(String)}" : ""}
       ORDER BY Timestamp DESC

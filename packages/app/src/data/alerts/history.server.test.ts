@@ -31,6 +31,34 @@ describe("queryAlertEventLog", () => {
     });
   });
 
+  it("reads live alerting only, so an open preview cannot pollute the feed", async () => {
+    const ch = vi.fn().mockResolvedValue([]);
+    await queryAlertEventLog(ch, {
+      limit: 200,
+      fromISO: "2026-06-01T00:00:00Z",
+      toISO: "2026-06-16T00:00:00Z",
+    });
+    const [sql] = ch.mock.calls[0];
+    // CC stamps the same service.name on suppressed preview evaluations, so
+    // ServiceName alone no longer separates them.
+    expect(sql).toContain("LogAttributes['alert.suppressed'] != 'true'");
+  });
+
+  it("includes suppressed records when a preview is selected", async () => {
+    const ch = vi.fn().mockResolvedValue([]);
+    await queryAlertEventLog(ch, {
+      limit: 200,
+      fromISO: "2026-06-01T00:00:00Z",
+      toISO: "2026-06-16T00:00:00Z",
+      includeSuppressed: true,
+    });
+    const [sql] = ch.mock.calls[0];
+    // The column is still selected (the row carries the flag); only the
+    // filter is dropped.
+    expect(sql).not.toContain("LogAttributes['alert.suppressed'] != 'true'");
+    expect(sql).toContain("LogAttributes['alert.suppressed']");
+  });
+
   it("narrows to one instance's events when a fingerprint is given", async () => {
     const ch = vi.fn().mockResolvedValue([]);
     await queryAlertEventLog(ch, {
@@ -192,6 +220,8 @@ describe("queryObservedLabelKeys", () => {
     expect(sql).toContain("LIMIT {limit:UInt32}");
     // Tenancy comes from the row-level policy, never a SQL org filter.
     expect(sql).not.toMatch(/organization|tenant_id/);
+    // These feed the live matcher pickers, so preview-only keys stay out.
+    expect(sql).toContain("LogAttributes['alert.suppressed'] != 'true'");
     expect(params).toMatchObject({
       limit: 100,
       fromTime: "2026-06-01T00:00:00Z",
@@ -217,6 +247,7 @@ describe("queryObservedLabelValues", () => {
     expect(sql).toContain("value != ''");
     expect(sql).toContain("ORDER BY count() DESC");
     expect(sql).not.toMatch(/organization|tenant_id/);
+    expect(sql).toContain("LogAttributes['alert.suppressed'] != 'true'");
     expect(params).toMatchObject({ key: "svc", limit: 100 });
   });
 });
