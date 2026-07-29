@@ -7,12 +7,16 @@ struct Captured {
     user: Option<String>,
     key: Option<String>,
     quota: Option<String>,
-    settings: Option<String>,
+    /// The request's query string. Settings are asserted here rather than on a header
+    /// because ClickHouse has no settings header: it accepts and ignores one, so a
+    /// header-based assertion passes whether or not the limits are actually applied.
+    query: String,
 }
 
-/// Start an in-process stub that records the next request's CH auth headers and returns
-/// one JSONEachRow row. Returns (base_url, captured-handle).
+/// Start an in-process stub that records the next request's CH auth headers and query
+/// string, and returns one JSONEachRow row. Returns (base_url, captured-handle).
 async fn capturing_stub() -> (String, Arc<Mutex<Captured>>) {
+    use axum::extract::RawQuery;
     use axum::http::HeaderMap;
     use axum::routing::post;
     use axum::Router;
@@ -20,7 +24,7 @@ async fn capturing_stub() -> (String, Arc<Mutex<Captured>>) {
     let cap2 = cap.clone();
     let app = Router::new().route(
         "/",
-        post(move |headers: HeaderMap| {
+        post(move |headers: HeaderMap, RawQuery(query): RawQuery| {
             let cap = cap2.clone();
             async move {
                 let g = |k: &str| {
@@ -33,7 +37,7 @@ async fn capturing_stub() -> (String, Arc<Mutex<Captured>>) {
                     user: g("x-clickhouse-user"),
                     key: g("x-clickhouse-key"),
                     quota: g("x-clickhouse-quota"),
-                    settings: g("x-clickhouse-settings"),
+                    query: query.unwrap_or_default(),
                 };
                 "{\"u\":\"ok\"}\n".to_string()
             }
@@ -76,8 +80,9 @@ async fn derived_mode_sends_per_tenant_credentials_and_suppresses_readonly() {
     assert_eq!(c.quota.as_deref(), Some("sql_api_org_ta"));
     let expected_pw = cc::clickhouse::derived_password_for_test(b"masterkey", "ta", "A!");
     assert_eq!(c.key.as_deref(), Some(expected_pw.as_str()));
-    // server_enforced_limits ⇒ no readonly in the settings header.
-    assert!(!c.settings.unwrap_or_default().contains("readonly"));
+    // server_enforced_limits ⇒ no readonly, but the cost caps still ride the URL.
+    assert!(!c.query.contains("readonly"));
+    assert!(c.query.contains("max_execution_time=10"));
 }
 
 #[tokio::test]
@@ -98,5 +103,6 @@ async fn shared_mode_is_unchanged_on_the_wire() {
     let c = cap.lock().unwrap().clone();
     assert_eq!(c.user.as_deref(), Some("default"));
     assert_eq!(c.quota, None);
-    assert!(c.settings.unwrap_or_default().contains("readonly=1"));
+    assert!(c.query.contains("readonly=1"));
+    assert!(c.query.contains("max_result_bytes=20000000"));
 }

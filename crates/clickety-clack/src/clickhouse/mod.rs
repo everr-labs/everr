@@ -32,24 +32,51 @@ fn encode_param(v: &str) -> String {
     out
 }
 
-/// Append ClickHouse named query parameters (`param_<name>=<value>`) to a URL.
-pub fn build_query_url(base_url: &str, params: &[(String, String)]) -> String {
-    if params.is_empty() {
+/// Append ClickHouse named query parameters (`param_<name>=<value>`) and execution
+/// settings to a URL.
+///
+/// Settings belong in the query string, not a header: ClickHouse has no settings header,
+/// so an `X-ClickHouse-Settings` header is accepted by the HTTP layer and silently
+/// dropped, leaving every cost cap and `readonly=1` unenforced. Keys are encoded as well
+/// as values so a key can never smuggle a second `&`-separated parameter.
+pub fn build_query_url(
+    base_url: &str,
+    params: &[(String, String)],
+    settings: &[(&str, &str)],
+) -> String {
+    if params.is_empty() && settings.is_empty() {
         return base_url.to_string();
     }
-    let sep = if base_url.contains('?') { '&' } else { '?' };
     let mut url = String::from(base_url);
-    url.push(sep);
-    for (i, (k, v)) in params.iter().enumerate() {
-        if i > 0 {
-            url.push('&');
-        }
-        url.push_str("param_");
-        url.push_str(k);
+    let mut sep = if base_url.contains('?') { '&' } else { '?' };
+    let mut push = |url: &mut String, k: &str, v: &str| {
+        url.push(sep);
+        sep = '&';
+        url.push_str(&encode_param(k));
         url.push('=');
         url.push_str(&encode_param(v));
+    };
+    for (k, v) in params {
+        push(&mut url, &format!("param_{k}"), v);
+    }
+    for (k, v) in settings {
+        push(&mut url, k, v);
     }
     url
+}
+
+/// Append the output format to rule SQL.
+///
+/// A naive `{sql} FORMAT JSONEachRow` is broken by two shapes of otherwise valid SQL that
+/// the guard accepts. If the last line ends in a `--` comment the clause is swallowed,
+/// ClickHouse answers in TabSeparated, and `parse_rows` reads an empty body as zero rows:
+/// the rule then resolves normally and errors out only when rows appear, so it can never
+/// fire. A trailing `;` makes the clause a second statement ("Multi-statements are not
+/// allowed") and fails every evaluation. The newline defeats the first, dropping the
+/// terminator the second.
+fn with_output_format(sql: &str) -> String {
+    let trimmed = sql.trim_end().trim_end_matches(';').trim_end();
+    format!("{trimmed}\nFORMAT JSONEachRow")
 }
 
 /// Crate-wide redacted summary of a `ChError`, safe for any everr-internal sink: span
@@ -204,15 +231,13 @@ impl ChClient {
         } else {
             crate::sqlguard::resource_limit_settings()
         };
-        let wrapped = format!("{sql} FORMAT JSONEachRow");
-        let url = build_query_url(&self.base_url, params);
+        let url = build_query_url(&self.base_url, params, settings);
         let mut req = self
             .http
             .post(url)
             .header("X-ClickHouse-User", &auth.user)
             .header("X-ClickHouse-Key", &auth.key)
-            .header("X-ClickHouse-Settings", settings)
-            .body(wrapped);
+            .body(with_output_format(sql));
         if let Some(q) = &auth.quota {
             req = req.header("X-ClickHouse-Quota", q);
         }
@@ -331,10 +356,14 @@ mod tests {
 
     #[test]
     fn build_query_url_appends_ch_params() {
-        assert_eq!(build_query_url("http://ch:8123/", &[]), "http://ch:8123/");
+        assert_eq!(
+            build_query_url("http://ch:8123/", &[], &[]),
+            "http://ch:8123/"
+        );
         let url = build_query_url(
             "http://ch:8123/",
             &[("window_start".into(), "2026-07-17 00:00:00".into())],
+            &[],
         );
         assert_eq!(
             url,
@@ -343,12 +372,67 @@ mod tests {
         let url = build_query_url(
             "http://ch:8123/",
             &[("a".into(), "1".into()), ("b".into(), "x/y".into())],
+            &[],
         );
         assert_eq!(url, "http://ch:8123/?param_a=1&param_b=x%2Fy");
         assert_eq!(
-            build_query_url("http://ch:8123/?database=d", &[("a".into(), "1".into())]),
+            build_query_url(
+                "http://ch:8123/?database=d",
+                &[("a".into(), "1".into())],
+                &[]
+            ),
             "http://ch:8123/?database=d&param_a=1",
         );
+    }
+
+    #[test]
+    fn build_query_url_appends_settings_after_params() {
+        assert_eq!(
+            build_query_url("http://ch:8123/", &[], &[("readonly", "1")]),
+            "http://ch:8123/?readonly=1",
+        );
+        assert_eq!(
+            build_query_url(
+                "http://ch:8123/?database=d",
+                &[("a".into(), "1".into())],
+                &[("max_execution_time", "10"), ("readonly", "1")],
+            ),
+            "http://ch:8123/?database=d&param_a=1&max_execution_time=10&readonly=1",
+        );
+    }
+
+    /// A param name is a rule-authored label column, so it must not be able to close its
+    /// own parameter and open another (e.g. a second `query=`, which ClickHouse would
+    /// prepend to the POST body).
+    #[test]
+    fn build_query_url_encodes_param_names() {
+        let url = build_query_url(
+            "http://ch:8123/",
+            &[("a&query=SELECT".into(), "1".into())],
+            &[],
+        );
+        assert_eq!(url, "http://ch:8123/?param_a%26query%3DSELECT=1");
+    }
+
+    #[test]
+    fn output_format_survives_a_trailing_line_comment() {
+        // Same line: without the newline the clause lands inside the comment and
+        // ClickHouse answers in TabSeparated, which parses as zero rows forever.
+        assert_eq!(
+            with_output_format("SELECT 1 AS n -- daily note"),
+            "SELECT 1 AS n -- daily note\nFORMAT JSONEachRow"
+        );
+        assert_eq!(
+            with_output_format("SELECT 1 AS n\n-- trailing note\n"),
+            "SELECT 1 AS n\n-- trailing note\nFORMAT JSONEachRow"
+        );
+    }
+
+    #[test]
+    fn output_format_drops_a_trailing_terminator() {
+        for sql in ["SELECT 1;", "SELECT 1 ;", "SELECT 1;;", "SELECT 1;\n"] {
+            assert_eq!(with_output_format(sql), "SELECT 1\nFORMAT JSONEachRow");
+        }
     }
 }
 
