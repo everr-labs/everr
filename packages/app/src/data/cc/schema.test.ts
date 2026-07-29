@@ -12,6 +12,8 @@ import {
 const ruleView = {
   id: "11111111-1111-1111-1111-111111111111",
   tenant: "org_abc",
+  namespace: "demo",
+  name: "checkout-errors",
   spec: {
     sql: "SELECT host FROM t WHERE x > 1",
     interval_secs: 30,
@@ -53,6 +55,17 @@ it("parses a RuleView (Rule flattened + health), rollup and suppressed optional"
   // Older CC responses omit suppressed, and a pre-SP2 CC omits rollup.
   expect(parsed.spec.suppressed).toBe(false);
   expect(CcRuleViewSchema.parse(ruleView).rollup).toBeUndefined();
+});
+
+// `name` is what the as-code reconciler matches and prunes on. Defaulting a
+// missing one to "" collapses every rule onto a single scope-map entry, so the
+// next apply duplicates every document and prunes only one original. Failing the
+// parse is the safe answer.
+it("rejects a rule with no identity rather than defaulting it", () => {
+  for (const missing of ["name", "namespace"] as const) {
+    const { [missing]: _omitted, ...rest } = ruleView;
+    expect(() => CcRuleViewSchema.parse(rest)).toThrow();
+  }
 });
 
 it("rejects receiver channels that are not a non-empty list of names", () => {

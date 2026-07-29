@@ -50,11 +50,17 @@ export const CcRuleHealthSchema = z.object({
 export const CcRuleSchema = z.object({
   id: z.string(),
   tenant: z.string(),
-  // Defaulted rather than required: pre-migration CC responses omit these,
-  // but the API always returns them post-migration. See CcSloSchema's `name`
-  // (required, no default) for the SLO analogue, which predates this rollout.
-  namespace: z.string().default(""),
-  name: z.string().default(""),
+  // Required, and deliberately not defaulted. `name` is the key the as-code
+  // reconciler matches and prunes on, so a default would turn "this CC predates
+  // first-class identity" into silent data loss: every rule would parse as
+  // name "", the scope map would collapse them all onto one entry, and the next
+  // apply would create a duplicate of every document while pruning exactly one
+  // of the originals. The rest keep evaluating and paging with no way to address
+  // them from config. CC's column is NOT NULL and its field is a bare String, so
+  // an absent name means we are talking to something we do not understand, and
+  // failing the parse is the safe answer.
+  namespace: z.string(),
+  name: z.string(),
   spec: CcRuleSpecSchema,
   version: z.number().int(),
   paused: z.boolean(),
