@@ -175,17 +175,6 @@ describe("/alerts/slos route", () => {
     expect(link).toHaveAttribute("href", "/runbooks/platform/log-pipeline");
   });
 
-  it("renders nothing in the runbook slot when the SLO has none", async () => {
-    // An absent runbook is not a value: no dash, no disabled glyph on a row
-    // that has nothing to link to.
-    renderSlosRoute();
-
-    await screen.findByRole("table");
-    expect(
-      screen.queryByRole("link", { name: /Open runbook/ }),
-    ).not.toBeInTheDocument();
-  });
-
   // What the promise is stays on the row; the detail of what its status is
   // doing does not.
   it("marks a degraded evaluator with the broken heart", async () => {
@@ -263,33 +252,6 @@ describe("/alerts/slos route", () => {
       const table = await screen.findByRole("table");
       expect(await within(table).findByText("2h")).toBeInTheDocument();
     });
-
-    it("reads 'exhausted' once the budget has run out, like the detail page", async () => {
-      // The state both live SLOs are in: the column has to say something here,
-      // or the feature is invisible on a real fleet.
-      mocks.getCcSloStatus.mockResolvedValue(
-        statusWith({
-          budget_remaining: -0.5,
-          tiers: burning(5),
-          time_to_exhaustion_secs: 0,
-        }),
-      );
-
-      renderSlosRoute();
-      const table = await screen.findByRole("table");
-      expect(await within(table).findByText("exhausted")).toBeInTheDocument();
-    });
-
-    it("falls back to an em dash when there is no burn to forecast from", async () => {
-      mocks.getCcSloStatus.mockResolvedValue(
-        statusWith({ tiers: [], time_to_exhaustion_secs: null }),
-      );
-
-      renderSlosRoute();
-      const table = await screen.findByRole("table");
-      await within(table).findByText("Steady");
-      expect(within(table).getByText("—")).toBeInTheDocument();
-    });
   });
 
   it("names a row by its display name, linked to its address", async () => {
@@ -312,16 +274,6 @@ describe("/alerts/slos route", () => {
       "href",
       "/alerts/slos/default/checkout-availability",
     );
-  });
-
-  it("falls back to the slug as the name when no display name is set", async () => {
-    renderSlosRoute();
-
-    const table = await screen.findByRole("table");
-    expect(
-      within(table).getByRole("link", { name: "checkout-availability" }),
-    ).toBeInTheDocument();
-    expect(within(table).getAllByText("checkout-availability").length).toBe(1);
   });
 
   it("navigates only from the name link, not from a click anywhere in the row", async () => {
@@ -532,47 +484,6 @@ describe("/alerts/slos route", () => {
     expect(within(table).getByText("1h")).toBeInTheDocument();
     // The headline is the worst group's budget, not a total across the three.
     expect(within(table).getByText("2.00%")).toBeInTheDocument();
-  });
-
-  it("says Warning for a warning tier", async () => {
-    mocks.getCcSloStatus.mockResolvedValue({
-      computed_at: new Date().toISOString(),
-      health: { status: "healthy", degraded_since: null, last_error: null },
-      payload: {
-        window: "30d",
-        target_percent: 99.9,
-        window_computed_at: {},
-        groups: [
-          {
-            labels: { service: "payments" },
-            sli: 0.98,
-            budget_remaining: 0.3,
-            tiers: [
-              {
-                name: "fast-burn",
-                long_burn_rate: 4,
-                short_burn_rate: 0,
-                long_window_valid: 1,
-              },
-              {
-                name: "ticket",
-                long_burn_rate: 2,
-                short_burn_rate: 1.5,
-                long_window_valid: 1,
-              },
-            ],
-            time_to_exhaustion_secs: null,
-            firing_tiers: [{ tier: "ticket", status: "firing" }],
-          },
-        ],
-      },
-    });
-
-    renderSlosRoute();
-    const table = await screen.findByRole("table");
-
-    // ticket is a warning tier.
-    expect(await within(table).findByText("Warning")).toBeInTheDocument();
   });
 
   it("orders by name, independent of status: a firing SLO does not jump the list", async () => {

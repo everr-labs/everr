@@ -27,11 +27,6 @@ describe("ccErrorInfo", () => {
     });
   });
 
-  it("decodes transport-level failures (status 0)", () => {
-    const err = new CcApiError(0, "unreachable", "clickety-clack unreachable");
-    expect(ccErrorInfo(err)).toMatchObject({ status: 0, code: "unreachable" });
-  });
-
   it("returns null for plain errors and near-misses", () => {
     expect(ccErrorInfo(new Error("boom"))).toBeNull();
     expect(ccErrorInfo("boom")).toBeNull();

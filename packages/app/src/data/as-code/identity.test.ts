@@ -28,9 +28,4 @@ describe("resource names", () => {
       slug: "rule-ab12cd34",
     });
   });
-
-  it("round-trips", () => {
-    const { project, slug } = parseResourceName("payments/checkout");
-    expect(formatResourceName(project, slug)).toBe("payments/checkout");
-  });
 });

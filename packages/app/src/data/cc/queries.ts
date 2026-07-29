@@ -36,7 +36,7 @@ import {
   listCcSubscriptions,
 } from "./server";
 
-export const CC_POLL_INTERVAL_MS = 15_000;
+const CC_POLL_INTERVAL_MS = 15_000;
 
 const RULES_PAGE_LIMIT = 100;
 /** Default row cap for the event-history feeds. */

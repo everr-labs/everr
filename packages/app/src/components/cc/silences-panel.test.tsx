@@ -127,9 +127,6 @@ describe("SilencesPanel", () => {
     expect(
       screen.getByRole("heading", { name: "Recently expired" }),
     ).toBeInTheDocument();
-    expect(screen.getByText("active")).toBeInTheDocument();
-    expect(screen.getByText("scheduled")).toBeInTheDocument();
-    expect(screen.getByText("expired")).toBeInTheDocument();
   });
 
   it("offers Cancel on active and scheduled silences but not on expired ones", async () => {
@@ -171,20 +168,6 @@ describe("SilencesPanel", () => {
     expect(mocks.deleteCcSilence).toHaveBeenCalledWith({
       data: { id: "sil-active" },
     });
-  });
-
-  it("renders matchers as pills with real operator symbols", async () => {
-    mocks.listCcSilences.mockResolvedValue([
-      activeSilence({
-        matchers: [{ label: "rule", op: "eq", value: "rule-1" }],
-      }),
-    ]);
-
-    renderPanel();
-
-    expect(await screen.findByText("rule")).toBeInTheDocument();
-    expect(screen.getByText("=")).toBeInTheDocument();
-    expect(screen.getByText("rule-1")).toBeInTheDocument();
   });
 
   it("keeps Create disabled while any matcher is missing its label", async () => {

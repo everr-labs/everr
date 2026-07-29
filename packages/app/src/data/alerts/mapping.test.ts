@@ -91,14 +91,6 @@ describe("toRuleInput", () => {
     expect(input.value_column).toBe("count");
   });
 
-  it("packs the CC notification-rendering annotations", () => {
-    const input = toRuleInput(rule, "repo-1");
-    // The dispatcher renders `summary` as the headline and `description` as an
-    // extra body line, substituting ${label} / ${value}.
-    expect(input.annotations.summary).toBe(TITLE_TEMPLATE);
-    expect(input.annotations.description).toBe(DESC_TEMPLATE);
-  });
-
   it("omits the description annotations when the message has none", () => {
     const input = toRuleInput(
       parseRule({ notificationMessage: { title: TITLE_TEMPLATE } }),

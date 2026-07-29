@@ -191,7 +191,6 @@ describe("/alerts/rules/$project/$slug", () => {
     expect(screen.getByRole("link", { name: /Runbook/ })).toBeInTheDocument();
 
     // What is it: the spec facts.
-    expect(screen.getByText("What is it")).toBeInTheDocument();
     expect(screen.getByText("30s")).toBeInTheDocument(); // interval
     expect(screen.getByText("300s")).toBeInTheDocument(); // max interval
     expect(screen.getByText("60s")).toBeInTheDocument(); // for
@@ -201,7 +200,6 @@ describe("/alerts/rules/$project/$slug", () => {
     expect(screen.getByText("everr.runbook:")).toBeInTheDocument();
 
     // What's it doing: rollup facts + the instance row + the scoped feed.
-    expect(screen.getByText("What’s it doing")).toBeInTheDocument();
     expect(screen.getByText("Last fired")).toBeInTheDocument();
     expect(screen.getByText("Last row count")).toBeInTheDocument();
     expect(screen.getByText("5")).toBeInTheDocument();

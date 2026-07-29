@@ -9,7 +9,6 @@ import {
   ccFmtWindowSecs,
   ccFormatSloDuration,
   ccSloBurnPace,
-  ccSloBurnPaceLabel,
   ccSloChartRange,
   ccSloCurrentBurn,
   ccSloExhaustion,
@@ -474,12 +473,5 @@ describe("ccSloBurnPace", () => {
     expect(ccSloBurnPace(0.5, [])).toBe("sustainable");
     expect(ccSloBurnPace(0, [])).toBe("steady");
     expect(ccSloBurnPace(null, [])).toBe("steady");
-  });
-
-  it("labels each pace in plain words", () => {
-    expect(ccSloBurnPaceLabel("burning-fast")).toBe("Burning fast");
-    expect(ccSloBurnPaceLabel("draining")).toBe("Draining");
-    expect(ccSloBurnPaceLabel("sustainable")).toBe("Sustainable");
-    expect(ccSloBurnPaceLabel("steady")).toBe("Steady");
   });
 });

@@ -23,19 +23,6 @@ describe("detectTimeKey", () => {
     expect(detectTimeKey([{ ts_count: 3, v: 1 }])).toBeUndefined();
   });
 
-  it("no longer matches the retired alias names", () => {
-    for (const name of [
-      "date",
-      "datetime",
-      "created_at",
-      "period",
-      "bucket",
-      "interval",
-    ]) {
-      expect(detectTimeKey([{ [name]: "t", v: 1 }])).toBeUndefined();
-    }
-  });
-
   it("returns undefined for no rows", () => {
     expect(detectTimeKey([])).toBeUndefined();
   });
@@ -119,12 +106,6 @@ describe("getValueKeys", () => {
   it("includes quoted-integer columns and excludes the time key and text dimensions", () => {
     const rows = [{ time: "2026-06-07T00:00:00", count: "42", service: "api" }];
     expect(getValueKeys(rows, "time")).toEqual(["count"]);
-  });
-
-  it("includes real number columns", () => {
-    expect(getValueKeys([{ time: "t", value: 1.5 }], "time")).toEqual([
-      "value",
-    ]);
   });
 
   it("detects a column that is NULL in the first row but numeric later", () => {

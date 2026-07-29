@@ -119,12 +119,6 @@ export function isReservedAnnotationKey(key: string): boolean {
   return isEverrAnnotationKey(key) || RESERVED_ANNOTATION_KEYS.has(key);
 }
 
-export const EverrConfigYamlSchema = z
-  .object({
-    repoid: nonEmptyString,
-  })
-  .strict();
-
 export const AlertRuleYamlSchema = z
   .object({
     kind: z.literal("AlertRule"),

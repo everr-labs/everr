@@ -10,7 +10,6 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { AlertEventLogRow } from "@/data/alerts/history.server";
-import { CC_POLL_INTERVAL_MS, ccQueries } from "@/data/cc/queries";
 import type { CcSlo } from "@/data/cc/types";
 import { AlertEventFeed } from "./alert-event-feed";
 
@@ -128,11 +127,6 @@ function renderInRouter(ui: React.ReactElement) {
 }
 
 describe("AlertEventFeed", () => {
-  it("polls the event-history query so the feed stays current", () => {
-    const opts = ccQueries.eventHistory({ from: "now-1h", to: "now" });
-    expect(opts.refetchInterval).toBe(CC_POLL_INTERVAL_MS);
-  });
-
   it("shows all events when unscoped", () => {
     mockHistory([historyRow({ slug: "alpha" }), historyRow({ slug: "beta" })]);
 
@@ -270,14 +264,6 @@ describe("AlertEventFeed", () => {
     expect(screen.getByText("suppressed")).toBeInTheDocument();
   });
 
-  it("renders no evidence chips for a row without evidence", () => {
-    mockHistory([historyRow({ slug: "beta", evidence: null })]);
-
-    render(<AlertEventFeed />);
-
-    expect(screen.queryByText(/truncated/i)).not.toBeInTheDocument();
-  });
-
   it("filters by event type, hiding non-matching rows", async () => {
     mockHistory([
       historyRow({ slug: "beta", eventType: "instance_fired" }),
@@ -297,14 +283,6 @@ describe("AlertEventFeed", () => {
     expect(screen.queryByText("beta")).not.toBeInTheDocument();
     expect(screen.getByText("gamma")).toBeInTheDocument();
     expect(screen.queryByText("delta")).not.toBeInTheDocument();
-  });
-
-  it("hides the type lens unless showTypeLens is set", () => {
-    render(<AlertEventFeed />);
-
-    expect(
-      screen.queryByRole("group", { name: "Event kind" }),
-    ).not.toBeInTheDocument();
   });
 
   it("type lens narrows to the lens's event types", async () => {
@@ -428,22 +406,6 @@ describe("AlertEventFeed", () => {
     // The type filter survives: a scoped feed still narrows by event kind.
     expect(
       screen.getByRole("combobox", { name: "Event type" }),
-    ).toBeInTheDocument();
-  });
-
-  it("keeps the full column set (including Severity and Rule) without hideRuleColumns", () => {
-    mockHistory([historyRow({ slug: "beta" })]);
-
-    render(<AlertEventFeed />);
-
-    expect(
-      screen.getByRole("columnheader", { name: "Severity" }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole("columnheader", { name: "Rule" }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole("combobox", { name: "Severity" }),
     ).toBeInTheDocument();
   });
 

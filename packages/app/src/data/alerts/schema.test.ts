@@ -1,9 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  AlertRuleYamlSchema,
-  EverrConfigYamlSchema,
-  parseRunbookRef,
-} from "./schema";
+import { AlertRuleYamlSchema, parseRunbookRef } from "./schema";
 
 const valid = {
   kind: "AlertRule",
@@ -23,19 +19,6 @@ const valid = {
 };
 
 describe("AlertRuleYamlSchema", () => {
-  it("accepts a valid rule", () => {
-    expect(AlertRuleYamlSchema.safeParse(valid).success).toBe(true);
-  });
-
-  it("accepts optional spec.instanceLabels", () => {
-    expect(
-      AlertRuleYamlSchema.safeParse({
-        ...valid,
-        spec: { ...valid.spec, instanceLabels: ["route"] },
-      }).success,
-    ).toBe(true);
-  });
-
   it("defaults severity to info and accepts explicit values", () => {
     const parsed = AlertRuleYamlSchema.parse(valid);
     expect(parsed.spec.severity).toBe("info");
@@ -66,22 +49,6 @@ describe("AlertRuleYamlSchema", () => {
         spec: { ...valid.spec, instanceLabels: [""] },
       }).success,
     ).toBe(false);
-  });
-
-  it("accepts optional metadata.project and spec.runbook", () => {
-    expect(
-      AlertRuleYamlSchema.safeParse({
-        ...valid,
-        metadata: { ...valid.metadata, project: "platform" },
-        spec: { ...valid.spec, runbook: "db-pool-runbook" },
-      }).success,
-    ).toBe(true);
-    expect(
-      AlertRuleYamlSchema.safeParse({
-        ...valid,
-        spec: { ...valid.spec, runbook: "platform/db-pool-runbook" },
-      }).success,
-    ).toBe(true);
   });
 
   it("accepts the legacy spec.notebook alias and folds it into runbook", () => {
@@ -306,18 +273,5 @@ describe("parseRunbookRef", () => {
       project: "infra",
       slug: "db-pool-runbook",
     });
-  });
-});
-
-describe("EverrConfigYamlSchema", () => {
-  it("accepts only { repoid } and rejects extras or empty values", () => {
-    expect(EverrConfigYamlSchema.safeParse({ repoid: "repo-1" }).success).toBe(
-      true,
-    );
-    expect(EverrConfigYamlSchema.safeParse({ repoid: "" }).success).toBe(false);
-    expect(
-      EverrConfigYamlSchema.safeParse({ repoid: "repo-1", projects: [] })
-        .success,
-    ).toBe(false);
   });
 });

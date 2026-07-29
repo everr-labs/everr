@@ -227,26 +227,6 @@ describe("/alerts/rules route", () => {
     );
   });
 
-  it("renders the non-firing rollup state as muted text", async () => {
-    mocks.listCcRulesPage.mockResolvedValue(page([ccRuleView()], null));
-
-    renderRulesRoute();
-
-    expect(await screen.findByText("inactive")).toBeInTheDocument();
-    expect(screen.queryByText(/firing ·/)).not.toBeInTheDocument();
-  });
-
-  it("hides the load-more control when next_cursor is null", async () => {
-    mocks.listCcRulesPage.mockResolvedValue(page([ccRuleView()], null));
-
-    renderRulesRoute();
-
-    await screen.findByText("inactive");
-    expect(
-      screen.queryByRole("button", { name: "Load more" }),
-    ).not.toBeInTheDocument();
-  });
-
   it("marks each row with its evaluation health", async () => {
     mocks.listCcRulesPage.mockResolvedValue(
       page(

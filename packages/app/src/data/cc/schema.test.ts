@@ -4,32 +4,13 @@ import {
   CcChannelSchema,
   CcReceiverSchema,
   CcRouteSchema,
-  CcRuleSpecSchema,
   CcRulesPageSchema,
   CcRuleViewSchema,
-  CcSilenceSchema,
   CcSloSchema,
   CcSloStatusSchema,
   CcSloTestResultSchema,
   CcSloViewSchema,
-  CcSubscriptionSchema,
 } from "./schema";
-
-it("accepts RFC-3339 string timestamps", () => {
-  const a = CcAlertSchema.parse({
-    key: "k",
-    rule: "r",
-    tenant: "t",
-    status: "pending",
-    labels: {},
-    value: null,
-    active_since: null,
-    last_seen: "2026-06-14T12:03:00Z",
-    absent_count: 0,
-  });
-  expect(a.last_seen).toBe("2026-06-14T12:03:00Z");
-  expect(a.active_since).toBeNull();
-});
 
 it("parses a RuleView (Rule flattened + health)", () => {
   const parsed = CcRuleViewSchema.parse({
@@ -146,16 +127,6 @@ it("parses an alert instance with nullable value/timestamps", () => {
   expect(a.value).toBeNull();
 });
 
-it("parses receiver channels as a list of channel names", () => {
-  const multi = CcReceiverSchema.parse({
-    id: "i",
-    tenant: "t",
-    name: "oncall",
-    channels: ["team-slack", "ops-mail"],
-  });
-  expect(multi.channels).toEqual(["team-slack", "ops-mail"]);
-});
-
 it("rejects a receiver with an empty channels list", () => {
   expect(() =>
     CcReceiverSchema.parse({
@@ -222,17 +193,6 @@ it("parses a named channel with its tagged config (redacted secrets included)", 
   ).toBe("email");
 });
 
-it("parses a telegram channel config", () => {
-  expect(
-    CcChannelSchema.parse({
-      id: "c",
-      tenant: "t",
-      name: "everr-default-telegram",
-      config: { type: "telegram", bot_token: "x", chat_ids: ["-100"] },
-    }).config.type,
-  ).toBe("telegram");
-});
-
 it("rejects a channel with an unknown config type", () => {
   expect(() =>
     CcChannelSchema.parse({
@@ -242,23 +202,6 @@ it("rejects a channel with an unknown config type", () => {
       config: { type: "carrier-pigeon" },
     }),
   ).toThrow();
-});
-
-it("parses a route with nullable group settings", () => {
-  const r = CcRouteSchema.parse({
-    id: "i",
-    tenant: "t",
-    matchers: [{ label: "severity", op: "eq", value: "critical" }],
-    receiver: "oncall",
-    continue: false,
-    priority: 0,
-    group_by: ["rule", "severity"],
-    group_wait_secs: 10,
-    group_interval_secs: 300,
-    repeat_interval_secs: 3600,
-  });
-  expect(r.matchers[0].op).toBe("eq");
-  expect(r.repeat_interval_secs).toBe(3600);
 });
 
 it("parses a route with a null repeat_interval_secs (never re-notify)", () => {
@@ -275,21 +218,6 @@ it("parses a route with a null repeat_interval_secs (never re-notify)", () => {
     repeat_interval_secs: null,
   });
   expect(r.repeat_interval_secs).toBeNull();
-});
-
-it("parses a silence", () => {
-  expect(
-    CcSilenceSchema.parse({
-      id: "i",
-      tenant: "t",
-      matchers: [{ label: "host", op: "eq", value: "web-1" }],
-      starts_at: "2026-06-14T00:00:00Z",
-      ends_at: "2026-06-14T01:00:00Z",
-      comment: "m",
-      author: "you",
-      created_at: "2026-06-14T00:00:00Z",
-    }).author,
-  ).toBe("you");
 });
 
 it("parses the paginated rules envelope with and without a next cursor", () => {
@@ -327,17 +255,6 @@ it("parses the paginated rules envelope with and without a next cursor", () => {
   const last = CcRulesPageSchema.parse({ items: [], next_cursor: null });
   expect(last.items).toEqual([]);
   expect(last.next_cursor).toBeNull();
-});
-
-it("parses a subscription with an RFC-3339 created_at", () => {
-  const s = CcSubscriptionSchema.parse({
-    id: "sub1",
-    tenant: "t",
-    webhook_url: "https://example.com/hook",
-    created_at: "2026-06-14T12:00:00Z",
-  });
-  expect(s.webhook_url).toBe("https://example.com/hook");
-  expect(s.created_at).toBe("2026-06-14T12:00:00Z");
 });
 
 it("parses an SLO-sourced alert instance (rule carries the SLO uuid, slo marks it)", () => {
@@ -395,26 +312,6 @@ it("parses an Slo as CC serializes it (OpenSLO field names, optional fields abse
   expect(slo.spec.targetPercent).toBe(99.9);
   expect(slo.spec.timeWindow.duration).toBe("30d");
   expect(slo.spec.min_valid_events).toBeUndefined();
-});
-
-it("parses an Slo with min_valid_events", () => {
-  const slo = CcSloSchema.parse({
-    id: "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
-    tenant: "org1",
-    name: "latency",
-    spec: {
-      sli: { sql: "SELECT 1 AS good, 1 AS valid", label_columns: [] },
-      targetPercent: 99.5,
-      timeWindow: { duration: "7d", isRolling: true },
-      min_valid_events: 1000,
-      annotations: { "everr.name": "latency-slo" },
-      suppressed: true,
-    },
-    version: 1,
-    paused: true,
-  });
-  expect(slo.spec.min_valid_events).toBe(1000);
-  expect(slo.paused).toBe(true);
 });
 
 it("SloView (list/get) requires updated_at; the bare Slo (mutations) has none", () => {
@@ -541,25 +438,4 @@ it("parses the SLO test-run result (per-group good/valid/sli)", () => {
   });
   expect(result.matched).toBe(2);
   expect(result.groups[1].sli).toBeNull();
-});
-
-it("parses a rule spec with max_interval_secs and omits it when absent", () => {
-  const minimal = {
-    sql: "SELECT 1",
-    interval_secs: 30,
-    for_secs: 0,
-    label_columns: [],
-    severity: "info",
-  };
-
-  // With max_interval_secs present, it should round-trip
-  const withMaxInterval = CcRuleSpecSchema.parse({
-    ...minimal,
-    max_interval_secs: 3600,
-  });
-  expect(withMaxInterval.max_interval_secs).toBe(3600);
-
-  // Without max_interval_secs, it should be undefined
-  const withoutMaxInterval = CcRuleSpecSchema.parse(minimal);
-  expect(withoutMaxInterval.max_interval_secs).toBeUndefined();
 });

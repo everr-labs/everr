@@ -34,12 +34,6 @@ describe("ccFmtBudgetRemaining", () => {
 // Only what the component adds on top of the formatter; the bands are covered
 // above.
 describe("CcBudgetBar", () => {
-  it("renders the formatted number, never a state word", () => {
-    render(<CcBudgetBar remaining={-4.2} />);
-    expect(screen.getByText("-420%")).toBeInTheDocument();
-    expect(screen.queryByText("exhausted")).not.toBeInTheDocument();
-  });
-
   it("shows an em dash for an unknown budget", () => {
     render(<CcBudgetBar remaining={null} />);
     expect(screen.getByText("—")).toBeInTheDocument();

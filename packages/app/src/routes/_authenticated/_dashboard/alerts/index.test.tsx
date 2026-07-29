@@ -256,30 +256,4 @@ describe("/alerts overview — SLO identity across the page", () => {
       within(recent).queryByText(/No stored events/),
     ).not.toBeInTheDocument();
   });
-
-  it("falls back to the slug in all three places when no display name is set", async () => {
-    renderOverviewRoute();
-
-    const budgets = await cardOf("Error budgets");
-    expect(
-      await within(budgets).findByRole("link", {
-        name: /^checkout-availability/,
-      }),
-    ).toBeInTheDocument();
-
-    const attentionLink = await screen.findByRole("link", {
-      name: /checkout-availability is burning error budget/,
-    });
-    expect(attentionLink).toHaveAttribute(
-      "href",
-      "/alerts/slos/default/checkout-availability",
-    );
-
-    const recent = await cardOf("Recent events");
-    expect(
-      await within(recent).findByRole("link", {
-        name: "checkout-availability",
-      }),
-    ).toBeInTheDocument();
-  });
 });

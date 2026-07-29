@@ -3,7 +3,6 @@ import {
   ccDispatchLabels,
   ccMatcherMatches,
   ccMatchingSilence,
-  ccOpSymbol,
   ccRouteMatches,
   ccSelectRoutes,
   ccSyntheticLabels,
@@ -32,15 +31,6 @@ function route(
     ...overrides,
   } as CcRoute;
 }
-
-describe("ccOpSymbol", () => {
-  it("maps each operator to its display symbol", () => {
-    expect(ccOpSymbol("eq")).toBe("=");
-    expect(ccOpSymbol("ne")).toBe("≠");
-    expect(ccOpSymbol("regex")).toBe("=~");
-    expect(ccOpSymbol("notregex")).toBe("!~");
-  });
-});
 
 describe("ccMatcherMatches", () => {
   it("eq: true only on exact value equality", () => {

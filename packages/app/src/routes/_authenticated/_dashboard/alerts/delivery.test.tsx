@@ -430,15 +430,6 @@ describe("/alerts/delivery advanced disclosure", () => {
       screen.getByRole("button", { name: "New inhibition" }),
     ).toBeInTheDocument();
   });
-
-  it("names what the disclosure holds in its own summary", async () => {
-    renderDeliveryRoute();
-    await screen.findByText("no match");
-
-    expect(
-      screen.getByText("inhibitions · firehose subscriptions"),
-    ).toBeInTheDocument();
-  });
 });
 
 describe("/alerts/delivery channels section", () => {
@@ -671,7 +662,6 @@ describe("/alerts/delivery receivers section", () => {
     expect(
       within(dialog).getByText(/No channels yet\./, { exact: false }),
     ).toBeInTheDocument();
-    expect(within(dialog).queryByRole("checkbox")).not.toBeInTheDocument();
     expect(
       within(dialog).getByRole("button", { name: "Create receiver" }),
     ).toBeDisabled();

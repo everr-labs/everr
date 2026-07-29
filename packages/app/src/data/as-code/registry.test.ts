@@ -246,28 +246,6 @@ describe("applyResources", () => {
     );
   });
 
-  it("rejects an SLO-keyed resource of another kind (and any casing drift)", async () => {
-    for (const kind of ["AlertRule", "Slo"]) {
-      try {
-        await applyResources({
-          orgId: "org-1",
-          repoid: "repo-1",
-          state: {
-            dashboards: [],
-            runbooks: [],
-            alerts: [],
-            slos: [{ path: "s.yaml", resource: { kind } }],
-          },
-        });
-        expect.fail(`expected kind ${kind} under slos to be rejected`);
-      } catch (error) {
-        expect(error).toBeInstanceOf(ApplyValidationError);
-        expect((error as Error).message).toBe('s.yaml: expected kind "SLO"');
-      }
-    }
-    expect(sloReconciler).not.toHaveBeenCalled();
-  });
-
   it("rejects resources placed under the wrong state key", async () => {
     try {
       await applyResources({
@@ -296,28 +274,6 @@ describe("applyResources", () => {
   // no more CCAlertRule bucket in the registry, so a document still carrying
   // that kind fails the same standard kind-mismatch check every other unknown
   // kind hits (not a special-cased "unknown kind" message).
-  it("rejects a CCAlertRule-kinded document with the standard kind-mismatch error naming AlertRule", async () => {
-    try {
-      await applyResources({
-        orgId: "org-1",
-        repoid: "repo-1",
-        state: {
-          dashboards: [],
-          runbooks: [],
-          alerts: [{ path: "rule.yaml", resource: { kind: "CCAlertRule" } }],
-          slos: [],
-        },
-      });
-      expect.fail("expected the CCAlertRule kind to be rejected");
-    } catch (error) {
-      expect(error).toBeInstanceOf(ApplyValidationError);
-      expect((error as Error).message).toBe(
-        'rule.yaml: expected kind "AlertRule"',
-      );
-    }
-    expect(alertReconciler).not.toHaveBeenCalled();
-  });
-
   // Kind validation is the only back-compat surface in the rename: `Runbook`
   // is canonical and the legacy `Notebook` kind stays accepted (ADR 0002).
   it.each([

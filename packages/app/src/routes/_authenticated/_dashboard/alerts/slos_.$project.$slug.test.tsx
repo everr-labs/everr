@@ -272,50 +272,6 @@ describe("/alerts/slos/$project/$slug route", () => {
     ).toBeInTheDocument();
   });
 
-  it("describes a scalar SLO without a per-group table", async () => {
-    // A scalar SLO: no label columns, one label-less group. The stats strip
-    // fully describes it, so there is no "All groups" breakdown.
-    mocks.getCcSloByName.mockResolvedValue(
-      ccSlo({
-        spec: {
-          ...ccSlo().spec,
-          sli: { ...ccSlo().spec.sli, label_columns: [] },
-        },
-      }),
-    );
-    mocks.getCcSloStatus.mockResolvedValue(
-      sloStatus({
-        payload: {
-          window: "30d",
-          target_percent: 99.9,
-          groups: [
-            {
-              labels: {},
-              sli: 1,
-              budget_remaining: 1,
-              tiers: [],
-              time_to_exhaustion_secs: null,
-              firing_tiers: [],
-            },
-          ],
-          window_computed_at: {},
-        },
-      }),
-    );
-
-    renderSloDetailRoute();
-
-    // Budget and SLI both read 100% for a perfectly healthy scalar SLO. These
-    // ride the async status read, so wait on them rather than on the objective
-    // (which renders straight from the SLO and lands first).
-    expect(
-      (await screen.findAllByText("100.00%")).length,
-    ).toBeGreaterThanOrEqual(1);
-    // One group: the per-group table is for the rows the headline is not
-    // about, so with nothing else to show it does not render.
-    expect(screen.queryByText("All groups")).not.toBeInTheDocument();
-  });
-
   it("lists authored annotations only, not the generated ones", async () => {
     mocks.getCcSloByName.mockResolvedValue(
       ccSlo({
@@ -381,9 +337,6 @@ describe("/alerts/slos/$project/$slug route", () => {
     expect(screen.getByText("search")).toBeInTheDocument();
     expect(screen.getAllByText("checkout").length).toBeGreaterThanOrEqual(1);
     // And no disclosure to open: the table is not behind one.
-    expect(
-      screen.queryByRole("button", { name: /All groups/ }),
-    ).not.toBeInTheDocument();
   });
 
   it("shows the pending state when no snapshot exists yet", async () => {

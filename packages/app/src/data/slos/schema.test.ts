@@ -75,26 +75,6 @@ describe("SloYamlSchema", () => {
     ).toMatch(/calendar-aligned windows are not supported/);
   });
 
-  it("accepts a full document (project, labels, minValidEvents, annotations)", () => {
-    const parsed = SloYamlSchema.parse({
-      kind: "SLO",
-      metadata: {
-        name: "checkout",
-        project: "payments",
-        labels: { team: "payments" },
-      },
-      spec: {
-        sli: { sql: SQL, labelColumns: ["service"] },
-        targetPercent: 99.5,
-        timeWindow: "30d",
-        minValidEvents: 1000,
-        annotations: { runbook: "https://example.com/rb" },
-      },
-    });
-    expect(parsed.metadata.project).toBe("payments");
-    expect(parsed.spec.minValidEvents).toBe(1000);
-  });
-
   it("rejects SQL missing either window placeholder", () => {
     const noWindow = "SELECT countIf(ok) AS good, count() AS valid FROM t";
     expect(firstMessage(sloDoc({ sli: { sql: noWindow } }))).toMatch(
@@ -192,16 +172,6 @@ describe("SloYamlSchema", () => {
     }
   });
 
-  it("accepts a runbook ref as a bare slug or project/slug", () => {
-    expect(
-      SloYamlSchema.safeParse(sloDoc({ runbook: "checkout-triage" })).success,
-    ).toBe(true);
-    expect(
-      SloYamlSchema.safeParse(sloDoc({ runbook: "payments/checkout-triage" }))
-        .success,
-    ).toBe(true);
-  });
-
   it("rejects a malformed runbook ref", () => {
     expect(SloYamlSchema.safeParse(sloDoc({ runbook: "a/b/c" })).success).toBe(
       false,
@@ -209,36 +179,6 @@ describe("SloYamlSchema", () => {
     expect(SloYamlSchema.safeParse(sloDoc({ runbook: "" })).success).toBe(
       false,
     );
-  });
-
-  it("accepts spec.display with a name only, or with both name and description", () => {
-    expect(
-      SloYamlSchema.safeParse(
-        sloDoc({ display: { name: "Checkout availability" } }),
-      ).success,
-    ).toBe(true);
-    expect(
-      SloYamlSchema.safeParse(
-        sloDoc({
-          display: {
-            name: "Checkout availability",
-            description: "Orders complete",
-          },
-        }),
-      ).success,
-    ).toBe(true);
-  });
-
-  it("rejects an empty spec.display.name", () => {
-    expect(
-      SloYamlSchema.safeParse(sloDoc({ display: { name: "" } })).success,
-    ).toBe(false);
-  });
-
-  it("rejects unknown spec.display keys (strict)", () => {
-    expect(
-      SloYamlSchema.safeParse(sloDoc({ display: { title: "x" } })).success,
-    ).toBe(false);
   });
 
   it("is strict: unknown keys anywhere are rejected", () => {

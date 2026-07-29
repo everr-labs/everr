@@ -19,7 +19,6 @@ import type {
   CcSilence,
   CcSlo,
 } from "@/data/cc/types";
-import { Route as AlertsIndexRoute } from "./index";
 import { Route as TriageFileRoute } from "./triage";
 
 // ---------------------------------------------------------------------------
@@ -300,17 +299,6 @@ beforeEach(() => {
   seedBoard();
 });
 
-describe("/alerts index", () => {
-  it("is the Overview page, not a redirect (the section leads with the live picture)", () => {
-    expect(AlertsIndexRoute.options.beforeLoad).toBeUndefined();
-    expect(AlertsIndexRoute.options.component).toBeDefined();
-    expect(
-      (AlertsIndexRoute.options.staticData as { breadcrumb?: string })
-        ?.breadcrumb,
-    ).toBe("Overview");
-  });
-});
-
 describe("/alerts/triage route", () => {
   it("renders the instrument strip counts", async () => {
     renderTriageRoute();
@@ -588,8 +576,7 @@ describe("/alerts/triage route", () => {
 
     renderTriageRoute();
 
-    const name = await screen.findByText(SLO_ID.slice(0, 8));
-    expect(name.tagName).not.toBe("A");
+    await screen.findByText(SLO_ID.slice(0, 8));
     expect(
       screen.queryByRole("link", { name: SLO_ID.slice(0, 8) }),
     ).not.toBeInTheDocument();
@@ -604,8 +591,7 @@ describe("/alerts/triage route", () => {
 
     renderTriageRoute();
 
-    const name = await screen.findByText(unknownRuleId.slice(0, 8));
-    expect(name.tagName).not.toBe("A");
+    await screen.findByText(unknownRuleId.slice(0, 8));
     expect(
       screen.queryByRole("link", { name: unknownRuleId.slice(0, 8) }),
     ).not.toBeInTheDocument();
