@@ -97,7 +97,10 @@ export const Route = createFileRoute(
       ...(range
         ? [
             queryClient.prefetchQuery(
-              ccQueries.eventHistory(range, { slugs: ccSloHandles(slo) }),
+              ccQueries.eventHistory(range, {
+                slugs: ccSloHandles(slo),
+                ...(deps.preview ? { preview: deps.preview } : {}),
+              }),
             ),
             queryClient.prefetchQuery(ccQueries.sloBudgetSeries(slo.id, range)),
           ]
@@ -407,10 +410,7 @@ function StatusSection({ slo }: { slo: CcSlo }) {
 
   // The budget shown is read-time-fresh once the scan lands; until then the
   // stored snapshot is the instant fallback. Overriding budget/SLI/TTE per group
-  // can change which group is worst, so merge before picking the headline. An
-  // empty scan (no traffic in the trailing window) leaves the snapshot unchanged,
-  // so it is not "fresh" — require the scan to have produced groups.
-  const budgetIsFresh = fresh.data !== undefined && fresh.data.length > 0;
+  // can change which group is worst, so merge before picking the headline.
   const groups = ccApplyFreshBudget(
     ccSloTiers(slo.spec),
     data.payload.groups,
@@ -432,8 +432,13 @@ function StatusSection({ slo }: { slo: CcSlo }) {
           the only case a reader can act on: the numbers above are the stored
           snapshot for another moment. Once the scan lands they are simply
           current, and a page that announces its own freshness in the steady
-          state is announcing nothing. */}
-      {!budgetIsFresh && (
+          state is announcing nothing.
+
+          Keyed on the query being in flight, not on it having returned rows: a
+          quiet group (no traffic in the trailing window) legitimately scans to
+          [], and a failed scan never produces rows at all. Either would park
+          this line on the page forever. */}
+      {fresh.isPending && (
         <p className="px-1 text-[0.6875rem] text-muted-foreground">
           Error budget computing&hellip;
         </p>
@@ -471,7 +476,13 @@ function StatusSection({ slo }: { slo: CcSlo }) {
 // it from ever fetching. The live range is `ccSloChartRange(slo.spec)`.
 const CHART_RANGE_FALLBACK = { from: "now-1d", to: "now" } as const;
 
-function BudgetHistorySection({ slo }: { slo: CcSloView }) {
+function BudgetHistorySection({
+  slo,
+  preview,
+}: {
+  slo: CcSloView;
+  preview?: string;
+}) {
   // The chart is pinned to one SLO window ending now, so its rightmost point
   // reads the same span as the status hero and the two always agree.
   const range = ccSloChartRange(slo.spec);
@@ -487,6 +498,7 @@ function BudgetHistorySection({ slo }: { slo: CcSloView }) {
   const events = useQuery({
     ...ccQueries.eventHistory(range ?? CHART_RANGE_FALLBACK, {
       slugs: ccSloHandles(slo),
+      ...(preview ? { preview } : {}),
     }),
     enabled: range !== null,
   });
@@ -630,7 +642,7 @@ function CcSloDetailPage() {
       )}
 
       <StatusSection slo={s} />
-      <BudgetHistorySection slo={s} />
+      <BudgetHistorySection slo={s} {...(preview ? { preview } : {})} />
       <ObjectiveSection slo={s} />
     </div>
   );
