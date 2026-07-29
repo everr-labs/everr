@@ -140,12 +140,6 @@
       // CC client verbs — consumers (server functions, pages) added in follow-up tasks.
       "file": "packages/app/src/data/cc/client.ts",
       "exports": ["*"]
-    },
-    {
-      // testCcChannel: the "test this channel" button that calls it is a
-      // follow-up task.
-      "file": "packages/app/src/data/cc/server.ts",
-      "exports": ["testCcChannel"]
     }
   ]
 }

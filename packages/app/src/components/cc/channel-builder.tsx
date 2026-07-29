@@ -15,12 +15,14 @@ import {
   SelectValue,
 } from "@everr/ui/components/select";
 import { TagsInput } from "@everr/ui/components/tags-input";
+import { toneText } from "@everr/ui/components/tone";
+import { cn } from "@everr/ui/lib/utils";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
 import { CcConceptNote, ccErrorMessage } from "@/components/cc/shared";
 import { ccQueries } from "@/data/cc/queries";
-import { createCcChannel } from "@/data/cc/server";
+import { createCcChannel, testCcChannel } from "@/data/cc/server";
 import type { CcChannelConfig } from "@/data/cc/types";
 import { CcDrawer } from "./cc-drawer";
 import { CHANNEL_LABEL, type ChannelType } from "./channel-meta";
@@ -71,11 +73,22 @@ export function ChannelBuilder({
   const qc = useQueryClient();
   const [name, setName] = useState("");
   const [draft, setDraft] = useState<ConfigDraft>(EMPTY_DRAFT);
+  const [testResult, setTestResult] = useState<{
+    ok: boolean;
+    latencyMs: number;
+    error?: string;
+  } | null>(null);
 
   const duplicate = existingNames.includes(name.trim());
   const config = draftToConfig(draft);
 
-  const patch = (p: Partial<ConfigDraft>) => setDraft((d) => ({ ...d, ...p }));
+  const patch = (p: Partial<ConfigDraft>) => {
+    // A result describes the config that produced it. Clearing here, at the
+    // one place the draft changes, keeps a stale tick from vouching for a
+    // config that is no longer on screen.
+    setTestResult(null);
+    setDraft((d) => ({ ...d, ...p }));
+  };
 
   const create = useMutation({
     mutationFn: () => {
@@ -90,6 +103,21 @@ export function ChannelBuilder({
     onError: (e) => toast.error(ccErrorMessage(e)),
   });
 
+  const test = useMutation({
+    mutationFn: () => {
+      if (!config) throw new Error("channel config is incomplete");
+      return testCcChannel({ data: { config } });
+    },
+    onSuccess: (r) =>
+      setTestResult({
+        ok: r.ok,
+        latencyMs: r.latency_ms,
+        ...(r.error === undefined ? {} : { error: r.error }),
+      }),
+    onError: (e) =>
+      setTestResult({ ok: false, latencyMs: 0, error: ccErrorMessage(e) }),
+  });
+
   return (
     <CcDrawer
       open={open}
@@ -97,6 +125,14 @@ export function ChannelBuilder({
       title="New channel"
       footer={
         <>
+          <Button
+            variant="outline"
+            disabled={!config || test.isPending}
+            onClick={() => test.mutate()}
+          >
+            {test.isPending ? "Sending..." : "Send test"}
+          </Button>
+          <div className="flex-1" />
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
@@ -178,6 +214,10 @@ export function ChannelBuilder({
             value={draft.to}
             onValueChange={(to) => patch({ to })}
           />
+          <p className="text-xs text-muted-foreground">
+            A test sends to your own address, not the recipients above, so it
+            proves delivery works without mailing the list.
+          </p>
         </div>
       )}
       {draft.type === "telegram" && (
@@ -202,6 +242,20 @@ export function ChannelBuilder({
             />
           </div>
         </>
+      )}
+      {testResult && (
+        <p
+          className={cn(
+            "text-xs",
+            testResult.ok
+              ? toneText({ tone: "healthy" })
+              : toneText({ tone: "danger" }),
+          )}
+        >
+          {testResult.ok
+            ? `Delivered in ${testResult.latencyMs}ms`
+            : `Not delivered: ${testResult.error ?? "unknown error"}`}
+        </p>
       )}
     </CcDrawer>
   );
