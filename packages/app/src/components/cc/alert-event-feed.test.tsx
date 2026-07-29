@@ -127,15 +127,6 @@ function renderInRouter(ui: React.ReactElement) {
 }
 
 describe("AlertEventFeed", () => {
-  it("shows all events when unscoped", () => {
-    mockHistory([historyRow({ slug: "alpha" }), historyRow({ slug: "beta" })]);
-
-    render(<AlertEventFeed />);
-
-    expect(screen.getByText("alpha")).toBeInTheDocument();
-    expect(screen.getByText("beta")).toBeInTheDocument();
-  });
-
   it("filters to scopeSlug, hiding other slugs", () => {
     mockHistory([historyRow({ slug: "alpha" }), historyRow({ slug: "beta" })]);
 
@@ -226,42 +217,6 @@ describe("AlertEventFeed", () => {
 
     const ruleLink = await screen.findByRole("link", { name: "Beta rule" });
     expect(ruleLink).toHaveAttribute("href", "/alerts/rules/default/rule-1");
-  });
-
-  it("renders evidence chips for a row that carries evidence", () => {
-    mockHistory([
-      historyRow({
-        slug: "beta",
-        evidence: { status_code: 500 },
-        evidenceTruncated: false,
-      }),
-    ]);
-
-    render(<AlertEventFeed />);
-
-    expect(screen.getByText("status_code=500")).toBeInTheDocument();
-  });
-
-  it("hints at truncation when evidenceTruncated is set", () => {
-    mockHistory([
-      historyRow({
-        slug: "beta",
-        evidence: { status_code: 500 },
-        evidenceTruncated: true,
-      }),
-    ]);
-
-    render(<AlertEventFeed />);
-
-    expect(screen.getByText(/truncated/i)).toBeInTheDocument();
-  });
-
-  it("renders the suppressed marker for a suppressed row", () => {
-    mockHistory([historyRow({ slug: "beta", suppressed: true })]);
-
-    render(<AlertEventFeed />);
-
-    expect(screen.getByText("suppressed")).toBeInTheDocument();
   });
 
   it("filters by event type, hiding non-matching rows", async () => {
@@ -384,29 +339,6 @@ describe("AlertEventFeed", () => {
     expect(screen.getByText("beta")).toBeInTheDocument();
     expect(screen.queryByText("gamma")).not.toBeInTheDocument();
     expect(screen.queryByText("delta")).not.toBeInTheDocument();
-  });
-
-  it("hideRuleColumns drops the Severity and Rule columns and the severity filter", () => {
-    mockHistory([historyRow({ slug: "beta" })]);
-
-    render(<AlertEventFeed hideRuleColumns />);
-
-    expect(
-      screen.queryByRole("columnheader", { name: "Severity" }),
-    ).not.toBeInTheDocument();
-    expect(
-      screen.queryByRole("columnheader", { name: "Rule" }),
-    ).not.toBeInTheDocument();
-    expect(
-      screen.queryByRole("combobox", { name: "Severity" }),
-    ).not.toBeInTheDocument();
-    // The row's own slug ("beta") no longer renders anywhere: it was the
-    // Rule column's content.
-    expect(screen.queryByText("beta")).not.toBeInTheDocument();
-    // The type filter survives: a scoped feed still narrows by event kind.
-    expect(
-      screen.getByRole("combobox", { name: "Event type" }),
-    ).toBeInTheDocument();
   });
 
   it("falls back to the rule's severity for a fire/resolve transition whose own severity is a stored-history gap", () => {

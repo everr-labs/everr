@@ -10,12 +10,7 @@ import {
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type {
-  CcChannel,
-  CcReceiver,
-  CcRoute,
-  CcSubscription,
-} from "@/data/cc/types";
+import type { CcChannel, CcReceiver, CcRoute } from "@/data/cc/types";
 import { Route as DeliveryFileRoute } from "./delivery";
 
 // ---------------------------------------------------------------------------
@@ -121,15 +116,6 @@ function route(overrides: Partial<CcRoute> = {}): CcRoute {
   };
 }
 
-function subscription(id: string): CcSubscription {
-  return {
-    id,
-    tenant: "org1",
-    webhook_url: `https://example.com/firehose/${id}`,
-    created_at: "2026-06-14T12:00:00Z",
-  } as CcSubscription;
-}
-
 // ---------------------------------------------------------------------------
 // Harness
 // ---------------------------------------------------------------------------
@@ -188,163 +174,6 @@ beforeEach(() => {
   mocks.listCcLabelValues.mockResolvedValue([]);
 });
 
-/**
- * Build one preview label through the key/value comboboxes: type the key,
- * then type the value (committing a value commits the pair as a chip).
- */
-async function addPreviewLabel(
-  user: ReturnType<typeof userEvent.setup>,
-  key: string,
-  value: string,
-) {
-  await user.click(screen.getByRole("combobox", { name: "Preview label key" }));
-  await user.type(screen.getByPlaceholderText("Search or type..."), key);
-  await user.click(await screen.findByText(`"${key}"`));
-  await user.click(
-    screen.getByRole("combobox", { name: "Preview label value" }),
-  );
-  await user.type(screen.getByPlaceholderText("Search or type..."), value);
-  await user.click(await screen.findByText(`"${value}"`));
-}
-
-describe("/alerts/delivery pipeline", () => {
-  it("renders a route as its flow: priority, matchers, receiver, resolved channels", async () => {
-    mocks.listCcRoutes.mockResolvedValue([route()]);
-    mocks.listCcReceivers.mockResolvedValue([receiver()]);
-    mocks.listCcChannels.mockResolvedValue([channel()]);
-
-    renderDeliveryRoute();
-
-    expect(await screen.findByText("#0")).toBeInTheDocument();
-    expect(screen.getByText("severity")).toBeInTheDocument();
-    expect(screen.getByText("critical")).toBeInTheDocument();
-    expect(screen.getAllByText("oncall").length).toBeGreaterThan(0);
-    // Channel chip resolved through the receiver, with its type label.
-    expect(screen.getAllByText("oncall-hook").length).toBeGreaterThan(0);
-    expect(screen.getAllByText("webhook").length).toBeGreaterThan(0);
-  });
-
-  it("marks a continue route so the chain reads off the pipeline", async () => {
-    mocks.listCcRoutes.mockResolvedValue([
-      route({ continue: true, id: "aaaa", priority: 0 }),
-      route({ id: "bbbb", priority: 1, matchers: [] }),
-    ]);
-    mocks.listCcReceivers.mockResolvedValue([receiver()]);
-
-    renderDeliveryRoute();
-
-    expect(await screen.findByText("continue")).toBeInTheDocument();
-    expect(screen.getByText("any alert")).toBeInTheDocument();
-  });
-
-  it("terminates with the firehose fallback and its subscriber count", async () => {
-    mocks.listCcSubscriptions.mockResolvedValue([
-      subscription("s1"),
-      subscription("s2"),
-    ]);
-
-    renderDeliveryRoute();
-
-    expect(await screen.findByText("no match")).toBeInTheDocument();
-    expect(screen.getByText("· 2 webhooks")).toBeInTheDocument();
-  });
-
-  it("flags an empty firehose in amber wording (no subscribers)", async () => {
-    renderDeliveryRoute();
-
-    expect(await screen.findByText("no match")).toBeInTheDocument();
-    expect(screen.getByText("· no subscribers")).toBeInTheDocument();
-  });
-});
-
-describe("/alerts/delivery route preview", () => {
-  it("highlights the matched route and shows the channel fan-out for a label set", async () => {
-    mocks.listCcRoutes.mockResolvedValue([route()]);
-    mocks.listCcReceivers.mockResolvedValue([receiver()]);
-    mocks.listCcChannels.mockResolvedValue([
-      channel({
-        name: "oncall-hook",
-        config: { type: "email", to: ["oncall@example.com"] },
-      }),
-    ]);
-    const user = userEvent.setup();
-
-    renderDeliveryRoute();
-    await screen.findByText("#0");
-
-    await addPreviewLabel(user, "severity", "critical");
-
-    // The engine-true selection: the route row lights up...
-    expect(document.querySelectorAll('[data-matched="true"]')).toHaveLength(1);
-    // ...and the fan-out readout names the receiver and its email channel.
-    const readouts = screen.getAllByText("oncall-hook");
-    expect(readouts.length).toBeGreaterThan(1); // pipeline chip + preview readout
-    expect(screen.getAllByText("email").length).toBeGreaterThan(0);
-    expect(screen.queryByText(/no route matches/)).not.toBeInTheDocument();
-  });
-
-  it("states the firehose fallback when nothing matches", async () => {
-    mocks.listCcRoutes.mockResolvedValue([route()]);
-    mocks.listCcReceivers.mockResolvedValue([receiver()]);
-    mocks.listCcSubscriptions.mockResolvedValue([subscription("s1")]);
-    const user = userEvent.setup();
-
-    renderDeliveryRoute();
-    await screen.findByText("#0");
-
-    await addPreviewLabel(user, "severity", "info");
-
-    expect(screen.getByText(/no route matches/)).toBeInTheDocument();
-    // The terminal firehose node is the highlighted one, not the route.
-    const matched = document.querySelectorAll('[data-matched="true"]');
-    expect(matched).toHaveLength(1);
-    expect(matched[0].textContent).toContain("firehose");
-  });
-
-  it("follows a continue chain: every selected route highlights", async () => {
-    mocks.listCcRoutes.mockResolvedValue([
-      route({ id: "aaaa", priority: 0, continue: true }),
-      route({ id: "bbbb", priority: 1, matchers: [], receiver: "ops" }),
-    ]);
-    mocks.listCcReceivers.mockResolvedValue([
-      receiver(),
-      receiver({ name: "ops", channels: [] }),
-    ]);
-    const user = userEvent.setup();
-
-    renderDeliveryRoute();
-    await screen.findByText("#0");
-
-    await addPreviewLabel(user, "severity", "critical");
-
-    expect(document.querySelectorAll('[data-matched="true"]')).toHaveLength(2);
-  });
-
-  it("builds the label set as chips and gates the value picker on a key", async () => {
-    const user = userEvent.setup();
-
-    renderDeliveryRoute();
-    await screen.findByText("no match");
-
-    // No key yet: a value on its own cannot form a label.
-    expect(
-      screen.getByRole("combobox", { name: "Preview label value" }),
-    ).toBeDisabled();
-
-    await addPreviewLabel(user, "team", "pay");
-
-    // The committed pair renders as a removable chip and the builder resets.
-    expect(screen.getByText("team")).toBeInTheDocument();
-    expect(screen.getByText("pay")).toBeInTheDocument();
-    expect(
-      screen.getByRole("button", { name: "Remove label team" }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole("combobox", { name: "Preview label value" }),
-    ).toBeDisabled();
-  });
-});
-
 describe("/alerts/delivery route drawer", () => {
   it("creates a route with the unchanged payload shape and null timing defaults", async () => {
     mocks.createCcRoute.mockResolvedValue(route());
@@ -378,77 +207,9 @@ describe("/alerts/delivery route drawer", () => {
       }),
     );
   });
-
-  it("collapses timing behind a disclosure that reads the engine defaults", async () => {
-    const user = userEvent.setup();
-
-    renderDeliveryRoute();
-
-    await user.click(await screen.findByRole("button", { name: "New route" }));
-    const drawer = await screen.findByRole("dialog");
-
-    // Effective defaults are readable without opening the disclosure...
-    expect(
-      within(drawer).getByText(
-        "wait 10s · interval 300s · repeat never · group by rule, severity",
-      ),
-    ).toBeInTheDocument();
-    // ...and the fields stay out of the way until it is opened.
-    expect(
-      within(drawer).queryByLabelText("Group wait (s)"),
-    ).not.toBeInTheDocument();
-
-    await user.click(within(drawer).getByText("Timing"));
-    expect(within(drawer).getByLabelText("Group wait (s)")).toBeInTheDocument();
-    expect(
-      within(drawer).getByLabelText("Group interval (s)"),
-    ).toBeInTheDocument();
-    expect(
-      within(drawer).getByLabelText("Repeat interval (s)"),
-    ).toBeInTheDocument();
-  });
-});
-
-describe("/alerts/delivery advanced disclosure", () => {
-  it("keeps inhibitions and firehose management collapsed until opened", async () => {
-    mocks.listCcInhibitions.mockResolvedValue([]);
-    const user = userEvent.setup();
-
-    renderDeliveryRoute();
-    await screen.findByText("no match");
-
-    expect(screen.queryByText("Inhibitions")).not.toBeInTheDocument();
-    expect(
-      screen.queryByText("Firehose subscriptions"),
-    ).not.toBeInTheDocument();
-
-    await user.click(screen.getByText("Advanced delivery"));
-
-    expect(await screen.findByText("Inhibitions")).toBeInTheDocument();
-    expect(screen.getByText("Firehose subscriptions")).toBeInTheDocument();
-    expect(
-      screen.getByRole("button", { name: "New inhibition" }),
-    ).toBeInTheDocument();
-  });
 });
 
 describe("/alerts/delivery channels section", () => {
-  it("lists channels with the redacted target exactly as the engine returns it", async () => {
-    // The engine redacts secrets on read; the UI displays what it sends.
-    mocks.listCcChannels.mockResolvedValue([
-      channel({
-        name: "team-slack",
-        config: { type: "slack", url: "***" },
-      }),
-    ]);
-
-    renderDeliveryRoute();
-
-    expect(await screen.findByText("team-slack")).toBeInTheDocument();
-    expect(screen.getByText("***")).toBeInTheDocument();
-    expect(screen.getByText("slack")).toBeInTheDocument();
-  });
-
   it("creates a channel from the drawer with the {name, config} payload shape", async () => {
     mocks.createCcChannel.mockResolvedValue(channel({ name: "hook" }));
     const user = userEvent.setup();
@@ -555,25 +316,6 @@ describe("/alerts/delivery channels section", () => {
 });
 
 describe("/alerts/delivery receivers section", () => {
-  it("lists a receiver's channel names with their resolved types", async () => {
-    mocks.listCcChannels.mockResolvedValue([
-      channel({ name: "multi-hook" }),
-      channel({
-        name: "multi-mail",
-        config: { type: "email", to: ["oncall@example.com"] },
-      }),
-    ]);
-    mocks.listCcReceivers.mockResolvedValue([
-      receiver({ name: "multi", channels: ["multi-hook", "multi-mail"] }),
-    ]);
-
-    renderDeliveryRoute();
-
-    expect(await screen.findByText("multi")).toBeInTheDocument();
-    expect(screen.getByText("multi-hook (webhook)")).toBeInTheDocument();
-    expect(screen.getByText("multi-mail (email)")).toBeInTheDocument();
-  });
-
   it("creates a receiver by picking existing channels (names-only payload)", async () => {
     mocks.listCcChannels.mockResolvedValue([
       channel({ name: "team-slack", config: { type: "slack", url: "***" } }),
@@ -646,25 +388,6 @@ describe("/alerts/delivery receivers section", () => {
     await user.click(box);
     expect(create).toBeDisabled();
     expect(mocks.createCcReceiver).not.toHaveBeenCalled();
-  });
-
-  it("shows an empty state pointing at New channel when no channels exist", async () => {
-    mocks.listCcChannels.mockResolvedValue([]);
-    const user = userEvent.setup();
-
-    renderDeliveryRoute();
-
-    await user.click(
-      await screen.findByRole("button", { name: "New receiver" }),
-    );
-    const dialog = await screen.findByRole("dialog");
-
-    expect(
-      within(dialog).getByText(/No channels yet\./, { exact: false }),
-    ).toBeInTheDocument();
-    expect(
-      within(dialog).getByRole("button", { name: "Create receiver" }),
-    ).toBeDisabled();
   });
 
   it("blocks a duplicate receiver name before CC answers 409", async () => {

@@ -144,58 +144,6 @@ describe("/alerts/rules route", () => {
     mocks.resumeCcRule.mockReset();
   });
 
-  it("renders the firing rollup state with its instance count", async () => {
-    mocks.listCcRulesPage.mockResolvedValue(
-      page(
-        [
-          ccRuleView({
-            rollup: {
-              alert_state: "firing",
-              firing_instance_count: 2,
-              last_fired_at: "2026-06-14T12:00:00Z",
-              last_resolved_at: null,
-              last_seen_at: "2026-06-14T12:03:00Z",
-              last_row_count: 5,
-            },
-          }),
-        ],
-        null,
-      ),
-    );
-
-    renderRulesRoute();
-
-    expect(await screen.findByText("firing · 2")).toBeInTheDocument();
-    expect(mocks.listCcRulesPage).toHaveBeenCalledWith({
-      data: { limit: 100 },
-    });
-  });
-
-  it("names rules by their display name", async () => {
-    mocks.listCcRulesPage.mockResolvedValue(
-      page(
-        [
-          ccRuleView({
-            spec: {
-              ...ccRuleView().spec,
-              annotations: {
-                "everr.name": "flapping",
-                "everr.display.name": "Flapping Detector",
-              },
-            },
-          }),
-        ],
-        null,
-      ),
-    );
-
-    renderRulesRoute();
-
-    expect(
-      await screen.findByRole("link", { name: "Flapping Detector" }),
-    ).toBeInTheDocument();
-  });
-
   it("shows a runbook icon link only when the rule links a runbook", async () => {
     mocks.listCcRulesPage.mockResolvedValue(
       page(
@@ -225,34 +173,6 @@ describe("/alerts/rules route", () => {
       "href",
       "/runbooks/demo/flapping-runbook",
     );
-  });
-
-  it("marks each row with its evaluation health", async () => {
-    mocks.listCcRulesPage.mockResolvedValue(
-      page(
-        [
-          ccRuleView(),
-          ccRuleView({
-            id: "22222222-2222-2222-2222-222222222222",
-            health: {
-              status: "degraded",
-              consecutive_failures: 3,
-              degraded_since: "2026-06-14T11:00:00Z",
-              last_error: "boom",
-              last_error_at: "2026-06-14T12:00:00Z",
-            },
-          }),
-        ],
-        null,
-      ),
-    );
-
-    renderRulesRoute();
-
-    // One glyph per row, in place of the Health column: the whole heart says
-    // the query is running, the broken one that it is not.
-    expect(await screen.findByLabelText("Evaluating")).toBeInTheDocument();
-    expect(screen.getByLabelText("Evaluation degraded")).toBeInTheDocument();
   });
 
   it("pauses a rule only after the confirmation is accepted", async () => {

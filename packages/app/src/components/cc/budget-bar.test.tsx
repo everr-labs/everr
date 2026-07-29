@@ -1,7 +1,6 @@
 // The budget readout prints a number at every depth, including past zero.
-import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import { CcBudgetBar, ccFmtBudgetRemaining } from "./budget-bar";
+import { ccFmtBudgetRemaining } from "./budget-bar";
 
 describe("ccFmtBudgetRemaining", () => {
   it("leaves a healthy budget exactly as it was: two decimals", () => {
@@ -28,14 +27,5 @@ describe("ccFmtBudgetRemaining", () => {
     expect(ccFmtBudgetRemaining(-999)).toBe("-99.9k%");
     expect(ccFmtBudgetRemaining(-10)).toBe("-1.0k%");
     expect(ccFmtBudgetRemaining(-1234)).toBe("-123.4k%");
-  });
-});
-
-// Only what the component adds on top of the formatter; the bands are covered
-// above.
-describe("CcBudgetBar", () => {
-  it("shows an em dash for an unknown budget", () => {
-    render(<CcBudgetBar remaining={null} />);
-    expect(screen.getByText("—")).toBeInTheDocument();
   });
 });

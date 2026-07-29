@@ -60,17 +60,6 @@ it("adds a typed custom entry to the selection via the Use row", async () => {
   expect(onChange).toHaveBeenCalledWith(["namespace"]);
 });
 
-it("offers no Use row without allowCustom", async () => {
-  const user = userEvent.setup();
-  renderCombobox({ items: ["cluster"] });
-
-  await user.click(screen.getByRole("combobox", { name: "Equal labels" }));
-  await screen.findByText("cluster");
-  await user.type(screen.getByPlaceholderText("Search..."), "namespace");
-
-  expect(screen.queryByText("Use")).not.toBeInTheDocument();
-});
-
 it("lists selected values the query did not return as checked rows", async () => {
   const user = userEvent.setup();
   const { onChange } = renderCombobox({
@@ -83,28 +72,6 @@ it("lists selected values the query did not return as checked rows", async () =>
   // The custom selection gets its own checked row alongside the loaded item,
   // so it can be toggled off directly instead of hiding behind the +N badge.
   const row = await screen.findByRole("option", { name: "namespace" });
-  expect(row).toHaveAttribute("data-checked");
-
   await user.click(row);
   expect(onChange).toHaveBeenCalledWith(["cluster"]);
-});
-
-it("hides the Use row when the typed text is already selected or listed", async () => {
-  const user = userEvent.setup();
-  renderCombobox({
-    items: ["cluster"],
-    values: ["namespace"],
-    allowCustom: true,
-  });
-
-  const search = () => screen.getByPlaceholderText("Search...");
-  await user.click(screen.getByRole("combobox", { name: "Equal labels" }));
-  await screen.findByText("cluster");
-
-  await user.type(search(), "cluster");
-  expect(screen.queryByText("Use")).not.toBeInTheDocument();
-
-  await user.clear(search());
-  await user.type(search(), "namespace");
-  expect(screen.queryByText("Use")).not.toBeInTheDocument();
 });

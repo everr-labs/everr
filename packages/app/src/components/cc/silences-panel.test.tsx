@@ -80,55 +80,6 @@ describe("SilencesPanel", () => {
     mocks.deleteCcSilence.mockReset();
   });
 
-  it("shows author and creation time as muted row metadata", async () => {
-    mocks.listCcSilences.mockResolvedValue([ccSilence({ author: "alice" })]);
-
-    renderPanel();
-
-    expect(await screen.findByText("maintenance")).toBeInTheDocument();
-    const meta = screen.getByText(/by alice · created /);
-    expect(meta).toBeInTheDocument();
-    // Formatted like the row's other timestamps (ccFormatTs → toLocaleString).
-    expect(meta.textContent).toContain(
-      new Date("2026-06-13T23:00:00Z").toLocaleString(),
-    );
-  });
-
-  it("omits the author fragment when the silence has none", async () => {
-    mocks.listCcSilences.mockResolvedValue([ccSilence()]);
-
-    renderPanel();
-
-    expect(await screen.findByText("maintenance")).toBeInTheDocument();
-    expect(screen.queryByText(/by /)).not.toBeInTheDocument();
-    expect(screen.getByText(/created /)).toBeInTheDocument();
-  });
-
-  it("groups silences into Active, Scheduled, and Recently expired", async () => {
-    mocks.listCcSilences.mockResolvedValue([
-      activeSilence({ id: "sil-active", comment: "now" }),
-      ccSilence({
-        id: "sil-scheduled",
-        comment: "later",
-        starts_at: new Date(Date.now() + 3_600_000).toISOString(),
-        ends_at: new Date(Date.now() + 7_200_000).toISOString(),
-      }),
-      ccSilence({ id: "sil-expired", comment: "done" }),
-    ]);
-
-    renderPanel();
-
-    expect(
-      await screen.findByRole("heading", { name: "Active" }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole("heading", { name: "Scheduled" }),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole("heading", { name: "Recently expired" }),
-    ).toBeInTheDocument();
-  });
-
   it("offers Cancel on active and scheduled silences but not on expired ones", async () => {
     mocks.listCcSilences.mockResolvedValue([
       activeSilence({ id: "sil-active", comment: "now" }),

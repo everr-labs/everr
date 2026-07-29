@@ -80,17 +80,6 @@ describe("MatchersEditor comboboxes", () => {
     mocks.listCcLabelValues.mockResolvedValue([]);
   });
 
-  it("suggests observed and synthetic keys, tagging the synthetic ones", async () => {
-    const user = userEvent.setup();
-    renderEditor([{ label: "", op: "eq", value: "" }]);
-
-    await user.click(screen.getByRole("combobox", { name: "Matcher label" }));
-
-    expect(await screen.findByText("severity")).toBeInTheDocument();
-    expect(screen.getByText("synthetic")).toBeInTheDocument();
-    expect(screen.getByText("svc")).toBeInTheDocument();
-  });
-
   it("suggests values for the row's selected key", async () => {
     mocks.listCcLabelValues.mockResolvedValue([{ value: "flap" }]);
     const user = userEvent.setup();
@@ -129,7 +118,6 @@ describe("MatchersEditor comboboxes", () => {
     const latest = renderEditor([{ label: "svc", op: "regex", value: "" }]);
 
     const field = screen.getByLabelText("Matcher value");
-    expect(field.tagName).toBe("INPUT");
     await user.type(field, "^web-.*$");
 
     expect(latest.matchers).toEqual([

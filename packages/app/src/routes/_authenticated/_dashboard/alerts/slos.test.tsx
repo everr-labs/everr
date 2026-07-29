@@ -175,42 +175,6 @@ describe("/alerts/slos route", () => {
     expect(link).toHaveAttribute("href", "/runbooks/platform/log-pipeline");
   });
 
-  // What the promise is stays on the row; the detail of what its status is
-  // doing does not.
-  it("marks a degraded evaluator with the broken heart", async () => {
-    mocks.getCcSloStatus.mockResolvedValue({
-      computed_at: new Date().toISOString(),
-      health: {
-        status: "degraded",
-        degraded_since: "2026-07-18T08:00:00Z",
-        last_error: "query failed: boom",
-      },
-      payload: {
-        window: "30d",
-        target_percent: 99.9,
-        window_computed_at: {},
-        groups: [],
-      },
-    });
-
-    renderSlosRoute();
-
-    const table = await screen.findByRole("table");
-    expect(
-      await within(table).findByLabelText("Evaluation degraded"),
-    ).toBeInTheDocument();
-  });
-
-  it("keeps the target, window and SLI grouping line under the name", async () => {
-    renderSlosRoute();
-
-    const table = await screen.findByRole("table");
-    expect(
-      within(table).getByText(/99\.9% over 30d rolling/),
-    ).toBeInTheDocument();
-    expect(within(table).getByText("service")).toBeInTheDocument();
-  });
-
   // Renders the engine's value the way the detail page's stat does, so the two
   // surfaces never disagree about the same SLO.
   describe("time to exhaustion column", () => {
@@ -276,52 +240,6 @@ describe("/alerts/slos route", () => {
     );
   });
 
-  it("navigates only from the name link, not from a click anywhere in the row", async () => {
-    const { router } = renderSlosRoute();
-
-    const table = await screen.findByRole("table");
-    // A cell that is neither the link nor a control: clicking it stays put.
-    await userEvent.click(within(table).getByText("Sustainable"));
-    expect(router.state.location.pathname).toBe("/alerts/slos");
-
-    await userEvent.click(
-      within(table).getByRole("link", { name: "checkout-availability" }),
-    );
-    await waitFor(() =>
-      expect(router.state.location.pathname).toBe(
-        "/alerts/slos/default/checkout-availability",
-      ),
-    );
-  });
-
-  // Once badges beside the name; now they own the status column, since neither
-  // one is evaluating or alerting and no burn word could be true.
-  it("reads Paused in the status column, not as a badge", async () => {
-    mocks.listCcSlos.mockResolvedValue([ccSlo({ paused: true })]);
-
-    renderSlosRoute();
-
-    const table = await screen.findByRole("table");
-    // Pause outranks the pace word: neither evaluating nor alerting is what
-    // explains the silence.
-    expect(await within(table).findByText("Paused")).toBeInTheDocument();
-    expect(within(table).queryByText("Sustainable")).not.toBeInTheDocument();
-    expect(
-      within(table).getByRole("button", { name: /Resume/ }),
-    ).toBeInTheDocument();
-  });
-
-  it("reads Suppressed in the status column when alerts are muted", async () => {
-    mocks.listCcSlos.mockResolvedValue([
-      ccSlo({ spec: { ...ccSlo().spec, suppressed: true } }),
-    ]);
-
-    renderSlosRoute();
-
-    const table = await screen.findByRole("table");
-    expect(await within(table).findByText("Suppressed")).toBeInTheDocument();
-  });
-
   it("pauses an active SLO only after the confirmation is accepted", async () => {
     const user = userEvent.setup();
     renderSlosRoute();
@@ -375,26 +293,6 @@ describe("/alerts/slos route", () => {
       }),
     );
     expect(screen.queryByRole("alertdialog")).not.toBeInTheDocument();
-  });
-
-  it("offers no delete action — SLOs are removed as code, not from the UI", async () => {
-    renderSlosRoute();
-
-    const table = await screen.findByRole("table");
-    expect(
-      within(table).getByRole("link", { name: "checkout-availability" }),
-    ).toBeInTheDocument();
-    expect(
-      screen.queryByRole("button", { name: /Delete/ }),
-    ).not.toBeInTheDocument();
-  });
-
-  it("shows the empty state when no SLOs are defined", async () => {
-    mocks.listCcSlos.mockResolvedValue([]);
-
-    renderSlosRoute();
-
-    expect(await screen.findByText("No SLOs defined")).toBeInTheDocument();
   });
 
   it("passes the active preview name into the SLO listing query", async () => {

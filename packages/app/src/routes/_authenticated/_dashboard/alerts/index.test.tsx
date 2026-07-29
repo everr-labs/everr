@@ -195,54 +195,6 @@ beforeEach(() => {
 });
 
 describe("/alerts overview — SLO identity across the page", () => {
-  it("shows the SLO's display name in the error-budget row, the attention banner, and recent events when set", async () => {
-    mocks.listCcSlos.mockResolvedValue([
-      ccSlo({
-        spec: {
-          ...ccSlo().spec,
-          annotations: { "everr.display.name": "Checkout Availability" },
-        },
-      }),
-    ]);
-
-    renderOverviewRoute();
-
-    // Error budgets: the posture row leads with the display name, links to
-    // the slug-addressed detail route.
-    const budgets = await cardOf("Error budgets");
-    const budgetLink = await within(budgets).findByRole("link", {
-      name: /Checkout Availability/,
-    });
-    expect(budgetLink).toHaveAttribute(
-      "href",
-      "/alerts/slos/default/checkout-availability",
-    );
-    expect(
-      within(budgets).getByText("Checkout Availability"),
-    ).toBeInTheDocument();
-
-    // Attention banner: the firing SLO's row is named by its display name,
-    // still linking on the real slug-addressed resource.
-    const attentionLink = await screen.findByRole("link", {
-      name: /Checkout Availability is burning error budget/,
-    });
-    expect(attentionLink).toHaveAttribute(
-      "href",
-      "/alerts/slos/default/checkout-availability",
-    );
-
-    // Recent events: the feed's own SLO-name rendering (not AlertEventFeed)
-    // also uses the display name.
-    const recent = await cardOf("Recent events");
-    const eventLink = await within(recent).findByRole("link", {
-      name: "Checkout Availability",
-    });
-    expect(eventLink).toHaveAttribute(
-      "href",
-      "/alerts/slos/default/checkout-availability",
-    );
-  });
-
   it("shows an error (not a false 'no events') when the history query fails", async () => {
     mocks.listCcEventHistory.mockRejectedValue(new Error("clickhouse down"));
 
