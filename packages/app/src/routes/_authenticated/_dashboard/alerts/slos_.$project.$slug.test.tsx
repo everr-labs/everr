@@ -226,13 +226,6 @@ describe("/alerts/slos/$project/$slug route", () => {
     // stored snapshot stands and the freshness line reads "computing", not fresh.
     expect(screen.getByText(/Error budget computing/)).toBeInTheDocument();
 
-    // Healthy evaluation is the normal system state: no readout at all — no
-    // broken-heart flag on the title, no Evaluator card.
-    expect(
-      screen.queryByLabelText("Evaluator degraded"),
-    ).not.toBeInTheDocument();
-    expect(screen.queryByText("Evaluator")).not.toBeInTheDocument();
-
     // The alert history sits folded under the budget chart, so it costs the
     // page nothing until asked for — and is still scoped to this SLO's handles
     // when it opens.
@@ -413,11 +406,9 @@ describe("/alerts/slos/$project/$slug route", () => {
     expect(
       await screen.findByText("No status snapshot yet"),
     ).toBeInTheDocument();
-    // Without a snapshot there is no health row either: no health card.
-    expect(screen.queryByText("Evaluator")).not.toBeInTheDocument();
   });
 
-  it("renders degraded health loudly with the SLI failure forensics", async () => {
+  it("keeps evaluator health off the page, degraded included", async () => {
     mocks.getCcSloStatus.mockResolvedValue(
       sloStatus({
         health: {
@@ -429,13 +420,16 @@ describe("/alerts/slos/$project/$slug route", () => {
     );
 
     renderSloDetailRoute();
+    // Await something that rides the status read the health card used to
+    // share, so absence is measured after that query has resolved.
+    await screen.findByText("Budget history");
 
+    expect(screen.queryByText("Evaluator")).not.toBeInTheDocument();
     expect(
-      await screen.findByText(/Evaluation degraded since/),
-    ).toBeInTheDocument();
-    expect(screen.getByText("query failed: boom")).toBeInTheDocument();
-    // The broken heart rides the title while the evaluator is degraded.
-    expect(screen.getByLabelText("Evaluator degraded")).toBeInTheDocument();
+      screen.queryByLabelText("Evaluator degraded"),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText(/Evaluation degraded/)).not.toBeInTheDocument();
+    expect(screen.queryByText("query failed: boom")).not.toBeInTheDocument();
   });
 
   it("pauses the SLO from the header once the confirmation is accepted", async () => {

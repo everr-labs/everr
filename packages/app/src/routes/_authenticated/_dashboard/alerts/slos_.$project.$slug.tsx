@@ -1,7 +1,7 @@
 // SLO detail, in the order the question is actually asked: how's the budget
 // right now (stats row + status hero), which way is it going (budget history,
-// with the alert transitions folded underneath), what is it (the definition),
-// and is the evaluator healthy (loud only when degraded).
+// with the alert transitions folded underneath) and what is it (the
+// definition).
 import { Badge } from "@everr/ui/components/badge";
 import { buttonVariants } from "@everr/ui/components/button";
 import {
@@ -26,12 +26,7 @@ import {
 import { cn } from "@everr/ui/lib/utils";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import {
-  ArrowLeft,
-  BookOpenText,
-  HeartCrack,
-  TriangleAlert,
-} from "lucide-react";
+import { ArrowLeft, BookOpenText } from "lucide-react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import {
@@ -50,7 +45,6 @@ import {
   CcQueryError,
   CcSloTierBadge,
   ccErrorMessage,
-  ccFormatTs,
   LabelSet,
 } from "@/components/cc/shared";
 import {
@@ -79,12 +73,7 @@ import {
   ccSloWindowSecs,
   ccWorstSloGroup,
 } from "@/data/cc/slo";
-import type {
-  CcSlo,
-  CcSloGroupStatus,
-  CcSloHealth,
-  CcSloView,
-} from "@/data/cc/types";
+import type { CcSlo, CcSloGroupStatus, CcSloView } from "@/data/cc/types";
 import { fromCcSlo } from "@/data/slos/mapping";
 
 export const Route = createFileRoute(
@@ -589,49 +578,6 @@ function FiringHistoryFold({ slo }: { slo: CcSlo }) {
   );
 }
 
-// ── Is it healthy ─────────────────────────────────────────────────────────────
-
-function HealthSection({ sloId }: { sloId: string }) {
-  const status = useQuery(ccQueries.sloStatus(sloId));
-  // Health rides on the status read; without a snapshot there is no health
-  // row to show yet, and the budget section already explains the pending
-  // state — no card at all beats an empty shell.
-  if (!status.data) return null;
-  const health: CcSloHealth = status.data.health;
-  // The stats row carries the healthy readout; this card exists only for the
-  // degraded forensics, where loud is right — the SLI query is failing, so
-  // every number above is going stale.
-  if (health.status !== "degraded") return null;
-
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Evaluator</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <div
-          role="alert"
-          className="space-y-2 rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive"
-        >
-          <p className="flex items-center gap-2 font-medium">
-            <TriangleAlert className="size-4 shrink-0" />
-            Evaluation degraded since {ccFormatTs(health.degraded_since)}
-          </p>
-          {health.last_error && (
-            <p className="font-mono text-xs break-all opacity-90">
-              {health.last_error}
-            </p>
-          )}
-          <p className="text-xs opacity-90">
-            The SLI query is failing; the error budget snapshot stops updating
-            until it evaluates again.
-          </p>
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 function CcSloDetailPage() {
@@ -639,16 +585,6 @@ function CcSloDetailPage() {
   const { preview } = Route.useSearch();
   const qc = useQueryClient();
   const slo = useQuery(ccQueries.sloByName(project, slug, preview));
-  // Evaluator health rides the (cache-shared, polling) status read. Healthy
-  // is the normal system state and stays silent; only degraded surfaces, as
-  // the broken heart beside the title.
-  const sloId = slo.data?.id;
-  const status = useQuery({
-    ...ccQueries.sloStatus(sloId ?? ""),
-    enabled: sloId !== undefined,
-  });
-  const evaluatorBroken = status.data?.health.status === "degraded";
-
   const toggle = useMutation({
     mutationFn: (paused: boolean) => {
       const id = slo.data?.id;
@@ -690,29 +626,6 @@ function CcSloDetailPage() {
         <div className="flex flex-wrap items-center gap-3">
           <BackLink />
           <h2 className="text-base font-semibold">{identity.name}</h2>
-          {/* The evaluator breaking is the one system fault worth wearing on
-              the title: the SLI query is failing, so every number below is
-              going stale. Healthy stays silent. */}
-          {evaluatorBroken && (
-            <Tooltip>
-              <TooltipTrigger
-                render={
-                  <button
-                    type="button"
-                    aria-label="Evaluator degraded"
-                    className="text-destructive"
-                  />
-                }
-              >
-                <HeartCrack className="size-4" />
-              </TooltipTrigger>
-              <TooltipContent className="max-w-xs text-xs">
-                The evaluator is degraded: the SLI query is failing and the
-                numbers below are going stale. Details in the Evaluator card at
-                the bottom.
-              </TooltipContent>
-            </Tooltip>
-          )}
           {/* The promise itself (target over window) leads the stats row
               below, so the header carries just the name and its flags. */}
           {s.paused && <Badge variant="secondary">paused</Badge>}
@@ -755,7 +668,6 @@ function CcSloDetailPage() {
       <StatusSection slo={s} />
       <BudgetHistorySection slo={s} />
       <ObjectiveSection slo={s} />
-      <HealthSection sloId={s.id} />
     </div>
   );
 }
