@@ -1,7 +1,6 @@
 // SLO detail, in the order the question is actually asked: how's the budget
-// right now (stats row + status hero), which way is it going (budget history,
-// with the alert transitions folded underneath) and what is it (the
-// definition).
+// right now (stats row + status hero), which way is it going (budget history)
+// and what is it (the definition).
 import { Badge } from "@everr/ui/components/badge";
 import { buttonVariants } from "@everr/ui/components/button";
 import {
@@ -11,10 +10,6 @@ import {
   CardHeader,
   CardTitle,
 } from "@everr/ui/components/card";
-import {
-  Collapsible,
-  CollapsibleContent,
-} from "@everr/ui/components/collapsible";
 import { type Column, DataTable } from "@everr/ui/components/data-table";
 import { Skeleton } from "@everr/ui/components/skeleton";
 import { toneText } from "@everr/ui/components/tone";
@@ -27,19 +22,15 @@ import { cn } from "@everr/ui/lib/utils";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { ArrowLeft, BookOpenText } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { toast } from "sonner";
-import {
-  AlertEventFeed,
-  ccEventStatus,
-} from "@/components/cc/alert-event-feed";
+import { ccEventStatus } from "@/components/cc/alert-event-feed";
 import {
   CcBudgetBar,
   ccFmtBurn,
   ccFmtFraction,
 } from "@/components/cc/budget-bar";
 import {
-  CcDisclosureTrigger,
   CcEmptyState,
   CcHealthHeart,
   CcPauseToggle,
@@ -102,11 +93,10 @@ export const Route = createFileRoute(
     const range = ccSloChartRange(slo.spec);
     await Promise.all([
       queryClient.prefetchQuery(ccQueries.sloStatus(slo.id)),
-      // Budget series and event history (chart overlay + firing feed) share
-      // this window range; the history prefetch is scoped to this SLO's
-      // handles, matching what the page reads. Skipped for a spec whose
-      // window doesn't parse (nothing to chart a trailing window over); the
-      // feed then falls back to defaults.
+      // Budget series and event history share this window range; the history
+      // prefetch is scoped to this SLO's handles and feeds the chart's fired
+      // and resolved marks. Skipped for a spec whose window doesn't parse
+      // (nothing to chart a trailing window over).
       ...(range
         ? [
             queryClient.prefetchQuery(
@@ -527,7 +517,7 @@ function BudgetHistorySection({ slo }: { slo: CcSloView }) {
           Budget remaining over a trailing {ccSloWindowLabel(slo.spec)} window.
         </CardDescription>
       </CardHeader>
-      <CardContent className="space-y-3">
+      <CardContent>
         {series.isError ? (
           <CcQueryError error={series.error} />
         ) : series.isPending ? (
@@ -539,43 +529,8 @@ function BudgetHistorySection({ slo }: { slo: CcSloView }) {
             events={budgetEvents}
           />
         )}
-        <FiringHistoryFold slo={slo} />
       </CardContent>
     </Card>
-  );
-}
-
-// The same transitions the chart marks, in full: which tier fired, and whether
-// anyone was told. It sits folded under the chart, where it explains the marks
-// you have just looked at rather than opening a second reading of them.
-//
-// Scoped to this SLO's handles and pinned to the same SLO window as the chart
-// (the picker is hidden on this page) so the two line up. hideRuleColumns drops
-// the (constant) source and severity columns, leaving Time / Event / Labels —
-// the tier rides in the labels as `slo_tier`.
-function FiringHistoryFold({ slo }: { slo: CcSlo }) {
-  const [open, setOpen] = useState(false);
-  return (
-    <Collapsible open={open} onOpenChange={setOpen}>
-      <CcDisclosureTrigger open={open}>
-        <span className="text-xs font-medium">Alert history</span>
-        {!open && (
-          <span className="text-[0.6875rem] text-muted-foreground">
-            every tier that fired or resolved in this window
-          </span>
-        )}
-      </CcDisclosureTrigger>
-      <CollapsibleContent>
-        <div className="mt-2">
-          <AlertEventFeed
-            scopeSlug={ccSloHandles(slo)}
-            hideRuleColumns
-            showTypeLens
-            timeRange={ccSloChartRange(slo.spec) ?? undefined}
-          />
-        </div>
-      </CollapsibleContent>
-    </Collapsible>
   );
 }
 

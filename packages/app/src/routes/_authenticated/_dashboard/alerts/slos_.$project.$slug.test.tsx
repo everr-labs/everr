@@ -45,8 +45,8 @@ vi.mock("sonner", () => ({
   },
 }));
 
-// The firing-history feed is exercised by its own tests; here we stub it and
-// assert the detail page scopes it to this SLO's handles.
+// Stubbed so the page's *not* rendering it is an assertion with teeth: a
+// regression that re-adds the feed would call this and fail the test.
 vi.mock("@/components/cc/alert-event-feed", () => ({
   AlertEventFeed: (props: unknown) => {
     mocks.feedProps(props);
@@ -226,16 +226,12 @@ describe("/alerts/slos/$project/$slug route", () => {
     // stored snapshot stands and the freshness line reads "computing", not fresh.
     expect(screen.getByText(/Error budget computing/)).toBeInTheDocument();
 
-    // The alert history sits folded under the budget chart, so it costs the
-    // page nothing until asked for — and is still scoped to this SLO's handles
-    // when it opens.
+    // No event feed on this page: the chart's fired and resolved marks are
+    // the transitions this page has an opinion about, and the full log lives
+    // one link away under Alerts / History.
     expect(mocks.feedProps).not.toHaveBeenCalled();
-    await userEvent.click(screen.getByText("Alert history"));
-    expect(mocks.feedProps).toHaveBeenCalled();
-    const props = mocks.feedProps.mock.calls.at(-1)?.[0] as {
-      scopeSlug: string[];
-    };
-    expect(props.scopeSlug).toContain(SLO_ID);
+    expect(screen.queryByText("Alert history")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("event-feed")).not.toBeInTheDocument();
   });
 
   it("shows the display name as the heading, with the description alongside", async () => {
