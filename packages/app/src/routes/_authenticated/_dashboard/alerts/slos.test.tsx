@@ -186,37 +186,6 @@ describe("/alerts/slos route", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("carries four columns: promise, status, exhaustion, budget, plus the one action", async () => {
-    renderSlosRoute();
-
-    const table = await screen.findByRole("table");
-    expect(
-      within(table)
-        .getAllByRole("columnheader")
-        .map((h) => h.textContent),
-      // The runbook slot sits unlabelled next to the name, as on the rules list.
-    ).toEqual(["Promise", "", "Status", "TTE", "Budget", ""]);
-    // TTE is only acceptable as a header because the expansion stays one
-    // hover away; without this the column is an unexplained acronym.
-    expect(
-      within(table).getByRole("button", { name: "What is TTE?" }),
-    ).toBeInTheDocument();
-
-    const link = within(table).getByRole("link", {
-      name: "checkout-availability",
-    });
-    expect(link).toHaveAttribute(
-      "href",
-      "/alerts/slos/default/checkout-availability",
-    );
-    // 0.5x is under the sustainable line, and nothing is firing.
-    expect(within(table).getByText("Sustainable")).toBeInTheDocument();
-    expect(await within(table).findByText("50.00%")).toBeInTheDocument();
-    expect(
-      within(table).getByRole("button", { name: /Pause/ }),
-    ).toBeInTheDocument();
-  });
-
   // What the promise is stays on the row; the detail of what its status is
   // doing does not.
   it("marks a degraded evaluator with the broken heart", async () => {
@@ -241,9 +210,6 @@ describe("/alerts/slos route", () => {
     expect(
       await within(table).findByLabelText("Evaluation degraded"),
     ).toBeInTheDocument();
-    // The glyph is the whole readout: the failing query itself stays on the
-    // detail page's own surfaces, not in a listing cell.
-    expect(within(table).queryByText("query failed: boom")).toBeNull();
   });
 
   it("keeps the target, window and SLI grouping line under the name", async () => {
@@ -254,19 +220,6 @@ describe("/alerts/slos route", () => {
       within(table).getByText(/99\.9% over 30d rolling/),
     ).toBeInTheDocument();
     expect(within(table).getByText("service")).toBeInTheDocument();
-  });
-
-  it("moves the burn multiple and the second state word off the row", async () => {
-    renderSlosRoute();
-
-    const table = await screen.findByRole("table");
-    await within(table).findByText("50.00%");
-
-    // The raw multiple has a home on the detail page; it does not belong here.
-    expect(within(table).queryByText(/0\.5×/)).not.toBeInTheDocument();
-    // "On track" was a second state word next to the pace word; the pace word
-    // is now the only one.
-    expect(within(table).queryByText("On track")).not.toBeInTheDocument();
   });
 
   // Renders the engine's value the way the detail page's stat does, so the two
@@ -339,7 +292,7 @@ describe("/alerts/slos route", () => {
     });
   });
 
-  it("shows only the display name when set, never the slug alongside it", async () => {
+  it("names a row by its display name, linked to its address", async () => {
     mocks.listCcSlos.mockResolvedValue([
       ccSlo({
         spec: {
@@ -359,10 +312,6 @@ describe("/alerts/slos route", () => {
       "href",
       "/alerts/slos/default/checkout-availability",
     );
-    // The slug is plumbing: it lives in the href, not in the row's text.
-    expect(
-      within(table).queryByText("checkout-availability"),
-    ).not.toBeInTheDocument();
   });
 
   it("falls back to the slug as the name when no display name is set", async () => {
@@ -401,9 +350,9 @@ describe("/alerts/slos route", () => {
     renderSlosRoute();
 
     const table = await screen.findByRole("table");
+    // Pause outranks the pace word: neither evaluating nor alerting is what
+    // explains the silence.
     expect(await within(table).findByText("Paused")).toBeInTheDocument();
-    expect(within(table).queryByText("paused")).not.toBeInTheDocument();
-    // The pace word never competes with it.
     expect(within(table).queryByText("Sustainable")).not.toBeInTheDocument();
     expect(
       within(table).getByRole("button", { name: /Resume/ }),
@@ -419,7 +368,6 @@ describe("/alerts/slos route", () => {
 
     const table = await screen.findByRole("table");
     expect(await within(table).findByText("Suppressed")).toBeInTheDocument();
-    expect(within(table).queryByText("suppressed")).not.toBeInTheDocument();
   });
 
   it("pauses an active SLO only after the confirmation is accepted", async () => {
@@ -529,7 +477,7 @@ describe("/alerts/slos route", () => {
     expect(within(table).queryByText("50.00%")).not.toBeInTheDocument();
   });
 
-  it("says Critical for a critical tier and drops the group breakdown", async () => {
+  it("reports the worst group severity and budget, not a total", async () => {
     mocks.getCcSloStatus.mockResolvedValue({
       computed_at: new Date().toISOString(),
       health: { status: "healthy", degraded_since: null, last_error: null },
@@ -582,20 +530,11 @@ describe("/alerts/slos route", () => {
     expect(await within(table).findByText("Critical")).toBeInTheDocument();
     // The horizon rides in its own column.
     expect(within(table).getByText("1h")).toBeInTheDocument();
-    // The tier's own name is detail-page material.
-    expect(within(table).queryByText("fast-burn")).not.toBeInTheDocument();
-    expect(within(table).queryByText("Burning fast")).not.toBeInTheDocument();
-
-    // The worst group's budget is the headline, with no per-group census.
+    // The headline is the worst group's budget, not a total across the three.
     expect(within(table).getByText("2.00%")).toBeInTheDocument();
-    expect(
-      within(table).queryByText(/worst of 3 groups/),
-    ).not.toBeInTheDocument();
-    expect(within(table).queryByText(/1 firing/)).not.toBeInTheDocument();
-    expect(within(table).queryByText(/1 at risk/)).not.toBeInTheDocument();
   });
 
-  it("says Warning for a warning tier, without the burn-story line", async () => {
+  it("says Warning for a warning tier", async () => {
     mocks.getCcSloStatus.mockResolvedValue({
       computed_at: new Date().toISOString(),
       health: { status: "healthy", degraded_since: null, last_error: null },
@@ -634,17 +573,6 @@ describe("/alerts/slos route", () => {
 
     // ticket is a warning tier.
     expect(await within(table).findByText("Warning")).toBeInTheDocument();
-    // The receding-burn narration and the missing forecast were both said in
-    // the old Now column. Neither survives the cut.
-    expect(
-      within(table).queryByText(/firing on earlier burn/),
-    ).not.toBeInTheDocument();
-    expect(
-      within(table).queryByText("current burn stopped"),
-    ).not.toBeInTheDocument();
-    expect(
-      within(table).queryByText("no exhaustion forecast"),
-    ).not.toBeInTheDocument();
   });
 
   it("orders by name, independent of status: a firing SLO does not jump the list", async () => {

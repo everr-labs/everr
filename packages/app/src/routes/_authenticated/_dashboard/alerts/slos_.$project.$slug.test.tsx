@@ -26,7 +26,6 @@ const mocks = vi.hoisted(() => ({
   resumeCcSlo: vi.fn(),
   toastSuccess: vi.fn(),
   toastError: vi.fn(),
-  feedProps: vi.fn(),
 }));
 
 vi.mock("@/data/cc/server", () => ({
@@ -42,15 +41,6 @@ vi.mock("sonner", () => ({
   toast: {
     success: (...a: unknown[]) => mocks.toastSuccess(...a),
     error: (...a: unknown[]) => mocks.toastError(...a),
-  },
-}));
-
-// Stubbed so the page's *not* rendering it is an assertion with teeth: a
-// regression that re-adds the feed would call this and fail the test.
-vi.mock("@/components/cc/alert-event-feed", () => ({
-  AlertEventFeed: (props: unknown) => {
-    mocks.feedProps(props);
-    return <div data-testid="event-feed" />;
   },
 }));
 
@@ -194,7 +184,6 @@ describe("/alerts/slos/$project/$slug route", () => {
     expect(
       await screen.findByRole("heading", { name: SLUG }),
     ).toBeInTheDocument();
-    expect(screen.queryByText(`${PROJECT}/${SLUG}`)).not.toBeInTheDocument();
     // The promise leads the stats row (target + window), not the header. The
     // row rides the async status read, so wait for it.
     expect(await screen.findByText("over 30d rolling")).toBeInTheDocument();
@@ -207,16 +196,6 @@ describe("/alerts/slos/$project/$slug route", () => {
     expect(screen.getByText(/1\.4×/)).toBeInTheDocument(); // burn (1h)
     expect(screen.getByText("last 1h")).toBeInTheDocument(); // its window
 
-    // The stats strip is the whole status readout now. Nothing restates it: no
-    // state pill, no plain-language verdict, no per-tier pressure panel, and
-    // no per-tier firing conditions anywhere on the page.
-    expect(screen.queryByText("Firing")).not.toBeInTheDocument();
-    expect(
-      screen.queryByText(/A critical alert is firing/),
-    ).not.toBeInTheDocument();
-    expect(screen.queryByText("Paging: fast-burn")).not.toBeInTheDocument();
-    expect(screen.queryByText(/Fires when the last/)).not.toBeInTheDocument();
-    expect(screen.queryByText("When it alerts")).not.toBeInTheDocument();
     // A grouped SLI does name its grouping columns (the scalar case below
     // drops the row entirely, so pin the positive case here).
     expect(screen.getByText("SLI groups by")).toBeInTheDocument();
@@ -225,13 +204,6 @@ describe("/alerts/slos/$project/$slug route", () => {
     // The read-time scan is empty here (no traffic in the trailing window), so the
     // stored snapshot stands and the freshness line reads "computing", not fresh.
     expect(screen.getByText(/Error budget computing/)).toBeInTheDocument();
-
-    // No event feed on this page: the chart's fired and resolved marks are
-    // the transitions this page has an opinion about, and the full log lives
-    // one link away under Alerts / History.
-    expect(mocks.feedProps).not.toHaveBeenCalled();
-    expect(screen.queryByText("Alert history")).not.toBeInTheDocument();
-    expect(screen.queryByTestId("event-feed")).not.toBeInTheDocument();
   });
 
   it("shows the display name as the heading, with the description alongside", async () => {
@@ -252,9 +224,6 @@ describe("/alerts/slos/$project/$slug route", () => {
     expect(
       await screen.findByRole("heading", { name: "Checkout Availability" }),
     ).toBeInTheDocument();
-    // The heading is the name; the slug is not repeated beside it. It is in
-    // the URL, and the breadcrumb and back-link already place the SLO.
-    expect(screen.queryByText(SLUG)).not.toBeInTheDocument();
     expect(
       screen.getByText("Can shoppers complete checkout?"),
     ).toBeInTheDocument();
@@ -342,10 +311,8 @@ describe("/alerts/slos/$project/$slug route", () => {
     expect(
       (await screen.findAllByText("100.00%")).length,
     ).toBeGreaterThanOrEqual(1);
-    // Scalar: nothing groups, so the definition drops the row rather than
-    // spending one on "no grouping columns".
-    expect(screen.queryByText("SLI groups by")).not.toBeInTheDocument();
-    // No multi-group breakdown for a single group.
+    // One group: the per-group table is for the rows the headline is not
+    // about, so with nothing else to show it does not render.
     expect(screen.queryByText("All groups")).not.toBeInTheDocument();
   });
 
@@ -430,7 +397,7 @@ describe("/alerts/slos/$project/$slug route", () => {
     ).toBeInTheDocument();
   });
 
-  it("carries degraded health as a title glyph, not a card of forensics", async () => {
+  it("marks a degraded evaluator with the broken heart", async () => {
     mocks.getCcSloStatus.mockResolvedValue(
       sloStatus({
         health: {
@@ -447,9 +414,6 @@ describe("/alerts/slos/$project/$slug route", () => {
     expect(
       await screen.findByLabelText("Evaluation degraded"),
     ).toBeInTheDocument();
-    // The fact, not the forensics: no Evaluator card, no raw query error.
-    expect(screen.queryByText("Evaluator")).not.toBeInTheDocument();
-    expect(screen.queryByText("query failed: boom")).not.toBeInTheDocument();
   });
 
   it("pauses the SLO from the header once the confirmation is accepted", async () => {

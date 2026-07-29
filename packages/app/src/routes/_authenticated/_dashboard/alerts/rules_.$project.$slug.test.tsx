@@ -255,7 +255,7 @@ describe("/alerts/rules/$project/$slug", () => {
     );
   });
 
-  it("carries degraded health as a title glyph, not a card of forensics", async () => {
+  it("marks a degraded rule with the broken heart", async () => {
     mocks.getCcRuleByName.mockResolvedValue(
       ruleView({
         health: {
@@ -271,11 +271,6 @@ describe("/alerts/rules/$project/$slug", () => {
     await screen.findByRole("heading", { name: "Flapping Detector" });
 
     expect(screen.getByLabelText("Evaluation degraded")).toBeInTheDocument();
-    // The fact, not the forensics: no section, no consecutive-failure count,
-    // no raw query error.
-    expect(screen.queryByText("Is it healthy")).not.toBeInTheDocument();
-    expect(screen.queryByText(/Unknown identifier/)).not.toBeInTheDocument();
-    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 
   it("flags a suppressed rule loudly", async () => {

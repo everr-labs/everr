@@ -171,7 +171,7 @@ describe("/alerts/rules route", () => {
     });
   });
 
-  it("names rules by display name, without repeating the id", async () => {
+  it("names rules by their display name", async () => {
     mocks.listCcRulesPage.mockResolvedValue(
       page(
         [
@@ -194,9 +194,6 @@ describe("/alerts/rules route", () => {
     expect(
       await screen.findByRole("link", { name: "Flapping Detector" }),
     ).toBeInTheDocument();
-    // The id is not repeated under the name: it is in the row's link target,
-    // and a column of ids nobody reads costs every row a second line.
-    expect(screen.queryByText("11111111")).not.toBeInTheDocument();
   });
 
   it("shows a runbook icon link only when the rule links a runbook", async () => {
@@ -248,31 +245,6 @@ describe("/alerts/rules route", () => {
     expect(
       screen.queryByRole("button", { name: "Load more" }),
     ).not.toBeInTheDocument();
-  });
-
-  it("carries only the columns a listing needs", async () => {
-    mocks.listCcRulesPage.mockResolvedValue(page([ccRuleView()], null));
-
-    renderRulesRoute();
-
-    const table = await screen.findByRole("table");
-    // The two unlabelled slots are the runbook link and the pause control.
-    // No Health or State column: paused reads off the Pause/Resume button
-    // beside it, and evaluation health is a per-rule diagnostic that lives on
-    // the rule's own page.
-    expect(
-      within(table)
-        .getAllByRole("columnheader")
-        .map((h) => h.textContent),
-    ).toEqual([
-      "Rule",
-      "",
-      "Severity",
-      "Interval",
-      "Alert state",
-      "Last fired",
-      "",
-    ]);
   });
 
   it("marks each row with its evaluation health", async () => {

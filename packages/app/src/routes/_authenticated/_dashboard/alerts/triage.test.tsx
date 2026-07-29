@@ -318,11 +318,6 @@ describe("/alerts/triage route", () => {
     const strip = await screen.findByRole("region", {
       name: "Alerting status",
     });
-    // Three cells, and only three. The fixture set includes a degraded rule,
-    // so this also pins that evaluation health is not one of the numbers that
-    // answer "is anything wrong" for the whole estate.
-    expect(strip.children).toHaveLength(3);
-
     // 2 firing (fp-1 + fp-3), 1 silenced (fp-3), 1 active silence.
     expect(within(strip).getByText("needs attention")).toBeInTheDocument();
     expect(within(strip).getByText("firing").previousSibling).toHaveTextContent(

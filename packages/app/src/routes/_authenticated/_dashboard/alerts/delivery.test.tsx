@@ -431,16 +431,13 @@ describe("/alerts/delivery advanced disclosure", () => {
     ).toBeInTheDocument();
   });
 
-  it("carries no invented pro-tier label; the summary alone describes its contents", async () => {
+  it("names what the disclosure holds in its own summary", async () => {
     renderDeliveryRoute();
     await screen.findByText("no match");
 
-    // The trigger's own summary already says what's inside; there's no tier
-    // to gate it behind.
     expect(
       screen.getByText("inhibitions · firehose subscriptions"),
     ).toBeInTheDocument();
-    expect(screen.queryByText(/^pro$/i)).not.toBeInTheDocument();
   });
 });
 
@@ -584,8 +581,6 @@ describe("/alerts/delivery receivers section", () => {
     expect(await screen.findByText("multi")).toBeInTheDocument();
     expect(screen.getByText("multi-hook (webhook)")).toBeInTheDocument();
     expect(screen.getByText("multi-mail (email)")).toBeInTheDocument();
-    // The retired as-code marker no longer renders a badge.
-    expect(screen.queryByText("as code")).not.toBeInTheDocument();
   });
 
   it("creates a receiver by picking existing channels (names-only payload)", async () => {

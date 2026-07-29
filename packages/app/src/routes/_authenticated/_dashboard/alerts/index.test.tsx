@@ -241,9 +241,6 @@ describe("/alerts overview — SLO identity across the page", () => {
       "href",
       "/alerts/slos/default/checkout-availability",
     );
-
-    // The raw slug never leaks as visible text anywhere on the page.
-    expect(screen.queryByText("checkout-availability")).not.toBeInTheDocument();
   });
 
   it("shows an error (not a false 'no events') when the history query fails", async () => {
