@@ -275,6 +275,34 @@ describe("/alerts/rules route", () => {
     ]);
   });
 
+  it("marks each row with its evaluation health", async () => {
+    mocks.listCcRulesPage.mockResolvedValue(
+      page(
+        [
+          ccRuleView(),
+          ccRuleView({
+            id: "22222222-2222-2222-2222-222222222222",
+            health: {
+              status: "degraded",
+              consecutive_failures: 3,
+              degraded_since: "2026-06-14T11:00:00Z",
+              last_error: "boom",
+              last_error_at: "2026-06-14T12:00:00Z",
+            },
+          }),
+        ],
+        null,
+      ),
+    );
+
+    renderRulesRoute();
+
+    // One glyph per row, in place of the Health column: the whole heart says
+    // the query is running, the broken one that it is not.
+    expect(await screen.findByLabelText("Evaluating")).toBeInTheDocument();
+    expect(screen.getByLabelText("Evaluation degraded")).toBeInTheDocument();
+  });
+
   it("pauses a rule only after the confirmation is accepted", async () => {
     mocks.listCcRulesPage.mockResolvedValue(page([ccRuleView()], null));
     const user = userEvent.setup();

@@ -35,6 +35,7 @@ import { CcBudgetBar } from "@/components/cc/budget-bar";
 import { CcPageIntro } from "@/components/cc/page-intro";
 import {
   CcEmptyState,
+  CcHealthHeart,
   CcPauseToggle,
   CcQueryError,
   CcTableSkeleton,
@@ -56,7 +57,11 @@ import {
   ccSloWindowSecs,
   ccWorstSloGroup,
 } from "@/data/cc/slo";
-import type { CcSlo, CcSloGroupStatus } from "@/data/cc/types";
+import type {
+  CcRuleHealthStatus,
+  CcSlo,
+  CcSloGroupStatus,
+} from "@/data/cc/types";
 import { fromCcSlo } from "@/data/slos/mapping";
 
 export const Route = createFileRoute("/_authenticated/_dashboard/alerts/slos")({
@@ -77,6 +82,8 @@ type SloRow = {
   statusPending: boolean;
   groups: CcSloGroupStatus[];
   worst: CcSloGroupStatus | null;
+  /** Evaluator health, absent until the status snapshot resolves. */
+  health?: CcRuleHealthStatus;
 };
 
 /** How many rows the listing shows per page (also the fresh-budget scan fan-out). */
@@ -129,30 +136,44 @@ function rowStatus(row: SloRow): { label: string; tone: string } {
 // The name plus the line that says what the promise is. Target, window and SLI
 // grouping are the promise's identity, not a second reading of its status, which
 // is why they survived the cut that took the status detail.
-function SloPromiseCell({ slo }: { slo: CcSlo }) {
+function SloPromiseCell({
+  slo,
+  health,
+}: {
+  slo: CcSlo;
+  health?: CcRuleHealthStatus;
+}) {
   const identity = ccSloIdentity(slo);
   const { label_columns } = slo.spec.sli;
   return (
-    <span className="flex flex-col gap-1">
-      <Link
-        to="/alerts/slos/$project/$slug"
-        params={{ project: identity.project, slug: identity.slug }}
-        // Never wrap a name onto a second line: this column is the flexible one,
-        // so it is what gives when the viewport tightens. Not truncate either —
-        // `overflow:hidden` would let the column collapse to nothing.
-        className="font-medium whitespace-nowrap text-foreground underline-offset-2 hover:underline"
-      >
-        {identity.name}
-      </Link>
-      <span className="text-[0.6875rem] whitespace-nowrap text-muted-foreground">
-        {ccFormatSloTarget(slo.spec.targetPercent)} over{" "}
-        {ccSloWindowLabel(slo.spec)}
-        {label_columns.length > 0 && (
-          <>
-            {" · by "}
-            <span className="font-mono">{label_columns.join(", ")}</span>
-          </>
-        )}
+    <span className="flex items-start gap-2">
+      {/* A fixed slot, filled or not: the glyphs line up down the list, and a
+          row whose snapshot has not resolved keeps its name on the same
+          left edge as every other row instead of sliding out. */}
+      <span className="flex w-3.5 shrink-0 justify-center pt-1">
+        <CcHealthHeart status={health} />
+      </span>
+      <span className="flex flex-col gap-1">
+        <Link
+          to="/alerts/slos/$project/$slug"
+          params={{ project: identity.project, slug: identity.slug }}
+          // Never wrap a name onto a second line: this column is the flexible one,
+          // so it is what gives when the viewport tightens. Not truncate either —
+          // `overflow:hidden` would let the column collapse to nothing.
+          className="font-medium whitespace-nowrap text-foreground underline-offset-2 hover:underline"
+        >
+          {identity.name}
+        </Link>
+        <span className="text-[0.6875rem] whitespace-nowrap text-muted-foreground">
+          {ccFormatSloTarget(slo.spec.targetPercent)} over{" "}
+          {ccSloWindowLabel(slo.spec)}
+          {label_columns.length > 0 && (
+            <>
+              {" · by "}
+              <span className="font-mono">{label_columns.join(", ")}</span>
+            </>
+          )}
+        </span>
       </span>
     </span>
   );
@@ -252,6 +273,7 @@ function CcSlosPage() {
         statusPending: statuses[i].isPending,
         groups,
         worst: ccWorstSloGroup(groups),
+        health: statuses[i].data?.health.status,
       };
     })
     // Sorted by name only: a fixed order independent of status, so the list
@@ -306,7 +328,7 @@ function CcSlosPage() {
       header: "Promise",
       className: "w-full pb-2 pr-4 pl-3",
       cellClassName: "w-full py-2 pr-4 pl-3",
-      cell: ({ slo }) => <SloPromiseCell slo={slo} />,
+      cell: ({ slo, health }) => <SloPromiseCell slo={slo} health={health} />,
     },
     {
       // Unlabelled and only as wide as the icon: most SLOs have no runbook, and

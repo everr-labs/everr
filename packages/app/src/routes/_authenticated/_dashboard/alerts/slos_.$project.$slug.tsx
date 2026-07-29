@@ -41,6 +41,7 @@ import {
 import {
   CcDisclosureTrigger,
   CcEmptyState,
+  CcHealthHeart,
   CcPauseToggle,
   CcQueryError,
   CcSloTierBadge,
@@ -585,6 +586,13 @@ function CcSloDetailPage() {
   const { preview } = Route.useSearch();
   const qc = useQueryClient();
   const slo = useQuery(ccQueries.sloByName(project, slug, preview));
+  // Health for the title glyph. Same key as the budget section's read, so
+  // this is a cache hit rather than a second request.
+  const sloId = slo.data?.id;
+  const status = useQuery({
+    ...ccQueries.sloStatus(sloId ?? ""),
+    enabled: sloId !== undefined,
+  });
   const toggle = useMutation({
     mutationFn: (paused: boolean) => {
       const id = slo.data?.id;
@@ -626,6 +634,7 @@ function CcSloDetailPage() {
         <div className="flex flex-wrap items-center gap-3">
           <BackLink />
           <h2 className="text-base font-semibold">{identity.name}</h2>
+          <CcHealthHeart status={status.data?.health.status} />
           {/* The promise itself (target over window) leads the stats row
               below, so the header carries just the name and its flags. */}
           {s.paused && <Badge variant="secondary">paused</Badge>}

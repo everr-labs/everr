@@ -30,10 +30,17 @@ import {
   toneDot,
   toneText,
 } from "@everr/ui/components/tone";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@everr/ui/components/tooltip";
 import { cn } from "@everr/ui/lib/utils";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   ChevronRight,
+  Heart,
+  HeartCrack,
   Info,
   type LucideIcon,
   Pause,
@@ -43,7 +50,7 @@ import {
 import type { ReactNode } from "react";
 import { ccErrorInfo } from "@/data/cc/errors";
 import { ccOpSymbol } from "@/data/cc/route-resolution";
-import type { CcMatcher } from "@/data/cc/types";
+import type { CcMatcher, CcRuleHealthStatus } from "@/data/cc/types";
 
 // ── Guidance ──────────────────────────────────────────────────────────────────
 // Plain-language, always-visible explainers. Alerting is hard; the UI should
@@ -496,6 +503,69 @@ export function ccFormatTs(ts: string | null | undefined): string {
   if (!ts) return "—";
   const d = new Date(ts);
   return Number.isNaN(d.getTime()) ? ts : d.toLocaleString();
+}
+
+// ── Evaluation health ─────────────────────────────────────────────────────────
+
+const HEART = {
+  healthy: {
+    Icon: Heart,
+    tone: "healthy",
+    label: "Evaluating",
+    detail: "The query is evaluating on schedule.",
+  },
+  degraded: {
+    Icon: HeartCrack,
+    tone: "danger",
+    label: "Evaluation degraded",
+    detail:
+      "The query is failing, so this is not being evaluated. Nothing new can fire and the numbers stop moving until it runs again.",
+  },
+} as const satisfies Record<
+  CcRuleHealthStatus,
+  { Icon: LucideIcon; tone: HealthTone; label: string; detail: string }
+>;
+
+/**
+ * Evaluation health as a single glyph: a whole heart while the query runs, a
+ * broken one when it does not. Deliberately the smallest possible readout —
+ * a listing cannot act on the forensics, so it carries the fact and the
+ * tooltip carries the consequence.
+ *
+ * Renders nothing without a status: an SLO with no snapshot yet has no health
+ * to report, and a placeholder would read as a verdict.
+ */
+export function CcHealthHeart({
+  status,
+  className,
+}: {
+  status: CcRuleHealthStatus | undefined;
+  className?: string;
+}) {
+  if (!status) return null;
+  const { Icon, tone, label, detail } = HEART[status];
+  return (
+    <Tooltip>
+      <TooltipTrigger
+        render={
+          // A button, not a bare span: the tooltip has to be reachable by
+          // keyboard, and this is the only explanation of the glyph there is.
+          <button
+            type="button"
+            aria-label={label}
+            className={cn(
+              "inline-flex shrink-0 items-center rounded-sm outline-2 outline-dotted outline-transparent outline-offset-2 focus-visible:outline-primary",
+              toneText({ tone }),
+              className,
+            )}
+          />
+        }
+      >
+        <Icon className="size-3.5" aria-hidden />
+      </TooltipTrigger>
+      <TooltipContent className="max-w-xs text-xs">{detail}</TooltipContent>
+    </Tooltip>
+  );
 }
 
 // ── Pause / resume ────────────────────────────────────────────────────────────

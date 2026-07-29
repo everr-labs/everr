@@ -19,6 +19,7 @@ import { toast } from "sonner";
 import { CcPageIntro } from "@/components/cc/page-intro";
 import {
   CcEmptyState,
+  CcHealthHeart,
   CcPauseToggle,
   CcQueryError,
   CcSeverityBadge,
@@ -77,18 +78,28 @@ function CcRulesPage() {
       cell: (r) => {
         const identity = ccRuleIdentity(r);
         return (
-          <Link
-            to="/alerts/rules/$project/$slug"
-            params={{ project: identity.project, slug: identity.slug }}
-            className={cn(
-              "font-medium text-foreground underline-offset-2 hover:underline",
-              // A rule with no display name IS its id, so it keeps the mono
-              // face that makes an id readable.
-              identity.name === identity.shortId && "font-mono",
-            )}
-          >
-            {identity.name}
-          </Link>
+          // Health rides beside the name rather than in a column of its own:
+          // one glyph does not earn a header, and next to the name is where
+          // the question ("is this one working?") is actually asked. Leading,
+          // so the glyphs line up down the list; trailing they would sit at
+          // the ragged edge of names of every length.
+          <span className="inline-flex items-center gap-2">
+            <span className="flex w-3.5 shrink-0 justify-center">
+              <CcHealthHeart status={r.health.status} />
+            </span>
+            <Link
+              to="/alerts/rules/$project/$slug"
+              params={{ project: identity.project, slug: identity.slug }}
+              className={cn(
+                "font-medium text-foreground underline-offset-2 hover:underline",
+                // A rule with no display name IS its id, so it keeps the mono
+                // face that makes an id readable.
+                identity.name === identity.shortId && "font-mono",
+              )}
+            >
+              {identity.name}
+            </Link>
+          </span>
         );
       },
     },

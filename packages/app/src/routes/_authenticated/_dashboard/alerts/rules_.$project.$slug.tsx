@@ -28,6 +28,7 @@ import { CcAsCode } from "@/components/cc/as-code";
 import {
   CcDisclosureTrigger,
   CcEmptyState,
+  CcHealthHeart,
   CcInstanceStatusBadge,
   CcPauseToggle,
   CcQueryError,
@@ -203,6 +204,7 @@ function CcRuleDetailPage() {
             </span>
           )}
           <CcSeverityBadge severity={r.spec.severity} />
+          <CcHealthHeart status={r.health.status} />
           {r.spec.suppressed && (
             // A suppressed rule evaluates fully but the dispatcher never
             // notifies on it — worth a loud flag, or the silence is invisible.

@@ -219,6 +219,43 @@ describe("/alerts/slos route", () => {
 
   // What the promise is stays on the row; the detail of what its status is
   // doing does not.
+  it("marks each row with its evaluator health", async () => {
+    renderSlosRoute();
+
+    const table = await screen.findByRole("table");
+    // The suite's default snapshot is healthy.
+    expect(
+      await within(table).findByLabelText("Evaluating"),
+    ).toBeInTheDocument();
+  });
+
+  it("marks a degraded evaluator with the broken heart", async () => {
+    mocks.getCcSloStatus.mockResolvedValue({
+      computed_at: new Date().toISOString(),
+      health: {
+        status: "degraded",
+        degraded_since: "2026-07-18T08:00:00Z",
+        last_error: "query failed: boom",
+      },
+      payload: {
+        window: "30d",
+        target_percent: 99.9,
+        window_computed_at: {},
+        groups: [],
+      },
+    });
+
+    renderSlosRoute();
+
+    const table = await screen.findByRole("table");
+    expect(
+      await within(table).findByLabelText("Evaluation degraded"),
+    ).toBeInTheDocument();
+    // The glyph is the whole readout: the failing query itself stays on the
+    // detail page's own surfaces, not in a listing cell.
+    expect(within(table).queryByText("query failed: boom")).toBeNull();
+  });
+
   it("keeps the target, window and SLI grouping line under the name", async () => {
     renderSlosRoute();
 

@@ -408,7 +408,7 @@ describe("/alerts/slos/$project/$slug route", () => {
     ).toBeInTheDocument();
   });
 
-  it("keeps evaluator health off the page, degraded included", async () => {
+  it("carries degraded health as a title glyph, not a card of forensics", async () => {
     mocks.getCcSloStatus.mockResolvedValue(
       sloStatus({
         health: {
@@ -420,15 +420,13 @@ describe("/alerts/slos/$project/$slug route", () => {
     );
 
     renderSloDetailRoute();
-    // Await something that rides the status read the health card used to
-    // share, so absence is measured after that query has resolved.
-    await screen.findByText("Budget history");
 
-    expect(screen.queryByText("Evaluator")).not.toBeInTheDocument();
+    // Awaited, since the glyph rides the status read rather than the SLO.
     expect(
-      screen.queryByLabelText("Evaluator degraded"),
-    ).not.toBeInTheDocument();
-    expect(screen.queryByText(/Evaluation degraded/)).not.toBeInTheDocument();
+      await screen.findByLabelText("Evaluation degraded"),
+    ).toBeInTheDocument();
+    // The fact, not the forensics: no Evaluator card, no raw query error.
+    expect(screen.queryByText("Evaluator")).not.toBeInTheDocument();
     expect(screen.queryByText("query failed: boom")).not.toBeInTheDocument();
   });
 
