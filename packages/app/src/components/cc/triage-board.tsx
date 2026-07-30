@@ -45,6 +45,7 @@ import {
   TRIAGE_EVENT_RANGE,
   type TriageGroup,
   type TriageInstance,
+  type TriageRow,
 } from "@/data/cc/triage";
 import type { CcAlert, CcMatcher, CcRoute } from "@/data/cc/types";
 
@@ -263,14 +264,14 @@ function InstanceDetail({
 }
 
 function InstanceRow({
-  inst,
+  row,
   expanded,
   onToggle,
   deliveryFact,
   valueLabel,
   children,
 }: {
-  inst: TriageInstance;
+  row: TriageRow;
   expanded: boolean;
   onToggle: () => void;
   deliveryFact: React.ReactNode;
@@ -279,18 +280,32 @@ function InstanceRow({
   valueLabel: string;
   children?: React.ReactNode;
 }) {
+  const inst = row.lead;
   const { alert, silence } = inst;
   const muted = alert.status !== "firing";
-  // SLO-sourced rows surface the burn-rate tier as a first-class badge (toned
-  // by the severity the tier fires at) instead of leaving it buried in the
-  // label pills.
-  const tier = inst.slo !== undefined ? alert.labels.slo_tier : undefined;
-  const shownLabels =
-    tier === undefined
-      ? alert.labels
-      : Object.fromEntries(
-          Object.entries(alert.labels).filter(([k]) => k !== "slo_tier"),
-        );
+  // SLO rows surface every firing burn-rate tier as a first-class badge (each
+  // toned by the severity it fires at) instead of leaving them buried in the
+  // label pills, or split across a row apiece.
+  const isSlo = inst.slo !== undefined || alert.slo !== undefined;
+  const shownLabels = isSlo
+    ? Object.fromEntries(
+        Object.entries(alert.labels).filter(([k]) => k !== "slo_tier"),
+      )
+    : alert.labels;
+  // How long this has been wrong, across every tier that reported it — not
+  // just how long the leading tier has been the leading one.
+  const activeSince = row.members
+    .map((m) => m.alert.active_since)
+    .filter((t): t is string => t !== null && t !== undefined)
+    .sort()[0];
+  const perTierRates = row.members
+    .map(
+      (m) =>
+        `${m.alert.labels.slo_tier ?? "?"}: ${
+          typeof m.alert.value === "number" ? ccFmtBurn(m.alert.value) : "—"
+        }`,
+    )
+    .join(" · ");
   return (
     <div className={cn(muted && "opacity-60")}>
       {/* Mouse convenience on the row; the chevron button is the keyboard and
@@ -323,16 +338,21 @@ function InstanceRow({
         <span className="shrink-0 text-xs md:w-16">
           <CcInstanceStatusBadge status={alert.status} />
         </span>
-        <span className="flex min-w-0 flex-1 items-center gap-2">
-          {tier !== undefined && inst.slo !== undefined && (
-            <CcSloTierBadge
-              tier={tier}
-              severity={ccSloInstanceSeverity(alert)}
-            />
+        <span className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
+          {row.members.map(
+            (m) =>
+              m.alert.labels.slo_tier !== undefined &&
+              m.alert.status === "firing" && (
+                <CcSloTierBadge
+                  key={m.alert.key}
+                  tier={m.alert.labels.slo_tier}
+                  severity={ccSloInstanceSeverity(m.alert)}
+                />
+              ),
           )}
-          {/* A scalar SLO instance's only label is the tier, already shown as
-              the badge — don't append a "no labels" placeholder after it. */}
-          {(tier === undefined || Object.keys(shownLabels).length > 0) && (
+          {/* A scalar SLO's only label is the tier, already shown as a badge —
+              don't append a "no labels" placeholder after it. */}
+          {(!isSlo || Object.keys(shownLabels).length > 0) && (
             <LabelSet labels={shownLabels} emptyLabel="no labels" />
           )}
         </span>
@@ -347,20 +367,21 @@ function InstanceRow({
           </span>
           {/* SLO rows carry the tier's burn rate as their value: print it at
               the engine's own precision (one decimal, ×) instead of the raw
-              float. */}
-          {inst.slo !== undefined && typeof alert.value === "number"
-            ? ccFmtBurn(alert.value)
-            : (alert.value ?? "—")}
+              float. A merged row shows its leading tier's rate, with every
+              tier's rate on the tooltip so the others are not lost. */}
+          <span
+            title={isSlo && row.members.length > 1 ? perTierRates : undefined}
+          >
+            {isSlo && typeof alert.value === "number"
+              ? ccFmtBurn(alert.value)
+              : (alert.value ?? "—")}
+          </span>
         </span>
         <span
           className="shrink-0 text-xs whitespace-nowrap text-muted-foreground md:w-24 md:text-right"
-          title={ccFormatTs(alert.active_since)}
+          title={ccFormatTs(activeSince)}
         >
-          {alert.active_since ? (
-            <RelativeTime timestamp={alert.active_since} />
-          ) : (
-            "—"
-          )}
+          {activeSince ? <RelativeTime timestamp={activeSince} /> : "—"}
         </span>
         <span className="flex min-w-0 flex-1 items-center justify-end gap-2 overflow-hidden md:w-56 md:flex-none">
           {silence && (
@@ -508,8 +529,8 @@ export function TriageBoard({
                   )}
                   <CcSeverityBadge severity={group.severity} />
                   <span className="text-xs text-muted-foreground tabular-nums">
-                    {group.instances.length}{" "}
-                    {group.instances.length === 1 ? "instance" : "instances"}
+                    {group.rows.length}{" "}
+                    {group.rows.length === 1 ? "instance" : "instances"}
                   </span>
                   {/* One mute for the whole source: opens the drawer seeded
                         with the synthetic scoping matcher (slo/rule), so a
@@ -548,40 +569,43 @@ export function TriageBoard({
                   <span className="w-24 shrink-0" />
                   <span className="w-56 shrink-0" />
                 </div>
-                {group.instances.map((inst) => (
+                {group.rows.map((row) => (
                   <InstanceRow
-                    key={inst.alert.key}
-                    inst={inst}
+                    key={row.lead.alert.key}
+                    row={row}
                     valueLabel={
                       group.sloId !== undefined
                         ? "burn rate"
                         : group.rule?.spec.value_column || "value"
                     }
-                    expanded={expandedKey === inst.alert.key}
+                    expanded={expandedKey === row.lead.alert.key}
                     onToggle={() =>
                       setExpandedKey((k) =>
-                        k === inst.alert.key ? null : inst.alert.key,
+                        k === row.lead.alert.key ? null : row.lead.alert.key,
                       )
                     }
                     deliveryFact={
                       <DeliveryFact
-                        matchedRoutes={inst.matchedRoutes}
+                        matchedRoutes={row.lead.matchedRoutes}
                         channelsByReceiver={channelsByReceiver}
                         hasSubscribers={hasSubscribers}
                       />
                     }
                   >
                     <InstanceDetail
-                      inst={inst}
+                      inst={row.lead}
                       silencePending={silenceInstance.isPending}
                       onSilence={(hours) =>
-                        silenceInstance.mutate({ alert: inst.alert, hours })
+                        silenceInstance.mutate({
+                          alert: row.lead.alert,
+                          hours,
+                        })
                       }
                       onCustomSilence={() =>
                         // The create drawer lives on the page — a custom
                         // silence opens pre-seeded in place, no navigation.
                         onCustomSilence(
-                          ccSourceScopedSilenceMatchers(inst.alert),
+                          ccSourceScopedSilenceMatchers(row.lead.alert),
                         )
                       }
                     />

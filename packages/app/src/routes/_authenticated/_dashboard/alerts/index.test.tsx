@@ -439,9 +439,10 @@ describe("/alerts triage board", () => {
         mocks.listCcAlerts.mockResolvedValue([sloAlert()]);
       },
       row: "checkout",
+      // No slo_tier: the row is this label set across every tier, so muting it
+      // mutes all of them rather than handing the page to the next tier down.
       matchers: [
         { label: "service", op: "eq", value: "checkout" },
-        { label: "slo_tier", op: "eq", value: "fast-burn" },
         { label: "slo", op: "eq", value: SLO_ID },
       ],
     },

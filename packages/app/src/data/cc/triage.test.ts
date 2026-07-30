@@ -173,7 +173,9 @@ describe("ccTriageCounts", () => {
     // (svc=api) is matched by the silence, and `silenced` ignores inactive
     // rows. The single route matches host=web-1, so fp-3 is firing-unrouted —
     // but it is silenced, so it does not count as unrouted either.
-    expect(ccTriageCounts(instances, [ccSilence()], NOW)).toEqual({
+    expect(
+      ccTriageCounts(ccGroupInstances(instances), [ccSilence()], NOW),
+    ).toEqual({
       firing: 2,
       pending: 1,
       silenced: 1,
@@ -186,7 +188,28 @@ describe("ccTriageCounts", () => {
     const instances = resolve({
       alerts: [ccAlert({ labels: { host: "nowhere" } })],
     });
-    expect(ccTriageCounts(instances, [], NOW)).toMatchObject({
+    expect(ccTriageCounts(ccGroupInstances(instances), [], NOW)).toMatchObject({
+      firing: 1,
+      unroutedFiring: 1,
+    });
+  });
+
+  // The strip and the board are one tally: an SLO tripping two tiers is one
+  // firing thing in both, not two in the strip and one on the board.
+  it("counts a two-tier SLO row once", () => {
+    const tier = (slo_tier: string, key: string) =>
+      ccAlert({
+        key,
+        rule: SLO_ID,
+        slo: SLO_ID,
+        labels: { service: "checkout", slo_tier },
+      });
+    const instances = resolve({
+      alerts: [tier("fast-burn", "fp-fast"), tier("ticket", "fp-ticket")],
+      slos: [ccSlo()],
+    });
+
+    expect(ccTriageCounts(ccGroupInstances(instances), [], NOW)).toMatchObject({
       firing: 1,
       unroutedFiring: 1,
     });
@@ -220,12 +243,94 @@ describe("ccGroupInstances", () => {
       }),
     );
 
-    expect(group.instances.map((i) => i.alert.key)).toEqual([
+    expect(group.rows.map((r) => r.lead.alert.key)).toEqual([
       "fp-1",
       "fp-3",
       "fp-4",
     ]);
-    expect(group.instances[1].silence?.id).toBe("sil-1");
+    expect(group.rows[1].lead.silence?.id).toBe("sil-1");
+  });
+
+  // An SLO's tiers are three sensitivities on one budget, so a label set
+  // tripping two of them is one problem, not two rows.
+  it("collapses an SLO's burn-rate tiers into one row per label set", () => {
+    const sloInstance = (tier: string, key: string, value: number) =>
+      ccAlert({
+        key,
+        rule: SLO_ID,
+        slo: SLO_ID,
+        labels: { service: "checkout", slo_tier: tier },
+        value,
+      });
+    const [group] = ccGroupInstances(
+      resolve({
+        alerts: [
+          sloInstance("ticket", "fp-ticket", 176.7),
+          sloInstance("fast-burn", "fp-fast", 192.2),
+          // A second label set stays its own row: that is a second problem.
+          ccAlert({
+            key: "fp-other",
+            rule: SLO_ID,
+            slo: SLO_ID,
+            labels: { service: "payments", slo_tier: "ticket" },
+          }),
+        ],
+        slos: [ccSlo()],
+      }),
+    );
+
+    expect(group.rows).toHaveLength(2);
+    const checkout = group.rows.find(
+      (r) => r.lead.alert.labels.service === "checkout",
+    );
+    // Canonical tier order is urgency order, so fast-burn leads and the row's
+    // value is its burn rate, not the ticket tier's.
+    expect(checkout?.lead.alert.key).toBe("fp-fast");
+    expect(checkout?.lead.alert.value).toBe(192.2);
+    expect(checkout?.tiers).toEqual(["fast-burn", "ticket"]);
+    expect(checkout?.members).toHaveLength(2);
+  });
+
+  it("keeps a rule's instances one row each: each is its own label set", () => {
+    const [group] = ccGroupInstances(
+      resolve({
+        alerts: [
+          ccAlert(),
+          ccAlert({ key: "fp-2", labels: { host: "web-2" } }),
+        ],
+      }),
+    );
+
+    expect(group.rows).toHaveLength(2);
+    expect(group.rows.every((r) => r.members.length === 1)).toBe(true);
+    expect(group.rows.every((r) => r.tiers.length === 0)).toBe(true);
+  });
+
+  it("counts only firing tiers, so a resolved tier leaves no badge", () => {
+    const [group] = ccGroupInstances(
+      resolve({
+        alerts: [
+          ccAlert({
+            key: "fp-fast",
+            rule: SLO_ID,
+            slo: SLO_ID,
+            labels: { service: "checkout", slo_tier: "fast-burn" },
+          }),
+          ccAlert({
+            key: "fp-ticket",
+            rule: SLO_ID,
+            slo: SLO_ID,
+            status: "inactive",
+            labels: { service: "checkout", slo_tier: "ticket" },
+          }),
+        ],
+        slos: [ccSlo()],
+      }),
+    );
+
+    expect(group.rows).toHaveLength(1);
+    expect(group.rows[0].tiers).toEqual(["fast-burn"]);
+    expect(group.rows[0].members).toHaveLength(2);
   });
 
   it("groups by source and sorts critical before warning", () => {
@@ -295,7 +400,7 @@ describe("ccGroupInstances", () => {
       ],
     });
     const [group] = ccGroupInstances(instances);
-    expect(group.instances.map((i) => i.alert.status)).toEqual([
+    expect(group.rows.map((r) => r.lead.alert.status)).toEqual([
       "firing",
       "pending",
     ]);
@@ -320,15 +425,17 @@ describe("ccSourceScopedSilenceMatchers", () => {
     ]);
   });
 
-  it("scopes an SLO-sourced instance by slo, not rule", () => {
+  it("scopes an SLO-sourced instance by slo, not rule, and never by tier", () => {
     const alert = ccAlert({
       rule: SLO_ID,
       slo: SLO_ID,
       labels: { service: "checkout", slo_tier: "fast-burn" },
     });
+    // The board shows this label set as one row across every tier, so muting
+    // it must mute every tier: pinning slo_tier would leave the same problem
+    // paging from the next tier down.
     expect(ccSourceScopedSilenceMatchers(alert)).toEqual([
       { label: "service", op: "eq", value: "checkout" },
-      { label: "slo_tier", op: "eq", value: "fast-burn" },
       { label: "slo", op: "eq", value: SLO_ID },
     ]);
   });

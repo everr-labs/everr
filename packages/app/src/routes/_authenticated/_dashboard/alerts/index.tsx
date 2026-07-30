@@ -114,15 +114,17 @@ function CcTriagePage() {
       }),
     [alerts.data, rulesData, slosData, routes.data, silences.data],
   );
-  const counts = useMemo(
-    () => ccTriageCounts(instances, silences.data ?? EMPTY, Date.now()),
-    [instances, silences.data],
-  );
   const groups = useMemo(() => ccGroupInstances(instances), [instances]);
+  // Counted off the grouped rows, not the raw instances, so the strip tallies
+  // exactly what the board draws.
+  const counts = useMemo(
+    () => ccTriageCounts(groups, silences.data ?? EMPTY, Date.now()),
+    [groups, silences.data],
+  );
 
   const watchingRules = rulesData.filter((r) => !r.paused).length;
-  // Every instance-derived number comes from `counts`; nothing is re-filtered
-  // here, so the strip and the board can never disagree.
+  // Every row-derived number comes from `counts`; nothing is re-filtered here,
+  // so the strip and the board can never disagree.
   const pipelineFacts = {
     ...counts,
     watchingRules,

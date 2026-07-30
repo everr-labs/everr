@@ -25,7 +25,7 @@ import type {
 
 // The alerts layout hides the global time-range picker, so every triage surface
 // reads the same fixed trailing window of stored events: the board's all-clear
-// freshness line, the recent-events feed, and each expanded row's evidence.
+// freshness line and each expanded row's evidence.
 export const TRIAGE_EVENT_RANGE: TimeRange = { from: "now-24h", to: "now" };
 
 // ── Vocabulary helpers ────────────────────────────────────────────────────────
@@ -66,15 +66,22 @@ export function ccSloInstanceSeverity(alert: CcAlert) {
  * SLO-sourced instances, `rule` otherwise (the dispatcher matches silences
  * against synthetic labels, so a label-free source still gets a working,
  * precisely scoped silence).
+ *
+ * `slo_tier` is deliberately not pinned. A board row is one label set across
+ * every tier watching it, so silencing that row must mute all of them; pinning
+ * the tier would leave the same problem paging from the next tier down.
  */
 export function ccSourceScopedSilenceMatchers(alert: CcAlert): CcMatcher[] {
+  const isSlo = alert.slo !== undefined;
   return [
-    ...Object.entries(alert.labels).map(([label, value]) => ({
-      label,
-      op: "eq" as const,
-      value,
-    })),
-    alert.slo !== undefined
+    ...Object.entries(alert.labels)
+      .filter(([label]) => !(isSlo && label === "slo_tier"))
+      .map(([label, value]) => ({
+        label,
+        op: "eq" as const,
+        value,
+      })),
+    isSlo && alert.slo !== undefined
       ? { label: "slo", op: "eq" as const, value: alert.slo }
       : { label: "rule", op: "eq" as const, value: alert.rule },
   ];
@@ -107,15 +114,31 @@ export function ccInstanceLogsSearch(alert: CcAlert): {
 
 // ── Shapes ────────────────────────────────────────────────────────────────────
 
-// One triage row: the instance plus every fact the board derives for it.
-// `rule` and `slo` are mutually exclusive resolutions of the instance's
-// source (alert.slo discriminates).
+// One engine instance plus every fact the board derives for it. `rule` and
+// `slo` are mutually exclusive resolutions of the instance's source
+// (alert.slo discriminates).
 export type TriageInstance = {
   alert: CcAlert;
   rule: CcRuleView | undefined;
   slo: CcSlo | undefined;
   matchedRoutes: CcRoute[];
   silence: CcSilence | null;
+};
+
+/**
+ * One board row: one thing that is wrong. For a rule that is one instance,
+ * since an instance already is one label set. For an SLO it is one label set
+ * across every burn-rate tier currently on it: the tiers are three
+ * sensitivities watching the same budget, so a service burning fast enough to
+ * trip two of them is still one problem, and listing it twice reads as two.
+ */
+export type TriageRow = {
+  /** The most urgent member: the row's identity, value, and event scope. */
+  lead: TriageInstance;
+  /** Every member, most urgent first. One element for a rule row. */
+  members: TriageInstance[];
+  /** Firing tiers, most urgent first. Empty for a rule row. */
+  tiers: string[];
 };
 
 /** One source's rows: a rule's, or an SLO's burn-rate alerting. */
@@ -126,7 +149,7 @@ export type TriageGroup = {
   sloId: string | undefined;
   name: string;
   severity: string;
-  instances: TriageInstance[];
+  rows: TriageRow[];
 };
 
 // ── Derivation ────────────────────────────────────────────────────────────────
@@ -169,13 +192,18 @@ export function ccResolveTriageInstances({
 }
 
 /**
- * Every number the pipeline strip reads off the instance list, accumulated in
- * one pass. Callers must not re-derive any of these with their own filters: a
- * count that lives half here and half in a route drifts the moment one side
- * changes its definition of, say, "unrouted".
+ * Every number the pipeline strip reads, accumulated in one pass over the
+ * grouped rows. Callers must not re-derive any of these with their own
+ * filters: a count that lives half here and half in a route drifts the moment
+ * one side changes its definition of, say, "unrouted".
+ *
+ * These count rows, not engine instances, so the strip and the board are the
+ * same tally. An SLO burning fast enough to trip two tiers is one firing thing
+ * in both places; counting its tiers here would have the strip claim two
+ * problems the board shows as one.
  */
 export function ccTriageCounts(
-  instances: TriageInstance[],
+  groups: TriageGroup[],
   silences: CcSilence[],
   now: number,
 ): {
@@ -189,20 +217,24 @@ export function ccTriageCounts(
   let pending = 0;
   let silenced = 0;
   let unroutedFiring = 0;
-  for (const i of instances) {
-    if (i.alert.status === "firing") {
-      firing += 1;
-      // Unrouted only counts what nothing is muting: a silenced instance is
-      // meant not to reach anyone.
-      if (i.silence === null && i.matchedRoutes.length === 0) {
-        unroutedFiring += 1;
+  for (const group of groups) {
+    for (const { lead } of group.rows) {
+      if (lead.alert.status === "firing") {
+        firing += 1;
+        // Unrouted only counts what nothing is muting: a silenced row is meant
+        // not to reach anyone.
+        if (lead.silence === null && lead.matchedRoutes.length === 0) {
+          unroutedFiring += 1;
+        }
+      } else if (lead.alert.status === "pending") {
+        pending += 1;
       }
-    } else if (i.alert.status === "pending") {
-      pending += 1;
+      // Silenced counts active rows only; an inactive row matched by a silence
+      // is not being muted, it is simply over.
+      if (lead.alert.status !== "inactive" && lead.silence !== null) {
+        silenced += 1;
+      }
     }
-    // Silenced counts active instances only; an inactive row matched by a
-    // silence is not being muted, it is simply over.
-    if (i.alert.status !== "inactive" && i.silence !== null) silenced += 1;
   }
   return {
     firing,
@@ -217,12 +249,58 @@ export function ccTriageCounts(
   };
 }
 
+/** A label set's identity, ignoring which burn-rate tier reported it. */
+function labelSetKey(alert: CcAlert): string {
+  return JSON.stringify(
+    Object.entries(alert.labels)
+      .filter(([k]) => k !== "slo_tier")
+      .sort(([a], [b]) => a.localeCompare(b)),
+  );
+}
+
+const TIER_RANK = new Map(CC_CANONICAL_SLO_TIERS.map((t, i) => [t.name, i]));
+
+/**
+ * Collapse an SLO's instances into one row per label set, most urgent member
+ * leading. Rule instances pass through one-to-one: an instance already is a
+ * label set, so nothing to merge.
+ */
+function ccCollapseRows(list: TriageInstance[], isSlo: boolean): TriageRow[] {
+  if (!isSlo) {
+    return list.map((lead) => ({ lead, members: [lead], tiers: [] }));
+  }
+  const byLabels = new Map<string, TriageInstance[]>();
+  for (const inst of list) {
+    const key = labelSetKey(inst.alert);
+    byLabels.set(key, [...(byLabels.get(key) ?? []), inst]);
+  }
+  return [...byLabels.values()].map((members) => {
+    // Canonical tier order is urgency order (fast-burn → slow-burn → ticket),
+    // so the earliest tier leads and its burn rate is the row's value.
+    const sorted = [...members].sort(
+      (a, b) =>
+        (STATUS_RANK[a.alert.status] ?? 3) -
+          (STATUS_RANK[b.alert.status] ?? 3) ||
+        (TIER_RANK.get(a.alert.labels.slo_tier) ?? TIER_RANK.size) -
+          (TIER_RANK.get(b.alert.labels.slo_tier) ?? TIER_RANK.size),
+    );
+    return {
+      lead: sorted[0],
+      members: sorted,
+      tiers: sorted
+        .filter((m) => m.alert.status === "firing")
+        .map((m) => m.alert.labels.slo_tier)
+        .filter((t): t is string => t !== undefined),
+    };
+  });
+}
+
 // Group by source (rule or SLO — `alert.rule` carries the uuid for both).
-// Groups sort by what they are doing now (any firing instance first, then
-// pending, then all-inactive), then by severity (critical → warning → info),
-// then by name; within a group firing instances precede pending (muted) and
-// inactive. An SLO group's severity is the highest tier severity among its
-// instances (each burn-rate instance fires at its own tier's severity).
+// Groups sort by what they are doing now (any firing row first, then pending,
+// then all-inactive), then by severity (critical → warning → info), then by
+// name; within a group firing rows precede pending (muted) and inactive. An
+// SLO group's severity is the highest tier severity among its instances (each
+// burn-rate instance fires at its own tier's severity).
 export function ccGroupInstances(instances: TriageInstance[]): TriageGroup[] {
   const bySource = new Map<string, TriageInstance[]>();
   for (const inst of instances) {
@@ -255,25 +333,28 @@ export function ccGroupInstances(instances: TriageInstance[]): TriageGroup[] {
             ? sloId.slice(0, 8)
             : ccRuleDisplayName(list[0].rule, sourceId),
         severity,
-        instances: [...list].sort(
+        rows: ccCollapseRows(
+          list,
+          slo !== undefined || sloId !== undefined,
+        ).sort(
           (a, b) =>
-            (STATUS_RANK[a.alert.status] ?? 3) -
-              (STATUS_RANK[b.alert.status] ?? 3) ||
-            (a.alert.active_since ?? "").localeCompare(
-              b.alert.active_since ?? "",
+            (STATUS_RANK[a.lead.alert.status] ?? 3) -
+              (STATUS_RANK[b.lead.alert.status] ?? 3) ||
+            (a.lead.alert.active_since ?? "").localeCompare(
+              b.lead.alert.active_since ?? "",
             ),
         ),
       };
     })
     .sort(
       (a, b) =>
-        // Each group's instances are already status-sorted, so [0] is its most
+        // Each group's rows are already status-sorted, so [0] is its most
         // urgent one. Ordering on that first floats firing groups above
         // pending ones and pending above all-inactive; severity then orders
         // within each band. Without it a critical group that has finished
         // firing would outrank a warning group that is firing right now.
-        (STATUS_RANK[a.instances[0].alert.status] ?? 3) -
-          (STATUS_RANK[b.instances[0].alert.status] ?? 3) ||
+        (STATUS_RANK[a.rows[0].lead.alert.status] ?? 3) -
+          (STATUS_RANK[b.rows[0].lead.alert.status] ?? 3) ||
         (SEVERITY_RANK[a.severity] ?? 3) - (SEVERITY_RANK[b.severity] ?? 3) ||
         a.name.localeCompare(b.name),
     );
