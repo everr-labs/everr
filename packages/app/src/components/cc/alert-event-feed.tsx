@@ -25,6 +25,7 @@ import { useCallback, useMemo, useState } from "react";
 import {
   ALERT_EVENT_TYPES,
   type AlertEventType,
+  ccEventStatus,
 } from "@/data/alerts/event-types";
 import type { AlertEventLogRow } from "@/data/alerts/history.server";
 import { ccQueries } from "@/data/cc/queries";
@@ -80,15 +81,6 @@ const TYPE_LENSES = [
 }[];
 
 type TypeLensKey = (typeof TYPE_LENSES)[number]["key"];
-
-/** firing/resolved for instance transitions; null for other event kinds. */
-export function ccEventStatus(eventType: string): "firing" | "resolved" | null {
-  return eventType === "instance_fired"
-    ? "firing"
-    : eventType === "instance_resolved"
-      ? "resolved"
-      : null;
-}
 
 export function AlertEventFeed({
   scopeSlug,

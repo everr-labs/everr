@@ -1,22 +1,25 @@
+// The triage board: source groups, each with expandable instance rows carrying
+// evidence, delivery, and the act-on-it controls. The lens control sits with
+// the board it filters, and the board owns the UI state and the quick-silence
+// mutation that only it uses. What it takes from the route is the resolved
+// data, plus one callback for the custom-silence drawer, which the route shares
+// with the silences panel below.
+
 import { Button, buttonVariants } from "@everr/ui/components/button";
 import { Card, CardContent } from "@everr/ui/components/card";
 import { RelativeTime } from "@everr/ui/components/relative-time";
 import { Skeleton } from "@everr/ui/components/skeleton";
 import { toneText } from "@everr/ui/components/tone";
-import type { TimeRange } from "@everr/ui/lib/time-range";
 import { cn } from "@everr/ui/lib/utils";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { Link } from "@tanstack/react-router";
 import { BellOff, BookOpenText, ChevronRight, FileSearch } from "lucide-react";
-import { useMemo, useRef, useState } from "react";
+import { useState } from "react";
 import { toast } from "sonner";
-import { ccEventStatus } from "@/components/cc/alert-event-feed";
 import { ccFmtBurn } from "@/components/cc/budget-bar";
-import { CcPageIntro } from "@/components/cc/page-intro";
 import {
   CcEmptyState,
   CcInstanceStatusBadge,
-  CcQueryError,
   CcSegmentedControl,
   CcSeverityBadge,
   CcSloTierBadge,
@@ -29,194 +32,35 @@ import {
   LabelSet,
   Pill,
 } from "@/components/cc/shared";
-import {
-  SilenceCreateDrawer,
-  type SilenceDrawerHandle,
-  SilencesPanel,
-} from "@/components/cc/silences-panel";
+import { ccEventStatus } from "@/data/alerts/event-types";
 import { fromCcRule } from "@/data/alerts/mapping";
-import { ccRuleIdentity } from "@/data/alerts/rule-identity";
 import { parseResourceName } from "@/data/as-code/identity";
 import { ccQueries } from "@/data/cc/queries";
-import {
-  ccDispatchLabels,
-  ccMatchingSilence,
-  ccSelectRoutes,
-} from "@/data/cc/route-resolution";
 import { createCcSilence } from "@/data/cc/server";
 import {
-  CC_CANONICAL_SLO_TIERS,
-  ccSloIdentity,
-  ccSloTierSeverity,
-} from "@/data/cc/slo";
-import type {
-  CcAlert,
-  CcMatcher,
-  CcRoute,
-  CcRuleView,
-  CcSilence,
-  CcSlo,
-} from "@/data/cc/types";
+  ccInstanceLogsSearch,
+  ccRunbookParams,
+  ccSloInstanceSeverity,
+  ccSourceScopedSilenceMatchers,
+  TRIAGE_EVENT_RANGE,
+  type TriageGroup,
+  type TriageInstance,
+  type TriageLensKey,
+} from "@/data/cc/triage";
+import type { CcAlert, CcMatcher, CcRoute } from "@/data/cc/types";
 
-// The alerts layout hides the global time-range picker, so Triage reads a
-// fixed trailing window of stored events for evidence and recent transitions.
-const TRIAGE_EVENT_RANGE: TimeRange = { from: "now-24h", to: "now" };
 // Per-instance cap for the expanded row's fingerprint-scoped feed: it needs
 // the newest evidence-carrying event plus the last 6 transitions, so this is
 // generous headroom.
 const TRIAGE_INSTANCE_EVENT_LIMIT = 100;
 
-// The board itself only needs the timestamp of the newest stored event (the
-// all-clear freshness readout), so it polls a limit-1 query; each expanded
-// row fetches and polls its own fingerprint-scoped events instead of the
-// whole 24h window.
-const latestEventQuery = () =>
-  ccQueries.eventHistory(TRIAGE_EVENT_RANGE, { limit: 1 });
-
-export const Route = createFileRoute(
-  "/_authenticated/_dashboard/alerts/triage",
-)({
-  staticData: { breadcrumb: "Triage" },
-  head: () => ({ meta: [{ title: "Everr - Alerts Triage" }] }),
-  loaderDeps: ({ search: { preview } }) => ({ preview }),
-  loader: ({ context: { queryClient }, deps }) =>
-    Promise.all([
-      queryClient.prefetchQuery(ccQueries.alerts(deps.preview)),
-      queryClient.prefetchQuery(ccQueries.rules()),
-      queryClient.prefetchQuery(ccQueries.slos(deps.preview)),
-      queryClient.prefetchQuery(ccQueries.routes()),
-      queryClient.prefetchQuery(ccQueries.receivers()),
-      queryClient.prefetchQuery(ccQueries.silences()),
-      queryClient.prefetchQuery(ccQueries.subscriptions()),
-      queryClient.prefetchQuery(latestEventQuery()),
-    ]),
-  component: CcTriagePage,
-});
-
-// ── Vocabulary helpers ────────────────────────────────────────────────────────
-
-const SEVERITY_RANK: Record<string, number> = {
-  critical: 0,
-  warning: 1,
-  info: 2,
-};
-const STATUS_RANK: Record<string, number> = {
-  firing: 0,
-  pending: 1,
-  inactive: 2,
-};
-
-function ruleDisplayName(rule: CcRuleView | undefined, ruleId: string): string {
-  return rule ? ccRuleIdentity(rule).name : ruleId.slice(0, 8);
-}
-
-/** /runbooks/$project/$slug params when the rule links a runbook, else null. */
-function runbookParams(
-  rule: CcRuleView | undefined,
-): { project: string; slug: string } | null {
-  return rule ? ccRuleIdentity(rule).runbook : null;
-}
-
-/**
- * The matchers a silence created from this instance carries: every instance
- * label pinned with `eq`, plus a synthetic scoping label — `slo` for
- * SLO-sourced instances, `rule` otherwise (the dispatcher matches silences
- * against synthetic labels, so a label-free source still gets a working,
- * precisely scoped silence).
- */
-function sourceScopedSilenceMatchers(alert: CcAlert): CcMatcher[] {
-  return [
-    ...Object.entries(alert.labels).map(([label, value]) => ({
-      label,
-      op: "eq" as const,
-      value,
-    })),
-    alert.slo !== undefined
-      ? { label: "slo", op: "eq" as const, value: alert.slo }
-      : { label: "rule", op: "eq" as const, value: alert.rule },
-  ];
-}
-
-/**
- * Search params for a Logs link scoped to this instance: the window from
- * shortly before it started firing until now, plus the shared service filter
- * when the instance carries a service-shaped label. Labels are arbitrary SQL
- * columns, so only the well-known service key maps to an explorer filter —
- * anything cleverer would silently build wrong queries.
- */
-function instanceLogsSearch(alert: CcAlert): {
-  from: string;
-  to: string;
-  service?: string[];
-} {
-  const activeMs = alert.active_since
-    ? new Date(alert.active_since).getTime()
-    : Date.now() - 3_600_000;
-  const serviceKey = Object.keys(alert.labels).find((k) =>
-    /^service([_-]?name)?$/i.test(k),
-  );
-  return {
-    from: new Date(activeMs - 15 * 60_000).toISOString(),
-    to: "now",
-    ...(serviceKey ? { service: [alert.labels[serviceKey]] } : {}),
-  };
-}
-
-// One triage row: the instance plus every fact the board derives for it.
-// `rule` and `slo` are mutually exclusive resolutions of the instance's
-// source (alert.slo discriminates).
-type TriageInstance = {
-  alert: CcAlert;
-  rule: CcRuleView | undefined;
-  slo: CcSlo | undefined;
-  matchedRoutes: CcRoute[];
-  silence: CcSilence | null;
-};
-
-/** The severity an SLO-sourced instance fires at: its tier's severity. */
-function sloInstanceSeverity(alert: CcAlert) {
-  return ccSloTierSeverity(CC_CANONICAL_SLO_TIERS, alert.labels);
-}
-
-// ── Instrument strip ──────────────────────────────────────────────────────────
-
-function StripCell({
-  label,
-  value,
-  tone,
-  hint,
-}: {
-  label: string;
-  value: number;
-  tone?: "firing" | "degraded";
-  hint?: string;
-}) {
-  return (
-    <div className="flex items-baseline gap-1.5 px-3 py-2">
-      <span
-        className={cn(
-          "text-sm font-semibold tabular-nums",
-          toneText({
-            tone:
-              value === 0
-                ? "live"
-                : tone === "firing"
-                  ? "danger"
-                  : tone === "degraded"
-                    ? "warning"
-                    : "live",
-          }),
-        )}
-      >
-        {value}
-      </span>
-      <span className="text-[0.625rem] font-medium tracking-wide text-muted-foreground uppercase">
-        {label}
-      </span>
-      {hint && <span className="text-[0.625rem] text-destructive">{hint}</span>}
-    </div>
-  );
-}
+// Button copy for the lens control. The keys are the data module's; the words
+// are this component's.
+const TRIAGE_LENSES = [
+  { key: "firing", label: "Firing" },
+  { key: "silenced", label: "Silenced" },
+  { key: "all", label: "All" },
+] as const satisfies readonly { key: TriageLensKey; label: string }[];
 
 // ── Delivery fact ─────────────────────────────────────────────────────────────
 
@@ -289,7 +133,7 @@ function InstanceDetail({
   const transitions = own
     .filter((e) => ccEventStatus(e.eventType) !== null)
     .slice(0, 6);
-  const runbook = runbookParams(rule);
+  const runbook = ccRunbookParams(rule);
   const description = rule ? fromCcRule(rule).displayDescription : null;
 
   return (
@@ -416,7 +260,7 @@ function InstanceDetail({
             scoped to the instance's window (and service, when it has one). */}
         <Link
           to="/logs"
-          search={instanceLogsSearch(alert)}
+          search={ccInstanceLogsSearch(alert)}
           className={cn(buttonVariants({ variant: "ghost", size: "sm" }))}
         >
           <FileSearch data-icon="inline-start" />
@@ -499,7 +343,10 @@ function InstanceRow({
         </span>
         <span className="flex min-w-0 flex-1 items-center gap-2">
           {tier !== undefined && inst.slo !== undefined && (
-            <CcSloTierBadge tier={tier} severity={sloInstanceSeverity(alert)} />
+            <CcSloTierBadge
+              tier={tier}
+              severity={ccSloInstanceSeverity(alert)}
+            />
           )}
           {/* A scalar SLO instance's only label is the tier, already shown as
               the badge — don't append a "no labels" placeholder after it. */}
@@ -553,36 +400,45 @@ function InstanceRow({
   );
 }
 
-// ── Page ──────────────────────────────────────────────────────────────────────
+// ── Board ─────────────────────────────────────────────────────────────────────
 
-const LENSES = [
-  { key: "firing", label: "Firing" },
-  { key: "silenced", label: "Silenced" },
-  { key: "all", label: "All" },
-] as const;
-type LensKey = (typeof LENSES)[number]["key"];
-
-function CcTriagePage() {
-  const { preview } = Route.useSearch();
-  const qc = useQueryClient();
-  const silenceDrawer = useRef<SilenceDrawerHandle>(null);
-  const alerts = useQuery(ccQueries.alerts(preview));
-  const rules = useQuery(ccQueries.rules());
-  const slos = useQuery(ccQueries.slos(preview));
-  const routes = useQuery(ccQueries.routes());
-  const receivers = useQuery(ccQueries.receivers());
-  const silences = useQuery(ccQueries.silences());
-  const subscriptions = useQuery(ccQueries.subscriptions());
-  const latestEvent = useQuery(latestEventQuery());
-
-  const [lens, setLens] = useState<LensKey>("firing");
+export function TriageBoard({
+  groups,
+  lens,
+  onLensChange,
+  pending,
+  channelsByReceiver,
+  hasSubscribers,
+  watchingRules,
+  lastEventTs,
+  onCustomSilence,
+}: {
+  groups: TriageGroup[];
+  lens: TriageLensKey;
+  onLensChange: (lens: TriageLensKey) => void;
+  pending: boolean;
+  channelsByReceiver: Map<string, string[]>;
+  hasSubscribers: boolean;
+  /** For the all-clear readout: how many rules are unpaused. */
+  watchingRules: number;
+  /** For the all-clear readout: timestamp of the newest stored event. */
+  lastEventTs: string | null;
+  /**
+   * Opens the create drawer seeded with these matchers. Stays a prop because
+   * the drawer is shared with the silences panel outside this board.
+   */
+  onCustomSilence: (matchers: CcMatcher[]) => void;
+}) {
+  // One row open at a time, and nothing outside the board cares which.
   const [expandedKey, setExpandedKey] = useState<string | null>(null);
-
+  const qc = useQueryClient();
+  // The quick-silence buttons live in this board's rows and nowhere else, so
+  // the mutation lives here too, as SilencesPanel and the builders do.
   const silenceInstance = useMutation({
     mutationFn: ({ alert, hours }: { alert: CcAlert; hours: number }) =>
       createCcSilence({
         data: {
-          matchers: sourceScopedSilenceMatchers(alert),
+          matchers: ccSourceScopedSilenceMatchers(alert),
           starts_at: new Date().toISOString(),
           ends_at: new Date(Date.now() + hours * 3_600_000).toISOString(),
           comment: `silenced from triage (${hours}h)`,
@@ -595,184 +451,12 @@ function CcTriagePage() {
     onError: (e) => toast.error(ccErrorMessage(e)),
   });
 
-  // On a CC outage every count would render 0 — actively misleading (a false
-  // "all clear"). Any errored core query fails the whole page to the shared
-  // "alerting service unavailable" card, matching the sibling pages.
-  const errored = [
-    alerts,
-    rules,
-    slos,
-    routes,
-    receivers,
-    silences,
-    subscriptions,
-  ].find((query) => query.isError);
-
-  const ruleById = useMemo(
-    () => new Map((rules.data ?? []).map((r) => [r.id, r])),
-    [rules.data],
-  );
-  const sloById = useMemo(
-    () => new Map((slos.data ?? []).map((s) => [s.id, s])),
-    [slos.data],
-  );
-  const channelsByReceiver = useMemo(
-    () => new Map((receivers.data ?? []).map((r) => [r.name, r.channels])),
-    [receivers.data],
-  );
-
-  // Every derived fact for every instance, resolved once with the engine's own
-  // matching semantics (synthetic labels, priority + continue routes).
-  // Date.now() is read inside the memo: silence-window staleness is bounded by
-  // the 15s poll cycling alerts/silences data.
-  const instances: TriageInstance[] = useMemo(() => {
-    const now = Date.now();
-    return (alerts.data ?? []).map((alert) => {
-      // `alert.rule` carries the source uuid for SLO rows too (CC's wire
-      // convention); `alert.slo` discriminates, so exactly one side resolves.
-      const slo = alert.slo !== undefined ? sloById.get(alert.slo) : undefined;
-      const rule =
-        alert.slo === undefined ? ruleById.get(alert.rule) : undefined;
-      const matchLabels = ccDispatchLabels(alert, rule, slo);
-      return {
-        alert,
-        rule,
-        slo,
-        matchedRoutes: ccSelectRoutes(routes.data ?? [], matchLabels),
-        silence: ccMatchingSilence(matchLabels, silences.data ?? [], now),
-      };
-    });
-  }, [alerts.data, ruleById, sloById, routes.data, silences.data]);
-
-  // Stable identities for `visible` and the counts so the `groups` memo below
-  // only recomputes when the underlying facts or the lens change.
-  const { visible, counts } = useMemo(() => {
-    const now = Date.now();
-    const active = instances.filter((i) => i.alert.status !== "inactive");
-    return {
-      counts: {
-        firing: instances.filter((i) => i.alert.status === "firing").length,
-        silenced: active.filter((i) => i.silence !== null).length,
-        activeSilences: (silences.data ?? []).filter(
-          (s) =>
-            new Date(s.starts_at).getTime() <= now &&
-            now < new Date(s.ends_at).getTime(),
-        ).length,
-      },
-      visible:
-        lens === "firing"
-          ? active.filter((i) => i.silence === null)
-          : lens === "silenced"
-            ? active.filter((i) => i.silence !== null)
-            : instances,
-    };
-  }, [instances, lens, rules.data, silences.data]);
-
-  // Group by source (rule or SLO — `alert.rule` carries the uuid for both),
-  // severity-sorted (critical → warning → info), then by name; within a group
-  // firing instances precede pending (muted) and inactive. An SLO group's
-  // severity is the highest tier severity among its visible instances (each
-  // burn-rate instance fires at its own tier's severity).
-  const groups = useMemo(() => {
-    const bySource = new Map<string, TriageInstance[]>();
-    for (const inst of visible) {
-      const list = bySource.get(inst.alert.rule) ?? [];
-      list.push(inst);
-      bySource.set(inst.alert.rule, list);
-    }
-    return [...bySource.entries()]
-      .map(([sourceId, list]) => {
-        const slo = list[0].slo;
-        // The instance knows it is SLO-sourced even before the SLO listing
-        // resolves the object, so linking/marking never falls back to a rule.
-        const sloId = list[0].alert.slo;
-        const severity = slo
-          ? list.reduce((top: string, inst) => {
-              const s = sloInstanceSeverity(inst.alert);
-              return (SEVERITY_RANK[s] ?? 3) < (SEVERITY_RANK[top] ?? 3)
-                ? s
-                : top;
-            }, "info" as string)
-          : (list[0].rule?.spec.severity ?? "info");
-        return {
-          sourceId,
-          rule: list[0].rule,
-          slo,
-          sloId,
-          name: slo
-            ? ccSloIdentity(slo).name
-            : sloId !== undefined
-              ? sloId.slice(0, 8)
-              : ruleDisplayName(list[0].rule, sourceId),
-          severity,
-          instances: [...list].sort(
-            (a, b) =>
-              (STATUS_RANK[a.alert.status] ?? 3) -
-                (STATUS_RANK[b.alert.status] ?? 3) ||
-              (a.alert.active_since ?? "").localeCompare(
-                b.alert.active_since ?? "",
-              ),
-          ),
-        };
-      })
-      .sort(
-        (a, b) =>
-          (SEVERITY_RANK[a.severity] ?? 3) - (SEVERITY_RANK[b.severity] ?? 3) ||
-          a.name.localeCompare(b.name),
-      );
-  }, [visible]);
-
-  if (errored) return <CcQueryError error={errored.error} />;
-
-  const pending =
-    alerts.isPending ||
-    rules.isPending ||
-    slos.isPending ||
-    routes.isPending ||
-    receivers.isPending ||
-    silences.isPending ||
-    subscriptions.isPending;
-
-  const hasSubscribers = (subscriptions.data ?? []).length > 0;
-  const watching = (rules.data ?? []).filter((r) => !r.paused).length;
-  const lastEventTs = latestEvent.data?.[0]?.timestamp ?? null;
-
   return (
-    <div className="space-y-3">
-      <CcPageIntro
-        title="Triage"
-        lede="Everything firing or muted right now, and the fastest way to act on it: silence it, follow its runbook, check who was told."
-        docsHref="https://everr.dev/docs/concepts/how-alerts-work"
-      />
-      {/* Instrument strip: the four numbers that answer "is anything wrong".
-          Gated on load — zeros while fetching would read as a false all-clear. */}
-      {pending ? (
-        <Skeleton className="h-9 w-full rounded-md" />
-      ) : (
-        <section
-          aria-label="Alerting status"
-          className="flex flex-wrap items-center divide-x divide-border/60 rounded-md border border-border bg-card"
-        >
-          <StripCell
-            label="firing"
-            value={counts.firing}
-            tone="firing"
-            hint={counts.firing > 0 ? "needs attention" : undefined}
-          />
-          <StripCell label="silenced" value={counts.silenced} />
-          <a
-            href="#silences"
-            className="outline-2 outline-dotted outline-transparent outline-offset-[-2px] transition-colors duration-150 hover:bg-muted/40 focus-visible:outline-primary"
-          >
-            <StripCell label="active silences" value={counts.activeSilences} />
-          </a>
-        </section>
-      )}
-
+    <>
       <CcSegmentedControl
-        items={LENSES}
+        items={TRIAGE_LENSES}
         value={lens}
-        onChange={setLens}
+        onChange={onLensChange}
         aria-label="Triage lens"
       />
 
@@ -790,7 +474,8 @@ function CcTriagePage() {
                   All clear
                 </span>
                 <p className="text-xs text-muted-foreground tabular-nums">
-                  {watching} {watching === 1 ? "rule" : "rules"} watching
+                  {watchingRules} {watchingRules === 1 ? "rule" : "rules"}{" "}
+                  watching
                   {lastEventTs ? (
                     <>
                       {" · last event "}
@@ -872,7 +557,7 @@ function CcTriagePage() {
                       className="ml-auto text-muted-foreground"
                       aria-label={`Silence all ${group.name} instances`}
                       onClick={() =>
-                        silenceDrawer.current?.openWith([
+                        onCustomSilence([
                           group.sloId !== undefined
                             ? { label: "slo", op: "eq", value: group.sloId }
                             : {
@@ -930,10 +615,10 @@ function CcTriagePage() {
                           silenceInstance.mutate({ alert: inst.alert, hours })
                         }
                         onCustomSilence={() =>
-                          // The create drawer lives on this page — a custom
+                          // The create drawer lives on the page — a custom
                           // silence opens pre-seeded in place, no navigation.
-                          silenceDrawer.current?.openWith(
-                            sourceScopedSilenceMatchers(inst.alert),
+                          onCustomSilence(
+                            ccSourceScopedSilenceMatchers(inst.alert),
                           )
                         }
                       />
@@ -945,11 +630,6 @@ function CcTriagePage() {
           )}
         </CardContent>
       </Card>
-
-      {/* Muting lives where muting happens: the silences inventory sits under
-          the board, and the create drawer is shared with the row actions. */}
-      <SilencesPanel onNewSilence={() => silenceDrawer.current?.openWith([])} />
-      <SilenceCreateDrawer ref={silenceDrawer} />
-    </div>
+    </>
   );
 }

@@ -12,6 +12,7 @@ import {
 } from "@everr/ui/components/alert-dialog";
 import { Badge } from "@everr/ui/components/badge";
 import { Button } from "@everr/ui/components/button";
+import { Card, CardContent } from "@everr/ui/components/card";
 import { CollapsibleTrigger } from "@everr/ui/components/collapsible";
 import {
   Empty,
@@ -37,7 +38,9 @@ import {
 } from "@everr/ui/components/tooltip";
 import { cn } from "@everr/ui/lib/utils";
 import { useQueryClient } from "@tanstack/react-query";
+import { Link } from "@tanstack/react-router";
 import {
+  ArrowRight,
   ChevronRight,
   Heart,
   HeartCrack,
@@ -646,5 +649,42 @@ export function CcPauseToggle({
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>
+  );
+}
+
+// ── Section scaffolding ───────────────────────────────────────────────────────
+
+/**
+ * A titled card whose header carries one "see the full thing" link. Shared by
+ * the alerting landing page's summary cards, each of which is a preview of a
+ * page that holds the complete list.
+ */
+export function SectionCard({
+  title,
+  linkLabel,
+  to,
+  children,
+}: {
+  title: string;
+  linkLabel: string;
+  to: string;
+  children: ReactNode;
+}) {
+  return (
+    <Card inset="flush-content">
+      <CardContent>
+        <div className="flex items-center justify-between px-3 pt-1 pb-1.5">
+          <h2 className="text-xs font-semibold text-foreground">{title}</h2>
+          <Link
+            to={to}
+            className="inline-flex items-center gap-1 text-[0.6875rem] text-muted-foreground underline-offset-2 transition-colors duration-150 hover:text-foreground hover:underline"
+          >
+            {linkLabel}
+            <ArrowRight aria-hidden className="size-3" />
+          </Link>
+        </div>
+        {children}
+      </CardContent>
+    </Card>
   );
 }

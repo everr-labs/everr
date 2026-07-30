@@ -36,12 +36,11 @@ export const navMain: NavItem[] = [
     url: "/alerts",
     icon: Zap,
     isActive: true,
-    // Ordered by intent: understand the whole picture (Overview), respond
-    // (Triage, which also hosts silences), track promises (SLOs), inspect
-    // detectors (Rules), control notifications (Delivery), audit (History).
+    // Ordered by intent: respond (Triage, the section landing page, which also
+    // hosts silences), track promises (SLOs), inspect detectors (Rules),
+    // control notifications (Delivery), audit (History).
     items: [
-      { title: "Overview", url: "/alerts", exact: true },
-      { title: "Triage", url: "/alerts/triage" },
+      { title: "Triage", url: "/alerts", exact: true },
       { title: "SLOs", url: "/alerts/slos" },
       { title: "Rules", url: "/alerts/rules" },
       { title: "Delivery", url: "/alerts/delivery" },

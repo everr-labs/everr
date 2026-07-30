@@ -18,6 +18,7 @@ import {
   ccSloTierSeverity,
   ccTiersForWindow,
   ccTimeToExhaustionSecs,
+  ccWorstSloGroup,
 } from "./slo";
 import type { CcSlo, CcSloGroupStatus, CcSloSpec } from "./types";
 
@@ -409,5 +410,34 @@ describe("ccSloBurnPace", () => {
     expect(ccSloBurnPace(0.5, [])).toBe("sustainable");
     expect(ccSloBurnPace(0, [])).toBe("steady");
     expect(ccSloBurnPace(null, [])).toBe("steady");
+  });
+});
+
+describe("ccWorstSloGroup", () => {
+  const g = (budget_remaining: number | null): CcSloGroupStatus => ({
+    labels: { budget: String(budget_remaining) },
+    sli: 0.999,
+    budget_remaining,
+    tiers: [],
+    time_to_exhaustion_secs: null,
+    firing_tiers: [],
+  });
+
+  it("picks the group spending its budget fastest", () => {
+    expect(ccWorstSloGroup([g(0.8), g(0.1), g(0.4)])?.budget_remaining).toBe(
+      0.1,
+    );
+  });
+
+  it("sorts a group with no budget number last, so a real number wins", () => {
+    expect(ccWorstSloGroup([g(null), g(0.9)])?.budget_remaining).toBe(0.9);
+  });
+
+  it("still answers when every group lacks a budget", () => {
+    expect(ccWorstSloGroup([g(null), g(null)])).not.toBeNull();
+  });
+
+  it("returns null only when there are no groups at all", () => {
+    expect(ccWorstSloGroup([])).toBeNull();
   });
 });

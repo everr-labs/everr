@@ -24,7 +24,6 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { ArrowLeft, BookOpenText } from "lucide-react";
 import { useMemo } from "react";
 import { toast } from "sonner";
-import { ccEventStatus } from "@/components/cc/alert-event-feed";
 import {
   CcBudgetBar,
   ccFmtBurn,
@@ -45,6 +44,7 @@ import {
 } from "@/components/cc/slo-budget-chart";
 import { SloStatsRow } from "@/components/cc/slo-status";
 import { ANN_LABEL_PREFIX, ANN_PROJECT } from "@/data/alerts/annotations";
+import { ccEventStatus } from "@/data/alerts/event-types";
 import { isReservedAnnotationKey } from "@/data/alerts/schema";
 import { ccQueries } from "@/data/cc/queries";
 import { pauseCcSlo, resumeCcSlo } from "@/data/cc/server";
