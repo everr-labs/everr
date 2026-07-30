@@ -38,13 +38,12 @@ export const navMain: NavItem[] = [
     isActive: true,
     // Ordered by intent: respond (Triage, the section landing page, which also
     // hosts silences), track promises (SLOs), inspect detectors (Rules),
-    // control notifications (Delivery), audit (History).
+    // control notifications (Delivery).
     items: [
       { title: "Triage", url: "/alerts", exact: true },
       { title: "SLOs", url: "/alerts/slos" },
       { title: "Rules", url: "/alerts/rules" },
       { title: "Delivery", url: "/alerts/delivery" },
-      { title: "History", url: "/alerts/history" },
     ],
   },
   {

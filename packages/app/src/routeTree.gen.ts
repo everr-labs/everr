@@ -53,7 +53,6 @@ import { Route as ApiCliRunsTraceIdRouteImport } from './routes/api/cli/runs/$tr
 import { Route as ApiCliOrgNameRouteImport } from './routes/api/cli/org/name'
 import { Route as AuthenticatedDashboardAlertsSlosRouteImport } from './routes/_authenticated/_dashboard/alerts/slos'
 import { Route as AuthenticatedDashboardAlertsRulesRouteImport } from './routes/_authenticated/_dashboard/alerts/rules'
-import { Route as AuthenticatedDashboardAlertsHistoryRouteImport } from './routes/_authenticated/_dashboard/alerts/history'
 import { Route as AuthenticatedDashboardAlertsDeliveryRouteImport } from './routes/_authenticated/_dashboard/alerts/delivery'
 import { Route as AuthenticatedDashboardPaddedUsersManagementRouteImport } from './routes/_authenticated/_dashboard/_padded/users-management'
 import { Route as AuthenticatedDashboardPaddedTestsOverviewRouteImport } from './routes/_authenticated/_dashboard/_padded/tests-overview'
@@ -316,12 +315,6 @@ const AuthenticatedDashboardAlertsRulesRoute =
   AuthenticatedDashboardAlertsRulesRouteImport.update({
     id: '/rules',
     path: '/rules',
-    getParentRoute: () => AuthenticatedDashboardAlertsRoute,
-  } as any)
-const AuthenticatedDashboardAlertsHistoryRoute =
-  AuthenticatedDashboardAlertsHistoryRouteImport.update({
-    id: '/history',
-    path: '/history',
     getParentRoute: () => AuthenticatedDashboardAlertsRoute,
   } as any)
 const AuthenticatedDashboardAlertsDeliveryRoute =
@@ -588,7 +581,6 @@ export interface FileRoutesByFullPath {
   '/tests-overview': typeof AuthenticatedDashboardPaddedTestsOverviewRoute
   '/users-management': typeof AuthenticatedDashboardPaddedUsersManagementRoute
   '/alerts/delivery': typeof AuthenticatedDashboardAlertsDeliveryRoute
-  '/alerts/history': typeof AuthenticatedDashboardAlertsHistoryRoute
   '/alerts/rules': typeof AuthenticatedDashboardAlertsRulesRoute
   '/alerts/slos': typeof AuthenticatedDashboardAlertsSlosRoute
   '/api/cli/org/name': typeof ApiCliOrgNameRoute
@@ -662,7 +654,6 @@ export interface FileRoutesByTo {
   '/tests-overview': typeof AuthenticatedDashboardPaddedTestsOverviewRoute
   '/users-management': typeof AuthenticatedDashboardPaddedUsersManagementRoute
   '/alerts/delivery': typeof AuthenticatedDashboardAlertsDeliveryRoute
-  '/alerts/history': typeof AuthenticatedDashboardAlertsHistoryRoute
   '/alerts/rules': typeof AuthenticatedDashboardAlertsRulesRoute
   '/alerts/slos': typeof AuthenticatedDashboardAlertsSlosRoute
   '/api/cli/org/name': typeof ApiCliOrgNameRoute
@@ -746,7 +737,6 @@ export interface FileRoutesById {
   '/_authenticated/_dashboard/_padded/tests-overview': typeof AuthenticatedDashboardPaddedTestsOverviewRoute
   '/_authenticated/_dashboard/_padded/users-management': typeof AuthenticatedDashboardPaddedUsersManagementRoute
   '/_authenticated/_dashboard/alerts/delivery': typeof AuthenticatedDashboardAlertsDeliveryRoute
-  '/_authenticated/_dashboard/alerts/history': typeof AuthenticatedDashboardAlertsHistoryRoute
   '/_authenticated/_dashboard/alerts/rules': typeof AuthenticatedDashboardAlertsRulesRoute
   '/_authenticated/_dashboard/alerts/slos': typeof AuthenticatedDashboardAlertsSlosRoute
   '/api/cli/org/name': typeof ApiCliOrgNameRoute
@@ -826,7 +816,6 @@ export interface FileRouteTypes {
     | '/tests-overview'
     | '/users-management'
     | '/alerts/delivery'
-    | '/alerts/history'
     | '/alerts/rules'
     | '/alerts/slos'
     | '/api/cli/org/name'
@@ -900,7 +889,6 @@ export interface FileRouteTypes {
     | '/tests-overview'
     | '/users-management'
     | '/alerts/delivery'
-    | '/alerts/history'
     | '/alerts/rules'
     | '/alerts/slos'
     | '/api/cli/org/name'
@@ -983,7 +971,6 @@ export interface FileRouteTypes {
     | '/_authenticated/_dashboard/_padded/tests-overview'
     | '/_authenticated/_dashboard/_padded/users-management'
     | '/_authenticated/_dashboard/alerts/delivery'
-    | '/_authenticated/_dashboard/alerts/history'
     | '/_authenticated/_dashboard/alerts/rules'
     | '/_authenticated/_dashboard/alerts/slos'
     | '/api/cli/org/name'
@@ -1345,13 +1332,6 @@ declare module '@tanstack/react-router' {
       path: '/rules'
       fullPath: '/alerts/rules'
       preLoaderRoute: typeof AuthenticatedDashboardAlertsRulesRouteImport
-      parentRoute: typeof AuthenticatedDashboardAlertsRoute
-    }
-    '/_authenticated/_dashboard/alerts/history': {
-      id: '/_authenticated/_dashboard/alerts/history'
-      path: '/history'
-      fullPath: '/alerts/history'
-      preLoaderRoute: typeof AuthenticatedDashboardAlertsHistoryRouteImport
       parentRoute: typeof AuthenticatedDashboardAlertsRoute
     }
     '/_authenticated/_dashboard/alerts/delivery': {
@@ -1776,7 +1756,6 @@ const AuthenticatedDashboardPreviewableRouteWithChildren =
 
 interface AuthenticatedDashboardAlertsRouteChildren {
   AuthenticatedDashboardAlertsDeliveryRoute: typeof AuthenticatedDashboardAlertsDeliveryRoute
-  AuthenticatedDashboardAlertsHistoryRoute: typeof AuthenticatedDashboardAlertsHistoryRoute
   AuthenticatedDashboardAlertsRulesRoute: typeof AuthenticatedDashboardAlertsRulesRoute
   AuthenticatedDashboardAlertsSlosRoute: typeof AuthenticatedDashboardAlertsSlosRoute
   AuthenticatedDashboardAlertsIndexRoute: typeof AuthenticatedDashboardAlertsIndexRoute
@@ -1788,8 +1767,6 @@ const AuthenticatedDashboardAlertsRouteChildren: AuthenticatedDashboardAlertsRou
   {
     AuthenticatedDashboardAlertsDeliveryRoute:
       AuthenticatedDashboardAlertsDeliveryRoute,
-    AuthenticatedDashboardAlertsHistoryRoute:
-      AuthenticatedDashboardAlertsHistoryRoute,
     AuthenticatedDashboardAlertsRulesRoute:
       AuthenticatedDashboardAlertsRulesRoute,
     AuthenticatedDashboardAlertsSlosRoute:

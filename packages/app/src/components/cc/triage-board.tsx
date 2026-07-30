@@ -391,6 +391,7 @@ export function TriageBoard({
   hasSubscribers,
   watchingRules,
   lastEventTs,
+  eventsUnavailable,
   onCustomSilence,
 }: {
   groups: TriageGroup[];
@@ -401,6 +402,12 @@ export function TriageBoard({
   watchingRules: number;
   /** For the all-clear readout: timestamp of the newest stored event. */
   lastEventTs: string | null;
+  /**
+   * Whether the event read failed. A failed read is not "no events": on an
+   * all-clear card that distinction is the whole point, since silence from a
+   * broken pipeline looks exactly like silence from a healthy one.
+   */
+  eventsUnavailable: boolean;
   /**
    * Opens the create drawer seeded with these matchers. Stays a prop because
    * the drawer is shared with the silences panel outside this board.
@@ -446,7 +453,9 @@ export function TriageBoard({
             </span>
             <p className="text-xs text-muted-foreground tabular-nums">
               {watchingRules} {watchingRules === 1 ? "rule" : "rules"} watching
-              {lastEventTs ? (
+              {eventsUnavailable ? (
+                " · event history unavailable"
+              ) : lastEventTs ? (
                 <>
                   {" · last event "}
                   <RelativeTime timestamp={lastEventTs} />

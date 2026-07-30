@@ -279,13 +279,6 @@ function renderTriagePage() {
   return { router, queryClient };
 }
 
-async function cardOf(headingText: string): Promise<HTMLElement> {
-  const heading = await screen.findByRole("heading", { name: headingText });
-  const card = heading.closest('[data-slot="card"]');
-  if (card === null) throw new Error(`no card ancestor for "${headingText}"`);
-  return card as HTMLElement;
-}
-
 async function expandRowByLabel(
   user: ReturnType<typeof userEvent.setup>,
   text: string,
@@ -369,18 +362,18 @@ describe("/alerts triage board", () => {
     ).toBeInTheDocument();
     expect(screen.getByRole("link", { name: /Runbook/ })).toBeInTheDocument();
 
-    // One page-level events query serves both the recent-events feed and the
-    // all-clear freshness line; each expanded row fetches its own events,
-    // narrowed server-side by fingerprint.
+    // The page reads a single stored event, only to date-stamp the all-clear
+    // readout; each expanded row fetches its own, narrowed server-side by
+    // fingerprint. Nothing else on the page asks ClickHouse for events.
     const calls = mocks.listCcEventHistory.mock.calls.map(
       (c) => (c[0] as { data: Record<string, unknown> }).data,
     );
-    expect(calls).toContainEqual(expect.objectContaining({ limit: 8 }));
+    expect(calls).toContainEqual(expect.objectContaining({ limit: 1 }));
     expect(calls).toContainEqual(
       expect.objectContaining({ fingerprint: "fp-1" }),
     );
     expect(
-      calls.every((c) => c.limit === 8 || c.fingerprint !== undefined),
+      calls.every((c) => c.limit === 1 || c.fingerprint !== undefined),
     ).toBe(true);
   });
 
@@ -508,20 +501,19 @@ describe("/alerts triage board", () => {
       screen.queryByRole("region", { name: "Alerting pipeline" }),
     ).not.toBeInTheDocument();
   });
-});
 
-describe("/alerts recent events", () => {
-  it("shows an error (not a false 'no events') when the history query fails", async () => {
+  it("says the event read failed rather than claiming no events", async () => {
+    mocks.listCcAlerts.mockResolvedValue([]);
+    mocks.listCcSilences.mockResolvedValue([]);
+    // The events read only date-stamps the readout, so losing it must not cost
+    // the all-clear itself — but "no events in 24h" would be a claim we cannot
+    // make, and on an all-clear card that reads as corroboration.
     mocks.listCcEventHistory.mockRejectedValue(new Error("clickhouse down"));
 
     renderTriagePage();
 
-    const recent = await cardOf("Recent events");
-    expect(
-      await within(recent).findByText(/Event history unavailable/),
-    ).toBeInTheDocument();
-    expect(
-      within(recent).queryByText(/No stored events/),
-    ).not.toBeInTheDocument();
+    expect(await screen.findByText("All clear")).toBeInTheDocument();
+    expect(screen.getByText(/event history unavailable/)).toBeInTheDocument();
+    expect(screen.queryByText(/no events in the last 24h/)).toBeNull();
   });
 });

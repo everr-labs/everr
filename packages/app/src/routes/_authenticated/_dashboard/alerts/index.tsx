@@ -4,7 +4,6 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useRef } from "react";
 import { CcPageIntro } from "@/components/cc/page-intro";
 import { CcPipelineStrip } from "@/components/cc/pipeline-strip";
-import { CcRecentEventsCard } from "@/components/cc/recent-events";
 import { CcQueryError } from "@/components/cc/shared";
 import {
   SilenceCreateDrawer,
@@ -22,9 +21,10 @@ import {
   TRIAGE_EVENT_RANGE,
 } from "@/data/cc/triage";
 
-// The feed shows this many; the board also reads [0] off it for the all-clear
-// freshness line, so one query serves both.
-const TRIAGE_EVENT_LIMIT = 8;
+// The board reads one stored event, and only to date-stamp the all-clear
+// readout ("last event 4m ago"), which is what separates a quiet board from a
+// broken pipeline. Nothing on this page lists events.
+const TRIAGE_EVENT_LIMIT = 1;
 
 // One shared empty array, so `?? EMPTY` keeps a stable identity before a query
 // resolves; a fresh `[]` each render would churn every memo keyed on it.
@@ -44,8 +44,11 @@ export const Route = createFileRoute("/_authenticated/_dashboard/alerts/")({
       queryClient.prefetchQuery(ccQueries.silences()),
       queryClient.prefetchQuery(ccQueries.subscriptions()),
       queryClient.prefetchQuery(
+        // Same options the component asks for, preview included, or the
+        // prefetch warms a key nothing reads.
         ccQueries.eventHistory(TRIAGE_EVENT_RANGE, {
           limit: TRIAGE_EVENT_LIMIT,
+          ...(deps.preview ? { preview: deps.preview } : {}),
         }),
       ),
     ]),
@@ -176,24 +179,14 @@ function CcTriagePage() {
         hasSubscribers={(subscriptions.data ?? []).length > 0}
         watchingRules={watchingRules}
         lastEventTs={lastEventTs}
+        eventsUnavailable={events.isError}
         onCustomSilence={(matchers) =>
           silenceDrawer.current?.openWith(matchers)
         }
       />
 
-      <div className="grid items-start gap-3 lg:grid-cols-5">
-        {/* Error budget posture, worst group per SLO. */}
-        <div className="lg:col-span-3">
-          <CcSloPostureCard posture={sloPosture} pending={slos.isPending} />
-        </div>
-        <div className="lg:col-span-2">
-          <CcRecentEventsCard
-            events={events}
-            slos={slosData}
-            rules={rulesData}
-          />
-        </div>
-      </div>
+      {/* Error budget posture, worst group per SLO. */}
+      <CcSloPostureCard posture={sloPosture} pending={slos.isPending} />
 
       {/* Muting lives where muting happens: the silences inventory sits under
           the board, and the create drawer is shared with the row actions. */}
