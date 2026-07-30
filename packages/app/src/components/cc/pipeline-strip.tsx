@@ -1,10 +1,10 @@
-// The concept made visible: four stages an alert actually moves through, each
-// a live count. Purely a readout — nothing here is clickable. The board's
-// segmented control filters, the sidebar navigates, and this answers "is
-// anything wrong" at a glance.
+// Four live counts covering the alerting setup: what is being watched, what is
+// firing, what is muted, and where it goes. Purely a readout — nothing here is
+// clickable, and the cells are deliberately not chained into a flow. They are
+// four simultaneous facts, not four steps, and this answers "is anything
+// wrong" at a glance. The sidebar navigates.
 import { toneText } from "@everr/ui/components/tone";
 import { cn } from "@everr/ui/lib/utils";
-import { ChevronRight } from "lucide-react";
 
 export type CcPipelineFacts = {
   watchingRules: number;
@@ -57,27 +57,17 @@ function Stage({
   );
 }
 
-// The strip is a readout, not a control: every cell is inert. Filtering the
-// board is the segmented control's job directly below, and reaching Rules or
-// Delivery is the sidebar's. Four identical-looking cards where some navigate
-// away and others filter in place would be three affordances wearing one
-// costume.
+// The strip is a readout, not a control: every cell is inert. Reaching Rules
+// or Delivery is the sidebar's job. Four identical-looking cards where some
+// navigate away and others act in place would be several affordances wearing
+// one costume.
 const STAGE_CELL_CLASS = "rounded-md border border-border bg-card";
-
-function StageArrow() {
-  return (
-    <ChevronRight
-      aria-hidden
-      className="hidden size-3.5 shrink-0 self-center text-muted-foreground/60 md:block"
-    />
-  );
-}
 
 export function CcPipelineStrip({ facts }: { facts: CcPipelineFacts }) {
   return (
     <section
       aria-label="Alerting pipeline"
-      className="grid grid-cols-1 gap-1.5 md:grid-cols-[1fr_auto_1fr_auto_1fr_auto_1fr] md:gap-2"
+      className="grid grid-cols-1 gap-1.5 md:grid-cols-4 md:gap-2"
     >
       <div className={STAGE_CELL_CLASS}>
         <Stage
@@ -96,7 +86,6 @@ export function CcPipelineStrip({ facts }: { facts: CcPipelineFacts }) {
           }
         />
       </div>
-      <StageArrow />
       <div className={STAGE_CELL_CLASS}>
         <Stage
           label="Firing"
@@ -111,7 +100,6 @@ export function CcPipelineStrip({ facts }: { facts: CcPipelineFacts }) {
           tone={facts.firing > 0 ? "firing" : undefined}
         />
       </div>
-      <StageArrow />
       <div className={STAGE_CELL_CLASS}>
         <Stage
           label="Silenced"
@@ -121,7 +109,6 @@ export function CcPipelineStrip({ facts }: { facts: CcPipelineFacts }) {
           }`}
         />
       </div>
-      <StageArrow />
       <div className={STAGE_CELL_CLASS}>
         <Stage
           label="Notifying"
