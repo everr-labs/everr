@@ -1,10 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { CcRuleView } from "@/data/cc/types";
-import {
-  ccRuleHandleResolvers,
-  ccRuleHandles,
-  ccRuleIdentity,
-} from "./rule-identity";
+import { ccRuleHandles, ccRuleIdentity } from "./rule-identity";
 
 function ccRule(overrides: {
   id?: string;
@@ -83,31 +79,5 @@ describe("ccRuleHandles", () => {
       "payments/checkout-latency",
       "checkout-latency",
     ]);
-  });
-});
-
-describe("ccRuleHandleResolvers.resolveRuleAddress", () => {
-  it("resolves the qualified name handle to its project/slug address", () => {
-    const rule = ccRule({ id: "id-1", name: "payments/checkout-latency" });
-    const { resolveRuleAddress } = ccRuleHandleResolvers([rule]);
-    expect(resolveRuleAddress("payments/checkout-latency")).toEqual({
-      project: "payments",
-      slug: "checkout-latency",
-    });
-  });
-
-  it("resolves a bare legacy slug handle to the same address as the qualified name", () => {
-    const rule = ccRule({ id: "id-1", name: "payments/checkout-latency" });
-    const { resolveRuleAddress } = ccRuleHandleResolvers([rule]);
-    expect(resolveRuleAddress("checkout-latency")).toEqual({
-      project: "payments",
-      slug: "checkout-latency",
-    });
-  });
-
-  it("resolves an unknown handle to undefined", () => {
-    const rule = ccRule({ id: "id-1", name: "payments/checkout-latency" });
-    const { resolveRuleAddress } = ccRuleHandleResolvers([rule]);
-    expect(resolveRuleAddress("no-such-handle")).toBeUndefined();
   });
 });

@@ -23,10 +23,6 @@ import {
 } from "@everr/ui/components/empty";
 import { Skeleton } from "@everr/ui/components/skeleton";
 import {
-  ToggleGroup,
-  ToggleGroupItem,
-} from "@everr/ui/components/toggle-group";
-import {
   type Tone as HealthTone,
   toneDot,
   toneText,
@@ -418,50 +414,6 @@ export function CcDisclosureTrigger({
       />
       {children}
     </CollapsibleTrigger>
-  );
-}
-
-// ── Segmented control ─────────────────────────────────────────────────────────
-// The coarse lens switcher (triage lenses, event-kind lenses): a single-select
-// ToggleGroup styled as one bordered pill row, the active segment lifted onto
-// the card surface.
-
-export function CcSegmentedControl<K extends string>({
-  items,
-  value,
-  onChange,
-  "aria-label": ariaLabel,
-}: {
-  items: readonly { key: K; label: ReactNode }[];
-  value: K;
-  onChange: (key: K) => void;
-  "aria-label": string;
-}) {
-  return (
-    <ToggleGroup
-      aria-label={ariaLabel}
-      value={[value]}
-      // spacing=1 opts out of the joined data-[spacing=0] look (each segment
-      // keeps its own radius); the group's gap is zeroed back out below.
-      spacing={1}
-      className="inline-flex gap-0 rounded-md border border-border bg-muted/20 p-0.5"
-      onValueChange={(next) => {
-        // Single-select ToggleGroup allows deselect-to-empty; ignore it so one
-        // option is always selected.
-        const key = next[0];
-        if (key !== undefined) onChange(key as K);
-      }}
-    >
-      {items.map((item) => (
-        <ToggleGroupItem
-          key={item.key}
-          value={item.key}
-          className="h-auto min-w-0 rounded-[0.3rem] px-3 py-1 text-xs font-medium text-muted-foreground outline-offset-[-2px] transition-colors hover:bg-transparent hover:text-foreground focus-visible:ring-0 focus-visible:ring-offset-0 focus-visible:outline-primary aria-pressed:bg-card aria-pressed:text-foreground aria-pressed:ring-1 aria-pressed:ring-foreground/10"
-        >
-          {item.label}
-        </ToggleGroupItem>
-      ))}
-    </ToggleGroup>
   );
 }
 

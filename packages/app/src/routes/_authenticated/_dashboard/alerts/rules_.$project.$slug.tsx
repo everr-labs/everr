@@ -36,11 +36,7 @@ import {
   ccFormatTs,
   LabelSet,
 } from "@/components/cc/shared";
-import {
-  ccRuleHandleResolvers,
-  ccRuleHandles,
-  ccRuleIdentity,
-} from "@/data/alerts/rule-identity";
+import { ccRuleHandles, ccRuleIdentity } from "@/data/alerts/rule-identity";
 import { ccQueries } from "@/data/cc/queries";
 import { pauseCcRule, resumeCcRule } from "@/data/cc/server";
 import type { CcAlert } from "@/data/cc/types";
@@ -156,10 +152,9 @@ function CcRuleDetailPage() {
     (a: CcAlert) => a.rule === ruleId && a.slo === undefined,
   );
   const annotations = Object.entries(r.spec.annotations ?? {});
-  // Event rows carry the slug when CC knows it, the bare id otherwise;
-  // scope on both handles and resolve either via the shared resolvers.
+  // Event rows carry the slug when CC knows it, the bare id otherwise, so the
+  // feed scopes on both handles.
   const scopeHandles = ccRuleHandles(r);
-  const { resolveRuleName, resolveRuleSeverity } = ccRuleHandleResolvers([r]);
 
   const instCols: Column<CcAlert>[] = [
     {
@@ -332,9 +327,6 @@ function CcRuleDetailPage() {
       <AlertEventFeed
         {...(preview ? { preview } : {})}
         scopeSlug={scopeHandles}
-        hideRuleColumns
-        resolveRuleName={resolveRuleName}
-        resolveRuleSeverity={resolveRuleSeverity}
       />
     </div>
   );

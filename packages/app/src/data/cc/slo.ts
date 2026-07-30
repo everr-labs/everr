@@ -73,21 +73,6 @@ export function ccSloHandles(slo: CcSlo): string[] {
 }
 
 /**
- * Resolve event-row handles (slug or bare uuid) to their SLO, so history and
- * triage surfaces can name SLO-sourced rows by the SLO's first-class name and
- * link them to the SLO detail page instead of falling back to a uuid.
- */
-export function ccSloHandleResolver(
-  slos: readonly CcSlo[],
-): (handle: string) => CcSlo | undefined {
-  const byHandle = new Map<string, CcSlo>();
-  for (const slo of slos) {
-    for (const handle of ccSloHandles(slo)) byHandle.set(handle, slo);
-  }
-  return (handle) => byHandle.get(handle);
-}
-
-/**
  * One resolution of "what do we call this SLO", mirroring `ccRuleIdentity`
  * (data/alerts/rule-identity.ts): the display-name annotation first, then
  * the as-code slug (always present, carried on the SLO's own first-class
