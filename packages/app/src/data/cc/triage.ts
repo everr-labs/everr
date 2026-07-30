@@ -314,7 +314,13 @@ export function ccGroupInstances(instances: TriageInstance[]): TriageGroup[] {
       // The instance knows it is SLO-sourced even before the SLO listing
       // resolves the object, so linking/marking never falls back to a rule.
       const sloId = list[0].alert.slo;
-      const severity = slo
+      const isSlo = slo !== undefined || sloId !== undefined;
+      // Keyed on `isSlo`, not on the resolved SLO: an instance's severity is
+      // its tier's, read off its own `slo_tier` label, so it does not need the
+      // listing. Waiting for the object would render a critical burn as
+      // "info" (the rule-side default, on a group that has no rule) and sort
+      // it to the bottom until the fetch landed.
+      const severity = isSlo
         ? list.reduce((top: string, inst) => {
             const s = ccSloInstanceSeverity(inst.alert);
             return (SEVERITY_RANK[s] ?? 3) < (SEVERITY_RANK[top] ?? 3)
@@ -333,10 +339,7 @@ export function ccGroupInstances(instances: TriageInstance[]): TriageGroup[] {
             ? sloId.slice(0, 8)
             : ccRuleDisplayName(list[0].rule, sourceId),
         severity,
-        rows: ccCollapseRows(
-          list,
-          slo !== undefined || sloId !== undefined,
-        ).sort(
+        rows: ccCollapseRows(list, isSlo).sort(
           (a, b) =>
             (STATUS_RANK[a.lead.alert.status] ?? 3) -
               (STATUS_RANK[b.lead.alert.status] ?? 3) ||

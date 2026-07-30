@@ -415,6 +415,47 @@ describe("ccGroupInstances", () => {
     expect(group.name).toBe("unknown-".slice(0, 8));
     expect(group.rule).toBeUndefined();
   });
+
+  // Severity comes off the instance's own slo_tier label, so it must not wait
+  // on the SLO listing. It used to: an unresolved SLO group took the rule-side
+  // "info" default despite having no rule, and sorted to the bottom.
+  it("reads an SLO group's severity before the SLO listing has caught up", () => {
+    const alerts = [
+      ccAlert({
+        key: "fp-fast",
+        rule: SLO_ID,
+        slo: SLO_ID,
+        labels: { service: "checkout", slo_tier: "fast-burn" },
+      }),
+    ];
+    const [resolved] = ccGroupInstances(resolve({ alerts, slos: [ccSlo()] }));
+    const [unresolved] = ccGroupInstances(resolve({ alerts, slos: [] }));
+
+    expect(resolved.severity).toBe("critical");
+    expect(unresolved.severity).toBe("critical");
+    // The name still degrades to the short uuid, as it must: that one really
+    // does need the listing.
+    expect(unresolved.name).toBe(SLO_ID.slice(0, 8));
+  });
+
+  it("still collapses tiers when the SLO listing has not caught up", () => {
+    const tier = (slo_tier: string, key: string) =>
+      ccAlert({
+        key,
+        rule: SLO_ID,
+        slo: SLO_ID,
+        labels: { service: "checkout", slo_tier },
+      });
+    const [group] = ccGroupInstances(
+      resolve({
+        alerts: [tier("fast-burn", "fp-fast"), tier("ticket", "fp-ticket")],
+        slos: [],
+      }),
+    );
+
+    expect(group.rows).toHaveLength(1);
+    expect(group.rows[0].tiers).toEqual(["fast-burn", "ticket"]);
+  });
 });
 
 describe("ccSourceScopedSilenceMatchers", () => {
