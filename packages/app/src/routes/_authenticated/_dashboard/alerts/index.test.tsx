@@ -316,10 +316,13 @@ describe("/alerts triage board", () => {
     expect(within(board).getByText("web-2")).toBeInTheDocument();
     expect(within(board).getByText("api")).toBeInTheDocument();
     expect(within(board).getByText("web-9")).toBeInTheDocument();
-    // Every row carries its own state badge, and the silenced one says so.
-    expect(within(board).getByText("pending")).toBeInTheDocument();
-    expect(within(board).getByText("inactive")).toBeInTheDocument();
-    expect(within(board).getAllByText("firing")).toHaveLength(2);
+    // Only the exceptions are marked: firing is every row's baseline, so it
+    // stays announced but unprinted, while pending gets visible ink.
+    expect(within(board).getByText("pending")).toBeVisible();
+    expect(within(board).getByText("pending").className).not.toMatch(/sr-only/);
+    for (const firing of within(board).getAllByText("firing")) {
+      expect(firing.className).toMatch(/sr-only/);
+    }
     expect(within(board).getByText("silenced")).toBeInTheDocument();
   });
 

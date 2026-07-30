@@ -346,8 +346,18 @@ function InstanceRow({
         </button>
         {/* Fixed width only where columns exist (md+); on the stacked phone
             layout the width would just indent the row. */}
+        {/* Firing is the board's baseline, not news: the engine only ever
+            hands us firing or pending (inactive is filtered server-side), so a
+            red "firing" on every row says nothing and competes with the
+            severity badge in the group header for the same attention. Only the
+            exception gets ink; screen readers still hear the state, and the
+            slot keeps its width so the columns stay aligned. */}
         <span className="shrink-0 text-xs md:w-16">
-          <CcInstanceStatusBadge status={alert.status} />
+          {alert.status === "firing" ? (
+            <span className="sr-only">firing</span>
+          ) : (
+            <CcInstanceStatusBadge status={alert.status} />
+          )}
         </span>
         <span className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
           {row.members.map(
