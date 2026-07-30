@@ -247,6 +247,46 @@ describe("ccGroupInstances", () => {
     expect(groups[0].severity).toBe("critical");
   });
 
+  it("floats a firing group above a higher-severity one that has stopped", () => {
+    const warningRule = ccRule({
+      id: "rule-2",
+      name: "default/api-errors",
+      spec: { ...ccRule().spec, severity: "warning", annotations: {} },
+    });
+    const instances = resolve({
+      // The critical rule's instance is over; the warning rule's is firing.
+      alerts: [
+        ccAlert({ status: "inactive" }),
+        ccAlert({ key: "fp-3", rule: "rule-2", labels: { svc: "api" } }),
+      ],
+      rules: [ccRule(), warningRule],
+    });
+
+    const groups = ccGroupInstances(instances);
+    expect(groups.map((g) => g.name)).toEqual(["api-errors", "Flapping check"]);
+    expect(groups[0].severity).toBe("warning");
+  });
+
+  it("puts a pending group above an inactive one", () => {
+    const otherRule = ccRule({
+      id: "rule-2",
+      name: "default/api-errors",
+      spec: { ...ccRule().spec, annotations: {} },
+    });
+    const instances = resolve({
+      alerts: [
+        ccAlert({ status: "inactive" }),
+        ccAlert({ key: "fp-3", rule: "rule-2", status: "pending" }),
+      ],
+      rules: [ccRule(), otherRule],
+    });
+
+    expect(ccGroupInstances(instances).map((g) => g.name)).toEqual([
+      "api-errors",
+      "Flapping check",
+    ]);
+  });
+
   it("sorts firing before pending within a group", () => {
     const instances = resolve({
       alerts: [

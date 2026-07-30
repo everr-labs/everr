@@ -217,11 +217,12 @@ export function ccTriageCounts(
   };
 }
 
-// Group by source (rule or SLO — `alert.rule` carries the uuid for both),
-// severity-sorted (critical → warning → info), then by name; within a group
-// firing instances precede pending (muted) and inactive. An SLO group's
-// severity is the highest tier severity among its instances (each burn-rate
-// instance fires at its own tier's severity).
+// Group by source (rule or SLO — `alert.rule` carries the uuid for both).
+// Groups sort by what they are doing now (any firing instance first, then
+// pending, then all-inactive), then by severity (critical → warning → info),
+// then by name; within a group firing instances precede pending (muted) and
+// inactive. An SLO group's severity is the highest tier severity among its
+// instances (each burn-rate instance fires at its own tier's severity).
 export function ccGroupInstances(instances: TriageInstance[]): TriageGroup[] {
   const bySource = new Map<string, TriageInstance[]>();
   for (const inst of instances) {
@@ -266,6 +267,13 @@ export function ccGroupInstances(instances: TriageInstance[]): TriageGroup[] {
     })
     .sort(
       (a, b) =>
+        // Each group's instances are already status-sorted, so [0] is its most
+        // urgent one. Ordering on that first floats firing groups above
+        // pending ones and pending above all-inactive; severity then orders
+        // within each band. Without it a critical group that has finished
+        // firing would outrank a warning group that is firing right now.
+        (STATUS_RANK[a.instances[0].alert.status] ?? 3) -
+          (STATUS_RANK[b.instances[0].alert.status] ?? 3) ||
         (SEVERITY_RANK[a.severity] ?? 3) - (SEVERITY_RANK[b.severity] ?? 3) ||
         a.name.localeCompare(b.name),
     );
