@@ -292,6 +292,16 @@ function InstanceRow({
         Object.entries(alert.labels).filter(([k]) => k !== "slo_tier"),
       )
     : alert.labels;
+  // What to call this row out loud. Its labels are what distinguish it from
+  // its siblings, so they make the accessible name; a scalar SLO has none, and
+  // falls back to the tiers that are firing on it. "Expand service=checkout"
+  // beats five buttons all announcing themselves as "Expand row".
+  const rowName =
+    Object.entries(shownLabels)
+      .map(([k, v]) => `${k}=${v}`)
+      .join(", ") ||
+    row.tiers.join(", ") ||
+    "row";
   // How long this has been wrong, across every tier that reported it — not
   // just how long the leading tier has been the leading one.
   const activeSince = row.members
@@ -322,7 +332,7 @@ function InstanceRow({
         <button
           type="button"
           aria-expanded={expanded}
-          aria-label={expanded ? "Collapse instance" : "Expand instance"}
+          aria-label={`${expanded ? "Collapse" : "Expand"} ${rowName}`}
           onClick={onToggle}
           className="flex size-5 shrink-0 items-center justify-center rounded text-muted-foreground outline-2 outline-dotted outline-transparent transition-colors duration-150 hover:text-foreground focus-visible:outline-primary"
         >
@@ -460,7 +470,7 @@ export function TriageBoard({
   return (
     // role/label: the board is a landmark distinct from the silences panel
     // below, for assistive tech and scoped queries alike.
-    <Card inset="flush-content" role="region" aria-label="Alert instances">
+    <Card inset="flush-content" role="region" aria-label="Triage board">
       <CardContent>
         {pending ? (
           <CcTableSkeleton rows={6} />
@@ -528,19 +538,18 @@ export function TriageBoard({
                     <Pill className="text-muted-foreground">SLO</Pill>
                   )}
                   <CcSeverityBadge severity={group.severity} />
-                  <span className="text-xs text-muted-foreground tabular-nums">
-                    {group.rows.length}{" "}
-                    {group.rows.length === 1 ? "instance" : "instances"}
-                  </span>
+                  {/* No row count here: every row renders directly below,
+                      uncapped, so the number only ever restates what is
+                      already on screen. */}
                   {/* One mute for the whole source: opens the drawer seeded
                         with the synthetic scoping matcher (slo/rule), so a
-                        30-instance group is one review-and-create away instead
-                        of 30 per-row silences. */}
+                        30-row group is one review-and-create away instead of
+                        30 per-row silences. */}
                   <Button
                     variant="ghost"
                     size="sm"
                     className="ml-auto text-muted-foreground"
-                    aria-label={`Silence all ${group.name} instances`}
+                    aria-label={`Silence everything under ${group.name}`}
                     onClick={() =>
                       onCustomSilence([
                         group.sloId !== undefined

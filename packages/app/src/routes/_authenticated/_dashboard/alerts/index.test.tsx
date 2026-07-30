@@ -309,7 +309,7 @@ describe("/alerts triage board", () => {
 
     // The board has no lenses to flip between: firing, pending, silenced and
     // inactive rows all sit on it together.
-    const board = screen.getByRole("region", { name: "Alert instances" });
+    const board = screen.getByRole("region", { name: "Triage board" });
     expect(within(board).getByText("Flapping check")).toBeInTheDocument();
     expect(within(board).getByText("api-errors")).toBeInTheDocument();
     expect(within(board).getByText("web-1")).toBeInTheDocument();
@@ -321,6 +321,30 @@ describe("/alerts triage board", () => {
     expect(within(board).getByText("inactive")).toBeInTheDocument();
     expect(within(board).getAllByText("firing")).toHaveLength(2);
     expect(within(board).getByText("silenced")).toBeInTheDocument();
+  });
+
+  it("names each row's controls after the row, not 'instance'", async () => {
+    renderTriagePage();
+    const board = await screen.findByRole("region", { name: "Triage board" });
+
+    // Four rows means four expanders; naming them all "Expand instance" would
+    // make them indistinguishable to anyone listening rather than looking.
+    expect(
+      await within(board).findByRole("button", { name: "Expand host=web-1" }),
+    ).toBeInTheDocument();
+    for (const labels of ["host=web-2", "svc=api", "host=web-9"]) {
+      expect(
+        within(board).getByRole("button", { name: `Expand ${labels}` }),
+      ).toBeInTheDocument();
+    }
+    expect(
+      within(board).getByRole("button", {
+        name: "Silence everything under Flapping check",
+      }),
+    ).toBeInTheDocument();
+    // The count that used to sit in the group header is gone: every row is
+    // drawn right below it, so the number only restated the screen.
+    expect(within(board).queryByText(/^\d+ instances?$/)).toBeNull();
   });
 
   it("resolves the delivery fact through routes and marks the unrouted ones", async () => {
@@ -496,7 +520,7 @@ describe("/alerts triage board", () => {
       await screen.findByText("Alerting service unavailable"),
     ).toBeInTheDocument();
     expect(
-      screen.queryByRole("region", { name: "Alert instances" }),
+      screen.queryByRole("region", { name: "Triage board" }),
     ).not.toBeInTheDocument();
     expect(
       screen.queryByRole("region", { name: "Alerting pipeline" }),
