@@ -32,7 +32,7 @@ export const navMain: NavItem[] = [
     icon: NotebookText,
   },
   {
-    title: "Alerts",
+    title: "Alerting",
     url: "/alerts",
     icon: Bell,
     isActive: true,

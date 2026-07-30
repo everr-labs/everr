@@ -74,7 +74,7 @@ export const Route = createFileRoute(
   "/_authenticated/_dashboard/alerts/delivery",
 )({
   staticData: { breadcrumb: "Delivery" },
-  head: () => ({ meta: [{ title: "Everr - Alerts Delivery" }] }),
+  head: () => ({ meta: [{ title: "Everr - Alerting Delivery" }] }),
   loaderDeps: ({ search: { preview } }) => ({ preview }),
   loader: ({ context: { queryClient }, deps }) =>
     Promise.all([

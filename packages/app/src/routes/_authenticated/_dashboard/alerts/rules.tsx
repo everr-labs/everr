@@ -37,7 +37,7 @@ import type { CcRuleView } from "@/data/cc/types";
 export const Route = createFileRoute("/_authenticated/_dashboard/alerts/rules")(
   {
     staticData: { breadcrumb: "Rules" },
-    head: () => ({ meta: [{ title: "Everr - Alerts Rules" }] }),
+    head: () => ({ meta: [{ title: "Everr - Alerting Rules" }] }),
     loaderDeps: ({ search }) => ({ preview: search.preview }),
     loader: ({ context: { queryClient }, deps }) =>
       queryClient.prefetchInfiniteQuery(ccQueries.rulesPage(deps.preview)),

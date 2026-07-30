@@ -66,7 +66,7 @@ import { fromCcSlo } from "@/data/slos/mapping";
 
 export const Route = createFileRoute("/_authenticated/_dashboard/alerts/slos")({
   staticData: { breadcrumb: "SLOs" },
-  head: () => ({ meta: [{ title: "Everr - Alerts SLOs" }] }),
+  head: () => ({ meta: [{ title: "Everr - Alerting SLOs" }] }),
   loaderDeps: ({ search: { preview } }) => ({ preview }),
   loader: ({ context: { queryClient }, deps }) =>
     queryClient.prefetchQuery(ccQueries.slos(deps.preview)),
