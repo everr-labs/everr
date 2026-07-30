@@ -37,6 +37,7 @@ import { fromCcRule } from "@/data/alerts/mapping";
 import { parseResourceName } from "@/data/as-code/identity";
 import { ccQueries } from "@/data/cc/queries";
 import { createCcSilence } from "@/data/cc/server";
+import { ccSloTiers } from "@/data/cc/slo";
 import {
   ccInstanceLogsSearch,
   ccRunbookParams,
@@ -357,6 +358,9 @@ function InstanceRow({
                   key={m.alert.key}
                   tier={m.alert.labels.slo_tier}
                   severity={ccSloInstanceSeverity(m.alert)}
+                  // Only once the SLO listing resolves: the badge falls back
+                  // to canonical windows, which differ only for a non-30d SLO.
+                  {...(inst.slo ? { tiers: ccSloTiers(inst.slo.spec) } : {})}
                 />
               ),
           )}

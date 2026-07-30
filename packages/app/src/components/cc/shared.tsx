@@ -49,7 +49,8 @@ import {
 import type { ReactNode } from "react";
 import { ccErrorInfo } from "@/data/cc/errors";
 import { ccOpSymbol } from "@/data/cc/route-resolution";
-import type { CcMatcher, CcRuleHealthStatus } from "@/data/cc/types";
+import { CC_CANONICAL_SLO_TIERS, ccFmtWindowLabel } from "@/data/cc/slo";
+import type { CcMatcher, CcRuleHealthStatus, CcSloTier } from "@/data/cc/types";
 
 // ── Guidance ──────────────────────────────────────────────────────────────────
 // Plain-language, always-visible explainers. Alerting is hard; the UI should
@@ -238,15 +239,29 @@ export function CcInstanceStatusBadge({ status }: { status: string }) {
 
 /**
  * A burn-rate tier as a badge: the tier's name (real engine vocabulary —
- * "fast-burn", "slow-burn", "ticket", or the SLO's own tier names), toned by
- * the severity the tier fires at.
+ * "fast-burn", "slow-burn", "ticket"), toned by the severity the tier fires
+ * at, and carrying its own definition on a tooltip.
+ *
+ * The tooltip is the point. "ticket" is precise and worth keeping, but it is
+ * opaque on first sight, and the surfaces that show it most (the triage board,
+ * the error-budget card) are exactly the ones with no room to explain it. The
+ * full per-tier burn table lives on the SLO detail page; this is the local
+ * answer to "what does that word mean".
  */
 export function CcSloTierBadge({
   tier,
   severity,
+  tiers = CC_CANONICAL_SLO_TIERS,
 }: {
   tier: string;
   severity: string;
+  /**
+   * The SLO's resolved tiers, so the tooltip quotes its real windows. Defaults
+   * to canonical: thresholds and severities are the same for every SLO, only
+   * the window sizes scale with a non-30d SLO window, so a caller without the
+   * spec to hand still gets the threshold and the consequence right.
+   */
+  tiers?: readonly CcSloTier[];
 }) {
   const tone: Tone =
     severity === "critical"
@@ -254,10 +269,45 @@ export function CcSloTierBadge({
       : severity === "warning"
         ? "warning"
         : "inactive";
+  const spec = tiers.find((t) => t.name === tier);
+  // What firing costs you, which is the thing a reader actually wants from the
+  // word: two of the three canonical tiers page, one files a ticket.
+  const consequence =
+    severity === "critical"
+      ? "Pages whoever the route resolves to."
+      : "Opens a ticket rather than paging.";
   return (
-    <CcStatusLabel tone={tone}>
-      <span className="font-mono text-[0.6875rem]">{tier}</span>
-    </CcStatusLabel>
+    <Tooltip>
+      <TooltipTrigger
+        render={
+          // A button, not a bare span: the definition has to be reachable by
+          // keyboard, same as the health heart above.
+          <button
+            type="button"
+            className="rounded-sm outline-2 outline-dotted outline-transparent outline-offset-2 focus-visible:outline-primary"
+          />
+        }
+      >
+        <CcStatusLabel tone={tone}>
+          <span className="font-mono text-[0.6875rem]">{tier}</span>
+        </CcStatusLabel>
+      </TooltipTrigger>
+      <TooltipContent className="max-w-64 space-y-1 text-xs">
+        {spec ? (
+          <p>
+            Fires when the last {ccFmtWindowLabel(spec.long_window)} and the
+            last {ccFmtWindowLabel(spec.short_window)} both burn error budget at{" "}
+            {spec.burn_rate}&times; or faster.
+          </p>
+        ) : (
+          <p>
+            A burn-rate tier this SLO no longer defines, so its thresholds are
+            unknown.
+          </p>
+        )}
+        <p className="text-muted-foreground">{consequence}</p>
+      </TooltipContent>
+    </Tooltip>
   );
 }
 

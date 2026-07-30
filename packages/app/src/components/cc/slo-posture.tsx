@@ -116,7 +116,12 @@ function SloPostureRow({ slo, worst, firing, statusPending }: CcSloPosture) {
           shared left edge is what makes them scan as a column. */}
       <span className="flex w-40 shrink-0 flex-wrap gap-2">
         {firing.map((f) => (
-          <CcSloTierBadge key={f.tier} tier={f.tier} severity={f.severity} />
+          <CcSloTierBadge
+            key={f.tier}
+            tier={f.tier}
+            severity={f.severity}
+            tiers={tiers}
+          />
         ))}
       </span>
     </Link>

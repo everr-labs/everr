@@ -355,6 +355,7 @@ function StatusSection({ slo }: { slo: CcSlo }) {
                 key={f.tier}
                 tier={f.tier}
                 severity={ccSloTierSeverity(tiers, { slo_tier: f.tier })}
+                tiers={tiers}
               />
             ))}
           </span>
