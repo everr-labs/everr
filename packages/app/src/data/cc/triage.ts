@@ -129,11 +129,6 @@ export type TriageGroup = {
   instances: TriageInstance[];
 };
 
-// Only the keys live here; their button labels are display copy and belong with
-// the control that renders them (triage-board.tsx).
-const TRIAGE_LENS_KEYS = ["firing", "silenced", "all"] as const;
-export type TriageLensKey = (typeof TRIAGE_LENS_KEYS)[number];
-
 // ── Derivation ────────────────────────────────────────────────────────────────
 
 /**
@@ -222,24 +217,14 @@ export function ccTriageCounts(
   };
 }
 
-export function ccVisibleInstances(
-  instances: TriageInstance[],
-  lens: TriageLensKey,
-): TriageInstance[] {
-  const active = instances.filter((i) => i.alert.status !== "inactive");
-  if (lens === "firing") return active.filter((i) => i.silence === null);
-  if (lens === "silenced") return active.filter((i) => i.silence !== null);
-  return instances;
-}
-
 // Group by source (rule or SLO — `alert.rule` carries the uuid for both),
 // severity-sorted (critical → warning → info), then by name; within a group
 // firing instances precede pending (muted) and inactive. An SLO group's
-// severity is the highest tier severity among its visible instances (each
-// burn-rate instance fires at its own tier's severity).
-export function ccGroupInstances(visible: TriageInstance[]): TriageGroup[] {
+// severity is the highest tier severity among its instances (each burn-rate
+// instance fires at its own tier's severity).
+export function ccGroupInstances(instances: TriageInstance[]): TriageGroup[] {
   const bySource = new Map<string, TriageInstance[]>();
-  for (const inst of visible) {
+  for (const inst of instances) {
     const list = bySource.get(inst.alert.rule) ?? [];
     list.push(inst);
     bySource.set(inst.alert.rule, list);

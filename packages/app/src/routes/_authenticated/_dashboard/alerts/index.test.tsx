@@ -301,8 +301,7 @@ beforeEach(() => {
 });
 
 describe("/alerts triage board", () => {
-  it("counts the board and partitions instances across the three lenses", async () => {
-    const user = userEvent.setup();
+  it("counts the pipeline and puts every instance on one unfiltered board", async () => {
     renderTriagePage();
 
     const strip = await screen.findByRole("region", {
@@ -310,33 +309,25 @@ describe("/alerts triage board", () => {
     });
     expect(strip).toHaveTextContent("2 rules · 0 SLOs");
     expect(strip).toHaveTextContent("1 active silence");
-    // The strip is a readout; the lens control below it is what filters.
+    // The strip is a readout: the counts by state live here, and nothing on it
+    // is clickable.
     expect(within(strip).queryAllByRole("button")).toHaveLength(0);
     expect(within(strip).queryAllByRole("link")).toHaveLength(0);
 
-    // Firing: unsilenced firing and pending rows, never silenced or inactive.
-    const firing = screen.getByRole("region", { name: "Alert instances" });
-    expect(within(firing).getByText("Flapping check")).toBeInTheDocument();
-    expect(within(firing).getByText("web-1")).toBeInTheDocument();
-    expect(within(firing).getByText("pending")).toBeInTheDocument();
-    expect(within(firing).getByText("web-2")).toBeInTheDocument();
-    expect(within(firing).queryByText("api")).not.toBeInTheDocument();
-    expect(within(firing).queryByText("web-9")).not.toBeInTheDocument();
-
-    // A string `name` matches the full accessible name, so this is the
-    // segmented control's button, not the strip cell (whose name also carries
-    // its counts).
-    await user.click(screen.getByRole("button", { name: "Silenced" }));
-    const silenced = screen.getByRole("region", { name: "Alert instances" });
-    expect(within(silenced).getByText("api")).toBeInTheDocument();
-    expect(within(silenced).getByText("api-errors")).toBeInTheDocument();
-    expect(within(silenced).queryByText("web-1")).not.toBeInTheDocument();
-
-    await user.click(screen.getByRole("button", { name: "All" }));
-    const all = screen.getByRole("region", { name: "Alert instances" });
-    expect(within(all).getByText("web-9")).toBeInTheDocument();
-    expect(within(all).getByText("web-1")).toBeInTheDocument();
-    expect(within(all).getByText("api")).toBeInTheDocument();
+    // The board has no lenses to flip between: firing, pending, silenced and
+    // inactive rows all sit on it together.
+    const board = screen.getByRole("region", { name: "Alert instances" });
+    expect(within(board).getByText("Flapping check")).toBeInTheDocument();
+    expect(within(board).getByText("api-errors")).toBeInTheDocument();
+    expect(within(board).getByText("web-1")).toBeInTheDocument();
+    expect(within(board).getByText("web-2")).toBeInTheDocument();
+    expect(within(board).getByText("api")).toBeInTheDocument();
+    expect(within(board).getByText("web-9")).toBeInTheDocument();
+    // Every row carries its own state badge, and the silenced one says so.
+    expect(within(board).getByText("pending")).toBeInTheDocument();
+    expect(within(board).getByText("inactive")).toBeInTheDocument();
+    expect(within(board).getAllByText("firing")).toHaveLength(2);
+    expect(within(board).getByText("silenced")).toBeInTheDocument();
   });
 
   it("resolves the delivery fact through routes and marks the unrouted ones", async () => {
@@ -344,7 +335,9 @@ describe("/alerts triage board", () => {
 
     expect(await screen.findByText("oncall")).toBeInTheDocument();
     expect(screen.getByText(/team-slack, pd/)).toBeInTheDocument();
-    expect(screen.getByText("not routed · no subscribers")).toBeInTheDocument();
+    // Only host=web-1 matches the single route; the other three rows are on
+    // the board now, and each says it reaches no one.
+    expect(screen.getAllByText("not routed · no subscribers")).toHaveLength(3);
   });
 
   it("marks unrouted instances as firehose only when subscriptions exist", async () => {
@@ -360,8 +353,8 @@ describe("/alerts triage board", () => {
     renderTriagePage();
 
     expect(
-      await screen.findByText("not routed · firehose only"),
-    ).toBeInTheDocument();
+      await screen.findAllByText("not routed · firehose only"),
+    ).toHaveLength(3);
   });
 
   it("expands a row into its evidence, runbook, and fingerprint-scoped feed", async () => {

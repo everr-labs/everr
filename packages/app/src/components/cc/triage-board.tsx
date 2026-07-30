@@ -1,9 +1,11 @@
 // The triage board: source groups, each with expandable instance rows carrying
-// evidence, delivery, and the act-on-it controls. The lens control sits with
-// the board it filters, and the board owns the UI state and the quick-silence
-// mutation that only it uses. What it takes from the route is the resolved
-// data, plus one callback for the custom-silence drawer, which the route shares
-// with the silences panel below.
+// evidence, delivery, and the act-on-it controls. It shows every instance
+// unfiltered — triage means seeing the whole picture at once, not flipping
+// between views of it — and the counts by state live in the pipeline strip
+// above. The board owns the UI state and the quick-silence mutation that only
+// it uses. What it takes from the route is the resolved data, plus one callback
+// for the custom-silence drawer, which the route shares with the silences panel
+// below.
 
 import { Button, buttonVariants } from "@everr/ui/components/button";
 import { Card, CardContent } from "@everr/ui/components/card";
@@ -18,9 +20,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { ccFmtBurn } from "@/components/cc/budget-bar";
 import {
-  CcEmptyState,
   CcInstanceStatusBadge,
-  CcSegmentedControl,
   CcSeverityBadge,
   CcSloTierBadge,
   CcStatusDot,
@@ -45,7 +45,6 @@ import {
   TRIAGE_EVENT_RANGE,
   type TriageGroup,
   type TriageInstance,
-  type TriageLensKey,
 } from "@/data/cc/triage";
 import type { CcAlert, CcMatcher, CcRoute } from "@/data/cc/types";
 
@@ -53,14 +52,6 @@ import type { CcAlert, CcMatcher, CcRoute } from "@/data/cc/types";
 // the newest evidence-carrying event plus the last 6 transitions, so this is
 // generous headroom.
 const TRIAGE_INSTANCE_EVENT_LIMIT = 100;
-
-// Button copy for the lens control. The keys are the data module's; the words
-// are this component's.
-const TRIAGE_LENSES = [
-  { key: "firing", label: "Firing" },
-  { key: "silenced", label: "Silenced" },
-  { key: "all", label: "All" },
-] as const satisfies readonly { key: TriageLensKey; label: string }[];
 
 // ── Delivery fact ─────────────────────────────────────────────────────────────
 
@@ -277,7 +268,6 @@ function InstanceRow({
   onToggle,
   deliveryFact,
   valueLabel,
-  quietFiring = false,
   children,
 }: {
   inst: TriageInstance;
@@ -287,10 +277,6 @@ function InstanceRow({
   /** The group's value-column name, printed inline on small screens where the
    *  desktop column header row is hidden. */
   valueLabel: string;
-  /** Under the Firing lens every row is firing: the red badge on each row is
-   *  pure repetition, so firing stays unmarked (sr-only) and only the
-   *  exceptions (pending) keep a visible badge. */
-  quietFiring?: boolean;
   children?: React.ReactNode;
 }) {
   const { alert, silence } = inst;
@@ -335,11 +321,7 @@ function InstanceRow({
         {/* Fixed width only where columns exist (md+); on the stacked phone
             layout the width would just indent the row. */}
         <span className="shrink-0 text-xs md:w-16">
-          {quietFiring && alert.status === "firing" ? (
-            <span className="sr-only">firing</span>
-          ) : (
-            <CcInstanceStatusBadge status={alert.status} />
-          )}
+          <CcInstanceStatusBadge status={alert.status} />
         </span>
         <span className="flex min-w-0 flex-1 items-center gap-2">
           {tier !== undefined && inst.slo !== undefined && (
@@ -404,8 +386,6 @@ function InstanceRow({
 
 export function TriageBoard({
   groups,
-  lens,
-  onLensChange,
   pending,
   channelsByReceiver,
   hasSubscribers,
@@ -414,8 +394,6 @@ export function TriageBoard({
   onCustomSilence,
 }: {
   groups: TriageGroup[];
-  lens: TriageLensKey;
-  onLensChange: (lens: TriageLensKey) => void;
   pending: boolean;
   channelsByReceiver: Map<string, string[]>;
   hasSubscribers: boolean;
@@ -452,82 +430,46 @@ export function TriageBoard({
   });
 
   return (
-    <>
-      <CcSegmentedControl
-        items={TRIAGE_LENSES}
-        value={lens}
-        onChange={onLensChange}
-        aria-label="Triage lens"
-      />
-
-      {/* role/label: the board is a landmark distinct from the silences panel
-          below, for assistive tech and scoped queries alike. */}
-      <Card inset="flush-content" role="region" aria-label="Alert instances">
-        <CardContent>
-          {pending ? (
-            <CcTableSkeleton rows={6} />
-          ) : groups.length === 0 ? (
-            lens === "firing" ? (
-              <div className="flex flex-col items-center justify-center gap-2 px-4 py-12 text-center">
-                <span className="inline-flex items-center gap-2 text-sm font-medium text-foreground">
-                  <CcStatusDot tone="healthy" />
-                  All clear
-                </span>
-                <p className="text-xs text-muted-foreground tabular-nums">
-                  {watchingRules} {watchingRules === 1 ? "rule" : "rules"}{" "}
-                  watching
-                  {lastEventTs ? (
-                    <>
-                      {" · last event "}
-                      <RelativeTime timestamp={lastEventTs} />
-                    </>
-                  ) : (
-                    " · no events in the last 24h"
-                  )}
-                </p>
-                <p className="max-w-sm text-xs text-muted-foreground">
-                  Firing instances appear here the moment a rule&rsquo;s query
-                  returns rows.
-                </p>
-              </div>
-            ) : (
-              <CcEmptyState
-                icon={BellOff}
-                title={
-                  lens === "silenced"
-                    ? "No silenced instances"
-                    : "No alert instances"
-                }
-                hint={
-                  lens === "silenced"
-                    ? "Instances matched by an active silence appear here."
-                    : "Active rules surface instances here as they evaluate."
-                }
-              />
-            )
-          ) : (
-            <div className="divide-y divide-border/60">
-              {groups.map((group) => (
-                <section key={group.sourceId} className="py-1">
-                  <div className="flex items-center gap-2.5 px-3 py-1.5">
-                    {group.sloId !== undefined ? (
-                      group.slo ? (
-                        <Link
-                          to="/alerts/slos/$project/$slug"
-                          params={parseResourceName(group.slo.name)}
-                          className="text-sm font-medium text-foreground underline-offset-2 hover:underline"
-                        >
-                          {group.name}
-                        </Link>
-                      ) : (
-                        <span className="text-sm font-medium text-foreground">
-                          {group.name}
-                        </span>
-                      )
-                    ) : group.rule ? (
+    // role/label: the board is a landmark distinct from the silences panel
+    // below, for assistive tech and scoped queries alike.
+    <Card inset="flush-content" role="region" aria-label="Alert instances">
+      <CardContent>
+        {pending ? (
+          <CcTableSkeleton rows={6} />
+        ) : groups.length === 0 ? (
+          // Nothing to triage at all: the same all-clear instrument the
+          // Firing lens used to show, now the board's only empty state.
+          <div className="flex flex-col items-center justify-center gap-2 px-4 py-12 text-center">
+            <span className="inline-flex items-center gap-2 text-sm font-medium text-foreground">
+              <CcStatusDot tone="healthy" />
+              All clear
+            </span>
+            <p className="text-xs text-muted-foreground tabular-nums">
+              {watchingRules} {watchingRules === 1 ? "rule" : "rules"} watching
+              {lastEventTs ? (
+                <>
+                  {" · last event "}
+                  <RelativeTime timestamp={lastEventTs} />
+                </>
+              ) : (
+                " · no events in the last 24h"
+              )}
+            </p>
+            <p className="max-w-sm text-xs text-muted-foreground">
+              Firing instances appear here the moment a rule&rsquo;s query
+              returns rows.
+            </p>
+          </div>
+        ) : (
+          <div className="divide-y divide-border/60">
+            {groups.map((group) => (
+              <section key={group.sourceId} className="py-1">
+                <div className="flex items-center gap-2.5 px-3 py-1.5">
+                  {group.sloId !== undefined ? (
+                    group.slo ? (
                       <Link
-                        to="/alerts/rules/$project/$slug"
-                        params={parseResourceName(group.rule.name)}
+                        to="/alerts/slos/$project/$slug"
+                        params={parseResourceName(group.slo.name)}
                         className="text-sm font-medium text-foreground underline-offset-2 hover:underline"
                       >
                         {group.name}
@@ -536,100 +478,111 @@ export function TriageBoard({
                       <span className="text-sm font-medium text-foreground">
                         {group.name}
                       </span>
-                    )}
-                    {group.sloId !== undefined && (
-                      // Origin marker: this group is an SLO's burn-rate
-                      // alerting, not a rule's.
-                      <Pill className="text-muted-foreground">SLO</Pill>
-                    )}
-                    <CcSeverityBadge severity={group.severity} />
-                    <span className="text-xs text-muted-foreground tabular-nums">
-                      {group.instances.length}{" "}
-                      {group.instances.length === 1 ? "instance" : "instances"}
+                    )
+                  ) : group.rule ? (
+                    <Link
+                      to="/alerts/rules/$project/$slug"
+                      params={parseResourceName(group.rule.name)}
+                      className="text-sm font-medium text-foreground underline-offset-2 hover:underline"
+                    >
+                      {group.name}
+                    </Link>
+                  ) : (
+                    <span className="text-sm font-medium text-foreground">
+                      {group.name}
                     </span>
-                    {/* One mute for the whole source: opens the drawer seeded
+                  )}
+                  {group.sloId !== undefined && (
+                    // Origin marker: this group is an SLO's burn-rate
+                    // alerting, not a rule's.
+                    <Pill className="text-muted-foreground">SLO</Pill>
+                  )}
+                  <CcSeverityBadge severity={group.severity} />
+                  <span className="text-xs text-muted-foreground tabular-nums">
+                    {group.instances.length}{" "}
+                    {group.instances.length === 1 ? "instance" : "instances"}
+                  </span>
+                  {/* One mute for the whole source: opens the drawer seeded
                         with the synthetic scoping matcher (slo/rule), so a
                         30-instance group is one review-and-create away instead
                         of 30 per-row silences. */}
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="ml-auto text-muted-foreground"
-                      aria-label={`Silence all ${group.name} instances`}
-                      onClick={() =>
-                        onCustomSilence([
-                          group.sloId !== undefined
-                            ? { label: "slo", op: "eq", value: group.sloId }
-                            : {
-                                label: "rule",
-                                op: "eq",
-                                value: group.sourceId,
-                              },
-                        ])
-                      }
-                    >
-                      <BellOff data-icon="inline-start" />
-                      Silence all
-                    </Button>
-                  </div>
-                  <div className="hidden items-center gap-3 px-3 pb-0.5 text-[0.625rem] font-medium tracking-wide text-muted-foreground/70 uppercase md:flex">
-                    <span className="size-5 shrink-0" />
-                    <span className="w-16 shrink-0" />
-                    <span className="min-w-0 flex-1" />
-                    <span className="w-16 shrink-0 text-right">
-                      {group.sloId !== undefined
-                        ? "burn rate"
-                        : group.rule?.spec.value_column || "value"}
-                    </span>
-                    <span className="w-24 shrink-0" />
-                    <span className="w-56 shrink-0" />
-                  </div>
-                  {group.instances.map((inst) => (
-                    <InstanceRow
-                      key={inst.alert.key}
-                      inst={inst}
-                      valueLabel={
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="ml-auto text-muted-foreground"
+                    aria-label={`Silence all ${group.name} instances`}
+                    onClick={() =>
+                      onCustomSilence([
                         group.sloId !== undefined
-                          ? "burn rate"
-                          : group.rule?.spec.value_column || "value"
+                          ? { label: "slo", op: "eq", value: group.sloId }
+                          : {
+                              label: "rule",
+                              op: "eq",
+                              value: group.sourceId,
+                            },
+                      ])
+                    }
+                  >
+                    <BellOff data-icon="inline-start" />
+                    Silence all
+                  </Button>
+                </div>
+                <div className="hidden items-center gap-3 px-3 pb-0.5 text-[0.625rem] font-medium tracking-wide text-muted-foreground/70 uppercase md:flex">
+                  <span className="size-5 shrink-0" />
+                  <span className="w-16 shrink-0" />
+                  <span className="min-w-0 flex-1" />
+                  <span className="w-16 shrink-0 text-right">
+                    {group.sloId !== undefined
+                      ? "burn rate"
+                      : group.rule?.spec.value_column || "value"}
+                  </span>
+                  <span className="w-24 shrink-0" />
+                  <span className="w-56 shrink-0" />
+                </div>
+                {group.instances.map((inst) => (
+                  <InstanceRow
+                    key={inst.alert.key}
+                    inst={inst}
+                    valueLabel={
+                      group.sloId !== undefined
+                        ? "burn rate"
+                        : group.rule?.spec.value_column || "value"
+                    }
+                    expanded={expandedKey === inst.alert.key}
+                    onToggle={() =>
+                      setExpandedKey((k) =>
+                        k === inst.alert.key ? null : inst.alert.key,
+                      )
+                    }
+                    deliveryFact={
+                      <DeliveryFact
+                        matchedRoutes={inst.matchedRoutes}
+                        channelsByReceiver={channelsByReceiver}
+                        hasSubscribers={hasSubscribers}
+                      />
+                    }
+                  >
+                    <InstanceDetail
+                      inst={inst}
+                      silencePending={silenceInstance.isPending}
+                      onSilence={(hours) =>
+                        silenceInstance.mutate({ alert: inst.alert, hours })
                       }
-                      quietFiring={lens === "firing"}
-                      expanded={expandedKey === inst.alert.key}
-                      onToggle={() =>
-                        setExpandedKey((k) =>
-                          k === inst.alert.key ? null : inst.alert.key,
+                      onCustomSilence={() =>
+                        // The create drawer lives on the page — a custom
+                        // silence opens pre-seeded in place, no navigation.
+                        onCustomSilence(
+                          ccSourceScopedSilenceMatchers(inst.alert),
                         )
                       }
-                      deliveryFact={
-                        <DeliveryFact
-                          matchedRoutes={inst.matchedRoutes}
-                          channelsByReceiver={channelsByReceiver}
-                          hasSubscribers={hasSubscribers}
-                        />
-                      }
-                    >
-                      <InstanceDetail
-                        inst={inst}
-                        silencePending={silenceInstance.isPending}
-                        onSilence={(hours) =>
-                          silenceInstance.mutate({ alert: inst.alert, hours })
-                        }
-                        onCustomSilence={() =>
-                          // The create drawer lives on the page — a custom
-                          // silence opens pre-seeded in place, no navigation.
-                          onCustomSilence(
-                            ccSourceScopedSilenceMatchers(inst.alert),
-                          )
-                        }
-                      />
-                    </InstanceRow>
-                  ))}
-                </section>
-              ))}
-            </div>
-          )}
-        </CardContent>
-      </Card>
-    </>
+                    />
+                  </InstanceRow>
+                ))}
+              </section>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
   );
 }

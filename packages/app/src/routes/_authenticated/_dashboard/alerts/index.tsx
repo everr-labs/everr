@@ -1,7 +1,7 @@
 import { Skeleton } from "@everr/ui/components/skeleton";
 import { useQueries, useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
-import { useMemo, useRef, useState } from "react";
+import { useMemo, useRef } from "react";
 import { CcPageIntro } from "@/components/cc/page-intro";
 import { CcPipelineStrip } from "@/components/cc/pipeline-strip";
 import { CcRecentEventsCard } from "@/components/cc/recent-events";
@@ -19,9 +19,7 @@ import {
   ccGroupInstances,
   ccResolveTriageInstances,
   ccTriageCounts,
-  ccVisibleInstances,
   TRIAGE_EVENT_RANGE,
-  type TriageLensKey,
 } from "@/data/cc/triage";
 
 // The feed shows this many; the board also reads [0] off it for the all-clear
@@ -78,8 +76,6 @@ function CcTriagePage() {
     queries: slosData.map((s) => ccQueries.sloStatus(s.id)),
   });
 
-  const [lens, setLens] = useState<TriageLensKey>("firing");
-
   // On a CC outage every count would render 0 — actively misleading (a false
   // "all clear"). Any errored core query fails the whole page to the shared
   // "alerting service unavailable" card, matching the sibling pages.
@@ -119,11 +115,7 @@ function CcTriagePage() {
     () => ccTriageCounts(instances, silences.data ?? EMPTY, Date.now()),
     [instances, silences.data],
   );
-  const visible = useMemo(
-    () => ccVisibleInstances(instances, lens),
-    [instances, lens],
-  );
-  const groups = useMemo(() => ccGroupInstances(visible), [visible]);
+  const groups = useMemo(() => ccGroupInstances(instances), [instances]);
 
   const watchingRules = rulesData.filter((r) => !r.paused).length;
   // Every instance-derived number comes from `counts`; nothing is re-filtered
@@ -179,8 +171,6 @@ function CcTriagePage() {
 
       <TriageBoard
         groups={groups}
-        lens={lens}
-        onLensChange={setLens}
         pending={pending}
         channelsByReceiver={channelsByReceiver}
         hasSubscribers={(subscriptions.data ?? []).length > 0}

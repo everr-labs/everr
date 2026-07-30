@@ -11,7 +11,6 @@ import {
   ccResolveTriageInstances,
   ccSourceScopedSilenceMatchers,
   ccTriageCounts,
-  ccVisibleInstances,
 } from "./triage";
 
 const SLO_ID = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee";
@@ -202,38 +201,33 @@ describe("ccTriageCounts", () => {
   });
 });
 
-describe("ccVisibleInstances", () => {
-  const instances = () =>
-    resolve({
-      alerts: [
-        ccAlert(),
-        ccAlert({ key: "fp-3", labels: { svc: "api" } }),
-        ccAlert({ key: "fp-4", status: "inactive", labels: { host: "web-9" } }),
-      ],
-      silences: [ccSilence()],
-    });
-
-  it("firing shows active unsilenced instances only", () => {
-    const keys = ccVisibleInstances(instances(), "firing").map(
-      (i) => i.alert.key,
-    );
-    expect(keys).toEqual(["fp-1"]);
-  });
-
-  it("silenced shows active silenced instances only", () => {
-    const keys = ccVisibleInstances(instances(), "silenced").map(
-      (i) => i.alert.key,
-    );
-    expect(keys).toEqual(["fp-3"]);
-  });
-
-  it("all shows everything, inactive included", () => {
-    const keys = ccVisibleInstances(instances(), "all").map((i) => i.alert.key);
-    expect(keys).toEqual(["fp-1", "fp-3", "fp-4"]);
-  });
-});
-
 describe("ccGroupInstances", () => {
+  // The board is unfiltered: silenced and inactive instances stay on it
+  // alongside the firing ones, so grouping must not drop either.
+  it("keeps silenced and inactive instances on the board", () => {
+    const [group] = ccGroupInstances(
+      resolve({
+        alerts: [
+          ccAlert(),
+          ccAlert({ key: "fp-3", labels: { svc: "api" } }),
+          ccAlert({
+            key: "fp-4",
+            status: "inactive",
+            labels: { host: "web-9" },
+          }),
+        ],
+        silences: [ccSilence()],
+      }),
+    );
+
+    expect(group.instances.map((i) => i.alert.key)).toEqual([
+      "fp-1",
+      "fp-3",
+      "fp-4",
+    ]);
+    expect(group.instances[1].silence?.id).toBe("sil-1");
+  });
+
   it("groups by source and sorts critical before warning", () => {
     const warningRule = ccRule({
       id: "rule-2",
