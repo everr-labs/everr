@@ -1,10 +1,10 @@
 import {
+  Bell,
   GitBranch,
   LayoutDashboard,
   type LucideIcon,
   NotebookText,
   Telescope,
-  Zap,
 } from "lucide-react";
 
 export type NavItem = {
@@ -34,7 +34,7 @@ export const navMain: NavItem[] = [
   {
     title: "Alerts",
     url: "/alerts",
-    icon: Zap,
+    icon: Bell,
     isActive: true,
     // Ordered by intent: respond (Triage, the section landing page, which also
     // hosts silences), track promises (SLOs), inspect detectors (Rules),
