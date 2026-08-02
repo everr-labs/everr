@@ -28,18 +28,6 @@ import { Link } from "@tanstack/react-router";
 import { BellOff, BookOpenText, ChevronRight, FileSearch } from "lucide-react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
-import { CcBudgetBar, ccFmtBurn } from "@/components/cc/budget-bar";
-import {
-  CcSeverityBadge,
-  CcStatusDot,
-  CcTableSkeleton,
-  Conditions,
-  ccErrorMessage,
-  ccFormatTs,
-  EvidenceChips,
-  LabelSet,
-  Pill,
-} from "@/components/cc/shared";
 import { ccEventStatus } from "@/data/alerts/event-types";
 import { fromCcRule } from "@/data/alerts/mapping";
 import { parseResourceName } from "@/data/as-code/identity";
@@ -64,6 +52,18 @@ import type {
   CcRoute,
   CcSloGroupStatus,
 } from "@/data/cc/types";
+import { CcBudgetBar, ccFmtBurn } from "./budget-bar";
+import {
+  CcSeverityBadge,
+  CcStatusDot,
+  CcTableSkeleton,
+  Conditions,
+  ccErrorMessage,
+  ccFormatTs,
+  EvidenceChips,
+  LabelSet,
+  Pill,
+} from "./shared";
 
 // Per-instance cap for the expanded row's fingerprint-scoped feed: it needs
 // the newest evidence-carrying event plus the last 6 transitions, so this is

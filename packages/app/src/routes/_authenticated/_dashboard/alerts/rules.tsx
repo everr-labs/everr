@@ -16,7 +16,12 @@ import {
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { SlidersHorizontal } from "lucide-react";
 import { toast } from "sonner";
-import { CcPageIntro } from "@/components/cc/page-intro";
+import { ccRuleIdentity } from "@/data/alerts/rule-identity";
+import { ccQueries } from "@/data/cc/queries";
+import { pauseCcRule, resumeCcRule } from "@/data/cc/server";
+import { ccFormatSloDuration } from "@/data/cc/slo";
+import type { CcRuleView } from "@/data/cc/types";
+import { CcPageIntro } from "./-components/page-intro";
 import {
   CcEmptyState,
   CcHealthHeart,
@@ -28,12 +33,7 @@ import {
   CcTableSkeleton,
   ccErrorMessage,
   ccFormatTs,
-} from "@/components/cc/shared";
-import { ccRuleIdentity } from "@/data/alerts/rule-identity";
-import { ccQueries } from "@/data/cc/queries";
-import { pauseCcRule, resumeCcRule } from "@/data/cc/server";
-import { ccFormatSloDuration } from "@/data/cc/slo";
-import type { CcRuleView } from "@/data/cc/types";
+} from "./-components/shared";
 
 export const Route = createFileRoute("/_authenticated/_dashboard/alerts/rules")(
   {

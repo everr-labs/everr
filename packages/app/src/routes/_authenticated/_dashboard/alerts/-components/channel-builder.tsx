@@ -1,4 +1,4 @@
-// packages/app/src/components/cc/channel-builder.tsx
+// packages/app/src/routes/_authenticated/_dashboard/alerts/-components/channel-builder.tsx
 //
 // Backs the /alerts/delivery page's address book. A channel is a named,
 // reusable endpoint config; receivers reference channels by name. The per-type
@@ -20,13 +20,13 @@ import { cn } from "@everr/ui/lib/utils";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
-import { CcConceptNote, ccErrorMessage } from "@/components/cc/shared";
 import { ccQueries } from "@/data/cc/queries";
 import { createCcChannel, testCcChannel } from "@/data/cc/server";
 import type { CcChannelConfig } from "@/data/cc/types";
 import { authClient } from "@/lib/auth-client";
 import { CcDrawer } from "./cc-drawer";
 import { CHANNEL_LABEL, type ChannelType } from "./channel-meta";
+import { CcConceptNote, ccErrorMessage } from "./shared";
 
 /** The config form state: every per-type field kept side by side so switching
  * the type back and forth never loses input. */

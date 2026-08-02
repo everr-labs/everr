@@ -1,4 +1,4 @@
-// packages/app/src/components/cc/silences-panel.tsx
+// packages/app/src/routes/_authenticated/_dashboard/alerts/-components/silences-panel.tsx
 //
 // Silence management, embedded on the Triage page — muting lives where muting
 // happens. The panel lists silences grouped by lifecycle (active, scheduled,
@@ -22,11 +22,11 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { BellOff, Plus } from "lucide-react";
 import { type Ref, useImperativeHandle, useState } from "react";
 import { toast } from "sonner";
-import { CcDrawer } from "@/components/cc/cc-drawer";
-import {
-  MatchersEditor,
-  matchersAreScoped,
-} from "@/components/cc/matchers-editor";
+import { ccQueries } from "@/data/cc/queries";
+import { createCcSilence, deleteCcSilence } from "@/data/cc/server";
+import type { CcMatcher, CcSilence } from "@/data/cc/types";
+import { CcDrawer } from "./cc-drawer";
+import { MatchersEditor, matchersAreScoped } from "./matchers-editor";
 import {
   CcConceptNote,
   CcEmptyState,
@@ -36,10 +36,7 @@ import {
   Conditions,
   ccErrorMessage,
   ccFormatTs,
-} from "@/components/cc/shared";
-import { ccQueries } from "@/data/cc/queries";
-import { createCcSilence, deleteCcSilence } from "@/data/cc/server";
-import type { CcMatcher, CcSilence } from "@/data/cc/types";
+} from "./shared";
 
 /**
  * Imperative handle for the create drawer: opening is always an explicit user

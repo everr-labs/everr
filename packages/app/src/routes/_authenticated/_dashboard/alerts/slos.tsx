@@ -20,18 +20,6 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { ChevronLeft, ChevronRight, CircleHelp, Gauge } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
-import { CcBudgetBar } from "@/components/cc/budget-bar";
-import { CcPageIntro } from "@/components/cc/page-intro";
-import {
-  CcEmptyState,
-  CcHealthHeart,
-  CcPauseToggle,
-  CcQueryError,
-  CcRunbookLink,
-  CcTableSkeleton,
-  ccErrorMessage,
-} from "@/components/cc/shared";
-import { useCcFreshBudgets } from "@/components/cc/use-fresh-budgets";
 import { ccQueries } from "@/data/cc/queries";
 import { pauseCcSlo, resumeCcSlo } from "@/data/cc/server";
 import {
@@ -52,6 +40,18 @@ import type {
   CcSloGroupStatus,
 } from "@/data/cc/types";
 import { fromCcSlo } from "@/data/slos/mapping";
+import { CcBudgetBar } from "./-components/budget-bar";
+import { CcPageIntro } from "./-components/page-intro";
+import {
+  CcEmptyState,
+  CcHealthHeart,
+  CcPauseToggle,
+  CcQueryError,
+  CcRunbookLink,
+  CcTableSkeleton,
+  ccErrorMessage,
+} from "./-components/shared";
+import { useCcFreshBudgets } from "./-components/use-fresh-budgets";
 
 export const Route = createFileRoute("/_authenticated/_dashboard/alerts/slos")({
   staticData: { breadcrumb: "SLOs" },

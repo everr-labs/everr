@@ -1,4 +1,4 @@
-// packages/app/src/components/cc/page-intro.tsx
+// packages/app/src/routes/_authenticated/_dashboard/alerts/-components/page-intro.tsx
 //
 // The intent layer of the alerting IA. Every alerting page opens the same way:
 // its name, the one-sentence job it does, and a "Learn more" link to the

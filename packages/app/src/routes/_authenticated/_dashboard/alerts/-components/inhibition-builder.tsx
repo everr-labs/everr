@@ -1,4 +1,4 @@
-// packages/app/src/components/cc/inhibition-builder.tsx
+// packages/app/src/routes/_authenticated/_dashboard/alerts/-components/inhibition-builder.tsx
 //
 // Backs the /alerts/delivery page's dependency-mutes (inhibitions)
 // section, under the Advanced delivery disclosure.
@@ -7,7 +7,6 @@ import { FilterCombobox } from "@everr/ui/components/filter-combobox";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
-import { CcConceptNote, ccErrorMessage } from "@/components/cc/shared";
 import { ccQueries } from "@/data/cc/queries";
 import {
   type CcLabelKeySuggestion,
@@ -21,6 +20,7 @@ import {
   matchersPhrase,
 } from "./matchers-editor";
 import { PreviewLine } from "./route-builder";
+import { CcConceptNote, ccErrorMessage } from "./shared";
 
 // The same key suggestions the matcher rows use, flattened to the string list
 // FilterCombobox consumes (synthetic keys like severity/rule included).

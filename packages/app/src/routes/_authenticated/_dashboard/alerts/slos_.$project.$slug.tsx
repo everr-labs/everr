@@ -24,28 +24,6 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { BookOpenText } from "lucide-react";
 import { useMemo } from "react";
 import { toast } from "sonner";
-import {
-  CcBudgetBar,
-  ccFmtBurn,
-  ccFmtFraction,
-} from "@/components/cc/budget-bar";
-import {
-  CcBackLink,
-  CcDefRow,
-  CcEmptyState,
-  CcHealthHeart,
-  CcPauseToggle,
-  CcQueryError,
-  CcSloTierBadge,
-  ccErrorMessage,
-  LabelSet,
-} from "@/components/cc/shared";
-import {
-  SloBudgetChart,
-  type SloBudgetEvent,
-} from "@/components/cc/slo-budget-chart";
-import { SloStatsRow } from "@/components/cc/slo-status";
-import { useCcFreshBudgets } from "@/components/cc/use-fresh-budgets";
 import { ANN_LABEL_PREFIX, ANN_PROJECT } from "@/data/alerts/annotations";
 import { ccEventStatus } from "@/data/alerts/event-types";
 import { isReservedAnnotationKey } from "@/data/alerts/schema";
@@ -65,6 +43,28 @@ import {
 } from "@/data/cc/slo";
 import type { CcSlo, CcSloGroupStatus, CcSloView } from "@/data/cc/types";
 import { fromCcSlo } from "@/data/slos/mapping";
+import {
+  CcBudgetBar,
+  ccFmtBurn,
+  ccFmtFraction,
+} from "./-components/budget-bar";
+import {
+  CcBackLink,
+  CcDefRow,
+  CcEmptyState,
+  CcHealthHeart,
+  CcPauseToggle,
+  CcQueryError,
+  CcSloTierBadge,
+  ccErrorMessage,
+  LabelSet,
+} from "./-components/shared";
+import {
+  SloBudgetChart,
+  type SloBudgetEvent,
+} from "./-components/slo-budget-chart";
+import { SloStatsRow } from "./-components/slo-status";
+import { useCcFreshBudgets } from "./-components/use-fresh-budgets";
 
 export const Route = createFileRoute(
   "/_authenticated/_dashboard/alerts/slos_/$project/$slug",

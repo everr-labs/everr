@@ -5,10 +5,10 @@
 // nothing when no budget is exhausted: an empty damage report is not
 // information worth a card.
 import { Link } from "@tanstack/react-router";
-import { CcBudgetBar } from "@/components/cc/budget-bar";
-import { LabelSet, SectionCard } from "@/components/cc/shared";
 import { ccSloIdentity } from "@/data/cc/slo";
 import type { CcExhaustedBudget } from "@/data/cc/triage";
+import { CcBudgetBar } from "./budget-bar";
+import { LabelSet, SectionCard } from "./shared";
 
 export function CcExhaustedBudgetsCard({
   items,

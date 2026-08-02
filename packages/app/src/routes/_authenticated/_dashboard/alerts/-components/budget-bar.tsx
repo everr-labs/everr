@@ -1,4 +1,4 @@
-// packages/app/src/components/cc/budget-bar.tsx
+// packages/app/src/routes/_authenticated/_dashboard/alerts/-components/budget-bar.tsx
 //
 // The error budget as a depleting meter — the one visual that makes an SLO
 // legible at a glance. Fill = budget remaining; tone follows the shared health

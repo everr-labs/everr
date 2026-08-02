@@ -1,4 +1,4 @@
-// packages/app/src/components/cc/slo-status.tsx
+// packages/app/src/routes/_authenticated/_dashboard/alerts/-components/slo-status.tsx
 //
 // The SLO detail page's headline numbers, as one strip: the worst group's error
 // budget (with the same meter the listing uses), the promise, the reliability
@@ -7,13 +7,6 @@
 // below it are talking about the same thing.
 import { Card, CardContent } from "@everr/ui/components/card";
 import { toneText } from "@everr/ui/components/tone";
-import {
-  CcBudgetMeter,
-  ccBudgetTextTone,
-  ccFmtBudgetRemaining,
-  ccFmtBurn,
-  ccFmtFraction,
-} from "@/components/cc/budget-bar";
 import {
   type CcSloState,
   ccFmtWindowLabel,
@@ -25,6 +18,13 @@ import {
   ccSloWindowLabel,
 } from "@/data/cc/slo";
 import type { CcSlo, CcSloGroupStatus } from "@/data/cc/types";
+import {
+  CcBudgetMeter,
+  ccBudgetTextTone,
+  ccFmtBudgetRemaining,
+  ccFmtBurn,
+  ccFmtFraction,
+} from "./budget-bar";
 
 // The colour a firing state lends the burn figure. Amber is "attention", red is
 // "emergency"; Signal Lime stays reserved, so healthy is emerald. Only the

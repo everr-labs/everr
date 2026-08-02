@@ -1,4 +1,4 @@
-// packages/app/src/components/cc/route-preview.tsx
+// packages/app/src/routes/_authenticated/_dashboard/alerts/-components/route-preview.tsx
 //
 // The Delivery page's confidence feature: build a label set (key/value
 // comboboxes prepopulated from real alerts, custom entries welcome) and see

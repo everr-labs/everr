@@ -33,22 +33,6 @@ import {
 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
-import { ChannelBuilder } from "@/components/cc/channel-builder";
-import { CHANNEL_ICON, channelTarget } from "@/components/cc/channel-meta";
-import { InhibitionBuilder } from "@/components/cc/inhibition-builder";
-import { CcPageIntro } from "@/components/cc/page-intro";
-import { ReceiverBuilder } from "@/components/cc/receiver-builder";
-import { RouteBuilder } from "@/components/cc/route-builder";
-import { ChannelChip, RoutePreview } from "@/components/cc/route-preview";
-import {
-  CcDisclosureTrigger,
-  CcEmptyState,
-  CcQueryError,
-  CcTableSkeleton,
-  Conditions,
-  ccErrorMessage,
-  ccFormatTs,
-} from "@/components/cc/shared";
 import { isEverrAnnotationKey } from "@/data/alerts/annotations";
 import { ccQueries } from "@/data/cc/queries";
 import { ccDispatchLabels, ccSelectRoutes } from "@/data/cc/route-resolution";
@@ -67,6 +51,22 @@ import type {
   CcReceiver,
   CcRoute,
 } from "@/data/cc/types";
+import { ChannelBuilder } from "./-components/channel-builder";
+import { CHANNEL_ICON, channelTarget } from "./-components/channel-meta";
+import { InhibitionBuilder } from "./-components/inhibition-builder";
+import { CcPageIntro } from "./-components/page-intro";
+import { ReceiverBuilder } from "./-components/receiver-builder";
+import { RouteBuilder } from "./-components/route-builder";
+import { ChannelChip, RoutePreview } from "./-components/route-preview";
+import {
+  CcDisclosureTrigger,
+  CcEmptyState,
+  CcQueryError,
+  CcTableSkeleton,
+  Conditions,
+  ccErrorMessage,
+  ccFormatTs,
+} from "./-components/shared";
 
 export const Route = createFileRoute(
   "/_authenticated/_dashboard/alerts/delivery",

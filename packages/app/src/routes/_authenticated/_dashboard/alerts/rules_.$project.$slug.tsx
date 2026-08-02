@@ -23,7 +23,11 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { BookOpenText } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
-import { AlertEventFeed } from "@/components/cc/alert-event-feed";
+import { ccRuleHandles, ccRuleIdentity } from "@/data/alerts/rule-identity";
+import { ccQueries } from "@/data/cc/queries";
+import { pauseCcRule, resumeCcRule } from "@/data/cc/server";
+import type { CcAlert } from "@/data/cc/types";
+import { AlertEventFeed } from "./-components/alert-event-feed";
 import {
   CcBackLink,
   CcDefRow,
@@ -37,11 +41,7 @@ import {
   ccErrorMessage,
   ccFormatTs,
   LabelSet,
-} from "@/components/cc/shared";
-import { ccRuleHandles, ccRuleIdentity } from "@/data/alerts/rule-identity";
-import { ccQueries } from "@/data/cc/queries";
-import { pauseCcRule, resumeCcRule } from "@/data/cc/server";
-import type { CcAlert } from "@/data/cc/types";
+} from "./-components/shared";
 
 export const Route = createFileRoute(
   "/_authenticated/_dashboard/alerts/rules_/$project/$slug",

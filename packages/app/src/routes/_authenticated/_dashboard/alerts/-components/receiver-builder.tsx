@@ -1,4 +1,4 @@
-// packages/app/src/components/cc/receiver-builder.tsx
+// packages/app/src/routes/_authenticated/_dashboard/alerts/-components/receiver-builder.tsx
 //
 // Backs the /alerts/delivery page's address book. A receiver is a named
 // set of channel REFERENCES: the builder picks from the tenant's existing
@@ -10,12 +10,12 @@ import { Label } from "@everr/ui/components/label";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
-import { CcConceptNote, ccErrorMessage } from "@/components/cc/shared";
 import { ccQueries } from "@/data/cc/queries";
 import { createCcReceiver } from "@/data/cc/server";
 import type { CcChannel } from "@/data/cc/types";
 import { CcDrawer } from "./cc-drawer";
 import { CHANNEL_LABEL } from "./channel-meta";
+import { CcConceptNote, ccErrorMessage } from "./shared";
 
 export function ReceiverBuilder({
   open,

@@ -1,4 +1,4 @@
-// packages/app/src/components/cc/slo-budget-chart.tsx
+// packages/app/src/routes/_authenticated/_dashboard/alerts/-components/slo-budget-chart.tsx
 //
 // The error budget over time: 100% is a full budget, 0% is gone. Computed at
 // read time by replaying the SLI over a trailing window at each point
@@ -27,20 +27,20 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { ccFmtBudgetRemaining } from "@/components/cc/budget-bar";
 import { CursorTooltip } from "@/components/cursor-tooltip";
-import type { CcSloBudgetGroupSeries } from "@/data/cc/slo-series.server";
 import {
   hoverMarkers,
   markerTolerance,
   nearestSeriesKeys,
   valueAtCursorY,
-} from "../dashboards/visualizations/chart-hover";
-import { SERIES_COLORS } from "../dashboards/visualizations/data-utils";
+} from "@/components/dashboards/visualizations/chart-hover";
+import { SERIES_COLORS } from "@/components/dashboards/visualizations/data-utils";
 import {
   SeriesTooltipContent,
   type SeriesTooltipRow,
-} from "../dashboards/visualizations/series-tooltip";
+} from "@/components/dashboards/visualizations/series-tooltip";
+import type { CcSloBudgetGroupSeries } from "@/data/cc/slo-series.server";
+import { ccFmtBudgetRemaining } from "./budget-bar";
 
 // The axis is the budget itself: 100% is full, 0% is gone, and there is nothing
 // below gone. Overspend is unbounded (a budget can read -99900%), so plotting it

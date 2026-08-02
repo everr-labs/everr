@@ -1,4 +1,4 @@
-// packages/app/src/components/cc/alert-event-feed.tsx
+// packages/app/src/routes/_authenticated/_dashboard/alerts/-components/alert-event-feed.tsx
 // Stored CC event history from ClickHouse, polled to stay current, always
 // scoped to one alert source (`scopeSlug`). The rule detail page is its only
 // mount: the unscoped variant went with the History page, and with it the

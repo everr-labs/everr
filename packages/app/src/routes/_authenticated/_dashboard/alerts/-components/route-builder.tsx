@@ -1,4 +1,4 @@
-// packages/app/src/components/cc/route-builder.tsx
+// packages/app/src/routes/_authenticated/_dashboard/alerts/-components/route-builder.tsx
 //
 // Backs the /alerts/delivery page's pipeline: create/edit one route in the
 // shared drawer so the pipeline stays visible while editing.
@@ -23,11 +23,6 @@ import { ArrowRight } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import {
-  CcConceptNote,
-  CcDisclosureTrigger,
-  ccErrorMessage,
-} from "@/components/cc/shared";
-import {
   CC_DEFAULT_GROUP_BY,
   CC_DEFAULT_GROUP_INTERVAL_SECS,
   CC_DEFAULT_GROUP_WAIT_SECS,
@@ -38,6 +33,7 @@ import { createCcRoute, updateCcRoute } from "@/data/cc/server";
 import type { CcMatcher, CcReceiver, CcRoute } from "@/data/cc/types";
 import { CcDrawer } from "./cc-drawer";
 import { MatchersEditor, matchersPhrase } from "./matchers-editor";
+import { CcConceptNote, CcDisclosureTrigger, ccErrorMessage } from "./shared";
 
 /** Parse a numeric duration field. Empty ⇒ null (CC default). */
 function parseDuration(

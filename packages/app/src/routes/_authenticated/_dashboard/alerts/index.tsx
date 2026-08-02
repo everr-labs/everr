@@ -2,17 +2,6 @@ import { Skeleton } from "@everr/ui/components/skeleton";
 import { useQueries, useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { useCallback, useMemo, useRef } from "react";
-import { CcExhaustedBudgetsCard } from "@/components/cc/exhausted-budgets";
-import { CcPageIntro } from "@/components/cc/page-intro";
-import { CcPipelineStrip } from "@/components/cc/pipeline-strip";
-import { CcQueryError } from "@/components/cc/shared";
-import {
-  SilenceCreateDrawer,
-  type SilenceDrawerHandle,
-  SilencesPanel,
-} from "@/components/cc/silences-panel";
-import { TriageBoard } from "@/components/cc/triage-board";
-import { useCcFreshBudgets } from "@/components/cc/use-fresh-budgets";
 import { ccQueries } from "@/data/cc/queries";
 import { ccBudgetExhausted } from "@/data/cc/slo";
 import {
@@ -24,6 +13,17 @@ import {
   TRIAGE_EVENT_RANGE,
 } from "@/data/cc/triage";
 import type { CcSloStatus } from "@/data/cc/types";
+import { CcExhaustedBudgetsCard } from "./-components/exhausted-budgets";
+import { CcPageIntro } from "./-components/page-intro";
+import { CcPipelineStrip } from "./-components/pipeline-strip";
+import { CcQueryError } from "./-components/shared";
+import {
+  SilenceCreateDrawer,
+  type SilenceDrawerHandle,
+  SilencesPanel,
+} from "./-components/silences-panel";
+import { TriageBoard } from "./-components/triage-board";
+import { useCcFreshBudgets } from "./-components/use-fresh-budgets";
 
 // The board reads one stored event, and only to date-stamp the all-clear
 // readout ("last event 4m ago"), which is what separates a quiet board from a

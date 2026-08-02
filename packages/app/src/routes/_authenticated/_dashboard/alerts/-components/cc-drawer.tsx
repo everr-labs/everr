@@ -1,4 +1,4 @@
-// packages/app/src/components/cc/cc-drawer.tsx
+// packages/app/src/routes/_authenticated/_dashboard/alerts/-components/cc-drawer.tsx
 //
 // The alerting section's create/edit surface: a right-side drawer (Base UI
 // dialog via @everr/ui's Sheet) instead of a centered modal, so the page —

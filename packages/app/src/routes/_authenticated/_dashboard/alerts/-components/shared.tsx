@@ -1,4 +1,4 @@
-// packages/app/src/components/cc/shared.tsx
+// packages/app/src/routes/_authenticated/_dashboard/alerts/-components/shared.tsx
 import {
   AlertDialog,
   AlertDialogAction,
