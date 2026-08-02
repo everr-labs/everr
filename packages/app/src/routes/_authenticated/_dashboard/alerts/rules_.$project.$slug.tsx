@@ -20,11 +20,13 @@ import { withTimeRange } from "@everr/ui/lib/time-range";
 import { cn } from "@everr/ui/lib/utils";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { ArrowLeft, BookOpenText } from "lucide-react";
+import { BookOpenText } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { AlertEventFeed } from "@/components/cc/alert-event-feed";
 import {
+  CcBackLink,
+  CcDefRow,
   CcDisclosureTrigger,
   CcEmptyState,
   CcHealthHeart,
@@ -64,40 +66,13 @@ export const Route = createFileRoute(
       queryClient.prefetchQuery(
         ccQueries.eventHistory(deps.timeRange, {
           slugs: ccRuleHandles(rule),
-          ...(deps.preview ? { preview: deps.preview } : {}),
+          preview: deps.preview,
         }),
       ),
     ]);
   },
   component: CcRuleDetailPage,
 });
-
-function BackLink() {
-  return (
-    <Link
-      to="/alerts/rules"
-      className="inline-flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors duration-200 ease-[cubic-bezier(0.19,1,0.22,1)] hover:bg-muted/50 hover:text-foreground"
-      aria-label="Back to rules"
-    >
-      <ArrowLeft className="size-4" />
-    </Link>
-  );
-}
-
-function DefRow({
-  label,
-  children,
-}: {
-  label: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="flex items-baseline gap-3 py-1.5">
-      <dt className="w-28 shrink-0 text-xs text-muted-foreground">{label}</dt>
-      <dd className="font-mono text-xs">{children}</dd>
-    </div>
-  );
-}
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 
@@ -109,11 +84,6 @@ function CcRuleDetailPage() {
   const alerts = useQuery(ccQueries.alerts(preview));
   const [sqlOpen, setSqlOpen] = useState(false);
 
-  const invalidateRule = () =>
-    qc.invalidateQueries({
-      queryKey: ccQueries.ruleByName(project, slug, preview).queryKey,
-    });
-
   const toggle = useMutation({
     mutationFn: (paused: boolean) => {
       const ruleId = rule.data?.id;
@@ -123,7 +93,9 @@ function CcRuleDetailPage() {
         : pauseCcRule({ data: { ruleId } });
     },
     onSuccess: () => {
-      invalidateRule();
+      qc.invalidateQueries({
+        queryKey: ccQueries.ruleByName(project, slug, preview).queryKey,
+      });
       // The rules listing shows the paused state too.
       qc.invalidateQueries({ queryKey: ccQueries.rules().queryKey });
       toast.success("Rule updated");
@@ -184,7 +156,7 @@ function CcRuleDetailPage() {
     <div className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex flex-wrap items-center gap-3">
-          <BackLink />
+          <CcBackLink to="/alerts/rules" label="Back to rules" />
           <h2 className="text-base font-semibold">{identity.name}</h2>
           {identity.name !== identity.shortId && (
             <span className="font-mono text-xs text-muted-foreground">
@@ -227,18 +199,22 @@ function CcRuleDetailPage() {
         </CardHeader>
         <CardContent className="space-y-3">
           <dl className="divide-y divide-border/60">
-            <DefRow label="Interval">{r.spec.interval_secs}s</DefRow>
+            <CcDefRow label="Interval">{r.spec.interval_secs}s</CcDefRow>
             {r.spec.max_interval_secs != null && (
-              <DefRow label="Max interval">{r.spec.max_interval_secs}s</DefRow>
+              <CcDefRow label="Max interval">
+                {r.spec.max_interval_secs}s
+              </CcDefRow>
             )}
-            <DefRow label="For">{r.spec.for_secs}s</DefRow>
-            <DefRow label="Resolve after">{r.spec.resolve_after}</DefRow>
-            <DefRow label="Label columns">
+            <CcDefRow label="For">{r.spec.for_secs}s</CcDefRow>
+            <CcDefRow label="Resolve after">{r.spec.resolve_after}</CcDefRow>
+            <CcDefRow label="Label columns">
               {r.spec.label_columns.join(", ") || "—"}
-            </DefRow>
-            <DefRow label="Value column">{r.spec.value_column ?? "—"}</DefRow>
+            </CcDefRow>
+            <CcDefRow label="Value column">
+              {r.spec.value_column ?? "—"}
+            </CcDefRow>
             {annotations.length > 0 && (
-              <DefRow label="Annotations">
+              <CcDefRow label="Annotations">
                 <span className="flex flex-col gap-0.5">
                   {annotations.map(([k, v]) => (
                     <span key={k}>
@@ -246,7 +222,7 @@ function CcRuleDetailPage() {
                     </span>
                   ))}
                 </span>
-              </DefRow>
+              </CcDefRow>
             )}
           </dl>
           {/* Authors have Git; readers get the SQL on demand, not as a wall. */}
@@ -324,10 +300,7 @@ function CcRuleDetailPage() {
         </CardContent>
       </Card>
 
-      <AlertEventFeed
-        {...(preview ? { preview } : {})}
-        scopeSlug={scopeHandles}
-      />
+      <AlertEventFeed preview={preview} scopeSlug={scopeHandles} />
     </div>
   );
 }

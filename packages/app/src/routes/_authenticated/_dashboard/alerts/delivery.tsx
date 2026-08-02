@@ -1,8 +1,6 @@
-// The Delivery page answers one question: will the right people find out?
-// The route list is rendered as the flow it is (matchers → receiver →
-// channels, firehose fallback last), a label-set preview evaluates the
-// dispatcher's real matching semantics against it, and everything is edited
-// in drawers so the pipeline stays visible.
+// The Delivery page: routes rendered as the flow the dispatcher walks
+// (matchers → receiver → channels, firehose fallback last), with a label-set
+// preview that evaluates the dispatcher's real matching semantics against it.
 import { Button } from "@everr/ui/components/button";
 import {
   Card,
@@ -129,8 +127,8 @@ function SectionBody({
 }
 
 // ── Live pipeline ─────────────────────────────────────────────────────────────
-// The hero: routes rendered as the flow the dispatcher walks. While the
-// preview is active, the selected route chain lights up and the rest dims.
+// While the preview is active, the matched route chain lights up and the rest
+// dims.
 
 function PipelineRoute({
   route,
@@ -457,8 +455,8 @@ function ReceiversSection({ channels }: { channels: CcChannel[] }) {
               }));
               const Icon =
                 CHANNEL_ICON[resolved[0]?.channel?.config.type ?? "webhook"];
-              // Free-form annotations minus `everr.`-prefixed internal markers
-              // (stamped by older flows; not user metadata).
+              // Minus `everr.`-prefixed internal markers (stamped by older
+              // flows; not user metadata).
               const customAnnotations = Object.entries(
                 r.annotations ?? {},
               ).filter(([k]) => !isEverrAnnotationKey(k));
@@ -811,9 +809,7 @@ function CcDeliveryPage() {
   const slos = useQuery(ccQueries.slos(preview));
   const subscriptions = useQuery(ccQueries.subscriptions());
 
-  // The preview's label set; {} = inactive. Evaluated with the dispatcher's
-  // own semantics (ccSelectRoutes over exactly these labels), so what the
-  // pipeline highlights is what the engine would do.
+  // The preview's label set; {} = inactive.
   const [previewLabels, setPreviewLabels] = useState<Record<string, string>>(
     {},
   );
@@ -836,13 +832,12 @@ function CcDeliveryPage() {
   );
 
   // Prefill: the dispatch-time (synthetic) label set of a currently-firing
-  // instance, when one exists — the fastest honest answer to "where does the
-  // thing that's firing right now go?".
+  // instance, when one exists. SLO-sourced instances resolve their SLO
+  // (severity from the burn-rate tier, plus the synthetic `slo` label);
+  // rule-sourced ones their rule.
   const prefill = useMemo(() => {
     const firing = (alerts.data ?? []).find((a) => a.status === "firing");
     if (!firing) return null;
-    // SLO-sourced instances resolve their SLO (severity from the burn-rate
-    // tier, plus the synthetic `slo` label); rule-sourced ones their rule.
     const slo =
       firing.slo !== undefined
         ? (slos.data ?? []).find((s) => s.id === firing.slo)

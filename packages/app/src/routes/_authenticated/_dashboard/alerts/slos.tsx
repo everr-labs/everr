@@ -1,10 +1,5 @@
 // SLO listing, distilled to what decides whether to open one: which promise,
 // whether it needs a human now, when the budget runs out, and how much is left.
-// The status detail the row used to pile on — burn multiples, per-group
-// breakdown, firing tier names — is one click behind the name on the detail
-// page. Rows sort by name: a fixed order that never depends on the
-// (independently-resolving, continuously-recomputed) status, so the list never
-// reshuffles under the reader. Risk is read off the row, not its position.
 import { Button } from "@everr/ui/components/button";
 import { Card, CardContent } from "@everr/ui/components/card";
 import { type Column, DataTable } from "@everr/ui/components/data-table";
@@ -22,13 +17,7 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import {
-  BookOpenText,
-  ChevronLeft,
-  ChevronRight,
-  CircleHelp,
-  Gauge,
-} from "lucide-react";
+import { ChevronLeft, ChevronRight, CircleHelp, Gauge } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { CcBudgetBar } from "@/components/cc/budget-bar";
@@ -38,13 +27,14 @@ import {
   CcHealthHeart,
   CcPauseToggle,
   CcQueryError,
+  CcRunbookLink,
   CcTableSkeleton,
   ccErrorMessage,
 } from "@/components/cc/shared";
+import { useCcFreshBudgets } from "@/components/cc/use-fresh-budgets";
 import { ccQueries } from "@/data/cc/queries";
 import { pauseCcSlo, resumeCcSlo } from "@/data/cc/server";
 import {
-  ccApplyFreshBudget,
   ccFormatSloTarget,
   ccSloBurnPace,
   ccSloBurnPaceLabel,
@@ -54,7 +44,6 @@ import {
   ccSloTierSeverity,
   ccSloTiers,
   ccSloWindowLabel,
-  ccSloWindowSecs,
   ccWorstSloGroup,
 } from "@/data/cc/slo";
 import type {
@@ -74,9 +63,7 @@ export const Route = createFileRoute("/_authenticated/_dashboard/alerts/slos")({
 });
 
 // One listing row: the SLO plus its resolved status groups. `worst` is the
-// group spending budget fastest (min budget remaining) — the row's headline —
-// and `groups` is the full set, both freshened with the read-time budget scan
-// for the visible page (ccApplyFreshBudget).
+// group spending budget fastest (min budget remaining) — the row's headline.
 type SloRow = {
   slo: CcSlo;
   statusPending: boolean;
@@ -96,14 +83,10 @@ const TONE_QUIET = toneText({ tone: "muted" });
 
 /**
  * The one thing the budget column cannot say: is anything alerting, and is the
- * spending still happening. It never repeats "exhausted" — the budget column
- * already prints that — so a stopped burn on a drained budget reads
- * "exhausted / Steady". Pause and suppression outrank both, since neither one is
- * evaluating or alerting, and saying so is what explains the silence.
- *
- * A firing row reports the tier's *severity*, never a delivery outcome: no
- * channel type here is a pager, and where an alert actually lands is the routing
- * tree's business, which the SLO knows nothing about.
+ * spending still happening. Pause and suppression outrank both, since neither
+ * one is evaluating or alerting. A firing row reports the tier's *severity*,
+ * never a delivery outcome: where an alert lands is the routing tree's
+ * business, which the SLO knows nothing about.
  */
 function rowStatus(row: SloRow): { label: string; tone: string } {
   if (row.slo.paused) return { label: "Paused", tone: TONE_QUIET };
@@ -133,9 +116,6 @@ function rowStatus(row: SloRow): { label: string; tone: string } {
   };
 }
 
-// The name plus the line that says what the promise is. Target, window and SLI
-// grouping are the promise's identity, not a second reading of its status, which
-// is why they survived the cut that took the status detail.
 function SloPromiseCell({
   slo,
   health,
@@ -147,15 +127,13 @@ function SloPromiseCell({
   const { label_columns } = slo.spec.sli;
   return (
     <span className="flex flex-col gap-1">
-      {/* Health rides beside the name, and only when broken: the glyph is an
-          exception marker, so healthy rows spend no space on it. */}
       <span className="flex items-center gap-2">
         <Link
           to="/alerts/slos/$project/$slug"
           params={{ project: identity.project, slug: identity.slug }}
-          // Never wrap a name onto a second line: this column is the flexible one,
-          // so it is what gives when the viewport tightens. Not truncate either —
-          // `overflow:hidden` would let the column collapse to nothing.
+          // Never wrap or truncate a name: this column is the flexible one, so
+          // it is what gives when the viewport tightens, and `overflow:hidden`
+          // would let it collapse to nothing.
           className="font-medium whitespace-nowrap text-foreground underline-offset-2 hover:underline"
         >
           {identity.name}
@@ -176,23 +154,15 @@ function SloPromiseCell({
   );
 }
 
-// The runbook, when the SLO names one: the thing you actually want the moment a
-// budget is draining. Nothing at all when it does not, rather than a dash — an
-// absent runbook is not a value worth a glyph on every row.
 function SloRunbookCell({ slo }: { slo: CcSlo }) {
   const { runbookProject, runbookSlug } = fromCcSlo(slo);
   if (!runbookSlug) return null;
-  const { name } = ccSloIdentity(slo);
   return (
-    <Link
-      to="/runbooks/$project/$slug"
-      params={{ project: runbookProject ?? "default", slug: runbookSlug }}
-      aria-label={`Open runbook for ${name}`}
-      title="Open runbook"
-      className="inline-flex size-7 items-center justify-center rounded-md text-muted-foreground outline-2 outline-dotted outline-transparent transition-colors duration-150 hover:bg-muted/50 hover:text-foreground focus-visible:outline-primary"
-    >
-      <BookOpenText className="size-3.5" />
-    </Link>
+    <CcRunbookLink
+      project={runbookProject ?? "default"}
+      slug={runbookSlug}
+      name={ccSloIdentity(slo).name}
+    />
   );
 }
 
@@ -242,8 +212,7 @@ function CcSlosPage() {
   const [pageIndex, setPageIndex] = useState(0);
   const slos = useQuery(ccQueries.slos(previewName));
   const slosData = slos.data ?? [];
-  // One status query per SLO, cache-shared with the detail page. The listing
-  // is small (a tenant's SLO set), so per-row polling stays cheap.
+  // One status query per SLO, cache-shared with the detail page.
   const statuses = useQueries({
     queries: slosData.map((s) => ccQueries.sloStatus(s.id)),
   });
@@ -277,29 +246,16 @@ function CcSlosPage() {
     // never reshuffles as snapshots resolve one by one or budgets recompute.
     .sort((a, b) => a.slo.name.localeCompare(b.slo.name));
 
-  // Client-side pagination: the tenant's whole SLO set is loaded for the risk
-  // sort, but only one page is shown — and only the visible page runs the
-  // (expensive) read-time budget scan, so the fan-out is bounded to a page.
+  // Client-side pagination: only the visible page runs the (expensive)
+  // read-time budget scan, so the fan-out is bounded to a page.
   const pageCount = Math.max(1, Math.ceil(rows.length / SLO_PAGE_SIZE));
   const page = Math.min(pageIndex, pageCount - 1);
   const pageStart = page * SLO_PAGE_SIZE;
   const pageRows = rows.slice(pageStart, pageStart + SLO_PAGE_SIZE);
 
-  // The current page's budget as of page view. Keyed per SLO, so navigating to a
-  // row's detail page reuses this cache. Merged onto the snapshot for display;
-  // the snapshot stays the instant fallback while a scan is in flight.
-  const freshBudgets = useQueries({
-    queries: pageRows.map((r) => ccQueries.sloBudgetNow(r.slo.id)),
-  });
-  const displayRows = pageRows.map((r, i) => {
-    const fresh = freshBudgets[i]?.data;
-    if (fresh === undefined) return r;
-    const groups = ccApplyFreshBudget(
-      ccSloTiers(r.slo.spec),
-      r.groups,
-      fresh,
-      ccSloWindowSecs(r.slo.spec),
-    );
+  const freshBudgets = useCcFreshBudgets(pageRows.map((r) => r.slo.id));
+  const displayRows = pageRows.map((r) => {
+    const groups = freshBudgets.apply(r.slo, r.groups);
     return { ...r, groups, worst: ccWorstSloGroup(groups) };
   });
 
@@ -328,10 +284,8 @@ function CcSlosPage() {
       cell: ({ slo, health }) => <SloPromiseCell slo={slo} health={health} />,
     },
     {
-      // Unlabelled and only as wide as the icon: most SLOs have no runbook, and
-      // a titled column would spend header width on a mostly-empty cell. Mirrors
-      // the same slot on the rules listing, so both alert lists reach a runbook
-      // the same way.
+      // Unlabelled and only as wide as the icon; mirrors the same slot on the
+      // rules listing, so both alert lists reach a runbook the same way.
       header: "",
       cell: ({ slo }) => <SloRunbookCell slo={slo} />,
     },
@@ -340,7 +294,6 @@ function CcSlosPage() {
       cell: (row) => <SloStatusCell row={row} />,
     },
     {
-      // Ahead of the budget: when it runs out, then how much is left.
       // Abbreviated because the column is narrow and the phrase is not: the
       // tooltip carries the expansion, and the word "estimate" with it, since
       // the figure is a projection of the current burn and not a countdown.

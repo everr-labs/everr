@@ -21,7 +21,7 @@ import {
 import { cn } from "@everr/ui/lib/utils";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { ArrowLeft, BookOpenText } from "lucide-react";
+import { BookOpenText } from "lucide-react";
 import { useMemo } from "react";
 import { toast } from "sonner";
 import {
@@ -30,6 +30,8 @@ import {
   ccFmtFraction,
 } from "@/components/cc/budget-bar";
 import {
+  CcBackLink,
+  CcDefRow,
   CcEmptyState,
   CcHealthHeart,
   CcPauseToggle,
@@ -43,13 +45,13 @@ import {
   type SloBudgetEvent,
 } from "@/components/cc/slo-budget-chart";
 import { SloStatsRow } from "@/components/cc/slo-status";
+import { useCcFreshBudgets } from "@/components/cc/use-fresh-budgets";
 import { ANN_LABEL_PREFIX, ANN_PROJECT } from "@/data/alerts/annotations";
 import { ccEventStatus } from "@/data/alerts/event-types";
 import { isReservedAnnotationKey } from "@/data/alerts/schema";
 import { ccQueries } from "@/data/cc/queries";
 import { pauseCcSlo, resumeCcSlo } from "@/data/cc/server";
 import {
-  ccApplyFreshBudget,
   ccFmtWindowLabel,
   ccSloChartRange,
   ccSloCurrentBurn,
@@ -59,7 +61,6 @@ import {
   ccSloTierSeverity,
   ccSloTiers,
   ccSloWindowLabel,
-  ccSloWindowSecs,
   ccWorstSloGroup,
 } from "@/data/cc/slo";
 import type { CcSlo, CcSloGroupStatus, CcSloView } from "@/data/cc/types";
@@ -76,9 +77,8 @@ export const Route = createFileRoute(
       { label: match.loaderData?.name ?? "SLO" },
     ],
     // Every time-scoped surface on this page (budget chart, firing feed) is
-    // pinned to the SLO's own window, not a floating picker: an SLO is defined
-    // by its window, so its budget and history read cleanest over that span and
-    // always agree with the status hero. Hide the global picker accordingly.
+    // pinned to the SLO's own window, not a floating picker, so it always
+    // agrees with the status hero. Hide the global picker accordingly.
     hideTimeRangePicker: true,
   },
   loaderDeps: ({ search: { preview } }) => ({ preview }),
@@ -90,16 +90,14 @@ export const Route = createFileRoute(
     const range = ccSloChartRange(slo.spec);
     await Promise.all([
       queryClient.prefetchQuery(ccQueries.sloStatus(slo.id)),
-      // Budget series and event history share this window range; the history
-      // prefetch is scoped to this SLO's handles and feeds the chart's fired
-      // and resolved marks. Skipped for a spec whose window doesn't parse
-      // (nothing to chart a trailing window over).
+      // Skipped for a spec whose window doesn't parse (nothing to chart a
+      // trailing window over).
       ...(range
         ? [
             queryClient.prefetchQuery(
               ccQueries.eventHistory(range, {
                 slugs: ccSloHandles(slo),
-                ...(deps.preview ? { preview: deps.preview } : {}),
+                preview: deps.preview,
               }),
             ),
             queryClient.prefetchQuery(ccQueries.sloBudgetSeries(slo.id, range)),
@@ -111,119 +109,6 @@ export const Route = createFileRoute(
   component: CcSloDetailPage,
 });
 
-function BackLink() {
-  return (
-    <Link
-      to="/alerts/slos"
-      className="inline-flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors duration-200 ease-[cubic-bezier(0.19,1,0.22,1)] hover:bg-muted/50 hover:text-foreground"
-      aria-label="Back to SLOs"
-    >
-      <ArrowLeft className="size-4" />
-    </Link>
-  );
-}
-
-function DefRow({
-  label,
-  children,
-}: {
-  label: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="flex items-baseline gap-3 py-1.5">
-      <dt className="w-28 shrink-0 text-xs text-muted-foreground">{label}</dt>
-      {/* min-w-0 so a wide value scrolls inside the row rather than
-          stretching the card. */}
-      <dd className="min-w-0 flex-1 font-mono text-xs">{children}</dd>
-    </div>
-  );
-}
-
-// Fraction/burn formatting is shared with the listing and overview surfaces
-// (ccFmtFraction / ccFmtBurn from budget-bar.tsx).
-
-// ── What is it ────────────────────────────────────────────────────────────────
-
-function ObjectiveSection({ slo }: { slo: CcSlo }) {
-  const ann = slo.spec.annotations;
-  // Surface the as-code identity fields natively instead of behind a YAML dump.
-  // `everr.project` and `everr.label.*` fold into first-class fields (as they
-  // do in the applied document). Everything isReservedAnnotationKey covers is
-  // generated rather than authored, and each already has its own home on this
-  // page: `description` is the header, `summary` the engine's alert template,
-  // `link.runbook` the Runbook button beside the title. What's left is the
-  // author's own pass-through annotations, shown raw.
-  const project = ann[ANN_PROJECT];
-  const labels = Object.entries(ann)
-    .filter(([k]) => k.startsWith(ANN_LABEL_PREFIX))
-    .map(([k, v]) => [k.slice(ANN_LABEL_PREFIX.length), v] as const);
-  const annotations = Object.entries(ann).filter(
-    ([k]) => !isReservedAnnotationKey(k),
-  );
-
-  // Every row here is conditional, so a plain SLO with no grouping, project,
-  // labels or annotations has nothing to define beyond what the stats row
-  // already prints. An empty card is worse than no card.
-  const hasRows =
-    slo.spec.min_valid_events !== undefined ||
-    slo.spec.sli.label_columns.length > 0 ||
-    project !== undefined ||
-    labels.length > 0 ||
-    annotations.length > 0;
-  if (!hasRows) return null;
-
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Definition</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-3">
-        {/* Target and window lead the stats row (the SLO stat), so the
-            definition card carries only what isn't already on screen. */}
-        <dl className="divide-y divide-border/60">
-          {slo.spec.min_valid_events !== undefined && (
-            <DefRow label="Min valid events">
-              {slo.spec.min_valid_events}
-            </DefRow>
-          )}
-          {/* Only when the SLI actually groups. A scalar SLI has nothing to
-              list, and "no grouping columns" is not a fact anyone came here
-              for: the page's single set of numbers already says so. */}
-          {slo.spec.sli.label_columns.length > 0 && (
-            <DefRow label="SLI groups by">
-              {slo.spec.sli.label_columns.join(", ")}
-            </DefRow>
-          )}
-          {project !== undefined && <DefRow label="Project">{project}</DefRow>}
-          {labels.length > 0 && (
-            <DefRow label="Labels">
-              <span className="flex flex-col gap-0.5">
-                {labels.map(([k, v]) => (
-                  <span key={k}>
-                    <span className="text-muted-foreground">{k}:</span> {v}
-                  </span>
-                ))}
-              </span>
-            </DefRow>
-          )}
-          {annotations.length > 0 && (
-            <DefRow label="Annotations">
-              <span className="flex flex-col gap-0.5">
-                {annotations.map(([k, v]) => (
-                  <span key={k}>
-                    <span className="text-muted-foreground">{k}:</span> {v}
-                  </span>
-                ))}
-              </span>
-            </DefRow>
-          )}
-        </dl>
-      </CardContent>
-    </Card>
-  );
-}
-
 // ── How's the budget ──────────────────────────────────────────────────────────
 
 function StatusSection({ slo }: { slo: CcSlo }) {
@@ -231,7 +116,7 @@ function StatusSection({ slo }: { slo: CcSlo }) {
   // The budget as of page view: a read-time SLI scan that overrides the stored
   // snapshot's throttled budget once it lands. The snapshot renders instantly
   // meanwhile; this only refines budget/SLI/time-to-exhaustion.
-  const fresh = useQuery(ccQueries.sloBudgetNow(slo.id));
+  const fresh = useCcFreshBudgets([slo.id]);
   const tiers = ccSloTiers(slo.spec);
 
   const groupCols: Column<CcSloGroupStatus>[] = [
@@ -375,84 +260,58 @@ function StatusSection({ slo }: { slo: CcSlo }) {
       </Card>
     );
   }
-  const data = status.data;
-  if (!data || data.payload === null) {
-    // No snapshot row yet (a new SLO before its first evaluation tick), or a
-    // stored payload predating the current snapshot shape.
+  const payload = status.data?.payload ?? null;
+  if (payload === null || payload.groups.length === 0) {
+    // No snapshot row yet (a new SLO before its first evaluation tick, or a
+    // stored payload predating the current snapshot shape), or a snapshot
+    // whose SLI query has returned no group rows.
     return (
       <Card>
         <CardHeader>
           <CardTitle>Status</CardTitle>
         </CardHeader>
         <CardContent>
-          <CcEmptyState
-            title="No status snapshot yet"
-            hint="The evaluator writes a snapshot on its first evaluation tick; until then there is no SLI or error budget to show."
-          />
-        </CardContent>
-      </Card>
-    );
-  }
-  if (data.payload.groups.length === 0) {
-    return (
-      <Card>
-        <CardHeader>
-          <CardTitle>Status</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <CcEmptyState
-            title="No SLI groups yet"
-            hint="The SLI query has not returned rows for any group in the budget window."
-          />
+          {payload === null ? (
+            <CcEmptyState
+              title="No status snapshot yet"
+              hint="The evaluator writes a snapshot on its first evaluation tick; until then there is no SLI or error budget to show."
+            />
+          ) : (
+            <CcEmptyState
+              title="No SLI groups yet"
+              hint="The SLI query has not returned rows for any group in the budget window."
+            />
+          )}
         </CardContent>
       </Card>
     );
   }
 
-  // The budget shown is read-time-fresh once the scan lands; until then the
-  // stored snapshot is the instant fallback. Overriding budget/SLI/TTE per group
-  // can change which group is worst, so merge before picking the headline.
-  const groups = ccApplyFreshBudget(
-    ccSloTiers(slo.spec),
-    data.payload.groups,
-    fresh.data,
-    ccSloWindowSecs(slo.spec),
-  );
+  // Overriding budget/SLI/TTE per group can change which group is worst, so
+  // merge before picking the headline.
+  const groups = fresh.apply(slo, payload.groups);
   const worst = ccWorstSloGroup(groups);
 
   // A fragment, not a stack of its own: these are top-level cards of the page,
-  // and the page's own spacing should set the rhythm for all of them. A wrapper
-  // here would space its children on its own terms and read as a tighter
-  // cluster than the cards below it.
+  // and the page's own spacing should set the rhythm for all of them.
   return (
     <>
       {/* The headline numbers as one strip: budget, promise, SLI, burn, and
           the horizon — all the worst group's, same as the chart below. */}
       <SloStatsRow slo={slo} worst={worst} />
-      {/* Said only while the read-time scan is still in flight, because that is
-          the only case a reader can act on: the numbers above are the stored
-          snapshot for another moment. Once the scan lands they are simply
-          current, and a page that announces its own freshness in the steady
-          state is announcing nothing.
-
-          Keyed on the query being in flight, not on it having returned rows: a
-          quiet group (no traffic in the trailing window) legitimately scans to
-          [], and a failed scan never produces rows at all. Either would park
-          this line on the page forever. */}
-      {fresh.isPending && (
+      {/* Keyed on the scan being in flight, not on it having returned rows: a
+          quiet group legitimately scans to [], and a failed scan never
+          produces rows at all. Either would park this line here forever. */}
+      {fresh.isPending(slo.id) && (
         <p className="px-1 text-[0.6875rem] text-muted-foreground">
           Error budget computing&hellip;
         </p>
       )}
 
-      {/* The per-group breakdown, shown outright whenever there is more than
-          one group. The stats above are only the WORST group's, so with
-          several groups this table is the rest of the answer, not detail: a
-          fold would hide the very rows those numbers are not about. */}
+      {/* The stats above are only the WORST group's, so with several groups
+          this table is the rest of the answer, not detail: a fold would hide
+          the very rows those numbers are not about. */}
       {groups.length > 1 && (
-        // flush-content: the table's own rows carry the horizontal rhythm, so
-        // it runs to the card's edges and its rules read as full-width
-        // separators instead of floating short of both sides.
         <Card inset="flush-content">
           <CardHeader>
             <span className="text-xs font-medium">All groups</span>
@@ -494,12 +353,11 @@ function BudgetHistorySection({
   // The same fire/resolve transitions the history feed below shows, overlaid on
   // the budget line so a drop lines up with the tier that fired. Scoped to this
   // SLO's handles server-side, so the row cap applies after scoping and busy
-  // tenants can't push this SLO's markers out of the newest-N window;
-  // non-transition events (deliveries, silences) drop out.
+  // tenants can't push this SLO's markers out of the newest-N window.
   const events = useQuery({
     ...ccQueries.eventHistory(range ?? CHART_RANGE_FALLBACK, {
       slugs: ccSloHandles(slo),
-      ...(preview ? { preview } : {}),
+      preview,
     }),
     enabled: range !== null,
   });
@@ -509,8 +367,8 @@ function BudgetHistorySection({
     for (const e of events.data ?? []) {
       if (!handles.has(e.slug)) continue;
       const type = ccEventStatus(e.eventType);
-      // `slo_tier` rides in the instance labels, and is what makes a marker's
-      // tooltip worth having: which tier fired, not just that something did.
+      // `slo_tier` rides in the instance labels: which tier fired, not just
+      // that something did.
       if (type) out.push({ t: e.timestamp, type, tier: e.labels.slo_tier });
     }
     return out;
@@ -523,8 +381,6 @@ function BudgetHistorySection({
   return (
     <Card>
       <CardHeader>
-        {/* Every mark on the chart carries its own label, so no "how to read
-            this" tooltip is owed here. */}
         <CardTitle>Budget history</CardTitle>
         <CardDescription>
           Budget remaining over a trailing {ccSloWindowLabel(slo.spec)} window.
@@ -542,6 +398,84 @@ function BudgetHistorySection({
             events={budgetEvents}
           />
         )}
+      </CardContent>
+    </Card>
+  );
+}
+
+// ── What is it ────────────────────────────────────────────────────────────────
+
+function ObjectiveSection({ slo }: { slo: CcSlo }) {
+  const ann = slo.spec.annotations;
+  // Surface the as-code identity fields natively instead of behind a YAML dump:
+  // `everr.project` and `everr.label.*` fold into first-class fields. Everything
+  // isReservedAnnotationKey covers is generated rather than authored and already
+  // has its own home on this page (`description` the header, `summary` the
+  // engine's alert template, `link.runbook` the Runbook button); what's left is
+  // the author's own pass-through annotations, shown raw.
+  const project = ann[ANN_PROJECT];
+  const labels = Object.entries(ann)
+    .filter(([k]) => k.startsWith(ANN_LABEL_PREFIX))
+    .map(([k, v]) => [k.slice(ANN_LABEL_PREFIX.length), v] as const);
+  const annotations = Object.entries(ann).filter(
+    ([k]) => !isReservedAnnotationKey(k),
+  );
+
+  // Every row here is conditional: a plain SLO has nothing to define beyond
+  // what the stats row already prints, and an empty card is worse than none.
+  const hasRows =
+    slo.spec.min_valid_events !== undefined ||
+    slo.spec.sli.label_columns.length > 0 ||
+    project !== undefined ||
+    labels.length > 0 ||
+    annotations.length > 0;
+  if (!hasRows) return null;
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Definition</CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {/* Target and window lead the stats row, so the definition card
+            carries only what isn't already on screen. */}
+        <dl className="divide-y divide-border/60">
+          {slo.spec.min_valid_events !== undefined && (
+            <CcDefRow label="Min valid events">
+              {slo.spec.min_valid_events}
+            </CcDefRow>
+          )}
+          {slo.spec.sli.label_columns.length > 0 && (
+            <CcDefRow label="SLI groups by">
+              {slo.spec.sli.label_columns.join(", ")}
+            </CcDefRow>
+          )}
+          {project !== undefined && (
+            <CcDefRow label="Project">{project}</CcDefRow>
+          )}
+          {labels.length > 0 && (
+            <CcDefRow label="Labels">
+              <span className="flex flex-col gap-0.5">
+                {labels.map(([k, v]) => (
+                  <span key={k}>
+                    <span className="text-muted-foreground">{k}:</span> {v}
+                  </span>
+                ))}
+              </span>
+            </CcDefRow>
+          )}
+          {annotations.length > 0 && (
+            <CcDefRow label="Annotations">
+              <span className="flex flex-col gap-0.5">
+                {annotations.map(([k, v]) => (
+                  <span key={k}>
+                    <span className="text-muted-foreground">{k}:</span> {v}
+                  </span>
+                ))}
+              </span>
+            </CcDefRow>
+          )}
+        </dl>
       </CardContent>
     </Card>
   );
@@ -600,7 +534,7 @@ function CcSloDetailPage() {
     <div className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="flex flex-wrap items-center gap-3">
-          <BackLink />
+          <CcBackLink to="/alerts/slos" label="Back to SLOs" />
           <h2 className="text-base font-semibold">{identity.name}</h2>
           <CcHealthHeart status={status.data?.health.status} />
           {/* The promise itself (target over window) leads the stats row
@@ -643,7 +577,7 @@ function CcSloDetailPage() {
       )}
 
       <StatusSection slo={s} />
-      <BudgetHistorySection slo={s} {...(preview ? { preview } : {})} />
+      <BudgetHistorySection slo={s} preview={preview} />
       <ObjectiveSection slo={s} />
     </div>
   );

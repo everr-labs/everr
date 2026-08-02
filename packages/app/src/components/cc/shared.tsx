@@ -34,9 +34,11 @@ import {
 } from "@everr/ui/components/tooltip";
 import { cn } from "@everr/ui/lib/utils";
 import { useQueryClient } from "@tanstack/react-query";
-import { Link } from "@tanstack/react-router";
+import { Link, type LinkProps } from "@tanstack/react-router";
 import {
+  ArrowLeft,
   ArrowRight,
+  BookOpenText,
   ChevronRight,
   HeartCrack,
   Info,
@@ -513,6 +515,68 @@ export function ccFormatTs(ts: string | null | undefined): string {
   if (!ts) return "—";
   const d = new Date(ts);
   return Number.isNaN(d.getTime()) ? ts : d.toLocaleString();
+}
+
+// ── Navigation ────────────────────────────────────────────────────────────────
+
+/** Icon-only back link at the head of a detail page. */
+export function CcBackLink({
+  to,
+  label,
+}: {
+  to: LinkProps["to"];
+  label: string;
+}) {
+  return (
+    <Link
+      to={to}
+      className="inline-flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors duration-200 ease-[cubic-bezier(0.19,1,0.22,1)] hover:bg-muted/50 hover:text-foreground"
+      aria-label={label}
+    >
+      <ArrowLeft className="size-4" />
+    </Link>
+  );
+}
+
+/** Icon-only runbook link, shared by the rules and SLOs listing rows. */
+export function CcRunbookLink({
+  project,
+  slug,
+  name,
+}: {
+  project: string;
+  slug: string;
+  name: string;
+}) {
+  return (
+    <Link
+      to="/runbooks/$project/$slug"
+      params={{ project, slug }}
+      aria-label={`Open runbook for ${name}`}
+      title="Open runbook"
+      className="inline-flex size-7 items-center justify-center rounded-md text-muted-foreground outline-2 outline-dotted outline-transparent transition-colors duration-150 hover:bg-muted/50 hover:text-foreground focus-visible:outline-primary"
+    >
+      <BookOpenText className="size-3.5" />
+    </Link>
+  );
+}
+
+/** One label/value row of a detail page's definition list. */
+export function CcDefRow({
+  label,
+  children,
+}: {
+  label: string;
+  children: ReactNode;
+}) {
+  return (
+    <div className="flex items-baseline gap-3 py-1.5">
+      <dt className="w-28 shrink-0 text-xs text-muted-foreground">{label}</dt>
+      {/* min-w-0 so a wide value scrolls inside the row rather than
+          stretching the card. */}
+      <dd className="min-w-0 flex-1 font-mono text-xs">{children}</dd>
+    </div>
+  );
 }
 
 // ── Evaluation health ─────────────────────────────────────────────────────────

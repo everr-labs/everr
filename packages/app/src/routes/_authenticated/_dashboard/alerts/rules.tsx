@@ -14,7 +14,7 @@ import {
   useQueryClient,
 } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { BookOpenText, SlidersHorizontal } from "lucide-react";
+import { SlidersHorizontal } from "lucide-react";
 import { toast } from "sonner";
 import { CcPageIntro } from "@/components/cc/page-intro";
 import {
@@ -22,6 +22,7 @@ import {
   CcHealthHeart,
   CcPauseToggle,
   CcQueryError,
+  CcRunbookLink,
   CcSeverityBadge,
   CcStatusDot,
   CcTableSkeleton,
@@ -78,9 +79,6 @@ function CcRulesPage() {
       cell: (r) => {
         const identity = ccRuleIdentity(r);
         return (
-          // Health rides beside the name rather than in a column of its own,
-          // and only when broken: the glyph is an exception marker, so it
-          // takes no space at all on the healthy rows it does not apply to.
           <span className="inline-flex items-center gap-2">
             <Link
               to="/alerts/rules/$project/$slug"
@@ -103,17 +101,7 @@ function CcRulesPage() {
       header: "",
       cell: (r) => {
         const { runbook, name } = ccRuleIdentity(r);
-        return runbook ? (
-          <Link
-            to="/runbooks/$project/$slug"
-            params={runbook}
-            aria-label={`Open runbook for ${name}`}
-            title="Open runbook"
-            className="inline-flex size-7 items-center justify-center rounded-md text-muted-foreground outline-2 outline-dotted outline-transparent transition-colors duration-150 hover:bg-muted/50 hover:text-foreground focus-visible:outline-primary"
-          >
-            <BookOpenText className="size-3.5" />
-          </Link>
-        ) : null;
+        return runbook ? <CcRunbookLink {...runbook} name={name} /> : null;
       },
     },
     {
@@ -124,8 +112,8 @@ function CcRulesPage() {
       header: "Interval",
       cell: (r) => (
         <span className="tabular-nums text-muted-foreground">
-          {/* Human units ("30m", not "1800s") — the machine unit is recall
-              tax; the exact seconds stay in the as-code spec. */}
+          {/* Human units ("30m", not "1800s"); the exact seconds stay in the
+              as-code spec. */}
           {ccFormatSloDuration(r.spec.interval_secs)}
         </span>
       ),
