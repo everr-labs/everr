@@ -7,7 +7,7 @@ import {
   Outlet,
   RouterProvider,
 } from "@tanstack/react-router";
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { AlertEventLogRow } from "@/data/alerts/history.server";
@@ -26,6 +26,7 @@ const mocks = vi.hoisted(() => ({
   listCcRules: vi.fn(),
   listCcSlos: vi.fn(),
   getCcSloStatus: vi.fn(),
+  getCcSloBudgetNow: vi.fn(),
   listCcRoutes: vi.fn(),
   listCcReceivers: vi.fn(),
   listCcSilences: vi.fn(),
@@ -39,6 +40,7 @@ vi.mock("@/data/cc/server", () => ({
   listCcRules: mocks.listCcRules,
   listCcSlos: mocks.listCcSlos,
   getCcSloStatus: mocks.getCcSloStatus,
+  getCcSloBudgetNow: mocks.getCcSloBudgetNow,
   listCcRoutes: mocks.listCcRoutes,
   listCcReceivers: mocks.listCcReceivers,
   listCcSilences: mocks.listCcSilences,
@@ -289,12 +291,14 @@ async function expandRowByLabel(
 beforeEach(() => {
   for (const fn of Object.values(mocks)) fn.mockReset();
   mocks.getCcSloStatus.mockResolvedValue(null);
+  // No fresh scan result by default: surfaces fall back to the snapshot.
+  mocks.getCcSloBudgetNow.mockResolvedValue([]);
   mocks.createCcSilence.mockResolvedValue(ccSilence({ id: "sil-new" }));
   seedBoard();
 });
 
 describe("/alerts triage board", () => {
-  it("counts the pipeline and puts every instance on one unfiltered board", async () => {
+  it("counts the whole pipeline but boards only what is firing", async () => {
     renderTriagePage();
 
     const strip = await screen.findByRole("region", {
@@ -307,22 +311,18 @@ describe("/alerts triage board", () => {
     expect(within(strip).queryAllByRole("button")).toHaveLength(0);
     expect(within(strip).queryAllByRole("link")).toHaveLength(0);
 
-    // The board has no lenses to flip between: firing, pending, silenced and
-    // inactive rows all sit on it together.
+    // The board is triage, not inventory: pending and inactive instances are
+    // counted by the strip but not listed.
     const board = screen.getByRole("region", { name: "Triage board" });
     expect(within(board).getByText("Flapping check")).toBeInTheDocument();
     expect(within(board).getByText("api-errors")).toBeInTheDocument();
     expect(within(board).getByText("web-1")).toBeInTheDocument();
-    expect(within(board).getByText("web-2")).toBeInTheDocument();
     expect(within(board).getByText("api")).toBeInTheDocument();
-    expect(within(board).getByText("web-9")).toBeInTheDocument();
-    // Only the exceptions are marked: firing is every row's baseline, so it
-    // stays announced but unprinted, while pending gets visible ink.
-    expect(within(board).getByText("pending")).toBeVisible();
-    expect(within(board).getByText("pending").className).not.toMatch(/sr-only/);
-    for (const firing of within(board).getAllByText("firing")) {
-      expect(firing.className).toMatch(/sr-only/);
-    }
+    expect(within(board).queryByText("web-2")).toBeNull();
+    expect(within(board).queryByText("web-9")).toBeNull();
+    // Every row names its state and duration together ("firing 12h"): the
+    // age cell is self-describing on a card that mixes rules and SLOs.
+    expect(within(board).getAllByTitle(/^firing since /)).toHaveLength(2);
     expect(within(board).getByText("silenced")).toBeInTheDocument();
   });
 
@@ -330,16 +330,15 @@ describe("/alerts triage board", () => {
     renderTriagePage();
     const board = await screen.findByRole("region", { name: "Triage board" });
 
-    // Four rows means four expanders; naming them all "Expand instance" would
-    // make them indistinguishable to anyone listening rather than looking.
+    // Several rows means several expanders; naming them all "Expand instance"
+    // would make them indistinguishable to anyone listening rather than
+    // looking.
     expect(
       await within(board).findByRole("button", { name: "Expand host=web-1" }),
     ).toBeInTheDocument();
-    for (const labels of ["host=web-2", "svc=api", "host=web-9"]) {
-      expect(
-        within(board).getByRole("button", { name: `Expand ${labels}` }),
-      ).toBeInTheDocument();
-    }
+    expect(
+      within(board).getByRole("button", { name: "Expand svc=api" }),
+    ).toBeInTheDocument();
     expect(
       within(board).getByRole("button", {
         name: "Silence everything under Flapping check",
@@ -354,10 +353,47 @@ describe("/alerts triage board", () => {
     renderTriagePage();
 
     expect(await screen.findByText("oncall")).toBeInTheDocument();
-    expect(screen.getByText(/team-slack, pd/)).toBeInTheDocument();
-    // Only host=web-1 matches the single route; the other three rows are on
-    // the board now, and each says it reaches no one.
-    expect(screen.getAllByText("not routed · no subscribers")).toHaveLength(3);
+    // The receiver is the visible fact; its channels stay on the tooltip.
+    expect(screen.queryByText(/team-slack, pd/)).toBeNull();
+    expect(screen.getByTitle(/team-slack, pd/)).toBeInTheDocument();
+    // Only host=web-1 matches the single route; the one other firing row
+    // (svc=api) says it reaches no one.
+    expect(screen.getAllByText("not routed · no subscribers")).toHaveLength(1);
+  });
+
+  it("overflows a long receiver list as +N instead of truncating names", async () => {
+    mocks.listCcRoutes.mockResolvedValue([
+      ccRoute({ id: "route-1", receiver: "oncall", continue: true }),
+      ccRoute({
+        id: "route-2",
+        receiver: "backup",
+        continue: true,
+        priority: 2,
+      }),
+      ccRoute({ id: "route-3", receiver: "mgmt", priority: 3 }),
+    ]);
+    mocks.listCcReceivers.mockResolvedValue([
+      ccReceiver(),
+      ccReceiver({ id: "recv-2", name: "backup", channels: ["mail"] }),
+      ccReceiver({ id: "recv-3", name: "mgmt", channels: ["mail"] }),
+    ]);
+    renderTriagePage();
+
+    // Two names shown, the rest counted; the full list stays on the tooltip.
+    expect(await screen.findByText("oncall, backup +1")).toBeInTheDocument();
+    expect(screen.getByTitle(/oncall, backup, mgmt/)).toBeInTheDocument();
+  });
+
+  it("warns when every matched receiver has no channels", async () => {
+    mocks.listCcReceivers.mockResolvedValue([ccReceiver({ channels: [] })]);
+    renderTriagePage();
+
+    // Routed to a receiver that fans out to nothing delivers exactly nothing:
+    // it gets the "not routed" warning treatment, not a healthy arrow.
+    const dead = await screen.findByRole("link", {
+      name: /oncall · no channels/,
+    });
+    expect(dead).toBeInTheDocument();
   });
 
   it("marks unrouted instances as firehose only when subscriptions exist", async () => {
@@ -374,7 +410,7 @@ describe("/alerts triage board", () => {
 
     expect(
       await screen.findAllByText("not routed · firehose only"),
-    ).toHaveLength(3);
+    ).toHaveLength(1);
   });
 
   it("expands a row into its evidence, runbook, and fingerprint-scoped feed", async () => {
@@ -387,7 +423,11 @@ describe("/alerts triage board", () => {
     expect(
       screen.getByText("Fires when the flap condition holds."),
     ).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /Runbook/ })).toBeInTheDocument();
+    // Two runbook paths on purpose: the row's shortcut icon and the
+    // expanded detail's full-width action.
+    expect(screen.getAllByRole("link", { name: /Runbook/ })).not.toHaveLength(
+      0,
+    );
 
     // The page reads a single stored event, only to date-stamp the all-clear
     // readout; each expanded row fetches its own, narrowed server-side by
@@ -417,7 +457,9 @@ describe("/alerts triage board", () => {
       "href",
       "/alerts/slos/default/checkout-availability",
     );
-    expect(screen.getByText("fast-burn")).toBeInTheDocument();
+    // Tier names are detail, not triage: no per-tier badge on the row (the
+    // severity badge and burn rate carry the urgency).
+    expect(screen.queryByText("fast-burn")).toBeNull();
     expect(screen.getByText("checkout")).toBeInTheDocument();
     expect(screen.getAllByText("critical").length).toBeGreaterThanOrEqual(1);
   });
@@ -501,6 +543,150 @@ describe("/alerts triage board", () => {
     expect(
       new Date(data.ends_at).getTime() - new Date(data.starts_at).getTime(),
     ).toBe(3_600_000);
+  });
+
+  it("shows the row's own error budget, not the SLO's worst group", async () => {
+    mocks.listCcSlos.mockResolvedValue([ccSlo()]);
+    mocks.listCcAlerts.mockResolvedValue([sloAlert()]);
+    mocks.getCcSloStatus.mockResolvedValue({
+      payload: {
+        groups: [
+          // A different label set is deeper in the red; the checkout row must
+          // still print its own number.
+          { labels: { service: "search" }, budget_remaining: -0.2 },
+          { labels: { service: "checkout" }, budget_remaining: 0.581 },
+        ],
+      },
+    });
+
+    renderTriagePage();
+
+    expect(await screen.findByText("58.10%")).toBeInTheDocument();
+    // The worst group's number belongs to the exhausted-budgets card below,
+    // never to this row.
+    const board = screen.getByRole("region", { name: "Triage board" });
+    expect(within(board).queryByText("-20.00%")).toBeNull();
+    expect(screen.getByText("Exhausted error budgets")).toBeInTheDocument();
+  });
+
+  it("boards an exhausted budget even when nothing is firing", async () => {
+    mocks.listCcAlerts.mockResolvedValue([]);
+    mocks.listCcSilences.mockResolvedValue([]);
+    mocks.listCcSlos.mockResolvedValue([ccSlo()]);
+    mocks.getCcSloStatus.mockResolvedValue({
+      payload: {
+        groups: [{ labels: { service: "checkout" }, budget_remaining: -0.024 }],
+      },
+    });
+
+    renderTriagePage();
+
+    // The all-clear and the damage report coexist: nothing is firing, and yet
+    // a budget is spent.
+    expect(await screen.findByText("All clear")).toBeInTheDocument();
+    expect(
+      await screen.findByText("Exhausted error budgets"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("-2.40%")).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: /checkout-availability/ }),
+    ).toHaveAttribute("href", "/alerts/slos/default/checkout-availability");
+  });
+
+  it("keeps an exhausted budget on its board while the SLO also fires", async () => {
+    // The two boards answer different questions: the fire is on triage, the
+    // spent budget stays on the damage report.
+    mocks.listCcSlos.mockResolvedValue([ccSlo()]);
+    mocks.listCcAlerts.mockResolvedValue([sloAlert()]);
+    mocks.getCcSloStatus.mockResolvedValue({
+      payload: {
+        groups: [{ labels: { service: "checkout" }, budget_remaining: -0.024 }],
+      },
+    });
+
+    renderTriagePage();
+
+    expect(
+      await screen.findByText("Exhausted error budgets"),
+    ).toBeInTheDocument();
+    const board = screen.getByRole("region", { name: "Triage board" });
+    expect(within(board).getByText("checkout")).toBeInTheDocument();
+    // One link on the triage row, one on the exhausted-budgets row.
+    expect(
+      screen.getAllByRole("link", { name: /checkout-availability/ }),
+    ).toHaveLength(2);
+  });
+
+  it("overlays the read-time budget on the snapshot's, like the SLO pages", async () => {
+    mocks.listCcSlos.mockResolvedValue([ccSlo()]);
+    mocks.listCcAlerts.mockResolvedValue([sloAlert()]);
+    // The engine's throttled snapshot says 58%; the read-time scan says 25%.
+    mocks.getCcSloStatus.mockResolvedValue({
+      payload: {
+        groups: [
+          {
+            labels: { service: "checkout" },
+            budget_remaining: 0.581,
+            tiers: [],
+          },
+        ],
+      },
+    });
+    mocks.getCcSloBudgetNow.mockResolvedValue([
+      { labels: { service: "checkout" }, sli: 0.999, budgetRemaining: 0.25 },
+    ]);
+
+    renderTriagePage();
+
+    expect(await screen.findByText("25.00%")).toBeInTheDocument();
+    expect(screen.queryByText("58.10%")).toBeNull();
+    // The scan is bounded to displayed SLOs: exactly this one.
+    expect(mocks.getCcSloBudgetNow).toHaveBeenCalledTimes(1);
+  });
+
+  it("drops a snapshot-exhausted budget the fresh scan says has recovered", async () => {
+    mocks.listCcAlerts.mockResolvedValue([]);
+    mocks.listCcSilences.mockResolvedValue([]);
+    mocks.listCcSlos.mockResolvedValue([ccSlo()]);
+    mocks.getCcSloStatus.mockResolvedValue({
+      payload: {
+        groups: [
+          {
+            labels: { service: "checkout" },
+            budget_remaining: -0.024,
+            tiers: [],
+          },
+        ],
+      },
+    });
+    mocks.getCcSloBudgetNow.mockResolvedValue([
+      { labels: { service: "checkout" }, sli: 0.9995, budgetRemaining: 0.1 },
+    ]);
+
+    renderTriagePage();
+
+    expect(await screen.findByText("All clear")).toBeInTheDocument();
+    // Membership follows the freshened numbers: once the read-time scan
+    // lands, no damage board for a budget that has already recovered. (The
+    // snapshot legitimately shows the card until then.)
+    await waitFor(() =>
+      expect(screen.queryByText("Exhausted error budgets")).toBeNull(),
+    );
+  });
+
+  it("hides the exhausted-budgets board when every budget holds", async () => {
+    mocks.listCcSlos.mockResolvedValue([ccSlo()]);
+    mocks.listCcAlerts.mockResolvedValue([sloAlert()]);
+    mocks.getCcSloStatus.mockResolvedValue({
+      payload: {
+        groups: [{ labels: { service: "checkout" }, budget_remaining: 0.4 }],
+      },
+    });
+
+    renderTriagePage();
+
+    await screen.findAllByRole("link", { name: "checkout-availability" });
+    expect(screen.queryByText("Exhausted error budgets")).toBeNull();
   });
 
   it("shows the all-clear instrument when nothing is firing", async () => {

@@ -1,10 +1,20 @@
-// The triage board: source groups, each with expandable instance rows carrying
-// evidence, delivery, and the act-on-it controls. It shows every instance
-// unfiltered — triage means seeing the whole picture at once, not flipping
-// between views of it — and the counts by state live in the pipeline strip
-// above. The board owns the UI state and the quick-silence mutation that only
-// it uses. What it takes from the route is the resolved data, plus one callback
-// for the custom-silence drawer, which the route shares with the silences panel
+// The triage board: one tight line per problem, firing only — pending and
+// inactive instances are counted by the pipeline strip above but are not what
+// triage acts on (the route filters via ccFiringGroups). A source with a
+// single instance collapses header and row into one line (the common case:
+// name, severity, labels, value, age, delivery, all on one baseline); a source
+// with several instances keeps a slim header with one line per label set under
+// it. The fact columns (budget, value, age, delivery) share fixed widths
+// across the whole card, so every group reads on the same grid without
+// per-group column headers. Each line carries its actions at the right edge
+// (md+); the expanded detail carries the full set, which is also the touch
+// path.
+// SLO rows pair their burn rate with the row's own error budget remaining
+// (matched by label set, not the SLO's worst group); spent budgets as a
+// standing state live on the exhausted-budgets card below the board. The
+// board owns the UI state and the quick-silence mutation that only it uses.
+// What it takes from the route is the resolved data, plus one callback for
+// the custom-silence drawer, which the route shares with the silences panel
 // below.
 
 import { Button, buttonVariants } from "@everr/ui/components/button";
@@ -16,13 +26,11 @@ import { cn } from "@everr/ui/lib/utils";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { BellOff, BookOpenText, ChevronRight, FileSearch } from "lucide-react";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { toast } from "sonner";
-import { ccFmtBurn } from "@/components/cc/budget-bar";
+import { CcBudgetBar, ccFmtBurn } from "@/components/cc/budget-bar";
 import {
-  CcInstanceStatusBadge,
   CcSeverityBadge,
-  CcSloTierBadge,
   CcStatusDot,
   CcTableSkeleton,
   Conditions,
@@ -37,23 +45,41 @@ import { fromCcRule } from "@/data/alerts/mapping";
 import { parseResourceName } from "@/data/as-code/identity";
 import { ccQueries } from "@/data/cc/queries";
 import { createCcSilence } from "@/data/cc/server";
-import { ccSloTiers } from "@/data/cc/slo";
 import {
+  ccBudgetIndex,
+  ccDeliveryFanout,
+  ccGroupSilenceMatchers,
   ccInstanceLogsSearch,
+  ccRowBudget,
   ccRunbookParams,
-  ccSloInstanceSeverity,
   ccSourceScopedSilenceMatchers,
   TRIAGE_EVENT_RANGE,
   type TriageGroup,
   type TriageInstance,
   type TriageRow,
 } from "@/data/cc/triage";
-import type { CcAlert, CcMatcher, CcRoute } from "@/data/cc/types";
+import type {
+  CcAlert,
+  CcMatcher,
+  CcRoute,
+  CcSloGroupStatus,
+} from "@/data/cc/types";
 
 // Per-instance cap for the expanded row's fingerprint-scoped feed: it needs
 // the newest evidence-carrying event plus the last 6 transitions, so this is
 // generous headroom.
 const TRIAGE_INSTANCE_EVENT_LIMIT = 100;
+
+// The shared fact-column widths (md+). Merged lines and sub-rows both use
+// them, so values, budgets, ages, and delivery facts align down the whole
+// card.
+// Sized to its content ("BURN RATE" caption over "1000.0×"): the budget
+// column sits directly to its left, and slack here would read as a hole
+// between the two.
+const COL_VALUE = "md:w-20";
+const COL_BUDGET = "md:w-28";
+const COL_SINCE = "md:w-20";
+const COL_DELIVERY = "md:w-48";
 
 // ── Delivery fact ─────────────────────────────────────────────────────────────
 
@@ -83,15 +109,52 @@ function DeliveryFact({
       </Link>
     );
   }
-  const receiverNames = [...new Set(matchedRoutes.map((r) => r.receiver))];
-  const channels = [
-    ...new Set(receiverNames.flatMap((n) => channelsByReceiver.get(n) ?? [])),
-  ];
+  // The receiver is the routing fact; which channels it fans out to is
+  // delivery detail, kept on the tooltip instead of cluttering the row.
+  const { receivers, channels, dead } = ccDeliveryFanout(
+    matchedRoutes,
+    channelsByReceiver,
+  );
+  // Overflow as an honest "+N" instead of CSS truncation, which can chop a
+  // receiver name mid-word. The full list stays on the tooltip.
+  const shown = receivers.slice(0, 2);
+  const names =
+    shown.join(", ") +
+    (receivers.length > shown.length
+      ? ` +${receivers.length - shown.length}`
+      : "");
+  if (channels.length === 0) {
+    // Routed, but every matched receiver fans out to zero channels: the
+    // notification reaches no one, which is the "not routed" trap wearing a
+    // receiver name. Same warning treatment, linked to where to fix it.
+    return (
+      <Link
+        to="/alerts/delivery"
+        hash="receivers"
+        onClick={(e) => e.stopPropagation()}
+        title={receivers.join(", ")}
+        className={cn(
+          "whitespace-nowrap text-xs underline-offset-2 hover:underline",
+          toneText({ tone: "warning" }),
+        )}
+      >
+        → {names} · no channels
+      </Link>
+    );
+  }
   return (
-    <span className="whitespace-nowrap font-mono text-xs text-muted-foreground">
+    <span
+      className="truncate font-mono text-xs text-muted-foreground"
+      title={[
+        receivers.join(", "),
+        channels.join(", "),
+        dead.length > 0 ? `no channels: ${dead.join(", ")}` : "",
+      ]
+        .filter(Boolean)
+        .join(" · ")}
+    >
       <span aria-hidden>→ </span>
-      <span className="text-foreground">{receiverNames.join(", ")}</span>
-      {channels.length > 0 && <> · {channels.join(", ")}</>}
+      <span className="text-foreground">{names}</span>
     </span>
   );
 }
@@ -264,26 +327,137 @@ function InstanceDetail({
   );
 }
 
+// ── Line building blocks ──────────────────────────────────────────────────────
+
+// The action cluster at a line's right edge. Hidden below md: phone rows
+// have no room for it, and the expanded detail already carries every action,
+// which is the touch path.
+function LineActions({ children }: { children: React.ReactNode }) {
+  return (
+    // Fixed width (two icons' worth): a runbook shortcut exists only on
+    // some rows, and letting the slot shrink would knock the fact columns
+    // out of alignment between neighboring lines.
+    <span className="hidden shrink-0 items-center justify-end gap-0.5 md:flex md:w-14">
+      {children}
+    </span>
+  );
+}
+
+const lineActionClass =
+  "flex size-6 shrink-0 items-center justify-center rounded text-muted-foreground outline-2 outline-dotted outline-transparent transition-colors duration-150 hover:text-foreground focus-visible:outline-primary [&_svg]:size-3.5";
+
+/**
+ * One stacked fact: a micro-label over its value, the pipeline strip's
+ * readout idiom. The label makes each column self-describing on a card that
+ * mixes rules and SLOs, without resurrecting per-group header rows.
+ */
+function FactCell({
+  col,
+  label,
+  title,
+  className,
+  children,
+}: {
+  /** The column's shared width class, so the grid holds across rows. */
+  col: string;
+  label: string;
+  title?: string;
+  className?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <span
+      className={cn(
+        "flex shrink-0 flex-col whitespace-nowrap md:items-end",
+        col,
+        className,
+      )}
+      title={title}
+    >
+      <span className="truncate text-[0.625rem] font-medium tracking-wide text-muted-foreground/70 uppercase">
+        {label}
+      </span>
+      {children}
+    </span>
+  );
+}
+
+/** The source's identity: name (linked when the listing resolved), SLO origin
+ *  marker, severity. Shared by the merged line and the multi-row header. */
+function GroupIdentity({ group }: { group: TriageGroup }) {
+  return (
+    <>
+      {group.sloId !== undefined ? (
+        group.slo ? (
+          <Link
+            to="/alerts/slos/$project/$slug"
+            params={parseResourceName(group.slo.name)}
+            onClick={(e) => e.stopPropagation()}
+            className="text-sm font-medium text-foreground underline-offset-2 hover:underline"
+          >
+            {group.name}
+          </Link>
+        ) : (
+          <span className="text-sm font-medium text-foreground">
+            {group.name}
+          </span>
+        )
+      ) : group.rule ? (
+        <Link
+          to="/alerts/rules/$project/$slug"
+          params={parseResourceName(group.rule.name)}
+          onClick={(e) => e.stopPropagation()}
+          className="text-sm font-medium text-foreground underline-offset-2 hover:underline"
+        >
+          {group.name}
+        </Link>
+      ) : (
+        <span className="text-sm font-medium text-foreground">
+          {group.name}
+        </span>
+      )}
+      {group.sloId !== undefined && (
+        // Origin marker: this group is an SLO's burn-rate alerting, not a
+        // rule's.
+        <Pill className="text-muted-foreground">SLO</Pill>
+      )}
+      <CcSeverityBadge severity={group.severity} />
+    </>
+  );
+}
+
 function InstanceRow({
   row,
+  group,
   expanded,
   onToggle,
+  onGroupSilence,
   deliveryFact,
-  valueLabel,
+  budget,
   children,
 }: {
   row: TriageRow;
+  group: TriageGroup;
   expanded: boolean;
   onToggle: () => void;
+  onGroupSilence: () => void;
   deliveryFact: React.ReactNode;
-  /** The group's value-column name, printed inline on small screens where the
-   *  desktop column header row is hidden. */
-  valueLabel: string;
+  /** This row's error budget remaining (0..1, may go negative). Null while
+   *  the status snapshot is unresolved; rule rows have none and pass null. */
+  budget: number | null;
   children?: React.ReactNode;
 }) {
   const inst = row.lead;
   const { alert, silence } = inst;
-  const muted = alert.status !== "firing";
+  // One-instance source: this line carries the group identity too, and its
+  // silence action mutes the whole source (labels included — for a single
+  // instance the two scopes cover the same thing).
+  const merged = group.rows.length === 1;
+  // The value column's name, printed as the cell's micro-label. Null for SLO
+  // rows (the ×-suffixed burn rate names itself) and unnamed rule values.
+  const valueLabel =
+    group.sloId !== undefined ? null : (group.rule?.spec.value_column ?? null);
+  const runbook = ccRunbookParams(inst.rule);
   // SLO rows surface every firing burn-rate tier as a first-class badge (each
   // toned by the severity it fires at) instead of leaving them buried in the
   // label pills, or split across a row apiece.
@@ -294,15 +468,15 @@ function InstanceRow({
       )
     : alert.labels;
   // What to call this row out loud. Its labels are what distinguish it from
-  // its siblings, so they make the accessible name; a scalar SLO has none, and
-  // falls back to the tiers that are firing on it. "Expand service=checkout"
-  // beats five buttons all announcing themselves as "Expand row".
+  // its siblings, so they make the accessible name. A merged line without
+  // labels is the source itself, so its name is the distinguishing fact —
+  // two scalar SLOs both firing "ticket" must not announce identically. A
+  // label-free sub-row falls back to its firing tiers. "Expand
+  // service=checkout" beats five buttons all announcing "Expand row".
   const rowName =
     Object.entries(shownLabels)
       .map(([k, v]) => `${k}=${v}`)
-      .join(", ") ||
-    row.tiers.join(", ") ||
-    "row";
+      .join(", ") || (merged ? group.name : row.tiers.join(", ") || "row");
   // How long this has been wrong, across every tier that reported it — not
   // just how long the leading tier has been the leading one.
   const activeSince = row.members
@@ -318,8 +492,8 @@ function InstanceRow({
     )
     .join(" · ");
   return (
-    <div className={cn(muted && "opacity-60")}>
-      {/* Mouse convenience on the row; the chevron button is the keyboard and
+    <div>
+      {/* Mouse convenience on the line; the chevron button is the keyboard and
           screen-reader target (same split as DataTable's onRowClick idiom). */}
       {/* biome-ignore lint/a11y/useKeyWithClickEvents: the chevron button is the keyboard target */}
       {/* biome-ignore lint/a11y/noStaticElementInteractions: mouse convenience only */}
@@ -328,7 +502,14 @@ function InstanceRow({
           if ((e.target as HTMLElement).closest("a,button") !== null) return;
           onToggle();
         }}
-        className="flex cursor-pointer flex-wrap items-center gap-x-3 gap-y-0.5 px-3 py-1.5 transition-colors duration-150 hover:bg-muted/40 md:flex-nowrap"
+        // items-center: the one-line clusters (name, delivery fact, actions)
+        // sit at the row's vertical middle. The fact cells all share the same
+        // two-line height (the budget meter hangs out of flow), so centering
+        // still keeps their micro-labels on one line and their values on
+        // another across the whole row.
+        // md:pb-2.5: room under the fact cells for the budget meter's hang,
+        // so it clears the row divider.
+        className="flex cursor-pointer flex-wrap items-center gap-x-3 gap-y-0.5 px-3 py-2 transition-colors duration-150 hover:bg-muted/40 md:flex-nowrap md:pb-2.5"
       >
         <button
           type="button"
@@ -344,70 +525,88 @@ function InstanceRow({
             )}
           />
         </button>
-        {/* Fixed width only where columns exist (md+); on the stacked phone
-            layout the width would just indent the row. */}
-        {/* Firing is the board's baseline, not news: the engine only ever
-            hands us firing or pending (inactive is filtered server-side), so a
-            red "firing" on every row says nothing and competes with the
-            severity badge in the group header for the same attention. Only the
-            exception gets ink; screen readers still hear the state, and the
-            slot keeps its width so the columns stay aligned. */}
-        <span className="shrink-0 text-xs md:w-16">
-          {alert.status === "firing" ? (
-            <span className="sr-only">firing</span>
-          ) : (
-            <CcInstanceStatusBadge status={alert.status} />
-          )}
-        </span>
-        <span className="flex min-w-0 flex-1 flex-wrap items-center gap-2">
-          {row.members.map(
-            (m) =>
-              m.alert.labels.slo_tier !== undefined &&
-              m.alert.status === "firing" && (
-                <CcSloTierBadge
-                  key={m.alert.key}
-                  tier={m.alert.labels.slo_tier}
-                  severity={ccSloInstanceSeverity(m.alert)}
-                  // Only once the SLO listing resolves: the badge falls back
-                  // to canonical windows, which differ only for a non-30d SLO.
-                  {...(inst.slo ? { tiers: ccSloTiers(inst.slo.spec) } : {})}
-                />
-              ),
-          )}
-          {/* A scalar SLO's only label is the tier, already shown as a badge —
-              don't append a "no labels" placeholder after it. */}
-          {(!isSlo || Object.keys(shownLabels).length > 0) && (
+        <span className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1">
+          {merged && <GroupIdentity group={group} />}
+          {/* No per-tier badges: which sensitivities tripped is detail, not
+              triage. The group severity above already says how bad, the value
+              column says how fast, and the tier names survive on the merged
+              value's tooltip and the SLO detail page. A merged line with no
+              labels needs no placeholder either: the name is already on it. */}
+          {(Object.keys(shownLabels).length > 0 || !merged) && (
             <LabelSet labels={shownLabels} emptyLabel="no labels" />
           )}
         </span>
-        {/* Below md the fixed-width facts wrap onto their own line (phone
-            widths can't fit labels + value + time + delivery side by side);
-            this breaker forces the wrap, and the pl-8 lines the second row up
-            under the status column. */}
+        {/* Below md the fact columns wrap onto their own line (phone widths
+            can't fit labels + value + age + delivery side by side); this
+            breaker forces the wrap, and the pl-8 lines the second row up
+            under the content column. */}
         <span className="basis-full md:hidden" aria-hidden />
-        <span className="shrink-0 pl-8 font-mono text-xs tabular-nums md:w-16 md:pl-0 md:text-right">
-          <span className="font-sans text-muted-foreground md:hidden">
-            {valueLabel}{" "}
-          </span>
-          {/* SLO rows carry the tier's burn rate as their value: print it at
-              the engine's own precision (one decimal, ×) instead of the raw
-              float. A merged row shows its leading tier's rate, with every
-              tier's rate on the tooltip so the others are not lost. */}
-          <span
-            title={isSlo && row.members.length > 1 ? perTierRates : undefined}
+        {/* The budget leads the fact columns: how much is left is the SLO's
+            headline state, the burn rate beside it says how fast it is going.
+            Rule rows keep the empty slot on md+ so the grid holds, and drop
+            it on the phone's stacked facts line. */}
+        {isSlo ? (
+          <FactCell
+            col={COL_BUDGET}
+            className="pl-8 md:pl-0"
+            label="budget left"
+            title="Error budget remaining"
           >
+            {/* `hang` keeps the figure on the shared value line, the meter
+                tucked below it into the row padding (md:pb-2.5 above). */}
+            <CcBudgetBar remaining={budget} hang className="w-24" />
+          </FactCell>
+        ) : (
+          <span
+            aria-hidden
+            className={cn("hidden shrink-0 md:block", COL_BUDGET)}
+          />
+        )}
+        {/* SLO rows carry the tier's burn rate as their value: print it at
+            the engine's own precision (one decimal, ×) instead of the raw
+            float. A merged row shows its leading tier's rate, with every
+            tier's rate on the tooltip so the others are not lost. */}
+        <FactCell
+          col={COL_VALUE}
+          // The mobile facts line indents its first cell under the content
+          // column; on SLO rows the budget cell above leads instead.
+          className={isSlo ? undefined : "pl-8 md:pl-0"}
+          label={isSlo ? "burn rate" : (valueLabel ?? "value")}
+          title={
+            isSlo && row.members.length > 1
+              ? `burn rate — ${perTierRates}`
+              : undefined
+          }
+        >
+          <span className="font-mono text-xs tabular-nums">
             {isSlo && typeof alert.value === "number"
               ? ccFmtBurn(alert.value)
               : (alert.value ?? "—")}
           </span>
-        </span>
-        <span
-          className="shrink-0 text-xs whitespace-nowrap text-muted-foreground md:w-24 md:text-right"
-          title={ccFormatTs(activeSince)}
+        </FactCell>
+        {/* Every row here is firing, so the label doubles as the state
+            announcement: a bare "12h ago" would read as easily as "last
+            evaluated". */}
+        <FactCell
+          col={COL_SINCE}
+          label="firing since"
+          title={
+            activeSince ? `firing since ${ccFormatTs(activeSince)}` : undefined
+          }
         >
-          {activeSince ? <RelativeTime timestamp={activeSince} /> : "—"}
-        </span>
-        <span className="flex min-w-0 flex-1 items-center justify-end gap-2 overflow-hidden md:w-56 md:flex-none">
+          <span className="text-xs text-muted-foreground">
+            {activeSince ? <RelativeTime timestamp={activeSince} /> : "—"}
+          </span>
+        </FactCell>
+        {/* Its own line below md: squeezed between the other facts it would
+            clip from the left, and "not routed" clipped to "routed" asserts
+            the opposite of the truth. */}
+        <span
+          className={cn(
+            "flex min-w-0 items-center gap-2 overflow-hidden max-md:basis-full max-md:pl-8 md:flex-none md:justify-end",
+            COL_DELIVERY,
+          )}
+        >
           {silence && (
             <span
               className="inline-flex items-center gap-1 text-xs text-muted-foreground"
@@ -421,6 +620,35 @@ function InstanceRow({
           )}
           {deliveryFact}
         </span>
+        <LineActions>
+          {runbook && (
+            <Link
+              to="/runbooks/$project/$slug"
+              params={runbook}
+              aria-label="Runbook"
+              title="Runbook"
+              className={lineActionClass}
+            >
+              <BookOpenText />
+            </Link>
+          )}
+          {/* On a merged line the silence mutes the whole source (and keeps
+              the header action's accessible name); a sub-row's silence pins
+              this row's labels so its siblings keep paging. */}
+          <button
+            type="button"
+            aria-label={
+              merged
+                ? `Silence everything under ${group.name}`
+                : `Silence ${rowName}`
+            }
+            title="Silence"
+            onClick={onGroupSilence}
+            className={lineActionClass}
+          >
+            <BellOff />
+          </button>
+        </LineActions>
       </div>
       {expanded && children}
     </div>
@@ -434,6 +662,7 @@ export function TriageBoard({
   pending,
   channelsByReceiver,
   hasSubscribers,
+  sloStatusGroups,
   watchingRules,
   lastEventTs,
   eventsUnavailable,
@@ -443,6 +672,8 @@ export function TriageBoard({
   pending: boolean;
   channelsByReceiver: Map<string, string[]>;
   hasSubscribers: boolean;
+  /** Each SLO's status groups, for the per-row budget readout. */
+  sloStatusGroups: Map<string, CcSloGroupStatus[]>;
   /** For the all-clear readout: how many rules are unpaused. */
   watchingRules: number;
   /** For the all-clear readout: timestamp of the newest stored event. */
@@ -481,6 +712,16 @@ export function TriageBoard({
     onError: (e) => toast.error(ccErrorMessage(e)),
   });
 
+  // Each SLO's status groups keyed for O(1) row lookups, rebuilt only when
+  // the overlaid map actually changes.
+  const budgetIndexes = useMemo(
+    () =>
+      new Map(
+        [...sloStatusGroups].map(([id, groups]) => [id, ccBudgetIndex(groups)]),
+      ),
+    [sloStatusGroups],
+  );
+
   return (
     // role/label: the board is a landmark distinct from the silences panel
     // below, for assistive tech and scoped queries alike.
@@ -516,126 +757,99 @@ export function TriageBoard({
           </div>
         ) : (
           <div className="divide-y divide-border/60">
-            {groups.map((group) => (
-              <section key={group.sourceId} className="py-1">
-                <div className="flex items-center gap-2.5 px-3 py-1.5">
-                  {group.sloId !== undefined ? (
-                    group.slo ? (
-                      <Link
-                        to="/alerts/slos/$project/$slug"
-                        params={parseResourceName(group.slo.name)}
-                        className="text-sm font-medium text-foreground underline-offset-2 hover:underline"
-                      >
-                        {group.name}
-                      </Link>
-                    ) : (
-                      <span className="text-sm font-medium text-foreground">
-                        {group.name}
-                      </span>
+            {groups.map((group) => {
+              const merged = group.rows.length === 1;
+              const rows = group.rows.map((row) => (
+                <InstanceRow
+                  key={row.lead.alert.key}
+                  row={row}
+                  group={group}
+                  budget={
+                    group.sloId !== undefined
+                      ? ccRowBudget(row, budgetIndexes.get(group.sloId))
+                      : null
+                  }
+                  expanded={expandedKey === row.lead.alert.key}
+                  onToggle={() =>
+                    setExpandedKey((k) =>
+                      k === row.lead.alert.key ? null : row.lead.alert.key,
                     )
-                  ) : group.rule ? (
-                    <Link
-                      to="/alerts/rules/$project/$slug"
-                      params={parseResourceName(group.rule.name)}
-                      className="text-sm font-medium text-foreground underline-offset-2 hover:underline"
-                    >
-                      {group.name}
-                    </Link>
-                  ) : (
-                    <span className="text-sm font-medium text-foreground">
-                      {group.name}
-                    </span>
-                  )}
-                  {group.sloId !== undefined && (
-                    // Origin marker: this group is an SLO's burn-rate
-                    // alerting, not a rule's.
-                    <Pill className="text-muted-foreground">SLO</Pill>
-                  )}
-                  <CcSeverityBadge severity={group.severity} />
-                  {/* No row count here: every row renders directly below,
-                      uncapped, so the number only ever restates what is
-                      already on screen. */}
-                  {/* One mute for the whole source: opens the drawer seeded
-                        with the synthetic scoping matcher (slo/rule), so a
-                        30-row group is one review-and-create away instead of
-                        30 per-row silences. */}
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="ml-auto text-muted-foreground"
-                    aria-label={`Silence everything under ${group.name}`}
-                    onClick={() =>
-                      onCustomSilence([
-                        group.sloId !== undefined
-                          ? { label: "slo", op: "eq", value: group.sloId }
-                          : {
-                              label: "rule",
-                              op: "eq",
-                              value: group.sourceId,
-                            },
-                      ])
+                  }
+                  // A merged line's silence covers the whole source: one
+                  // review-and-create seeded with the synthetic scoping
+                  // matcher (slo/rule), so a 30-row group is one silence
+                  // instead of 30.
+                  onGroupSilence={() =>
+                    onCustomSilence(
+                      merged
+                        ? ccGroupSilenceMatchers(group)
+                        : ccSourceScopedSilenceMatchers(row.lead.alert),
+                    )
+                  }
+                  deliveryFact={
+                    <DeliveryFact
+                      matchedRoutes={row.lead.matchedRoutes}
+                      channelsByReceiver={channelsByReceiver}
+                      hasSubscribers={hasSubscribers}
+                    />
+                  }
+                >
+                  <InstanceDetail
+                    inst={row.lead}
+                    silencePending={silenceInstance.isPending}
+                    onSilence={(hours) =>
+                      silenceInstance.mutate({
+                        alert: row.lead.alert,
+                        hours,
+                      })
                     }
-                  >
-                    <BellOff data-icon="inline-start" />
-                    Silence all
-                  </Button>
-                </div>
-                <div className="hidden items-center gap-3 px-3 pb-0.5 text-[0.625rem] font-medium tracking-wide text-muted-foreground/70 uppercase md:flex">
-                  <span className="size-5 shrink-0" />
-                  <span className="w-16 shrink-0" />
-                  <span className="min-w-0 flex-1" />
-                  <span className="w-16 shrink-0 text-right">
-                    {group.sloId !== undefined
-                      ? "burn rate"
-                      : group.rule?.spec.value_column || "value"}
-                  </span>
-                  <span className="w-24 shrink-0" />
-                  <span className="w-56 shrink-0" />
-                </div>
-                {group.rows.map((row) => (
-                  <InstanceRow
-                    key={row.lead.alert.key}
-                    row={row}
-                    valueLabel={
-                      group.sloId !== undefined
-                        ? "burn rate"
-                        : group.rule?.spec.value_column || "value"
-                    }
-                    expanded={expandedKey === row.lead.alert.key}
-                    onToggle={() =>
-                      setExpandedKey((k) =>
-                        k === row.lead.alert.key ? null : row.lead.alert.key,
+                    onCustomSilence={() =>
+                      // The create drawer lives on the page — a custom
+                      // silence opens pre-seeded in place, no navigation.
+                      onCustomSilence(
+                        ccSourceScopedSilenceMatchers(row.lead.alert),
                       )
                     }
-                    deliveryFact={
-                      <DeliveryFact
-                        matchedRoutes={row.lead.matchedRoutes}
-                        channelsByReceiver={channelsByReceiver}
-                        hasSubscribers={hasSubscribers}
-                      />
-                    }
-                  >
-                    <InstanceDetail
-                      inst={row.lead}
-                      silencePending={silenceInstance.isPending}
-                      onSilence={(hours) =>
-                        silenceInstance.mutate({
-                          alert: row.lead.alert,
-                          hours,
-                        })
-                      }
-                      onCustomSilence={() =>
-                        // The create drawer lives on the page — a custom
-                        // silence opens pre-seeded in place, no navigation.
-                        onCustomSilence(
-                          ccSourceScopedSilenceMatchers(row.lead.alert),
-                        )
-                      }
-                    />
-                  </InstanceRow>
-                ))}
-              </section>
-            ))}
+                  />
+                </InstanceRow>
+              ));
+              return (
+                // The section adds no padding of its own: the rows carry it,
+                // so their hover highlight runs divider to divider, no seam.
+                <section key={group.sourceId}>
+                  {merged ? (
+                    rows
+                  ) : (
+                    <>
+                      <div className="flex items-center gap-2 px-3 pt-2 pb-0.5">
+                        <GroupIdentity group={group} />
+                        {/* No row count here: every row renders directly
+                            below, uncapped, so the number only ever restates
+                            what is already on screen. */}
+                        {/* Not LineActions: rows can hide their shortcuts
+                            below md because the expanded detail carries the
+                            full set, but this header has no detail, so its
+                            one action stays visible on touch too. */}
+                        <span className="ml-auto flex shrink-0 items-center">
+                          <button
+                            type="button"
+                            aria-label={`Silence everything under ${group.name}`}
+                            title="Silence all"
+                            onClick={() =>
+                              onCustomSilence(ccGroupSilenceMatchers(group))
+                            }
+                            className={lineActionClass}
+                          >
+                            <BellOff />
+                          </button>
+                        </span>
+                      </div>
+                      {rows}
+                    </>
+                  )}
+                </section>
+              );
+            })}
           </div>
         )}
       </CardContent>

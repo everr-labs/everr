@@ -146,14 +146,10 @@ function SloPromiseCell({
   const identity = ccSloIdentity(slo);
   const { label_columns } = slo.spec.sli;
   return (
-    <span className="flex items-start gap-2">
-      {/* A fixed slot, filled or not: the glyphs line up down the list, and a
-          row whose snapshot has not resolved keeps its name on the same
-          left edge as every other row instead of sliding out. */}
-      <span className="flex w-3.5 shrink-0 justify-center pt-1">
-        <CcHealthHeart status={health} />
-      </span>
-      <span className="flex flex-col gap-1">
+    <span className="flex flex-col gap-1">
+      {/* Health rides beside the name, and only when broken: the glyph is an
+          exception marker, so healthy rows spend no space on it. */}
+      <span className="flex items-center gap-2">
         <Link
           to="/alerts/slos/$project/$slug"
           params={{ project: identity.project, slug: identity.slug }}
@@ -164,16 +160,17 @@ function SloPromiseCell({
         >
           {identity.name}
         </Link>
-        <span className="text-[0.6875rem] whitespace-nowrap text-muted-foreground">
-          {ccFormatSloTarget(slo.spec.targetPercent)} over{" "}
-          {ccSloWindowLabel(slo.spec)}
-          {label_columns.length > 0 && (
-            <>
-              {" · by "}
-              <span className="font-mono">{label_columns.join(", ")}</span>
-            </>
-          )}
-        </span>
+        <CcHealthHeart status={health} />
+      </span>
+      <span className="text-[0.6875rem] whitespace-nowrap text-muted-foreground">
+        {ccFormatSloTarget(slo.spec.targetPercent)} over{" "}
+        {ccSloWindowLabel(slo.spec)}
+        {label_columns.length > 0 && (
+          <>
+            {" · by "}
+            <span className="font-mono">{label_columns.join(", ")}</span>
+          </>
+        )}
       </span>
     </span>
   );

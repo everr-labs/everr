@@ -91,17 +91,33 @@ export function CcBudgetMeter({
 export function CcBudgetBar({
   remaining,
   className,
+  hang = false,
 }: {
   /** Budget remaining as a 0..1 fraction (may go negative); null = unknown. */
   remaining: number | null;
   className?: string;
+  /**
+   * md+ only: right-align the stack like a numeric fact column and pull the
+   * meter out of its height, so the figure sits on the caller's shared value
+   * line with the meter hanging just below (into the caller's row padding).
+   * The negative margin must exactly cancel the sm meter (h-1) plus the
+   * tightened gap; it lives here, next to the meter it measures, so a meter
+   * size change cannot silently knock a caller's grid out of alignment.
+   */
+  hang?: boolean;
 }) {
   if (remaining === null) {
     return <span className="text-xs text-muted-foreground">—</span>;
   }
   const tone = ccBudgetTextTone(remaining);
   return (
-    <span className={cn("flex w-full flex-col items-start gap-1", className)}>
+    <span
+      className={cn(
+        "flex w-full flex-col items-start gap-1",
+        hang && "md:-mb-1.5 md:items-end md:gap-0.5",
+        className,
+      )}
+    >
       {/* The printed figure is the accessible value; the meter under it is a
           purely visual double-encoding of the same number. */}
       <span

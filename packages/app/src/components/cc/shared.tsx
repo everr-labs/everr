@@ -38,7 +38,6 @@ import { Link } from "@tanstack/react-router";
 import {
   ArrowRight,
   ChevronRight,
-  Heart,
   HeartCrack,
   Info,
   type LucideIcon,
@@ -134,15 +133,19 @@ type Tone =
   | "degraded"
   | "healthy"
   | "resolved"
-  | "warning";
+  | "warning"
+  | "info";
 
 // Each status tone maps onto one health tone; the colour itself lives in
 // ./tone.ts. `degraded` is rule-health rather than alert state, so it shares
 // warning's amber: "needs attention", never confused with a firing alert.
+// `info` is the logs explorer's info sky, so the severity word carries the
+// same colour on every surface.
 const TONE_KIND: Record<Tone, HealthTone> = {
   firing: "danger",
   degraded: "warning",
   warning: "warning",
+  info: "info",
   pending: "live",
   healthy: "healthy",
   inactive: "muted",
@@ -210,7 +213,9 @@ export function CcSeverityBadge({ severity }: { severity: string }) {
       ? "firing"
       : severity === "warning"
         ? "warning"
-        : "inactive";
+        : severity === "info"
+          ? "info"
+          : "inactive";
   return <CcStatusLabel tone={tone}>{severity}</CcStatusLabel>;
 }
 
@@ -512,33 +517,13 @@ export function ccFormatTs(ts: string | null | undefined): string {
 
 // ── Evaluation health ─────────────────────────────────────────────────────────
 
-const HEART = {
-  healthy: {
-    Icon: Heart,
-    tone: "healthy",
-    label: "Evaluating",
-    detail: "The query is evaluating on schedule.",
-  },
-  degraded: {
-    Icon: HeartCrack,
-    tone: "danger",
-    label: "Evaluation degraded",
-    detail:
-      "The query is failing, so this is not being evaluated. Nothing new can fire and the numbers stop moving until it runs again.",
-  },
-} as const satisfies Record<
-  CcRuleHealthStatus,
-  { Icon: LucideIcon; tone: HealthTone; label: string; detail: string }
->;
-
 /**
- * Evaluation health as a single glyph: a whole heart while the query runs, a
- * broken one when it does not. Deliberately the smallest possible readout —
- * a listing cannot act on the forensics, so it carries the fact and the
- * tooltip carries the consequence.
- *
- * Renders nothing without a status: an SLO with no snapshot yet has no health
- * to report, and a placeholder would read as a verdict.
+ * Evaluation health as a single glyph, and only when something is wrong: a
+ * broken heart while the query is failing, nothing at all while it runs.
+ * Healthy is the overwhelmingly common state, so marking it on every row is
+ * noise; absence is the healthy reading. Deliberately the smallest possible
+ * readout — a listing cannot act on the forensics, so the glyph carries the
+ * fact and the tooltip carries the consequence.
  */
 export function CcHealthHeart({
   status,
@@ -547,8 +532,7 @@ export function CcHealthHeart({
   status: CcRuleHealthStatus | undefined;
   className?: string;
 }) {
-  if (!status) return null;
-  const { Icon, tone, label, detail } = HEART[status];
+  if (status !== "degraded") return null;
   return (
     <Tooltip>
       <TooltipTrigger
@@ -557,18 +541,21 @@ export function CcHealthHeart({
           // keyboard, and this is the only explanation of the glyph there is.
           <button
             type="button"
-            aria-label={label}
+            aria-label="Evaluation degraded"
             className={cn(
               "inline-flex shrink-0 items-center rounded-sm outline-2 outline-dotted outline-transparent outline-offset-2 focus-visible:outline-primary",
-              toneText({ tone }),
+              toneText({ tone: "danger" }),
               className,
             )}
           />
         }
       >
-        <Icon className="size-3.5" aria-hidden />
+        <HeartCrack className="size-3.5" aria-hidden />
       </TooltipTrigger>
-      <TooltipContent className="max-w-xs text-xs">{detail}</TooltipContent>
+      <TooltipContent className="max-w-xs text-xs">
+        The query is failing, so this is not being evaluated. Nothing new can
+        fire and the numbers stop moving until it runs again.
+      </TooltipContent>
     </Tooltip>
   );
 }

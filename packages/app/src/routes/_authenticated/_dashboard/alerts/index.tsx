@@ -1,7 +1,8 @@
 import { Skeleton } from "@everr/ui/components/skeleton";
 import { useQueries, useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
-import { useMemo, useRef } from "react";
+import { useCallback, useMemo, useRef } from "react";
+import { CcExhaustedBudgetsCard } from "@/components/cc/exhausted-budgets";
 import { CcPageIntro } from "@/components/cc/page-intro";
 import { CcPipelineStrip } from "@/components/cc/pipeline-strip";
 import { CcQueryError } from "@/components/cc/shared";
@@ -10,16 +11,24 @@ import {
   type SilenceDrawerHandle,
   SilencesPanel,
 } from "@/components/cc/silences-panel";
-import { CcSloPostureCard, firingTiersOf } from "@/components/cc/slo-posture";
 import { TriageBoard } from "@/components/cc/triage-board";
 import { ccQueries } from "@/data/cc/queries";
-import { CC_CANONICAL_SLO_TIERS, ccWorstSloGroup } from "@/data/cc/slo";
 import {
+  type CcFreshBudgetGroup,
+  ccApplyFreshBudget,
+  ccBudgetExhausted,
+  ccSloTiers,
+  ccSloWindowSecs,
+} from "@/data/cc/slo";
+import {
+  ccExhaustedBudgets,
+  ccFiringGroups,
   ccGroupInstances,
   ccResolveTriageInstances,
   ccTriageCounts,
   TRIAGE_EVENT_RANGE,
 } from "@/data/cc/triage";
+import type { CcSloStatus } from "@/data/cc/types";
 
 // The board reads one stored event, and only to date-stamp the all-clear
 // readout ("last event 4m ago"), which is what separates a quiet board from a
@@ -75,8 +84,24 @@ function CcTriagePage() {
   );
   const slosData = slos.data ?? EMPTY;
   const rulesData = rules.data ?? EMPTY;
-  const sloStatuses = useQueries({
+  // Combined straight into the shape the boards read (sloId → status groups):
+  // the per-row budget readout and the exhausted-budgets card both resolve
+  // against it. The combine is memoized because TanStack caches the combined
+  // value per combine-function identity: an inline arrow would be a new
+  // function every render, handing out a fresh Map each time and re-running
+  // the whole derivation chain below for nothing.
+  const snapshotStatusGroups = useQueries({
     queries: slosData.map((s) => ccQueries.sloStatus(s.id)),
+    combine: useCallback(
+      (results: { data?: CcSloStatus | null }[]) =>
+        new Map(
+          slosData.map((s, i) => [
+            s.id,
+            results[i]?.data?.payload?.groups ?? [],
+          ]),
+        ),
+      [slosData],
+    ),
   });
 
   // On a CC outage every count would render 0 — actively misleading (a false
@@ -115,12 +140,68 @@ function CcTriagePage() {
     [alerts.data, rulesData, slosData, routes.data, silences.data],
   );
   const groups = useMemo(() => ccGroupInstances(instances), [instances]);
-  // Counted off the grouped rows, not the raw instances, so the strip tallies
-  // exactly what the board draws.
+  // Counts run over the FULL grouping (pending included); the board then
+  // takes the firing-only cut, so the strip can still say "2 pending" while
+  // triage lists only what is wrong right now.
   const counts = useMemo(
     () => ccTriageCounts(groups, silences.data ?? EMPTY, Date.now()),
     [groups, silences.data],
   );
+  const boardGroups = useMemo(() => ccFiringGroups(groups), [groups]);
+
+  // The engine snapshot's budget lags (the budget window re-evaluates only
+  // every ~window/12), so the SLOs this page actually displays — firing ones,
+  // plus the snapshot-exhausted — get the same read-time budget scan the SLO
+  // detail and listing pages use. A bounded fan-out: triage never scans SLOs
+  // it does not show.
+  const freshIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const g of boardGroups) {
+      if (g.sloId !== undefined) ids.add(g.sloId);
+    }
+    // Membership only — the full exhausted derivation (sort included) runs
+    // once, later, over the overlaid groups.
+    for (const slo of slosData) {
+      if (slo.paused) continue;
+      const snapshot = snapshotStatusGroups.get(slo.id) ?? [];
+      if (snapshot.some((g) => ccBudgetExhausted(g.budget_remaining))) {
+        ids.add(slo.id);
+      }
+    }
+    return [...ids];
+  }, [boardGroups, slosData, snapshotStatusGroups]);
+  const freshBudgets = useQueries({
+    queries: freshIds.map((id) => ccQueries.sloBudgetNow(id)),
+    // Memoized for the same reason as the snapshot combine above.
+    combine: useCallback(
+      (results: { data?: CcFreshBudgetGroup[] }[]) =>
+        new Map(freshIds.map((id, i) => [id, results[i]?.data])),
+      [freshIds],
+    ),
+  });
+  // Snapshot groups with fresh budgets overlaid where the scan has landed;
+  // the snapshot stays the instant fallback, exactly as on the SLO pages.
+  const sloStatusGroups = useMemo(() => {
+    const sloById = new Map(slosData.map((s) => [s.id, s]));
+    const map = new Map(snapshotStatusGroups);
+    for (const [id, fresh] of freshBudgets) {
+      const slo = sloById.get(id);
+      const snapshot = snapshotStatusGroups.get(id);
+      if (fresh === undefined || slo === undefined || snapshot === undefined) {
+        continue;
+      }
+      map.set(
+        id,
+        ccApplyFreshBudget(
+          ccSloTiers(slo.spec),
+          snapshot,
+          fresh,
+          ccSloWindowSecs(slo.spec),
+        ),
+      );
+    }
+    return map;
+  }, [slosData, snapshotStatusGroups, freshBudgets]);
 
   const watchingRules = rulesData.filter((r) => !r.paused).length;
   // Every row-derived number comes from `counts`; nothing is re-filtered here,
@@ -134,16 +215,12 @@ function CcTriagePage() {
     receiverCount: (receivers.data ?? EMPTY).length,
   };
 
-  const sloPosture = slosData.map((slo, i) => {
-    const status = sloStatuses[i];
-    const statusGroups = status.data?.payload?.groups ?? [];
-    return {
-      slo,
-      statusPending: status.isPending,
-      worst: ccWorstSloGroup(statusGroups),
-      firing: firingTiersOf(CC_CANONICAL_SLO_TIERS, statusGroups),
-    };
-  });
+  // The standing damage, firing or not: every spent budget, for the card
+  // under the board.
+  const exhausted = useMemo(
+    () => ccExhaustedBudgets(slosData, sloStatusGroups),
+    [slosData, sloStatusGroups],
+  );
 
   if (errored) return <CcQueryError error={errored.error} />;
 
@@ -175,10 +252,11 @@ function CcTriagePage() {
       )}
 
       <TriageBoard
-        groups={groups}
+        groups={boardGroups}
         pending={pending}
         channelsByReceiver={channelsByReceiver}
         hasSubscribers={(subscriptions.data ?? []).length > 0}
+        sloStatusGroups={sloStatusGroups}
         watchingRules={watchingRules}
         lastEventTs={lastEventTs}
         eventsUnavailable={events.isError}
@@ -187,8 +265,9 @@ function CcTriagePage() {
         }
       />
 
-      {/* Error budget posture, worst group per SLO. */}
-      <CcSloPostureCard posture={sloPosture} pending={slos.isPending} />
+      {/* Which promises are already broken — outlives the fire that broke
+          them, so it is its own board rather than a lens on the one above. */}
+      <CcExhaustedBudgetsCard items={exhausted} />
 
       {/* Muting lives where muting happens: the silences inventory sits under
           the board, and the create drawer is shared with the row actions. */}

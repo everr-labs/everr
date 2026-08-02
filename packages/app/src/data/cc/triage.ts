@@ -11,7 +11,9 @@ import {
 } from "@/data/cc/route-resolution";
 import {
   CC_CANONICAL_SLO_TIERS,
+  ccBudgetExhausted,
   ccSloIdentity,
+  ccSloLabelsKey,
   ccSloTierSeverity,
 } from "@/data/cc/slo";
 import type {
@@ -21,6 +23,7 @@ import type {
   CcRuleView,
   CcSilence,
   CcSlo,
+  CcSloGroupStatus,
 } from "@/data/cc/types";
 
 // The alerts layout hides the global time-range picker, so every triage surface
@@ -56,7 +59,7 @@ export function ccRunbookParams(
 }
 
 /** The severity an SLO-sourced instance fires at: its tier's severity. */
-export function ccSloInstanceSeverity(alert: CcAlert) {
+function ccSloInstanceSeverity(alert: CcAlert) {
   return ccSloTierSeverity(CC_CANONICAL_SLO_TIERS, alert.labels);
 }
 
@@ -85,6 +88,40 @@ export function ccSourceScopedSilenceMatchers(alert: CcAlert): CcMatcher[] {
       ? { label: "slo", op: "eq" as const, value: alert.slo }
       : { label: "rule", op: "eq" as const, value: alert.rule },
   ];
+}
+
+/**
+ * The single matcher a whole-source silence carries: the same synthetic
+ * scoping label ccSourceScopedSilenceMatchers pins, without the per-instance
+ * labels — one silence mutes everything under the source.
+ */
+export function ccGroupSilenceMatchers(group: TriageGroup): CcMatcher[] {
+  return [
+    group.sloId !== undefined
+      ? { label: "slo", op: "eq" as const, value: group.sloId }
+      : { label: "rule", op: "eq" as const, value: group.sourceId },
+  ];
+}
+
+/**
+ * Where a routed instance's notifications actually land: the deduped receiver
+ * names, the channels they fan out to, and the receivers that fan out to
+ * nothing (no channels configured, or the route names a receiver that does
+ * not exist). Matched routes with `channels` empty means delivery reaches no
+ * one — the "not routed" trap wearing a receiver name.
+ */
+export function ccDeliveryFanout(
+  matchedRoutes: CcRoute[],
+  channelsByReceiver: Map<string, string[]>,
+): { receivers: string[]; channels: string[]; dead: string[] } {
+  const receivers = [...new Set(matchedRoutes.map((r) => r.receiver))];
+  const channels = [
+    ...new Set(receivers.flatMap((n) => channelsByReceiver.get(n) ?? [])),
+  ];
+  const dead = receivers.filter(
+    (n) => (channelsByReceiver.get(n) ?? []).length === 0,
+  );
+  return { receivers, channels, dead };
 }
 
 /**
@@ -151,6 +188,80 @@ export type TriageGroup = {
   severity: string;
   rows: TriageRow[];
 };
+
+// ── Error budget ──────────────────────────────────────────────────────────────
+
+/**
+ * Budget remaining by label-set key for one SLO's status groups, computed
+ * once so each board row is a single key derivation and an O(1) lookup
+ * instead of re-keying every group per row.
+ */
+export function ccBudgetIndex(
+  statusGroups: CcSloGroupStatus[],
+): Map<string, number | null> {
+  return new Map(
+    statusGroups.map((g) => [labelSetKey(g.labels), g.budget_remaining]),
+  );
+}
+
+/**
+ * This row's own error budget remaining, from the status group whose labels
+ * equal the row's label set — not the SLO's worst group, which may be a
+ * different label set entirely. Null when the status has not resolved or
+ * carries no matching group (a snapshot can lag a newly-firing label set).
+ */
+export function ccRowBudget(
+  row: TriageRow,
+  index: Map<string, number | null> | undefined,
+): number | null {
+  return index?.get(labelSetKey(row.lead.alert.labels)) ?? null;
+}
+
+/** One spent budget: an SLO label-set group with nothing left. */
+export type CcExhaustedBudget = {
+  slo: CcSlo;
+  group: CcSloGroupStatus;
+};
+
+/**
+ * Every SLO label-set whose error budget is spent, worst first — the standing
+ * damage, whether or not anything is firing on it right now (burn may have
+ * stopped after the harm, or still be running; either way the budget is
+ * gone, which is its own operational state: a deploy freeze, for teams that
+ * practice one). Paused SLOs are skipped: their snapshots are frozen, and a
+ * stale "exhausted" would be a claim the engine is no longer making.
+ */
+export function ccExhaustedBudgets(
+  slos: CcSlo[],
+  statusGroupsBySlo: Map<string, CcSloGroupStatus[]>,
+): CcExhaustedBudget[] {
+  const spent: { entry: CcExhaustedBudget; remaining: number }[] = [];
+  for (const slo of slos) {
+    if (slo.paused) continue;
+    for (const group of statusGroupsBySlo.get(slo.id) ?? []) {
+      const remaining = group.budget_remaining;
+      if (ccBudgetExhausted(remaining)) {
+        spent.push({ entry: { slo, group }, remaining });
+      }
+    }
+  }
+  return spent.sort((a, b) => a.remaining - b.remaining).map((s) => s.entry);
+}
+
+/**
+ * The board's cut of the grouped rows: firing only. Pending and inactive
+ * instances stay in the derivation (the pipeline strip counts them), but
+ * triage lists what is wrong right now, and a row that is not firing is not
+ * that. Groups left with no firing row disappear entirely.
+ */
+export function ccFiringGroups(groups: TriageGroup[]): TriageGroup[] {
+  return groups
+    .map((group) => ({
+      ...group,
+      rows: group.rows.filter((row) => row.lead.alert.status === "firing"),
+    }))
+    .filter((group) => group.rows.length > 0);
+}
 
 // ── Derivation ────────────────────────────────────────────────────────────────
 
@@ -249,12 +360,14 @@ export function ccTriageCounts(
   };
 }
 
-/** A label set's identity, ignoring which burn-rate tier reported it. */
-function labelSetKey(alert: CcAlert): string {
-  return JSON.stringify(
-    Object.entries(alert.labels)
-      .filter(([k]) => k !== "slo_tier")
-      .sort(([a], [b]) => a.localeCompare(b)),
+/** A label set's identity, ignoring which burn-rate tier reported it: the
+ *  SLO pages' canonical group key over the tier-stripped labels, so a board
+ *  row and a status group agree on "same group" by construction. */
+function labelSetKey(labels: Record<string, string>): string {
+  return ccSloLabelsKey(
+    Object.fromEntries(
+      Object.entries(labels).filter(([k]) => k !== "slo_tier"),
+    ),
   );
 }
 
@@ -271,7 +384,7 @@ function ccCollapseRows(list: TriageInstance[], isSlo: boolean): TriageRow[] {
   }
   const byLabels = new Map<string, TriageInstance[]>();
   for (const inst of list) {
-    const key = labelSetKey(inst.alert);
+    const key = labelSetKey(inst.alert.labels);
     byLabels.set(key, [...(byLabels.get(key) ?? []), inst]);
   }
   return [...byLabels.values()].map((members) => {

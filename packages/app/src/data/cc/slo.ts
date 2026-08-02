@@ -408,12 +408,23 @@ export type CcSloExhaustion = {
   label: string;
 };
 
+/**
+ * The one definition of a spent budget. Every surface that decides
+ * "exhausted" goes through here, so the boundary (and its null semantics)
+ * can never drift between the SLO pages and the triage damage card.
+ */
+export function ccBudgetExhausted(
+  remaining: number | null,
+): remaining is number {
+  return remaining !== null && remaining <= 0;
+}
+
 export function ccSloExhaustion(
   budgetRemaining: number | null,
   tteSecs: number | null,
   effectiveBurn: number | null,
 ): CcSloExhaustion {
-  if (budgetRemaining !== null && budgetRemaining <= 0) {
+  if (ccBudgetExhausted(budgetRemaining)) {
     return { kind: "exhausted", label: "exhausted" };
   }
   // A zero forecast needs no case of its own: the engine only produces one when
@@ -429,7 +440,7 @@ export function ccSloExhaustion(
 }
 
 /** Order-independent, collision-safe key identifying a group by its label set. */
-function sloLabelsKey(labels: Record<string, string>): string {
+export function ccSloLabelsKey(labels: Record<string, string>): string {
   const sorted: Record<string, string> = {};
   for (const k of Object.keys(labels).sort()) sorted[k] = labels[k];
   return JSON.stringify(sorted);
@@ -454,9 +465,9 @@ export function ccApplyFreshBudget(
   windowSecs: number | null,
 ): CcSloGroupStatus[] {
   if (fresh === undefined || fresh.length === 0) return groups.slice();
-  const byKey = new Map(fresh.map((f) => [sloLabelsKey(f.labels), f]));
+  const byKey = new Map(fresh.map((f) => [ccSloLabelsKey(f.labels), f]));
   return groups.map((g) => {
-    const f = byKey.get(sloLabelsKey(g.labels));
+    const f = byKey.get(ccSloLabelsKey(g.labels));
     if (f === undefined) return g;
     return {
       ...g,
@@ -490,7 +501,7 @@ export function ccSloGroupState(
   group: CcSloGroupStatus | null,
 ): CcSloState {
   if (group === null) return "unknown";
-  if (group.budget_remaining !== null && group.budget_remaining <= 0) {
+  if (ccBudgetExhausted(group.budget_remaining)) {
     return "exhausted";
   }
   const firingSeverities = group.firing_tiers.map((f) =>
