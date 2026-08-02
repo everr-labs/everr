@@ -13,6 +13,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { CircleHelp } from "lucide-react";
 import { useMemo, useState } from "react";
 import { z } from "zod";
+import { PageHeader } from "@/components/page-header";
 import { PanelShell } from "@/components/panel-shell";
 import { TestDurationTrendChart } from "@/components/results/test-duration-trend-chart";
 import { ChildrenTable } from "@/components/test-performance/children-table";
@@ -185,14 +186,14 @@ function TestPerformancePage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight">{pageTitle}</h1>
-        <p className="text-muted-foreground">
-          {isLeaf
+      <PageHeader
+        title={pageTitle}
+        lede={
+          isLeaf
             ? "Individual test execution metrics"
-            : "Analyze test execution duration and failure patterns over time"}
-        </p>
-      </div>
+            : "Analyze test execution duration and failure patterns over time"
+        }
+      />
 
       <TestPerfFilterBar
         timeRange={timeRange}

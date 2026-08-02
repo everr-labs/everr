@@ -20,6 +20,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { ChevronLeft, ChevronRight, CircleHelp, Gauge } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
+import { PageHeader } from "@/components/page-header";
 import { ccQueries } from "@/data/cc/queries";
 import { pauseCcSlo, resumeCcSlo } from "@/data/cc/server";
 import {
@@ -41,7 +42,6 @@ import type {
 } from "@/data/cc/types";
 import { fromCcSlo } from "@/data/slos/mapping";
 import { CcBudgetBar } from "./-components/budget-bar";
-import { CcPageIntro } from "./-components/page-intro";
 import {
   CcEmptyState,
   CcHealthHeart,
@@ -351,7 +351,7 @@ function CcSlosPage() {
 
   return (
     <div className="space-y-3">
-      <CcPageIntro
+      <PageHeader
         title="SLOs"
         lede="Promises, budgets, and whether anything needs attention now."
         docsHref="https://everr.dev/docs/concepts/how-slos-work"

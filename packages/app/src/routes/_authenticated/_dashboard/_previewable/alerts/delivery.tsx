@@ -33,6 +33,7 @@ import {
 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
+import { PageHeader } from "@/components/page-header";
 import { isEverrAnnotationKey } from "@/data/alerts/annotations";
 import { ccQueries } from "@/data/cc/queries";
 import { ccDispatchLabels, ccSelectRoutes } from "@/data/cc/route-resolution";
@@ -54,7 +55,6 @@ import type {
 import { ChannelBuilder } from "./-components/channel-builder";
 import { CHANNEL_ICON, channelTarget } from "./-components/channel-meta";
 import { InhibitionBuilder } from "./-components/inhibition-builder";
-import { CcPageIntro } from "./-components/page-intro";
 import { ReceiverBuilder } from "./-components/receiver-builder";
 import { RouteBuilder } from "./-components/route-builder";
 import { ChannelChip, RoutePreview } from "./-components/route-preview";
@@ -861,7 +861,7 @@ function CcDeliveryPage() {
 
   return (
     <div className="space-y-3">
-      <CcPageIntro
+      <PageHeader
         title="Delivery"
         lede="Who gets told about a firing alert, and how: routes match alerts to receivers, receivers fan out to channels."
         docsHref="https://everr.dev/docs/guides/set-up-notifications"

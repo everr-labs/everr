@@ -16,12 +16,12 @@ import {
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { SlidersHorizontal } from "lucide-react";
 import { toast } from "sonner";
+import { PageHeader } from "@/components/page-header";
 import { ccRuleIdentity } from "@/data/alerts/rule-identity";
 import { ccQueries } from "@/data/cc/queries";
 import { pauseCcRule, resumeCcRule } from "@/data/cc/server";
 import { ccFormatSloDuration } from "@/data/cc/slo";
 import type { CcRuleView } from "@/data/cc/types";
-import { CcPageIntro } from "./-components/page-intro";
 import {
   CcEmptyState,
   CcHealthHeart,
@@ -172,7 +172,7 @@ function CcRulesPage() {
 
   return (
     <div className="space-y-3">
-      <CcPageIntro
+      <PageHeader
         title="Rules"
         lede="The queries watching your telemetry: what each one checks and whether it is firing right now."
         docsHref="https://everr.dev/docs/concepts/how-alerts-work"

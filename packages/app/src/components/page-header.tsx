@@ -1,38 +1,46 @@
-// packages/app/src/routes/_authenticated/_dashboard/_previewable/alerts/-components/page-intro.tsx
-//
-// The intent layer of the alerting IA. Every alerting page opens the same way:
-// its name, the one-sentence job it does, and a "Learn more" link to the
-// concept it belongs to. The depth lives in the docs (everr.dev/docs), not in
-// an in-app disclosure, so the page stays a working surface and the
-// explanation stays in one canonical, versioned place.
-import { ArrowUpRight } from "lucide-react";
+// The one page-header pattern for app routes: title at the DESIGN.md page
+// scale (Inter 700, text-xl, fixed rem), an optional one-sentence lede, an
+// optional icon, right-aligned page-level actions, and an optional docs link.
+// Depth lives in the docs, not in-app disclosures, so the page stays a
+// working surface and the explanation stays in one canonical place.
+import { cn } from "@everr/ui/lib/utils";
+import { ArrowUpRight, type LucideIcon } from "lucide-react";
 import type { ReactNode } from "react";
 
-export function CcPageIntro({
+export function PageHeader({
   title,
   lede,
+  icon: Icon,
   actions,
   docsHref,
   docsLabel = "Learn more",
+  className,
 }: {
-  title: string;
+  title: ReactNode;
   /** One plain-language sentence: the page's job. */
-  lede: ReactNode;
+  lede?: ReactNode;
+  icon?: LucideIcon;
   /** Right-aligned page-level actions (primary buttons). */
   actions?: ReactNode;
   /** Docs URL for the concept behind this page (everr.dev/docs/...). */
   docsHref?: string;
   /** Link text; defaults to "Learn more". */
   docsLabel?: string;
+  className?: string;
 }) {
   return (
-    <header className="space-y-1">
+    <header className={cn("space-y-1", className)}>
       <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-2">
         <div className="space-y-0.5">
-          <h1 className="text-sm font-semibold tracking-tight text-foreground">
+          <h1 className="flex items-center gap-2 text-xl font-bold tracking-tight">
+            {Icon && (
+              <Icon aria-hidden className="size-5 text-muted-foreground" />
+            )}
             {title}
           </h1>
-          <p className="max-w-prose text-xs text-muted-foreground">{lede}</p>
+          {lede && (
+            <p className="max-w-prose text-sm text-muted-foreground">{lede}</p>
+          )}
         </div>
         {actions && (
           <div className="flex shrink-0 items-center gap-2">{actions}</div>

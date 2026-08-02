@@ -2,6 +2,7 @@ import { Skeleton } from "@everr/ui/components/skeleton";
 import { useQueries, useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { useCallback, useMemo, useRef } from "react";
+import { PageHeader } from "@/components/page-header";
 import { ccQueries } from "@/data/cc/queries";
 import { ccBudgetExhausted } from "@/data/cc/slo";
 import {
@@ -14,7 +15,6 @@ import {
 } from "@/data/cc/triage";
 import type { CcSloStatus } from "@/data/cc/types";
 import { CcExhaustedBudgetsCard } from "./-components/exhausted-budgets";
-import { CcPageIntro } from "./-components/page-intro";
 import { CcPipelineStrip } from "./-components/pipeline-strip";
 import { CcQueryError } from "./-components/shared";
 import {
@@ -201,7 +201,7 @@ function CcTriagePage() {
 
   return (
     <div className="space-y-3">
-      <CcPageIntro
+      <PageHeader
         title="Triage"
         lede="Everything firing or muted right now, and the fastest way to act on it: silence it, follow its runbook, check who was told."
         docsHref="https://everr.dev/docs/concepts/how-alerts-work"
