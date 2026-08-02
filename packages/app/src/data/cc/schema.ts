@@ -2,12 +2,12 @@ import { z } from "zod";
 
 export const CcSeveritySchema = z.enum(["info", "warning", "critical"]);
 export const CcMatchOpSchema = z.enum(["eq", "ne", "regex", "notregex"]);
-export const CcInstanceStatusSchema = z.enum(["inactive", "pending", "firing"]);
+const CcInstanceStatusSchema = z.enum(["inactive", "pending", "firing"]);
 
 // CC serializes every API timestamp as an RFC-3339 string (serde's rfc3339
 // format on `OffsetDateTime`), which `new Date(...)` parses directly.
-export const CcTimestampSchema = z.string();
-export const CcTimestampNullable = CcTimestampSchema.nullable();
+const CcTimestampSchema = z.string();
+const CcTimestampNullable = CcTimestampSchema.nullable();
 
 export const CcMatcherSchema = z.object({
   label: z.string(),
@@ -35,7 +35,7 @@ export const CcRuleSpecSchema = z.object({
 // derive from this schema rather than re-declaring the union.
 export const CcRuleHealthStatusSchema = z.enum(["healthy", "degraded"]);
 
-export const CcRuleHealthSchema = z.object({
+const CcRuleHealthSchema = z.object({
   // `.catch("healthy")`: the previous z.string() tolerated unknown values, and
   // every reader already treated non-"degraded" as healthy, so vocabulary
   // drift keeps parsing (and keeps its old healthy rendering) instead of
@@ -67,7 +67,7 @@ export const CcRuleSchema = z.object({
 });
 
 // SP2 2a rolls up alert state onto each RuleView under a nested `rollup` object.
-export const CcRuleRollupSchema = z.object({
+const CcRuleRollupSchema = z.object({
   alert_state: CcInstanceStatusSchema,
   firing_instance_count: z.number().int().default(0),
   last_fired_at: CcTimestampNullable,
@@ -300,14 +300,14 @@ export const CcSloViewSchema = CcSloSchema.extend({
 
 // The evaluator's health sibling on GET /v1/slos/:id/status (stores/pg.rs
 // SloHealth — a leaner cousin of CcRuleHealthSchema, same status vocabulary).
-export const CcSloHealthSchema = z.object({
+const CcSloHealthSchema = z.object({
   status: CcRuleHealthStatusSchema.catch("healthy"),
   degraded_since: CcTimestampNullable,
   last_error: z.string().nullable(),
 });
 
 // Per-tier burn rates inside a status group (engine/slo_math.rs SloTierStatus).
-export const CcSloTierStatusSchema = z.object({
+const CcSloTierStatusSchema = z.object({
   name: z.string(),
   long_burn_rate: z.number().nullable(),
   short_burn_rate: z.number().nullable(),
@@ -330,7 +330,7 @@ export const CcSloGroupStatusSchema = z.object({
     .default([]),
 });
 
-export const CcSloStatusPayloadSchema = z.object({
+const CcSloStatusPayloadSchema = z.object({
   // The budget window shorthand ("30d") and objective the snapshot was
   // computed against.
   window: z.string(),

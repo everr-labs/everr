@@ -24,8 +24,6 @@
     // Static entry points reached via Vite resolve.alias in
     // packages/app/vite.config.ts (use-sync-external-store/shim).
     "packages/app/src/ssr-shims/**",
-    // CC domain types — public type API, consumers added in follow-up tasks.
-    "packages/app/src/data/cc/types.ts",
   ],
   // @everr/auto-otel-errors: referenced in docs/examples, not a build dep.
   // The two @opentelemetry/* entries are imported only by the OTel web SDK
@@ -116,30 +114,5 @@
       "file": "packages/app/src/data/dashboards/schema.ts",
       "exports": ["*"]
     },
-    {
-      // TestData query spec — schema-only module, consumers added in follow-up tasks.
-      "file": "packages/app/src/data/dashboards/testdata/spec.ts",
-      "exports": ["*"]
-    },
-    {
-      // CC transport layer — consumers (server functions) added in follow-up tasks.
-      "file": "packages/app/src/lib/clickety-clack.server.ts",
-      "exports": ["*"]
-    },
-    {
-      // CC domain schemas — consumers (client verbs, pages) added in follow-up tasks.
-      "file": "packages/app/src/data/cc/schema.ts",
-      "exports": ["*"]
-    },
-    {
-      // CC domain types — consumers (client verbs, pages) added in follow-up tasks.
-      "file": "packages/app/src/data/cc/types.ts",
-      "exports": ["*"]
-    },
-    {
-      // CC client verbs — consumers (server functions, pages) added in follow-up tasks.
-      "file": "packages/app/src/data/cc/client.ts",
-      "exports": ["*"]
-    }
   ]
 }
