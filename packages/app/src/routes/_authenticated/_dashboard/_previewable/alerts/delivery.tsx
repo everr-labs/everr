@@ -69,7 +69,7 @@ import {
 } from "./-components/shared";
 
 export const Route = createFileRoute(
-  "/_authenticated/_dashboard/alerts/delivery",
+  "/_authenticated/_dashboard/_previewable/alerts/delivery",
 )({
   staticData: { breadcrumb: "Delivery" },
   head: () => ({ meta: [{ title: "Everr - Alerting Delivery" }] }),

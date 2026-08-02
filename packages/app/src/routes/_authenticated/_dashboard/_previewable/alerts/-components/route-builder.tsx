@@ -1,4 +1,4 @@
-// packages/app/src/routes/_authenticated/_dashboard/alerts/-components/route-builder.tsx
+// packages/app/src/routes/_authenticated/_dashboard/_previewable/alerts/-components/route-builder.tsx
 //
 // Backs the /alerts/delivery page's pipeline: create/edit one route in the
 // shared drawer so the pipeline stays visible while editing.

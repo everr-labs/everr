@@ -35,16 +35,16 @@ import {
   ccFormatTs,
 } from "./-components/shared";
 
-export const Route = createFileRoute("/_authenticated/_dashboard/alerts/rules")(
-  {
-    staticData: { breadcrumb: "Rules" },
-    head: () => ({ meta: [{ title: "Everr - Alerting Rules" }] }),
-    loaderDeps: ({ search }) => ({ preview: search.preview }),
-    loader: ({ context: { queryClient }, deps }) =>
-      queryClient.prefetchInfiniteQuery(ccQueries.rulesPage(deps.preview)),
-    component: CcRulesPage,
-  },
-);
+export const Route = createFileRoute(
+  "/_authenticated/_dashboard/_previewable/alerts/rules",
+)({
+  staticData: { breadcrumb: "Rules" },
+  head: () => ({ meta: [{ title: "Everr - Alerting Rules" }] }),
+  loaderDeps: ({ search }) => ({ preview: search.preview }),
+  loader: ({ context: { queryClient }, deps }) =>
+    queryClient.prefetchInfiniteQuery(ccQueries.rulesPage(deps.preview)),
+  component: CcRulesPage,
+});
 
 function CcRulesPage() {
   const qc = useQueryClient();

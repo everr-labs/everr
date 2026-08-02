@@ -1,4 +1,4 @@
-// packages/app/src/routes/_authenticated/_dashboard/alerts/-components/receiver-builder.tsx
+// packages/app/src/routes/_authenticated/_dashboard/_previewable/alerts/-components/receiver-builder.tsx
 //
 // Backs the /alerts/delivery page's address book. A receiver is a named
 // set of channel REFERENCES: the builder picks from the tenant's existing

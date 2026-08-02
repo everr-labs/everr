@@ -34,7 +34,9 @@ const TRIAGE_EVENT_LIMIT = 1;
 // resolves; a fresh `[]` each render would churn every memo keyed on it.
 const EMPTY: never[] = [];
 
-export const Route = createFileRoute("/_authenticated/_dashboard/alerts/")({
+export const Route = createFileRoute(
+  "/_authenticated/_dashboard/_previewable/alerts/",
+)({
   staticData: { breadcrumb: "Triage" },
   head: () => ({ meta: [{ title: "Everr - Alerting Triage" }] }),
   loaderDeps: ({ search: { preview } }) => ({ preview }),

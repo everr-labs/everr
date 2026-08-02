@@ -1,4 +1,4 @@
-// packages/app/src/routes/_authenticated/_dashboard/alerts/-components/silences-panel.tsx
+// packages/app/src/routes/_authenticated/_dashboard/_previewable/alerts/-components/silences-panel.tsx
 //
 // Silence management, embedded on the Triage page — muting lives where muting
 // happens. The panel lists silences grouped by lifecycle (active, scheduled,

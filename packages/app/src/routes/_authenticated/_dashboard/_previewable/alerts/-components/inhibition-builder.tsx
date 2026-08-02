@@ -1,4 +1,4 @@
-// packages/app/src/routes/_authenticated/_dashboard/alerts/-components/inhibition-builder.tsx
+// packages/app/src/routes/_authenticated/_dashboard/_previewable/alerts/-components/inhibition-builder.tsx
 //
 // Backs the /alerts/delivery page's dependency-mutes (inhibitions)
 // section, under the Advanced delivery disclosure.

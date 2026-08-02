@@ -1,4 +1,4 @@
-// packages/app/src/routes/_authenticated/_dashboard/alerts/-components/channel-builder.tsx
+// packages/app/src/routes/_authenticated/_dashboard/_previewable/alerts/-components/channel-builder.tsx
 //
 // Backs the /alerts/delivery page's address book. A channel is a named,
 // reusable endpoint config; receivers reference channels by name. The per-type

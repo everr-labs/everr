@@ -53,7 +53,9 @@ import {
 } from "./-components/shared";
 import { useCcFreshBudgets } from "./-components/use-fresh-budgets";
 
-export const Route = createFileRoute("/_authenticated/_dashboard/alerts/slos")({
+export const Route = createFileRoute(
+  "/_authenticated/_dashboard/_previewable/alerts/slos",
+)({
   staticData: { breadcrumb: "SLOs" },
   head: () => ({ meta: [{ title: "Everr - Alerting SLOs" }] }),
   loaderDeps: ({ search: { preview } }) => ({ preview }),

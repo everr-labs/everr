@@ -44,7 +44,7 @@ import {
 } from "./-components/shared";
 
 export const Route = createFileRoute(
-  "/_authenticated/_dashboard/alerts/rules_/$project/$slug",
+  "/_authenticated/_dashboard/_previewable/alerts/rules_/$project/$slug",
 )({
   staticData: {
     breadcrumb: "Rule",

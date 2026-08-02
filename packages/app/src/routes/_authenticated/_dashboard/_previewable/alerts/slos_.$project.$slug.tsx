@@ -67,7 +67,7 @@ import { SloStatsRow } from "./-components/slo-status";
 import { useCcFreshBudgets } from "./-components/use-fresh-budgets";
 
 export const Route = createFileRoute(
-  "/_authenticated/_dashboard/alerts/slos_/$project/$slug",
+  "/_authenticated/_dashboard/_previewable/alerts/slos_/$project/$slug",
 )({
   // This detail route is flat (slos_), so it doesn't inherit the SLOs listing
   // crumb — emit it here so the trail reads Alerts > SLOs > <name>.

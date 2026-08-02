@@ -1,4 +1,4 @@
-// packages/app/src/routes/_authenticated/_dashboard/alerts/-components/slo-budget-chart.tsx
+// packages/app/src/routes/_authenticated/_dashboard/_previewable/alerts/-components/slo-budget-chart.tsx
 //
 // The error budget over time: 100% is a full budget, 0% is gone. Computed at
 // read time by replaying the SLI over a trailing window at each point

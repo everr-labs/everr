@@ -1,4 +1,4 @@
-// packages/app/src/routes/_authenticated/_dashboard/alerts/-components/slo-status.tsx
+// packages/app/src/routes/_authenticated/_dashboard/_previewable/alerts/-components/slo-status.tsx
 //
 // The SLO detail page's headline numbers, as one strip: the worst group's error
 // budget (with the same meter the listing uses), the promise, the reliability
