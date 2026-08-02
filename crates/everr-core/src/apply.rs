@@ -393,6 +393,11 @@ pub struct KindResult {
     /// Live resources taken over from another owning repo (only with `--adopt`).
     #[serde(default)]
     pub adopted: Vec<String>,
+    /// Non-fatal advisory about how this kind was reconciled (e.g. preview
+    /// rules evaluate suppressed; a pruned runbook is still linked from
+    /// another repo's live alert).
+    #[serde(default)]
+    pub note: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize, PartialEq)]
@@ -864,16 +869,22 @@ mod tests {
         let s: ApplySummary = serde_json::from_value(serde_json::json!({
             "dryRun": true,
             "results": [
-                {"kind": "Dashboard", "created": ["a"], "updated": [], "deleted": ["b"]}
+                {"kind": "Dashboard", "created": ["a"], "updated": [], "deleted": ["b"]},
+                {"kind": "AlertRule", "created": [], "updated": [], "deleted": [], "note": "preview rules evaluate suppressed"}
             ],
             "organization": {"id": "org-1", "name": "Acme"}
         }))
         .unwrap();
         assert!(s.dry_run);
-        assert_eq!(s.results.len(), 1);
+        assert_eq!(s.results.len(), 2);
         assert_eq!(s.results[0].kind, "Dashboard");
         assert_eq!(s.results[0].created, vec!["a".to_string()]);
         assert_eq!(s.results[0].deleted, vec!["b".to_string()]);
+        assert_eq!(s.results[0].note, None);
+        assert_eq!(
+            s.results[1].note.as_deref(),
+            Some("preview rules evaluate suppressed")
+        );
         assert_eq!(s.organization.name, "Acme");
     }
 }
