@@ -1,8 +1,14 @@
+# Dev stack. Everything here uses throwaway credentials that are committed to the
+# repo, so any port carrying one is published on 127.0.0.1 rather than 0.0.0.0:
+# on a shared network an unbound port hands the whole stack (including CC's /v1
+# API, which runs rule SQL as the ClickHouse default user) to anyone on the LAN.
+# Only the authenticated public edge (8080, 4317, 4318) is left reachable, so a
+# tunnel or a device on the network can still reach ingest.
 services:
   clickhouse:
     build: ./clickhouse
     ports:
-      - "8123:8123"
+      - "127.0.0.1:8123:8123"
     healthcheck:
       test: ["CMD-SHELL", "clickhouse-client --query 'SELECT 1'"]
       interval: 5s
@@ -26,7 +32,7 @@ services:
       timeout: 3s
       retries: 20
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
@@ -42,11 +48,21 @@ services:
       - "8080:8080"
       - "4317:4317"
       - "4318:4318"
+      # Dev-only unauthenticated self-telemetry ingest (otlp/dev receiver):
+      # the locally running app ships here; the collector fans out to both
+      # the dev clickhouse and the desktop everr instance.
+      - "127.0.0.1:4319:4319"
+      - "127.0.0.1:4320:4320"
     extra_hosts:
       - "host.docker.internal:host-gateway"
     volumes:
       - ./collector/config.yml:/etc/everr-collector/config.yaml:ro,z
       - ./collector/dev-everr-app.pem:/etc/everr-collector/dev-everr-app.pem:ro,z
+    environment:
+      # Shared secret gating the trusted OTLP ingest path (otlp/trusted, ports
+      # 4417/4418). clickety-clack sends `Authorization: Bearer <this>` (anchor
+      # reused as CC_TRUSTED_INGEST_SECRET below). Dev-only.
+      TRUSTED_INGEST_TOKEN: &cc-trusted-ingest-token cc-trusted-wLrlvA6pELmMieZ2odq0njrui8qr5QLQ
 
   mailpit:
     image: axllent/mailpit
@@ -62,3 +78,104 @@ services:
       MP_DATABASE: /data/mailpit.db
       MP_SMTP_AUTH_ACCEPT_ANY: 1
       MP_SMTP_AUTH_ALLOW_INSECURE: 1
+
+  # Redis backing store for clickety-clack (work queue + event stream).
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "127.0.0.1:6379:6379"
+    volumes:
+      - ./volumes/redis:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  # Creates a dedicated `clickety_clack` database in the shared Postgres (CC runs
+  # its own migrations there) so its tables never collide with everr's. Idempotent
+  # one-shot; exits 0.
+  clickety-clack-db-init:
+    image: postgres:18.3-alpine3.23
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+    entrypoint:
+      - sh
+      - -c
+      - >
+        psql postgres://postgres:postgres@postgres:5432/postgres -tc
+        "SELECT 1 FROM pg_database WHERE datname='clickety_clack'" | grep -q 1 ||
+        psql postgres://postgres:postgres@postgres:5432/postgres -c
+        "CREATE DATABASE clickety_clack"
+
+  # clickety-clack alerting engine (the everr CC UI talks to this). Built from the
+  # in-repo crates/clickety-clack sources; runs all roles in one container against
+  # this stack's Postgres + ClickHouse + Redis. The everr web app (host `pnpm dev`)
+  # reaches it at http://localhost:8088 — set CLICKETY_CLACK_BASE_URL to that.
+  clickety-clack:
+    build:
+      context: ./crates/clickety-clack
+      args:
+        # Debug build: this stack only cares that CC runs, and the dev profile
+        # compiles far faster than release.
+        PROFILE: dev
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      clickhouse:
+        condition: service_healthy
+      clickety-clack-db-init:
+        condition: service_completed_successfully
+      mailpit:
+        condition: service_started
+    # Host 8088 → container 8080 (8080 is taken by the collector service above).
+    ports:
+      - "127.0.0.1:8088:8080"
+    environment:
+      CC_ROLE: all
+      CC_HTTP_ADDR: 0.0.0.0:8080
+      # Static bearer key(s) gating CC's /v1 API. The everr app sends the same
+      # value as `Authorization: Bearer <key>` (CLICKETY_CLACK_API_KEY in the
+      # app's .env). Comma-separated for rotation. Dev-only value.
+      CC_API_KEYS: cc-api-dev-Qr8mXz31TkVfLpN2yBhC
+      CC_NODE_ID: node-1
+      CC_PG_URL: postgres://postgres:postgres@postgres:5432/clickety_clack
+      CC_REDIS_URL: redis://redis:6379
+      # database=app: rule SQL uses unqualified table names (logs, metrics_gauge, ...)
+      # that live in the app database, matching the SQL API's CLICKHOUSE_DATABASE.
+      CC_CH_URL: http://clickhouse:8123/?database=app
+      CC_CH_USER: default
+      CC_CH_PASSWORD: everr
+      CC_CH_AUTH_MODE: shared
+      # Rule SQL is untrusted and runs with this user's privileges, so CC refuses the
+      # shared+default pair unless the risk is accepted explicitly. Fine here (throwaway
+      # local data); provision a restricted user for anything else. See
+      # crates/clickety-clack/docs/how-to/harden-clickhouse-access.md.
+      CC_DEV_INSECURE_CH_DEFAULT_USER: "1"
+      # Dev-only fake-KMS root key (base64 of 32 bytes). NOT for production.
+      CC_SECRET_PROVIDER: kms
+      CC_KMS_FAKE_ROOT_KEY: AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE=
+      # Email delivery → mailpit (plaintext SMTP; web UI at http://localhost:8025).
+      CC_SMTP_HOST: mailpit
+      CC_SMTP_PORT: "1025"
+      CC_SMTP_TLS: none
+      CC_SMTP_FROM: alerts@everr.dev
+      # Trusted OTLP path: the `events` role + dispatcher ship alert-event logs
+      # here (one ResourceLogs per tenant, everr.tenant.id preserved) → app.logs.
+      CC_TRUSTED_OTLP_ENDPOINT: http://collector:4418/v1/logs
+      CC_TRUSTED_INGEST_SECRET: *cc-trusted-ingest-token
+      # Engine self-telemetry (cc.* metrics + engine traces) over the public
+      # OTLP gRPC path. The key is a normal ingest API key, kept out of the
+      # repo: set CC_ENGINE_INGEST_API_KEY in the git-ignored .env. When unset
+      # the engine runs with telemetry disabled (its default).
+      CC_ENGINE_OTLP_ENDPOINT: http://collector:4317
+      CC_ENGINE_INGEST_API_KEY: ${CC_ENGINE_INGEST_API_KEY:-}
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8080/healthz || exit 1"]
+      interval: 10s
+      timeout: 3s
+      retries: 12
