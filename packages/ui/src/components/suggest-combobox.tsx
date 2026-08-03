@@ -18,9 +18,8 @@ import {
 import { Popover, PopoverContent, PopoverTrigger } from "./popover";
 
 /**
- * One suggestion row: the string committed on select, an optional secondary
- * `hint` (shown muted, also searchable), and an optional muted `tag` badge
- * (e.g. "synthetic") teaching where the suggestion comes from.
+ * One suggestion row: the string committed on select, plus an optional
+ * `hint` (muted, also searchable) and `tag` badge naming the source.
  */
 export interface SuggestItem {
   value: string;

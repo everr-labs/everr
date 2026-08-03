@@ -1,8 +1,3 @@
-// The shared owner of the comboboxes' `Use "<typed text>"` machinery:
-// controlled search state that resets when the popover closes, the trimmed
-// query, the "offer a custom row?" decision, and the row itself. Consumed by
-// filter-combobox (multi-select) and suggest-combobox (single-value) so both
-// comboboxes stay behaviorally identical.
 import type { QueryFunction, QueryKey } from "@tanstack/react-query";
 import { useState } from "react";
 import { CommandItem } from "./command";
@@ -20,12 +15,12 @@ export interface ComboboxQueryOptions<TData, TItem> {
 }
 
 /**
- * Search state + custom-entry derivation: the popover's open state, the
- * controlled search text (reset whenever the popover closes), the trimmed
- * query, and `offerCustom` deciding whether the custom row shows.
- * `offerCustom` takes a predicate (rather than the hook taking it up front)
- * because the loaded items it dedupes against come from a query gated on the
- * hook's own `open` state.
+ * The comboboxes' shared `Use "<typed text>"` machinery, so filter-combobox
+ * and suggest-combobox stay behaviorally identical: popover open state,
+ * search text (reset on close), the trimmed query, and `offerCustom`
+ * deciding whether the custom row shows. `offerCustom` takes a predicate at
+ * call time because the items it dedupes against come from a query gated on
+ * this hook's own `open` state.
  */
 export function useComboboxCustomEntry() {
   const [open, setOpen] = useState(false);
@@ -37,11 +32,6 @@ export function useComboboxCustomEntry() {
   };
 
   const query = search.trim();
-  /**
-   * True when the typed text should be offered as a custom row: non-empty,
-   * and not a duplicate of a loaded item (or, for multi-select, an existing
-   * selection) per the caller's predicate.
-   */
   const offerCustom = (isDuplicate: (query: string) => boolean) =>
     query.length > 0 && !isDuplicate(query);
 
