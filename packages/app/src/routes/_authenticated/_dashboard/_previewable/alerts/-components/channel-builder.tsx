@@ -1,0 +1,265 @@
+import { Button } from "@everr/ui/components/button";
+import { Input } from "@everr/ui/components/input";
+import { Label } from "@everr/ui/components/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@everr/ui/components/select";
+import { TagsInput } from "@everr/ui/components/tags-input";
+import { toneText } from "@everr/ui/components/tone";
+import { cn } from "@everr/ui/lib/utils";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
+import { toast } from "sonner";
+import { ccQueries } from "@/data/cc/queries";
+import { createCcChannel, testCcChannel } from "@/data/cc/server";
+import type { CcChannelConfig } from "@/data/cc/types";
+import { authClient } from "@/lib/auth-client";
+import { CcDrawer } from "./cc-drawer";
+import { CHANNEL_LABEL, type ChannelType } from "./channel-meta";
+import { CcConceptNote, ccErrorMessage } from "./shared";
+
+/** Every per-type field kept side by side so switching the type never loses input. */
+type ConfigDraft = {
+  type: ChannelType;
+  url: string;
+  to: string[];
+  botToken: string;
+  chatIds: string[];
+};
+
+const EMPTY_DRAFT: ConfigDraft = {
+  type: "webhook",
+  url: "",
+  to: [],
+  botToken: "",
+  chatIds: [],
+};
+
+function draftToConfig(d: ConfigDraft): CcChannelConfig | null {
+  switch (d.type) {
+    case "webhook":
+    case "slack":
+      return d.url ? { type: d.type, url: d.url } : null;
+    case "email":
+      return d.to.length > 0 ? { type: d.type, to: d.to } : null;
+    case "telegram":
+      return d.botToken && d.chatIds.length > 0
+        ? { type: d.type, bot_token: d.botToken, chat_ids: d.chatIds }
+        : null;
+  }
+}
+
+export function ChannelBuilder({
+  open,
+  onOpenChange,
+  existingNames,
+}: {
+  open: boolean;
+  onOpenChange: (o: boolean) => void;
+  /** CC's create answers 409 for an existing name; block duplicates client-side. */
+  existingNames: string[];
+}) {
+  const qc = useQueryClient();
+  const { data: session } = authClient.useSession();
+  const [name, setName] = useState("");
+  const [draft, setDraft] = useState<ConfigDraft>(EMPTY_DRAFT);
+  // testedConfig = JSON.stringify of the config the request was issued for;
+  // the draft can move on while the engine answers, so the result only counts
+  // while it still matches the on-screen config.
+  const [testResult, setTestResult] = useState<{
+    ok: boolean;
+    latencyMs: number;
+    error?: string;
+    testedConfig: string;
+  } | null>(null);
+
+  const duplicate = existingNames.includes(name.trim());
+  const config = draftToConfig(draft);
+
+  const patch = (p: Partial<ConfigDraft>) => {
+    // Clear at the one place the draft changes, so a stale tick never vouches
+    // for a config no longer on screen.
+    setTestResult(null);
+    setDraft((d) => ({ ...d, ...p }));
+  };
+
+  const create = useMutation({
+    mutationFn: () => {
+      if (!config) throw new Error("channel config is incomplete");
+      return createCcChannel({ data: { name: name.trim(), config } });
+    },
+    onSuccess: (c) => {
+      qc.invalidateQueries({ queryKey: ccQueries.channels().queryKey });
+      onOpenChange(false);
+      toast.success(`Channel "${c.name}" created`);
+    },
+    onError: (e) => toast.error(ccErrorMessage(e)),
+  });
+
+  const test = useMutation({
+    mutationFn: (testedConfig: CcChannelConfig) =>
+      testCcChannel({ data: { config: testedConfig } }),
+    onSuccess: (r, testedConfig) =>
+      setTestResult({
+        ok: r.ok,
+        latencyMs: r.latency_ms,
+        ...(r.error === undefined ? {} : { error: r.error }),
+        testedConfig: JSON.stringify(testedConfig),
+      }),
+    onError: (e, testedConfig) =>
+      setTestResult({
+        ok: false,
+        latencyMs: 0,
+        error: ccErrorMessage(e),
+        testedConfig: JSON.stringify(testedConfig),
+      }),
+  });
+
+  return (
+    <CcDrawer
+      open={open}
+      onOpenChange={onOpenChange}
+      title="New channel"
+      footer={
+        <>
+          <Button
+            variant="outline"
+            disabled={!config || test.isPending}
+            onClick={() => config && test.mutate(config)}
+          >
+            {test.isPending ? "Sending..." : "Send test"}
+          </Button>
+          <div className="flex-1" />
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
+            Cancel
+          </Button>
+          <Button
+            disabled={!name.trim() || duplicate || !config || create.isPending}
+            onClick={() => create.mutate()}
+          >
+            Create channel
+          </Button>
+        </>
+      }
+    >
+      <CcConceptNote>
+        A channel is a named delivery endpoint that any number of receivers can
+        reference. Secret fields (Slack URL, Telegram token) are write-only: the
+        engine redacts them on read, and re-creating a channel under the same
+        name rotates its secret in place.
+      </CcConceptNote>
+      <div className="space-y-1.5">
+        <Label htmlFor="channel-name">Name</Label>
+        <Input
+          id="channel-name"
+          value={name}
+          aria-invalid={duplicate ? true : undefined}
+          onChange={(e) => setName(e.target.value)}
+          placeholder="team-slack"
+        />
+        {duplicate && (
+          <p className="text-destructive text-xs" role="alert">
+            A channel with this name already exists
+          </p>
+        )}
+      </div>
+      <div className="space-y-1.5">
+        <Label htmlFor="channel-type">Type</Label>
+        <Select
+          value={draft.type}
+          onValueChange={(v) =>
+            patch({ type: (v ?? "webhook") as ChannelType })
+          }
+        >
+          <SelectTrigger id="channel-type" className="w-full">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {(Object.keys(CHANNEL_LABEL) as ChannelType[]).map((t) => (
+              <SelectItem key={t} value={t}>
+                {CHANNEL_LABEL[t]}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+      {(draft.type === "webhook" || draft.type === "slack") && (
+        <div className="space-y-1.5">
+          <Label htmlFor="channel-url">
+            {draft.type === "slack" ? "Incoming webhook URL" : "Webhook URL"}
+          </Label>
+          <Input
+            id="channel-url"
+            type="url"
+            className="font-mono"
+            value={draft.url}
+            onChange={(e) => patch({ url: e.target.value })}
+            placeholder={
+              draft.type === "slack"
+                ? "https://hooks.slack.com/services/..."
+                : "https://example.com/hook"
+            }
+          />
+        </div>
+      )}
+      {draft.type === "email" && (
+        <div className="space-y-1.5">
+          <Label>Recipients</Label>
+          <TagsInput
+            aria-label="Recipient addresses"
+            placeholder="oncall@example.com"
+            value={draft.to}
+            onValueChange={(to) => patch({ to })}
+          />
+          <p className="text-xs text-muted-foreground">
+            {session?.user?.email
+              ? `A test sends to ${session.user.email}, not the recipients above, so it proves delivery works without mailing the list.`
+              : "A test sends to your own address, not the recipients above, so it proves delivery works without mailing the list."}
+          </p>
+        </div>
+      )}
+      {draft.type === "telegram" && (
+        <>
+          <div className="space-y-1.5">
+            <Label htmlFor="channel-bot-token">Bot token</Label>
+            <Input
+              id="channel-bot-token"
+              className="font-mono"
+              value={draft.botToken}
+              onChange={(e) => patch({ botToken: e.target.value })}
+              placeholder="123456789:ABC..."
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label>Chat IDs</Label>
+            <TagsInput
+              aria-label="Chat IDs"
+              placeholder="-1001234567890"
+              value={draft.chatIds}
+              onValueChange={(chatIds) => patch({ chatIds })}
+            />
+          </div>
+        </>
+      )}
+      {testResult && testResult.testedConfig === JSON.stringify(config) && (
+        <p
+          role={testResult.ok ? "status" : "alert"}
+          className={cn(
+            "text-xs",
+            testResult.ok
+              ? toneText({ tone: "healthy" })
+              : toneText({ tone: "danger" }),
+          )}
+        >
+          {testResult.ok
+            ? `Delivered in ${testResult.latencyMs}ms`
+            : `Not delivered: ${testResult.error ?? "unknown error"}`}
+        </p>
+      )}
+    </CcDrawer>
+  );
+}
