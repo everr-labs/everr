@@ -171,7 +171,7 @@ pub async fn create(
         .await?
     {
         RuleCreate::Created(rule) => Ok(Json(rule)),
-        RuleCreate::NameConflict => Err(ApiError::Conflict(format!(
+        RuleCreate::NameConflict => Err(ApiError::AlreadyExists(format!(
             "rule name {:?} already exists in namespace {:?}",
             body.name, body.namespace
         ))),

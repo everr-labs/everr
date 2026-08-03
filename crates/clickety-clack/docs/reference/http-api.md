@@ -85,8 +85,8 @@ All errors use a problem-details shape:
 | 400    | `bad_request`       | Malformed opaque input (currently: an undecodable pagination `cursor`). |
 | 401    | `unauthorized`      | Missing/invalid `Authorization` bearer key when `CC_API_KEYS` is set (detail: `missing or invalid API key`), missing/invalid `X-CC-Tenant` (detail: `missing or invalid tenant`), or a tenant-bound key used with a different `X-CC-Tenant` (detail: `API key is not authorized for the requested tenant`). |
 | 404    | `not_found`         | GET/DELETE of an id/name that does not exist. |
-| 409    | `conflict`          | Optimistic-concurrency failure (rule or SLO `version` mismatch on `PUT`), a rule or SLO `name` already taken in its `(tenant, namespace)` on create, or a delete blocked by a live reference (a channel a receiver still references, a receiver a route still targets). |
-| 409    | `already_exists`    | Create-only endpoint given a name that is already taken (channels, receivers). Its own `code` so callers can tell it from the conflicts above. |
+| 409    | `conflict`          | Optimistic-concurrency failure (rule or SLO `version` mismatch on `PUT`), or a delete blocked by a live reference (a channel a receiver still references, a receiver a route still targets). |
+| 409    | `already_exists`    | Create given a name that is already taken in its scope (rules and SLOs per `(tenant, namespace)`; channels and receivers per tenant). Its own `code` so callers can tell "pick another name" from the conflicts above. |
 | 422    | `validation_failed` | A field failed validation (see per-endpoint notes). |
 | 500    | `internal`          | Unhandled server error. |
 
@@ -113,7 +113,7 @@ See [data model → Rule](data-model.md#rule) for field semantics.
 | `GET /v1/rules/:id`       | Get one rule by UUID, as a `RuleView` (see [Listing rules](#listing-rules)). |
 | `PUT /v1/rules/:id`       | Update a rule's spec in place (see below). Preserves id, tenant, `paused` and instance state; bumps `version`. |
 | `DELETE /v1/rules/:id`    | Delete a rule. |
-| `POST /v1/rules/:id/test` | Evaluate the supplied spec ad hoc against ClickHouse. **No state change, no events.** The `:id` is ignored (no existence or tenant check): only the posted spec is evaluated. |
+| `POST /v1/rules/test` | Evaluate the supplied spec ad hoc against ClickHouse. **No state change, no events.** Only the posted spec is evaluated; no rule needs to exist. |
 | `POST /v1/rules/:id/pause`  | Pause evaluation. Freezes state, emits no events. Returns the updated `Rule`. Idempotent; unknown id → `404`. |
 | `POST /v1/rules/:id/resume` | Resume evaluation. Re-arms scheduling and restarts pending instances' for-duration. Returns the updated `Rule`. |
 
@@ -140,7 +140,7 @@ spec fields flattened beside it:
 
 | Field           | Type                  | Required | Default | Notes |
 | --------------- | --------------------- | -------- | ------- | ----- |
-| `name`          | string                | yes      | none | The rule's first-class identity, unique per `(tenant, namespace)`; `409` on conflict. 1 to 128 chars of `[A-Za-z0-9_./-]` (`422` otherwise). |
+| `name`          | string                | yes      | none | The rule's first-class identity, unique per `(tenant, namespace)`; `409 already_exists` on collision. 1 to 128 chars of `[A-Za-z0-9_./-]` (`422` otherwise). |
 | `namespace`     | string                | no       | `""`    | Identity scope: `""` is the live namespace; consumers stamp preview ids here. At most 128 chars of `[A-Za-z0-9_.-]`. |
 | `sql`           | string                | yes      | none | Read-only `SELECT`, validated by `cc_sqlguard`. Non-SELECT is rejected `422`. |
 | `interval_secs` | u32                   | yes      | none | Must be `> 0` (`422` otherwise). Evaluation period. |
@@ -150,8 +150,8 @@ spec fields flattened beside it:
 | `severity`      | enum                  | yes      | none | `info` \| `warning` \| `critical`. |
 | `annotations`   | object<string,string> | no       | `{}`    | Free-form metadata, passed through onto events. |
 | `resolve_after` | u32                   | no       | `1`     | Consecutive absent evaluations required to resolve. Must be `>= 1` (`422` otherwise). |
-| `max_interval_secs` | u32 \| null       | no       | null    | Opt-in adaptive cadence: cap for the stretched evaluation interval. Must be `>= interval_secs` (`422` otherwise). While set, each quiet evaluation (no rows, nothing pending or firing) doubles the effective interval from `interval_secs` up to this cap; any active or erroring evaluation snaps it back to `interval_secs`. Null (the default) keeps the fixed cadence. Accepted by `POST /v1/rules`, `PUT /v1/rules/:id`, and `POST /v1/rules/:id/test`; returned when set. See [write alert rules](../how-to/write-alert-rules.md#max_interval_secs-adaptive-cadence). |
-| `suppressed`    | bool                  | no       | `false` | Preview mode: evaluate fully and record events/history, but never notify. Accepted by `POST /v1/rules`, `PUT /v1/rules/:id`, and `POST /v1/rules/:id/test`; returned by every rule read. See [write alert rules](../how-to/write-alert-rules.md#suppressed-preview-mode). |
+| `max_interval_secs` | u32 \| null       | no       | null    | Opt-in adaptive cadence: cap for the stretched evaluation interval. Must be `>= interval_secs` (`422` otherwise). While set, each quiet evaluation (no rows, nothing pending or firing) doubles the effective interval from `interval_secs` up to this cap; any active or erroring evaluation snaps it back to `interval_secs`. Null (the default) keeps the fixed cadence. Accepted by `POST /v1/rules`, `PUT /v1/rules/:id`, and `POST /v1/rules/test`; returned when set. See [write alert rules](../how-to/write-alert-rules.md#max_interval_secs-adaptive-cadence). |
+| `suppressed`    | bool                  | no       | `false` | Preview mode: evaluate fully and record events/history, but never notify. Accepted by `POST /v1/rules`, `PUT /v1/rules/:id`, and `POST /v1/rules/test`; returned by every rule read. See [write alert rules](../how-to/write-alert-rules.md#suppressed-preview-mode). |
 
 ### Rule response
 
@@ -266,7 +266,7 @@ for how to write one.
 | `DELETE /v1/slos/:id`        | Delete an SLO. |
 | `POST /v1/slos/:id/pause`    | Pause evaluation. Freezes state, emits no events. Returns the updated `Slo`. Idempotent; unknown id → `404`. |
 | `POST /v1/slos/:id/resume`   | Resume evaluation. Re-arms scheduling. Returns the updated `Slo`. |
-| `GET /v1/slos/:id/status`    | Read-time-enriched status snapshot (below). `404` if the SLO does not exist, and also for an existing SLO that has never been evaluated (no snapshot row yet). |
+| `GET /v1/slos/:id/status`    | Read-time-enriched status snapshot (below). `404` only if the SLO does not exist; a never-evaluated SLO answers the pending state (see [Status response](#status-response)). |
 | `POST /v1/slos/test`         | Evaluate the supplied spec ad hoc against ClickHouse over its own window. **No state change, no events.** The body is the bare spec (no `name`/`namespace`: nothing is written, so no identity is needed). |
 
 ### SLO spec (request body)
@@ -288,7 +288,7 @@ for how to write one.
 
 | Field              | Type                  | Required | Default | Notes |
 | ------------------ | --------------------- | -------- | ------- | ----- |
-| `name`             | string                | yes      | none | The SLO's first-class identity, unique per `(tenant, namespace)`; `409` on conflict. 1 to 128 chars of `[A-Za-z0-9_./-]` (`422` otherwise). |
+| `name`             | string                | yes      | none | The SLO's first-class identity, unique per `(tenant, namespace)`; `409 already_exists` on collision. 1 to 128 chars of `[A-Za-z0-9_./-]` (`422` otherwise). |
 | `namespace`        | string                | no       | `""`    | Identity scope: `""` is the live namespace; consumers stamp preview ids here. At most 128 chars of `[A-Za-z0-9_.-]`. |
 | `sli.sql`          | string                | yes      | none | Read-only `SELECT` returning `good`/`valid` numeric columns; must reference both `{window_start:DateTime}` and `{window_end:DateTime}` (`422` otherwise). |
 | `sli.label_columns`| string[]              | no       | `[]`    | Result columns that fan the SLO into per-group SLIs. May not start with the reserved `__cc_` prefix, and may not be named `slo` or `slo_tier` (labels the SLO pipeline injects); `422` either way. |
@@ -319,8 +319,7 @@ began, at creation or the last budget-significant edit).
 `PUT /v1/slos/:id` takes the full body above (same validation as create) plus
 one optional top-level field, `version` (i64): an optimistic-concurrency
 guard: must equal the stored `version`, else `409 conflict` and nothing is
-written. Omit for last-write-wins. `name` conflicts with another SLO in the
-tenant yield `409`.
+written. Omit for last-write-wins.
 
 ### Test response
 
@@ -356,6 +355,8 @@ tenant yield `409`.
 }
 ```
 
+Until the first evaluation writes a snapshot, `computed_at` and `payload` are
+both null (the pending state) while `health` is already real.
 `payload.groups[*].time_to_exhaustion_secs` and `.firing_tiers` are computed at
 **read time only** from the stored snapshot plus the live `slo_instances` rows;
 they are never persisted. If the stored snapshot fails to deserialize into

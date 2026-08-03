@@ -134,8 +134,8 @@ export const ccQueries = {
     });
   },
 
-  // Null until the first evaluation tick writes a snapshot. Live surface, so
-  // it polls.
+  // Pending (null payload, real health) until the first evaluation tick
+  // writes a snapshot. Live surface, so it polls.
   sloStatus: (sloId: string) =>
     queryOptions({
       queryKey: ["cc", "slo-status", sloId] as const,

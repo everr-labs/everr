@@ -150,8 +150,11 @@ export async function getSlo(orgId: string, id: string) {
   return CcSloViewSchema.parse(await ccRequest(orgId, "GET", `/v1/slos/${id}`));
 }
 /**
- * CC 404s until the first evaluation tick writes a snapshot, so a 404 reads
- * as "no snapshot yet" (null) rather than an error.
+ * CC answers a pending status (null `computed_at`/`payload`) until the first
+ * evaluation writes a snapshot. `health` is real even then: it lives on the
+ * SLO row, not the snapshot, so a from-birth-broken SLI reports degraded while
+ * still pending. A 404 (the SLO itself is gone, e.g. a delete race) reads as
+ * null rather than an error.
  */
 export async function getSloStatus(orgId: string, id: string) {
   try {

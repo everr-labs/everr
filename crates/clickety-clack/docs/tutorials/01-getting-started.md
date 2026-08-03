@@ -45,11 +45,12 @@ export CC_SECRET_ACTIVE_KEY="dev"
 
 Now run every role in a single process with `CC_ROLE=all` (the default). The
 tutorial stack queries ClickHouse as the `default` user, which the engine
-refuses under shared auth unless a dev flag accepts the risk (see
+refuses under shared auth unless a dev flag accepts the risk; for cargo runs
+the crate's `.cargo/config.toml` sets that flag (see
 [harden ClickHouse access](../how-to/harden-clickhouse-access.md)):
 
 ```bash
-CC_ROLE=all CC_DEV_INSECURE_CH_DEFAULT_USER=1 cargo run
+CC_ROLE=all cargo run
 ```
 
 On boot the binary builds the cipher, connects to Postgres and **runs its own

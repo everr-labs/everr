@@ -184,13 +184,15 @@ curl -s -X POST localhost:8080/v1/slos/test \
 ```
 
 `sli` is `good / valid`, or `null` when `valid` is `0` (no traffic in the test
-window, not an error). Use it the same way you'd use `POST /v1/rules/:id/test`:
+window, not an error). Use it the same way you'd use `POST /v1/rules/test`:
 tune the SQL and target against live data before committing.
 
 ## Reading `/status`
 
 `GET /v1/slos/:id/status` returns the evaluator's latest computed snapshot,
-enriched at **read time only**: nothing computed here is written back:
+enriched at **read time only**: nothing computed here is written back. A
+never-evaluated SLO answers the pending state instead (see the
+[status response reference](../reference/http-api.md#status-response)):
 
 ```json
 {

@@ -69,6 +69,8 @@ async fn duplicate_name_conflicts() {
         .await
         .unwrap();
     assert_eq!(resp.status(), StatusCode::CONFLICT);
+    // Name collisions carry `already_exists`, like channels/receivers.
+    assert_eq!(body_json(resp).await["code"], "already_exists");
 }
 
 #[tokio::test]

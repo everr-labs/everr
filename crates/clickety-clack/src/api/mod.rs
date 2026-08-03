@@ -111,7 +111,7 @@ pub fn build_supervised_router(
             "/v1/rules/:id",
             get(rules::get).put(rules::update).delete(rules::delete),
         )
-        .route("/v1/rules/:id/test", post(rules::test))
+        .route("/v1/rules/test", post(rules::test))
         .route("/v1/rules/:id/pause", post(rules::pause))
         .route("/v1/rules/:id/resume", post(rules::resume))
         .route("/v1/slos", post(slos::create).get(slos::list))

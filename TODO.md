@@ -2,7 +2,6 @@
 
 ## Issues
 
-- [**cc-code-items-from-docs-audit**](todo/issues/cc-code-items-from-docs-audit.md): Code-side items the clickety-clack docs audit surfaced while the docs were being corrected to match current behavior: inconsistent conflict error codes (`conflict` vs `already_exists`), the rule test endpoint ignoring its `:id` (the SLO probe already moved to `/v1/slos/test` with a bare-spec body), `GET /v1/slos/:id/status` 404ing until first evaluation, a wrong `#[ignore]` run-hint in `load_smoke.rs`, and the dev stack having no story for `CC_DEV_INSECURE_CH_DEFAULT_USER`.
 - [**chart-tooltip-content-duplication**](todo/issues/chart-tooltip-content-duplication.md): Chart tooltips are built two incompatible ways across the app: recharts' `ChartTooltip`/`ChartTooltipContent` (fed by `createChartTooltipFormatter`) versus a portaled `CursorTooltip` + chrome-free `SeriesTooltipContent`. They render the same swatch/label/value idea twice; consolidate on one.
 - [**slo-short-window-floor-vs-sparse-telemetry**](todo/issues/slo-short-window-floor-vs-sparse-telemetry.md): the floored 60s short window is often smaller than the gaps between rows of the data it measures (in dev, ~12% of eval ticks see an empty trailing 60s window); decide the floor policy: raise `MIN_WINDOW_SECS`, derive the floor from data density, or drop floored tiers instead of evaluating them.
 

@@ -54,7 +54,7 @@ pub async fn create(
         .await?
     {
         SloCreate::Created(slo) => Ok(Json(slo)),
-        SloCreate::NameConflict => Err(ApiError::Conflict(format!(
+        SloCreate::NameConflict => Err(ApiError::AlreadyExists(format!(
             "SLO name {:?} already exists in namespace {:?}",
             body.name, body.namespace
         ))),
@@ -197,8 +197,9 @@ pub async fn resume(
 /// from the `slos` row itself (see [`crate::stores::SloHealth`]).
 #[derive(serde::Serialize)]
 pub struct SloStatusOut {
-    #[serde(with = "time::serde::rfc3339")]
-    pub computed_at: time::OffsetDateTime,
+    /// Null until the first evaluation writes a snapshot (the pending state).
+    #[serde(with = "time::serde::rfc3339::option")]
+    pub computed_at: Option<time::OffsetDateTime>,
     pub payload: Value,
     pub health: crate::stores::SloHealth,
 }
@@ -265,19 +266,25 @@ pub async fn status(
     Path(id): Path<Uuid>,
 ) -> Result<Json<SloStatusOut>, ApiError> {
     let t = tenant(&state, &headers)?;
-    // Three independent reads, issued concurrently. 404 stays keyed on the
-    // snapshot row (checked first below); health is a sibling read that the
-    // snapshot's existence already guarantees in practice.
+    // Three independent reads, issued concurrently. 404 is keyed on the health
+    // read (the `slos` row itself, so it tracks the SLO's existence); a missing
+    // snapshot row just means no evaluation has landed yet, which is the
+    // pending state (`computed_at`/`payload` null), not an error.
     let (row, health, instances) = tokio::try_join!(
         state.store.get_slo_status(&t, SloId(id)),
         state.store.get_slo_health(&t, SloId(id)),
         state.store.load_slo_instances(&t, SloId(id)),
     )?;
-    let row = row.ok_or(ApiError::NotFound)?;
     let health = health.ok_or(ApiError::NotFound)?;
-    let payload = enrich_status_payload(row.payload, &instances);
+    let (computed_at, payload) = match row {
+        Some(row) => (
+            Some(row.computed_at),
+            enrich_status_payload(row.payload, &instances),
+        ),
+        None => (None, Value::Null),
+    };
     Ok(Json(SloStatusOut {
-        computed_at: row.computed_at,
+        computed_at,
         payload,
         health,
     }))

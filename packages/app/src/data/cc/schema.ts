@@ -317,7 +317,8 @@ const CcSloStatusPayloadSchema = z.object({
 // current snapshot shape is served raw, so a non-parsing payload degrades to
 // null (the pending state) instead of failing the whole status read.
 export const CcSloStatusSchema = z.object({
-  computed_at: CcTimestampSchema,
+  // Null until the first evaluation writes a snapshot (CC's pending state).
+  computed_at: CcTimestampSchema.nullable(),
   payload: CcSloStatusPayloadSchema.nullable().catch(null),
   health: CcSloHealthSchema,
 });

@@ -12,11 +12,13 @@ pub enum ApiError {
     /// different tenant.
     TenantMismatch,
     NotFound,
-    /// Optimistic-concurrency failure (e.g. rule `version` mismatch on update).
+    /// Optimistic-concurrency failure (a `version` mismatch on update) or a
+    /// delete blocked by a live reference.
     Conflict(String),
-    /// Create-only POST against a name that already exists (channels/receivers).
-    /// 409 like `Conflict`, but with its own `already_exists` code so callers can
-    /// distinguish "pick another name / use the update route" from a version race.
+    /// Create against a name that already exists in its scope (rules, SLOs,
+    /// channels, receivers). 409 like `Conflict`, but with its own
+    /// `already_exists` code so callers can distinguish "pick another name /
+    /// use the update route" from a version race.
     AlreadyExists(String),
     /// Malformed request input that never names a valid value (e.g. an opaque
     /// pagination cursor that fails to decode), as opposed to a well-formed

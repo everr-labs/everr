@@ -1,7 +1,8 @@
-//! `GET /v1/slos/:id/status`: 404 before any snapshot exists, then a
-//! read-only view of the evaluator's `slo_status` row once seeded, enriched
-//! at read time with per-group time-to-exhaustion + live firing-tier state
-//! (spec §8.2) -- the stored row itself is never touched.
+//! `GET /v1/slos/:id/status`: pending (null `computed_at`/`payload`) before
+//! any snapshot exists, then a read-only view of the evaluator's `slo_status`
+//! row once seeded, enriched at read time with per-group time-to-exhaustion +
+//! live firing-tier state (spec §8.2) -- the stored row itself is never
+//! touched. 404 is keyed on the SLO's existence, not the snapshot's.
 
 use crate::api::support::{body_json, setup, TENANT};
 use axum::body::Body;
@@ -12,7 +13,7 @@ use serde_json::json;
 use tower::ServiceExt;
 
 #[tokio::test]
-async fn status_404_then_returns_snapshot() {
+async fn status_pending_then_returns_snapshot() {
     let (router, store) = setup().await;
 
     // create via API to get an id
@@ -37,7 +38,8 @@ async fn status_404_then_returns_snapshot() {
         .unwrap();
     let id = body_json(created).await["id"].as_str().unwrap().to_string();
 
-    // 404 before any snapshot
+    // Pending before any snapshot: the SLO exists, so this is 200 with null
+    // computed_at/payload (and real health), not a 404.
     let r = router
         .clone()
         .oneshot(
@@ -45,6 +47,25 @@ async fn status_404_then_returns_snapshot() {
                 .header("X-CC-Tenant", TENANT)
                 .body(Body::empty())
                 .unwrap(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(r.status(), StatusCode::OK);
+    let b = body_json(r).await;
+    assert!(b["computed_at"].is_null());
+    assert!(b["payload"].is_null());
+    assert_eq!(b["health"]["status"], "healthy");
+
+    // A status read for an SLO that does not exist at all is still a 404.
+    let r = router
+        .clone()
+        .oneshot(
+            Request::get(format!(
+                "/v1/slos/00000000-0000-0000-0000-000000000000/status"
+            ))
+            .header("X-CC-Tenant", TENANT)
+            .body(Body::empty())
+            .unwrap(),
         )
         .await
         .unwrap();

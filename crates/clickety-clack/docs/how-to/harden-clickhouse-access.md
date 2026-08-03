@@ -32,8 +32,11 @@ The defenses below remove those capabilities at the source.
 
 The `api` and `evaluator` roles enforce that much at startup: with
 `CC_CH_AUTH_MODE=shared` and `CC_CH_USER=default` they refuse to boot unless
-`CC_DEV_INSECURE_CH_DEFAULT_USER=1` says the risk is accepted (nothing in the
-repo sets it for you; export it explicitly for local development). Roles that never run rule SQL are unaffected. It is a guard
+`CC_DEV_INSECURE_CH_DEFAULT_USER=1` says the risk is accepted. For local
+development, `.cargo/config.toml` sets it for cargo-launched processes only
+(alongside `CC_DEV_INSECURE_NO_AUTH`), so `cargo run` stays zero-config while
+the shipped image still fails closed. Roles that never run rule SQL are
+unaffected. It is a guard
 against forgetting this page, not a substitute for it: no startup check can tell
 a locked-down `shared` user from a privileged one, so everything below still
 applies once you are off `default`.
@@ -124,18 +127,18 @@ export CC_CH_PASSWORD='CHANGE_ME_STRONG_PASSWORD'
 
 ## Step 6: Verify the controls
 
-Create rules with hostile SQL via `POST /v1/rules/:id/test` (ad-hoc, no state) and
+Create rules with hostile SQL via `POST /v1/rules/test` (ad-hoc, no state) and
 confirm ClickHouse **rejects** them with an access error, not a result:
 
 ```bash
 # Expect: access denied for the url() table function.
-curl -s -X POST localhost:8080/v1/rules/$ID/test \
+curl -s -X POST localhost:8080/v1/rules/test \
   -H "X-CC-Tenant: $TENANT" -H 'Content-Type: application/json' \
   -d '{"sql":"SELECT * FROM url('"'"'http://169.254.169.254/'"'"', CSV, '"'"'a String'"'"')",
        "interval_secs":30,"for_secs":0,"label_columns":["a"],"severity":"info"}'
 
 # Expect: access denied / unknown table for system access.
-curl -s -X POST localhost:8080/v1/rules/$ID/test \
+curl -s -X POST localhost:8080/v1/rules/test \
   -H "X-CC-Tenant: $TENANT" -H 'Content-Type: application/json' \
   -d '{"sql":"SELECT name FROM system.users","interval_secs":30,"for_secs":0,"label_columns":["name"],"severity":"info"}'
 ```

@@ -203,7 +203,8 @@ export const getCcSloByName = createAuthenticatedServerFn({ method: "GET" })
     return withAuthoredSloName(slo);
   });
 
-// Null until the first evaluation tick writes a snapshot.
+// Pending (null payload, real health) until the first evaluation tick writes
+// a snapshot; null only when the SLO itself is gone.
 export const getCcSloStatus = createAuthenticatedServerFn({ method: "GET" })
   .inputValidator(z.object({ sloId: z.string() }))
   .handler(({ data: { sloId }, context: { session } }) =>

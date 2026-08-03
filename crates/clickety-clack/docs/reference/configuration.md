@@ -67,7 +67,7 @@ one ClickHouse user for every tenant.
 | `CC_CH_MASTER_KEY`      | *(none)*     | **Required in `derived` mode.** HMAC key from which each tenant's password is derived as `hex(HMAC-SHA256(master_key, tenant_id))` plus the suffix. **High-value secret**: it derives *every* tenant's password. Store it in a secret manager, never in the repo. |
 | `CC_CH_PASSWORD_SUFFIX` | `` (empty)   | *(derived mode, optional)* String appended verbatim to every derived password. Use when a deployment requires a suffix to satisfy password-complexity rules. |
 | `CC_CH_TENANT_MAP`      | *(none)*     | **Required in `map` mode.** Either inline JSON or a path to a JSON file mapping tenant id → credentials: `{"<tenant>": {"user": "...", "password": "..."}, ...}`. |
-| `CC_DEV_INSECURE_CH_DEFAULT_USER` | `0` | Explicit opt-in to run tenant-authored rule SQL as ClickHouse's `default` user. Without it, the roles that evaluate rule SQL (`api`, `evaluator`, `all`) **refuse to start** when `CC_CH_AUTH_MODE=shared` and `CC_CH_USER=default`, since that user typically has full privileges and rule SQL is untrusted input. Accepts `1`/`true`; dev/compose only. See [harden ClickHouse access](../how-to/harden-clickhouse-access.md). |
+| `CC_DEV_INSECURE_CH_DEFAULT_USER` | `0` | Explicit opt-in to run tenant-authored rule SQL as ClickHouse's `default` user. Without it, the roles that evaluate rule SQL (`api`, `evaluator`, `all`) **refuse to start** when `CC_CH_AUTH_MODE=shared` and `CC_CH_USER=default`, since that user typically has full privileges and rule SQL is untrusted input. Accepts `1`/`true`; dev/compose only. Set for cargo runs by the crate's `.cargo/config.toml`; see [harden ClickHouse access](../how-to/harden-clickhouse-access.md). |
 
 ## Scheduler
 

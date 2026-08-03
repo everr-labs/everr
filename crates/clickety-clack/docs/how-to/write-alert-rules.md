@@ -175,7 +175,7 @@ when `interval_secs` changes. In practice: the **first** evaluation lands
 within one interval of creation (not instantly), and evaluations then continue
 at exactly `interval_secs`, staggered relative to other rules. The offset is a
 pure function of the rule id, so it survives restarts and is identical on
-every scheduler replica. Use `POST /v1/rules/:id/test` when you want an
+every scheduler replica. Use `POST /v1/rules/test` when you want an
 immediate answer; the schedule is for steady state.
 
 **Adaptive backoff (opt-in per rule).** With
@@ -201,11 +201,11 @@ So: `SELECT host, errors, p99_ms, top_path FROM ... WHERE errors > 100` with
 
 ## Test before you commit
 
-`POST /v1/rules/:id/test` evaluates a spec ad hoc against ClickHouse with **no
+`POST /v1/rules/test` evaluates a spec ad hoc against ClickHouse with **no
 state change and no events**: ideal for tuning the SQL and threshold:
 
 ```bash
-curl -s -X POST localhost:8080/v1/rules/$RULE_ID/test \
+curl -s -X POST localhost:8080/v1/rules/test \
   -H "X-CC-Tenant: $TENANT" -H 'Content-Type: application/json' \
   -d '{ "sql": "SELECT host, errors FROM error_rates WHERE errors > 50",
         "interval_secs": 30, "for_secs": 0,

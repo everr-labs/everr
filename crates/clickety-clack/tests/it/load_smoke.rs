@@ -1,7 +1,7 @@
 use crate::common::*;
 
 #[tokio::test(flavor = "multi_thread")]
-#[ignore = "load harness; needs Docker. Run: cargo test --release --test load_smoke -- --ignored --nocapture"]
+#[ignore = "load harness; needs Docker. Run: cargo test --release --features container-tests --test it -- --ignored --nocapture smoke_infra_up"]
 async fn smoke_infra_up() {
     let cfg = LoadConfig::from_env();
     let pg = start_pg().await;
