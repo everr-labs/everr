@@ -32,8 +32,7 @@ export function FeaturedTestimonial() {
             <span className="text-primary">$700 a month</span> for data I
             couldn’t really explain. Everr is the first one the whole team
             actually uses. And it’s not a watered-down version, it does
-            everything the big platforms did, we just don’t need anyone
-            babysitting it.
+            everything we need without anyone babysitting it.
             <br />
             <span className="text-primary">It’s how we work now</span>.”
           </blockquote>

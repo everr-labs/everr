@@ -1,10 +1,10 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "productName": "Everr",
-  "version": "0.5.1",
+  "version": "0.6.0",
   "identifier": "dev.everr.everr-app",
   "build": {
-    "beforeDevCommand": "pnpm desktop:prepare:debug && pnpm frontend:dev",
+    "beforeDevCommand": "pnpm frontend:dev",
     "devUrl": "http://localhost:1420",
     "beforeBuildCommand": "pnpm desktop:prepare:release && pnpm frontend:build",
     "frontendDist": "../dist"
