@@ -1,18 +1,7 @@
-// A horizontal meter: a rounded track with one or more fills painted over it.
-//
-// The single primitive behind every "how full / how close to the line" bar —
-// error budgets, burn against a firing threshold, quota. Tone, height and width
-// are variants rather than per-caller class strings, so the health vocabulary
-// (emerald healthy, amber attention, red emergency) is declared once.
-//
-// Purely decorative: it is `aria-hidden`, and every caller prints the figure it
-// encodes next to it, which is the accessible value.
-
 import { cn } from "@everr/ui/lib/utils";
 import { cva, type VariantProps } from "class-variance-authority";
 
-// Always full width: how wide a meter should be is the container's decision,
-// not the meter's, so no call site has to fight a cap it did not ask for.
+// Always w-full: how wide a meter should be is the container's decision.
 const meterTrack = cva("relative block w-full overflow-hidden rounded-full", {
   variants: {
     tone: {
@@ -51,6 +40,15 @@ export type MeterLayer = {
   tone: MeterFillTone;
 };
 
+/**
+ * A horizontal meter: a rounded track with one or more fills painted over it.
+ * The one primitive behind every "how full / how close to the line" bar
+ * (error budgets, burn, quota); tone and height are variants so the health
+ * vocabulary is declared once, not as per-caller class strings.
+ *
+ * Purely decorative: `aria-hidden`, and every caller prints the figure it
+ * encodes next to it, which is the accessible value.
+ */
 export function Meter({
   layers,
   tone,
