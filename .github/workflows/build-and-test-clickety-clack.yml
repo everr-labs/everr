@@ -1,0 +1,54 @@
+name: Clickety-Clack CI
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+on:
+  pull_request:
+    paths:
+      - .github/workflows/build-and-test-clickety-clack.yml
+      - crates/clickety-clack/**
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/build-and-test-clickety-clack.yml
+      - crates/clickety-clack/**
+
+jobs:
+  test:
+    name: Test
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Collect resource usage
+        uses: ./.github/actions/everr-action
+        with:
+          check-run-id: ${{ job.check_run_id }}
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@1.94.1
+        with:
+          components: rustfmt, clippy
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: crates/clickety-clack -> target
+
+      - name: Format check
+        working-directory: crates/clickety-clack
+        run: cargo fmt --check
+
+      - name: Clippy
+        working-directory: crates/clickety-clack
+        run: cargo clippy --locked --all-targets --features container-tests -- -D warnings
+
+      - name: Test (unit + container suites)
+        working-directory: crates/clickety-clack
+        run: cargo test --locked --features container-tests
