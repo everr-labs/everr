@@ -486,6 +486,24 @@ export const createCcChannel = createAuthenticatedServerFn({ method: "POST" })
     cc.createChannel(orgId(session), data),
   );
 
+// PUT replaces the config wholesale; secrets are write-only, so the edit
+// drawer re-enters them. `newName` renames the channel (references inside the
+// engine are id-based, so nothing breaks).
+export const updateCcChannel = createAuthenticatedServerFn({ method: "POST" })
+  .inputValidator(
+    z.object({
+      name: z.string().min(1),
+      newName: z.string().min(1).optional(),
+      config: CcChannelConfigSchema,
+    }),
+  )
+  .handler(({ data, context: { session } }) =>
+    cc.updateChannel(orgId(session), data.name, {
+      name: data.newName,
+      config: data.config,
+    }),
+  );
+
 // A referenced channel answers 409 whose message names the referring
 // receivers, surfaced verbatim in the UI toast.
 export const deleteCcChannel = createAuthenticatedServerFn({ method: "POST" })
@@ -516,6 +534,26 @@ export const createCcReceiver = createAuthenticatedServerFn({ method: "POST" })
   )
   .handler(({ data, context: { session } }) =>
     cc.createReceiver(orgId(session), data),
+  );
+
+// PUT is an upsert; annotations replace the stored map, so the edit drawer
+// passes the receiver's current ones through unchanged. `newName` renames the
+// receiver (routes target it by id inside the engine, so nothing breaks).
+export const updateCcReceiver = createAuthenticatedServerFn({ method: "POST" })
+  .inputValidator(
+    z.object({
+      name: z.string().min(1),
+      newName: z.string().min(1).optional(),
+      channels: z.array(z.string().min(1)).min(1),
+      annotations: z.record(z.string(), z.string()),
+    }),
+  )
+  .handler(({ data, context: { session } }) =>
+    cc.updateReceiver(orgId(session), data.name, {
+      name: data.newName,
+      channels: data.channels,
+      annotations: data.annotations,
+    }),
   );
 
 export const deleteCcReceiver = createAuthenticatedServerFn({ method: "POST" })

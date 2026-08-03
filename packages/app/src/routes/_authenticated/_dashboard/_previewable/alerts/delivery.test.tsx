@@ -10,7 +10,13 @@ import {
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { CcChannel, CcReceiver, CcRoute } from "@/data/cc/types";
+import { ccRuleViewFixture } from "@/data/cc/test-fixtures";
+import type {
+  CcChannel,
+  CcReceiver,
+  CcRoute,
+  CcRuleView,
+} from "@/data/cc/types";
 import { Route as DeliveryFileRoute } from "./delivery";
 
 const mocks = vi.hoisted(() => ({
@@ -25,8 +31,10 @@ const mocks = vi.hoisted(() => ({
   listCcLabelKeys: vi.fn(),
   listCcLabelValues: vi.fn(),
   createCcChannel: vi.fn(),
+  updateCcChannel: vi.fn(),
   deleteCcChannel: vi.fn(),
   createCcReceiver: vi.fn(),
+  updateCcReceiver: vi.fn(),
   deleteCcReceiver: vi.fn(),
   createCcRoute: vi.fn(),
   updateCcRoute: vi.fn(),
@@ -51,8 +59,10 @@ vi.mock("@/data/cc/server", () => ({
   listCcLabelKeys: mocks.listCcLabelKeys,
   listCcLabelValues: mocks.listCcLabelValues,
   createCcChannel: mocks.createCcChannel,
+  updateCcChannel: mocks.updateCcChannel,
   deleteCcChannel: mocks.deleteCcChannel,
   createCcReceiver: mocks.createCcReceiver,
+  updateCcReceiver: mocks.updateCcReceiver,
   deleteCcReceiver: mocks.deleteCcReceiver,
   createCcRoute: mocks.createCcRoute,
   updateCcRoute: mocks.updateCcRoute,
@@ -353,5 +363,143 @@ describe("/alerts/delivery receivers section", () => {
       }),
     );
     expect(mocks.toastSuccess).toHaveBeenCalledWith("Receiver deleted");
+  });
+});
+
+describe("/alerts/delivery matcher name resolution", () => {
+  const RULE_ID = "44444444-4444-4444-4444-444444444444";
+
+  function ccRuleView(overrides: Partial<CcRuleView> = {}): CcRuleView {
+    return ccRuleViewFixture({
+      id: RULE_ID,
+      spec: {
+        interval_secs: 30,
+        value_column: null,
+        severity: "info",
+      },
+      rollup: {
+        alert_state: "inactive",
+        firing_instance_count: 0,
+        last_fired_at: null,
+        last_resolved_at: null,
+        last_seen_at: null,
+        last_row_count: null,
+      },
+      ...overrides,
+    });
+  }
+
+  it("renders a rule matcher as the rule's linked name, keeping the id as the title", async () => {
+    mocks.listCcRules.mockResolvedValue([ccRuleView()]);
+    mocks.listCcRoutes.mockResolvedValue([
+      route({ matchers: [{ label: "rule", op: "eq", value: RULE_ID }] }),
+    ]);
+    mocks.listCcReceivers.mockResolvedValue([receiver()]);
+    mocks.listCcChannels.mockResolvedValue([channel()]);
+
+    renderDeliveryRoute();
+
+    const link = await screen.findByRole("link", { name: "flapping" });
+    expect(link).toHaveAttribute("title", RULE_ID);
+    // The raw id never renders as text: it lives on the title only.
+    expect(screen.queryByText(RULE_ID)).toBeNull();
+  });
+
+  it("keeps the raw value for matchers it cannot resolve", async () => {
+    mocks.listCcRoutes.mockResolvedValue([
+      route({ matchers: [{ label: "rule", op: "eq", value: RULE_ID }] }),
+    ]);
+    mocks.listCcReceivers.mockResolvedValue([receiver()]);
+    mocks.listCcChannels.mockResolvedValue([channel()]);
+
+    renderDeliveryRoute();
+
+    expect(await screen.findByText(RULE_ID)).toBeInTheDocument();
+  });
+});
+
+describe("/alerts/delivery edit flows", () => {
+  it("edits a channel in place: config re-entered, rename in PUT payload", async () => {
+    mocks.listCcChannels.mockResolvedValue([channel()]);
+    mocks.updateCcChannel.mockResolvedValue(channel());
+    const user = userEvent.setup();
+
+    renderDeliveryRoute();
+
+    await user.click(
+      await screen.findByRole("button", { name: "Edit channel" }),
+    );
+    const drawer = await screen.findByRole("dialog");
+
+    // The name is an editable label: the engine references channels by id, so
+    // a rename rides along in the same PUT as `newName`.
+    const nameInput = within(drawer).getByLabelText("Name");
+    expect(nameInput).toHaveValue("oncall-hook");
+    // The stored URL is write-only (redacted on read), so the field starts
+    // blank and saving requires a value.
+    const url = within(drawer).getByLabelText("Webhook URL");
+    expect(url).toHaveValue("");
+    const save = within(drawer).getByRole("button", { name: "Save channel" });
+    expect(save).toBeDisabled();
+
+    await user.type(url, "https://example.com/rotated");
+    await user.clear(nameInput);
+    await user.type(nameInput, "ops-hook");
+    await user.click(save);
+
+    await waitFor(() =>
+      expect(mocks.updateCcChannel).toHaveBeenCalledWith({
+        data: {
+          name: "oncall-hook",
+          newName: "ops-hook",
+          config: { type: "webhook", url: "https://example.com/rotated" },
+        },
+      }),
+    );
+    expect(mocks.createCcChannel).not.toHaveBeenCalled();
+  });
+
+  it("edits a receiver in place: channels prefilled, annotations passed through", async () => {
+    mocks.listCcReceivers.mockResolvedValue([
+      receiver({ annotations: { team: "core" } }),
+    ]);
+    mocks.listCcChannels.mockResolvedValue([
+      channel(),
+      channel({
+        name: "backup-mail",
+        config: { type: "email", to: ["a@b.c"] },
+      }),
+    ]);
+    mocks.updateCcReceiver.mockResolvedValue(receiver());
+    const user = userEvent.setup();
+
+    renderDeliveryRoute();
+
+    await user.click(
+      await screen.findByRole("button", { name: "Edit receiver" }),
+    );
+    const drawer = await screen.findByRole("dialog");
+
+    // The desired name is always sent; the engine treats an unchanged name as
+    // a plain replace.
+    expect(within(drawer).getByLabelText("Name")).toHaveValue("oncall");
+    expect(within(drawer).getByLabelText("Channel oncall-hook")).toBeChecked();
+
+    await user.click(within(drawer).getByLabelText("Channel backup-mail"));
+    await user.click(
+      within(drawer).getByRole("button", { name: "Save receiver" }),
+    );
+
+    await waitFor(() =>
+      expect(mocks.updateCcReceiver).toHaveBeenCalledWith({
+        data: {
+          name: "oncall",
+          newName: "oncall",
+          channels: ["oncall-hook", "backup-mail"],
+          annotations: { team: "core" },
+        },
+      }),
+    );
+    expect(mocks.createCcReceiver).not.toHaveBeenCalled();
   });
 });

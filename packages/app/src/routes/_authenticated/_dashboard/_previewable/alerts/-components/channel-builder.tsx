@@ -15,12 +15,16 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
 import { ccQueries } from "@/data/cc/queries";
-import { createCcChannel, testCcChannel } from "@/data/cc/server";
-import type { CcChannelConfig } from "@/data/cc/types";
+import {
+  createCcChannel,
+  testCcChannel,
+  updateCcChannel,
+} from "@/data/cc/server";
+import type { CcChannel, CcChannelConfig } from "@/data/cc/types";
 import { authClient } from "@/lib/auth-client";
 import { CcDrawer } from "./cc-drawer";
 import { CHANNEL_LABEL, type ChannelType } from "./channel-meta";
-import { CcConceptNote, ccErrorMessage } from "./shared";
+import { CcConceptNote, ccErrorMessage, isDuplicateName } from "./shared";
 
 /** Every per-type field kept side by side so switching the type never loses input. */
 type ConfigDraft = {
@@ -38,6 +42,20 @@ const EMPTY_DRAFT: ConfigDraft = {
   botToken: "",
   chatIds: [],
 };
+
+// Secret fields come back redacted ("***"), so an edit starts them blank and
+// the user re-enters them; non-secret fields prefill as stored.
+function draftFromConfig(config: CcChannelConfig): ConfigDraft {
+  switch (config.type) {
+    case "webhook":
+    case "slack":
+      return { ...EMPTY_DRAFT, type: config.type };
+    case "email":
+      return { ...EMPTY_DRAFT, type: config.type, to: config.to };
+    case "telegram":
+      return { ...EMPTY_DRAFT, type: config.type, chatIds: config.chat_ids };
+  }
+}
 
 function draftToConfig(d: ConfigDraft): CcChannelConfig | null {
   switch (d.type) {
@@ -57,16 +75,21 @@ export function ChannelBuilder({
   open,
   onOpenChange,
   existingNames,
+  channel: editing = null,
 }: {
   open: boolean;
   onOpenChange: (o: boolean) => void;
   /** CC's create answers 409 for an existing name; block duplicates client-side. */
   existingNames: string[];
+  /** Edit target; the caller remounts (key) per target, so state inits here. */
+  channel?: CcChannel | null;
 }) {
   const qc = useQueryClient();
   const { data: session } = authClient.useSession();
-  const [name, setName] = useState("");
-  const [draft, setDraft] = useState<ConfigDraft>(EMPTY_DRAFT);
+  const [name, setName] = useState(editing?.name ?? "");
+  const [draft, setDraft] = useState<ConfigDraft>(() =>
+    editing ? draftFromConfig(editing.config) : EMPTY_DRAFT,
+  );
   // testedConfig = JSON.stringify of the config the request was issued for;
   // the draft can move on while the engine answers, so the result only counts
   // while it still matches the on-screen config.
@@ -77,7 +100,7 @@ export function ChannelBuilder({
     testedConfig: string;
   } | null>(null);
 
-  const duplicate = existingNames.includes(name.trim());
+  const duplicate = isDuplicateName(existingNames, name.trim(), editing?.name);
   const config = draftToConfig(draft);
 
   const patch = (p: Partial<ConfigDraft>) => {
@@ -87,15 +110,20 @@ export function ChannelBuilder({
     setDraft((d) => ({ ...d, ...p }));
   };
 
-  const create = useMutation({
+  const save = useMutation({
     mutationFn: () => {
       if (!config) throw new Error("channel config is incomplete");
-      return createCcChannel({ data: { name: name.trim(), config } });
+      const trimmed = name.trim();
+      return editing
+        ? updateCcChannel({
+            data: { name: editing.name, newName: trimmed, config },
+          })
+        : createCcChannel({ data: { name: trimmed, config } });
     },
     onSuccess: (c) => {
       qc.invalidateQueries({ queryKey: ccQueries.channels().queryKey });
       onOpenChange(false);
-      toast.success(`Channel "${c.name}" created`);
+      toast.success(`Channel "${c.name}" ${editing ? "updated" : "created"}`);
     },
     onError: (e) => toast.error(ccErrorMessage(e)),
   });
@@ -123,7 +151,7 @@ export function ChannelBuilder({
     <CcDrawer
       open={open}
       onOpenChange={onOpenChange}
-      title="New channel"
+      title={editing ? "Edit channel" : "New channel"}
       footer={
         <>
           <Button
@@ -138,10 +166,10 @@ export function ChannelBuilder({
             Cancel
           </Button>
           <Button
-            disabled={!name.trim() || duplicate || !config || create.isPending}
-            onClick={() => create.mutate()}
+            disabled={!name.trim() || duplicate || !config || save.isPending}
+            onClick={() => save.mutate()}
           >
-            Create channel
+            {editing ? "Save channel" : "Create channel"}
           </Button>
         </>
       }
@@ -149,8 +177,8 @@ export function ChannelBuilder({
       <CcConceptNote>
         A channel is a named delivery endpoint that any number of receivers can
         reference. Secret fields (Slack URL, Telegram token) are write-only: the
-        engine redacts them on read, and re-creating a channel under the same
-        name rotates its secret in place.
+        engine redacts them on read, so editing a channel means entering them
+        again.
       </CcConceptNote>
       <div className="space-y-1.5">
         <Label htmlFor="channel-name">Name</Label>
@@ -204,6 +232,12 @@ export function ChannelBuilder({
                 : "https://example.com/hook"
             }
           />
+          {editing !== null && (
+            <p className="text-xs text-muted-foreground">
+              The stored URL stays hidden; saving replaces it with what you
+              enter here.
+            </p>
+          )}
         </div>
       )}
       {draft.type === "email" && (
@@ -233,6 +267,12 @@ export function ChannelBuilder({
               onChange={(e) => patch({ botToken: e.target.value })}
               placeholder="123456789:ABC..."
             />
+            {editing !== null && (
+              <p className="text-xs text-muted-foreground">
+                The stored token stays hidden; saving replaces it with what you
+                enter here.
+              </p>
+            )}
           </div>
           <div className="space-y-1.5">
             <Label>Chat IDs</Label>

@@ -1,9 +1,16 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { CcApiError } from "@/data/cc/errors";
 import type { CcSloTier } from "@/data/cc/types";
 import { CcSloTierBadge, ccErrorMessage } from "./shared";
+
+// shared.tsx reaches ccQueries (server fns) for matcher-value resolution; the
+// real module drags server-only env into this client-side test.
+vi.mock("@/data/cc/server", () => ({
+  listCcRules: vi.fn().mockResolvedValue([]),
+  listCcSlos: vi.fn().mockResolvedValue([]),
+}));
 
 // A CcApiError that crossed the server-fn boundary: structurally intact, but
 // no longer an instance of the class.

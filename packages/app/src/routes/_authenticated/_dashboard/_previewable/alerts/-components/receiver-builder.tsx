@@ -5,29 +5,32 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
 import { ccQueries } from "@/data/cc/queries";
-import { createCcReceiver } from "@/data/cc/server";
-import type { CcChannel } from "@/data/cc/types";
+import { createCcReceiver, updateCcReceiver } from "@/data/cc/server";
+import type { CcChannel, CcReceiver } from "@/data/cc/types";
 import { CcDrawer } from "./cc-drawer";
 import { CHANNEL_LABEL } from "./channel-meta";
-import { CcConceptNote, ccErrorMessage } from "./shared";
+import { CcConceptNote, ccErrorMessage, isDuplicateName } from "./shared";
 
 export function ReceiverBuilder({
   open,
   onOpenChange,
   existingNames,
   channels,
+  receiver: editing = null,
 }: {
   open: boolean;
   onOpenChange: (o: boolean) => void;
   /** CC's create answers 409 for an existing name; block duplicates client-side. */
   existingNames: string[];
   channels: CcChannel[];
+  /** Edit target; the caller remounts (key) per target, so state inits here. */
+  receiver?: CcReceiver | null;
 }) {
   const qc = useQueryClient();
-  const [name, setName] = useState("");
-  const [selected, setSelected] = useState<string[]>([]);
+  const [name, setName] = useState(editing?.name ?? "");
+  const [selected, setSelected] = useState<string[]>(editing?.channels ?? []);
 
-  const duplicate = existingNames.includes(name.trim());
+  const duplicate = isDuplicateName(existingNames, name.trim(), editing?.name);
 
   const toggle = (channelName: string) =>
     setSelected((s) =>
@@ -36,17 +39,27 @@ export function ReceiverBuilder({
         : [...s, channelName],
     );
 
-  const create = useMutation({
+  const save = useMutation({
     mutationFn: () => {
       if (selected.length === 0) throw new Error("pick at least one channel");
-      return createCcReceiver({
-        data: { name: name.trim(), channels: selected },
-      });
+      const trimmed = name.trim();
+      return editing
+        ? updateCcReceiver({
+            data: {
+              name: editing.name,
+              newName: trimmed,
+              channels: selected,
+              annotations: editing.annotations ?? {},
+            },
+          })
+        : createCcReceiver({
+            data: { name: trimmed, channels: selected },
+          });
     },
     onSuccess: (r) => {
       qc.invalidateQueries({ queryKey: ccQueries.receivers().queryKey });
       onOpenChange(false);
-      toast.success(`Receiver "${r.name}" created`);
+      toast.success(`Receiver "${r.name}" ${editing ? "updated" : "created"}`);
     },
     onError: (e) => toast.error(ccErrorMessage(e)),
   });
@@ -55,7 +68,7 @@ export function ReceiverBuilder({
     <CcDrawer
       open={open}
       onOpenChange={onOpenChange}
-      title="New receiver"
+      title={editing ? "Edit receiver" : "New receiver"}
       footer={
         <>
           <Button variant="outline" onClick={() => onOpenChange(false)}>
@@ -66,11 +79,11 @@ export function ReceiverBuilder({
               !name.trim() ||
               duplicate ||
               selected.length === 0 ||
-              create.isPending
+              save.isPending
             }
-            onClick={() => create.mutate()}
+            onClick={() => save.mutate()}
           >
-            Create receiver
+            {editing ? "Save receiver" : "Create receiver"}
           </Button>
         </>
       }

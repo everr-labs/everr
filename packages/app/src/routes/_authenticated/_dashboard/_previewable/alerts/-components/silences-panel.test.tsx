@@ -1,4 +1,12 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import {
+  createMemoryHistory,
+  createRootRoute,
+  createRoute,
+  createRouter,
+  Outlet,
+  RouterProvider,
+} from "@tanstack/react-router";
 import { act, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { createRef } from "react";
@@ -16,6 +24,8 @@ const mocks = vi.hoisted(() => ({
   deleteCcSilence: vi.fn(),
   listCcLabelKeys: vi.fn().mockResolvedValue([]),
   listCcLabelValues: vi.fn().mockResolvedValue([]),
+  listCcRules: vi.fn().mockResolvedValue([]),
+  listCcSlos: vi.fn().mockResolvedValue([]),
 }));
 
 vi.mock("@/data/cc/server", () => ({
@@ -24,6 +34,8 @@ vi.mock("@/data/cc/server", () => ({
   deleteCcSilence: mocks.deleteCcSilence,
   listCcLabelKeys: mocks.listCcLabelKeys,
   listCcLabelValues: mocks.listCcLabelValues,
+  listCcRules: mocks.listCcRules,
+  listCcSlos: mocks.listCcSlos,
 }));
 
 function ccSilence(overrides: Partial<CcSilence> = {}): CcSilence {
@@ -48,13 +60,39 @@ function activeSilence(overrides: Partial<CcSilence> = {}): CcSilence {
   });
 }
 
+// Conditions resolves rule/slo matcher values through preview-scoped queries
+// (usePreview reads the _dashboard search), so the panel needs a router whose
+// tree carries the _authenticated/_dashboard layout ids.
 function renderPanel(onNewSilence = vi.fn()) {
+  const rootRoute = createRootRoute({ component: Outlet });
+  const authenticatedRoute = createRoute({
+    getParentRoute: () => rootRoute,
+    id: "_authenticated",
+    component: Outlet,
+  });
+  const dashboardRoute = createRoute({
+    getParentRoute: () => authenticatedRoute,
+    id: "_dashboard",
+    component: Outlet,
+  });
+  const panelRoute = createRoute({
+    getParentRoute: () => dashboardRoute,
+    path: "/",
+    component: () => <SilencesPanel onNewSilence={onNewSilence} />,
+  });
+  const routeTree = rootRoute.addChildren([
+    authenticatedRoute.addChildren([dashboardRoute.addChildren([panelRoute])]),
+  ]);
+
+  const history = createMemoryHistory({ initialEntries: ["/"] });
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
+  const router = createRouter({ routeTree, history, context: { queryClient } });
+
   render(
     <QueryClientProvider client={queryClient}>
-      <SilencesPanel onNewSilence={onNewSilence} />
+      <RouterProvider router={router} />
     </QueryClientProvider>,
   );
   return { onNewSilence };

@@ -400,7 +400,7 @@ function PipelineSection({
 function ReceiversSection({ channels }: { channels: CcChannel[] }) {
   const qc = useQueryClient();
   const { data, isPending, isError, error } = useQuery(ccQueries.receivers());
-  const [open, setOpen] = useState(false);
+  const [editing, setEditing] = useState<CcReceiver | "new" | null>(null);
   const channelsByName = useMemo(
     () => new Map(channels.map((c) => [c.name, c])),
     [channels],
@@ -420,7 +420,7 @@ function ReceiversSection({ channels }: { channels: CcChannel[] }) {
       <CardHeader>
         <CardTitle>Receivers</CardTitle>
         <CardAction>
-          <Button variant="outline" size="sm" onClick={() => setOpen(true)}>
+          <Button variant="outline" size="sm" onClick={() => setEditing("new")}>
             <Plus data-icon="inline-start" />
             New receiver
           </Button>
@@ -484,6 +484,14 @@ function ReceiversSection({ channels }: { channels: CcChannel[] }) {
                   <Button
                     variant="ghost"
                     size="icon-sm"
+                    aria-label="Edit receiver"
+                    onClick={() => setEditing(r)}
+                  >
+                    <Pencil />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
                     aria-label="Delete receiver"
                     disabled={remove.isPending}
                     onClick={() => remove.mutate(r.name)}
@@ -497,11 +505,14 @@ function ReceiversSection({ channels }: { channels: CcChannel[] }) {
         </SectionBody>
       </CardContent>
       <ReceiverBuilder
-        key={open ? "open" : "closed"}
-        open={open}
-        onOpenChange={setOpen}
+        key={editing === "new" ? "new" : (editing?.name ?? "closed")}
+        open={editing !== null}
+        onOpenChange={(o) => {
+          if (!o) setEditing(null);
+        }}
         existingNames={(data ?? []).map((r) => r.name)}
         channels={channels}
+        receiver={editing === "new" ? null : editing}
       />
     </Card>
   );
@@ -510,7 +521,7 @@ function ReceiversSection({ channels }: { channels: CcChannel[] }) {
 function ChannelsSection() {
   const qc = useQueryClient();
   const { data, isPending, isError, error } = useQuery(ccQueries.channels());
-  const [open, setOpen] = useState(false);
+  const [editing, setEditing] = useState<CcChannel | "new" | null>(null);
 
   const remove = useMutation({
     mutationFn: (name: string) => deleteCcChannel({ data: { name } }),
@@ -529,7 +540,7 @@ function ChannelsSection() {
         <CardTitle>Channels</CardTitle>
         <CardDescription>Secrets are redacted on read.</CardDescription>
         <CardAction>
-          <Button variant="outline" size="sm" onClick={() => setOpen(true)}>
+          <Button variant="outline" size="sm" onClick={() => setEditing("new")}>
             <Plus data-icon="inline-start" />
             New channel
           </Button>
@@ -573,6 +584,14 @@ function ChannelsSection() {
                   <Button
                     variant="ghost"
                     size="icon-sm"
+                    aria-label="Edit channel"
+                    onClick={() => setEditing(c)}
+                  >
+                    <Pencil />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
                     aria-label="Delete channel"
                     disabled={remove.isPending}
                     onClick={() => remove.mutate(c.name)}
@@ -586,10 +605,13 @@ function ChannelsSection() {
         </SectionBody>
       </CardContent>
       <ChannelBuilder
-        key={open ? "open" : "closed"}
-        open={open}
-        onOpenChange={setOpen}
+        key={editing === "new" ? "new" : (editing?.name ?? "closed")}
+        open={editing !== null}
+        onOpenChange={(o) => {
+          if (!o) setEditing(null);
+        }}
         existingNames={(data ?? []).map((c) => c.name)}
+        channel={editing === "new" ? null : editing}
       />
     </Card>
   );

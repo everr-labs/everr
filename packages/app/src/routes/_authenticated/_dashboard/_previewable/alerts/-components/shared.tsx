@@ -32,7 +32,7 @@ import {
   TooltipTrigger,
 } from "@everr/ui/components/tooltip";
 import { cn } from "@everr/ui/lib/utils";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, type LinkProps } from "@tanstack/react-router";
 import {
   ArrowLeft,
@@ -46,11 +46,18 @@ import {
   Play,
   RotateCw,
 } from "lucide-react";
-import type { ReactNode } from "react";
+import { type ReactNode, useMemo } from "react";
+import { ccRuleIdentity } from "@/data/alerts/rule-identity";
 import { ccErrorInfo } from "@/data/cc/errors";
+import { ccQueries } from "@/data/cc/queries";
 import { ccOpSymbol } from "@/data/cc/route-resolution";
-import { CC_CANONICAL_SLO_TIERS, ccFmtWindowLabel } from "@/data/cc/slo";
+import {
+  CC_CANONICAL_SLO_TIERS,
+  ccFmtWindowLabel,
+  ccSloIdentity,
+} from "@/data/cc/slo";
 import type { CcMatcher, CcRuleHealthStatus, CcSloTier } from "@/data/cc/types";
+import { usePreview } from "@/hooks/use-preview";
 
 // ── Guidance ──────────────────────────────────────────────────────────────────
 
@@ -313,6 +320,48 @@ export function Pill({
   );
 }
 
+/**
+ * A matcher value resolved to the first-class name it points at (a `rule` or
+ * `slo` label whose value is the resource's id), so the pipeline reads as
+ * names, not UUIDs. The raw value stays reachable as the link's title.
+ */
+type CcMatcherValueLink = {
+  text: string;
+  to: "/alerts/rules/$project/$slug" | "/alerts/slos/$project/$slug";
+  params: { project: string; slug: string };
+};
+
+// The SLO listing is preview-scoped like the pages themselves, so a matcher
+// pointing at a preview-only SLO still resolves while that preview is open.
+function useCcMatcherValueLink(): (m: CcMatcher) => CcMatcherValueLink | null {
+  const { name: preview } = usePreview();
+  const rules = useQuery(ccQueries.rules());
+  const slos = useQuery(ccQueries.slos(preview));
+  return useMemo(() => {
+    const byId = new Map<string, CcMatcherValueLink>();
+    for (const r of rules.data ?? []) {
+      const identity = ccRuleIdentity(r);
+      byId.set(r.id, {
+        text: identity.name,
+        to: "/alerts/rules/$project/$slug",
+        params: { project: identity.project, slug: identity.slug },
+      });
+    }
+    for (const s of slos.data ?? []) {
+      const identity = ccSloIdentity(s);
+      byId.set(s.id, {
+        text: identity.name,
+        to: "/alerts/slos/$project/$slug",
+        params: { project: identity.project, slug: identity.slug },
+      });
+    }
+    return (m: CcMatcher) =>
+      m.label === "rule" || m.label === "slo"
+        ? (byId.get(m.value) ?? null)
+        : null;
+  }, [rules.data, slos.data]);
+}
+
 export function Conditions({
   matchers,
   emptyLabel = "*",
@@ -320,6 +369,7 @@ export function Conditions({
   matchers: CcMatcher[];
   emptyLabel?: string;
 }) {
+  const resolveValue = useCcMatcherValueLink();
   if (matchers.length === 0) {
     return (
       <span className="font-mono text-xs text-muted-foreground">
@@ -329,13 +379,27 @@ export function Conditions({
   }
   return (
     <span className="flex flex-wrap gap-1">
-      {matchers.map((m, i) => (
-        <Pill key={i}>
-          <span className="text-foreground">{m.label}</span>
-          <span className="text-muted-foreground">{ccOpSymbol(m.op)}</span>
-          <span className="text-foreground">{m.value}</span>
-        </Pill>
-      ))}
+      {matchers.map((m, i) => {
+        const link = resolveValue(m);
+        return (
+          <Pill key={i}>
+            <span className="text-foreground">{m.label}</span>
+            <span className="text-muted-foreground">{ccOpSymbol(m.op)}</span>
+            {link ? (
+              <Link
+                to={link.to}
+                params={link.params}
+                title={m.value}
+                className="text-foreground underline-offset-2 hover:underline"
+              >
+                {link.text}
+              </Link>
+            ) : (
+              <span className="text-foreground">{m.value}</span>
+            )}
+          </Pill>
+        );
+      })}
     </span>
   );
 }
@@ -470,6 +534,18 @@ export function CcTableSkeleton({ rows = 5 }: { rows?: number }) {
       ))}
     </div>
   );
+}
+
+/**
+ * Names are editable labels (references are id-based engine-side): a rename
+ * may not land on another resource's name, but keeping your own is fine.
+ */
+export function isDuplicateName(
+  existingNames: string[],
+  next: string,
+  current?: string,
+): boolean {
+  return existingNames.includes(next) && next !== current;
 }
 
 /** Compact RFC-3339 → local string; null-safe. */

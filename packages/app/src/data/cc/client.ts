@@ -235,6 +235,27 @@ export async function createChannel(
     await ccRequest(orgId, "POST", "/v1/channels", body),
   );
 }
+/**
+ * PUT is an upsert that replaces the config wholesale: secret fields are
+ * write-only (redacted on read), so an edit re-enters them. A body `name`
+ * different from the path renames the channel (equal is a plain replace);
+ * receivers reference channels by id inside the engine, so the rename never
+ * breaks them.
+ */
+export async function updateChannel(
+  orgId: string,
+  name: string,
+  body: { name?: string; config: CcChannelConfig },
+) {
+  return CcChannelSchema.parse(
+    await ccRequest(
+      orgId,
+      "PUT",
+      `/v1/channels/${encodeURIComponent(name)}`,
+      body,
+    ),
+  );
+}
 /** CC answers 409 (CcApiError naming the referring receivers) while referenced. */
 export async function deleteChannel(orgId: string, name: string) {
   return CcDeletedSchema.parse(
@@ -283,6 +304,29 @@ export async function createReceiver(
 ) {
   return CcReceiverSchema.parse(
     await ccRequest(orgId, "POST", "/v1/receivers", body),
+  );
+}
+/**
+ * PUT is an upsert; `annotations` replaces the stored map, so pass it through.
+ * A body `name` different from the path renames the receiver; routes target
+ * receivers by id inside the engine, so the rename never breaks them.
+ */
+export async function updateReceiver(
+  orgId: string,
+  name: string,
+  body: {
+    name?: string;
+    channels: string[];
+    annotations: Record<string, string>;
+  },
+) {
+  return CcReceiverSchema.parse(
+    await ccRequest(
+      orgId,
+      "PUT",
+      `/v1/receivers/${encodeURIComponent(name)}`,
+      body,
+    ),
   );
 }
 export async function deleteReceiver(orgId: string, name: string) {
