@@ -234,7 +234,7 @@ async fn grouped_delivery_uses_clean_receiver_name() {
         )
         .await
         .unwrap();
-    store
+    let cc::stores::ReceiverWrite::Stored(receiver) = store
         .create_receiver(
             tenant.clone(),
             receiver_name,
@@ -242,7 +242,10 @@ async fn grouped_delivery_uses_clean_receiver_name() {
             &std::collections::BTreeMap::new(),
         )
         .await
-        .unwrap();
+        .unwrap()
+    else {
+        panic!("expected the receiver to be stored");
+    };
     store
         .create_route(
             tenant.clone(),
@@ -277,7 +280,7 @@ async fn grouped_delivery_uses_clean_receiver_name() {
     let group_by = grouping::default_group_by();
     let labels = cc::dispatcher::routing::match_labels(&event);
     let values = grouping::group_by_values(&labels, &group_by);
-    let gid = grouping::group_id(&tenant, receiver_name, &group_by, &values);
+    let gid = grouping::group_id(&tenant, &receiver.id.to_string(), &group_by, &values);
 
     flush_group(&ctx, &gid).await;
 
@@ -398,7 +401,7 @@ async fn flush_time_silence_emits_a_silenced_record() {
         )
         .await
         .unwrap();
-    store
+    let cc::stores::ReceiverWrite::Stored(receiver) = store
         .create_receiver(
             tenant.clone(),
             receiver_name,
@@ -406,7 +409,10 @@ async fn flush_time_silence_emits_a_silenced_record() {
             &std::collections::BTreeMap::new(),
         )
         .await
-        .unwrap();
+        .unwrap()
+    else {
+        panic!("expected the receiver to be stored");
+    };
     store
         .create_route(
             tenant.clone(),
@@ -462,7 +468,7 @@ async fn flush_time_silence_emits_a_silenced_record() {
     let group_by = grouping::default_group_by();
     let labels = cc::dispatcher::routing::match_labels(&event);
     let values = grouping::group_by_values(&labels, &group_by);
-    let gid = grouping::group_id(&tenant, receiver_name, &group_by, &values);
+    let gid = grouping::group_id(&tenant, &receiver.id.to_string(), &group_by, &values);
 
     flush_group(&ctx, &gid).await;
 
@@ -520,7 +526,7 @@ async fn flush_time_inhibition_emits_no_record() {
         )
         .await
         .unwrap();
-    store
+    let cc::stores::ReceiverWrite::Stored(receiver) = store
         .create_receiver(
             tenant.clone(),
             receiver_name,
@@ -528,7 +534,10 @@ async fn flush_time_inhibition_emits_no_record() {
             &std::collections::BTreeMap::new(),
         )
         .await
-        .unwrap();
+        .unwrap()
+    else {
+        panic!("expected the receiver to be stored");
+    };
     store
         .create_route(
             tenant.clone(),
@@ -619,7 +628,7 @@ async fn flush_time_inhibition_emits_no_record() {
     let group_by = grouping::default_group_by();
     let labels = cc::dispatcher::routing::match_labels(&target);
     let values = grouping::group_by_values(&labels, &group_by);
-    let gid = grouping::group_id(&tenant, receiver_name, &group_by, &values);
+    let gid = grouping::group_id(&tenant, &receiver.id.to_string(), &group_by, &values);
 
     flush_group(&ctx, &gid).await;
 

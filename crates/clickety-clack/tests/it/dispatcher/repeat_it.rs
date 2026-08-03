@@ -92,7 +92,7 @@ async fn setup(repeat_interval_secs: Option<u32>) -> Harness {
         )
         .await
         .unwrap();
-    store
+    let cc::stores::ReceiverWrite::Stored(receiver) = store
         .create_receiver(
             tenant.clone(),
             receiver_name,
@@ -100,7 +100,10 @@ async fn setup(repeat_interval_secs: Option<u32>) -> Harness {
             &BTreeMap::new(),
         )
         .await
-        .unwrap();
+        .unwrap()
+    else {
+        panic!("expected the receiver to be stored");
+    };
     store
         .create_route(
             tenant.clone(),
@@ -121,7 +124,7 @@ async fn setup(repeat_interval_secs: Option<u32>) -> Harness {
     let labels =
         cc::dispatcher::routing::match_labels(&ev_status(tenant.clone(), EventStatus::Firing));
     let values = grouping::group_by_values(&labels, &group_by);
-    let gid = grouping::group_id(&tenant, receiver_name, &group_by, &values);
+    let gid = grouping::group_id(&tenant, &receiver.id.to_string(), &group_by, &values);
 
     Harness {
         store,

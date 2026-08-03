@@ -32,7 +32,7 @@ async fn group_hash_holds_no_secret_and_flush_uses_the_rotated_config() {
 
     let tenant = TenantId::from_trusted(Uuid::new_v4().to_string());
     let receiver_name = "oncall";
-    store
+    let channel = store
         .create_channel(
             ctx.cipher.as_ref(),
             tenant.clone(),
@@ -43,7 +43,7 @@ async fn group_hash_holds_no_secret_and_flush_uses_the_rotated_config() {
         )
         .await
         .unwrap();
-    store
+    let cc::stores::ReceiverWrite::Stored(receiver) = store
         .create_receiver(
             tenant.clone(),
             receiver_name,
@@ -51,7 +51,10 @@ async fn group_hash_holds_no_secret_and_flush_uses_the_rotated_config() {
             &std::collections::BTreeMap::new(),
         )
         .await
-        .unwrap();
+        .unwrap()
+    else {
+        panic!("expected the receiver to be stored");
+    };
     store
         .create_route(
             tenant.clone(),
@@ -84,12 +87,12 @@ async fn group_hash_holds_no_secret_and_flush_uses_the_rotated_config() {
     let acked = process_event(&ctx, &entries[0]).await;
     assert!(acked, "routed event should ack after buffering");
 
-    // Raw Redis read of the whole group hash: only the channel NAME is buffered; the
+    // Raw Redis read of the whole group hash: only the channel ID is buffered; the
     // secret-bearing URL must not be present anywhere.
     let group_by = grouping::default_group_by();
     let labels = cc::dispatcher::routing::match_labels(&event);
     let values = grouping::group_by_values(&labels, &group_by);
-    let gid = grouping::group_id(&tenant, receiver_name, &group_by, &values);
+    let gid = grouping::group_id(&tenant, &receiver.id.to_string(), &group_by, &values);
     let client = redis::Client::open(redis_url.as_str()).unwrap();
     let mut conn = client.get_multiplexed_async_connection().await.unwrap();
     let raw: Vec<String> = redis::cmd("HGETALL")
@@ -103,8 +106,12 @@ async fn group_hash_holds_no_secret_and_flush_uses_the_rotated_config() {
         "secret leaked into Redis: {flat}"
     );
     assert!(
-        flat.contains("oncall-hook"),
-        "meta should carry the channel name: {flat}"
+        flat.contains(&channel.id.to_string()),
+        "meta should carry the channel id: {flat}"
+    );
+    assert!(
+        !flat.contains("oncall-hook"),
+        "meta should not carry the channel name: {flat}"
     );
 
     // Rotate the channel's secret between buffering and flush (upsert by name).

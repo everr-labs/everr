@@ -484,13 +484,14 @@ async fn long_timers_extend_the_group_hash_ttl() {
     );
 }
 
-// Group hashes written before repeat reminders must remain readable.
+// Group hashes written before repeat reminders (and before the channels field)
+// must remain readable.
 #[tokio::test]
 async fn old_format_group_hash_takes_cleanly() {
     let (redis, groups) = redis_groups().await;
     let url = redis.url.clone();
 
-    let legacy_meta = r#"{"tenant":"t","channels":["oncall-slack"],"group_key":"oncall|env=prod","receiver":"oncall"}"#;
+    let legacy_meta = r#"{"tenant":"t","group_key":"oncall|env=prod","receiver":"oncall"}"#;
     let legacy_ev = serde_json::to_string(&ev("a", EventStatus::Firing)).unwrap();
     let client = redis::Client::open(url.as_str()).unwrap();
     let mut conn = client.get_multiplexed_async_connection().await.unwrap();
@@ -508,6 +509,10 @@ async fn old_format_group_hash_takes_cleanly() {
 
     let batch = groups.take_group("old1", 1_000).await.unwrap().unwrap();
     assert_eq!(batch.meta.receiver, "oncall");
+    assert!(
+        batch.meta.channels.is_empty(),
+        "a meta without the channels field reads as no channels"
+    );
     assert_eq!(batch.events.len(), 1);
     assert!(
         batch.firing.is_empty(),
