@@ -20,6 +20,7 @@ import {
   ccFmtBurn,
   ccFmtFraction,
 } from "./budget-bar";
+import { LabelSet } from "./shared";
 
 // Only the firing states are ever read (see the burn Stat); the rest are
 // listed so a new state cannot be added without deciding its tone.
@@ -68,10 +69,26 @@ export function SloStatsRow({
   const burn = worst ? ccSloCurrentBurn(tiers, worst.tiers) : null;
   const tte = worst?.time_to_exhaustion_secs ?? null;
   const exhaustion = ccSloExhaustion(budget, tte, burn?.effective ?? null);
+  // A null burn on a loaded snapshot means the group saw no valid events
+  // inside any alert window: unmeasurable, not missing.
+  const burnHint =
+    burn !== null
+      ? `last ${ccFmtWindowLabel(burn.window)}`
+      : worst !== null
+        ? "no recent events"
+        : undefined;
 
   return (
     <Card>
       <CardContent>
+        {/* On a grouped SLO the strip is one group's story, not the SLO's;
+            say which, or comparing against triage reads as a contradiction. */}
+        {worst !== null && Object.keys(worst.labels).length > 0 && (
+          <div className="mb-4 flex items-center gap-2 text-xs text-muted-foreground">
+            <span>Worst group</span>
+            <LabelSet labels={worst.labels} />
+          </div>
+        )}
         <dl className="grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-3 lg:grid-cols-5 lg:divide-x lg:divide-border/60">
           <Stat
             label="Error budget left"
@@ -93,14 +110,7 @@ export function SloStatsRow({
               ccFmtFraction(worst.sli)
             )}
           </Stat>
-          <Stat
-            label="Burn rate"
-            hint={
-              burn === null
-                ? undefined
-                : `last ${ccFmtWindowLabel(burn.window)}`
-            }
-          >
+          <Stat label="Burn rate" hint={burnHint}>
             {burn === null ? (
               <span className="text-muted-foreground">—</span>
             ) : (

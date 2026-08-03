@@ -22,13 +22,13 @@ import { PageHeader } from "@/components/page-header";
 import { ccQueries } from "@/data/cc/queries";
 import { pauseCcSlo, resumeCcSlo } from "@/data/cc/server";
 import {
+  type CcSloBurnPace,
   ccFormatSloTarget,
-  ccSloBurnPace,
   ccSloBurnPaceLabel,
   ccSloCurrentBurn,
   ccSloExhaustion,
   ccSloIdentity,
-  ccSloTierSeverity,
+  ccSloOverallPace,
   ccSloTiers,
   ccSloWindowLabel,
   ccWorstSloGroup,
@@ -37,6 +37,7 @@ import type {
   CcRuleHealthStatus,
   CcSlo,
   CcSloGroupStatus,
+  CcSloTier,
 } from "@/data/cc/types";
 import { fromCcSlo } from "@/data/slos/mapping";
 import { CcBudgetBar } from "./-components/budget-bar";
@@ -62,12 +63,16 @@ export const Route = createFileRoute(
   component: CcSlosPage,
 });
 
-// `worst` = the group with the least budget remaining; the row's headline.
+// `worst` = the group most needing attention (firing first, then budget).
+// Everything derived (tiers, worst, status) is computed once when the display
+// rows are built; cells only render.
 type SloRow = {
   slo: CcSlo;
   statusPending: boolean;
+  tiers: CcSloTier[];
   groups: CcSloGroupStatus[];
   worst: CcSloGroupStatus | null;
+  status: { label: string; tone: string };
   /** Evaluator health, absent until the status snapshot resolves. */
   health?: CcRuleHealthStatus;
 };
@@ -80,34 +85,31 @@ const TONE_WARNING = toneText({ tone: "warning", emphasis: "strong" });
 const TONE_ACTIVE = toneText({ tone: "live" });
 const TONE_QUIET = toneText({ tone: "muted" });
 
+const PACE_TONE: Record<CcSloBurnPace, string> = {
+  "burning-fast": TONE_URGENT,
+  burning: TONE_WARNING,
+  draining: TONE_ACTIVE,
+  sustainable: TONE_QUIET,
+  steady: TONE_QUIET,
+};
+
 // Pause/suppression outrank firing (neither evaluates or alerts). A firing
 // row reports the tier's severity, never a delivery outcome: where an alert
 // lands is the routing tree's business.
-function rowStatus(row: SloRow): { label: string; tone: string } {
+function rowStatus(row: Omit<SloRow, "status">): {
+  label: string;
+  tone: string;
+} {
   if (row.slo.paused) return { label: "Paused", tone: TONE_QUIET };
   if (row.slo.spec.suppressed) {
     return { label: "Suppressed", tone: TONE_QUIET };
   }
   if (row.worst === null) return { label: "Not evaluated", tone: TONE_QUIET };
 
-  const tiers = ccSloTiers(row.slo.spec);
-  const severities = row.worst.firing_tiers.map((f) =>
-    ccSloTierSeverity(tiers, { slo_tier: f.tier }),
-  );
-  if (severities.includes("critical")) {
-    return { label: "Critical", tone: TONE_URGENT };
-  }
-  if (severities.length > 0) {
-    return { label: "Warning", tone: TONE_WARNING };
-  }
-
-  // Firing is passed as empty: the firing cases already returned above.
-  const burn = ccSloCurrentBurn(tiers, row.worst.tiers)?.effective ?? null;
-  const pace = ccSloBurnPace(burn, []);
-  return {
-    label: ccSloBurnPaceLabel(pace),
-    tone: pace === "draining" ? TONE_ACTIVE : TONE_QUIET,
-  };
+  // Verdict over ALL groups: the worst-by-budget group may have no recent
+  // events while a sibling group burns or fires.
+  const pace = ccSloOverallPace(row.tiers, row.groups);
+  return { label: ccSloBurnPaceLabel(pace), tone: PACE_TONE[pace] };
 }
 
 function SloPromiseCell({
@@ -161,7 +163,7 @@ function SloRunbookCell({ slo }: { slo: CcSlo }) {
 
 function SloStatusCell({ row }: { row: SloRow }) {
   if (row.statusPending) return <Skeleton className="h-4 w-24" />;
-  const { label, tone } = rowStatus(row);
+  const { label, tone } = row.status;
   return <span className={`text-xs whitespace-nowrap ${tone}`}>{label}</span>;
 }
 
@@ -180,8 +182,7 @@ function SloExhaustionCell({ row }: { row: SloRow }) {
     worst?.time_to_exhaustion_secs ?? null,
     worst === null
       ? null
-      : (ccSloCurrentBurn(ccSloTiers(row.slo.spec), worst.tiers)?.effective ??
-          null),
+      : (ccSloCurrentBurn(row.tiers, worst.tiers)?.effective ?? null),
   );
   return (
     <span
@@ -224,17 +225,15 @@ function CcSlosPage() {
     onError: (e) => toast.error(ccErrorMessage(e)),
   });
 
-  const rows: SloRow[] = slosData
-    .map((slo, i) => {
-      const groups = statuses[i].data?.payload?.groups ?? [];
-      return {
-        slo,
-        statusPending: statuses[i].isPending,
-        groups,
-        worst: ccWorstSloGroup(groups),
-        health: statuses[i].data?.health.status,
-      };
-    })
+  // Everything status-derived (worst, verdict) waits for `displayRows`: only
+  // the visible page needs it, and the fresh-budget overlay can change it.
+  const rows = slosData
+    .map((slo, i) => ({
+      slo,
+      statusPending: statuses[i].isPending,
+      groups: statuses[i].data?.payload?.groups ?? [],
+      health: statuses[i].data?.health.status,
+    }))
     // Fixed name order, independent of status: the list must never reshuffle
     // as snapshots resolve or budgets recompute.
     .sort((a, b) => a.slo.name.localeCompare(b.slo.name));
@@ -246,9 +245,12 @@ function CcSlosPage() {
   const pageRows = rows.slice(pageStart, pageStart + SLO_PAGE_SIZE);
 
   const freshBudgets = useCcFreshBudgets(pageRows.map((r) => r.slo.id));
-  const displayRows = pageRows.map((r) => {
+  const displayRows: SloRow[] = pageRows.map((r) => {
+    const tiers = ccSloTiers(r.slo.spec);
     const groups = freshBudgets.apply(r.slo, r.groups);
-    return { ...r, groups, worst: ccWorstSloGroup(groups) };
+    const worst = ccWorstSloGroup(tiers, groups);
+    const row = { ...r, tiers, groups, worst };
+    return { ...row, status: rowStatus(row) };
   });
 
   const emptyState = (

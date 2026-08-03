@@ -172,7 +172,10 @@ describe("/alerts/slos/$project/$slug route", () => {
     expect(screen.getByText("42.00%")).toBeInTheDocument();
     expect(screen.getByText("3d 4h")).toBeInTheDocument();
     expect(screen.getByText(/1\.4×/)).toBeInTheDocument();
-    expect(screen.getByText("service")).toBeInTheDocument();
+    // Twice: the stats row names its worst group, and the definition card
+    // lists the group-by column.
+    expect(screen.getAllByText("service").length).toBeGreaterThanOrEqual(2);
+    expect(screen.getByText("Worst group")).toBeInTheDocument();
 
     await waitFor(() => expect(mocks.getCcSloBudgetSeries).toHaveBeenCalled());
     const arg = mocks.getCcSloBudgetSeries.mock.calls.at(-1)?.[0] as {

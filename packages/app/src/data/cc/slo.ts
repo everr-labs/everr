@@ -276,12 +276,56 @@ export function ccSloBurnPace(
   return "sustainable"; // under 1x: recovers within the window
 }
 
+/**
+ * The highest severity among a group's (or several groups', flattened) firing
+ * tiers; null when nothing fires. The one owner of the critical > warning >
+ * none ladder every verdict surface ranks by.
+ */
+export function ccSloFiringSeverity(
+  specTiers: readonly CcSloTier[],
+  firingTiers: readonly { tier: string }[],
+): CcSloTier["severity"] | null {
+  let worst: CcSloTier["severity"] | null = null;
+  for (const f of firingTiers) {
+    const severity = ccSloTierSeverity(specTiers, { slo_tier: f.tier });
+    if (severity === "critical") return "critical";
+    worst = severity;
+  }
+  return worst;
+}
+
+/**
+ * SLO-wide pace: a firing tier in ANY group wins; otherwise the fastest
+ * confirmed burn across groups. The worst-by-budget group alone cannot carry
+ * the verdict: it may have no recent events (null burn) while a sibling group
+ * is burning or already firing.
+ */
+export function ccSloOverallPace(
+  specTiers: readonly CcSloTier[],
+  groups: readonly CcSloGroupStatus[],
+): CcSloBurnPace {
+  const severity = ccSloFiringSeverity(
+    specTiers,
+    groups.flatMap((g) => g.firing_tiers),
+  );
+  if (severity === "critical") return "burning-fast";
+  if (severity !== null) return "burning";
+  let fastest: number | null = null;
+  for (const g of groups) {
+    const burn = ccSloCurrentBurn(specTiers, g.tiers)?.effective ?? null;
+    if (burn !== null && (fastest === null || burn > fastest)) fastest = burn;
+  }
+  return ccSloBurnPace(fastest, []);
+}
+
 export function ccSloBurnPaceLabel(pace: CcSloBurnPace): string {
   switch (pace) {
+    // The two firing paces speak alert severity, not burn arithmetic: that is
+    // the vocabulary every surface renders.
     case "burning-fast":
-      return "Burning fast";
+      return "Critical";
     case "burning":
-      return "Burning";
+      return "Warning";
     case "draining":
       return "Draining";
     case "sustainable":
@@ -297,18 +341,32 @@ export function ccFormatSloTarget(targetPercent: number): string {
 }
 
 /**
- * The group with least budget remaining. Null-budget groups sort last so a real
- * number always wins when one exists. Null only when there are no groups.
+ * The SLO's headline group: the one most needing attention. Null-budget groups
+ * sort last so a real number always wins when one exists. Null only when there
+ * are no groups.
  */
 export function ccWorstSloGroup(
+  specTiers: readonly CcSloTier[],
   groups: readonly CcSloGroupStatus[],
 ): CcSloGroupStatus | null {
+  // critical firing > warning firing > not firing; budget only breaks ties.
+  // An active fire outranks a budget scar: a group that stopped emitting can
+  // hold the lowest budget forever, and comparing two spent budgets
+  // (-2.2k% vs -2.1k%) carries no meaning.
+  const urgency = (g: CcSloGroupStatus): number => {
+    const severity = ccSloFiringSeverity(specTiers, g.firing_tiers);
+    return severity === "critical" ? 2 : severity !== null ? 1 : 0;
+  };
   let worst: CcSloGroupStatus | null = null;
+  let worstUrgency = -1;
   for (const g of groups) {
-    if (worst === null) {
+    const u = urgency(g);
+    if (worst === null || u > worstUrgency) {
       worst = g;
+      worstUrgency = u;
       continue;
     }
+    if (u < worstUrgency) continue;
     const a = g.budget_remaining ?? Number.POSITIVE_INFINITY;
     const b = worst.budget_remaining ?? Number.POSITIVE_INFINITY;
     if (a < b) worst = g;
@@ -439,11 +497,9 @@ export function ccSloGroupState(
   if (ccBudgetExhausted(group.budget_remaining)) {
     return "exhausted";
   }
-  const firingSeverities = group.firing_tiers.map((f) =>
-    ccSloTierSeverity(tiers, { slo_tier: f.tier }),
-  );
-  if (firingSeverities.includes("critical")) return "firing-critical";
-  if (firingSeverities.length > 0) return "firing-warning";
+  const severity = ccSloFiringSeverity(tiers, group.firing_tiers);
+  if (severity === "critical") return "firing-critical";
+  if (severity !== null) return "firing-warning";
   if (group.budget_remaining !== null && group.budget_remaining < 0.25) {
     return "at-risk";
   }

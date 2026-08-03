@@ -14,6 +14,7 @@ import {
   ccSloExhaustion,
   ccSloHandles,
   ccSloIdentity,
+  ccSloOverallPace,
   ccSloTierSeverity,
   ccTiersForWindow,
   ccTimeToExhaustionSecs,
@@ -402,30 +403,115 @@ describe("ccSloBurnPace", () => {
 });
 
 describe("ccWorstSloGroup", () => {
-  const g = (budget_remaining: number | null): CcSloGroupStatus => ({
+  const tiers = CC_CANONICAL_SLO_TIERS;
+  const g = (
+    budget_remaining: number | null,
+    firing: string[] = [],
+  ): CcSloGroupStatus => ({
     labels: { budget: String(budget_remaining) },
     sli: 0.999,
     budget_remaining,
     tiers: [],
     time_to_exhaustion_secs: null,
-    firing_tiers: [],
+    firing_tiers: firing.map((tier) => ({ tier, status: "firing" as const })),
   });
 
-  it("picks the group spending its budget fastest", () => {
-    expect(ccWorstSloGroup([g(0.8), g(0.1), g(0.4)])?.budget_remaining).toBe(
-      0.1,
-    );
+  it("headlines a firing group over a quieter one with less budget", () => {
+    // The regression: a service that stopped emitting can sit at the lowest
+    // budget forever; the active fire is what the headline must show.
+    const silent = g(-22.3);
+    const firing = g(-20.3, ["ticket"]);
+    expect(ccWorstSloGroup(tiers, [silent, firing])).toBe(firing);
+  });
+
+  it("ranks a critical firing tier above a warning one, whatever the budgets", () => {
+    const warning = g(-5, ["ticket"]);
+    const critical = g(0.9, ["fast-burn"]);
+    expect(ccWorstSloGroup(tiers, [warning, critical])).toBe(critical);
+  });
+
+  it("breaks firing ties by budget", () => {
+    const better = g(0.5, ["ticket"]);
+    const worse = g(0.1, ["ticket"]);
+    expect(ccWorstSloGroup(tiers, [better, worse])).toBe(worse);
+  });
+
+  it("picks the group spending its budget fastest when nothing fires", () => {
+    expect(
+      ccWorstSloGroup(tiers, [g(0.8), g(0.1), g(0.4)])?.budget_remaining,
+    ).toBe(0.1);
   });
 
   it("sorts a group with no budget number last, so a real number wins", () => {
-    expect(ccWorstSloGroup([g(null), g(0.9)])?.budget_remaining).toBe(0.9);
+    expect(ccWorstSloGroup(tiers, [g(null), g(0.9)])?.budget_remaining).toBe(
+      0.9,
+    );
   });
 
   it("still answers when every group lacks a budget", () => {
-    expect(ccWorstSloGroup([g(null), g(null)])).not.toBeNull();
+    expect(ccWorstSloGroup(tiers, [g(null), g(null)])).not.toBeNull();
   });
 
   it("returns null only when there are no groups at all", () => {
-    expect(ccWorstSloGroup([])).toBeNull();
+    expect(ccWorstSloGroup(tiers, [])).toBeNull();
+  });
+});
+
+describe("ccSloOverallPace", () => {
+  const tiers = CC_CANONICAL_SLO_TIERS;
+  const group = (o: Partial<CcSloGroupStatus>): CcSloGroupStatus => ({
+    labels: {},
+    sli: null,
+    budget_remaining: null,
+    tiers: [],
+    time_to_exhaustion_secs: null,
+    firing_tiers: [],
+    ...o,
+  });
+  const tier = (
+    name: string,
+    long: number | null,
+    short: number | null,
+  ): CcSloGroupStatus["tiers"][number] => ({
+    name,
+    long_burn_rate: long,
+    short_burn_rate: short,
+    long_window_valid: null,
+  });
+
+  it("sees a firing tier on any group, not just the worst-by-budget one", () => {
+    // The regression: worst group has no recent events (null burns) while a
+    // sibling fires its ticket tier. The verdict must not read "steady".
+    const worst = group({
+      budget_remaining: -22,
+      tiers: [tier("fast-burn", null, null), tier("ticket", null, null)],
+    });
+    const firingSibling = group({
+      budget_remaining: -20,
+      tiers: [tier("ticket", 64, 40)],
+      firing_tiers: [{ tier: "ticket", status: "firing" }],
+    });
+    expect(ccSloOverallPace(tiers, [worst, firingSibling])).toBe("burning");
+  });
+
+  it("escalates to burning-fast when any group fires a critical tier", () => {
+    const critical = group({
+      firing_tiers: [{ tier: "fast-burn", status: "firing" }],
+    });
+    expect(ccSloOverallPace(tiers, [group({}), critical])).toBe("burning-fast");
+  });
+
+  it("paces by the fastest confirmed burn across groups when none fire", () => {
+    const quiet = group({ tiers: [tier("fast-burn", 0, 0)] });
+    const draining = group({ tiers: [tier("fast-burn", 2, 2)] });
+    expect(ccSloOverallPace(tiers, [quiet, draining])).toBe("draining");
+    expect(ccSloOverallPace(tiers, [quiet])).toBe("steady");
+  });
+
+  it("is steady when no group has a confirmed burn", () => {
+    expect(ccSloOverallPace(tiers, [])).toBe("steady");
+    expect(
+      ccSloOverallPace(tiers, [group({ tiers: [tier("ticket", null, null)] })]),
+    ).toBe("steady");
   });
 });

@@ -31,6 +31,7 @@ import {
   ccSloChartRange,
   ccSloCurrentBurn,
   ccSloExhaustion,
+  ccSloFiringSeverity,
   ccSloHandles,
   ccSloIdentity,
   ccSloTierSeverity,
@@ -148,16 +149,15 @@ function StatusSection({ slo }: { slo: CcSlo }) {
         }
         // Tone from real state, not projection: a spike already gone (short
         // window back to 0) must not read as burning.
-        const firingSeverities = g.firing_tiers.map((f) =>
-          ccSloTierSeverity(tiers, { slo_tier: f.tier }),
-        );
-        const tone = firingSeverities.includes("critical")
-          ? toneText({ tone: "danger", emphasis: "strong" })
-          : firingSeverities.length > 0
-            ? toneText({ tone: "warning", emphasis: "strong" })
-            : (burn.effective ?? 0) >= 1
-              ? toneText({ tone: "live" })
-              : "text-muted-foreground";
+        const severity = ccSloFiringSeverity(tiers, g.firing_tiers);
+        const tone =
+          severity === "critical"
+            ? toneText({ tone: "danger", emphasis: "strong" })
+            : severity !== null
+              ? toneText({ tone: "warning", emphasis: "strong" })
+              : (burn.effective ?? 0) >= 1
+                ? toneText({ tone: "live" })
+                : "text-muted-foreground";
         return (
           <Tooltip>
             <TooltipTrigger
@@ -280,7 +280,7 @@ function StatusSection({ slo }: { slo: CcSlo }) {
   // Overriding budget/SLI/TTE per group can change which group is worst, so
   // merge before picking the headline.
   const groups = fresh.apply(slo, payload.groups);
-  const worst = ccWorstSloGroup(groups);
+  const worst = ccWorstSloGroup(tiers, groups);
 
   return (
     <>
