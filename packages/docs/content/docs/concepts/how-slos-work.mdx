@@ -50,6 +50,17 @@ The engine evaluates its three canonical tiers, calibrated for a 30-day window a
 
 Fast-burn pages someone now (a sharp outage eating the budget in hours). Ticket opens a warning that can wait until tomorrow (a slow leak that will breach the budget eventually). Custom tiers are not currently configurable in SLO YAML.
 
+## Data gaps and low traffic
+
+A window with no rows proves nothing, and the engine treats it that way: the tier keeps whatever state it already had. An idle tier stays idle (a quiet minute never pages you) and a firing tier stays firing (a gap is not evidence of recovery). You cannot miss a burn this way, because for a counting SLI the bad events are themselves rows: if the budget is burning, the window has data.
+
+What sparse data does cost you is precision. A short window that averages a handful of events reads any single failure as an enormous burn rate, so on thin traffic the confirmation window degrades to "something bad happened recently". Two remedies:
+
+- Set [`minValidEvents`](/docs/reference/slo-spec) so a tier cannot fire off single-digit event counts. This is the low-traffic knob; on a sparse SLI, leave it unset and a blip can page you.
+- Prefer a longer SLO window. Tier windows scale with it, so the same trickle of events fills a 30-day SLO's five-minute confirmation window far better than a 7-day SLO's 70-second one.
+
+And since silence holds state rather than resolving it, an SLO can never tell you the service stopped reporting entirely. Pair it with a dead-man [alert rule](/docs/concepts/how-alerts-work) that fires on absence; that split (SLO judges quality, rule detects silence) is deliberate.
+
 ## Groups: one SLI, many SLIs
 
 By default an SLO is scalar: one `good`/`valid` pair, one budget. Add `labelColumns` and the SLO fans out into one **per-group SLI** for each distinct value of those columns, each with its own budget and its own burn-rate tiers, from a single definition.

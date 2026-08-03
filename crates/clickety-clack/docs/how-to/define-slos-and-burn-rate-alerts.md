@@ -167,6 +167,44 @@ floor is a real measurement you asked the engine not to act on, so it reads as
 count is no measurement at all, so it carries no verdict and holds the tier's
 state, exactly like a missing burn rate.
 
+## Sparse and low-traffic SLIs
+
+Small windows are only as good as the data inside them. If your SLI's events
+arrive less often than a tier's short window is long, many evaluation ticks
+will see an empty window, and the ones that do see data will see very few
+events. Measured on a development stack over 24 hours, bursty services left
+the 60s floored short window empty on 62-97% of ticks, and a 12-minute long
+window empty on up to 86%. This is a property of the telemetry, not a fault
+in the windows: know what it does to your alerts.
+
+**What stays correct.** An empty window holds the tier's state (see the tiers
+section): an idle tier never pages on a gap and a firing tier never resolves
+on one. And for a count-ratio SLI, an empty window cannot hide a burn: the
+bad events are themselves rows in the stream the SLI counts, so a burn
+implies a measurable window. Empty windows coincide with nothing being
+emitted at all, and detecting total silence is the job of the
+[dead-man rule](#pair-every-slo-with-a-dead-man-rule) every SLO should pair
+with.
+
+**What degrades.** With a handful of events, burn rates are quantized. One
+bad event out of five valid in a short window at a 99.9% target is already a
+200x burn, so the short window's confirmation collapses to "was there at
+least one bad event recently". The anti-flap half survives (zero bad events
+reads 0x, so a passed spike still stops paging immediately); the confirmation
+half gets coarse, and the long window carries all the discrimination.
+
+**What to do about it:**
+
+- Aim for at least a few events per short window on average. The short window
+  scales with the budget window (5m at 30d, 70s at 7d, floored at 60s below
+  roughly 6d), so a longer `timeWindow.duration` buys a longer confirmation
+  window on the same data.
+- Set [`min_valid_events`](#min_valid_events) so a thin long window cannot
+  page on noise. This is the knob for low-traffic services; leaving it unset
+  on a sparse SLI means single-digit event counts can trip critical tiers.
+- Keep the dead-man rule honest: on a sparse SLI it is the only thing that
+  distinguishes "quiet" from "gone".
+
 ## Test before you commit
 
 `POST /v1/slos/test` is a dry-run: it validates the posted spec (the bare

@@ -3,7 +3,7 @@
 ## Issues
 
 - [**chart-tooltip-content-duplication**](todo/issues/chart-tooltip-content-duplication.md): Chart tooltips are built two incompatible ways across the app: recharts' `ChartTooltip`/`ChartTooltipContent` (fed by `createChartTooltipFormatter`) versus a portaled `CursorTooltip` + chrome-free `SeriesTooltipContent`. They render the same swatch/label/value idea twice; consolidate on one.
-- [**slo-short-window-floor-vs-sparse-telemetry**](todo/issues/slo-short-window-floor-vs-sparse-telemetry.md): the floored 60s short window is often smaller than the gaps between rows of the data it measures (in dev, ~12% of eval ticks see an empty trailing 60s window); decide the floor policy: raise `MIN_WINDOW_SECS`, derive the floor from data density, or drop floored tiers instead of evaluating them.
+- [**slo-short-window-floor-vs-sparse-telemetry**](todo/issues/slo-short-window-floor-vs-sparse-telemetry.md): investigated 2026-08-03 (24h measurements + Grafana/Datadog comparison): sparsity is a property of the telemetry, not the floor, and a burn implies measurable rows for count-ratio SLIs, so window math stays. Plan: apply-time density note (probe already computes the event rate), optionally a Grafana-style minimum-failures gate on the short window; window-policy options all rejected.
 
 ## Ideas
 
