@@ -1,3 +1,8 @@
+import {
+  Dialog,
+  DialogContent,
+  DialogTitle,
+} from "@everr/ui/components/dialog";
 import { RetryError } from "@everr/ui/components/retry-error";
 import { Skeleton } from "@everr/ui/components/skeleton";
 import type { TimeRange } from "@everr/ui/lib/time-range";
@@ -195,6 +200,7 @@ export function LogsExplorer({
     log: LogExplorerRow;
     key: string;
   } | null>(null);
+  const [isInspectorExpanded, setIsInspectorExpanded] = useState(false);
 
   // Optimistic local mirror of the search filter state. Filter toggles update
   // synchronously so the UI feels instant; onSearchChange runs alongside.
@@ -272,6 +278,11 @@ export function LogsExplorer({
     [],
   );
 
+  const handleCloseInspector = useCallback(() => {
+    setSelectedLogState(null);
+    setIsInspectorExpanded(false);
+  }, []);
+
   return (
     <div className="min-h-0 flex-1 overflow-hidden">
       <section className="bg-background text-foreground flex h-full min-h-0 flex-col overflow-hidden">
@@ -311,7 +322,7 @@ export function LogsExplorer({
                 isPending={isHistogramPending}
                 showVolume={showVolume}
                 onRangeSelect={(from, to) => {
-                  setSelectedLogState(null);
+                  handleCloseInspector();
                   onTimeRangeSelect?.(from, to);
                 }}
                 onShowVolumeChange={(isExpanded) =>
@@ -354,13 +365,37 @@ export function LogsExplorer({
               <LogInspectorPanel
                 repo={repo}
                 log={selectedLogState.log}
-                onClose={() => setSelectedLogState(null)}
+                onClose={handleCloseInspector}
+                onExpand={() => setIsInspectorExpanded(true)}
                 renderRunLink={renderRunLink}
                 resolveJobId={resolveJobId}
               />
             </aside>
           ) : null}
         </div>
+
+        <Dialog
+          open={isInspectorExpanded && selectedLogState !== null}
+          onOpenChange={(open) => {
+            if (!open) setIsInspectorExpanded(false);
+          }}
+        >
+          <DialogContent
+            showCloseButton={false}
+            className="flex h-[85vh] w-[90vw] max-w-none gap-0 overflow-hidden rounded-lg p-0 sm:max-w-4xl"
+          >
+            <DialogTitle className="sr-only">Log event</DialogTitle>
+            {selectedLogState ? (
+              <LogInspectorPanel
+                repo={repo}
+                log={selectedLogState.log}
+                onClose={() => setIsInspectorExpanded(false)}
+                renderRunLink={renderRunLink}
+                resolveJobId={resolveJobId}
+              />
+            ) : null}
+          </DialogContent>
+        </Dialog>
       </section>
     </div>
   );
