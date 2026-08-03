@@ -656,7 +656,7 @@ exact rule, including the self-inhibition guard.
 
 ## Consuming alert events
 
-There is no HTTP event stream. Alert events are consumable two ways:
+Alert events are consumable two ways:
 
 - **OTLP log export**: the `events` role consumes the Redis event stream (its
   own `cc:logexport` consumer group) and exports every event, including events

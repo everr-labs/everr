@@ -7,8 +7,8 @@ export const clicketyClackEnv = createEnv({
     CLICKETY_CLACK_BASE_URL: z.url(),
     // Static bearer key for CC's `/v1` API (one of the keys in CC's
     // `CC_API_KEYS`). Sent as `Authorization: Bearer <key>` by the transport
-    // client and the SSE proxy. Optional: when unset, requests carry no
-    // Authorization header, matching a CC instance with auth disabled.
+    // client. Optional: when unset, requests carry no Authorization header,
+    // matching a CC instance with auth disabled.
     CLICKETY_CLACK_API_KEY: z.string().min(1).optional(),
   },
   runtimeEnv: {

@@ -133,7 +133,7 @@ export function toRuleInput(
       ? { max_interval_secs: parseWindow(rule.spec.maxInterval) }
       : {}),
     // Preview rules are a full dress rehearsal: evaluated, stateful, and
-    // visible in history/SSE, but the dispatcher never notifies on them.
+    // visible in history, but the dispatcher never notifies on them.
     suppressed: opts.previewId !== undefined,
   };
 

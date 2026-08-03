@@ -246,8 +246,8 @@ resolved fires only if the budget has genuinely recovered).
 **`suppressed`** (default `false`) is preview mode: the SLO evaluates fully,
 tracks tier instance state, and writes its status snapshot and history exactly
 as normal: it just never notifies. Every event it would have fired still
-carries `suppressed: true` and still reaches the SSE stream and OTLP alert
-log; the dispatcher drops it before routing/grouping/silences/inhibitions.
+carries `suppressed: true` and still reaches the OTLP alert log; the
+dispatcher drops it before routing/grouping/silences/inhibitions.
 Flip it to `false` via `PUT /v1/slos/:id` to promote a preview SLO to live;
 instance state carries over, so an already-firing preview starts notifying on
 its next transition rather than re-firing.
