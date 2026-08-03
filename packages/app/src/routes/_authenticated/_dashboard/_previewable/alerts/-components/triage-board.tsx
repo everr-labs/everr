@@ -64,26 +64,31 @@ const COL_DELIVERY = "md:w-48";
 function DeliveryFact({
   matchedRoutes,
   channelsByReceiver,
+  hasRoutes,
   hasSubscribers,
 }: {
   matchedRoutes: CcRoute[];
   channelsByReceiver: Map<string, string[]>;
+  /** The firehose only receives unmatched alerts while the org has no routes. */
+  hasRoutes: boolean;
   hasSubscribers: boolean;
 }) {
   if (matchedRoutes.length === 0) {
     return (
       <Link
         to="/alerts/delivery"
-        hash="firehose"
+        hash={hasRoutes ? "routes" : "firehose"}
         onClick={(e) => e.stopPropagation()}
         className={cn(
           "whitespace-nowrap text-xs underline-offset-2 hover:underline",
           toneText({ tone: "warning" }),
         )}
       >
-        {hasSubscribers
-          ? "not routed · firehose only"
-          : "not routed · no subscribers"}
+        {hasRoutes
+          ? "not routed · not delivered"
+          : hasSubscribers
+            ? "not routed · firehose only"
+            : "not routed · no subscribers"}
       </Link>
     );
   }
@@ -138,11 +143,13 @@ function DeliveryFact({
 
 function InstanceDetail({
   inst,
+  hasRoutes,
   onSilence,
   silencePending,
   onCustomSilence,
 }: {
   inst: TriageInstance;
+  hasRoutes: boolean;
   onSilence: (hours: number) => void;
   silencePending: boolean;
   onCustomSilence: () => void;
@@ -191,7 +198,9 @@ function InstanceDetail({
         </div>
         {inst.matchedRoutes.length === 0 ? (
           <span className="text-xs text-muted-foreground">
-            no route matches — delivery falls through to the firehose
+            {hasRoutes
+              ? "no route matches: recorded in history, delivered to no one"
+              : "no routes configured: delivery falls through to the firehose"}
           </span>
         ) : (
           <div className="space-y-1">
@@ -588,6 +597,7 @@ export function TriageBoard({
   groups,
   pending,
   channelsByReceiver,
+  hasRoutes,
   hasSubscribers,
   sloStatusGroups,
   watchingRules,
@@ -598,6 +608,7 @@ export function TriageBoard({
   groups: TriageGroup[];
   pending: boolean;
   channelsByReceiver: Map<string, string[]>;
+  hasRoutes: boolean;
   hasSubscribers: boolean;
   sloStatusGroups: Map<string, CcSloGroupStatus[]>;
   /** How many rules are unpaused, for the all-clear readout. */
@@ -699,12 +710,14 @@ export function TriageBoard({
                     <DeliveryFact
                       matchedRoutes={row.lead.matchedRoutes}
                       channelsByReceiver={channelsByReceiver}
+                      hasRoutes={hasRoutes}
                       hasSubscribers={hasSubscribers}
                     />
                   }
                 >
                   <InstanceDetail
                     inst={row.lead}
+                    hasRoutes={hasRoutes}
                     silencePending={silenceInstance.isPending}
                     onSilence={(hours) =>
                       silenceInstance.mutate({

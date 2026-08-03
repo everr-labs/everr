@@ -39,6 +39,7 @@ export function RoutePreview({
   labels,
   onLabelsChange,
   matchedRoutes,
+  routeCount,
   receiversByName,
   channelsByName,
   subscriberCount,
@@ -49,6 +50,8 @@ export function RoutePreview({
   onLabelsChange: (labels: Record<string, string>) => void;
   /** ccSelectRoutes(...) result for `labels`; ignored while inactive. */
   matchedRoutes: CcRoute[];
+  /** Total configured routes: no match only means firehose when this is 0. */
+  routeCount: number;
   receiversByName: Map<string, CcReceiver>;
   channelsByName: Map<string, CcChannel>;
   subscriberCount: number;
@@ -135,20 +138,27 @@ export function RoutePreview({
             kind.
           </span>
         ) : matchedRoutes.length === 0 ? (
-          <span
-            className={cn(
-              "font-mono",
-              toneText({
-                tone: subscriberCount === 0 ? "warning" : "live",
-              }),
-            )}
-          >
-            no route matches{" "}
-            <ArrowRight aria-hidden className="inline size-3" /> firehose ·{" "}
-            {subscriberCount === 0
-              ? "no subscribers"
-              : `${subscriberCount} webhook${subscriberCount === 1 ? "" : "s"}`}
-          </span>
+          routeCount === 0 ? (
+            <span
+              className={cn(
+                "font-mono",
+                toneText({
+                  tone: subscriberCount === 0 ? "warning" : "live",
+                }),
+              )}
+            >
+              no route matches{" "}
+              <ArrowRight aria-hidden className="inline size-3" /> firehose ·{" "}
+              {subscriberCount === 0
+                ? "no subscribers"
+                : `${subscriberCount} webhook${subscriberCount === 1 ? "" : "s"}`}
+            </span>
+          ) : (
+            <span className={cn("font-mono", toneText({ tone: "warning" }))}>
+              no route matches{" "}
+              <ArrowRight aria-hidden className="inline size-3" /> not delivered
+            </span>
+          )
         ) : (
           <div className="space-y-1">
             {receivers.map((name) => {

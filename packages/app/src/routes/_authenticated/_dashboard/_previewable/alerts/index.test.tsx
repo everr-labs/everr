@@ -341,7 +341,7 @@ describe("/alerts triage board", () => {
     expect(screen.getByTitle(/team-slack, pd/)).toBeInTheDocument();
     // Only host=web-1 matches the single route; the one other firing row
     // (svc=api) says it reaches no one.
-    expect(screen.getAllByText("not routed · no subscribers")).toHaveLength(1);
+    expect(screen.getAllByText("not routed · not delivered")).toHaveLength(1);
   });
 
   it("overflows a long receiver list as +N instead of truncating names", async () => {
@@ -379,7 +379,7 @@ describe("/alerts triage board", () => {
     expect(dead).toBeInTheDocument();
   });
 
-  it("marks unrouted instances as firehose only when subscriptions exist", async () => {
+  it("marks unrouted instances as not delivered while routes exist, even with subscribers", async () => {
     mocks.listCcSubscriptions.mockResolvedValue([
       {
         id: "sub-1",
@@ -392,8 +392,26 @@ describe("/alerts triage board", () => {
     renderTriagePage();
 
     expect(
-      await screen.findAllByText("not routed · firehose only"),
+      await screen.findAllByText("not routed · not delivered"),
     ).toHaveLength(1);
+  });
+
+  it("marks unrouted instances as firehose only when the org has no routes", async () => {
+    mocks.listCcRoutes.mockResolvedValue([]);
+    mocks.listCcSubscriptions.mockResolvedValue([
+      {
+        id: "sub-1",
+        tenant: "org1",
+        webhook_url: "https://example.test/hook",
+        created_at: new Date().toISOString(),
+      },
+    ]);
+
+    renderTriagePage();
+
+    expect(
+      (await screen.findAllByText("not routed · firehose only")).length,
+    ).toBeGreaterThan(0);
   });
 
   it("expands a row into its evidence, runbook, and fingerprint-scoped feed", async () => {

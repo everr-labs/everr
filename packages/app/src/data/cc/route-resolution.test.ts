@@ -6,6 +6,7 @@ import {
   ccRouteMatches,
   ccSelectRoutes,
   ccSyntheticLabels,
+  ccUnmatchedOutcome,
 } from "./route-resolution";
 import type { CcMatcher, CcRoute, CcRuleView, CcSlo } from "./types";
 
@@ -168,10 +169,28 @@ describe("ccSelectRoutes", () => {
     ]);
   });
 
-  it("returns an empty array (firehose fall-through) when nothing matches", () => {
+  it("returns an empty array when nothing matches", () => {
     expect(
       ccSelectRoutes([route(1, [matcher("eq", "core")])], { team: "pay" }),
     ).toEqual([]);
+  });
+});
+
+describe("ccUnmatchedOutcome", () => {
+  it("firehoses only while the org has zero routes", () => {
+    expect(ccUnmatchedOutcome([])).toBe("firehose");
+  });
+
+  it("drops unmatched alerts once any route exists", () => {
+    expect(ccUnmatchedOutcome([route(1, [matcher("eq", "core")])])).toBe(
+      "dropped",
+    );
+  });
+
+  it("is unreachable when a catch-all route exists", () => {
+    expect(
+      ccUnmatchedOutcome([route(1, [matcher("eq", "core")]), route(2, [])]),
+    ).toBe("unreachable");
   });
 });
 

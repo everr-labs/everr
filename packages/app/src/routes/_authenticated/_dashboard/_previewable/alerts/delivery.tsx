@@ -33,7 +33,11 @@ import { toast } from "sonner";
 import { PageHeader } from "@/components/page-header";
 import { isEverrAnnotationKey } from "@/data/alerts/annotations";
 import { ccQueries } from "@/data/cc/queries";
-import { ccDispatchLabels, ccSelectRoutes } from "@/data/cc/route-resolution";
+import {
+  ccDispatchLabels,
+  ccSelectRoutes,
+  ccUnmatchedOutcome,
+} from "@/data/cc/route-resolution";
 import { ccRouteTimingSummary } from "@/data/cc/route-timing";
 import {
   createCcSubscription,
@@ -247,6 +251,89 @@ function PipelineRoute({
   );
 }
 
+function FallThroughRow({
+  outcome,
+  previewActive,
+  fellThrough,
+  subscriberCount,
+  onFirehoseClick,
+}: {
+  outcome: "firehose" | "dropped";
+  previewActive: boolean;
+  /** The preview labels matched no route, so they land on this row. */
+  fellThrough: boolean;
+  subscriberCount: number;
+  onFirehoseClick: () => void;
+}) {
+  return (
+    <li
+      data-matched={fellThrough ? "true" : undefined}
+      className={cn(
+        "flex items-center gap-3 px-3 py-2 transition-opacity duration-200",
+        previewActive &&
+          (fellThrough
+            ? "bg-primary/5 ring-1 ring-primary/40 ring-inset"
+            : "opacity-40"),
+      )}
+    >
+      <span
+        aria-hidden
+        className="w-8 shrink-0 text-center font-mono text-xs text-muted-foreground"
+      >
+        ∅
+      </span>
+      <span className="flex flex-wrap items-center gap-2 text-xs">
+        <span className="text-muted-foreground">no match</span>
+        <ArrowRight
+          aria-hidden
+          className={cn(
+            "size-3.5 shrink-0",
+            fellThrough ? "text-primary" : "text-muted-foreground/60",
+          )}
+        />
+        {outcome === "firehose" ? (
+          <>
+            <button
+              type="button"
+              onClick={onFirehoseClick}
+              className="font-mono text-foreground underline-offset-2 outline-2 outline-dotted outline-transparent transition-colors duration-150 hover:underline focus-visible:outline-primary"
+            >
+              firehose
+            </button>
+            <span
+              className={cn(
+                "font-mono",
+                toneText({
+                  tone: subscriberCount === 0 ? "warning" : "muted",
+                }),
+              )}
+            >
+              ·{" "}
+              {subscriberCount === 0
+                ? "no subscribers"
+                : `${subscriberCount} webhook${subscriberCount === 1 ? "" : "s"}`}
+            </span>
+            {fellThrough && (
+              <span className="font-mono text-[0.6875rem] text-primary">
+                matched
+              </span>
+            )}
+          </>
+        ) : (
+          <>
+            <span className={cn("font-mono", toneText({ tone: "warning" }))}>
+              not delivered
+            </span>
+            <span className="text-muted-foreground">
+              · add a catch-all route (no conditions) to set a default receiver
+            </span>
+          </>
+        )}
+      </span>
+    </li>
+  );
+}
+
 function PipelineSection({
   receivers,
   channelsByName,
@@ -284,6 +371,7 @@ function PipelineSection({
   const previewActive = Object.keys(previewLabels).length > 0;
   const sorted = [...(data ?? [])].sort((a, b) => a.priority - b.priority);
   const fellThrough = previewActive && matchedRouteIds.size === 0;
+  const unmatched = ccUnmatchedOutcome(sorted);
 
   return (
     <Card id="routes" inset="flush-content" className="scroll-mt-4">
@@ -337,58 +425,15 @@ function PipelineSection({
                 deletePending={remove.isPending}
               />
             ))}
-            <li
-              data-matched={fellThrough ? "true" : undefined}
-              className={cn(
-                "flex items-center gap-3 px-3 py-2 transition-opacity duration-200",
-                previewActive &&
-                  (fellThrough
-                    ? "bg-primary/5 ring-1 ring-primary/40 ring-inset"
-                    : "opacity-40"),
-              )}
-            >
-              <span
-                aria-hidden
-                className="w-8 shrink-0 text-center font-mono text-xs text-muted-foreground"
-              >
-                ∅
-              </span>
-              <span className="flex flex-wrap items-center gap-2 text-xs">
-                <span className="text-muted-foreground">no match</span>
-                <ArrowRight
-                  aria-hidden
-                  className={cn(
-                    "size-3.5 shrink-0",
-                    fellThrough ? "text-primary" : "text-muted-foreground/60",
-                  )}
-                />
-                <button
-                  type="button"
-                  onClick={onFirehoseClick}
-                  className="font-mono text-foreground underline-offset-2 outline-2 outline-dotted outline-transparent transition-colors duration-150 hover:underline focus-visible:outline-primary"
-                >
-                  firehose
-                </button>
-                <span
-                  className={cn(
-                    "font-mono",
-                    toneText({
-                      tone: subscriberCount === 0 ? "warning" : "muted",
-                    }),
-                  )}
-                >
-                  ·{" "}
-                  {subscriberCount === 0
-                    ? "no subscribers"
-                    : `${subscriberCount} webhook${subscriberCount === 1 ? "" : "s"}`}
-                </span>
-                {fellThrough && (
-                  <span className="font-mono text-[0.6875rem] text-primary">
-                    matched
-                  </span>
-                )}
-              </span>
-            </li>
+            {unmatched !== "unreachable" && (
+              <FallThroughRow
+                outcome={unmatched}
+                previewActive={previewActive}
+                fellThrough={fellThrough}
+                subscriberCount={subscriberCount}
+                onFirehoseClick={onFirehoseClick}
+              />
+            )}
           </ul>
         </SectionBody>
       </CardContent>
@@ -747,8 +792,9 @@ function FirehoseSection() {
       <CardHeader>
         <CardTitle>Firehose subscriptions</CardTitle>
         <CardDescription>
-          The fallback: alerts that match no route are delivered to every
-          firehose webhook.
+          The zero-routes fallback: while the organization has no routes at all,
+          every alert is delivered to every firehose webhook. Once any route
+          exists, alerts that match no route are not delivered.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
@@ -762,7 +808,7 @@ function FirehoseSection() {
             when: (data ?? []).length === 0,
             icon: Webhook,
             title: "No firehose subscriptions",
-            hint: "Add a webhook URL below to receive every alert that matches no route.",
+            hint: "Add a webhook URL below to receive every alert while no routes exist.",
           }}
         >
           <ul className="divide-y divide-border/60">
@@ -919,6 +965,7 @@ function CcDeliveryPage() {
             labels={previewLabels}
             onLabelsChange={setPreviewLabels}
             matchedRoutes={matchedRoutes}
+            routeCount={(routes.data ?? []).length}
             receiversByName={receiversByName}
             channelsByName={channelsByName}
             subscriberCount={subscriberCount}

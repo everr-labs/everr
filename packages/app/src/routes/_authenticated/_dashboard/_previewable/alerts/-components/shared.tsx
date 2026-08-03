@@ -50,7 +50,7 @@ import { type ReactNode, useMemo } from "react";
 import { ccRuleIdentity } from "@/data/alerts/rule-identity";
 import { ccErrorInfo } from "@/data/cc/errors";
 import { ccQueries } from "@/data/cc/queries";
-import { ccOpSymbol } from "@/data/cc/route-resolution";
+import { ccIsCatchAll, ccOpSymbol } from "@/data/cc/route-resolution";
 import {
   CC_CANONICAL_SLO_TIERS,
   ccFmtWindowLabel,
@@ -370,7 +370,7 @@ export function Conditions({
   emptyLabel?: string;
 }) {
   const resolveValue = useCcMatcherValueLink();
-  if (matchers.length === 0) {
+  if (ccIsCatchAll(matchers)) {
     return (
       <span className="font-mono text-xs text-muted-foreground">
         {emptyLabel}

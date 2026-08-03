@@ -207,6 +207,7 @@ function CcTriagePage() {
         groups={boardGroups}
         pending={pending}
         channelsByReceiver={channelsByReceiver}
+        hasRoutes={(routes.data ?? []).length > 0}
         hasSubscribers={(subscriptions.data ?? []).length > 0}
         sloStatusGroups={sloStatusGroups}
         watchingRules={watchingRules}

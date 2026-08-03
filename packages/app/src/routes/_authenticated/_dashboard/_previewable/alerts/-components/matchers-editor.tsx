@@ -12,7 +12,7 @@ import {
   type SuggestItem,
 } from "@everr/ui/components/suggest-combobox";
 import { Plus, X } from "lucide-react";
-import { ccOpSymbol } from "@/data/cc/route-resolution";
+import { ccIsCatchAll, ccOpSymbol } from "@/data/cc/route-resolution";
 import { CcMatchOpSchema } from "@/data/cc/schema";
 import {
   type CcLabelKeySuggestion,
@@ -32,7 +32,7 @@ const OP_PHRASE: Record<CcMatcher["op"], string> = {
 /** Plain-language preview of a matcher set, e.g. "severity = critical and team = pay". */
 export function matchersPhrase(m: CcMatcher[]): string {
   const real = m.filter((x) => x.label.trim() !== "");
-  if (real.length === 0) return "any alert";
+  if (ccIsCatchAll(real)) return "any alert";
   return real
     .map((x) => `${x.label} ${OP_PHRASE[x.op]} ${x.value || "…"}`)
     .join(" and ");

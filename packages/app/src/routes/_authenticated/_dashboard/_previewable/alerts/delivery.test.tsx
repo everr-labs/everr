@@ -204,6 +204,40 @@ describe("/alerts/delivery route drawer", () => {
   });
 });
 
+describe("/alerts/delivery pipeline fall-through", () => {
+  it("with zero routes, points at the firehose", async () => {
+    renderDeliveryRoute();
+
+    const row = await screen.findByText("no match");
+    expect(row.parentElement).toHaveTextContent("firehose");
+    expect(row.parentElement).toHaveTextContent("no subscribers");
+    expect(row.parentElement).not.toHaveTextContent("not delivered");
+  });
+
+  it("with routes and no catch-all, says unmatched alerts are not delivered", async () => {
+    mocks.listCcRoutes.mockResolvedValue([route()]);
+
+    renderDeliveryRoute();
+
+    const row = await screen.findByText("no match");
+    expect(row.parentElement).toHaveTextContent("not delivered");
+    expect(row.parentElement).toHaveTextContent("catch-all");
+    expect(row.parentElement).not.toHaveTextContent("firehose");
+  });
+
+  it("with a catch-all route, hides the fall-through row entirely", async () => {
+    mocks.listCcRoutes.mockResolvedValue([
+      route(),
+      route({ id: "44444444-4444-4444-4444-444444444444", matchers: [] }),
+    ]);
+
+    renderDeliveryRoute();
+
+    await screen.findByText("any alert");
+    expect(screen.queryByText("no match")).not.toBeInTheDocument();
+  });
+});
+
 describe("/alerts/delivery channels section", () => {
   it("creates a channel with the {name, config} payload shape, once the name is free and the config complete", async () => {
     mocks.listCcChannels.mockResolvedValue([channel({ name: "team-slack" })]);
