@@ -60,12 +60,10 @@ async fn status_pending_then_returns_snapshot() {
     let r = router
         .clone()
         .oneshot(
-            Request::get(format!(
-                "/v1/slos/00000000-0000-0000-0000-000000000000/status"
-            ))
-            .header("X-CC-Tenant", TENANT)
-            .body(Body::empty())
-            .unwrap(),
+            Request::get("/v1/slos/00000000-0000-0000-0000-000000000000/status")
+                .header("X-CC-Tenant", TENANT)
+                .body(Body::empty())
+                .unwrap(),
         )
         .await
         .unwrap();
