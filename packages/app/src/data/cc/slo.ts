@@ -265,12 +265,12 @@ export type CcSloBurnPace =
   | "sustainable"
   | "steady";
 
-export function ccSloBurnPace(
-  rate: number | null,
-  firing: readonly { severity: string }[],
-): CcSloBurnPace {
-  if (firing.some((f) => f.severity === "critical")) return "burning-fast";
-  if (firing.length > 0) return "burning";
+/**
+ * Pace of a confirmed burn against the 1x sustainable line. The firing paces
+ * (`burning-fast`/`burning`) are ccSloOverallPace's to assign: firing is a
+ * tier-state fact, not burn arithmetic.
+ */
+export function ccSloBurnPace(rate: number | null): CcSloBurnPace {
   if (rate === null || rate <= 0) return "steady";
   if (rate >= 1) return "draining"; // spending faster than sustainable
   return "sustainable"; // under 1x: recovers within the window
@@ -315,7 +315,7 @@ export function ccSloOverallPace(
     const burn = ccSloCurrentBurn(specTiers, g.tiers)?.effective ?? null;
     if (burn !== null && (fastest === null || burn > fastest)) fastest = burn;
   }
-  return ccSloBurnPace(fastest, []);
+  return ccSloBurnPace(fastest);
 }
 
 export function ccSloBurnPaceLabel(pace: CcSloBurnPace): string {

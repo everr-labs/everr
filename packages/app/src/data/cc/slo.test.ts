@@ -229,7 +229,7 @@ describe("ccSloCurrentBurn", () => {
     // honest 1h rate, but effective is 0 so the pace reads steady, not draining.
     const passed = ccSloCurrentBurn(tiers, [tier("fast-burn", 3, 0)]);
     expect(passed).toEqual({ rate: 3, effective: 0, window: "1h" });
-    expect(ccSloBurnPace(passed?.effective ?? null, [])).toBe("steady");
+    expect(ccSloBurnPace(passed?.effective ?? null)).toBe("steady");
   });
 
   it("prefers the shortest-long-window tier and skips tiers with no long rate", () => {
@@ -384,21 +384,14 @@ describe("ccSloChartRange", () => {
 });
 
 describe("ccSloBurnPace", () => {
-  it("lets the firing state win, regardless of the rate", () => {
-    expect(ccSloBurnPace(0.2, [{ severity: "critical" }])).toBe("burning-fast");
-    expect(ccSloBurnPace(0.2, [{ severity: "warning" }])).toBe("burning");
-    // Even a null rate still reads as firing when a tier is paging.
-    expect(ccSloBurnPace(null, [{ severity: "critical" }])).toBe(
-      "burning-fast",
-    );
-  });
-
-  it("reads the rate against the 1x sustainable line when nothing fires", () => {
-    expect(ccSloBurnPace(2, [])).toBe("draining");
-    expect(ccSloBurnPace(1, [])).toBe("draining");
-    expect(ccSloBurnPace(0.5, [])).toBe("sustainable");
-    expect(ccSloBurnPace(0, [])).toBe("steady");
-    expect(ccSloBurnPace(null, [])).toBe("steady");
+  // Firing precedence (burning-fast/burning) is ccSloOverallPace's business
+  // and is tested there; this ladder only reads the rate.
+  it("reads the rate against the 1x sustainable line", () => {
+    expect(ccSloBurnPace(2)).toBe("draining");
+    expect(ccSloBurnPace(1)).toBe("draining");
+    expect(ccSloBurnPace(0.5)).toBe("sustainable");
+    expect(ccSloBurnPace(0)).toBe("steady");
+    expect(ccSloBurnPace(null)).toBe("steady");
   });
 });
 
