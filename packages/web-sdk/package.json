@@ -17,6 +17,7 @@
   },
   "scripts": {
     "build": "tsdown",
+    "size": "tsdown && size-limit",
     "test": "vitest run",
     "test:ci": "vitest run",
     "test:watch": "vitest run --watch",
@@ -34,11 +35,13 @@
     }
   },
   "devDependencies": {
+    "@size-limit/preset-small-lib": "^13.0.3",
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
     "jsdom": "^29.1.1",
     "react": "catalog:",
     "react-dom": "catalog:",
+    "size-limit": "^13.0.3",
     "tsdown": "^0.22.2",
     "typescript": "catalog:"
   }
