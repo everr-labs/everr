@@ -4,8 +4,8 @@
   "version": "0.6.0",
   "type": "module",
   "scripts": {
-    "dev": "tauri dev --config src-tauri/tauri.dev.conf.json",
-    "watch": "tauri dev --config src-tauri/tauri.dev.conf.json",
+    "dev": "pnpm desktop:prepare:debug && tauri dev --config src-tauri/tauri.dev.conf.json",
+    "watch": "pnpm desktop:prepare:debug && tauri dev --config src-tauri/tauri.dev.conf.json",
     "desktop:prepare:cli:debug": "node ./scripts/prepare-tauri-cli-sidecar.ts debug",
     "desktop:prepare:cli:release": "node ./scripts/prepare-tauri-cli-sidecar.ts release",
     "desktop:prepare:debug": "pnpm run desktop:prepare:cli:debug",
