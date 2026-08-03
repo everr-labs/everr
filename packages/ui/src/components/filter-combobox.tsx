@@ -138,7 +138,7 @@ export function FilterCombobox<TData>({
         </PopoverTrigger>
         <PopoverContent
           align="start"
-          className="w-(--radix-popper-anchor-width) min-w-48 p-0"
+          className="w-(--anchor-width) min-w-48 p-0"
         >
           <Command className="p-0 *-data-[slot=command-input-wrapper]:p-0">
             <CommandInput

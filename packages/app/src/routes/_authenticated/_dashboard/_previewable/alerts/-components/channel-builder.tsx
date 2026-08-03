@@ -1,13 +1,7 @@
 import { Button } from "@everr/ui/components/button";
 import { Input } from "@everr/ui/components/input";
 import { Label } from "@everr/ui/components/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@everr/ui/components/select";
+import { OptionCombobox } from "@everr/ui/components/option-combobox";
 import { TagsInput } from "@everr/ui/components/tags-input";
 import { toneText } from "@everr/ui/components/tone";
 import { cn } from "@everr/ui/lib/utils";
@@ -23,7 +17,7 @@ import {
 import type { CcChannel, CcChannelConfig } from "@/data/cc/types";
 import { authClient } from "@/lib/auth-client";
 import { CcDrawer } from "./cc-drawer";
-import { CHANNEL_LABEL, type ChannelType } from "./channel-meta";
+import { CHANNEL_ICON, CHANNEL_LABEL, type ChannelType } from "./channel-meta";
 import { CcConceptNote, ccErrorMessage, isDuplicateName } from "./shared";
 
 /** Every per-type field kept side by side so switching the type never loses input. */
@@ -197,23 +191,16 @@ export function ChannelBuilder({
       </div>
       <div className="space-y-1.5">
         <Label htmlFor="channel-type">Type</Label>
-        <Select
+        <OptionCombobox
+          id="channel-type"
           value={draft.type}
-          onValueChange={(v) =>
-            patch({ type: (v ?? "webhook") as ChannelType })
-          }
-        >
-          <SelectTrigger id="channel-type" className="w-full">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {(Object.keys(CHANNEL_LABEL) as ChannelType[]).map((t) => (
-              <SelectItem key={t} value={t}>
-                {CHANNEL_LABEL[t]}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+          onChange={(v) => patch({ type: v as ChannelType })}
+          options={(Object.keys(CHANNEL_LABEL) as ChannelType[]).map((t) => ({
+            value: t,
+            label: CHANNEL_LABEL[t],
+            icon: CHANNEL_ICON[t],
+          }))}
+        />
       </div>
       {(draft.type === "webhook" || draft.type === "slack") && (
         <div className="space-y-1.5">

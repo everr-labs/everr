@@ -592,12 +592,6 @@ loss, but the dangling MV keeps a write path into `app.logs` that nothing owns.
   a raw server-error toast. DST handling itself is sound.
 - `alerts/slos.tsx:388`, `:436`: every row's `CcPauseToggle` receives the same
   `toggle.isPending`, so pausing one SLO greys out all ten buttons.
-- `packages/ui/src/components/suggest-combobox.tsx:109`:
-  `w-(--radix-popper-anchor-width)` on a base-ui popover, which exposes
-  `--anchor-width` (`select.tsx:83` and `dropdown-menu.tsx:41` get it right).
-  Tailwind-merge drops the base `w-72` for an unresolvable var, so width
-  collapses to `auto` plus `min-w-48`. Copied forward from
-  `filter-combobox.tsx:141`, where it pre-dates this PR.
 - `data/cc/queries.ts:109-122,147-160`: `ruleByName`/`sloByName` keys are not
   prefixes of `rules`/`slos`, so list-page pause toggles do not invalidate a
   cached detail entry. Cosmetic today (detail routes invalidate both ways and
