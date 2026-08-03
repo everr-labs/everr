@@ -38,6 +38,21 @@ it("shows the selected option's label on the trigger", () => {
   ).toHaveTextContent("Webhook");
 });
 
+it("shows the placeholder while no value is picked", () => {
+  render(
+    <OptionCombobox
+      label="Receiver"
+      value=""
+      onChange={vi.fn()}
+      options={OPTIONS}
+      placeholder="Pick a receiver"
+    />,
+  );
+  expect(screen.getByRole("combobox", { name: "Receiver" })).toHaveTextContent(
+    "Pick a receiver",
+  );
+});
+
 it("commits a picked option and closes", async () => {
   const user = userEvent.setup();
   const { onChange } = renderCombobox();

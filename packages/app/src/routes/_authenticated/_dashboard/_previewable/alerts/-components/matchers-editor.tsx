@@ -1,12 +1,6 @@
 import { Button } from "@everr/ui/components/button";
 import { Input } from "@everr/ui/components/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@everr/ui/components/select";
+import { OptionCombobox } from "@everr/ui/components/option-combobox";
 import {
   SuggestCombobox,
   type SuggestItem,
@@ -121,32 +115,18 @@ export function MatchersEditor({
             onChange={(label) => onChange(updateMatcher(value, i, { label }))}
             options={ccLabelKeyOptions()}
           />
-          <Select
+          <OptionCombobox
+            label="Matcher operator"
+            className="w-16 shrink-0"
             value={row.op}
-            onValueChange={(op) =>
+            onChange={(op) =>
               onChange(updateMatcher(value, i, { op: op as CcMatcher["op"] }))
             }
-          >
-            <SelectTrigger
-              aria-label="Matcher operator"
-              className="w-16 shrink-0"
-            >
-              <SelectValue>
-                {(v) => (
-                  <span className="font-mono">
-                    {ccOpSymbol(v as CcMatcher["op"])}
-                  </span>
-                )}
-              </SelectValue>
-            </SelectTrigger>
-            <SelectContent>
-              {CcMatchOpSchema.options.map((op) => (
-                <SelectItem key={op} value={op}>
-                  <span className="font-mono">{ccOpSymbol(op)}</span>
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+            options={CcMatchOpSchema.options.map((op) => ({
+              value: op,
+              label: <span className="font-mono">{ccOpSymbol(op)}</span>,
+            }))}
+          />
           {row.op === "regex" || row.op === "notregex" ? (
             <Input
               placeholder="pattern"

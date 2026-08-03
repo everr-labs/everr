@@ -5,13 +5,7 @@ import {
 } from "@everr/ui/components/collapsible";
 import { Input } from "@everr/ui/components/input";
 import { Label } from "@everr/ui/components/label";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@everr/ui/components/select";
+import { OptionCombobox } from "@everr/ui/components/option-combobox";
 import { Switch } from "@everr/ui/components/switch";
 import { TagsInput } from "@everr/ui/components/tags-input";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -183,21 +177,16 @@ export function RouteBuilder({
         <div className="space-y-1.5">
           <Label htmlFor="route-receiver">Send to receiver</Label>
           {receivers.length > 0 ? (
-            <Select
+            <OptionCombobox
+              id="route-receiver"
               value={receiver}
-              onValueChange={(v) => setReceiver(v ?? "")}
-            >
-              <SelectTrigger id="route-receiver" className="w-full">
-                <SelectValue placeholder="Pick a receiver" />
-              </SelectTrigger>
-              <SelectContent>
-                {receivers.map((r) => (
-                  <SelectItem key={r.name} value={r.name}>
-                    {r.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              onChange={setReceiver}
+              placeholder="Pick a receiver"
+              options={receivers.map((r) => ({
+                value: r.name,
+                label: r.name,
+              }))}
+            />
           ) : (
             <Input
               id="route-receiver"
