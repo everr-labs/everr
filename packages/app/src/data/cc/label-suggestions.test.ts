@@ -1,8 +1,9 @@
 // The suggestion server fns: sources merged best-effort, synthetic keys
 // flagged, and the engine's own vocabulary for synthetic values.
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import type { CcAlert, CcRuleView, CcSlo } from "@/data/cc/types";
+import type { CcAlert, CcSlo } from "@/data/cc/types";
 import { listCcLabelKeys, listCcLabelValues } from "./server";
+import { ccRuleViewFixture } from "./test-fixtures";
 
 // ./server transitively imports @/data/previews/repoids -> @/db/client, whose
 // t3-env access throws under jsdom; stub the db module before that chain loads.
@@ -29,39 +30,6 @@ vi.mock("@/data/alerts/history.server", () => ({
   queryObservedLabelKeys: mocks.queryObservedLabelKeys,
   queryObservedLabelValues: mocks.queryObservedLabelValues,
 }));
-
-function ccRule(overrides: {
-  id?: string;
-  label_columns?: string[];
-  annotations?: Record<string, string>;
-}): CcRuleView {
-  return {
-    id: overrides.id ?? "44444444-4444-4444-4444-444444444444",
-    tenant: "org1",
-    namespace: "",
-    name: "",
-    spec: {
-      sql: "SELECT 1",
-      interval_secs: 60,
-      for_secs: 0,
-      label_columns: overrides.label_columns ?? [],
-      severity: "critical",
-      annotations: overrides.annotations ?? {},
-      resolve_after: 1,
-      suppressed: false,
-    },
-    version: 1,
-    paused: false,
-    updated_at: "2026-06-14T12:00:00Z",
-    health: {
-      status: "healthy",
-      consecutive_failures: 0,
-      degraded_since: null,
-      last_error: null,
-      last_error_at: null,
-    },
-  };
-}
 
 function ccAlert(labels: Record<string, string>): CcAlert {
   return {
@@ -139,7 +107,10 @@ describe("listCcLabelKeys", () => {
   it("merges observed history, rule label_columns, and instance labels, deduped", async () => {
     mocks.queryObservedLabelKeys.mockResolvedValue(["svc", "host"]);
     mocks.listAllRules.mockResolvedValue([
-      ccRule({ label_columns: ["svc", "region"] }),
+      ccRuleViewFixture({
+        name: "",
+        spec: { label_columns: ["svc", "region"] },
+      }),
     ]);
     mocks.listAlerts.mockResolvedValue([ccAlert({ host: "web-1", az: "a" })]);
 
@@ -192,9 +163,10 @@ describe("listCcLabelValues", () => {
 
   it("answers rule with the rule IDs the dispatcher matches on, friendly name as hint", async () => {
     mocks.listAllRules.mockResolvedValue([
-      ccRule({
+      ccRuleViewFixture({
         id: "44444444-4444-4444-4444-444444444444",
-        annotations: { "everr.display.name": "High 5xx rate" },
+        name: "",
+        spec: { annotations: { "everr.display.name": "High 5xx rate" } },
       }),
     ]);
 

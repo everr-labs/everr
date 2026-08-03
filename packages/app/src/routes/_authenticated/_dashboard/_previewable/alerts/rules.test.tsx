@@ -10,6 +10,7 @@ import {
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { ccRuleViewFixture } from "@/data/cc/test-fixtures";
 import type { CcRulesPage, CcRuleView } from "@/data/cc/types";
 import { Route as RulesFileRoute } from "./rules";
 
@@ -26,31 +27,12 @@ vi.mock("@/data/cc/server", () => ({
 }));
 
 function ccRuleView(overrides: Partial<CcRuleView> = {}): CcRuleView {
-  return {
+  return ccRuleViewFixture({
     id: "11111111-1111-1111-1111-111111111111",
-    tenant: "org1",
-    namespace: "",
-    name: "default/flapping",
     spec: {
-      sql: "SELECT 1",
       interval_secs: 30,
-      for_secs: 0,
-      label_columns: [],
       value_column: null,
       severity: "info",
-      annotations: {},
-      resolve_after: 1,
-      suppressed: false,
-    },
-    version: 1,
-    paused: false,
-    updated_at: "2026-06-14T12:00:00Z",
-    health: {
-      status: "healthy",
-      consecutive_failures: 0,
-      degraded_since: null,
-      last_error: null,
-      last_error_at: null,
     },
     rollup: {
       alert_state: "inactive",
@@ -61,7 +43,7 @@ function ccRuleView(overrides: Partial<CcRuleView> = {}): CcRuleView {
       last_row_count: null,
     },
     ...overrides,
-  };
+  });
 }
 
 function page(items: CcRuleView[], nextCursor: string | null): CcRulesPage {

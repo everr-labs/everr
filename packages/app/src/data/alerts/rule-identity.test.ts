@@ -1,40 +1,6 @@
 import { describe, expect, it } from "vitest";
-import type { CcRuleView } from "@/data/cc/types";
+import { ccRuleViewFixture as ccRule } from "@/data/cc/test-fixtures";
 import { ccRuleHandles, ccRuleIdentity } from "./rule-identity";
-
-function ccRule(overrides: {
-  id?: string;
-  name: string;
-  severity?: CcRuleView["spec"]["severity"];
-  annotations?: Record<string, string>;
-}): CcRuleView {
-  return {
-    id: overrides.id ?? "44444444-4444-4444-4444-444444444444",
-    tenant: "org1",
-    namespace: "",
-    name: overrides.name,
-    spec: {
-      sql: "SELECT 1",
-      interval_secs: 60,
-      for_secs: 0,
-      label_columns: [],
-      severity: overrides.severity ?? "critical",
-      annotations: overrides.annotations ?? {},
-      resolve_after: 1,
-      suppressed: false,
-    },
-    version: 1,
-    paused: false,
-    updated_at: "2026-06-14T12:00:00Z",
-    health: {
-      status: "healthy",
-      consecutive_failures: 0,
-      degraded_since: null,
-      last_error: null,
-      last_error_at: null,
-    },
-  };
-}
 
 describe("ccRuleIdentity", () => {
   it("splits a qualified name into project and slug", () => {
@@ -57,7 +23,9 @@ describe("ccRuleIdentity", () => {
     const identity = ccRuleIdentity(
       ccRule({
         name: "default/checkout-latency",
-        annotations: { "everr.display.name": "High checkout latency" },
+        spec: {
+          annotations: { "everr.display.name": "High checkout latency" },
+        },
       }),
     );
     expect(identity.name).toBe("High checkout latency");

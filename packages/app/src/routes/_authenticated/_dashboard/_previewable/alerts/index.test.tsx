@@ -11,6 +11,7 @@ import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { AlertEventLogRow } from "@/data/alerts/history.server";
+import { ccRuleViewFixture } from "@/data/cc/test-fixtures";
 import type {
   CcAlert,
   CcReceiver,
@@ -50,38 +51,20 @@ vi.mock("@/data/cc/server", () => ({
 }));
 
 function ccRule(overrides: Partial<CcRuleView> = {}): CcRuleView {
-  return {
+  return ccRuleViewFixture({
     id: "rule-1",
-    tenant: "org1",
-    namespace: "",
-    name: "default/flapping",
     spec: {
-      sql: "SELECT 1",
       interval_secs: 30,
-      for_secs: 0,
       label_columns: ["host"],
       value_column: null,
-      severity: "critical",
       annotations: {
         "everr.display.name": "Flapping check",
         "everr.display.description": "Fires when the flap condition holds.",
         "everr.runbook": "demo/flap-runbook",
       },
-      resolve_after: 1,
-      suppressed: false,
-    },
-    version: 1,
-    paused: false,
-    updated_at: "2026-06-14T12:00:00Z",
-    health: {
-      status: "healthy",
-      consecutive_failures: 0,
-      degraded_since: null,
-      last_error: null,
-      last_error_at: null,
     },
     ...overrides,
-  };
+  });
 }
 
 function ccAlert(overrides: Partial<CcAlert> = {}): CcAlert {

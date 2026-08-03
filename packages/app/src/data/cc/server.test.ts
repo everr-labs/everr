@@ -14,6 +14,7 @@ import {
   listCcAlerts,
   testCcChannel,
 } from "./server";
+import { ccRuleViewFixture as ccRule } from "./test-fixtures";
 
 const mocks = vi.hoisted(() => ({
   listRulesPage: vi.fn(),
@@ -45,35 +46,6 @@ vi.mock("@/data/previews/repoids", () => ({
   getPreviewScopes: vi.fn(),
   getCoveredRepoids: vi.fn(),
 }));
-
-function ccRule(overrides: { id?: string; name: string }): CcRuleView {
-  return {
-    id: overrides.id ?? "44444444-4444-4444-4444-444444444444",
-    tenant: "org1",
-    namespace: "",
-    name: overrides.name,
-    spec: {
-      sql: "SELECT 1",
-      interval_secs: 60,
-      for_secs: 0,
-      label_columns: [],
-      severity: "critical",
-      annotations: {},
-      resolve_after: 1,
-      suppressed: false,
-    },
-    version: 1,
-    paused: false,
-    updated_at: "2026-06-14T12:00:00Z",
-    health: {
-      status: "healthy",
-      consecutive_failures: 0,
-      degraded_since: null,
-      last_error: null,
-      last_error_at: null,
-    },
-  };
-}
 
 function ccSlo(overrides: { id?: string; name: string }): CcSlo {
   return {

@@ -6,6 +6,7 @@ import type {
   CcSilence,
   CcSlo,
 } from "@/data/cc/types";
+import { ccRuleViewFixture } from "./test-fixtures";
 import {
   ccGroupInstances,
   ccResolveTriageInstances,
@@ -17,34 +18,16 @@ const SLO_ID = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee";
 const NOW = Date.parse("2026-07-30T12:00:00Z");
 
 function ccRule(overrides: Partial<CcRuleView> = {}): CcRuleView {
-  return {
+  return ccRuleViewFixture({
     id: "rule-1",
-    tenant: "org1",
-    namespace: "",
-    name: "default/flapping",
     spec: {
-      sql: "SELECT 1",
       interval_secs: 30,
-      for_secs: 0,
       label_columns: ["host"],
       value_column: null,
-      severity: "critical",
       annotations: { "everr.display.name": "Flapping check" },
-      resolve_after: 1,
-      suppressed: false,
-    },
-    version: 1,
-    paused: false,
-    updated_at: "2026-06-14T12:00:00Z",
-    health: {
-      status: "healthy",
-      consecutive_failures: 0,
-      degraded_since: null,
-      last_error: null,
-      last_error_at: null,
     },
     ...overrides,
-  };
+  });
 }
 
 function ccAlert(overrides: Partial<CcAlert> = {}): CcAlert {
