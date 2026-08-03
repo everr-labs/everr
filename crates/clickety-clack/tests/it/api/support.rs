@@ -36,6 +36,7 @@ pub async fn state() -> AppState {
             .unwrap(),
         ),
         allow_private_webhooks: false,
+        slo_ingest_delay_secs: 0,
         notifiers: Arc::new(Notifiers::new()),
     }
 }

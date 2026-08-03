@@ -199,6 +199,7 @@ async fn main() -> anyhow::Result<()> {
             auth: Arc::new(HeaderAuth),
             cipher: cipher.clone(),
             allow_private_webhooks: cfg.allow_private_webhooks,
+            slo_ingest_delay_secs: cfg.slo_ingest_delay_secs,
             notifiers: notifiers.clone(),
         };
         if cfg.allow_private_webhooks {
@@ -370,6 +371,7 @@ async fn main() -> anyhow::Result<()> {
             let consumer = cfg.node_id.clone();
             let degrade_after = cfg.rule_degrade_after;
             let base_cadence = cfg.slo_base_cadence_secs as u64;
+            let ingest_delay = cfg.slo_ingest_delay_secs;
             // Sink for SLO evaluation samples (raw good/valid counts as OTLP gauges).
             // Uses the same trusted OTLP endpoint + ingest secret as the alert-log
             // export, deriving the /v1/metrics path; a no-op when unset.
@@ -409,6 +411,7 @@ async fn main() -> anyhow::Result<()> {
                         samples,
                         base_cadence,
                         degrade_after,
+                        ingest_delay,
                         rx,
                     )
                     .await;

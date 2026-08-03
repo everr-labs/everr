@@ -93,6 +93,7 @@ See [Observe and respond to degraded rules](../how-to/observe-degraded-rules.md)
 | Variable                      | Default | Purpose |
 | ------------------------------ | ------- | ------- |
 | `CC_SLO_BASE_CADENCE_SECS`    | `30`    | Fixed scheduling cadence applied to every SLO (SLOs have no per-resource `interval_secs` like rules). Also the floor for each window's own refresh cadence (`max(base_cadence, window_secs / 12)`). A value below `1` (or an unparseable one) falls back to the default `30`. |
+| `CC_SLO_INGEST_DELAY_SECS`    | `10`    | Seconds every SLI window ends before the evaluation instant, so queries read only rows that have settled in ClickHouse (insert-to-visible delay is typically a few seconds). The window keeps its full length; only its end shifts back. A value over `60` (or an unparseable one) falls back to the default `10`, so the shift can never consume a meaningful share of the floored `60s` short window. `0` disables the shift. The everr app's read-time SLI scans assume the default `10`; a deployment that changes this value makes the page's recent edge measure slightly different intervals than the engine. |
 
 SLO health (degraded/recovered) reuses `CC_RULE_DEGRADE_AFTER`: see
 [Rule health](#rule-health) above: rather than a separate threshold. See

@@ -61,6 +61,31 @@ pub(crate) fn fmt_ch_datetime(t: OffsetDateTime) -> String {
         .expect("static ClickHouse datetime format is always valid")
 }
 
+/// Bounds for an SLI query window of length `w_secs`, ending
+/// `ingest_delay_secs` before `eval_ts` so the query reads only settled rows:
+/// events spend a few seconds in the insert pipeline, and a window ending at
+/// the evaluation instant is blind to that slice (~13% of a floored 60s short
+/// window at the measured 2-9s delay). The freshness ledger stays keyed on
+/// `eval_ts`, so cadence is unchanged; only what the query sees shifts.
+///
+/// The start stays checked: `OffsetDateTime - Duration` PANICS on overflow
+/// (year outside +-9999), `validate_slo_spec` caps windows, but existing DB
+/// rows predate the cap, so an out-of-range length must surface as a
+/// recoverable per-window failure (record + freeze), never a crash-loop. The
+/// delay needs no such guard: config clamps it to at most 60s.
+pub(crate) fn sli_window_bounds(
+    eval_ts: OffsetDateTime,
+    w_secs: u64,
+    ingest_delay_secs: u32,
+) -> Result<(OffsetDateTime, OffsetDateTime), String> {
+    let window_end = eval_ts - Duration::seconds(i64::from(ingest_delay_secs));
+    let window_start = i64::try_from(w_secs)
+        .ok()
+        .and_then(|secs| window_end.checked_sub(Duration::seconds(secs)))
+        .ok_or_else(|| "window duration out of range".to_string())?;
+    Ok((window_start, window_end))
+}
+
 /// Convert a duration to its `window_computed_at` key.
 fn window_name_for(dur: &str) -> Option<String> {
     parse_window_secs(dur).ok().map(|s| format!("{s}s"))
@@ -180,6 +205,7 @@ pub async fn evaluate_slo<S: SloEvalStore>(
     eval_ts: OffsetDateTime,
     base_cadence_secs: u64,
     degrade_after: u32,
+    ingest_delay_secs: u32,
 ) -> anyhow::Result<()> {
     let status_row = match store.get_slo_status(&slo.tenant, slo.id).await {
         Ok(row) => row,
@@ -245,19 +271,10 @@ pub async fn evaluate_slo<S: SloEvalStore>(
     // (Unlike a sequential pass, queries for windows after a failing one may still
     // have run; their results are simply discarded.)
     let window_queries = due_windows.iter().map(|w| async move {
-        // Defensive: `validate_slo_spec` caps every window to `MAX_WINDOW_SECS`, but
-        // existing DB rows predate that cap (or a future bug could smuggle one past
-        // it), so guard the subtraction here too. `time::OffsetDateTime - Duration`
-        // PANICS on overflow (year outside +-9999); `checked_sub` turns that into a
-        // recoverable failure instead of a tenant-triggerable crash-loop. Treated
-        // exactly like a ClickHouse query failure: record + freeze, no snapshot write.
-        let window_start = i64::try_from(w.secs)
-            .ok()
-            .and_then(|secs| eval_ts.checked_sub(Duration::seconds(secs)))
-            .ok_or_else(|| "window duration out of range".to_string())?;
+        let (window_start, window_end) = sli_window_bounds(eval_ts, w.secs, ingest_delay_secs)?;
         let params = vec![
             ("window_start".to_string(), fmt_ch_datetime(window_start)),
-            ("window_end".to_string(), fmt_ch_datetime(eval_ts)),
+            ("window_end".to_string(), fmt_ch_datetime(window_end)),
         ];
         let rows = ch
             .query_rows_params(
@@ -644,6 +661,7 @@ pub async fn process_slo_batch_inner<S: SloEvalStore>(
     samples: &dyn SloSampleSink,
     base_cadence_secs: u64,
     degrade_after: u32,
+    ingest_delay_secs: u32,
     deliveries: Vec<SloDelivery>,
 ) -> Vec<JobId> {
     let mut acked: Vec<JobId> = Vec::with_capacity(deliveries.len());
@@ -677,6 +695,7 @@ pub async fn process_slo_batch_inner<S: SloEvalStore>(
                     job.eval_ts,
                     base_cadence_secs,
                     degrade_after,
+                    ingest_delay_secs,
                 )
                 .await
                 {
@@ -715,6 +734,7 @@ pub async fn run_slo_evaluator(
     samples: Arc<dyn SloSampleSink>,
     base_cadence_secs: u64,
     degrade_after: u32,
+    ingest_delay_secs: u32,
     shutdown: tokio::sync::watch::Receiver<bool>,
 ) {
     loop {
@@ -751,6 +771,7 @@ pub async fn run_slo_evaluator(
                 samples.as_ref(),
                 base_cadence_secs,
                 degrade_after,
+                ingest_delay_secs,
                 deliveries,
             ));
             let to_ack = match futures::FutureExt::catch_unwind(batch).await {
@@ -1401,5 +1422,35 @@ mod annotations_evidence_tests {
         assert!(evidence.contains_key("tier"));
         assert!(evidence.contains_key("objective"));
         assert!(evidence.contains_key("slo_name"));
+    }
+}
+
+#[cfg(test)]
+mod sli_window_bounds_tests {
+    use super::*;
+    use time::macros::datetime;
+
+    #[test]
+    fn shifts_the_whole_window_back_by_the_ingest_delay() {
+        let eval_ts = datetime!(2026-08-03 12:00:00 UTC);
+        let (start, end) = sli_window_bounds(eval_ts, 60, 10).unwrap();
+        assert_eq!(end, datetime!(2026-08-03 11:59:50 UTC));
+        assert_eq!(start, datetime!(2026-08-03 11:58:50 UTC));
+        // The window keeps its length; only its position moves.
+        assert_eq!((end - start).whole_seconds(), 60);
+    }
+
+    #[test]
+    fn zero_delay_reproduces_the_unshifted_window() {
+        let eval_ts = datetime!(2026-08-03 12:00:00 UTC);
+        let (start, end) = sli_window_bounds(eval_ts, 3600, 0).unwrap();
+        assert_eq!(end, eval_ts);
+        assert_eq!(start, datetime!(2026-08-03 11:00:00 UTC));
+    }
+
+    #[test]
+    fn out_of_range_window_fails_recoverably_instead_of_panicking() {
+        let eval_ts = datetime!(2026-08-03 12:00:00 UTC);
+        assert!(sli_window_bounds(eval_ts, u64::MAX, 0).is_err());
     }
 }

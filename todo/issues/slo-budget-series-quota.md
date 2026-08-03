@@ -68,10 +68,10 @@ compose, and the cache is far less work.
   is immutable once ingestion has settled; give the final point (which ends at
   "now") a short TTL or skip caching it, and let the rest be long-lived.
 - Ingestion delay is the one caveat: a point whose window ends seconds ago can be
-  cached before its rows land. Hold off caching a point until it is older than
-  the ingestion-delay allowance discussed in
-  `todo/issues/slo-sli-query-ingestion-delay.md` (measured there at 2 to 9
-  seconds).
+  cached before its rows land. The scans already end their windows
+  `CC_SLO_INGEST_DELAY_SECS` (default 10s, mirroring the measured 2 to 9 second
+  insert delay) before their instant; hold off caching a point until its window
+  end is older than that allowance.
 - Where the cache lives is open. Redis is already in the stack and would let the
   cost be paid once per org rather than once per process.
 

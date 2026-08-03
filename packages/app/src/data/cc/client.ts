@@ -16,6 +16,7 @@ import {
   CcSilenceSchema,
   CcSloInputSchema,
   CcSloSchema,
+  CcSloSpecSchema,
   CcSloStatusSchema,
   CcSloTestResultSchema,
   CcSloUpdateSchema,
@@ -30,6 +31,7 @@ import type {
   CcRuleSpec,
   CcSilenceInput,
   CcSloInput,
+  CcSloSpec,
   CcSloUpdate,
 } from "./types";
 
@@ -202,15 +204,15 @@ export async function resumeSlo(orgId: string, id: string) {
 }
 /**
  * Dry-run: validates the spec and runs the SLI over its own budget window; no
- * DB write, no snapshot. The path id is ignored by CC.
+ * DB write, no snapshot, so the bare spec needs no identity.
  */
-export async function testSlo(orgId: string, id: string, input: CcSloInput) {
+export async function testSlo(orgId: string, spec: CcSloSpec) {
   return CcSloTestResultSchema.parse(
     await ccRequest(
       orgId,
       "POST",
-      `/v1/slos/${id}/test`,
-      CcSloInputSchema.parse(input),
+      "/v1/slos/test",
+      CcSloSpecSchema.parse(spec),
     ),
   );
 }

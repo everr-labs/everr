@@ -30,8 +30,6 @@ const mockedUpdate = cc.updateSlo as ReturnType<typeof vi.fn>;
 const mockedDelete = cc.deleteSlo as ReturnType<typeof vi.fn>;
 const mockedTest = cc.testSlo as ReturnType<typeof vi.fn>;
 
-const NIL_ID = "00000000-0000-0000-0000-000000000000";
-
 beforeEach(() => {
   vi.clearAllMocks();
   mockedList.mockResolvedValue([]);
@@ -114,14 +112,13 @@ describe("applySloSpecs", () => {
       resources: [{ path: "s.yaml", resource: sloDoc() }],
     });
 
-    // Validation first: CC's dry-run test probe with the nil placeholder id
-    // (the SLO does not exist yet; CC ignores the path id).
+    // Validation first: CC's dry-run test probe takes the bare spec (nothing
+    // is written, so no identity is needed).
     expect(mockedTest).toHaveBeenCalledTimes(1);
-    const [tOrg, tId, tInput] = mockedTest.mock.calls[0];
+    const [tOrg, tSpec] = mockedTest.mock.calls[0];
     expect(tOrg).toBe("o");
-    expect(tId).toBe(NIL_ID);
-    expect(tInput.name).toBe("default/checkout");
-    expect(tInput.namespace).toBe("");
+    expect(tSpec.targetPercent).toBe(99.9);
+    expect(tSpec.name).toBeUndefined();
 
     expect(mockedCreate).toHaveBeenCalledTimes(1);
     const [org, input] = mockedCreate.mock.calls[0];
@@ -277,9 +274,9 @@ describe("applySloSpecs", () => {
     });
 
     expect(res.updated).toEqual(["default/checkout"]);
-    // Changed specs are re-validated against the existing SLO's id.
+    // Changed specs are re-validated through the test probe before the PUT.
     expect(mockedTest).toHaveBeenCalledTimes(1);
-    expect(mockedTest.mock.calls[0][1]).toBe("slo-checkout");
+    expect(mockedTest.mock.calls[0][1].targetPercent).toBe(99.9);
     expect(mockedUpdate).toHaveBeenCalledTimes(1);
     const [org, id, spec, version] = mockedUpdate.mock.calls[0];
     expect(org).toBe("o");

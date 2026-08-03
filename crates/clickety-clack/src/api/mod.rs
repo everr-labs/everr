@@ -34,6 +34,9 @@ pub struct AppState {
     /// Allow private/loopback webhook targets (`CC_ALLOW_PRIVATE_WEBHOOKS=1`,
     /// dev/compose only). See [`webhook_url::validate_webhook_url`].
     pub allow_private_webhooks: bool,
+    /// [`crate::config::Config::slo_ingest_delay_secs`], so the SLO dry-run
+    /// probe shifts its window exactly as the evaluator will.
+    pub slo_ingest_delay_secs: u32,
     /// Delivery notifiers, shared with the dispatcher. The API needs them for
     /// the draft channel test, which sends synchronously so the builder can
     /// show a result. A registry missing a kind (email with no SMTP configured
@@ -112,6 +115,7 @@ pub fn build_supervised_router(
         .route("/v1/rules/:id/pause", post(rules::pause))
         .route("/v1/rules/:id/resume", post(rules::resume))
         .route("/v1/slos", post(slos::create).get(slos::list))
+        .route("/v1/slos/test", post(slos::test))
         .route(
             "/v1/slos/:id",
             get(slos::get).put(slos::update).delete(slos::delete),
@@ -119,7 +123,6 @@ pub fn build_supervised_router(
         .route("/v1/slos/:id/pause", post(slos::pause))
         .route("/v1/slos/:id/resume", post(slos::resume))
         .route("/v1/slos/:id/status", get(slos::status))
-        .route("/v1/slos/:id/test", post(slos::test))
         .route("/v1/alerts", get(alerts::list))
         .route(
             "/v1/subscriptions",

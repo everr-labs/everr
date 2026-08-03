@@ -137,7 +137,7 @@ async fn breach_fires_and_recovery_resolves() {
 
     let ch = StubCh::new(9800.0, 10000.0);
     let t0 = OffsetDateTime::now_utc();
-    cc::evaluator::slo::evaluate_slo(&store, &ch, &bus, &cc::domain::NullSink, &slo, t0, 30, 3)
+    cc::evaluator::slo::evaluate_slo(&store, &ch, &bus, &cc::domain::NullSink, &slo, t0, 30, 3, 0)
         .await
         .unwrap();
 
@@ -198,7 +198,7 @@ async fn breach_fires_and_recovery_resolves() {
         .unwrap();
 
     ch.set(10000.0, 10000.0); // burn 0x: fully recovered
-    cc::evaluator::slo::evaluate_slo(&store, &ch, &bus, &cc::domain::NullSink, &slo, t1, 30, 3)
+    cc::evaluator::slo::evaluate_slo(&store, &ch, &bus, &cc::domain::NullSink, &slo, t1, 30, 3, 0)
         .await
         .unwrap();
 
@@ -240,6 +240,7 @@ async fn suppressed_slo_marks_events() {
         OffsetDateTime::now_utc(),
         30,
         3,
+        0,
     )
     .await
     .unwrap();
@@ -282,6 +283,7 @@ async fn no_events_below_threshold() {
         OffsetDateTime::now_utc(),
         30,
         3,
+        0,
     )
     .await
     .unwrap();
@@ -341,6 +343,7 @@ async fn freeze_on_error_freezes_instances() {
         OffsetDateTime::now_utc(),
         30,
         3,
+        0,
     )
     .await
     .unwrap();
@@ -400,6 +403,7 @@ async fn leftover_instance_with_unknown_tier_resolves_severity_as_critical() {
         OffsetDateTime::now_utc(),
         30,
         3,
+        0,
     )
     .await
     .unwrap();
@@ -442,6 +446,7 @@ async fn erroring_slo_publishes_health_event() {
         OffsetDateTime::now_utc(),
         30,
         1,
+        0,
     )
     .await
     .unwrap();

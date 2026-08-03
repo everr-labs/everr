@@ -39,10 +39,6 @@ const SLO_TEST_CONCURRENCY = 8;
 // they run in a bounded pool instead of strictly one at a time.
 const CC_MUTATION_CONCURRENCY = 8;
 
-// POST /v1/slos/:id/test ignores the path id (a rules::test-style dry-run
-// probe); creates have no id yet, so the URL gets the nil uuid.
-const TEST_PLACEHOLDER_ID = "00000000-0000-0000-0000-000000000000";
-
 // Stable identity for change detection: everything except the ownership
 // annotation (everr.repoid; identity itself now lives on the SLO's
 // first-class name/namespace, not the spec), serialized with all object keys
@@ -208,23 +204,17 @@ export const applySloSpecs: Reconciler = async ({
   // pass. Conflicted creates are skipped when not adopting (the registry
   // aborts on the conflicts before any write).
   const toValidate = [
-    ...fresh.map((d) => ({ d, id: TEST_PLACEHOLDER_ID })),
-    ...(adopt ? taken.map(({ d, foreign }) => ({ d, id: foreign.id })) : []),
-    ...updates.map(({ d, cur }) => ({ d, id: cur.id })),
+    ...fresh,
+    ...(adopt ? taken.map(({ d }) => d) : []),
+    ...updates.map(({ d }) => d),
   ];
   const runValidation = createLimiter(SLO_TEST_CONCURRENCY);
   const validations = await Promise.allSettled(
-    toValidate.map(({ d, id }) =>
-      runValidation(undefined, () =>
-        cc.testSlo(orgId, id, {
-          name: d.name,
-          namespace: wantNamespace,
-          ...d.spec,
-        }),
-      ),
+    toValidate.map((d) =>
+      runValidation(undefined, () => cc.testSlo(orgId, d.spec)),
     ),
   );
-  toValidate.forEach(({ d }, i) => {
+  toValidate.forEach((d, i) => {
     const outcome = validations[i];
     if (outcome.status === "rejected") {
       throw new ApplyValidationError(

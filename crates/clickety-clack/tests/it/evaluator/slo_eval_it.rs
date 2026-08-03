@@ -111,6 +111,7 @@ async fn evaluate_writes_budget_snapshot() {
         OffsetDateTime::now_utc(),
         30,
         3,
+        0,
     )
     .await
     .unwrap();
@@ -149,6 +150,7 @@ async fn query_error_degrades_and_does_not_write_snapshot() {
         OffsetDateTime::now_utc(),
         30,
         1,
+        0,
     )
     .await
     .unwrap();
@@ -254,6 +256,7 @@ async fn fresh_windows_are_not_requeried() {
         eval_ts,
         60,
         3,
+        0,
     )
     .await
     .unwrap();
@@ -392,6 +395,7 @@ async fn stale_ledger_windows_are_pruned_to_the_current_tier_set() {
         seed_ts + time::Duration::seconds(60),
         10_000_000,
         3,
+        0,
     )
     .await
     .unwrap();
@@ -457,6 +461,7 @@ async fn garbage_prior_payload_self_heals_instead_of_freezing() {
         OffsetDateTime::now_utc(),
         30,
         3,
+        0,
     )
     .await
     .expect("evaluate_slo must self-heal on a garbage prior payload, not error forever");

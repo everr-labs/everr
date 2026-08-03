@@ -96,6 +96,15 @@ const CC_CANONICAL_TIER_WINDOW_SECS = 30 * 86_400;
 /** Floor on a scaled tier's short window (mirrors domain/slo.rs). */
 const CC_SHORT_WINDOW_FLOOR_SECS = 60;
 
+/**
+ * Seconds every SLI window ends before the evaluation instant, mirroring the
+ * engine's `CC_SLO_INGEST_DELAY_SECS` default (config.rs): rows take a few
+ * seconds to settle in ClickHouse, so a window ending at "now" always
+ * undercounts its trailing edge. Read-time SLI scans shift the same way so the
+ * page and the engine measure the same intervals.
+ */
+export const CC_SLO_INGEST_DELAY_SECS = 10;
+
 // Mirror of domain/slo.rs BASE_TIERS, calibrated to CC_CANONICAL_TIER_WINDOW_SECS.
 const CC_BASE_TIERS: readonly {
   name: string;

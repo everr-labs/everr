@@ -332,7 +332,7 @@ export const CcSloInputSchema = CcSloSpecSchema.extend({
 // the optional optimistic-concurrency `version`.
 export const CcSloUpdateSchema = CcSloSpecSchema;
 
-// POST /v1/slos/:id/test: per-group SLI over the spec's own budget window.
+// POST /v1/slos/test: per-group SLI over the spec's own budget window.
 export const CcSloTestResultSchema = z.object({
   matched: z.number().int(),
   groups: z.array(

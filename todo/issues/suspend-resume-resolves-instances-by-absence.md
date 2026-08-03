@@ -23,8 +23,8 @@ Unpinned detail: the constant-SLI slow-leak resolve is stamped at outbox relay t
 
 ## Sketch
 - Detect evaluation-time discontinuity: if `eval_ts` jumped more than N x the evaluation interval since the previous tick, treat the first evaluation(s) after the jump as state-holding: skip the absence path (do not advance `absent_count`, do not prune snapshot groups) until one full window of post-wake data exists.
-- Alternatively (or additionally) make absence advance only when the queried window actually overlapped time the engine was alive, which also covers the ingestion-delay tail described in [slo-sli-query-ingestion-delay](slo-sli-query-ingestion-delay.md).
+- Alternatively (or additionally) make absence advance only when the queried window actually overlapped time the engine was alive. (The steady-state ingestion-delay tail is already handled: SLI windows end `CC_SLO_INGEST_DELAY_SECS` before the evaluation instant.)
 - Pin down and align the resolve-event timestamping (outbox relay vs evaluation tick) so the event log records when the state changed, not when it was published.
 
 ## Related
-[slo-sli-query-ingestion-delay](slo-sli-query-ingestion-delay.md): the `TierVerdict::Unknown` hold fixed empty-window flapping for present groups; this issue is the absence path around it. Found investigating why demo SLOs flap between firing and resolved during active dev hours.
+[slo-short-window-floor-vs-sparse-telemetry](slo-short-window-floor-vs-sparse-telemetry.md): the `TierVerdict::Unknown` hold fixed empty-window flapping for present groups; this issue is the absence path around it. Found investigating why demo SLOs flap between firing and resolved during active dev hours.

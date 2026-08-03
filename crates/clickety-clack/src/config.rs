@@ -47,6 +47,11 @@ pub struct Config {
     pub node_id: String,
     pub rule_degrade_after: u32,
     pub slo_base_cadence_secs: u32,
+    /// Seconds the SLI query window ends before the evaluation instant, so it
+    /// reads only rows that have settled in ClickHouse (measured insert delay
+    /// is 2-9s). Values over 60 fall back to the default so the shift can
+    /// never eat a meaningful part of the floored 60s short window.
+    pub slo_ingest_delay_secs: u32,
     pub scheduler_shards: u32,
     pub scheduler_member_ttl_ms: u64,
     pub smtp: Option<SmtpConfig>,
@@ -130,6 +135,11 @@ impl Config {
                 .ok()
                 .filter(|&n| n >= 1)
                 .unwrap_or(30),
+            slo_ingest_delay_secs: var("CC_SLO_INGEST_DELAY_SECS", "10")
+                .parse()
+                .ok()
+                .filter(|&n| n <= 60)
+                .unwrap_or(10),
             smtp,
             secret_provider: var("CC_SECRET_PROVIDER", "env"),
             secret_keys: env::var("CC_SECRET_KEYS").ok(),
@@ -186,6 +196,24 @@ mod tests {
         env::set_var("CC_SLO_BASE_CADENCE_SECS", "45");
         assert_eq!(Config::from_env().slo_base_cadence_secs, 45);
         env::remove_var("CC_SLO_BASE_CADENCE_SECS");
+    }
+
+    #[test]
+    fn slo_ingest_delay_defaults_and_clamps() {
+        // Env-based; this is the only test touching CC_SLO_INGEST_DELAY_SECS.
+        env::remove_var("CC_SLO_INGEST_DELAY_SECS");
+        assert_eq!(Config::from_env().slo_ingest_delay_secs, 10);
+        env::set_var("CC_SLO_INGEST_DELAY_SECS", "0");
+        assert_eq!(Config::from_env().slo_ingest_delay_secs, 0, "0 is valid");
+        env::set_var("CC_SLO_INGEST_DELAY_SECS", "61");
+        assert_eq!(
+            Config::from_env().slo_ingest_delay_secs,
+            10,
+            "over the 60s cap falls back to the default"
+        );
+        env::set_var("CC_SLO_INGEST_DELAY_SECS", "30");
+        assert_eq!(Config::from_env().slo_ingest_delay_secs, 30);
+        env::remove_var("CC_SLO_INGEST_DELAY_SECS");
     }
 
     #[test]

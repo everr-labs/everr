@@ -511,7 +511,7 @@ async fn run_slo(
     deliveries: Vec<SloDelivery>,
 ) -> Vec<cc::queue::JobId> {
     let faulty = FaultInjector { inner: store, fail };
-    process_slo_batch_inner(&faulty, ch, bus, &NullSink, 30, 3, deliveries).await
+    process_slo_batch_inner(&faulty, ch, bus, &NullSink, 30, 3, 0, deliveries).await
 }
 
 #[tokio::test]

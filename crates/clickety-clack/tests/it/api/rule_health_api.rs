@@ -1,41 +1,14 @@
-use crate::api::support::body_json;
+use crate::api::support::{body_json, setup};
 use axum::body::Body;
 use axum::http::{Request, StatusCode};
-use cc::api::auth::HeaderAuth;
-use cc::api::{build_router, AppState};
-use cc::clickhouse::ChClient;
-use cc::crypto::EnvKeyring;
 use cc::domain::ids::{RuleId, TenantId};
-use cc::stores::PgStore;
-use std::collections::HashMap;
-use std::sync::Arc;
 use time::OffsetDateTime;
 use tower::ServiceExt;
 use uuid::Uuid;
 
 #[tokio::test]
 async fn get_and_list_expose_rule_health() {
-    let pg_url = crate::support::fresh_db().await;
-    let store = PgStore::connect(&pg_url).await.unwrap();
-    let store2 = store.clone();
-    let state = AppState {
-        store,
-        ch: ChClient::new(
-            "http://127.0.0.1:1",
-            cc::clickhouse::build_ch_auth("shared", "default", "", None, None, "", None).unwrap(),
-        ),
-        auth: Arc::new(HeaderAuth),
-        cipher: Arc::new(
-            EnvKeyring::new(
-                HashMap::from([("v1".to_string(), [7u8; 32])]),
-                "v1".to_string(),
-            )
-            .unwrap(),
-        ),
-        allow_private_webhooks: false,
-        notifiers: std::sync::Arc::new(cc::dispatcher::Notifiers::new()),
-    };
-    let app = build_router(state);
+    let (app, store2) = setup().await;
     let tenant = Uuid::new_v4();
 
     // Create a rule.

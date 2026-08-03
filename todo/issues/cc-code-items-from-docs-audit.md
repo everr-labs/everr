@@ -13,14 +13,13 @@ receivers return `already_exists` (`src/api/channels.rs:110`,
 `src/api/receivers.rs:116`). Same situation, two vocabularies; pick one
 (likely `already_exists`) and alias the other during a deprecation window.
 
-## Test endpoints ignore their `:id`
+## `POST /v1/rules/:id/test` ignores its `:id`
 
-`POST /v1/rules/:id/test` has no path extractor and `POST /v1/slos/:id/test`
-explicitly discards the id (`src/api/rules.rs:341-368`,
-`src/api/slos.rs:206-213`): no existence or tenant check, any id evaluates
-the posted spec. Related wart: the SLO test body is `CreateSloBody`, so a
-`name` is required but unused. Either validate the id (404 on miss) or move
-the endpoints off the `/:id` shape; drop the unused `name`.
+The rule test endpoint has no path extractor (`src/api/rules.rs:341-368`):
+no existence or tenant check, any id evaluates the posted spec. Either
+validate the id (404 on miss) or move it to `POST /v1/rules/test`, as the
+SLO probe now is (that one moved to `/v1/slos/test` with a bare-spec body,
+resolving its half of this item).
 
 ## `GET /v1/slos/:id/status` 404s for a never-evaluated SLO
 

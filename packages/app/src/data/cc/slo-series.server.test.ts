@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ClickhouseQuery } from "@/lib/clickhouse";
-import { querySloBudgetSeries } from "./slo-series.server";
+import { querySloBudgetNow, querySloBudgetSeries } from "./slo-series.server";
 
 // A stub SLI: returns the rows this fixture declares for every window, so the
 // series' shaping is exercised without a database. `rowsFor` receives the
@@ -53,7 +53,8 @@ describe("querySloBudgetSeries", () => {
     // measuring a budget of zero: the chart must draw a gap, not a crash to 0%.
     const series = await querySloBudgetSeries(
       stubClickhouse((windowEnd) =>
-        windowEnd.endsWith("02:00:00")
+        // The 02:00:00 instant's window, which ends 10s earlier (ingest delay).
+        windowEnd.endsWith("01:59:50")
           ? [{ ServiceName: "alpha", good: "10", valid: "10" }]
           : [
               { ServiceName: "alpha", good: "10", valid: "10" },
@@ -75,6 +76,45 @@ describe("querySloBudgetSeries", () => {
         series[0].points.map((p) => p.t),
       );
     }
+  });
+
+  it("ends every window 10s before its instant, matching the engine's ingest delay", async () => {
+    // The engine shifts window_end back by CC_SLO_INGEST_DELAY_SECS (default
+    // 10) so it reads only settled rows; read-time scans must measure the same
+    // intervals or the page and the engine disagree at the recent edge. The
+    // point stays plotted at its round instant.
+    const windows: { start: string; end: string }[] = [];
+    const capture = (async (_sql: string, params?: Record<string, unknown>) => {
+      windows.push({
+        start: String(params?.window_start),
+        end: String(params?.window_end),
+      });
+      return [];
+    }) as ClickhouseQuery;
+
+    const series = await querySloBudgetSeries(capture, {
+      ...BASE,
+      toISO: "2026-07-28 01:00:00",
+      points: 1,
+    });
+    expect(series).toEqual([]);
+    // The 01:00:00 instant scans [00:59:50 - 1h, 00:59:50).
+    expect(windows.at(-1)).toEqual({
+      start: "2026-07-27 23:59:50",
+      end: "2026-07-28 00:59:50",
+    });
+
+    windows.length = 0;
+    await querySloBudgetNow(capture, {
+      sliSql: BASE.sliSql,
+      labelColumns: [],
+      targetPercent: 99.5,
+      windowSecs: 3600,
+      nowMs: Date.parse("2026-07-28T01:00:00Z"),
+    });
+    expect(windows).toEqual([
+      { start: "2026-07-27 23:59:50", end: "2026-07-28 00:59:50" },
+    ]);
   });
 
   it("gives a scalar SLO one group keyed by nothing", async () => {

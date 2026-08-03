@@ -39,6 +39,12 @@ The engine injects the window as two ClickHouse named parameters,
 literally in the SQL** or creation is rejected `422`: a query missing one
 would ignore the window and scan unboundedly.
 
+The window ends `CC_SLO_INGEST_DELAY_SECS` (default `10s`) before the
+evaluation instant, not at it: rows take a few seconds to become visible in
+ClickHouse, and a window ending at "now" would always undercount its trailing
+edge. The window keeps its full length; only its end shifts back. See
+[configuration](../reference/configuration.md#slo-evaluation).
+
 > **Security.** Like rule SQL, the guard only checks the statement's shape.
 > It does **not** stop a valid `SELECT` from reading other
 > tables or reaching the network via table functions. If tenants you don't
@@ -163,15 +169,16 @@ state, exactly like a missing burn rate.
 
 ## Test before you commit
 
-`POST /v1/slos/:id/test` (`:id` is ignored, like `rules::test`) is a dry-run:
-it validates the posted spec, runs the SLI query once over the spec's **own**
-`timeWindow` against ClickHouse, and returns the per-group SLI: **no DB
-write, no snapshot, no instance/event side effects**:
+`POST /v1/slos/test` is a dry-run: it validates the posted spec (the bare
+spec, no name or namespace: nothing is written, so no identity is needed),
+runs the SLI query once over the spec's **own** `timeWindow` against
+ClickHouse, and returns the per-group SLI: **no DB write, no snapshot, no
+instance/event side effects**:
 
 ```bash
-curl -s -X POST localhost:8080/v1/slos/$SLO_ID/test \
+curl -s -X POST localhost:8080/v1/slos/test \
   -H "X-CC-Tenant: $TENANT" -H 'Content-Type: application/json' \
-  -d '{ "name": "checkout-availability", "sli": { "sql": "...", "label_columns": [] },
+  -d '{ "sli": { "sql": "...", "label_columns": [] },
         "targetPercent": 99.9, "timeWindow": { "duration": "30d", "isRolling": true } }'
 # => { "matched": 1, "groups": [ { "labels": {}, "good": 998234.0, "valid": 1000000.0, "sli": 0.998234 } ] }
 ```

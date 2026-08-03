@@ -267,7 +267,7 @@ for how to write one.
 | `POST /v1/slos/:id/pause`    | Pause evaluation. Freezes state, emits no events. Returns the updated `Slo`. Idempotent; unknown id → `404`. |
 | `POST /v1/slos/:id/resume`   | Resume evaluation. Re-arms scheduling. Returns the updated `Slo`. |
 | `GET /v1/slos/:id/status`    | Read-time-enriched status snapshot (below). `404` if the SLO does not exist, and also for an existing SLO that has never been evaluated (no snapshot row yet). |
-| `POST /v1/slos/:id/test`     | Evaluate the supplied spec ad hoc against ClickHouse over its own window. **No state change, no events.** The `:id` is ignored (no existence or tenant check): only the posted spec is evaluated. The body is the create shape, so `name` is required even though it is unused. |
+| `POST /v1/slos/test`         | Evaluate the supplied spec ad hoc against ClickHouse over its own window. **No state change, no events.** The body is the bare spec (no `name`/`namespace`: nothing is written, so no identity is needed). |
 
 ### SLO spec (request body)
 

@@ -203,29 +203,25 @@ pub struct SloStatusOut {
     pub health: crate::stores::SloHealth,
 }
 
-/// `POST /v1/slos/:id/test`: a dry-run probe (`:id` is ignored, like
-/// `rules::test`). Validates the posted spec, runs the SLI query over the
-/// spec's own budget window against ClickHouse, and returns the per-group
-/// results -- no DB write, no snapshot.
+/// `POST /v1/slos/test`: a dry-run probe. Validates the posted spec (the bare
+/// spec, no identity: nothing is written, so none is needed), runs the SLI
+/// query over the spec's own budget window against ClickHouse, with the window
+/// bounded by [`sli_window_bounds`](crate::evaluator::slo::sli_window_bounds)
+/// exactly as the evaluator bounds it, and returns the per-group results -- no
+/// DB write, no snapshot.
 pub async fn test(
     State(state): State<AppState>,
     headers: HeaderMap,
-    Path(_id): Path<Uuid>,
-    Json(body): Json<CreateSloBody>,
+    Json(spec): Json<SloSpec>,
 ) -> Result<Json<Value>, ApiError> {
     let t = tenant(&state, &headers)?;
-    validate_slo_spec(&body.spec)?;
+    validate_slo_spec(&spec)?;
     let now = time::OffsetDateTime::now_utc();
-    let secs = parse_window_secs(&body.spec.time_window.duration)
+    let secs = parse_window_secs(&spec.time_window.duration)
         .map_err(|e| ApiError::Validation(e.to_string()))?;
-    // `OffsetDateTime - Duration` panics on overflow, so the subtraction below stays checked
-    // even though `validate_slo_spec` has already capped `secs` to `MAX_WINDOW_SECS`. The
-    // other such site is `evaluator::slo::evaluate_slo`.
-    let secs_i64 = i64::try_from(secs)
-        .map_err(|_| ApiError::Validation("window duration out of range".into()))?;
-    let start = now
-        .checked_sub(time::Duration::seconds(secs_i64))
-        .ok_or_else(|| ApiError::Validation("window duration out of range".into()))?;
+    let (start, end) =
+        crate::evaluator::slo::sli_window_bounds(now, secs, state.slo_ingest_delay_secs)
+            .map_err(ApiError::Validation)?;
     let params = vec![
         (
             "window_start".to_string(),
@@ -233,16 +229,16 @@ pub async fn test(
         ),
         (
             "window_end".to_string(),
-            crate::evaluator::slo::fmt_ch_datetime(now),
+            crate::evaluator::slo::fmt_ch_datetime(end),
         ),
     ];
     let rows = state
         .ch
         .query_rows_params(
             &t,
-            &body.spec.sli.sql,
+            &spec.sli.sql,
             &params,
-            &body.spec.sli.label_columns,
+            &spec.sli.label_columns,
             Some("valid"),
         )
         .await

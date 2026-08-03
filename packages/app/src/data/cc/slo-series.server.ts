@@ -1,6 +1,6 @@
 import type { ClickhouseQuery } from "@/lib/clickhouse";
 import { createLimiter } from "@/lib/limiter";
-import type { CcFreshBudgetGroup } from "./slo";
+import { CC_SLO_INGEST_DELAY_SECS, type CcFreshBudgetGroup } from "./slo";
 
 /** One point of one group's error-budget-over-time series. */
 export type CcSloBudgetPoint = {
@@ -80,6 +80,19 @@ function chooseStepMs(spanMs: number, targetPoints: number): number {
 type SliRow = { good: string; valid: string };
 
 /**
+ * SLI window bounds for an instant, mirroring the engine's `sli_window_bounds`:
+ * the window ends the ingest-delay allowance before the instant so it reads
+ * only settled rows, and keeps its full length.
+ */
+function sliWindowMs(
+  instantMs: number,
+  windowSecs: number,
+): { start: number; end: number } {
+  const end = instantMs - CC_SLO_INGEST_DELAY_SECS * 1000;
+  return { start: end - windowSecs * 1000, end };
+}
+
+/**
  * The SLO's CURRENT error budget per group, computed at read time from a single
  * SLI scan over the trailing window `[now - windowSecs, now]` — the point-in-time
  * counterpart of `querySloBudgetSeries` (which walks many trailing windows across
@@ -103,8 +116,7 @@ export async function querySloBudgetNow(
     nowMs: number;
   },
 ): Promise<CcFreshBudgetGroup[]> {
-  const end = opts.nowMs;
-  const start = end - opts.windowSecs * 1000;
+  const { start, end } = sliWindowMs(opts.nowMs, opts.windowSecs);
   const rows = await clickhouse<Record<string, string>>(opts.sliSql, {
     window_start: fmtCh(start),
     window_end: fmtCh(end),
@@ -197,7 +209,6 @@ export async function querySloBudgetSeries(
   // each slot, starting at the first grid tick inside the range. Deterministic
   // across reloads (same range -> same instants) and clean tooltip times.
   const step = chooseStepMs(to - from, opts.points);
-  const windowMs = opts.windowSecs * 1000;
   const instants: number[] = [];
   for (
     let t = Math.ceil(from / step) * step;
@@ -219,15 +230,19 @@ export async function querySloBudgetSeries(
 
   // Bounded concurrency: N heavy scans, capped so one chart load can't flood
   // ClickHouse with the whole series at once.
+  // Each point stays plotted at `t` even though its window ends earlier,
+  // matching how the engine keys an evaluation on its instant, not the shifted
+  // window end.
   const run = createLimiter(8);
   const scans = await Promise.all(
     instants.map((t) =>
-      run(undefined, () =>
-        clickhouse<SliRow>(opts.sliSql, {
-          window_start: fmtCh(t - windowMs),
-          window_end: fmtCh(t),
-        }),
-      ),
+      run(undefined, () => {
+        const { start, end } = sliWindowMs(t, opts.windowSecs);
+        return clickhouse<SliRow>(opts.sliSql, {
+          window_start: fmtCh(start),
+          window_end: fmtCh(end),
+        });
+      }),
     ),
   );
 
