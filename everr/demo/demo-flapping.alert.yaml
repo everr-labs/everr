@@ -1,0 +1,17 @@
+kind: AlertRule
+metadata:
+  name: demo-flapping
+  project: demo
+spec:
+  runbook: demo-alerts
+  display:
+    name: Flapping (demo)
+    description: Fires for three minutes, resolves for three minutes, forever. Exercises firing and resolved transitions, notification churn, and event history in the alerting UI.
+  evaluationInterval: 1m
+  notificationMessage:
+    title: "Demo alert: flapping is in its on phase"
+    description: "This rule alternates between firing and resolved every three minutes to test state transitions in the UI."
+  instanceLabels: [phase]
+  query: |
+    SELECT 'flapper' AS phase
+    WHERE intDiv(toUnixTimestamp(now()), 180) % 2 = 0

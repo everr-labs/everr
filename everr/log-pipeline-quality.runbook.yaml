@@ -1,0 +1,141 @@
+kind: Runbook
+metadata:
+  name: log-pipeline-quality
+  # no project, so "default", matching the log-pipeline-quality SLO
+spec:
+  display:
+    name: Log pipeline quality runbook
+    description: Triage steps for the log-pipeline-quality SLO (a service emitting error-or-worse logs).
+  duration: 24h
+  refreshInterval: 1m
+  panels:
+    error-rate-by-service:
+      kind: Panel
+      spec:
+        display:
+          name: Error-log share by service
+          description: >-
+            The SLI itself, plotted: the percentage of a service's log records
+            at ERROR or worse. The SLO promises 99.5% below that line over 7d,
+            so anything sustained above 0.5% here is spending budget.
+        plugin:
+          kind: TimeSeriesChart
+          spec:
+            unit: "%"
+            showLegend: true
+            lineWidth: 1.5
+            curveType: monotone
+        queries:
+          - kind: ClickHouseSQL
+            spec:
+              plugin:
+                kind: ClickHouseSQL
+                spec:
+                  query: |
+                    SELECT
+                      toStartOfInterval(TimestampTime, INTERVAL {step:UInt32} SECOND) AS ts,
+                      ServiceName AS service,
+                      round(100 * countIf(SeverityNumber >= 17) / count(), 3) AS error_pct
+                    FROM logs
+                    WHERE TimestampTime >= parseDateTimeBestEffort({from:String})
+                      AND TimestampTime <= parseDateTimeBestEffort({to:String})
+                    GROUP BY ts, service
+                    ORDER BY ts
+    error-volume-by-service:
+      kind: Panel
+      spec:
+        display:
+          name: Error-log volume by service
+          description: >-
+            Count, not share. A rate spike on a service that emits almost
+            nothing is a different problem from one on a service emitting
+            thousands of records a minute; this separates them.
+        plugin:
+          kind: TimeSeriesChart
+          spec:
+            showLegend: true
+            lineWidth: 1.5
+            curveType: monotone
+        queries:
+          - kind: ClickHouseSQL
+            spec:
+              plugin:
+                kind: ClickHouseSQL
+                spec:
+                  query: |
+                    SELECT
+                      toStartOfInterval(TimestampTime, INTERVAL {step:UInt32} SECOND) AS ts,
+                      ServiceName AS service,
+                      countIf(SeverityNumber >= 17) AS errors
+                    FROM logs
+                    WHERE TimestampTime >= parseDateTimeBestEffort({from:String})
+                      AND TimestampTime <= parseDateTimeBestEffort({to:String})
+                    GROUP BY ts, service
+                    ORDER BY ts
+    top-error-shapes:
+      kind: Panel
+      spec:
+        display:
+          name: What the errors say
+          description: >-
+            Error bodies grouped by shape, with digits and hex ids masked so the
+            same failure with different ids collapses to one row. The budget is
+            usually being spent by one or two of these.
+        plugin:
+          kind: Table
+          spec:
+            stickyHeader: true
+        queries:
+          - kind: ClickHouseSQL
+            spec:
+              plugin:
+                kind: ClickHouseSQL
+                spec:
+                  query: |
+                    SELECT
+                      ServiceName AS service,
+                      coalesce(nullIf(SeverityText, ''), toString(SeverityNumber)) AS severity,
+                      substring(replaceRegexpAll(Body, '[0-9a-f]{8,}|[0-9]+', 'N'), 1, 140) AS shape,
+                      count() AS n,
+                      formatDateTime(min(TimestampTime), '%m-%d %H:%i') AS first_seen,
+                      formatDateTime(max(TimestampTime), '%m-%d %H:%i') AS last_seen
+                    FROM logs
+                    WHERE TimestampTime >= parseDateTimeBestEffort({from:String})
+                      AND TimestampTime <= parseDateTimeBestEffort({to:String})
+                      AND SeverityNumber >= 17
+                    GROUP BY service, severity, shape
+                    ORDER BY n DESC
+                    LIMIT 30
+    recent-errors:
+      kind: Panel
+      spec:
+        display:
+          name: Recent error records
+          description: >-
+            The raw records, newest first. Where a record carries a trace id,
+            open it to see the request that produced it.
+        plugin:
+          kind: Table
+          spec:
+            stickyHeader: true
+        queries:
+          - kind: ClickHouseSQL
+            spec:
+              plugin:
+                kind: ClickHouseSQL
+                spec:
+                  query: |
+                    SELECT
+                      formatDateTime(TimestampTime, '%m-%d %H:%i:%S') AS time,
+                      ServiceName AS service,
+                      coalesce(nullIf(SeverityText, ''), toString(SeverityNumber)) AS severity,
+                      substring(Body, 1, 200) AS body,
+                      TraceId AS trace_id
+                    FROM logs
+                    WHERE TimestampTime >= parseDateTimeBestEffort({from:String})
+                      AND TimestampTime <= parseDateTimeBestEffort({to:String})
+                      AND SeverityNumber >= 17
+                    ORDER BY TimestampTime DESC
+                    LIMIT 50
+  markdown:
+    file: ./log-pipeline-quality.runbook.md
