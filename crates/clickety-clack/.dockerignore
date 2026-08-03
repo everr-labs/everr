@@ -1,0 +1,6 @@
+# Keep the Docker build context small. Do NOT exclude tests/ or benches/: cargo
+# validates declared target paths when building the package.
+target/
+.git/
+volumes/
+.env

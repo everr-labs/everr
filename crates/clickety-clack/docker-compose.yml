@@ -1,0 +1,53 @@
+# Local development dependencies for clickety-clack.
+#
+# Brings up Postgres and Redis at the exact ports/credentials the `cc` binary
+# defaults to, so `CC_ROLE=all cargo run` works against them with no extra config.
+# The binary runs its own Postgres migrations on boot.
+#
+# The API role fails closed without CC_API_KEYS (see src/api/auth.rs); .cargo/config.toml
+# supplies the CC_DEV_INSECURE_NO_AUTH opt-in for cargo runs so /v1 is open locally with
+# no key. Set CC_API_KEYS to require bearer auth instead.
+#
+#   docker compose up -d        # start deps in the background
+#   docker compose ps           # check health
+#   docker compose down         # stop (keep data)
+#   docker compose down -v      # stop and wipe data volumes
+#
+# ClickHouse is intentionally NOT included yet. Point CC_CH_URL at your own
+# ClickHouse (default http://127.0.0.1:8123, user `default`, empty password),
+# or run the API's `/test` endpoint which only needs ClickHouse for live queries.
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    # Matches CC_PG_URL default: postgres://postgres:postgres@127.0.0.1:5432/postgres
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    # Matches CC_REDIS_URL default: redis://127.0.0.1:6379
+    ports:
+      - "6379:6379"
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  pgdata:
+  redisdata:
