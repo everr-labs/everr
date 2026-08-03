@@ -6,9 +6,13 @@ demand. Docker is required.
 
 ## Run
 
+The load tests live inside the single `it` integration binary, gated on the
+`container-tests` feature; run each by name:
+
 ```
-cargo test --release --test load_evaluator  -- --ignored --nocapture
-cargo test --release --test load_dispatcher -- --ignored --nocapture
+cargo test --release --features container-tests --test it -- --ignored --nocapture load_evaluator_throughput
+cargo test --release --features container-tests --test it -- --ignored --nocapture load_dispatcher_ingest_throughput
+cargo test --release --features container-tests --test it -- --ignored --nocapture load_dispatcher_flush_throughput
 ```
 
 ## Knobs (env vars)

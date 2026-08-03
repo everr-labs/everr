@@ -132,8 +132,11 @@ What ops should alert on:
 
 ## What's deliberately not here (yet)
 
-- **No metrics endpoint**: observability is via the datastores (see
-  [operate at scale](../how-to/operate-at-scale.md#what-to-monitor)).
+- **No scrape endpoint**: metrics, traces, and logs are pushed over OTLP (see
+  [monitor the engine](../how-to/monitor-the-engine.md)); there is no
+  Prometheus `/metrics` to scrape. The datastore probes in
+  [operate at scale](../how-to/operate-at-scale.md#what-to-monitor) work
+  without any telemetry pipeline.
 - **No Kafka.** The queue layer is abstracted (opaque ids, a
   backend-contract test) so a Kafka backend can replace Redis Streams
   without touching the roles.

@@ -72,7 +72,9 @@ the holder dies. No configuration needed.
 
 ## What to monitor
 
-clickety-clack has no metrics endpoint yet; monitor via its datastores:
+The engine exports `cc.*` metrics over OTLP (see
+[monitor the engine](monitor-the-engine.md)); the datastore probes below need
+no telemetry pipeline and remain useful as a fallback:
 
 | Signal | How | Watch for |
 | ------ | --- | --------- |

@@ -418,7 +418,7 @@ address across DIFFERENT channels stays allowed. `config` is a tagged union on
 
 | `type`       | Fields                              | Secret field    |
 | ------------ | ----------------------------------- | --------------- |
-| `webhook`    | `url` (string)                      | none (not secret) |
+| `webhook`    | `url` (string)                      | `url`           |
 | `slack`      | `url` (string)                      | `url`           |
 | `email`      | `to` (string[])                     | none (recipients kept) |
 | `telegram`   | `bot_token` (string), `chat_ids` (string[]) | `bot_token` |

@@ -34,9 +34,10 @@ labels, and the event isn't itself a source: the event is **dropped**. This is
 automatic, dependency-driven muting ("cluster down ⇒ hush the per-service
 warnings").
 
-> Both filters run **at ingest**, against a per-tenant snapshot (silences,
-> inhibitions, firing set) cached for ~2 seconds per dispatcher replica. This is
-> why a brand-new silence can take up to ~2s to take effect.
+> Both filters run **at ingest** and are **re-applied at flush**, each time
+> against a per-tenant snapshot (silences, inhibitions, firing set) cached for
+> ~2 seconds per dispatcher replica. This is why a brand-new silence can take
+> up to ~2s to take effect.
 
 ### 3a. Routing (the normal path)
 If the tenant has routes, the event is matched against them in priority order. The
@@ -111,10 +112,11 @@ last error: with any secret in the target stored only as a redacted digest.
 
 ## Important properties and trade-offs
 
-- **At-ingest filtering only.** Silence/inhibition decisions are made when the
-  event arrives. An event already buffered in a group before you create a silence
-  is *not* retro-silenced: it can still flush. Create silences ahead of the
-  window.
+- **Suppression is re-checked at flush.** Silence/inhibition decisions are made
+  when the event arrives and again when its group flushes, against the
+  then-current snapshot. An event buffered before you create a silence is still
+  dropped at flush time; silence drops leave an audit record, inhibition drops
+  do not.
 - **Grouping is fan-out-safe.** Per-instance buffering plus a dedup key over the
   active set means redeliveries and overlapping flushes don't double-notify, and a
   resolve correctly supersedes its firing inside a group.

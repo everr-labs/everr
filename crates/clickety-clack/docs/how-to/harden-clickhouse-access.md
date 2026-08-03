@@ -32,8 +32,8 @@ The defenses below remove those capabilities at the source.
 
 The `api` and `evaluator` roles enforce that much at startup: with
 `CC_CH_AUTH_MODE=shared` and `CC_CH_USER=default` they refuse to boot unless
-`CC_DEV_INSECURE_CH_DEFAULT_USER=1` says the risk is accepted (the dev compose
-stack sets it). Roles that never run rule SQL are unaffected. It is a guard
+`CC_DEV_INSECURE_CH_DEFAULT_USER=1` says the risk is accepted (nothing in the
+repo sets it for you; export it explicitly for local development). Roles that never run rule SQL are unaffected. It is a guard
 against forgetting this page, not a substitute for it: no startup check can tell
 a locked-down `shared` user from a privileged one, so everything below still
 applies once you are off `default`.

@@ -26,8 +26,10 @@ echo "Acting as tenant: $TENANT"
 ```
 
 > clickety-clack is **multi-tenant**. Every API call is scoped to a tenant via
-> the `X-CC-Tenant` header. There is no login; the header *is* the identity in
-> this build.
+> the `X-CC-Tenant` header. There is no login here because the crate's
+> `.cargo/config.toml` sets `CC_DEV_INSECURE_NO_AUTH=1` for cargo-launched
+> processes; a deployed binary refuses to start the api role without
+> `CC_API_KEYS`.
 
 ## Step 1: Provide a key and start the engine
 
@@ -41,10 +43,13 @@ export CC_SECRET_KEYS="dev:$(head -c 32 /dev/urandom | base64)"
 export CC_SECRET_ACTIVE_KEY="dev"
 ```
 
-Now run all four roles in a single process with `CC_ROLE=all` (the default):
+Now run every role in a single process with `CC_ROLE=all` (the default). The
+tutorial stack queries ClickHouse as the `default` user, which the engine
+refuses under shared auth unless a dev flag accepts the risk (see
+[harden ClickHouse access](../how-to/harden-clickhouse-access.md)):
 
 ```bash
-CC_ROLE=all cargo run
+CC_ROLE=all CC_DEV_INSECURE_CH_DEFAULT_USER=1 cargo run
 ```
 
 On boot the binary builds the cipher, connects to Postgres and **runs its own

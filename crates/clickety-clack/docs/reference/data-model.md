@@ -259,12 +259,13 @@ receivers reference them by name and never carry configs themselves.
 
 | `type`      | Fields                | Delivery target | Secret? |
 | ----------- | --------------------- | --------------- | ------- |
-| `webhook`   | `url`: string         | the URL         | no |
+| `webhook`   | `url`: string         | the URL         | **yes**: redacted on read, encrypted at rest |
 | `slack`     | `url`: string         | the URL         | **yes**: redacted on read, encrypted at rest |
 | `email`     | `to`: string[]        | the recipients (comma-joined) | no (recipients are not treated as secret) |
 | `telegram`  | `bot_token`: string, `chat_ids`: string[] | bot token + chats | **yes** (`bot_token`): redacted on read, encrypted at rest |
 
-Upserting a channel by name replaces its config in place (secret rotation);
+Updating a channel via `PUT /v1/channels/:name` replaces its config in place
+(secret rotation; `POST` is create-only and conflicts on an existing name);
 deleting one is refused with a `409` while any receiver references it.
 
 ## Receiver

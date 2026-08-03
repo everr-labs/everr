@@ -40,6 +40,8 @@ behind a load balancer:
 # Every replica gets the same environment except CC_NODE_ID:
 export CC_PG_URL=postgres://…  CC_REDIS_URL=redis://…  CC_CH_URL=http://…
 export CC_SECRET_PROVIDER=env  CC_SECRET_KEYS=v1:…  CC_SECRET_ACTIVE_KEY=v1
+export CC_API_KEYS=…                       # the api role fails closed without keys
+export CC_CH_USER=cc_eval CC_CH_PASSWORD=… # hardened user; `default` is refused
 
 CC_ROLE=all CC_NODE_ID=cc-1 ./cc     # replica 1
 CC_ROLE=all CC_NODE_ID=cc-2 ./cc     # replica 2
@@ -68,6 +70,8 @@ export credentials confined to one process (peel off `events`).
 # Shared environment for every process:
 export CC_PG_URL=postgres://…  CC_REDIS_URL=redis://…  CC_CH_URL=http://…
 export CC_SECRET_PROVIDER=env  CC_SECRET_KEYS=v1:…  CC_SECRET_ACTIVE_KEY=v1
+export CC_API_KEYS=…                       # the api role fails closed without keys
+export CC_CH_USER=cc_eval CC_CH_PASSWORD=… # hardened user; `default` is refused
 
 # API (front it with your load balancer on CC_HTTP_ADDR):
 CC_ROLE=api        CC_NODE_ID=api-1        ./cc

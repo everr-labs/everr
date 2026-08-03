@@ -1,7 +1,7 @@
 # How to manage secret encryption and rotate keys
 
-clickety-clack encrypts delivery secrets at rest (Slack webhook URLs, Telegram
-bot tokens, subscription webhook URLs). Secrets live only in Postgres: Redis
+clickety-clack encrypts delivery secrets at rest (Slack and webhook channel
+URLs, Telegram bot tokens, subscription webhook URLs). Secrets live only in Postgres: Redis
 group metas carry channel names, which the flusher resolves through the store at
 delivery time. It is **fail-closed**: without a valid key, no role starts. This guide
 covers configuring keys, rotating them, and the operational implications. For the
@@ -57,6 +57,10 @@ env -u CC_SECRET_KEYS CC_ROLE=api CC_SECRET_PROVIDER=env ./cc; echo "exit=$?"
 # exit=1
 ```
 
+(The ClickHouse default-user guard runs first, so with an unhardened
+`CC_CH_USER` the process exits with that error instead; the check above assumes
+a [hardened ClickHouse user](harden-clickhouse-access.md).)
+
 This is intentional: it guarantees secrets are never written or read in cleartext
 because a key was forgotten. Other fail-closed messages are listed in the
 [configuration reference](../reference/configuration.md#fail-closed-error-messages).
@@ -75,8 +79,8 @@ Rotation is graceful because old keys stay available for decryption:
 
 2. **Re-encrypt existing secrets** so they move to `v2`. There is no bulk re-key
    command; trigger a write on each stored secret by updating it through the API
-   (re-`POST` the channel / re-create the subscription). Until then, old rows
-   remain readable via `v1`.
+   (`PUT` the channel; delete and re-create the subscription). Until then, old
+   rows remain readable via `v1`.
 
 3. **Retire the old key** only after you are confident nothing is still encrypted
    under it. Drop `v1` from `CC_SECRET_KEYS`:
@@ -100,10 +104,10 @@ Rotation is graceful because old keys stay available for decryption:
   one-way `sha256:` digest, and transport/error logs strip the URL, so logs and
   the audit trail are safe to ship to less-trusted systems. A flush-time decrypt
   failure dead-letters the batch (observable) rather than dropping it silently.
-- **What's *not* encrypted:** webhook channel URLs and email recipient addresses
-  are stored structurally (not treated as secrets); only Slack URLs, Telegram
-  bot tokens, and subscription webhook URLs are encrypted. Receivers hold
-  channel names only and carry no secrets at all.
+- **What's *not* encrypted:** email recipient addresses and Telegram chat ids
+  are stored structurally (not treated as secrets); Slack and webhook channel
+  URLs, Telegram bot tokens, and subscription webhook URLs are encrypted.
+  Receivers hold channel names only and carry no secrets at all.
 
 ## Next
 

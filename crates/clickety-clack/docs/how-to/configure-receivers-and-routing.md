@@ -13,9 +13,9 @@ For exact field shapes see [data model](../reference/data-model.md) and
 A channel is a named endpoint config, unique per tenant. Channels are the
 secret-bearing resource: the Slack hook, the Telegram bot token, the webhook
 URL live here and nowhere else. Any number of receivers can reference the same
-channel, and re-POSTing a channel under the same name replaces its config in
-place, so rotating a secret is one call and every referencing receiver picks it
-up.
+channel, and `PUT /v1/channels/:name` replaces its config in place (`POST` is
+create-only and returns `409` for an existing name), so rotating a secret is
+one call and every referencing receiver picks it up.
 
 ### Webhook
 
@@ -55,7 +55,7 @@ Requires SMTP configured on the dispatcher (`CC_SMTP_HOST`, …; see
 
 ### Secrets
 
-`slack.url` and `telegram.bot_token` are secrets: they
+`webhook.url`, `slack.url`, and `telegram.bot_token` are secrets: they
 are [encrypted at rest](manage-secret-encryption.md) and **redacted to `***` on
 read**. `GET /v1/channels` is safe to expose; it never returns the cleartext
 secret. Receivers never carry secrets at all (they hold channel names only).
@@ -92,7 +92,7 @@ receiver, where the rota lives, which dashboard to open first.
 ```
 
 Annotations are returned as stored on every read (they are metadata, not
-secrets) and are replaced wholesale on each upsert: re-POST a receiver without
+secrets) and are replaced wholesale on each update: `PUT` a receiver without
 `annotations` and the map resets to `{}`.
 
 ### Deleting receivers

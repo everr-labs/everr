@@ -35,8 +35,8 @@ curl -s -X POST localhost:8080/v1/silences -H "X-CC-Tenant: $TENANT" \
   semantics (AND, missing-label-is-empty, `eq`/`ne`/`regex`/`notregex`). They
   match user labels and the synthetic `severity`/`status`/`rule`.
 - Active when `starts_at <= now < ends_at` (`ends_at` must be after `starts_at`).
-- An **empty** `matchers` list silences **everything** while active: use with
-  care (a tenant-wide mute).
+- At least one matcher is required: an empty `matchers` list is rejected with
+  `422`, so a tenant-wide mute cannot be expressed as a single silence.
 
 ### Manage
 
@@ -50,10 +50,11 @@ table doesn't grow unbounded. Deleting early just removes them sooner.
 
 ### Important caveats
 
-- **At-ingest only.** Silencing affects events *as they arrive* at the dispatcher.
-  An event already buffered into a notification group before you created the
-  silence is **not** retro-silenced: it may still be delivered on the next flush.
-  Create silences *before* the maintenance window starts.
+- **Applied at ingest and re-checked at flush.** Events are filtered as they
+  arrive at the dispatcher, and every group flush re-applies the then-active
+  silences to its buffered events. An event buffered *before* you created the
+  silence is therefore still suppressed (with an audit record), as long as the
+  silence is active when the group flushes.
 - **Propagation lag.** Each dispatcher replica caches active silences for ~2
   seconds, so a brand-new silence can take up to that long to take effect.
 
@@ -95,7 +96,8 @@ Notes:
 - `equal` is what scopes inhibition to "the same thing." Omit it and a single
   critical anywhere suppresses *all* matching warnings tenant-wide: usually not
   what you want.
-- Like silences, inhibition is evaluated at ingest with the ~2s tenant cache.
+- Like silences, inhibition is evaluated at ingest and again at flush, with
+  the ~2s tenant cache.
 
 ### Manage
 
