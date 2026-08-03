@@ -15,8 +15,11 @@ export type EventName =
   | "exception"
   | "everr.browser.page_view"
   | "everr.browser.page_leave"
+  | "everr.browser.slow_interaction"
   | "everr.browser.interaction.rage_click"
-  | "everr.browser.interaction.dead_click";
+  | "everr.browser.interaction.click"
+  | "everr.browser.interaction.change"
+  | "everr.browser.interaction.submit";
 
 type AnyValue =
   | { stringValue: string }

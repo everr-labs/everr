@@ -157,7 +157,7 @@ describe("createEmitter", () => {
     const filler = "x".repeat(3000);
     emit("exception", { filler });
     for (let i = 0; i < 30; i++)
-      emit("everr.browser.interaction.dead_click", { filler });
+      emit("everr.browser.interaction.click", { filler });
     exitFlush();
 
     const names = sentRecords().map((r) => r.eventName);

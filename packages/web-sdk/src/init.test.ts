@@ -184,6 +184,46 @@ describe("init (cookieless)", () => {
     expect(await records()).toHaveLength(0);
   });
 
+  it("autocaptures change and submit through the pipeline with the envelope", async () => {
+    start();
+    document.body.innerHTML =
+      '<form id="f"><input type="email" id="e"><button type="submit" id="go">Sign up</button></form>';
+    document
+      .getElementById("e")
+      ?.dispatchEvent(new Event("change", { bubbles: true }));
+    const submitEv = new Event("submit", { bubbles: true, cancelable: true });
+    Object.defineProperty(submitEv, "submitter", {
+      value: document.getElementById("go"),
+    });
+    (document.getElementById("f") as HTMLFormElement).dispatchEvent(submitEv);
+
+    const all = await records();
+    const change = all.find(
+      (r) => r.eventName === "everr.browser.interaction.change",
+    );
+    const submit = all.find(
+      (r) => r.eventName === "everr.browser.interaction.submit",
+    );
+    expect(change).toBeDefined();
+    expect(submit).toBeDefined();
+    const ca = attrs(change as OtlpRecord);
+    const sa = attrs(submit as OtlpRecord);
+    expect(ca["everr.element.tag"]).toBe("input");
+    expect(ca["everr.element.selector"]).toBe("#e");
+    expect(sa["everr.element.tag"]).toBe("button");
+    expect(sa["everr.element.selector"]).toBe("#go");
+    // The shared analytics envelope makes autocaptured events join the session.
+    expect(ca["session.id"]).toMatch(/[0-9a-f-]{36}/);
+    expect(ca["everr.page_view.id"]).toMatch(/[0-9a-f-]{36}/);
+    expect(sa["session.id"]).toMatch(/[0-9a-f-]{36}/);
+    // Element values are never carried, by construction.
+    expect(ca).not.toHaveProperty("everr.element.text");
+    // submit targets the submitter button and carries elementAttrs, which
+    // includes the (non-field) button's visible label.
+    expect(sa["everr.element.text"]).toBe("Sign up");
+    document.body.innerHTML = "";
+  });
+
   it("captures frustration clicks through the pipeline with the envelope", async () => {
     start();
     document.body.innerHTML = "<button>Try Everr</button>";

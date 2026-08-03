@@ -1,39 +1,37 @@
 import type { AttrValue, Emit } from "./emitter.js";
 
-// The interactions signal: frustration detection only. The derived
-// everr.browser.interaction.rage_click / everr.browser.interaction.dead_click
-// events carry the full element payload; plain clicks, changes, and submits
-// are deliberately not captured (amended 2026-07-23).
+// The interactions signal: product-analytics autocapture (PostHog parity) plus
+// frustration detection. The autocapture half covers slow clicks (from the
+// Event Timing API), form-field `change`, and `submit`; the frustration half
+// covers rage and dead clicks. One taxonomy, one element payload, one privacy
+// perimeter: every event carries tag/selector/chain, the autocapture events
+// are gated by the structural privacy guards, and rage/dead stay the only
+// signals that carry pointer coordinates (Event Timing reports none).
+//
+// This is the interim ungated emitter: every qualifying interaction ships
+// immediately through the batch pipeline. The eventual breadcrumb model will
+// gate raw autocapture behind an "interesting event" (error, slow click,
+// dead/rage click); the Event Timing observer and the element/guard helpers
+// here are reused verbatim, only the gating changes.
 //
 // Privacy guardrails are structural, not configurable: element values are
 // never read, password and hidden inputs are skipped entirely, captured text
 // is capped and dropped when it looks like a card or SSN, and anything under
-// an `everr-no-capture` class is invisible.
+// an `everr-no-capture` class is invisible. `change` records target a
+// form-field element and carry identity only (no value, no text, no length
+// surrogate); `submit` records target the triggering submitter button.
 
 // Card-number (13-16 digits, optionally spaced/dashed) or SSN shaped.
 // Deliberately independent of @everr/auto-otel-errors' scrub patterns: this
 // package stays zero-dep, so the shapes may drift; revisit if they converge.
 const SENSITIVE_TEXT = /\b(?:\d[ -]?){13,16}\b|\b\d{3}-\d{2}-\d{4}\b/;
-const INTERACTIVE =
-  "a,button,input,select,textarea,label,summary,[role=button],[onclick],[tabindex]";
 const FORM_FIELDS = "input,textarea,select";
+const SLOW_INTERACTIONS_THRESHOLD = 200;
 
 export function startInteractions(emit: Emit): () => void {
   // PostHog-style thresholds: three clicks within 30px at gaps of at most 1s
   // make a rage click; 3s without a page reaction makes a dead click.
   let rage: [x: number, y: number, at: number, count: number] | undefined;
-  let lastActivity = 0;
-  let deadTimer: ReturnType<typeof setTimeout> | undefined;
-
-  // Anything the page does in response to a click (DOM changes, scrolling,
-  // text selection, navigation) disqualifies it as a dead click.
-  const onActivity = () => {
-    lastActivity = Date.now();
-  };
-  // Armed only while a dead-click candidate is pending: delivering mutation
-  // records on every DOM change is too expensive to run for the SDK's
-  // lifetime.
-  const observer = new MutationObserver(onActivity);
 
   const onClick = (event: MouseEvent) => {
     const el = targetOf(event);
@@ -48,58 +46,70 @@ export function startInteractions(emit: Emit): () => void {
       Math.hypot(x - rage[0], y - rage[1]) <= 30
         ? [x, y, now, rage[3] + 1]
         : [x, y, now, 1];
-    if (rage[3] === 3) {
-      emit("everr.browser.interaction.rage_click", clickAttrs(el, x, y));
+    const isRageClick = rage[3] === 3;
+    if (isRageClick) {
       rage = undefined;
-    }
 
-    if (!el.closest(INTERACTIVE)) {
-      const url = location.href;
-      // One pending candidate: a newer inert click replaces the older one.
-      // documentElement, not body: it always exists, even for an init in <head>.
-      // Attrs are captured at click time; the element may be gone at fire time.
-      const attrs = clickAttrs(el, x, y);
-      clearTimeout(deadTimer);
-      observer.observe(document.documentElement, {
-        subtree: true,
-        childList: true,
-        attributes: true,
-        characterData: true,
+      emit("everr.browser.interaction.rage_click", {
+        ...elementAttrs(el),
+        "everr.click.x": x,
+        "everr.click.y": y,
       });
-      deadTimer = setTimeout(() => {
-        observer.disconnect();
-        if (lastActivity < now && location.href === url) {
-          emit("everr.browser.interaction.dead_click", attrs);
-        }
-      }, 3_000);
+    } else {
+      emit("everr.browser.interaction.click", {
+        ...elementAttrs(el),
+        "everr.click.x": x,
+        "everr.click.y": y,
+      });
     }
   };
 
   // Capture phase: see clicks even when handlers stop propagation.
   addEventListener("click", onClick, true);
-  addEventListener("scroll", onActivity, true);
-  document.addEventListener("selectionchange", onActivity);
+
+  const onChange = (event: Event) => {
+    // targetOf applies the no-capture / password / hidden guards; the
+    // closest(FORM_FIELDS) check restricts to the same element set the
+    // privacy perimeter already speaks, so non-field `change` (contenteditable
+    // divs and the like) is never autocaptured.
+    const el = targetOf(event);
+    if (!el?.closest(FORM_FIELDS)) return;
+    emit("everr.browser.interaction.change", elementAttrs(el));
+  };
+
+  const onSubmit = (event: Event) => {
+    // Target the triggering button (event.submitter): the element the user
+    // acted on, joining cleanly to the click stream. A JS-submitted form with
+    // no submitter is skipped, since the interactive element is the point.
+    const submitter = (event as SubmitEvent).submitter;
+    const el = submitter ? guardOf(submitter) : null;
+    if (!el) return;
+    emit("everr.browser.interaction.submit", elementAttrs(el));
+  };
+
+  addEventListener("change", onChange, true);
+  addEventListener("submit", onSubmit, true);
+  const stopSlowInteractionsTracking = startSlowInteractionsTracking(emit);
 
   return () => {
-    observer.disconnect();
-    clearTimeout(deadTimer);
     removeEventListener("click", onClick, true);
-    removeEventListener("scroll", onActivity, true);
-    document.removeEventListener("selectionchange", onActivity);
+    removeEventListener("change", onChange, true);
+    removeEventListener("submit", onSubmit, true);
+    stopSlowInteractionsTracking();
   };
 }
 
-function clickAttrs(el: Element, x: number, y: number) {
-  return { ...elementAttrs(el), "everr.click.x": x, "everr.click.y": y };
+/** The shared capture guard: no-capture regions and password/hidden inputs. */
+function guardOf(el: Element): Element | null {
+  return el.closest(".everr-no-capture") ||
+    el.matches("input[type=password],input[type=hidden]")
+    ? null
+    : el;
 }
 
 function targetOf(event: Event): Element | null {
   const el = event.target instanceof Element ? event.target : null;
-  return !el ||
-    el.closest(".everr-no-capture") ||
-    el.matches("input[type=password],input[type=hidden]")
-    ? null
-    : el;
+  return el ? guardOf(el) : null;
 }
 
 function elementAttrs(
@@ -165,4 +175,35 @@ function chainOf(el: Element): string {
     );
   }
   return parts.join(";");
+}
+
+function startSlowInteractionsTracking(emit: Emit): () => void {
+  const onEntries = (entries: PerformanceEventTiming[]) => {
+    for (const entry of entries) {
+      if (entry.entryType !== "event") continue;
+      const el = entry.target instanceof Element ? guardOf(entry.target) : null;
+      if (!el) continue;
+
+      emit("everr.browser.slow_interaction", {
+        ...elementAttrs(el),
+        "everr.interaction.name": entry.name,
+        "everr.interaction.duration_ms": entry.duration,
+      });
+    }
+  };
+
+  let po: PerformanceObserver | undefined;
+  try {
+    po = new PerformanceObserver((list) =>
+      onEntries(list.getEntries() as PerformanceEventTiming[]),
+    );
+    po.observe({
+      type: "event",
+      buffered: true,
+      durationThreshold: SLOW_INTERACTIONS_THRESHOLD,
+    });
+  } catch {
+    return () => {};
+  }
+  return () => po?.disconnect();
 }

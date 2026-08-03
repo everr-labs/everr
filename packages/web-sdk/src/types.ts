@@ -4,7 +4,11 @@
  *
  * - `pageviews` governs `everr.browser.page_view` and
  *   `everr.browser.page_leave` together.
- * - `interactions` governs rage and dead click detection.
+ * - `interactions` governs product-analytics autocapture: every `click` (DOM,
+ *   with coordinates), form-field `change`, `submit` (targeting the
+ *   submitter button), plus `rage_click` on a frustration burst and
+ *   `everr.browser.slow_interaction` from the Event Timing API (entries
+ *   above the duration threshold, carrying the native interaction latency).
  * - `webVitals` governs `browser.web_vital` reporting.
  *
  * Errors have no signal key (capture is native, always on, and option-free)
