@@ -1,0 +1,14 @@
+# TODO
+
+## Issues
+
+- [**cc-code-items-from-docs-audit**](todo/issues/cc-code-items-from-docs-audit.md): Code-side items the clickety-clack docs audit surfaced while the docs were being corrected to match current behavior: inconsistent conflict error codes (`conflict` vs `already_exists`), test endpoints that ignore their `:id` (plus an unused required `name` in the SLO test body), `GET /v1/slos/:id/status` 404ing until first evaluation, a wrong `#[ignore]` run-hint in `load_smoke.rs`, and the dev stack having no story for `CC_DEV_INSECURE_CH_DEFAULT_USER`.
+- [**chart-tooltip-content-duplication**](todo/issues/chart-tooltip-content-duplication.md): Chart tooltips are built two incompatible ways across the app: recharts' `ChartTooltip`/`ChartTooltipContent` (fed by `createChartTooltipFormatter`) versus a portaled `CursorTooltip` + chrome-free `SeriesTooltipContent`. They render the same swatch/label/value idea twice; consolidate on one.
+- [**slo-sli-query-ingestion-delay**](todo/issues/slo-sli-query-ingestion-delay.md): SLI queries end their windows at `now()`, so every window includes a trailing slice whose rows have not landed yet (measured: 2-9s, but ~13% of a floored 60s short window). Shift `window_end` back by an ingestion-delay allowance; the file also records the larger question of a 60s short window being below the resolution of sparse telemetry.
+
+## Ideas
+
+- [**slo-sli-rollups**](todo/ideas/slo-sli-rollups.md): Pre-aggregate simple `countIf`-style SLIs into time-bucketed rollups so budget and burn-rate windows read pre-summed buckets instead of rescanning raw telemetry each evaluation, letting us drop (or relax) the `/12` refresh throttle for those SLOs.
+- [**generalize-alerting-components**](todo/ideas/generalize-alerting-components.md): Scored survey of the alerting `-components` folder for pieces worth promoting into `@everr/ui` or app-shared. Top of the list: `CcTableSkeleton` (four hand-rolled copies elsewhere), `Pill`/`LabelSet` chips, and `CcStatusDot` as a `tone.ts` companion; page-intro unification needs a design pass first.
+- [**serverfn-org-id-on-context**](todo/ideas/serverfn-org-id-on-context.md): `requireOrgMiddleware` validates `activeOrganizationId` but re-nests it in the session, so ~90 call sites deref `session.session.activeOrganizationId` by hand (and `data/cc/server.ts` grew a private `orgId()` helper called 41 times). Surface `orgId` directly on the middleware context and destructure.
+- [**consolidate-datetime-formatting**](todo/ideas/consolidate-datetime-formatting.md): Duration formatting exists five times because ui's `formatDuration` caps at minutes; timestamp handling scatters ~35 hand-picked `toLocaleString` sites and 73 raw `new Date(` parses despite `parseTimestampAsUTC` existing for the ClickHouse no-timezone case. Teach ui the long-span format, add a timestamp formatting family, sweep call sites.
