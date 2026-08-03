@@ -310,8 +310,18 @@ function PipelineSection({
           <ul className="divide-y divide-border/60">
             {sorted.length === 0 && (
               <li className="px-3 py-2 text-xs text-muted-foreground">
-                No routes yet: every alert is delivered to all firehose
-                subscriptions below.
+                {subscriberCount === 0 ? (
+                  <>
+                    No routes and no firehose subscriptions: alerts are
+                    evaluated and recorded in history, but delivered to no one.
+                    Add a route to get notified.
+                  </>
+                ) : (
+                  <>
+                    No routes yet: every alert is delivered to all firehose
+                    subscriptions below.
+                  </>
+                )}
               </li>
             )}
             {sorted.map((r) => (

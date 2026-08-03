@@ -1,7 +1,50 @@
 # The /alerts cutover silently stops notifications for existing tenants
 
-Blocker for PR #225. See [pr-225-review-findings.md](./pr-225-review-findings.md)
-for the full review; this is finding 4.
+From the PR #225 review; see
+[pr-225-review-findings.md](./pr-225-review-findings.md), finding 4.
+
+## Status (2026-08-03)
+The migrate-vs-reconfigure decision is deferred to this issue as a follow-up.
+The cleanup both options need already landed on the branch:
+
+- The delivery page's routes empty state is truthful with zero firehose
+  subscribers ("delivered to no one" instead of implying delivery happens).
+- `docs/alert-notifications.md` no longer documents the deleted system; it is
+  a pointer to the CC-backed docs and to this issue.
+- The user guide (`set-up-notifications.mdx`) was corrected in the same pass
+  (no PagerDuty channel exists; webhook URLs are redacted too; rotation is an
+  in-place channel edit now that secrets are re-entered on edit).
+
+## What the decision needs (findings from the delivery id re-keying work)
+- Count the affected orgs before choosing. One query against prod Postgres,
+  run BEFORE the deploy that drops the table:
+
+  ```sql
+  SELECT count(*) FROM alert_settings
+  WHERE delivery->'slack'->>'enabled' = 'true'
+     OR delivery->'telegram'->>'enabled' = 'true';
+  ```
+
+  A handful of orgs (plausibly just everr's own): documented reconfigure plus
+  the now-loud empty state is the honest cheap path. Tens of real orgs: the
+  backfill earns its cost.
+- The backfill is NOT a SQL migration. Old secrets live in the app's Postgres
+  blob; CC encrypts secrets in its own envelope on write. So it is an
+  app-side one-shot job that reads each org's `alert_settings.delivery` and
+  calls CC's API per org, and it must run before the table drop in the deploy
+  sequence.
+- There is no provisioning mechanism to piggyback on: nothing in the app
+  auto-creates default channels/receivers today (the `everr-default-*` names
+  appear only as a naming precedent in a CC test fixture).
+- Mapping: each Slack webhook becomes a slack channel; Telegram entries group
+  by `botToken` into telegram channels (CC's shape is one token plus a
+  `chat_ids` list); one receiver per org; one catch-all route (empty
+  matchers), which exactly reproduces the old "everything goes everywhere"
+  behavior. CC PUT upserts make the job idempotent for free.
+- Silences: old rows reference old `alert_definition_id`s and CC rule
+  identities do not map onto them cleanly. Silences are time-boxed by
+  construction, so the recommended hybrid is backfill delivery only and let
+  silences lapse with a release note.
 
 ## What
 The CC cutover deletes the in-process alerting pipeline and its Postgres tables
@@ -71,8 +114,7 @@ expiry is already expected.
   `everr-default-email` / `everr-default-telegram`), then a catch-all route.
 - Make it idempotent and re-runnable: it will be run twice by someone.
 - Log per-org what was provisioned, so the gap is auditable afterwards.
-- Update `docs/alert-notifications.md` either way. Right now it documents a system
-  that no longer exists, which is worse than documenting nothing.
+- `docs/alert-notifications.md` is already updated (see Status above).
 
 ## Related
 - [cc-cleanup-pending-migration.md](./cc-cleanup-pending-migration.md) is the other

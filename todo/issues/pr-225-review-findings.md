@@ -31,7 +31,10 @@ file is the working document):
 
 4 and 5 block merge: both are migration gaps whose consequence is a hard failure
 or a silent notification outage on deploy, and both need a product call rather
-than a code fix. 10, 12, 15, 16 and 18 are real defects but each is a design
+than a code fix. Update 2026-08-03: 4's code-independent cleanup (truthful
+zero-subscriber empty state, stale docs replaced) landed on the branch; the
+migrate-vs-reconfigure decision itself is deferred to the issue file, which now
+carries the decision query and the recommended hybrid. 10, 12, 15, 16 and 18 are real defects but each is a design
 change rather than a correction.
 
 **Everything under "Lower priority" is untouched** and stays in this document. It
