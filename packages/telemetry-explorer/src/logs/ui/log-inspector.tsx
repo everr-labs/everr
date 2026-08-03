@@ -17,6 +17,7 @@ import {
   FileSearch,
   Fingerprint,
   GitBranch,
+  Maximize2,
   Server,
   X,
 } from "lucide-react";
@@ -49,6 +50,7 @@ export interface LogInspectorPanelProps {
   repo: LogsRepositoryLike;
   log: LogExplorerRow;
   onClose: () => void;
+  onExpand?: () => void;
   renderRunLink?: LogInspectorProps["renderRunLink"];
   resolveJobId?: LogInspectorProps["resolveJobId"];
 }
@@ -202,6 +204,7 @@ export function LogInspectorPanel({
   repo,
   log,
   onClose,
+  onExpand,
   renderRunLink,
   resolveJobId,
 }: LogInspectorPanelProps) {
@@ -233,6 +236,16 @@ export function LogInspectorPanel({
             >
               {log.level}
             </Badge>
+            {onExpand ? (
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                aria-label="Expand log details"
+                onClick={onExpand}
+              >
+                <Maximize2 />
+              </Button>
+            ) : null}
             <Button
               variant="ghost"
               size="icon-sm"
