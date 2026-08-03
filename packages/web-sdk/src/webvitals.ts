@@ -1,7 +1,6 @@
 import {
   type MetricWithAttribution,
   onCLS,
-  onFCP,
   onINP,
   onLCP,
   onTTFB,
@@ -56,7 +55,7 @@ export function startWebVitals(emit: Emit): () => void {
     });
   };
 
-  for (const on of [onLCP, onCLS, onINP, onFCP, onTTFB]) on(report);
+  for (const on of [onLCP, onCLS, onINP, onTTFB]) on(report);
   // web-vitals has no unsubscribe: stopping silences the callbacks instead.
   return () => {
     stopped = true;
