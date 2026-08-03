@@ -307,7 +307,9 @@ export async function createReceiver(
   );
 }
 /**
- * PUT is an upsert; `annotations` replaces the stored map, so pass it through.
+ * PUT is an upsert of exactly the fields the app UI edits. The engine treats
+ * an absent `annotations` as `{}`, so an app-side edit deliberately resets any
+ * API-set annotations: the app manages only what its UI can show and change.
  * A body `name` different from the path renames the receiver; routes target
  * receivers by id inside the engine, so the rename never breaks them.
  */
@@ -317,7 +319,6 @@ export async function updateReceiver(
   body: {
     name?: string;
     channels: string[];
-    annotations: Record<string, string>;
   },
 ) {
   return CcReceiverSchema.parse(

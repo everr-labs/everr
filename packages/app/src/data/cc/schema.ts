@@ -127,10 +127,8 @@ export const CcReceiverSchema = z.object({
   // Channel NAMES, not configs: the engine rejects empty lists and validates
   // every name, so a parsed receiver has >= 1 element and never carries a secret.
   channels: z.array(z.string()).min(1),
-  // CC always serializes this (empty map when unset); kept `.optional()` rather
-  // than `.default({})` so hand-built CcReceiver literals (tests, fixtures)
-  // need not carry the field. All readers use optional chaining.
-  annotations: z.record(z.string(), z.string()).optional(),
+  // The engine also serializes `annotations`, an API-only metadata map the app
+  // neither displays nor edits; dropping it here keeps the app blind to it.
 });
 
 export const CcRouteSchema = z.object({

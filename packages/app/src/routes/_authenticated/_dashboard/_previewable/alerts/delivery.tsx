@@ -31,7 +31,6 @@ import {
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/page-header";
-import { isEverrAnnotationKey } from "@/data/alerts/annotations";
 import { ccQueries } from "@/data/cc/queries";
 import {
   ccDispatchLabels,
@@ -502,11 +501,6 @@ function ReceiversSection({ channels }: { channels: CcChannel[] }) {
               }));
               const Icon =
                 CHANNEL_ICON[resolved[0]?.channel?.config.type ?? "webhook"];
-              // `everr.`-prefixed markers are stamped by older flows, not
-              // user metadata.
-              const customAnnotations = Object.entries(
-                r.annotations ?? {},
-              ).filter(([k]) => !isEverrAnnotationKey(k));
               return (
                 <li
                   key={r.name}
@@ -528,13 +522,6 @@ function ReceiversSection({ channels }: { channels: CcChannel[] }) {
                         {channel ? ` (${channel.config.type})` : ""}
                       </div>
                     ))}
-                    {customAnnotations.length > 0 && (
-                      <div className="truncate text-xs text-muted-foreground">
-                        {customAnnotations
-                          .map(([k, v]) => `${k}: ${v}`)
-                          .join(", ")}
-                      </div>
-                    )}
                   </div>
                   <Button
                     variant="ghost"

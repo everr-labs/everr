@@ -536,23 +536,22 @@ export const createCcReceiver = createAuthenticatedServerFn({ method: "POST" })
     cc.createReceiver(orgId(session), data),
   );
 
-// PUT is an upsert; annotations replace the stored map, so the edit drawer
-// passes the receiver's current ones through unchanged. `newName` renames the
-// receiver (routes target it by id inside the engine, so nothing breaks).
+// Accepts exactly the fields the UI can edit; anything else (like the API-only
+// `annotations` map) is stripped here and reset by the engine's PUT upsert.
+// `newName` renames the receiver (routes target it by id inside the engine,
+// so nothing breaks).
 export const updateCcReceiver = createAuthenticatedServerFn({ method: "POST" })
   .inputValidator(
     z.object({
       name: z.string().min(1),
       newName: z.string().min(1).optional(),
       channels: z.array(z.string().min(1)).min(1),
-      annotations: z.record(z.string(), z.string()),
     }),
   )
   .handler(({ data, context: { session } }) =>
     cc.updateReceiver(orgId(session), data.name, {
       name: data.newName,
       channels: data.channels,
-      annotations: data.annotations,
     }),
   );
 

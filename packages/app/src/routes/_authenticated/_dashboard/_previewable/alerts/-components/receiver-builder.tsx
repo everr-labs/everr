@@ -49,7 +49,6 @@ export function ReceiverBuilder({
               name: editing.name,
               newName: trimmed,
               channels: selected,
-              annotations: editing.annotations ?? {},
             },
           })
         : createCcReceiver({

@@ -86,7 +86,6 @@ function receiver(overrides: Partial<CcReceiver> = {}): CcReceiver {
     tenant: "org1",
     name: "oncall",
     channels: ["oncall-hook"],
-    annotations: {},
     ...overrides,
   };
 }
@@ -493,10 +492,8 @@ describe("/alerts/delivery edit flows", () => {
     expect(mocks.createCcChannel).not.toHaveBeenCalled();
   });
 
-  it("edits a receiver in place: channels prefilled, annotations passed through", async () => {
-    mocks.listCcReceivers.mockResolvedValue([
-      receiver({ annotations: { team: "core" } }),
-    ]);
+  it("edits a receiver in place: channels prefilled, only UI-editable fields sent", async () => {
+    mocks.listCcReceivers.mockResolvedValue([receiver()]);
     mocks.listCcChannels.mockResolvedValue([
       channel(),
       channel({
@@ -530,7 +527,6 @@ describe("/alerts/delivery edit flows", () => {
           name: "oncall",
           newName: "oncall",
           channels: ["oncall-hook", "backup-mail"],
-          annotations: { team: "core" },
         },
       }),
     );

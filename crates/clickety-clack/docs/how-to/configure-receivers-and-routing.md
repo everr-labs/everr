@@ -97,6 +97,12 @@ Annotations are returned as stored on every read (they are metadata, not
 secrets) and are replaced wholesale on each update: `PUT` a receiver without
 `annotations` and the map resets to `{}`.
 
+They are an API-only feature today: the Everr app UI neither displays nor
+edits them, and because the app sends only the fields its UI manages, saving
+a receiver from the app resets any annotations set via the API. Surfacing
+and editing them in the UI is a possible future addition; the engine already
+stores and serves everything such a UI would need.
+
 ### Deleting receivers
 
 A receiver that a route still targets cannot be deleted:
