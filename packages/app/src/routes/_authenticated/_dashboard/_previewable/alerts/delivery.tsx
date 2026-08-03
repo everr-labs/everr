@@ -1,6 +1,3 @@
-// The Delivery page: routes rendered as the flow the dispatcher walks
-// (matchers → receiver → channels, firehose fallback last), with a label-set
-// preview that evaluates the dispatcher's real matching semantics against it.
 import { Button } from "@everr/ui/components/button";
 import {
   Card,
@@ -89,8 +86,6 @@ export const Route = createFileRoute(
 });
 
 // ── Section body cascade ──────────────────────────────────────────────────────
-// Every section on this page renders the same way: query error, then loading
-// skeleton, then (optionally) an empty state, then the loaded content.
 
 function SectionBody({
   isError,
@@ -127,8 +122,6 @@ function SectionBody({
 }
 
 // ── Live pipeline ─────────────────────────────────────────────────────────────
-// While the preview is active, the matched route chain lights up and the rest
-// dims.
 
 function PipelineRoute({
   route,
@@ -149,7 +142,7 @@ function PipelineRoute({
   onDelete: () => void;
   deletePending: boolean;
 }) {
-  // Custom timing only: routes on engine defaults keep a single-line row.
+  // Custom timing only: routes on engine defaults stay single-line.
   const timing = ccRouteTimingSummary(
     {
       groupBy: route.group_by,
@@ -334,7 +327,6 @@ function PipelineSection({
                 deletePending={remove.isPending}
               />
             ))}
-            {/* Terminal node: the engine's fallback when no route matches. */}
             <li
               data-matched={fellThrough ? "true" : undefined}
               className={cn(
@@ -455,8 +447,8 @@ function ReceiversSection({ channels }: { channels: CcChannel[] }) {
               }));
               const Icon =
                 CHANNEL_ICON[resolved[0]?.channel?.config.type ?? "webhook"];
-              // Minus `everr.`-prefixed internal markers (stamped by older
-              // flows; not user metadata).
+              // `everr.`-prefixed markers are stamped by older flows, not
+              // user metadata.
               const customAnnotations = Object.entries(
                 r.annotations ?? {},
               ).filter(([k]) => !isEverrAnnotationKey(k));
@@ -526,8 +518,8 @@ function ChannelsSection() {
       qc.invalidateQueries({ queryKey: ccQueries.channels().queryKey });
       toast.success("Channel deleted");
     },
-    // A referenced channel deletes with a 409 naming the referring receivers;
-    // the engine's message is surfaced verbatim.
+    // Deleting a referenced channel 409s naming the referring receivers; the
+    // engine's message is surfaced verbatim.
     onError: (e) => toast.error(ccErrorMessage(e)),
   });
 
@@ -831,10 +823,8 @@ function CcDeliveryPage() {
     [matchedRoutes],
   );
 
-  // Prefill: the dispatch-time (synthetic) label set of a currently-firing
-  // instance, when one exists. SLO-sourced instances resolve their SLO
-  // (severity from the burn-rate tier, plus the synthetic `slo` label);
-  // rule-sourced ones their rule.
+  // SLO-sourced instances resolve their SLO (severity from the burn-rate
+  // tier, plus the synthetic `slo` label); rule-sourced ones their rule.
   const prefill = useMemo(() => {
     const firing = (alerts.data ?? []).find((a) => a.status === "firing");
     if (!firing) return null;

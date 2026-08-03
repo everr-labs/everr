@@ -1,21 +1,4 @@
-// The triage board: one tight line per problem, firing only — pending and
-// inactive instances are counted by the pipeline strip above but are not what
-// triage acts on (the route filters via ccFiringGroups). A source with a
-// single instance collapses header and row into one line (the common case:
-// name, severity, labels, value, age, delivery, all on one baseline); a source
-// with several instances keeps a slim header with one line per label set under
-// it. The fact columns (budget, value, age, delivery) share fixed widths
-// across the whole card, so every group reads on the same grid without
-// per-group column headers. Each line carries its actions at the right edge
-// (md+); the expanded detail carries the full set, which is also the touch
-// path.
-// SLO rows pair their burn rate with the row's own error budget remaining
-// (matched by label set, not the SLO's worst group); spent budgets as a
-// standing state live on the exhausted-budgets card below the board. The
-// board owns the UI state and the quick-silence mutation that only it uses.
-// What it takes from the route is the resolved data, plus one callback for
-// the custom-silence drawer, which the route shares with the silences panel
-// below.
+// Every group here is firing: the route filters via ccFiringGroups.
 
 import { Button, buttonVariants } from "@everr/ui/components/button";
 import { Card, CardContent } from "@everr/ui/components/card";
@@ -65,17 +48,12 @@ import {
   Pill,
 } from "./shared";
 
-// Per-instance cap for the expanded row's fingerprint-scoped feed: it needs
-// the newest evidence-carrying event plus the last 6 transitions, so this is
-// generous headroom.
+// The expanded row needs the newest evidence-carrying event plus the last 6
+// transitions; 100 is generous headroom.
 const TRIAGE_INSTANCE_EVENT_LIMIT = 100;
 
-// The shared fact-column widths (md+). Merged lines and sub-rows both use
-// them, so values, budgets, ages, and delivery facts align down the whole
-// card.
-// Sized to its content ("BURN RATE" caption over "1000.0×"): the budget
-// column sits directly to its left, and slack here would read as a hole
-// between the two.
+// Shared fact-column widths (md+): merged lines and sub-rows both use them,
+// so the facts align down the whole card.
 const COL_VALUE = "md:w-20";
 const COL_BUDGET = "md:w-28";
 const COL_SINCE = "md:w-20";
@@ -109,14 +87,12 @@ function DeliveryFact({
       </Link>
     );
   }
-  // The receiver is the routing fact; which channels it fans out to is
-  // delivery detail, kept on the tooltip instead of cluttering the row.
   const { receivers, channels, dead } = ccDeliveryFanout(
     matchedRoutes,
     channelsByReceiver,
   );
-  // Overflow as an honest "+N" instead of CSS truncation, which can chop a
-  // receiver name mid-word. The full list stays on the tooltip.
+  // "+N" overflow instead of CSS truncation, which chops receiver names
+  // mid-word; the full list stays on the tooltip.
   const shown = receivers.slice(0, 2);
   const names =
     shown.join(", ") +
@@ -125,8 +101,7 @@ function DeliveryFact({
       : "");
   if (channels.length === 0) {
     // Routed, but every matched receiver fans out to zero channels: the
-    // notification reaches no one, which is the "not routed" trap wearing a
-    // receiver name. Same warning treatment, linked to where to fix it.
+    // notification reaches no one.
     return (
       <Link
         to="/alerts/delivery"
@@ -173,9 +148,8 @@ function InstanceDetail({
   onCustomSilence: () => void;
 }) {
   const { alert, rule } = inst;
-  // This instance's own stored events, fetched (and polled) only while the
-  // row is expanded — the fingerprint narrows server-side, so the board never
-  // ships the whole 24h window for one row's detail.
+  // Fetched (and polled) only while the row is expanded; the fingerprint
+  // narrows server-side, so one row's detail never ships the whole window.
   const ownEvents = useQuery(
     ccQueries.eventHistory(TRIAGE_EVENT_RANGE, {
       fingerprint: alert.key,
@@ -312,8 +286,6 @@ function InstanceDetail({
             Runbook
           </Link>
         )}
-        {/* The diagnose edge: from "I'm paged" into the telemetry that fired,
-            scoped to the instance's window (and service, when it has one). */}
         <Link
           to="/logs"
           search={ccInstanceLogsSearch(alert)}
@@ -329,14 +301,12 @@ function InstanceDetail({
 
 // ── Line building blocks ──────────────────────────────────────────────────────
 
-// The action cluster at a line's right edge. Hidden below md: phone rows
-// have no room for it, and the expanded detail already carries every action,
-// which is the touch path.
+// Hidden below md: the expanded detail carries every action, which is the
+// touch path.
 function LineActions({ children }: { children: React.ReactNode }) {
   return (
-    // Fixed width (two icons' worth): a runbook shortcut exists only on
-    // some rows, and letting the slot shrink would knock the fact columns
-    // out of alignment between neighboring lines.
+    // Fixed width: the runbook shortcut exists only on some rows, and a
+    // shrinking slot would knock the fact columns out of alignment.
     <span className="hidden shrink-0 items-center justify-end gap-0.5 md:flex md:w-14">
       {children}
     </span>
@@ -346,11 +316,6 @@ function LineActions({ children }: { children: React.ReactNode }) {
 const lineActionClass =
   "flex size-6 shrink-0 items-center justify-center rounded text-muted-foreground outline-2 outline-dotted outline-transparent transition-colors duration-150 hover:text-foreground focus-visible:outline-primary [&_svg]:size-3.5";
 
-/**
- * One stacked fact: a micro-label over its value, the pipeline strip's
- * readout idiom. The label makes each column self-describing on a card that
- * mixes rules and SLOs, without resurrecting per-group header rows.
- */
 function FactCell({
   col,
   label,
@@ -358,7 +323,7 @@ function FactCell({
   className,
   children,
 }: {
-  /** The column's shared width class, so the grid holds across rows. */
+  /** The column's shared width class (COL_*), so the grid holds across rows. */
   col: string;
   label: string;
   title?: string;
@@ -382,8 +347,6 @@ function FactCell({
   );
 }
 
-/** The source's identity: name (linked when the listing resolved), SLO origin
- *  marker, severity. Shared by the merged line and the multi-row header. */
 function GroupIdentity({ group }: { group: TriageGroup }) {
   return (
     <>
@@ -417,8 +380,6 @@ function GroupIdentity({ group }: { group: TriageGroup }) {
         </span>
       )}
       {group.sloId !== undefined && (
-        // Origin marker: this group is an SLO's burn-rate alerting, not a
-        // rule's.
         <Pill className="text-muted-foreground">SLO</Pill>
       )}
       <CcSeverityBadge severity={group.severity} />
@@ -449,36 +410,26 @@ function InstanceRow({
 }) {
   const inst = row.lead;
   const { alert, silence } = inst;
-  // One-instance source: this line carries the group identity too, and its
-  // silence action mutes the whole source (labels included — for a single
-  // instance the two scopes cover the same thing).
+  // For a single-instance source the source scope and the label scope cover
+  // the same thing, so the merged line's silence mutes the whole source.
   const merged = group.rows.length === 1;
-  // The value column's name, printed as the cell's micro-label. Null for SLO
-  // rows (the ×-suffixed burn rate names itself) and unnamed rule values.
   const valueLabel =
     group.sloId !== undefined ? null : (group.rule?.spec.value_column ?? null);
   const runbook = ccRunbookParams(inst.rule);
-  // SLO rows surface every firing burn-rate tier as a first-class badge (each
-  // toned by the severity it fires at) instead of leaving them buried in the
-  // label pills, or split across a row apiece.
   const isSlo = inst.slo !== undefined || alert.slo !== undefined;
   const shownLabels = isSlo
     ? Object.fromEntries(
         Object.entries(alert.labels).filter(([k]) => k !== "slo_tier"),
       )
     : alert.labels;
-  // What to call this row out loud. Its labels are what distinguish it from
-  // its siblings, so they make the accessible name. A merged line without
-  // labels is the source itself, so its name is the distinguishing fact —
-  // two scalar SLOs both firing "ticket" must not announce identically. A
-  // label-free sub-row falls back to its firing tiers. "Expand
-  // service=checkout" beats five buttons all announcing "Expand row".
+  // Accessible name. Labels distinguish a row from its siblings; label-free
+  // rows fall back to the source name (merged) or the firing tiers, so no two
+  // rows announce identically as "Expand row".
   const rowName =
     Object.entries(shownLabels)
       .map(([k, v]) => `${k}=${v}`)
       .join(", ") || (merged ? group.name : row.tiers.join(", ") || "row");
-  // How long this has been wrong, across every tier that reported it — not
-  // just how long the leading tier has been the leading one.
+  // Oldest active_since across every member tier, not just the lead's.
   const activeSince = row.members
     .map((m) => m.alert.active_since)
     .filter((t): t is string => t !== null && t !== undefined)
@@ -493,8 +444,8 @@ function InstanceRow({
     .join(" · ");
   return (
     <div>
-      {/* Mouse convenience on the line; the chevron button is the keyboard and
-          screen-reader target (same split as DataTable's onRowClick idiom). */}
+      {/* Mouse convenience only; the chevron button is the keyboard and
+          screen-reader target. */}
       {/* biome-ignore lint/a11y/useKeyWithClickEvents: the chevron button is the keyboard target */}
       {/* biome-ignore lint/a11y/noStaticElementInteractions: mouse convenience only */}
       <div
@@ -502,13 +453,8 @@ function InstanceRow({
           if ((e.target as HTMLElement).closest("a,button") !== null) return;
           onToggle();
         }}
-        // items-center: the one-line clusters (name, delivery fact, actions)
-        // sit at the row's vertical middle. The fact cells all share the same
-        // two-line height (the budget meter hangs out of flow), so centering
-        // still keeps their micro-labels on one line and their values on
-        // another across the whole row.
-        // md:pb-2.5: room under the fact cells for the budget meter's hang,
-        // so it clears the row divider.
+        // The fact cells share a two-line height (the budget meter hangs out
+        // of flow); md:pb-2.5 gives the hang room to clear the row divider.
         className="flex cursor-pointer flex-wrap items-center gap-x-3 gap-y-0.5 px-3 py-2 transition-colors duration-150 hover:bg-muted/40 md:flex-nowrap md:pb-2.5"
       >
         <button
@@ -527,24 +473,14 @@ function InstanceRow({
         </button>
         <span className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1">
           {merged && <GroupIdentity group={group} />}
-          {/* No per-tier badges: which sensitivities tripped is detail, not
-              triage. The group severity above already says how bad, the value
-              column says how fast, and the tier names survive on the merged
-              value's tooltip and the SLO detail page. A merged line with no
-              labels needs no placeholder either: the name is already on it. */}
           {(Object.keys(shownLabels).length > 0 || !merged) && (
             <LabelSet labels={shownLabels} emptyLabel="no labels" />
           )}
         </span>
-        {/* Below md the fact columns wrap onto their own line (phone widths
-            can't fit labels + value + age + delivery side by side); this
-            breaker forces the wrap, and the pl-8 lines the second row up
-            under the content column. */}
+        {/* Forces the fact columns onto their own line below md; the pl-8 on
+            the first cell lines that row up under the content column. */}
         <span className="basis-full md:hidden" aria-hidden />
-        {/* The budget leads the fact columns: how much is left is the SLO's
-            headline state, the burn rate beside it says how fast it is going.
-            Rule rows keep the empty slot on md+ so the grid holds, and drop
-            it on the phone's stacked facts line. */}
+        {/* Rule rows keep the empty budget slot on md+ so the grid holds. */}
         {isSlo ? (
           <FactCell
             col={COL_BUDGET}
@@ -553,7 +489,7 @@ function InstanceRow({
             title="Error budget remaining"
           >
             {/* `hang` keeps the figure on the shared value line, the meter
-                tucked below it into the row padding (md:pb-2.5 above). */}
+                tucked into the row padding (md:pb-2.5 above). */}
             <CcBudgetBar remaining={budget} hang className="w-24" />
           </FactCell>
         ) : (
@@ -562,14 +498,10 @@ function InstanceRow({
             className={cn("hidden shrink-0 md:block", COL_BUDGET)}
           />
         )}
-        {/* SLO rows carry the tier's burn rate as their value: print it at
-            the engine's own precision (one decimal, ×) instead of the raw
-            float. A merged row shows its leading tier's rate, with every
-            tier's rate on the tooltip so the others are not lost. */}
+        {/* Burn rates print at the engine's own precision (one decimal, ×);
+            a merged row shows its lead tier's rate, the rest on the tooltip. */}
         <FactCell
           col={COL_VALUE}
-          // The mobile facts line indents its first cell under the content
-          // column; on SLO rows the budget cell above leads instead.
           className={isSlo ? undefined : "pl-8 md:pl-0"}
           label={isSlo ? "burn rate" : (valueLabel ?? "value")}
           title={
@@ -584,9 +516,6 @@ function InstanceRow({
               : (alert.value ?? "—")}
           </span>
         </FactCell>
-        {/* Every row here is firing, so the label doubles as the state
-            announcement: a bare "12h ago" would read as easily as "last
-            evaluated". */}
         <FactCell
           col={COL_SINCE}
           label="firing since"
@@ -598,9 +527,8 @@ function InstanceRow({
             {activeSince ? <RelativeTime timestamp={activeSince} /> : "—"}
           </span>
         </FactCell>
-        {/* Its own line below md: squeezed between the other facts it would
-            clip from the left, and "not routed" clipped to "routed" asserts
-            the opposite of the truth. */}
+        {/* Its own line below md: "not routed" clipped to "routed" would
+            assert the opposite of the truth. */}
         <span
           className={cn(
             "flex min-w-0 items-center gap-2 overflow-hidden max-md:basis-full max-md:pl-8 md:flex-none md:justify-end",
@@ -632,8 +560,7 @@ function InstanceRow({
               <BookOpenText />
             </Link>
           )}
-          {/* On a merged line the silence mutes the whole source (and keeps
-              the header action's accessible name); a sub-row's silence pins
+          {/* A merged line's silence mutes the whole source; a sub-row's pins
               this row's labels so its siblings keep paging. */}
           <button
             type="button"
@@ -672,29 +599,20 @@ export function TriageBoard({
   pending: boolean;
   channelsByReceiver: Map<string, string[]>;
   hasSubscribers: boolean;
-  /** Each SLO's status groups, for the per-row budget readout. */
   sloStatusGroups: Map<string, CcSloGroupStatus[]>;
-  /** For the all-clear readout: how many rules are unpaused. */
+  /** How many rules are unpaused, for the all-clear readout. */
   watchingRules: number;
-  /** For the all-clear readout: timestamp of the newest stored event. */
   lastEventTs: string | null;
-  /**
-   * Whether the event read failed. A failed read is not "no events": on an
-   * all-clear card that distinction is the whole point, since silence from a
-   * broken pipeline looks exactly like silence from a healthy one.
-   */
+  /** Whether the event read failed; a failed read must not read as "no events". */
   eventsUnavailable: boolean;
   /**
-   * Opens the create drawer seeded with these matchers. Stays a prop because
-   * the drawer is shared with the silences panel outside this board.
+   * Opens the create drawer seeded with these matchers. A prop because the
+   * drawer is shared with the silences panel outside this board.
    */
   onCustomSilence: (matchers: CcMatcher[]) => void;
 }) {
-  // One row open at a time, and nothing outside the board cares which.
   const [expandedKey, setExpandedKey] = useState<string | null>(null);
   const qc = useQueryClient();
-  // The quick-silence buttons live in this board's rows and nowhere else, so
-  // the mutation lives here too, as SilencesPanel and the builders do.
   const silenceInstance = useMutation({
     mutationFn: ({ alert, hours }: { alert: CcAlert; hours: number }) =>
       createCcSilence({
@@ -712,8 +630,6 @@ export function TriageBoard({
     onError: (e) => toast.error(ccErrorMessage(e)),
   });
 
-  // Each SLO's status groups keyed for O(1) row lookups, rebuilt only when
-  // the overlaid map actually changes.
   const budgetIndexes = useMemo(
     () =>
       new Map(
@@ -723,15 +639,12 @@ export function TriageBoard({
   );
 
   return (
-    // role/label: the board is a landmark distinct from the silences panel
-    // below, for assistive tech and scoped queries alike.
+    // A landmark distinct from the silences panel below, for assistive tech.
     <Card inset="flush-content" role="region" aria-label="Triage board">
       <CardContent>
         {pending ? (
           <CcTableSkeleton rows={6} />
         ) : groups.length === 0 ? (
-          // Nothing to triage at all: the same all-clear instrument the
-          // Firing lens used to show, now the board's only empty state.
           <div className="flex flex-col items-center justify-center gap-2 px-4 py-12 text-center">
             <span className="inline-flex items-center gap-2 text-sm font-medium text-foreground">
               <CcStatusDot tone="healthy" />
@@ -775,10 +688,6 @@ export function TriageBoard({
                       k === row.lead.alert.key ? null : row.lead.alert.key,
                     )
                   }
-                  // A merged line's silence covers the whole source: one
-                  // review-and-create seeded with the synthetic scoping
-                  // matcher (slo/rule), so a 30-row group is one silence
-                  // instead of 30.
                   onGroupSilence={() =>
                     onCustomSilence(
                       merged
@@ -804,8 +713,6 @@ export function TriageBoard({
                       })
                     }
                     onCustomSilence={() =>
-                      // The create drawer lives on the page — a custom
-                      // silence opens pre-seeded in place, no navigation.
                       onCustomSilence(
                         ccSourceScopedSilenceMatchers(row.lead.alert),
                       )
@@ -814,8 +721,8 @@ export function TriageBoard({
                 </InstanceRow>
               ));
               return (
-                // The section adds no padding of its own: the rows carry it,
-                // so their hover highlight runs divider to divider, no seam.
+                // Rows carry the padding so their hover highlight runs
+                // divider to divider.
                 <section key={group.sourceId}>
                   {merged ? (
                     rows
@@ -823,13 +730,8 @@ export function TriageBoard({
                     <>
                       <div className="flex items-center gap-2 px-3 pt-2 pb-0.5">
                         <GroupIdentity group={group} />
-                        {/* No row count here: every row renders directly
-                            below, uncapped, so the number only ever restates
-                            what is already on screen. */}
-                        {/* Not LineActions: rows can hide their shortcuts
-                            below md because the expanded detail carries the
-                            full set, but this header has no detail, so its
-                            one action stays visible on touch too. */}
+                        {/* Not LineActions: this header has no expanded
+                            detail, so its action must stay visible on touch. */}
                         <span className="ml-auto flex shrink-0 items-center">
                           <button
                             type="button"

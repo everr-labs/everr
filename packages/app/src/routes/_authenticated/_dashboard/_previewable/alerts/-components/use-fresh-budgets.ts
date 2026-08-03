@@ -10,13 +10,10 @@ import {
 import type { CcSlo, CcSloGroupStatus } from "@/data/cc/types";
 
 /**
- * Read-time budget scans for a bounded set of SLOs, plus the overlay that
- * merges each scan onto that SLO's stored status snapshot (ccApplyFreshBudget).
- * The one implementation behind the triage board, the SLO listing, and the SLO
- * detail page, so they can never disagree about what "current budget" means.
- * The snapshot stays the instant fallback until a scan lands: `apply` returns
- * the groups unchanged for an SLO whose scan is in flight, failed, or was
- * never requested.
+ * The one read-time-budget overlay behind triage, the SLO listing, and the
+ * SLO detail page, so they can never disagree about "current budget". `apply`
+ * returns the groups unchanged while an SLO's scan is in flight, failed, or
+ * was never requested — the snapshot is the instant fallback.
  */
 export function useCcFreshBudgets(sloIds: readonly string[]): {
   apply: (
@@ -27,9 +24,8 @@ export function useCcFreshBudgets(sloIds: readonly string[]): {
 } {
   const scans = useQueries({
     queries: sloIds.map((id) => ccQueries.sloBudgetNow(id)),
-    // Memoized because TanStack caches the combined value per combine-function
-    // identity: an inline arrow would hand out a fresh Map every render and
-    // churn every memo keyed on the result.
+    // TanStack caches the combined value per combine-function identity; an
+    // inline arrow would hand out a fresh Map every render.
     combine: useCallback(
       (results: { data?: CcFreshBudgetGroup[]; isPending: boolean }[]) =>
         new Map(sloIds.map((id, i) => [id, results[i]])),

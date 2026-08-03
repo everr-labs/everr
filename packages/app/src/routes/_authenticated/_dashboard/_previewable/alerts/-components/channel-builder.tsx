@@ -1,9 +1,3 @@
-// packages/app/src/routes/_authenticated/_dashboard/_previewable/alerts/-components/channel-builder.tsx
-//
-// Backs the /alerts/delivery page's address book. A channel is a named,
-// reusable endpoint config; receivers reference channels by name. The per-type
-// config forms live here (they used to sit inline in the receiver builder,
-// back when receivers carried their configs).
 import { Button } from "@everr/ui/components/button";
 import { Input } from "@everr/ui/components/input";
 import { Label } from "@everr/ui/components/label";
@@ -28,8 +22,7 @@ import { CcDrawer } from "./cc-drawer";
 import { CHANNEL_LABEL, type ChannelType } from "./channel-meta";
 import { CcConceptNote, ccErrorMessage } from "./shared";
 
-/** The config form state: every per-type field kept side by side so switching
- * the type back and forth never loses input. */
+/** Every per-type field kept side by side so switching the type never loses input. */
 type ConfigDraft = {
   type: ChannelType;
   url: string;
@@ -67,18 +60,16 @@ export function ChannelBuilder({
 }: {
   open: boolean;
   onOpenChange: (o: boolean) => void;
-  /** Names already taken. CC's create answers 409 for an existing name;
-   * blocking duplicates client-side keeps the error out of the happy path. */
+  /** CC's create answers 409 for an existing name; block duplicates client-side. */
   existingNames: string[];
 }) {
   const qc = useQueryClient();
   const { data: session } = authClient.useSession();
   const [name, setName] = useState("");
   const [draft, setDraft] = useState<ConfigDraft>(EMPTY_DRAFT);
-  // testedConfig is the JSON.stringify of whatever config the request was
-  // actually issued for. The engine can take a few seconds to answer, and the
-  // draft is free to move on in the meantime, so the result is only
-  // trustworthy while it still describes what's on screen right now.
+  // testedConfig = JSON.stringify of the config the request was issued for;
+  // the draft can move on while the engine answers, so the result only counts
+  // while it still matches the on-screen config.
   const [testResult, setTestResult] = useState<{
     ok: boolean;
     latencyMs: number;
@@ -90,9 +81,8 @@ export function ChannelBuilder({
   const config = draftToConfig(draft);
 
   const patch = (p: Partial<ConfigDraft>) => {
-    // A result describes the config that produced it. Clearing here, at the
-    // one place the draft changes, keeps a stale tick from vouching for a
-    // config that is no longer on screen.
+    // Clear at the one place the draft changes, so a stale tick never vouches
+    // for a config no longer on screen.
     setTestResult(null);
     setDraft((d) => ({ ...d, ...p }));
   };

@@ -1,7 +1,5 @@
-// The triage board's derivation, kept out of the route so it can be reasoned
-// about (and tested) without rendering anything. Every function here is pure:
-// `now` is always a parameter, never a `Date.now()` call, so callers control
-// staleness and tests are deterministic.
+// Every function here is pure: `now` is always a parameter, never a
+// `Date.now()` call, so callers control staleness and tests are deterministic.
 import type { TimeRange } from "@everr/ui/lib/time-range";
 import { ccRuleIdentity } from "@/data/alerts/rule-identity";
 import {
@@ -26,9 +24,8 @@ import type {
   CcSloGroupStatus,
 } from "@/data/cc/types";
 
-// The alerts layout hides the global time-range picker, so every triage surface
-// reads the same fixed trailing window of stored events: the board's all-clear
-// freshness line and each expanded row's evidence.
+// The alerts layout hides the global time-range picker, so every triage
+// surface reads the same fixed trailing window of stored events.
 export const TRIAGE_EVENT_RANGE: TimeRange = { from: "now-24h", to: "now" };
 
 // ── Vocabulary helpers ────────────────────────────────────────────────────────
@@ -58,21 +55,18 @@ export function ccRunbookParams(
   return rule ? ccRuleIdentity(rule).runbook : null;
 }
 
-/** The severity an SLO-sourced instance fires at: its tier's severity. */
 function ccSloInstanceSeverity(alert: CcAlert) {
   return ccSloTierSeverity(CC_CANONICAL_SLO_TIERS, alert.labels);
 }
 
 /**
- * The matchers a silence created from this instance carries: every instance
- * label pinned with `eq`, plus a synthetic scoping label — `slo` for
- * SLO-sourced instances, `rule` otherwise (the dispatcher matches silences
- * against synthetic labels, so a label-free source still gets a working,
- * precisely scoped silence).
+ * Every instance label pinned with `eq`, plus a synthetic scoping label (`slo`
+ * or `rule`): the dispatcher matches silences against synthetic labels, so a
+ * label-free source still gets a precisely scoped silence.
  *
- * `slo_tier` is deliberately not pinned. A board row is one label set across
- * every tier watching it, so silencing that row must mute all of them; pinning
- * the tier would leave the same problem paging from the next tier down.
+ * `slo_tier` is deliberately not pinned: a board row is one label set across
+ * every tier, and pinning the tier would leave the same problem paging from
+ * the next tier down.
  */
 export function ccSourceScopedSilenceMatchers(alert: CcAlert): CcMatcher[] {
   const isSlo = alert.slo !== undefined;
@@ -90,11 +84,7 @@ export function ccSourceScopedSilenceMatchers(alert: CcAlert): CcMatcher[] {
   ];
 }
 
-/**
- * The single matcher a whole-source silence carries: the same synthetic
- * scoping label ccSourceScopedSilenceMatchers pins, without the per-instance
- * labels — one silence mutes everything under the source.
- */
+/** The synthetic scoping label alone: one silence mutes everything under the source. */
 export function ccGroupSilenceMatchers(group: TriageGroup): CcMatcher[] {
   return [
     group.sloId !== undefined
@@ -104,11 +94,9 @@ export function ccGroupSilenceMatchers(group: TriageGroup): CcMatcher[] {
 }
 
 /**
- * Where a routed instance's notifications actually land: the deduped receiver
- * names, the channels they fan out to, and the receivers that fan out to
- * nothing (no channels configured, or the route names a receiver that does
- * not exist). Matched routes with `channels` empty means delivery reaches no
- * one — the "not routed" trap wearing a receiver name.
+ * Deduped receivers, the channels they fan out to, and `dead`: receivers that
+ * fan out to nothing (no channels, or a receiver that does not exist) —
+ * matched routes whose delivery reaches no one.
  */
 export function ccDeliveryFanout(
   matchedRoutes: CcRoute[],
@@ -125,11 +113,9 @@ export function ccDeliveryFanout(
 }
 
 /**
- * Search params for a Logs link scoped to this instance: the window from
- * shortly before it started firing until now, plus the shared service filter
- * when the instance carries a service-shaped label. Labels are arbitrary SQL
- * columns, so only the well-known service key maps to an explorer filter —
- * anything cleverer would silently build wrong queries.
+ * Logs-link params: window from shortly before firing until now. Labels are
+ * arbitrary SQL columns, so only the well-known service key maps to an
+ * explorer filter — anything cleverer would silently build wrong queries.
  */
 export function ccInstanceLogsSearch(alert: CcAlert): {
   from: string;
@@ -151,9 +137,8 @@ export function ccInstanceLogsSearch(alert: CcAlert): {
 
 // ── Shapes ────────────────────────────────────────────────────────────────────
 
-// One engine instance plus every fact the board derives for it. `rule` and
-// `slo` are mutually exclusive resolutions of the instance's source
-// (alert.slo discriminates).
+// `rule` and `slo` are mutually exclusive resolutions of the instance's
+// source (alert.slo discriminates).
 export type TriageInstance = {
   alert: CcAlert;
   rule: CcRuleView | undefined;
@@ -163,11 +148,9 @@ export type TriageInstance = {
 };
 
 /**
- * One board row: one thing that is wrong. For a rule that is one instance,
- * since an instance already is one label set. For an SLO it is one label set
- * across every burn-rate tier currently on it: the tiers are three
- * sensitivities watching the same budget, so a service burning fast enough to
- * trip two of them is still one problem, and listing it twice reads as two.
+ * One board row: one thing that is wrong. For a rule, one instance; for an
+ * SLO, one label set across every burn-rate tier on it — the tiers watch the
+ * same budget, so tripping two of them is still one problem.
  */
 export type TriageRow = {
   /** The most urgent member: the row's identity, value, and event scope. */
@@ -191,11 +174,6 @@ export type TriageGroup = {
 
 // ── Error budget ──────────────────────────────────────────────────────────────
 
-/**
- * Budget remaining by label-set key for one SLO's status groups, computed
- * once so each board row is a single key derivation and an O(1) lookup
- * instead of re-keying every group per row.
- */
 export function ccBudgetIndex(
   statusGroups: CcSloGroupStatus[],
 ): Map<string, number | null> {
@@ -205,10 +183,9 @@ export function ccBudgetIndex(
 }
 
 /**
- * This row's own error budget remaining, from the status group whose labels
- * equal the row's label set — not the SLO's worst group, which may be a
- * different label set entirely. Null when the status has not resolved or
- * carries no matching group (a snapshot can lag a newly-firing label set).
+ * The row's OWN budget, matched by label set — not the SLO's worst group,
+ * which may be a different label set. Null when the status has not resolved
+ * or has no matching group (a snapshot can lag a newly-firing label set).
  */
 export function ccRowBudget(
   row: TriageRow,
@@ -224,12 +201,10 @@ export type CcExhaustedBudget = {
 };
 
 /**
- * Every SLO label-set whose error budget is spent, worst first — the standing
- * damage, whether or not anything is firing on it right now (burn may have
- * stopped after the harm, or still be running; either way the budget is
- * gone, which is its own operational state: a deploy freeze, for teams that
- * practice one). Paused SLOs are skipped: their snapshots are frozen, and a
- * stale "exhausted" would be a claim the engine is no longer making.
+ * Every SLO label-set whose budget is spent, worst first, whether or not
+ * anything is firing on it now. Paused SLOs are skipped: their snapshots are
+ * frozen, and a stale "exhausted" would be a claim the engine is no longer
+ * making.
  */
 export function ccExhaustedBudgets(
   slos: CcSlo[],
@@ -249,10 +224,8 @@ export function ccExhaustedBudgets(
 }
 
 /**
- * The board's cut of the grouped rows: firing only. Pending and inactive
- * instances stay in the derivation (the pipeline strip counts them), but
- * triage lists what is wrong right now, and a row that is not firing is not
- * that. Groups left with no firing row disappear entirely.
+ * Firing rows only. Pending and inactive instances stay in the derivation
+ * (the pipeline strip counts them); groups with no firing row disappear.
  */
 export function ccFiringGroups(groups: TriageGroup[]): TriageGroup[] {
   return groups
@@ -265,10 +238,6 @@ export function ccFiringGroups(groups: TriageGroup[]): TriageGroup[] {
 
 // ── Derivation ────────────────────────────────────────────────────────────────
 
-/**
- * Every derived fact for every instance, resolved once with the engine's own
- * matching semantics (synthetic labels, priority + continue routes).
- */
 export function ccResolveTriageInstances({
   alerts,
   rules,
@@ -287,7 +256,7 @@ export function ccResolveTriageInstances({
   const ruleById = new Map(rules.map((r) => [r.id, r]));
   const sloById = new Map(slos.map((s) => [s.id, s]));
   return alerts.map((alert) => {
-    // `alert.rule` carries the source uuid for SLO rows too (CC's wire
+    // `alert.rule` carries the source uuid for SLO rows too (CC wire
     // convention); `alert.slo` discriminates, so exactly one side resolves.
     const slo = alert.slo !== undefined ? sloById.get(alert.slo) : undefined;
     const rule = alert.slo === undefined ? ruleById.get(alert.rule) : undefined;
@@ -303,15 +272,10 @@ export function ccResolveTriageInstances({
 }
 
 /**
- * Every number the pipeline strip reads, accumulated in one pass over the
- * grouped rows. Callers must not re-derive any of these with their own
- * filters: a count that lives half here and half in a route drifts the moment
- * one side changes its definition of, say, "unrouted".
- *
- * These count rows, not engine instances, so the strip and the board are the
- * same tally. An SLO burning fast enough to trip two tiers is one firing thing
- * in both places; counting its tiers here would have the strip claim two
- * problems the board shows as one.
+ * Callers must not re-derive these with their own filters: a count split
+ * between here and a route drifts when one side changes its definition.
+ * Counts rows, not engine instances, so the strip and the board are the same
+ * tally (an SLO tripping two tiers is one firing thing in both).
  */
 export function ccTriageCounts(
   groups: TriageGroup[],
@@ -332,16 +296,14 @@ export function ccTriageCounts(
     for (const { lead } of group.rows) {
       if (lead.alert.status === "firing") {
         firing += 1;
-        // Unrouted only counts what nothing is muting: a silenced row is meant
-        // not to reach anyone.
+        // A silenced row is meant not to reach anyone, so it is not "unrouted".
         if (lead.silence === null && lead.matchedRoutes.length === 0) {
           unroutedFiring += 1;
         }
       } else if (lead.alert.status === "pending") {
         pending += 1;
       }
-      // Silenced counts active rows only; an inactive row matched by a silence
-      // is not being muted, it is simply over.
+      // An inactive row matched by a silence is not being muted, just over.
       if (lead.alert.status !== "inactive" && lead.silence !== null) {
         silenced += 1;
       }
@@ -360,9 +322,8 @@ export function ccTriageCounts(
   };
 }
 
-/** A label set's identity, ignoring which burn-rate tier reported it: the
- *  SLO pages' canonical group key over the tier-stripped labels, so a board
- *  row and a status group agree on "same group" by construction. */
+/** Group key over tier-stripped labels, so a board row and a status group
+ *  agree on "same group" by construction. */
 function labelSetKey(labels: Record<string, string>): string {
   return ccSloLabelsKey(
     Object.fromEntries(
@@ -375,8 +336,7 @@ const TIER_RANK = new Map(CC_CANONICAL_SLO_TIERS.map((t, i) => [t.name, i]));
 
 /**
  * Collapse an SLO's instances into one row per label set, most urgent member
- * leading. Rule instances pass through one-to-one: an instance already is a
- * label set, so nothing to merge.
+ * leading. Rule instances pass through one-to-one.
  */
 function ccCollapseRows(list: TriageInstance[], isSlo: boolean): TriageRow[] {
   if (!isSlo) {
@@ -388,8 +348,7 @@ function ccCollapseRows(list: TriageInstance[], isSlo: boolean): TriageRow[] {
     byLabels.set(key, [...(byLabels.get(key) ?? []), inst]);
   }
   return [...byLabels.values()].map((members) => {
-    // Canonical tier order is urgency order (fast-burn → slow-burn → ticket),
-    // so the earliest tier leads and its burn rate is the row's value.
+    // Canonical tier order is urgency order, so the earliest tier leads.
     const sorted = [...members].sort(
       (a, b) =>
         (STATUS_RANK[a.alert.status] ?? 3) -
@@ -408,12 +367,9 @@ function ccCollapseRows(list: TriageInstance[], isSlo: boolean): TriageRow[] {
   });
 }
 
-// Group by source (rule or SLO — `alert.rule` carries the uuid for both).
-// Groups sort by what they are doing now (any firing row first, then pending,
-// then all-inactive), then by severity (critical → warning → info), then by
-// name; within a group firing rows precede pending (muted) and inactive. An
-// SLO group's severity is the highest tier severity among its instances (each
-// burn-rate instance fires at its own tier's severity).
+// Group by source (`alert.rule` carries the uuid for rules and SLOs alike).
+// Ordering guarantee: groups sort status (firing, pending, inactive), then
+// severity, then name; within a group firing rows precede pending and inactive.
 export function ccGroupInstances(instances: TriageInstance[]): TriageGroup[] {
   const bySource = new Map<string, TriageInstance[]>();
   for (const inst of instances) {
@@ -428,11 +384,9 @@ export function ccGroupInstances(instances: TriageInstance[]): TriageGroup[] {
       // resolves the object, so linking/marking never falls back to a rule.
       const sloId = list[0].alert.slo;
       const isSlo = slo !== undefined || sloId !== undefined;
-      // Keyed on `isSlo`, not on the resolved SLO: an instance's severity is
-      // its tier's, read off its own `slo_tier` label, so it does not need the
-      // listing. Waiting for the object would render a critical burn as
-      // "info" (the rule-side default, on a group that has no rule) and sort
-      // it to the bottom until the fetch landed.
+      // Keyed on `isSlo`, not the resolved SLO: severity reads off the
+      // instance's own `slo_tier` label; waiting for the object would render a
+      // critical burn as "info" and sort it to the bottom until the fetch landed.
       const severity = isSlo
         ? list.reduce((top: string, inst) => {
             const s = ccSloInstanceSeverity(inst.alert);
@@ -464,11 +418,9 @@ export function ccGroupInstances(instances: TriageInstance[]): TriageGroup[] {
     })
     .sort(
       (a, b) =>
-        // Each group's rows are already status-sorted, so [0] is its most
-        // urgent one. Ordering on that first floats firing groups above
-        // pending ones and pending above all-inactive; severity then orders
-        // within each band. Without it a critical group that has finished
-        // firing would outrank a warning group that is firing right now.
+        // Rows are status-sorted, so [0] is the group's most urgent. Status
+        // before severity: otherwise a critical group that finished firing
+        // would outrank a warning group firing right now.
         (STATUS_RANK[a.rows[0].lead.alert.status] ?? 3) -
           (STATUS_RANK[b.rows[0].lead.alert.status] ?? 3) ||
         (SEVERITY_RANK[a.severity] ?? 3) - (SEVERITY_RANK[b.severity] ?? 3) ||

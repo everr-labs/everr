@@ -1,9 +1,3 @@
-// packages/app/src/routes/_authenticated/_dashboard/_previewable/alerts/-components/receiver-builder.tsx
-//
-// Backs the /alerts/delivery page's address book. A receiver is a named
-// set of channel REFERENCES: the builder picks from the tenant's existing
-// channels (created in the Channels section); the per-type config forms live
-// in the channel builder now.
 import { Button } from "@everr/ui/components/button";
 import { Input } from "@everr/ui/components/input";
 import { Label } from "@everr/ui/components/label";
@@ -25,10 +19,8 @@ export function ReceiverBuilder({
 }: {
   open: boolean;
   onOpenChange: (o: boolean) => void;
-  /** Names already taken. CC's create answers 409 for an existing name; block
-   * duplicates client-side to keep the error out of the happy path. */
+  /** CC's create answers 409 for an existing name; block duplicates client-side. */
   existingNames: string[];
-  /** The tenant's channels, to pick references from. */
   channels: CcChannel[];
 }) {
   const qc = useQueryClient();

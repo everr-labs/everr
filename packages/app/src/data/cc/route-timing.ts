@@ -1,6 +1,3 @@
-// packages/app/src/data/cc/route-timing.ts
-// One renderer for a route's grouping/cadence readout, shared by the delivery
-// pipeline rows and the route builder's Timing trigger line.
 import {
   CC_DEFAULT_GROUP_BY,
   CC_DEFAULT_GROUP_INTERVAL_SECS,
@@ -15,12 +12,9 @@ export type CcRouteTiming = {
 };
 
 /**
- * The "wait Xs / interval Xs / …" parts for one route (callers join with
- * " · "). Two modes:
- * - `overrides`: only explicitly set values — the pipeline's per-route line,
- *   empty (so the row stays single-line) when the route rides engine defaults;
- * - `effective`: every slot filled, engine defaults where unset — the route
- *   builder's always-readable answer to what the dispatcher will actually do.
+ * Timing parts for one route (callers join with " · "). `overrides`: only
+ * explicitly set values, empty when the route rides engine defaults;
+ * `effective`: every slot filled, engine defaults where unset.
  */
 export function ccRouteTimingSummary(
   timing: CcRouteTiming,

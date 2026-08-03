@@ -1,9 +1,3 @@
-// packages/app/src/routes/_authenticated/_dashboard/_previewable/alerts/-components/cc-drawer.tsx
-//
-// The alerting section's create/edit surface: a right-side drawer (Base UI
-// dialog via @everr/ui's Sheet) instead of a centered modal, so the page —
-// notably the Delivery pipeline — stays visible while editing. One shared
-// scaffold keeps header/body/footer density identical across builders.
 import {
   Sheet,
   SheetContent,

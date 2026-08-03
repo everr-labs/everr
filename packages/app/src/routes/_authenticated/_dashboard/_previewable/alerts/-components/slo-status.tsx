@@ -1,10 +1,5 @@
-// packages/app/src/routes/_authenticated/_dashboard/_previewable/alerts/-components/slo-status.tsx
-//
-// The SLO detail page's headline numbers, as one strip: the worst group's error
-// budget (with the same meter the listing uses), the promise, the reliability
-// actually achieved, the current burn, and how long the budget lasts at that
-// burn. Every value is the worst group's, so the strip and the budget chart
-// below it are talking about the same thing.
+// Every value is the worst group's, so the strip and the budget chart below
+// it are talking about the same thing.
 import { Card, CardContent } from "@everr/ui/components/card";
 import { toneText } from "@everr/ui/components/tone";
 import {
@@ -26,9 +21,7 @@ import {
   ccFmtFraction,
 } from "./budget-bar";
 
-// The colour a firing state lends the burn figure. Amber is "attention", red is
-// "emergency"; Signal Lime stays reserved, so healthy is emerald. Only the
-// firing states are ever read from here (see the burn Stat) — the rest are
+// Only the firing states are ever read (see the burn Stat); the rest are
 // listed so a new state cannot be added without deciding its tone.
 const STATE_TEXT: Record<CcSloState, string> = {
   exhausted: toneText({ tone: "danger" }),
@@ -45,7 +38,6 @@ function Stat({
   children,
 }: {
   label: string;
-  /** Small line under the value: a window note or the budget meter. */
   hint?: React.ReactNode;
   children: React.ReactNode;
 }) {
@@ -83,10 +75,8 @@ export function SloStatsRow({
         <dl className="grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-3 lg:grid-cols-5 lg:divide-x lg:divide-border/60">
           <Stat
             label="Error budget left"
-            // Same meter, formatter and thresholds as the listing's inline bar,
-            // one size up: this is the page's headline figure. The number takes
-            // its own type scale, hence the two Stat slots rather than a whole
-            // CcBudgetBar.
+            // Deliberately the same meter, formatter and thresholds as the
+            // listing's inline bar.
             hint={<CcBudgetMeter remaining={budget} />}
           >
             <span className={ccBudgetTextTone(budget)}>

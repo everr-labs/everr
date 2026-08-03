@@ -1,9 +1,3 @@
-// The standing damage: every SLO label-set whose error budget is spent,
-// worst first, whether or not it is also firing on the triage board above.
-// The board answers "what is wrong right now"; this answers "which promises
-// are already broken", which outlives the fire that broke them. Renders
-// nothing when no budget is exhausted: an empty damage report is not
-// information worth a card.
 import { Link } from "@tanstack/react-router";
 import { ccSloIdentity } from "@/data/cc/slo";
 import type { CcExhaustedBudget } from "@/data/cc/triage";
@@ -25,8 +19,8 @@ export function CcExhaustedBudgetsCard({
     >
       <div className="divide-y divide-border/60">
         {items.map(({ slo, group }) => {
-          // One identity derivation for both the link params and the name,
-          // so they cannot diverge.
+          // One identity derivation for both link params and name, so they
+          // cannot diverge.
           const identity = ccSloIdentity(slo);
           return (
             <Link

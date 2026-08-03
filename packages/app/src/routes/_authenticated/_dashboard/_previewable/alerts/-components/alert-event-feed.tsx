@@ -1,9 +1,3 @@
-// packages/app/src/routes/_authenticated/_dashboard/_previewable/alerts/-components/alert-event-feed.tsx
-// Stored CC event history from ClickHouse, polled to stay current, always
-// scoped to one alert source (`scopeSlug`). The rule detail page is its only
-// mount: the unscoped variant went with the History page, and with it the
-// severity/rule columns and the coarse type lens, which only ever earned their
-// place on a feed mixing many sources.
 import {
   Card,
   CardAction,
@@ -40,8 +34,8 @@ import {
   LabelSet,
 } from "./shared";
 
-// Display labels for the engine's event-type vocabulary (ALERT_EVENT_TYPES);
-// the Record keying keeps this exhaustive against it.
+// Record-keyed against AlertEventType so this stays exhaustive against the
+// engine's event-type vocabulary.
 const EVENT_TYPE_LABELS: Record<AlertEventType, string> = {
   instance_fired: "Fired",
   instance_resolved: "Resolved",
@@ -55,23 +49,20 @@ export function AlertEventFeed({
   preview,
 }: {
   /**
-   * Scope the feed to one rule. Event rows carry the rule's slug when CC
-   * knows it and the bare rule id otherwise, so callers that know both pass
-   * both and either handle matches.
+   * Event rows carry the rule's slug when CC knows it and the bare rule id
+   * otherwise, so callers pass both and either handle matches.
    */
   scopeSlug: readonly string[];
   /**
-   * The selected preview, when the surrounding page has one. Preview-rule
-   * records are suppressed but carry the same service.name as live ones, so
-   * the feed reads live-only unless a preview asks for them back.
+   * Preview-rule records carry the same service.name as live ones, so the
+   * feed reads live-only unless a preview asks for them back.
    */
   preview?: string;
 }) {
   const [eventType, setEventType] = useState<string>("all");
   const { timeRange } = useTimeRange();
-  // A scoped feed narrows to its handles server-side, so the row cap applies
-  // after scoping: without it, other sources on a busy tenant fill the
-  // newest-N window and starve this source of its older events.
+  // Scoping happens server-side so the row cap applies after it; otherwise
+  // busier sources fill the newest-N window and starve this one.
   const history = useQuery(
     ccQueries.eventHistory(timeRange, {
       slugs: scopeSlug,
@@ -88,8 +79,6 @@ export function AlertEventFeed({
       .filter((e) => eventType === "all" || e.eventType === eventType);
   }, [rows, scopeSlug, eventType]);
 
-  // Every row shares this feed's rule, so the rule and its severity are
-  // constants: the columns that named them belonged to the cross-source feed.
   const columns: Column<AlertEventLogRow>[] = [
     {
       header: "Time",

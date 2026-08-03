@@ -1,6 +1,3 @@
-// Rule detail, organized by the questions an operator actually asks:
-// What is it (spec facts, SQL behind a disclosure) and What's it doing
-// (instances, rollup, the scoped event timeline).
 import { Badge } from "@everr/ui/components/badge";
 import { buttonVariants } from "@everr/ui/components/button";
 import {
@@ -57,7 +54,7 @@ export const Route = createFileRoute(
     preview: search.preview,
   }),
   loader: async ({ context: { queryClient }, params, deps }) => {
-    // The rule first: the event timeline prefetch is scoped to its handles.
+    // Rule first: the event-timeline prefetch is scoped to its handles.
     const rule = await queryClient.ensureQueryData(
       ccQueries.ruleByName(params.project, params.slug, deps.preview),
     );
@@ -166,8 +163,7 @@ function CcRuleDetailPage() {
           <CcSeverityBadge severity={r.spec.severity} />
           <CcHealthHeart status={r.health.status} />
           {r.spec.suppressed && (
-            // A suppressed rule evaluates fully but the dispatcher never
-            // notifies on it — worth a loud flag, or the silence is invisible.
+            // Evaluates fully but never notifies — worth a loud flag.
             <Badge variant="destructive">suppressed</Badge>
           )}
         </div>
@@ -225,7 +221,6 @@ function CcRuleDetailPage() {
               </CcDefRow>
             )}
           </dl>
-          {/* Authors have Git; readers get the SQL on demand, not as a wall. */}
           <Collapsible open={sqlOpen} onOpenChange={setSqlOpen}>
             <CcDisclosureTrigger open={sqlOpen}>
               <span className="text-xs font-medium">SQL</span>

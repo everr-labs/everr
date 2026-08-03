@@ -4,8 +4,7 @@ export const CcSeveritySchema = z.enum(["info", "warning", "critical"]);
 export const CcMatchOpSchema = z.enum(["eq", "ne", "regex", "notregex"]);
 const CcInstanceStatusSchema = z.enum(["inactive", "pending", "firing"]);
 
-// CC serializes every API timestamp as an RFC-3339 string (serde's rfc3339
-// format on `OffsetDateTime`), which `new Date(...)` parses directly.
+// CC serializes every API timestamp as RFC-3339, which `new Date(...)` parses.
 const CcTimestampSchema = z.string();
 const CcTimestampNullable = CcTimestampSchema.nullable();
 
@@ -25,21 +24,17 @@ export const CcRuleSpecSchema = z.object({
   annotations: z.record(z.string(), z.string()).default({}),
   resolve_after: z.number().int().default(1),
   max_interval_secs: z.number().int().positive().optional(),
-  // Preview mode: CC evaluates the rule fully (instances, events, history) but
-  // the dispatcher never notifies on it. Defaulted so pre-suppression CC
-  // responses still parse.
+  // Preview mode: evaluated fully, never notified on. Defaulted so
+  // pre-suppression CC responses still parse.
   suppressed: z.boolean().default(false),
 });
 
-// The engine's rule-health vocabulary. Consumers (health filter, badges)
-// derive from this schema rather than re-declaring the union.
 export const CcRuleHealthStatusSchema = z.enum(["healthy", "degraded"]);
 
 const CcRuleHealthSchema = z.object({
-  // `.catch("healthy")`: the previous z.string() tolerated unknown values, and
-  // every reader already treated non-"degraded" as healthy, so vocabulary
-  // drift keeps parsing (and keeps its old healthy rendering) instead of
-  // failing the whole rule-list parse.
+  // `.catch("healthy")`: vocabulary drift keeps parsing (readers already
+  // treated non-"degraded" as healthy) instead of failing the whole
+  // rule-list parse.
   status: CcRuleHealthStatusSchema.catch("healthy"),
   consecutive_failures: z.number().int(),
   degraded_since: CcTimestampNullable,
@@ -50,15 +45,11 @@ const CcRuleHealthSchema = z.object({
 export const CcRuleSchema = z.object({
   id: z.string(),
   tenant: z.string(),
-  // Required, and deliberately not defaulted. `name` is the key the as-code
-  // reconciler matches and prunes on, so a default would turn "this CC predates
-  // first-class identity" into silent data loss: every rule would parse as
-  // name "", the scope map would collapse them all onto one entry, and the next
-  // apply would create a duplicate of every document while pruning exactly one
-  // of the originals. The rest keep evaluating and paging with no way to address
-  // them from config. CC's column is NOT NULL and its field is a bare String, so
-  // an absent name means we are talking to something we do not understand, and
-  // failing the parse is the safe answer.
+  // `name` is deliberately not defaulted: it is the key the as-code reconciler
+  // matches and prunes on, so defaulting to "" would collapse the scope map and
+  // turn the next apply into duplicate-creates plus a wrong prune (silent data
+  // loss). CC's column is NOT NULL, so an absent name means an incompatible
+  // server; failing the parse is the safe answer.
   namespace: z.string(),
   name: z.string(),
   spec: CcRuleSpecSchema,
@@ -66,7 +57,7 @@ export const CcRuleSchema = z.object({
   paused: z.boolean(),
 });
 
-// SP2 2a rolls up alert state onto each RuleView under a nested `rollup` object.
+// SP2 2a's nested `rollup` object on each RuleView.
 const CcRuleRollupSchema = z.object({
   alert_state: CcInstanceStatusSchema,
   firing_instance_count: z.number().int().default(0),
@@ -77,21 +68,17 @@ const CcRuleRollupSchema = z.object({
 });
 
 export const CcRuleViewSchema = CcRuleSchema.extend({
-  // When the rule row was last written (create, spec update, pause/resume).
-  // Backed by a NOT NULL column CC always serializes, so it is required here.
-  // Only on the view: create/update/pause responses are the bare Rule.
+  // NOT NULL column CC always serializes, so required. Only on the view:
+  // create/update/pause responses are the bare Rule.
   updated_at: CcTimestampSchema,
   health: CcRuleHealthSchema,
   // Optional for rollout safety: a CC not yet on SP2 2a omits `rollup`, and
-  // requiring it would break the whole rule-list parse (and the alerts
-  // surface + the as-code reconciler). Consumers read it defensively.
+  // requiring it would break the whole rule-list parse.
   rollup: CcRuleRollupSchema.optional(),
 });
 
-// Paginated `GET /v1/rules`: passing `limit`/`cursor` opts into this
-// `{items, next_cursor}` envelope (the bare call keeps returning the legacy
-// unbounded array). `next_cursor` is an opaque keyset token; null means the
-// last page.
+// Paginated `GET /v1/rules`: `limit`/`cursor` opt into this envelope.
+// `next_cursor` is an opaque keyset token; null means the last page.
 export const CcRulesPageSchema = z.object({
   items: z.array(CcRuleViewSchema),
   next_cursor: z.string().nullable(),
@@ -99,9 +86,9 @@ export const CcRulesPageSchema = z.object({
 
 export const CcAlertSchema = z.object({
   key: z.string(),
-  // The source uuid. CC's wire convention (SourceIdWire in domain/ids.rs):
-  // `rule` always carries the uuid — for SLO-sourced rows it is the SLO's
-  // uuid — and `slo` is additionally present for SLO sources.
+  // CC's wire convention (SourceIdWire, domain/ids.rs): `rule` always carries
+  // the source uuid (the SLO's uuid for SLO-sourced rows); `slo` is
+  // additionally present for SLO sources.
   rule: z.string(),
   slo: z.string().optional(),
   tenant: z.string(),
@@ -113,8 +100,8 @@ export const CcAlertSchema = z.object({
   absent_count: z.number().int(),
 });
 
-// The engine's per-type endpoint config (ChannelConfig in clickety-clack's
-// domain/channel.rs). Secret fields come back redacted ("***") on read.
+// Mirrors ChannelConfig (domain/channel.rs). Secret fields come back
+// redacted ("***") on read.
 export const CcChannelConfigSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("webhook"), url: z.string() }),
   z.object({ type: z.literal("slack"), url: z.string() }),
@@ -126,8 +113,6 @@ export const CcChannelConfigSchema = z.discriminatedUnion("type", [
   }),
 ]);
 
-// A named, reusable channel: the secret-bearing endpoint config, unique by
-// name per tenant. Receivers reference channels by name.
 export const CcChannelSchema = z.object({
   id: z.string(),
   tenant: z.string(),
@@ -139,16 +124,12 @@ export const CcReceiverSchema = z.object({
   id: z.string(),
   tenant: z.string(),
   name: z.string(),
-  // A receiver is a named set of channel REFERENCES (channel names); the
-  // engine rejects empty lists and validates every name against the tenant's
-  // channels, so a parsed receiver always has at least one element and never
-  // carries a secret.
+  // Channel NAMES, not configs: the engine rejects empty lists and validates
+  // every name, so a parsed receiver has >= 1 element and never carries a secret.
   channels: z.array(z.string()).min(1),
-  // Free-form, non-secret metadata (ownership markers, team, links, ...). CC
-  // always serializes it (empty map when unset), so it is effectively always
-  // present; kept `.optional()` rather than `.default({})` so the inferred
-  // output type does not force every hand-built CcReceiver literal (tests,
-  // fixtures) to carry the field. All readers use optional chaining.
+  // CC always serializes this (empty map when unset); kept `.optional()` rather
+  // than `.default({})` so hand-built CcReceiver literals (tests, fixtures)
+  // need not carry the field. All readers use optional chaining.
   annotations: z.record(z.string(), z.string()).optional(),
 });
 
@@ -166,9 +147,8 @@ export const CcRouteSchema = z.object({
 });
 
 // ---- Create/update input bodies ----
-// The POST/PUT payloads the engine accepts, defined once here: the client
-// types (data/cc/types.ts) and the server-fn input validators (data/cc/
-// server.ts) both derive from these, so the two can never drift.
+// Both the client types (types.ts) and the server-fn input validators
+// (server.ts) derive from these, so the two cannot drift.
 
 export const CcRouteInputSchema = z.object({
   matchers: z.array(CcMatcherSchema),
@@ -181,9 +161,8 @@ export const CcRouteInputSchema = z.object({
   repeat_interval_secs: z.number().int().min(60).nullable(),
 });
 
-// POST /v1/rules body (CreateRuleBody): the spec flattened beside `name`,
-// with `namespace` defaulting to "" (the same shape the engine serializes
-// back on CcRuleSchema). PUT keeps taking the bare spec (+ version):
+// POST /v1/rules body (CreateRuleBody): spec flattened beside `name`,
+// `namespace` defaulting to "". PUT keeps taking the bare spec (+ version):
 // identity is immutable after create.
 export const CcRuleInputSchema = CcRuleSpecSchema.extend({
   name: z.string().min(1),
@@ -197,8 +176,8 @@ export const CcInhibitionInputSchema = z.object({
 });
 
 export const CcSilenceInputSchema = z.object({
-  // A silence is always scoped: the engine reads a missing label as "", so a
-  // matcher with an empty label matches every alert (a global silence).
+  // The engine reads a missing label as "", so a matcher with an empty label
+  // would match every alert (a global silence).
   matchers: z
     .array(
       CcMatcherSchema.refine((m) => m.label.trim() !== "", {
@@ -240,10 +219,10 @@ export const CcSubscriptionSchema = z.object({
 });
 
 // ---- SLOs ----
-// Mirrors clickety-clack's domain/slo.rs serializers. Field names are the
-// OpenSLO-aligned serde renames (targetPercent, timeWindow, isRolling).
+// Mirrors domain/slo.rs serializers. Field names are the OpenSLO-aligned
+// serde renames (targetPercent, timeWindow, isRolling).
 
-// One multi-window burn-rate tier (BurnRateTier).
+// BurnRateTier.
 export const CcSloTierSchema = z.object({
   name: z.string(),
   long_window: z.string(),
@@ -255,7 +234,7 @@ export const CcSloTierSchema = z.object({
 export const CcSloSpecSchema = z.object({
   sli: z.object({
     sql: z.string(),
-    // Columns that fan the SLO out into per-group SLIs; empty = scalar SLO.
+    // Empty = scalar SLO.
     label_columns: z.array(z.string()).default([]),
   }),
   targetPercent: z.number(),
@@ -284,29 +263,25 @@ export const CcSloSchema = z.object({
   paused: z.boolean().default(false),
 });
 
-// GET /v1/slos and GET /v1/slos/:id return the SloView (api/slos.rs): the bare
-// Slo plus `updated_at`, the row's last write (create, spec update, pause/
-// resume). Backed by a NOT NULL column CC always serializes, so it is required
-// here — the SLO analogue of CcRuleViewSchema. Only on the read view:
-// create/update/pause/resume responses stay the bare CcSloSchema.
+// SloView (api/slos.rs): bare Slo plus `updated_at` (NOT NULL, always
+// serialized, so required). Only on the read view: create/update/pause/resume
+// responses stay the bare CcSloSchema.
 export const CcSloViewSchema = CcSloSchema.extend({
   updated_at: CcTimestampSchema,
-  // When the error budget last began — creation, or the last budget-significant
-  // edit (sli / target / window), but NOT pause/resume or a rename. The
-  // budget-over-time chart splits reconstructed (pre-epoch) history from the
-  // real budget here.
+  // When the error budget last began: creation or the last budget-significant
+  // edit (sli / target / window), NOT pause/resume or a rename. The chart
+  // splits reconstructed (pre-epoch) history from the real budget here.
   budget_epoch: CcTimestampSchema,
 });
 
-// The evaluator's health sibling on GET /v1/slos/:id/status (stores/pg.rs
-// SloHealth — a leaner cousin of CcRuleHealthSchema, same status vocabulary).
+// Mirrors stores/pg.rs SloHealth (same status vocabulary as rule health).
 const CcSloHealthSchema = z.object({
   status: CcRuleHealthStatusSchema.catch("healthy"),
   degraded_since: CcTimestampNullable,
   last_error: z.string().nullable(),
 });
 
-// Per-tier burn rates inside a status group (engine/slo_math.rs SloTierStatus).
+// Mirrors engine/slo_math.rs SloTierStatus.
 const CcSloTierStatusSchema = z.object({
   name: z.string(),
   long_burn_rate: z.number().nullable(),
@@ -315,10 +290,9 @@ const CcSloTierStatusSchema = z.object({
   long_window_valid: z.number().nullable().default(null),
 });
 
-// One group of the status snapshot (SloGroupStatus), plus the read-time
-// enrichment api/slos.rs adds per group (time_to_exhaustion_secs and
-// firing_tiers). Legacy rows are served raw without the enrichment, so both
-// enriched fields tolerate absence.
+// SloGroupStatus plus the read-time enrichment api/slos.rs adds
+// (time_to_exhaustion_secs, firing_tiers). Legacy rows are served without
+// the enrichment, so both enriched fields tolerate absence.
 export const CcSloGroupStatusSchema = z.object({
   labels: z.record(z.string(), z.string()),
   sli: z.number().nullable(),
@@ -331,8 +305,7 @@ export const CcSloGroupStatusSchema = z.object({
 });
 
 const CcSloStatusPayloadSchema = z.object({
-  // The budget window shorthand ("30d") and objective the snapshot was
-  // computed against.
+  // The window shorthand ("30d") the snapshot was computed against.
   window: z.string(),
   target_percent: z.number(),
   groups: z.array(CcSloGroupStatusSchema).default([]),
@@ -340,25 +313,23 @@ const CcSloStatusPayloadSchema = z.object({
   window_computed_at: z.record(z.string(), z.number()).default({}),
 });
 
-// GET /v1/slos/:id/status (SloStatusOut). The stored payload predating the
-// current snapshot shape is served raw and unenriched, so a payload that does
-// not parse degrades to null (the detail page's pending state) instead of
-// failing the whole status read.
+// GET /v1/slos/:id/status (SloStatusOut). A stored payload predating the
+// current snapshot shape is served raw, so a non-parsing payload degrades to
+// null (the pending state) instead of failing the whole status read.
 export const CcSloStatusSchema = z.object({
   computed_at: CcTimestampSchema,
   payload: CcSloStatusPayloadSchema.nullable().catch(null),
   health: CcSloHealthSchema,
 });
 
-// POST /v1/slos body (CreateSloBody): the spec flattened beside `name`, with
+// POST /v1/slos body (CreateSloBody): spec flattened beside `name`,
 // `namespace` defaulting to "".
 export const CcSloInputSchema = CcSloSpecSchema.extend({
   name: z.string().min(1),
   namespace: z.string().default(""),
 });
-// PUT /v1/slos/:id body (UpdateSloBody): spec only, plus optional
-// optimistic-concurrency `version` (added by the client, not the schema).
-// Identity (namespace/name) is immutable after create.
+// PUT body: spec only (identity is immutable after create); the client adds
+// the optional optimistic-concurrency `version`.
 export const CcSloUpdateSchema = CcSloSpecSchema;
 
 // POST /v1/slos/:id/test: per-group SLI over the spec's own budget window.

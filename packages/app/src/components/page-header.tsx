@@ -1,8 +1,5 @@
-// The one page-header pattern for app routes: title at the DESIGN.md page
-// scale (Inter 700, text-xl, fixed rem), an optional one-sentence lede, an
-// optional icon, right-aligned page-level actions, and an optional docs link.
-// Depth lives in the docs, not in-app disclosures, so the page stays a
-// working surface and the explanation stays in one canonical place.
+// Title is fixed at the DESIGN.md page scale (Inter 700, text-xl, fixed rem):
+// per-page heading sizes are what this component exists to prevent.
 import { cn } from "@everr/ui/lib/utils";
 import { ArrowUpRight, type LucideIcon } from "lucide-react";
 import type { ReactNode } from "react";
@@ -22,9 +19,7 @@ export function PageHeader({
   icon?: LucideIcon;
   /** Right-aligned page-level actions (primary buttons). */
   actions?: ReactNode;
-  /** Docs URL for the concept behind this page (everr.dev/docs/...). */
   docsHref?: string;
-  /** Link text; defaults to "Learn more". */
   docsLabel?: string;
   className?: string;
 }) {

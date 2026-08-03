@@ -1,8 +1,3 @@
-// Four live counts covering the alerting setup: what is being watched, what is
-// firing, what is muted, and where it goes. Purely a readout — nothing here is
-// clickable, and the cells are deliberately not chained into a flow. They are
-// four simultaneous facts, not four steps, and this answers "is anything
-// wrong" at a glance. The sidebar navigates.
 import { toneText } from "@everr/ui/components/tone";
 import { cn } from "@everr/ui/lib/utils";
 
@@ -57,10 +52,7 @@ function Stage({
   );
 }
 
-// The strip is a readout, not a control: every cell is inert. Reaching Rules
-// or Delivery is the sidebar's job. Four identical-looking cards where some
-// navigate away and others act in place would be several affordances wearing
-// one costume.
+// Every cell is deliberately inert: navigation is the sidebar's job.
 const STAGE_CELL_CLASS = "rounded-md border border-border bg-card";
 
 export function CcPipelineStrip({ facts }: { facts: CcPipelineFacts }) {

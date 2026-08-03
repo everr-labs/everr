@@ -43,18 +43,11 @@ function createSloQuery(organizationId: string): ClickhouseQuery {
     querySqlApi<T>(sql, organizationId, params);
 }
 
-// Client-side query definitions (keys, poll cadence) for these server fns
-// live in ./queries.ts.
-
 // ---- Queries ----
-// The full rule set, walked page by page (CC's bare-array listing mode is
-// gone). For surfaces that resolve every rule at once (triage, history).
 export const listCcRules = createAuthenticatedServerFn({
   method: "GET",
 }).handler(({ context: { session } }) => cc.listAllRules(orgId(session)));
 
-// One page of the rules listing (CC's {items, next_cursor} envelope), for the
-// paginated rules table.
 export const listCcRulesPage = createAuthenticatedServerFn({ method: "GET" })
   .inputValidator(
     z.object({
@@ -67,17 +60,16 @@ export const listCcRulesPage = createAuthenticatedServerFn({ method: "GET" })
     const org = orgId(session);
     const preview = data.preview?.trim() || null;
     if (preview === null) {
-      // Live listing stays keyset-paginated, pinned to the live namespace so
-      // suppressed preview rules never leak into the table.
+      // Pinned to the live namespace so suppressed preview rules never leak
+      // into the table.
       return cc.listRulesPage(org, {
         limit: data.limit,
         ...(data.cursor ? { cursor: data.cursor } : {}),
         namespace: "",
       });
     }
-    // Preview: the overlay needs the full cross-namespace set plus the
-    // preview's registry scopes (same resolution as getCcRuleByName), so
-    // pagination collapses to a single page like the other preview surfaces.
+    // The overlay needs the full cross-namespace set plus the preview's
+    // registry scopes, so pagination collapses to a single page.
     const [rules, scopes] = await Promise.all([
       cc.listAllRules(org),
       getPreviewScopes(org, preview),
@@ -94,14 +86,11 @@ export const getCcRule = createAuthenticatedServerFn({ method: "GET" })
     cc.getRule(orgId(session), ruleId),
   );
 
-// The slug-addressed rule route resolves by first-class name instead of the
-// CC uuid: list the namespace scope and match by parsed identity
-// (findByResourceName), the same aliasing the listings use to render links,
-// so legacy/engine-generated bare names resolve under "default" instead of
-// 404ing. Live-only by default; with a preview selected, the scope is fetched
-// across namespaces and resolved through the same live-vs-preview overlay the
-// listings use, so a preview-only or changed rule opens its preview copy
-// instead of the live row (or a 404).
+// Resolves by first-class name via findByResourceName (the same aliasing the
+// listings use), so legacy/engine-generated bare names resolve under
+// "default" instead of 404ing. With a preview selected, resolution goes
+// through the live-vs-preview overlay so a preview-only or changed rule opens
+// its preview copy.
 export const getCcRuleByName = createAuthenticatedServerFn({ method: "GET" })
   .inputValidator(
     z.object({
@@ -134,13 +123,10 @@ export const getCcRuleByName = createAuthenticatedServerFn({ method: "GET" })
     return rule;
   });
 
-// CC's /v1/alerts returns every non-inactive instance for the tenant —
-// including instances of suppressed preview rules/SLOs, which CC evaluates
-// fully. Scope them here by resolving each instance's source id against the
-// same live-vs-preview overlay the definition listings use: live-only by
-// default, the selected preview's overlay otherwise. An instance whose source
-// is not in the visible set (another preview's, or a just-deleted source) is
-// dropped rather than leaked into the triage feed.
+// CC's /v1/alerts includes instances of suppressed preview rules/SLOs (CC
+// evaluates them fully), so each instance's source is resolved against the
+// live-vs-preview overlay; an instance whose source is not visible is dropped
+// rather than leaked into the triage feed.
 export const listCcAlerts = createAuthenticatedServerFn({ method: "GET" })
   .inputValidator(z.object({ preview: z.string().optional() }).optional())
   .handler(async ({ data, context: { session } }) => {
@@ -183,11 +169,8 @@ export const getCcSlo = createAuthenticatedServerFn({ method: "GET" })
     withAuthoredSloName(await cc.getSlo(orgId(session), sloId)),
   );
 
-// The slug-addressed SLO route's analogue of getCcRuleByName: list the
-// namespace scope, resolve by parsed identity (bare names read as "default"),
-// live-only by default and overlay-resolved when a preview is selected (see
-// getCcRuleByName). listSlos doesn't 404 on a miss, so no match throws the
-// route's 404-equivalent here instead.
+// SLO analogue of getCcRuleByName. listSlos doesn't 404 on a miss, so no
+// match throws the 404-equivalent here instead.
 export const getCcSloByName = createAuthenticatedServerFn({ method: "GET" })
   .inputValidator(
     z.object({
@@ -220,8 +203,7 @@ export const getCcSloByName = createAuthenticatedServerFn({ method: "GET" })
     return withAuthoredSloName(slo);
   });
 
-// The evaluator's latest status snapshot; null until the first evaluation
-// tick writes one (the detail page's pending state).
+// Null until the first evaluation tick writes a snapshot.
 export const getCcSloStatus = createAuthenticatedServerFn({ method: "GET" })
   .inputValidator(z.object({ sloId: z.string() }))
   .handler(({ data: { sloId }, context: { session } }) =>
@@ -252,24 +234,21 @@ export const listCcSubscriptions = createAuthenticatedServerFn({
   method: "GET",
 }).handler(({ context: { session } }) => cc.listSubscriptions(orgId(session)));
 
-// Stored CC event history (all rules, all event types) from ClickHouse app.logs.
-// Tenancy rides on the org-scoped clickhouse context (row-level policy), not on a
-// SQL organization filter. Backs the event history feed.
+// Tenancy rides on the org-scoped clickhouse context (row-level policy), not
+// on a SQL organization filter.
 export const listCcEventHistory = createAuthenticatedServerFn({ method: "GET" })
   .inputValidator(
     z.object({
       limit: z.number().int().min(1).max(500).default(200),
       timeRange: TimeRangeSchema,
-      // Narrow to one alert instance's events (server-side WHERE), for the
-      // triage board's expanded-row detail.
+      // Server-side WHERE: one alert instance's events.
       fingerprint: z.string().min(1).optional(),
-      // Narrow to one source's rule handles (server-side WHERE), for scoped
-      // feeds (rule/SLO detail): the tenant-wide newest-N window would let
-      // other sources fill the cap and starve the scoped source.
+      // Server-side WHERE: one source's rule handles — a tenant-wide newest-N
+      // window would let other sources fill the cap and starve the scoped one.
       slugs: z.array(z.string().min(1)).min(1).optional(),
-      // Preview-rule records are suppressed and stamped with the same
-      // service.name as live ones, so the live feed filters them out. A
-      // selected preview asks for them back.
+      // Preview-rule records are stamped with the same service.name as live
+      // ones, so the live feed filters them out; a selected preview asks for
+      // them back.
       preview: z.string().optional(),
     }),
   )
@@ -290,12 +269,11 @@ export const listCcEventHistory = createAuthenticatedServerFn({ method: "GET" })
     },
   );
 
-// The SLO's error-budget-over-time series, computed at read time by replaying
-// the SLI over trailing windows against raw telemetry (slo-series.server.ts) —
-// no stored samples, so a fresh SLO charts history as far back as retention. We
-// fetch the SLO server-side for the authoritative SLI/target/window rather than
-// trusting the client. The per-org SQL API user pins tenancy independently of
-// the SLO's tenant-authored SQL and applies readonly resource limits.
+// Computed at read time (no stored samples), so a fresh SLO charts history as
+// far back as retention. The SLO is fetched server-side for the authoritative
+// SLI/target/window rather than trusting the client; the per-org SQL API user
+// pins tenancy independently of the tenant-authored SQL and applies readonly
+// resource limits.
 export const getCcSloBudgetSeries = createAuthenticatedServerFn({
   method: "GET",
 })
@@ -314,9 +292,9 @@ export const getCcSloBudgetSeries = createAuthenticatedServerFn({
       if (windowSecs === null) return [];
       const { fromISO, toISO } = resolveTimeRange(timeRange);
 
-      // The recent edge runs to the range end ("now"): the status hero computes
-      // its budget at read time too (getCcSloBudgetNow), so the chart and the
-      // hero agree without capping the chart at the engine's throttled last eval.
+      // The recent edge runs to "now": the hero computes its budget at read
+      // time too, so the chart and the hero agree without capping the chart at
+      // the engine's throttled last eval.
       return querySloBudgetSeries(createSloQuery(org), {
         sliSql: slo.spec.sli.sql,
         labelColumns: slo.spec.sli.label_columns,
@@ -329,13 +307,9 @@ export const getCcSloBudgetSeries = createAuthenticatedServerFn({
     },
   );
 
-// One SLO's CURRENT error budget per group, computed at read time from a single
-// SLI scan over the trailing window ending now (querySloBudgetNow). The status
-// hero and each visible listing row use this to override the stored snapshot's
-// throttled budget with a value as of page view; it's keyed per SLO client-side
-// (ccQueries.sloBudgetNow) so list -> detail navigation reuses the cache. An SLO
-// whose window shorthand doesn't parse returns []. The SLI runs as the hardened
-// per-org SQL API user because its SQL is tenant-authored.
+// Read-time budget that overrides the stored snapshot's throttled value. An
+// unparsable window shorthand returns []. The SLI runs as the hardened per-org
+// SQL API user because its SQL is tenant-authored.
 export const getCcSloBudgetNow = createAuthenticatedServerFn({ method: "GET" })
   .inputValidator(z.object({ sloId: z.string().min(1) }))
   .handler(async ({ data: { sloId }, context: { session } }) => {
@@ -353,9 +327,8 @@ export const getCcSloBudgetNow = createAuthenticatedServerFn({ method: "GET" })
   });
 
 // ---- Label suggestions ----
-// What the matcher/label comboboxes offer. Sources are merged best-effort
-// (Promise.allSettled): suggestions assist typing and must never fail or block
-// it, so a source that errors just drops out of the list.
+// Sources are merged best-effort (Promise.allSettled): suggestions must never
+// fail or block typing, so a source that errors just drops out of the list.
 
 /** Bounded lookback for observed keys/values; matchers outlive instances. */
 const SUGGESTION_WINDOW = { from: "now-7d", to: "now" } as const;
@@ -368,11 +341,9 @@ const settled = <T>(r: PromiseSettledResult<T>, fallback: T): T =>
   r.status === "fulfilled" ? r.value : fallback;
 
 /**
- * Every label key a matcher could usefully name: the dispatcher's synthetic
- * keys first, then the SLO pipeline's reserved keys (both flagged, so the UI
- * can teach that they exist), then keys alerts have actually carried — stored
- * event history (frequency order), the rules' and SLOs' declared
- * label_columns, and current instances' labels.
+ * Ordering guarantee: engine-reserved keys first (flagged synthetic), then
+ * keys alerts have actually carried (event history in frequency order,
+ * declared label_columns, current instance labels).
  */
 export const listCcLabelKeys = createAuthenticatedServerFn({
   method: "GET",
@@ -398,8 +369,7 @@ export const listCcLabelKeys = createAuthenticatedServerFn({
       for (const key of slo.spec.sli.label_columns) merged.add(key);
     for (const alert of settled(alerts, []))
       for (const key of Object.keys(alert.labels)) merged.add(key);
-    // Engine-reserved keys win on collision at dispatch time (synthetics
-    // clobber, slo/slo_tier are rejected as label columns), so they win here.
+    // Engine-reserved keys win on collision at dispatch time, so they win here.
     const reserved = [
       ...CC_SYNTHETIC_LABEL_KEYS,
       ...CC_SLO_RESERVED_LABEL_KEYS,
@@ -415,14 +385,10 @@ export const listCcLabelKeys = createAuthenticatedServerFn({
 );
 
 /**
- * The values one label key has carried. Synthetic keys answer with the
- * engine's own vocabulary — severity/status/kind enums; for `rule` the rule
- * IDs the dispatcher actually matches on (dispatcher/routing.rs inserts
- * `rule` as the RuleId), with the friendly name as a secondary hint; for
- * `slo` the SLO ids the dispatcher stamps on SLO-originated events (name as
- * hint); for `slo_tier` the tier names across the tenant's SLOs (explicit
- * spec tiers, canonical when unset). Other keys merge current instances'
- * labels with stored event history.
+ * Values for one label key. Synthetic keys answer with the engine's own
+ * vocabulary; `rule`/`slo` answer with IDs (what the dispatcher actually
+ * matches on — dispatcher/routing.rs inserts `rule` as the RuleId), friendly
+ * name as hint. Other keys merge instance labels with stored event history.
  */
 export const listCcLabelValues = createAuthenticatedServerFn({ method: "GET" })
   .inputValidator(z.object({ key: z.string().min(1) }))
@@ -449,8 +415,8 @@ export const listCcLabelValues = createAuthenticatedServerFn({ method: "GET" })
           return slos.map((slo) => ({ value: slo.id, hint: slo.name }));
         }
         case "slo_tier": {
-          // Every SLO evaluates the same fixed canonical tiers, so the tier
-          // names are constant (no need to walk the tenant's SLOs).
+          // Every SLO evaluates the same fixed canonical tiers, so the names
+          // are constant.
           return CC_CANONICAL_SLO_TIERS.map((tier) => ({ value: tier.name }));
         }
         default: {
@@ -503,13 +469,11 @@ export const resumeCcSlo = createAuthenticatedServerFn({ method: "POST" })
     cc.resumeSlo(orgId(session), sloId),
   );
 
-// SLOs are as-code resources: there is deliberately no delete server fn for
-// the UI. Deletion happens by removing the document from the repo and
-// re-applying (the resource admin calls cc.deleteSlo directly).
+// SLOs are as-code resources: deliberately no delete server fn for the UI.
+// Deletion happens by removing the document from the repo and re-applying.
 
 // ---- Channels ----
-// CC's POST /v1/channels is create-only (409 on an existing name); the UI
-// also blocks duplicates up front by checking the listed names client-side.
+// CC's POST /v1/channels is create-only (409 on an existing name).
 export const createCcChannel = createAuthenticatedServerFn({ method: "POST" })
   .inputValidator(
     z.object({
@@ -521,17 +485,16 @@ export const createCcChannel = createAuthenticatedServerFn({ method: "POST" })
     cc.createChannel(orgId(session), data),
   );
 
-// CC refuses to delete a referenced channel: a 409 whose message names the
-// referring receivers, surfaced verbatim in the UI toast.
+// A referenced channel answers 409 whose message names the referring
+// receivers, surfaced verbatim in the UI toast.
 export const deleteCcChannel = createAuthenticatedServerFn({ method: "POST" })
   .inputValidator(z.object({ name: z.string().min(1) }))
   .handler(({ data: { name }, context: { session } }) =>
     cc.deleteChannel(orgId(session), name),
   );
 
-// Tests an unsaved channel config before it is created. An email config's `to`
-// is replaced with the caller's own address (see emailTestConfigFor); every
-// other kind forwards untouched.
+// An email config's `to` is replaced with the caller's own address (see
+// emailTestConfigFor); every other kind forwards untouched.
 export const testCcChannel = createAuthenticatedServerFn({ method: "POST" })
   .inputValidator(z.object({ config: CcChannelConfigSchema }))
   .handler(({ data, context: { session } }) =>
@@ -541,8 +504,7 @@ export const testCcChannel = createAuthenticatedServerFn({ method: "POST" })
   );
 
 // ---- Receivers ----
-// CC's POST /v1/receivers is create-only (409 on an existing name); the UI
-// also blocks duplicates up front by checking the listed names client-side.
+// CC's POST /v1/receivers is create-only (409 on an existing name).
 // `channels` is a list of channel NAMES; the engine 422s unknown ones.
 export const createCcReceiver = createAuthenticatedServerFn({ method: "POST" })
   .inputValidator(

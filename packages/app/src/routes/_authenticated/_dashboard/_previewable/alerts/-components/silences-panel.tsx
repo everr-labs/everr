@@ -1,10 +1,3 @@
-// packages/app/src/routes/_authenticated/_dashboard/_previewable/alerts/-components/silences-panel.tsx
-//
-// Silence management, embedded on the Triage page — muting lives where muting
-// happens. The panel lists silences grouped by lifecycle (active, scheduled,
-// recently expired); the create drawer is owned by the page so quick actions
-// on firing instances ("Custom" silence) can open it pre-seeded without a
-// navigation handoff.
 import { Button } from "@everr/ui/components/button";
 import {
   Card,
@@ -39,9 +32,8 @@ import {
 } from "./shared";
 
 /**
- * Imperative handle for the create drawer: opening is always an explicit user
- * action, so the owner calls `openWith(seed)` and the drawer resets its own
- * form state on the way in — no prop-reactive state resets.
+ * Imperative on purpose: the drawer resets its own form state inside
+ * `openWith`, so no prop-reactive state resets are needed.
  */
 export type SilenceDrawerHandle = { openWith: (seed: CcMatcher[]) => void };
 
@@ -76,12 +68,7 @@ const GROUPS: {
   { key: "expired", title: "Recently expired", cancellable: false },
 ];
 
-export function SilencesPanel({
-  onNewSilence,
-}: {
-  /** Open the page-owned create drawer, optionally pre-seeded. */
-  onNewSilence: () => void;
-}) {
+export function SilencesPanel({ onNewSilence }: { onNewSilence: () => void }) {
   const qc = useQueryClient();
   const { data, isPending, isError, error } = useQuery(ccQueries.silences());
 
@@ -145,7 +132,6 @@ export function SilencesPanel({
           <div>
             {s.comment ?? <span className="text-muted-foreground">—</span>}
           </div>
-          {/* Provenance: who created the silence, and when. */}
           <div className="text-xs text-muted-foreground">
             {[
               s.author ? `by ${s.author}` : null,
@@ -239,8 +225,6 @@ export function SilenceCreateDrawer({
     () => ({
       openWith: (seed) => {
         setMatchers(seed);
-        // Silences almost always start immediately: prefill "now" so the
-        // common case is one duration click away, not two datetime fields.
         setStarts(toLocalInput(new Date()));
         setEnds("");
         setComment("");
@@ -250,8 +234,6 @@ export function SilenceCreateDrawer({
     [],
   );
 
-  // Duration presets: end = start (or now) + h. The pickers stay for the odd
-  // shape (a maintenance window next Tuesday); presets carry the common case.
   const applyDuration = (h: number) => {
     const base = starts ? new Date(starts) : new Date();
     if (!starts) setStarts(toLocalInput(base));

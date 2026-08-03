@@ -1,7 +1,3 @@
-// packages/app/src/routes/_authenticated/_dashboard/_previewable/alerts/-components/inhibition-builder.tsx
-//
-// Backs the /alerts/delivery page's dependency-mutes (inhibitions)
-// section, under the Advanced delivery disclosure.
 import { Button } from "@everr/ui/components/button";
 import { FilterCombobox } from "@everr/ui/components/filter-combobox";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -22,8 +18,8 @@ import {
 import { PreviewLine } from "./route-builder";
 import { CcConceptNote, ccErrorMessage } from "./shared";
 
-// The same key suggestions the matcher rows use, flattened to the string list
-// FilterCombobox consumes (synthetic keys like severity/rule included).
+// Matcher-row key suggestions (synthetic keys included), flattened to the
+// string list FilterCombobox consumes.
 const ccEqualKeyOptions = () => ({
   ...ccLabelKeyOptions(),
   select: (keys: CcLabelKeySuggestion[]) => keys.map((k) => k.key),
@@ -92,8 +88,8 @@ export function InhibitionBuilder({
         value={target}
         onChange={setTarget}
       />
-      {/* Key suggestions only: `equal` names labels whose VALUES must agree
-          between source and target, so there is no value to pick here. */}
+      {/* Key suggestions only: `equal` names labels whose values must agree
+          between source and target, so there is no value to pick. */}
       <FilterCombobox
         label="Equal labels"
         values={equal}

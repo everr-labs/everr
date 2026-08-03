@@ -1,7 +1,3 @@
-// packages/app/src/routes/_authenticated/_dashboard/_previewable/alerts/-components/route-builder.tsx
-//
-// Backs the /alerts/delivery page's pipeline: create/edit one route in the
-// shared drawer so the pipeline stays visible while editing.
 import { Button } from "@everr/ui/components/button";
 import {
   Collapsible,
@@ -226,9 +222,6 @@ export function RouteBuilder({
         <Switch checked={continueFlag} onCheckedChange={setContinueFlag} />
         Continue matching later rules
       </Label>
-      {/* Grouping/repeat cadence is a tuning concern, not a routing decision:
-          collapsed by default, with the effective values (engine defaults
-          where unset) always readable on the trigger line. */}
       <Collapsible open={timingOpen} onOpenChange={setTimingOpen}>
         <CcDisclosureTrigger open={timingOpen}>
           <span className="text-xs font-medium">Timing</span>
@@ -240,8 +233,8 @@ export function RouteBuilder({
                 groupIntervalSecs: interval.value,
                 repeatIntervalSecs: repeat.value,
               },
-              // Effective values: engine defaults where unset — what the
-              // dispatcher will actually do.
+              // Engine defaults filled in where unset: what the dispatcher
+              // will actually do.
               "effective",
             ).join(" · ")}
           </span>

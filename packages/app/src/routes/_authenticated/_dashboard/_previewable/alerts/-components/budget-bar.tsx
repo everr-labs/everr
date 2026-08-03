@@ -1,15 +1,7 @@
-// packages/app/src/routes/_authenticated/_dashboard/_previewable/alerts/-components/budget-bar.tsx
-//
-// The error budget as a depleting meter — the one visual that makes an SLO
-// legible at a glance. Fill = budget remaining; tone follows the shared health
-// vocabulary (emerald, amber when running low, red when exhausted) and is
-// always paired with the printed percentage so the state never rides on color
-// alone (the Status-Plus-Shape rule).
 import { Meter } from "@everr/ui/components/meter";
 import { toneText } from "@everr/ui/components/tone";
 import { cn } from "@everr/ui/lib/utils";
 
-/** "99.95%" — SLI/budget fractions with enough precision to be honest. */
 export function ccFmtFraction(f: number): string {
   return `${(f * 100).toFixed(2)}%`;
 }
@@ -20,10 +12,8 @@ export function ccFmtBurn(b: number): string {
 }
 
 /**
- * Budget remaining as a number, always — never a state word, so an overspend
- * says how far past the line it is. Precision recedes as magnitude grows, which
- * is what keeps that readable: -99900.00% becomes "-99.9k%". Non-negative values
- * are untouched.
+ * Always a number, never a state word, so an overspend says how far past.
+ * Precision recedes as magnitude grows: -99900.00% renders "-99.9k%".
  */
 export function ccFmtBudgetRemaining(remaining: number): string {
   if (remaining >= 0) return ccFmtFraction(remaining);
@@ -34,15 +24,12 @@ export function ccFmtBudgetRemaining(remaining: number): string {
   return ccFmtFraction(remaining);
 }
 
-// Below a quarter of budget left the meter turns amber: still inside the
-// objective, but close enough that a sustained burn deserves attention.
+// Below this fraction remaining, the meter turns amber.
 const LOW_BUDGET = 0.25;
 
 /**
- * The budget's health band, already in the shared tone vocabulary: red when
- * spent, amber when running low, emerald otherwise. The single source of both
- * thresholds, so the bar, the figure's colour and the detail hero always turn
- * amber and red together. Unknown budgets read healthy — nothing to warn about.
+ * Single source of both thresholds, so every surface turns amber and red
+ * together. Unknown budgets read healthy.
  */
 function budgetTone(
   remaining: number | null,
@@ -51,17 +38,12 @@ function budgetTone(
   return remaining <= 0 ? "danger" : "warning";
 }
 
-/**
- * The colour a budget figure takes at this level, so no caller has to re-derive
- * it (the detail hero used to pick it by string-comparing a CSS class).
- * Undefined at a healthy budget: inherit whatever the surface already sets.
- */
+/** Undefined at a healthy budget: inherit whatever the surface already sets. */
 export function ccBudgetTextTone(remaining: number | null): string | undefined {
   const tone = budgetTone(remaining);
   return tone === "healthy" ? undefined : toneText({ tone });
 }
 
-/** The depleting meter on its own, sized by the caller via `className`. */
 export function CcBudgetMeter({
   remaining,
   className,
@@ -97,12 +79,10 @@ export function CcBudgetBar({
   remaining: number | null;
   className?: string;
   /**
-   * md+ only: right-align the stack like a numeric fact column and pull the
-   * meter out of its height, so the figure sits on the caller's shared value
-   * line with the meter hanging just below (into the caller's row padding).
+   * md+ only: right-align and hang the meter below the caller's value line.
    * The negative margin must exactly cancel the sm meter (h-1) plus the
-   * tightened gap; it lives here, next to the meter it measures, so a meter
-   * size change cannot silently knock a caller's grid out of alignment.
+   * tightened gap; it lives here so a meter size change cannot silently knock
+   * a caller's grid out of alignment.
    */
   hang?: boolean;
 }) {
@@ -118,8 +98,8 @@ export function CcBudgetBar({
         className,
       )}
     >
-      {/* The printed figure is the accessible value; the meter under it is a
-          purely visual double-encoding of the same number. */}
+      {/* The printed figure is the accessible value; the meter only
+          double-encodes it visually. */}
       <span
         className={cn(
           "font-mono text-xs tabular-nums whitespace-nowrap",
@@ -128,8 +108,6 @@ export function CcBudgetBar({
       >
         {ccFmtBudgetRemaining(remaining)}
       </span>
-      {/* Thinner than the detail hero's: an inline row readout, not the page's
-          headline figure. */}
       <CcBudgetMeter remaining={remaining} size="sm" />
     </span>
   );

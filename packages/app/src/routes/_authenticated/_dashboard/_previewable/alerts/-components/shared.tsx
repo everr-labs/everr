@@ -1,4 +1,3 @@
-// packages/app/src/routes/_authenticated/_dashboard/_previewable/alerts/-components/shared.tsx
 import {
   AlertDialog,
   AlertDialogAction,
@@ -54,8 +53,6 @@ import { CC_CANONICAL_SLO_TIERS, ccFmtWindowLabel } from "@/data/cc/slo";
 import type { CcMatcher, CcRuleHealthStatus, CcSloTier } from "@/data/cc/types";
 
 // ── Guidance ──────────────────────────────────────────────────────────────────
-// Plain-language, always-visible explainers. Alerting is hard; the UI should
-// teach the concept in place rather than expose a raw control and hope.
 
 export function CcConceptNote({
   children,
@@ -79,12 +76,10 @@ export function CcConceptNote({
   );
 }
 
-// CC failures arrive as CcApiError, whose status/code survive the server-fn
-// serialization boundary structurally (see ccErrorInfo in data/cc/errors.ts):
-// status 0 marks a transport-level failure (CC unreachable / timed out), any
-// other status carries CC's problem+json detail as the message. The regex is
-// only a last-resort fallback for failures that never reached the CC client —
-// e.g. the browser's own request to the server fn failing.
+// CcApiError status/code survive the server-fn serialization boundary
+// structurally (see ccErrorInfo): status 0 = transport failure, otherwise the
+// message carries CC's problem+json detail. The regex is a last-resort
+// fallback for failures that never reached the CC client.
 export function ccErrorMessage(error: unknown): string {
   const info = ccErrorInfo(error);
   if (info) {
@@ -112,9 +107,8 @@ export function CcQueryError({ error }: { error: unknown }) {
       <Button
         variant="outline"
         size="sm"
-        // Refetching errored queries under the "cc" prefix re-runs exactly the
-        // queries whose failure produced this card; a transient outage clears
-        // without a full page reload.
+        // Refetching under the "cc" prefix re-runs exactly the queries whose
+        // failure produced this card.
         onClick={() => qc.refetchQueries({ queryKey: ["cc"] })}
       >
         <RotateCw data-icon="inline-start" />
@@ -125,8 +119,7 @@ export function CcQueryError({ error }: { error: unknown }) {
 }
 
 // ── Status readout ──────────────────────────────────────────────────────────
-// The instrument-panel vocabulary: a colored dot + a word. Status never rides on
-// color alone (the dot is paired with a label), so it survives colorblind viewing.
+// Status never rides on color alone: the dot is always paired with a label.
 
 type Tone =
   | "firing"
@@ -138,11 +131,8 @@ type Tone =
   | "warning"
   | "info";
 
-// Each status tone maps onto one health tone; the colour itself lives in
-// ./tone.ts. `degraded` is rule-health rather than alert state, so it shares
-// warning's amber: "needs attention", never confused with a firing alert.
-// `info` is the logs explorer's info sky, so the severity word carries the
-// same colour on every surface.
+// `degraded` is rule-health, not alert state, so it shares warning's amber;
+// `info` deliberately matches the logs explorer's info colour.
 const TONE_KIND: Record<Tone, HealthTone> = {
   firing: "danger",
   degraded: "warning",
@@ -196,8 +186,7 @@ function CcStatusLabel({
     <span
       className={cn(
         "inline-flex items-center gap-1.5 whitespace-nowrap",
-        // Healthy status text stays quiet: the dot already carries the state,
-        // and a green word on every calm row would shout as loudly as a red one.
+        // Healthy text is muted on purpose; the dot already carries the state.
         toneText({
           tone: TONE_KIND[tone] === "healthy" ? "muted" : TONE_KIND[tone],
         }),
@@ -244,17 +233,7 @@ export function CcInstanceStatusBadge({ status }: { status: string }) {
   );
 }
 
-/**
- * A burn-rate tier as a badge: the tier's name (real engine vocabulary —
- * "fast-burn", "slow-burn", "ticket"), toned by the severity the tier fires
- * at, and carrying its own definition on a tooltip.
- *
- * The tooltip is the point. "ticket" is precise and worth keeping, but it is
- * opaque on first sight, and the surfaces that show it most (the triage board,
- * the error-budget card) are exactly the ones with no room to explain it. The
- * full per-tier burn table lives on the SLO detail page; this is the local
- * answer to "what does that word mean".
- */
+/** Tier names ("fast-burn", "slow-burn", "ticket") are the engine's own vocabulary. */
 export function CcSloTierBadge({
   tier,
   severity,
@@ -263,10 +242,8 @@ export function CcSloTierBadge({
   tier: string;
   severity: string;
   /**
-   * The SLO's resolved tiers, so the tooltip quotes its real windows. Defaults
-   * to canonical: thresholds and severities are the same for every SLO, only
-   * the window sizes scale with a non-30d SLO window, so a caller without the
-   * spec to hand still gets the threshold and the consequence right.
+   * The SLO's resolved tiers. The canonical default only misquotes window
+   * sizes for non-30d SLOs; thresholds and severities are the same everywhere.
    */
   tiers?: readonly CcSloTier[];
 }) {
@@ -277,8 +254,6 @@ export function CcSloTierBadge({
         ? "warning"
         : "inactive";
   const spec = tiers.find((t) => t.name === tier);
-  // What firing costs you, which is the thing a reader actually wants from the
-  // word: two of the three canonical tiers page, one files a ticket.
   const consequence =
     severity === "critical"
       ? "Pages whoever the route resolves to."
@@ -287,8 +262,7 @@ export function CcSloTierBadge({
     <Tooltip>
       <TooltipTrigger
         render={
-          // A button, not a bare span: the definition has to be reachable by
-          // keyboard, same as the health heart above.
+          // A button, not a bare span: the tooltip must be keyboard-reachable.
           <button
             type="button"
             className="rounded-sm outline-2 outline-dotted outline-transparent outline-offset-2 focus-visible:outline-primary"
@@ -319,7 +293,6 @@ export function CcSloTierBadge({
 }
 
 // ── Conditions & labels ───────────────────────────────────────────────────────
-// Rendered as scannable pills instead of a comma-run-on mono string.
 
 export function Pill({
   className,
@@ -391,9 +364,6 @@ export function LabelSet({
   );
 }
 
-// CC evidence (source-row columns beyond the identity labels) rendered as
-// compact key=value pills, mirroring the silence matcher chips so the
-// timeline stays visually consistent with LabelSet above it.
 function formatEvidenceValue(value: unknown): string {
   if (value === null || value === undefined) return "";
   if (typeof value === "number" && Number.isFinite(value)) {
@@ -433,13 +403,6 @@ export function EvidenceChips({
 }
 
 // ── Disclosure trigger ────────────────────────────────────────────────────────
-// The one CollapsibleTrigger style for the alerts surfaces: chevron that
-// rotates open, dotted focus outline, quiet hover. Two shapes:
-//   boxed (default) — a full-width bordered bar (bg-muted/20; pass e.g.
-//     `bg-card` via className where the bar sits on a muted background);
-//   bare — an inline text trigger (pass `w-full text-left` or
-//     `text-muted-foreground` via className where a site needs them).
-// Children carry the label and any trailing summary content.
 
 export function CcDisclosureTrigger({
   open,
@@ -447,7 +410,6 @@ export function CcDisclosureTrigger({
   className,
   children,
 }: {
-  /** The Collapsible's open state; drives the chevron rotation. */
   open: boolean;
   variant?: "boxed" | "bare";
   className?: string;
@@ -519,7 +481,6 @@ export function ccFormatTs(ts: string | null | undefined): string {
 
 // ── Navigation ────────────────────────────────────────────────────────────────
 
-/** Icon-only back link at the head of a detail page. */
 export function CcBackLink({
   to,
   label,
@@ -538,7 +499,6 @@ export function CcBackLink({
   );
 }
 
-/** Icon-only runbook link, shared by the rules and SLOs listing rows. */
 export function CcRunbookLink({
   project,
   slug,
@@ -561,7 +521,6 @@ export function CcRunbookLink({
   );
 }
 
-/** One label/value row of a detail page's definition list. */
 export function CcDefRow({
   label,
   children,
@@ -581,14 +540,7 @@ export function CcDefRow({
 
 // ── Evaluation health ─────────────────────────────────────────────────────────
 
-/**
- * Evaluation health as a single glyph, and only when something is wrong: a
- * broken heart while the query is failing, nothing at all while it runs.
- * Healthy is the overwhelmingly common state, so marking it on every row is
- * noise; absence is the healthy reading. Deliberately the smallest possible
- * readout — a listing cannot act on the forensics, so the glyph carries the
- * fact and the tooltip carries the consequence.
- */
+/** Renders only while evaluation is degraded; absence is the healthy reading. */
 export function CcHealthHeart({
   status,
   className,
@@ -601,8 +553,8 @@ export function CcHealthHeart({
     <Tooltip>
       <TooltipTrigger
         render={
-          // A button, not a bare span: the tooltip has to be reachable by
-          // keyboard, and this is the only explanation of the glyph there is.
+          // A button, not a bare span: the tooltip must be keyboard-reachable,
+          // and it is the only explanation of the glyph there is.
           <button
             type="button"
             aria-label="Evaluation degraded"
@@ -626,7 +578,6 @@ export function CcHealthHeart({
 
 // ── Pause / resume ────────────────────────────────────────────────────────────
 
-/** What a pause silences, in the words the confirmation uses. */
 type CcPausableKind = "SLO" | "alert rule";
 
 const PAUSE_CONSEQUENCE: Record<CcPausableKind, string> = {
@@ -636,12 +587,8 @@ const PAUSE_CONSEQUENCE: Record<CcPausableKind, string> = {
 };
 
 /**
- * Pause or resume an evaluated resource, confirming before the pause.
- *
- * Only the pause asks. Pausing takes a detector offline and the cost of it is
- * silent by construction: nothing fires, so nothing tells you later that you
- * paused it. Resuming restores the normal state and shows its own effect, so a
- * dialog there would be a click to dismiss rather than a decision to make.
+ * Only the pause confirms: its cost is silent by construction (nothing fires
+ * to remind you later), while a resume shows its own effect.
  */
 export function CcPauseToggle({
   paused,
@@ -654,14 +601,11 @@ export function CcPauseToggle({
   paused: boolean;
   pending: boolean;
   kind: CcPausableKind;
-  /** The resource's display name, for the confirmation's title. */
   name: string;
   /** "ghost" in a table row, "outline" beside a page heading. */
   variant?: "ghost" | "outline";
   onToggle: () => void;
 }) {
-  // Table rows use the small ghost button; a page heading uses the default
-  // size, matching the controls beside it.
   const size = variant === "ghost" ? ("sm" as const) : undefined;
 
   if (paused) {
@@ -707,11 +651,6 @@ export function CcPauseToggle({
 
 // ── Section scaffolding ───────────────────────────────────────────────────────
 
-/**
- * A titled card whose header carries one "see the full thing" link. Shared by
- * the alerting landing page's summary cards, each of which is a preview of a
- * page that holds the complete list.
- */
 export function SectionCard({
   title,
   linkLabel,

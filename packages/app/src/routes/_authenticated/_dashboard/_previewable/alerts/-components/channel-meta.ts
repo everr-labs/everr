@@ -1,6 +1,5 @@
-// Presentation vocabulary for the engine's channel types (ChannelConfig in
-// clickety-clack's domain/channel.rs): display label, icon, and the
-// human-scannable target of a config, keyed on the channel type.
+// Mirrors the engine's channel types (ChannelConfig in clickety-clack's
+// domain/channel.rs).
 import {
   type LucideIcon,
   Mail,

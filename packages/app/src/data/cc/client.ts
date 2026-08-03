@@ -35,12 +35,9 @@ import type {
 
 // ---- Rules ----
 /**
- * Paginated listing: sending `limit` (1..=500, CC defaults 100) opts into the
- * `{items, next_cursor}` envelope; `cursor` resumes from a previous page's
- * `next_cursor`. `namespace`/`name` filter by exact match on first-class
- * identity. This is
- * the only listing mode: GET /v1/rules without pagination (the legacy bare
- * array) is being removed from the CC API.
+ * `limit` (1..=500) opts into the `{items, next_cursor}` envelope; `cursor`
+ * resumes a page. `namespace`/`name` filter by exact match on first-class
+ * identity. The unpaginated GET /v1/rules mode is being removed from CC.
  */
 export async function listRulesPage(
   orgId: string,
@@ -60,11 +57,8 @@ export async function listRulesPage(
   );
 }
 /**
- * Every rule, by walking {@link listRulesPage} until `next_cursor` runs out
- * (CC's page size, 500 max per request). For callers that genuinely need the
- * whole set in one shot — reconcilers, label suggestions, handle resolution —
- * now that the unpaginated GET /v1/rules mode is gone. `namespace`/`name`
- * forward to every page the same way {@link listRulesPage} applies them.
+ * Every rule, walking {@link listRulesPage} until `next_cursor` runs out
+ * (500 per request). `namespace`/`name` forward to every page.
  */
 export async function listAllRules(
   orgId: string,
@@ -95,11 +89,10 @@ export async function createRule(orgId: string, input: CcRuleInput) {
   );
 }
 /**
- * In-place update: full spec (same shape as create) plus an optional `version`
- * for optimistic concurrency. On a stale version CC answers 409 conflict (a
- * `CcApiError` with status 409) and writes nothing; omitting `version` is
- * last-write-wins. Preserves the rule id, tenant, paused flag, and instance
- * state (instances are cleared only when the label_columns set changes).
+ * Full-spec update with optional optimistic-concurrency `version`: a stale
+ * version answers 409 and writes nothing; omitting it is last-write-wins.
+ * Preserves id, tenant, paused flag, and instance state (instances are
+ * cleared only when the label_columns set changes).
  */
 export async function updateRule(
   orgId: string,
@@ -138,8 +131,7 @@ export async function listAlerts(orgId: string) {
 }
 
 // ---- SLOs ----
-// List and get return the SloView (bare Slo + required `updated_at`);
-// create/update/pause/resume answer the bare Slo, so they keep CcSloSchema.
+// List/get return the SloView; create/update/pause/resume answer the bare Slo.
 export async function listSlos(
   orgId: string,
   opts: { namespace?: string; name?: string } = {},
@@ -156,9 +148,8 @@ export async function getSlo(orgId: string, id: string) {
   return CcSloViewSchema.parse(await ccRequest(orgId, "GET", `/v1/slos/${id}`));
 }
 /**
- * The evaluator's latest status snapshot. CC 404s until the first evaluation
- * tick writes one, so a 404 here reads as "no snapshot yet" (null) rather
- * than an error — the SLO's own existence is the GET /v1/slos/:id read.
+ * CC 404s until the first evaluation tick writes a snapshot, so a 404 reads
+ * as "no snapshot yet" (null) rather than an error.
  */
 export async function getSloStatus(orgId: string, id: string) {
   try {
@@ -177,11 +168,9 @@ export async function createSlo(orgId: string, input: CcSloInput) {
   );
 }
 /**
- * Full-body replace of the spec (no name/namespace: identity is immutable
- * after create), with optional `version` for optimistic concurrency: a stale
- * version answers 409 conflict and writes nothing; omitting it is
- * last-write-wins. The paused flag is not part of the spec and survives
- * updates.
+ * Full-body spec replace (no name/namespace: identity is immutable after
+ * create), optional optimistic-concurrency `version` (stale = 409, no write;
+ * omitted = last-write-wins). The paused flag survives updates.
  */
 export async function updateSlo(
   orgId: string,
@@ -212,9 +201,8 @@ export async function resumeSlo(orgId: string, id: string) {
   );
 }
 /**
- * Dry-run probe: validates the posted spec and runs the SLI over the spec's
- * own budget window — no DB write, no snapshot. Like rules::test, the path id
- * is ignored by CC; passed anyway so the URL stays truthful.
+ * Dry-run: validates the spec and runs the SLI over its own budget window; no
+ * DB write, no snapshot. The path id is ignored by CC.
  */
 export async function testSlo(orgId: string, id: string, input: CcSloInput) {
   return CcSloTestResultSchema.parse(
@@ -254,13 +242,11 @@ export async function deleteChannel(orgId: string, name: string) {
 }
 
 /**
- * An email channel test delivers to the caller's own address, never the typed
- * recipient list. The test endpoint accepts an arbitrary config and sends it,
- * so without this any authenticated user could use Everr as a mail relay.
- * Webhook and Slack URLs are covered instead by CC's SSRF guard.
- *
- * The tradeoff is worth stating in the UI: this proves SMTP works, and proves
- * nothing about whether the typed address is correct.
+ * Email tests deliver to the caller's own address, never the typed recipient
+ * list: the test endpoint sends arbitrary configs, so without this any
+ * authenticated user could use Everr as a mail relay (webhook/Slack URLs are
+ * covered by CC's SSRF guard). Proves SMTP works, not that the typed address
+ * is correct.
  */
 export function emailTestConfigFor(
   config: CcChannelConfig,

@@ -1,12 +1,3 @@
-// packages/app/src/routes/_authenticated/_dashboard/_previewable/alerts/-components/route-preview.tsx
-//
-// The Delivery page's confidence feature: build a label set (key/value
-// comboboxes prepopulated from real alerts, custom entries welcome) and see
-// exactly which route(s) the dispatcher would select and which channels the
-// alert would reach. Evaluation happens in the page with the engine-true
-// helpers (route-resolution.ts); this component owns the label builder and
-// the fan-out readout, and the page mirrors the match into the pipeline
-// highlight.
 import { Button } from "@everr/ui/components/button";
 import { SuggestCombobox } from "@everr/ui/components/suggest-combobox";
 import { toneText } from "@everr/ui/components/tone";
@@ -17,11 +8,6 @@ import type { CcChannel, CcReceiver, CcRoute } from "@/data/cc/types";
 import { ccLabelKeyOptions, ccLabelValueOptions } from "./matchers-editor";
 import { Pill } from "./shared";
 
-/**
- * A channel as a compact chip: name plus resolved type. Shared with the
- * Delivery pipeline, which emphasizes the chips on the matched route and
- * labels unresolved channels via `missingLabel`.
- */
 export function ChannelChip({
   name,
   channel,
@@ -69,8 +55,7 @@ export function RoutePreview({
   /** A firing instance's dispatch-time (synthetic) label set, when one exists. */
   prefill: Record<string, string> | null;
 }) {
-  // The pair under construction: pick (or type) a key, then picking a value
-  // commits the pair as a chip and resets for the next one.
+  // Picking a value commits the (key, value) pair as a chip and resets.
   const [draftKey, setDraftKey] = useState("");
 
   const entries = Object.entries(labels);
@@ -141,7 +126,7 @@ export function RoutePreview({
           </Button>
         )}
       </div>
-      {/* The verdict: who finds out. aria-live so keyboard entry reads back. */}
+      {/* aria-live so keyboard entry reads the verdict back. */}
       <div aria-live="polite" className="text-xs">
         {!active ? (
           <span className="text-muted-foreground">

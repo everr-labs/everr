@@ -1,18 +1,11 @@
-// packages/app/src/data/cc/slo.ts
-//
-// The frontend's mirror of clickety-clack's SLO vocabulary (domain/slo.rs):
-// the canonical burn-rate tiers, tier/severity resolution, and the handles an
-// event row may carry for an SLO. Owned here in the data layer so every SLO
-// surface (list, detail, triage, history) reads the same rules.
 import { parseResourceName } from "@/data/as-code/identity";
 import { fromCcSlo } from "@/data/slos/mapping";
 import type { CcSlo, CcSloGroupStatus, CcSloSpec, CcSloTier } from "./types";
 
 /**
- * The SRE-workbook canonical three burn-rate tiers, calibrated to a 30-day
- * window — the fixed set every SLO is evaluated on (domain/slo.rs
- * `canonical_tiers()`; tiers are not user-configurable). The two `critical`
- * tiers page; the `warning` tier opens a ticket.
+ * Mirrors domain/slo.rs `canonical_tiers()`: the fixed 30-day-calibrated set
+ * every SLO is evaluated on (not user-configurable). `critical` tiers page;
+ * the `warning` tier opens a ticket.
  */
 export const CC_CANONICAL_SLO_TIERS: readonly CcSloTier[] = [
   {
@@ -39,10 +32,8 @@ export const CC_CANONICAL_SLO_TIERS: readonly CcSloTier[] = [
 ];
 
 /**
- * Resolve a burn-rate instance's severity from its `slo_tier` label against
- * the SLO's resolved tier list, mirroring domain/slo.rs `tier_severity`: an
- * unknown or missing tier defensively resolves to "critical" (a conservative
- * default for a tier no longer in the spec).
+ * Mirrors domain/slo.rs `tier_severity`: an unknown or missing tier resolves
+ * to "critical" (conservative default for a tier no longer in the spec).
  */
 export function ccSloTierSeverity(
   tiers: readonly CcSloTier[],
@@ -53,18 +44,12 @@ export function ccSloTierSeverity(
 }
 
 /**
- * The handles an event row may carry for an SLO, mirroring
- * `ccRuleHandles` (data/alerts/rule-identity.ts): CC's alert log resolves the
- * slug as the SLO's first-class `name` (project/slug qualified), falling back
- * to the source uuid for records stored before CC stamped it (otel/
- * alert_log.rs `slug_for` — for SLO events `ev.rule` carries the SLO uuid), so
- * both handles can appear in stored history. When the name is qualified, the
- * bare slug is added too: pre-deploy ClickHouse rows stamped `alert.slug`
- * from the old everr.name annotation, which never carried a project prefix.
- * Restoring that bare-slug handle also restores the pre-branch ambiguity
- * where two projects sharing a slug both match the same legacy rows; that is
- * intentional (it matches the old, project-agnostic behavior), not a
- * regression.
+ * Handles an event row may carry for an SLO (see ccRuleHandles): CC's alert
+ * log stamps the first-class `name`, falling back to the source uuid for
+ * older records (otel/alert_log.rs `slug_for`), so both appear in history.
+ * The bare slug covers pre-deploy rows stamped from the old, project-less
+ * everr.name annotation; the cross-project ambiguity that reintroduces is
+ * intentional (matches the old project-agnostic behavior).
  */
 export function ccSloHandles(slo: CcSlo): string[] {
   const { name, id } = slo;
@@ -72,13 +57,6 @@ export function ccSloHandles(slo: CcSlo): string[] {
   return [id, name, parseResourceName(name).slug];
 }
 
-/**
- * One resolution of "what do we call this SLO", mirroring `ccRuleIdentity`
- * (data/alerts/rule-identity.ts): the display-name annotation first, then
- * the as-code slug (always present, carried on the SLO's own first-class
- * `name`). Every SLO surface (list, detail, triage, feeds) reads names
- * through this so a display name renders consistently everywhere.
- */
 export type CcSloIdentity = {
   /** Human name: displayName || slug. */
   name: string;
@@ -96,8 +74,7 @@ export function ccSloIdentity(
   return { name: displayName || slug, project, slug, displayName };
 }
 
-// Tier window shorthand (m/h/d/w plus defensive s) → seconds; unparseable
-// sorts last so a malformed spec tier can never win the headline slot.
+// Unparseable → Infinity, so a malformed tier can never win the headline slot.
 const TIER_WINDOW_SECONDS: Record<string, number> = {
   s: 1,
   m: 60,
@@ -119,8 +96,7 @@ const CC_CANONICAL_TIER_WINDOW_SECS = 30 * 86_400;
 /** Floor on a scaled tier's short window (mirrors domain/slo.rs). */
 const CC_SHORT_WINDOW_FLOOR_SECS = 60;
 
-// The canonical tiers as (name, long secs, short secs, ...), calibrated to
-// CC_CANONICAL_TIER_WINDOW_SECS. Mirror of domain/slo.rs BASE_TIERS.
+// Mirror of domain/slo.rs BASE_TIERS, calibrated to CC_CANONICAL_TIER_WINDOW_SECS.
 const CC_BASE_TIERS: readonly {
   name: string;
   longSecs: number;
@@ -161,10 +137,8 @@ export function ccFmtWindowSecs(secs: number): string {
 }
 
 /**
- * A tier window rendered for humans as its two largest non-zero units: the
- * single-unit stored form (`"1008m"` for a 7-day SLO's ticket window) reads back
- * as `"16h 48m"`, and a 70s short window as `"1m 10s"` (seconds kept, not
- * rounded). Passes an unparsable window through untouched.
+ * Two largest non-zero units ("1008m" → "16h 48m"; seconds kept, not rounded).
+ * An unparsable window passes through untouched.
  */
 export function ccFmtWindowLabel(window: string): string {
   const secs = tierWindowSecs(window);
@@ -180,10 +154,9 @@ export function ccFmtWindowLabel(window: string): string {
 }
 
 /**
- * The burn-rate tiers for an SLO, scaled to its own budget window — what every
- * SLO surface should use to label a burn ("1.4× / 14m") with the window the
- * engine measured it over. Falls back to the canonical 30-day windows when the
- * spec's window doesn't parse (guarded at the API, defensive here).
+ * Tiers scaled to the SLO's own budget window; falls back to the canonical
+ * 30-day windows when the spec's window doesn't parse (guarded at the API,
+ * defensive here).
  */
 export function ccSloTiers(spec: CcSloSpec): CcSloTier[] {
   return ccTiersForWindow(
@@ -192,22 +165,17 @@ export function ccSloTiers(spec: CcSloSpec): CcSloTier[] {
 }
 
 /**
- * The burn-rate tiers scaled to a `windowSecs` budget window, mirroring
- * domain/slo.rs `tiers_for_window`. The engine measures each tier's burn over
- * these scaled windows (the canonical 1h/6h/3d only for a 30-day SLO), so the
- * SLO surfaces label a burn with the same window. Short windows floor at
- * `CC_SHORT_WINDOW_FLOOR_SECS`, pinning the tier at its 12:1 ratio.
- *
- * Fewer than three tiers come back when the floor collapses one onto another's
- * windows (a 1-day budget does this to fast-burn and slow-burn): identical
- * windows make them one detector, so the engine keeps only the lower threshold
- * and never evaluates the other. Rendering the dropped tier would show a row
- * that can never carry data.
+ * Mirrors domain/slo.rs `tiers_for_window`: the engine measures burn over these
+ * scaled windows, so surfaces must label with the same ones. Short windows
+ * floor at `CC_SHORT_WINDOW_FLOOR_SECS`, pinning the tier at its 12:1 ratio.
+ * When the floor makes two tiers' windows identical (e.g. a 1-day budget),
+ * the engine keeps only the lower threshold and never evaluates the other, so
+ * the dropped tier is omitted here too (it could never carry data).
  */
 export function ccTiersForWindow(windowSecs: number): CcSloTier[] {
   const k = windowSecs / CC_CANONICAL_TIER_WINDOW_SECS;
-  // Keyed on the computed seconds rather than the rendered windows, so the
-  // collapse never depends on ccFmtWindowSecs being injective.
+  // Keyed on computed seconds, not rendered windows, so the collapse never
+  // depends on ccFmtWindowSecs being injective.
   const seen: Array<[number, number]> = [];
   const out: CcSloTier[] = [];
   for (const b of CC_BASE_TIERS) {
@@ -226,9 +194,8 @@ export function ccTiersForWindow(windowSecs: number): CcSloTier[] {
       burn_rate: b.burn_rate,
       severity: b.severity,
     };
-    // CC_BASE_TIERS runs fastest-first with strictly decreasing thresholds, so a
-    // collision always means the newcomer is the lower-threshold twin: it takes
-    // the slot of the tier it collided with.
+    // CC_BASE_TIERS runs fastest-first with strictly decreasing thresholds, so
+    // a colliding newcomer is always the lower-threshold twin: it takes the slot.
     const twin = seen.findIndex(([l, s]) => l === long && s === short);
     if (twin === -1) {
       seen.push([long, short]);
@@ -241,11 +208,10 @@ export function ccTiersForWindow(windowSecs: number): CcSloTier[] {
 }
 
 /**
- * The burn rate confirmed by BOTH of a tier's windows: `min(long, short)`. The
- * short window drops to ~0 as soon as spending stops, so this reads 0 once a past
- * spike is over even while the long window still remembers it — the same
- * both-windows agreement the engine fires on. Null when either window has no data
- * (zero traffic), so a rate is only claimed when the current spend is confirmed.
+ * Burn confirmed by BOTH windows: `min(long, short)` — the same both-windows
+ * agreement the engine fires on. Reads 0 once a spike passes (the short window
+ * drops first) even while the long window remembers it. Null when either
+ * window has no data, so a rate is only claimed when confirmed.
  */
 export function ccEffectiveBurn(
   longBurn: number | null | undefined,
@@ -256,13 +222,10 @@ export function ccEffectiveBurn(
 }
 
 /**
- * A group's headline burn: the shortest-long-window tier that has a computed
- * long-window rate (the 1h window for canonical tiers). `rate` is that long-window
- * value — the number shown, labelled by `window` (so "1.4× / 1h" is honest). Its
- * `effective` burn is `min(long, short)`: the spend confirmed by BOTH windows,
- * which drops to ~0 the moment a spike passes even while the long window still
- * remembers it. Read the pace and time-to-exhaustion off `effective` so a
- * recovering budget never reads as draining; show `rate` as the raw 1h figure.
+ * Headline burn: the shortest-long-window tier with a computed long-window
+ * rate. `rate` is that long-window value, labelled by `window`; `effective` is
+ * `min(long, short)`. Read pace and time-to-exhaustion off `effective` so a
+ * recovering budget never reads as draining; show `rate` as the raw figure.
  */
 export function ccSloCurrentBurn(
   specTiers: readonly CcSloTier[],
@@ -294,13 +257,7 @@ export function ccSloCurrentBurn(
     : { rate: best.rate, effective: best.effective, window: best.window };
 }
 
-/**
- * Plain-language pace for a burn rate, so a listing cell can lead with a word
- * ("Draining", "Sustainable") instead of a bare "1.4×". The firing state wins
- * (an actually-paging tier is "Burning", severity aside from the rate), then the
- * rate against the 1x sustainable line. "steady" is nothing meaningfully
- * spending. `ccSloBurnPaceLabel` gives the display word; tone is the caller's.
- */
+// Firing state wins over the rate; then the rate against the 1x sustainable line.
 export type CcSloBurnPace =
   | "burning-fast"
   | "burning"
@@ -340,9 +297,8 @@ export function ccFormatSloTarget(targetPercent: number): string {
 }
 
 /**
- * The group spending its budget fastest (least remaining), the SLO's headline
- * status. Groups with no budget number sort last so a real number always wins
- * the summary when one exists. Null only when there are no groups at all.
+ * The group with least budget remaining. Null-budget groups sort last so a real
+ * number always wins when one exists. Null only when there are no groups.
  */
 export function ccWorstSloGroup(
   groups: readonly CcSloGroupStatus[],
@@ -361,11 +317,9 @@ export function ccWorstSloGroup(
 }
 
 /**
- * One group's freshly-computed error budget, from a read-time SLI scan over the
- * trailing window ending now (data/cc/slo-series.server.ts `querySloBudgetNow`).
- * `ccApplyFreshBudget` merges these onto a stored status snapshot so the hero and
- * the listing show budget as of page view rather than the engine's throttled
- * last evaluation (the budget window only re-evaluates every ~window/12).
+ * One group's read-time error budget (slo-series.server.ts `querySloBudgetNow`),
+ * merged onto the stored snapshot by `ccApplyFreshBudget`: the engine's budget
+ * window only re-evaluates every ~window/12, so surfaces show this instead.
  */
 export type CcFreshBudgetGroup = {
   labels: Record<string, string>;
@@ -374,11 +328,9 @@ export type CcFreshBudgetGroup = {
 };
 
 /**
- * Seconds until the error budget is exhausted at the current burn, mirroring the
- * engine's `time_to_exhaustion_secs` (engine/slo_math.rs) exactly: null when any
- * input is missing or the burn is non-positive, 0 when already overspent, else
- * `window * budget_remaining / burn_rate` truncated. Re-derives TTE after a
- * group's budget is overridden with a fresh read-time value.
+ * Mirrors the engine's `time_to_exhaustion_secs` (engine/slo_math.rs) exactly:
+ * null when any input is missing or burn is non-positive, 0 when already
+ * overspent, else `window * budget_remaining / burn_rate` truncated.
  */
 export function ccTimeToExhaustionSecs(
   budgetRemaining: number | null,
@@ -394,13 +346,9 @@ export function ccTimeToExhaustionSecs(
 }
 
 /**
- * What a "time to exhaustion" readout should say for a group.
- *
  * Budget is consulted before the forecast, deliberately reversing the engine's
- * `time_to_exhaustion_secs` (engine/slo_math.rs), which returns None on a
- * non-positive burn before it looks at the budget. Right for a forecast; wrong
- * for a readout, where a spent budget is exhausted whether or not anything is
- * burning right now.
+ * `time_to_exhaustion_secs` (engine/slo_math.rs): a spent budget is exhausted
+ * whether or not anything is burning right now.
  */
 export type CcSloExhaustion = {
   kind: "exhausted" | "forecast" | "not-shrinking" | "unknown";
@@ -408,11 +356,8 @@ export type CcSloExhaustion = {
   label: string;
 };
 
-/**
- * The one definition of a spent budget. Every surface that decides
- * "exhausted" goes through here, so the boundary (and its null semantics)
- * can never drift between the SLO pages and the triage damage card.
- */
+/** Every surface decides "exhausted" through here so the <=0 boundary and
+ *  its null semantics never drift between pages. */
 export function ccBudgetExhausted(
   remaining: number | null,
 ): remaining is number {
@@ -432,7 +377,6 @@ export function ccSloExhaustion(
   if (tteSecs !== null) {
     return { kind: "forecast", label: ccFormatSloDuration(tteSecs) };
   }
-  // No forecast: say why, when the reason is that nothing is being spent.
   if (effectiveBurn === 0) {
     return { kind: "not-shrinking", label: "not shrinking" };
   }
@@ -447,16 +391,12 @@ export function ccSloLabelsKey(labels: Record<string, string>): string {
 }
 
 /**
- * Override each snapshot group's budget, SLI, and time-to-exhaustion with the
- * fresh read-time values, matched by label set. Groups with no fresh match keep
- * the stored snapshot (the instant fallback shown while the scan is in flight or
- * when it fails). Burn rates and firing tiers always stay from the snapshot: they
- * refresh far more often than the throttled budget window, so the snapshot's are
- * already current. TTE is re-derived from the fresh budget and the current-spend
- * burn (`ccSloCurrentBurn`'s `effective`: the shortest-long-window tier's
- * `min(long, short)`), exactly as api/slos.rs projects it. That burn drops to 0
- * the moment spending stops, so a recovering budget shows no horizon even while a
- * slower tier still fires on a burst that has already passed.
+ * Override each group's budget/SLI/TTE with fresh read-time values, matched by
+ * label set; unmatched groups keep the stored snapshot (fallback while the scan
+ * is in flight or failed). Burn rates and firing tiers always stay from the
+ * snapshot: they refresh far more often than the throttled budget window. TTE
+ * is re-derived from the fresh budget and `ccSloCurrentBurn`'s `effective`
+ * burn, exactly as api/slos.rs projects it.
  */
 export function ccApplyFreshBudget(
   specTiers: readonly CcSloTier[],
@@ -482,12 +422,7 @@ export function ccApplyFreshBudget(
   });
 }
 
-/**
- * The at-a-glance state of an SLO, derived from a group's snapshot: the single
- * word that answers "how is this promise doing". `exhausted` and the firing
- * states are facts (from budget/firing_tiers); `at-risk` is the low-budget
- * warning band; `healthy` is everything else. `unknown` is no snapshot yet.
- */
+// `at-risk` is the low-budget warning band; `unknown` is no snapshot yet.
 export type CcSloState =
   | "exhausted"
   | "firing-critical"
@@ -521,24 +456,17 @@ export function ccSloWindowLabel(spec: CcSloSpec): string {
   return isRolling ? `${duration} rolling` : duration;
 }
 
-/**
- * The budget window length in whole seconds, or null if the duration shorthand
- * doesn't parse. The trailing-window length each error-budget-chart point sums
- * over (the read-time series runs the SLI over `[t - windowSecs, t]`).
- */
+/** Budget window in whole seconds; null if the duration shorthand doesn't parse. */
 export function ccSloWindowSecs(spec: CcSloSpec): number | null {
   const secs = tierWindowSecs(spec.timeWindow.duration);
   return Number.isFinite(secs) ? secs : null;
 }
 
 /**
- * The budget-over-time chart's range: exactly one SLO window, ending now. Each
- * point plots a trailing-window budget, so pinning the x-axis to the SLO's own
- * window keeps the chart honest with the rest of the page: the rightmost point's
- * window is `[now - window, now]`, the same span the status hero reads, so the
- * two always agree. Datemath (`now-<window>` .. `now`) so the query key stays
- * stable across reloads instead of churning on an absolute instant. Null when
- * the window shorthand doesn't parse (there is nothing to chart).
+ * Chart range: exactly one SLO window ending now, so the rightmost point's
+ * trailing window is the same span the status hero reads and the two agree.
+ * Datemath (`now-<window>` .. `now`) keeps the query key stable across reloads.
+ * Null when the window shorthand doesn't parse.
  */
 export function ccSloChartRange(
   spec: CcSloSpec,
@@ -548,9 +476,8 @@ export function ccSloChartRange(
 }
 
 /**
- * Compact humanized seconds for budget projections ("3d 4h", "2h 15m",
- * "45m", "30s"), mirroring the engine's own readout granularity
- * (engine/slo_math.rs `fmt_duration_secs`): the two largest non-zero units.
+ * Two largest non-zero units ("3d 4h"), mirroring the engine's readout
+ * granularity (engine/slo_math.rs `fmt_duration_secs`).
  */
 export function ccFormatSloDuration(secs: number): string {
   const s = Math.max(0, Math.floor(secs));

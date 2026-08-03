@@ -1,6 +1,3 @@
-// packages/app/src/data/cc/route-resolution.ts
-// Pure, mirrors CC's matcher semantics. Used to show "where does this alert go"
-// and to drive the routing pipeline preview. First match by ascending priority.
 import { CC_CANONICAL_SLO_TIERS, ccSloTierSeverity } from "./slo";
 import type { CcAlert, CcMatcher, CcRoute, CcRuleView, CcSlo } from "./types";
 
@@ -15,16 +12,14 @@ export function ccOpSymbol(op: CcMatcher["op"]): string {
   return OP_SYMBOL[op];
 }
 
-// Module-level cache of compiled anchored patterns, keyed by the raw pattern
-// string (null = known-invalid, never matches). Mirrors matching.rs's
-// REGEX_CACHE: patterns come from routes/silences/inhibitions, so the distinct
-// count is bounded by configuration size and the map is intentionally unbounded.
+// Mirrors matching.rs REGEX_CACHE (null = known-invalid, never matches).
+// Patterns come from routes/silences/inhibitions, so the distinct count is
+// bounded by configuration size; the map is intentionally unbounded.
 const REGEX_CACHE = new Map<string, RegExp | null>();
 
 /**
- * Anchored (full-string) regex match, mirroring matching.rs `regex_full_match`:
- * the pattern is compiled as `^(?:pattern)$`, and an invalid pattern never
- * matches. Each distinct pattern is compiled at most once.
+ * Anchored match mirroring matching.rs `regex_full_match`: compiled as
+ * `^(?:pattern)$`; an invalid pattern never matches.
  */
 function ccRegexFullMatch(pattern: string, value: string): boolean {
   let re = REGEX_CACHE.get(pattern);
@@ -40,9 +35,8 @@ function ccRegexFullMatch(pattern: string, value: string): boolean {
 }
 
 /**
- * Match one matcher against a label set, mirroring matching.rs
- * `matcher_matches`. A missing label is the empty string (Alertmanager-like):
- * `severity != critical` is true when `severity` is absent.
+ * Mirrors matching.rs `matcher_matches`. A missing label is the empty string
+ * (Alertmanager-like): `severity != critical` is true when `severity` is absent.
  */
 export function ccMatcherMatches(
   m: CcMatcher,
@@ -69,12 +63,10 @@ export function ccRouteMatches(
 }
 
 /**
- * The label set CC's dispatcher actually matches routes/silences/inhibitions
- * against (dispatcher/routing.rs `synthetic_labels`): the instance's own labels
- * plus synthetic `severity`/`status`/`rule`/`kind` — and `slo` for
- * SLO-originated events — synthetics winning on collision. `kind` is "alert"
- * for instance events ("rule_health" for health events, which never reach
- * this UI path).
+ * The label set the dispatcher matches against (dispatcher/routing.rs
+ * `synthetic_labels`): instance labels plus synthetic
+ * `severity`/`status`/`rule`/`kind` (and `slo` for SLO-originated events),
+ * synthetics winning on collision. `kind` is "alert" for instance events.
  */
 export function ccSyntheticLabels(
   labels: Record<string, string>,
@@ -97,13 +89,10 @@ export function ccSyntheticLabels(
 }
 
 /**
- * The dispatch-time label set of a live alert instance: {@link ccSyntheticLabels}
- * fed exactly as the dispatcher would — status "firing", `rule` as the source
- * uuid (for SLO-sourced instances too, matching CC's wire convention), and
- * `slo` stamped when the instance is SLO-sourced. Severity comes from the
- * owning rule, or for SLO instances from the burn-rate tier the `slo_tier`
- * label names against the owning SLO's resolved tiers (domain/slo.rs
- * `tier_severity`); "info" when the owner is unknown.
+ * Dispatch-time labels of a live instance: `rule` is the source uuid even for
+ * SLO-sourced instances (CC's wire convention), `slo` stamped when SLO-sourced.
+ * Severity from the owning rule, or for SLO instances from the `slo_tier`
+ * label's tier (domain/slo.rs `tier_severity`); "info" when the owner is unknown.
  */
 export function ccDispatchLabels(
   alert: Pick<CcAlert, "labels" | "rule" | "slo">,
@@ -121,10 +110,8 @@ export function ccDispatchLabels(
 }
 
 /**
- * Every route a dispatch of `labels` selects, mirroring CC's `select_receivers`
- * (dispatcher/routing.rs): walk by ascending priority, collect matches, stop
- * after the first match that does not set `continue`. Empty array means the
- * event falls through to the firehose.
+ * Mirrors CC's `select_receivers` (dispatcher/routing.rs): ascending priority,
+ * stop after the first match without `continue`. Empty = falls to the firehose.
  */
 export function ccSelectRoutes(
   routes: CcRoute[],
@@ -140,7 +127,7 @@ export function ccSelectRoutes(
 }
 
 /**
- * The first silence active at `now` whose matchers all match `labels`, or null.
+ * First silence active at `now` whose matchers all match `labels`, or null.
  * Mirrors CC's `matching_silence` (dispatcher/silence.rs).
  */
 export function ccMatchingSilence<

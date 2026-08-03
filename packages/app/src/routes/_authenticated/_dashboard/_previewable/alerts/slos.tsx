@@ -1,5 +1,3 @@
-// SLO listing, distilled to what decides whether to open one: which promise,
-// whether it needs a human now, when the budget runs out, and how much is left.
 import { Button } from "@everr/ui/components/button";
 import { Card, CardContent } from "@everr/ui/components/card";
 import { type Column, DataTable } from "@everr/ui/components/data-table";
@@ -64,8 +62,7 @@ export const Route = createFileRoute(
   component: CcSlosPage,
 });
 
-// One listing row: the SLO plus its resolved status groups. `worst` is the
-// group spending budget fastest (min budget remaining) — the row's headline.
+// `worst` = the group with the least budget remaining; the row's headline.
 type SloRow = {
   slo: CcSlo;
   statusPending: boolean;
@@ -83,13 +80,9 @@ const TONE_WARNING = toneText({ tone: "warning", emphasis: "strong" });
 const TONE_ACTIVE = toneText({ tone: "live" });
 const TONE_QUIET = toneText({ tone: "muted" });
 
-/**
- * The one thing the budget column cannot say: is anything alerting, and is the
- * spending still happening. Pause and suppression outrank both, since neither
- * one is evaluating or alerting. A firing row reports the tier's *severity*,
- * never a delivery outcome: where an alert lands is the routing tree's
- * business, which the SLO knows nothing about.
- */
+// Pause/suppression outrank firing (neither evaluates or alerts). A firing
+// row reports the tier's severity, never a delivery outcome: where an alert
+// lands is the routing tree's business.
 function rowStatus(row: SloRow): { label: string; tone: string } {
   if (row.slo.paused) return { label: "Paused", tone: TONE_QUIET };
   if (row.slo.spec.suppressed) {
@@ -108,8 +101,7 @@ function rowStatus(row: SloRow): { label: string; tone: string } {
     return { label: "Warning", tone: TONE_WARNING };
   }
 
-  // Nothing firing: the pace word. Firing is passed as empty because the cases
-  // it would produce are already returned above.
+  // Firing is passed as empty: the firing cases already returned above.
   const burn = ccSloCurrentBurn(tiers, row.worst.tiers)?.effective ?? null;
   const pace = ccSloBurnPace(burn, []);
   return {
@@ -133,9 +125,8 @@ function SloPromiseCell({
         <Link
           to="/alerts/slos/$project/$slug"
           params={{ project: identity.project, slug: identity.slug }}
-          // Never wrap or truncate a name: this column is the flexible one, so
-          // it is what gives when the viewport tightens, and `overflow:hidden`
-          // would let it collapse to nothing.
+          // No truncate: `overflow:hidden` would let this flexible column
+          // collapse to nothing when the viewport tightens.
           className="font-medium whitespace-nowrap text-foreground underline-offset-2 hover:underline"
         >
           {identity.name}
@@ -179,8 +170,8 @@ function SloBudgetCell({ row }: { row: SloRow }) {
   return <CcBudgetBar remaining={row.worst?.budget_remaining ?? null} />;
 }
 
-// When the budget runs out, through the shared readout so this cell, the detail
-// hero and the per-group table always agree about the same group.
+// Shared readout: this cell, the detail hero, and the per-group table must
+// always agree.
 function SloExhaustionCell({ row }: { row: SloRow }) {
   if (row.statusPending) return <Skeleton className="h-4 w-16" />;
   const worst = row.worst;
@@ -244,12 +235,11 @@ function CcSlosPage() {
         health: statuses[i].data?.health.status,
       };
     })
-    // Sorted by name only: a fixed order independent of status, so the list
-    // never reshuffles as snapshots resolve one by one or budgets recompute.
+    // Fixed name order, independent of status: the list must never reshuffle
+    // as snapshots resolve or budgets recompute.
     .sort((a, b) => a.slo.name.localeCompare(b.slo.name));
 
-  // Client-side pagination: only the visible page runs the (expensive)
-  // read-time budget scan, so the fan-out is bounded to a page.
+  // Only the visible page runs the (expensive) read-time budget scan.
   const pageCount = Math.max(1, Math.ceil(rows.length / SLO_PAGE_SIZE));
   const page = Math.min(pageIndex, pageCount - 1);
   const pageStart = page * SLO_PAGE_SIZE;
@@ -276,18 +266,14 @@ function CcSlosPage() {
 
   const columns: Column<SloRow>[] = [
     {
-      // Promise soaks up every spare pixel, so the reading columns and the
-      // action hold the right edge at any width. (`className` replaces
-      // DataTable's padding defaults rather than extending them, hence
-      // restating them here.)
+      // `className` replaces DataTable's padding defaults rather than
+      // extending them, hence restating them here.
       header: "Promise",
       className: "w-full pb-2 pr-4 pl-3",
       cellClassName: "w-full py-2 pr-4 pl-3",
       cell: ({ slo, health }) => <SloPromiseCell slo={slo} health={health} />,
     },
     {
-      // Unlabelled and only as wide as the icon; mirrors the same slot on the
-      // rules listing, so both alert lists reach a runbook the same way.
       header: "",
       cell: ({ slo }) => <SloRunbookCell slo={slo} />,
     },
@@ -296,9 +282,8 @@ function CcSlosPage() {
       cell: (row) => <SloStatusCell row={row} />,
     },
     {
-      // Abbreviated because the column is narrow and the phrase is not: the
-      // tooltip carries the expansion, and the word "estimate" with it, since
-      // the figure is a projection of the current burn and not a countdown.
+      // The tooltip carries the expansion and the word "estimate": the figure
+      // is a projection of the current burn, not a countdown.
       header: (
         <span className="inline-flex items-center gap-1">
           TTE
@@ -324,8 +309,6 @@ function CcSlosPage() {
       cell: (row) => <SloExhaustionCell row={row} />,
     },
     {
-      // Sized here rather than on the meter: the bar fills whatever the column
-      // gives it, so the width lives with the layout that owns it.
       header: "Budget",
       className: "w-28 pb-2 pr-4",
       cellClassName: "w-28 py-2 pr-4",
@@ -366,8 +349,8 @@ function CcSlosPage() {
                 emptyState
               ) : (
                 <>
-                  {/* No whole-row click target: the name link is the one way in,
-                      so controls and text stay selectable. */}
+                  {/* No whole-row click target, so controls and text stay
+                      selectable. */}
                   <div className="hidden md:block">
                     <DataTable
                       data={displayRows}

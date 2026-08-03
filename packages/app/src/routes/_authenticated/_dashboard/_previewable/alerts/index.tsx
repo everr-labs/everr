@@ -25,13 +25,12 @@ import {
 import { TriageBoard } from "./-components/triage-board";
 import { useCcFreshBudgets } from "./-components/use-fresh-budgets";
 
-// The board reads one stored event, and only to date-stamp the all-clear
-// readout ("last event 4m ago"), which is what separates a quiet board from a
-// broken pipeline. Nothing on this page lists events.
+// One stored event only: it date-stamps the all-clear readout (quiet board vs
+// broken pipeline); nothing on this page lists events.
 const TRIAGE_EVENT_LIMIT = 1;
 
-// One shared empty array, so `?? EMPTY` keeps a stable identity before a query
-// resolves; a fresh `[]` each render would churn every memo keyed on it.
+// Stable identity for `?? EMPTY`: a fresh `[]` each render would churn every
+// memo keyed on it.
 const EMPTY: never[] = [];
 
 export const Route = createFileRoute(
@@ -81,10 +80,8 @@ function CcTriagePage() {
   );
   const slosData = slos.data ?? EMPTY;
   const rulesData = rules.data ?? EMPTY;
-  // The combine is memoized because TanStack caches the combined value per
-  // combine-function identity: an inline arrow would be a new function every
-  // render, handing out a fresh Map each time and re-running the whole
-  // derivation chain below for nothing.
+  // TanStack caches the combined value per combine-function identity; an
+  // inline arrow would hand out a fresh Map every render.
   const snapshotStatusGroups = useQueries({
     queries: slosData.map((s) => ccQueries.sloStatus(s.id)),
     combine: useCallback(
@@ -100,8 +97,7 @@ function CcTriagePage() {
   });
 
   // On a CC outage every count would render 0 — a false "all clear" — so any
-  // errored core query fails the whole page to the shared error card,
-  // matching the sibling pages.
+  // errored core query fails the whole page.
   const coreQueries = [
     alerts,
     rules,
@@ -118,9 +114,8 @@ function CcTriagePage() {
     [receivers.data],
   );
 
-  // Date.now() is read inside the memos, so a silence window is re-evaluated
-  // only when an input changes identity: on a board where nothing is changing,
-  // an expired silence can read as silenced until the next `alerts` poll.
+  // Date.now() is read inside the memos, so an expired silence can read as
+  // silenced until the next `alerts` poll changes an input's identity.
   const instances = useMemo(
     () =>
       ccResolveTriageInstances({
@@ -135,18 +130,16 @@ function CcTriagePage() {
   );
   const groups = useMemo(() => ccGroupInstances(instances), [instances]);
   // Counts run over the FULL grouping (pending included); the board takes the
-  // firing-only cut, so the strip can still say "2 pending" while triage lists
-  // only what is wrong right now.
+  // firing-only cut.
   const counts = useMemo(
     () => ccTriageCounts(groups, silences.data ?? EMPTY, Date.now()),
     [groups, silences.data],
   );
   const boardGroups = useMemo(() => ccFiringGroups(groups), [groups]);
 
-  // The engine snapshot's budget lags (the budget window re-evaluates only
-  // every ~window/12), so the SLOs this page actually displays — firing ones,
-  // plus the snapshot-exhausted — get the same read-time budget scan the SLO
-  // pages use. A bounded fan-out: triage never scans SLOs it does not show.
+  // The engine snapshot's budget lags (~window/12 between re-evaluations), so
+  // displayed SLOs get the same read-time scan the SLO pages use. Bounded:
+  // triage never scans SLOs it does not show.
   const freshIds = useMemo(() => {
     const ids = new Set<string>();
     for (const g of boardGroups) {
@@ -162,8 +155,6 @@ function CcTriagePage() {
     return [...ids];
   }, [boardGroups, slosData, snapshotStatusGroups]);
   const freshBudgets = useCcFreshBudgets(freshIds);
-  // Snapshot groups with fresh budgets overlaid where the scan has landed;
-  // the snapshot stays the instant fallback, exactly as on the SLO pages.
   const sloStatusGroups = useMemo(
     () =>
       new Map(
@@ -176,8 +167,8 @@ function CcTriagePage() {
   );
 
   const watchingRules = rulesData.filter((r) => !r.paused).length;
-  // Every row-derived number comes from `counts`; nothing is re-filtered here,
-  // so the strip and the board can never disagree.
+  // Row-derived numbers come from `counts` only, so the strip and the board
+  // can never disagree.
   const pipelineFacts = {
     ...counts,
     watchingRules,
@@ -187,8 +178,6 @@ function CcTriagePage() {
     receiverCount: (receivers.data ?? EMPTY).length,
   };
 
-  // The standing damage, firing or not: every spent budget, for the card
-  // under the board.
   const exhausted = useMemo(
     () => ccExhaustedBudgets(slosData, sloStatusGroups),
     [slosData, sloStatusGroups],
@@ -228,8 +217,6 @@ function CcTriagePage() {
         }
       />
 
-      {/* Spent budgets outlive the fire that spent them, so this is its own
-          board rather than a lens on the one above. */}
       <CcExhaustedBudgetsCard items={exhausted} />
 
       <SilencesPanel onNewSilence={() => silenceDrawer.current?.openWith([])} />

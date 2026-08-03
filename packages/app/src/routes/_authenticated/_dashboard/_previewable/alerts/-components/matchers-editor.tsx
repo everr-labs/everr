@@ -39,9 +39,8 @@ export function matchersPhrase(m: CcMatcher[]): string {
 }
 
 /**
- * True when the set genuinely narrows: at least one matcher, each with a
- * label. The engine reads a missing label as "", so an empty-label row
- * (what `addMatcher` creates) matches every alert.
+ * True when the set genuinely narrows. The engine reads a missing label as
+ * "", so an empty-label row matches every alert.
  */
 export function matchersAreScoped(m: CcMatcher[]): boolean {
   return m.length > 0 && m.every((x) => x.label.trim() !== "");
@@ -61,12 +60,11 @@ export function updateMatcher(
   return m.map((row, idx) => (idx === i ? { ...row, ...patch } : row));
 }
 
-// Suggestion queries, inline with their consumers per house style. Cached
-// briefly so hopping between matcher rows doesn't refetch; the comboboxes
-// fetch only while open, so loading never blocks typing.
+// Cached briefly so hopping between matcher rows doesn't refetch; the
+// comboboxes fetch only while open, so loading never blocks typing.
 const SUGGESTION_STALE_MS = 60_000;
 
-/** Key suggestions for matcher/label editors; synthetic keys carry a tag. */
+/** Synthetic keys carry a tag. */
 export const ccLabelKeyOptions = () => ({
   queryKey: ["cc", "label-keys"] as const,
   queryFn: () => listCcLabelKeys(),
@@ -78,7 +76,7 @@ export const ccLabelKeyOptions = () => ({
     })),
 });
 
-/** Value suggestions for one key; an unset key resolves to no suggestions. */
+/** An unset key resolves to no suggestions. */
 export const ccLabelValueOptions = (key: string) => ({
   queryKey: ["cc", "label-values", key] as const,
   queryFn: () =>
@@ -150,7 +148,6 @@ export function MatchersEditor({
             </SelectContent>
           </Select>
           {row.op === "regex" || row.op === "notregex" ? (
-            // A regex is authored, not picked: plain free-text entry.
             <Input
               placeholder="pattern"
               aria-label="Matcher value"
