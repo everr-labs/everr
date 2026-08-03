@@ -38,6 +38,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
 use tracing::Instrument;
+use uuid::Uuid;
 
 const MAX_ATTEMPTS: u32 = 4;
 /// Reclaims allowed before a notification is retired and dead-lettered.
@@ -271,8 +272,8 @@ pub async fn process_event(ctx: &DispatchCtx, entry: &EventEntry) -> bool {
     let mut unknown_receivers: Vec<String> = Vec::new();
 
     for target in routing::select_grouping_targets(&snap.routes, ev, &labels) {
-        let channel_names = match snap.receivers.get(target.receiver.as_str()) {
-            Some(r) => r.channels.as_slice(),
+        let channel_ids = match snap.receivers.get(&target.receiver_id) {
+            Some(r) => r.channel_ids.as_slice(),
             // The route targets a receiver the snapshot does not have. The foreign key
             // keeps the stored rows consistent, but `FilterCache::load` assembles a
             // snapshot from seven independent concurrent reads: a route delete and a
@@ -284,19 +285,21 @@ pub async fn process_event(ctx: &DispatchCtx, entry: &EventEntry) -> bool {
             }
         };
         let values = grouping::group_by_values(&labels, &target.grouping.group_by);
+        // Group identity hangs off the receiver id, so a rename never re-buckets a
+        // live group; the human-readable key carries the current name.
         let gid = grouping::group_id(
             &ev.tenant,
-            &target.receiver,
+            &target.receiver_id.to_string(),
             &target.grouping.group_by,
             &values,
         );
         let group_key = grouping::group_key_string(&target.receiver, &values);
-        // The meta buffers channel NAMES only; the flusher resolves them to their
-        // stored configs at delivery time (so config edits between buffering and
-        // flush are picked up, and no secret ever reaches Redis).
+        // The meta buffers channel IDS only; the flusher resolves them to their
+        // stored configs at delivery time (so config edits and renames between
+        // buffering and flush are picked up, and no secret ever reaches Redis).
         let meta = GroupMeta {
             tenant: ev.tenant.as_str().to_string(),
-            channels: channel_names.to_vec(),
+            channels: channel_ids.to_vec(),
             group_key,
             receiver: target.receiver.clone(),
         };
@@ -736,13 +739,13 @@ async fn flush_claimed_group(ctx: &DispatchCtx, gid: &str) {
     // Representative event for per-channel delivery bookkeeping (the batch shares a
     // group key).
     let rep = notif.events[0].clone();
-    // Resolve the buffered channel NAMES to their stored configs now, at delivery
+    // Resolve the buffered channel IDS to their stored configs now, at delivery
     // time. On a load failure the whole batch is dead-lettered (observable,
     // recoverable) and drains; if a dead-letter write fails, the batch stays
     // buffered and the re-armed timer retries it.
     let loaded = match ctx
         .store
-        .channels_by_names(ctx.cipher.as_ref(), &tenant, &meta.channels)
+        .channels_by_ids(ctx.cipher.as_ref(), &tenant, &meta.channels)
         .await
     {
         Ok(chs) => chs,
@@ -834,23 +837,22 @@ enum ChannelOutcome {
     NotAccountedFor,
 }
 
-/// Order the loaded channels by the buffered name list, skipping (with an error log,
-/// never a panic) any name whose channel no longer exists. Missing names are the
+/// Order the loaded channels by the buffered id list, skipping (with an error log,
+/// never a panic) any id whose channel no longer exists. Missing ids are the
 /// delete-vs-flush race: the channel API refuses to delete a referenced channel, so a
 /// gap here means the referencing receiver went away between buffering and flush.
 ///
-/// A repeated name resolves to repeated entries (it is NOT reported as missing).
+/// A repeated id resolves to repeated entries (it is NOT reported as missing).
 /// The API rejects duplicate references at the boundary, so this only arises from
 /// rows stored before that guard; the redundant entry is harmless downstream
-/// because the name-keyed dedup collapses its send.
-fn resolve_channels(gid: &str, names: &[String], loaded: Vec<Channel>) -> Vec<Channel> {
-    let by_name: HashMap<&str, &Channel> = loaded.iter().map(|ch| (ch.name.as_str(), ch)).collect();
-    names
-        .iter()
-        .filter_map(|name| match by_name.get(name.as_str()) {
+/// because the id-keyed dedup collapses its send.
+fn resolve_channels(gid: &str, ids: &[Uuid], loaded: Vec<Channel>) -> Vec<Channel> {
+    let by_id: HashMap<Uuid, &Channel> = loaded.iter().map(|ch| (ch.id, ch)).collect();
+    ids.iter()
+        .filter_map(|id| match by_id.get(id) {
             Some(ch) => Some((*ch).clone()),
             None => {
-                tracing::error!(group = %gid, channel = %name,
+                tracing::error!(group = %gid, channel = %id,
                     "channel missing at delivery time; skipping this channel");
                 None
             }
@@ -859,7 +861,8 @@ fn resolve_channels(gid: &str, names: &[String], loaded: Vec<Channel>) -> Vec<Ch
 }
 
 /// Fan one flush out to every resolved channel of the group's receiver. Each channel
-/// gets its own dedup key (keyed by the channel NAME, stable across config edits) and
+/// gets its own dedup key (keyed by the channel ID, stable across renames and config
+/// edits) and
 /// its own ledger row. Channels are independent, so they deliver concurrently — one
 /// channel's retry backoff (worst case tens of seconds) never delays the others — and
 /// a failing channel never suppresses the rest: failures are recorded (ledger + dead
@@ -876,14 +879,15 @@ async fn deliver_group_channels(
     notif: &Notification,
     rep: &Event,
 ) -> FanOutOutcome {
-    // The claim is atomic on the dedup key, so a name repeated in the buffered list
+    // The claim is atomic on the dedup key, so an id repeated in the buffered list
     // still collapses to one row/send even with the attempts racing.
     let results = futures::future::join_all(channels.iter().map(|ch| async move {
         // A repeat folds the take timestamp into the key so the identical still-firing
         // set yields a NEW notification instead of deduping against the original send.
+        let channel_id = ch.id.to_string();
         let key = match repeat_taken_at {
-            Some(taken_at) => grouping::repeat_dedup_key(gid, &ch.name, &notif.events, taken_at),
-            None => grouping::group_dedup_key(gid, &ch.name, &notif.events),
+            Some(taken_at) => grouping::repeat_dedup_key(gid, &channel_id, &notif.events, taken_at),
+            None => grouping::group_dedup_key(gid, &channel_id, &notif.events),
         };
         let target = dedup::canonical_target(&ch.config);
         match claim_to_send(
@@ -1559,10 +1563,22 @@ mod fan_out_tests {
             &ev,
         )
         .await;
-        // Config rotation must not resend the same named channels.
+        // Config rotation (and even a rename) must not resend the same channels:
+        // the dedup key hangs off each channel's id.
         let rotated = vec![
-            webhook_channel("ops-hook", "http://x/h-rotated"),
-            email_channel("ops-mail", "b@x.test"),
+            Channel {
+                name: "ops-hook-renamed".into(),
+                config: ChannelConfig::Webhook {
+                    url: "http://x/h-rotated".into(),
+                },
+                ..channels[0].clone()
+            },
+            Channel {
+                config: ChannelConfig::Email {
+                    to: vec!["b@x.test".into()],
+                },
+                ..channels[1].clone()
+            },
         ];
         let second = deliver_group_channels(
             &DeliveryDeps {
@@ -1589,7 +1605,7 @@ mod fan_out_tests {
     }
 
     #[tokio::test]
-    async fn fan_out_treats_same_typed_channels_as_distinct_by_name() {
+    async fn fan_out_treats_same_typed_channels_as_distinct_channels() {
         let ledger = MemLedger::default();
         let bus = DeadLetterBus::default();
         let webhook = Arc::new(FakeNotifier {
@@ -1601,7 +1617,7 @@ mod fan_out_tests {
         notifiers.register(webhook.clone());
         let ev = event();
         let notif = Notification::single(&ev);
-        // Distinct names remain distinct even with the same type and target.
+        // Distinct channels remain distinct even with the same type and target.
         let channels = vec![
             webhook_channel("hook-a", "http://x/h"),
             webhook_channel("hook-b", "http://x/h"),
@@ -1645,9 +1661,11 @@ mod fan_out_tests {
         fn new(repeat_taken_at: Option<i64>) -> Self {
             let ev = event();
             let notif = Notification::single(&ev);
+            let channel = webhook_channel("ops-hook", "http://x/h");
+            let channel_id = channel.id.to_string();
             let key = match repeat_taken_at {
-                Some(at) => grouping::repeat_dedup_key("gid-1", "ops-hook", &notif.events, at),
-                None => grouping::group_dedup_key("gid-1", "ops-hook", &notif.events),
+                Some(at) => grouping::repeat_dedup_key("gid-1", &channel_id, &notif.events, at),
+                None => grouping::group_dedup_key("gid-1", &channel_id, &notif.events),
             };
             let webhook = fake_notifier("webhook", false);
             let mut notifiers = Notifiers::new();
@@ -1655,7 +1673,7 @@ mod fan_out_tests {
             Self {
                 ev,
                 notif,
-                channels: vec![webhook_channel("ops-hook", "http://x/h")],
+                channels: vec![channel],
                 key,
                 bus: DeadLetterBus::default(),
                 notifiers,
@@ -1800,17 +1818,11 @@ mod fan_out_tests {
 
     #[test]
     fn resolve_channels_keeps_order_and_skips_missing() {
-        let names = vec![
-            "ops-hook".to_string(),
-            "gone".to_string(),
-            "ops-mail".to_string(),
-        ];
-        // Loaded set unordered and missing "gone" (deleted between buffer and flush).
-        let loaded = vec![
-            email_channel("ops-mail", "a@x.test"),
-            webhook_channel("ops-hook", "http://x/h"),
-        ];
-        let resolved = resolve_channels("gid-1", &names, loaded);
+        // Loaded set unordered and missing one id (deleted between buffer and flush).
+        let mail = email_channel("ops-mail", "a@x.test");
+        let hook = webhook_channel("ops-hook", "http://x/h");
+        let ids = vec![hook.id, Uuid::from_u128(0xdead), mail.id];
+        let resolved = resolve_channels("gid-1", &ids, vec![mail, hook]);
         let resolved_names: Vec<&str> = resolved.iter().map(|c| c.name.as_str()).collect();
         assert_eq!(
             resolved_names,
@@ -1819,23 +1831,17 @@ mod fan_out_tests {
         );
     }
 
-    // Legacy duplicate names resolve, then delivery dedup sends only once.
+    // Legacy duplicate references resolve, then delivery dedup sends only once.
     #[tokio::test]
-    async fn repeated_name_resolves_and_delivers_once_via_dedup() {
-        let names = vec![
-            "ops-hook".to_string(),
-            "ops-hook".to_string(),
-            "ops-mail".to_string(),
-        ];
-        let loaded = vec![
-            webhook_channel("ops-hook", "http://x/h"),
-            email_channel("ops-mail", "a@x.test"),
-        ];
-        let resolved = resolve_channels("gid-1", &names, loaded);
+    async fn repeated_reference_resolves_and_delivers_once_via_dedup() {
+        let hook = webhook_channel("ops-hook", "http://x/h");
+        let mail = email_channel("ops-mail", "a@x.test");
+        let ids = vec![hook.id, hook.id, mail.id];
+        let resolved = resolve_channels("gid-1", &ids, vec![hook, mail]);
         assert_eq!(
             resolved.iter().map(|c| c.name.as_str()).collect::<Vec<_>>(),
             vec!["ops-hook", "ops-hook", "ops-mail"],
-            "a repeated name is resolved, never treated as missing"
+            "a repeated reference is resolved, never treated as missing"
         );
 
         let ledger = MemLedger::default();

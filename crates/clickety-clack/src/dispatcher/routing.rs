@@ -47,10 +47,12 @@ pub struct GroupingParams {
     pub repeat_interval_secs: Option<u32>,
 }
 
-/// A receiver selected for an event, with its grouping parameters.
+/// A receiver selected for an event, with its grouping parameters. `receiver_id` is
+/// the identity (snapshot lookup, group identity); `receiver` is the display name.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct MatchedTarget {
     pub receiver: String,
+    pub receiver_id: uuid::Uuid,
     pub grouping: GroupingParams,
 }
 
@@ -92,9 +94,10 @@ pub fn select_grouping_targets(
     let mut out: Vec<MatchedTarget> = Vec::new();
     for r in routes {
         if route_matches(r, labels) {
-            if !out.iter().any(|t| t.receiver == r.receiver) {
+            if !out.iter().any(|t| t.receiver_id == r.receiver_id) {
                 out.push(MatchedTarget {
                     receiver: r.receiver.clone(),
+                    receiver_id: r.receiver_id,
                     grouping: GroupingParams {
                         group_by: r.group_by.clone().unwrap_or_else(|| {
                             if ev.slo.is_some() {
@@ -153,6 +156,13 @@ mod tests {
             tenant: TenantId::from_trusted(Uuid::nil().to_string()),
             matchers,
             receiver: receiver.into(),
+            // Deterministic per name, so two routes naming the same receiver share
+            // an id (the dedup key) the way stored routes would.
+            receiver_id: Uuid::from_u128(
+                receiver
+                    .bytes()
+                    .fold(0u128, |acc, b| acc.wrapping_mul(257).wrapping_add(b.into())),
+            ),
             continue_matching: cont,
             priority: 0,
             group_by: None,

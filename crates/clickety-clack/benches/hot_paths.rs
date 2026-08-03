@@ -50,6 +50,13 @@ fn route(receiver: &str, cont: bool, matchers: Vec<Matcher>) -> Route {
         tenant: tenant(),
         matchers,
         receiver: receiver.into(),
+        // Deterministic per name, so routes naming the same receiver share an id
+        // the way stored routes would.
+        receiver_id: Uuid::from_u128(
+            receiver
+                .bytes()
+                .fold(0u128, |acc, b| acc.wrapping_mul(257).wrapping_add(b.into())),
+        ),
         continue_matching: cont,
         priority: 0,
         group_by: None,

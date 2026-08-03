@@ -2,7 +2,7 @@ use crate::api::auth::tenant;
 use crate::api::error::ApiError;
 use crate::api::{duplicate_entries, AppState};
 use crate::domain::receiver::Receiver;
-use crate::stores::{ReceiverDelete, ReceiverInsert, ReceiverUpsert};
+use crate::stores::{ReceiverDelete, ReceiverWrite};
 use axum::extract::{Path, State};
 use axum::http::HeaderMap;
 use axum::Json;
@@ -23,10 +23,13 @@ pub struct CreateReceiver {
     pub annotations: BTreeMap<String, String>,
 }
 
-/// `PUT /v1/receivers/:name` body: same as create minus the name, which comes
-/// from the path.
+/// `PUT /v1/receivers/:name` body. The path names the receiver being addressed;
+/// `name` in the body, when present and different, renames it. Routes target
+/// receivers by id, so a rename never breaks them.
 #[derive(Deserialize)]
 pub struct UpdateReceiver {
+    #[serde(default)]
+    pub name: Option<String>,
     #[serde(default)]
     pub channels: Vec<String>,
     /// Free-form metadata; the upsert replaces the stored map. Absent = `{}`.
@@ -35,8 +38,9 @@ pub struct UpdateReceiver {
 }
 
 /// Boundary validation shared by create (POST) and upsert (PUT) (shape only;
-/// referenced-channel existence needs the store and lives in the handlers).
-/// Split from the handlers so it is unit-testable without an `AppState`.
+/// referenced-channel existence is enforced inside the store's write
+/// transaction). Split from the handlers so it is unit-testable without an
+/// `AppState`.
 fn validate_receiver(name: &str, channels: &[String]) -> Result<(), ApiError> {
     if name.trim().is_empty() {
         return Err(ApiError::Validation("name must not be empty".into()));
@@ -65,34 +69,25 @@ fn duplicate_channels_detail(dupes: &[String]) -> String {
     format!("duplicate channels: {}", dupes.join(", "))
 }
 
-/// Which requested channel names are not in `existing` (order-preserving, deduped).
-fn unknown_channels(requested: &[String], existing: &[String]) -> Vec<String> {
-    let mut unknown = Vec::new();
-    for name in requested {
-        if !existing.contains(name) && !unknown.contains(name) {
-            unknown.push(name.clone());
-        }
-    }
-    unknown
-}
-
 /// The 422 detail for references to channels that do not exist.
 fn unknown_channels_detail(unknown: &[String]) -> String {
     format!("unknown channels: {}", unknown.join(", "))
 }
 
-/// Shared referenced-channel existence check: 422 listing the unknown names.
-async fn ensure_channels_exist(
-    state: &AppState,
-    t: &crate::domain::ids::TenantId,
-    channels: &[String],
-) -> Result<(), ApiError> {
-    let existing = state.store.existing_channel_names(t, channels).await?;
-    let unknown = unknown_channels(channels, &existing);
-    if !unknown.is_empty() {
-        return Err(ApiError::Validation(unknown_channels_detail(&unknown)));
+/// The one status mapping for every receiver write outcome. `requested_name` is the
+/// name the write tried to store under (the target name for a rename), which the
+/// 409 detail names.
+fn write_response(out: ReceiverWrite, requested_name: &str) -> Result<Json<Receiver>, ApiError> {
+    match out {
+        ReceiverWrite::Stored(rcv) => Ok(Json(rcv)),
+        ReceiverWrite::NotFound => Err(ApiError::NotFound),
+        ReceiverWrite::NameTaken => Err(ApiError::AlreadyExists(format!(
+            "receiver {requested_name:?} already exists"
+        ))),
+        ReceiverWrite::MissingChannels(names) => {
+            Err(ApiError::Validation(unknown_channels_detail(&names)))
+        }
     }
-    Ok(())
 }
 
 /// Create a receiver. Create-only: an existing name is a 409 `already_exists`
@@ -106,27 +101,18 @@ pub async fn create(
 ) -> Result<Json<Receiver>, ApiError> {
     let t = tenant(&state, &headers)?;
     validate_receiver(&body.name, &body.channels)?;
-    ensure_channels_exist(&state, &t, &body.channels).await?;
-    match state
+    let out = state
         .store
         .insert_receiver(t, &body.name, &body.channels, &body.annotations)
-        .await?
-    {
-        ReceiverInsert::Created(rcv) => Ok(Json(rcv)),
-        ReceiverInsert::NameConflict => Err(ApiError::AlreadyExists(format!(
-            "receiver {:?} already exists",
-            body.name
-        ))),
-        // The boundary check above already 422s the common case; this arm covers the
-        // channel deleted between that check and the write transaction.
-        ReceiverInsert::MissingChannels(names) => {
-            Err(ApiError::Validation(unknown_channels_detail(&names)))
-        }
-    }
+        .await?;
+    write_response(out, &body.name)
 }
 
 /// Create or replace a receiver by name (upsert). Replaces the channel list and
-/// the annotation map wholesale. Same channel validation as create.
+/// the annotation map wholesale. A body `name` different from the path renames
+/// the receiver instead; the rename is update-only (404 for an unknown source,
+/// 409 `already_exists` for a taken target) so a typo in the path can't silently
+/// create a receiver under the new name. Same channel validation as create.
 pub async fn update(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -134,20 +120,23 @@ pub async fn update(
     Json(body): Json<UpdateReceiver>,
 ) -> Result<Json<Receiver>, ApiError> {
     let t = tenant(&state, &headers)?;
-    validate_receiver(&name, &body.channels)?;
-    ensure_channels_exist(&state, &t, &body.channels).await?;
-    match state
-        .store
-        .create_receiver(t, &name, &body.channels, &body.annotations)
-        .await?
-    {
-        ReceiverUpsert::Stored(rcv) => Ok(Json(rcv)),
-        // See `create`: the boundary check handles the common case; this covers a
-        // channel deleted between that check and the write transaction.
-        ReceiverUpsert::MissingChannels(names) => {
-            Err(ApiError::Validation(unknown_channels_detail(&names)))
+    let new_name = body.name.as_deref().filter(|n| *n != name);
+    validate_receiver(new_name.unwrap_or(&name), &body.channels)?;
+    let out = match new_name {
+        None => {
+            state
+                .store
+                .create_receiver(t, &name, &body.channels, &body.annotations)
+                .await?
         }
-    }
+        Some(new_name) => {
+            state
+                .store
+                .rename_receiver(t, &name, new_name, &body.channels, &body.annotations)
+                .await?
+        }
+    };
+    write_response(out, new_name.unwrap_or(&name))
 }
 
 pub async fn list(
@@ -247,26 +236,5 @@ mod tests {
             validate_receiver(&b.name, &b.channels),
             Err(ApiError::Validation(ref m)) if m == "name must not be empty"
         ));
-    }
-
-    #[test]
-    fn unknown_channels_lists_every_missing_name_once_in_order() {
-        let requested = vec![
-            "a".to_string(),
-            "missing-2".to_string(),
-            "b".to_string(),
-            "missing-1".to_string(),
-            "missing-2".to_string(),
-        ];
-        let existing = vec!["a".to_string(), "b".to_string()];
-        let unknown = unknown_channels(&requested, &existing);
-        assert_eq!(
-            unknown,
-            vec!["missing-2".to_string(), "missing-1".to_string()]
-        );
-        assert_eq!(
-            unknown_channels_detail(&unknown),
-            "unknown channels: missing-2, missing-1"
-        );
     }
 }

@@ -12,7 +12,7 @@ use crate::domain::silence::Silence;
 use crate::domain::subscription::Subscription;
 use sqlx::postgres::{PgPool, PgPoolOptions, PgRow};
 use sqlx::Row;
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 use thiserror::Error;
 use time::OffsetDateTime;
 use uuid::Uuid;
@@ -146,26 +146,26 @@ pub enum SloUpdate {
     VersionConflict { current: i64 },
 }
 
-/// Outcome of [`PgStore::insert_receiver`] (create-only).
+/// Outcome of every receiver write ([`PgStore::insert_receiver`],
+/// [`PgStore::create_receiver`], [`PgStore::rename_receiver`]). Not every variant is
+/// reachable from every path: create never answers `NotFound` (it addresses no
+/// existing row) and the upsert never answers `NotFound` or `NameTaken` (it stores
+/// under the addressed name unconditionally).
 #[allow(clippy::large_enum_variant)]
 #[derive(Debug, Clone, PartialEq)]
-pub enum ReceiverInsert {
-    Created(Receiver),
-    /// A receiver with this (tenant, name) already exists.
-    NameConflict,
-    /// One or more referenced channels do not exist, detected under the channel-row
-    /// lock inside the write transaction (see [`lock_referenced_channels`]); also fires
-    /// when a concurrent `delete_channel` removed a channel the boundary pre-check had
-    /// just seen. Carries the missing names in request order (the API renders a 422).
-    MissingChannels(Vec<String>),
-}
-
-/// Outcome of [`PgStore::create_receiver`] (upsert).
-#[allow(clippy::large_enum_variant)]
-#[derive(Debug, Clone, PartialEq)]
-pub enum ReceiverUpsert {
+pub enum ReceiverWrite {
     Stored(Receiver),
-    /// See [`ReceiverInsert::MissingChannels`].
+    /// No receiver with the addressed (tenant, name) exists (rename only; the API
+    /// renders a 404, so a mistyped source name cannot silently create a receiver
+    /// under the target name).
+    NotFound,
+    /// A receiver already holds the requested name (create and rename; the API
+    /// renders a 409).
+    NameTaken,
+    /// One or more referenced channels do not exist, detected under the channel-row
+    /// lock inside the write transaction (see [`resolve_referenced_channels`]); also
+    /// fires when a concurrent `delete_channel` removed a channel the caller had just
+    /// seen. Carries the missing names in request order (the API renders a 422).
     MissingChannels(Vec<String>),
 }
 
@@ -198,53 +198,99 @@ pub enum RouteUpdate {
     MissingReceiver,
 }
 
-/// Lock the referenced channel rows (`FOR KEY SHARE`) inside the caller's write
-/// transaction and return the requested names that do not exist (empty = all present,
-/// order-preserving and deduped). The lock is what makes a receiver write serialize
-/// against [`PgStore::delete_channel`] (which takes `FOR UPDATE` on the channel row):
-/// `FOR KEY SHARE` and `FOR UPDATE` conflict, so the two can't both proceed, and
-/// several receiver writes referencing the same channel still run concurrently
-/// (`FOR KEY SHARE` does not self-conflict).
-async fn lock_referenced_channels(
+/// Resolve the referenced channel names to ids, in request order, under a
+/// `FOR KEY SHARE` lock inside the caller's write transaction. `Err` carries the
+/// requested names that do not exist (order-preserving, deduped). The lock keeps a
+/// concurrent [`PgStore::delete_channel`] from removing a row between this resolution
+/// and the `receiver_channels` insert (`DELETE` needs a `FOR UPDATE`-strength row lock,
+/// which conflicts with `FOR KEY SHARE`); the foreign key on `receiver_channels`
+/// backstops the same guarantee. Several receiver writes referencing the same channel
+/// still run concurrently (`FOR KEY SHARE` does not self-conflict).
+async fn resolve_referenced_channels(
     conn: &mut sqlx::PgConnection,
     tenant: &TenantId,
     channels: &[String],
-) -> Result<Vec<String>, StoreError> {
-    let present: Vec<String> = sqlx::query_scalar(
-        "SELECT name FROM channels WHERE tenant=$1 AND name = ANY($2) FOR KEY SHARE",
+) -> Result<Result<Vec<Uuid>, Vec<String>>, StoreError> {
+    let present: Vec<(String, Uuid)> = sqlx::query_as(
+        "SELECT name, id FROM channels WHERE tenant=$1 AND name = ANY($2) FOR KEY SHARE",
     )
     .bind(tenant.as_str())
     .bind(channels)
     .fetch_all(conn)
     .await?;
-    let mut missing = Vec::new();
+    let by_name: HashMap<&str, Uuid> = present.iter().map(|(n, id)| (n.as_str(), *id)).collect();
+    let mut ids = Vec::with_capacity(channels.len());
+    let mut missing: Vec<String> = Vec::new();
     for name in channels {
-        if !present.contains(name) && !missing.contains(name) {
-            missing.push(name.clone());
+        match by_name.get(name.as_str()) {
+            Some(id) => ids.push(*id),
+            None if missing.contains(name) => {}
+            None => missing.push(name.clone()),
         }
     }
-    Ok(missing)
+    if missing.is_empty() {
+        Ok(Ok(ids))
+    } else {
+        Ok(Err(missing))
+    }
+}
+
+/// Insert a receiver's channel links (`channel_ids` already resolved and locked by
+/// [`resolve_referenced_channels`] in the same transaction). The caller clears any
+/// existing links first when the receiver may already have some.
+async fn link_receiver_channels(
+    conn: &mut sqlx::PgConnection,
+    tenant: &TenantId,
+    receiver_id: Uuid,
+    channel_ids: &[Uuid],
+) -> Result<(), StoreError> {
+    sqlx::query(
+        "INSERT INTO receiver_channels (tenant, receiver_id, channel_id, position)
+         SELECT $1, $2, x.id, x.ord
+         FROM unnest($3::uuid[]) WITH ORDINALITY AS x(id, ord)",
+    )
+    .bind(tenant.as_str())
+    .bind(receiver_id)
+    .bind(channel_ids)
+    .execute(conn)
+    .await?;
+    Ok(())
+}
+
+/// The one write statement that distinguishes the three receiver write paths; the
+/// surrounding transaction (resolve channels, replace links, build the result) is
+/// shared in [`PgStore::write_receiver`].
+enum ReceiverStmt<'a> {
+    /// Create-only: an existing (tenant, name) answers [`ReceiverWrite::NameTaken`].
+    Insert,
+    /// Create or replace by (tenant, name), PUT-like.
+    Upsert,
+    /// Update-only rename of an existing receiver to the carried target name.
+    Rename(&'a str),
+}
+
+fn is_sqlstate(e: &sqlx::Error, code: &str) -> bool {
+    e.as_database_error()
+        .and_then(|d| d.code())
+        .map(|c| c == code)
+        .unwrap_or(false)
 }
 
 /// True if a sqlx error is a Postgres unique-constraint violation (SQLSTATE 23505).
 fn is_unique_violation(e: &sqlx::Error) -> bool {
-    e.as_database_error()
-        .and_then(|d| d.code())
-        .map(|c| c == "23505")
-        .unwrap_or(false)
+    is_sqlstate(e, "23505")
 }
 
-/// True if a sqlx error is a Postgres foreign-key violation (SQLSTATE 23503). Only called
-/// on route and receiver writes, where the one FK that can fire is
-/// `routes (tenant, receiver) -> receivers (tenant, name)`: either a route naming a
-/// receiver that does not exist or a receiver delete blocked by the routes still
-/// targeting it. The schema's other FKs (`instances`, `slo_status`, `slo_instances`)
-/// all cascade, so they never surface here.
+/// True if a sqlx error is a Postgres foreign-key violation (SQLSTATE 23503). Only
+/// called on route, receiver, and channel writes, where the FKs that can fire are
+/// `routes -> receivers` (a route write racing a receiver delete, or a receiver
+/// delete blocked by the routes still targeting it) and
+/// `receiver_channels -> channels` (a channel delete blocked by referring receivers,
+/// or a receiver write racing a channel delete). The schema's other FKs (`instances`,
+/// `slo_status`, `slo_instances`, the receiver side of `receiver_channels`) all
+/// cascade, so they never surface here.
 fn is_foreign_key_violation(e: &sqlx::Error) -> bool {
-    e.as_database_error()
-        .and_then(|d| d.code())
-        .map(|c| c == "23503")
-        .unwrap_or(false)
+    is_sqlstate(e, "23503")
 }
 
 /// Outcome of [`PgStore::delete_channel`].
@@ -255,6 +301,18 @@ pub enum ChannelDelete {
     /// At least one receiver still references the channel; carries the referring
     /// receiver names (the API surfaces them in the 409 detail).
     InUse(Vec<String>),
+}
+
+/// Outcome of [`PgStore::rename_channel`] (update-only, so a mistyped source name
+/// cannot silently create a channel under the target name).
+#[allow(clippy::large_enum_variant)]
+#[derive(Debug, Clone, PartialEq)]
+pub enum ChannelRename {
+    Renamed(Channel),
+    /// No channel with the source (tenant, name) exists (the API renders a 404).
+    NotFound,
+    /// A channel already holds the target name (the API renders a 409).
+    NameTaken,
 }
 
 /// Keyset position within the `(created_at, id)`-ordered rule listing: the key
@@ -1554,6 +1612,41 @@ impl PgStore {
         })
     }
 
+    /// Rename a channel (optionally replacing its config in the same statement).
+    /// Update-only: renames address an existing channel; the create path is the
+    /// upsert without a rename. Receivers reference channels by id, so the rename
+    /// never touches them.
+    pub async fn rename_channel(
+        &self,
+        cipher: &dyn SecretCipher,
+        tenant: TenantId,
+        name: &str,
+        new_name: &str,
+        config: &ChannelConfig,
+    ) -> Result<ChannelRename, StoreError> {
+        let cfg_json = crate::crypto::encrypt_channel(cipher, config)?;
+        let row = sqlx::query(
+            "UPDATE channels SET name=$3, config=$4 WHERE tenant=$1 AND name=$2 RETURNING id",
+        )
+        .bind(tenant.as_str())
+        .bind(name)
+        .bind(new_name)
+        .bind(&cfg_json)
+        .fetch_optional(&self.pool)
+        .await;
+        match row {
+            Ok(Some(r)) => Ok(ChannelRename::Renamed(Channel {
+                id: r.get("id"),
+                tenant,
+                name: new_name.to_string(),
+                config: config.clone(),
+            })),
+            Ok(None) => Ok(ChannelRename::NotFound),
+            Err(e) if is_unique_violation(&e) => Ok(ChannelRename::NameTaken),
+            Err(e) => Err(e.into()),
+        }
+    }
+
     pub async fn get_channel(
         &self,
         cipher: &dyn SecretCipher,
@@ -1589,20 +1682,21 @@ impl PgStore {
             .collect()
     }
 
-    /// Load a set of channels by name (dispatcher resolution path). Names with no
-    /// stored channel are simply absent from the result; the caller decides how to
-    /// treat the gap (the flusher skips them with an error log).
-    pub async fn channels_by_names(
+    /// Load a set of channels by id (dispatcher resolution path). Ids with no stored
+    /// channel are simply absent from the result; the caller decides how to treat the
+    /// gap (the flusher dead-letters the batch). Id-addressed so a rename between
+    /// buffering and flush still resolves.
+    pub async fn channels_by_ids(
         &self,
         cipher: &dyn SecretCipher,
         tenant: &TenantId,
-        names: &[String],
+        ids: &[Uuid],
     ) -> Result<Vec<Channel>, StoreError> {
         let rows = sqlx::query(
-            "SELECT id, tenant, name, config FROM channels WHERE tenant=$1 AND name = ANY($2)",
+            "SELECT id, tenant, name, config FROM channels WHERE tenant=$1 AND id = ANY($2)",
         )
         .bind(tenant.as_str())
-        .bind(names)
+        .bind(ids)
         .fetch_all(&self.pool)
         .await?;
         rows.iter()
@@ -1610,74 +1704,41 @@ impl PgStore {
             .collect()
     }
 
-    /// Which of `names` exist as channels for the tenant (receiver-validation path).
-    pub async fn existing_channel_names(
-        &self,
-        tenant: &TenantId,
-        names: &[String],
-    ) -> Result<Vec<String>, StoreError> {
-        let rows = sqlx::query_scalar::<_, String>(
-            "SELECT name FROM channels WHERE tenant=$1 AND name = ANY($2)",
-        )
-        .bind(tenant.as_str())
-        .bind(names)
-        .fetch_all(&self.pool)
-        .await?;
-        Ok(rows)
-    }
-
     /// Delete a channel unless a receiver still references it.
     ///
-    /// The referrer check races receiver creation: a `FOR SHARE` over the referrers
-    /// locks no rows when there are none, so a concurrent receiver write could
-    /// validate the channel, commit a reference to it, and slip past a referrer check
-    /// that had already run. Because receiver channel lists are JSON with no foreign
-    /// key, that would strand a dangling reference. Instead we take `FOR UPDATE` on the
-    /// channel row itself, up front, as the single serialization point: receiver writes
-    /// take `FOR KEY SHARE` on the channels they reference (see
-    /// [`lock_referenced_channels`]), which conflicts with this `FOR UPDATE`. Either a
-    /// receiver write commits before we take the lock (and its row is then visible to
-    /// the referrer check), or it blocks until we remove the channel (and then observes
-    /// it gone and aborts). No interleaving leaves a reference to a deleted channel.
+    /// The `receiver_channels -> channels` foreign key restricts the delete: no lock,
+    /// no transaction, and no window in which a concurrent receiver write could slip
+    /// past a referrer check. The follow-up query on rejection is purely to name the
+    /// referring receivers in the 409; the constraint is what makes the delete safe.
     pub async fn delete_channel(
         &self,
         tenant: TenantId,
         name: &str,
     ) -> Result<ChannelDelete, StoreError> {
-        let mut tx = self.pool.begin().await?;
-        let locked: Option<Uuid> =
-            sqlx::query_scalar("SELECT id FROM channels WHERE tenant=$1 AND name=$2 FOR UPDATE")
-                .bind(tenant.as_str())
-                .bind(name)
-                .fetch_optional(&mut *tx)
-                .await?;
-        if locked.is_none() {
-            tx.rollback().await?;
-            return Ok(ChannelDelete::NotFound);
-        }
-        // The channel row is now locked `FOR UPDATE`, so no concurrent receiver write
-        // referencing it can be mid-flight; every committed referrer is visible here and
-        // no new one can commit until we release the lock.
-        let referrers: Vec<String> = sqlx::query_scalar(
-            "SELECT name FROM receivers
-             WHERE tenant=$1 AND channels @> to_jsonb(ARRAY[$2::text])
-             ORDER BY name",
-        )
-        .bind(tenant.as_str())
-        .bind(name)
-        .fetch_all(&mut *tx)
-        .await?;
-        if !referrers.is_empty() {
-            tx.rollback().await?;
-            return Ok(ChannelDelete::InUse(referrers));
-        }
-        sqlx::query("DELETE FROM channels WHERE tenant=$1 AND name=$2")
+        let res = sqlx::query("DELETE FROM channels WHERE tenant=$1 AND name=$2")
             .bind(tenant.as_str())
             .bind(name)
-            .execute(&mut *tx)
-            .await?;
-        tx.commit().await?;
-        Ok(ChannelDelete::Deleted)
+            .execute(&self.pool)
+            .await;
+        match res {
+            Ok(r) if r.rows_affected() > 0 => Ok(ChannelDelete::Deleted),
+            Ok(_) => Ok(ChannelDelete::NotFound),
+            Err(e) if is_foreign_key_violation(&e) => {
+                let referrers: Vec<String> = sqlx::query_scalar(
+                    "SELECT r.name FROM receivers r
+                     JOIN receiver_channels rc ON rc.receiver_id = r.id
+                     JOIN channels c ON c.id = rc.channel_id
+                     WHERE c.tenant=$1 AND c.name=$2
+                     ORDER BY r.name",
+                )
+                .bind(tenant.as_str())
+                .bind(name)
+                .fetch_all(&self.pool)
+                .await?;
+                Ok(ChannelDelete::InUse(referrers))
+            }
+            Err(e) => Err(e.into()),
+        }
     }
 
     fn channel_from_row(cipher: &dyn SecretCipher, r: &PgRow) -> Result<Channel, StoreError> {
@@ -1693,166 +1754,222 @@ impl PgStore {
 
     // ---- receivers ----
 
-    /// Create-only receiver insert. [`ReceiverInsert::NameConflict`] if a receiver with
-    /// this name already exists for the tenant (the caller surfaces a 409). The upsert
-    /// path is [`Self::create_receiver`]. Referenced channels are locked and confirmed to
-    /// exist inside the write transaction (see [`Self::create_receiver`]); a channel
-    /// removed by a concurrent delete surfaces as [`ReceiverInsert::MissingChannels`].
-    /// The channel check precedes the insert, so unknown channels (422) win over a name
-    /// conflict (409), matching the boundary order.
+    /// Create-only receiver insert; an existing (tenant, name) answers
+    /// [`ReceiverWrite::NameTaken`]. The upsert path is [`Self::create_receiver`].
     pub async fn insert_receiver(
         &self,
         tenant: TenantId,
         name: &str,
         channels: &[String],
         annotations: &BTreeMap<String, String>,
-    ) -> Result<ReceiverInsert, StoreError> {
-        let id = Uuid::new_v4();
-        let ch_json = serde_json::to_value(channels)?;
-        let ann_json = serde_json::to_value(annotations)?;
-        let mut tx = self.pool.begin().await?;
-        let missing = lock_referenced_channels(&mut tx, &tenant, channels).await?;
-        if !missing.is_empty() {
-            tx.rollback().await?;
-            return Ok(ReceiverInsert::MissingChannels(missing));
-        }
-        let row = sqlx::query(
-            "INSERT INTO receivers (id, tenant, name, channels, annotations) VALUES ($1,$2,$3,$4,$5)
-             ON CONFLICT (tenant, name) DO NOTHING
-             RETURNING id",
-        )
-        .bind(id)
-        .bind(tenant.as_str())
-        .bind(name)
-        .bind(&ch_json)
-        .bind(&ann_json)
-        .fetch_optional(&mut *tx)
-        .await?;
-        tx.commit().await?;
-        Ok(match row {
-            Some(r) => ReceiverInsert::Created(Receiver {
-                id: r.get("id"),
-                tenant,
-                name: name.to_string(),
-                channels: channels.to_vec(),
-                annotations: annotations.clone(),
-            }),
-            None => ReceiverInsert::NameConflict,
-        })
+    ) -> Result<ReceiverWrite, StoreError> {
+        self.write_receiver(tenant, name, ReceiverStmt::Insert, channels, annotations)
+            .await
     }
 
-    /// Create or replace a receiver by (tenant, name). Upsert semantics (PUT-like):
-    /// re-issuing the same name updates its channel references. The create-only path is
-    /// [`Self::insert_receiver`]. `channels` non-emptiness is enforced at the API
-    /// boundary; the column holds a JSON array of channel names and never any secret.
-    ///
-    /// Referenced-channel existence is enforced *inside* the write transaction, under a
-    /// `FOR KEY SHARE` lock on each channel row ([`lock_referenced_channels`]), so the
-    /// insert cannot race a `delete_channel` into a dangling reference. The API boundary
-    /// still pre-checks existence for a friendly 422 on the common (non-racing) case;
-    /// the in-transaction check is the authority that closes the race, and reports a
-    /// channel a concurrent delete removed as [`ReceiverUpsert::MissingChannels`].
+    /// Create or replace a receiver by (tenant, name), PUT-like: re-issuing the same
+    /// name replaces its channel links and annotations wholesale.
     pub async fn create_receiver(
         &self,
         tenant: TenantId,
         name: &str,
         channels: &[String],
         annotations: &BTreeMap<String, String>,
-    ) -> Result<ReceiverUpsert, StoreError> {
-        let id = Uuid::new_v4();
-        let ch_json = serde_json::to_value(channels)?;
+    ) -> Result<ReceiverWrite, StoreError> {
+        self.write_receiver(tenant, name, ReceiverStmt::Upsert, channels, annotations)
+            .await
+    }
+
+    /// Rename a receiver, replacing its channel links and annotations in the same
+    /// transaction. Update-only: a rename addresses an existing receiver; the create
+    /// path is the upsert without a rename. Routes target receivers by id, so the
+    /// rename never touches them.
+    pub async fn rename_receiver(
+        &self,
+        tenant: TenantId,
+        name: &str,
+        new_name: &str,
+        channels: &[String],
+        annotations: &BTreeMap<String, String>,
+    ) -> Result<ReceiverWrite, StoreError> {
+        self.write_receiver(
+            tenant,
+            name,
+            ReceiverStmt::Rename(new_name),
+            channels,
+            annotations,
+        )
+        .await
+    }
+
+    /// The shared receiver write transaction: resolve the referenced channels to ids
+    /// (under a `FOR KEY SHARE` lock, so the write cannot race a `delete_channel`
+    /// into a dangling link; the `receiver_channels` foreign key backstops it), run
+    /// the path-specific statement, replace the links, commit. `channels`
+    /// non-emptiness is enforced at the API boundary; the store keeps id-based links
+    /// in `receiver_channels` and never any secret. Channel resolution precedes the
+    /// write statement, so unknown channels (422) win over a name conflict (409).
+    async fn write_receiver(
+        &self,
+        tenant: TenantId,
+        name: &str,
+        stmt: ReceiverStmt<'_>,
+        channels: &[String],
+        annotations: &BTreeMap<String, String>,
+    ) -> Result<ReceiverWrite, StoreError> {
         let ann_json = serde_json::to_value(annotations)?;
         let mut tx = self.pool.begin().await?;
-        let missing = lock_referenced_channels(&mut tx, &tenant, channels).await?;
-        if !missing.is_empty() {
-            tx.rollback().await?;
-            return Ok(ReceiverUpsert::MissingChannels(missing));
+        let channel_ids = match resolve_referenced_channels(&mut tx, &tenant, channels).await? {
+            Ok(ids) => ids,
+            Err(missing) => {
+                tx.rollback().await?;
+                return Ok(ReceiverWrite::MissingChannels(missing));
+            }
+        };
+        let row = match stmt {
+            ReceiverStmt::Insert => {
+                sqlx::query(
+                    "INSERT INTO receivers (id, tenant, name, annotations) VALUES ($1,$2,$3,$4)
+                 ON CONFLICT (tenant, name) DO NOTHING
+                 RETURNING id",
+                )
+                .bind(Uuid::new_v4())
+                .bind(tenant.as_str())
+                .bind(name)
+                .bind(&ann_json)
+                .fetch_optional(&mut *tx)
+                .await
+            }
+            ReceiverStmt::Upsert => {
+                sqlx::query(
+                    "INSERT INTO receivers (id, tenant, name, annotations) VALUES ($1,$2,$3,$4)
+                 ON CONFLICT (tenant, name) DO UPDATE
+                    SET annotations = EXCLUDED.annotations
+                 RETURNING id",
+                )
+                .bind(Uuid::new_v4())
+                .bind(tenant.as_str())
+                .bind(name)
+                .bind(&ann_json)
+                .fetch_optional(&mut *tx)
+                .await
+            }
+            ReceiverStmt::Rename(new_name) => {
+                sqlx::query(
+                    "UPDATE receivers SET name=$3, annotations=$4
+                 WHERE tenant=$1 AND name=$2 RETURNING id",
+                )
+                .bind(tenant.as_str())
+                .bind(name)
+                .bind(new_name)
+                .bind(&ann_json)
+                .fetch_optional(&mut *tx)
+                .await
+            }
+        };
+        let id: Uuid = match row {
+            Ok(Some(r)) => r.get("id"),
+            // An insert conflicting on the name and a rename addressing no row both
+            // come back rowless; which one it means depends on the statement.
+            Ok(None) => {
+                tx.rollback().await?;
+                return Ok(match stmt {
+                    ReceiverStmt::Insert => ReceiverWrite::NameTaken,
+                    ReceiverStmt::Upsert => unreachable!("upsert always returns a row"),
+                    ReceiverStmt::Rename(_) => ReceiverWrite::NotFound,
+                });
+            }
+            // Only the rename can collide on the unique name (the inserts resolve
+            // conflicts in-statement); the aborted transaction rolls back on drop.
+            Err(e) if is_unique_violation(&e) => return Ok(ReceiverWrite::NameTaken),
+            Err(e) => return Err(e.into()),
+        };
+        // A just-created receiver has no links to clear.
+        if !matches!(stmt, ReceiverStmt::Insert) {
+            sqlx::query("DELETE FROM receiver_channels WHERE receiver_id=$1")
+                .bind(id)
+                .execute(&mut *tx)
+                .await?;
         }
-        let row = sqlx::query(
-            "INSERT INTO receivers (id, tenant, name, channels, annotations) VALUES ($1,$2,$3,$4,$5)
-             ON CONFLICT (tenant, name) DO UPDATE
-                SET channels = EXCLUDED.channels, annotations = EXCLUDED.annotations
-             RETURNING id",
-        )
-        .bind(id)
-        .bind(tenant.as_str())
-        .bind(name)
-        .bind(&ch_json)
-        .bind(&ann_json)
-        .fetch_one(&mut *tx)
-        .await?;
+        link_receiver_channels(&mut tx, &tenant, id, &channel_ids).await?;
         tx.commit().await?;
-        Ok(ReceiverUpsert::Stored(Receiver {
-            id: row.get("id"),
+        let stored_name = match stmt {
+            ReceiverStmt::Rename(new_name) => new_name,
+            ReceiverStmt::Insert | ReceiverStmt::Upsert => name,
+        };
+        Ok(ReceiverWrite::Stored(Receiver {
+            id,
             tenant,
-            name: name.to_string(),
+            name: stored_name.to_string(),
             channels: channels.to_vec(),
+            channel_ids,
             annotations: annotations.clone(),
         }))
     }
+
+    /// The channel-reference subselects shared by every receiver read: links joined
+    /// back to current names, plus the stable ids, both in the caller's stored order.
+    const RECEIVER_CHANNELS_SELECT: &'static str = "COALESCE(
+        (SELECT array_agg(c.name ORDER BY rc.position)
+         FROM receiver_channels rc JOIN channels c ON c.id = rc.channel_id
+         WHERE rc.receiver_id = r.id),
+        '{}'::text[]) AS channels,
+      COALESCE(
+        (SELECT array_agg(rc.channel_id ORDER BY rc.position)
+         FROM receiver_channels rc WHERE rc.receiver_id = r.id),
+        '{}'::uuid[]) AS channel_ids";
 
     pub async fn get_receiver(
         &self,
         tenant: TenantId,
         name: &str,
     ) -> Result<Option<Receiver>, StoreError> {
-        let row = sqlx::query(
-            "SELECT id, tenant, name, channels, annotations
-             FROM receivers WHERE tenant=$1 AND name=$2",
-        )
+        let row = sqlx::query(&format!(
+            "SELECT r.id, r.tenant, r.name, r.annotations, {}
+             FROM receivers r WHERE r.tenant=$1 AND r.name=$2",
+            Self::RECEIVER_CHANNELS_SELECT
+        ))
         .bind(tenant.as_str())
         .bind(name)
         .fetch_optional(&self.pool)
         .await?;
         match row {
             None => Ok(None),
-            Some(r) => {
-                let channels: Vec<String> = serde_json::from_value(r.get("channels"))?;
-                let annotations: BTreeMap<String, String> =
-                    serde_json::from_value(r.get("annotations"))?;
-                Ok(Some(Receiver {
-                    id: r.get("id"),
-                    tenant: TenantId::from_trusted(r.get::<String, _>("tenant")),
-                    name: r.get("name"),
-                    channels,
-                    annotations,
-                }))
-            }
+            Some(r) => Ok(Some(Self::receiver_from_row(&r)?)),
         }
     }
 
     pub async fn list_receivers(&self, tenant: TenantId) -> Result<Vec<Receiver>, StoreError> {
-        let rows = sqlx::query(
-            "SELECT id, tenant, name, channels, annotations
-             FROM receivers WHERE tenant=$1 ORDER BY name",
-        )
+        let rows = sqlx::query(&format!(
+            "SELECT r.id, r.tenant, r.name, r.annotations, {}
+             FROM receivers r WHERE r.tenant=$1 ORDER BY r.name",
+            Self::RECEIVER_CHANNELS_SELECT
+        ))
         .bind(tenant.as_str())
         .fetch_all(&self.pool)
         .await?;
-        let mut out = Vec::new();
-        for r in &rows {
-            let channels: Vec<String> = serde_json::from_value(r.get("channels"))?;
-            let annotations: BTreeMap<String, String> =
-                serde_json::from_value(r.get("annotations"))?;
-            out.push(Receiver {
-                id: r.get("id"),
-                tenant: TenantId::from_trusted(r.get::<String, _>("tenant")),
-                name: r.get("name"),
-                channels,
-                annotations,
-            });
-        }
-        Ok(out)
+        rows.iter().map(Self::receiver_from_row).collect()
+    }
+
+    fn receiver_from_row(r: &PgRow) -> Result<Receiver, StoreError> {
+        let annotations: BTreeMap<String, String> = serde_json::from_value(r.get("annotations"))?;
+        Ok(Receiver {
+            id: r.get("id"),
+            tenant: TenantId::from_trusted(r.get::<String, _>("tenant")),
+            name: r.get("name"),
+            channels: r.get("channels"),
+            channel_ids: r.get("channel_ids"),
+            annotations,
+        })
     }
 
     /// Delete a receiver unless a route still targets it.
     ///
-    /// Unlike [`Self::delete_channel`] one level down (whose referrers live in a JSON
-    /// array, so the guard has to be a hand-rolled lock protocol), the routes -> receivers
-    /// foreign key restricts this delete for us: no lock, no transaction, and no window
-    /// in which a concurrent route write could slip past a referrer check. The follow-up
-    /// query on rejection is purely to name the offending routes in the 409; the
-    /// constraint, not that read, is what makes the delete safe.
+    /// The routes -> receivers foreign key restricts this delete: no lock, no
+    /// transaction, and no window in which a concurrent route write could slip past a
+    /// referrer check. (The receiver's own channel links cascade away with the row.)
+    /// The follow-up query on rejection is purely to name the offending routes in the
+    /// 409; the constraint, not that read, is what makes the delete safe.
     pub async fn delete_receiver(
         &self,
         tenant: TenantId,
@@ -1868,7 +1985,10 @@ impl PgStore {
             Ok(_) => Ok(ReceiverDelete::NotFound),
             Err(e) if is_foreign_key_violation(&e) => {
                 let referrers: Vec<Uuid> = sqlx::query_scalar(
-                    "SELECT id FROM routes WHERE tenant=$1 AND receiver=$2 ORDER BY created_at ASC",
+                    "SELECT rt.id FROM routes rt
+                     JOIN receivers r ON r.id = rt.receiver_id
+                     WHERE r.tenant=$1 AND r.name=$2
+                     ORDER BY rt.created_at ASC",
                 )
                 .bind(tenant.as_str())
                 .bind(name)
@@ -1884,10 +2004,10 @@ impl PgStore {
 
     /// Create a route.
     ///
-    /// The referenced receiver must exist; the routes -> receivers foreign key enforces
-    /// it, so an unknown (or concurrently deleted) receiver surfaces as a 23503 that
-    /// becomes [`RouteCreate::MissingReceiver`] and the API turns into a 422. No
-    /// boundary pre-check duplicates it.
+    /// The insert selects from `receivers` to resolve the receiver name to its id, so
+    /// an unknown name inserts zero rows and becomes [`RouteCreate::MissingReceiver`]
+    /// (a 422 at the API); a receiver deleted mid-flight trips the foreign key and
+    /// means the same thing. No boundary pre-check duplicates it.
     #[allow(clippy::too_many_arguments)]
     pub async fn create_route(
         &self,
@@ -1909,9 +2029,11 @@ impl PgStore {
         };
         let res = sqlx::query(
             "INSERT INTO routes
-               (id, tenant, matchers, receiver, continue_matching, priority,
+               (id, tenant, matchers, receiver_id, continue_matching, priority,
                 group_by, group_wait_secs, group_interval_secs, repeat_interval_secs)
-             VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)",
+             SELECT $1,$2,$3, rcv.id, $5,$6,$7,$8,$9,$10
+             FROM receivers rcv WHERE rcv.tenant=$2 AND rcv.name=$4
+             RETURNING receiver_id",
         )
         .bind(id)
         .bind(tenant.as_str())
@@ -1923,20 +2045,20 @@ impl PgStore {
         .bind(group_wait_secs.map(|v| v as i32))
         .bind(group_interval_secs.map(|v| v as i32))
         .bind(repeat_interval_secs.map(|v| v as i32))
-        .execute(&self.pool)
+        .fetch_optional(&self.pool)
         .await;
-        if let Err(e) = res {
-            return if is_foreign_key_violation(&e) {
-                Ok(RouteCreate::MissingReceiver)
-            } else {
-                Err(e.into())
-            };
-        }
+        let receiver_id: Uuid = match res {
+            Ok(Some(r)) => r.get("receiver_id"),
+            Ok(None) => return Ok(RouteCreate::MissingReceiver),
+            Err(e) if is_foreign_key_violation(&e) => return Ok(RouteCreate::MissingReceiver),
+            Err(e) => return Err(e.into()),
+        };
         Ok(RouteCreate::Created(Route {
             id,
             tenant,
             matchers: matchers.to_vec(),
             receiver: receiver.to_string(),
+            receiver_id,
             continue_matching,
             priority,
             group_by: group_by.map(|g| g.to_vec()),
@@ -1947,10 +2069,11 @@ impl PgStore {
     }
 
     /// Full-body replace of a route (PUT semantics). `created_at` is preserved, so the
-    /// route keeps its position among equal priorities. [`RouteUpdate::NotFound`] when no
-    /// route with that id exists for the tenant, which wins over an unknown receiver: an
-    /// update matching no row runs no foreign-key check, so a request that is wrong about
-    /// both is answered about the route it names (see [`Self::create_route`]).
+    /// route keeps its position among equal priorities. The update joins `receivers` to
+    /// resolve the receiver name, so either miss comes back rowless; the follow-up
+    /// existence check answers about the route first ([`RouteUpdate::NotFound`] wins
+    /// over an unknown receiver), so a request that is wrong about both is answered
+    /// about the route it names (see [`Self::create_route`]).
     #[allow(clippy::too_many_arguments)]
     pub async fn update_route(
         &self,
@@ -1971,11 +2094,13 @@ impl PgStore {
             None => None,
         };
         let res = sqlx::query(
-            "UPDATE routes
-                SET matchers=$3, receiver=$4, continue_matching=$5, priority=$6,
+            "UPDATE routes rt
+                SET matchers=$3, receiver_id=rcv.id, continue_matching=$5, priority=$6,
                     group_by=$7, group_wait_secs=$8, group_interval_secs=$9,
                     repeat_interval_secs=$10
-              WHERE tenant=$1 AND id=$2",
+              FROM receivers rcv
+             WHERE rt.tenant=$1 AND rt.id=$2 AND rcv.tenant=$1 AND rcv.name=$4
+             RETURNING rt.receiver_id",
         )
         .bind(tenant.as_str())
         .bind(id)
@@ -1987,21 +2112,35 @@ impl PgStore {
         .bind(group_wait_secs.map(|v| v as i32))
         .bind(group_interval_secs.map(|v| v as i32))
         .bind(repeat_interval_secs.map(|v| v as i32))
-        .execute(&self.pool)
+        .fetch_optional(&self.pool)
         .await;
-        let res = match res {
-            Ok(r) => r,
+        let receiver_id: Uuid = match res {
+            Ok(Some(r)) => r.get("receiver_id"),
+            Ok(None) => {
+                // Rowless means the route or the receiver is missing; one existence
+                // read decides which, and the route answer wins.
+                let route_exists: bool = sqlx::query_scalar(
+                    "SELECT EXISTS(SELECT 1 FROM routes WHERE tenant=$1 AND id=$2)",
+                )
+                .bind(tenant.as_str())
+                .bind(id)
+                .fetch_one(&self.pool)
+                .await?;
+                return Ok(if route_exists {
+                    RouteUpdate::MissingReceiver
+                } else {
+                    RouteUpdate::NotFound
+                });
+            }
             Err(e) if is_foreign_key_violation(&e) => return Ok(RouteUpdate::MissingReceiver),
             Err(e) => return Err(e.into()),
         };
-        if res.rows_affected() == 0 {
-            return Ok(RouteUpdate::NotFound);
-        }
         Ok(RouteUpdate::Updated(Route {
             id,
             tenant,
             matchers: matchers.to_vec(),
             receiver: receiver.to_string(),
+            receiver_id,
             continue_matching,
             priority,
             group_by: group_by.map(|g| g.to_vec()),
@@ -2011,12 +2150,21 @@ impl PgStore {
         }))
     }
 
-    /// All routes for a tenant, in evaluation order (priority asc, then creation order).
+    /// All routes for a tenant, in evaluation order (priority asc, then creation
+    /// order). The stored receiver id is joined back to its current name, so a
+    /// renamed receiver shows up under the new name on the next read. The join is
+    /// LEFT so a route whose receiver row is somehow gone (unreachable while the
+    /// foreign key holds) still surfaces, carrying the raw id where its name would
+    /// be: the dispatcher then dead-letters what it matches instead of silently
+    /// routing around it.
     pub async fn routes_for(&self, tenant: TenantId) -> Result<Vec<Route>, StoreError> {
         let rows = sqlx::query(
-            "SELECT id, tenant, matchers, receiver, continue_matching, priority,
-                    group_by, group_wait_secs, group_interval_secs, repeat_interval_secs
-             FROM routes WHERE tenant=$1 ORDER BY priority ASC, created_at ASC",
+            "SELECT rt.id, rt.tenant, rt.matchers, rt.receiver_id,
+                    COALESCE(rcv.name, rt.receiver_id::text) AS receiver,
+                    rt.continue_matching, rt.priority, rt.group_by, rt.group_wait_secs,
+                    rt.group_interval_secs, rt.repeat_interval_secs
+             FROM routes rt LEFT JOIN receivers rcv ON rcv.id = rt.receiver_id
+             WHERE rt.tenant=$1 ORDER BY rt.priority ASC, rt.created_at ASC",
         )
         .bind(tenant.as_str())
         .fetch_all(&self.pool)
@@ -2034,6 +2182,7 @@ impl PgStore {
                 tenant: TenantId::from_trusted(r.get::<String, _>("tenant")),
                 matchers,
                 receiver: r.get("receiver"),
+                receiver_id: r.get("receiver_id"),
                 continue_matching: r.get("continue_matching"),
                 priority: r.get("priority"),
                 group_by,

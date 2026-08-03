@@ -26,7 +26,13 @@ pub struct Route {
     pub id: Uuid,
     pub tenant: TenantId,
     pub matchers: Vec<Matcher>,
+    /// The targeted receiver's current name (display + API contract).
     pub receiver: String,
+    /// The targeted receiver's stable id. Snapshot lookups and group identity key
+    /// on this, so a receiver rename never re-buckets live groups. `default` (nil)
+    /// so payloads written before the field existed still deserialize.
+    #[serde(default)]
+    pub receiver_id: Uuid,
     #[serde(rename = "continue", default)]
     pub continue_matching: bool,
     #[serde(default)]
@@ -87,6 +93,7 @@ mod tests {
                 value: "critical".into(),
             }],
             receiver: "pd".into(),
+            receiver_id: Uuid::nil(),
             continue_matching: true,
             priority: 0,
             group_by: None,

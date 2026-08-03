@@ -30,7 +30,7 @@ fn ev(inst: &str, status: EventStatus) -> Event {
 fn meta() -> GroupMeta {
     GroupMeta {
         tenant: Uuid::nil().to_string(),
-        channels: vec!["ops-hook".into()],
+        channels: vec![Uuid::from_u128(1)],
         group_key: "ops|rule=,severity=warning".into(),
         receiver: "ops".into(),
     }
@@ -91,7 +91,7 @@ async fn buffers_batches_and_claims_when_due() {
 
     // Taking peeks; committing the drain removes the buffered fields.
     let batch = groups.take_group("g1", now + 100).await.unwrap().unwrap();
-    assert_eq!(batch.meta.channels, vec!["ops-hook".to_string()]);
+    assert_eq!(batch.meta.channels, vec![Uuid::from_u128(1)]);
     let mut insts: Vec<String> = batch
         .events
         .iter()

@@ -165,9 +165,12 @@ async fn route_with_a_dangling_receiver_dead_letters_instead_of_dropping() {
         .unwrap();
 
     // Simulate concurrent snapshot reads observing a route after its receiver vanished.
-    // The test has an isolated database, so dropping the constraint is safe here.
+    // The test has an isolated database, so dropping the constraint is safe here. With
+    // the receiver row gone, the route reads back with its raw receiver id where the
+    // name would be (see `PgStore::routes_for`), so that id is what the dead-letter
+    // reason must carry.
     let pool = infra.store.pool_for_test();
-    sqlx::query("ALTER TABLE routes DROP CONSTRAINT routes_tenant_receiver_fkey")
+    sqlx::query("ALTER TABLE routes DROP CONSTRAINT routes_tenant_receiver_id_fkey")
         .execute(pool)
         .await
         .unwrap();
@@ -176,6 +179,12 @@ async fn route_with_a_dangling_receiver_dead_letters_instead_of_dropping() {
         .execute(pool)
         .await
         .unwrap();
+    let orphaned_receiver_id: String =
+        sqlx::query_scalar("SELECT receiver_id::text FROM routes WHERE tenant=$1")
+            .bind(tenant.as_str())
+            .fetch_one(pool)
+            .await
+            .unwrap();
 
     let spy = Arc::new(DeadLetterSpy::default());
     let ctx = cc::dispatcher::DispatchCtx {
@@ -192,8 +201,8 @@ async fn route_with_a_dangling_receiver_dead_letters_instead_of_dropping() {
     let reasons = spy.reasons();
     assert_eq!(reasons.len(), 1, "exactly one dead-letter record");
     assert!(
-        reasons[0].contains("unknown receivers") && reasons[0].contains("ops"),
-        "the reason names the missing receiver: {}",
+        reasons[0].contains("unknown receivers") && reasons[0].contains(&orphaned_receiver_id),
+        "the reason names the missing receiver by id: {}",
         reasons[0]
     );
 

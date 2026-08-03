@@ -72,9 +72,10 @@ has a latency floor equal to `group_wait_secs`.
 
 ### 5. Deduplication
 Before delivery, a **dedup key** is computed per channel: for groups, over
-`(group_id, channel name, sorted active event set)`, so each channel of a
-multi-channel receiver dedups independently while staying stable across config
-edits (rotating a hook never re-sends an identical active set); for the
+`(group_id, channel id, sorted active event set)`, so each channel of a
+multi-channel receiver dedups independently while staying stable across renames
+and config edits (renaming a channel or rotating a hook never re-sends an
+identical active set); for the
 firehose, over the event's identity. The `notifications` table records it. Because Redis Streams are
 at-least-once, the same event (or identical group snapshot) can be processed
 twice; the dedup log ensures the notification is sent only once. A changed group
@@ -127,7 +128,7 @@ last error: with any secret in the target stored only as a redacted digest.
   resolve correctly supersedes its firing inside a group.
 - **Per-replica cache lag.** The ~2s tenant snapshot trades a small propagation
   delay for not hitting Postgres on every event.
-- **Secrets never leak in the audit path.** Redis group metas carry channel names
+- **Secrets never leak in the audit path.** Redis group metas carry channel ids
   only, resolved to stored configs at flush time; the audit/dead-letter/log target
   is a one-way digest; transport errors strip the URL. See
   [security model](security-model.md).

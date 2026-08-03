@@ -369,6 +369,137 @@ async fn receiver_create_is_create_only_and_put_replaces() {
     assert_eq!(v["detail"], "unknown channels: nope");
 }
 
+/// References are id-based, so a rename (PUT with a different body `name`) is a
+/// label change: receivers keep delivering through a renamed channel and routes
+/// keep targeting a renamed receiver, both showing the new name on the next read.
+#[tokio::test]
+async fn renames_propagate_to_referrers() {
+    let (app, _) = setup().await;
+    let tenant = Uuid::new_v4();
+    seed_channels(&app, tenant).await;
+    let resp = app
+        .clone()
+        .oneshot(req(
+            "POST",
+            "/v1/receivers",
+            tenant,
+            r#"{"name":"oncall","channels":["team-slack","plain-hook"]}"#,
+        ))
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+    let resp = app
+        .clone()
+        .oneshot(req(
+            "POST",
+            "/v1/routes",
+            tenant,
+            r#"{"matchers":[],"receiver":"oncall"}"#,
+        ))
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+
+    // Rename the channel; the receiver's list follows, in stored order.
+    let resp = app
+        .clone()
+        .oneshot(req(
+            "PUT",
+            "/v1/channels/team-slack",
+            tenant,
+            r#"{"name":"ops-slack","config":{"type":"slack","url":"https://hooks.slack/ROTATED"}}"#,
+        ))
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+    let v = body_json(resp).await;
+    assert_eq!(v["name"], "ops-slack");
+    assert_eq!(v["config"]["url"], "***", "rename still redacts");
+    let resp = app
+        .clone()
+        .oneshot(req("GET", "/v1/channels/team-slack", tenant, ""))
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::NOT_FOUND, "old name is gone");
+    let resp = app
+        .clone()
+        .oneshot(req("GET", "/v1/receivers/oncall", tenant, ""))
+        .await
+        .unwrap();
+    let v = body_json(resp).await;
+    assert_eq!(
+        v["channels"],
+        serde_json::json!(["ops-slack", "plain-hook"])
+    );
+
+    // Rename the receiver; the route follows.
+    let resp = app
+        .clone()
+        .oneshot(req(
+            "PUT",
+            "/v1/receivers/oncall",
+            tenant,
+            r#"{"name":"platform-oncall","channels":["ops-slack"]}"#,
+        ))
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::OK);
+    let v = body_json(resp).await;
+    assert_eq!(v["name"], "platform-oncall");
+    let resp = app
+        .clone()
+        .oneshot(req("GET", "/v1/routes", tenant, ""))
+        .await
+        .unwrap();
+    let v = body_json(resp).await;
+    assert_eq!(v[0]["receiver"], "platform-oncall");
+
+    // A rename is update-only and its target name must be free.
+    let resp = app
+        .clone()
+        .oneshot(req(
+            "PUT",
+            "/v1/channels/never-existed",
+            tenant,
+            r#"{"name":"other","config":{"type":"email","to":["a@x.test"]}}"#,
+        ))
+        .await
+        .unwrap();
+    assert_eq!(
+        resp.status(),
+        StatusCode::NOT_FOUND,
+        "a rename must not create"
+    );
+    let resp = app
+        .clone()
+        .oneshot(req(
+            "PUT",
+            "/v1/channels/ops-slack",
+            tenant,
+            r#"{"name":"plain-hook","config":{"type":"slack","url":"https://hooks.slack/X"}}"#,
+        ))
+        .await
+        .unwrap();
+    assert_eq!(resp.status(), StatusCode::CONFLICT);
+    let v = body_json(resp).await;
+    assert_eq!(v["code"], "already_exists");
+    let resp = app
+        .clone()
+        .oneshot(req(
+            "PUT",
+            "/v1/receivers/platform-oncall",
+            tenant,
+            r#"{"name":"platform-oncall","channels":["plain-hook"]}"#,
+        ))
+        .await
+        .unwrap();
+    assert_eq!(
+        resp.status(),
+        StatusCode::OK,
+        "a body name equal to the path is a plain replace, not a rename"
+    );
+}
+
 #[tokio::test]
 async fn receiver_delete_is_409_while_a_route_targets_it() {
     let (app, _) = setup().await;

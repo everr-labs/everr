@@ -2,7 +2,7 @@ use crate::api::auth::tenant;
 use crate::api::error::ApiError;
 use crate::api::{duplicate_entries, AppState};
 use crate::domain::channel::{Channel, ChannelConfig};
-use crate::stores::ChannelDelete;
+use crate::stores::{ChannelDelete, ChannelRename};
 use axum::extract::{Path, State};
 use axum::http::HeaderMap;
 use axum::Json;
@@ -17,9 +17,13 @@ pub struct CreateChannel {
     pub config: ChannelConfig,
 }
 
-/// `PUT /v1/channels/:name` body: the config only, since the name comes from the path.
+/// `PUT /v1/channels/:name` body. The path names the channel being addressed;
+/// `name` in the body, when present and different, renames it. Receivers
+/// reference channels by id, so a rename never breaks them.
 #[derive(Deserialize)]
 pub struct UpdateChannel {
+    #[serde(default)]
+    pub name: Option<String>,
     pub config: ChannelConfig,
 }
 
@@ -113,7 +117,11 @@ pub async fn create(
 }
 
 /// Create or replace a channel by name (upsert; the secret-rotation path).
-/// Replaces the stored config wholesale. Returns the stored channel redacted.
+/// Replaces the stored config wholesale. A body `name` different from the path
+/// renames the channel instead; the rename is update-only (404 for an unknown
+/// source, 409 `already_exists` for a taken target) so a typo in the path can't
+/// silently create a channel under the new name. Returns the stored channel
+/// redacted.
 pub async fn update(
     State(state): State<AppState>,
     headers: HeaderMap,
@@ -121,12 +129,32 @@ pub async fn update(
     Json(body): Json<UpdateChannel>,
 ) -> Result<Json<Channel>, ApiError> {
     let t = tenant(&state, &headers)?;
-    validate_channel(&name, &body.config, state.allow_private_webhooks)?;
-    let ch = state
-        .store
-        .create_channel(&*state.cipher, t, &name, &body.config)
-        .await?;
-    Ok(Json(ch.redacted()))
+    let new_name = body.name.as_deref().filter(|n| *n != name);
+    validate_channel(
+        new_name.unwrap_or(&name),
+        &body.config,
+        state.allow_private_webhooks,
+    )?;
+    match new_name {
+        None => {
+            let ch = state
+                .store
+                .create_channel(&*state.cipher, t, &name, &body.config)
+                .await?;
+            Ok(Json(ch.redacted()))
+        }
+        Some(new_name) => match state
+            .store
+            .rename_channel(&*state.cipher, t, &name, new_name, &body.config)
+            .await?
+        {
+            ChannelRename::Renamed(ch) => Ok(Json(ch.redacted())),
+            ChannelRename::NotFound => Err(ApiError::NotFound),
+            ChannelRename::NameTaken => Err(ApiError::AlreadyExists(format!(
+                "channel {new_name:?} already exists"
+            ))),
+        },
+    }
 }
 
 pub async fn list(

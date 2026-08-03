@@ -92,42 +92,64 @@ CREATE INDEX notifications_status_idx ON notifications (status);
 -- this table goes through the `dedup_key` primary key.
 CREATE INDEX notifications_updated_at_idx ON notifications (updated_at);
 
--- A receiver is a named set of channel references: its `channels` column holds
--- a JSON array of channel names (see the `channels` table). Free-form
--- `annotations` default to an empty map.
+-- A receiver is a named set of channel references (see `receiver_channels`).
+-- Free-form `annotations` default to an empty map. Names are mutable labels:
+-- everything that points at a receiver does so by id, so a rename touches one
+-- row. The extra `(tenant, id)` unique constraint exists so referencing tables
+-- can carry the tenant in their foreign keys, making a cross-tenant reference
+-- unrepresentable at the schema level; its index (like the `(tenant, name)`
+-- one) is tenant-prefixed, so tenant-scoped reads need no index of their own.
 CREATE TABLE receivers (
     id          UUID PRIMARY KEY,
     tenant      TEXT NOT NULL,
     name        TEXT NOT NULL,
-    channels    JSONB NOT NULL,
     annotations JSONB NOT NULL DEFAULT '{}'::jsonb,
     created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
-    UNIQUE (tenant, name)
+    UNIQUE (tenant, name),
+    UNIQUE (tenant, id)
 );
-CREATE INDEX receivers_tenant_idx ON receivers (tenant);
 
 -- Channels: standalone secret-bearing endpoint configs, unique by (tenant, name)
--- and referenced by name from receivers.
+-- and referenced by id from `receiver_channels`. `(tenant, id)` as on `receivers`.
 CREATE TABLE channels (
     id          UUID PRIMARY KEY,
     tenant      TEXT NOT NULL,
     name        TEXT NOT NULL,
     config      JSONB NOT NULL,
     created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
-    UNIQUE (tenant, name)
+    UNIQUE (tenant, name),
+    UNIQUE (tenant, id)
 );
-CREATE INDEX channels_tenant_idx ON channels (tenant);
 
--- Routes select a receiver by name. Unlike the receiver -> channel reference (a JSON
--- array, so it can only be enforced in application code), this one is a real composite
--- foreign key against `receivers (tenant, name)`: a route naming a receiver that does
--- not exist is rejected, and a receiver a route still targets cannot be deleted. Without
--- it a stranded route silently drops every alert it matches.
+-- The receiver -> channel references. Real foreign keys do the integrity work:
+-- a receiver cannot link a channel that does not exist, deleting a receiver
+-- drops its links, and deleting a channel a receiver still uses is rejected
+-- (the API turns that into a 409 naming the referrers). Both keys carry the
+-- tenant, so a link can never cross tenants. `position` preserves the caller's
+-- channel order.
+CREATE TABLE receiver_channels (
+    tenant      TEXT NOT NULL,
+    receiver_id UUID NOT NULL,
+    channel_id  UUID NOT NULL,
+    position    INT  NOT NULL,
+    PRIMARY KEY (receiver_id, channel_id),
+    FOREIGN KEY (tenant, receiver_id) REFERENCES receivers (tenant, id) ON DELETE CASCADE,
+    FOREIGN KEY (tenant, channel_id)  REFERENCES channels (tenant, id)
+);
+-- Postgres does not index the referencing side of a foreign key; this covers the
+-- channel-delete FK check and the in-use lookup that names referrers in the 409.
+CREATE INDEX receiver_channels_channel_idx ON receiver_channels (channel_id);
+
+-- Routes target a receiver by id: a route pointing at a receiver that does not
+-- exist is rejected, and a receiver a route still targets cannot be deleted
+-- (without that, a stranded route silently drops every alert it matches).
+-- The API speaks receiver names; the store resolves them at write time and
+-- joins them back at read time, so renames never touch this table.
 CREATE TABLE routes (
     id                UUID PRIMARY KEY,
     tenant            TEXT NOT NULL,
     matchers          JSONB NOT NULL,
-    receiver          TEXT NOT NULL,
+    receiver_id       UUID NOT NULL,
     continue_matching BOOLEAN NOT NULL DEFAULT false,
     priority          INT NOT NULL DEFAULT 0,
     group_by            JSONB,
@@ -135,12 +157,11 @@ CREATE TABLE routes (
     group_interval_secs INT,
     repeat_interval_secs INT,
     created_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
-    FOREIGN KEY (tenant, receiver) REFERENCES receivers (tenant, name) ON UPDATE CASCADE
+    FOREIGN KEY (tenant, receiver_id) REFERENCES receivers (tenant, id)
 );
--- Postgres does not index the referencing side of a foreign key, so this covers the
--- receiver delete and the `ON UPDATE CASCADE` rename, plus the in-use lookup that names
--- the referring routes in a 409. Tenant-only reads use it as a prefix.
-CREATE INDEX routes_tenant_receiver_idx ON routes (tenant, receiver);
+-- Covers the receiver-delete FK check and the in-use lookup that names the
+-- referring routes in a 409. Tenant-only reads use it as a prefix.
+CREATE INDEX routes_tenant_receiver_idx ON routes (tenant, receiver_id);
 
 CREATE TABLE silences (
     id          UUID PRIMARY KEY,

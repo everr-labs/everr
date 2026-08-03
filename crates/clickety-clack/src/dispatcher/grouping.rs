@@ -36,6 +36,8 @@ pub fn group_key_string(receiver: &str, values: &[(String, String)]) -> String {
 
 /// Stable opaque group id (hex sha256) over tenant + receiver + the group-by names and
 /// values. Distinct group_by configs for the same receiver yield distinct ids.
+/// `receiver` is the receiver's stable id (not its name), so a rename never
+/// re-buckets a live group.
 pub fn group_id(
     tenant: &TenantId,
     receiver: &str,
@@ -69,17 +71,18 @@ pub fn fingerprint(ev: &Event) -> String {
 }
 
 /// Dedup key for one group notification on one channel =
-/// hash(group_id, channel NAME, active set). Keying by the channel's name (not its
-/// config or target) keeps the key stable across config edits: rotating a Slack hook
-/// must not re-send the identical active set. The active set is folded in as sorted
+/// hash(group_id, channel ID, active set). Keying by the channel's stable id (not
+/// its name, config, or target) keeps the key stable across renames and config
+/// edits: renaming a channel or rotating a Slack hook must not re-send the
+/// identical active set. The active set is folded in as sorted
 /// (instance, status, eval_ts) so a changed set yields a new key (a new notification)
 /// while a redelivery of the identical set does not. This is deliberate for the
 /// crash-reflush path too: a reflush whose batch GREW (crash before the drain commit,
 /// then another event buffered) keys as a new notification that re-includes the
 /// already-sent members, because each notification reflects the batch as taken.
-pub fn group_dedup_key(group_id: &str, channel_name: &str, events: &[Event]) -> String {
+pub fn group_dedup_key(group_id: &str, channel_id: &str, events: &[Event]) -> String {
     use sha2::Digest;
-    let h = dedup_hash(group_id, channel_name, events);
+    let h = dedup_hash(group_id, channel_id, events);
     hex::encode(h.finalize())
 }
 
@@ -89,18 +92,18 @@ pub fn group_dedup_key(group_id: &str, channel_name: &str, events: &[Event]) -> 
 /// redelivery of the same reminder attempt still dedups.
 pub fn repeat_dedup_key(
     group_id: &str,
-    channel_name: &str,
+    channel_id: &str,
     events: &[Event],
     repeat_ts_ms: i64,
 ) -> String {
     use sha2::Digest;
-    let mut h = dedup_hash(group_id, channel_name, events);
+    let mut h = dedup_hash(group_id, channel_id, events);
     h.update(b"\x00repeat\x00");
     h.update(repeat_ts_ms.to_be_bytes());
     hex::encode(h.finalize())
 }
 
-fn dedup_hash(group_id: &str, channel_name: &str, events: &[Event]) -> sha2::Sha256 {
+fn dedup_hash(group_id: &str, channel_id: &str, events: &[Event]) -> sha2::Sha256 {
     use sha2::{Digest, Sha256};
     let mut parts: Vec<(String, &'static str, i128)> = events
         .iter()
@@ -116,7 +119,7 @@ fn dedup_hash(group_id: &str, channel_name: &str, events: &[Event]) -> sha2::Sha
     let mut h = Sha256::new();
     h.update(group_id.as_bytes());
     h.update(b"\x00");
-    h.update(channel_name.as_bytes());
+    h.update(channel_id.as_bytes());
     h.update(b"\x00");
     for (inst, status, ts) in &parts {
         h.update(inst.as_bytes());

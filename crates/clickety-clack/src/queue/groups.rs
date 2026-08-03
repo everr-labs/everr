@@ -24,18 +24,19 @@ fn group_key(group_id: &str) -> String {
 }
 
 /// Stored once per group (first event wins via HSETNX). Carries the receiver's channel
-/// NAMES and the human group key; no secret ever reaches Redis. The flusher resolves
-/// the names to their stored configs at delivery time, so a channel edit (secret
-/// rotation) between buffering and flush is picked up. Group identity stays keyed by
-/// receiver name (see `grouping::group_id`).
+/// IDS and the human group key; no secret ever reaches Redis. The flusher resolves the
+/// ids to their stored configs at delivery time, so a channel edit (secret rotation)
+/// or rename between buffering and flush is picked up. Group identity is keyed by
+/// receiver id (see `grouping::group_id`), so receiver renames never re-bucket a
+/// live group.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct GroupMeta {
     pub tenant: String,
-    /// `default` so a group hash written by a pre-named-channels binary (which had
-    /// `channel`/`target` instead) still deserializes during a rolling upgrade,
-    /// reading as no channels (drained, never notified) rather than erroring.
+    /// `default` so a group hash written before this field existed still
+    /// deserializes, reading as no channels (drained, never notified) rather than
+    /// erroring.
     #[serde(default)]
-    pub channels: Vec<String>,
+    pub channels: Vec<uuid::Uuid>,
     pub group_key: String,
     /// Clean receiver name (no grouping-value suffix); used as the delivery-target label.
     /// `default` for the same rolling-upgrade reason: legacy meta had no `receiver`.
@@ -503,22 +504,25 @@ impl GroupStore for RedisGroups {
 #[cfg(test)]
 mod tests {
     use super::GroupMeta;
+    use uuid::Uuid;
 
     #[test]
-    fn group_meta_channel_names_round_trip() {
+    fn group_meta_channel_ids_round_trip() {
+        let slack = Uuid::from_u128(1);
+        let mail = Uuid::from_u128(2);
         let meta = GroupMeta {
             tenant: "t".into(),
-            channels: vec!["team-slack".into(), "ops-mail".into()],
+            channels: vec![slack, mail],
             group_key: "oncall|env=prod".into(),
             receiver: "oncall".into(),
         };
         let raw = serde_json::to_string(&meta).unwrap();
         assert!(
             !raw.contains("target"),
-            "metas carry channel names only, never targets"
+            "metas carry channel ids only, never targets"
         );
         let back: GroupMeta = serde_json::from_str(&raw).unwrap();
         assert_eq!(back, meta);
-        assert_eq!(back.channels, vec!["team-slack", "ops-mail"]);
+        assert_eq!(back.channels, vec![slack, mail]);
     }
 }

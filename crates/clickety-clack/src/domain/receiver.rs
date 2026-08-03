@@ -11,11 +11,15 @@ pub struct Receiver {
     pub id: Uuid,
     pub tenant: TenantId,
     pub name: String,
-    /// Names of the channels this receiver fans out to. Always non-empty: the
-    /// API rejects empty lists and validates every name against the tenant's
-    /// channels; storage only ever holds validated receivers (migration 0014
-    /// materialized pre-reference inline configs as named channels).
+    /// Names of the channels this receiver fans out to (display + API contract).
+    /// Always non-empty: the API rejects empty lists and validates every name
+    /// against the tenant's channels; storage only ever holds validated receivers.
     pub channels: Vec<String>,
+    /// Stable ids of the same channels, parallel to `channels`. Delivery buffering
+    /// and dedup key on these, so a channel rename never breaks an open group.
+    /// `default` so payloads written before the field existed still deserialize.
+    #[serde(default)]
+    pub channel_ids: Vec<Uuid>,
     /// Free-form metadata (team, escalation notes, dashboard links, ...). Not
     /// secret, never redacted. `#[serde(default)]` so payloads and rows written
     /// before the field existed read as an empty map.

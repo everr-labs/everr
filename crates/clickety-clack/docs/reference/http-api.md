@@ -406,7 +406,7 @@ can back any number of receivers and be rotated with a single `PUT`.
 | Method & path                | Description |
 | ---------------------------- | ----------- |
 | `POST /v1/channels`          | Create a channel. Create-only: an existing `name` is a `409 already_exists`. |
-| `PUT /v1/channels/:name`     | Create or replace the channel's `config` in place (rotation). Body = `{ "config": … }`, same validation as create. |
+| `PUT /v1/channels/:name`     | Create or replace the channel's `config` in place (rotation). Body = `{ "config": … }`, same validation as create. A body `name` different from the path renames the channel instead: update-only (`404` for an unknown path name, `409 already_exists` for a taken target). Receivers reference channels by id, so a rename never breaks them. |
 | `GET /v1/channels`           | List channels (secrets redacted). Unpaginated; bounded by tenant scale. |
 | `GET /v1/channels/:name`     | Get one channel (secrets redacted). |
 | `DELETE /v1/channels/:name`  | Delete a channel. `409` while any receiver references it. |
@@ -504,7 +504,7 @@ Receiver payloads never carry secrets: `channels` is a list of channel names.
 | Method & path                 | Description |
 | ----------------------------- | ----------- |
 | `POST /v1/receivers`          | Create a receiver. Create-only: an existing `name` is a `409 already_exists`. |
-| `PUT /v1/receivers/:name`     | Create or replace the receiver's `channels`/`annotations` in place. Body = the request body below without `name`. |
+| `PUT /v1/receivers/:name`     | Create or replace the receiver's `channels`/`annotations` in place. Body = the request body below; `name` is optional, and when present and different from the path it renames the receiver: update-only (`404` for an unknown path name, `409 already_exists` for a taken target). Routes target receivers by id, so a rename never breaks them. |
 | `GET /v1/receivers`           | List receivers. Unpaginated; bounded by tenant scale. |
 | `GET /v1/receivers/:name`     | Get one receiver. |
 | `DELETE /v1/receivers/:name`  | Delete a receiver. `409` while any route targets it. |

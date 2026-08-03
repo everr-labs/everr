@@ -270,19 +270,28 @@ receivers reference them by name and never carry configs themselves.
 
 Updating a channel via `PUT /v1/channels/:name` replaces its config in place
 (secret rotation; `POST` is create-only and conflicts on an existing name);
-deleting one is refused with a `409` while any receiver references it.
+a body `name` different from the path renames the channel. Names are labels:
+receivers link channels by id under the hood, so a rename shows up in every
+referencing receiver on the next read and never breaks delivery. Deleting a
+channel is refused with a `409` while any receiver references it.
 
 ## Receiver
 
-A named set of channel references. `channels` is a list of channel NAMES,
-always non-empty and validated against the tenant's channels at the API
-boundary. Receiver payloads carry no secrets.
+A named set of channel references. `channels` is a list of channel NAMES on
+the wire, always non-empty and validated against the tenant's channels at the
+API boundary; the store resolves them to channel ids, so the names in a read
+always reflect each channel's current name. Receiver payloads carry no
+secrets.
 
 ```json
 { "id": "<uuid>", "tenant": "<uuid>", "name": "oncall",
   "channels": ["team-slack", "oncall-mail"],
+  "channel_ids": ["<uuid>", "<uuid>"],
   "annotations": { "team": "core", "runbook": "https://…" } }
 ```
+
+`channel_ids` carries the referenced channels' stable ids, parallel to
+`channels`; requests speak names only.
 
 `annotations` is a free-form string map (default `{}`) for operator metadata:
 team ownership, escalation notes, dashboard links. It is not secret, is never
@@ -291,11 +300,12 @@ redacted, and is replaced wholesale on every upsert (an upsert without
 
 Routes reference receivers by `name`, and a foreign key holds that reference:
 naming a receiver that does not exist is rejected at route-creation time, and a
-receiver a route still targets cannot be deleted. The receiver's channel names
-are resolved to their configs at delivery time. Grouping is keyed by receiver
-name; one group flush fans out to every channel of the receiver, each channel
-with its own dedup key (keyed by the channel name, stable across config edits)
-and its own notification-ledger row.
+receiver a route still targets cannot be deleted. The receiver's channel
+references are resolved to their configs at delivery time. Grouping is keyed by
+receiver id (a rename never re-buckets a live group); one group flush fans out
+to every channel of the receiver, each channel with its own dedup key (keyed by
+the channel id, stable across renames and config edits) and its own
+notification-ledger row.
 
 ---
 
@@ -306,7 +316,7 @@ A node in the ordered routing tree.
 | Field                 | Type             | Default                      | Meaning |
 | --------------------- | ---------------- | ---------------------------- | ------- |
 | `matchers`            | Matcher[]        | none | All must match for the route to apply. |
-| `receiver`            | string           | none | Receiver name. |
+| `receiver`            | string           | none | Receiver name (requests); reads also carry `receiver_id`, the receiver's stable id. |
 | `continue`            | bool             | `false`                      | Keep matching later routes after this one. |
 | `priority`            | i32              | `0`                          | Lower evaluated first. |
 | `group_by`            | string[] \| null | null → `["rule","severity"]` | Labels that define a notification group. |

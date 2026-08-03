@@ -2,10 +2,7 @@ use crate::common::test_cipher;
 use cc::domain::channel::ChannelConfig;
 use cc::domain::ids::TenantId;
 use cc::domain::routing::{MatchOp, Matcher};
-use cc::stores::{
-    ChannelDelete, PgStore, ReceiverDelete, ReceiverInsert, ReceiverUpsert, RouteCreate,
-    RouteUpdate,
-};
+use cc::stores::{ChannelDelete, PgStore, ReceiverDelete, ReceiverWrite, RouteCreate, RouteUpdate};
 use std::collections::BTreeMap;
 use uuid::Uuid;
 
@@ -40,7 +37,7 @@ async fn receivers_upsert_and_routes_order() {
         .await
         .unwrap();
 
-    let ReceiverUpsert::Stored(r1) = store
+    let ReceiverWrite::Stored(r1) = store
         .create_receiver(
             tenant.clone(),
             "ops",
@@ -52,7 +49,7 @@ async fn receivers_upsert_and_routes_order() {
     else {
         panic!("expected the receiver to be stored");
     };
-    let ReceiverUpsert::Stored(r2) = store
+    let ReceiverWrite::Stored(r2) = store
         .create_receiver(
             tenant.clone(),
             "ops",
@@ -302,13 +299,9 @@ async fn channels_upsert_resolve_and_referenced_delete_guard() {
         }
     );
 
-    // Resolution by names: unknown names are absent, not errors.
+    // Resolution by ids: unknown ids are absent, not errors.
     let resolved = store
-        .channels_by_names(
-            cipher.as_ref(),
-            &tenant,
-            &["team-slack".to_string(), "gone".to_string()],
-        )
+        .channels_by_ids(cipher.as_ref(), &tenant, &[c2.id, Uuid::new_v4()])
         .await
         .unwrap();
     assert_eq!(resolved.len(), 1);
@@ -387,7 +380,7 @@ async fn receiver_write_rejects_unknown_channels() {
         .await
         .unwrap();
     assert!(
-        matches!(&outcome, ReceiverUpsert::MissingChannels(names) if names == &vec!["gone".to_string()]),
+        matches!(&outcome, ReceiverWrite::MissingChannels(names) if names == &vec!["gone".to_string()]),
         "expected MissingChannels([gone]), got {outcome:?}"
     );
     assert!(
@@ -409,7 +402,7 @@ async fn receiver_write_rejects_unknown_channels() {
         )
         .await
         .unwrap();
-    assert!(matches!(outcome, ReceiverInsert::MissingChannels(_)));
+    assert!(matches!(outcome, ReceiverWrite::MissingChannels(_)));
 }
 
 #[tokio::test]
@@ -460,21 +453,20 @@ async fn channel_secret_not_stored_cleartext() {
     );
 }
 
-// A receiver row written before the annotations column existed (simulated by relying on
-// the column default) reads back as an empty map.
+// A receiver row written without annotations (relying on the column default) reads
+// back as an empty map, and one without channel links reads back as an empty list.
 #[tokio::test]
-async fn old_receiver_rows_default_to_empty_annotations() {
+async fn bare_receiver_rows_default_to_empty_annotations_and_channels() {
     let url = crate::support::fresh_db().await;
     let store = PgStore::connect(&url).await.unwrap();
     let tenant = TenantId::from_trusted(Uuid::new_v4().to_string());
 
-    // Raw insert omitting annotations, as a pre-migration writer would have done.
+    // Raw insert omitting annotations and channel links.
     let pool = sqlx::PgPool::connect(&url).await.unwrap();
-    sqlx::query("INSERT INTO receivers (id, tenant, name, channels) VALUES ($1,$2,$3,$4)")
+    sqlx::query("INSERT INTO receivers (id, tenant, name) VALUES ($1,$2,$3)")
         .bind(Uuid::new_v4())
         .bind(tenant.as_str())
         .bind("legacy")
-        .bind(serde_json::json!(["legacy-webhook"]))
         .execute(&pool)
         .await
         .unwrap();
@@ -484,7 +476,8 @@ async fn old_receiver_rows_default_to_empty_annotations() {
         .await
         .unwrap()
         .unwrap();
-    assert!(got.annotations.is_empty(), "old rows read as empty map");
+    assert!(got.annotations.is_empty(), "bare rows read as empty map");
+    assert!(got.channels.is_empty(), "no links read as empty list");
     let listed = store.list_receivers(tenant).await.unwrap();
     assert_eq!(listed.len(), 1);
     assert!(listed[0].annotations.is_empty());

@@ -20,7 +20,7 @@ fn now_ms() -> i64 {
 fn meta() -> GroupMeta {
     GroupMeta {
         tenant: "t".into(),
-        channels: vec!["c".into()],
+        channels: vec![Uuid::nil()],
         group_key: "k".into(),
         receiver: "r".into(),
     }
@@ -140,7 +140,7 @@ async fn delivery_harness() -> DeliveryHarness {
 
     let tenant_s = Uuid::new_v4().to_string();
     let tenant = TenantId::from_trusted(tenant_s.clone());
-    infra
+    let hook = infra
         .store
         .create_channel(
             ctx.cipher.as_ref(),
@@ -152,7 +152,7 @@ async fn delivery_harness() -> DeliveryHarness {
         .unwrap();
     let meta = GroupMeta {
         tenant: tenant_s,
-        channels: vec!["hook".into()],
+        channels: vec![hook.id],
         group_key: "k".into(),
         receiver: "r".into(),
     };

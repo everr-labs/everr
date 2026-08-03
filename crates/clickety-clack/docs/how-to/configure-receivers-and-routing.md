@@ -15,7 +15,9 @@ secret-bearing resource: the Slack hook, the Telegram bot token, the webhook
 URL live here and nowhere else. Any number of receivers can reference the same
 channel, and `PUT /v1/channels/:name` replaces its config in place (`POST` is
 create-only and returns `409` for an existing name), so rotating a secret is
-one call and every referencing receiver picks it up.
+one call and every referencing receiver picks it up. Names are labels: passing
+a different `name` in the PUT body renames the channel, and because receivers
+(and routes, for receiver renames) reference by id, nothing downstream breaks.
 
 ### Webhook
 
