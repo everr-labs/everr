@@ -25,7 +25,8 @@ from the Google SRE workbook. So:
 
 ## The SLI contract
 
-The `sli.sql` must be a single read-only `SELECT` (validated by the same SQL
+The `sli.sql` must be a single read-only `SELECT` with no query-level
+`SETTINGS` clause (multi-statement SQL is rejected, validated by the same SQL
 guard as rules) that returns:
 
 - a `good` column: numeric count of qualifying "good" events in the window;
@@ -38,14 +39,15 @@ The engine injects the window as two ClickHouse named parameters,
 literally in the SQL** or creation is rejected `422`: a query missing one
 would ignore the window and scan unboundedly.
 
-> **Security.** Like rule SQL, the guard only checks that the statement is a
-> read-only `SELECT`. It does **not** stop a valid `SELECT` from reading other
+> **Security.** Like rule SQL, the guard only checks the statement's shape.
+> It does **not** stop a valid `SELECT` from reading other
 > tables or reaching the network via table functions. If tenants you don't
 > fully trust can create SLOs, you **must**
 > [harden the ClickHouse user](harden-clickhouse-access.md).
 
 `label_columns` may not include any column starting with `__cc_` (reserved,
-mirrors rule validation).
+mirrors rule validation), nor the names `slo` or `slo_tier` (labels the SLO
+pipeline itself injects).
 
 ### Window duration cap
 
@@ -57,9 +59,9 @@ offending value and the bound. v1 only supports rolling windows:
 `timeWindow.isRolling` must be `true` and `calendar` must be omitted, else
 `422` ("calendar-aligned windows are not supported in v1").
 
-Supported duration units are `m`, `h`, `d`, `w` (minutes/hours/days/weeks):
-the same shorthand as elsewhere in the engine. Calendar units (`M`, `Q`, `Y`)
-are rejected.
+Supported duration units are `s`, `m`, `h`, `d`, `w`
+(seconds/minutes/hours/days/weeks): the same shorthand as elsewhere in the
+engine. Calendar units (`M`, `Q`, `Y`) are rejected.
 
 ## Create an SLO
 
@@ -83,8 +85,10 @@ Note the field-naming split: `targetPercent`/`timeWindow`/`isRolling` are
 OpenSLO-aligned camelCase (this spec deliberately tracks the OpenSLO field
 names); `sli`, `label_columns`, `min_valid_events`, `annotations`, and
 `suppressed` are plain snake_case, matching the rest of the engine's spec
-shapes. The response is the stored `Slo`: `{ id, tenant, name, spec, version,
-paused }`: same envelope shape as a rule.
+shapes. The response is the stored `Slo`: `{ id, tenant, namespace, name, spec,
+version, paused }`: same envelope shape as a rule. `GET` and list return an
+`SloView` that adds two read-only bookkeeping fields, `updated_at` and
+`budget_epoch`.
 
 ## Tiers: the canonical three, scaled to your window
 
@@ -212,15 +216,20 @@ enriched at **read time only**: nothing computed here is written back:
 - **`tiers[]`** carries each tier's long/short burn rate and the long window's
   `valid` count (the input to `min_valid_events`'s floor).
 - **`time_to_exhaustion_secs`** is computed at read time from the group's
-  `budget_remaining` and the **first** tier's long-window burn rate (tiers are
-  fastest-first, so tier 0 is the freshest sustained-burn read). `null` when
-  either input is missing or the burn rate is `<= 0` (nothing burning); `0`
-  when the budget is already exhausted.
+  `budget_remaining` and the current burn: the **first** tier with a computed
+  long-window burn (tiers are fastest-first, so that's the freshest
+  sustained-burn read) supplies `min(long_burn_rate, short_burn_rate)`, and
+  **both** windows must be present; a missing short burn yields `null`, so the
+  horizon drops the moment spending stops. Also `null` when either input is
+  missing or the burn rate is `<= 0` (nothing burning); `0` when the budget is
+  already exhausted.
 - **`firing_tiers`** lists this group's currently non-`inactive` tier
   instances (`pending` or `firing`), read from the same instance store backing
   `GET /v1/alerts`.
-- **`health`** is the SLO's own health axis: same shape and semantics as
-  [rule health](observe-degraded-rules.md), and reusing the **same**
+- **`health`** is the SLO's own health axis: same semantics as
+  [rule health](observe-degraded-rules.md) but a leaner shape (only `status`,
+  `degraded_since`, and `last_error`; no `consecutive_failures` or
+  `last_error_at`), reusing the **same**
   `CC_RULE_DEGRADE_AFTER` threshold (see
   [configuration](../reference/configuration.md#rule-health)): the SLO
   degrades after that many consecutive SLI-query failures, and while degraded

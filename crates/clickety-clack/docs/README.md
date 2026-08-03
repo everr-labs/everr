@@ -2,8 +2,8 @@
 
 clickety-clack is a headless, multi-tenant alerting engine. It evaluates raw-SQL
 alert rules against ClickHouse, tracks per-instance firing/resolved state with a
-for-duration state machine, and dispatches notifications (Slack, email,
-generic webhook) with Alertmanager-class routing, grouping, deduplication,
+for-duration state machine, and dispatches notifications (Slack, Telegram,
+email, generic webhook) with Alertmanager-class routing, grouping, deduplication,
 silencing, and inhibition. State lives in PostgreSQL; the hot path runs on Redis
 Streams.
 
@@ -72,6 +72,7 @@ firing/resolved **events** onto a second Redis stream (transactionally, via an
 outbox). A **dispatcher** consumes events, applies silences and inhibitions,
 routes each event to receivers, groups and deduplicates them, and delivers
 notifications with bounded retry and a dead-letter stream. An **api** role
-exposes the management HTTP API. All four roles are the same binary, selected
-by `CC_ROLE`; run them together (`all`) for development or separately for
-production scale.
+exposes the management HTTP API. An **events** role consumes the same event
+stream through a second consumer group and exports each transition as an OTLP
+alert log. All five roles are the same binary, selected by `CC_ROLE`; run them
+together (`all`) for development or separately for production scale.

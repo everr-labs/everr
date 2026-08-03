@@ -33,7 +33,8 @@ curl -s -X POST localhost:8080/v1/silences -H "X-CC-Tenant: $TENANT" \
 
 - `matchers` use the standard [matcher](../reference/data-model.md#matcher)
   semantics (AND, missing-label-is-empty, `eq`/`ne`/`regex`/`notregex`). They
-  match user labels and the synthetic `severity`/`status`/`rule`.
+  match user labels and the synthetic `severity`/`status`/`rule`/`kind`, plus
+  `slo` on SLO events.
 - Active when `starts_at <= now < ends_at` (`ends_at` must be after `starts_at`).
 - At least one matcher is required: an empty `matchers` list is rejected with
   `422`, so a tenant-wide mute cannot be expressed as a single silence.

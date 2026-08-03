@@ -84,21 +84,28 @@ recover quickly and slow rules aren't resolved prematurely.
 
 ## Expired-silence GC
 
-The third maintenance task deletes silences more than 24 hours past their
+A further maintenance task deletes silences more than 24 hours past their
 `ends_at`, so the silences table doesn't grow forever. Its cadence is **wall-clock
 hourly** and tracked so it survives lease hand-offs: a new maintenance leader
 won't re-run GC early or skip it.
 
 ## The maintenance loop, together
 
-All three tasks share one loop (5-second tick) inside the evaluator role, gated by
+The tasks share one loop (5-second tick) inside the evaluator role, gated by
 the single `cc:maintenance:lease`:
 
-| Task            | What it protects against            | Cadence |
-| --------------- | ----------------------------------- | ------- |
-| Outbox relay    | Lost publishes (crash after commit) | every tick, rows past 5s grace |
-| Reconciliation  | Stuck-firing alerts (no evaluation) | every tick |
-| Silence GC      | Unbounded silence growth            | hourly wall-clock |
+| Task                | What it protects against            | Cadence |
+| ------------------- | ----------------------------------- | ------- |
+| Outbox relay        | Lost publishes (crash after commit) | every tick, rows past 5s grace |
+| Rule reconciliation | Stuck-firing alerts (no evaluation) | every tick |
+| SLO reconciliation  | Stuck-firing SLO alerts             | every tick |
+| Silence GC          | Unbounded silence growth            | hourly wall-clock |
+| Ledger pruning      | Unbounded ledger growth             | hourly wall-clock |
+
+Ledger pruning ages out rows older than 7 days from the evaluation idempotency
+ledgers (`evaluations`, `slo_evaluations`) and the delivery/dedup ledger
+(`notifications`). That retention bounds the dedup guarantees: a redelivery
+arriving more than 7 days after the original is no longer suppressed.
 
 They are independent: any one can fail on a tick without blocking the others.
 

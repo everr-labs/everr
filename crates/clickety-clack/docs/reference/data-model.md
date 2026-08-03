@@ -29,11 +29,12 @@ The definition of an alert.
 | `sql`           | string                | none | Read-only `SELECT` evaluated against ClickHouse. |
 | `interval_secs` | u32                   | none | Evaluation period in seconds (`> 0`). |
 | `for_secs`      | u32                   | none | "For duration": the condition must hold this long before firing. `0` = fire immediately. |
-| `label_columns` | string[]              | none | Result columns that identify an instance. |
+| `label_columns` | string[]              | none | Result columns that identify an instance. Names starting with the reserved `__cc_` prefix are rejected (`422`). |
 | `value_column`  | string \| null        | null    | Numeric column carried as the value. |
 | `severity`      | [Severity](#severity) | none | Severity attached to emitted events. |
 | `annotations`   | object<string,string> | `{}`    | Free-form metadata, passed through to events. The keys `summary`, `description`, `link.alert`, and `link.runbook` are also rendered into notifications (see [rule annotations](../how-to/write-alert-rules.md#annotations)). |
 | `resolve_after` | u32                   | `1`     | Consecutive *absent* evaluations needed to resolve. Absorbs flaps. |
+| `max_interval_secs` | u32 \| null       | null    | Opt-in adaptive cadence: cap for the stretched evaluation interval (must be `>= interval_secs`). While set, each quiet evaluation doubles the effective interval from `interval_secs` up to this cap; any active or erroring evaluation snaps it back. Null (the default) keeps the fixed cadence. |
 | `suppressed`    | bool                  | `false` | Preview mode: the rule evaluates fully and produces events and history, but the dispatcher never notifies on its events (no routing, grouping, subscriptions, silences, or inhibitions apply). The OTLP alert log still carries the events. |
 
 Stored as a `Rule`: `{ id, tenant, namespace, name, spec, version, paused }` where
@@ -59,7 +60,7 @@ one rule). Returned by `GET /v1/alerts`.
 | `key`          | string                | Deterministic instance identity. |
 | `rule`         | uuid                  | Owning source: the rule id, or the SLO id for an SLO tier instance. |
 | `slo`          | uuid                  | Present only on SLO tier instances, carrying the same uuid as `rule`. |
-| `tenant`       | uuid                  | Owning tenant. |
+| `tenant`       | string                | Owning tenant: a validated id matching `^[A-Za-z0-9_.-]{1,64}$`. |
 | `status`       | [Status](#status)     | Current state-machine state. |
 | `labels`       | object<string,string> | Labels from the result row. |
 | `value`        | f64 \| null           | Value from `value_column`. |
@@ -88,9 +89,9 @@ against a `good`/`valid` SLI query. See
 | Field              | Type                   | Default | Meaning |
 | ------------------ | ---------------------- | ------- | ------- |
 | `sli.sql`          | string                 | none | Read-only `SELECT` returning `good`/`valid` numeric columns, evaluated against ClickHouse with `{window_start:DateTime}`/`{window_end:DateTime}` bound. |
-| `sli.label_columns`| string[]               | `[]`    | Result columns that fan the SLO into per-group SLIs. Empty = scalar SLO. |
+| `sli.label_columns`| string[]               | `[]`    | Result columns that fan the SLO into per-group SLIs. Empty = scalar SLO. Names starting with the reserved `__cc_` prefix, or named `slo` or `slo_tier` (labels the SLO pipeline injects), are rejected (`422`). |
 | `targetPercent`    | f64                    | none | Objective percentage, `> 0` and `< 100`. |
-| `timeWindow.duration` | string               | none | Rolling-window shorthand (`m`/`h`/`d`/`w`), capped at 366 days. |
+| `timeWindow.duration` | string               | none | Rolling-window shorthand (`s`/`m`/`h`/`d`/`w`), at least 1 day and at most 366 days. |
 | `timeWindow.isRolling` | bool                | `true`  | v1 supports rolling windows only. |
 | `timeWindow.calendar` | object \| null       | `null`  | Reserved for a future calendar-aligned window; rejected if present in v1. |
 | `min_valid_events` | u64 \| null            | `null`  | Floor on the long window's `valid` count below which a tier cannot fire. `null` = off. |
@@ -197,19 +198,22 @@ Emitted on a firing or resolving transition; carried on the Redis event stream.
 
 | Field          | Type                       | Meaning |
 | -------------- | -------------------------- | ------- |
-| `tenant`       | uuid                       | Owning tenant. |
+| `tenant`       | string                     | Owning tenant: a validated id matching `^[A-Za-z0-9_.-]{1,64}$`. |
 | `rule`         | uuid                       | Source rule. |
+| `name`         | string                     | First-class name of the originating rule or SLO (the "project/slug" identity). Empty = unknown (pre-upgrade payloads deserialize with `""`). |
 | `instance_key` | string                     | Source instance. |
 | `status`       | `firing` \| `resolved`     | Transition type. |
+| `kind`         | `alert` \| `rule_health`   | What the event reports: an instance transition (`alert`), or a rule/SLO health transition (`rule_health`). A rule-health event carries the reserved per-source health instance key and empty labels. |
 | `labels`       | object<string,string>      | Instance labels at transition time. |
 | `value`        | f64 \| null                | Instance value. |
-| `severity`     | [Severity](#severity)      | From the rule spec. |
+| `severity`     | [Severity](#severity)      | From the rule spec for rule alert events. Rule-health events are always `critical`; an SLO tier event carries its firing tier's severity. |
 | `annotations`  | object<string,string>      | From the rule spec. Channel renderers honor `summary`, `description` (with `${key}` substitution resolving labels, then `${value}`, then evidence columns), and `link.alert` / `link.runbook`. |
 | `eval_ts`      | datetime                   | When the transition occurred. |
 | `suppressed`   | bool                       | Mirrors the rule's `suppressed` flag at emit time. Default `false`; a payload without the field deserializes as `false`. The dispatcher drops suppressed events before any notification processing. |
 | `evidence`     | object<string,json> \| null | Source-row context for the instance: the row's columns excluding `label_columns` (the value column is included). Capped at 16 columns and 4096 bytes of compact JSON; over the byte cap it becomes `null` with `evidence_truncated: true`. `null` for resolved-by-absence and rule-health events. |
 | `evidence_truncated` | bool                 | `true` when evidence was cut to the column cap or dropped for the byte cap. Default `false`. |
 | `slo`          | uuid \| null               | Set (to the SLO id) only for SLO tier-firing/resolving events; omitted from the JSON entirely when `null` (a plain rule event). Its presence drives the dispatcher's synthetic `slo` label, the SLO default `group_by`, and tier auto-inhibition: see [define SLOs and burn-rate alerts](../how-to/define-slos-and-burn-rate-alerts.md). |
+| `traceparent`  | string \| null             | W3C traceparent of the evaluation span that emitted the event, for cross-process trace linking in the dispatcher. Omitted from the JSON when `null` (engine telemetry disabled). |
 
 ---
 

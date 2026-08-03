@@ -5,7 +5,7 @@ not a task list: for those see the [how-to guides](../how-to/run-and-deploy-role
 
 ## The big picture
 
-clickety-clack is a pipeline of four roles connected only through shared
+clickety-clack is a pipeline of five roles connected only through shared
 infrastructure: Postgres (durable state) and Redis Streams (the hot path). There
 is no direct RPC between roles; each one reads its work from a queue or table and
 writes its results to another. This is what lets every role scale independently
@@ -22,6 +22,14 @@ and fail without taking the others down.
                                             └────────────┘     webhook
                                               silence · inhibit · route · group · dedup
 ```
+
+Two side branches share this backbone. The **events** role consumes the same
+`cc:events` stream through a second consumer group (`cc:logexport`), so it never
+competes with the dispatcher for entries, and exports every transition as an
+OTLP alert log. And the SLO pipeline runs beside rule evaluation: the scheduler
+enqueues due SLOs onto a separate `cc:slo:jobs` stream, consumed by a distinct
+slo-evaluator task inside the evaluator role, so SLO evaluation is never
+head-of-line blocked by rule evaluation.
 
 Everything is one binary (`cc`); `CC_ROLE` picks which stage(s) a process runs.
 `all` runs the whole pipeline in one process for development.
@@ -41,7 +49,8 @@ Everything is one binary (`cc`); `CC_ROLE` picks which stage(s) a process runs.
 
 ### scheduler
 Decides which rules are due (`rules.next_eval <= now`) and enqueues an evaluation
-job per due rule onto `cc:eval:jobs`. To run multiple replicas safely it uses
+job per due rule onto `cc:eval:jobs`; a sibling tick claims due SLOs and enqueues
+their jobs onto `cc:slo:jobs`. To run multiple replicas safely it uses
 [sharding](#scheduler-sharding). It is the only stateful-coordination role; the
 rest lean on Redis consumer groups.
 
@@ -49,8 +58,10 @@ rest lean on Redis consumer groups.
 Consumes eval jobs, runs each rule's SQL against ClickHouse, advances the
 [state machine](evaluation-model.md), and publishes firing/resolved events to
 `cc:events`. It coalesces identical queries within a batch and publishes
-transactionally through an [outbox](durability-and-delivery.md). It also hosts the
-**maintenance loop** (relay, reconciliation, silence GC) behind a single lease.
+transactionally through an [outbox](durability-and-delivery.md). A separate
+supervised **slo-evaluator** task in the same role consumes SLO jobs from
+`cc:slo:jobs`. It also hosts the **maintenance loop** (relay, rule and SLO
+reconciliation, silence GC, ledger pruning) behind a single lease.
 
 ### dispatcher
 Consumes events and runs the [delivery pipeline](dispatch-pipeline.md): silence →
@@ -58,6 +69,11 @@ inhibition → routing → grouping → dedup → delivery, with retry and dead-
 
 ### api
 Serves the management HTTP API. Stateless: any replica can serve any request.
+
+### events
+Consumes `cc:events` through the second consumer group (`cc:logexport`) and
+exports each instance transition and rule-health event as an OTLP alert log,
+keeping log export off the eval and dispatch hot paths.
 
 ## Storage roles
 

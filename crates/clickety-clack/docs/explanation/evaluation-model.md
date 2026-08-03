@@ -88,19 +88,33 @@ returned: it also loads the rule's known instances from Postgres and runs the
 absent branch for any instance not in the current result. This is how a firing
 instance whose row vanished gets its `resolved` event.
 
+## Adaptive cadence
+
+A rule that opts in with `max_interval_secs` slows down while it has nothing to
+say. A **quiet** evaluation (no rows returned and every instance left inactive)
+doubles the effective interval, starting from `interval_secs` and capped at
+`max_interval_secs`. Any evaluation that is not quiet, because a row is present,
+an instance is still pending or firing, or the query errored, snaps the rule
+straight back to its base interval. Updating the rule's cadence parameters over
+the API (a `PUT`) also resets the stretch. Rules without `max_interval_secs`
+always evaluate at `interval_secs`.
+
 ## Resolution safety net
 
 What if the evaluator (or scheduler) stops entirely while alerts are firing? Those
 instances would be stuck firing forever, since no evaluation runs to notice their
 absence. The **reconciliation** sweep in the maintenance loop covers this: any
-instance not seen for longer than `max(4 × interval_secs, 60s)` is auto-resolved
-(a synthetic `resolved` event is emitted and the instance reset). See
+instance not seen for longer than `max(4 × interval_secs, 60s)` is reset to
+inactive. A stale **firing** instance additionally emits a synthetic `resolved`
+event; a stale pending instance resets silently (it never fired). See
 [durability and delivery](durability-and-delivery.md#reconciliation).
 
 ## Idempotent evaluation
 
 Eval jobs arrive over an at-least-once stream, so the same `(rule, eval_ts)` can be
-delivered twice. The evaluator claims that pair in an idempotency ledger (the
+delivered twice. Before anything runs, each delivered job is checked against the
+current rule: a job whose rule was paused, deleted, or tenant-mismatched after
+enqueue is dropped and acked without evaluating. The evaluator claims that pair in an idempotency ledger (the
 `evaluations` table) in the **same transaction** that writes the instance state,
 health, and outbox events it guards. A redelivered job evaluates, then loses the
 claim at write time: nothing is written and the job is acked without
@@ -126,9 +140,11 @@ clears it and emits a recovery. This axis is independent of the instance machine
 degraded rule's instances are simply **frozen** (the evaluator never runs the absence path
 on an error), so a broken query can never drain firing alerts to a false `resolved`.
 
-Crucially, the resolution safety net above is **suppressed for degraded rules**: their
-frozen instances are deliberately *not* auto-resolved, because we never learned their truth
-reaping them would re-introduce the false all-clear from the other direction.
+Crucially, the resolution safety net above is **suppressed** for degraded rules, for
+paused rules, and for any rule with `consecutive_failures > 0` (failing but not yet
+degraded): their frozen instances are deliberately *not* auto-resolved, because we never
+learned their truth; reaping them would re-introduce the false all-clear from the other
+direction.
 
 ## See also
 

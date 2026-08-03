@@ -37,17 +37,19 @@ curl -s -X POST localhost:8080/v1/rules \
 ## Choosing each field
 
 ### `name`
-The rule's stable identity, unique per tenant (1 to 128 chars of
-`[A-Za-z0-9_./-]`). Creating a second rule with an existing name is a `409`;
-update the existing rule instead.
+The rule's stable identity, unique per `(tenant, namespace)` (1 to 128 chars of
+`[A-Za-z0-9_./-]`). The create body also accepts an optional `namespace`,
+defaulting to `""` (the live scope). Creating a second rule with an existing
+name in the same namespace is a `409`; update the existing rule instead.
 
 ### `sql`
-Must be a read-only `SELECT`; anything else is rejected at create time by the SQL
-guard. Return the label columns (and optionally a value column). The query should
-return **no rows** in the healthy state.
+Must be a single read-only `SELECT` with no query-level `SETTINGS` clause;
+anything else (multi-statement SQL included) is rejected at create time by the
+SQL guard. Return the label columns (and optionally a value column). The query
+should return **no rows** in the healthy state.
 
 > **Security.** Rule SQL is executed against ClickHouse and the in-app guard only
-> checks that it's a read-only `SELECT`: it does **not** stop a valid `SELECT`
+> checks the statement's shape: it does **not** stop a valid `SELECT`
 > from reading other tables or reaching the network via table functions. If
 > tenants you don't fully trust can create rules, you **must**
 > [harden the ClickHouse user](harden-clickhouse-access.md): that is the real

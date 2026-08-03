@@ -48,10 +48,11 @@ every `/v1` endpoint.
 Every `/v1` endpoint is scoped to a tenant by an HTTP header:
 
 ```
-X-CC-Tenant: <uuid>
+X-CC-Tenant: <tenant>
 ```
 
-The value must parse as a UUID; it becomes the `TenantId` for the request. The
+The value must match `^[A-Za-z0-9_.-]{1,64}$` (1 to 64 characters of letters,
+digits, `_`, `.`, `-`); it becomes the `TenantId` for the request. The
 API key authenticates the *caller* (everr's backend); this header selects the
 *tenant* the caller is acting for. A missing or unparseable header yields
 `401`. With an **unbound** key (or no key gate), any key holder can assert any
@@ -84,8 +85,8 @@ All errors use a problem-details shape:
 | 400    | `bad_request`       | Malformed opaque input (currently: an undecodable pagination `cursor`). |
 | 401    | `unauthorized`      | Missing/invalid `Authorization` bearer key when `CC_API_KEYS` is set (detail: `missing or invalid API key`), missing/invalid `X-CC-Tenant` (detail: `missing or invalid tenant`), or a tenant-bound key used with a different `X-CC-Tenant` (detail: `API key is not authorized for the requested tenant`). |
 | 404    | `not_found`         | GET/DELETE of an id/name that does not exist. |
-| 409    | `conflict`          | Optimistic-concurrency failure (rule or SLO `version` mismatch on `PUT`), or a delete blocked by a live reference (a channel a receiver still references, a receiver a route still targets). |
-| 409    | `already_exists`    | Create-only endpoint given a name that is already taken (rules, SLOs, channels, receivers). Its own `code` so callers can tell it from the conflicts above. |
+| 409    | `conflict`          | Optimistic-concurrency failure (rule or SLO `version` mismatch on `PUT`), a rule or SLO `name` already taken in its `(tenant, namespace)` on create, or a delete blocked by a live reference (a channel a receiver still references, a receiver a route still targets). |
+| 409    | `already_exists`    | Create-only endpoint given a name that is already taken (channels, receivers). Its own `code` so callers can tell it from the conflicts above. |
 | 422    | `validation_failed` | A field failed validation (see per-endpoint notes). |
 | 500    | `internal`          | Unhandled server error. |
 
@@ -96,7 +97,7 @@ All errors use a problem-details shape:
 | Method & path | Description |
 | ------------- | ----------- |
 | `GET /healthz` | Liveness. Returns `ok`. No auth. |
-| `GET /readyz`  | Readiness. Returns `ok`. No auth. |
+| `GET /readyz`  | Readiness. `200` `ok` while every supervised role in this process is running; `503` `degraded: <roles>` when any supervised role is down or waiting out a restart backoff. No auth. |
 
 ---
 
@@ -109,10 +110,10 @@ See [data model → Rule](data-model.md#rule) for field semantics.
 | ------------------------- | ----------- |
 | `POST /v1/rules`          | Create a rule. Body = identity (`name`, optional `namespace`) + rule spec (below). Returns the stored `Rule`. |
 | `GET /v1/rules`           | List rules, with cursor pagination and an optional health filter (see [Listing rules](#listing-rules)). |
-| `GET /v1/rules/:id`       | Get one rule by UUID. |
+| `GET /v1/rules/:id`       | Get one rule by UUID, as a `RuleView` (see [Listing rules](#listing-rules)). |
 | `PUT /v1/rules/:id`       | Update a rule's spec in place (see below). Preserves id, tenant, `paused` and instance state; bumps `version`. |
 | `DELETE /v1/rules/:id`    | Delete a rule. |
-| `POST /v1/rules/:id/test` | Evaluate the supplied spec ad hoc against ClickHouse. **No state change, no events.** |
+| `POST /v1/rules/:id/test` | Evaluate the supplied spec ad hoc against ClickHouse. **No state change, no events.** The `:id` is ignored (no existence or tenant check): only the posted spec is evaluated. |
 | `POST /v1/rules/:id/pause`  | Pause evaluation. Freezes state, emits no events. Returns the updated `Rule`. Idempotent; unknown id → `404`. |
 | `POST /v1/rules/:id/resume` | Resume evaluation. Re-arms scheduling and restarts pending instances' for-duration. Returns the updated `Rule`. |
 
@@ -144,7 +145,7 @@ spec fields flattened beside it:
 | `sql`           | string                | yes      | none | Read-only `SELECT`, validated by `cc_sqlguard`. Non-SELECT is rejected `422`. |
 | `interval_secs` | u32                   | yes      | none | Must be `> 0` (`422` otherwise). Evaluation period. |
 | `for_secs`      | u32                   | yes      | none | For-duration before firing. `0` fires immediately. |
-| `label_columns` | string[]              | yes      | none | Result columns forming instance identity. |
+| `label_columns` | string[]              | yes      | none | Result columns forming instance identity. Names starting with the reserved `__cc_` prefix are rejected (`422`). |
 | `value_column`  | string                | no       | null    | Numeric column carried as the instance value. |
 | `severity`      | enum                  | yes      | none | `info` \| `warning` \| `critical`. |
 | `annotations`   | object<string,string> | no       | `{}`    | Free-form metadata, passed through onto events. |
@@ -155,16 +156,21 @@ spec fields flattened beside it:
 ### Rule response
 
 ```json
-{ "id": "<uuid>", "tenant": "<uuid>", "spec": { … }, "version": 1, "paused": false }
+{ "id": "<uuid>", "tenant": "<tenant>", "namespace": "", "name": "default/high-errors",
+  "spec": { … }, "version": 1, "paused": false }
 ```
 
-The response includes a `paused` boolean: an operational flag (not part of
-`spec`; toggling it does not affect `version`).
+The response carries the identity (`namespace`, `name`) at the top level and
+includes a `paused` boolean: an operational flag (not part of `spec`; toggling
+it does not affect `version`). This bare `Rule` is what create, update, pause,
+and resume return; `GET /v1/rules/:id` and the list return a `RuleView`
+(see [Listing rules](#listing-rules)).
 
 ### Listing rules
 
 `GET /v1/rules` returns each rule as a **RuleView**: the `Rule` fields (above)
-plus `health` (status, consecutive failures, last error) and `rollup` (the
+plus `updated_at` (RFC 3339: when the rule row was last written, by any kind of
+write), `health` (status, consecutive failures, last error) and `rollup` (the
 rule's rolled-up alert state). The response is always a page envelope; with no
 query parameters the default `limit` applies:
 
@@ -254,14 +260,14 @@ for how to write one.
 | Method & path              | Description |
 | -------------------------- | ----------- |
 | `POST /v1/slos`             | Create an SLO. Body = identity (`name`, optional `namespace`) + SLO spec (below). Returns the stored `Slo`. |
-| `GET /v1/slos`               | List SLOs for the tenant. Optional `?namespace=` and `?name=` exact-match filters (`""` selects live SLOs). Unpaginated; bounded by tenant scale. |
-| `GET /v1/slos/:id`           | Get one SLO by UUID. |
+| `GET /v1/slos`               | List SLOs for the tenant, each as an `SloView` (see [SLO response](#slo-response)). Optional `?namespace=` and `?name=` exact-match filters (`""` selects live SLOs). Unpaginated; bounded by tenant scale. |
+| `GET /v1/slos/:id`           | Get one SLO by UUID, as an `SloView` (see [SLO response](#slo-response)). |
 | `PUT /v1/slos/:id`           | Update an SLO's spec in place (same body as create, plus optional `version`). Preserves id, tenant, `paused`; bumps `version`. |
 | `DELETE /v1/slos/:id`        | Delete an SLO. |
 | `POST /v1/slos/:id/pause`    | Pause evaluation. Freezes state, emits no events. Returns the updated `Slo`. Idempotent; unknown id → `404`. |
 | `POST /v1/slos/:id/resume`   | Resume evaluation. Re-arms scheduling. Returns the updated `Slo`. |
-| `GET /v1/slos/:id/status`    | Read-time-enriched status snapshot (below). `404` if the SLO does not exist. |
-| `POST /v1/slos/:id/test`     | Evaluate the supplied spec ad hoc against ClickHouse over its own window. **No state change, no events.** |
+| `GET /v1/slos/:id/status`    | Read-time-enriched status snapshot (below). `404` if the SLO does not exist, and also for an existing SLO that has never been evaluated (no snapshot row yet). |
+| `POST /v1/slos/:id/test`     | Evaluate the supplied spec ad hoc against ClickHouse over its own window. **No state change, no events.** The `:id` is ignored (no existence or tenant check): only the posted spec is evaluated. The body is the create shape, so `name` is required even though it is unused. |
 
 ### SLO spec (request body)
 
@@ -285,9 +291,9 @@ for how to write one.
 | `name`             | string                | yes      | none | The SLO's first-class identity, unique per `(tenant, namespace)`; `409` on conflict. 1 to 128 chars of `[A-Za-z0-9_./-]` (`422` otherwise). |
 | `namespace`        | string                | no       | `""`    | Identity scope: `""` is the live namespace; consumers stamp preview ids here. At most 128 chars of `[A-Za-z0-9_.-]`. |
 | `sli.sql`          | string                | yes      | none | Read-only `SELECT` returning `good`/`valid` numeric columns; must reference both `{window_start:DateTime}` and `{window_end:DateTime}` (`422` otherwise). |
-| `sli.label_columns`| string[]              | no       | `[]`    | Result columns that fan the SLO into per-group SLIs. May not start with the reserved `__cc_` prefix (`422`). |
+| `sli.label_columns`| string[]              | no       | `[]`    | Result columns that fan the SLO into per-group SLIs. May not start with the reserved `__cc_` prefix, and may not be named `slo` or `slo_tier` (labels the SLO pipeline injects); `422` either way. |
 | `targetPercent`    | f64                   | yes      | none | Objective, e.g. `99.9`. Must be `> 0` and `< 100` (`422` otherwise). |
-| `timeWindow.duration` | string             | yes      | none | Rolling-window shorthand (`m`/`h`/`d`/`w`), capped at 366 days (`422` over the cap). |
+| `timeWindow.duration` | string             | yes      | none | Rolling-window shorthand (`s`/`m`/`h`/`d`/`w`), at least 1 day and at most 366 days (`422` outside that range). |
 | `timeWindow.isRolling` | bool              | no       | `true`  | v1 supports rolling only; `false` (or a non-null `timeWindow.calendar`) is rejected `422`. |
 | `timeWindow.calendar` | object \| null    | no       | `null`  | Reserved for a future calendar-aligned window; must be omitted/`null` in v1. |
 | `min_valid_events` | u64 \| null           | no       | `null`  | Floor on the long window's `valid` count below which no tier can fire. `null` = off. |
@@ -297,11 +303,16 @@ for how to write one.
 ### SLO response
 
 ```json
-{ "id": "<uuid>", "tenant": "<uuid>", "name": "checkout-availability", "spec": { … }, "version": 1, "paused": false }
+{ "id": "<uuid>", "tenant": "<tenant>", "namespace": "", "name": "checkout-availability",
+  "spec": { … }, "version": 1, "paused": false }
 ```
 
 Same envelope shape as a `Rule` response: `paused` is an operational flag, not
-part of `spec`, and does not affect `version`.
+part of `spec`, and does not affect `version`. This bare `Slo` is what create,
+update, pause, and resume return. `GET /v1/slos` and `GET /v1/slos/:id` return
+an **SloView** instead: the fields above plus `updated_at` (RFC 3339: the last
+write of any kind) and `budget_epoch` (RFC 3339: when the error budget last
+began, at creation or the last budget-significant edit).
 
 ### Updating an SLO
 
@@ -367,7 +378,7 @@ Each element:
 
 ```json
 {
-  "key": "<instance-key>", "rule": "<uuid>", "tenant": "<uuid>",
+  "key": "<instance-key>", "rule": "<uuid>", "tenant": "<tenant>",
   "status": "firing", "labels": { "host": "web-1" }, "value": 142.0,
   "active_since": "2026-06-14T12:00:00Z", "last_seen": "2026-06-14T12:03:00Z",
   "absent_count": 0
@@ -470,6 +481,12 @@ Response:
 
 A delivery failure is a **`200` with `ok: false`**, not an error status: the
 request succeeded, the delivery did not (see [Conventions](#conventions)).
+The send is bounded at 8 seconds: past that, the response is
+`{ "ok": false, "latency_ms": …, "error": "timed out after 8s" }`. When a
+failure's detail says the URL resolved to a private or internal address, the
+response carries only the generic message
+`webhook URL resolved to a private or internal address` (the full detail is
+logged server-side), so the endpoint cannot be used as an internal-DNS oracle.
 If no notifier for the config's `type` is registered on this node (for
 example, an `api`-only node with no `CC_SMTP_HOST` set), the response
 degrades the same way rather than a `5xx`:
@@ -500,7 +517,9 @@ Receiver payloads never carry secrets: `channels` is a list of channel names.
 ```
 
 `name` must not be empty (`422`). `channels` must contain at least one channel
-name; an empty or missing list is rejected (`422`), every referenced name
+name; an empty or missing list is rejected (`422`), a blank or whitespace-only
+entry is rejected (`422` with `detail` `channel names must not be empty`),
+every referenced name
 must exist as a channel (`422` with `detail` listing the unknown names, e.g.
 `unknown channels: nope-1, nope-2`), and a name must not appear more than once
 (`422` with `detail` naming the duplicates, e.g. `duplicate channels: ops-hook`). `annotations` is an optional free-form
@@ -577,10 +596,14 @@ every event immediately, one notification per event, to every subscription.
 
 Webhook URLs are validated at create time (`422` on failure): the scheme must
 be `http` or `https`, the URL must have a host and no userinfo, and the target
-must not be `localhost` or an IP literal in a private, loopback, link-local, or
-metadata range (10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 127.0.0.0/8,
-169.254.0.0/16, 0.0.0.0/8, ::1, ::, fc00::/7, fe80::/10, and IPv4-mapped forms
-of the blocked v4 ranges). The same rules apply to generic webhook and Slack
+must not be `localhost` (or any `*.localhost` name) or an IP literal in a
+blocked range. Blocked IPv4: 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16,
+127.0.0.0/8, 169.254.0.0/16, 0.0.0.0/8, 100.64.0.0/10 (shared/CGNAT),
+192.0.0.0/24, 198.18.0.0/15, 224.0.0.0/4 (multicast), 240.0.0.0/4 (reserved).
+Blocked IPv6: ::1, ::, fc00::/7, fe80::/10, ff00::/8 (multicast), plus
+IPv4-mapped and IPv4-compatible forms of the blocked v4 ranges and NAT64
+(64:ff9b::/96) addresses embedding a blocked v4 address.
+The same rules apply to generic webhook and Slack
 channels. At delivery time the dispatcher repeats validation, resolves domain
 names, rejects the target if any result is internal, pins approved addresses,
 and refuses redirects. Set
@@ -591,7 +614,7 @@ Create response (list elements have the same shape):
 
 ```json
 {
-  "id": "<uuid>", "tenant": "<uuid>",
+  "id": "<uuid>", "tenant": "<tenant>",
   "webhook_url": "***", "created_at": "2026-06-14T12:00:00Z"
 }
 ```
@@ -620,7 +643,9 @@ Suppress matching events (firing *and* resolved) during a time window.
 }
 ```
 
-`matchers` required; `starts_at`/`ends_at` required RFC 3339 (`ends_at` must be
+`matchers` required, with at least one entry: an empty array is `422` (an empty
+list would match everything and mute the whole tenant, so a silence must name
+what it excludes); `starts_at`/`ends_at` required RFC 3339 (`ends_at` must be
 strictly after `starts_at`, else `422`); `comment`/`author` optional. A silence is
 active when `starts_at <= now < ends_at`. Response adds server-set `id` and
 `created_at`.

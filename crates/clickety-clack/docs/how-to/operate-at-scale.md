@@ -52,8 +52,10 @@ These scale by sharing Redis Streams consumer groups: no extra config:
 
 - **Evaluators** share the `evaluators` group on `cc:eval:jobs`. Jobs
   load-balance across replicas. Within a batch, jobs with identical
-  `{sql, label_columns, value_column}` are coalesced into a single ClickHouse
-  query, so adding rules that share a query doesn't multiply ClickHouse load.
+  `{sql, label_columns, value_column}` **and** the same ClickHouse auth identity
+  (per-tenant in the `derived`/`map` auth modes, so coalescing never crosses a
+  tenant boundary there) are coalesced into a single ClickHouse query, so adding
+  rules that share a query doesn't multiply ClickHouse load.
 - **Dispatchers** share the `dispatchers` group on `cc:events`. The group flusher
   runs on every dispatcher replica and claims due groups atomically, so grouped
   delivery scales too.
@@ -64,8 +66,9 @@ redelivery is absorbed by the dedup log and idempotency ledger: see
 
 ## The maintenance singleton
 
-The maintenance loop (outbox relay, stale-instance reconciliation, expired-silence
-GC) runs inside the **evaluator** role but is gated by a single Redis lease
+The maintenance loop (outbox relay, rule and SLO reconciliation, expired-silence
+GC, hourly ledger pruning) runs inside the **evaluator** role but is gated by a
+single Redis lease
 (`cc:maintenance:lease`, ~10s TTL). Run as many evaluators as you like; exactly
 one holds the lease and runs maintenance at a time, with automatic failover when
 the holder dies. No configuration needed.
@@ -89,8 +92,10 @@ no telemetry pipeline and remain useful as a fallback:
 
 ## Capacity notes
 
-- **Redis** carries the entire hot path (two streams, group buffers, membership,
-  lease). Size it for your event rate; streams are length-capped (~1M).
+- **Redis** carries the entire hot path (the job and event streams, group
+  buffers, membership, lease). Size it for your event rate; `cc:events` is
+  length-capped (~1M), but the job streams (`cc:eval:jobs` and the SLO job
+  stream) are uncapped, so watch their depth if consumers fall behind.
 - **Postgres** holds all durable state and is read every scheduler tick (due-rule
   scan) and every evaluation. Index health on `rules.next_eval` and
   `instances(rule)` / `(tenant,status)` matters at scale.

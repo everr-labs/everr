@@ -247,9 +247,10 @@ subscriptions are no longer used for that tenant.
   only as a redacted digest).
 - Permanently-undeliverable events land on the `cc:events:deadletter` Redis stream
   (`redis-cli XLEN cc:events:deadletter`).
-- Transient failures are retried up to 4 times with exponential backoff; 4xx is
-  treated as permanent and not retried. See
-  [tunables](../reference/tunables.md#dispatcher).
+- Transient failures are retried with exponential backoff, up to 4 attempts in
+  total (the first try plus up to 3 retries); 4xx is treated as permanent and
+  not retried, except that Slack and Telegram treat a 429 rate limit as
+  transient. See [tunables](../reference/tunables.md#dispatcher).
 
 ## Next
 

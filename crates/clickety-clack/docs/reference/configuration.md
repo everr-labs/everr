@@ -2,13 +2,15 @@
 
 All configuration is via environment variables, read once at startup by
 `Config::from_env()` (`src/config.rs`). There is no config file. Unknown
-variables are ignored; the variables below are the complete set the binary reads.
+variables are ignored; the variables below are the set `Config::from_env()`
+reads. One variable is read outside it: when engine telemetry is disabled, the
+log filter honors `RUST_LOG` (standard `EnvFilter` syntax, default `info`).
 
 ## Core
 
 | Variable        | Default                                                      | Purpose |
 | --------------- | ----------------------------------------------------------- | ------- |
-| `CC_ROLE`       | `all`                                                        | Which role(s) this process runs: `api`, `scheduler`, `evaluator`, `dispatcher`, or `all`. See [roles](#roles). |
+| `CC_ROLE`       | `all`                                                        | Which role(s) this process runs: `api`, `scheduler`, `evaluator`, `dispatcher`, `events`, or `all`. See [roles](#roles). |
 | `CC_HTTP_ADDR`  | `0.0.0.0:8080`                                               | Listen address for the HTTP API (only used by the `api` role). |
 | `CC_NODE_ID`    | `node-1`                                                     | Unique identifier for this process. Used as the scheduler membership ID and as the evaluator/dispatcher consumer name. **Must be unique per replica.** |
 
@@ -137,6 +139,7 @@ to exit at startup:
 | Condition                                        | Error |
 | ------------------------------------------------ | ----- |
 | Provider is `env`, `CC_SECRET_KEYS` unset/empty  | `CC_SECRET_KEYS required for env provider` / `no keys configured` |
+| Provider is `env`, `CC_SECRET_ACTIVE_KEY` unset  | `CC_SECRET_ACTIVE_KEY required for env provider` |
 | `CC_SECRET_ACTIVE_KEY` not present in the keyring | `active key '<id>' not in keyring` |
 | `CC_SECRET_PROVIDER` is not `env` or `kms`        | `unknown CC_SECRET_PROVIDER '<value>'` |
 | Provider is `kms`, `CC_KMS_FAKE_ROOT_KEY` unset   | root-key required / invalid base64 |
@@ -185,10 +188,11 @@ touches:
 
 | Role        | Spawns                                                                 | Needs |
 | ----------- | --------------------------------------------------------------------- | ----- |
-| `api`       | HTTP API server                                                        | Postgres, Redis, ClickHouse |
+| `api`       | HTTP API server                                                        | Postgres, ClickHouse (an api-only process never connects Redis) |
 | `scheduler` | The scheduling loop: heartbeat → compute owned shards → claim due rules → enqueue eval jobs | Postgres, Redis |
-| `evaluator` | The evaluation loop (consume jobs → query ClickHouse → publish events) **and** the maintenance loop (outbox relay, reconciliation, silence GC) | Postgres, Redis, ClickHouse |
+| `evaluator` | The evaluation loop (consume jobs → query ClickHouse → publish events), the maintenance loop (outbox relay, reconciliation, silence GC), **and** the SLO evaluator loop (SLO evaluation + sample export) | Postgres, Redis, ClickHouse |
 | `dispatcher`| The event-processing loop + the group flusher | Postgres, Redis, (+ SMTP if email receivers are used) |
+| `events`    | The alert-log export loop: consumes `cc:events` via its own `cc:logexport` consumer group and exports every event as OTLP alert logs | Postgres, Redis, and `CC_TRUSTED_OTLP_ENDPOINT` + `CC_TRUSTED_INGEST_SECRET` (unset, the role registers nothing and logs a warning) |
 | `all`       | All of the above in one process                                       | All of the above |
 
 The cipher is built **before** any role logic, so a missing key fails every role,

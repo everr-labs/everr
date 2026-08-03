@@ -17,7 +17,8 @@ event ─▶ build match labels ─▶ silence? ─▶ inhibition? ─▶ routes
 
 ### 0. Build match labels
 Every event is augmented with **synthetic labels** before any matching:
-`severity`, `status` (`firing`/`resolved`), and `rule` (the UUID). These join the
+`severity`, `status` (`firing`/`resolved`), `rule` (the UUID), and `kind`
+(`alert`/`rule_health`); SLO events also get `slo` (the SLO UUID). These join the
 event's real labels in one namespace, so routes/silences/inhibitions can match on
 severity or rule without those being real data columns. Synthetic labels win on
 collision.
@@ -102,9 +103,13 @@ Delivery results are classified:
 
 - **Success** (2xx / 202): recorded as sent.
 - **Permanent** (4xx): not retried; the event is dead-lettered after the attempt.
-- **Transient** (5xx, timeouts, connection errors, 429): retried with
+- **Transient** (5xx, timeouts, connection errors): retried with
   deterministic exponential backoff (`50ms · 2^attempt`, capped 5s), up to 4
   attempts, then dead-lettered.
+
+A 429 is transient only for Slack and Telegram, whose rate limits are worth
+retrying; generic webhooks and the subscription firehose treat 429 like any
+other 4xx: permanent.
 
 Dead-lettered events go to the `cc:events:deadletter` stream for inspection and
 manual recovery. The audit trail (`notifications` table) records attempts and the

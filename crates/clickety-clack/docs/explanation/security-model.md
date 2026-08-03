@@ -123,8 +123,13 @@ Secret-at-rest encryption is one of *two* security boundaries. The other is **ru
 SQL**, which is tenant-authored, untrusted input executed against ClickHouse.
 
 The in-app SQL guard (the `sqlguard` module) is **not** that boundary: it only checks the
-statement *shape* (a single, parseable, read-only `SELECT`), and the per-query
-`readonly=1` setting only blocks writes. Neither stops a valid `SELECT` from
+statement *shape*, rejecting anything that is not a single, parseable, read-only
+`SELECT` (multi-statement SQL included) and any query-level `SETTINGS` clause
+(which could raise the caps below), and the per-query `readonly=1` setting only
+blocks writes. Every query also carries cost caps (`max_execution_time=10`,
+`max_result_rows=100000`, `max_result_bytes=20000000`,
+`result_overflow_mode=throw`), but those bound resource use, not reach. None of
+this stops a valid `SELECT` from
 reading data it shouldn't or reaching the network: ClickHouse table functions
 (`url`, `file`, `s3`, `remote`, …) make SSRF and data exfiltration expressible as
 ordinary reads, and `system.*` tables expose cross-tenant and cluster data. Those

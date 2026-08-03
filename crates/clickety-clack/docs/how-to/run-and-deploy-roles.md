@@ -159,14 +159,18 @@ notification.
 
 ## Graceful shutdown
 
-Each process installs a Ctrl-C / SIGINT handler that signals all its background
-loops to stop and waits for them to drain before exiting. Send SIGINT (not
-SIGKILL) for clean shutdown.
+Each process installs a signal handler for Ctrl-C / SIGINT and SIGTERM that
+signals all its background loops to stop and waits for them to drain before
+exiting. Send SIGINT or SIGTERM (an orchestrator's normal stop signal), not
+SIGKILL, for clean shutdown.
 
 ## Health checks
 
 The `api` role exposes `GET /healthz` (liveness) and `GET /readyz` (readiness),
-both returning `ok` with no auth. Point your orchestrator's probes at these. The
+with no auth. `/healthz` always returns `ok`; `/readyz` returns `ok` only while
+every supervised role in the process is running, and 503 `degraded: <roles>`
+while any is down or waiting out a restart backoff. Point your orchestrator's
+probes at these. The
 non-api roles have no HTTP surface; supervise them by process liveness and by
 watching their work (queue depth, lease ownership): see
 [Operate at scale](operate-at-scale.md#what-to-monitor).
