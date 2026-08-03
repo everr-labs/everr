@@ -1,6 +1,7 @@
 import { createEnv } from "@t3-oss/env-core";
 import * as z from "zod";
 import { authEnv } from "./auth";
+import { clicketyClackEnv } from "./clickety-clack";
 import { clickhouseEnv } from "./clickhouse";
 import { dbEnv } from "./db";
 import { githubEnv } from "./github";
@@ -11,6 +12,7 @@ export const env = createEnv({
   extends: [
     dbEnv,
     clickhouseEnv,
+    clicketyClackEnv,
     githubEnv,
     authEnv,
     githubEventsEnv,

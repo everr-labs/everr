@@ -307,3 +307,16 @@ export const previews = pgTable(
     ),
   ],
 );
+
+// Orgs whose preview-owned CC rules/SLOs could not be cleaned up when their
+// preview registry rows were deleted (CC unreachable or the delete failed).
+// The orphan sweep visits these orgs IN ADDITION to orgs that still hold
+// preview rows, then clears the marker once a pass completes cleanly; without
+// it, an org whose LAST preview died during a CC outage would never be
+// visited again and its suppressed rules would evaluate forever.
+export const ccCleanupPending = pgTable("cc_cleanup_pending", {
+  organizationId: text("organization_id").primaryKey(),
+  firstFailedAt: timestamp("first_failed_at", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+});
