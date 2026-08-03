@@ -92,7 +92,7 @@ describe("init (cookieless)", () => {
     start();
     dispatchEvent(new Event("pagehide"));
     const all = await records();
-    // The exit flush sorts the batch by priority; timestamps carry ordering.
+    // Sort the names for a stable assertion; timestamps carry ordering.
     expect(all.map((r) => r.eventName).sort()).toEqual([
       "everr.browser.page_leave",
       "everr.browser.page_view",

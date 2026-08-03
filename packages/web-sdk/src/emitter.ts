@@ -1,7 +1,7 @@
 // The SDK's own emit pipeline: an in-memory queue, a batch timer, and one
 // fetch POST of OTLP JSON per flush. Owning the queue (instead of OTel's
-// BatchLogRecordProcessor) is what lets the exit flush prioritize and
-// truncate by signal. Wire shapes follow the OTLP JSON mapping (intValue is
+// BatchLogRecordProcessor) is what lets the exit flush truncate to the
+// keepalive budget. Wire shapes follow the OTLP JSON mapping (intValue is
 // a decimal string); everything else internal is positional, since property
 // names survive minification and tuple indexes do not.
 
@@ -35,15 +35,13 @@ type OtlpLogRecord = {
 };
 
 /**
- * `exitPriority` ranks the record for exit truncation: lower survives longer
- * (errors 0 > page_leave 1 > vitals 2 > interactions 3, the default).
- * Signals declare their own rank at the emit site. `severityNumber` defaults
- * to INFO (9) and `body` to the event name; the error signal overrides both.
+ * `severityNumber` defaults to INFO (9) and `body` to the event name; the
+ * error signal overrides both. `""` emits a plain log record (no event
+ * name): the custom logger's shape, where callers always pass a body.
  */
 export type Emit = (
-  eventName: EventName,
+  eventName: EventName | "",
   attributes?: Record<string, AttrValue | null | undefined>,
-  exitPriority?: number,
   severityNumber?: number,
   body?: string,
 ) => void;
@@ -53,13 +51,14 @@ type Emitter = [
   flush: () => Promise<void>,
   /**
    * Exit-path flush: fetch keepalive, with the payload truncated to the
-   * keepalive budget by per-signal priority.
+   * keepalive budget (newest records dropped first).
    */
   exitFlush: () => void,
 ];
 
-// Same tuning as the web app's browser telemetry client.
-const MAX_QUEUE_SIZE = 100;
+// Same tuning as the web app's browser telemetry client. The queue itself is
+// deliberately unbounded: no record is dropped before sampling exists, and
+// the batch-size flush keeps it small in practice.
 const MAX_BATCH_SIZE = 32;
 const SCHEDULED_DELAY_MS = 5_000;
 
@@ -97,7 +96,7 @@ export function createEmitter(
 ): Emitter {
   const resource = toKeyValues(resourceAttributes);
   const headers = { "Content-Type": "application/json", ...extraHeaders };
-  let queue: Array<[priority: number, record: OtlpLogRecord]> = [];
+  let queue: OtlpLogRecord[] = [];
   let timer: ReturnType<typeof setTimeout> | undefined;
   let exitScheduled = false;
 
@@ -106,7 +105,7 @@ export function createEmitter(
       resourceLogs: [
         {
           resource: { attributes: resource },
-          scopeLogs: [{ scope, logRecords: queue.map((q) => q[1]) }],
+          scopeLogs: [{ scope, logRecords: queue }],
         },
       ],
     });
@@ -136,46 +135,43 @@ export function createEmitter(
     }
   };
 
-  const flush = (): Promise<void> => {
+  const flush = (keepalive?: boolean): Promise<void> => {
     const body = takeBody();
-    return body ? post(body) : noop();
+    return body ? post(body, keepalive) : noop();
   };
 
   const exitFlush = (): void => {
-    // Truncate whole records, lowest priority first, until the batch fits
-    // the keepalive budget.
-    queue.sort((a, b) => a[0] - b[0]);
+    // Truncate whole records, newest first, until the batch fits the
+    // keepalive budget.
     while (queue.length > 1 && new Blob([build()]).size > EXIT_BUDGET)
       queue.pop();
-    const body = takeBody();
-    if (body) void post(body, true);
+    void flush(true);
   };
 
   const emit: Emit = (
     eventName,
     attributes,
-    exitPriority = 3,
     severityNumber = 9, // INFO
     // Body defaults to the event name so log browsers show a readable line.
     body = eventName,
   ) => {
-    if (queue.length >= MAX_QUEUE_SIZE) return;
-    queue.push([
-      exitPriority,
-      {
-        timeUnixNano: `${Date.now()}000000`,
-        severityNumber,
-        eventName,
-        body: toAnyValue(body),
-        attributes: toKeyValues({ ...envelope(), ...attributes }),
-      },
-    ]);
+    queue.push({
+      timeUnixNano: `${Date.now()}000000`,
+      severityNumber,
+      eventName,
+      body: toAnyValue(body),
+      attributes: toKeyValues({ ...envelope(), ...attributes }),
+    });
     // Records emitted while the page is hidden (web-vitals reports CLS and
     // INP from its own hidden-state listeners, in no guaranteed order
     // relative to the client's exit flush) must not strand in a queue whose
     // timer will never fire: a microtask-coalesced exit flush ships them on
-    // the keepalive path regardless of listener ordering.
-    if (document.visibilityState === "hidden") {
+    // the keepalive path regardless of listener ordering. The document guard
+    // is the server path (SSR has no document, and no exit either).
+    if (
+      typeof document !== "undefined" &&
+      document.visibilityState === "hidden"
+    ) {
       if (!exitScheduled) {
         exitScheduled = true;
         queueMicrotask(() => {
@@ -185,8 +181,11 @@ export function createEmitter(
       }
     } else if (queue.length >= MAX_BATCH_SIZE) {
       void flush();
-    } else {
-      timer ??= setTimeout(() => void flush(), SCHEDULED_DELAY_MS);
+    } else if (timer === undefined) {
+      timer = setTimeout(() => void flush(), SCHEDULED_DELAY_MS);
+      // On the server a pending batch must not hold the process open past
+      // its last request; browsers return a number and skip this.
+      (timer as unknown as { unref?: () => void }).unref?.();
     }
   };
 

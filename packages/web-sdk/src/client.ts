@@ -2,8 +2,9 @@ import { attributionAttributes } from "./attribution.js";
 import { resolveTransport } from "./config.js";
 import { createEmitter, noop } from "./emitter.js";
 import { createEnvelope } from "./envelope.js";
-import { startErrors } from "./errors.js";
+import { startErrors, startReporting } from "./errors.js";
 import { startInteractions } from "./interactions.js";
+import { startLogger } from "./logger.js";
 import { watchNavigation } from "./navigation.js";
 import { startPageviews } from "./pageview.js";
 import { createSessionContext } from "./session.js";
@@ -32,13 +33,17 @@ export function init(options: InitOptions): EverrClient {
     );
   }
 
-  // SSR guard: the SDK is browser-only; server renders get an inert client.
-  if (typeof window === "undefined") return INERT;
-
   // Structural no-op: a keyless production build builds no emitter and no
   // watcher, so nothing can ever issue a network request.
   const transport = resolveTransport(options);
   if (!transport) return INERT;
+
+  // Server runtimes (SSR in meta frameworks like Next.js or TanStack Start,
+  // edge included) get the same pipeline with logger and captureError wired
+  // and nothing browser-bound: no analytics signals, no session envelope, no
+  // global listeners. So the one init() call works from shared code in both
+  // module graphs.
+  if (typeof window === "undefined") return initServer(options, transport);
 
   const [rotate, current] = createSessionContext(
     location.href,
@@ -85,8 +90,10 @@ export function init(options: InitOptions): EverrClient {
     : undefined;
   const stopWebVitals = enabled("webVitals") ? startWebVitals(emit) : undefined;
   // Errors have no disable key and no options: capture is native and always
-  // on whenever the SDK emits at all.
+  // on whenever the SDK emits at all. Same for the custom logger: it only
+  // emits when the user calls it.
   const stopErrors = startErrors(emit);
+  const stopLogger = startLogger(emit);
 
   // Exit delivery: the final leave plus whatever is batched rides the
   // keepalive path. pagehide and visibilitychange-hidden, not beforeunload
@@ -106,11 +113,61 @@ export function init(options: InitOptions): EverrClient {
     shutdown: () => {
       removeEventListener("pagehide", onHide);
       removeEventListener("visibilitychange", onVisibilityChange);
+      stopLogger();
       stopErrors();
       stopWebVitals?.();
       stopInteractions?.();
       pageviews?.[2]();
       stopWatching();
+      return flush();
+    },
+  };
+}
+
+// Node when present; absent on edge runtimes, where both attrs just drop.
+declare const process:
+  | { release?: { name?: string }; versions?: { node?: string } }
+  | undefined;
+
+// The server half of init(). Delivery note: the hosted ingest denies public
+// origin-bound keys on origin-less (server-to-server) requests, so the
+// server-side `ingestKey` must be a secret key; explicit `endpoint`
+// overrides and the dev collector fallback behave the same as in the
+// browser. Serverless hosts should `flush()` (or waitUntil it) before the
+// runtime freezes; the batch timer is unref'd and never holds the process.
+function initServer(
+  options: InitOptions,
+  transport: NonNullable<ReturnType<typeof resolveTransport>>,
+): EverrClient {
+  const [emit, flush] = createEmitter(
+    ...transport,
+    {
+      "service.name": options.serviceName,
+      "service.namespace": "everr",
+      "service.version": options.serviceVersion ?? SDK_VERSION,
+      "deployment.environment.name": options.deploymentEnvironment,
+      "everr.sdk.name": SDK_NAME,
+      "everr.sdk.version": SDK_VERSION,
+      "process.runtime.name":
+        typeof process === "undefined" ? undefined : process.release?.name,
+      "process.runtime.version":
+        typeof process === "undefined" ? undefined : process.versions?.node,
+    },
+    { name: SDK_NAME, version: SDK_VERSION },
+    // No envelope: session, page, and attribution context are per-tab
+    // concepts. Server records are distinguished by their resource (runtime
+    // attrs present, browser attrs absent) and carry no session.id.
+    () => ({}),
+  );
+
+  const stopReporting = startReporting(emit);
+  const stopLogger = startLogger(emit);
+
+  return {
+    flush,
+    shutdown: () => {
+      stopLogger();
+      stopReporting();
       return flush();
     },
   };

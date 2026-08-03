@@ -41,23 +41,19 @@ export function startWebVitals(emit: Emit): () => void {
     // navigationId/URL appear on the Metric once the Soft Navigations API
     // ships in web-vitals; read defensively so they light up on their own.
     const soft = metric as { navigationId?: string; navigationURL?: string };
-    emit(
-      "browser.web_vital",
-      {
-        "browser.web_vital.name": metric.name.toLowerCase(),
-        "browser.web_vital.value": metric.value,
-        "browser.web_vital.delta": metric.delta,
-        "browser.web_vital.id": metric.id,
-        "everr.browser.web_vital.rating": metric.rating,
-        "everr.browser.web_vital.navigation_type": metric.navigationType,
-        "everr.browser.web_vital.navigation_id": soft.navigationId,
-        "everr.browser.web_vital.navigation_url": soft.navigationURL,
-        "everr.landing.url": landingUrl,
-        "everr.landing.path": landingPath,
-        ...attributionAttrs(metric),
-      },
-      2, // Exit truncation rank: errors > page_leave > vitals > interactions.
-    );
+    emit("browser.web_vital", {
+      "browser.web_vital.name": metric.name.toLowerCase(),
+      "browser.web_vital.value": metric.value,
+      "browser.web_vital.delta": metric.delta,
+      "browser.web_vital.id": metric.id,
+      "everr.browser.web_vital.rating": metric.rating,
+      "everr.browser.web_vital.navigation_type": metric.navigationType,
+      "everr.browser.web_vital.navigation_id": soft.navigationId,
+      "everr.browser.web_vital.navigation_url": soft.navigationURL,
+      "everr.landing.url": landingUrl,
+      "everr.landing.path": landingPath,
+      ...attributionAttrs(metric),
+    });
   };
 
   for (const on of [onLCP, onCLS, onINP, onFCP, onTTFB]) on(report);

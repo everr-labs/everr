@@ -25,8 +25,20 @@
   "dependencies": {
     "web-vitals": "^5.3.0"
   },
+  "peerDependencies": {
+    "react": ">=18"
+  },
+  "peerDependenciesMeta": {
+    "react": {
+      "optional": true
+    }
+  },
   "devDependencies": {
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
     "jsdom": "^29.1.1",
+    "react": "catalog:",
+    "react-dom": "catalog:",
     "tsdown": "^0.22.2",
     "typescript": "catalog:"
   }

@@ -20,8 +20,10 @@ type CommonInitOptions = {
   /** The `deployment.environment.name` resource attribute, e.g. `import.meta.env.MODE`. */
   deploymentEnvironment?: string;
   /**
-   * Public origin-bound browser ingest key. When set (and no explicit
-   * `endpoint` is given) events ship to the hosted Everr ingest.
+   * Ingest key. When set (and no explicit `endpoint` is given) events ship
+   * to the hosted Everr ingest. In the browser this is the public
+   * origin-bound key; in server code (SSR init) it must be a secret key,
+   * since the hosted ingest denies public keys on origin-less requests.
    */
   ingestKey?: string;
   /** Explicit OTLP base endpoint override (carries the ingest key's header when one is set). */

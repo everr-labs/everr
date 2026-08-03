@@ -78,7 +78,7 @@ describe("error capture through the SDK", () => {
     expect(a["session.id"]).toMatch(/[0-9a-f-]{36}/);
   });
 
-  it("ranks errors first when the exit flush truncates", async () => {
+  it("ships the captured error on the exit flush", async () => {
     start();
     window.dispatchEvent(
       new ErrorEvent("error", {
@@ -89,9 +89,7 @@ describe("error capture through the SDK", () => {
     dispatchEvent(new Event("pagehide"));
     const exitBatch = batches.find((b) => b.keepalive);
     expect(exitBatch).toBeDefined();
-    // The exit flush sorts ascending by exit priority: the error (0) leads
-    // the page_view (3).
-    expect(exitBatch?.records[0]?.eventName).toBe("exception");
+    expect(exitBatch?.records.map((r) => r.eventName)).toContain("exception");
   });
 
   it("stops capturing after shutdown", async () => {
@@ -186,13 +184,17 @@ describe("error capture through the SDK", () => {
   });
 
   it("warns instead of throwing when captured before init", async () => {
-    // A fresh module instance is the real before-init state.
+    // A fresh module instance is the real before-init state; the react entry
+    // shares it through the live report binding.
     vi.resetModules();
     const fresh = await import("./errors.js");
+    const freshReact = await import("./react.js");
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     try {
       expect(() => fresh.captureError(new Error("early"))).not.toThrow();
-      expect(() => fresh.captureReactError(new Error("early"))).not.toThrow();
+      expect(() =>
+        freshReact.captureReactError(new Error("early")),
+      ).not.toThrow();
       expect(warn).toHaveBeenCalledWith("[everr] SDK not initialized");
     } finally {
       warn.mockRestore();

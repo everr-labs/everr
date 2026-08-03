@@ -135,15 +135,13 @@ describe("createEmitter", () => {
     });
   });
 
-  it("drops events beyond the queue cap instead of growing unbounded", async () => {
-    // Cap is 100; batches of 32 auto-flush, so fill without flushing: emit 31,
-    // flush manually... instead verify the cap by disabling time passage.
+  it("never drops a record on the normal flush path, whatever the burst size", async () => {
+    // No queue cap until sampling exists: a burst far beyond the batch size
+    // must deliver every record, via the batch-size auto-flushes plus the
+    // final manual flush.
     for (let i = 0; i < 250; i++) emit("everr.browser.page_view");
     await flush();
-    // 32-batches auto-flushed along the way; total delivered must be <= 250
-    // and nothing threw. The cap only guards a stalled transport, which the
-    // synchronous mock never simulates; assert delivery stayed bounded.
-    expect(sentRecords().length).toBeLessThanOrEqual(250);
+    expect(sentRecords()).toHaveLength(250);
   });
 
   it("exitFlush posts with keepalive and empties the queue", () => {
@@ -155,25 +153,19 @@ describe("createEmitter", () => {
     expect(sent).toHaveLength(1);
   });
 
-  it("truncates the exit payload by declared priority within the keepalive budget", () => {
+  it("truncates the exit payload to the keepalive budget, newest records first", () => {
     const filler = "x".repeat(3000);
-    for (let i = 0; i < 28; i++)
+    emit("exception", { filler });
+    for (let i = 0; i < 30; i++)
       emit("everr.browser.interaction.dead_click", { filler });
-    emit("browser.web_vital", { filler }, 2);
-    emit("everr.browser.page_leave", {}, 1);
-    emit("exception", {}, 0);
     exitFlush();
 
     const names = sentRecords().map((r) => r.eventName);
     expect(sent[0].bodyLength).toBeLessThanOrEqual(64_000);
-    // errors > page_leave > vitals > interactions: the high-priority records
-    // survive, interactions absorb the truncation.
-    expect(names).toContain("exception");
-    expect(names).toContain("everr.browser.page_leave");
-    expect(names).toContain("browser.web_vital");
-    expect(
-      names.filter((n) => n === "everr.browser.interaction.dead_click").length,
-    ).toBeLessThan(28);
+    expect(names.length).toBeLessThan(31);
+    // Oldest records survive: the leading exception ships, the newest
+    // interactions absorb the truncation.
+    expect(names[0]).toBe("exception");
   });
 
   it("never throws from exitFlush, even when fetch throws synchronously", () => {

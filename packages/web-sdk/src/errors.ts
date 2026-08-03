@@ -1,8 +1,10 @@
 import type { Emit } from "./emitter.js";
 
 // Native error capture: window "error" and "unhandledrejection" listeners
-// plus the explicit `captureReactError` / `captureError`, emitted through the
-// SDK pipeline so every error carries the analytics envelope and joins the
+// plus the explicit `captureError` (`captureReactError` lives in the react
+// entry, sharing the live `report` binding, so index consumers never pay
+// for it), emitted through the SDK pipeline so every error carries the
+// analytics envelope and joins the
 // session's other signals. This deliberately owns the small slice of error
 // handling the browser needs instead of depending on @everr/auto-otel-errors:
 // the SDK stays a fraction of the bytes and never contends for that package's
@@ -35,24 +37,9 @@ type Report = (
   extra?: ExtraAttrs,
 ) => void;
 
-let report: Report = () => console.warn("[everr] SDK not initialized");
-
-export function captureReactError(
-  error: unknown,
-  errorInfo?: { componentStack?: string | null },
-): void {
-  // Before init this warns (never throws) so miswiring is visible; after
-  // shutdown it is silent by design. Router error components call this from
-  // effects, so SSR renders never reach it.
-  report(
-    error,
-    "react",
-    true,
-    errorInfo?.componentStack
-      ? { "everr.react.component_stack": errorInfo.componentStack }
-      : undefined,
-  );
-}
+// A live binding: the react entry imports it, and startErrors/stop swap the
+// implementation underneath both entries at once.
+export let report: Report = () => console.warn("[everr] SDK not initialized");
 
 /** Reports a handled error, with optional extra attributes. */
 export function captureError(
@@ -63,7 +50,13 @@ export function captureError(
   report(error, "manual", options?.handled ?? true, attributes);
 }
 
-export function startErrors(emit: Emit): () => void {
+// Wires the live `report` binding (rate limit + emit) without any global
+// listeners: the server half of error capture. SSR errors reach it through
+// captureError only; process-level handlers are deliberately absent (an
+// uncaughtException listener changes Node's exit semantics, and request
+// errors are caught by the framework before they ever get there, so hosts
+// wire framework hooks like Next's onRequestError to captureError instead).
+export function startReporting(emit: Emit): () => void {
   const hits = new Map<string, number[]>();
 
   report = (error, mechanism, handled, extra) => {
@@ -89,8 +82,7 @@ export function startErrors(emit: Emit): () => void {
           if (!stamps.some((t) => t > now - 5_000)) hits.delete(staleKey);
         });
 
-      // Errors rank first (exit priority 0) in exit-flush truncation; 17 is
-      // the OTel ERROR severity.
+      // 17 is the OTel ERROR severity.
       emit(
         "exception",
         {
@@ -101,7 +93,6 @@ export function startErrors(emit: Emit): () => void {
           "everr.error.handled": handled,
           "everr.error.mechanism": mechanism,
         },
-        0,
         17,
         message ? `${type}: ${message}` : type,
       );
@@ -109,6 +100,14 @@ export function startErrors(emit: Emit): () => void {
       // Swallowed by design.
     }
   };
+
+  return () => {
+    report = () => {};
+  };
+}
+
+export function startErrors(emit: Emit): () => void {
+  const stopReporting = startReporting(emit);
 
   const onError = (event: ErrorEvent) => {
     // Resource-load and cross-origin "Script error." events carry no error
@@ -122,7 +121,7 @@ export function startErrors(emit: Emit): () => void {
   addEventListener("unhandledrejection", onRejection);
 
   return () => {
-    report = () => {};
+    stopReporting();
     removeEventListener("error", onError);
     removeEventListener("unhandledrejection", onRejection);
   };

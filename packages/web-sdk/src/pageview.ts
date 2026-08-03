@@ -41,17 +41,13 @@ export function startPageviews(emit: Emit, current: CurrentPage): Pageviews {
     if (left) return;
     left = true;
     const height = document.documentElement.scrollHeight;
-    emit(
-      "everr.browser.page_leave",
-      {
-        // The leave belongs to the page being left: override the envelope.
-        ...pageAttrs(page),
-        "everr.page_view.duration_ms": Date.now() - startedAt,
-        "everr.scroll.depth":
-          Math.round(Math.min(height ? maxBottom / height : 0, 1) * 100) / 100,
-      },
-      1,
-    );
+    emit("everr.browser.page_leave", {
+      // The leave belongs to the page being left: override the envelope.
+      ...pageAttrs(page),
+      "everr.page_view.duration_ms": Date.now() - startedAt,
+      "everr.scroll.depth":
+        Math.round(Math.min(height ? maxBottom / height : 0, 1) * 100) / 100,
+    });
   };
 
   emitView("initial");

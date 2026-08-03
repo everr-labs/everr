@@ -1,4 +1,4 @@
-Keep the bundle size minimal and measure the gz size at each meanungful iteration.
+Keep the bundle size minimal and measure the bundle gz size at each meanungful iteration.
 
 MUST follow the oTel semconv when available.
 Custom attrs should be under everr. prefix
