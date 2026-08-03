@@ -1,12 +1,16 @@
 import { applyAlertSpecs } from "@/data/alerts/apply.server";
-import { validateAlertRunbookLinks } from "@/data/alerts/runbook-links.server";
 import { applyDashboardSpecs } from "@/data/dashboards/apply.server";
 import { findPreviewId, upsertPreview } from "@/data/previews/apply.server";
 import type { Namespace } from "@/data/previews/scope";
 import { applyRunbookSpecs } from "@/data/runbooks/apply.server";
+import { applySloSpecs } from "@/data/slos/apply.server";
 import { type DbExecutor, db } from "@/db/client";
 import { ApplyValidationError } from "./errors";
 import type { OwnershipConflict } from "./ownership";
+import {
+  collectOrphanWarnings,
+  validateRunbookLinks,
+} from "./runbook-links.server";
 import type { ApplyInput, ApplyResourceEntry, ApplySource } from "./schema";
 
 export type { OwnershipConflict } from "./ownership";
@@ -18,6 +22,10 @@ export interface KindResult {
   deleted: string[];
   /** Live resources taken over from another owning repo (only with `adopt`). */
   adopted: string[];
+  /** Non-fatal advisory about how this kind was reconciled (e.g. preview
+   * AlertRules are evaluated as suppressed CC rules: real instances and
+   * history, but no notifications). */
+  note?: string;
 }
 
 export interface ApplyResourcesResult {
@@ -46,6 +54,8 @@ export type Reconciler = (opts: {
   adopted: string[];
   /** Creates colliding with another repo's live resource; empty when adopting. */
   conflicts: OwnershipConflict[];
+  /** Optional non-fatal advisory surfaced in the per-kind result. */
+  note?: string;
 }>;
 
 /**
@@ -64,6 +74,7 @@ const REGISTRY: {
   { key: "dashboards", kind: "Dashboard", reconcile: applyDashboardSpecs },
   { key: "runbooks", kind: "Runbook", reconcile: applyRunbookSpecs },
   { key: "alerts", kind: "AlertRule", reconcile: applyAlertSpecs },
+  { key: "slos", kind: "SLO", reconcile: applySloSpecs },
 ];
 
 function validateResourceKind(
@@ -117,6 +128,7 @@ export async function applyResources(opts: {
       updated: string[];
       deleted: string[];
       adopted: string[];
+      note?: string;
     },
   ): KindResult => ({
     kind,
@@ -124,6 +136,7 @@ export async function applyResources(opts: {
     updated: r.updated,
     deleted: r.deleted,
     adopted: r.adopted,
+    ...(r.note ? { note: r.note } : {}),
   });
 
   // Live, or the preview resolved to its registry id via the given resolver.
@@ -175,26 +188,58 @@ export async function applyResources(opts: {
     );
   }
 
-  // Cross-kind: a linked runbook must exist in this batch or already in the
-  // DB. Runs after every kind validated, before any kind writes.
-  await validateAlertRunbookLinks({
+  // Cross-kind: every alert's and SLO's linked runbook must exist in this
+  // batch or already be owned by another repo. Runs after every kind
+  // validated, before any kind writes.
+  await validateRunbookLinks({
     namespace,
     alerts: state.alerts,
+    slos: state.slos,
     runbooks: state.runbooks,
   });
 
-  if (dryRun) return { dryRun: true, results: validated };
+  // Reverse check, still before any write: a runbook this apply is about to
+  // prune (in the DB, absent from the batch) may be linked from another
+  // repo's live alert or SLO. Non-fatal — surfaced as a note on the Runbook
+  // kind's result rather than failing the apply.
+  const orphanWarnings = await collectOrphanWarnings({
+    namespace,
+    runbooks: state.runbooks,
+  });
+  const withOrphanWarnings = (results: KindResult[]): KindResult[] =>
+    orphanWarnings.length === 0
+      ? results
+      : results.map((r) =>
+          r.kind === "Runbook"
+            ? {
+                ...r,
+                note: [r.note, ...orphanWarnings].filter(Boolean).join("; "),
+              }
+            : r,
+        );
 
-  // Real apply: one transaction so registration + every kind commit or roll
-  // back together. Register the preview FIRST — its row is the parent every
-  // preview resource row references (FK), and a rollback removes the row along
-  // with any partial writes, so the switcher never lists a half-applied
-  // preview. Live is not registered.
+  if (dryRun) return { dryRun: true, results: withOrphanWarnings(validated) };
+
+  // Real apply. The preview registration COMMITS FIRST, on the base executor,
+  // deliberately outside the reconcile transaction: the CC-backed kinds
+  // (alerts, SLOs) write suppressed CC resources tagged with this registry id
+  // over HTTP, which no Postgres rollback can undo. If the row only existed
+  // inside the transaction, a later kind's failure would roll it back and
+  // strand those CC writes under a namespace id that never existed — and the
+  // orphan sweep's "row before resources" invariant (see sweepOrphanCcRules)
+  // would break mid-apply, letting the sweep reap a preview being created. A
+  // registered-but-partially-applied preview is the safe failure mode: the
+  // next apply upserts the same row and every reconciler converges. Live is
+  // not registered. The row is also the parent every preview resource row
+  // references (FK), so it must exist before the kinds write.
+  const applied = await resolveNamespace((name) =>
+    upsertPreview(db, { orgId, repoid, name }),
+  );
+  // One transaction for the reconcile loop: the Postgres-backed kinds
+  // (dashboards, runbooks) commit or roll back together. The CC-backed kinds
+  // mutate over HTTP and recover by convergence on re-apply instead.
   const results: KindResult[] = [];
   await db.transaction(async (tx) => {
-    const applied = await resolveNamespace((name) =>
-      upsertPreview(tx, { orgId, repoid, name }),
-    );
     for (const { key, kind, reconcile } of REGISTRY) {
       const r = await reconcile({
         namespace: applied,
@@ -208,5 +253,5 @@ export async function applyResources(opts: {
     }
   });
 
-  return { dryRun: false, results };
+  return { dryRun: false, results: withOrphanWarnings(results) };
 }

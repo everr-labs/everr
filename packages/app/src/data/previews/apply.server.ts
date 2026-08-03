@@ -1,4 +1,5 @@
 import { and, eq, lt } from "drizzle-orm";
+import { deletePreviewCcRules } from "@/data/alerts/preview-cleanup.server";
 import { type DbExecutor, db } from "@/db/client";
 import { previews } from "@/db/schema";
 
@@ -57,6 +58,12 @@ export async function findPreviewId(
  * the predicate is its own guard, so a concurrent re-apply that refreshes
  * lastAppliedAt is simply not matched. Live rows have no registry row and are
  * never touched.
+ *
+ * A preview also owns suppressed alert rules in clickety-clack (tagged with
+ * its registry id — they live outside Postgres, so the CASCADE can't reach
+ * them). Those are cleaned up best-effort AFTER the rows are gone: see
+ * deletePreviewCcRules for the ordering rationale and the orphan tradeoff
+ * when CC is unreachable.
  */
 export async function deleteStalePreviews(
   retentionDays: number,
@@ -65,6 +72,7 @@ export async function deleteStalePreviews(
   const deleted = await db
     .delete(previews)
     .where(lt(previews.lastAppliedAt, cutoff))
-    .returning({ id: previews.id });
+    .returning({ id: previews.id, organizationId: previews.organizationId });
+  if (deleted.length > 0) await deletePreviewCcRules(deleted);
   return deleted.length;
 }

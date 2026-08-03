@@ -11,15 +11,21 @@ import {
   ComposedChart,
   Line,
   ReferenceArea,
-  ReferenceDot,
   ReferenceLine,
   XAxis,
   YAxis,
 } from "recharts";
 import { CursorTooltip } from "@/components/cursor-tooltip";
 import {
+  hoverMarkers,
+  markerTolerance,
+  nearestSeriesKeys,
+  valueAtCursorY,
+} from "../chart-hover";
+import {
   createTimeTickFormatter,
   generateTimeTicks,
+  niceLinearDomain,
   SERIES_COLORS,
 } from "../data-utils";
 import type { VisualizationProps } from "../index";
@@ -64,6 +70,10 @@ export function TimeSeriesChartVisualization({
     clientX: number;
     clientY: number;
     index: number;
+    /** The pointer's height as a value on the y axis; null if unmeasurable. */
+    cursorValue: number | null;
+    /** How near `cursorValue` a series counts as pointed at, in value units. */
+    tolerance: number;
   } | null>(null);
 
   const domain = useMemo<[number, number]>(
@@ -82,6 +92,37 @@ export function TimeSeriesChartVisualization({
   );
 
   const ticks = useMemo(() => generateTimeTicks(domain, MAX_X_TICKS), [domain]);
+
+  // The value axis, stated rather than left to recharts, so a cursor height can
+  // be read back as a value. Measured over what is actually drawn: the stacked
+  // tops when stacking, otherwise each line's own samples (which can reach one
+  // bucket left of the x domain).
+  const yAxis = useMemo(() => {
+    let lo = 0;
+    let hi = 0;
+    if (stackedData) {
+      for (const row of stackedData) {
+        let top = 0;
+        for (const key of valueKeys) {
+          const v = row[key];
+          if (typeof v === "number") top += v;
+        }
+        lo = Math.min(lo, top);
+        hi = Math.max(hi, top);
+      }
+    } else {
+      for (const key of valueKeys) {
+        for (const row of seriesData[key] ?? []) {
+          const v = row[key];
+          if (typeof v === "number") {
+            lo = Math.min(lo, v);
+            hi = Math.max(hi, v);
+          }
+        }
+      }
+    }
+    return niceLinearDomain(lo, hi);
+  }, [stackedData, seriesData, valueKeys]);
 
   const handleChartMouseMove = useCallback(
     (e: React.MouseEvent) => {
@@ -102,9 +143,18 @@ export function TimeSeriesChartVisualization({
         clientX: e.clientX,
         clientY: e.clientY,
         index: nearest,
+        cursorValue: valueAtCursorY(
+          e.clientY,
+          { top: plotRect.top, height: plotRect.height },
+          yAxis.domain,
+        ),
+        tolerance: markerTolerance(
+          plotRect.height,
+          yAxis.domain[1] - yAxis.domain[0],
+        ),
       });
     },
-    [domain, chartData],
+    [domain, chartData, yAxis],
   );
 
   const handleChartMouseLeave = useCallback(() => {
@@ -167,6 +217,29 @@ export function TimeSeriesChartVisualization({
   const tooltipRow = tooltipState ? chartData[tooltipState.index] : undefined;
   const tooltipTs = tooltipRow ? (tooltipRow[TS_KEY] as number) : undefined;
 
+  // Where each series is drawn at the hovered instant. Stacked series sit at
+  // their cumulative top (the running sum in render order), which is where the
+  // band edge is, not at the raw value.
+  let stackTop = 0;
+  const hoverPoints = valueKeys.map((key) => {
+    const val = tooltipRow?.[key];
+    stackTop += typeof val === "number" ? val : 0;
+    return {
+      key,
+      value:
+        typeof val !== "number" ? null : stacked ? stackTop : (val as number),
+      color: chartConfig[key]?.color,
+    };
+  });
+
+  // Which of them the pointer is actually on. Several series can share a value
+  // (two at zero is routine), so this names every one of them.
+  const nearestKeys = nearestSeriesKeys(
+    hoverPoints,
+    tooltipState?.cursorValue ?? null,
+    tooltipState?.tolerance ?? 0,
+  );
+
   return (
     // biome-ignore lint/a11y/noStaticElementInteractions: chart interaction area
     <div
@@ -207,6 +280,11 @@ export function TimeSeriesChartVisualization({
             tickLine={false}
             axisLine={false}
             tickMargin={8}
+            // Declared, not inferred: the hover highlight has to map a cursor
+            // height back to a value, and recharts does not expose the axis it
+            // would have chosen.
+            domain={yAxis.domain}
+            ticks={yAxis.ticks}
             tickFormatter={(v) => (unit ? `${v}${unit}` : String(v))}
           />
           {showLegend && <ChartLegend content={<ChartLegendContent />} />}
@@ -251,29 +329,11 @@ export function TimeSeriesChartVisualization({
             />
           )}
           {tooltipTs !== undefined &&
-            (() => {
-              // In stacked mode each dot sits at the series' cumulative top
-              // (the running sum in render order), matching where the band
-              // edge is drawn — not at the raw value.
-              let stackTop = 0;
-              return valueKeys.map((key) => {
-                const val = tooltipRow?.[key];
-                const raw = typeof val === "number" ? val : 0;
-                stackTop += raw;
-                if (typeof val !== "number") return null;
-                return (
-                  <ReferenceDot
-                    key={key}
-                    x={tooltipTs}
-                    y={stacked ? stackTop : val}
-                    r={4}
-                    fill={chartConfig[key]?.color}
-                    stroke="var(--card)"
-                    strokeWidth={2}
-                  />
-                );
-              });
-            })()}
+            hoverMarkers({
+              x: tooltipTs,
+              points: hoverPoints,
+              activeKeys: nearestKeys,
+            })}
           {brushStart != null && brushEnd != null && (
             <ReferenceArea
               x1={brushStart}
@@ -299,6 +359,9 @@ export function TimeSeriesChartVisualization({
                   color: chartConfig[key]?.color,
                   label: chartConfig[key]?.label ?? key,
                   value: unit ? `${val}${unit}` : String(val),
+                  // Calls out the row the pointer is on, so overlapping series
+                  // can be told apart by aiming at one of them.
+                  active: nearestKeys.has(key),
                 };
               })}
           />
