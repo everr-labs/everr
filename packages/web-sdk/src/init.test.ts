@@ -50,7 +50,6 @@ describe("init (cookieless)", () => {
     expect(a["everr.navigation.type"]).toBe("initial");
     expect(a["session.id"]).toMatch(/[0-9a-f-]{36}/);
     expect(a["everr.page_view.id"]).toMatch(/[0-9a-f-]{36}/);
-    expect(a["everr.event.id"]).toMatch(/[0-9a-f-]{36}/);
     expect(a["url.full"]).toBe(window.location.href);
     expect(a["url.path"]).toBe("/");
     const resource = await resourceAttrs();

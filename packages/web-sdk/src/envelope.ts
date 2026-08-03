@@ -33,8 +33,6 @@ export function createEnvelope(
       "session.id": page.sessionId,
       ...pageAttrs(page),
       "everr.route.pattern": guarded(routePattern),
-      // The $insert_id analogue: a per-record random id for dedup.
-      "everr.event.id": randomUUID(),
       ...attribution,
     };
   };

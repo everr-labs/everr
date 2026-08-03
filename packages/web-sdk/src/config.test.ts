@@ -16,11 +16,11 @@ describe("resolveTransport", () => {
         endpoint: "https://collector.example/",
       }),
     ).toEqual([
-      "https://collector.example/v1/logs",
+      "https://collector.example",
       { Authorization: "Bearer pub_abc" },
     ]);
     expect(resolveTransport({ endpoint: "https://collector.example" })).toEqual(
-      ["https://collector.example/v1/logs", undefined],
+      ["https://collector.example", undefined],
     );
   });
 

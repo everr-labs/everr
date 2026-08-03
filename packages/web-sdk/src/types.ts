@@ -62,11 +62,25 @@ export type CookielessInitOptions = CommonInitOptions & {
 };
 
 /**
- * Consented mode (post-CMP-opt-in): durable identity, `identify()`, and the
- * lazy replay subpath. Not implemented yet; `init` rejects it at runtime.
+ * Consented mode (post-CMP-opt-in): durable identity. A random persistent
+ * visitor id (`everr.visitor.id`, a device id, never fingerprint-derived)
+ * and durable 30-minute-inactivity sessions live in localStorage, surviving
+ * reloads and shared across tabs; `identify()` and `revoke()` hang off the
+ * returned handle. The event schema is identical to cookieless: consent
+ * only fills what cookieless leaves empty. The lazy replay subpath hangs
+ * off the `ConsentedClient` only.
  */
 export type ConsentedInitOptions = CommonInitOptions & {
   mode: "consented";
+};
+
+/**
+ * identify() traits: flattened onto subsequent events as dotted `user.*`
+ * attributes. Nested objects recurse; scalars only, so arrays are rejected
+ * at compile time and nullish leaves are dropped.
+ */
+export type UserTraits = {
+  [key: string]: string | number | boolean | null | undefined | UserTraits;
 };
 
 export type InitOptions = CookielessInitOptions | ConsentedInitOptions;

@@ -143,10 +143,8 @@ function initServer(
     ...transport,
     {
       "service.name": options.serviceName,
-      "service.namespace": "everr",
       "service.version": options.serviceVersion ?? SDK_VERSION,
       "deployment.environment.name": options.deploymentEnvironment,
-      "everr.sdk.name": SDK_NAME,
       "everr.sdk.version": SDK_VERSION,
       "process.runtime.name":
         typeof process === "undefined" ? undefined : process.release?.name,

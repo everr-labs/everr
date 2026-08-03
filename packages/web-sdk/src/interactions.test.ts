@@ -161,7 +161,7 @@ describe("startInteractions", () => {
       ).toHaveLength(0);
     });
 
-    it("rage clicks carry the full element payload (id, class chain, href)", () => {
+    it("rage clicks carry the full element payload (id, href)", () => {
       document.body.innerHTML =
         '<nav class="top main extra fourth"><a id="docs-link" href="/docs">Read the docs</a></nav>';
       rageBurst(document.getElementById("docs-link") as Element, 15, 25);
@@ -174,9 +174,6 @@ describe("startInteractions", () => {
       expect(a["everr.element.text"]).toBe("Read the docs");
       expect(a["everr.element.selector"]).toBe("#docs-link");
       expect(a["everr.element.href"]).toBe("/docs");
-      expect(String(a["everr.element.chain"])).toBe(
-        "a;nav.top.main.extra;body",
-      );
       expect(a["everr.click.x"]).toBe(20);
       expect(a["everr.click.y"]).toBe(29);
     });

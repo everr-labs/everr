@@ -119,7 +119,6 @@ function elementAttrs(
     "everr.element.tag": el.tagName.toLowerCase(),
     "everr.element.text": textOf(el),
     "everr.element.selector": selectorOf(el),
-    "everr.element.chain": chainOf(el),
     "everr.element.href": el.closest("a")?.getAttribute("href"),
     "everr.viewport.width": innerWidth,
     "everr.viewport.height": innerHeight,
@@ -157,24 +156,6 @@ function selectorOf(el: Element): string {
     node = node.parentElement;
   }
   return parts.join(" > ");
-}
-
-/** Compact ancestor chain (tag plus up to three classes per level). */
-function chainOf(el: Element): string {
-  const parts: string[] = [];
-  for (
-    let node: Element | null = el;
-    node && node.tagName !== "HTML" && parts.length < 10;
-    node = node.parentElement
-  ) {
-    parts.push(
-      [
-        node.tagName.toLowerCase(),
-        ...Array.from(node.classList).slice(0, 3),
-      ].join("."),
-    );
-  }
-  return parts.join(";");
 }
 
 function startSlowInteractionsTracking(emit: Emit): () => void {

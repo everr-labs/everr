@@ -53,7 +53,6 @@ describe("init (server)", () => {
       ]),
     );
     expect(resource["service.name"]).toBe("everr-docs-test");
-    expect(resource["everr.sdk.name"]).toBe("@everr/web-sdk");
     expect(resource["process.runtime.name"]).toBe("node");
     expect(String(resource["process.runtime.version"])).toMatch(/^\d+\./);
     expect(resource).not.toHaveProperty("user_agent.original");

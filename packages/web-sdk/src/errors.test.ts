@@ -157,6 +157,23 @@ describe("error capture through the SDK", () => {
     expect(all.filter((r) => r.eventName === "exception")).toHaveLength(5);
   });
 
+  it("does not double-report the same error from both onerror and unhandledrejection", async () => {
+    start();
+    const error = new TypeError("Failed to fetch");
+    // A single unhandled rejection typically fires both events; only the
+    // first should produce a record.
+    const event = new Event("unhandledrejection") as Event & {
+      reason?: unknown;
+    };
+    event.reason = error;
+    window.dispatchEvent(event);
+    window.dispatchEvent(
+      new ErrorEvent("error", { error, message: "Failed to fetch" }),
+    );
+    const all = await records();
+    expect(all.filter((r) => r.eventName === "exception")).toHaveLength(1);
+  });
+
   it("captures non-Error rejection reasons as NonError", async () => {
     start();
     const event = new Event("unhandledrejection") as Event & {

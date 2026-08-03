@@ -109,13 +109,28 @@ export function startReporting(emit: Emit): () => void {
 export function startErrors(emit: Emit): () => void {
   const stopReporting = startReporting(emit);
 
+  // Cross-handler deduplication: a single unhandled TypeError (e.g.
+  // "Failed to fetch") can fire both `unhandledrejection` and `error` on the
+  // window, each carrying the same error object. Track which objects each
+  // handler has seen so only the first handler to fire reports the error;
+  // the rate limiter in startReporting still throttles volume within a single
+  // handler.
+  const seenByOnerror = new WeakSet<object>();
+  const seenByRejection = new WeakSet<object>();
   const onError = (event: ErrorEvent) => {
-    // Resource-load and cross-origin "Script error." events carry no error
-    // object; skip them.
-    if (event.error != null) report(event.error, "onerror", false);
+    if (event.error != null) {
+      if (seenByRejection.has(event.error)) return;
+      seenByOnerror.add(event.error);
+      report(event.error, "onerror", false);
+    }
   };
   const onRejection = (event: Event) => {
-    report((event as { reason?: unknown }).reason, "unhandledrejection", false);
+    const reason = (event as { reason?: unknown }).reason;
+    if (reason != null && typeof reason === "object") {
+      if (seenByOnerror.has(reason)) return;
+      seenByRejection.add(reason);
+    }
+    report(reason, "unhandledrejection", false);
   };
   addEventListener("error", onError);
   addEventListener("unhandledrejection", onRejection);
