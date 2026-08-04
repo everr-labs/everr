@@ -55,6 +55,7 @@ so you know the system's actual behavior without reading the source.
 | ---------- | --- | ---------------- | ---------- | ------------------- |
 | webhook    | ok  | permanent        | transient  | transient |
 | slack      | ok  | permanent        | transient  | transient |
+| discord    | ok  | permanent        | transient  | transient |
 | telegram   | ok  | permanent        | transient  | transient |
 | email      | ok  | permanent (bad/empty recipients, at build) | none | transient (SMTP errors) |
 

@@ -1,7 +1,7 @@
 # The security model: secret encryption at rest
 
-This explains how clickety-clack protects the delivery secrets it stores: generic
-and Slack webhook URLs, Telegram bot tokens, and subscription webhook URLs, and the
+This explains how clickety-clack protects the delivery secrets it stores: generic,
+Slack, and Discord webhook URLs, Telegram bot tokens, and subscription webhook URLs, and the
 design decisions behind it. For the operator steps see
 [manage secret encryption](../how-to/manage-secret-encryption.md).
 
@@ -20,7 +20,7 @@ letters, not in error messages.**
 
 | Secret | At rest in… | Protection |
 | ------ | ----------- | ---------- |
-| Generic/Slack URL, Telegram bot token (`channels.config`) | Postgres | AES-256-GCM encrypted |
+| Generic/Slack/Discord URL, Telegram bot token (`channels.config`) | Postgres | AES-256-GCM encrypted |
 | Subscription webhook URL (`subscriptions.webhook_url`) | Postgres | AES-256-GCM encrypted |
 | The delivery target in the audit log (`notifications.target`) | Postgres | one-way `sha256:` digest (not recoverable) |
 | The target in dead-letter records and logs | Redis / logs | redacted digest; transport errors strip the URL |

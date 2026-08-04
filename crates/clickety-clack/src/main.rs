@@ -4,6 +4,7 @@ use cc::api::auth::{ApiKeySet, HeaderAuth};
 use cc::api::{build_supervised_router, AppState};
 use cc::clickhouse::ChClient;
 use cc::dispatcher::cache::FilterCache;
+use cc::dispatcher::discord::DiscordNotifier;
 use cc::dispatcher::email::EmailNotifier;
 use cc::dispatcher::notify::WebhookNotifier;
 use cc::dispatcher::slack::SlackNotifier;
@@ -154,6 +155,7 @@ async fn main() -> anyhow::Result<()> {
         let mut reg = Notifiers::new().with_engine_metrics(engine_metrics.clone());
         reg.register(Arc::new(WebhookNotifier::new(cfg.allow_private_webhooks)));
         reg.register(Arc::new(SlackNotifier::new(cfg.allow_private_webhooks)));
+        reg.register(Arc::new(DiscordNotifier::new(cfg.allow_private_webhooks)));
         reg.register(Arc::new(TelegramNotifier::new()));
         if let Some(smtp) = cfg.smtp.clone() {
             match EmailNotifier::new(

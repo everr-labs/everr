@@ -17,7 +17,12 @@ import {
 import type { CcChannel, CcChannelConfig } from "@/data/cc/types";
 import { authClient } from "@/lib/auth-client";
 import { CcDrawer } from "./cc-drawer";
-import { CHANNEL_ICON, CHANNEL_LABEL, type ChannelType } from "./channel-meta";
+import {
+  CHANNEL_ICON,
+  CHANNEL_LABEL,
+  CHANNEL_URL_FIELD,
+  type ChannelType,
+} from "./channel-meta";
 import { CcConceptNote, ccErrorMessage, isDuplicateName } from "./shared";
 
 /** Every per-type field kept side by side so switching the type never loses input. */
@@ -43,6 +48,7 @@ function draftFromConfig(config: CcChannelConfig): ConfigDraft {
   switch (config.type) {
     case "webhook":
     case "slack":
+    case "discord":
       return { ...EMPTY_DRAFT, type: config.type };
     case "email":
       return { ...EMPTY_DRAFT, type: config.type, to: config.to };
@@ -55,6 +61,7 @@ function draftToConfig(d: ConfigDraft): CcChannelConfig | null {
   switch (d.type) {
     case "webhook":
     case "slack":
+    case "discord":
       return d.url ? { type: d.type, url: d.url } : null;
     case "email":
       return d.to.length > 0 ? { type: d.type, to: d.to } : null;
@@ -96,6 +103,7 @@ export function ChannelBuilder({
 
   const duplicate = isDuplicateName(existingNames, name.trim(), editing?.name);
   const config = draftToConfig(draft);
+  const urlField = CHANNEL_URL_FIELD[draft.type];
 
   const patch = (p: Partial<ConfigDraft>) => {
     // Clear at the one place the draft changes, so a stale tick never vouches
@@ -170,9 +178,9 @@ export function ChannelBuilder({
     >
       <CcConceptNote>
         A channel is a named delivery endpoint that any number of receivers can
-        reference. Secret fields (Slack URL, Telegram token) are write-only: the
-        engine redacts them on read, so editing a channel means entering them
-        again.
+        reference. Secret fields (webhook URLs, the Telegram token) are
+        write-only: the engine redacts them on read, so editing a channel means
+        entering them again.
       </CcConceptNote>
       <div className="space-y-1.5">
         <Label htmlFor="channel-name">Name</Label>
@@ -202,22 +210,16 @@ export function ChannelBuilder({
           }))}
         />
       </div>
-      {(draft.type === "webhook" || draft.type === "slack") && (
+      {urlField && (
         <div className="space-y-1.5">
-          <Label htmlFor="channel-url">
-            {draft.type === "slack" ? "Incoming webhook URL" : "Webhook URL"}
-          </Label>
+          <Label htmlFor="channel-url">{urlField.label}</Label>
           <Input
             id="channel-url"
             type="url"
             className="font-mono"
             value={draft.url}
             onChange={(e) => patch({ url: e.target.value })}
-            placeholder={
-              draft.type === "slack"
-                ? "https://hooks.slack.com/services/..."
-                : "https://example.com/hook"
-            }
+            placeholder={urlField.placeholder}
           />
           {editing !== null && (
             <p className="text-xs text-muted-foreground">

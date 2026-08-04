@@ -395,6 +395,36 @@ pub fn make_event(tenant: &TenantId, rule: RuleId, i: usize) -> Event {
 }
 
 /// An instant webhook that returns 200 and counts hits. Returns (url, counter, task).
+/// A one-route stub webhook that answers `status` and captures the last JSON
+/// body it saw into `body_sink`, for asserting on delivered payloads
+/// (slack/discord suites).
+pub async fn start_json_capture_server(
+    status: u16,
+    body_sink: Arc<Mutex<Option<serde_json::Value>>>,
+) -> String {
+    use axum::extract::Json;
+    use axum::http::StatusCode;
+    use axum::routing::post;
+    use axum::Router;
+    let code = StatusCode::from_u16(status).unwrap();
+    let app = Router::new().route(
+        "/hook",
+        post(move |Json(body): Json<serde_json::Value>| {
+            let sink = body_sink.clone();
+            async move {
+                *sink.lock().unwrap() = Some(body);
+                code
+            }
+        }),
+    );
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    tokio::spawn(async move {
+        axum::serve(listener, app).await.ok();
+    });
+    format!("http://{addr}/hook")
+}
+
 pub async fn start_counting_webhook() -> (String, Arc<AtomicUsize>, JoinHandle<()>) {
     use axum::routing::post;
     use axum::Router;

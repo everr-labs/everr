@@ -47,16 +47,11 @@ fn validate_channel_config(
     config: &ChannelConfig,
     allow_private_webhooks: bool,
 ) -> Result<(), ApiError> {
-    // Same SSRF guard as subscription webhooks: the dispatcher POSTs these URLs
-    // from inside the deployment network (see `crate::api::webhook_url`). Both the
-    // webhook and Slack variants carry a tenant-supplied URL the dispatcher fetches
-    // (see `dispatcher::slack`), so both must pass the guard; Email/Telegram
-    // deliver via fixed provider endpoints, not a caller-chosen URL.
-    let url = match config {
-        ChannelConfig::Webhook { url } | ChannelConfig::Slack { url } => Some(url),
-        ChannelConfig::Email { .. } | ChannelConfig::Telegram { .. } => None,
-    };
-    if let Some(url) = url {
+    // Same SSRF guard as subscription webhooks: the dispatcher POSTs any
+    // tenant-supplied URL from inside the deployment network (see
+    // `crate::api::webhook_url`); which variants carry one is the domain's
+    // designation (`ChannelConfig::fetched_url`).
+    if let Some(url) = config.fetched_url() {
         crate::api::webhook_url::validate_webhook_url(url, allow_private_webhooks)
             .map_err(ApiError::Validation)?;
     }
@@ -83,7 +78,9 @@ fn validate_channel_config(
             }
         }
         // Single-URL configs have no list to repeat an entry in.
-        ChannelConfig::Webhook { .. } | ChannelConfig::Slack { .. } => {}
+        ChannelConfig::Webhook { .. }
+        | ChannelConfig::Slack { .. }
+        | ChannelConfig::Discord { .. } => {}
     }
     Ok(())
 }
@@ -347,6 +344,22 @@ mod tests {
         ));
         assert!(validate_channel(&b.name, &b.config, true).is_ok());
         let b = body(r#"{"name":"chat","config":{"type":"slack","url":"https://hooks.slack/x"}}"#);
+        assert!(validate_channel(&b.name, &b.config, false).is_ok());
+    }
+
+    #[test]
+    fn discord_config_gets_the_ssrf_guard() {
+        // Discord URLs receive the same SSRF validation as webhooks.
+        let b =
+            body(r#"{"name":"chat","config":{"type":"discord","url":"http://169.254.169.254/x"}}"#);
+        assert!(matches!(
+            validate_channel(&b.name, &b.config, false),
+            Err(ApiError::Validation(_))
+        ));
+        assert!(validate_channel(&b.name, &b.config, true).is_ok());
+        let b = body(
+            r#"{"name":"chat","config":{"type":"discord","url":"https://discord.com/api/webhooks/1/x"}}"#,
+        );
         assert!(validate_channel(&b.name, &b.config, false).is_ok());
     }
 

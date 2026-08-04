@@ -2,7 +2,7 @@ use crate::domain::channel::ChannelConfig;
 use crate::domain::Event;
 
 /// Canonical serialization of a channel config's delivery target: a URL
-/// (webhook/Slack), comma-joined recipients (email), or the
+/// (webhook/Slack/Discord), comma-joined recipients (email), or the
 /// `{bot_token, chat_ids}` JSON (Telegram).
 ///
 /// Hashing input ONLY — [`dedup_key`] and [`redact_target`] key on it; notifiers
@@ -12,6 +12,7 @@ pub fn canonical_target(config: &ChannelConfig) -> String {
     match config {
         ChannelConfig::Webhook { url } => url.clone(),
         ChannelConfig::Slack { url } => url.clone(),
+        ChannelConfig::Discord { url } => url.clone(),
         ChannelConfig::Email { to } => to.join(","),
         ChannelConfig::Telegram {
             bot_token,

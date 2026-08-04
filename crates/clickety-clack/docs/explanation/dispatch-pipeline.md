@@ -88,6 +88,9 @@ The notification is rendered for the channel and sent:
   no rendering).
 - **slack**: incoming-webhook message: a header plus one color-coded attachment
   per event.
+- **discord**: incoming-webhook message: a `content` headline plus one
+  color-coded embed per event, capped at Discord's 10-embed limit (overflow
+  noted in the headline).
 - **email**: a plaintext SMTP message summarizing the group.
 - **telegram**: one `sendMessage` per chat id (HTML parse mode), truncated to
   Telegram's 4096-character `text` limit.

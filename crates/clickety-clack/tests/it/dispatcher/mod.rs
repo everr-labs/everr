@@ -1,6 +1,7 @@
 //! Container-backed suites for the `dispatcher` module.
 
 mod cache_it;
+mod discord_it;
 mod dispatch_it;
 mod email_it;
 mod group_reliability_it;

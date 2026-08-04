@@ -57,7 +57,7 @@ Requires SMTP configured on the dispatcher (`CC_SMTP_HOST`, …; see
 
 ### Secrets
 
-`webhook.url`, `slack.url`, and `telegram.bot_token` are secrets: they
+`webhook.url`, `slack.url`, `discord.url`, and `telegram.bot_token` are secrets: they
 are [encrypted at rest](manage-secret-encryption.md) and **redacted to `***` on
 read**. `GET /v1/channels` is safe to expose; it never returns the cleartext
 secret. Receivers never carry secrets at all (they hold channel names only).

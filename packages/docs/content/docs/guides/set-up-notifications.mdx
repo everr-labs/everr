@@ -10,7 +10,7 @@ Alert rules are defined as code, but delivery is configured in the app and appli
 When an alert fires or resolves, it walks a fixed path:
 
 1. **Routes** are checked top to bottom by priority; the first route whose matchers fit the alert's labels decides the receiver.
-2. The matched **receiver** fans the notification out to every **channel** it references (Slack, email, webhook, or Telegram).
+2. The matched **receiver** fans the notification out to every **channel** it references (Slack, Discord, email, webhook, or Telegram).
 3. While the organization has **no routes at all**, every alert instead goes to the **fallback webhooks**: every configured webhook receives it. Once at least one route exists, an alert that matches no route is **not delivered**, so end the route list with a catch-all (a route with no matchers) if you want a default receiver.
 
 Silences and inhibitions suppress delivery without stopping evaluation.
@@ -19,9 +19,9 @@ Silences and inhibitions suppress delivery without stopping evaluation.
 
 A channel is a named delivery endpoint, created and deleted on the Delivery page. Channels are reusable: any number of receivers can reference the same channel by name.
 
-Channel types: **email** (recipient addresses), **Slack** (an [Incoming Webhook](https://api.slack.com/messaging/webhooks) URL), **webhook** (any HTTPS endpoint), and **Telegram** (a bot token and chat IDs, see Telegram's [BotFather guide](https://core.telegram.org/bots/features#botfather)).
+Channel types: **email** (recipient addresses), **Slack** (an [Incoming Webhook](https://api.slack.com/messaging/webhooks) URL), **Discord** (a [channel webhook](https://support.discord.com/hc/en-us/articles/228383668) URL), **webhook** (any HTTPS endpoint), and **Telegram** (a bot token and chat IDs, see Telegram's [BotFather guide](https://core.telegram.org/bots/features#botfather)).
 
-Webhook URLs (generic and Slack) and Telegram bot tokens are write-only: after saving, Everr shows them redacted (`***`). Email recipients are not secrets and stay visible as entered. To rotate a redacted secret, edit the channel and enter the new value; the secret fields start blank on edit precisely because the stored values are never shown again. Names are editable labels: renaming a channel or receiver never breaks the receivers and routes that reference it.
+Webhook URLs (generic, Slack, and Discord) and Telegram bot tokens are write-only: after saving, Everr shows them redacted (`***`). Email recipients are not secrets and stay visible as entered. To rotate a redacted secret, edit the channel and enter the new value; the secret fields start blank on edit precisely because the stored values are never shown again. Names are editable labels: renaming a channel or receiver never breaks the receivers and routes that reference it.
 
 A channel that is still referenced cannot be deleted: Everr surfaces the engine's refusal, naming the receivers that still use it. Delete or repoint those receivers first.
 

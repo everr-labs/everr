@@ -30,8 +30,8 @@ runs itself at startup (see [migrations](#migrations)). Connection: `CC_PG_URL`.
 ### What is encrypted at rest
 
 - `channels.config`: the secret fields inside each channel config (Slack URL,
-  webhook URL, Telegram bot token; email recipients and Telegram chat ids are
-  structural). Receivers hold channel names only.
+  Discord URL, webhook URL, Telegram bot token; email recipients and Telegram
+  chat ids are structural). Receivers hold channel names only.
 - `subscriptions.webhook_url`.
 - `notifications.target`: stored as a one-way `sha256:` digest, not encryption;
   it is an audit/dedup value, never recoverable to the secret.

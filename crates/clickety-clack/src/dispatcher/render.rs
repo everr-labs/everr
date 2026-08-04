@@ -144,6 +144,35 @@ pub fn status_word(ev: &Event) -> &'static str {
     }
 }
 
+/// Status emoji for the channels that speak unicode emoji (Telegram, Discord).
+/// Slack keeps its own colon-code spellings.
+pub fn status_emoji(ev: &Event) -> &'static str {
+    match ev.status {
+        EventStatus::Firing => "\u{1F6A8}",  // rotating light
+        EventStatus::Resolved => "\u{2705}", // check mark
+    }
+}
+
+/// Cap a string at `max` characters; a capped string ends in `…` and still
+/// fits the budget. Borrows when no cut is needed (the common case).
+pub fn truncate_chars(s: &str, max: usize) -> std::borrow::Cow<'_, str> {
+    // A char is at least one byte, so within `max` bytes nothing can overflow.
+    if s.len() <= max {
+        return std::borrow::Cow::Borrowed(s);
+    }
+    match s.char_indices().nth(max) {
+        // Over budget: cut before char `max - 1` so the `…` lands inside it.
+        Some(_) => {
+            let cut = s
+                .char_indices()
+                .nth(max.saturating_sub(1))
+                .map_or(0, |(i, _)| i);
+            std::borrow::Cow::Owned(format!("{}…", &s[..cut]))
+        }
+        None => std::borrow::Cow::Borrowed(s),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -54,6 +54,7 @@ import type {
 import { ChannelBuilder } from "./-components/channel-builder";
 import {
   CHANNEL_ICON,
+  CHANNEL_LABEL,
   type ChannelIcon,
   channelTarget,
 } from "./-components/channel-meta";
@@ -72,6 +73,12 @@ import {
 } from "./-components/shared";
 
 const WebhookGlyph = CHANNEL_ICON.webhook;
+
+// Derived from the channel registry so the empty state never advertises a
+// stale menu of types.
+const CHANNEL_KIND_LIST = new Intl.ListFormat("en", {
+  type: "disjunction",
+}).format(Object.values(CHANNEL_LABEL));
 
 export const Route = createFileRoute(
   "/_authenticated/_dashboard/_previewable/alerts/delivery",
@@ -767,7 +774,7 @@ function ChannelsSection({
             when: (data ?? []).length === 0,
             icon: Inbox,
             title: "No channels defined",
-            hint: "Add a Slack, webhook, email, or Telegram endpoint for receivers to deliver through.",
+            hint: `Add a ${CHANNEL_KIND_LIST} endpoint for receivers to deliver through.`,
           }}
         >
           <ul className="divide-y divide-border/60">

@@ -3,7 +3,6 @@ use crate::dispatcher::notify::{
     NotifyError,
 };
 use crate::domain::channel::ChannelConfig;
-use crate::domain::EventStatus;
 use async_trait::async_trait;
 
 const DEFAULT_API_BASE: &str = "https://api.telegram.org";
@@ -19,12 +18,7 @@ pub const TELEGRAM_TEXT_LIMIT: usize = 4096;
 /// only small fixed decoration around the headline).
 const HEADLINE_MAX_CHARS: usize = 512;
 
-fn truncate_chars(s: &str, max: usize) -> String {
-    match s.char_indices().nth(max) {
-        Some((i, _)) => format!("{}…", &s[..i]),
-        None => s.to_string(),
-    }
-}
+use crate::dispatcher::render::truncate_chars;
 
 /// Cap a built message at [`TELEGRAM_TEXT_LIMIT`] characters. The cut lands on
 /// a line boundary: every line the builder emits is self-contained HTML
@@ -57,10 +51,7 @@ pub fn build_telegram_message(notif: &Notification) -> String {
     let n = notif.events.len();
     let header = if n == 1 {
         let ev = &notif.events[0];
-        let emoji = match ev.status {
-            EventStatus::Firing => "\u{1F6A8}",  // rotating light
-            EventStatus::Resolved => "\u{2705}", // check mark
-        };
+        let emoji = crate::dispatcher::render::status_emoji(ev);
         format!(
             "{emoji} <b>[{}] {}</b> — {}",
             crate::dispatcher::render::status_word(ev),
@@ -193,7 +184,7 @@ mod tests {
     use super::*;
     use crate::domain::ids::{InstanceKey, RuleId, TenantId};
     use crate::domain::rule::Severity;
-    use crate::domain::Event;
+    use crate::domain::{Event, EventStatus};
     use std::collections::BTreeMap;
     use time::OffsetDateTime;
     use uuid::Uuid;

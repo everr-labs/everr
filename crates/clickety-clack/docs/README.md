@@ -2,8 +2,8 @@
 
 clickety-clack is a headless, multi-tenant alerting engine. It evaluates raw-SQL
 alert rules against ClickHouse, tracks per-instance firing/resolved state with a
-for-duration state machine, and dispatches notifications (Slack, Telegram,
-email, generic webhook) with Alertmanager-class routing, grouping, deduplication,
+for-duration state machine, and dispatches notifications (Slack, Discord,
+Telegram, email, generic webhook) with Alertmanager-class routing, grouping, deduplication,
 silencing, and inhibition. State lives in PostgreSQL; the hot path runs on Redis
 Streams.
 

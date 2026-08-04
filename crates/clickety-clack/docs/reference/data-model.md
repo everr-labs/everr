@@ -265,6 +265,7 @@ receivers reference them by name and never carry configs themselves.
 | ----------- | --------------------- | --------------- | ------- |
 | `webhook`   | `url`: string         | the URL         | **yes**: redacted on read, encrypted at rest |
 | `slack`     | `url`: string         | the URL         | **yes**: redacted on read, encrypted at rest |
+| `discord`   | `url`: string         | the URL         | **yes**: redacted on read, encrypted at rest |
 | `email`     | `to`: string[]        | the recipients (comma-joined) | no (recipients are not treated as secret) |
 | `telegram`  | `bot_token`: string, `chat_ids`: string[] | bot token + chats | **yes** (`bot_token`): redacted on read, encrypted at rest |
 

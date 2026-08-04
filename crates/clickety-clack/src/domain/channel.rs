@@ -2,8 +2,8 @@ use crate::domain::ids::TenantId;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-/// A delivery channel binding. The secret-bearing variants (webhook, Slack, Telegram)
-/// are redacted on API read via [`ChannelConfig::redacted`]. Email recipients
+/// A delivery channel binding. The secret-bearing variants (webhook, Slack,
+/// Discord, Telegram) are redacted on API read via [`ChannelConfig::redacted`]. Email recipients
 /// live here; the SMTP relay itself is process-level config held by the
 /// EmailNotifier.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -13,6 +13,9 @@ pub enum ChannelConfig {
         url: String,
     },
     Slack {
+        url: String,
+    },
+    Discord {
         url: String,
     },
     Email {
@@ -30,8 +33,24 @@ impl ChannelConfig {
         match self {
             ChannelConfig::Webhook { .. } => "webhook",
             ChannelConfig::Slack { .. } => "slack",
+            ChannelConfig::Discord { .. } => "discord",
             ChannelConfig::Email { .. } => "email",
             ChannelConfig::Telegram { .. } => "telegram",
+        }
+    }
+
+    /// The tenant-supplied URL the dispatcher itself fetches, if this variant
+    /// carries one — the single designation the API's SSRF guard keys on.
+    /// Email and Telegram deliver via fixed provider endpoints, not a
+    /// caller-chosen URL, so they carry none. As with
+    /// [`ChannelConfig::secret_fields`], the exhaustive match forces the edit
+    /// when a variant is added.
+    pub fn fetched_url(&self) -> Option<&str> {
+        match self {
+            ChannelConfig::Webhook { url }
+            | ChannelConfig::Slack { url }
+            | ChannelConfig::Discord { url } => Some(url),
+            ChannelConfig::Email { .. } | ChannelConfig::Telegram { .. } => None,
         }
     }
 
@@ -47,6 +66,10 @@ impl ChannelConfig {
                 masked: &["url"],
             },
             ChannelConfig::Slack { .. } => SecretFields {
+                encrypted: &["url"],
+                masked: &["url"],
+            },
+            ChannelConfig::Discord { .. } => SecretFields {
                 encrypted: &["url"],
                 masked: &["url"],
             },
@@ -142,6 +165,7 @@ mod tests {
         for ch in [
             ChannelConfig::Webhook { url: "u".into() },
             ChannelConfig::Slack { url: "u".into() },
+            ChannelConfig::Discord { url: "u".into() },
             ChannelConfig::Email { to: vec![] },
             ChannelConfig::Telegram {
                 bot_token: "t".into(),
@@ -169,6 +193,13 @@ mod tests {
         };
         match wh.redacted() {
             ChannelConfig::Webhook { url } => assert_eq!(url, "***"),
+            _ => panic!("kind changed"),
+        }
+        let dc = ChannelConfig::Discord {
+            url: "https://discord.com/api/webhooks/1/secret".into(),
+        };
+        match dc.redacted() {
+            ChannelConfig::Discord { url } => assert_eq!(url, "***"),
             _ => panic!("kind changed"),
         }
     }

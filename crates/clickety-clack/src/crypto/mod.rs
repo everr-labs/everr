@@ -557,6 +557,9 @@ mod helper_tests {
             ChannelConfig::Webhook {
                 url: "https://wh/AUTH".into(),
             },
+            ChannelConfig::Discord {
+                url: "https://discord.com/api/webhooks/1/SECRET".into(),
+            },
             ChannelConfig::Telegram {
                 bot_token: "TG-TOKEN".into(),
                 chat_ids: vec!["1".into()],

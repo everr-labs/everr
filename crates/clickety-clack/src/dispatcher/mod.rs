@@ -1,5 +1,6 @@
 pub mod cache;
 pub mod dedup;
+pub mod discord;
 pub mod email;
 pub mod flush_filter;
 pub mod grouping;
@@ -16,6 +17,7 @@ pub mod slo_inhibit;
 pub mod telegram;
 
 pub use dedup::dedup_key;
+pub use discord::DiscordNotifier;
 pub use email::EmailNotifier;
 pub use notify::{Notification, Notifier, NotifyError, WebhookNotifier};
 pub use registry::Notifiers;
