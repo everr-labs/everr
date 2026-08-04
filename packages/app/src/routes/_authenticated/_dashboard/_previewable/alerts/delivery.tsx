@@ -23,11 +23,9 @@ import {
   Check,
   CornerDownRight,
   Inbox,
-  type LucideIcon,
   Pencil,
   Plus,
   Trash2,
-  Webhook,
 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
@@ -54,7 +52,11 @@ import type {
   CcRoute,
 } from "@/data/cc/types";
 import { ChannelBuilder } from "./-components/channel-builder";
-import { CHANNEL_ICON, channelTarget } from "./-components/channel-meta";
+import {
+  CHANNEL_ICON,
+  type ChannelIcon,
+  channelTarget,
+} from "./-components/channel-meta";
 import { InhibitionBuilder } from "./-components/inhibition-builder";
 import { ReceiverBuilder } from "./-components/receiver-builder";
 import { RouteBuilder } from "./-components/route-builder";
@@ -68,6 +70,8 @@ import {
   ccErrorMessage,
   ccFormatTs,
 } from "./-components/shared";
+
+const WebhookGlyph = CHANNEL_ICON.webhook;
 
 export const Route = createFileRoute(
   "/_authenticated/_dashboard/_previewable/alerts/delivery",
@@ -105,7 +109,7 @@ function SectionBody({
   isPending: boolean;
   skeletonRows: number;
   /** Empty state, shown instead of children; omit to always render children. */
-  empty?: { when: boolean; icon: LucideIcon; title: string; hint: string };
+  empty?: { when: boolean; icon: ChannelIcon; title: string; hint: string };
   errorClassName?: string;
   children: React.ReactNode;
 }) {
@@ -981,7 +985,7 @@ function FirehoseSection() {
           errorClassName="px-3"
           empty={{
             when: (data ?? []).length === 0,
-            icon: Webhook,
+            icon: WebhookGlyph,
             title: "No fallback webhooks",
             hint: "Add a webhook URL below to receive every alert while no routes exist.",
           }}
@@ -990,7 +994,7 @@ function FirehoseSection() {
             {(data ?? []).map((s) => (
               <li key={s.id} className="flex items-center gap-3 px-3 py-2.5">
                 <span className="flex size-7 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
-                  <Webhook className="size-4" />
+                  <WebhookGlyph className="size-4" />
                 </span>
                 <div className="min-w-0 flex-1">
                   <div className="truncate text-sm font-medium">

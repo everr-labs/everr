@@ -41,7 +41,6 @@ import {
   ChevronRight,
   HeartCrack,
   Info,
-  type LucideIcon,
   Pause,
   Play,
   RotateCw,
@@ -58,6 +57,7 @@ import {
 } from "@/data/cc/slo";
 import type { CcMatcher, CcRuleHealthStatus, CcSloTier } from "@/data/cc/types";
 import { usePreview } from "@/hooks/use-preview";
+import type { ChannelIcon } from "./channel-meta";
 
 // ── Guidance ──────────────────────────────────────────────────────────────────
 
@@ -510,7 +510,7 @@ export function CcEmptyState({
   title,
   hint,
 }: {
-  icon?: LucideIcon;
+  icon?: ChannelIcon;
   title: ReactNode;
   hint?: ReactNode;
 }) {

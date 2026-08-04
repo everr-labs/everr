@@ -1,9 +1,13 @@
 // Mirrors the engine's channel types (ChannelConfig in clickety-clack's
 // domain/channel.rs).
-import { Mail, Send, Webhook } from "lucide-react";
+import { Mail } from "lucide-react";
 import type { ComponentType, SVGProps } from "react";
-// Slack's brand mark; its colors are intentional and ignore currentColor.
+// Brand marks; Slack's and Telegram's colors are intentional and ignore
+// currentColor, the webhook glyph keeps its red accent but follows the text
+// color for the rest.
 import SlackIcon from "@/assets/slack.svg?react";
+import TelegramIcon from "@/assets/telegram.svg?react";
+import WebhookIcon from "@/assets/webhook.svg?react";
 import type { CcChannelConfig } from "@/data/cc/types";
 
 export type ChannelType = CcChannelConfig["type"];
@@ -20,9 +24,9 @@ export const CHANNEL_LABEL: Record<ChannelType, string> = {
 
 export const CHANNEL_ICON: Record<ChannelType, ChannelIcon> = {
   slack: SlackIcon,
-  webhook: Webhook,
+  webhook: WebhookIcon,
   email: Mail,
-  telegram: Send,
+  telegram: TelegramIcon,
 };
 
 /** The endpoint a channel config points at (URL, routing key, recipients). */
