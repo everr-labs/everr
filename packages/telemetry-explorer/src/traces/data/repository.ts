@@ -45,6 +45,15 @@ const TO_TS_SQL = "parseDateTime64BestEffort({toTs:String}, 9)";
 const TIME_WINDOW_SQL = `Timestamp BETWEEN ${FROM_TS_SQL} AND ${TO_TS_SQL}`;
 const SERVICE_NAMESPACE_RESOURCE_ATTRIBUTE = "service.namespace";
 
+// A span whose end landed before its start (non-monotonic producer clock)
+// ingests as a wrapped-negative UInt64 Duration (just under 2^64). Read those
+// as zero-length everywhere Duration leaves this file: addNanoseconds on the
+// raw value overflows DateTime64's range and one bad span poisons the whole
+// trace list, and the timeline maths downstream would size the window in
+// centuries. Values above Int64::MAX are exactly the wrapped negatives.
+const SANE_DURATION_SQL =
+  "if(Duration > 9223372036854775807, toUInt64(0), Duration)";
+
 // Traces store Timestamp as DateTime64(9); attribute discovery must parse its
 // bounds the same way the search queries do, or sub-second rows near the upper
 // bound get dropped and the offered keys/values disagree with the results.
@@ -215,7 +224,7 @@ export class TracesRepository {
              argMin  (StatusCode,  (Timestamp, SpanId))) AS rootStatus,
           min(Timestamp) AS startTsRaw,
           toUInt64(dateDiff('nanosecond', min(Timestamp),
-                            max(addNanoseconds(Timestamp, Duration)))) AS durationNsRaw,
+                            max(addNanoseconds(Timestamp, ${SANE_DURATION_SQL})))) AS durationNsRaw,
           toUInt32(count())                       AS spanCount,
           toUInt32(countIf(StatusCode = 'Error')) AS errorCount,
           groupUniqArray(ServiceName)             AS services
@@ -259,7 +268,7 @@ export class TracesRepository {
         ${resourceAttribute(SERVICE_NAMESPACE_RESOURCE_ATTRIBUTE)} AS serviceNamespace,
         toString(Timestamp)                     AS timestamp,
         toString(toUnixTimestamp64Nano(Timestamp)) AS timestampNs,
-        toString(Duration)                      AS duration,
+        toString(${SANE_DURATION_SQL})          AS duration,
         StatusCode AS statusCode,
         SpanKind   AS spanKind,
         SpanAttributes     AS spanAttributes,

@@ -20,6 +20,18 @@ import (
 	"github.com/everr-labs/everr/collector/internal/localgateway/chdb"
 )
 
+// clampedSpanDuration is the span's duration in nanoseconds, clamped to zero
+// when the producer stamped its end before its start (non-monotonic clocks):
+// the raw uint64 subtraction would wrap to ~2^64 and poison every downstream
+// computation that adds the duration to a timestamp.
+func clampedSpanDuration(span ptrace.Span) uint64 {
+	end, start := span.EndTimestamp(), span.StartTimestamp()
+	if end < start {
+		return 0
+	}
+	return uint64(end - start)
+}
+
 type tracesExporter struct {
 	db        driver.Conn
 	handle    *chdb.Handle
@@ -105,7 +117,7 @@ func (e *tracesExporter) pushTraceData(ctx context.Context, td ptrace.Traces) er
 			for k := range ssLen {
 				span := scopeSpans.At(k)
 				spanStatus := span.Status()
-				spanDurationNanos := span.EndTimestamp() - span.StartTimestamp()
+				spanDurationNanos := clampedSpanDuration(span)
 				spanAttrMap := internal.AttributesToMap(span.Attributes())
 
 				eventTimes, eventNames, eventAttrs := convertEvents(span.Events())

@@ -267,6 +267,29 @@ describe("TracesRepository.search", () => {
     expect(params).toMatchObject({ minDurationNs: "1000" });
   });
 
+  it("reads wrapped-negative span durations as zero in the trace aggregate", async () => {
+    // A span whose end precedes its start ingests as a ~2^64 UInt64 Duration;
+    // fed raw into addNanoseconds it overflows DateTime64 and the whole page
+    // 500s (DECIMAL_OVERFLOW).
+    query.mockResolvedValueOnce([]);
+
+    await makeRepo().search({
+      fromTs: "2026-05-20 11:00:00.000",
+      toTs: "2026-05-20 13:00:00.000",
+      namespace: [],
+      service: [],
+      name: "",
+      status: "all",
+      attributes: [],
+      limit: 25,
+    });
+
+    const [sql] = query.mock.calls[0] ?? [];
+    expect(sql).toContain(
+      "addNanoseconds(Timestamp, if(Duration > 9223372036854775807, toUInt64(0), Duration))",
+    );
+  });
+
   it("propagates query errors", async () => {
     query.mockRejectedValueOnce(new Error("clickhouse exploded"));
 
@@ -322,6 +345,11 @@ describe("TracesRepository.getTrace", () => {
     expect(sql).toContain("WHERE TraceId = {traceId:String}");
     expect(sql).toContain("parseDateTime64BestEffort({fromTs:String}, 9)");
     expect(sql).toContain("parseDateTime64BestEffort({toTs:String}, 9)");
+    // Wrapped-negative durations read as zero so the timeline never sizes its
+    // window in centuries.
+    expect(sql).toContain(
+      "toString(if(Duration > 9223372036854775807, toUInt64(0), Duration))",
+    );
     expect(params).toEqual({
       traceId: "t1",
       fromTs: "2026-05-20 11:00:00.000",

@@ -154,7 +154,7 @@ func (e *tracesJSONExporter) pushTraceData(ctx context.Context, td ptrace.Traces
 			for k := range ssLen {
 				span := scopeSpans.At(k)
 				spanStatus := span.Status()
-				spanDurationNanos := span.EndTimestamp() - span.StartTimestamp()
+				spanDurationNanos := clampedSpanDuration(span)
 				spanAttr := span.Attributes()
 				spanAttrBytes, spanAttrErr := json.Marshal(spanAttr.AsRaw())
 				if spanAttrErr != nil {
