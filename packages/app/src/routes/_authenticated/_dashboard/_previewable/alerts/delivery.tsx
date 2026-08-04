@@ -20,6 +20,7 @@ import { createFileRoute, useLocation } from "@tanstack/react-router";
 import {
   ArrowRight,
   BellMinus,
+  Check,
   CornerDownRight,
   Inbox,
   type LucideIcon,
@@ -297,7 +298,7 @@ function FallThroughRow({
               onClick={onFirehoseClick}
               className="font-mono text-foreground underline-offset-2 outline-2 outline-dotted outline-transparent transition-colors duration-150 hover:underline focus-visible:outline-primary"
             >
-              firehose
+              fallback webhooks
             </button>
             <span
               className={cn(
@@ -309,8 +310,8 @@ function FallThroughRow({
             >
               ·{" "}
               {subscriberCount === 0
-                ? "no subscribers"
-                : `${subscriberCount} webhook${subscriberCount === 1 ? "" : "s"}`}
+                ? "none configured"
+                : `${subscriberCount} configured`}
             </span>
             {fellThrough && (
               <span className="font-mono text-[0.6875rem] text-primary">
@@ -333,22 +334,134 @@ function FallThroughRow({
   );
 }
 
+/**
+ * The one-time path from nothing to a working pipeline. Rendered in place of
+ * the route list while no route exists; the dependency order (channel, then
+ * receiver, then route) is the information the numbers carry.
+ */
+function SetupStep({
+  index,
+  done,
+  title,
+  detail,
+  action,
+  onAction,
+}: {
+  index: number;
+  done: boolean;
+  title: string;
+  detail: string;
+  action: string;
+  onAction: () => void;
+}) {
+  return (
+    <li className="flex items-center gap-3 px-3 py-2.5">
+      <span
+        className={cn(
+          "flex size-7 shrink-0 items-center justify-center rounded-full border font-mono text-xs",
+          done
+            ? "border-transparent bg-muted text-muted-foreground"
+            : "border-border text-foreground",
+        )}
+      >
+        {done ? <Check aria-hidden className="size-3.5" /> : index}
+      </span>
+      <div className="min-w-0 flex-1">
+        <div
+          className={cn("text-sm font-medium", done && "text-muted-foreground")}
+        >
+          {title}
+        </div>
+        <div className="text-xs text-muted-foreground">{detail}</div>
+      </div>
+      {!done && (
+        <Button variant="outline" size="sm" onClick={onAction}>
+          {action}
+        </Button>
+      )}
+    </li>
+  );
+}
+
+function SetupChecklist({
+  channelCount,
+  receiverCount,
+  subscriberCount,
+  onAddChannel,
+  onAddReceiver,
+  onAddRoute,
+}: {
+  channelCount: number;
+  receiverCount: number;
+  subscriberCount: number;
+  onAddChannel: () => void;
+  onAddReceiver: () => void;
+  onAddRoute: () => void;
+}) {
+  return (
+    <>
+      <li className="px-3 py-2.5">
+        <div className="text-sm font-medium">Set up delivery</div>
+        <p className="max-w-prose text-xs text-muted-foreground">
+          {subscriberCount === 0
+            ? "Alerts are evaluated and recorded in history, but delivered to no one until a route exists."
+            : "Until a route exists, every alert is delivered to the fallback webhooks under Advanced delivery."}
+        </p>
+      </li>
+      <SetupStep
+        index={1}
+        done={channelCount > 0}
+        title="Add a channel"
+        detail="The endpoint notifications are sent to: a webhook, Slack, email, or Telegram."
+        action="Add channel"
+        onAction={onAddChannel}
+      />
+      <SetupStep
+        index={2}
+        done={receiverCount > 0}
+        title="Create a receiver"
+        detail="A named group of channels for routes to deliver to."
+        action="Add receiver"
+        onAction={onAddReceiver}
+      />
+      <SetupStep
+        index={3}
+        done={false}
+        title="Route alerts to it"
+        detail="Conditions pick which alerts it receives; a route with no conditions matches every alert."
+        action="Add route"
+        onAction={onAddRoute}
+      />
+    </>
+  );
+}
+
 function PipelineSection({
   receivers,
   channelsByName,
   previewLabels,
-  matchedRouteIds,
+  onPreviewLabelsChange,
+  matchedRoutes,
+  prefill,
   subscriberCount,
   onFirehoseClick,
+  onAddChannel,
+  onAddReceiver,
 }: {
   receivers: CcReceiver[];
   channelsByName: Map<string, CcChannel>;
   /** Preview label set; empty object = preview inactive. */
   previewLabels: Record<string, string>;
-  /** Ids of the routes ccSelectRoutes picked for the preview labels. */
-  matchedRouteIds: Set<string>;
+  onPreviewLabelsChange: (labels: Record<string, string>) => void;
+  /** ccSelectRoutes(...) result for the preview labels. */
+  matchedRoutes: CcRoute[];
+  /** A firing instance's dispatch-time label set, for preview prefill. */
+  prefill: Record<string, string> | null;
   subscriberCount: number;
   onFirehoseClick: () => void;
+  /** Open the create drawers owned by the sibling cards (setup checklist). */
+  onAddChannel: () => void;
+  onAddReceiver: () => void;
 }) {
   const qc = useQueryClient();
   const { data, isPending, isError, error } = useQuery(ccQueries.routes());
@@ -356,6 +469,10 @@ function PipelineSection({
   const receiversByName = useMemo(
     () => new Map(receivers.map((r) => [r.name, r])),
     [receivers],
+  );
+  const matchedRouteIds = useMemo(
+    () => new Set(matchedRoutes.map((r) => r.id)),
+    [matchedRoutes],
   );
 
   const remove = useMutation({
@@ -388,6 +505,20 @@ function PipelineSection({
         </CardAction>
       </CardHeader>
       <CardContent>
+        {/* The preview evaluates the list below it, so it lives in the same
+            card: typed labels dim non-matching rows in place. */}
+        <div className="border-b border-border/60 px-3 pb-3">
+          <RoutePreview
+            labels={previewLabels}
+            onLabelsChange={onPreviewLabelsChange}
+            matchedRoutes={matchedRoutes}
+            routeCount={(data ?? []).length}
+            receiversByName={receiversByName}
+            channelsByName={channelsByName}
+            subscriberCount={subscriberCount}
+            prefill={prefill}
+          />
+        </div>
         <SectionBody
           isError={isError}
           error={error}
@@ -396,20 +527,14 @@ function PipelineSection({
         >
           <ul className="divide-y divide-border/60">
             {sorted.length === 0 && (
-              <li className="px-3 py-2 text-xs text-muted-foreground">
-                {subscriberCount === 0 ? (
-                  <>
-                    No routes and no firehose subscriptions: alerts are
-                    evaluated and recorded in history, but delivered to no one.
-                    Add a route to get notified.
-                  </>
-                ) : (
-                  <>
-                    No routes yet: every alert is delivered to all firehose
-                    subscriptions below.
-                  </>
-                )}
-              </li>
+              <SetupChecklist
+                channelCount={channelsByName.size}
+                receiverCount={receivers.length}
+                subscriberCount={subscriberCount}
+                onAddChannel={onAddChannel}
+                onAddReceiver={onAddReceiver}
+                onAddRoute={() => setEditing("new")}
+              />
             )}
             {sorted.map((r) => (
               <PipelineRoute
@@ -451,10 +576,21 @@ function PipelineSection({
 
 // ── Address book ──────────────────────────────────────────────────────────────
 
-function ReceiversSection({ channels }: { channels: CcChannel[] }) {
+function ReceiversSection({
+  channels,
+  routes,
+  editing,
+  onEditingChange,
+}: {
+  channels: CcChannel[];
+  /** For per-receiver usage facts; undefined while the routes query loads. */
+  routes: CcRoute[] | undefined;
+  /** Lifted so the pipeline's setup checklist can open the create drawer. */
+  editing: CcReceiver | "new" | null;
+  onEditingChange: (editing: CcReceiver | "new" | null) => void;
+}) {
   const qc = useQueryClient();
   const { data, isPending, isError, error } = useQuery(ccQueries.receivers());
-  const [editing, setEditing] = useState<CcReceiver | "new" | null>(null);
   const channelsByName = useMemo(
     () => new Map(channels.map((c) => [c.name, c])),
     [channels],
@@ -474,7 +610,11 @@ function ReceiversSection({ channels }: { channels: CcChannel[] }) {
       <CardHeader>
         <CardTitle>Receivers</CardTitle>
         <CardAction>
-          <Button variant="outline" size="sm" onClick={() => setEditing("new")}>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => onEditingChange("new")}
+          >
             <Plus data-icon="inline-start" />
             New receiver
           </Button>
@@ -495,39 +635,51 @@ function ReceiversSection({ channels }: { channels: CcChannel[] }) {
         >
           <ul className="divide-y divide-border/60">
             {(data ?? []).map((r) => {
-              const resolved = r.channels.map((name) => ({
-                name,
-                channel: channelsByName.get(name),
-              }));
-              const Icon =
-                CHANNEL_ICON[resolved[0]?.channel?.config.type ?? "webhook"];
+              // A receiver no route targets never gets an alert: the one
+              // misconfiguration this list can catch, so say it loudly.
+              const targeting = routes?.filter(
+                (rt) => rt.receiver === r.name,
+              ).length;
               return (
-                <li
-                  key={r.name}
-                  className="flex items-center gap-3 px-3 py-2.5"
-                >
+                <li key={r.name} className="flex items-start gap-3 px-3 py-2.5">
                   <span className="flex size-7 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
-                    <Icon className="size-3.5" />
+                    <Inbox className="size-4" />
                   </span>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2">
+                  <div className="min-w-0 flex-1 space-y-1">
+                    <div className="flex flex-wrap items-center gap-2">
                       <span className="text-sm font-medium">{r.name}</span>
+                      {targeting !== undefined &&
+                        (targeting === 0 ? (
+                          <span
+                            className={cn(
+                              "text-xs",
+                              toneText({ tone: "warning" }),
+                            )}
+                          >
+                            no route targets this receiver
+                          </span>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">
+                            {targeting} {targeting === 1 ? "route" : "routes"}
+                          </span>
+                        ))}
                     </div>
-                    {resolved.map(({ name, channel }) => (
-                      <div
-                        key={name}
-                        className="truncate font-mono text-xs text-muted-foreground"
-                      >
-                        {name}
-                        {channel ? ` (${channel.config.type})` : ""}
-                      </div>
-                    ))}
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      {r.channels.map((name) => (
+                        <ChannelChip
+                          key={name}
+                          name={name}
+                          channel={channelsByName.get(name)}
+                          missingLabel="missing"
+                        />
+                      ))}
+                    </div>
                   </div>
                   <Button
                     variant="ghost"
                     size="icon-sm"
                     aria-label="Edit receiver"
-                    onClick={() => setEditing(r)}
+                    onClick={() => onEditingChange(r)}
                   >
                     <Pencil />
                   </Button>
@@ -550,7 +702,7 @@ function ReceiversSection({ channels }: { channels: CcChannel[] }) {
         key={editing === "new" ? "new" : (editing?.name ?? "closed")}
         open={editing !== null}
         onOpenChange={(o) => {
-          if (!o) setEditing(null);
+          if (!o) onEditingChange(null);
         }}
         existingNames={(data ?? []).map((r) => r.name)}
         channels={channels}
@@ -560,10 +712,19 @@ function ReceiversSection({ channels }: { channels: CcChannel[] }) {
   );
 }
 
-function ChannelsSection() {
+function ChannelsSection({
+  receivers,
+  editing,
+  onEditingChange,
+}: {
+  /** For per-channel usage facts; undefined while the receivers query loads. */
+  receivers: CcReceiver[] | undefined;
+  /** Lifted so the pipeline's setup checklist can open the create drawer. */
+  editing: CcChannel | "new" | null;
+  onEditingChange: (editing: CcChannel | "new" | null) => void;
+}) {
   const qc = useQueryClient();
   const { data, isPending, isError, error } = useQuery(ccQueries.channels());
-  const [editing, setEditing] = useState<CcChannel | "new" | null>(null);
 
   const remove = useMutation({
     mutationFn: (name: string) => deleteCcChannel({ data: { name } }),
@@ -582,7 +743,11 @@ function ChannelsSection() {
         <CardTitle>Channels</CardTitle>
         <CardDescription>Secrets are redacted on read.</CardDescription>
         <CardAction>
-          <Button variant="outline" size="sm" onClick={() => setEditing("new")}>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => onEditingChange("new")}
+          >
             <Plus data-icon="inline-start" />
             New channel
           </Button>
@@ -604,21 +769,44 @@ function ChannelsSection() {
           <ul className="divide-y divide-border/60">
             {(data ?? []).map((c) => {
               const Icon = CHANNEL_ICON[c.config.type];
+              // "***" is the engine's redaction for secret targets; showing it
+              // told the reader nothing, so the subline carries usage instead.
+              const target = channelTarget(c.config);
+              const usedBy = receivers?.filter((r) =>
+                r.channels.includes(c.name),
+              ).length;
               return (
                 <li
                   key={c.name}
                   className="flex items-center gap-3 px-3 py-2.5"
                 >
                   <span className="flex size-7 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
-                    <Icon className="size-3.5" />
+                    <Icon className="size-4" />
                   </span>
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
                       <span className="text-sm font-medium">{c.name}</span>
                     </div>
-                    <div className="truncate font-mono text-xs text-muted-foreground">
-                      {channelTarget(c.config) || c.config.type}
-                    </div>
+                    {target !== "" && target !== "***" && (
+                      <div className="truncate font-mono text-xs text-muted-foreground">
+                        {target}
+                      </div>
+                    )}
+                    {usedBy !== undefined &&
+                      (usedBy === 0 ? (
+                        <div
+                          className={cn(
+                            "text-xs",
+                            toneText({ tone: "warning" }),
+                          )}
+                        >
+                          not referenced by any receiver
+                        </div>
+                      ) : (
+                        <div className="text-xs text-muted-foreground">
+                          {usedBy} {usedBy === 1 ? "receiver" : "receivers"}
+                        </div>
+                      ))}
                   </div>
                   <span className="shrink-0 text-xs text-muted-foreground">
                     {c.config.type}
@@ -627,7 +815,7 @@ function ChannelsSection() {
                     variant="ghost"
                     size="icon-sm"
                     aria-label="Edit channel"
-                    onClick={() => setEditing(c)}
+                    onClick={() => onEditingChange(c)}
                   >
                     <Pencil />
                   </Button>
@@ -650,7 +838,7 @@ function ChannelsSection() {
         key={editing === "new" ? "new" : (editing?.name ?? "closed")}
         open={editing !== null}
         onOpenChange={(o) => {
-          if (!o) setEditing(null);
+          if (!o) onEditingChange(null);
         }}
         existingNames={(data ?? []).map((c) => c.name)}
         channel={editing === "new" ? null : editing}
@@ -777,11 +965,11 @@ function FirehoseSection() {
   return (
     <Card id="firehose" inset="flush-content" className="scroll-mt-4">
       <CardHeader>
-        <CardTitle>Firehose subscriptions</CardTitle>
+        <CardTitle>Fallback webhooks</CardTitle>
         <CardDescription>
-          The zero-routes fallback: while the organization has no routes at all,
-          every alert is delivered to every firehose webhook. Once any route
-          exists, alerts that match no route are not delivered.
+          While the organization has no routes at all, every alert is delivered
+          to every webhook listed here. Once any route exists, alerts that match
+          no route are not delivered.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
@@ -794,7 +982,7 @@ function FirehoseSection() {
           empty={{
             when: (data ?? []).length === 0,
             icon: Webhook,
-            title: "No firehose subscriptions",
+            title: "No fallback webhooks",
             hint: "Add a webhook URL below to receive every alert while no routes exist.",
           }}
         >
@@ -802,11 +990,11 @@ function FirehoseSection() {
             {(data ?? []).map((s) => (
               <li key={s.id} className="flex items-center gap-3 px-3 py-2.5">
                 <span className="flex size-7 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
-                  <Webhook className="size-3.5" />
+                  <Webhook className="size-4" />
                 </span>
                 <div className="min-w-0 flex-1">
                   <div className="truncate text-sm font-medium">
-                    Firehose webhook
+                    Fallback webhook
                   </div>
                   <div className="text-xs text-muted-foreground">
                     Added {ccFormatTs(s.created_at)}
@@ -870,6 +1058,14 @@ function CcDeliveryPage() {
   const [previewLabels, setPreviewLabels] = useState<Record<string, string>>(
     {},
   );
+  // Create/edit drawer state for receivers and channels lives here so the
+  // pipeline's setup checklist can open the create drawers directly.
+  const [receiverEditing, setReceiverEditing] = useState<
+    CcReceiver | "new" | null
+  >(null);
+  const [channelEditing, setChannelEditing] = useState<
+    CcChannel | "new" | null
+  >(null);
   // Deep links (#firehose, #inhibitions) land inside the collapsed Advanced
   // section, so those hashes open it from the start.
   const [advancedOpen, setAdvancedOpen] = useState(() =>
@@ -882,10 +1078,6 @@ function CcDeliveryPage() {
         ? ccSelectRoutes(routes.data ?? [], previewLabels)
         : [],
     [routes.data, previewLabels],
-  );
-  const matchedRouteIds = useMemo(
-    () => new Set(matchedRoutes.map((r) => r.id)),
-    [matchedRoutes],
   );
 
   // SLO-sourced instances resolve their SLO (severity from the burn-rate
@@ -904,10 +1096,6 @@ function CcDeliveryPage() {
     return ccDispatchLabels(firing, rule, slo);
   }, [alerts.data, rules.data, slos.data]);
 
-  const receiversByName = useMemo(
-    () => new Map((receivers.data ?? []).map((r) => [r.name, r])),
-    [receivers.data],
-  );
   const channelsByName = useMemo(
     () => new Map((channels.data ?? []).map((c) => [c.name, c])),
     [channels.data],
@@ -926,7 +1114,9 @@ function CcDeliveryPage() {
         receivers={receivers.data ?? []}
         channelsByName={channelsByName}
         previewLabels={previewLabels}
-        matchedRouteIds={matchedRouteIds}
+        onPreviewLabelsChange={setPreviewLabels}
+        matchedRoutes={matchedRoutes}
+        prefill={prefill}
         subscriberCount={subscriberCount}
         onFirehoseClick={() => {
           setAdvancedOpen(true);
@@ -937,40 +1127,29 @@ function CcDeliveryPage() {
               ?.scrollIntoView({ behavior: "smooth", block: "start" });
           });
         }}
+        onAddChannel={() => setChannelEditing("new")}
+        onAddReceiver={() => setReceiverEditing("new")}
       />
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Route preview</CardTitle>
-          <CardDescription>
-            Evaluates a label set against the pipeline above with the
-            dispatcher&rsquo;s exact matching rules.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <RoutePreview
-            labels={previewLabels}
-            onLabelsChange={setPreviewLabels}
-            matchedRoutes={matchedRoutes}
-            routeCount={(routes.data ?? []).length}
-            receiversByName={receiversByName}
-            channelsByName={channelsByName}
-            subscriberCount={subscriberCount}
-            prefill={prefill}
-          />
-        </CardContent>
-      </Card>
-
       <div className="grid items-start gap-3 lg:grid-cols-2">
-        <ReceiversSection channels={channels.data ?? []} />
-        <ChannelsSection />
+        <ReceiversSection
+          channels={channels.data ?? []}
+          routes={routes.data}
+          editing={receiverEditing}
+          onEditingChange={setReceiverEditing}
+        />
+        <ChannelsSection
+          receivers={receivers.data}
+          editing={channelEditing}
+          onEditingChange={setChannelEditing}
+        />
       </div>
 
       <Collapsible open={advancedOpen} onOpenChange={setAdvancedOpen}>
         <CcDisclosureTrigger open={advancedOpen} className="bg-card">
           <span className="text-xs font-medium">Advanced delivery</span>
           <span className="text-xs text-muted-foreground">
-            inhibitions · firehose subscriptions
+            inhibitions · fallback webhooks
           </span>
         </CcDisclosureTrigger>
         <CollapsibleContent>

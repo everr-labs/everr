@@ -87,8 +87,8 @@ function DeliveryFact({
         {hasRoutes
           ? "not routed · not delivered"
           : hasSubscribers
-            ? "not routed · firehose only"
-            : "not routed · no subscribers"}
+            ? "not routed · fallback webhooks only"
+            : "not routed · not delivered"}
       </Link>
     );
   }
@@ -200,7 +200,7 @@ function InstanceDetail({
           <span className="text-xs text-muted-foreground">
             {hasRoutes
               ? "no route matches: recorded in history, delivered to no one"
-              : "no routes configured: delivery falls through to the firehose"}
+              : "no routes configured: delivered to the fallback webhooks"}
           </span>
         ) : (
           <div className="space-y-1">
@@ -625,15 +625,19 @@ export function TriageBoard({
   const [expandedKey, setExpandedKey] = useState<string | null>(null);
   const qc = useQueryClient();
   const silenceInstance = useMutation({
-    mutationFn: ({ alert, hours }: { alert: CcAlert; hours: number }) =>
-      createCcSilence({
+    mutationFn: ({ alert, hours }: { alert: CcAlert; hours: number }) => {
+      // One clock read: two would let the window straddle a millisecond and
+      // come out at hours + 1ms.
+      const now = Date.now();
+      return createCcSilence({
         data: {
           matchers: ccSourceScopedSilenceMatchers(alert),
-          starts_at: new Date().toISOString(),
-          ends_at: new Date(Date.now() + hours * 3_600_000).toISOString(),
+          starts_at: new Date(now).toISOString(),
+          ends_at: new Date(now + hours * 3_600_000).toISOString(),
           comment: `silenced from triage (${hours}h)`,
         },
-      }),
+      });
+    },
     onSuccess: (_, { hours }) => {
       qc.invalidateQueries({ queryKey: ccQueries.silences().queryKey });
       toast.success(`Silenced for ${hours}h`);

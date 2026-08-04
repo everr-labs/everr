@@ -303,13 +303,16 @@ export function CcSloTierBadge({
 
 export function Pill({
   className,
+  title,
   children,
 }: {
   className?: string;
+  title?: string;
   children: ReactNode;
 }) {
   return (
     <span
+      title={title}
       className={cn(
         "inline-flex items-center gap-1 rounded-md border border-border bg-muted/40 px-1.5 py-0.5 font-mono text-[0.6875rem] leading-none",
         className,

@@ -396,7 +396,7 @@ describe("/alerts triage board", () => {
     ).toHaveLength(1);
   });
 
-  it("marks unrouted instances as firehose only when the org has no routes", async () => {
+  it("marks unrouted instances as fallback-webhooks only when the org has no routes", async () => {
     mocks.listCcRoutes.mockResolvedValue([]);
     mocks.listCcSubscriptions.mockResolvedValue([
       {
@@ -410,7 +410,8 @@ describe("/alerts triage board", () => {
     renderTriagePage();
 
     expect(
-      (await screen.findAllByText("not routed · firehose only")).length,
+      (await screen.findAllByText("not routed · fallback webhooks only"))
+        .length,
     ).toBeGreaterThan(0);
   });
 

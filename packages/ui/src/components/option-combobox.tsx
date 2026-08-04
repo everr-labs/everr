@@ -1,5 +1,10 @@
-import { ChevronDownIcon, type LucideIcon } from "lucide-react";
-import { type ReactNode, useState } from "react";
+import { ChevronDownIcon } from "lucide-react";
+import {
+  type ComponentType,
+  type ReactNode,
+  type SVGProps,
+  useState,
+} from "react";
 import { Button } from "./button";
 import { Command, CommandGroup, CommandItem, CommandList } from "./command";
 import { Popover, PopoverContent, PopoverTrigger } from "./popover";
@@ -9,7 +14,8 @@ export interface OptionComboboxItem {
   value: string;
   /** Rendered in the row and on the trigger; style it at the call site. */
   label: ReactNode;
-  icon?: LucideIcon;
+  /** Any svg-props component: lucide icons and inlined brand marks alike. */
+  icon?: ComponentType<SVGProps<SVGSVGElement>>;
 }
 
 /**

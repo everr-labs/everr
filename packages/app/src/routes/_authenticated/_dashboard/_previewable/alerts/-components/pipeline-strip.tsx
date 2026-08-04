@@ -115,7 +115,7 @@ export function CcPipelineStrip({ facts }: { facts: CcPipelineFacts }) {
             facts.unroutedFiring > 0
               ? `${facts.unroutedFiring} firing unrouted`
               : facts.routeCount === 0
-                ? "firehose only"
+                ? "fallback webhooks only"
                 : "routes matching"
           }
           tone={facts.unroutedFiring > 0 ? "degraded" : undefined}

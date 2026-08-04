@@ -11,7 +11,7 @@ When an alert fires or resolves, it walks a fixed path:
 
 1. **Routes** are checked top to bottom by priority; the first route whose matchers fit the alert's labels decides the receiver.
 2. The matched **receiver** fans the notification out to every **channel** it references (Slack, email, webhook, or Telegram).
-3. While the organization has **no routes at all**, every alert instead goes to the **firehose**: every subscribed webhook receives it. Once at least one route exists, an alert that matches no route is **not delivered**, so end the route list with a catch-all (a route with no matchers) if you want a default receiver.
+3. While the organization has **no routes at all**, every alert instead goes to the **fallback webhooks**: every configured webhook receives it. Once at least one route exists, an alert that matches no route is **not delivered**, so end the route list with a catch-all (a route with no matchers) if you want a default receiver.
 
 Silences and inhibitions suppress delivery without stopping evaluation.
 
@@ -44,9 +44,9 @@ Each route also controls timing:
 
 An inhibition suppresses downstream alerts while a related, higher-level alert is already firing: while alerts matching the **source** matchers fire, alerts matching the **target** matchers are suppressed. Optional **equal labels** scope it to pairs that share the same value for those labels, so a database outage in `region=eu` only inhibits alerts from the same region.
 
-## Firehose
+## Fallback webhooks
 
-The firehose is the zero-config integration point: while the organization has no routes, every alert is delivered to every webhook URL subscribed here. Point it at an internal service to build custom fan-out without defining routes. The moment the first route is created, delivery switches entirely to the routing table and the firehose stops receiving alerts, including alerts that match no route. To keep a default destination under routing, add a lowest-priority catch-all route (no matchers) instead.
+Fallback webhooks are the zero-config integration point: while the organization has no routes, every alert is delivered to every webhook URL listed here (under **Advanced delivery** on the Delivery page). Point one at an internal service to build custom fan-out without defining routes. The moment the first route is created, delivery switches entirely to the routing table and the fallback webhooks stop receiving alerts, including alerts that match no route. To keep a default destination under routing, add a lowest-priority catch-all route (no matchers) instead. In the engine's HTTP API these are called firehose subscriptions.
 
 ## Silences
 

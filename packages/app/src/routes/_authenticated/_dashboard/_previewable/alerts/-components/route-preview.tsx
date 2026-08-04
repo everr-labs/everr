@@ -5,6 +5,7 @@ import { cn } from "@everr/ui/lib/utils";
 import { ArrowRight, X, Zap } from "lucide-react";
 import { useState } from "react";
 import type { CcChannel, CcReceiver, CcRoute } from "@/data/cc/types";
+import { CHANNEL_ICON } from "./channel-meta";
 import { ccLabelKeyOptions, ccLabelValueOptions } from "./matchers-editor";
 import { Pill } from "./shared";
 
@@ -20,17 +21,28 @@ export function ChannelChip({
   /** Shown in place of the type when the channel doesn't resolve; omit to show nothing. */
   missingLabel?: string;
 }) {
-  const type = channel ? channel.config.type : missingLabel;
+  const Icon = channel ? CHANNEL_ICON[channel.config.type] : undefined;
   return (
     <Pill
+      title={channel?.config.type}
       className={
         emphasized
           ? "border-primary/40 bg-primary/10 text-foreground"
           : undefined
       }
     >
+      {Icon && (
+        <Icon aria-hidden className="size-3 shrink-0 text-muted-foreground" />
+      )}
       <span className="text-foreground">{name}</span>
-      {type != null && <span className="text-muted-foreground">{type}</span>}
+      {channel ? (
+        // The icon carries the type visually; keep it for screen readers.
+        <span className="sr-only">{channel.config.type}</span>
+      ) : (
+        missingLabel != null && (
+          <span className="text-muted-foreground">{missingLabel}</span>
+        )
+      )}
     </Pill>
   );
 }
@@ -148,10 +160,11 @@ export function RoutePreview({
               )}
             >
               no route matches{" "}
-              <ArrowRight aria-hidden className="inline size-3" /> firehose ·{" "}
+              <ArrowRight aria-hidden className="inline size-3" /> fallback
+              webhooks ·{" "}
               {subscriberCount === 0
-                ? "no subscribers"
-                : `${subscriberCount} webhook${subscriberCount === 1 ? "" : "s"}`}
+                ? "none configured"
+                : `${subscriberCount} configured`}
             </span>
           ) : (
             <span className={cn("font-mono", toneText({ tone: "warning" }))}>

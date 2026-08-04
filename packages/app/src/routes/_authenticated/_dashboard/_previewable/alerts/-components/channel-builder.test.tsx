@@ -22,7 +22,7 @@ vi.mock("@/lib/auth-client", () => ({
 // ChannelBuilder reads useQueryClient() for its create-mutation cache
 // invalidation, so it needs a provider even though these tests never touch it
 // (see silences-panel.test.tsx for the same pattern).
-function renderBuilder() {
+async function renderBuilder() {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
@@ -31,6 +31,12 @@ function renderBuilder() {
       <ChannelBuilder open onOpenChange={() => {}} existingNames={[]} />
     </QueryClientProvider>,
   );
+  // Base UI moves initial focus into the open dialog asynchronously; typing
+  // before that settles can lose keystrokes to the focus trap.
+  const drawer = await screen.findByRole("dialog");
+  await waitFor(() => {
+    expect(drawer.contains(document.activeElement)).toBe(true);
+  });
 }
 
 describe("ChannelBuilder test button", () => {
@@ -39,7 +45,7 @@ describe("ChannelBuilder test button", () => {
   });
 
   it("is disabled until the config is complete", async () => {
-    renderBuilder();
+    await renderBuilder();
     expect(screen.getByRole("button", { name: /send test/i })).toBeDisabled();
   });
 
@@ -47,7 +53,7 @@ describe("ChannelBuilder test button", () => {
     // A stale tick must never describe a config that is no longer on screen.
     testCcChannel.mockResolvedValue({ ok: true, latency_ms: 340 });
     const user = userEvent.setup();
-    renderBuilder();
+    await renderBuilder();
 
     await user.type(
       screen.getByLabelText(/webhook url/i),
@@ -73,7 +79,7 @@ describe("ChannelBuilder test button", () => {
       }),
     );
     const user = userEvent.setup();
-    renderBuilder();
+    await renderBuilder();
 
     await user.type(
       screen.getByLabelText(/webhook url/i),
@@ -101,7 +107,7 @@ describe("ChannelBuilder email test note", () => {
   it("names the signed-in address the test actually goes to", async () => {
     useSession.mockReturnValue({ data: { user: { email: "gio@everr.dev" } } });
     const user = userEvent.setup();
-    renderBuilder();
+    await renderBuilder();
 
     await user.click(screen.getByRole("combobox", { name: /type/i }));
     await user.click(await screen.findByRole("option", { name: /email/i }));
@@ -112,7 +118,7 @@ describe("ChannelBuilder email test note", () => {
   it("falls back to generic wording when the session hasn't loaded", async () => {
     useSession.mockReturnValue({ data: null });
     const user = userEvent.setup();
-    renderBuilder();
+    await renderBuilder();
 
     await user.click(screen.getByRole("combobox", { name: /type/i }));
     await user.click(await screen.findByRole("option", { name: /email/i }));

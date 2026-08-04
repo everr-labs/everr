@@ -154,6 +154,17 @@ function renderDeliveryRoute() {
   return { router, queryClient };
 }
 
+// Base UI moves initial focus into an opened dialog asynchronously; typing
+// before that settles can lose keystrokes to the focus trap. Always wait for
+// focus to land inside the drawer before interacting with its fields.
+async function findSettledDrawer() {
+  const drawer = await screen.findByRole("dialog");
+  await waitFor(() => {
+    expect(drawer.contains(document.activeElement)).toBe(true);
+  });
+  return drawer;
+}
+
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.listCcRoutes.mockResolvedValue([]);
@@ -176,7 +187,7 @@ describe("/alerts/delivery route drawer", () => {
     renderDeliveryRoute();
 
     await user.click(await screen.findByRole("button", { name: "New route" }));
-    const drawer = await screen.findByRole("dialog");
+    const drawer = await findSettledDrawer();
 
     await user.type(
       within(drawer).getByLabelText("Send to receiver"),
@@ -203,13 +214,89 @@ describe("/alerts/delivery route drawer", () => {
   });
 });
 
+describe("/alerts/delivery setup checklist", () => {
+  it("walks a fresh org from channel to receiver to route", async () => {
+    const user = userEvent.setup();
+    renderDeliveryRoute();
+
+    await screen.findByText("Set up delivery");
+    expect(screen.getByRole("button", { name: "Add receiver" })).toBeVisible();
+    expect(screen.getByRole("button", { name: "Add route" })).toBeVisible();
+
+    // Step actions open the real create drawers, not just scroll somewhere.
+    await user.click(screen.getByRole("button", { name: "Add channel" }));
+    const drawer = await findSettledDrawer();
+    expect(within(drawer).getByText("New channel")).toBeInTheDocument();
+  });
+
+  it("marks completed steps and keeps only the missing ones actionable", async () => {
+    mocks.listCcChannels.mockResolvedValue([channel()]);
+    mocks.listCcReceivers.mockResolvedValue([receiver()]);
+
+    renderDeliveryRoute();
+
+    await screen.findByText("Set up delivery");
+    expect(
+      screen.queryByRole("button", { name: "Add channel" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Add receiver" }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Add route" })).toBeVisible();
+  });
+
+  it("disappears once a route exists", async () => {
+    mocks.listCcRoutes.mockResolvedValue([route()]);
+
+    renderDeliveryRoute();
+
+    await screen.findByText("no match");
+    expect(screen.queryByText("Set up delivery")).not.toBeInTheDocument();
+  });
+});
+
+describe("/alerts/delivery usage facts", () => {
+  it("warns about receivers no route targets and channels no receiver references", async () => {
+    mocks.listCcReceivers.mockResolvedValue([receiver()]);
+    mocks.listCcChannels.mockResolvedValue([
+      channel(),
+      channel({ id: "55555555-5555-5555-5555-555555555555", name: "spare" }),
+    ]);
+
+    renderDeliveryRoute();
+
+    // receiver() exists but no route targets it; "spare" is in no receiver.
+    expect(
+      await screen.findByText("no route targets this receiver"),
+    ).toBeInTheDocument();
+    expect(
+      await screen.findByText("not referenced by any receiver"),
+    ).toBeInTheDocument();
+    // "oncall-hook" IS referenced by the receiver.
+    expect(await screen.findByText("1 receiver")).toBeInTheDocument();
+  });
+
+  it("counts the routes targeting a receiver", async () => {
+    mocks.listCcRoutes.mockResolvedValue([route()]);
+    mocks.listCcReceivers.mockResolvedValue([receiver()]);
+    mocks.listCcChannels.mockResolvedValue([channel()]);
+
+    renderDeliveryRoute();
+
+    expect(await screen.findByText("1 route")).toBeInTheDocument();
+    expect(
+      screen.queryByText("no route targets this receiver"),
+    ).not.toBeInTheDocument();
+  });
+});
+
 describe("/alerts/delivery pipeline fall-through", () => {
-  it("with zero routes, points at the firehose", async () => {
+  it("with zero routes, points at the fallback webhooks", async () => {
     renderDeliveryRoute();
 
     const row = await screen.findByText("no match");
-    expect(row.parentElement).toHaveTextContent("firehose");
-    expect(row.parentElement).toHaveTextContent("no subscribers");
+    expect(row.parentElement).toHaveTextContent("fallback webhooks");
+    expect(row.parentElement).toHaveTextContent("none configured");
     expect(row.parentElement).not.toHaveTextContent("not delivered");
   });
 
@@ -221,7 +308,7 @@ describe("/alerts/delivery pipeline fall-through", () => {
     const row = await screen.findByText("no match");
     expect(row.parentElement).toHaveTextContent("not delivered");
     expect(row.parentElement).toHaveTextContent("catch-all");
-    expect(row.parentElement).not.toHaveTextContent("firehose");
+    expect(row.parentElement).not.toHaveTextContent("fallback webhooks");
   });
 
   it("with a catch-all route, hides the fall-through row entirely", async () => {
@@ -248,7 +335,7 @@ describe("/alerts/delivery channels section", () => {
     await user.click(
       await screen.findByRole("button", { name: "New channel" }),
     );
-    const dialog = await screen.findByRole("dialog");
+    const dialog = await findSettledDrawer();
     const create = within(dialog).getByRole("button", {
       name: "Create channel",
     });
@@ -335,7 +422,7 @@ describe("/alerts/delivery receivers section", () => {
     await user.click(
       await screen.findByRole("button", { name: "New receiver" }),
     );
-    const dialog = await screen.findByRole("dialog");
+    const dialog = await findSettledDrawer();
     const create = within(dialog).getByRole("button", {
       name: "Create receiver",
     });
@@ -462,7 +549,7 @@ describe("/alerts/delivery edit flows", () => {
     await user.click(
       await screen.findByRole("button", { name: "Edit channel" }),
     );
-    const drawer = await screen.findByRole("dialog");
+    const drawer = await findSettledDrawer();
 
     // The name is an editable label: the engine references channels by id, so
     // a rename rides along in the same PUT as `newName`.
@@ -509,7 +596,7 @@ describe("/alerts/delivery edit flows", () => {
     await user.click(
       await screen.findByRole("button", { name: "Edit receiver" }),
     );
-    const drawer = await screen.findByRole("dialog");
+    const drawer = await findSettledDrawer();
 
     // The desired name is always sent; the engine treats an unchanged name as
     // a plain replace.
