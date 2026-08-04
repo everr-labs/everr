@@ -26,6 +26,7 @@ function wire(envelope: () => Record<string, string> = () => ({})) {
   );
   const [emit, doFlush] = createEmitter(
     "https://ingest.example/v1/logs",
+    "https://ingest.example/v1/traces",
     undefined,
     {},
     { name: "@everr/web-sdk", version: "test" },

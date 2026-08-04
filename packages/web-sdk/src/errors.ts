@@ -56,6 +56,14 @@ export function captureError(
 // uncaughtException listener changes Node's exit semantics, and request
 // errors are caught by the framework before they ever get there, so hosts
 // wire framework hooks like Next's onRequestError to captureError instead).
+/**
+ * The one spelling of an error's type across signals (exception.type here,
+ * error.type on network spans): the class name, with the same fallbacks.
+ */
+export function errorTypeOf(error: unknown): string {
+  return error instanceof Error ? error.name || "Error" : "NonError";
+}
+
 export function startReporting(emit: Emit): () => void {
   const hits = new Map<string, number[]>();
 
@@ -63,7 +71,7 @@ export function startReporting(emit: Emit): () => void {
     // Telemetry must never break the page: reporting is best-effort.
     try {
       const isError = error instanceof Error;
-      const type = isError ? error.name || "Error" : "NonError";
+      const type = errorTypeOf(error);
       const message = isError ? error.message : safeString(error);
       const stack = isError
         ? (error.stack ?? `${error.name}: ${error.message}`)

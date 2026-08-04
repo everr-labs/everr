@@ -37,6 +37,17 @@ type OtlpLogRecord = {
   attributes: KeyValue[];
 };
 
+type OtlpSpan = {
+  traceId: string;
+  spanId: string;
+  name: string;
+  kind: number;
+  startTimeUnixNano: string;
+  endTimeUnixNano: string;
+  attributes: KeyValue[];
+  status?: { code: number };
+};
+
 /**
  * `severityNumber` defaults to INFO (9) and `body` to the event name; the
  * error signal overrides both. `""` emits a plain log record (no event
@@ -49,6 +60,20 @@ export type Emit = (
   body?: string,
 ) => void;
 
+/**
+ * Pushes one finished CLIENT span onto the traces queue, stamped with the
+ * envelope like every log record. `error` maps to OTLP status ERROR.
+ */
+export type EmitSpan = (
+  traceId: string,
+  spanId: string,
+  name: string,
+  startEpochMs: number,
+  endEpochMs: number,
+  attributes: Record<string, AttrValue | null | undefined>,
+  error?: boolean,
+) => void;
+
 type Emitter = [
   emit: Emit,
   flush: () => Promise<void>,
@@ -57,6 +82,7 @@ type Emitter = [
    * keepalive budget (newest records dropped first).
    */
   exitFlush: () => void,
+  emitSpan: EmitSpan,
 ];
 
 // Same tuning as the web app's browser telemetry client. The queue itself is
@@ -91,6 +117,7 @@ function toKeyValues(
 
 export function createEmitter(
   logsUrl: string,
+  tracesUrl: string,
   extraHeaders: Record<string, string> | undefined,
   resourceAttributes: Record<string, AttrValue | null | undefined>,
   scope: { name: string; version: string },
@@ -99,37 +126,42 @@ export function createEmitter(
 ): Emitter {
   const resource = toKeyValues(resourceAttributes);
   const headers = { "Content-Type": "application/json", ...extraHeaders };
+  // The fetch reference is captured at init, before the network signal
+  // patches the global: SDK POSTs structurally cannot be seen by the patch,
+  // so no span-of-our-own-batch loop is possible and no URL exclusion is
+  // needed. Tests stub the global before init, so they capture the stub.
+  const doFetch = fetch;
   let queue: OtlpLogRecord[] = [];
+  let spanQueue: OtlpSpan[] = [];
   let timer: ReturnType<typeof setTimeout> | undefined;
   let exitScheduled = false;
 
-  const build = () =>
+  // One OTLP envelope builder for both signals; the key triples differ only
+  // by noun (resourceLogs/scopeLogs/logRecords vs resourceSpans/...).
+  const build = (kind: string, listKey: string, items: unknown[]) =>
     JSON.stringify({
-      resourceLogs: [
+      ["resource" + kind]: [
         {
           resource: { attributes: resource },
-          scopeLogs: [{ scope, logRecords: queue }],
+          ["scope" + kind]: [{ scope, [listKey]: items }],
         },
       ],
     });
-
-  const takeBody = (): string | undefined => {
-    clearTimeout(timer);
-    timer = undefined;
-    if (!queue.length) return undefined;
-    const body = build();
-    queue = [];
-    return body;
-  };
+  const buildLogs = () => build("Logs", "logRecords", queue);
+  const buildSpans = () => build("Spans", "spans", spanQueue);
+  const bytes = (body: string) => new Blob([body]).size;
 
   // Telemetry must never break the page: delivery is best-effort, sync
-  // throws included. The global fetch is read at call time, which is also
-  // what the tests stub. keepalive survives the page teardown; deliberately
+  // throws included. keepalive survives the page teardown; deliberately
   // no sendBeacon fallback (it cannot carry the Authorization header, so it
   // could never deliver to the hosted ingest anyway).
-  const post = (body: string, keepalive?: boolean): Promise<void> => {
+  const post = (
+    url: string,
+    body: string,
+    keepalive?: boolean,
+  ): Promise<void> => {
     try {
-      return fetch(logsUrl, { method: "POST", headers, body, keepalive }).then(
+      return doFetch(url, { method: "POST", headers, body, keepalive }).then(
         noop,
         noop,
       );
@@ -139,16 +171,64 @@ export function createEmitter(
   };
 
   const flush = (keepalive?: boolean): Promise<void> => {
-    const body = takeBody();
-    return body ? post(body, keepalive) : noop();
+    clearTimeout(timer);
+    timer = undefined;
+    const posts: Promise<void>[] = [];
+    if (queue.length) {
+      posts.push(post(logsUrl, buildLogs(), keepalive));
+      queue = [];
+    }
+    if (spanQueue.length) {
+      posts.push(post(tracesUrl, buildSpans(), keepalive));
+      spanQueue = [];
+    }
+    return posts.length === 1 ? posts[0] : Promise.all(posts).then(noop, noop);
   };
 
   const exitFlush = (): void => {
-    // Truncate whole records, newest first, until the batch fits the
-    // keepalive budget.
-    while (queue.length > 1 && new Blob([build()]).size > EXIT_BUDGET)
+    // Truncate whole records, newest first, until both keepalive payloads
+    // fit the budget together: spans get at most a quarter, log records the
+    // remainder (page_leave and buffered vitals outrank in-flight fetches).
+    let spanBytes = 0;
+    if (spanQueue.length) {
+      spanBytes = bytes(buildSpans());
+      while (spanQueue.length > 1 && spanBytes > EXIT_BUDGET / 4) {
+        spanQueue.pop();
+        spanBytes = bytes(buildSpans());
+      }
+    }
+    while (queue.length > 1 && bytes(buildLogs()) > EXIT_BUDGET - spanBytes)
       queue.pop();
     void flush(true);
+  };
+
+  // Shared batching tail for both queues. Records emitted while the page is
+  // hidden (web-vitals reports CLS and INP from its own hidden-state
+  // listeners, in no guaranteed order relative to the client's exit flush)
+  // must not strand in a queue whose timer will never fire: a
+  // microtask-coalesced exit flush ships them on the keepalive path
+  // regardless of listener ordering. The document guard is the server path
+  // (SSR has no document, and no exit either).
+  const schedule = (): void => {
+    if (
+      typeof document !== "undefined" &&
+      document.visibilityState === "hidden"
+    ) {
+      if (!exitScheduled) {
+        exitScheduled = true;
+        queueMicrotask(() => {
+          exitScheduled = false;
+          exitFlush();
+        });
+      }
+    } else if (queue.length + spanQueue.length >= MAX_BATCH_SIZE) {
+      void flush();
+    } else if (timer === undefined) {
+      timer = setTimeout(() => void flush(), SCHEDULED_DELAY_MS);
+      // On the server a pending batch must not hold the process open past
+      // its last request; browsers return a number and skip this.
+      (timer as unknown as { unref?: () => void }).unref?.();
+    }
   };
 
   const emit: Emit = (
@@ -165,32 +245,31 @@ export function createEmitter(
       body: toAnyValue(body),
       attributes: toKeyValues({ ...envelope(), ...attributes }),
     });
-    // Records emitted while the page is hidden (web-vitals reports CLS and
-    // INP from its own hidden-state listeners, in no guaranteed order
-    // relative to the client's exit flush) must not strand in a queue whose
-    // timer will never fire: a microtask-coalesced exit flush ships them on
-    // the keepalive path regardless of listener ordering. The document guard
-    // is the server path (SSR has no document, and no exit either).
-    if (
-      typeof document !== "undefined" &&
-      document.visibilityState === "hidden"
-    ) {
-      if (!exitScheduled) {
-        exitScheduled = true;
-        queueMicrotask(() => {
-          exitScheduled = false;
-          exitFlush();
-        });
-      }
-    } else if (queue.length >= MAX_BATCH_SIZE) {
-      void flush();
-    } else if (timer === undefined) {
-      timer = setTimeout(() => void flush(), SCHEDULED_DELAY_MS);
-      // On the server a pending batch must not hold the process open past
-      // its last request; browsers return a number and skip this.
-      (timer as unknown as { unref?: () => void }).unref?.();
-    }
+    schedule();
   };
 
-  return [emit, flush, exitFlush];
+  const emitSpan: EmitSpan = (
+    traceId,
+    spanId,
+    name,
+    startEpochMs,
+    endEpochMs,
+    attributes,
+    error,
+  ) => {
+    spanQueue.push({
+      traceId,
+      spanId,
+      name,
+      kind: 3, // SPAN_KIND_CLIENT
+      startTimeUnixNano: `${startEpochMs}000000`,
+      endTimeUnixNano: `${endEpochMs}000000`,
+      attributes: toKeyValues({ ...envelope(), ...attributes }),
+      // STATUS_CODE_ERROR; omitted (Unset) otherwise, JSON drops undefined.
+      status: error ? { code: 2 } : undefined,
+    });
+    schedule();
+  };
+
+  return [emit, flush, exitFlush, emitSpan];
 }

@@ -10,11 +10,18 @@
  *   `everr.browser.slow_interaction` from the Event Timing API (entries
  *   above the duration threshold, carrying the native interaction latency).
  * - `webVitals` governs `browser.web_vital` reporting.
+ * - `network` governs the fetch patch: request spans on the traces pipeline
+ *   and W3C trace-context propagation. Disabled means fetch is never
+ *   patched at all.
  *
  * Errors have no signal key (capture is native, always on, and option-free)
  * and replay is never a signal (it will get its own option when it ships).
  */
-export type CaptureSignal = "pageviews" | "interactions" | "webVitals";
+export type CaptureSignal =
+  | "pageviews"
+  | "interactions"
+  | "webVitals"
+  | "network";
 
 /**
  * Where identity (the visitor id, the session, the identified user) lives.
@@ -70,6 +77,15 @@ export type InitOptions = {
   routePattern?: () => string | null | undefined;
   /** How long identity ids live; see {@link Persistence}. Fixed at init. */
   persistence?: Persistence;
+  /**
+   * Cross-origin URLs that also receive the `traceparent` header (string =
+   * substring match on the full URL, or RegExp). Same-origin requests always
+   * propagate; a cross-origin backend must both be listed here and allow the
+   * header in its CORS config (`Access-Control-Allow-Headers: traceparent`),
+   * or its preflights will fail. Spans are recorded for every request
+   * regardless; this gates only the header.
+   */
+  tracePropagationTargets?: Array<string | RegExp>;
 };
 
 /**

@@ -8,6 +8,7 @@ import { startInp } from "./inp.js";
 import { startInteractions } from "./interactions.js";
 import { startLogger } from "./logger.js";
 import { watchNavigation } from "./navigation.js";
+import { startNetwork } from "./network.js";
 import { startPageviews } from "./pageview.js";
 import { createSessionContext } from "./session.js";
 import type { CaptureSignal, EverrClient, InitOptions } from "./types.js";
@@ -49,7 +50,7 @@ export function init(options: InitOptions): EverrClient {
     identity.session,
   );
 
-  const [emit, flush, exitFlush] = createEmitter(
+  const [emit, flush, exitFlush, emitSpan] = createEmitter(
     ...transport,
     // Viewport is deliberately absent: it changes on resize, so it rides
     // the click payload per event instead of being frozen into the
@@ -95,6 +96,11 @@ export function init(options: InitOptions): EverrClient {
     enabled("interactions") || enabled("webVitals")
       ? startInp(emit, enabled("interactions"), enabled("webVitals"))
       : undefined;
+  // Patched after the emitter captured the original fetch, so SDK POSTs
+  // bypass the patch structurally.
+  const stopNetwork = enabled("network")
+    ? startNetwork(emitSpan, options.tracePropagationTargets)
+    : undefined;
   // Errors have no disable key and no options: capture is native and always
   // on whenever the SDK emits at all. Same for the custom logger: it only
   // emits when the user calls it.
@@ -124,6 +130,7 @@ export function init(options: InitOptions): EverrClient {
       stopErrors();
       stopWebVitals?.();
       stopInp?.();
+      stopNetwork?.();
       stopInteractions?.();
       pageviews?.[2]();
       stopWatching();

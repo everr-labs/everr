@@ -14,10 +14,23 @@ export type OtlpRecord = {
   attributes: Array<{ key: string; value: Record<string, unknown> }>;
 };
 
+export type OtlpSpan = {
+  traceId: string;
+  spanId: string;
+  name: string;
+  kind: number;
+  startTimeUnixNano: string;
+  endTimeUnixNano: string;
+  status: { code?: number };
+  attributes: Array<{ key: string; value: Record<string, unknown> }>;
+};
+
 export type OtlpBatch = {
+  url: string;
   keepalive: boolean;
   resource: Array<{ key: string; value: Record<string, unknown> }>;
   records: OtlpRecord[];
+  spans: OtlpSpan[];
 };
 
 /** Stubs the global fetch; returns the live list of captured batches. */
@@ -25,13 +38,16 @@ function stubOtlpFetch(): OtlpBatch[] {
   const batches: OtlpBatch[] = [];
   vi.stubGlobal(
     "fetch",
-    vi.fn((_url: RequestInfo | URL, init?: RequestInit) => {
+    vi.fn((url: RequestInfo | URL, init?: RequestInit) => {
       const payload = JSON.parse(String(init?.body));
-      const resourceLog = payload.resourceLogs[0];
+      const resourceLog = payload.resourceLogs?.[0];
+      const resourceSpan = payload.resourceSpans?.[0];
       batches.push({
+        url: String(url),
         keepalive: Boolean(init?.keepalive),
-        resource: resourceLog.resource.attributes,
-        records: resourceLog.scopeLogs[0].logRecords,
+        resource: (resourceLog ?? resourceSpan).resource.attributes,
+        records: resourceLog?.scopeLogs[0].logRecords ?? [],
+        spans: resourceSpan?.scopeSpans[0].spans ?? [],
       });
       return Promise.resolve(new Response(null, { status: 200 }));
     }),
@@ -39,8 +55,8 @@ function stubOtlpFetch(): OtlpBatch[] {
   return batches;
 }
 
-/** Flattens a record's OTLP attributes into plain key/value pairs. */
-export function attrs(record: OtlpRecord): Record<string, unknown> {
+/** Flattens a record's or span's OTLP attributes into plain key/value pairs. */
+export function attrs(record: OtlpRecord | OtlpSpan): Record<string, unknown> {
   return Object.fromEntries(
     record.attributes.map(({ key, value }) => [key, Object.values(value)[0]]),
   );

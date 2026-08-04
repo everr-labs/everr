@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { createEmitter, type Emit } from "./emitter.js";
+import { createEmitter, type Emit, type EmitSpan } from "./emitter.js";
 
 type SentBatch = {
   url: string;
@@ -26,6 +26,7 @@ let sent: SentBatch[];
 let emit: Emit;
 let flush: () => Promise<void>;
 let exitFlush: () => void;
+let emitSpan: EmitSpan;
 
 function makeEmitter(envelope: () => Record<string, string> = () => ({})) {
   sent = [];
@@ -44,6 +45,7 @@ function makeEmitter(envelope: () => Record<string, string> = () => ({})) {
   );
   return createEmitter(
     "https://ingest.example/v1/logs",
+    "https://ingest.example/v1/traces",
     { Authorization: "Bearer key" },
     { "service.name": "svc", "everr.screen.width": 1920 },
     { name: "@everr/web-sdk", version: "test" },
@@ -57,7 +59,7 @@ function sentRecords() {
 
 beforeEach(() => {
   vi.useFakeTimers();
-  [emit, flush, exitFlush] = makeEmitter();
+  [emit, flush, exitFlush, emitSpan] = makeEmitter();
 });
 
 afterEach(() => {
@@ -186,6 +188,7 @@ describe("createEmitter", () => {
     );
     const [failingEmit, failingFlush] = createEmitter(
       "https://ingest.example/v1/logs",
+      "https://ingest.example/v1/traces",
       undefined,
       {},
       { name: "s", version: "v" },
@@ -193,5 +196,61 @@ describe("createEmitter", () => {
     );
     failingEmit("everr.browser.page_view");
     await expect(failingFlush()).resolves.toBeUndefined();
+  });
+});
+
+describe("span pipeline", () => {
+  it("ships spans as OTLP resourceSpans to the sibling /v1/traces path", async () => {
+    [emit, flush, exitFlush, emitSpan] = makeEmitter(() => ({
+      "session.id": "s1",
+    }));
+    emitSpan("a".repeat(32), "b".repeat(16), "GET /api", 1000, 1400, {
+      "http.request.method": "GET",
+    });
+    await flush();
+
+    expect(sent).toHaveLength(1);
+    expect(sent[0].url).toBe("https://ingest.example/v1/traces");
+    const payload = sent[0].payload as unknown as {
+      resourceSpans: Array<{
+        resource: { attributes: Array<{ key: string }> };
+        scopeSpans: Array<{
+          spans: Array<Record<string, unknown>>;
+        }>;
+      }>;
+    };
+    const span = payload.resourceSpans[0].scopeSpans[0].spans[0];
+    expect(span.name).toBe("GET /api");
+    expect(span.kind).toBe(3);
+    expect(span.startTimeUnixNano).toBe("1000000000");
+    expect(span.endTimeUnixNano).toBe("1400000000");
+    expect(span.status).toBeUndefined();
+    // The envelope rides span attributes like it rides log records.
+    const keys = (span.attributes as Array<{ key: string }>).map((a) => a.key);
+    expect(keys).toContain("session.id");
+    expect(keys).toContain("http.request.method");
+  });
+
+  it("marks error spans with OTLP status ERROR", async () => {
+    emitSpan("a".repeat(32), "b".repeat(16), "GET /api", 1, 2, {}, true);
+    await flush();
+    const payload = sent[0].payload as unknown as {
+      resourceSpans: Array<{
+        scopeSpans: Array<{ spans: Array<{ status: { code?: number } }> }>;
+      }>;
+    };
+    expect(payload.resourceSpans[0].scopeSpans[0].spans[0].status).toEqual({
+      code: 2,
+    });
+  });
+
+  it("flushes logs and spans as two posts on one timer", async () => {
+    emit("everr.browser.page_view");
+    emitSpan("a".repeat(32), "b".repeat(16), "GET /api", 1, 2, {});
+    await vi.advanceTimersByTimeAsync(5_000);
+    expect(sent.map((b) => b.url).sort()).toEqual([
+      "https://ingest.example/v1/logs",
+      "https://ingest.example/v1/traces",
+    ]);
   });
 });

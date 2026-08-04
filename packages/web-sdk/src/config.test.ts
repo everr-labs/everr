@@ -5,6 +5,7 @@ describe("resolveTransport", () => {
   it("sends to the hosted ingest with a Bearer header when a key is set", () => {
     expect(resolveTransport({ ingestKey: "pub_abc" })).toEqual([
       "https://ingest.everr.dev/v1/logs",
+      "https://ingest.everr.dev/v1/traces",
       { Authorization: "Bearer pub_abc" },
     ]);
   });
@@ -17,16 +18,22 @@ describe("resolveTransport", () => {
       }),
     ).toEqual([
       "https://collector.example/v1/logs",
+      "https://collector.example/v1/traces",
       { Authorization: "Bearer pub_abc" },
     ]);
     expect(resolveTransport({ endpoint: "https://collector.example" })).toEqual(
-      ["https://collector.example/v1/logs", undefined],
+      [
+        "https://collector.example/v1/logs",
+        "https://collector.example/v1/traces",
+        undefined,
+      ],
     );
   });
 
   it("falls back to the local collector in dev with no key", () => {
     expect(resolveTransport({ dev: true })).toEqual([
       "http://127.0.0.1:54318/v1/logs",
+      "http://127.0.0.1:54318/v1/traces",
       undefined,
     ]);
   });

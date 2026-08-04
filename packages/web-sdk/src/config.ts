@@ -11,6 +11,7 @@
 
 type TransportConfig = [
   logsUrl: string,
+  tracesUrl: string,
   headers: Record<string, string> | undefined,
 ];
 
@@ -21,10 +22,17 @@ export function resolveTransport(options: {
 }): TransportConfig | null {
   const key = options.ingestKey?.trim();
   const endpoint = options.endpoint?.trim().replace(/\/+$/, "");
-  const headers = key ? { Authorization: `Bearer ${key}` } : undefined;
-
-  if (endpoint) return [`${endpoint}/v1/logs`, headers];
-  if (key) return ["https://ingest.everr.dev/v1/logs", headers];
-  if (options.dev) return ["http://127.0.0.1:54318/v1/logs", headers];
-  return null;
+  const base =
+    endpoint ||
+    (key
+      ? "https://ingest.everr.dev"
+      : options.dev
+        ? "http://127.0.0.1:54318"
+        : null);
+  if (!base) return null;
+  return [
+    `${base}/v1/logs`,
+    `${base}/v1/traces`,
+    key ? { Authorization: `Bearer ${key}` } : undefined,
+  ];
 }
