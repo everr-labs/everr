@@ -1,12 +1,8 @@
 import { Button } from "@everr/ui/components/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-} from "@everr/ui/components/card";
+import { Card, CardContent } from "@everr/ui/components/card";
 import { type Column, DataTable } from "@everr/ui/components/data-table";
 import { RelativeTime } from "@everr/ui/components/relative-time";
+import type { Tone } from "@everr/ui/components/tone";
 import { cn } from "@everr/ui/lib/utils";
 import {
   useInfiniteQuery,
@@ -15,6 +11,7 @@ import {
 } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { SlidersHorizontal } from "lucide-react";
+import type { ReactNode } from "react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/page-header";
 import { ccRuleIdentity } from "@/data/alerts/rule-identity";
@@ -29,7 +26,7 @@ import {
   CcQueryError,
   CcRunbookLink,
   CcSeverityBadge,
-  CcStatusDot,
+  CcStatusLabel,
   CcTableSkeleton,
   ccErrorMessage,
   ccFormatTs,
@@ -45,6 +42,120 @@ export const Route = createFileRoute(
     queryClient.prefetchInfiniteQuery(ccQueries.rulesPage(deps.preview)),
   component: CcRulesPage,
 });
+
+function RuleIdentityCell({ rule }: { rule: CcRuleView }) {
+  const identity = ccRuleIdentity(rule);
+  return (
+    <span className="flex flex-col gap-1">
+      <span className="flex items-center gap-2">
+        <Link
+          to="/alerts/rules/$project/$slug"
+          params={{ project: identity.project, slug: identity.slug }}
+          className={cn(
+            "min-w-0 font-medium text-foreground underline-offset-2 hover:underline md:whitespace-nowrap",
+            identity.name === identity.shortId && "font-mono",
+          )}
+        >
+          {identity.name}
+        </Link>
+        <CcHealthHeart status={rule.health.status} />
+      </span>
+      <span className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[0.6875rem] text-muted-foreground">
+        <span>Every {ccFormatSloDuration(rule.spec.interval_secs)}</span>
+        {rule.spec.severity !== "info" && (
+          <>
+            <span aria-hidden>·</span>
+            <CcSeverityBadge severity={rule.spec.severity} />
+          </>
+        )}
+        <span className="md:hidden">
+          <RuleStatusCell rule={rule} />
+        </span>
+        {rule.rollup?.last_fired_at && (
+          <span className="whitespace-nowrap md:hidden">
+            Last fired <RelativeTime timestamp={rule.rollup.last_fired_at} />
+          </span>
+        )}
+      </span>
+    </span>
+  );
+}
+
+function ruleStatus(rule: CcRuleView): {
+  label: string;
+  tone?: Tone;
+  pulse?: boolean;
+  muted?: boolean;
+} {
+  if (rule.paused) return { label: "Paused", tone: "muted" };
+  if (rule.spec.suppressed) {
+    return { label: "Suppressed", tone: "muted" };
+  }
+  if (rule.health.status === "degraded") {
+    return { label: "Degraded", tone: "warning" };
+  }
+  if (!rule.rollup) return { label: "Not reported" };
+  if (rule.rollup.alert_state === "firing") {
+    const count = rule.rollup.firing_instance_count;
+    return {
+      label: count > 1 ? `Firing · ${count} instances` : "Firing",
+      tone: "danger",
+      pulse: true,
+    };
+  }
+  if (rule.rollup.alert_state === "pending") {
+    return { label: "Pending", tone: "warning", muted: true };
+  }
+  return { label: "OK", tone: "healthy", muted: true };
+}
+
+function RuleStatusCell({ rule }: { rule: CcRuleView }) {
+  const status = ruleStatus(rule);
+  if (!status.tone) {
+    return (
+      <span className="text-xs text-muted-foreground">{status.label}</span>
+    );
+  }
+  return (
+    <CcStatusLabel
+      tone={status.tone}
+      pulse={status.pulse}
+      muted={status.muted}
+      className="text-xs"
+    >
+      {status.label}
+    </CcStatusLabel>
+  );
+}
+
+function RuleLastFiredCell({ rule }: { rule: CcRuleView }) {
+  return rule.rollup?.last_fired_at ? (
+    <span
+      className="whitespace-nowrap text-xs text-muted-foreground"
+      title={ccFormatTs(rule.rollup.last_fired_at)}
+    >
+      <RelativeTime timestamp={rule.rollup.last_fired_at} />
+    </span>
+  ) : (
+    <span className="text-xs text-muted-foreground">Never</span>
+  );
+}
+
+function RuleUtilityCell({
+  children,
+  align = "start",
+}: {
+  children: ReactNode;
+  align?: "start" | "end";
+}) {
+  return (
+    <span
+      className={cn("flex h-8 items-center", align === "end" && "justify-end")}
+    >
+      {children}
+    </span>
+  );
+}
 
 function CcRulesPage() {
   const qc = useQueryClient();
@@ -76,94 +187,57 @@ function CcRulesPage() {
   const columns: Column<CcRuleView>[] = [
     {
       header: "Rule",
-      cell: (r) => {
-        const identity = ccRuleIdentity(r);
+      className: "pb-2 pr-4 pl-3 md:w-full",
+      cellClassName: "align-middle py-2 pr-4 pl-3 md:w-full",
+      cell: (rule) => <RuleIdentityCell rule={rule} />,
+    },
+    {
+      header: "",
+      className: "w-11 pb-2 pr-4",
+      cellClassName: "w-11 align-middle py-2 pr-4",
+      cell: (rule) => {
+        const { runbook, name } = ccRuleIdentity(rule);
         return (
-          <span className="inline-flex items-center gap-2">
-            <Link
-              to="/alerts/rules/$project/$slug"
-              params={{ project: identity.project, slug: identity.slug }}
-              className={cn(
-                "font-medium text-foreground underline-offset-2 hover:underline",
-                // A rule with no display name IS its id, so it keeps the mono
-                // face that makes an id readable.
-                identity.name === identity.shortId && "font-mono",
-              )}
-            >
-              {identity.name}
-            </Link>
-            <CcHealthHeart status={r.health.status} />
-          </span>
+          <RuleUtilityCell>
+            {runbook ? <CcRunbookLink {...runbook} name={name} /> : null}
+          </RuleUtilityCell>
         );
       },
     },
     {
-      header: "",
-      cell: (r) => {
-        const { runbook, name } = ccRuleIdentity(r);
-        return runbook ? <CcRunbookLink {...runbook} name={name} /> : null;
-      },
-    },
-    {
-      header: "Severity",
-      cell: (r) => <CcSeverityBadge severity={r.spec.severity} />,
-    },
-    {
-      header: "Interval",
-      cell: (r) => (
-        <span className="tabular-nums text-muted-foreground">
-          {/* Human units ("30m", not "1800s"); the exact seconds stay in the
-              as-code spec. */}
-          {ccFormatSloDuration(r.spec.interval_secs)}
-        </span>
+      header: "Status",
+      className: "hidden w-28 pb-2 pr-4 md:table-cell",
+      cellClassName: "hidden w-28 align-middle py-2 pr-4 md:table-cell",
+      cell: (rule) => (
+        <RuleUtilityCell>
+          <RuleStatusCell rule={rule} />
+        </RuleUtilityCell>
       ),
     },
     {
-      // The rolled-up alert state CC computes per rule: what the alert is
-      // doing, not whether the rule is scheduled (that reads off the
-      // Pause/Resume control). Optional for rollout safety (a CC without
-      // rollups omits the field).
-      header: "Alert state",
-      cell: (r) =>
-        r.rollup ? (
-          r.rollup.alert_state === "firing" ? (
-            <span className="inline-flex items-center gap-1.5 text-destructive">
-              <CcStatusDot tone="firing" pulse />
-              firing · {r.rollup.firing_instance_count}
-            </span>
-          ) : (
-            <span className="text-muted-foreground">
-              {r.rollup.alert_state}
-            </span>
-          )
-        ) : (
-          <span className="text-muted-foreground">—</span>
-        ),
-    },
-    {
       header: "Last fired",
-      cell: (r) =>
-        r.rollup?.last_fired_at ? (
-          <span
-            className="whitespace-nowrap text-muted-foreground"
-            title={ccFormatTs(r.rollup.last_fired_at)}
-          >
-            <RelativeTime timestamp={r.rollup.last_fired_at} />
-          </span>
-        ) : (
-          <span className="text-muted-foreground">—</span>
-        ),
+      className: "hidden w-24 pb-2 pr-4 lg:table-cell",
+      cellClassName: "hidden w-24 align-middle py-2 pr-4 lg:table-cell",
+      cell: (rule) => (
+        <RuleUtilityCell>
+          <RuleLastFiredCell rule={rule} />
+        </RuleUtilityCell>
+      ),
     },
     {
       header: "",
+      className: "w-20 pb-2 pr-3",
+      cellClassName: "w-20 align-middle py-2 pr-3",
       cell: (r) => (
-        <CcPauseToggle
-          paused={r.paused}
-          pending={toggle.isPending}
-          kind="alert rule"
-          name={ccRuleIdentity(r).name}
-          onToggle={() => toggle.mutate(r)}
-        />
+        <RuleUtilityCell align="end">
+          <CcPauseToggle
+            paused={r.paused}
+            pending={toggle.isPending}
+            kind="alert rule"
+            name={ccRuleIdentity(r).name}
+            onToggle={() => toggle.mutate(r)}
+          />
+        </RuleUtilityCell>
       ),
     },
   ];
@@ -178,13 +252,6 @@ function CcRulesPage() {
         docsHref="https://everr.dev/docs/concepts/how-alerts-work"
       />
       <Card inset="flush-content">
-        <CardHeader>
-          {/* No CardTitle: the page h1 directly above already says "Rules",
-              so the header carries only the hint. */}
-          <CardDescription>
-            Open a rule to see its query and what it is doing right now.
-          </CardDescription>
-        </CardHeader>
         <CardContent>
           {isPending ? (
             <CcTableSkeleton rows={5} />

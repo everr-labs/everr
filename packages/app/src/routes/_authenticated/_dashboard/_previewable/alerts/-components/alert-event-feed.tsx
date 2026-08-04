@@ -25,8 +25,8 @@ import type { AlertEventLogRow } from "@/data/alerts/history.server";
 import { ccQueries } from "@/data/cc/queries";
 import { useTimeRange } from "@/hooks/use-time-range";
 import {
+  CcAlertStatusLabel,
   CcEmptyState,
-  CcEventStatusBadge,
   CcTableSkeleton,
   ccErrorMessage,
   ccFormatTs,
@@ -93,7 +93,7 @@ export function AlertEventFeed({
         return (
           <span className="inline-flex items-center gap-1.5">
             {status ? (
-              <CcEventStatusBadge status={status} />
+              <CcAlertStatusLabel status={status} />
             ) : (
               <span className="text-xs text-muted-foreground">
                 {e.eventType}

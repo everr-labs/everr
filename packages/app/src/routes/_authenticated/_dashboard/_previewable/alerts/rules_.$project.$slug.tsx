@@ -26,12 +26,12 @@ import { pauseCcRule, resumeCcRule } from "@/data/cc/server";
 import type { CcAlert } from "@/data/cc/types";
 import { AlertEventFeed } from "./-components/alert-event-feed";
 import {
+  CcAlertStatusLabel,
   CcBackLink,
   CcDefRow,
   CcDisclosureTrigger,
   CcEmptyState,
   CcHealthHeart,
-  CcInstanceStatusBadge,
   CcPauseToggle,
   CcQueryError,
   CcSeverityBadge,
@@ -128,7 +128,7 @@ function CcRuleDetailPage() {
   const instCols: Column<CcAlert>[] = [
     {
       header: "Status",
-      cell: (a) => <CcInstanceStatusBadge status={a.status} />,
+      cell: (a) => <CcAlertStatusLabel status={a.status} />,
     },
     { header: "Labels", cell: (a) => <LabelSet labels={a.labels} /> },
     {

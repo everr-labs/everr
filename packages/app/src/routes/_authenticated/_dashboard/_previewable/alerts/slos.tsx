@@ -84,13 +84,14 @@ const TONE_URGENT = toneText({ tone: "danger", emphasis: "strong" });
 const TONE_WARNING = toneText({ tone: "warning", emphasis: "strong" });
 const TONE_ACTIVE = toneText({ tone: "live" });
 const TONE_QUIET = toneText({ tone: "muted" });
+const TONE_OK = toneText({ tone: "healthy" });
 
 const PACE_TONE: Record<CcSloBurnPace, string> = {
   "burning-fast": TONE_URGENT,
   burning: TONE_WARNING,
   draining: TONE_ACTIVE,
-  sustainable: TONE_QUIET,
-  steady: TONE_QUIET,
+  sustainable: TONE_OK,
+  steady: TONE_OK,
 };
 
 // Pause/suppression outrank firing (neither evaluates or alerts). A firing
@@ -104,12 +105,19 @@ function rowStatus(row: Omit<SloRow, "status">): {
   if (row.slo.spec.suppressed) {
     return { label: "Suppressed", tone: TONE_QUIET };
   }
+  if (row.health === "degraded") {
+    return { label: "Degraded", tone: TONE_WARNING };
+  }
   if (row.worst === null) return { label: "Not evaluated", tone: TONE_QUIET };
 
   // Verdict over ALL groups: the worst-by-budget group may have no recent
   // events while a sibling group burns or fires.
   const pace = ccSloOverallPace(row.tiers, row.groups);
-  return { label: ccSloBurnPaceLabel(pace), tone: PACE_TONE[pace] };
+  const label =
+    pace === "sustainable" || pace === "steady"
+      ? "OK"
+      : ccSloBurnPaceLabel(pace);
+  return { label, tone: PACE_TONE[pace] };
 }
 
 function SloPromiseCell({

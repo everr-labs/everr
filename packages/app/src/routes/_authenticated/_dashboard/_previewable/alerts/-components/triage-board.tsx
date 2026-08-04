@@ -235,9 +235,7 @@ function InstanceDetail({
               >
                 <CcStatusDot
                   tone={
-                    ccEventStatus(e.eventType) === "firing"
-                      ? "firing"
-                      : "resolved"
+                    ccEventStatus(e.eventType) === "firing" ? "danger" : "muted"
                   }
                 />
                 <span className="w-14 text-muted-foreground">
@@ -391,7 +389,9 @@ function GroupIdentity({ group }: { group: TriageGroup }) {
       {group.sloId !== undefined && (
         <Pill className="text-muted-foreground">SLO</Pill>
       )}
-      <CcSeverityBadge severity={group.severity} />
+      {group.severity !== "info" && (
+        <CcSeverityBadge severity={group.severity} />
+      )}
     </>
   );
 }

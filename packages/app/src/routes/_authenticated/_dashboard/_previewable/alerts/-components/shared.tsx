@@ -21,11 +21,7 @@ import {
   EmptyTitle,
 } from "@everr/ui/components/empty";
 import { Skeleton } from "@everr/ui/components/skeleton";
-import {
-  type Tone as HealthTone,
-  toneDot,
-  toneText,
-} from "@everr/ui/components/tone";
+import { type Tone, toneDot, toneText } from "@everr/ui/components/tone";
 import {
   Tooltip,
   TooltipContent,
@@ -128,29 +124,6 @@ export function CcQueryError({ error }: { error: unknown }) {
 // ── Status readout ──────────────────────────────────────────────────────────
 // Status never rides on color alone: the dot is always paired with a label.
 
-type Tone =
-  | "firing"
-  | "pending"
-  | "inactive"
-  | "degraded"
-  | "healthy"
-  | "resolved"
-  | "warning"
-  | "info";
-
-// `degraded` is rule-health, not alert state, so it shares warning's amber;
-// `info` deliberately matches the logs explorer's info colour.
-const TONE_KIND: Record<Tone, HealthTone> = {
-  firing: "danger",
-  degraded: "warning",
-  warning: "warning",
-  info: "info",
-  pending: "live",
-  healthy: "healthy",
-  inactive: "muted",
-  resolved: "muted",
-};
-
 export function CcStatusDot({
   tone,
   pulse = false,
@@ -166,37 +139,39 @@ export function CcStatusDot({
         <span
           className={cn(
             "absolute inline-flex size-full rounded-full opacity-60 motion-safe:animate-ping",
-            toneDot({ tone: TONE_KIND[tone] }),
+            toneDot({ tone }),
           )}
         />
       )}
       <span
         className={cn(
           "relative inline-flex size-1.5 rounded-full",
-          toneDot({ tone: TONE_KIND[tone] }),
+          toneDot({ tone }),
         )}
       />
     </span>
   );
 }
 
-function CcStatusLabel({
+export function CcStatusLabel({
   tone,
   pulse,
+  muted,
+  className,
   children,
 }: {
   tone: Tone;
   pulse?: boolean;
+  muted?: boolean;
+  className?: string;
   children: ReactNode;
 }) {
   return (
     <span
       className={cn(
         "inline-flex items-center gap-1.5 whitespace-nowrap",
-        // Healthy text is muted on purpose; the dot already carries the state.
-        toneText({
-          tone: TONE_KIND[tone] === "healthy" ? "muted" : TONE_KIND[tone],
-        }),
+        toneText({ tone: muted ? "muted" : tone }),
+        className,
       )}
     >
       <CcStatusDot tone={tone} pulse={pulse} />
@@ -208,33 +183,21 @@ function CcStatusLabel({
 export function CcSeverityBadge({ severity }: { severity: string }) {
   const tone: Tone =
     severity === "critical"
-      ? "firing"
+      ? "danger"
       : severity === "warning"
         ? "warning"
         : severity === "info"
           ? "info"
-          : "inactive";
+          : "muted";
   return <CcStatusLabel tone={tone}>{severity}</CcStatusLabel>;
 }
 
-export function CcEventStatusBadge({ status }: { status: string }) {
+export function CcAlertStatusLabel({ status }: { status: string }) {
   const firing = status === "firing";
+  const pending = status === "pending";
+  const tone: Tone = firing ? "danger" : pending ? "warning" : "muted";
   return (
-    <CcStatusLabel tone={firing ? "firing" : "resolved"} pulse={firing}>
-      {status}
-    </CcStatusLabel>
-  );
-}
-
-export function CcInstanceStatusBadge({ status }: { status: string }) {
-  const tone: Tone =
-    status === "firing"
-      ? "firing"
-      : status === "pending"
-        ? "pending"
-        : "inactive";
-  return (
-    <CcStatusLabel tone={tone} pulse={tone === "firing"}>
+    <CcStatusLabel tone={tone} pulse={firing} muted={pending}>
       {status}
     </CcStatusLabel>
   );
@@ -256,10 +219,10 @@ export function CcSloTierBadge({
 }) {
   const tone: Tone =
     severity === "critical"
-      ? "firing"
+      ? "danger"
       : severity === "warning"
         ? "warning"
-        : "inactive";
+        : "muted";
   const spec = tiers.find((t) => t.name === tier);
   const consequence =
     severity === "critical"

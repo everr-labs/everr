@@ -142,6 +142,77 @@ describe("/alerts/rules route", () => {
     );
   });
 
+  it("calls a quiet rule OK but lets degraded evaluation override it", async () => {
+    mocks.listCcRulesPage.mockResolvedValue(
+      page(
+        [
+          ccRuleView({ name: "default/quiet-rule" }),
+          ccRuleView({
+            id: "22222222-2222-2222-2222-222222222222",
+            name: "default/broken-rule",
+            health: {
+              status: "degraded",
+              consecutive_failures: 3,
+              degraded_since: "2026-06-14T12:00:00Z",
+              last_error: "query failed",
+              last_error_at: "2026-06-14T12:00:00Z",
+            },
+          }),
+        ],
+        null,
+      ),
+    );
+
+    renderRulesRoute();
+
+    const quietLink = await screen.findByRole("link", { name: "quiet-rule" });
+    expect(quietLink.closest("tr")).toHaveTextContent("OK");
+    const brokenLink = screen.getByRole("link", { name: "broken-rule" });
+    expect(brokenLink.closest("tr")).toHaveTextContent("Degraded");
+    expect(brokenLink.closest("tr")).not.toHaveTextContent("OK");
+  });
+
+  it("only calls out the firing instance count when several are firing", async () => {
+    const firingRollup = (count: number) => ({
+      alert_state: "firing" as const,
+      firing_instance_count: count,
+      last_fired_at: null,
+      last_resolved_at: null,
+      last_seen_at: null,
+      last_row_count: count,
+    });
+    mocks.listCcRulesPage.mockResolvedValue(
+      page(
+        [
+          ccRuleView({
+            name: "default/single-instance",
+            rollup: firingRollup(1),
+          }),
+          ccRuleView({
+            id: "22222222-2222-2222-2222-222222222222",
+            name: "default/multiple-instances",
+            rollup: firingRollup(3),
+          }),
+        ],
+        null,
+      ),
+    );
+
+    renderRulesRoute();
+
+    const singleLink = await screen.findByRole("link", {
+      name: "single-instance",
+    });
+    expect(singleLink.closest("tr")).toHaveTextContent("Firing");
+    expect(singleLink.closest("tr")).not.toHaveTextContent("1 instance");
+    const multipleLink = screen.getByRole("link", {
+      name: "multiple-instances",
+    });
+    expect(multipleLink.closest("tr")).toHaveTextContent(
+      "Firing · 3 instances",
+    );
+  });
+
   it("gates pausing behind the confirmation; resuming needs none", async () => {
     mocks.listCcRulesPage.mockResolvedValue(
       page(

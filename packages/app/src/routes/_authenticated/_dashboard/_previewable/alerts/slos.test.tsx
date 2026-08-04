@@ -166,6 +166,36 @@ describe("/alerts/slos route", () => {
     ).toHaveAttribute("href", "/runbooks/platform/log-pipeline");
   });
 
+  it("calls a sustainable SLO OK", async () => {
+    renderSlosRoute();
+
+    const table = await screen.findByRole("table");
+    expect(await within(table).findByText("OK")).toBeInTheDocument();
+  });
+
+  it("lets degraded evaluation override an otherwise quiet SLO", async () => {
+    mocks.getCcSloStatus.mockResolvedValue({
+      computed_at: new Date().toISOString(),
+      health: {
+        status: "degraded",
+        degraded_since: "2026-06-14T12:00:00Z",
+        last_error: "query failed",
+      },
+      payload: {
+        window: "30d",
+        target_percent: 99.9,
+        window_computed_at: {},
+        groups: [],
+      },
+    });
+
+    renderSlosRoute();
+
+    const table = await screen.findByRole("table");
+    expect(await within(table).findByText("Degraded")).toBeInTheDocument();
+    expect(within(table).queryByText("OK")).not.toBeInTheDocument();
+  });
+
   it("pauses an active SLO only after the confirmation is accepted", async () => {
     const user = userEvent.setup();
     renderSlosRoute();

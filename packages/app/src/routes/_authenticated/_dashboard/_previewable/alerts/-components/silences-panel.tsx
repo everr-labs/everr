@@ -24,7 +24,7 @@ import {
   CcConceptNote,
   CcEmptyState,
   CcQueryError,
-  CcStatusDot,
+  CcStatusLabel,
   CcTableSkeleton,
   Conditions,
   ccErrorMessage,
@@ -68,6 +68,12 @@ const GROUPS: {
   { key: "expired", title: "Recently expired", cancellable: false },
 ];
 
+const SILENCE_TONE = {
+  active: "healthy",
+  scheduled: "info",
+  expired: "muted",
+} as const;
+
 export function SilencesPanel({ onNewSilence }: { onNewSilence: () => void }) {
   const qc = useQueryClient();
   const { data, isPending, isError, error } = useQuery(ccQueries.silences());
@@ -101,23 +107,11 @@ export function SilencesPanel({ onNewSilence }: { onNewSilence: () => void }) {
   }): Column<CcSilence>[] => [
     {
       header: "State",
-      cell: () =>
-        g.key === "active" ? (
-          <span className="inline-flex items-center gap-1.5">
-            <CcStatusDot tone="healthy" />
-            active
-          </span>
-        ) : g.key === "scheduled" ? (
-          <span className="inline-flex items-center gap-1.5">
-            <CcStatusDot tone="pending" />
-            scheduled
-          </span>
-        ) : (
-          <span className="inline-flex items-center gap-1.5 text-muted-foreground">
-            <CcStatusDot tone="inactive" />
-            expired
-          </span>
-        ),
+      cell: () => (
+        <CcStatusLabel tone={SILENCE_TONE[g.key]} muted>
+          {g.key}
+        </CcStatusLabel>
+      ),
     },
     {
       header: "Matchers",
