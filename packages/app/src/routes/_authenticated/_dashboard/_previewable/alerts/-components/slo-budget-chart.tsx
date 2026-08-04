@@ -70,6 +70,9 @@ const EVENT_COLOR = {
   resolved: "var(--color-green-500)",
 } as const;
 const APPLIED_COLOR = "var(--color-blue-500)";
+// Fraction of the plot past which the "applied" label flips to the rule's left.
+// Declared, not measured, like the plot box; flipping early is harmless.
+const APPLIED_LABEL_FLIP_AT = 0.8;
 
 // A 1px dashed rule is far too thin to hover, so each marker instant also gets
 // an invisible wide line as the hit target. `transparent` is a paint value, so
@@ -223,6 +226,12 @@ export function SloBudgetChart({
   // The "applied" marker only draws when the boundary falls inside the range:
   // boundary 0 is off the left edge, -1 is off the right.
   const markerT = boundary > 0 ? instants[boundary].t : null;
+  // The label reads rightwards from its rule, so a late marker spills past the
+  // chart; anchor it on the rule's other side instead.
+  const appliedLabelPosition =
+    boundary / (instants.length - 1) > APPLIED_LABEL_FLIP_AT
+      ? "insideTopRight"
+      : "insideTopLeft";
   const reconstructedTo =
     boundary === -1 ? instants[instants.length - 1].t : markerT;
   const isReconstructed = (i: number) =>
@@ -499,7 +508,7 @@ export function SloBudgetChart({
               strokeWidth={1}
               label={{
                 value: "applied",
-                position: "insideTopLeft",
+                position: appliedLabelPosition,
                 fontSize: 10,
                 fill: APPLIED_COLOR,
               }}
