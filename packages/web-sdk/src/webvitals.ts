@@ -1,23 +1,23 @@
 import {
   type MetricWithAttribution,
   onCLS,
-  onINP,
   onLCP,
   onTTFB,
 } from "web-vitals/attribution";
 import type { AttrValue, Emit } from "./emitter.js";
 
 // The webVitals signal: one `browser.web_vital` record per finalized metric
-// (LCP, CLS, INP, FCP, TTFB via the web-vitals v5 attribution build). The
-// semconv-defined attributes (name/value/delta/id) keep their bare names;
-// everything else, including flattened attribution, is custom and lives
-// under `everr.`. TTFB and FCP report early and ride normal batches; LCP,
-// CLS and INP mostly report when the page goes hidden, from web-vitals' own
+// (LCP, CLS, TTFB via the web-vitals v5 attribution build; INP is computed
+// in-house in inp.ts, sharing its observer with the slow-interaction
+// records). The semconv-defined attributes (name/value/delta/id) keep their
+// bare names; everything else, including flattened attribution, is custom
+// and lives under `everr.`. TTFB reports early and rides normal batches;
+// LCP and CLS mostly report when the page goes hidden, from web-vitals' own
 // hidden-state listeners. No vitals-side queue is needed: any record emitted
 // while the page is hidden rides the emitter's coalesced exit flush, in
 // whatever order the hidden listeners happen to run.
 //
-// Dedupe is at-most-once per metric id: CLS and INP re-report a grown value
+// Dedupe is at-most-once per metric id: CLS re-reports a grown value
 // when a restored tab is hidden again, and re-emitting the same id would
 // double-count downstream. Same tradeoff as page_leave: engagement after a
 // restore is not re-reported. bfcache restores mint fresh metric ids, so
@@ -55,7 +55,7 @@ export function startWebVitals(emit: Emit): () => void {
     });
   };
 
-  for (const on of [onLCP, onCLS, onINP, onTTFB]) on(report);
+  for (const on of [onLCP, onCLS, onTTFB]) on(report);
   // web-vitals has no unsubscribe: stopping silences the callbacks instead.
   return () => {
     stopped = true;
@@ -67,8 +67,7 @@ const snake = (s: string) => s.replace(/[A-Z]+/g, (m) => `_${m.toLowerCase()}`);
 // Attribution keys are `everr.browser.web_vital.<metric>.` + the web-vitals
 // field snake_cased, scalars only (the typeof filter drops PerformanceEntry
 // objects, DOM nodes, and entry arrays); fields are auto-derived, so keys
-// follow web-vitals upgrades without a code change. INP's longest script is
-// the one nested value worth flattening by hand.
+// follow web-vitals upgrades without a code change.
 function attributionAttrs(metric: MetricWithAttribution): Attrs {
   const prefix = `everr.browser.web_vital.${metric.name.toLowerCase()}.`;
   const attrs: Attrs = {};
@@ -79,16 +78,6 @@ function attributionAttrs(metric: MetricWithAttribution): Attrs {
       typeof value === "boolean"
     ) {
       attrs[prefix + snake(field)] = value;
-    }
-  }
-  if (metric.name === "INP") {
-    const script = metric.attribution.longestScript?.entry;
-    for (const field of [
-      "sourceURL",
-      "sourceFunctionName",
-      "invokerType",
-    ] as const) {
-      attrs[prefix + snake(`longestScript.${field}`)] = script?.[field];
     }
   }
   return attrs;

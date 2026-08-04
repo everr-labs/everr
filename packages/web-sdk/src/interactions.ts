@@ -1,12 +1,14 @@
 import type { AttrValue, Emit } from "./emitter.js";
 
-// The interactions signal: product-analytics autocapture (PostHog parity) plus
-// frustration detection. The autocapture half covers slow clicks (from the
-// Event Timing API), form-field `change`, and `submit`; the frustration half
-// covers rage and dead clicks. One taxonomy, one element payload, one privacy
-// perimeter: every event carries tag/selector/chain, the autocapture events
-// are gated by the structural privacy guards, and rage/dead stay the only
-// signals that carry pointer coordinates (Event Timing reports none).
+// The interactions signal: product-analytics autocapture plus
+// frustration detection. The autocapture half covers form-field `change` and
+// `submit`; the frustration half covers rage and dead clicks. Slow
+// interactions (Event Timing) live in inp.ts, sharing the observer that
+// computes INP, but keep this module's taxonomy, element payload, and
+// privacy perimeter (via the exported helpers below): every event carries
+// tag/selector/chain, the autocapture events are gated by the structural
+// privacy guards, and rage/dead stay the only signals that carry pointer
+// coordinates (Event Timing reports none).
 //
 // This is the interim ungated emitter: every qualifying interaction ships
 // immediately through the batch pipeline. The eventual breadcrumb model will
@@ -26,10 +28,9 @@ import type { AttrValue, Emit } from "./emitter.js";
 // package stays zero-dep, so the shapes may drift; revisit if they converge.
 const SENSITIVE_TEXT = /\b(?:\d[ -]?){13,16}\b|\b\d{3}-\d{2}-\d{4}\b/;
 const FORM_FIELDS = "input,textarea,select";
-const SLOW_INTERACTIONS_THRESHOLD = 200;
 
 export function startInteractions(emit: Emit): () => void {
-  // PostHog-style thresholds: three clicks within 30px at gaps of at most 1s
+  // Rage-click thresholds: three clicks within 30px at gaps of at most 1s
   // make a rage click; 3s without a page reaction makes a dead click.
   let rage: [x: number, y: number, at: number, count: number] | undefined;
 
@@ -89,18 +90,16 @@ export function startInteractions(emit: Emit): () => void {
 
   addEventListener("change", onChange, true);
   addEventListener("submit", onSubmit, true);
-  const stopSlowInteractionsTracking = startSlowInteractionsTracking(emit);
 
   return () => {
     removeEventListener("click", onClick, true);
     removeEventListener("change", onChange, true);
     removeEventListener("submit", onSubmit, true);
-    stopSlowInteractionsTracking();
   };
 }
 
 /** The shared capture guard: no-capture regions and password/hidden inputs. */
-function guardOf(el: Element): Element | null {
+export function guardOf(el: Element): Element | null {
   return el.closest(".everr-no-capture") ||
     el.matches("input[type=password],input[type=hidden]")
     ? null
@@ -112,7 +111,7 @@ function targetOf(event: Event): Element | null {
   return el ? guardOf(el) : null;
 }
 
-function elementAttrs(
+export function elementAttrs(
   el: Element,
 ): Record<string, AttrValue | null | undefined> {
   return {
@@ -156,35 +155,4 @@ function selectorOf(el: Element): string {
     node = node.parentElement;
   }
   return parts.join(" > ");
-}
-
-function startSlowInteractionsTracking(emit: Emit): () => void {
-  const onEntries = (entries: PerformanceEventTiming[]) => {
-    for (const entry of entries) {
-      if (entry.entryType !== "event") continue;
-      const el = entry.target instanceof Element ? guardOf(entry.target) : null;
-      if (!el) continue;
-
-      emit("everr.browser.slow_interaction", {
-        ...elementAttrs(el),
-        "everr.interaction.name": entry.name,
-        "everr.interaction.duration_ms": entry.duration,
-      });
-    }
-  };
-
-  let po: PerformanceObserver | undefined;
-  try {
-    po = new PerformanceObserver((list) =>
-      onEntries(list.getEntries() as PerformanceEventTiming[]),
-    );
-    po.observe({
-      type: "event",
-      buffered: true,
-      durationThreshold: SLOW_INTERACTIONS_THRESHOLD,
-    });
-  } catch {
-    return () => {};
-  }
-  return () => po?.disconnect();
 }

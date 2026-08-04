@@ -3,6 +3,7 @@ import { resolveTransport } from "./config.js";
 import { createEmitter, noop } from "./emitter.js";
 import { createEnvelope } from "./envelope.js";
 import { startErrors, startReporting } from "./errors.js";
+import { startInp } from "./inp.js";
 import { startInteractions } from "./interactions.js";
 import { startLogger } from "./logger.js";
 import { watchNavigation } from "./navigation.js";
@@ -89,6 +90,12 @@ export function init(options: InitOptions): EverrClient {
     ? startInteractions(emit)
     : undefined;
   const stopWebVitals = enabled("webVitals") ? startWebVitals(emit) : undefined;
+  // One Event Timing observer serves both signals: slow_interaction records
+  // ride the interactions toggle, the INP vital the webVitals toggle.
+  const stopInp =
+    enabled("interactions") || enabled("webVitals")
+      ? startInp(emit, enabled("interactions"), enabled("webVitals"))
+      : undefined;
   // Errors have no disable key and no options: capture is native and always
   // on whenever the SDK emits at all. Same for the custom logger: it only
   // emits when the user calls it.
@@ -116,6 +123,7 @@ export function init(options: InitOptions): EverrClient {
       stopLogger();
       stopErrors();
       stopWebVitals?.();
+      stopInp?.();
       stopInteractions?.();
       pageviews?.[2]();
       stopWatching();

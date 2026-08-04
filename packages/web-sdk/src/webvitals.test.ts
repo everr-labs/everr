@@ -21,7 +21,7 @@ vi.mock("web-vitals/attribution", () => {
   const on = (cb: (metric: MetricWithAttribution) => void) => {
     callbacks.push(cb);
   };
-  return { onCLS: on, onINP: on, onLCP: on, onTTFB: on };
+  return { onCLS: on, onLCP: on, onTTFB: on };
 });
 
 const report = (metric: Partial<MetricWithAttribution>) => {
@@ -91,9 +91,9 @@ afterEach(async () => {
 });
 
 describe("web vitals", () => {
-  it("registers the four metric callbacks", () => {
+  it("registers the three web-vitals metric callbacks (INP is in-house)", () => {
     start();
-    expect(callbacks).toHaveLength(4);
+    expect(callbacks).toHaveLength(3);
   });
 
   it("emits browser.web_vital with semconv names, the envelope, and attribution", async () => {
