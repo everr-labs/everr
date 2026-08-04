@@ -84,7 +84,7 @@ describe("init (server)", () => {
     client = undefined;
 
     // Keyless production init never builds an emitter on the server either.
-    const inert = init({ mode: "cookieless", serviceName: "everr-docs-test" });
+    const inert = init({ serviceName: "everr-docs-test" });
     await expect(inert.flush()).resolves.toBeUndefined();
   });
 });

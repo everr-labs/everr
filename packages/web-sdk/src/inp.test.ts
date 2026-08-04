@@ -239,6 +239,12 @@ describe("slow interactions", () => {
     expect(a["everr.interaction.script.function_name"]).toBe("renderList");
     expect(a["everr.interaction.script.invoker_type"]).toBe("event-listener");
     expect(a["everr.interaction.script.duration_ms"]).toBe(280);
+    // The category breakdown across intersecting frames: 280ms of script,
+    // and the rest of the 400ms interaction unattributed by LoAF data.
+    expect(a["everr.interaction.total_script_duration_ms"]).toBe(280);
+    expect(a["everr.interaction.total_style_and_layout_duration_ms"]).toBe(0);
+    expect(a["everr.interaction.total_paint_duration_ms"]).toBe(0);
+    expect(a["everr.interaction.total_unattributed_duration_ms"]).toBe(120);
   });
 
   it("takes the target from any entry that carries one (often only pointerdown does)", () => {
@@ -276,7 +282,7 @@ describe("slow interactions", () => {
 });
 
 describe("INP vital", () => {
-  it("reports the worst interaction on hidden, byte-compatible with web-vitals", () => {
+  it("reports the worst interaction on hidden with the shared attribution vocabulary", () => {
     document.body.innerHTML = '<button id="b">Go</button>';
     feed([
       { duration: 250, interactionId: 7, target: document.getElementById("b") },
@@ -291,14 +297,31 @@ describe("INP vital", () => {
     expect(a["browser.web_vital.name"]).toBe("inp");
     expect(a["browser.web_vital.value"]).toBe(620);
     expect(a["browser.web_vital.delta"]).toBe(620);
-    expect(a["browser.web_vital.id"]).toMatch(/^e5-/);
+    expect(a["browser.web_vital.id"]).toMatch(/^\d+-\d{13}$/);
     expect(a["everr.browser.web_vital.rating"]).toBe("poor");
     expect(a["everr.landing.path"]).toBe(location.pathname);
-    // The join key back to the slow_interaction record.
+    // The join key back to the slow_interaction record, and the same
+    // attribution keys that record carries.
     expect(a["everr.interaction.id"]).toBe(14);
-    expect(a["everr.browser.web_vital.inp.input_delay"]).toBe(20);
-    expect(a["everr.browser.web_vital.inp.interaction_type"]).toBe("pointer");
-    expect(a["everr.browser.web_vital.inp.interaction_time"]).toBe(1000);
+    expect(a["everr.interaction.input_delay_ms"]).toBe(20);
+    expect(a["everr.interaction.type"]).toBe("pointer");
+  });
+
+  it("carries the element payload of its candidate interaction", () => {
+    document.body.innerHTML = '<button id="b">Go</button>';
+    feed([
+      {
+        name: "pointerdown",
+        duration: 320,
+        interactionId: 7,
+        target: document.getElementById("b"),
+      },
+    ]);
+    settle();
+    hide();
+    const a = vitals()[0].attrs ?? {};
+    expect(a["everr.element.selector"]).toBe("#b");
+    expect(a["everr.element.tag"]).toBe("button");
   });
 
   it("reports sub-200ms interactions too (no vital-side threshold)", () => {

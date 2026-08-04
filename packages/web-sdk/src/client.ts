@@ -3,21 +3,14 @@ import { resolveTransport } from "./config.js";
 import { createEmitter, noop } from "./emitter.js";
 import { createEnvelope } from "./envelope.js";
 import { startErrors, startReporting } from "./errors.js";
+import { bindIdentity, createIdentity, storeFor } from "./identity.js";
 import { startInp } from "./inp.js";
 import { startInteractions } from "./interactions.js";
 import { startLogger } from "./logger.js";
 import { watchNavigation } from "./navigation.js";
 import { startPageviews } from "./pageview.js";
 import { createSessionContext } from "./session.js";
-import type {
-  CaptureSignal,
-  ConsentedClient,
-  ConsentedInitOptions,
-  CookielessClient,
-  CookielessInitOptions,
-  EverrClient,
-  InitOptions,
-} from "./types.js";
+import type { CaptureSignal, EverrClient, InitOptions } from "./types.js";
 import { startWebVitals } from "./webvitals.js";
 
 declare const __PACKAGE_VERSION__: string | undefined;
@@ -25,19 +18,16 @@ const SDK_VERSION =
   typeof __PACKAGE_VERSION__ === "string" ? __PACKAGE_VERSION__ : "0.0.0-dev";
 const SDK_NAME = "@everr/web-sdk";
 
-export function init(options: CookielessInitOptions): CookielessClient;
-export function init(options: ConsentedInitOptions): ConsentedClient;
 export function init(options: InitOptions): EverrClient {
-  if (options.mode === "consented") {
-    throw new Error(
-      '[@everr/web-sdk] mode "consented" is not implemented yet; use mode "cookieless".',
-    );
-  }
-
   // Structural no-op: a keyless production build builds no emitter and no
-  // watcher, so nothing can ever issue a network request.
+  // watcher, so nothing can ever issue a network request. identify()/revoke()
+  // are wired to a safe no-op, so calling them never throws even though
+  // nothing is ever persisted or sent.
   const transport = resolveTransport(options);
-  if (!transport) return INERT;
+  if (!transport) {
+    bindIdentity(INERT_IDENTITY);
+    return INERT;
+  }
 
   // Server runtimes (SSR in meta frameworks like Next.js or TanStack Start,
   // edge included) get the same pipeline with logger and captureError wired
@@ -46,9 +36,17 @@ export function init(options: InitOptions): EverrClient {
   // module graphs.
   if (typeof window === "undefined") return initServer(options, transport);
 
+  // Identity (visitor id, 30-minute-inactivity session, identify()/revoke())
+  // runs over the store the persistence option picks: localStorage (the
+  // default) is read back across reloads and tabs; memory dies with the
+  // page. The event schema is identical either way.
+  const identity = createIdentity(storeFor(options.persistence));
+  const stopIdentity = bindIdentity(identity);
+
   const [rotate, current] = createSessionContext(
     location.href,
     document.referrer,
+    identity.session,
   );
 
   const [emit, flush, exitFlush] = createEmitter(
@@ -73,6 +71,7 @@ export function init(options: InitOptions): EverrClient {
     createEnvelope(
       current,
       attributionAttributes(location.search),
+      identity.attrs,
       options.routePattern,
     ),
   );
@@ -120,6 +119,7 @@ export function init(options: InitOptions): EverrClient {
     shutdown: () => {
       removeEventListener("pagehide", onHide);
       removeEventListener("visibilitychange", onVisibilityChange);
+      stopIdentity();
       stopLogger();
       stopErrors();
       stopWebVitals?.();
@@ -168,15 +168,22 @@ function initServer(
 
   const stopReporting = startReporting(emit);
   const stopLogger = startLogger(emit);
+  // Identity is browser-bound; on the server identify()/revoke() bind to a
+  // safe no-op so shared-code calls never throw. Per-process identity on
+  // server records would leak users across requests.
+  const stopIdentity = bindIdentity(INERT_IDENTITY);
 
   return {
     flush,
     shutdown: () => {
+      stopIdentity();
       stopLogger();
       stopReporting();
       return flush();
     },
   };
 }
+
+const INERT_IDENTITY = { identify: noop, revoke: noop };
 
 const INERT: EverrClient = { flush: noop, shutdown: noop };

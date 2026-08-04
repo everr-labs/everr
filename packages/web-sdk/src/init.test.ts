@@ -5,6 +5,7 @@ import {
   type OtlpBatch,
   type OtlpRecord,
   startClient,
+  UNIQUE_ID,
 } from "./test-kit.js";
 import type { CaptureSignal, EverrClient } from "./types.js";
 
@@ -37,7 +38,7 @@ afterEach(async () => {
   history.replaceState(null, "", "/");
 });
 
-describe("init (cookieless)", () => {
+describe("init (persistence: memory)", () => {
   it("emits an enveloped everr.browser.page_view for the initial load", async () => {
     start();
     const all = await records();
@@ -48,8 +49,8 @@ describe("init (cookieless)", () => {
     expect(record.body).toEqual({ stringValue: "everr.browser.page_view" });
     const a = attrs(record);
     expect(a["everr.navigation.type"]).toBe("initial");
-    expect(a["session.id"]).toMatch(/[0-9a-f-]{36}/);
-    expect(a["everr.page_view.id"]).toMatch(/[0-9a-f-]{36}/);
+    expect(a["session.id"]).toMatch(UNIQUE_ID);
+    expect(a["everr.page_view.id"]).toMatch(UNIQUE_ID);
     expect(a["url.full"]).toBe(window.location.href);
     expect(a["url.path"]).toBe("/");
     const resource = await resourceAttrs();
@@ -212,9 +213,9 @@ describe("init (cookieless)", () => {
     expect(sa["everr.element.tag"]).toBe("button");
     expect(sa["everr.element.selector"]).toBe("#go");
     // The shared analytics envelope makes autocaptured events join the session.
-    expect(ca["session.id"]).toMatch(/[0-9a-f-]{36}/);
-    expect(ca["everr.page_view.id"]).toMatch(/[0-9a-f-]{36}/);
-    expect(sa["session.id"]).toMatch(/[0-9a-f-]{36}/);
+    expect(ca["session.id"]).toMatch(UNIQUE_ID);
+    expect(ca["everr.page_view.id"]).toMatch(UNIQUE_ID);
+    expect(sa["session.id"]).toMatch(UNIQUE_ID);
     // Element values are never carried, by construction.
     expect(ca).not.toHaveProperty("everr.element.text");
     // submit targets the submitter button and carries elementAttrs, which
@@ -238,7 +239,7 @@ describe("init (cookieless)", () => {
     expect(rageRecord).toBeDefined();
     const a = attrs(rageRecord as OtlpRecord);
     expect(a["everr.element.text"]).toBe("Try Everr");
-    expect(a["session.id"]).toMatch(/[0-9a-f-]{36}/);
+    expect(a["session.id"]).toMatch(UNIQUE_ID);
     document.body.innerHTML = "";
   });
 
@@ -273,21 +274,12 @@ describe("init (cookieless)", () => {
     expect(await records()).toHaveLength(1);
     client = undefined;
   });
-
-  it("rejects consented mode with a clear error", () => {
-    expect(() => init({ mode: "consented", serviceName: "x" })).toThrowError(
-      /consented.*not implemented/,
-    );
-  });
 });
 
 describe("structural no-op", () => {
   it("returns an inert client with no key, no endpoint, outside dev", () => {
     const pushState = history.pushState;
-    const inert = init({
-      mode: "cookieless",
-      serviceName: "everr-docs-test",
-    });
+    const inert = init({ serviceName: "everr-docs-test" });
     client = inert;
     // No emitter built and nothing patched: pushState is untouched.
     expect(history.pushState).toBe(pushState);

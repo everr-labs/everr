@@ -22,6 +22,7 @@ import {
   Building2,
   Check,
   ChevronsUpDown,
+  CookieIcon,
   CreditCard,
   Download,
   KeyRound,
@@ -30,10 +31,12 @@ import {
 } from "lucide-react";
 import { PLATFORMS } from "@/lib/app-download";
 import { authClient } from "@/lib/auth-client";
+import { useOpenConsentSettings } from "@/telemetry/consent-gate";
 
 export function NavUser() {
   const router = useRouter();
   const queryClient = useQueryClient();
+  const openConsentSettings = useOpenConsentSettings();
   const { data: session } = authClient.useSession();
   const { data: activeOrg } = authClient.useActiveOrganization();
   const { data: orgs } = authClient.useListOrganizations();
@@ -183,6 +186,11 @@ export function NavUser() {
                 Download App
               </DropdownMenuItem>
             </DropdownMenuGroup>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={openConsentSettings}>
+              <CookieIcon />
+              Cookie preferences
+            </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem
               onClick={() =>

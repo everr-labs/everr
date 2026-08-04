@@ -9,18 +9,18 @@ describe("resolveTransport", () => {
     ]);
   });
 
-  it("prefers an explicit endpoint override, keeping the key's header", () => {
+  it("prefers an explicit endpoint override, appending the OTLP logs path and keeping the key's header", () => {
     expect(
       resolveTransport({
         ingestKey: "pub_abc",
         endpoint: "https://collector.example/",
       }),
     ).toEqual([
-      "https://collector.example",
+      "https://collector.example/v1/logs",
       { Authorization: "Bearer pub_abc" },
     ]);
     expect(resolveTransport({ endpoint: "https://collector.example" })).toEqual(
-      ["https://collector.example", undefined],
+      ["https://collector.example/v1/logs", undefined],
     );
   });
 

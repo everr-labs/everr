@@ -12,11 +12,29 @@
  * - `webVitals` governs `browser.web_vital` reporting.
  *
  * Errors have no signal key (capture is native, always on, and option-free)
- * and replay is never a signal (the mode system owns it).
+ * and replay is never a signal (it will get its own option when it ships).
  */
 export type CaptureSignal = "pageviews" | "interactions" | "webVitals";
 
-type CommonInitOptions = {
+/**
+ * Where identity (the visitor id, the session, the identified user) lives.
+ *
+ * - `"localStorage"` (the default): a random persistent visitor id
+ *   (`everr.visitor.id`, a device id, never fingerprint-derived) and durable
+ *   30-minute-inactivity sessions survive reloads and are shared across
+ *   tabs; `identify()` persists until `revoke()`.
+ * - `"memory"`: zero cookies, zero storage. The same ids exist only in JS
+ *   memory, survive SPA navigations, and die on reload or tab close;
+ *   `identify()` works for the life of the page.
+ *
+ * Consent is the host's call, not the SDK's: a CMP-gated deployment boots
+ * with `"memory"` until consent is granted, then re-initializes with
+ * `"localStorage"`. The event schema is identical either way; persistence
+ * only changes how long the ids live.
+ */
+export type Persistence = "localStorage" | "memory";
+
+export type InitOptions = {
   /** The `service.name` resource attribute events are reported under. */
   serviceName: string;
   /** Overrides the `service.version` resource attribute (defaults to the SDK build version). */
@@ -50,28 +68,8 @@ type CommonInitOptions = {
    * `router.state.matches` here.
    */
   routePattern?: () => string | null | undefined;
-};
-
-/**
- * Strictly cookieless: zero cookies, zero storage, no visitor id. A random
- * in-memory `session.id` survives SPA navigations and dies on reload or tab
- * close. There are no identity or replay fields on this type by design.
- */
-export type CookielessInitOptions = CommonInitOptions & {
-  mode: "cookieless";
-};
-
-/**
- * Consented mode (post-CMP-opt-in): durable identity. A random persistent
- * visitor id (`everr.visitor.id`, a device id, never fingerprint-derived)
- * and durable 30-minute-inactivity sessions live in localStorage, surviving
- * reloads and shared across tabs; `identify()` and `revoke()` hang off the
- * returned handle. The event schema is identical to cookieless: consent
- * only fills what cookieless leaves empty. The lazy replay subpath hangs
- * off the `ConsentedClient` only.
- */
-export type ConsentedInitOptions = CommonInitOptions & {
-  mode: "consented";
+  /** How long identity ids live; see {@link Persistence}. Fixed at init. */
+  persistence?: Persistence;
 };
 
 /**
@@ -83,32 +81,15 @@ export type UserTraits = {
   [key: string]: string | number | boolean | null | undefined | UserTraits;
 };
 
-export type InitOptions = CookielessInitOptions | ConsentedInitOptions;
-
-declare const ModeBrand: unique symbol;
-
+/**
+ * The handle returned by `init()`. Identity capabilities (`identify()`,
+ * `revoke()`) are package-level functions instead of handle methods, exactly
+ * like `captureError()` and `logger`, so the handle shape never depends on
+ * the init options.
+ */
 export interface EverrClient {
   /** Force-flushes any batched records. */
   flush(): Promise<void>;
   /** Flushes, stops all capture, and unpatches globals. */
   shutdown(): Promise<void>;
-}
-
-/**
- * The mode distinction is a type-only brand (zero runtime bytes): the brand
- * property never exists on the object, it just keeps the two handles
- * mutually unassignable so consented-only capabilities cannot accept a
- * cookieless handle.
- */
-export interface CookielessClient extends EverrClient {
-  readonly [ModeBrand]?: "cookieless";
-}
-
-/**
- * Mode-typed handle for consented deployments. `identify()`, `revoke()`, and
- * the replay capability land on this handle (and only this handle) when
- * consented mode ships.
- */
-export interface ConsentedClient extends EverrClient {
-  readonly [ModeBrand]?: "consented";
 }

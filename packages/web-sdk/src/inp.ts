@@ -1,5 +1,6 @@
 import type { AttrValue, Emit } from "./emitter.js";
 import { elementAttrs, guardOf } from "./interactions.js";
+import { uniqueId } from "./session.js";
 
 // Interaction latency tracking: one Event Timing observer feeding two
 // outputs.
@@ -11,10 +12,11 @@ import { elementAttrs, guardOf } from "./interactions.js";
 //    breakdown, and Long Animation Frame script attribution where the
 //    browser provides it (Chrome 123+).
 // 2. The INP web vital (`browser.web_vital`, name=inp): the estimated-p98
-//    longest interaction, reported once when the page first goes hidden,
-//    byte-compatible with the record the web-vitals library used to emit,
-//    plus `everr.interaction.id` so it joins to the slow_interaction record
-//    that is its candidate.
+//    longest interaction, reported once when the page first goes hidden.
+//    Its attribution is the same `everr.interaction.*` / `everr.element.*`
+//    vocabulary the slow_interaction record carries (not web-vitals' key
+//    names), and `everr.interaction.id` joins it to the slow_interaction
+//    record that is its candidate.
 //
 // The measurement core (interaction grouping by interactionId with latency
 // as the max entry duration, the 10-longest candidate list with the
@@ -266,7 +268,7 @@ export function startInp(
       "everr.interaction.id": id,
       "everr.interaction.name": entry.name,
       "everr.interaction.duration_ms": latency,
-      ...phaseAttrs(false, entry, frame, intersectingLoAFs),
+      ...phaseAttrs(entry, frame, intersectingLoAFs),
     });
   };
 
@@ -292,13 +294,12 @@ export function startInp(
       "everr.browser.web_vital.navigation_type": navigationType(restored),
       "everr.landing.url": landingUrl,
       "everr.landing.path": landingPath,
+      // Attribution is the slow_interaction vocabulary verbatim (element
+      // payload included), not web-vitals' key names: the vital and the slow
+      // record it joins to answer the same question with the same keys.
       "everr.interaction.id": id,
-      // Not web-vitals' selector format: the interactions taxonomy's stable
-      // CSS path, shared with the slow_interaction record it joins to.
-      "everr.browser.web_vital.inp.interaction_target": attrs?.[
-        "everr.element.selector"
-      ] as string | undefined,
-      ...phaseAttrs(true, entry, frame, intersectingLoAFs),
+      ...attrs,
+      ...phaseAttrs(entry, frame, intersectingLoAFs),
     });
   };
 
@@ -367,12 +368,10 @@ export function startInp(
 
 /**
  * The shared attribution payload: phase breakdown plus LoAF-derived script
- * attribution, key names differing only by prefix between the vital record
- * (web-vitals-compatible bare names) and the slow_interaction record
- * (`_ms`-suffixed durations, matching the interaction taxonomy).
+ * attribution, one `everr.interaction.*` vocabulary carried by both the
+ * slow_interaction record and the INP vital.
  */
 function phaseAttrs(
-  vital: boolean,
   entry: PerformanceEventTiming,
   frame: Frame,
   intersecting: (
@@ -380,8 +379,6 @@ function phaseAttrs(
     end: number,
   ) => PerformanceLongAnimationFrameTiming[],
 ): Attrs {
-  const prefix = vital ? "everr.browser.web_vital.inp." : "everr.interaction.";
-  const ms = vital ? "" : "_ms";
   const interactionTime = entry.startTime;
   const processingStart = entry.processingStart;
   // Durations round down to 8ms: clamp next paint after processing start.
@@ -396,21 +393,19 @@ function phaseAttrs(
   const processingDuration = processingEnd - processingStart;
 
   const attrs: Attrs = {
-    [vital ? `${prefix}interaction_type` : `${prefix}type`]:
-      entry.name.startsWith("key") ? "keyboard" : "pointer",
-    [`${prefix}input_delay${ms}`]: inputDelay,
-    [`${prefix}processing_duration${ms}`]: processingDuration,
-    [`${prefix}presentation_delay${ms}`]: nextPaintTime - processingEnd,
-    [`${prefix}load_state`]: loadState(interactionTime),
+    "everr.interaction.type": entry.name.startsWith("key")
+      ? "keyboard"
+      : "pointer",
+    "everr.interaction.input_delay_ms": inputDelay,
+    "everr.interaction.processing_duration_ms": processingDuration,
+    "everr.interaction.presentation_delay_ms": nextPaintTime - processingEnd,
+    "everr.interaction.load_state": loadState(interactionTime),
   };
-  if (vital) {
-    attrs[`${prefix}interaction_time`] = interactionTime;
-    attrs[`${prefix}next_paint_time`] = nextPaintTime;
-  }
 
-  // LoAF pass: total durations by kind across intersecting frames, plus the
-  // single longest script. Scripts that ended before the interaction began
-  // are earlier work in the same frame, not causes.
+  // LoAF pass: a duration breakdown by category (script, style-and-layout,
+  // paint, unattributed) across the intersecting frames, plus the single
+  // longest script as the actionable culprit. Scripts that ended before the
+  // interaction began are earlier work in the same frame, not causes.
   const loafs = intersecting(entry.startTime, processingEnd);
   if (!loafs.length) return attrs;
 
@@ -448,24 +443,22 @@ function phaseAttrs(
     totalPaint = nextPaintTime - lastLoafEnd;
   }
 
-  if (vital) {
-    attrs[`${prefix}total_script_duration`] = totalScript;
-    attrs[`${prefix}total_style_and_layout_duration`] = totalStyleAndLayout;
-    attrs[`${prefix}total_paint_duration`] = totalPaint;
-    attrs[`${prefix}total_unattributed_duration`] =
-      nextPaintTime -
-      interactionTime -
-      totalScript -
-      totalStyleAndLayout -
-      totalPaint;
-  }
+  attrs["everr.interaction.total_script_duration_ms"] = totalScript;
+  attrs["everr.interaction.total_style_and_layout_duration_ms"] =
+    totalStyleAndLayout;
+  attrs["everr.interaction.total_paint_duration_ms"] = totalPaint;
+  attrs["everr.interaction.total_unattributed_duration_ms"] =
+    nextPaintTime -
+    interactionTime -
+    totalScript -
+    totalStyleAndLayout -
+    totalPaint;
   if (longest) {
-    const script = vital ? `${prefix}longest_script.` : `${prefix}script.`;
-    attrs[`${script}source_url`] = longest.sourceURL;
-    attrs[`${script}${vital ? "source_function_name" : "function_name"}`] =
+    attrs["everr.interaction.script.source_url"] = longest.sourceURL;
+    attrs["everr.interaction.script.function_name"] =
       longest.sourceFunctionName;
-    attrs[`${script}invoker_type`] = longest.invokerType;
-    if (!vital) attrs[`${script}duration_ms`] = longestDuration;
+    attrs["everr.interaction.script.invoker_type"] = longest.invokerType;
+    attrs["everr.interaction.script.duration_ms"] = longestDuration;
   }
   return attrs;
 }
@@ -497,11 +490,6 @@ function navigationType(restored: boolean): string {
     ? "back-forward-cache"
     : (performance.getEntriesByType("navigation")[0]?.type.replace(/_/g, "-") ??
         "navigate");
-}
-
-/** Unique per report: same shape as web-vitals' metric ids, `e5` marked. */
-function uniqueId(): string {
-  return `e5-${Date.now()}-${Math.floor(Math.random() * (9e12 - 1)) + 1e12}`;
 }
 
 /**

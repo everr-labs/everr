@@ -1,6 +1,6 @@
 import { vi } from "vitest";
 import { init } from "./client.js";
-import type { CookielessInitOptions, EverrClient } from "./types.js";
+import type { EverrClient, InitOptions } from "./types.js";
 
 // Shared OTLP capture harness for the package's integration tests: stubs
 // the global fetch (which the emitter reads at call time) and decodes each
@@ -47,18 +47,29 @@ export function attrs(record: OtlpRecord): Record<string, unknown> {
 }
 
 /**
- * The one true test boot: stubs fetch and inits a cookieless dev client, so
- * every test file exercises the same init shape.
+ * The one true test boot: stubs fetch and inits a memory-persistence dev
+ * client, so tests leave no storage behind unless they opt in.
  */
 export function startClient(
-  options?: Partial<Omit<CookielessInitOptions, "mode">>,
+  options?: Partial<InitOptions>,
 ): [client: EverrClient, batches: OtlpBatch[]] {
   const batches = stubOtlpFetch();
-  const client = init({
-    mode: "cookieless",
-    serviceName: "everr-docs-test",
-    dev: true,
-    ...options,
-  });
-  return [client, batches];
+  return [init({ persistence: "memory", ...DEFAULTS, ...options }), batches];
 }
+
+/**
+ * The localStorage-persistence boot, deliberately omitting the flag so it
+ * also covers the SDK default. Tests must clear localStorage between runs
+ * (durable identity is the whole point of this persistence).
+ */
+export function startPersistentClient(
+  options?: Partial<InitOptions>,
+): [client: EverrClient, batches: OtlpBatch[]] {
+  const batches = stubOtlpFetch();
+  return [init({ ...DEFAULTS, ...options }), batches];
+}
+
+const DEFAULTS = { serviceName: "everr-docs-test", dev: true };
+
+/** The id shape every minted visitor/session id must match. */
+export const UNIQUE_ID = /^\d+-\d{13}$/;

@@ -6,6 +6,7 @@ import {
   type OtlpBatch,
   type OtlpRecord,
   startClient,
+  UNIQUE_ID,
 } from "./test-kit.js";
 import type { EverrClient } from "./types.js";
 
@@ -47,8 +48,8 @@ describe("error capture through the SDK", () => {
     expect(a["everr.error.handled"]).toBe(false);
     expect(a["everr.error.mechanism"]).toBe("onerror");
     // The analytics envelope joins the error to the session's other signals.
-    expect(a["session.id"]).toMatch(/[0-9a-f-]{36}/);
-    expect(a["everr.page_view.id"]).toMatch(/[0-9a-f-]{36}/);
+    expect(a["session.id"]).toMatch(UNIQUE_ID);
+    expect(a["everr.page_view.id"]).toMatch(UNIQUE_ID);
     expect(a["url.path"]).toBe("/");
   });
 
@@ -75,7 +76,7 @@ describe("error capture through the SDK", () => {
     expect(a["everr.error.mechanism"]).toBe("react");
     expect(a["everr.error.handled"]).toBe(true);
     expect(String(a["everr.react.component_stack"])).toContain("Broken");
-    expect(a["session.id"]).toMatch(/[0-9a-f-]{36}/);
+    expect(a["session.id"]).toMatch(UNIQUE_ID);
   });
 
   it("ships the captured error on the exit flush", async () => {

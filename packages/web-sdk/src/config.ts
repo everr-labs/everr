@@ -23,7 +23,7 @@ export function resolveTransport(options: {
   const endpoint = options.endpoint?.trim().replace(/\/+$/, "");
   const headers = key ? { Authorization: `Bearer ${key}` } : undefined;
 
-  if (endpoint) return [endpoint, headers];
+  if (endpoint) return [`${endpoint}/v1/logs`, headers];
   if (key) return ["https://ingest.everr.dev/v1/logs", headers];
   if (options.dev) return ["http://127.0.0.1:54318/v1/logs", headers];
   return null;

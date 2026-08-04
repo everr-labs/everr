@@ -1,45 +1,38 @@
 import { describe, expect, it } from "vitest";
-import { init } from "./client.js";
-import type {
-  ConsentedClient,
-  CookielessClient,
-  CookielessInitOptions,
-} from "./types.js";
+import { identify, revoke } from "./identity.js";
+import type { InitOptions } from "./types.js";
 
-// Compile-time guarantees for the dual-mode API. The interesting assertions
+// Compile-time guarantees for the public API. The interesting assertions
 // are the `@ts-expect-error` lines, enforced by `tsc --noEmit` (tests are
 // included in the typecheck); the runtime block only references the values so
 // vitest and noUnusedLocals stay happy.
 
-const rejectsIdentity: CookielessInitOptions = {
-  mode: "cookieless",
+const rejectsUnknownPersistence: InitOptions = {
   serviceName: "x",
-  // @ts-expect-error - cookieless options have no identity fields
-  visitorId: "v",
+  // @ts-expect-error - persistence is "localStorage" or "memory", nothing else
+  persistence: "cookies",
 };
 
-const rejectsReplay: CookielessInitOptions = {
-  mode: "cookieless",
+const persistenceIsOptional: InitOptions = {
   serviceName: "x",
-  // @ts-expect-error - cookieless options have no replay fields
-  replay: { sampleRate: 1 },
 };
 
-// Overload resolution: cookieless options yield the cookieless handle.
-const viaInit = (options: CookielessInitOptions) => init(options);
-type CookielessReturn = ReturnType<typeof viaInit>;
-
-const handle = null as unknown as CookielessReturn;
-const isCookieless: CookielessClient = handle;
-// @ts-expect-error - the cookieless handle is not a ConsentedClient
-const notConsented: ConsentedClient = handle;
+// identify()/revoke() work like the rest of the public API (captureError,
+// logger): package-level functions, not methods on the returned handle.
+function identifyAndRevokeAreFreeFunctions(): void {
+  identify("u_123");
+  identify("u_123", { plan: "pro", company: { name: "Acme" } });
+  identify("u_123", {
+    // @ts-expect-error - trait values are scalars or nested objects, never arrays
+    tags: ["a", "b"],
+  });
+  revoke();
+}
 
 describe("type guarantees", () => {
   it("hold at compile time", () => {
-    expect(rejectsIdentity.mode).toBe("cookieless");
-    expect(rejectsReplay.mode).toBe("cookieless");
-    expect(isCookieless).toBeNull();
-    expect(notConsented).toBeNull();
-    expect(viaInit).toBeTypeOf("function");
+    expect(rejectsUnknownPersistence.serviceName).toBe("x");
+    expect(persistenceIsOptional.persistence).toBeUndefined();
+    expect(identifyAndRevokeAreFreeFunctions).toBeTypeOf("function");
   });
 });

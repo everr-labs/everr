@@ -9,6 +9,7 @@ import {
   type OtlpBatch,
   type OtlpRecord,
   startClient,
+  UNIQUE_ID,
 } from "./test-kit.js";
 import type { CaptureSignal, EverrClient } from "./types.js";
 
@@ -111,8 +112,8 @@ describe("web vitals", () => {
     // Absent-in-this-browser attribution stays absent, not empty.
     expect(a).not.toHaveProperty("everr.browser.web_vital.navigation_id");
     // The shared analytics envelope makes vitals join the session.
-    expect(a["session.id"]).toMatch(/[0-9a-f-]{36}/);
-    expect(a["everr.page_view.id"]).toMatch(/[0-9a-f-]{36}/);
+    expect(a["session.id"]).toMatch(UNIQUE_ID);
+    expect(a["everr.page_view.id"]).toMatch(UNIQUE_ID);
   });
 
   it("dedupes repeated reports by metric id, latest value not double-counted", async () => {
