@@ -1,5 +1,3 @@
-// One line per SLI group: the engine fires per group, so a pooled line would
-// let a high-volume healthy group hide one that is past its own line.
 import { ChartContainer, ChartTooltip } from "@everr/ui/components/chart";
 import {
   ChartEmptyState,
@@ -22,17 +20,16 @@ import {
   nearestSeriesKeys,
   valueAtCursorY,
 } from "@/components/dashboards/visualizations/chart-hover";
-import { SERIES_COLORS } from "@/components/dashboards/visualizations/data-utils";
 import {
   SeriesTooltipContent,
   type SeriesTooltipRow,
 } from "@/components/dashboards/visualizations/series-tooltip";
-import type { CcSloBudgetGroupSeries } from "@/data/cc/slo-series.server";
+import type { CcSloBudgetPoint } from "@/data/cc/slo-series.server";
 import { ccFmtBudgetRemaining } from "./budget-bar";
 
 // Overspend is unbounded (a budget can read -99900%), so plotting it literally
-// would crush the axis; a group past its line rests on the floor and the
-// tooltip reports how far past.
+// would crush the axis; an exhausted budget rests on the floor while the tooltip
+// reports the actual value.
 const FLOOR_PCT = 0;
 const CEIL_PCT = 100;
 
@@ -51,10 +48,6 @@ const EMPTY_KEYS: ReadonlySet<string> = new Set();
 
 /** Row key holding a series' pre-epoch (reconstructed) stretch. */
 const reconKey = (dataKey: string) => `${dataKey}_recon`;
-
-// Capped at the palette's distinct colours; the worst groups win the slots and
-// the caller is told how many were left off.
-const MAX_SERIES = SERIES_COLORS.length;
 
 export type SloBudgetEvent = {
   /** Instant of the transition, ISO 8601. */
@@ -80,20 +73,6 @@ const APPLIED_LABEL_FLIP_AT = 0.8;
 const MARKER_HIT_WIDTH = 14;
 
 const fmtCount = (n: number) => n.toLocaleString();
-
-function seriesLabel(labels: Record<string, string>): string {
-  const values = Object.values(labels);
-  return values.length === 0 ? "Budget remaining" : values.join(", ");
-}
-
-/** Latest measured budget, for ranking; null sorts as healthiest. */
-function currentBudget(group: CcSloBudgetGroupSeries): number {
-  for (let i = group.points.length - 1; i >= 0; i--) {
-    const b = group.points[i].budgetRemaining;
-    if (b !== null) return b;
-  }
-  return Number.POSITIVE_INFINITY;
-}
 
 /** One spec drives both the plotted mark and its key swatch, so they cannot diverge. */
 type Stroke = {
@@ -166,12 +145,11 @@ function ChartKey({ series, marks }: { series: KeyItem[]; marks: KeyItem[] }) {
 type MarkerTip = { t: string; rows: SeriesTooltipRow[] };
 
 export function SloBudgetChart({
-  groups,
+  points,
   epoch,
   events,
 }: {
-  /** One series per SLI group, all on the same instant grid. */
-  groups: CcSloBudgetGroupSeries[];
+  points: CcSloBudgetPoint[];
   /**
    * When the budget's meaning begins (apply / last significant edit, ISO
    * 8601); everything before it is reconstructed. Omit to treat the whole
@@ -195,27 +173,21 @@ export function SloBudgetChart({
     tip: MarkerTip;
   } | null>(null);
 
-  const instants = groups[0]?.points ?? [];
+  const instants = points;
   if (instants.length === 0) {
     return (
       <ChartEmptyState message="No telemetry in this range to compute the budget" />
     );
   }
 
-  // Worst first: slot 0 gets the emphasis and survives the MAX_SERIES cut.
-  const ranked = [...groups].sort(
-    (a, b) => currentBudget(a) - currentBudget(b),
-  );
-  const shown = ranked.slice(0, MAX_SERIES);
-  const hiddenCount = ranked.length - shown.length;
-
-  const series = shown.map((group, i) => ({
-    ...group,
-    // `s0`, `s1`, ... — recharts needs a flat, stable key per line.
-    dataKey: `s${i}`,
-    label: seriesLabel(group.labels),
-    color: SERIES_COLORS[i % SERIES_COLORS.length],
-  }));
+  const series = [
+    {
+      points,
+      dataKey: "budget",
+      label: "Budget remaining",
+      color: "var(--color-blue-500)",
+    },
+  ];
 
   const epochMs = epoch ? Date.parse(epoch) : Number.NaN;
   const hasEpoch = Number.isFinite(epochMs);
@@ -237,8 +209,8 @@ export function SloBudgetChart({
   const isReconstructed = (i: number) =>
     boundary === -1 || (boundary > 0 && i < boundary);
 
-  // Rows carry floored values; true (unfloored) values are read from `shown`
-  // by index when the tooltip needs them. Each series splits at the epoch into
+  // Rows carry floored values; true (unfloored) values are read from the
+  // series by index when the tooltip needs them. The line splits at the epoch into
   // two keys: a `<Line>` carries one stroke style, so dashed-to-solid must be
   // two lines sharing the boundary point; `plottedPct` rejoins them for reads.
   const data = instants.map((_, pointIdx) => {
@@ -434,8 +406,7 @@ export function SloBudgetChart({
             domain={Y_DOMAIN}
             tickFormatter={(v: number) => `${v}%`}
           />
-          {/* Pre-epoch region shaded once for the whole plot rather than
-            dashed per line: stays readable at any group count. */}
+          {/* Shade reconstructed history instead of relying on line styling alone. */}
           {reconstructedTo && (
             <ReferenceArea
               x1={instants[0].t}
@@ -455,9 +426,7 @@ export function SloBudgetChart({
           {/* Drives recharts' active index only; the visible card is the
             portaled CursorTooltip below. */}
           <ChartTooltip cursor={false} content={() => null} />
-          {/* Painted worst-last so the worst group sits on top where lines
-            cross. SVG paints in document order, so the reference lines
-            declared after these stay legible over the series. */}
+          {/* Reference lines are declared later so they remain legible over the series. */}
           {[...series].reverse().flatMap((s, i) => {
             const worst = i === series.length - 1;
             const common = {
@@ -542,12 +511,6 @@ export function SloBudgetChart({
         </LineChart>
       </ChartContainer>
       <ChartKey series={keySeries} marks={keyMarks} />
-      {hiddenCount > 0 && (
-        <p className="mt-1 text-[0.6875rem] text-muted-foreground">
-          Showing the {shown.length} groups with the least budget left;{" "}
-          {hiddenCount} more {hiddenCount === 1 ? "is" : "are"} not plotted.
-        </p>
-      )}
       {markerHover && (
         <CursorTooltip x={markerHover.x} y={markerHover.y}>
           <SeriesTooltipContent

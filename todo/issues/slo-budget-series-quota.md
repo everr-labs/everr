@@ -58,8 +58,8 @@ point cheap to compute, a cache makes most points unnecessary to compute. They
 compose, and the cache is far less work.
 
 ## Sketch
-- Cache per point, not per series: key on `(sloId, specVersion, instant)`, value
-  the per-group `(good, valid)` rows. Scrolling the range or changing the point
+- Cache per point: key on `(sloId, specVersion, instant)`, value the scalar
+  `(good, valid)` row. Scrolling the range or changing the point
   count then reuses whatever overlaps instead of missing wholesale.
 - Include something that changes when the SLI does (the SLO's `version`, or a
   hash of `sliSql` + `targetPercent` + `windowSecs`), so editing an SLO cannot

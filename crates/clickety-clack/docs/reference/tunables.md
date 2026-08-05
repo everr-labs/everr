@@ -37,7 +37,7 @@ so you know the system's actual behavior without reading the source.
 | Group flush poll      | 200 ms       | How often the flusher checks for due groups. |
 | Group wait (default)  | 10 s         | Initial hold before a group's first delivery (per-route override: `group_wait_secs`). |
 | Group interval (default) | 300 s     | Minimum spacing between a group's later deliveries (per-route override: `group_interval_secs`). |
-| Default `group_by`    | `["rule","severity"]` | Grouping key when a route omits it, for rule events. An SLO event on a route with no `group_by` gets the SLO default instead: `slo` plus the event's own labels, excluding `slo_tier` (so all of a group's burn-rate tiers land in one notification group). |
+| Default `group_by`    | `["rule","severity"]` | Grouping key when a route omits it, for rule events. An SLO event instead defaults to `["slo"]`, so all burn-rate tiers for that SLO land in one notification group. |
 | Group TTL             | 7 days       | A group hash expires if untouched this long. |
 | Max delivery attempts | 4            | Retries before an event is dead-lettered. |
 | Retry backoff         | `50ms · 2^attempt`, capped at 5s | Deterministic exponential backoff between attempts (transient errors only). |

@@ -237,8 +237,8 @@ service:
       receivers: [otlp/trusted]
       processors: [batch]
       exporters: [clickhouse, debug]
-    # Trusted SLO samples: CC records raw (good, valid) counts per SLO/group/
-    # window as gauges. Same trust as logs/trusted (no strip, no stamp) so the
+    # Trusted SLO samples: CC records raw (good, valid) counts per SLO/window as
+    # gauges. Same trust as logs/trusted (no strip, no stamp) so the
     # per-ResourceMetrics everr.tenant.id flows to app.metrics_gauge.tenant_id.
     metrics/trusted:
       receivers: [otlp/trusted]

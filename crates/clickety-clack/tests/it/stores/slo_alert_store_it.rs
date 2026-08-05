@@ -14,7 +14,7 @@ fn tenant() -> TenantId {
 
 fn spec() -> SloSpec {
     SloSpec {
-        sli: SliSpec { sql: "SELECT 1 AS good, 1 AS valid FROM t WHERE ts >= {window_start:DateTime} AND ts < {window_end:DateTime}".into(), label_columns: vec![] },
+        sli: SliSpec { sql: "SELECT 1 AS good, 1 AS valid FROM t WHERE ts >= {window_start:DateTime} AND ts < {window_end:DateTime}".into() },
         target_percent: 99.9,
         time_window: TimeWindow { duration: "30d".into(), is_rolling: true, calendar: None },
         min_valid_events: None, annotations: BTreeMap::new(), suppressed: false,
@@ -181,37 +181,6 @@ async fn stale_scan_excludes_paused_and_degraded() {
     let stale = s.list_stale_slo_instances(now, 30, 10).await.unwrap();
     assert_eq!(stale.len(), 1);
     assert_eq!(stale[0].source, SourceId::Slo(healthy_slo));
-}
-
-#[tokio::test]
-async fn list_for_dispatch_projects_label_columns() {
-    let s = store().await;
-    let t = tenant();
-
-    // Explicit label_columns are returned verbatim.
-    let mut spec_a = spec();
-    spec_a.sli.label_columns = vec!["service".to_string()];
-    let slo_a = match s.create_slo(t.clone(), "", "a", &spec_a).await.unwrap() {
-        SloCreate::Created(slo) => slo.id,
-        other => panic!("expected Created, got {other:?}"),
-    };
-
-    // A scalar SLO (no label columns) comes back with an empty list.
-    let mut spec_b = spec();
-    spec_b.sli.label_columns = vec![];
-    let slo_b = match s.create_slo(t.clone(), "", "b", &spec_b).await.unwrap() {
-        SloCreate::Created(slo) => slo.id,
-        other => panic!("expected Created, got {other:?}"),
-    };
-
-    let dispatch = s.list_slos_for_dispatch(&t).await.unwrap();
-    assert_eq!(dispatch.len(), 2);
-
-    let got_a = dispatch.iter().find(|d| d.id == slo_a).unwrap();
-    assert_eq!(got_a.label_columns, vec!["service".to_string()]);
-
-    let got_b = dispatch.iter().find(|d| d.id == slo_b).unwrap();
-    assert!(got_b.label_columns.is_empty());
 }
 
 #[tokio::test]

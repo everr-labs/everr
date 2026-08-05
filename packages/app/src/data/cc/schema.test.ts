@@ -116,7 +116,7 @@ it("SloView (list/get) requires updated_at; the bare Slo (mutations) has none", 
     tenant: "org1",
     name: "checkout-availability",
     spec: {
-      sli: { sql: "SELECT 1 AS good, 1 AS valid", label_columns: [] },
+      sli: { sql: "SELECT 1 AS good, 1 AS valid" },
       targetPercent: 99.9,
       timeWindow: { duration: "30d", isRolling: true },
       annotations: {},
@@ -142,55 +142,45 @@ it("parses the enriched SLO status snapshot (SloStatusOut)", () => {
     payload: {
       window: "30d",
       target_percent: 99.9,
-      groups: [
+      sli: 0.9992,
+      budget_remaining: 0.42,
+      tiers: [
         {
-          labels: { service: "checkout" },
-          sli: 0.9992,
-          budget_remaining: 0.42,
-          tiers: [
-            {
-              name: "fast-burn",
-              long_burn_rate: 1.4,
-              short_burn_rate: 0.9,
-              long_window_valid: 120000,
-            },
-            {
-              name: "ticket",
-              long_burn_rate: null,
-              short_burn_rate: null,
-              long_window_valid: null,
-            },
-          ],
-          time_to_exhaustion_secs: 777600,
-          firing_tiers: [{ tier: "fast-burn", status: "firing" }],
+          name: "fast-burn",
+          long_burn_rate: 1.4,
+          short_burn_rate: 0.9,
+          long_window_valid: 120000,
+        },
+        {
+          name: "ticket",
+          long_burn_rate: null,
+          short_burn_rate: null,
+          long_window_valid: null,
         },
       ],
+      time_to_exhaustion_secs: 777600,
+      firing_tiers: [{ tier: "fast-burn", status: "firing" }],
       window_computed_at: { "300s": 1752829200, "2592000s": 1752825600 },
     },
     health: { status: "healthy", degraded_since: null, last_error: null },
   });
-  expect(status.payload?.groups[0].budget_remaining).toBe(0.42);
-  expect(status.payload?.groups[0].firing_tiers[0].tier).toBe("fast-burn");
-  expect(status.payload?.groups[0].time_to_exhaustion_secs).toBe(777600);
+  expect(status.payload?.budget_remaining).toBe(0.42);
+  expect(status.payload?.firing_tiers[0].tier).toBe("fast-burn");
+  expect(status.payload?.time_to_exhaustion_secs).toBe(777600);
   expect(status.health.status).toBe("healthy");
 });
 
-it("parses a scalar-group snapshot missing the enrichment (legacy row served raw)", () => {
+it("parses a scalar snapshot missing the enrichment", () => {
   // Legacy rows can lack enrichment fields.
   const status = CcSloStatusSchema.parse({
     computed_at: "2026-07-18T09:00:00Z",
     payload: {
       window: "30d",
       target_percent: 99.9,
-      groups: [
-        {
-          labels: {},
-          sli: null,
-          budget_remaining: null,
-          tiers: [
-            { name: "fast-burn", long_burn_rate: null, short_burn_rate: null },
-          ],
-        },
+      sli: null,
+      budget_remaining: null,
+      tiers: [
+        { name: "fast-burn", long_burn_rate: null, short_burn_rate: null },
       ],
       window_computed_at: {},
     },
@@ -200,10 +190,9 @@ it("parses a scalar-group snapshot missing the enrichment (legacy row served raw
       last_error: "query failed: boom",
     },
   });
-  const group = status.payload?.groups[0];
-  expect(group?.time_to_exhaustion_secs).toBeNull();
-  expect(group?.firing_tiers).toEqual([]);
-  expect(group?.tiers[0].long_window_valid).toBeNull();
+  expect(status.payload?.time_to_exhaustion_secs).toBeNull();
+  expect(status.payload?.firing_tiers).toEqual([]);
+  expect(status.payload?.tiers[0].long_window_valid).toBeNull();
   expect(status.health.status).toBe("degraded");
 });
 

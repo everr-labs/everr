@@ -89,7 +89,6 @@ fn spec(suppressed: bool) -> SloSpec {
     SloSpec {
         sli: SliSpec {
             sql: "SELECT countIf(ok) AS good, count() AS valid FROM t WHERE ts >= {window_start:DateTime} AND ts < {window_end:DateTime}".into(),
-            label_columns: vec![],
         },
         target_percent: 99.9,
         time_window: TimeWindow {
@@ -169,7 +168,7 @@ async fn breach_fires_and_recovery_resolves() {
     }
 
     let insts = store.load_slo_instances(&tenant, slo.id).await.unwrap();
-    assert_eq!(insts.len(), 3, "one instance per (group x tier): {insts:?}");
+    assert_eq!(insts.len(), 3, "one instance per tier: {insts:?}");
     assert!(
         insts.iter().all(|i| i.status == Status::Firing),
         "{insts:?}"

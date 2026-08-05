@@ -37,7 +37,7 @@ pub fn validate(sql: &str) -> Result<(), GuardError> {
 /// Cost caps applied to every rule and SLO query.
 ///
 /// The result caps bound what the evaluator buffers in memory (`ChClient` reads the whole
-/// response body before parsing): a sane rule/SLO query returns per-group aggregates, so
+/// response body before parsing): a sane rule/SLO query returns bounded aggregates, so
 /// 100k rows / 20MB is far past legitimate use. `result_overflow_mode=throw` (also the
 /// server default) fails the query loudly instead of silently truncating groups, which
 /// would suppress alerts.

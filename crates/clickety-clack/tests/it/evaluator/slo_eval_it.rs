@@ -2,7 +2,7 @@ use crate::support::create_test_slo;
 use async_trait::async_trait;
 use cc::domain::ids::TenantId;
 use cc::domain::slo::{SliSpec, SloSpec, TimeWindow};
-use cc::engine::slo_math::{SloGroupStatus, SloStatusPayload, SloTierStatus};
+use cc::engine::slo_math::{SloStatusPayload, SloTierStatus};
 use cc::stores::PgStore;
 use std::collections::BTreeMap;
 use std::sync::atomic::{AtomicUsize, Ordering};
@@ -65,11 +65,37 @@ impl cc::clickhouse::RowQuerier for ErrCh {
     }
 }
 
+struct MultiRowCh;
+
+#[async_trait]
+impl cc::clickhouse::RowQuerier for MultiRowCh {
+    async fn query_rows_params(
+        &self,
+        _t: &TenantId,
+        _s: &str,
+        _p: &[(String, String)],
+        _lc: &[String],
+        _vc: Option<&str>,
+    ) -> Result<Vec<cc::clickhouse::ResultRow>, cc::clickhouse::ChError> {
+        let row = || cc::clickhouse::ResultRow {
+            labels: BTreeMap::new(),
+            value: Some(100.0),
+            extra: BTreeMap::from([("good".into(), serde_json::json!(99.0))]),
+        };
+        Ok(vec![row(), row()])
+    }
+
+    fn auth_identity(&self, t: &TenantId) -> cc::clickhouse::AuthIdentity {
+        cc::clickhouse::AuthIdentity {
+            user: t.as_str().to_string(),
+        }
+    }
+}
+
 fn spec() -> SloSpec {
     SloSpec {
         sli: SliSpec {
             sql: "SELECT countIf(ok) AS good, count() AS valid FROM t WHERE ts >= {window_start:DateTime} AND ts < {window_end:DateTime}".into(),
-            label_columns: vec![],
         },
         target_percent: 99.9,
         time_window: TimeWindow {
@@ -121,11 +147,9 @@ async fn evaluate_writes_budget_snapshot() {
         .await
         .unwrap()
         .unwrap();
-    let groups = snap.payload.get("groups").unwrap().as_array().unwrap();
-    assert_eq!(groups.len(), 1);
-    let br = groups[0]["tiers"][0]["long_burn_rate"].as_f64().unwrap();
+    let br = snap.payload["tiers"][0]["long_burn_rate"].as_f64().unwrap();
     assert!((br - 14.4).abs() < 1e-3, "got {br}");
-    assert!(groups[0]["budget_remaining"].as_f64().unwrap() < 0.0); // over budget
+    assert!(snap.payload["budget_remaining"].as_f64().unwrap() < 0.0);
 }
 
 #[tokio::test]
@@ -162,6 +186,51 @@ async fn query_error_degrades_and_does_not_write_snapshot() {
         .is_none());
 }
 
+#[tokio::test]
+async fn multiple_rows_degrade_and_do_not_write_snapshot() {
+    let store = PgStore::connect(&crate::support::fresh_db().await)
+        .await
+        .unwrap();
+    let tenant = TenantId::from_trusted("multi-row");
+    let slo = create_test_slo(
+        &store,
+        tenant.clone(),
+        "t/multiple_rows_degrade_and_do_not_write_snapshot",
+        &spec(),
+    )
+    .await;
+
+    cc::evaluator::slo::evaluate_slo(
+        &store,
+        &MultiRowCh,
+        &NoopBus,
+        &cc::domain::NullSink,
+        &slo,
+        OffsetDateTime::now_utc(),
+        30,
+        1,
+        0,
+    )
+    .await
+    .unwrap();
+
+    assert!(store
+        .get_slo_status(&tenant, slo.id)
+        .await
+        .unwrap()
+        .is_none());
+    let health = store
+        .get_slo_health(&tenant, slo.id)
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(health.status, "degraded");
+    assert_eq!(
+        health.last_error.as_deref(),
+        Some("SLI query must return at most one row")
+    );
+}
+
 /// Freshness/merge integration: seed a prior snapshot whose long/budget windows were
 /// "just computed", leaving only the short windows due. Asserts (a) the querier is
 /// only called for the due short windows (fresh long/budget windows are skipped), and
@@ -191,31 +260,28 @@ async fn fresh_windows_are_not_requeried() {
     let prior = SloStatusPayload {
         window: "30d".into(),
         target_percent: 99.9,
-        groups: vec![SloGroupStatus {
-            labels: BTreeMap::new(),
-            sli: Some(0.999),
-            budget_remaining: Some(0.5),
-            tiers: vec![
-                SloTierStatus {
-                    name: "fast-burn".into(),
-                    long_burn_rate: Some(1.0),
-                    short_burn_rate: Some(2.0),
-                    long_window_valid: None,
-                },
-                SloTierStatus {
-                    name: "slow-burn".into(),
-                    long_burn_rate: Some(3.0),
-                    short_burn_rate: Some(4.0),
-                    long_window_valid: None,
-                },
-                SloTierStatus {
-                    name: "ticket".into(),
-                    long_burn_rate: Some(5.0),
-                    short_burn_rate: Some(6.0),
-                    long_window_valid: None,
-                },
-            ],
-        }],
+        sli: Some(0.999),
+        budget_remaining: Some(0.5),
+        tiers: vec![
+            SloTierStatus {
+                name: "fast-burn".into(),
+                long_burn_rate: Some(1.0),
+                short_burn_rate: Some(2.0),
+                long_window_valid: None,
+            },
+            SloTierStatus {
+                name: "slow-burn".into(),
+                long_burn_rate: Some(3.0),
+                short_burn_rate: Some(4.0),
+                long_window_valid: None,
+            },
+            SloTierStatus {
+                name: "ticket".into(),
+                long_burn_rate: Some(5.0),
+                short_burn_rate: Some(6.0),
+                long_window_valid: None,
+            },
+        ],
         window_computed_at: BTreeMap::from([
             ("3600s".into(), seed_ts.unix_timestamp()),
             ("21600s".into(), seed_ts.unix_timestamp()),
@@ -284,13 +350,15 @@ async fn fresh_windows_are_not_requeried() {
         eval_ts.unix_timestamp()
     );
 
-    assert_eq!(payload.groups.len(), 1);
-    let group = &payload.groups[0];
     // budget window (2592000s) was not due -> sli/budget_remaining carried from prior
-    assert_eq!(group.sli, Some(0.999));
-    assert_eq!(group.budget_remaining, Some(0.5));
+    assert_eq!(payload.sli, Some(0.999));
+    assert_eq!(payload.budget_remaining, Some(0.5));
 
-    let fast = group.tiers.iter().find(|t| t.name == "fast-burn").unwrap();
+    let fast = payload
+        .tiers
+        .iter()
+        .find(|t| t.name == "fast-burn")
+        .unwrap();
     assert_eq!(
         fast.long_burn_rate,
         Some(1.0),
@@ -302,14 +370,18 @@ async fn fresh_windows_are_not_requeried() {
         "short burn rate must be recomputed this tick (its window was due)"
     );
 
-    let slow = group.tiers.iter().find(|t| t.name == "slow-burn").unwrap();
+    let slow = payload
+        .tiers
+        .iter()
+        .find(|t| t.name == "slow-burn")
+        .unwrap();
     assert_eq!(
         slow.long_burn_rate,
         Some(3.0),
         "slow-burn long burn rate carried (21600s not due)"
     );
 
-    let ticket = group.tiers.iter().find(|t| t.name == "ticket").unwrap();
+    let ticket = payload.tiers.iter().find(|t| t.name == "ticket").unwrap();
     assert_eq!(
         ticket.long_burn_rate,
         Some(5.0),
@@ -360,12 +432,9 @@ async fn stale_ledger_windows_are_pruned_to_the_current_tier_set() {
     let prior = SloStatusPayload {
         window: "7d".into(),
         target_percent: 99.9,
-        groups: vec![SloGroupStatus {
-            labels: BTreeMap::new(),
-            sli: Some(0.999),
-            budget_remaining: Some(0.5),
-            tiers: vec![],
-        }],
+        sli: Some(0.999),
+        budget_remaining: Some(0.5),
+        tiers: vec![],
         window_computed_at: ledger,
         objective_fingerprint: Some(cc::domain::slo::objective_fingerprint(&spec_7d)),
     };
@@ -474,7 +543,7 @@ async fn garbage_prior_payload_self_heals_instead_of_freezing() {
     let payload: SloStatusPayload = serde_json::from_value(snap.payload)
         .expect("the new snapshot must be a well-formed SloStatusPayload");
     assert!(
-        !payload.groups.is_empty(),
-        "self-heal recomputes every window fresh, so groups must be populated"
+        payload.sli.is_some(),
+        "self-heal recomputes every window fresh, so the SLI must be populated"
     );
 }

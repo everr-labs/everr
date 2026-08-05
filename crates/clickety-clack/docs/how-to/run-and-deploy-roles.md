@@ -144,7 +144,7 @@ event:
   `slow-burn`, and `ticket` together can page for all three instead of just
   the fastest;
 - grouping falls back to the ordinary `["rule","severity"]` default instead of
-  the SLO's `["slo", ...group labels]` default (an explicit route `group_by`
+  the SLO's `["slo"]` default (an explicit route `group_by`
   is unaffected either way).
 
 None of this corrupts state: it's a temporary loss of the SLO-specific

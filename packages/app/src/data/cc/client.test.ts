@@ -134,7 +134,7 @@ it("listAllRules forwards namespace/name filters to every page", async () => {
 });
 
 const sloSpec = {
-  sli: { sql: "SELECT 1 AS good, 1 AS valid", label_columns: [] },
+  sli: { sql: "SELECT 1 AS good, 1 AS valid" },
   targetPercent: 99.9,
   timeWindow: { duration: "30d", isRolling: true },
   annotations: {},

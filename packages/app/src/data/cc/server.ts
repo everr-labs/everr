@@ -294,7 +294,6 @@ export const getCcSloBudgetSeries = createAuthenticatedServerFn({
       // the engine's throttled last eval.
       return querySloBudgetSeries(createSloQuery(org), {
         sliSql: slo.spec.sli.sql,
-        labelColumns: slo.spec.sli.label_columns,
         targetPercent: slo.spec.targetPercent,
         windowSecs,
         fromISO,
@@ -305,7 +304,7 @@ export const getCcSloBudgetSeries = createAuthenticatedServerFn({
   );
 
 // Read-time budget that overrides the stored snapshot's throttled value. An
-// unparsable window shorthand returns []. The SLI runs as the hardened per-org
+// unparsable window shorthand returns null. The SLI runs as the hardened per-org
 // SQL API user because its SQL is tenant-authored.
 export const getCcSloBudgetNow = createAuthenticatedServerFn({ method: "GET" })
   .inputValidator(z.object({ sloId: z.string().min(1) }))
@@ -313,10 +312,9 @@ export const getCcSloBudgetNow = createAuthenticatedServerFn({ method: "GET" })
     const org = orgId(session);
     const slo = await cc.getSlo(org, sloId);
     const windowSecs = ccSloWindowSecs(slo.spec);
-    if (windowSecs === null) return [];
+    if (windowSecs === null) return null;
     return querySloBudgetNow(createSloQuery(org), {
       sliSql: slo.spec.sli.sql,
-      labelColumns: slo.spec.sli.label_columns,
       targetPercent: slo.spec.targetPercent,
       windowSecs,
       nowMs: Date.now(),
@@ -349,21 +347,18 @@ export const listCcLabelKeys = createAuthenticatedServerFn({
     context: { session, clickhouse },
   }): Promise<CcLabelKeySuggestion[]> => {
     const { fromISO, toISO } = resolveTimeRange(SUGGESTION_WINDOW);
-    const [observed, rules, slos, alerts] = await Promise.allSettled([
+    const [observed, rules, alerts] = await Promise.allSettled([
       queryObservedLabelKeys(clickhouse.query, {
         limit: SUGGESTION_LIMIT,
         fromISO,
         toISO,
       }),
       cc.listAllRules(orgId(session)),
-      cc.listSlos(orgId(session)),
       cc.listAlerts(orgId(session)),
     ]);
     const merged = new Set<string>(settled(observed, []));
     for (const rule of settled(rules, []))
       for (const key of rule.spec.label_columns) merged.add(key);
-    for (const slo of settled(slos, []))
-      for (const key of slo.spec.sli.label_columns) merged.add(key);
     for (const alert of settled(alerts, []))
       for (const key of Object.keys(alert.labels)) merged.add(key);
     // Engine-reserved keys win on collision at dispatch time, so they win here.

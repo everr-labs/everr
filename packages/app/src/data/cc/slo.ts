@@ -1,6 +1,6 @@
 import { parseResourceName } from "@/data/as-code/identity";
 import { fromCcSlo } from "@/data/slos/mapping";
-import type { CcSlo, CcSloGroupStatus, CcSloSpec, CcSloTier } from "./types";
+import type { CcSlo, CcSloSpec, CcSloStatusPayload, CcSloTier } from "./types";
 
 /**
  * Mirrors domain/slo.rs `canonical_tiers()`: the fixed 30-day-calibrated set
@@ -238,7 +238,7 @@ export function ccEffectiveBurn(
  */
 export function ccSloCurrentBurn(
   specTiers: readonly CcSloTier[],
-  snapshot: CcSloGroupStatus["tiers"],
+  snapshot: CcSloStatusPayload["tiers"],
 ): { rate: number; effective: number | null; window: string } | null {
   const byName = new Map(snapshot.map((t) => [t.name, t]));
   let best: {
@@ -286,9 +286,7 @@ export function ccSloBurnPace(rate: number | null): CcSloBurnPace {
 }
 
 /**
- * The highest severity among a group's (or several groups', flattened) firing
- * tiers; null when nothing fires. The one owner of the critical > warning >
- * none ladder every verdict surface ranks by.
+ * The highest severity among the firing tiers; null when nothing fires.
  */
 export function ccSloFiringSeverity(
   specTiers: readonly CcSloTier[],
@@ -304,27 +302,18 @@ export function ccSloFiringSeverity(
 }
 
 /**
- * SLO-wide pace: a firing tier in ANY group wins; otherwise the fastest
- * confirmed burn across groups. The worst-by-budget group alone cannot carry
- * the verdict: it may have no recent events (null burn) while a sibling group
- * is burning or already firing.
+ * SLO pace: a firing tier wins, otherwise use the fastest confirmed burn.
  */
 export function ccSloOverallPace(
   specTiers: readonly CcSloTier[],
-  groups: readonly CcSloGroupStatus[],
+  status: CcSloStatusPayload,
 ): CcSloBurnPace {
-  const severity = ccSloFiringSeverity(
-    specTiers,
-    groups.flatMap((g) => g.firing_tiers),
-  );
+  const severity = ccSloFiringSeverity(specTiers, status.firing_tiers);
   if (severity === "critical") return "burning-fast";
   if (severity !== null) return "burning";
-  let fastest: number | null = null;
-  for (const g of groups) {
-    const burn = ccSloCurrentBurn(specTiers, g.tiers)?.effective ?? null;
-    if (burn !== null && (fastest === null || burn > fastest)) fastest = burn;
-  }
-  return ccSloBurnPace(fastest);
+  return ccSloBurnPace(
+    ccSloCurrentBurn(specTiers, status.tiers)?.effective ?? null,
+  );
 }
 
 export function ccSloBurnPaceLabel(pace: CcSloBurnPace): string {
@@ -349,47 +338,8 @@ export function ccFormatSloTarget(targetPercent: number): string {
   return `${targetPercent}%`;
 }
 
-/**
- * The SLO's headline group: the one most needing attention. Null-budget groups
- * sort last so a real number always wins when one exists. Null only when there
- * are no groups.
- */
-export function ccWorstSloGroup(
-  specTiers: readonly CcSloTier[],
-  groups: readonly CcSloGroupStatus[],
-): CcSloGroupStatus | null {
-  // critical firing > warning firing > not firing; budget only breaks ties.
-  // An active fire outranks a budget scar: a group that stopped emitting can
-  // hold the lowest budget forever, and comparing two spent budgets
-  // (-2.2k% vs -2.1k%) carries no meaning.
-  const urgency = (g: CcSloGroupStatus): number => {
-    const severity = ccSloFiringSeverity(specTiers, g.firing_tiers);
-    return severity === "critical" ? 2 : severity !== null ? 1 : 0;
-  };
-  let worst: CcSloGroupStatus | null = null;
-  let worstUrgency = -1;
-  for (const g of groups) {
-    const u = urgency(g);
-    if (worst === null || u > worstUrgency) {
-      worst = g;
-      worstUrgency = u;
-      continue;
-    }
-    if (u < worstUrgency) continue;
-    const a = g.budget_remaining ?? Number.POSITIVE_INFINITY;
-    const b = worst.budget_remaining ?? Number.POSITIVE_INFINITY;
-    if (a < b) worst = g;
-  }
-  return worst;
-}
-
-/**
- * One group's read-time error budget (slo-series.server.ts `querySloBudgetNow`),
- * merged onto the stored snapshot by `ccApplyFreshBudget`: the engine's budget
- * window only re-evaluates every ~window/12, so surfaces show this instead.
- */
-export type CcFreshBudgetGroup = {
-  labels: Record<string, string>;
+/** Read-time error budget from `querySloBudgetNow`. */
+export type CcFreshBudget = {
   sli: number | null;
   budgetRemaining: number | null;
 };
@@ -450,43 +400,27 @@ export function ccSloExhaustion(
   return { kind: "unknown", label: "—" };
 }
 
-/** Order-independent, collision-safe key identifying a group by its label set. */
-export function ccSloLabelsKey(labels: Record<string, string>): string {
-  const sorted: Record<string, string> = {};
-  for (const k of Object.keys(labels).sort()) sorted[k] = labels[k];
-  return JSON.stringify(sorted);
-}
-
 /**
- * Override each group's budget/SLI/TTE with fresh read-time values, matched by
- * label set; unmatched groups keep the stored snapshot (fallback while the scan
- * is in flight or failed). Burn rates and firing tiers always stay from the
- * snapshot: they refresh far more often than the throttled budget window. TTE
- * is re-derived from the fresh budget and `ccSloCurrentBurn`'s `effective`
- * burn, exactly as api/slos.rs projects it.
+ * Override the stored budget/SLI/TTE with fresh read-time values. Burn rates
+ * and firing tiers stay from the evaluator snapshot.
  */
 export function ccApplyFreshBudget(
   specTiers: readonly CcSloTier[],
-  groups: readonly CcSloGroupStatus[],
-  fresh: readonly CcFreshBudgetGroup[] | undefined,
+  status: CcSloStatusPayload,
+  fresh: CcFreshBudget | undefined,
   windowSecs: number | null,
-): CcSloGroupStatus[] {
-  if (fresh === undefined || fresh.length === 0) return groups.slice();
-  const byKey = new Map(fresh.map((f) => [ccSloLabelsKey(f.labels), f]));
-  return groups.map((g) => {
-    const f = byKey.get(ccSloLabelsKey(g.labels));
-    if (f === undefined) return g;
-    return {
-      ...g,
-      sli: f.sli,
-      budget_remaining: f.budgetRemaining,
-      time_to_exhaustion_secs: ccTimeToExhaustionSecs(
-        f.budgetRemaining,
-        ccSloCurrentBurn(specTiers, g.tiers)?.effective ?? null,
-        windowSecs,
-      ),
-    };
-  });
+): CcSloStatusPayload {
+  if (fresh === undefined) return status;
+  return {
+    ...status,
+    sli: fresh.sli,
+    budget_remaining: fresh.budgetRemaining,
+    time_to_exhaustion_secs: ccTimeToExhaustionSecs(
+      fresh.budgetRemaining,
+      ccSloCurrentBurn(specTiers, status.tiers)?.effective ?? null,
+      windowSecs,
+    ),
+  };
 }
 
 // `at-risk` is the low-budget warning band; `unknown` is no snapshot yet.
@@ -498,18 +432,18 @@ export type CcSloState =
   | "healthy"
   | "unknown";
 
-export function ccSloGroupState(
+export function ccSloStatusState(
   tiers: readonly CcSloTier[],
-  group: CcSloGroupStatus | null,
+  status: CcSloStatusPayload | null,
 ): CcSloState {
-  if (group === null) return "unknown";
-  if (ccBudgetExhausted(group.budget_remaining)) {
+  if (status === null) return "unknown";
+  if (ccBudgetExhausted(status.budget_remaining)) {
     return "exhausted";
   }
-  const severity = ccSloFiringSeverity(tiers, group.firing_tiers);
+  const severity = ccSloFiringSeverity(tiers, status.firing_tiers);
   if (severity === "critical") return "firing-critical";
   if (severity !== null) return "firing-warning";
-  if (group.budget_remaining !== null && group.budget_remaining < 0.25) {
+  if (status.budget_remaining !== null && status.budget_remaining < 0.25) {
     return "at-risk";
   }
   return "healthy";

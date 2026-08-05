@@ -10,9 +10,6 @@ use crate::domain::rule::Severity;
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct SliSpec {
     pub sql: String,
-    /// Columns that fan the SLO out into per-group SLIs. Empty = scalar SLO.
-    #[serde(default)]
-    pub label_columns: Vec<String>,
 }
 
 /// OpenSLO-aligned time window. v1 implements rolling only; the calendar arm
@@ -90,9 +87,6 @@ pub struct Slo {
 pub const SLO_LABEL: &str = "slo";
 /// The per-tier instance discriminator injected into burn-rate instance labels.
 pub const SLO_TIER_LABEL: &str = "slo_tier";
-/// Label names the SLO pipeline injects; user label columns must not collide.
-pub const RESERVED_SLO_LABELS: [&str; 2] = [SLO_LABEL, SLO_TIER_LABEL];
-
 /// The window the canonical burn-rate table is calibrated for (30 days). The SRE
 /// workbook's 1h/6h/3d windows and 14.4/6/1 thresholds all assume this budget
 /// window; [`tiers_for_window`] scales the windows to any other.
@@ -292,9 +286,9 @@ pub fn fmt_window_secs(secs: u64) -> String {
 }
 
 /// A stable fingerprint of the SLO's *objective*: the fields that determine what
-/// a stored status snapshot's numbers mean — the SLI (query + group columns), the
-/// target, and the time window. When it changes, a snapshot's groups and
-/// per-window burn/budget values describe a different query, so both the evaluator
+/// a stored status snapshot's numbers mean: the SLI query, target, and time window.
+/// When it changes, the snapshot's per-window burn/budget values describe a
+/// different query, so both the evaluator
 /// (carry-forward) and the store (`update_slo`) drop the snapshot on a mismatch.
 ///
 /// The excluded fields (`min_valid_events`, `annotations`, `suppressed`) affect
@@ -304,11 +298,6 @@ pub fn fmt_window_secs(secs: u64) -> String {
 pub fn objective_fingerprint(spec: &SloSpec) -> String {
     let mut h = Sha256::new();
     h.update(spec.sli.sql.as_bytes());
-    h.update([0u8]);
-    for col in &spec.sli.label_columns {
-        h.update(col.as_bytes());
-        h.update([0u8]);
-    }
     h.update([0u8]);
     h.update(spec.target_percent.to_bits().to_le_bytes());
     h.update(spec.time_window.duration.as_bytes());
@@ -450,7 +439,6 @@ mod tests {
         assert_eq!(spec.time_window.duration, "30d");
         assert!(spec.time_window.is_rolling); // default true
         assert!(spec.time_window.calendar.is_none());
-        assert!(spec.sli.label_columns.is_empty()); // default []
         assert!(spec.min_valid_events.is_none());
         assert!(!spec.suppressed); // default false
         assert!(spec.annotations.is_empty());
@@ -460,7 +448,6 @@ mod tests {
         SloSpec {
             sli: SliSpec {
                 sql: "SELECT 1 AS good, 1 AS valid".into(),
-                label_columns: vec!["service".into()],
             },
             target_percent: 99.9,
             time_window: TimeWindow {
@@ -493,10 +480,6 @@ mod tests {
         sql.sli.sql = "SELECT 2 AS good, 2 AS valid".into();
         assert_ne!(objective_fingerprint(&sql), base);
 
-        let mut cols = fp_spec();
-        cols.sli.label_columns = vec!["service".into(), "region".into()];
-        assert_ne!(objective_fingerprint(&cols), base);
-
         let mut target = fp_spec();
         target.target_percent = 99.5;
         assert_ne!(objective_fingerprint(&target), base);
@@ -525,15 +508,5 @@ mod tests {
         let mut suppressed = fp_spec();
         suppressed.suppressed = true;
         assert_eq!(objective_fingerprint(&suppressed), base);
-    }
-
-    #[test]
-    fn objective_fingerprint_column_boundary_is_unambiguous() {
-        // ["a","b"] must not collide with ["ab"]: the `\0` separators disambiguate.
-        let mut ab = fp_spec();
-        ab.sli.label_columns = vec!["a".into(), "b".into()];
-        let mut concat = fp_spec();
-        concat.sli.label_columns = vec!["ab".into()];
-        assert_ne!(objective_fingerprint(&ab), objective_fingerprint(&concat));
     }
 }

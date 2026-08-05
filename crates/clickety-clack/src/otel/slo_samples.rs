@@ -1,8 +1,8 @@
 //! Ships SLO evaluation samples to the collector's TRUSTED OTLP ingest path as
 //! OTLP gauges, mirroring the alert-log exporter (`otel::exporter`). Each sample
-//! is one group's raw `(good, valid)` counts over one window; they become two
+//! is one SLO's raw `(good, valid)` counts over one window; they become two
 //! gauge metrics (`cc.slo.good`, `cc.slo.valid`) whose datapoints carry the SLO
-//! identity + window + group labels as attributes. Grouped into one
+//! identity and window as attributes. Batched into one
 //! `ResourceMetrics` per CUSTOMER tenant, tagged with `everr.tenant.id` so the
 //! trusted pipeline (which does NOT strip/override it) routes each tenant's rows
 //! into `app.metrics_gauge` under its own `tenant_id`.
@@ -37,10 +37,6 @@ pub const METRIC_VALID: &str = "cc.slo.valid";
 const ATTR_SLO_ID: &str = "slo.id";
 const ATTR_SLO_NAME: &str = "slo.name";
 const ATTR_SLO_WINDOW: &str = "slo.window";
-/// Group label columns are namespaced under this prefix so they can never
-/// collide with the reserved `slo.*` identity attributes.
-const ATTR_GROUP_PREFIX: &str = "slo.group.";
-
 fn str_kv(k: &str, v: &str) -> KeyValue {
     KeyValue {
         key: k.to_string(),
@@ -50,18 +46,14 @@ fn str_kv(k: &str, v: &str) -> KeyValue {
     }
 }
 
-/// The identifying attributes of a sample's datapoint: SLO id/name, the window,
-/// and each group label as `slo.group.<column>`. Both metrics of a sample share
-/// this set, so the good/valid timeseries line up point for point.
+/// The identifying attributes of a sample's datapoint. Both metrics of a sample
+/// share this set, so the good/valid timeseries line up point for point.
 fn point_attributes(s: &SloSample) -> Vec<KeyValue> {
-    let mut attrs = Vec::with_capacity(3 + s.labels.len());
-    attrs.push(str_kv(ATTR_SLO_ID, &s.slo_id));
-    attrs.push(str_kv(ATTR_SLO_NAME, &s.slo_name));
-    attrs.push(str_kv(ATTR_SLO_WINDOW, &s.window));
-    for (k, v) in &s.labels {
-        attrs.push(str_kv(&format!("{ATTR_GROUP_PREFIX}{k}"), v));
-    }
-    attrs
+    vec![
+        str_kv(ATTR_SLO_ID, &s.slo_id),
+        str_kv(ATTR_SLO_NAME, &s.slo_name),
+        str_kv(ATTR_SLO_WINDOW, &s.window),
+    ]
 }
 
 fn number_point(attributes: Vec<KeyValue>, time_unix_nanos: u64, value: f64) -> NumberDataPoint {
@@ -239,7 +231,6 @@ mod tests {
             slo_id: "11111111-2222-3333-4444-555555555555".to_string(),
             slo_name: "checkout-availability".to_string(),
             window: window.to_string(),
-            labels: BTreeMap::from([("ServiceName".to_string(), "checkout".to_string())]),
             good,
             valid,
             time_unix_nanos: 1_700_000_000_000_000_000,
@@ -274,7 +265,7 @@ mod tests {
     }
 
     #[test]
-    fn emits_good_and_valid_gauges_with_identity_and_group_attributes() {
+    fn emits_good_and_valid_gauges_with_identity_attributes() {
         let req = build_metrics_request(&[sample("org1", "3600s", 9856.0, 10000.0)]);
         let metrics = &req.resource_metrics[0].scope_metrics[0].metrics;
         let names: Vec<_> = metrics.iter().map(|m| m.name.as_str()).collect();
@@ -299,11 +290,6 @@ mod tests {
             str_attr(&dp.attributes, "slo.window").as_deref(),
             Some("3600s")
         );
-        assert_eq!(
-            str_attr(&dp.attributes, "slo.group.ServiceName").as_deref(),
-            Some("checkout")
-        );
-
         let metric::Data::Gauge(g) = metrics[1].data.as_ref().unwrap() else {
             panic!("expected gauge");
         };

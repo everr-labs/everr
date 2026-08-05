@@ -101,33 +101,6 @@ const timeWindowSchema = z
   ])
   .transform((tw) => (typeof tw === "string" ? tw : tw.duration));
 
-// Label names the SLO pipeline itself injects (domain/slo.rs
-// RESERVED_SLO_LABELS): the synthetic `slo` routing label and the per-tier
-// `slo_tier` instance discriminator. A user label column with either name
-// would be silently clobbered, so CC rejects it — and we do at parse time.
-const RESERVED_SLO_LABELS = new Set(["slo", "slo_tier"]);
-
-const labelColumnsSchema = z
-  .array(nonEmptyString)
-  .min(1)
-  .superRefine((columns, ctx) => {
-    for (const [i, column] of columns.entries()) {
-      if (column.startsWith("__cc_")) {
-        ctx.addIssue({
-          code: "custom",
-          message: `label column "${column}" uses the reserved "__cc_" prefix`,
-          path: [i],
-        });
-      } else if (RESERVED_SLO_LABELS.has(column)) {
-        ctx.addIssue({
-          code: "custom",
-          message: `label column "${column}" collides with a label the SLO pipeline injects ("slo", "slo_tier"); pick a different column alias`,
-          path: [i],
-        });
-      }
-    }
-  });
-
 /**
  * `kind: SLO` as-code document. Mirrors clickety-clack's SloSpec
  * (domain/slo.rs) in as-code camelCase, with CC's cheap static validation
@@ -144,7 +117,6 @@ const labelColumnsSchema = z
  *     sql: >-
  *       SELECT countIf(ok) AS good, count() AS valid FROM checkouts
  *       WHERE ts >= {window_start:DateTime} AND ts < {window_end:DateTime}
- *     labelColumns: [service]
  *   targetPercent: 99.9
  *   timeWindow: 30d
  * ```
@@ -181,9 +153,6 @@ export const SloYamlSchema = z
                 });
               }
             }),
-            // Columns that fan the SLO out into per-group SLIs; omit for a
-            // scalar SLO.
-            labelColumns: labelColumnsSchema.optional(),
           })
           .strict(),
         // The objective, exclusive on both ends like CC's validation.

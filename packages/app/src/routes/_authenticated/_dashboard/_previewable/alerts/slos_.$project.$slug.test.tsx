@@ -53,7 +53,6 @@ function ccSlo(overrides: Partial<CcSlo> = {}): CcSlo {
     spec: {
       sli: {
         sql: "SELECT countIf(ok) AS good, count() AS valid FROM t WHERE ts >= {window_start:DateTime} AND ts < {window_end:DateTime}",
-        label_columns: ["service"],
       },
       targetPercent: 99.9,
       timeWindow: { duration: "30d", isRolling: true },
@@ -72,29 +71,24 @@ function sloStatus(overrides: Partial<CcSloStatus> = {}): CcSloStatus {
     payload: {
       window: "30d",
       target_percent: 99.9,
-      groups: [
+      sli: 0.9992,
+      budget_remaining: 0.42,
+      tiers: [
         {
-          labels: { service: "checkout" },
-          sli: 0.9992,
-          budget_remaining: 0.42,
-          tiers: [
-            {
-              name: "fast-burn",
-              long_burn_rate: 1.4,
-              short_burn_rate: 0.9,
-              long_window_valid: 120000,
-            },
-            {
-              name: "ticket",
-              long_burn_rate: 0.8,
-              short_burn_rate: null,
-              long_window_valid: null,
-            },
-          ],
-          time_to_exhaustion_secs: 3 * 86400 + 4 * 3600,
-          firing_tiers: [{ tier: "fast-burn", status: "firing" }],
+          name: "fast-burn",
+          long_burn_rate: 1.4,
+          short_burn_rate: 0.9,
+          long_window_valid: 120000,
+        },
+        {
+          name: "ticket",
+          long_burn_rate: 0.8,
+          short_burn_rate: null,
+          long_window_valid: null,
         },
       ],
+      time_to_exhaustion_secs: 3 * 86400 + 4 * 3600,
+      firing_tiers: [{ tier: "fast-burn", status: "firing" }],
       window_computed_at: { "300s": 1752829200 },
     },
     health: { status: "healthy", degraded_since: null, last_error: null },
@@ -157,7 +151,7 @@ beforeEach(() => {
   mocks.getCcSloByName.mockResolvedValue(ccSlo());
   mocks.getCcSloStatus.mockResolvedValue(sloStatus());
   mocks.getCcSloBudgetSeries.mockResolvedValue([]);
-  mocks.getCcSloBudgetNow.mockResolvedValue([]);
+  mocks.getCcSloBudgetNow.mockResolvedValue(null);
   mocks.pauseCcSlo.mockResolvedValue(ccSlo({ paused: true }));
   mocks.resumeCcSlo.mockResolvedValue(ccSlo());
 });
@@ -172,10 +166,6 @@ describe("/alerts/slos/$project/$slug route", () => {
     expect(screen.getByText("42.00%")).toBeInTheDocument();
     expect(screen.getByText("3d 4h")).toBeInTheDocument();
     expect(screen.getByText(/1\.4×/)).toBeInTheDocument();
-    // Twice: the stats row names its worst group, and the definition card
-    // lists the group-by column.
-    expect(screen.getAllByText("service").length).toBeGreaterThanOrEqual(2);
-    expect(screen.getByText("Worst group")).toBeInTheDocument();
 
     await waitFor(() => expect(mocks.getCcSloBudgetSeries).toHaveBeenCalled());
     const arg = mocks.getCcSloBudgetSeries.mock.calls.at(-1)?.[0] as {
@@ -213,49 +203,15 @@ describe("/alerts/slos/$project/$slug route", () => {
   });
 
   it("overrides the snapshot's budget with the read-time value in the strip", async () => {
-    mocks.getCcSloBudgetNow.mockResolvedValue([
-      { labels: { service: "checkout" }, sli: 0.998, budgetRemaining: 0.1 },
-    ]);
+    mocks.getCcSloBudgetNow.mockResolvedValue({
+      sli: 0.998,
+      budgetRemaining: 0.1,
+    });
     renderSloDetailRoute();
 
     expect(await screen.findByText("10.00%")).toBeInTheDocument();
     // Uses the effective burn rate, min(1.4, 0.9), for the forecast.
     expect(screen.getByText("3d 8h")).toBeInTheDocument();
-  });
-
-  it("renders every status group", async () => {
-    mocks.getCcSloStatus.mockResolvedValue(
-      sloStatus({
-        payload: {
-          window: "30d",
-          target_percent: 99.9,
-          groups: [
-            {
-              labels: { service: "checkout" },
-              sli: 0.9992,
-              budget_remaining: 0.42,
-              tiers: [],
-              time_to_exhaustion_secs: null,
-              firing_tiers: [],
-            },
-            {
-              labels: { service: "search" },
-              sli: 0.9999,
-              budget_remaining: 0.91,
-              tiers: [],
-              time_to_exhaustion_secs: null,
-              firing_tiers: [],
-            },
-          ],
-          window_computed_at: {},
-        },
-      }),
-    );
-
-    renderSloDetailRoute();
-
-    expect(await screen.findByText("search")).toBeInTheDocument();
-    expect(screen.getAllByText("checkout").length).toBeGreaterThanOrEqual(1);
   });
 
   it("shows the pending state when no snapshot exists yet", async () => {

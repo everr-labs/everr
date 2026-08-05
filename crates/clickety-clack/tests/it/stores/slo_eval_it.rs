@@ -11,7 +11,7 @@ fn tenant() -> TenantId {
 }
 fn spec() -> SloSpec {
     SloSpec {
-        sli: SliSpec { sql: "SELECT 1 AS good, 1 AS valid FROM t WHERE ts >= {window_start:DateTime} AND ts < {window_end:DateTime}".into(), label_columns: vec![] },
+        sli: SliSpec { sql: "SELECT 1 AS good, 1 AS valid FROM t WHERE ts >= {window_start:DateTime} AND ts < {window_end:DateTime}".into() },
         target_percent: 99.9,
         time_window: TimeWindow { duration: "30d".into(), is_rolling: true, calendar: None },
         min_valid_events: None, annotations: BTreeMap::new(), suppressed: false,
@@ -88,7 +88,7 @@ async fn persist_slo_eval_claim_is_atomic_and_idempotent() {
         .persist_slo_eval(
             id,
             &tenant(),
-            &json!({"groups": [1]}),
+            &json!({"budget_remaining": 0.8}),
             eval_ts,
             std::slice::from_ref(&mk(1.0)),
             &[],
@@ -103,7 +103,7 @@ async fn persist_slo_eval_claim_is_atomic_and_idempotent() {
         .persist_slo_eval(
             id,
             &tenant(),
-            &json!({"groups": [2]}),
+            &json!({"budget_remaining": 0.1}),
             eval_ts,
             std::slice::from_ref(&mk(999.0)),
             &[],
@@ -125,7 +125,7 @@ async fn persist_slo_eval_claim_is_atomic_and_idempotent() {
     let status = s.get_slo_status(&tenant(), id).await.unwrap().unwrap();
     assert_eq!(
         status.payload,
-        json!({"groups": [1]}),
+        json!({"budget_remaining": 0.8}),
         "the snapshot reflects the winning delivery only"
     );
 }
@@ -260,13 +260,13 @@ async fn status_snapshot_upsert_and_read() {
     let s = store().await;
     let id = make_slo(&s, "d").await;
     let now = OffsetDateTime::now_utc();
-    s.upsert_slo_status(id, &tenant(), &json!({"groups": []}), now)
+    s.upsert_slo_status(id, &tenant(), &json!({"budget_remaining": 0.8}), now)
         .await
         .unwrap();
     let got = s.get_slo_status(&tenant(), id).await.unwrap().unwrap();
-    assert_eq!(got.payload, json!({"groups": []}));
+    assert_eq!(got.payload, json!({"budget_remaining": 0.8}));
     // upsert replaces
-    s.upsert_slo_status(id, &tenant(), &json!({"groups": [1]}), now)
+    s.upsert_slo_status(id, &tenant(), &json!({"budget_remaining": 0.1}), now)
         .await
         .unwrap();
     assert_eq!(
@@ -275,6 +275,6 @@ async fn status_snapshot_upsert_and_read() {
             .unwrap()
             .unwrap()
             .payload,
-        json!({"groups": [1]})
+        json!({"budget_remaining": 0.1})
     );
 }

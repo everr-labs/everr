@@ -68,7 +68,6 @@ Work items: SLI shape handling (S with structured form / L with auto-parse) · b
 - Structured-vs-raw-SQL SLI decision (see Key decision): resolving it as the structured form removes the SQL-parser long pole.
 - **Late-arriving data (biggest risk).** An incrementally-built rollup fixes each bucket at eval time; a full re-scan catches events that land late, so the two can disagree and undermine the no-drift guarantee. Incumbents handle this with ingestion-time aggregation + acceptance/finalization windows. This is real design work and the item most likely to stretch the estimate; treat it as an explicit design item, not an afterthought.
 - Where the rollup lives: a per-SLI MV (DDL churn + engine needs admin rights) vs a generic `slo_bucket_counts` table the engine writes alongside the current sample gauges (favored: no DDL, aligned with what we already write).
-- Cardinality of per-group rollups (the `label_columns` fan-out) at fine buckets.
 - Keeping the derived budget/burn identical to the full-scan result (no drift between the two paths).
 - Interaction with the raw-telemetry TTL (rollups can outlive raw data, which is a feature).
 

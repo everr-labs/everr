@@ -215,7 +215,7 @@ CREATE INDEX slos_tenant_idx ON slos (tenant);
 CREATE INDEX slos_due_idx ON slos (next_eval) WHERE NOT paused;
 CREATE UNIQUE INDEX slos_tenant_ns_name_idx ON slos (tenant, namespace, name);
 
--- One status snapshot per SLO. `payload` holds per-group status + per-window
+-- One status snapshot per SLO. `payload` holds scalar status + per-window
 -- freshness timestamps (see engine::slo_math::SloStatusPayload for its shape).
 CREATE TABLE slo_status (
     slo         UUID PRIMARY KEY REFERENCES slos(id) ON DELETE CASCADE,
@@ -234,7 +234,7 @@ CREATE TABLE slo_evaluations (
 );
 CREATE INDEX slo_evaluations_eval_ts_idx ON slo_evaluations (eval_ts);
 
--- Per-(SLO, tier, group) alert-instance state, mirroring `instances` but owned
+-- Per-(SLO, tier) alert-instance state, mirroring `instances` but owned
 -- by SLOs. Kept separate so the rule pipeline's hot path and FK are untouched.
 CREATE TABLE slo_instances (
     key          TEXT PRIMARY KEY,

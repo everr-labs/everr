@@ -22,7 +22,7 @@ function sloYaml(
     kind: "SLO",
     metadata: { name: "checkout", ...metadata },
     spec: {
-      sli: { sql: SQL, labelColumns: ["service"] },
+      sli: { sql: SQL },
       targetPercent: 99.9,
       timeWindow: "30d",
       ...spec,
@@ -47,7 +47,7 @@ describe("toSloInput", () => {
     );
     expect(input.name).toBe("default/checkout");
     expect(input.namespace).toBe("");
-    expect(input.sli).toEqual({ sql: SQL, label_columns: ["service"] });
+    expect(input.sli).toEqual({ sql: SQL });
     expect(input.targetPercent).toBe(99.9);
     expect(input.timeWindow).toEqual({ duration: "30d", isRolling: true });
     expect(input.min_valid_events).toBe(1000);

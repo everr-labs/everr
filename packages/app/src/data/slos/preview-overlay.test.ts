@@ -5,7 +5,6 @@ import { visibleSlosForPreview } from "./preview-overlay";
 const BASE_SPEC: CcSlo["spec"] = {
   sli: {
     sql: "SELECT countIf(ok) AS good, count() AS valid FROM t WHERE ts >= {window_start:DateTime} AND ts < {window_end:DateTime}",
-    label_columns: [],
   },
   targetPercent: 99.9,
   timeWindow: { duration: "30d", isRolling: true },

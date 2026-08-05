@@ -33,7 +33,7 @@ const mockedTest = cc.testSlo as ReturnType<typeof vi.fn>;
 beforeEach(() => {
   vi.clearAllMocks();
   mockedList.mockResolvedValue([]);
-  mockedTest.mockResolvedValue({ matched: 1, groups: [] });
+  mockedTest.mockResolvedValue({ good: 1, valid: 1, sli: 1 });
   mockedCreate.mockResolvedValue({ id: "new-slo", version: 1 });
   mockedUpdate.mockResolvedValue({ id: "new-slo", version: 2 });
   mockedDelete.mockResolvedValue({ deleted: true });
@@ -48,7 +48,7 @@ function sloDoc(name = "checkout", overrides = {}) {
     kind: "SLO",
     metadata: { name },
     spec: {
-      sli: { sql: SQL, labelColumns: ["service"] },
+      sli: { sql: SQL },
       targetPercent: 99.9,
       timeWindow: "30d",
       ...overrides,
@@ -70,7 +70,7 @@ function managedSlo(name: string, specOver: Record<string, unknown> = {}) {
     paused: false,
     updated_at: "2026-07-01T00:00:00Z",
     spec: {
-      sli: { sql: SQL, label_columns: ["service"] },
+      sli: { sql: SQL },
       targetPercent: 99.9,
       timeWindow: { duration: "30d", isRolling: true },
       annotations: { [OWN_REPO]: "repo-1" },
@@ -127,7 +127,7 @@ describe("applySloSpecs", () => {
     expect(input.namespace).toBe("");
     expect(input.annotations[OWN_REPO]).toBe("repo-1");
     expect(input.suppressed).toBe(false);
-    expect(input.sli).toEqual({ sql: SQL, label_columns: ["service"] });
+    expect(input.sli).toEqual({ sql: SQL });
     expect(mockedUpdate).not.toHaveBeenCalled();
     expect(mockedDelete).not.toHaveBeenCalled();
     expect(res.created).toEqual(["default/checkout"]);
@@ -448,11 +448,6 @@ describe("applySloSpecs", () => {
         "window.yaml",
         sloDoc("w", { timeWindow: "1M" }),
         /window\.yaml: invalid SLO: invalid window duration "1M"/,
-      ],
-      [
-        "labels.yaml",
-        sloDoc("l", { sli: { sql: SQL, labelColumns: ["slo_tier"] } }),
-        /labels\.yaml: invalid SLO: .*SLO pipeline injects/,
       ],
     ];
     for (const [path, resource, pattern] of cases) {

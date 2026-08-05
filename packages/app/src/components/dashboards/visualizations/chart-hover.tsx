@@ -4,8 +4,8 @@
 //
 // Both the dashboard time-series panel and the SLO budget chart draw one dot
 // per series at the hovered x, ringed in the card colour so it separates from
-// its line. Once several series can share a value — two SLO groups both at
-// 100%, two dashboard series both at zero — an undifferentiated dot per series
+// its line. Once several series can share a value, such as two dashboard series
+// both at zero, an undifferentiated dot per series
 // stops answering "which one is this", which is what `nearestSeriesKeys` and
 // the emphasis below are for.
 import type { ReactElement } from "react";

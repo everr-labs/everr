@@ -12,7 +12,6 @@ fn spec() -> SloSpec {
     SloSpec {
         sli: SliSpec {
             sql: "SELECT 1 AS good, 1 AS valid FROM t WHERE ts >= {window_start:DateTime} AND ts < {window_end:DateTime}".into(),
-            label_columns: vec!["service".into()],
         },
         target_percent: 99.9,
         time_window: TimeWindow { duration: "30d".into(), is_rolling: true, calendar: None },
@@ -77,7 +76,8 @@ async fn objective_change_clears_the_status_snapshot() {
 
     // Seed a status snapshot as the evaluator would.
     let seed_payload = serde_json::json!({
-        "window": "30d", "target_percent": 99.9, "groups": [],
+        "window": "30d", "target_percent": 99.9,
+        "sli": null, "budget_remaining": null, "tiers": [],
         "window_computed_at": {}, "objective_fingerprint": "x",
     });
     s.upsert_slo_status(
@@ -97,8 +97,7 @@ async fn objective_change_clears_the_status_snapshot() {
         "a non-objective edit must not clear the snapshot"
     );
 
-    // An objective edit (target change) drops the snapshot: its groups/burn/budget
-    // were computed for the old objective and must not be carried forward.
+    // An objective edit drops the snapshot because it describes the old objective.
     let mut spec2 = spec();
     spec2.target_percent = 99.5;
     s.update_slo(tenant(), slo.id, &spec2, None).await.unwrap();
@@ -116,10 +115,9 @@ async fn objective_change_clears_the_instance_rows() {
     let s = store().await;
     let slo = create_test_slo(&s, tenant(), "inst", &spec()).await;
 
-    // Seed a firing instance as the evaluator would (the SLO's rule id mirrors its
-    // own id; the instance key hashes the current `service` label set).
+    // Seed a firing tier instance as the evaluator would.
     let rule = RuleId(slo.id.0);
-    let labels = BTreeMap::from([("service".to_string(), "checkout".to_string())]);
+    let labels = BTreeMap::from([("slo_tier".to_string(), "fast-burn".to_string())]);
     let mut inst = InstanceState::new_inactive(
         InstanceKey::new(rule, &labels),
         SourceId::Slo(slo.id),
@@ -147,11 +145,10 @@ async fn objective_change_clears_the_instance_rows() {
         "a non-objective edit must not clear the instance rows"
     );
 
-    // An objective edit drops the instance rows: `label_columns` feeds the objective
-    // fingerprint, so old instance keys may never be reproduced and would otherwise
-    // strand pending/firing rows in `list_alerts` (indefinitely, if the SLO is paused).
+    // An objective edit drops instance rows because their prior state no longer
+    // describes the redefined objective.
     let mut spec2 = spec();
-    spec2.sli.label_columns = vec!["service".into(), "region".into()];
+    spec2.sli.sql.push_str(" AND true");
     s.update_slo(tenant(), slo.id, &spec2, None).await.unwrap();
     assert!(
         s.load_slo_instances(&tenant(), slo.id)

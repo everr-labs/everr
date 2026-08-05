@@ -31,12 +31,11 @@ import {
   ccSloOverallPace,
   ccSloTiers,
   ccSloWindowLabel,
-  ccWorstSloGroup,
 } from "@/data/cc/slo";
 import type {
   CcRuleHealthStatus,
   CcSlo,
-  CcSloGroupStatus,
+  CcSloStatusPayload,
   CcSloTier,
 } from "@/data/cc/types";
 import { fromCcSlo } from "@/data/slos/mapping";
@@ -63,15 +62,11 @@ export const Route = createFileRoute(
   component: CcSlosPage,
 });
 
-// `worst` = the group most needing attention (firing first, then budget).
-// Everything derived (tiers, worst, status) is computed once when the display
-// rows are built; cells only render.
 type SloRow = {
   slo: CcSlo;
   statusPending: boolean;
   tiers: CcSloTier[];
-  groups: CcSloGroupStatus[];
-  worst: CcSloGroupStatus | null;
+  snapshot: CcSloStatusPayload | null;
   status: { label: string; tone: string };
   /** Evaluator health, absent until the status snapshot resolves. */
   health?: CcRuleHealthStatus;
@@ -108,11 +103,10 @@ function rowStatus(row: Omit<SloRow, "status">): {
   if (row.health === "degraded") {
     return { label: "Degraded", tone: TONE_WARNING };
   }
-  if (row.worst === null) return { label: "Not evaluated", tone: TONE_QUIET };
+  if (row.snapshot === null)
+    return { label: "Not evaluated", tone: TONE_QUIET };
 
-  // Verdict over ALL groups: the worst-by-budget group may have no recent
-  // events while a sibling group burns or fires.
-  const pace = ccSloOverallPace(row.tiers, row.groups);
+  const pace = ccSloOverallPace(row.tiers, row.snapshot);
   const label =
     pace === "sustainable" || pace === "steady"
       ? "OK"
@@ -128,7 +122,6 @@ function SloPromiseCell({
   health?: CcRuleHealthStatus;
 }) {
   const identity = ccSloIdentity(slo);
-  const { label_columns } = slo.spec.sli;
   return (
     <span className="flex flex-col gap-1">
       <span className="flex items-center gap-2">
@@ -146,12 +139,6 @@ function SloPromiseCell({
       <span className="text-[0.6875rem] whitespace-nowrap text-muted-foreground">
         {ccFormatSloTarget(slo.spec.targetPercent)} over{" "}
         {ccSloWindowLabel(slo.spec)}
-        {label_columns.length > 0 && (
-          <>
-            {" · by "}
-            <span className="font-mono">{label_columns.join(", ")}</span>
-          </>
-        )}
       </span>
     </span>
   );
@@ -177,20 +164,18 @@ function SloStatusCell({ row }: { row: SloRow }) {
 
 function SloBudgetCell({ row }: { row: SloRow }) {
   if (row.statusPending) return <Skeleton className="h-4 w-36" />;
-  return <CcBudgetBar remaining={row.worst?.budget_remaining ?? null} />;
+  return <CcBudgetBar remaining={row.snapshot?.budget_remaining ?? null} />;
 }
 
-// Shared readout: this cell, the detail hero, and the per-group table must
-// always agree.
 function SloExhaustionCell({ row }: { row: SloRow }) {
   if (row.statusPending) return <Skeleton className="h-4 w-16" />;
-  const worst = row.worst;
+  const snapshot = row.snapshot;
   const readout = ccSloExhaustion(
-    worst?.budget_remaining ?? null,
-    worst?.time_to_exhaustion_secs ?? null,
-    worst === null
+    snapshot?.budget_remaining ?? null,
+    snapshot?.time_to_exhaustion_secs ?? null,
+    snapshot === null
       ? null
-      : (ccSloCurrentBurn(row.tiers, worst.tiers)?.effective ?? null),
+      : (ccSloCurrentBurn(row.tiers, snapshot.tiers)?.effective ?? null),
   );
   return (
     <span
@@ -233,13 +218,11 @@ function CcSlosPage() {
     onError: (e) => toast.error(ccErrorMessage(e)),
   });
 
-  // Everything status-derived (worst, verdict) waits for `displayRows`: only
-  // the visible page needs it, and the fresh-budget overlay can change it.
   const rows = slosData
     .map((slo, i) => ({
       slo,
       statusPending: statuses[i].isPending,
-      groups: statuses[i].data?.payload?.groups ?? [],
+      snapshot: statuses[i].data?.payload ?? null,
       health: statuses[i].data?.health.status,
     }))
     // Fixed name order, independent of status: the list must never reshuffle
@@ -255,9 +238,8 @@ function CcSlosPage() {
   const freshBudgets = useCcFreshBudgets(pageRows.map((r) => r.slo.id));
   const displayRows: SloRow[] = pageRows.map((r) => {
     const tiers = ccSloTiers(r.slo.spec);
-    const groups = freshBudgets.apply(r.slo, r.groups);
-    const worst = ccWorstSloGroup(tiers, groups);
-    const row = { ...r, tiers, groups, worst };
+    const snapshot = r.snapshot ? freshBudgets.apply(r.slo, r.snapshot) : null;
+    const row = { ...r, tiers, snapshot };
     return { ...row, status: rowStatus(row) };
   });
 

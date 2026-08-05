@@ -160,7 +160,7 @@ becomes a no-op, so local and dev deployments need no collector.
 
 Three producers read them: the `events` role (one alert-log record per
 firing/resolved event), the `dispatcher` (delivery and silenced outcomes, as
-alert-log records), and the SLO evaluator (each group's raw `good`/`valid` counts
+alert-log records), and the SLO evaluator (each SLO's raw `good`/`valid` counts
 per window, as the `cc.slo.good` / `cc.slo.valid` gauges; burn rate and remaining
 budget are derived by readers, never exported).
 

@@ -16,8 +16,7 @@ on the branch that skips the discipline the rest of the chart code follows.
 `packages/app/src/components/cc/slo-budget-chart.tsx`:
 
 - `:255-395`: the model build, all in the render body. In order: `ranked`
-  (a sort over groups by current budget), `shown` (`ranked.slice(0, MAX_SERIES)`),
-  the `data` pivot at `:294`, `snapToPoint` per event at `:326`, then `eventMarks`
+  the `data` model, `snapToPoint` per event, then `eventMarks`
   and `markerHits`.
 - `:455-460`: `onMouseMove` reads `state.activeTooltipIndex` and calls `setHover`
   with the viewport coordinates the portaled tooltip needs.
@@ -27,17 +26,16 @@ The comparison:
 builds the same shape of model inside `useMemo` with correct dependency arrays.
 
 ## Cost per pointer move
-For a grouped SLO at the chart's own limits (200 instants, 12 series, 200 events):
+For an SLO at the chart's own limits (200 instants and 200 events):
 
-- `data` pivot: 200 instants x 12 series x 2 keys.
+- `data` projection: 200 instants x 2 keys.
 - `snapToPoint`: O(events x instants), so 200 x 200 is about 40k operations.
-- New `data` array identity, so recharts recomputes 24 `<Line>` paths (a value and
-  a reconstructed-dash line per series) plus up to about 400 `ReferenceLine`
+- New `data` array identity, so recharts recomputes two `<Line>` paths (observed
+  and reconstructed) plus up to about 400 `ReferenceLine`
   elements.
 
 All of that between one mouse event and the next. The user-visible symptom is the
-hover readout lagging behind the cursor on any SLO with several groups, which is
-precisely the SLO where the chart matters most.
+hover readout lagging behind the cursor when many transition markers are present.
 
 ## Why it is filed rather than fixed
 The mechanical fix (wrap the model in `useMemo`) is easy, but doing it correctly
@@ -50,7 +48,7 @@ would preserve the bug while looking fixed.
 So it wants a deliberate pass over which values are hover-derived, not a wrapper.
 
 ## Sketch
-- Split into two memos: the geometry model (groups, series, pivot, marks, hit
+- Split into two memos: the geometry model (series, marks, hit
   targets) keyed on the data and dimensions only, and the hover-derived values
   keyed on the hover index.
 - Keep the `data` array identity stable across hover changes. That alone removes
@@ -64,8 +62,5 @@ So it wants a deliberate pass over which values are hover-derived, not a wrapper
   shape rather than inventing a second convention.
 
 ## Related
-- [series-palette-fails-contrast.md](./series-palette-fails-contrast.md) is the
-  other open issue on this chart, and the `MAX_SERIES` cap discussed there
-  directly bounds the cost described here.
 - `todo/issues/chart-tooltip-content-duplication.md` covers the two parallel
   tooltip systems this chart sits between.

@@ -275,8 +275,7 @@ for how to write one.
 {
   "name": "checkout-availability",
   "sli": {
-    "sql": "SELECT countIf(status < 500) AS good, count() AS valid FROM http_requests WHERE ts >= {window_start:DateTime} AND ts < {window_end:DateTime}",
-    "label_columns": []
+    "sql": "SELECT countIf(status < 500) AS good, count() AS valid FROM http_requests WHERE ts >= {window_start:DateTime} AND ts < {window_end:DateTime}"
   },
   "targetPercent": 99.9,
   "timeWindow": { "duration": "30d", "isRolling": true },
@@ -291,7 +290,6 @@ for how to write one.
 | `name`             | string                | yes      | none | The SLO's first-class identity, unique per `(tenant, namespace)`; `409 already_exists` on collision. 1 to 128 chars of `[A-Za-z0-9_./-]` (`422` otherwise). |
 | `namespace`        | string                | no       | `""`    | Identity scope: `""` is the live namespace; consumers stamp preview ids here. At most 128 chars of `[A-Za-z0-9_.-]`. |
 | `sli.sql`          | string                | yes      | none | Read-only `SELECT` returning `good`/`valid` numeric columns; must reference both `{window_start:DateTime}` and `{window_end:DateTime}` (`422` otherwise). |
-| `sli.label_columns`| string[]              | no       | `[]`    | Result columns that fan the SLO into per-group SLIs. May not start with the reserved `__cc_` prefix, and may not be named `slo` or `slo_tier` (labels the SLO pipeline injects); `422` either way. |
 | `targetPercent`    | f64                   | yes      | none | Objective, e.g. `99.9`. Must be `> 0` and `< 100` (`422` otherwise). |
 | `timeWindow.duration` | string             | yes      | none | Rolling-window shorthand (`s`/`m`/`h`/`d`/`w`), at least 1 day and at most 366 days (`422` outside that range). |
 | `timeWindow.isRolling` | bool              | no       | `true`  | v1 supports rolling only; `false` (or a non-null `timeWindow.calendar`) is rejected `422`. |
@@ -324,10 +322,10 @@ written. Omit for last-write-wins.
 ### Test response
 
 ```json
-{ "matched": 1, "groups": [ { "labels": {}, "good": 998234.0, "valid": 1000000.0, "sli": 0.998234 } ] }
+{ "good": 998234.0, "valid": 1000000.0, "sli": 0.998234 }
 ```
 
-`sli` is `good / valid`, or `null` when `valid` is `0`.
+`sli` is `good / valid`, or `null` when `valid` is `0`. Zero query rows return zero counts. More than one row is rejected with `422`.
 
 ### Status response
 
@@ -337,18 +335,13 @@ written. Omit for last-write-wins.
   "payload": {
     "window": "30d",
     "target_percent": 99.9,
-    "groups": [
-      {
-        "labels": {},
-        "sli": 0.9987,
-        "budget_remaining": 0.42,
-        "tiers": [
-          { "name": "fast-burn", "long_burn_rate": 2.1, "short_burn_rate": 1.8, "long_window_valid": 210000.0 }
-        ],
-        "time_to_exhaustion_secs": 1123200,
-        "firing_tiers": [ { "tier": "ticket", "status": "firing" } ]
-      }
+    "sli": 0.9987,
+    "budget_remaining": 0.42,
+    "tiers": [
+      { "name": "fast-burn", "long_burn_rate": 2.1, "short_burn_rate": 1.8, "long_window_valid": 210000.0 }
     ],
+    "time_to_exhaustion_secs": 1123200,
+    "firing_tiers": [ { "tier": "ticket", "status": "firing" } ],
     "window_computed_at": { "300s": 1752753600, "3600s": 1752750000 }
   },
   "health": { "status": "healthy", "degraded_since": null, "last_error": null }
@@ -357,7 +350,7 @@ written. Omit for last-write-wins.
 
 Until the first evaluation writes a snapshot, `computed_at` and `payload` are
 both null (the pending state) while `health` is already real.
-`payload.groups[*].time_to_exhaustion_secs` and `.firing_tiers` are computed at
+`payload.time_to_exhaustion_secs` and `.firing_tiers` are computed at
 **read time only** from the stored snapshot plus the live `slo_instances` rows;
 they are never persisted. If the stored snapshot fails to deserialize into
 the current shape, it is returned verbatim without this enrichment rather than

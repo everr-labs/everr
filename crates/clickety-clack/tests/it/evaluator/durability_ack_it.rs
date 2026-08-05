@@ -290,7 +290,6 @@ fn slo_spec() -> SloSpec {
     SloSpec {
         sli: SliSpec {
             sql: "SELECT 1 AS good, 1 AS valid FROM t WHERE ts >= {window_start:DateTime} AND ts < {window_end:DateTime}".into(),
-            label_columns: vec![],
         },
         target_percent: 99.9,
         time_window: TimeWindow { duration: "30d".into(), is_rolling: true, calendar: None },

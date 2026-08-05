@@ -94,7 +94,7 @@ describe("ccSyntheticLabels", () => {
 describe("ccDispatchLabels", () => {
   const slo: Pick<CcSlo, "spec"> = {
     spec: {
-      sli: { sql: "SELECT 1 AS good, 1 AS valid", label_columns: ["service"] },
+      sli: { sql: "SELECT 1 AS good, 1 AS valid" },
       targetPercent: 99.9,
       timeWindow: { duration: "30d", isRolling: true },
       annotations: {},
@@ -106,7 +106,7 @@ describe("ccDispatchLabels", () => {
     // fast-burn defaults to critical.
     const labels = ccDispatchLabels(
       {
-        labels: { service: "checkout", slo_tier: "fast-burn" },
+        labels: { slo_tier: "fast-burn" },
         rule: "slo-uuid",
         slo: "slo-uuid",
       },
@@ -114,7 +114,6 @@ describe("ccDispatchLabels", () => {
       slo,
     );
     expect(labels).toEqual({
-      service: "checkout",
       slo_tier: "fast-burn",
       severity: "critical",
       status: "firing",
@@ -126,7 +125,7 @@ describe("ccDispatchLabels", () => {
     expect(
       ccDispatchLabels(
         {
-          labels: { service: "checkout", slo_tier: "ticket" },
+          labels: { slo_tier: "ticket" },
           rule: "slo-uuid",
           slo: "slo-uuid",
         },

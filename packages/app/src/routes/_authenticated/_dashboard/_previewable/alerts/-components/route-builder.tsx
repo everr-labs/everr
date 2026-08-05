@@ -32,8 +32,7 @@ const GROUPING_OPTIONS = [
   {
     value: "automatic",
     label: "Automatic",
-    description:
-      "Uses rule and severity for rules, and each SLO's own group labels.",
+    description: "Uses rule and severity for rules, and SLO for SLO alerts.",
   },
   {
     value: "single",

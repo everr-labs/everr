@@ -49,7 +49,6 @@ function ccSlo(overrides: Partial<CcSlo> = {}): CcSlo {
     spec: {
       sli: {
         sql: "SELECT countIf(ok) AS good, count() AS valid FROM t WHERE ts >= {window_start:DateTime} AND ts < {window_end:DateTime}",
-        label_columns: ["service"],
       },
       targetPercent: 99.9,
       timeWindow: { duration: "30d", isRolling: true },
@@ -115,26 +114,21 @@ beforeEach(() => {
       window: "30d",
       target_percent: 99.9,
       window_computed_at: {},
-      groups: [
+      sli: 0.9995,
+      budget_remaining: 0.5,
+      tiers: [
         {
-          labels: { service: "checkout" },
-          sli: 0.9995,
-          budget_remaining: 0.5,
-          tiers: [
-            {
-              name: "fast-burn",
-              long_burn_rate: 0.5,
-              short_burn_rate: 0.4,
-              long_window_valid: true,
-            },
-          ],
-          time_to_exhaustion_secs: 86_400,
-          firing_tiers: [],
+          name: "fast-burn",
+          long_burn_rate: 0.5,
+          short_burn_rate: 0.4,
+          long_window_valid: 1,
         },
       ],
+      time_to_exhaustion_secs: 86_400,
+      firing_tiers: [],
     },
   });
-  mocks.getCcSloBudgetNow.mockResolvedValue([]);
+  mocks.getCcSloBudgetNow.mockResolvedValue(null);
   mocks.pauseCcSlo.mockResolvedValue(ccSlo({ paused: true }));
   mocks.resumeCcSlo.mockResolvedValue(ccSlo());
 });
@@ -185,7 +179,11 @@ describe("/alerts/slos route", () => {
         window: "30d",
         target_percent: 99.9,
         window_computed_at: {},
-        groups: [],
+        sli: null,
+        budget_remaining: null,
+        tiers: [],
+        time_to_exhaustion_secs: null,
+        firing_tiers: [],
       },
     });
 
@@ -254,16 +252,17 @@ describe("/alerts/slos route", () => {
   });
 
   it("overrides a row's budget with the read-time value as of page view", async () => {
-    mocks.getCcSloBudgetNow.mockResolvedValue([
-      { labels: { service: "checkout" }, sli: 0.99, budgetRemaining: 0.1 },
-    ]);
+    mocks.getCcSloBudgetNow.mockResolvedValue({
+      sli: 0.99,
+      budgetRemaining: 0.1,
+    });
     renderSlosRoute();
 
     const table = await screen.findByRole("table");
     expect(await within(table).findByText("10.00%")).toBeInTheDocument();
   });
 
-  it("reports the worst group severity and budget, not a total", async () => {
+  it("reports the SLO severity and budget", async () => {
     mocks.getCcSloStatus.mockResolvedValue({
       computed_at: new Date().toISOString(),
       health: { status: "healthy", degraded_since: null, last_error: null },
@@ -271,39 +270,18 @@ describe("/alerts/slos route", () => {
         window: "30d",
         target_percent: 99.9,
         window_computed_at: {},
-        groups: [
+        sli: 0.9,
+        budget_remaining: 0.02,
+        tiers: [
           {
-            labels: { service: "checkout" },
-            sli: 0.9,
-            budget_remaining: 0.02, // worst, and firing
-            tiers: [
-              {
-                name: "fast-burn",
-                long_burn_rate: 20,
-                short_burn_rate: 18,
-                long_window_valid: 1,
-              },
-            ],
-            time_to_exhaustion_secs: 3600,
-            firing_tiers: [{ tier: "fast-burn", status: "firing" }],
-          },
-          {
-            labels: { service: "cart" },
-            sli: 0.95,
-            budget_remaining: 0.1, // at risk (<25%)
-            tiers: [],
-            time_to_exhaustion_secs: null,
-            firing_tiers: [],
-          },
-          {
-            labels: { service: "search" },
-            sli: 0.999,
-            budget_remaining: 0.9, // healthy
-            tiers: [],
-            time_to_exhaustion_secs: null,
-            firing_tiers: [],
+            name: "fast-burn",
+            long_burn_rate: 20,
+            short_burn_rate: 18,
+            long_window_valid: 1,
           },
         ],
+        time_to_exhaustion_secs: 3600,
+        firing_tiers: [{ tier: "fast-burn", status: "firing" }],
       },
     });
 
@@ -327,25 +305,18 @@ describe("/alerts/slos route", () => {
         window: "30d",
         target_percent: 99.9,
         window_computed_at: {},
-        groups: [
+        sli: 0.99,
+        budget_remaining: firing ? 0.05 : 0.9,
+        tiers: [
           {
-            labels: { service: "checkout" },
-            sli: 0.99,
-            budget_remaining: firing ? 0.05 : 0.9,
-            tiers: [
-              {
-                name: "fast-burn",
-                long_burn_rate: 0.5,
-                short_burn_rate: 0.4,
-                long_window_valid: 1,
-              },
-            ],
-            time_to_exhaustion_secs: 86_400,
-            firing_tiers: firing
-              ? [{ tier: "fast-burn", status: "firing" }]
-              : [],
+            name: "fast-burn",
+            long_burn_rate: 0.5,
+            short_burn_rate: 0.4,
+            long_window_valid: 1,
           },
         ],
+        time_to_exhaustion_secs: 86_400,
+        firing_tiers: firing ? [{ tier: "fast-burn", status: "firing" }] : [],
       },
     });
     mocks.getCcSloStatus.mockImplementation(({ data: { sloId } }) =>

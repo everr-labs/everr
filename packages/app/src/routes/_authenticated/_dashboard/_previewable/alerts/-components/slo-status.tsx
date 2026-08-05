@@ -1,5 +1,3 @@
-// Every value is the worst group's, so the strip and the budget chart below
-// it are talking about the same thing.
 import { Card, CardContent } from "@everr/ui/components/card";
 import { toneText } from "@everr/ui/components/tone";
 import {
@@ -8,11 +6,11 @@ import {
   ccFormatSloTarget,
   ccSloCurrentBurn,
   ccSloExhaustion,
-  ccSloGroupState,
+  ccSloStatusState,
   ccSloTiers,
   ccSloWindowLabel,
 } from "@/data/cc/slo";
-import type { CcSlo, CcSloGroupStatus } from "@/data/cc/types";
+import type { CcSlo, CcSloStatusPayload } from "@/data/cc/types";
 import {
   CcBudgetMeter,
   ccBudgetTextTone,
@@ -20,7 +18,6 @@ import {
   ccFmtBurn,
   ccFmtFraction,
 } from "./budget-bar";
-import { LabelSet } from "./shared";
 
 // Only the firing states are ever read (see the burn Stat); the rest are
 // listed so a new state cannot be added without deciding its tone.
@@ -57,38 +54,29 @@ function Stat({
 
 export function SloStatsRow({
   slo,
-  worst,
+  status,
 }: {
   slo: CcSlo;
-  /** The group spending budget fastest, or null when there is no snapshot. */
-  worst: CcSloGroupStatus | null;
+  status: CcSloStatusPayload | null;
 }) {
   const tiers = ccSloTiers(slo.spec);
-  const state = ccSloGroupState(tiers, worst);
-  const budget = worst?.budget_remaining ?? null;
-  const burn = worst ? ccSloCurrentBurn(tiers, worst.tiers) : null;
-  const tte = worst?.time_to_exhaustion_secs ?? null;
+  const state = ccSloStatusState(tiers, status);
+  const budget = status?.budget_remaining ?? null;
+  const burn = status ? ccSloCurrentBurn(tiers, status.tiers) : null;
+  const tte = status?.time_to_exhaustion_secs ?? null;
   const exhaustion = ccSloExhaustion(budget, tte, burn?.effective ?? null);
-  // A null burn on a loaded snapshot means the group saw no valid events
+  // A null burn on a loaded snapshot means the SLI saw no valid events
   // inside any alert window: unmeasurable, not missing.
   const burnHint =
     burn !== null
       ? `last ${ccFmtWindowLabel(burn.window)}`
-      : worst !== null
+      : status !== null
         ? "no recent events"
         : undefined;
 
   return (
     <Card>
       <CardContent>
-        {/* On a grouped SLO the strip is one group's story, not the SLO's;
-            say which, or comparing against triage reads as a contradiction. */}
-        {worst !== null && Object.keys(worst.labels).length > 0 && (
-          <div className="mb-4 flex items-center gap-2 text-xs text-muted-foreground">
-            <span>Worst group</span>
-            <LabelSet labels={worst.labels} />
-          </div>
-        )}
         <dl className="grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-3 lg:grid-cols-5 lg:divide-x lg:divide-border/60">
           <Stat
             label="Error budget left"
@@ -104,10 +92,10 @@ export function SloStatsRow({
             {ccFormatSloTarget(slo.spec.targetPercent)}
           </Stat>
           <Stat label="SLI" hint={`last ${slo.spec.timeWindow.duration}`}>
-            {worst?.sli == null ? (
+            {status?.sli == null ? (
               <span className="text-muted-foreground">—</span>
             ) : (
-              ccFmtFraction(worst.sli)
+              ccFmtFraction(status.sli)
             )}
           </Stat>
           <Stat label="Burn rate" hint={burnHint}>

@@ -1,22 +1,22 @@
 # Log pipeline quality runbook
 
-The **log-pipeline-quality** SLO promises that **99.5%** of a service's log
-records over a rolling **7 days** sit below ERROR severity
-(`SeverityNumber < 17`). It is grouped by `ServiceName`, so the promise is made
-to each service separately and each one has its own error budget.
+The **log-pipeline-quality** SLO promises that **99.5%** of log records across
+the fleet over a rolling **7 days** sit below ERROR severity
+(`SeverityNumber < 17`).
 
-A 99.5% target leaves a 0.5% budget. Sustained above that, a service is
-spending; well above it, the budget is gone and stays gone until the offending
-records age out of the 7-day window.
+A 99.5% target leaves a 0.5% budget. When error-or-worse records exceed that
+share, the fleet is spending; well above it, the budget is gone and stays gone
+until the offending records age out of the 7-day window.
 
 Two things worth knowing before you start:
 
 - **This SLI measures what services say about themselves.** It burns when a
   service starts logging errors, which is usually a real fault, but a noisy new
   log line at ERROR that should have been WARN burns it just as fast.
-- **Budget is per service.** A tiny service emitting a hundred records can be
-  100% past its line while the fleet looks fine. The SLO's group table shows
-  every service; the headline numbers only ever describe the worst one.
+- **Budget is fleet-wide.** High-volume services contribute more to the ratio.
+  If every service needs an independent objective, define a separate SLO for
+  each service. The panels below still break the fleet result down by service
+  so you can find the source of a burn.
 
 ## 1. Which service, and is it still happening
 

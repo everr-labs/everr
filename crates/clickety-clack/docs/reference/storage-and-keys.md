@@ -22,9 +22,9 @@ runs itself at startup (see [migrations](#migrations)). Connection: `CC_PG_URL`.
 | `inhibitions`   | `id` (uuid PK), `tenant`, `source_matchers` (jsonb), `target_matchers` (jsonb), `equal` (jsonb) | Inhibition rules. |
 | `event_outbox`  | `id` (uuid PK), `tenant`, `payload` (jsonb), `created_at`              | Transactional outbox: events written in the same tx as the instance update; a relay republishes stragglers. Indexed oldest-first. |
 | `slos`          | `id` (uuid PK), `tenant`, `namespace`, `name`, `spec` (jsonb), `version`, `paused`, `next_eval`, `budget_epoch`, plus health columns (`health_status`, `consecutive_failures`, `degraded_since`, `last_error`, `last_error_at`) | SLO definitions, mirroring `rules`. Unique on `(tenant, namespace, name)`; `next_eval` indexes the SLO scheduler scan; `budget_epoch` is when the error budget last began. |
-| `slo_status`    | `slo` (uuid PK, FK to `slos`, cascade), `tenant`, `payload` (jsonb), `computed_at` | One status snapshot per SLO: per-group budget/burn plus per-window freshness timestamps. |
+| `slo_status`    | `slo` (uuid PK, FK to `slos`, cascade), `tenant`, `payload` (jsonb), `computed_at` | One status snapshot per SLO: budget/burn plus per-window freshness timestamps. |
 | `slo_evaluations` | `(slo, eval_ts)` PK, `applied_at`                                    | Idempotency ledger for SLO evaluations, mirroring `evaluations`. |
-| `slo_instances` | `key` (text PK), `slo` (FK to `slos`, cascade), `tenant`, `status`, `labels` (jsonb), `value`, `active_since`, `last_seen`, `absent_count` | Per-(SLO, burn-rate tier, group) alert-instance state, mirroring `instances`. Indexed by `slo` and `(tenant,status)`. |
+| `slo_instances` | `key` (text PK), `slo` (FK to `slos`, cascade), `tenant`, `status`, `labels` (jsonb), `value`, `active_since`, `last_seen`, `absent_count` | Per-(SLO, burn-rate tier) alert-instance state, mirroring `instances`. Indexed by `slo` and `(tenant,status)`. |
 
 ### What is encrypted at rest
 

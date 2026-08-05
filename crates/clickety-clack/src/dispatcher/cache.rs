@@ -101,7 +101,7 @@ impl FilterCache {
         //
         // Spec §5: every SLO auto-provisions tier inhibitions, synthesized in-memory on
         // every load (never stored — see `dispatcher::slo_inhibit`). Uses the lean
-        // dispatch projection (id/tenant/label_columns/tiers) instead of `list_slos`, so
+        // dispatch projection (id/tenant) instead of `list_slos`, so
         // a refresh never decodes the full spec (SQL text, target, window...) of every
         // SLO just to synthesize inhibitions.
         let (silences, mut inhibitions, routes, receivers, slos, firing_rules, firing_slos) = tokio::try_join!(

@@ -65,7 +65,6 @@ export function toSloInput(
     namespace: opts.previewId ?? "",
     sli: {
       sql: slo.spec.sli.sql,
-      label_columns: slo.spec.sli.labelColumns ?? [],
     },
     targetPercent: slo.spec.targetPercent,
     // v1 supports rolling windows only.
@@ -156,9 +155,6 @@ export function toSloDocument(slo: Pick<CcSlo, "name" | "spec">): SloYaml {
       ...(display ? { display } : {}),
       sli: {
         sql: slo.spec.sli.sql,
-        ...(slo.spec.sli.label_columns.length > 0
-          ? { labelColumns: slo.spec.sli.label_columns }
-          : {}),
       },
       targetPercent: slo.spec.targetPercent,
       // The shorthand is canonical because v1 is rolling-only.

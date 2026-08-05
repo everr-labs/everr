@@ -46,7 +46,7 @@ function ccSlo(
     updated_at: "2026-07-01T00:00:00Z",
     budget_epoch: "2026-07-01T00:00:00Z",
     spec: {
-      sli: { sql: SQL, label_columns: [] },
+      sli: { sql: SQL },
       targetPercent: 99.9,
       timeWindow: { duration: "30d", isRolling: true },
       annotations,

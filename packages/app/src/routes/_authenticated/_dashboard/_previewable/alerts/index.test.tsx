@@ -19,6 +19,7 @@ import type {
   CcRuleView,
   CcSilence,
   CcSlo,
+  CcSloStatusPayload,
 } from "@/data/cc/types";
 import { Route as AlertsIndexFileRoute } from "./index";
 
@@ -91,7 +92,6 @@ function ccSlo(overrides: Partial<CcSlo> = {}): CcSlo {
     spec: {
       sli: {
         sql: "SELECT countIf(ok) AS good, count() AS valid FROM t WHERE ts >= {window_start:DateTime} AND ts < {window_end:DateTime}",
-        label_columns: ["service"],
       },
       targetPercent: 99.9,
       timeWindow: { duration: "30d", isRolling: true },
@@ -109,10 +109,27 @@ function sloAlert(overrides: Partial<CcAlert> = {}): CcAlert {
     key: "fp-slo-1",
     rule: SLO_ID,
     slo: SLO_ID,
-    labels: { service: "checkout", slo_tier: "fast-burn" },
+    labels: { slo_tier: "fast-burn" },
     value: 14.6,
     ...overrides,
   });
+}
+
+function sloPayload(
+  budget_remaining: number | null,
+  overrides: Partial<CcSloStatusPayload> = {},
+): CcSloStatusPayload {
+  return {
+    window: "30d",
+    target_percent: 99.9,
+    sli: null,
+    budget_remaining,
+    tiers: [],
+    time_to_exhaustion_secs: null,
+    firing_tiers: [],
+    window_computed_at: {},
+    ...overrides,
+  };
 }
 
 function ccRoute(overrides: Partial<CcRoute> = {}): CcRoute {
@@ -272,7 +289,7 @@ beforeEach(() => {
   for (const fn of Object.values(mocks)) fn.mockReset();
   mocks.getCcSloStatus.mockResolvedValue(null);
   // No fresh scan result by default: surfaces fall back to the snapshot.
-  mocks.getCcSloBudgetNow.mockResolvedValue([]);
+  mocks.getCcSloBudgetNow.mockResolvedValue(null);
   mocks.createCcSilence.mockResolvedValue(ccSilence({ id: "sil-new" }));
   seedBoard();
 });
@@ -441,7 +458,6 @@ describe("/alerts triage board", () => {
     // Tier names are detail, not triage: no per-tier badge on the row (the
     // severity badge and burn rate carry the urgency).
     expect(screen.queryByText("fast-burn")).toBeNull();
-    expect(screen.getByText("checkout")).toBeInTheDocument();
     expect(screen.getAllByText("critical").length).toBeGreaterThanOrEqual(1);
   });
 
@@ -488,13 +504,9 @@ describe("/alerts triage board", () => {
         mocks.listCcSlos.mockResolvedValue([ccSlo()]);
         mocks.listCcAlerts.mockResolvedValue([sloAlert()]);
       },
-      row: "checkout",
-      // No slo_tier: the row is this label set across every tier, so muting it
-      // mutes all of them rather than handing the page to the next tier down.
-      matchers: [
-        { label: "service", op: "eq", value: "checkout" },
-        { label: "slo", op: "eq", value: SLO_ID },
-      ],
+      row: "critical",
+      // No slo_tier: muting the SLO covers every burn-rate tier.
+      matchers: [{ label: "slo", op: "eq", value: SLO_ID }],
     },
   ];
 
@@ -526,28 +538,17 @@ describe("/alerts triage board", () => {
     ).toBe(3_600_000);
   });
 
-  it("shows the row's own error budget, not the SLO's worst group", async () => {
+  it("shows the SLO's error budget on its firing row", async () => {
     mocks.listCcSlos.mockResolvedValue([ccSlo()]);
     mocks.listCcAlerts.mockResolvedValue([sloAlert()]);
     mocks.getCcSloStatus.mockResolvedValue({
-      payload: {
-        groups: [
-          // A different label set is deeper in the red; the checkout row must
-          // still print its own number.
-          { labels: { service: "search" }, budget_remaining: -0.2 },
-          { labels: { service: "checkout" }, budget_remaining: 0.581 },
-        ],
-      },
+      payload: sloPayload(0.581),
     });
 
     renderTriagePage();
 
     expect(await screen.findByText("58.10%")).toBeInTheDocument();
-    // The worst group's number belongs to the exhausted-budgets card below,
-    // never to this row.
-    const board = screen.getByRole("region", { name: "Triage board" });
-    expect(within(board).queryByText("-20.00%")).toBeNull();
-    expect(screen.getByText("Exhausted error budgets")).toBeInTheDocument();
+    expect(screen.queryByText("Exhausted error budgets")).toBeNull();
   });
 
   it("boards an exhausted budget even when nothing is firing", async () => {
@@ -555,9 +556,7 @@ describe("/alerts triage board", () => {
     mocks.listCcSilences.mockResolvedValue([]);
     mocks.listCcSlos.mockResolvedValue([ccSlo()]);
     mocks.getCcSloStatus.mockResolvedValue({
-      payload: {
-        groups: [{ labels: { service: "checkout" }, budget_remaining: -0.024 }],
-      },
+      payload: sloPayload(-0.024),
     });
 
     renderTriagePage();
@@ -580,9 +579,7 @@ describe("/alerts triage board", () => {
     mocks.listCcSlos.mockResolvedValue([ccSlo()]);
     mocks.listCcAlerts.mockResolvedValue([sloAlert()]);
     mocks.getCcSloStatus.mockResolvedValue({
-      payload: {
-        groups: [{ labels: { service: "checkout" }, budget_remaining: -0.024 }],
-      },
+      payload: sloPayload(-0.024),
     });
 
     renderTriagePage();
@@ -591,7 +588,9 @@ describe("/alerts triage board", () => {
       await screen.findByText("Exhausted error budgets"),
     ).toBeInTheDocument();
     const board = screen.getByRole("region", { name: "Triage board" });
-    expect(within(board).getByText("checkout")).toBeInTheDocument();
+    expect(
+      within(board).getByText("checkout-availability"),
+    ).toBeInTheDocument();
     // One link on the triage row, one on the exhausted-budgets row.
     expect(
       screen.getAllByRole("link", { name: /checkout-availability/ }),
@@ -603,19 +602,12 @@ describe("/alerts triage board", () => {
     mocks.listCcAlerts.mockResolvedValue([sloAlert()]);
     // The engine's throttled snapshot says 58%; the read-time scan says 25%.
     mocks.getCcSloStatus.mockResolvedValue({
-      payload: {
-        groups: [
-          {
-            labels: { service: "checkout" },
-            budget_remaining: 0.581,
-            tiers: [],
-          },
-        ],
-      },
+      payload: sloPayload(0.581),
     });
-    mocks.getCcSloBudgetNow.mockResolvedValue([
-      { labels: { service: "checkout" }, sli: 0.999, budgetRemaining: 0.25 },
-    ]);
+    mocks.getCcSloBudgetNow.mockResolvedValue({
+      sli: 0.999,
+      budgetRemaining: 0.25,
+    });
 
     renderTriagePage();
 
@@ -630,19 +622,12 @@ describe("/alerts triage board", () => {
     mocks.listCcSilences.mockResolvedValue([]);
     mocks.listCcSlos.mockResolvedValue([ccSlo()]);
     mocks.getCcSloStatus.mockResolvedValue({
-      payload: {
-        groups: [
-          {
-            labels: { service: "checkout" },
-            budget_remaining: -0.024,
-            tiers: [],
-          },
-        ],
-      },
+      payload: sloPayload(-0.024),
     });
-    mocks.getCcSloBudgetNow.mockResolvedValue([
-      { labels: { service: "checkout" }, sli: 0.9995, budgetRemaining: 0.1 },
-    ]);
+    mocks.getCcSloBudgetNow.mockResolvedValue({
+      sli: 0.9995,
+      budgetRemaining: 0.1,
+    });
 
     renderTriagePage();
 
@@ -659,9 +644,7 @@ describe("/alerts triage board", () => {
     mocks.listCcSlos.mockResolvedValue([ccSlo()]);
     mocks.listCcAlerts.mockResolvedValue([sloAlert()]);
     mocks.getCcSloStatus.mockResolvedValue({
-      payload: {
-        groups: [{ labels: { service: "checkout" }, budget_remaining: 0.4 }],
-      },
+      payload: sloPayload(0.4),
     });
 
     renderTriagePage();

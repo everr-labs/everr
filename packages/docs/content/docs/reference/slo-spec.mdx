@@ -26,7 +26,6 @@ spec:
 | Field | Type | Required | Notes |
 | --- | --- | --- | --- |
 | `sli.sql` | string | yes | ClickHouse SQL returning `good` and `valid` counts for the window. Must reference `{window_start:DateTime}` and `{window_end:DateTime}`. See [the SLI contract](#the-sli-query) below. |
-| `sli.labelColumns` | [string] | no | Columns that fan the SLO out into per-group SLIs, one budget per distinct value. Omit for a scalar SLO. ≥1 entry when present, and the SQL must actually project and `GROUP BY` them. See [grouping](#grouping). |
 | `targetPercent` | number | yes | The objective, strictly `> 0` and `< 100`. `99.9` means 99.9% of valid events must be good. |
 | `timeWindow` | string | yes | The rolling budget window: `<int><m\|h\|d\|w>`, for example `30d`. No seconds unit, minimum 1 day, and at most 366 days. The object form `{ duration, isRolling: true }` is also accepted; calendar-aligned windows (`isRolling: false`) are rejected. |
 | `minValidEvents` | int | no | Low-traffic floor: a tier's long window is only allowed to fire once it has seen at least this many valid events, suppressing noise from thin data. Omit to disable. |
@@ -38,7 +37,7 @@ Ownership is keyed by the SLO's engine name (`<project>/<slug>`) plus the `everr
 
 ## The SLI query
 
-`sli.sql` is a single read-only `SELECT`. The engine runs it once per window per group and reads two numeric columns from the result:
+`sli.sql` is a single read-only `SELECT`. It must return at most one row with two numeric columns:
 
 - `good`: the count of events that met the objective.
 - `valid`: the count of events eligible to be judged (the denominator).
@@ -57,25 +56,7 @@ WHERE ts >= {window_start:DateTime} AND ts < {window_end:DateTime}
 ```
 
 Only these two parameters are available. The SQL does not support `${...}` templating. Its validity against your schema is checked by the engine's dry-run test during apply.
-
-## Grouping
-
-A scalar SLO returns one `good`/`valid` row and tracks one budget. Adding `sli.labelColumns` turns one definition into one SLI per distinct combination of those columns, each with an independent budget and independent burn-rate tiers.
-
-```yaml
-spec:
-  sli:
-    sql: >-
-      SELECT ServiceName, countIf(status < 500) AS good, count() AS valid
-      FROM requests
-      WHERE ts >= {window_start:DateTime} AND ts < {window_end:DateTime}
-      GROUP BY ServiceName
-    labelColumns: [ServiceName]
-```
-
-The grouping is driven by the SQL, not by `labelColumns` alone. If the query does not `SELECT` and `GROUP BY` the listed columns, every event collapses into one group and the fan-out does nothing, even though `labelColumns` is set. Keep the two in sync.
-
-Two label names are reserved because the SLO pipeline injects them: `slo` (the synthetic routing label) and `slo_tier` (the per-tier instance discriminator). Column aliases starting with `__cc_` are reserved for the engine. A `labelColumns` entry using any of these is rejected at apply time.
+Zero rows means no data for that window. More than one row is rejected because each SLO tracks one objective and one error budget. Define separate SLO resources when different services or dimensions need independent budgets.
 
 ## Burn-rate tiers
 
@@ -99,9 +80,9 @@ SLO declarations sit flat in `everr/`, named `*.slo.yaml`. `everr apply ./everr`
 
 - `metadata.name` must be 1 to 128 chars of `[A-Za-z0-9_.-]`.
 - `sli.sql` must be non-empty and reference both `{window_start:DateTime}` and `{window_end:DateTime}`.
+- `sli.sql` must return at most one row containing numeric `good` and `valid` columns.
 - `targetPercent` must be strictly `> 0` and `< 100`.
 - `timeWindow` must be `<int><m|h|d|w>`, minimum 1 day and at most 366 days; calendar windows (`isRolling: false`) are rejected.
 - `minValidEvents`, when set, must be a non-negative integer.
-- `sli.labelColumns` needs ≥1 entry when present; entries may not be `slo`, `slo_tier`, or start with `__cc_`.
 - `annotations` keys starting with `everr.` are rejected, along with `summary`, `description`, `link.alert`, and `link.runbook`: all are reserved for Everr's own generated annotations.
 - Supported document kinds for apply are `Dashboard`, `AlertRule`, `Runbook`, and `SLO`.

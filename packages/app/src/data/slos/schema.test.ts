@@ -10,7 +10,7 @@ function sloDoc(overrides: Record<string, unknown> = {}) {
     kind: "SLO",
     metadata: { name: "checkout-availability" },
     spec: {
-      sli: { sql: SQL, labelColumns: ["service"] },
+      sli: { sql: SQL },
       targetPercent: 99.9,
       timeWindow: "30d",
       ...overrides,
@@ -88,24 +88,6 @@ describe("SloYamlSchema", () => {
     }
   });
 
-  it("rejects reserved label columns (__cc_ prefix and pipeline-injected names)", () => {
-    expect(
-      firstMessage(sloDoc({ sli: { sql: SQL, labelColumns: ["__cc_x"] } })),
-    ).toMatch(/reserved "__cc_" prefix/);
-    for (const reserved of ["slo", "slo_tier"]) {
-      expect(
-        firstMessage(
-          sloDoc({ sli: { sql: SQL, labelColumns: ["service", reserved] } }),
-        ),
-      ).toMatch(/collides with a label the SLO pipeline injects/);
-    }
-    expect(
-      SloYamlSchema.safeParse(
-        sloDoc({ sli: { sql: SQL, labelColumns: ["slo_name"] } }),
-      ).success,
-    ).toBe(true);
-  });
-
   it("rejects the annotation keys the mapping layer generates, not just everr.*", () => {
     expect(
       firstMessage(sloDoc({ annotations: { "everr.name": "x" } })),
@@ -149,10 +131,5 @@ describe("SloYamlSchema", () => {
     expect(SloYamlSchema.safeParse({ ...sloDoc(), stray: 1 }).success).toBe(
       false,
     );
-    expect(
-      SloYamlSchema.safeParse(
-        sloDoc({ sli: { sql: SQL, label_columns: ["service"] } }),
-      ).success,
-    ).toBe(false);
   });
 });

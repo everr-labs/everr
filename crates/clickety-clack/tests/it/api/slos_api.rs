@@ -8,7 +8,7 @@ use crate::api::support::{body_json, setup, TENANT};
 async fn create_slo(router: &axum::Router, name: &str) -> Value {
     let payload = json!({
         "name": name,
-        "sli": { "sql": "SELECT countIf(ok) AS good, count() AS valid FROM t WHERE ts >= {window_start:DateTime} AND ts < {window_end:DateTime}", "label_columns": ["service"] },
+        "sli": { "sql": "SELECT countIf(ok) AS good, count() AS valid FROM t WHERE ts >= {window_start:DateTime} AND ts < {window_end:DateTime}" },
         "targetPercent": 99.9,
         "timeWindow": { "duration": "30d", "isRolling": true }
     });

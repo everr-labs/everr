@@ -88,7 +88,6 @@ against a `good`/`valid` SLI query. See
 | Field              | Type                   | Default | Meaning |
 | ------------------ | ---------------------- | ------- | ------- |
 | `sli.sql`          | string                 | none | Read-only `SELECT` returning `good`/`valid` numeric columns, evaluated against ClickHouse with `{window_start:DateTime}`/`{window_end:DateTime}` bound. |
-| `sli.label_columns`| string[]               | `[]`    | Result columns that fan the SLO into per-group SLIs. Empty = scalar SLO. Names starting with the reserved `__cc_` prefix, or named `slo` or `slo_tier` (labels the SLO pipeline injects), are rejected (`422`). |
 | `targetPercent`    | f64                    | none | Objective percentage, `> 0` and `< 100`. |
 | `timeWindow.duration` | string               | none | Rolling-window shorthand (`s`/`m`/`h`/`d`/`w`), at least 1 day and at most 366 days. |
 | `timeWindow.isRolling` | bool                | `true`  | v1 supports rolling windows only. |
@@ -131,13 +130,13 @@ identical windows (a 1-day budget does this to `fast-burn` and `slow-burn`), onl
 the lower threshold is kept, since on identical windows it fires whenever the
 other would and earlier. A 1-day SLO therefore has two tiers, not three.
 
-**Tier instance identity.** Each (group × tier) pair is tracked as its own
-instance, keyed like a rule instance but with the SLO id standing in for the
-rule id and an extra `slo_tier` label added to the group's own labels, so a
+**Tier instance identity.** Each tier is tracked as its own instance, keyed
+like a rule instance but with the SLO id standing in for the rule id and a
+`slo_tier` label, so a
 tier transition drives the same engine state machine (`inactive` →
 `pending`/`firing` → resolved) as any rule instance, and shows up alongside
 rule instances in `GET /v1/alerts`. A faster tier firing auto-inhibits its
-slower siblings for the same (SLO, group): synthesized by the dispatcher,
+slower siblings for the same SLO: synthesized by the dispatcher,
 never stored, so it cannot be misconfigured away.
 
 ---
@@ -152,25 +151,18 @@ every successful evaluation tick. Returned (enriched, see below) by
 | -------------------- | --------------------------------- | ------- |
 | `window`             | string                            | The SLO's `timeWindow.duration` at the time of the snapshot. |
 | `target_percent`     | f64                               | The SLO's `targetPercent` at the time of the snapshot. |
-| `groups[]`           | [SloGroupStatus](#slogroupstatus)[] | One entry per distinct `label_columns` combination observed. |
+| `sli`                | f64 \| null                       | `good / valid` over the budget window. `null` at zero traffic. |
+| `budget_remaining`   | f64 \| null                       | Fraction of the error budget left; may go negative. `null` at zero traffic. |
+| `tiers[]`            | [SloTierStatus](#slotierstatus)[] | One entry per tier. |
 | `window_computed_at` | object<string,i64>                | Per-window freshness ledger: window name (e.g. `"300s"`) → unix seconds it was last recomputed. Drives the coordinated-refresh cadence: see [evaluation cadence](../how-to/define-slos-and-burn-rate-alerts.md#evaluation-cadence). |
 
-### SloGroupStatus
-
-| Field               | Type                              | Meaning |
-| ------------------- | --------------------------------- | ------- |
-| `labels`             | object<string,string>              | This group's `label_columns` values. |
-| `sli`                | f64 \| null                        | `good / valid` over the budget window. `null` at zero traffic. |
-| `budget_remaining`   | f64 \| null                        | Fraction of the error budget left over the budget window; may go negative once the objective is breached. `null` at zero traffic. |
-| `tiers[]`            | [SloTierStatus](#slotierstatus)[]  | One entry per tier. |
-
-At **read time only** (`GET /v1/slos/:id/status`; never persisted), each group
+At **read time only** (`GET /v1/slos/:id/status`; never persisted), the payload
 also gains:
 
 | Field                     | Type                 | Meaning |
 | ------------------------- | -------------------- | ------- |
 | `time_to_exhaustion_secs` | u64 \| null          | Projected seconds until budget exhaustion, from `budget_remaining` and the fastest tier's `long_burn_rate`. `null` when that burn rate is unknown or `<= 0`; `0` when the budget is already exhausted. |
-| `firing_tiers[]`          | object[]             | `{ tier, status }` for this group's currently non-`inactive` tier instances (`pending` or `firing`), read live from the instance store. |
+| `firing_tiers[]`          | object[]             | `{ tier, status }` for currently non-`inactive` tier instances (`pending` or `firing`), read live from the instance store. |
 
 A stored payload that fails to deserialize into the current shape is returned
 verbatim by the API, without either enrichment field, rather than erroring.

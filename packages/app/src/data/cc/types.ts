@@ -18,10 +18,10 @@ import type {
   CcSeveritySchema,
   CcSilenceInputSchema,
   CcSilenceSchema,
-  CcSloGroupStatusSchema,
   CcSloInputSchema,
   CcSloSchema,
   CcSloSpecSchema,
+  CcSloStatusPayloadSchema,
   CcSloStatusSchema,
   CcSloTierSchema,
   CcSloUpdateSchema,
@@ -50,7 +50,7 @@ export type CcSloTier = z.infer<typeof CcSloTierSchema>;
 export type CcSloSpec = z.infer<typeof CcSloSpecSchema>;
 export type CcSlo = z.infer<typeof CcSloSchema>;
 export type CcSloView = z.infer<typeof CcSloViewSchema>;
-export type CcSloGroupStatus = z.infer<typeof CcSloGroupStatusSchema>;
 export type CcSloStatus = z.infer<typeof CcSloStatusSchema>;
+export type CcSloStatusPayload = z.infer<typeof CcSloStatusPayloadSchema>;
 export type CcSloInput = z.infer<typeof CcSloInputSchema>;
 export type CcSloUpdate = z.infer<typeof CcSloUpdateSchema>;

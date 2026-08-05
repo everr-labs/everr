@@ -1,5 +1,4 @@
-//! Computes SLO status and drives each group and tier verdict through the alert
-//! state machine.
+//! Computes SLO status and drives each tier verdict through the alert state machine.
 //!
 //! Successful status, instance, and idempotency writes commit together. Failures
 //! freeze alert state and update SLO health separately.
@@ -15,8 +14,8 @@ use crate::domain::slo::{
 use crate::domain::Event;
 use crate::engine::slo_math::{
     budget_remaining_fraction, burn_rate, empty_payload, fmt_burn, fmt_duration_secs, fmt_pct,
-    is_window_due, required_windows, time_to_exhaustion_secs, SloGroupStatus, SloStatusPayload,
-    SloTierStatus, WindowReq,
+    is_window_due, required_windows, time_to_exhaustion_secs, SloStatusPayload, SloTierStatus,
+    WindowReq,
 };
 use crate::engine::{evaluate, EvalInput};
 use crate::evaluator::{publish_and_clear_outbox, publish_health, SloEvalStore};
@@ -28,29 +27,8 @@ use std::time::Duration as StdDuration;
 use time::{Duration, OffsetDateTime};
 use tracing::Instrument;
 
-/// A group's label set (the SLI query's `label_columns`, empty for a scalar SLO).
-type GroupKey = BTreeMap<String, String>;
-/// window name -> group labels -> (good, valid) observed this tick.
-type GroupValues = BTreeMap<String, BTreeMap<GroupKey, (f64, f64)>>;
-
-/// The group label sets to publish in this tick's snapshot.
-///
-/// Keep groups observed in due windows. Carry prior groups while the defining
-/// budget window is throttled, then prune those absent when it is recomputed.
-fn groups_to_emit(
-    prior_groups: &[SloGroupStatus],
-    window_values: &GroupValues,
-    budget_due: bool,
-) -> BTreeSet<GroupKey> {
-    let mut labels: BTreeSet<GroupKey> = BTreeSet::new();
-    for groups in window_values.values() {
-        labels.extend(groups.keys().cloned());
-    }
-    if !budget_due {
-        labels.extend(prior_groups.iter().map(|g| g.labels.clone()));
-    }
-    labels
-}
+/// Window name -> (good, valid) observed this tick.
+type WindowValues = BTreeMap<String, (f64, f64)>;
 
 /// Format a UTC instant for ClickHouse `DateTime` query parameters.
 pub(crate) fn fmt_ch_datetime(t: OffsetDateTime) -> String {
@@ -94,33 +72,25 @@ fn window_name_for(dur: &str) -> Option<String> {
 /// Return current values for a due window, or `None` to retain prior values.
 fn fresh_window_values(
     window_dur: &str,
-    labels: &GroupKey,
     due_names: &BTreeSet<&str>,
-    window_values: &GroupValues,
+    window_values: &WindowValues,
 ) -> Option<(f64, f64)> {
     let name = window_name_for(window_dur)?;
     if !due_names.contains(name.as_str()) {
         return None;
     }
-    Some(
-        window_values
-            .get(&name)
-            .and_then(|g| g.get(labels))
-            .copied()
-            .unwrap_or((0.0, 0.0)),
-    )
+    Some(window_values.get(&name).copied().unwrap_or((0.0, 0.0)))
 }
 
 /// Recompute a due burn window, otherwise retain its prior value.
 fn burn_rate_for(
     window_dur: &str,
-    labels: &GroupKey,
     due_names: &BTreeSet<&str>,
-    window_values: &GroupValues,
+    window_values: &WindowValues,
     prior_value: Option<f64>,
     target_percent: f64,
 ) -> Option<f64> {
-    match fresh_window_values(window_dur, labels, due_names, window_values) {
+    match fresh_window_values(window_dur, due_names, window_values) {
         Some((good, valid)) => burn_rate(good, valid, target_percent),
         None => prior_value,
     }
@@ -130,20 +100,19 @@ fn burn_rate_for(
 /// `valid` count instead of a burn rate — the input to `min_valid_events`' floor.
 fn long_window_valid_for(
     window_dur: &str,
-    labels: &GroupKey,
     due_names: &BTreeSet<&str>,
-    window_values: &GroupValues,
+    window_values: &WindowValues,
     prior_value: Option<f64>,
 ) -> Option<f64> {
-    match fresh_window_values(window_dur, labels, due_names, window_values) {
+    match fresh_window_values(window_dur, due_names, window_values) {
         Some((_good, valid)) => Some(valid),
         None => prior_value,
     }
 }
 
 /// Evaluate one SLO as of `eval_ts`: plan the due windows (coordinated freshness,
-/// see [`is_window_due`]), run the SLI query once per due window, compute per-group
-/// SLI + per-tier burn rate + budget-remaining, merge with the prior snapshot for
+/// see [`is_window_due`]), run the SLI query once per due window, compute the
+/// SLI, per-tier burn rate, and budget remaining, merge with the prior snapshot for
 /// windows not recomputed this tick, and upsert the status snapshot.
 ///
 /// On any window's query error: records the failure (`record_slo_failure`, which
@@ -159,25 +128,22 @@ fn long_window_valid_for(
 fn buffer_slo_samples(
     samples: &dyn SloSampleSink,
     slo: &Slo,
-    window_values: &GroupValues,
+    window_values: &WindowValues,
     eval_ts: OffsetDateTime,
 ) {
     let time_unix_nanos = eval_ts.unix_timestamp_nanos().max(0) as u64;
     let slo_id = slo.id.0.to_string();
     let mut batch = Vec::new();
-    for (window, groups) in window_values {
-        for (labels, (good, valid)) in groups {
-            batch.push(SloSample {
-                tenant: slo.tenant.as_str().to_string(),
-                slo_id: slo_id.clone(),
-                slo_name: slo.name.clone(),
-                window: window.clone(),
-                labels: labels.clone(),
-                good: *good,
-                valid: *valid,
-                time_unix_nanos,
-            });
-        }
+    for (window, (good, valid)) in window_values {
+        batch.push(SloSample {
+            tenant: slo.tenant.as_str().to_string(),
+            slo_id: slo_id.clone(),
+            slo_name: slo.name.clone(),
+            window: window.clone(),
+            good: *good,
+            valid: *valid,
+            time_unix_nanos,
+        });
     }
     if !batch.is_empty() {
         samples.record(batch);
@@ -191,7 +157,6 @@ fn buffer_slo_samples(
     fields(
         slo = %slo.id.0,
         tenant = %slo.tenant,
-        groups = tracing::field::Empty,
         otel.status_code = tracing::field::Empty,
         otel.status_message = tracing::field::Empty
     )
@@ -238,9 +203,7 @@ pub async fn evaluate_slo<S: SloEvalStore>(
 
     // Discard a snapshot computed for a different objective (see
     // `objective_fingerprint`): starting from empty makes every window due, so
-    // this tick rebuilds from the current query alone and any vanished group
-    // resolves its instances via the not-planned path below — instead of carrying
-    // stale groups forward until the budget window next comes due.
+    // this tick rebuilds from the current query alone.
     let objective = objective_fingerprint(&slo.spec);
     let prior = if prior.objective_fingerprint.as_deref() == Some(objective.as_str()) {
         prior
@@ -263,7 +226,7 @@ pub async fn evaluate_slo<S: SloEvalStore>(
         .cloned()
         .collect();
 
-    // Run every due window's SLI query once, keyed by group labels. The queries are
+    // Run every due window's SLI query once. The queries are
     // independent reads, so they run concurrently; the results are then folded IN
     // WINDOW ORDER so the freeze-on-first-error path reports the same window's error
     // a sequential pass would. On any window's error, record the failure and freeze
@@ -277,30 +240,26 @@ pub async fn evaluate_slo<S: SloEvalStore>(
             ("window_end".to_string(), fmt_ch_datetime(window_end)),
         ];
         let rows = ch
-            .query_rows_params(
-                &slo.tenant,
-                &slo.spec.sli.sql,
-                &params,
-                &slo.spec.sli.label_columns,
-                Some("valid"),
-            )
+            .query_rows_params(&slo.tenant, &slo.spec.sli.sql, &params, &[], Some("valid"))
             .await
             .map_err(|e| e.to_string())?;
-        let mut groups: BTreeMap<GroupKey, (f64, f64)> = BTreeMap::new();
-        for row in rows {
-            let valid = row.value.unwrap_or(0.0);
-            let good = row.extra.get("good").and_then(json_to_f64).unwrap_or(0.0);
-            groups.insert(row.labels, (good, valid));
-        }
-        Ok::<_, String>(groups)
+        let values = match rows.as_slice() {
+            [] => (0.0, 0.0),
+            [row] => (
+                row.extra.get("good").and_then(json_to_f64).unwrap_or(0.0),
+                row.value.unwrap_or(0.0),
+            ),
+            _ => return Err("SLI query must return at most one row".to_string()),
+        };
+        Ok::<_, String>(values)
     });
     let results = futures::future::join_all(window_queries).await;
 
-    let mut window_values: GroupValues = BTreeMap::new();
+    let mut window_values: WindowValues = BTreeMap::new();
     for (w, result) in due_windows.iter().zip(results) {
         match result {
-            Ok(groups) => {
-                window_values.insert(w.name.clone(), groups);
+            Ok(values) => {
+                window_values.insert(w.name.clone(), values);
             }
             Err(msg) => {
                 let recorded = match store
@@ -353,83 +312,47 @@ pub async fn evaluate_slo<S: SloEvalStore>(
     let tiers = tiers_for_spec(&slo.spec);
     let budget_window_name = window_name_for(&slo.spec.time_window.duration);
 
-    let prior_by_labels: BTreeMap<GroupKey, &SloGroupStatus> =
-        prior.groups.iter().map(|g| (g.labels.clone(), g)).collect();
+    // Recompute the budget-window values only when that window is due.
+    let (sli, budget_remaining) = match &budget_window_name {
+        Some(name) if due_names.contains(name.as_str()) => {
+            let (good, valid) = window_values.get(name).copied().unwrap_or((0.0, 0.0));
+            (
+                (valid > 0.0).then_some(good / valid),
+                budget_remaining_fraction(good, valid, slo.spec.target_percent),
+            )
+        }
+        _ => (prior.sli, prior.budget_remaining),
+    };
 
-    // The groups to publish this tick. See `groups_to_emit`: due-window groups
-    // are always kept; prior groups are carried only while the budget window is
-    // throttled, so a group with no data left in the window is pruned once the
-    // budget window (its defining span) is re-evaluated instead of lingering.
-    let budget_due = budget_window_name
-        .as_deref()
-        .is_some_and(|name| due_names.contains(name));
-    let all_labels = groups_to_emit(&prior.groups, &window_values, budget_due);
-
-    let mut out_groups = Vec::with_capacity(all_labels.len());
-    for labels in all_labels {
-        let prior_group = prior_by_labels.get(&labels).copied();
-
-        // The budget window (spec.time_window): recompute sli/budget_remaining iff
-        // due this tick, else carry the prior group's values unchanged.
-        let (sli, budget_remaining) = match &budget_window_name {
-            Some(name) if due_names.contains(name.as_str()) => {
-                let (good, valid) = window_values
-                    .get(name)
-                    .and_then(|g| g.get(&labels))
-                    .copied()
-                    .unwrap_or((0.0, 0.0));
-                let sli = (valid > 0.0).then_some(good / valid);
-                let budget_remaining =
-                    budget_remaining_fraction(good, valid, slo.spec.target_percent);
-                (sli, budget_remaining)
+    let tiers_status = tiers
+        .iter()
+        .map(|tier| {
+            let prior_tier = prior.tiers.iter().find(|t| t.name == tier.name);
+            SloTierStatus {
+                name: tier.name.clone(),
+                long_burn_rate: burn_rate_for(
+                    &tier.long_window,
+                    &due_names,
+                    &window_values,
+                    prior_tier.and_then(|t| t.long_burn_rate),
+                    slo.spec.target_percent,
+                ),
+                short_burn_rate: burn_rate_for(
+                    &tier.short_window,
+                    &due_names,
+                    &window_values,
+                    prior_tier.and_then(|t| t.short_burn_rate),
+                    slo.spec.target_percent,
+                ),
+                long_window_valid: long_window_valid_for(
+                    &tier.long_window,
+                    &due_names,
+                    &window_values,
+                    prior_tier.and_then(|t| t.long_window_valid),
+                ),
             }
-            _ => (
-                prior_group.and_then(|g| g.sli),
-                prior_group.and_then(|g| g.budget_remaining),
-            ),
-        };
-
-        let tiers_status = tiers
-            .iter()
-            .map(|tier| {
-                let prior_tier =
-                    prior_group.and_then(|g| g.tiers.iter().find(|t| t.name == tier.name));
-                SloTierStatus {
-                    name: tier.name.clone(),
-                    long_burn_rate: burn_rate_for(
-                        &tier.long_window,
-                        &labels,
-                        &due_names,
-                        &window_values,
-                        prior_tier.and_then(|t| t.long_burn_rate),
-                        slo.spec.target_percent,
-                    ),
-                    short_burn_rate: burn_rate_for(
-                        &tier.short_window,
-                        &labels,
-                        &due_names,
-                        &window_values,
-                        prior_tier.and_then(|t| t.short_burn_rate),
-                        slo.spec.target_percent,
-                    ),
-                    long_window_valid: long_window_valid_for(
-                        &tier.long_window,
-                        &labels,
-                        &due_names,
-                        &window_values,
-                        prior_tier.and_then(|t| t.long_window_valid),
-                    ),
-                }
-            })
-            .collect();
-
-        out_groups.push(SloGroupStatus {
-            labels,
-            sli,
-            budget_remaining,
-            tiers: tiers_status,
-        });
-    }
+        })
+        .collect();
 
     // Rebuild the freshness ledger from the CURRENT required windows only, so a
     // window not in the SLO's tier set (a tier window that changed) drops out
@@ -446,11 +369,12 @@ pub async fn evaluate_slo<S: SloEvalStore>(
         }
     }
 
-    tracing::Span::current().record("groups", out_groups.len());
     let payload = SloStatusPayload {
         window: slo.spec.time_window.duration.clone(),
         target_percent: slo.spec.target_percent,
-        groups: out_groups,
+        sli,
+        budget_remaining,
+        tiers: tiers_status,
         window_computed_at,
         objective_fingerprint: Some(objective),
     };
@@ -467,7 +391,7 @@ pub async fn evaluate_slo<S: SloEvalStore>(
     // transaction below, so a crash between the snapshot and the instances can never
     // strand a claimed eval_ts with only half its state.
 
-    // ---- Firing pipeline: drive each (group x tier) burn-rate verdict through the
+    // ---- Firing pipeline: drive each tier's burn-rate verdict through the
     // shared engine state machine, open/resolve `slo_instances` rows, and publish
     // the resulting events. Reached only on this success path — every freeze-on-error
     // branch above already returned before here, so a flaky SLI query can neither
@@ -491,7 +415,7 @@ pub async fn evaluate_slo<S: SloEvalStore>(
     // this function's other out-of-range/unparsable-window handling).
     let budget_window_secs = parse_window_secs(&slo.spec.time_window.duration).unwrap_or(0);
 
-    // Built once per tier (not per group), per the firing algorithm.
+    // Built once per tier.
     let tier_annotations: BTreeMap<&str, BTreeMap<String, String>> = tiers
         .iter()
         .map(|t| (t.name.as_str(), slo_annotations(slo, t)))
@@ -527,7 +451,7 @@ pub async fn evaluate_slo<S: SloEvalStore>(
             // additional debounce belongs here.
             for_duration: Duration::ZERO,
             // The short window is the anti-flap mechanism: once it drops back under
-            // threshold the group is genuinely recovering (spec §3), so resolve on
+            // threshold the SLO is genuinely recovering, so resolve on
             // the very next non-breaching tick instead of requiring repeated absences.
             resolve_after: 1,
             severity: tf.severity,
@@ -550,10 +474,7 @@ pub async fn evaluate_slo<S: SloEvalStore>(
         next_states.push(outcome.next);
     }
 
-    // Known-but-not-planned instances (e.g. a tier dropped from the spec, or a group
-    // that no longer appears anywhere in the payload): feed present:false so they
-    // resolve, mirroring the rule evaluator's absent path
-    // (`evaluate_rule_against_rows`).
+    // Resolve known instances for tiers that are no longer part of the spec.
     for (_key, mut prev) in known_by_key {
         let labels = std::mem::take(&mut prev.labels);
         let tier = labels
@@ -798,7 +719,7 @@ pub async fn run_slo_evaluator(
     tracing::info!("slo evaluator stopped");
 }
 
-/// What one tick could establish about a (group × tier) pair.
+/// What one tick could establish about a burn-rate tier.
 ///
 /// The third case is load-bearing: a window returns no rows whenever the source
 /// emitted nothing during it, or has not delivered it yet. For the short window
@@ -817,13 +738,17 @@ pub(crate) enum TierVerdict {
     Unknown,
 }
 
-/// One (group × tier) firing verdict: the pure output of comparing an
+fn exceeds_burn_threshold(value: f64, threshold: f64) -> bool {
+    value - threshold > threshold.abs().max(1.0) * 1e-12
+}
+
+/// One tier's firing verdict: the pure output of comparing an
 /// already-computed [`SloStatusPayload`] snapshot against the [`SloSpec`]'s
 /// burn-rate tiers. No I/O; [`evaluate_slo`] feeds each verdict through the
 /// engine state machine to actually open/resolve instances.
 #[derive(Debug, Clone, PartialEq)]
 pub(crate) struct TierFiring {
-    /// Group labels + "slo_tier" — the instance's label set (identity input).
+    /// The `slo_tier` instance label.
     pub labels: BTreeMap<String, String>,
     pub tier_name: String,
     pub verdict: TierVerdict,
@@ -835,7 +760,7 @@ pub(crate) struct TierFiring {
     pub budget_remaining: Option<f64>,
 }
 
-/// For every (group × tier) pair, decide whether the tier is presently
+/// For every tier, decide whether it is presently
 /// breaching: both the long- and short-window burn rates must strictly
 /// exceed the tier's threshold, and (if `spec.min_valid_events` is set) the
 /// long window's observed `valid` count must meet the floor.
@@ -846,8 +771,8 @@ pub(crate) struct TierFiring {
 /// *below* a configured `min_valid_events` floor is a measurement the operator
 /// asked us not to act on, so it stays [`TierVerdict::Clear`].
 ///
-/// Every (group × tier) pair yields exactly one entry, including clear ones
-/// — the resolve path downstream relies on seeing every pair each tick.
+/// Every tier yields exactly one entry, including clear ones, because the
+/// resolve path relies on seeing every tier each tick.
 pub(crate) fn plan_tier_firing(spec: &SloSpec, payload: &SloStatusPayload) -> Vec<TierFiring> {
     // Must be the SLO's own scaled tiers, not the canonical three: at small budget
     // windows `tiers_for_window` collapses two tiers onto identical windows and keeps
@@ -858,48 +783,48 @@ pub(crate) fn plan_tier_firing(spec: &SloSpec, payload: &SloStatusPayload) -> Ve
     // resolve. Matching the snapshot means a collapsed-away tier is simply not
     // planned, and the known-but-not-planned path below resolves it.
     let tiers = tiers_for_spec(spec);
-    let mut out = Vec::with_capacity(payload.groups.len() * tiers.len());
-    for group in &payload.groups {
-        for tier in &tiers {
-            let tier_status = group.tiers.iter().find(|t| t.name == tier.name);
-            let long_burn = tier_status.and_then(|t| t.long_burn_rate);
-            let short_burn = tier_status.and_then(|t| t.short_burn_rate);
-            let long_window_valid = tier_status.and_then(|t| t.long_window_valid);
+    let mut out = Vec::with_capacity(tiers.len());
+    for tier in &tiers {
+        let tier_status = payload.tiers.iter().find(|t| t.name == tier.name);
+        let long_burn = tier_status.and_then(|t| t.long_burn_rate);
+        let short_burn = tier_status.and_then(|t| t.short_burn_rate);
+        let long_window_valid = tier_status.and_then(|t| t.long_window_valid);
 
-            // `None` is "the floor could not be evaluated": a floor is configured
-            // but the long window produced no count at all, which is missing data
-            // rather than a measurement that came in under the floor.
-            let floor_ok = match spec.min_valid_events {
-                None => Some(true),
-                Some(n) => long_window_valid.map(|v| v >= n as f64),
-            };
-            let verdict = match (long_burn, short_burn, floor_ok) {
-                (Some(long), Some(short), Some(ok)) => {
-                    if ok && long > tier.burn_rate && short > tier.burn_rate {
-                        TierVerdict::Breaching
-                    } else {
-                        TierVerdict::Clear
-                    }
+        // `None` is "the floor could not be evaluated": a floor is configured
+        // but the long window produced no count at all, which is missing data
+        // rather than a measurement that came in under the floor.
+        let floor_ok = match spec.min_valid_events {
+            None => Some(true),
+            Some(n) => long_window_valid.map(|v| v >= n as f64),
+        };
+        let verdict = match (long_burn, short_burn, floor_ok) {
+            (Some(long), Some(short), Some(ok)) => {
+                if ok
+                    && exceeds_burn_threshold(long, tier.burn_rate)
+                    && exceeds_burn_threshold(short, tier.burn_rate)
+                {
+                    TierVerdict::Breaching
+                } else {
+                    TierVerdict::Clear
                 }
-                _ => TierVerdict::Unknown,
-            };
+            }
+            _ => TierVerdict::Unknown,
+        };
 
-            let mut labels = group.labels.clone();
-            labels.insert(
-                crate::domain::slo::SLO_TIER_LABEL.to_string(),
-                tier.name.clone(),
-            );
+        let labels = BTreeMap::from([(
+            crate::domain::slo::SLO_TIER_LABEL.to_string(),
+            tier.name.clone(),
+        )]);
 
-            out.push(TierFiring {
-                labels,
-                tier_name: tier.name.clone(),
-                verdict,
-                value: long_burn,
-                severity: tier.severity,
-                short_burn,
-                budget_remaining: group.budget_remaining,
-            });
-        }
+        out.push(TierFiring {
+            labels,
+            tier_name: tier.name.clone(),
+            verdict,
+            value: long_burn,
+            severity: tier.severity,
+            short_burn,
+            budget_remaining: payload.budget_remaining,
+        });
     }
     out
 }
@@ -1010,10 +935,7 @@ mod tier_firing_tests {
 
     fn spec_with(min_valid_events: Option<u64>) -> SloSpec {
         SloSpec {
-            sli: SliSpec {
-                sql: "x".into(),
-                label_columns: vec![],
-            },
+            sli: SliSpec { sql: "x".into() },
             target_percent: 99.9,
             time_window: TimeWindow {
                 duration: "30d".into(),
@@ -1026,21 +948,13 @@ mod tier_firing_tests {
         }
     }
 
-    /// A single-group payload, with the group's tier statuses supplied directly.
-    fn payload_one_group(
-        labels: BTreeMap<String, String>,
-        budget_remaining: Option<f64>,
-        tiers: Vec<SloTierStatus>,
-    ) -> SloStatusPayload {
+    fn test_payload(budget_remaining: Option<f64>, tiers: Vec<SloTierStatus>) -> SloStatusPayload {
         SloStatusPayload {
             window: "30d".into(),
             target_percent: 99.9,
-            groups: vec![SloGroupStatus {
-                labels,
-                sli: None,
-                budget_remaining,
-                tiers,
-            }],
+            sli: None,
+            budget_remaining,
+            tiers,
             window_computed_at: BTreeMap::new(),
             objective_fingerprint: None,
         }
@@ -1055,66 +969,22 @@ mod tier_firing_tests {
         }
     }
 
-    fn group_labels() -> BTreeMap<String, String> {
-        BTreeMap::from([("service".to_string(), "checkout".to_string())])
-    }
-
-    #[test]
-    fn prunes_stale_groups_only_when_the_budget_window_is_due() {
-        let svc = |v: &str| BTreeMap::from([("service".to_string(), v.to_string())]);
-        let bare = |labels: BTreeMap<String, String>| SloGroupStatus {
-            labels,
-            sli: None,
-            budget_remaining: None,
-            tiers: vec![],
-        };
-        // Only "checkout" reports in this tick.
-        let prior = vec![bare(svc("checkout")), bare(svc("cart"))];
-        let mut window_values: GroupValues = BTreeMap::new();
-        window_values.insert(
-            "1h".to_string(),
-            BTreeMap::from([(svc("checkout"), (10.0, 10.0))]),
-        );
-
-        // Keep prior groups until the defining budget window is recomputed.
-        let carried = groups_to_emit(&prior, &window_values, false);
-        assert!(carried.contains(&svc("checkout")));
-        assert!(carried.contains(&svc("cart")));
-
-        // Once that window is due, absent groups have aged out.
-        let pruned = groups_to_emit(&prior, &window_values, true);
-        assert!(pruned.contains(&svc("checkout")));
-        assert!(!pruned.contains(&svc("cart")));
-    }
-
     #[test]
     fn fires_only_when_both_windows_breach() {
         let spec = spec_with(None);
 
         // Both windows must breach.
-        let payload = payload_one_group(
-            group_labels(),
-            None,
-            vec![tier_status("fast-burn", Some(15.0), Some(15.0))],
-        );
+        let payload = test_payload(None, vec![tier_status("fast-burn", Some(15.0), Some(15.0))]);
         let firings = plan_tier_firing(&spec, &payload);
         let fast = firings.iter().find(|f| f.tier_name == "fast-burn").unwrap();
         assert_eq!(fast.verdict, TierVerdict::Breaching);
 
-        let payload = payload_one_group(
-            group_labels(),
-            None,
-            vec![tier_status("fast-burn", Some(15.0), Some(2.0))],
-        );
+        let payload = test_payload(None, vec![tier_status("fast-burn", Some(15.0), Some(2.0))]);
         let firings = plan_tier_firing(&spec, &payload);
         let fast = firings.iter().find(|f| f.tier_name == "fast-burn").unwrap();
         assert_eq!(fast.verdict, TierVerdict::Clear);
 
-        let payload = payload_one_group(
-            group_labels(),
-            None,
-            vec![tier_status("fast-burn", Some(2.0), Some(15.0))],
-        );
+        let payload = test_payload(None, vec![tier_status("fast-burn", Some(2.0), Some(15.0))]);
         let firings = plan_tier_firing(&spec, &payload);
         let fast = firings.iter().find(|f| f.tier_name == "fast-burn").unwrap();
         assert_eq!(fast.verdict, TierVerdict::Clear);
@@ -1142,7 +1012,7 @@ mod tier_firing_tests {
             .iter()
             .map(|t| tier_status(&t.name, Some(0.1), Some(0.1)))
             .collect();
-        let firings = plan_tier_firing(&spec, &payload_one_group(group_labels(), None, tiers));
+        let firings = plan_tier_firing(&spec, &test_payload(None, tiers));
 
         let planned: Vec<&str> = firings.iter().map(|f| f.tier_name.as_str()).collect();
         let expected: Vec<&str> = scaled.iter().map(|t| t.name.as_str()).collect();
@@ -1155,11 +1025,7 @@ mod tier_firing_tests {
 
     /// `fast-burn`'s verdict for a payload carrying just those two burn rates.
     fn fast_verdict(spec: &SloSpec, long: Option<f64>, short: Option<f64>) -> TierVerdict {
-        let payload = payload_one_group(
-            group_labels(),
-            None,
-            vec![tier_status("fast-burn", long, short)],
-        );
+        let payload = test_payload(None, vec![tier_status("fast-burn", long, short)]);
         plan_tier_firing(spec, &payload)
             .into_iter()
             .find(|f| f.tier_name == "fast-burn")
@@ -1192,14 +1058,14 @@ mod tier_firing_tests {
         use crate::domain::ids::{SloId, SourceId, TenantId};
 
         let slo = SloId(uuid::Uuid::nil());
-        let labels = group_labels();
+        let labels = BTreeMap::from([("slo_tier".to_string(), "fast-burn".to_string())]);
         let key = InstanceKey::new(RuleId(slo.0), &labels);
         let fired_at = OffsetDateTime::from_unix_timestamp(1_700_000_000).unwrap();
         let mut prev = InstanceState::new_inactive(
             key,
             SourceId::Slo(slo),
             TenantId::parse("t").unwrap(),
-            labels,
+            labels.clone(),
         );
         prev.status = Status::Firing;
         prev.value = Some(1000.0);
@@ -1213,7 +1079,7 @@ mod tier_firing_tests {
             EvalInput {
                 present: present_for(TierVerdict::Unknown, Status::Firing),
                 value: None,
-                labels: group_labels(),
+                labels: labels.clone(),
                 for_duration: Duration::ZERO,
                 resolve_after: 1,
                 severity: Severity::Critical,
@@ -1233,8 +1099,7 @@ mod tier_firing_tests {
         let spec_floored = spec_with(Some(1000));
 
         // Thin traffic stays clear even when both burn windows breach.
-        let payload = payload_one_group(
-            group_labels(),
+        let payload = test_payload(
             None,
             vec![SloTierStatus {
                 name: "fast-burn".into(),
@@ -1248,8 +1113,7 @@ mod tier_firing_tests {
         assert_eq!(fast.verdict, TierVerdict::Clear);
 
         // The same burns breach once the count clears the floor.
-        let payload = payload_one_group(
-            group_labels(),
+        let payload = test_payload(
             None,
             vec![SloTierStatus {
                 name: "fast-burn".into(),
@@ -1263,8 +1127,7 @@ mod tier_firing_tests {
         assert_eq!(fast.verdict, TierVerdict::Breaching);
 
         // A missing count makes the floor unmeasured.
-        let payload = payload_one_group(
-            group_labels(),
+        let payload = test_payload(
             None,
             vec![SloTierStatus {
                 name: "fast-burn".into(),
@@ -1285,20 +1148,13 @@ mod tier_firing_tests {
     }
 
     #[test]
-    fn labels_carry_tier_and_group() {
+    fn labels_carry_tier() {
         let spec = spec_with(None); // canonical: 3 tiers
-        let payload = payload_one_group(
-            group_labels(),
-            None,
-            vec![tier_status("fast-burn", Some(15.0), Some(15.0))],
-        );
+        let payload = test_payload(None, vec![tier_status("fast-burn", Some(15.0), Some(15.0))]);
         let firings = plan_tier_firing(&spec, &payload);
-        assert_eq!(firings.len(), 3); // 1 group * 3 canonical tiers
+        assert_eq!(firings.len(), 3);
         for f in &firings {
-            assert_eq!(
-                f.labels.get("service").map(String::as_str),
-                Some("checkout")
-            );
+            assert_eq!(f.labels.len(), 1);
             assert_eq!(f.labels.get("slo_tier"), Some(&f.tier_name));
         }
     }
@@ -1306,8 +1162,7 @@ mod tier_firing_tests {
     #[test]
     fn severity_and_value_from_tier() {
         let spec = spec_with(None); // canonical: ticket tier is Severity::Warning
-        let payload = payload_one_group(
-            group_labels(),
+        let payload = test_payload(
             None,
             vec![tier_status("ticket", Some(2.0), Some(2.0))], // breaches ticket's 1.0 threshold
         );
@@ -1321,14 +1176,27 @@ mod tier_firing_tests {
     #[test]
     fn burn_exactly_at_threshold_does_not_fire() {
         let spec = spec_with(None); // canonical: fast-burn threshold is 14.4
-        let payload = payload_one_group(
-            group_labels(),
+        let payload = test_payload(
             None,
             vec![tier_status("fast-burn", Some(14.4), Some(14.4))], // exactly at threshold
         );
         let firings = plan_tier_firing(&spec, &payload);
         let fast = firings.iter().find(|f| f.tier_name == "fast-burn").unwrap();
         assert_eq!(fast.verdict, TierVerdict::Clear); // strict >, not >=
+
+        let payload = test_payload(
+            None,
+            vec![tier_status(
+                "fast-burn",
+                Some(14.4 + 1e-13),
+                Some(14.4 + 1e-13),
+            )],
+        );
+        let fast = plan_tier_firing(&spec, &payload)
+            .into_iter()
+            .find(|f| f.tier_name == "fast-burn")
+            .unwrap();
+        assert_eq!(fast.verdict, TierVerdict::Clear);
     }
 }
 
@@ -1345,10 +1213,7 @@ mod annotations_evidence_tests {
             namespace: String::new(),
             name: name.to_string(),
             spec: SloSpec {
-                sli: SliSpec {
-                    sql: "x".into(),
-                    label_columns: vec![],
-                },
+                sli: SliSpec { sql: "x".into() },
                 target_percent: 99.9,
                 time_window: TimeWindow {
                     duration: "30d".into(),

@@ -24,7 +24,6 @@ fn slo_spec() -> SloSpec {
     SloSpec {
         sli: SliSpec {
             sql: "SELECT 1 AS good, 1 AS valid FROM t WHERE ts >= {window_start:DateTime} AND ts < {window_end:DateTime}".into(),
-            label_columns: vec![],
         },
         target_percent: 99.9,
         time_window: TimeWindow {
@@ -53,20 +52,16 @@ fn rule_spec() -> RuleSpec {
     }
 }
 
-/// Builds an SLO instance row directly (bypassing the firing pipeline). `group`
-/// distinguishes rows within the same SLO (mirrors a group label) so two instances of
-/// the same SLO don't collide on `InstanceKey` (which hashes the SLO's uuid).
+/// Builds an SLO instance row directly (bypassing the firing pipeline). The tier
+/// distinguishes instances within the same SLO.
 fn slo_instance(
     slo: SloId,
     tenant: TenantId,
-    group: &str,
+    tier: &str,
     status: Status,
     last_seen: OffsetDateTime,
 ) -> InstanceState {
-    let labels = BTreeMap::from([
-        ("slo_tier".to_string(), "fast-burn".to_string()),
-        ("group".to_string(), group.to_string()),
-    ]);
+    let labels = BTreeMap::from([("slo_tier".to_string(), tier.to_string())]);
     let key = InstanceKey::new(RuleId(slo.0), &labels);
     let mut s = InstanceState::new_inactive(key, SourceId::Slo(slo), tenant, labels);
     s.status = status;
@@ -102,11 +97,11 @@ async fn reaper_resolves_stale_slo_instance_and_leaves_fresh_untouched() {
     let stale = slo_instance(
         slo_rule,
         t.clone(),
-        "stale",
+        "fast-burn",
         Status::Firing,
         now - Duration::minutes(10),
     );
-    let fresh = slo_instance(slo_rule, t.clone(), "fresh", Status::Firing, now);
+    let fresh = slo_instance(slo_rule, t.clone(), "slow-burn", Status::Firing, now);
     store
         .persist_slo_eval_batch(&[stale.clone(), fresh.clone()], &[])
         .await
@@ -174,7 +169,7 @@ async fn maintenance_loop_reaps_slo_and_prunes_ledgers() {
     let stale = slo_instance(
         slo_rule,
         t.clone(),
-        "stale",
+        "fast-burn",
         Status::Firing,
         now - Duration::minutes(10),
     );

@@ -4,7 +4,7 @@ import { querySloBudgetNow, querySloBudgetSeries } from "./slo-series.server";
 
 // A stub SLI: returns the rows this fixture declares for every window, so the
 // series' shaping is exercised without a database. `rowsFor` receives the
-// window_end each scan asks for, which lets a group appear only in some windows.
+// window_end each scan asks for, which lets data be absent in some windows.
 function stubClickhouse(
   rowsFor: (windowEnd: string) => Record<string, string>[],
 ): ClickhouseQuery {
@@ -14,7 +14,6 @@ function stubClickhouse(
 
 const BASE = {
   sliSql: "SELECT 1 WHERE {window_start:DateTime} < {window_end:DateTime}",
-  labelColumns: ["ServiceName"],
   targetPercent: 99.5,
   windowSecs: 3600,
   fromISO: "2026-07-28 00:00:00",
@@ -23,59 +22,45 @@ const BASE = {
 };
 
 describe("querySloBudgetSeries", () => {
-  it("keeps each SLI group on its own series instead of pooling them", async () => {
-    // The shape that made the chart lie: one huge clean group and one small
-    // exhausted one. Pooled, this reads 99.7% (a healthy ~39% budget) and hides
-    // the group that is 34x past its line.
-    const series = await querySloBudgetSeries(
-      stubClickhouse(() => [
-        { ServiceName: "github-actions", good: "28708", valid: "28708" },
-        { ServiceName: "everr-dev-app", good: "546", valid: "664" },
-      ]),
+  it("computes one scalar budget series", async () => {
+    const points = await querySloBudgetSeries(
+      stubClickhouse(() => [{ good: "99", valid: "100" }]),
       BASE,
     );
 
-    expect(series.map((s) => s.key)).toEqual([
-      "github-actions",
-      "everr-dev-app",
-    ]);
-    expect(series[0].labels).toEqual({ ServiceName: "github-actions" });
-
-    const budgets = series.map((s) => s.points.at(-1)?.budgetRemaining);
-    // Full budget for the clean group; deeply overspent for the other. Neither
-    // is the pooled 0.39 that summing good/valid first would have produced.
-    expect(budgets[0]).toBe(1);
-    expect(budgets[1]).toBeCloseTo(-34.54, 2);
+    expect(points).not.toHaveLength(0);
+    // 1% bad against a 0.5% budget is a 2x burn, so one budget over.
+    expect(points.at(-1)?.budgetRemaining).toBeCloseTo(-1, 6);
   });
 
-  it("reports a window with no row for a group as null, not as zero budget", async () => {
-    // A group that stops reporting has no measurement, which is different from
+  it("reports a window with no row as null, not as zero budget", async () => {
+    // Missing data is different from
     // measuring a budget of zero: the chart must draw a gap, not a crash to 0%.
-    const series = await querySloBudgetSeries(
+    const points = await querySloBudgetSeries(
       stubClickhouse((windowEnd) =>
         // The 02:00:00 instant's window, which ends 10s earlier (ingest delay).
-        windowEnd.endsWith("01:59:50")
-          ? [{ ServiceName: "alpha", good: "10", valid: "10" }]
-          : [
-              { ServiceName: "alpha", good: "10", valid: "10" },
-              { ServiceName: "beta", good: "10", valid: "10" },
-            ],
+        windowEnd.endsWith("01:59:50") ? [] : [{ good: "10", valid: "10" }],
       ),
       BASE,
     );
 
-    const beta = series.find((s) => s.key === "beta");
-    expect(beta).toBeDefined();
-    const missing = beta?.points.filter((p) => p.valid === null) ?? [];
+    const missing = points.filter((p) => p.valid === null);
     expect(missing).toHaveLength(1);
     expect(missing[0].budgetRemaining).toBeNull();
-    // Every group is on the same instant grid, gaps included, so the chart can
-    // index them all by point position.
-    for (const s of series) {
-      expect(s.points.map((p) => p.t)).toEqual(
-        series[0].points.map((p) => p.t),
-      );
-    }
+  });
+
+  it("normalizes floating-point noise at exactly zero budget", async () => {
+    const current = await querySloBudgetNow(
+      stubClickhouse(() => [{ good: "999", valid: "1000" }]),
+      {
+        sliSql: BASE.sliSql,
+        targetPercent: 99.9,
+        windowSecs: 3600,
+        nowMs: Date.parse("2026-07-28T01:00:00Z"),
+      },
+    );
+
+    expect(current?.budgetRemaining).toBe(0);
   });
 
   it("ends every window 10s before its instant, matching the engine's ingest delay", async () => {
@@ -97,7 +82,7 @@ describe("querySloBudgetSeries", () => {
       toISO: "2026-07-28 01:00:00",
       points: 1,
     });
-    expect(series).toEqual([]);
+    expect(series).toHaveLength(2);
     // The 01:00:00 instant scans [00:59:50 - 1h, 00:59:50).
     expect(windows.at(-1)).toEqual({
       start: "2026-07-27 23:59:50",
@@ -107,7 +92,6 @@ describe("querySloBudgetSeries", () => {
     windows.length = 0;
     await querySloBudgetNow(capture, {
       sliSql: BASE.sliSql,
-      labelColumns: [],
       targetPercent: 99.5,
       windowSecs: 3600,
       nowMs: Date.parse("2026-07-28T01:00:00Z"),
@@ -117,16 +101,15 @@ describe("querySloBudgetSeries", () => {
     ]);
   });
 
-  it("gives a scalar SLO one group keyed by nothing", async () => {
-    const series = await querySloBudgetSeries(
-      stubClickhouse(() => [{ good: "99", valid: "100" }]),
-      { ...BASE, labelColumns: [] },
-    );
-
-    expect(series).toHaveLength(1);
-    expect(series[0].key).toBe("");
-    expect(series[0].labels).toEqual({});
-    // 1% bad against a 0.5% budget is a 2x burn, so one budget over.
-    expect(series[0].points.at(-1)?.budgetRemaining).toBeCloseTo(-1, 6);
+  it("rejects a query that returns multiple rows", async () => {
+    await expect(
+      querySloBudgetSeries(
+        stubClickhouse(() => [
+          { good: "99", valid: "100" },
+          { good: "98", valid: "100" },
+        ]),
+        BASE,
+      ),
+    ).rejects.toThrow("at most one row");
   });
 });

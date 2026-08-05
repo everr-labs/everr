@@ -45,21 +45,14 @@ function ccAlert(labels: Record<string, string>): CcAlert {
   };
 }
 
-function ccSloFixture(overrides: {
-  id?: string;
-  name?: string;
-  label_columns?: string[];
-}): CcSlo {
+function ccSloFixture(overrides: { id?: string; name?: string } = {}): CcSlo {
   return {
     id: overrides.id ?? "55555555-5555-5555-5555-555555555555",
     tenant: "org1",
     namespace: "",
     name: overrides.name ?? "checkout-availability",
     spec: {
-      sli: {
-        sql: "SELECT 1 AS good, 1 AS valid",
-        label_columns: overrides.label_columns ?? [],
-      },
+      sli: { sql: "SELECT 1 AS good, 1 AS valid" },
       targetPercent: 99.9,
       timeWindow: { duration: "30d", isRolling: true },
       annotations: {},
@@ -89,18 +82,6 @@ describe("listCcLabelKeys", () => {
       { key: "kind", synthetic: true },
       { key: "slo", synthetic: true },
       { key: "slo_tier", synthetic: true },
-    ]);
-  });
-
-  it("merges SLO SLI label_columns into the observed keys", async () => {
-    mocks.listSlos.mockResolvedValue([
-      ccSloFixture({ label_columns: ["service", "region"] }),
-    ]);
-
-    const keys = await listCcLabelKeys();
-    expect(keys.filter((k) => !k.synthetic).map((k) => k.key)).toEqual([
-      "service",
-      "region",
     ]);
   });
 

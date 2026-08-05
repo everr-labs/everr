@@ -61,22 +61,9 @@ What sparse data does cost you is precision. A short window that averages a hand
 
 And since silence holds state rather than resolving it, an SLO can never tell you the service stopped reporting entirely. Pair it with a dead-man [alert rule](/docs/concepts/how-alerts-work) that fires on absence; that split (SLO judges quality, rule detects silence) is deliberate.
 
-## Groups: one SLI, many SLIs
+## One objective, one budget
 
-By default an SLO is scalar: one `good`/`valid` pair, one budget. Add `labelColumns` and the SLO fans out into one **per-group SLI** for each distinct value of those columns, each with its own budget and its own burn-rate tiers, from a single definition.
-
-```yaml
-spec:
-  sli:
-    sql: >-
-      SELECT ServiceName, countIf(status < 500) AS good, count() AS valid
-      FROM requests
-      WHERE ts >= {window_start:DateTime} AND ts < {window_end:DateTime}
-      GROUP BY ServiceName
-    labelColumns: [ServiceName]
-```
-
-`labelColumns` only groups if the SQL actually projects those columns and groups by them. Listing `labelColumns: [ServiceName]` while the query still returns a single row collapses everything into one group, so the fan-out silently does nothing. The columns `slo` and `slo_tier` are reserved (the engine injects them), and the `__cc_` prefix is reserved too.
+An SLO query returns at most one `good`/`valid` row and tracks one error budget. Zero rows means there is no measurement for that window. If services or dimensions need independent budgets, define a separate SLO for each objective. This keeps ownership, alert state, and budget history explicit.
 
 ## Notifications
 

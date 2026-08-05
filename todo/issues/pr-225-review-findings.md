@@ -112,13 +112,13 @@ evaluation. Both are idiomatic SQL a rule author will write.
 ### 3. Burn-rate tier dedup half-landed: 1-day SLOs can never resolve
 `crates/clickety-clack/src/evaluator/slo.rs:835` (with `:337` and `:891`)
 
-`evaluate_slo` builds the snapshot's per-group tier list from
+`evaluate_slo` builds the snapshot's tier list from
 `tiers_for_spec(&slo.spec)` (2 tiers at a 1-day window after `a3c6cb06`), but
 `plan_tier_firing` iterates `canonical_tiers()` (always 3). Its comment, "the
 canonical list resolves the same set as the SLO's scaled tiers", was true before
 the dedup and is now false.
 
-For a 1-day SLO, `group.tiers.find(name == "fast-burn")` is `None` on every tick,
+For a 1-day SLO, `payload.tiers.find(name == "fast-burn")` is `None` on every tick,
 so `long_burn`/`short_burn` are `None`, so the verdict is `TierVerdict::Unknown`,
 and `present_for(Unknown, prev)` is `prev != Inactive`: the last state is held
 forever.
@@ -134,7 +134,7 @@ teardown only fires on an objective change. The result is a permanently open
 critical alert with no path to close short of manual SQL.
 
 Secondary effect on every 1-day SLO: a phantom `slo_tier=fast-burn` instance row
-is upserted per group forever. Invisible to `list_alerts` (which filters
+is upserted forever. Invisible to `list_alerts` (which filters
 `status != 'inactive'`), but it is DB churn.
 
 **Coverage gap:** no test drives a 1-day window through `evaluate_slo` or
@@ -363,51 +363,15 @@ matcher suggestions.
 
 Gated on `fresh.data !== undefined && fresh.data.length > 0`, not on the query
 being in flight, so it never clears when the scan legitimately returns nothing or
-errors. A grouped SLO whose SLI query returns no rows in the trailing window
+errors. An SLO whose SLI query returns no rows in the trailing window
 (quiet service, weekend, deploy gap) parks a permanent "Error budget computing"
 under its stats row; on a ClickHouse error `fresh.data` stays `undefined`
-forever. `querySloBudgetNow` (`data/cc/slo-series.server.ts:109`) maps rows 1:1,
-and a `GROUP BY` SLI with no traffic returns `[]`.
+forever. `querySloBudgetNow` (`data/cc/slo-series.server.ts:109`) returns no
+measurement when the query yields zero rows.
 
 **Fix:** key off `fresh.isPending`.
 
-### 15. The extended 12-color series palette measurably fails
-`packages/app/src/components/dashboards/visualizations/data-utils.ts:21-34`,
-consumed at `components/cc/slo-budget-chart.tsx:74`
-
-Running the `dataviz` validator against the palette on the app's dark surface,
-the six new entries introduce failures the original six did not have:
-
-| pair | condition | delta E | floor |
-|---|---|---|---|
-| `hsl(300,44%,48%)` plum vs `hsl(280,68%,60%)` purple | normal vision | 7.2 | 15 |
-| `hsl(85,62%,42%)` olive vs `hsl(35,92%,50%)` orange | protanopia | 1.4 | 15 |
-
-The original six alone have a worst normal-vision pair of 17.3 (pass); with the
-new six it is 7.2 (fail). This contradicts the "sits in a hue gap and is visibly
-darker or lighter" comment at `:29-33`.
-
-`MAX_SERIES = SERIES_COLORS.length` allows up to 12 lines on one plot with the
-key as the only identity cue (no direct labels, no texture). The dataviz
-non-negotiable is that a 9th series folds into "Other" or small multiples rather
-than getting a generated hue.
-
-### 16. The SLO budget chart rebuilds its whole model on every pointer move
-`packages/app/src/components/cc/slo-budget-chart.tsx:255-395`, `setHover` at `:457`
-
-No memoization anywhere in the render body. Each pointer move re-runs the
-`ranked`/`series` sorting, the `data` pivot (`:294`, up to 200 instants times 12
-series times 2 keys), `snapToPoint` per event (`:326`, O(events x instants), so
-200 events x 200 instants is about 40k ops), `eventMarks` and `markerHits`, then
-hands recharts a new `data` array identity, forcing a full recompute of all 24
-`<Line>` paths plus up to ~400 `ReferenceLine`s. On a busy grouped SLO the hover
-readout stutters behind the cursor.
-
-The sibling dashboard chart
-(`time-series-chart/time-series-chart-visualization.tsx:84-125`) memoizes exactly
-this. This one does not.
-
-### 17. 51 em and en dash violations on lines added by this branch
+### 15. 51 em and en dash violations on lines added by this branch
 Hard project rule (`CLAUDE.md`): no em dashes or en dashes in docs.
 
 ```
@@ -430,7 +394,7 @@ default values (`visualizations.mdx:106`) and en-dash ranges (`0-10`, `1-200`,
 `0.2-1`). Both files were moved and heavily rewritten here, so they are in scope
 for a full sweep. `PRODUCT.md` and `todo/**` are clean.
 
-### 18. Nineteen moved doc URLs with no redirect layer
+### 16. Nineteen moved doc URLs with no redirect layer
 `packages/docs/src/routes/docs/$.tsx:34` does `if (!page) throw notFound()`, and
 there is no redirect layer anywhere in `packages/docs` (no `vercel.json`,
 `_redirects` or `nitro.config.*`; `vite.config.ts:39-60` only rewrites
@@ -446,7 +410,7 @@ app itself linked).
 
 Broken in-repo: `CHANGELOG.md:30` and `CHANGELOG.md:41`.
 
-### 19. `cloud-query.alert.yaml` re-fires on every change in the failure mix
+### 17. `cloud-query.alert.yaml` re-fires on every change in the failure mix
 `everr/cloud-query.alert.yaml:17-24`
 
 No `instanceLabels` and no `valueColumn`, so identity is inferred from the
@@ -462,7 +426,7 @@ on-call gets a resolve plus a re-fire during an ongoing incident. The
 **Fix:** add a constant identity column with `instanceLabels: [<it>]`, and set
 `valueColumn: system_errors`.
 
-### 20. Orphaned `alert_events` migration, and no drop for existing clouds
+### 18. Orphaned `alert_events` migration, and no drop for existing clouds
 `clickhouse/alter-alert-preview-service.sql`
 
 Still `ALTER TABLE app.alert_events` and recreates `app.alert_events_logs_mv`,

@@ -1,6 +1,6 @@
 //! `GET /v1/slos/:id/status`: pending (null `computed_at`/`payload`) before
 //! any snapshot exists, then a read-only view of the evaluator's `slo_status`
-//! row once seeded, enriched at read time with per-group time-to-exhaustion +
+//! row once seeded, enriched at read time with time-to-exhaustion +
 //! live firing-tier state (spec §8.2) -- the stored row itself is never
 //! touched. 404 is keyed on the SLO's existence, not the snapshot's.
 
@@ -75,7 +75,14 @@ async fn status_pending_then_returns_snapshot() {
         .upsert_slo_status(
             SloId(id.parse().unwrap()),
             &TenantId::from_trusted(TENANT),
-            &json!({"groups":[],"window":"30d","target_percent":99.9,"window_computed_at":{}}),
+            &json!({
+                "window": "30d",
+                "target_percent": 99.9,
+                "sli": null,
+                "budget_remaining": null,
+                "tiers": [],
+                "window_computed_at": {}
+            }),
             time::OffsetDateTime::now_utc(),
         )
         .await
@@ -156,7 +163,6 @@ async fn status_enriches_time_to_exhaustion_and_firing_tiers() {
     let slo_id = cc::domain::ids::SloId(id.parse().unwrap());
     let tenant = cc::domain::ids::TenantId::from_trusted(TENANT);
 
-    let group_labels = json!({"service": "checkout"});
     store
         .upsert_slo_status(
             slo_id,
@@ -164,16 +170,13 @@ async fn status_enriches_time_to_exhaustion_and_firing_tiers() {
             &json!({
                 "window": "30d",
                 "target_percent": 99.9,
-                "groups": [{
-                    "labels": group_labels,
-                    "sli": 0.998,
-                    "budget_remaining": 0.5,
-                    "tiers": [{
-                        "name": "fast-burn",
-                        "long_burn_rate": 2.0,
-                        "short_burn_rate": 3.0,
-                        "long_window_valid": 1000.0
-                    }]
+                "sli": 0.998,
+                "budget_remaining": 0.5,
+                "tiers": [{
+                    "name": "fast-burn",
+                    "long_burn_rate": 2.0,
+                    "short_burn_rate": 3.0,
+                    "long_window_valid": 1000.0
                 }],
                 "window_computed_at": {}
             }),
@@ -182,10 +185,9 @@ async fn status_enriches_time_to_exhaustion_and_firing_tiers() {
         .await
         .unwrap();
 
-    // A firing instance for this group's fast-burn tier: labels = group labels + slo_tier.
+    // A firing instance for the fast-burn tier.
     let rule = RuleId(slo_id.0);
     let mut inst_labels = std::collections::BTreeMap::new();
-    inst_labels.insert("service".to_string(), "checkout".to_string());
     inst_labels.insert("slo_tier".to_string(), "fast-burn".to_string());
     let mut inst = InstanceState::new_inactive(
         InstanceKey::new(rule, &inst_labels),
@@ -210,27 +212,25 @@ async fn status_enriches_time_to_exhaustion_and_firing_tiers() {
         .unwrap();
     assert_eq!(r.status(), StatusCode::OK);
     let b = body_json(r).await;
-    let group = &b["payload"]["groups"][0];
+    let payload = &b["payload"];
     assert_eq!(
-        group["time_to_exhaustion_secs"],
+        payload["time_to_exhaustion_secs"],
         json!((2_592_000.0 * 0.5 / 2.0) as u64)
     );
     assert_eq!(
-        group["firing_tiers"],
+        payload["firing_tiers"],
         json!([{"tier": "fast-burn", "status": "firing"}])
     );
 }
 
 #[tokio::test]
-async fn status_enrichment_empty_group_has_no_instances_and_null_tte() {
+async fn status_enrichment_without_burn_has_no_instances_and_null_tte() {
     let (router, store) = setup().await;
     let id = create_slo(&router, "b").await;
     let slo_id = cc::domain::ids::SloId(id.parse().unwrap());
     let tenant = cc::domain::ids::TenantId::from_trusted(TENANT);
 
-    // A group with a budget but no burn rate on its first tier (traffic-less
-    // tier) -- time_to_exhaustion_secs must be null -- and no slo_instances
-    // rows at all -- firing_tiers must be empty.
+    // No burn rate means no exhaustion horizon. No instances means no firing tiers.
     store
         .upsert_slo_status(
             slo_id,
@@ -238,16 +238,13 @@ async fn status_enrichment_empty_group_has_no_instances_and_null_tte() {
             &json!({
                 "window": "30d",
                 "target_percent": 99.9,
-                "groups": [{
-                    "labels": {"service": "payments"},
-                    "sli": null,
-                    "budget_remaining": 0.5,
-                    "tiers": [{
-                        "name": "fast-burn",
-                        "long_burn_rate": null,
-                        "short_burn_rate": null,
-                        "long_window_valid": null
-                    }]
+                "sli": null,
+                "budget_remaining": 0.5,
+                "tiers": [{
+                    "name": "fast-burn",
+                    "long_burn_rate": null,
+                    "short_burn_rate": null,
+                    "long_window_valid": null
                 }],
                 "window_computed_at": {}
             }),
@@ -267,9 +264,9 @@ async fn status_enrichment_empty_group_has_no_instances_and_null_tte() {
         .unwrap();
     assert_eq!(r.status(), StatusCode::OK);
     let b = body_json(r).await;
-    let group = &b["payload"]["groups"][0];
-    assert!(group["time_to_exhaustion_secs"].is_null());
-    assert_eq!(group["firing_tiers"], json!([]));
+    let payload = &b["payload"];
+    assert!(payload["time_to_exhaustion_secs"].is_null());
+    assert_eq!(payload["firing_tiers"], json!([]));
 }
 
 #[tokio::test]
@@ -289,16 +286,13 @@ async fn status_enrichment_passed_spike_has_null_tte() {
             &json!({
                 "window": "30d",
                 "target_percent": 99.9,
-                "groups": [{
-                    "labels": {"service": "checkout"},
-                    "sli": 0.99,
-                    "budget_remaining": 0.5,
-                    "tiers": [{
-                        "name": "fast-burn",
-                        "long_burn_rate": 3.0,
-                        "short_burn_rate": 0.0,
-                        "long_window_valid": 1000.0
-                    }]
+                "sli": 0.99,
+                "budget_remaining": 0.5,
+                "tiers": [{
+                    "name": "fast-burn",
+                    "long_burn_rate": 3.0,
+                    "short_burn_rate": 0.0,
+                    "long_window_valid": 1000.0
                 }],
                 "window_computed_at": {}
             }),
@@ -318,7 +312,7 @@ async fn status_enrichment_passed_spike_has_null_tte() {
         .unwrap();
     assert_eq!(r.status(), StatusCode::OK);
     let b = body_json(r).await;
-    assert!(b["payload"]["groups"][0]["time_to_exhaustion_secs"].is_null());
+    assert!(b["payload"]["time_to_exhaustion_secs"].is_null());
 }
 
 #[tokio::test]
@@ -342,25 +336,22 @@ async fn status_enrichment_gives_no_horizon_when_recent_burn_stopped_even_if_a_s
             &json!({
                 "window": "30d",
                 "target_percent": 99.9,
-                "groups": [{
-                    "labels": {"service": "payments"},
-                    "sli": 0.98,
-                    "budget_remaining": 0.3,
-                    "tiers": [
-                        {
-                            "name": "fast-burn",
-                            "long_burn_rate": 4.0,
-                            "short_burn_rate": 0.0,
-                            "long_window_valid": 1000.0
-                        },
-                        {
-                            "name": "ticket",
-                            "long_burn_rate": 2.0,
-                            "short_burn_rate": 1.5,
-                            "long_window_valid": 1000.0
-                        }
-                    ]
-                }],
+                "sli": 0.98,
+                "budget_remaining": 0.3,
+                "tiers": [
+                    {
+                        "name": "fast-burn",
+                        "long_burn_rate": 4.0,
+                        "short_burn_rate": 0.0,
+                        "long_window_valid": 1000.0
+                    },
+                    {
+                        "name": "ticket",
+                        "long_burn_rate": 2.0,
+                        "short_burn_rate": 1.5,
+                        "long_window_valid": 1000.0
+                    }
+                ],
                 "window_computed_at": {}
             }),
             time::OffsetDateTime::now_utc(),
@@ -371,7 +362,6 @@ async fn status_enrichment_gives_no_horizon_when_recent_burn_stopped_even_if_a_s
     // A firing instance for the ticket tier only (fast-burn has recovered).
     let rule = RuleId(slo_id.0);
     let mut inst_labels = std::collections::BTreeMap::new();
-    inst_labels.insert("service".to_string(), "payments".to_string());
     inst_labels.insert("slo_tier".to_string(), "ticket".to_string());
     let mut inst = InstanceState::new_inactive(
         InstanceKey::new(rule, &inst_labels),
@@ -395,12 +385,12 @@ async fn status_enrichment_gives_no_horizon_when_recent_burn_stopped_even_if_a_s
         .unwrap();
     assert_eq!(r.status(), StatusCode::OK);
     let b = body_json(r).await;
-    let group = &b["payload"]["groups"][0];
+    let payload = &b["payload"];
     // Fastest tier's current spend is min(4.0, 0.0) = 0 -> no horizon, even though
     // the slow ticket tier is still firing on the passed burst.
-    assert!(group["time_to_exhaustion_secs"].is_null());
+    assert!(payload["time_to_exhaustion_secs"].is_null());
     assert_eq!(
-        group["firing_tiers"],
+        payload["firing_tiers"],
         json!([{"tier": "ticket", "status": "firing"}])
     );
 }
@@ -422,31 +412,28 @@ async fn status_enrichment_projects_from_the_fastest_tier_that_has_a_computed_bu
             &json!({
                 "window": "30d",
                 "target_percent": 99.9,
-                "groups": [{
-                    "labels": {},
-                    "sli": 0.99,
-                    "budget_remaining": 0.3,
-                    "tiers": [
-                        {
-                            "name": "fast-burn",
-                            "long_burn_rate": null,
-                            "short_burn_rate": null,
-                            "long_window_valid": null
-                        },
-                        {
-                            "name": "slow-burn",
-                            "long_burn_rate": 2.0,
-                            "short_burn_rate": 1.5,
-                            "long_window_valid": 1000.0
-                        },
-                        {
-                            "name": "ticket",
-                            "long_burn_rate": 1.8,
-                            "short_burn_rate": 1.8,
-                            "long_window_valid": 1000.0
-                        }
-                    ]
-                }],
+                "sli": 0.99,
+                "budget_remaining": 0.3,
+                "tiers": [
+                    {
+                        "name": "fast-burn",
+                        "long_burn_rate": null,
+                        "short_burn_rate": null,
+                        "long_window_valid": null
+                    },
+                    {
+                        "name": "slow-burn",
+                        "long_burn_rate": 2.0,
+                        "short_burn_rate": 1.5,
+                        "long_window_valid": 1000.0
+                    },
+                    {
+                        "name": "ticket",
+                        "long_burn_rate": 1.8,
+                        "short_burn_rate": 1.8,
+                        "long_window_valid": 1000.0
+                    }
+                ],
                 "window_computed_at": {}
             }),
             time::OffsetDateTime::now_utc(),
@@ -465,10 +452,10 @@ async fn status_enrichment_projects_from_the_fastest_tier_that_has_a_computed_bu
         .unwrap();
     assert_eq!(r.status(), StatusCode::OK);
     let b = body_json(r).await;
-    let group = &b["payload"]["groups"][0];
+    let payload = &b["payload"];
     // slow-burn is the fastest tier with a computed burn: 2_592_000 * 0.3 / min(2.0, 1.5).
     assert_eq!(
-        group["time_to_exhaustion_secs"],
+        payload["time_to_exhaustion_secs"],
         json!((2_592_000.0 * 0.3 / 1.5) as u64)
     );
 }

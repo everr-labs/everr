@@ -12,7 +12,7 @@ hood. This guide shows how to define one. For the exact field list see the
 
 Each evaluation tick runs your SLI query per due window (windows recompute on a
 staggered, coordinated cadence: see [below](#evaluation-cadence)) and derives,
-per label group: the SLI ratio, the error budget remaining, and a burn rate for
+the SLI ratio, the error budget remaining, and a burn rate for
 each tier. A tier "fires" when its long **and** short window burn
 rates both exceed its threshold: exactly the multi-window burn-rate pattern
 from the Google SRE workbook. So:
@@ -20,8 +20,8 @@ from the Google SRE workbook. So:
 - Write the SLI query so `good`/`valid` reflect "how much traffic was good vs.
   how much traffic counted at all", not a threshold. The threshold lives in
   the tier's `burn_rate`, not your SQL.
-- `label_columns` fan the SLO out into independent per-group budgets/burns:
-  same role as a rule's `label_columns`.
+- Return at most one aggregate row. Define separate SLOs when different
+  services or dimensions need independent budgets.
 
 ## The SLI contract
 
@@ -32,7 +32,9 @@ guard as rules) that returns:
 - a `good` column: numeric count of qualifying "good" events in the window;
 - a `valid` column: numeric count of all events that count toward the SLI
   (the denominator);
-- optionally, one column per entry in `label_columns`.
+
+Zero rows means no data for the window. More than one row is rejected because
+one SLO owns one objective and one budget.
 
 The engine injects the window as two ClickHouse named parameters,
 `{window_start:DateTime}` and `{window_end:DateTime}`; **both must appear
@@ -50,10 +52,6 @@ edge. The window keeps its full length; only its end shifts back. See
 > tables or reaching the network via table functions. If tenants you don't
 > fully trust can create SLOs, you **must**
 > [harden the ClickHouse user](harden-clickhouse-access.md).
-
-`label_columns` may not include any column starting with `__cc_` (reserved,
-mirrors rule validation), nor the names `slo` or `slo_tier` (labels the SLO
-pipeline itself injects).
 
 ### Window duration cap
 
@@ -77,8 +75,7 @@ curl -s -X POST localhost:8080/v1/slos \
   -d '{
     "name": "checkout-availability",
     "sli": {
-      "sql": "SELECT countIf(status < 500) AS good, count() AS valid FROM http_requests WHERE service = '"'"'checkout'"'"' AND ts >= {window_start:DateTime} AND ts < {window_end:DateTime}",
-      "label_columns": []
+      "sql": "SELECT countIf(status < 500) AS good, count() AS valid FROM http_requests WHERE service = '"'"'checkout'"'"' AND ts >= {window_start:DateTime} AND ts < {window_end:DateTime}"
     },
     "targetPercent": 99.9,
     "timeWindow": { "duration": "30d", "isRolling": true },
@@ -89,7 +86,7 @@ curl -s -X POST localhost:8080/v1/slos \
 
 Note the field-naming split: `targetPercent`/`timeWindow`/`isRolling` are
 OpenSLO-aligned camelCase (this spec deliberately tracks the OpenSLO field
-names); `sli`, `label_columns`, `min_valid_events`, `annotations`, and
+names); `sli`, `min_valid_events`, `annotations`, and
 `suppressed` are plain snake_case, matching the rest of the engine's spec
 shapes. The response is the stored `Slo`: `{ id, tenant, namespace, name, spec,
 version, paused }`: same envelope shape as a rule. `GET` and list return an
@@ -142,7 +139,7 @@ evaluates **two** tiers, `slow-burn` (12m/1m, 6×, critical) and `ticket`
 tier fires whenever the 14.4× one would and earlier, at the same severity.
 
 Tiers are precedence-ordered fastest-first; a faster tier firing inhibits its
-slower siblings for the same group (spec §5) via inhibition rules the
+slower siblings for the same SLO via inhibition rules the
 dispatcher synthesizes automatically from the canonical tiers: you don't
 create these inhibitions yourself. So you are not paged separately by
 `slow-burn` and `ticket` for the same underlying budget burn once `fast-burn`
@@ -210,15 +207,15 @@ half gets coarse, and the long window carries all the discrimination.
 `POST /v1/slos/test` is a dry-run: it validates the posted spec (the bare
 spec, no name or namespace: nothing is written, so no identity is needed),
 runs the SLI query once over the spec's **own** `timeWindow` against
-ClickHouse, and returns the per-group SLI: **no DB write, no snapshot, no
+ClickHouse, and returns the SLI: **no DB write, no snapshot, no
 instance/event side effects**:
 
 ```bash
 curl -s -X POST localhost:8080/v1/slos/test \
   -H "X-CC-Tenant: $TENANT" -H 'Content-Type: application/json' \
-  -d '{ "sli": { "sql": "...", "label_columns": [] },
+  -d '{ "sli": { "sql": "..." },
         "targetPercent": 99.9, "timeWindow": { "duration": "30d", "isRolling": true } }'
-# => { "matched": 1, "groups": [ { "labels": {}, "good": 998234.0, "valid": 1000000.0, "sli": 0.998234 } ] }
+# => { "good": 998234.0, "valid": 1000000.0, "sli": 0.998234 }
 ```
 
 `sli` is `good / valid`, or `null` when `valid` is `0` (no traffic in the test
@@ -238,20 +235,15 @@ never-evaluated SLO answers the pending state instead (see the
   "payload": {
     "window": "30d",
     "target_percent": 99.9,
-    "groups": [
-      {
-        "labels": {},
-        "sli": 0.9987,
-        "budget_remaining": 0.42,
-        "tiers": [
-          { "name": "fast-burn", "long_burn_rate": 2.1, "short_burn_rate": 1.8, "long_window_valid": 210000.0 },
-          { "name": "slow-burn", "long_burn_rate": 1.9, "short_burn_rate": 1.7, "long_window_valid": 1260000.0 },
-          { "name": "ticket",    "long_burn_rate": 1.2, "short_burn_rate": 1.1, "long_window_valid": 30240000.0 }
-        ],
-        "time_to_exhaustion_secs": 1123200,
-        "firing_tiers": [ { "tier": "ticket", "status": "firing" } ]
-      }
+    "sli": 0.9987,
+    "budget_remaining": 0.42,
+    "tiers": [
+      { "name": "fast-burn", "long_burn_rate": 2.1, "short_burn_rate": 1.8, "long_window_valid": 210000.0 },
+      { "name": "slow-burn", "long_burn_rate": 1.9, "short_burn_rate": 1.7, "long_window_valid": 1260000.0 },
+      { "name": "ticket",    "long_burn_rate": 1.2, "short_burn_rate": 1.1, "long_window_valid": 30240000.0 }
     ],
+    "time_to_exhaustion_secs": 1123200,
+    "firing_tiers": [ { "tier": "ticket", "status": "firing" } ],
     "window_computed_at": { "300s": 1752753600, "3600s": 1752750000 }
   },
   "health": { "status": "healthy", "degraded_since": null, "last_error": null }
@@ -262,7 +254,7 @@ never-evaluated SLO answers the pending state instead (see the
   (the budget window); `null` at zero traffic in that window.
 - **`tiers[]`** carries each tier's long/short burn rate and the long window's
   `valid` count (the input to `min_valid_events`'s floor).
-- **`time_to_exhaustion_secs`** is computed at read time from the group's
+- **`time_to_exhaustion_secs`** is computed at read time from
   `budget_remaining` and the current burn: the **first** tier with a computed
   long-window burn (tiers are fastest-first, so that's the freshest
   sustained-burn read) supplies `min(long_burn_rate, short_burn_rate)`, and
@@ -270,7 +262,7 @@ never-evaluated SLO answers the pending state instead (see the
   horizon drops the moment spending stops. Also `null` when either input is
   missing or the burn rate is `<= 0` (nothing burning); `0` when the budget is
   already exhausted.
-- **`firing_tiers`** lists this group's currently non-`inactive` tier
+- **`firing_tiers`** lists the currently non-`inactive` tier
   instances (`pending` or `firing`), read from the same instance store backing
   `GET /v1/alerts`.
 - **`health`** is the SLO's own health axis: same semantics as
@@ -285,9 +277,9 @@ never-evaluated SLO answers the pending state instead (see the
 
 **A stored payload that fails to deserialize into the current shape is served
 back unmodified, without enrichment, instead of erroring the endpoint.** The
-read path never `500`s on a payload it cannot parse; if you see a `groups[]`
-entry without `time_to_exhaustion_secs`/`firing_tiers`, that's why. It isn't a
-bug, it's the fallback for an unparseable row.
+read path never `500`s on a payload it cannot parse. A payload without
+`time_to_exhaustion_secs` or `firing_tiers` is the fallback for an
+unparseable row.
 
 ## Pause vs. suppressed
 

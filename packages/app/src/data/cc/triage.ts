@@ -11,7 +11,6 @@ import {
   CC_CANONICAL_SLO_TIERS,
   ccBudgetExhausted,
   ccSloIdentity,
-  ccSloLabelsKey,
   ccSloTierSeverity,
 } from "@/data/cc/slo";
 import type {
@@ -21,7 +20,7 @@ import type {
   CcRuleView,
   CcSilence,
   CcSlo,
-  CcSloGroupStatus,
+  CcSloStatusPayload,
 } from "@/data/cc/types";
 
 // The alerts layout hides the global time-range picker, so every triage
@@ -64,8 +63,8 @@ function ccSloInstanceSeverity(alert: CcAlert) {
  * or `rule`): the dispatcher matches silences against synthetic labels, so a
  * label-free source still gets a precisely scoped silence.
  *
- * `slo_tier` is deliberately not pinned: a board row is one label set across
- * every tier, and pinning the tier would leave the same problem paging from
+ * `slo_tier` is deliberately not pinned: a board row is one SLO across every
+ * tier, and pinning the tier would leave the same problem paging from
  * the next tier down.
  */
 export function ccSourceScopedSilenceMatchers(alert: CcAlert): CcMatcher[] {
@@ -149,7 +148,7 @@ export type TriageInstance = {
 
 /**
  * One board row: one thing that is wrong. For a rule, one instance; for an
- * SLO, one label set across every burn-rate tier on it — the tiers watch the
+ * SLO, one row across every burn-rate tier on it, because the tiers watch the
  * same budget, so tripping two of them is still one problem.
  */
 export type TriageRow = {
@@ -174,50 +173,34 @@ export type TriageGroup = {
 
 // ── Error budget ──────────────────────────────────────────────────────────────
 
-export function ccBudgetIndex(
-  statusGroups: CcSloGroupStatus[],
-): Map<string, number | null> {
-  return new Map(
-    statusGroups.map((g) => [labelSetKey(g.labels), g.budget_remaining]),
-  );
-}
-
-/**
- * The row's OWN budget, matched by label set — not the SLO's worst group,
- * which may be a different label set. Null when the status has not resolved
- * or has no matching group (a snapshot can lag a newly-firing label set).
- */
 export function ccRowBudget(
-  row: TriageRow,
-  index: Map<string, number | null> | undefined,
+  status: CcSloStatusPayload | null | undefined,
 ): number | null {
-  return index?.get(labelSetKey(row.lead.alert.labels)) ?? null;
+  return status?.budget_remaining ?? null;
 }
 
-/** One spent budget: an SLO label-set group with nothing left. */
 export type CcExhaustedBudget = {
   slo: CcSlo;
-  group: CcSloGroupStatus;
+  status: CcSloStatusPayload;
 };
 
 /**
- * Every SLO label-set whose budget is spent, worst first, whether or not
+ * Every SLO whose budget is spent, worst first, whether or not
  * anything is firing on it now. Paused SLOs are skipped: their snapshots are
  * frozen, and a stale "exhausted" would be a claim the engine is no longer
  * making.
  */
 export function ccExhaustedBudgets(
   slos: CcSlo[],
-  statusGroupsBySlo: Map<string, CcSloGroupStatus[]>,
+  statusBySlo: Map<string, CcSloStatusPayload | null>,
 ): CcExhaustedBudget[] {
   const spent: { entry: CcExhaustedBudget; remaining: number }[] = [];
   for (const slo of slos) {
     if (slo.paused) continue;
-    for (const group of statusGroupsBySlo.get(slo.id) ?? []) {
-      const remaining = group.budget_remaining;
-      if (ccBudgetExhausted(remaining)) {
-        spent.push({ entry: { slo, group }, remaining });
-      }
+    const status = statusBySlo.get(slo.id);
+    const remaining = status?.budget_remaining ?? null;
+    if (status && ccBudgetExhausted(remaining)) {
+      spent.push({ entry: { slo, status }, remaining });
     }
   }
   return spent.sort((a, b) => a.remaining - b.remaining).map((s) => s.entry);
@@ -322,32 +305,17 @@ export function ccTriageCounts(
   };
 }
 
-/** Group key over tier-stripped labels, so a board row and a status group
- *  agree on "same group" by construction. */
-function labelSetKey(labels: Record<string, string>): string {
-  return ccSloLabelsKey(
-    Object.fromEntries(
-      Object.entries(labels).filter(([k]) => k !== "slo_tier"),
-    ),
-  );
-}
-
 const TIER_RANK = new Map(CC_CANONICAL_SLO_TIERS.map((t, i) => [t.name, i]));
 
 /**
- * Collapse an SLO's instances into one row per label set, most urgent member
+ * Collapse an SLO's tier instances into one row, most urgent member
  * leading. Rule instances pass through one-to-one.
  */
 function ccCollapseRows(list: TriageInstance[], isSlo: boolean): TriageRow[] {
   if (!isSlo) {
     return list.map((lead) => ({ lead, members: [lead], tiers: [] }));
   }
-  const byLabels = new Map<string, TriageInstance[]>();
-  for (const inst of list) {
-    const key = labelSetKey(inst.alert.labels);
-    byLabels.set(key, [...(byLabels.get(key) ?? []), inst]);
-  }
-  return [...byLabels.values()].map((members) => {
+  return [list].map((members) => {
     // Canonical tier order is urgency order, so the earliest tier leads.
     const sorted = [...members].sort(
       (a, b) =>

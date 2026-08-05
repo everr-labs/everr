@@ -3,7 +3,6 @@ use axum::http::HeaderMap;
 use axum::Json;
 use serde::Deserialize;
 use serde_json::{json, Value};
-use std::collections::{BTreeMap, HashMap};
 use uuid::Uuid;
 
 use crate::api::auth::tenant;
@@ -12,7 +11,7 @@ use crate::api::identity::{validate_name, validate_namespace};
 use crate::api::AppState;
 use crate::domain::ids::SloId;
 use crate::domain::instance::{InstanceState, Status};
-use crate::domain::slo::{parse_window_secs, Slo, SloSpec, RESERVED_SLO_LABELS, SLO_TIER_LABEL};
+use crate::domain::slo::{parse_window_secs, Slo, SloSpec, SLO_TIER_LABEL};
 use crate::engine::slo_math::{time_to_exhaustion_secs, SloStatusPayload};
 use crate::stores::{SloCreate, SloUpdate};
 
@@ -208,7 +207,7 @@ pub struct SloStatusOut {
 /// spec, no identity: nothing is written, so none is needed), runs the SLI
 /// query over the spec's own budget window against ClickHouse, with the window
 /// bounded by [`sli_window_bounds`](crate::evaluator::slo::sli_window_bounds)
-/// exactly as the evaluator bounds it, and returns the per-group results -- no
+/// exactly as the evaluator bounds it, and returns the scalar SLI result, with no
 /// DB write, no snapshot.
 pub async fn test(
     State(state): State<AppState>,
@@ -235,29 +234,23 @@ pub async fn test(
     ];
     let rows = state
         .ch
-        .query_rows_params(
-            &t,
-            &spec.sli.sql,
-            &params,
-            &spec.sli.label_columns,
-            Some("valid"),
-        )
+        .query_rows_params(&t, &spec.sli.sql, &params, &[], Some("valid"))
         .await
         .map_err(|e| ApiError::Validation(format!("query failed: {e}")))?;
-    let groups: Vec<Value> = rows
-        .iter()
-        .map(|r| {
-            let valid = r.value.unwrap_or(0.0);
-            let good = r.extra.get("good").and_then(|v| v.as_f64()).unwrap_or(0.0);
-            let sli = if valid > 0.0 {
-                Some(good / valid)
-            } else {
-                None
-            };
-            json!({ "labels": r.labels, "good": good, "valid": valid, "sli": sli })
-        })
-        .collect();
-    Ok(Json(json!({ "matched": groups.len(), "groups": groups })))
+    let (good, valid) = match rows.as_slice() {
+        [] => (0.0, 0.0),
+        [row] => (
+            row.extra.get("good").and_then(Value::as_f64).unwrap_or(0.0),
+            row.value.unwrap_or(0.0),
+        ),
+        _ => {
+            return Err(ApiError::Validation(
+                "SLI query must return at most one row".into(),
+            ))
+        }
+    };
+    let sli = (valid > 0.0).then_some(good / valid);
+    Ok(Json(json!({ "good": good, "valid": valid, "sli": sli })))
 }
 
 pub async fn status(
@@ -291,10 +284,9 @@ pub async fn status(
 }
 
 /// Read-time-only enrichment of the stored `slo_status` snapshot for the
-/// `/status` response (spec §8.2): each `payload.groups[*]` gains
-/// `time_to_exhaustion_secs` (projected from the group's current budget/burn)
-/// and `firing_tiers` (the group's currently non-inactive burn-rate-tier
-/// instances). Nothing computed here is written back to the stored row.
+/// `/status` response: the payload gains `time_to_exhaustion_secs` and the
+/// currently non-inactive burn-rate tier instances. Nothing computed here is
+/// written back to the stored row.
 ///
 /// If the stored payload doesn't deserialize as `SloStatusPayload` (a legacy
 /// or corrupt row), the raw payload is served unmodified instead of erroring:
@@ -306,50 +298,37 @@ fn enrich_status_payload(raw: Value, instances: &[InstanceState]) -> Value {
     };
     let budget_window_secs = parse_window_secs(&payload.window).ok();
 
-    // One pass over the instances: bucket each non-inactive tier instance under
-    // its labels minus the injected `slo_tier` discriminator, keeping the
-    // stored instance order within each bucket.
-    let mut tiers_by_labels: HashMap<BTreeMap<String, String>, Vec<Value>> = HashMap::new();
-    for inst in instances.iter().filter(|i| i.status != Status::Inactive) {
-        let mut labels = inst.labels.clone();
-        let Some(tier) = labels.remove(SLO_TIER_LABEL) else {
-            continue;
-        };
-        tiers_by_labels.entry(labels).or_default().push(json!({
-            "tier": tier,
-            "status": serde_json::to_value(inst.status).unwrap_or(Value::Null),
-        }));
-    }
+    let firing_tiers: Vec<Value> = instances
+        .iter()
+        .filter(|i| i.status != Status::Inactive)
+        .filter_map(|inst| {
+            inst.labels.get(SLO_TIER_LABEL).map(|tier| {
+                json!({
+                "tier": tier,
+                "status": serde_json::to_value(inst.status).unwrap_or(Value::Null),
+                })
+            })
+        })
+        .collect();
 
     let mut out = serde_json::to_value(&payload).unwrap_or(raw);
-    if let Some(groups) = out.get_mut("groups").and_then(Value::as_array_mut) {
-        for (g, v) in payload.groups.iter().zip(groups) {
-            let firing_tiers = tiers_by_labels.get(&g.labels).cloned().unwrap_or_default();
-            // The exhaustion horizon is projected from the current spend rate: the
-            // fastest tier with a computed long-window burn (tiers are stored
-            // fastest-first, in `BASE_TIERS` order via `tiers_for_spec`), taking its
-            // `min(long, short)`. That min drops to 0 the moment spending stops, so a
-            // budget recovering after a burst shows no horizon even while a slower
-            // tier still fires on it. Mirrors the frontend's `ccSloCurrentBurn`.
-            let current_burn = g
-                .tiers
-                .iter()
-                .find(|tier| tier.long_burn_rate.is_some())
-                .and_then(|tier| match (tier.long_burn_rate, tier.short_burn_rate) {
-                    (Some(long), Some(short)) => Some(long.min(short)),
-                    _ => None,
-                });
-            let tte = match (g.budget_remaining, current_burn, budget_window_secs) {
-                (Some(budget), Some(burn), Some(window_secs)) => {
-                    time_to_exhaustion_secs(budget, burn, window_secs)
-                }
-                _ => None,
-            };
-            if let Some(obj) = v.as_object_mut() {
-                obj.insert("time_to_exhaustion_secs".into(), json!(tte));
-                obj.insert("firing_tiers".into(), json!(firing_tiers));
-            }
+    let current_burn = payload
+        .tiers
+        .iter()
+        .find(|tier| tier.long_burn_rate.is_some())
+        .and_then(|tier| match (tier.long_burn_rate, tier.short_burn_rate) {
+            (Some(long), Some(short)) => Some(long.min(short)),
+            _ => None,
+        });
+    let tte = match (payload.budget_remaining, current_burn, budget_window_secs) {
+        (Some(budget), Some(burn), Some(window_secs)) => {
+            time_to_exhaustion_secs(budget, burn, window_secs)
         }
+        _ => None,
+    };
+    if let Some(obj) = out.as_object_mut() {
+        obj.insert("time_to_exhaustion_secs".into(), json!(tte));
+        obj.insert("firing_tiers".into(), json!(firing_tiers));
     }
     out
 }
@@ -563,23 +542,6 @@ pub(crate) fn validate_slo_spec(spec: &SloSpec) -> Result<(), ApiError> {
     }
     validate_window_secs(&spec.time_window.duration)?;
 
-    // 5. Reserved label prefix (mirrors rule validation).
-    crate::api::reject_reserved_label_columns(&spec.sli.label_columns)?;
-    // `slo` and `slo_tier` are injected by the pipeline itself (the synthetic
-    // `slo` routing label and the per-tier instance discriminator), so a user
-    // label column with either name would be silently clobbered.
-    if let Some(col) = spec
-        .sli
-        .label_columns
-        .iter()
-        .find(|c| RESERVED_SLO_LABELS.contains(&c.as_str()))
-    {
-        return Err(ApiError::Validation(format!(
-            "label column {col:?} collides with a label the SLO pipeline injects \
-             (\"slo\", \"slo_tier\"); pick a different column alias"
-        )));
-    }
-
     Ok(())
 }
 
@@ -692,10 +654,7 @@ mod tests {
 
     fn spec(sql: &str) -> SloSpec {
         SloSpec {
-            sli: SliSpec {
-                sql: sql.into(),
-                label_columns: vec![],
-            },
+            sli: SliSpec { sql: sql.into() },
             target_percent: 99.9,
             time_window: TimeWindow {
                 duration: "30d".into(),
@@ -755,29 +714,6 @@ mod tests {
         let mut s = spec(GOOD_SQL);
         s.time_window.duration = "1M".into();
         assert!(validate_slo_spec(&s).is_err());
-    }
-
-    #[test]
-    fn rejects_reserved_label_prefix() {
-        let mut s = spec(GOOD_SQL);
-        s.sli.label_columns = vec!["__cc_x".into()];
-        assert!(validate_slo_spec(&s).is_err());
-    }
-
-    #[test]
-    fn rejects_pipeline_injected_label_names() {
-        for reserved in RESERVED_SLO_LABELS {
-            let mut s = spec(GOOD_SQL);
-            s.sli.label_columns = vec!["service".into(), reserved.into()];
-            let err = validate_slo_spec(&s).unwrap_err();
-            let ApiError::Validation(msg) = err else {
-                panic!("expected Validation, got {err:?}")
-            };
-            assert!(msg.contains(reserved), "message was: {msg}");
-        }
-        let mut s = spec(GOOD_SQL);
-        s.sli.label_columns = vec!["slo_name".into()];
-        assert!(validate_slo_spec(&s).is_ok());
     }
 
     #[test]

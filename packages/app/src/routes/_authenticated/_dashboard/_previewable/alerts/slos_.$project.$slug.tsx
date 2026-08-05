@@ -7,14 +7,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@everr/ui/components/card";
-import { type Column, DataTable } from "@everr/ui/components/data-table";
 import { Skeleton } from "@everr/ui/components/skeleton";
-import { toneText } from "@everr/ui/components/tone";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@everr/ui/components/tooltip";
 import { cn } from "@everr/ui/lib/utils";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
@@ -27,25 +20,13 @@ import { isReservedAnnotationKey } from "@/data/alerts/schema";
 import { ccQueries } from "@/data/cc/queries";
 import { pauseCcSlo, resumeCcSlo } from "@/data/cc/server";
 import {
-  ccFmtWindowLabel,
   ccSloChartRange,
-  ccSloCurrentBurn,
-  ccSloExhaustion,
-  ccSloFiringSeverity,
   ccSloHandles,
   ccSloIdentity,
-  ccSloTierSeverity,
-  ccSloTiers,
   ccSloWindowLabel,
-  ccWorstSloGroup,
 } from "@/data/cc/slo";
-import type { CcSlo, CcSloGroupStatus, CcSloView } from "@/data/cc/types";
+import type { CcSlo, CcSloView } from "@/data/cc/types";
 import { fromCcSlo } from "@/data/slos/mapping";
-import {
-  CcBudgetBar,
-  ccFmtBurn,
-  ccFmtFraction,
-} from "./-components/budget-bar";
 import {
   CcBackLink,
   CcDefRow,
@@ -53,9 +34,7 @@ import {
   CcHealthHeart,
   CcPauseToggle,
   CcQueryError,
-  CcSloTierBadge,
   ccErrorMessage,
-  LabelSet,
 } from "./-components/shared";
 import {
   SloBudgetChart,
@@ -113,134 +92,6 @@ function StatusSection({ slo }: { slo: CcSlo }) {
   // Read-time scan overrides the snapshot's throttled budget once it lands;
   // the snapshot renders instantly meanwhile.
   const fresh = useCcFreshBudgets([slo.id]);
-  const tiers = ccSloTiers(slo.spec);
-
-  const groupCols: Column<CcSloGroupStatus>[] = [
-    {
-      header: "Group",
-      cell: (g) =>
-        Object.keys(g.labels).length === 0 ? (
-          // A scalar SLO has exactly one label-less group.
-          <span className="text-xs text-muted-foreground">all traffic</span>
-        ) : (
-          <LabelSet labels={g.labels} />
-        ),
-    },
-    {
-      header: "SLI",
-      cell: (g) => (
-        <span className="font-mono text-xs tabular-nums">
-          {g.sli !== null ? ccFmtFraction(g.sli) : "—"}
-        </span>
-      ),
-    },
-    {
-      header: "Budget remaining",
-      cell: (g) => <CcBudgetBar remaining={g.budget_remaining} />,
-    },
-    {
-      // Headline = the shortest-long-window tier's sustained burn; the full
-      // per-tier matrix lives in the tooltip.
-      header: "Burn rate",
-      cell: (g) => {
-        const burn = ccSloCurrentBurn(tiers, g.tiers);
-        if (burn === null) {
-          return <span className="text-xs text-muted-foreground">—</span>;
-        }
-        // Tone from real state, not projection: a spike already gone (short
-        // window back to 0) must not read as burning.
-        const severity = ccSloFiringSeverity(tiers, g.firing_tiers);
-        const tone =
-          severity === "critical"
-            ? toneText({ tone: "danger", emphasis: "strong" })
-            : severity !== null
-              ? toneText({ tone: "warning", emphasis: "strong" })
-              : (burn.effective ?? 0) >= 1
-                ? toneText({ tone: "live" })
-                : "text-muted-foreground";
-        return (
-          <Tooltip>
-            <TooltipTrigger
-              render={
-                <span className={`font-mono text-xs tabular-nums ${tone}`} />
-              }
-            >
-              {ccFmtBurn(burn.rate)}
-              <span className="text-muted-foreground">
-                {" "}
-                · last {ccFmtWindowLabel(burn.window)}
-              </span>
-            </TooltipTrigger>
-            <TooltipContent className="space-y-1.5">
-              <p className="max-w-56 text-xs">
-                Average burn over each alert window; 1&times; spends exactly the
-                budget over {ccSloWindowLabel(slo.spec)}. A tier fires when both
-                its windows reach its threshold.
-              </p>
-              <table className="font-mono text-[0.6875rem] tabular-nums">
-                <tbody>
-                  {tiers.map((t) => {
-                    const snap = g.tiers.find((s) => s.name === t.name);
-                    return (
-                      <tr key={t.name}>
-                        <td className="pr-2">{t.name}</td>
-                        <td className="pr-2">
-                          {snap?.long_burn_rate != null
-                            ? ccFmtBurn(snap.long_burn_rate)
-                            : "—"}{" "}
-                          last {ccFmtWindowLabel(t.long_window)}
-                        </td>
-                        <td className="pr-2">
-                          {snap?.short_burn_rate != null
-                            ? ccFmtBurn(snap.short_burn_rate)
-                            : "—"}{" "}
-                          last {ccFmtWindowLabel(t.short_window)}
-                        </td>
-                        <td>fires &ge;{ccFmtBurn(t.burn_rate)}</td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </TooltipContent>
-          </Tooltip>
-        );
-      },
-    },
-    {
-      header: "Time to exhaustion",
-      cell: (g) => (
-        <span className="whitespace-nowrap font-mono text-xs tabular-nums">
-          {
-            ccSloExhaustion(
-              g.budget_remaining,
-              g.time_to_exhaustion_secs,
-              ccSloCurrentBurn(tiers, g.tiers)?.effective ?? null,
-            ).label
-          }
-        </span>
-      ),
-    },
-    {
-      header: "Firing tiers",
-      cell: (g) =>
-        g.firing_tiers.length === 0 ? (
-          <span className="text-xs text-muted-foreground">—</span>
-        ) : (
-          <span className="flex flex-wrap gap-2">
-            {g.firing_tiers.map((f) => (
-              <CcSloTierBadge
-                key={f.tier}
-                tier={f.tier}
-                severity={ccSloTierSeverity(tiers, { slo_tier: f.tier })}
-                tiers={tiers}
-              />
-            ))}
-          </span>
-        ),
-    },
-  ];
-
   if (status.isError) {
     return <CcQueryError error={status.error} />;
   }
@@ -254,61 +105,31 @@ function StatusSection({ slo }: { slo: CcSlo }) {
     );
   }
   const payload = status.data?.payload ?? null;
-  if (payload === null || payload.groups.length === 0) {
+  if (payload === null) {
     return (
       <Card>
         <CardHeader>
           <CardTitle>Status</CardTitle>
         </CardHeader>
         <CardContent>
-          {payload === null ? (
-            <CcEmptyState
-              title="No status snapshot yet"
-              hint="The evaluator writes a snapshot on its first evaluation tick; until then there is no SLI or error budget to show."
-            />
-          ) : (
-            <CcEmptyState
-              title="No SLI groups yet"
-              hint="The SLI query has not returned rows for any group in the budget window."
-            />
-          )}
+          <CcEmptyState
+            title="No status snapshot yet"
+            hint="The evaluator writes a snapshot on its first evaluation tick; until then there is no SLI or error budget to show."
+          />
         </CardContent>
       </Card>
     );
   }
 
-  // Overriding budget/SLI/TTE per group can change which group is worst, so
-  // merge before picking the headline.
-  const groups = fresh.apply(slo, payload.groups);
-  const worst = ccWorstSloGroup(tiers, groups);
+  const snapshot = fresh.apply(slo, payload);
 
   return (
     <>
-      <SloStatsRow slo={slo} worst={worst} />
-      {/* Keyed on the scan being in flight, not on rows returned: a quiet
-          group legitimately scans to [], and a failed scan never produces
-          rows; either would park this line here forever. */}
+      <SloStatsRow slo={slo} status={snapshot} />
       {fresh.isPending(slo.id) && (
         <p className="px-1 text-[0.6875rem] text-muted-foreground">
           Error budget computing&hellip;
         </p>
-      )}
-
-      {/* The stats above are only the worst group's; with several groups this
-          table is the rest of the answer. */}
-      {groups.length > 1 && (
-        <Card inset="flush-content">
-          <CardHeader>
-            <span className="text-xs font-medium">All groups</span>
-          </CardHeader>
-          <CardContent>
-            <DataTable
-              data={groups}
-              columns={groupCols}
-              rowKey={(g) => JSON.stringify(g.labels)}
-            />
-          </CardContent>
-        </Card>
       )}
     </>
   );
@@ -373,7 +194,7 @@ function BudgetHistorySection({
           <Skeleton className="h-[240px] w-full" />
         ) : (
           <SloBudgetChart
-            groups={series.data}
+            points={series.data}
             epoch={slo.budget_epoch}
             events={budgetEvents}
           />
@@ -400,7 +221,6 @@ function ObjectiveSection({ slo }: { slo: CcSlo }) {
 
   const hasRows =
     slo.spec.min_valid_events !== undefined ||
-    slo.spec.sli.label_columns.length > 0 ||
     project !== undefined ||
     labels.length > 0 ||
     annotations.length > 0;
@@ -416,11 +236,6 @@ function ObjectiveSection({ slo }: { slo: CcSlo }) {
           {slo.spec.min_valid_events !== undefined && (
             <CcDefRow label="Min valid events">
               {slo.spec.min_valid_events}
-            </CcDefRow>
-          )}
-          {slo.spec.sli.label_columns.length > 0 && (
-            <CcDefRow label="SLI groups by">
-              {slo.spec.sli.label_columns.join(", ")}
             </CcDefRow>
           )}
           {project !== undefined && (

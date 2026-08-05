@@ -32,7 +32,12 @@ pub fn budget_remaining_fraction(
     valid_total: f64,
     target_percent: f64,
 ) -> Option<f64> {
-    Some(1.0 - burn_rate(good_total, valid_total, target_percent)?)
+    let remaining = 1.0 - burn_rate(good_total, valid_total, target_percent)?;
+    Some(if remaining.abs() < 1e-12 {
+        0.0
+    } else {
+        remaining
+    })
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -99,18 +104,12 @@ pub struct SloTierStatus {
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub struct SloGroupStatus {
-    pub labels: BTreeMap<String, String>,
-    pub sli: Option<f64>,
-    pub budget_remaining: Option<f64>,
-    pub tiers: Vec<SloTierStatus>,
-}
-
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct SloStatusPayload {
     pub window: String,
     pub target_percent: f64,
-    pub groups: Vec<SloGroupStatus>,
+    pub sli: Option<f64>,
+    pub budget_remaining: Option<f64>,
+    pub tiers: Vec<SloTierStatus>,
     /// WindowReq.name -> unix seconds last computed (coordinated freshness ledger).
     pub window_computed_at: BTreeMap<String, i64>,
     /// Objective this snapshot was computed for (`domain::slo::objective_fingerprint`);
@@ -125,7 +124,9 @@ pub fn empty_payload(spec: &SloSpec) -> SloStatusPayload {
     SloStatusPayload {
         window: spec.time_window.duration.clone(),
         target_percent: spec.target_percent,
-        groups: Vec::new(),
+        sli: None,
+        budget_remaining: None,
+        tiers: Vec::new(),
         window_computed_at: BTreeMap::new(),
         objective_fingerprint: None,
     }
@@ -190,10 +191,7 @@ mod tests {
 
     fn spec_with(window: &str) -> SloSpec {
         SloSpec {
-            sli: SliSpec {
-                sql: "x".into(),
-                label_columns: vec![],
-            },
+            sli: SliSpec { sql: "x".into() },
             target_percent: 99.9,
             time_window: TimeWindow {
                 duration: window.into(),
@@ -232,9 +230,9 @@ mod tests {
         // 100% bad against 0.1% budget -> hugely over budget -> strongly negative
         let rem = budget_remaining_fraction(0.0, 100.0, 99.9).unwrap();
         assert!(rem < 0.0);
-        // exactly at budget -> ~0 remaining
+        // Exactly at budget is normalized to zero, not floating-point noise.
         let rem = budget_remaining_fraction(999.0, 1000.0, 99.9).unwrap();
-        assert!((rem - 0.0).abs() < 1e-6, "got {rem}");
+        assert_eq!(rem, 0.0);
         // perfect -> full budget
         let rem = budget_remaining_fraction(1000.0, 1000.0, 99.9).unwrap();
         assert!((rem - 1.0).abs() < 1e-12);
@@ -266,7 +264,9 @@ mod tests {
         let p = empty_payload(&spec_with("30d"));
         assert_eq!(p.window, "30d");
         assert_eq!(p.target_percent, 99.9);
-        assert!(p.groups.is_empty());
+        assert!(p.sli.is_none());
+        assert!(p.budget_remaining.is_none());
+        assert!(p.tiers.is_empty());
         assert!(p.window_computed_at.is_empty());
     }
 
@@ -276,7 +276,9 @@ mod tests {
         let p = SloStatusPayload {
             window: "30d".into(),
             target_percent: 99.9,
-            groups: vec![],
+            sli: None,
+            budget_remaining: None,
+            tiers: vec![],
             window_computed_at: std::collections::BTreeMap::from([("300s".into(), 1234i64)]),
             objective_fingerprint: Some("abc123".into()),
         };
@@ -295,7 +297,9 @@ mod tests {
         let p = SloStatusPayload {
             window: "30d".into(),
             target_percent: 99.9,
-            groups: vec![],
+            sli: None,
+            budget_remaining: None,
+            tiers: vec![],
             window_computed_at: std::collections::BTreeMap::from([("300s".into(), 1234i64)]),
             objective_fingerprint: None,
         };

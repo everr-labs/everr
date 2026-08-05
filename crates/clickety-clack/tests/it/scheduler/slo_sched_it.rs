@@ -18,7 +18,6 @@ async fn tick_enqueues_due_slo_jobs() {
     let spec = SloSpec {
         sli: SliSpec {
             sql: "SELECT 1 AS good, 1 AS valid FROM t WHERE ts >= {window_start:DateTime} AND ts < {window_end:DateTime}".into(),
-            label_columns: vec![],
         },
         target_percent: 99.9,
         time_window: TimeWindow {

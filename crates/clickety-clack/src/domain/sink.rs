@@ -6,7 +6,6 @@
 
 use crate::domain::Event;
 use async_trait::async_trait;
-use std::collections::BTreeMap;
 
 /// What the dispatcher knows post-routing / post-silence: which receivers an event was
 /// delivered to, and (if suppressed) the silence that matched.
@@ -33,7 +32,7 @@ impl AlertLogSink for NullSink {
 }
 
 /// One raw SLO measurement: the `(good, valid)` counts a single window's SLI
-/// query returned for one group this evaluation tick. The engine records these
+/// query returned this evaluation tick. The engine records these
 /// as-is; burn rate and remaining budget are derived at read time by consumers
 /// (mirroring `engine/slo_math.rs`) so no derived value is ever frozen into
 /// storage.
@@ -47,9 +46,6 @@ pub struct SloSample {
     /// The window this measurement is over, as the engine's stable key
     /// (`WindowReq.name`, e.g. "3600s"): the `slo.window` datapoint attribute.
     pub window: String,
-    /// The group's label columns (empty for a scalar SLO), emitted as
-    /// `slo.group.<column>` datapoint attributes.
-    pub labels: BTreeMap<String, String>,
     pub good: f64,
     pub valid: f64,
     /// Evaluation time, unix nanoseconds (the datapoint `TimeUnixNano`).

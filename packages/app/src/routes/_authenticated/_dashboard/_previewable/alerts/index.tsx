@@ -80,15 +80,12 @@ function CcTriagePage() {
   const rulesData = rules.data ?? EMPTY;
   // TanStack caches the combined value per combine-function identity; an
   // inline arrow would hand out a fresh Map every render.
-  const snapshotStatusGroups = useQueries({
+  const snapshotStatuses = useQueries({
     queries: slosData.map((s) => ccQueries.sloStatus(s.id)),
     combine: useCallback(
       (results: { data?: CcSloStatus | null }[]) =>
         new Map(
-          slosData.map((s, i) => [
-            s.id,
-            results[i]?.data?.payload?.groups ?? [],
-          ]),
+          slosData.map((s, i) => [s.id, results[i]?.data?.payload ?? null]),
         ),
       [slosData],
     ),
@@ -137,23 +134,26 @@ function CcTriagePage() {
     }
     for (const slo of slosData) {
       if (slo.paused) continue;
-      const snapshot = snapshotStatusGroups.get(slo.id) ?? [];
-      if (snapshot.some((g) => ccBudgetExhausted(g.budget_remaining))) {
+      const snapshot = snapshotStatuses.get(slo.id);
+      if (ccBudgetExhausted(snapshot?.budget_remaining ?? null)) {
         ids.add(slo.id);
       }
     }
     return [...ids];
-  }, [boardGroups, slosData, snapshotStatusGroups]);
+  }, [boardGroups, slosData, snapshotStatuses]);
   const freshBudgets = useCcFreshBudgets(freshIds);
-  const sloStatusGroups = useMemo(
+  const sloStatuses = useMemo(
     () =>
       new Map(
-        slosData.map((s) => [
-          s.id,
-          freshBudgets.apply(s, snapshotStatusGroups.get(s.id) ?? []),
-        ]),
+        slosData.map((s) => {
+          const snapshot = snapshotStatuses.get(s.id);
+          return [
+            s.id,
+            snapshot ? freshBudgets.apply(s, snapshot) : null,
+          ] as const;
+        }),
       ),
-    [slosData, snapshotStatusGroups, freshBudgets],
+    [slosData, snapshotStatuses, freshBudgets],
   );
 
   const watchingRules = rulesData.filter((r) => !r.paused).length;
@@ -169,8 +169,8 @@ function CcTriagePage() {
   };
 
   const exhausted = useMemo(
-    () => ccExhaustedBudgets(slosData, sloStatusGroups),
-    [slosData, sloStatusGroups],
+    () => ccExhaustedBudgets(slosData, sloStatuses),
+    [slosData, sloStatuses],
   );
 
   if (errored) return <CcQueryError error={errored.error} />;
@@ -197,7 +197,7 @@ function CcTriagePage() {
         groups={boardGroups}
         pending={pending}
         channelsByReceiver={channelsByReceiver}
-        sloStatusGroups={sloStatusGroups}
+        sloStatuses={sloStatuses}
         watchingRules={watchingRules}
         lastEventTs={lastEventTs}
         eventsUnavailable={events.isError}

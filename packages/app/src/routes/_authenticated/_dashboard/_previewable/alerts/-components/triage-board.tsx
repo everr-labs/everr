@@ -9,7 +9,7 @@ import { cn } from "@everr/ui/lib/utils";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { BellOff, BookOpenText, ChevronRight, FileSearch } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { toast } from "sonner";
 import { ccEventStatus } from "@/data/alerts/event-types";
 import { fromCcRule } from "@/data/alerts/mapping";
@@ -17,7 +17,6 @@ import { parseResourceName } from "@/data/as-code/identity";
 import { ccQueries } from "@/data/cc/queries";
 import { createCcSilence } from "@/data/cc/server";
 import {
-  ccBudgetIndex,
   ccDeliveryFanout,
   ccGroupSilenceMatchers,
   ccInstanceLogsSearch,
@@ -33,7 +32,7 @@ import type {
   CcAlert,
   CcMatcher,
   CcRoute,
-  CcSloGroupStatus,
+  CcSloStatusPayload,
 } from "@/data/cc/types";
 import { CcBudgetBar, ccFmtBurn } from "./budget-bar";
 import {
@@ -584,7 +583,7 @@ export function TriageBoard({
   groups,
   pending,
   channelsByReceiver,
-  sloStatusGroups,
+  sloStatuses,
   watchingRules,
   lastEventTs,
   eventsUnavailable,
@@ -593,7 +592,7 @@ export function TriageBoard({
   groups: TriageGroup[];
   pending: boolean;
   channelsByReceiver: Map<string, string[]>;
-  sloStatusGroups: Map<string, CcSloGroupStatus[]>;
+  sloStatuses: Map<string, CcSloStatusPayload | null>;
   /** How many rules are unpaused, for the all-clear readout. */
   watchingRules: number;
   lastEventTs: string | null;
@@ -627,14 +626,6 @@ export function TriageBoard({
     },
     onError: (e) => toast.error(ccErrorMessage(e)),
   });
-
-  const budgetIndexes = useMemo(
-    () =>
-      new Map(
-        [...sloStatusGroups].map(([id, groups]) => [id, ccBudgetIndex(groups)]),
-      ),
-    [sloStatusGroups],
-  );
 
   return (
     // A landmark distinct from the silences panel below, for assistive tech.
@@ -677,7 +668,7 @@ export function TriageBoard({
                   group={group}
                   budget={
                     group.sloId !== undefined
-                      ? ccRowBudget(row, budgetIndexes.get(group.sloId))
+                      ? ccRowBudget(sloStatuses.get(group.sloId))
                       : null
                   }
                   expanded={expandedKey === row.lead.alert.key}

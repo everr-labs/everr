@@ -3,7 +3,7 @@ use crate::dispatcher::matching::matchers_match;
 use crate::domain::ids::{RuleId, SloId};
 use crate::domain::routing::Route;
 use crate::domain::rule::Severity;
-use crate::domain::slo::{SLO_LABEL, SLO_TIER_LABEL};
+use crate::domain::slo::SLO_LABEL;
 use crate::domain::{Event, EventKind, EventStatus};
 use std::collections::BTreeMap;
 
@@ -56,22 +56,10 @@ pub struct MatchedTarget {
     pub grouping: GroupingParams,
 }
 
-/// Default group_by for SLO events (spec §5): one notification group per
-/// (slo, group), collapsing tiers. Only used when the matched route has no
-/// explicit group_by. Group-label names = the event's labels minus the
-/// tier discriminator (slo_tier) — i.e. the SLI label_columns.
-pub(crate) fn slo_default_group_by(ev_labels: &BTreeMap<String, String>) -> Vec<String> {
-    let mut gb = vec![SLO_LABEL.to_string()];
-    // Also filter out a user label literally named `slo` (e.g. a label_column called
-    // "slo") so it isn't duplicated alongside the leading synthetic entry -- mirrors
-    // the equal-list dedup in `slo_inhibit::synthesize_slo_inhibitions`.
-    gb.extend(
-        ev_labels
-            .keys()
-            .filter(|k| *k != SLO_TIER_LABEL && *k != SLO_LABEL)
-            .cloned(),
-    );
-    gb
+/// Default route grouping for SLO events: one notification group per SLO,
+/// collapsing burn-rate tiers.
+pub(crate) fn slo_default_group_by() -> Vec<String> {
+    vec![SLO_LABEL.to_string()]
 }
 
 /// Walk `routes` in the given order (pre-ordered by the store: priority asc, then
@@ -82,8 +70,8 @@ pub(crate) fn slo_default_group_by(ev_labels: &BTreeMap<String, String>) -> Vec<
 /// caller that already built it doesn't pay for a second synthetic-label clone.
 ///
 /// The route-default `group_by` (used only when the route sets none) depends on whether
-/// `ev` is SLO-originated: SLO events default to `slo_default_group_by(&ev.labels)`
-/// (spec §5, collapsing burn-rate tiers into one group per (slo, group)); all other
+/// `ev` is SLO-originated: SLO events default to `slo_default_group_by()`
+/// (collapsing burn-rate tiers into one group per SLO); all other
 /// events keep the existing `["rule","severity"]` default. An explicit route `group_by`
 /// always wins regardless of `ev.slo`.
 pub fn select_grouping_targets(
@@ -101,7 +89,7 @@ pub fn select_grouping_targets(
                     grouping: GroupingParams {
                         group_by: r.group_by.clone().unwrap_or_else(|| {
                             if ev.slo.is_some() {
-                                slo_default_group_by(&ev.labels)
+                                slo_default_group_by()
                             } else {
                                 grouping::default_group_by()
                             }
@@ -273,32 +261,15 @@ mod tests {
     }
 
     #[test]
-    fn slo_default_group_by_dedups_a_user_label_literally_named_slo() {
-        let labels = BTreeMap::from([
-            ("slo".to_string(), "user-value".to_string()),
-            ("service".to_string(), "api".to_string()),
-            ("slo_tier".to_string(), "fast-burn".to_string()),
-        ]);
-        assert_eq!(
-            slo_default_group_by(&labels),
-            vec!["slo".to_string(), "service".to_string()],
-            "a user label named `slo` must not duplicate the leading synthetic entry"
-        );
-    }
-
-    #[test]
-    fn slo_event_route_group_by_none_defaults_to_slo_grouping() {
+    fn slo_event_route_group_by_none_defaults_to_slo() {
         use crate::domain::ids::SloId;
-        let mut e = ev(
-            Severity::Critical,
-            &[("service", "api"), ("slo_tier", "fast-burn")],
-        );
+        let mut e = ev(Severity::Critical, &[("slo_tier", "fast-burn")]);
         e.slo = Some(SloId(Uuid::nil()));
         let routes = vec![route("ops", false, vec![])];
         let targets = targets(&routes, &e);
         assert_eq!(
             targets[0].grouping.group_by,
-            vec!["slo".to_string(), "service".to_string()],
+            vec!["slo".to_string()],
             "SLO event with no explicit route group_by uses slo_default_group_by"
         );
     }
@@ -306,10 +277,7 @@ mod tests {
     #[test]
     fn slo_event_explicit_route_group_by_always_wins() {
         use crate::domain::ids::SloId;
-        let mut e = ev(
-            Severity::Critical,
-            &[("service", "api"), ("slo_tier", "fast-burn")],
-        );
+        let mut e = ev(Severity::Critical, &[("slo_tier", "fast-burn")]);
         e.slo = Some(SloId(Uuid::nil()));
         let mut r = route("ops", false, vec![]);
         r.group_by = Some(vec!["severity".to_string()]);

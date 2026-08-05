@@ -324,7 +324,7 @@ pub struct RulePageKey {
 }
 
 /// A stored SLO status snapshot, as read by [`PgStore::get_slo_status`]. `payload`
-/// holds the per-group status + per-window freshness timestamps computed by the
+/// holds the scalar status and per-window freshness timestamps computed by the
 /// evaluator (see [`crate::engine::slo_math::SloStatusPayload`] for its shape).
 #[derive(Debug, Clone)]
 pub struct SloStatusRow {
@@ -348,13 +348,12 @@ pub struct SloHealth {
 /// Lean per-SLO projection for dispatch-time inhibition synthesis (see
 /// `dispatcher::slo_inhibit`), returned by [`PgStore::list_slos_for_dispatch`]. Dispatch
 /// never needs the full [`crate::domain::slo::Slo`] (SQL text, target, window...) — just
-/// identity and the label columns that fan the tier group out. Tiers are the
-/// canonical set for every SLO, so the consumer reads them from `canonical_tiers()`.
+/// identity. Tiers are canonical for every SLO, so the consumer reads them
+/// from `canonical_tiers()`.
 #[derive(Debug, Clone, PartialEq)]
 pub struct SloDispatchInfo {
     pub id: crate::domain::ids::SloId,
     pub tenant: TenantId,
-    pub label_columns: Vec<String>,
 }
 
 fn status_str(s: Status) -> &'static str {
@@ -2769,12 +2768,9 @@ impl PgStore {
         // `apply` take effect on the next tick; the evaluator's fingerprint check is
         // the backstop for every other path.
         //
-        // The existing `slo_instances` rows go too: `label_columns` is part of the
-        // objective fingerprint, so a redefined objective can hash to instance keys a
-        // future evaluation never reproduces. Left in place, their pending/firing rows
-        // stay visible in `list_alerts` until a later evaluation happens to resolve
-        // them, and forever if the SLO is paused. This mirrors the rule update path's
-        // instance teardown on a label change (a silent teardown, no Resolved events).
+        // Existing tier instances go too because their pending or firing state no
+        // longer describes the redefined objective. This is a silent teardown with
+        // no Resolved events, matching the rule update path for identity changes.
         if objective_changed {
             sqlx::query("DELETE FROM slo_status WHERE slo=$1 AND tenant=$2")
                 .bind(id.0)
@@ -2923,32 +2919,21 @@ impl PgStore {
 
     /// Lean projection of SLOs for dispatch-time inhibition synthesis (see
     /// `dispatcher::slo_inhibit`), called on every snapshot refresh
-    /// (`FilterCache::load`). Projects only `label_columns` out of the spec rather
-    /// than decoding the full [`crate::domain::slo::Slo`] (SQL text, target, window...).
+    /// (`FilterCache::load`).
     pub async fn list_slos_for_dispatch(
         &self,
         tenant: &TenantId,
     ) -> Result<Vec<SloDispatchInfo>, StoreError> {
         use crate::domain::ids::SloId;
-        let rows = sqlx::query(
-            "SELECT id, tenant, spec->'sli'->'label_columns' AS label_columns
-             FROM slos WHERE tenant=$1",
-        )
-        .bind(tenant.as_str())
-        .fetch_all(&self.pool)
-        .await?;
+        let rows = sqlx::query("SELECT id, tenant FROM slos WHERE tenant=$1")
+            .bind(tenant.as_str())
+            .fetch_all(&self.pool)
+            .await?;
         let mut out = Vec::with_capacity(rows.len());
         for r in &rows {
-            // SQL NULL when the JSON key is absent — treat missing and null identically.
-            let label_columns: Vec<String> =
-                match r.get::<Option<serde_json::Value>, _>("label_columns") {
-                    Some(v) if !v.is_null() => serde_json::from_value(v)?,
-                    _ => Vec::new(),
-                };
             out.push(SloDispatchInfo {
                 id: SloId(r.get("id")),
                 tenant: TenantId::from_trusted(r.get::<String, _>("tenant")),
-                label_columns,
             });
         }
         Ok(out)

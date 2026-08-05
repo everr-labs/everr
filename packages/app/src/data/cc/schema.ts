@@ -226,8 +226,6 @@ export const CcSloTierSchema = z.object({
 export const CcSloSpecSchema = z.object({
   sli: z.object({
     sql: z.string(),
-    // Empty = scalar SLO.
-    label_columns: z.array(z.string()).default([]),
   }),
   targetPercent: z.number(),
   timeWindow: z.object({
@@ -282,11 +280,13 @@ const CcSloTierStatusSchema = z.object({
   long_window_valid: z.number().nullable().default(null),
 });
 
-// SloGroupStatus plus the read-time enrichment api/slos.rs adds
+// SloStatusPayload plus the read-time enrichment api/slos.rs adds
 // (time_to_exhaustion_secs, firing_tiers). Legacy rows are served without
 // the enrichment, so both enriched fields tolerate absence.
-export const CcSloGroupStatusSchema = z.object({
-  labels: z.record(z.string(), z.string()),
+export const CcSloStatusPayloadSchema = z.object({
+  // The window shorthand ("30d") the snapshot was computed against.
+  window: z.string(),
+  target_percent: z.number(),
   sli: z.number().nullable(),
   budget_remaining: z.number().nullable(),
   tiers: z.array(CcSloTierStatusSchema),
@@ -294,13 +294,6 @@ export const CcSloGroupStatusSchema = z.object({
   firing_tiers: z
     .array(z.object({ tier: z.string(), status: CcInstanceStatusSchema }))
     .default([]),
-});
-
-const CcSloStatusPayloadSchema = z.object({
-  // The window shorthand ("30d") the snapshot was computed against.
-  window: z.string(),
-  target_percent: z.number(),
-  groups: z.array(CcSloGroupStatusSchema).default([]),
   // WindowReq.name ("300s") -> unix seconds last computed.
   window_computed_at: z.record(z.string(), z.number()).default({}),
 });
@@ -325,17 +318,11 @@ export const CcSloInputSchema = CcSloSpecSchema.extend({
 // the optional optimistic-concurrency `version`.
 export const CcSloUpdateSchema = CcSloSpecSchema;
 
-// POST /v1/slos/test: per-group SLI over the spec's own budget window.
+// POST /v1/slos/test: scalar SLI over the spec's own budget window.
 export const CcSloTestResultSchema = z.object({
-  matched: z.number().int(),
-  groups: z.array(
-    z.object({
-      labels: z.record(z.string(), z.string()),
-      good: z.number(),
-      valid: z.number(),
-      sli: z.number().nullable(),
-    }),
-  ),
+  good: z.number(),
+  valid: z.number(),
+  sli: z.number().nullable(),
 });
 
 export const CcDeletedSchema = z.object({ deleted: z.boolean() });

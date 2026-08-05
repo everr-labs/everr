@@ -1,5 +1,5 @@
 //! Spec §5 tier inhibition: materializing an SLO auto-provisions inhibition so a
-//! higher (faster-burning) tier suppresses lower tiers for the same (slo, group).
+//! higher (faster-burning) tier suppresses lower tiers for the same SLO.
 //! Synthesized in-memory on every snapshot load (see [`crate::dispatcher::cache`]) —
 //! never stored, so there are no rows to create/delete/sync and users cannot break
 //! the no-triple-page guarantee by messing with them.
@@ -14,10 +14,10 @@ use uuid::Uuid;
 
 /// Auto-provisioned tier inhibitions (spec §5): for every SLO and every
 /// (higher, lower) tier pair, the higher tier suppresses the lower for the
-/// same (slo, group). Synthesized on every snapshot load — never stored, so
+/// same SLO. Synthesized on every snapshot load — never stored, so
 /// lifecycle is automatic and users cannot break the no-triple-page guarantee.
 ///
-/// Takes the lean [`SloDispatchInfo`] projection (id/tenant/label_columns) rather
+/// Takes the lean [`SloDispatchInfo`] projection (id/tenant) rather
 /// than the full `Slo`; the tier pairs come from `canonical_tiers()`, the same set
 /// every SLO is evaluated on.
 pub(crate) fn synthesize_slo_inhibitions(slos: &[SloDispatchInfo]) -> Vec<InhibitionRule> {
@@ -27,12 +27,6 @@ pub(crate) fn synthesize_slo_inhibitions(slos: &[SloDispatchInfo]) -> Vec<Inhibi
     let mut out = Vec::new();
     for slo in slos {
         let slo_str = slo.id.0.to_string();
-
-        let mut equal: Vec<String> = std::iter::once(SLO_LABEL.to_string())
-            .chain(slo.label_columns.iter().cloned())
-            .collect();
-        equal.sort();
-        equal.dedup();
 
         for (i, j) in tier_pairs(&tiers) {
             out.push(InhibitionRule {
@@ -77,7 +71,7 @@ pub(crate) fn synthesize_slo_inhibitions(slos: &[SloDispatchInfo]) -> Vec<Inhibi
                         value: "firing".to_string(),
                     },
                 ],
-                equal: equal.clone(),
+                equal: vec![SLO_LABEL.to_string()],
                 created_at: OffsetDateTime::UNIX_EPOCH,
             });
         }
@@ -91,17 +85,16 @@ mod tests {
     use crate::domain::ids::{SloId, TenantId};
     use std::collections::BTreeMap;
 
-    fn slo_with(label_columns: Vec<String>) -> SloDispatchInfo {
+    fn slo() -> SloDispatchInfo {
         SloDispatchInfo {
             id: SloId(Uuid::new_v4()),
             tenant: TenantId::from_trusted(Uuid::new_v4().to_string()),
-            label_columns,
         }
     }
 
     #[test]
     fn canonical_tiers_yield_three_rules_with_precedence_order() {
-        let slo = slo_with(vec!["service".to_string()]);
+        let slo = slo();
         let rules = synthesize_slo_inhibitions(std::slice::from_ref(&slo));
         assert_eq!(rules.len(), 3, "3 tier pairs for 3 canonical tiers");
 
@@ -144,31 +137,8 @@ mod tests {
                 },
             ]
         );
-        assert_eq!(
-            fast_to_ticket.equal,
-            vec!["service".to_string(), "slo".to_string()],
-            "equal = [\"slo\"] + label_columns, sorted, deduped"
-        );
+        assert_eq!(fast_to_ticket.equal, vec!["slo".to_string()]);
         assert_eq!(fast_to_ticket.tenant, slo.tenant);
-    }
-
-    #[test]
-    fn slo_label_is_always_in_equal_even_without_label_columns() {
-        let slo = slo_with(vec![]);
-        let rules = synthesize_slo_inhibitions(std::slice::from_ref(&slo));
-        assert_eq!(rules.len(), 3);
-        for r in &rules {
-            assert_eq!(r.equal, vec!["slo".to_string()]);
-        }
-    }
-
-    #[test]
-    fn duplicate_label_column_named_slo_is_deduped() {
-        // Defensive: if a SLI's label_columns happened to include "slo" itself,
-        // `equal` must not contain it twice.
-        let slo = slo_with(vec!["slo".to_string()]);
-        let rules = synthesize_slo_inhibitions(std::slice::from_ref(&slo));
-        assert_eq!(rules[0].equal, vec!["slo".to_string()]);
     }
 
     #[test]
@@ -179,19 +149,17 @@ mod tests {
         use crate::domain::rule::Severity;
         use crate::domain::EventStatus;
 
-        let slo = slo_with(vec!["service".to_string()]);
+        let slo = slo();
         let rules = synthesize_slo_inhibitions(std::slice::from_ref(&slo));
 
         // fast-burn -> slow-burn is rules[0] (see tier_pairs precedence order comment above).
         let fast_to_slow = std::slice::from_ref(&rules[0]);
 
         let mut user_labels = BTreeMap::new();
-        user_labels.insert("service".to_string(), "api".to_string());
         user_labels.insert("slo_tier".to_string(), "slow-burn".to_string());
 
         let fast_source_key = InstanceKey("fast-burn-api".to_string());
         let mut fast_source_labels = BTreeMap::new();
-        fast_source_labels.insert("service".to_string(), "api".to_string());
         fast_source_labels.insert("slo_tier".to_string(), "fast-burn".to_string());
         let fast_source_labels = synthetic_labels(
             &fast_source_labels,
@@ -224,7 +192,7 @@ mod tests {
         );
 
         // The guarantee still holds for the Firing case: same labels but Firing status IS
-        // inhibited by the still-firing fast-burn source for the same (slo, service).
+        // inhibited by the still-firing fast-burn source for the same SLO.
         let slow_firing_key = InstanceKey("slow-burn-api-firing".to_string());
         let slow_firing_labels = synthetic_labels(
             &user_labels,

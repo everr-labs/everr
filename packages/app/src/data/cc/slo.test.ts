@@ -18,13 +18,12 @@ import {
   ccSloTierSeverity,
   ccTiersForWindow,
   ccTimeToExhaustionSecs,
-  ccWorstSloGroup,
 } from "./slo";
-import type { CcSlo, CcSloGroupStatus, CcSloSpec } from "./types";
+import type { CcSlo, CcSloSpec, CcSloStatusPayload } from "./types";
 
 function spec(overrides: Partial<CcSloSpec> = {}): CcSloSpec {
   return {
-    sli: { sql: "SELECT 1 AS good, 1 AS valid", label_columns: [] },
+    sli: { sql: "SELECT 1 AS good, 1 AS valid" },
     targetPercent: 99.9,
     timeWindow: { duration: "30d", isRolling: true },
     annotations: {},
@@ -210,7 +209,7 @@ describe("ccSloCurrentBurn", () => {
     name: string,
     long: number | null,
     short: number | null,
-  ): CcSloGroupStatus["tiers"][number] => ({
+  ): CcSloStatusPayload["tiers"][number] => ({
     name,
     long_burn_rate: long,
     short_burn_rate: short,
@@ -260,9 +259,12 @@ describe("ccTimeToExhaustionSecs", () => {
 });
 
 describe("ccApplyFreshBudget", () => {
-  function group(overrides: Partial<CcSloGroupStatus> = {}): CcSloGroupStatus {
+  function status(
+    overrides: Partial<CcSloStatusPayload> = {},
+  ): CcSloStatusPayload {
     return {
-      labels: { service: "checkout" },
+      window: "30d",
+      target_percent: 99.9,
       sli: 0.9992,
       budget_remaining: 0.42,
       tiers: [
@@ -275,15 +277,16 @@ describe("ccApplyFreshBudget", () => {
       ],
       time_to_exhaustion_secs: 3 * 86400 + 4 * 3600,
       firing_tiers: [{ tier: "fast-burn", status: "firing" }],
+      window_computed_at: {},
       ...overrides,
     };
   }
 
   it("overrides budget/SLI and re-derives TTE, keeping tiers and firing", () => {
-    const [merged] = ccApplyFreshBudget(
+    const merged = ccApplyFreshBudget(
       CC_CANONICAL_SLO_TIERS,
-      [group()],
-      [{ labels: { service: "checkout" }, sli: 0.998, budgetRemaining: 0.1 }],
+      status(),
+      { sli: 0.998, budgetRemaining: 0.1 },
       2_592_000,
     );
     expect(merged.budget_remaining).toBe(0.1);
@@ -292,8 +295,8 @@ describe("ccApplyFreshBudget", () => {
     // burn min(1.4, 0.9) = 0.9, not the raw 1h rate: 2592000 * 0.1 / 0.9 = 288000.
     expect(merged.time_to_exhaustion_secs).toBe(288000);
     // Burn tiers and firing state stay from the snapshot (they refresh often).
-    expect(merged.tiers).toEqual(group().tiers);
-    expect(merged.firing_tiers).toEqual(group().firing_tiers);
+    expect(merged.tiers).toEqual(status().tiers);
+    expect(merged.firing_tiers).toEqual(status().firing_tiers);
   });
 
   it("gives no horizon when a slow tier fires on a burst the fastest tier has moved past", () => {
@@ -302,28 +305,26 @@ describe("ccApplyFreshBudget", () => {
     // still inside its 3d/6h windows. TTE reads the fastest tier's current spend
     // (min(4, 0) = 0), so there is no horizon — the ticket's lagging rate must not
     // fabricate an exhaustion time for a budget that is recovering.
-    const [merged] = ccApplyFreshBudget(
+    const merged = ccApplyFreshBudget(
       CC_CANONICAL_SLO_TIERS,
-      [
-        group({
-          tiers: [
-            {
-              name: "fast-burn",
-              long_burn_rate: 4,
-              short_burn_rate: 0,
-              long_window_valid: 120000,
-            },
-            {
-              name: "ticket",
-              long_burn_rate: 2,
-              short_burn_rate: 1.5,
-              long_window_valid: 120000,
-            },
-          ],
-          firing_tiers: [{ tier: "ticket", status: "firing" }],
-        }),
-      ],
-      [{ labels: { service: "checkout" }, sli: 0.98, budgetRemaining: 0.3 }],
+      status({
+        tiers: [
+          {
+            name: "fast-burn",
+            long_burn_rate: 4,
+            short_burn_rate: 0,
+            long_window_valid: 120000,
+          },
+          {
+            name: "ticket",
+            long_burn_rate: 2,
+            short_burn_rate: 1.5,
+            long_window_valid: 120000,
+          },
+        ],
+        firing_tiers: [{ tier: "ticket", status: "firing" }],
+      }),
+      { sli: 0.98, budgetRemaining: 0.3 },
       2_592_000,
     );
     expect(merged.budget_remaining).toBe(0.3);
@@ -333,38 +334,16 @@ describe("ccApplyFreshBudget", () => {
     expect(merged.firing_tiers).toEqual([{ tier: "ticket", status: "firing" }]);
   });
 
-  it("matches groups by label set regardless of key order", () => {
-    const g = group({ labels: { region: "eu", service: "checkout" } });
-    const [merged] = ccApplyFreshBudget(
-      CC_CANONICAL_SLO_TIERS,
-      [g],
-      [
-        {
-          labels: { service: "checkout", region: "eu" },
-          sli: 1,
-          budgetRemaining: 0.2,
-        },
-      ],
-      2_592_000,
-    );
-    expect(merged.budget_remaining).toBe(0.2);
-  });
-
-  it("keeps the snapshot when the scan has nothing for a group (instant fallback)", () => {
-    const groups = [group()];
-    const [unmatched] = ccApplyFreshBudget(
-      CC_CANONICAL_SLO_TIERS,
-      groups,
-      [{ labels: { service: "cart" }, sli: 1, budgetRemaining: 0.99 }],
-      2_592_000,
-    );
-    expect(unmatched.budget_remaining).toBe(0.42);
+  it("keeps the snapshot when the scan has no result", () => {
+    const snapshot = status();
     expect(
-      ccApplyFreshBudget(CC_CANONICAL_SLO_TIERS, groups, undefined, 2_592_000),
-    ).toEqual(groups);
-    expect(
-      ccApplyFreshBudget(CC_CANONICAL_SLO_TIERS, groups, [], 2_592_000),
-    ).toEqual(groups);
+      ccApplyFreshBudget(
+        CC_CANONICAL_SLO_TIERS,
+        snapshot,
+        undefined,
+        2_592_000,
+      ),
+    ).toEqual(snapshot);
   });
 });
 
@@ -395,116 +374,58 @@ describe("ccSloBurnPace", () => {
   });
 });
 
-describe("ccWorstSloGroup", () => {
-  const tiers = CC_CANONICAL_SLO_TIERS;
-  const g = (
-    budget_remaining: number | null,
-    firing: string[] = [],
-  ): CcSloGroupStatus => ({
-    labels: { budget: String(budget_remaining) },
-    sli: 0.999,
-    budget_remaining,
-    tiers: [],
-    time_to_exhaustion_secs: null,
-    firing_tiers: firing.map((tier) => ({ tier, status: "firing" as const })),
-  });
-
-  it("headlines a firing group over a quieter one with less budget", () => {
-    // The regression: a service that stopped emitting can sit at the lowest
-    // budget forever; the active fire is what the headline must show.
-    const silent = g(-22.3);
-    const firing = g(-20.3, ["ticket"]);
-    expect(ccWorstSloGroup(tiers, [silent, firing])).toBe(firing);
-  });
-
-  it("ranks a critical firing tier above a warning one, whatever the budgets", () => {
-    const warning = g(-5, ["ticket"]);
-    const critical = g(0.9, ["fast-burn"]);
-    expect(ccWorstSloGroup(tiers, [warning, critical])).toBe(critical);
-  });
-
-  it("breaks firing ties by budget", () => {
-    const better = g(0.5, ["ticket"]);
-    const worse = g(0.1, ["ticket"]);
-    expect(ccWorstSloGroup(tiers, [better, worse])).toBe(worse);
-  });
-
-  it("picks the group spending its budget fastest when nothing fires", () => {
-    expect(
-      ccWorstSloGroup(tiers, [g(0.8), g(0.1), g(0.4)])?.budget_remaining,
-    ).toBe(0.1);
-  });
-
-  it("sorts a group with no budget number last, so a real number wins", () => {
-    expect(ccWorstSloGroup(tiers, [g(null), g(0.9)])?.budget_remaining).toBe(
-      0.9,
-    );
-  });
-
-  it("still answers when every group lacks a budget", () => {
-    expect(ccWorstSloGroup(tiers, [g(null), g(null)])).not.toBeNull();
-  });
-
-  it("returns null only when there are no groups at all", () => {
-    expect(ccWorstSloGroup(tiers, [])).toBeNull();
-  });
-});
-
 describe("ccSloOverallPace", () => {
   const tiers = CC_CANONICAL_SLO_TIERS;
-  const group = (o: Partial<CcSloGroupStatus>): CcSloGroupStatus => ({
-    labels: {},
+  const status = (o: Partial<CcSloStatusPayload>): CcSloStatusPayload => ({
+    window: "30d",
+    target_percent: 99.9,
     sli: null,
     budget_remaining: null,
     tiers: [],
     time_to_exhaustion_secs: null,
     firing_tiers: [],
+    window_computed_at: {},
     ...o,
   });
   const tier = (
     name: string,
     long: number | null,
     short: number | null,
-  ): CcSloGroupStatus["tiers"][number] => ({
+  ): CcSloStatusPayload["tiers"][number] => ({
     name,
     long_burn_rate: long,
     short_burn_rate: short,
     long_window_valid: null,
   });
 
-  it("sees a firing tier on any group, not just the worst-by-budget one", () => {
-    // The regression: worst group has no recent events (null burns) while a
-    // sibling fires its ticket tier. The verdict must not read "steady".
-    const worst = group({
-      budget_remaining: -22,
-      tiers: [tier("fast-burn", null, null), tier("ticket", null, null)],
-    });
-    const firingSibling = group({
+  it("uses a firing warning tier before burn arithmetic", () => {
+    const firing = status({
       budget_remaining: -20,
       tiers: [tier("ticket", 64, 40)],
       firing_tiers: [{ tier: "ticket", status: "firing" }],
     });
-    expect(ccSloOverallPace(tiers, [worst, firingSibling])).toBe("burning");
+    expect(ccSloOverallPace(tiers, firing)).toBe("burning");
   });
 
-  it("escalates to burning-fast when any group fires a critical tier", () => {
-    const critical = group({
+  it("escalates to burning-fast for a critical tier", () => {
+    const critical = status({
       firing_tiers: [{ tier: "fast-burn", status: "firing" }],
     });
-    expect(ccSloOverallPace(tiers, [group({}), critical])).toBe("burning-fast");
+    expect(ccSloOverallPace(tiers, critical)).toBe("burning-fast");
   });
 
-  it("paces by the fastest confirmed burn across groups when none fire", () => {
-    const quiet = group({ tiers: [tier("fast-burn", 0, 0)] });
-    const draining = group({ tiers: [tier("fast-burn", 2, 2)] });
-    expect(ccSloOverallPace(tiers, [quiet, draining])).toBe("draining");
-    expect(ccSloOverallPace(tiers, [quiet])).toBe("steady");
-  });
-
-  it("is steady when no group has a confirmed burn", () => {
-    expect(ccSloOverallPace(tiers, [])).toBe("steady");
+  it("paces by the confirmed burn when no tier fires", () => {
     expect(
-      ccSloOverallPace(tiers, [group({ tiers: [tier("ticket", null, null)] })]),
+      ccSloOverallPace(tiers, status({ tiers: [tier("fast-burn", 2, 2)] })),
+    ).toBe("draining");
+    expect(
+      ccSloOverallPace(tiers, status({ tiers: [tier("fast-burn", 0, 0)] })),
+    ).toBe("steady");
+  });
+
+  it("is steady when there is no confirmed burn", () => {
+    expect(
+      ccSloOverallPace(tiers, status({ tiers: [tier("ticket", null, null)] })),
     ).toBe("steady");
   });
 });
