@@ -1,4 +1,5 @@
 import type { AttrValue } from "./emitter.js";
+import { routePattern } from "./route.js";
 import type { CurrentPage, PageContext } from "./session.js";
 
 // The context envelope: stamped on EVERY record emitted through the SDK
@@ -30,26 +31,15 @@ export function createEnvelope(
    * so identify() takes effect on the very next event.
    */
   identity: () => Record<string, AttrValue>,
-  /** Host-supplied low-cardinality route pattern, sampled per record. */
-  routePattern?: () => string | null | undefined,
 ): () => Record<string, AttrValue | null | undefined> {
   return () => {
     const page = current();
     return {
       "session.id": page.sessionId,
       ...pageAttrs(page),
-      "everr.route.pattern": guarded(routePattern),
+      "everr.route.pattern": routePattern(),
       ...identity(),
       ...attribution,
     };
   };
-}
-
-function guarded(fn: (() => string | null | undefined) | undefined) {
-  // The host callback must never break capture.
-  try {
-    return fn?.();
-  } catch {
-    return undefined;
-  }
 }

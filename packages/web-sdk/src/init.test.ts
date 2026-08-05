@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { init } from "./client.js";
+import { setRouteResolver } from "./route.js";
 import {
   attrs,
   type OtlpBatch,
@@ -7,15 +8,12 @@ import {
   startClient,
   UNIQUE_ID,
 } from "./test-kit.js";
-import type { CaptureSignal, EverrClient } from "./types.js";
+import type { EverrClient, InitOptions } from "./types.js";
 
 let client: EverrClient | undefined;
 let batches: OtlpBatch[];
 
-function start(options?: {
-  disable?: true | CaptureSignal[];
-  routePattern?: () => string | null | undefined;
-}): void {
+function start(options?: Partial<InitOptions>): void {
   [client, batches] = startClient(options);
 }
 
@@ -32,6 +30,7 @@ async function resourceAttrs(): Promise<Record<string, unknown>> {
 }
 
 afterEach(async () => {
+  setRouteResolver(null);
   await client?.shutdown();
   client = undefined;
   vi.unstubAllGlobals();
@@ -125,9 +124,10 @@ describe("init (persistence: memory)", () => {
     expect(await records()).toHaveLength(0);
   });
 
-  it("stamps the route pattern on every record and survives a throwing host callback", async () => {
+  it("samples the registered route-pattern callback per record and survives a throwing one", async () => {
     let pattern: string | undefined;
-    start({ routePattern: () => pattern });
+    start();
+    setRouteResolver(() => pattern);
     pattern = "/blog/$slug";
     history.pushState(null, "", "/blog/hello");
     const all = await records();
@@ -136,14 +136,15 @@ describe("init (persistence: memory)", () => {
     expect(attrs(all[0])).not.toHaveProperty("everr.route.pattern");
     expect(attrs(all[2])["everr.route.pattern"]).toBe("/blog/$slug");
 
-    await client?.shutdown();
-    start({
-      routePattern: () => {
-        throw new Error("host bug");
-      },
+    // A throwing host callback must never break capture.
+    setRouteResolver(() => {
+      throw new Error("host bug");
     });
-    const [view] = await records();
-    expect(attrs(view)).not.toHaveProperty("everr.route.pattern");
+    history.pushState(null, "", "/pricing");
+    const after = await records();
+    expect(attrs(after[after.length - 1])).not.toHaveProperty(
+      "everr.route.pattern",
+    );
   });
 
   it("does not emit for a pushState to the same URL", async () => {

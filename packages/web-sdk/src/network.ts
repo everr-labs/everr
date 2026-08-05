@@ -1,5 +1,6 @@
 import type { EmitSpan } from "./emitter.js";
 import { errorTypeOf } from "./errors.js";
+import { routePattern } from "./route.js";
 
 // The network signal: window.fetch is patched so every request (1) becomes
 // an OTel CLIENT span on the traces pipeline and (2) carries a W3C
@@ -61,7 +62,11 @@ export function startNetwork(
     // Read the URL parts once: the completion closure captures plain
     // strings, not the URL host object.
     const path = url.pathname;
-    const name = `${method} ${path}`;
+    // Low-cardinality span name: the page's route pattern (the same
+    // dimension the envelope's everr.route.pattern slices by) rather than
+    // the request path, whose ids would mint a span name per entity. The
+    // exact target stays on url.full.
+    const name = `${method} ${routePattern() ?? path}`;
     const urlFull = url.origin + path;
     const hostname = url.hostname;
 

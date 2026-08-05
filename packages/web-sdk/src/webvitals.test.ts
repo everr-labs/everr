@@ -11,7 +11,7 @@ import {
   startClient,
   UNIQUE_ID,
 } from "./test-kit.js";
-import type { CaptureSignal, EverrClient } from "./types.js";
+import type { EverrClient, InitOptions } from "./types.js";
 
 // The web-vitals library only reports from real PerformanceObserver entries,
 // which jsdom does not produce: the mock captures the registered callbacks so
@@ -69,10 +69,7 @@ const cls = (over?: Partial<CLSMetricWithAttribution>) =>
 let client: EverrClient | undefined;
 let batches: OtlpBatch[];
 
-function start(options?: {
-  disable?: true | CaptureSignal[];
-  routePattern?: () => string | null | undefined;
-}): void {
+function start(options?: Partial<InitOptions>): void {
   callbacks.length = 0;
   [client, batches] = startClient(options);
 }

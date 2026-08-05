@@ -73,7 +73,6 @@ export function init(options: InitOptions): EverrClient {
       current,
       attributionAttributes(location.search),
       identity.attrs,
-      options.routePattern,
     ),
   );
 

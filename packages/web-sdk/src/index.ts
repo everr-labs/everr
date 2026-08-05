@@ -11,6 +11,7 @@ export { init } from "./client.js";
 export { captureError } from "./errors.js";
 export { identify, revoke } from "./identity.js";
 export { logger } from "./logger.js";
+export { setRouteResolver } from "./route.js";
 export type {
   CaptureSignal,
   EverrClient,

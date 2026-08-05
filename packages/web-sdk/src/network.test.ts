@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { AttrValue, EmitSpan } from "./emitter.js";
 import { startNetwork } from "./network.js";
+import { setRouteResolver } from "./route.js";
 
 // Unit tests around the fetch patch: a fake emitSpan captures span calls,
 // and a stubbed fetch stands in for the network so header injection and
@@ -47,6 +48,7 @@ beforeEach(() => {
 
 afterEach(() => {
   stop();
+  setRouteResolver(null);
   vi.unstubAllGlobals();
 });
 
@@ -153,6 +155,22 @@ describe("startNetwork", () => {
     expect(fetch).toBe(foreign);
     globalThis.fetch = original;
     stop = () => {};
+  });
+
+  it("names the span by the sampled route pattern, falling back to the path", async () => {
+    start();
+    await fetch("/api/a");
+    setRouteResolver(() => "/blog/$slug");
+    await fetch("/api/posts/123");
+    setRouteResolver(null);
+    await fetch("/api/b");
+    expect(spans.map((s) => s.name)).toEqual([
+      "GET /api/a",
+      "GET /blog/$slug",
+      "GET /api/b",
+    ]);
+    // The exact target survives on url.full.
+    expect(spans[1].attrs["url.full"]).toBe(`${location.origin}/api/posts/123`);
   });
 
   it("uppercases the method and reads it from init or the Request", async () => {

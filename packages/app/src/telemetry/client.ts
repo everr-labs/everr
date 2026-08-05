@@ -1,6 +1,5 @@
 import { init } from "@everr/web-sdk";
 import { readConsent } from "@/telemetry/consent";
-import { routePattern } from "@/telemetry/route-pattern";
 
 // Everr-native browser telemetry for the web app (dogfooding): pageviews,
 // frustration clicks, web vitals, and errors flow to Everr as OTel log
@@ -14,8 +13,9 @@ import { routePattern } from "@/telemetry/route-pattern";
 // telemetry/consent-gate.tsx): memory (no storage, ids die with the page)
 // until the banner is accepted, then localStorage on the next boot. init()
 // is inert on the server and, without a key outside dev, never issues a
-// network request; dev sends to the local collector. The route pattern comes
-// from the TanStack adapter; `getRouter()` registers the router with it.
+// network request; dev sends to the local collector. The route pattern is pushed
+// by the TanStack adapter via setRouteResolver; `getRouter()` registers
+// the router with it.
 init({
   persistence: readConsent() === "granted" ? "localStorage" : "memory",
   serviceName: "everr-dev-app",
@@ -23,5 +23,4 @@ init({
   ingestKey: import.meta.env.VITE_EVERR_PUBLIC_INGEST_KEY,
   endpoint: import.meta.env.VITE_EVERR_INGEST_ENDPOINT,
   dev: import.meta.env.DEV,
-  routePattern,
 });
