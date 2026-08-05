@@ -24,13 +24,13 @@ export function CcDrawer({
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
         side="right"
-        className="gap-0 data-[side=right]:sm:max-w-lg"
+        className="gap-0 data-[side=right]:w-full data-[side=right]:sm:max-w-lg"
       >
         <SheetHeader className="border-b border-border/60 p-4">
           <SheetTitle>{title}</SheetTitle>
         </SheetHeader>
         <div className="flex-1 space-y-4 overflow-y-auto p-4">{children}</div>
-        <SheetFooter className="flex-row justify-end border-t border-border/60 p-4">
+        <SheetFooter className="flex-col-reverse justify-end border-t border-border/60 p-4 sm:flex-row [&_[data-slot=button]]:h-10 [&_[data-slot=button]]:w-full sm:[&_[data-slot=button]]:h-8 sm:[&_[data-slot=button]]:w-auto">
           {footer}
         </SheetFooter>
       </SheetContent>

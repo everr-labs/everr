@@ -2,7 +2,7 @@ import { Button } from "@everr/ui/components/button";
 import { SuggestCombobox } from "@everr/ui/components/suggest-combobox";
 import { toneText } from "@everr/ui/components/tone";
 import { cn } from "@everr/ui/lib/utils";
-import { ArrowRight, X, Zap } from "lucide-react";
+import { CheckCircle2, TriangleAlert, X, Zap } from "lucide-react";
 import { useState } from "react";
 import type { CcChannel, CcReceiver, CcRoute } from "@/data/cc/types";
 import { CHANNEL_ICON } from "./channel-meta";
@@ -56,6 +56,7 @@ export function RoutePreview({
   channelsByName,
   subscriberCount,
   prefill,
+  valueNames,
 }: {
   /** The label set under evaluation (empty object = preview inactive). */
   labels: Record<string, string>;
@@ -69,6 +70,8 @@ export function RoutePreview({
   subscriberCount: number;
   /** A firing instance's dispatch-time (synthetic) label set, when one exists. */
   prefill: Record<string, string> | null;
+  /** Human names keyed by rule and SLO ids included in the label set. */
+  valueNames: Map<string, string>;
 }) {
   // Picking a value commits the (key, value) pair as a chip and resets.
   const [draftKey, setDraftKey] = useState("");
@@ -87,120 +90,148 @@ export function RoutePreview({
     : [];
 
   return (
-    <div className="space-y-2">
-      <div className="flex flex-wrap items-center gap-1.5">
-        {entries.map(([k, v]) => (
-          <Pill key={k} className="border-primary/40 bg-primary/10">
-            <span className="text-muted-foreground">{k}</span>
-            <span className="text-muted-foreground/60">=</span>
-            <span className="text-foreground">{v}</span>
-            <button
-              type="button"
-              aria-label={`Remove label ${k}`}
-              onClick={() => removeKey(k)}
-              className="ml-0.5 rounded text-muted-foreground outline-2 outline-dotted outline-transparent transition-colors duration-150 hover:text-foreground focus-visible:outline-primary"
-            >
-              <X className="size-3" />
-            </button>
-          </Pill>
-        ))}
-        <SuggestCombobox
-          label="Preview label key"
-          placeholder="label"
-          className="w-36"
-          value={draftKey}
-          onChange={setDraftKey}
-          options={ccLabelKeyOptions()}
-        />
-        <SuggestCombobox
-          label="Preview label value"
-          placeholder="value"
-          className="w-36"
-          disabled={draftKey === ""}
-          value=""
-          onChange={(value) => {
-            if (draftKey === "") return;
-            onLabelsChange({ ...labels, [draftKey]: value });
-            setDraftKey("");
-          }}
-          options={ccLabelValueOptions(draftKey)}
-        />
-        {prefill && (
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => onLabelsChange(prefill)}
-          >
-            <Zap data-icon="inline-start" />
-            Prefill from firing instance
-          </Button>
-        )}
-        {active && (
-          <Button variant="ghost" size="sm" onClick={() => onLabelsChange({})}>
-            Clear
-          </Button>
-        )}
-      </div>
-      {/* aria-live so keyboard entry reads the verdict back. */}
-      <div aria-live="polite" className="text-xs">
-        {!active ? (
-          <span className="text-muted-foreground">
-            Enter a label set to see exactly who would be notified. The
-            dispatcher matches labels plus synthetic severity, status, rule, and
-            kind.
-          </span>
-        ) : matchedRoutes.length === 0 ? (
-          routeCount === 0 ? (
-            <span
+    <div className={cn(active && "space-y-3")}>
+      <div aria-live="polite">
+        {active &&
+          (matchedRoutes.length === 0 ? (
+            <div
               className={cn(
-                "font-mono",
-                toneText({
-                  tone: subscriberCount === 0 ? "warning" : "live",
-                }),
+                "flex items-start gap-2 rounded-md border border-amber-500/30 bg-amber-500/5 p-3 text-xs",
+                toneText({ tone: "warning" }),
               )}
             >
-              no route matches{" "}
-              <ArrowRight aria-hidden className="inline size-3" /> fallback
-              webhooks ·{" "}
-              {subscriberCount === 0
-                ? "none configured"
-                : `${subscriberCount} configured`}
-            </span>
-          ) : (
-            <span className={cn("font-mono", toneText({ tone: "warning" }))}>
-              no route matches{" "}
-              <ArrowRight aria-hidden className="inline size-3" /> not delivered
-            </span>
-          )
-        ) : (
-          <div className="space-y-1">
-            {receivers.map((name) => {
-              const receiver = receiversByName.get(name);
-              return (
-                <div
-                  key={name}
-                  className="flex flex-wrap items-center gap-1.5 font-mono"
-                >
-                  <ArrowRight aria-hidden className="size-3 text-primary" />
-                  <span className="font-medium text-foreground">{name}</span>
-                  {receiver ? (
-                    receiver.channels.map((ch) => (
-                      <ChannelChip
-                        key={ch}
-                        name={ch}
-                        channel={channelsByName.get(ch)}
-                      />
-                    ))
-                  ) : (
-                    <span className={toneText({ tone: "warning" })}>
-                      receiver not found
-                    </span>
-                  )}
+              <TriangleAlert aria-hidden className="mt-0.5 size-3.5 shrink-0" />
+              <div>
+                <div className="font-medium">
+                  {routeCount === 0
+                    ? "This alert uses fallback delivery"
+                    : "This alert would not be delivered"}
                 </div>
-              );
-            })}
-          </div>
-        )}
+                <div className="mt-0.5 opacity-80">
+                  {routeCount === 0
+                    ? subscriberCount === 0
+                      ? "No fallback webhooks are configured."
+                      : `${subscriberCount} fallback ${subscriberCount === 1 ? "webhook receives" : "webhooks receive"} it.`
+                    : "No route matches these labels. Add a catch-all route to cover it."}
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="flex items-start gap-2 rounded-md border border-emerald-500/30 bg-emerald-500/5 p-3 text-xs">
+              <CheckCircle2
+                aria-hidden
+                className={cn(
+                  "mt-0.5 size-3.5 shrink-0",
+                  toneText({ tone: "healthy" }),
+                )}
+              />
+              <div className="min-w-0 space-y-1.5">
+                <div className="font-medium text-foreground">
+                  This alert will be delivered
+                </div>
+                {receivers.map((name) => {
+                  const receiver = receiversByName.get(name);
+                  return (
+                    <div
+                      key={name}
+                      className="flex flex-wrap items-center gap-1.5"
+                    >
+                      <span className="text-muted-foreground">Notify</span>
+                      <strong className="font-medium text-foreground">
+                        {name}
+                      </strong>
+                      <span className="text-muted-foreground">via</span>
+                      {receiver ? (
+                        receiver.channels.map((channelName) => (
+                          <ChannelChip
+                            key={channelName}
+                            name={channelName}
+                            channel={channelsByName.get(channelName)}
+                          />
+                        ))
+                      ) : (
+                        <span className={toneText({ tone: "warning" })}>
+                          receiver not found
+                        </span>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+      </div>
+
+      <div className="space-y-2">
+        <div>
+          <div className="text-xs font-medium text-foreground">Test labels</div>
+          <p className="text-xs text-muted-foreground">
+            The dispatcher also adds severity, status, rule, SLO, and kind.
+          </p>
+        </div>
+        <div className="flex flex-wrap items-center gap-1.5">
+          {entries.map(([k, v]) => (
+            <Pill
+              key={k}
+              title={valueNames.has(v) ? `${k}=${v}` : undefined}
+              className="border-primary/40 bg-primary/10"
+            >
+              <span className="text-muted-foreground">{k}</span>
+              <span className="text-muted-foreground/60">=</span>
+              <span className="text-foreground">{valueNames.get(v) ?? v}</span>
+              <button
+                type="button"
+                aria-label={`Remove label ${k}`}
+                onClick={() => removeKey(k)}
+                className="-my-1 -mr-1 ml-0.5 inline-flex size-6 items-center justify-center rounded text-muted-foreground outline-2 outline-dotted outline-transparent transition-colors duration-150 hover:text-foreground focus-visible:outline-primary"
+              >
+                <X className="size-3" />
+              </button>
+            </Pill>
+          ))}
+          <SuggestCombobox
+            label="Preview label key"
+            placeholder="label"
+            className="w-36"
+            value={draftKey}
+            onChange={setDraftKey}
+            options={ccLabelKeyOptions()}
+          />
+          <SuggestCombobox
+            label="Preview label value"
+            placeholder="value"
+            className="w-36"
+            disabled={draftKey === ""}
+            value=""
+            onChange={(value) => {
+              if (draftKey === "") return;
+              onLabelsChange({ ...labels, [draftKey]: value });
+              setDraftKey("");
+            }}
+            options={ccLabelValueOptions(draftKey)}
+          />
+          {prefill && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-10 sm:h-7"
+              onClick={() => onLabelsChange(prefill)}
+            >
+              <Zap data-icon="inline-start" />
+              Prefill from firing instance
+            </Button>
+          )}
+          {active && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-10 sm:h-7"
+              onClick={() => onLabelsChange({})}
+            >
+              Clear
+            </Button>
+          )}
+        </div>
       </div>
     </div>
   );

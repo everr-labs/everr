@@ -1,3 +1,14 @@
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@everr/ui/components/alert-dialog";
 import { Button } from "@everr/ui/components/button";
 import {
   Card,
@@ -18,18 +29,24 @@ import { cn } from "@everr/ui/lib/utils";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, useLocation } from "@tanstack/react-router";
 import {
+  ArrowDown,
   ArrowRight,
+  ArrowUp,
   BellMinus,
   Check,
+  CheckCircle2,
   CornerDownRight,
   Inbox,
+  LoaderCircle,
   Pencil,
   Plus,
   Trash2,
+  TriangleAlert,
 } from "lucide-react";
-import { useMemo, useState } from "react";
+import { Fragment, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/page-header";
+import { ccRuleIdentity } from "@/data/alerts/rule-identity";
 import { ccQueries } from "@/data/cc/queries";
 import {
   ccDispatchLabels,
@@ -44,7 +61,10 @@ import {
   deleteCcReceiver,
   deleteCcRoute,
   deleteCcSubscription,
+  updateCcReceiver,
+  updateCcRoute,
 } from "@/data/cc/server";
+import { ccSloIdentity } from "@/data/cc/slo";
 import type {
   CcChannel,
   CcInhibition,
@@ -60,12 +80,13 @@ import {
 } from "./-components/channel-meta";
 import { InhibitionBuilder } from "./-components/inhibition-builder";
 import { ReceiverBuilder } from "./-components/receiver-builder";
-import { RouteBuilder } from "./-components/route-builder";
+import { RouteBuilder, routeOrderWarning } from "./-components/route-builder";
 import { ChannelChip, RoutePreview } from "./-components/route-preview";
 import {
   CcDisclosureTrigger,
   CcEmptyState,
   CcQueryError,
+  CcStatusLabel,
   CcTableSkeleton,
   Conditions,
   ccErrorMessage,
@@ -136,26 +157,199 @@ function SectionBody({
   return <>{children}</>;
 }
 
+function SectionHeading({ children }: { children: React.ReactNode }) {
+  return (
+    <CardTitle>
+      <h2>{children}</h2>
+    </CardTitle>
+  );
+}
+
+function ConfirmDeleteAction({
+  label,
+  title,
+  description,
+  confirmLabel,
+  pending,
+  details,
+  confirmDisabledReason,
+  blockedAction,
+  onConfirm,
+}: {
+  label: string;
+  title: string;
+  description: React.ReactNode;
+  confirmLabel: string;
+  pending: boolean;
+  details?: React.ReactNode;
+  confirmDisabledReason?: string;
+  blockedAction?: { label: string; onClick: () => void };
+  onConfirm: () => Promise<unknown>;
+}) {
+  const [open, setOpen] = useState(false);
+  const [failure, setFailure] = useState<string | null>(null);
+
+  const setDialogOpen = (nextOpen: boolean) => {
+    if (pending) return;
+    if (nextOpen) setFailure(null);
+    setOpen(nextOpen);
+  };
+
+  const confirm = async () => {
+    setFailure(null);
+    try {
+      await onConfirm();
+      setOpen(false);
+    } catch (error) {
+      setFailure(ccErrorMessage(error));
+    }
+  };
+
+  return (
+    <AlertDialog open={open} onOpenChange={setDialogOpen}>
+      <AlertDialogTrigger
+        render={
+          <Button
+            variant="ghost"
+            size="icon-lg"
+            className="size-10 text-muted-foreground hover:text-destructive sm:size-8"
+            aria-label={label}
+            disabled={pending}
+          />
+        }
+      >
+        <Trash2 />
+      </AlertDialogTrigger>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>{title}</AlertDialogTitle>
+          <AlertDialogDescription>{description}</AlertDialogDescription>
+        </AlertDialogHeader>
+        {details}
+        {confirmDisabledReason && (
+          <div
+            className={cn(
+              "flex items-start gap-2 rounded-md border border-amber-500/30 bg-amber-500/5 p-3 text-xs",
+              toneText({ tone: "warning" }),
+            )}
+          >
+            <TriangleAlert aria-hidden className="mt-0.5 size-3.5 shrink-0" />
+            <p>{confirmDisabledReason}</p>
+          </div>
+        )}
+        {failure && (
+          <div className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/5 p-3 text-xs text-destructive">
+            <TriangleAlert aria-hidden className="mt-0.5 size-3.5 shrink-0" />
+            <div>
+              <p className="font-medium">Deletion did not finish</p>
+              <p className="mt-0.5 opacity-80">{failure}</p>
+              <p className="mt-1 text-muted-foreground">
+                Review the current configuration before trying again.
+              </p>
+            </div>
+          </div>
+        )}
+        <AlertDialogFooter>
+          <AlertDialogCancel disabled={pending}>
+            {confirmDisabledReason ? "Close" : "Cancel"}
+          </AlertDialogCancel>
+          {confirmDisabledReason ? (
+            blockedAction && (
+              <AlertDialogAction
+                onClick={() => {
+                  setOpen(false);
+                  requestAnimationFrame(blockedAction.onClick);
+                }}
+              >
+                {blockedAction.label}
+              </AlertDialogAction>
+            )
+          ) : (
+            <AlertDialogAction
+              variant="destructive"
+              aria-busy={pending}
+              disabled={pending}
+              onClick={confirm}
+            >
+              {pending && (
+                <LoaderCircle
+                  aria-hidden
+                  className="motion-safe:animate-spin"
+                />
+              )}
+              {pending ? "Deleting..." : confirmLabel}
+            </AlertDialogAction>
+          )}
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
+}
+
+function DeleteOperations({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="space-y-1.5 rounded-md border border-border bg-muted/20 p-3 text-xs">
+      <div className="font-medium text-foreground">Changes</div>
+      <ol className="list-decimal space-y-1 pl-4 text-muted-foreground marker:text-muted-foreground/70">
+        {children}
+      </ol>
+    </div>
+  );
+}
+
+function routeInput(route: CcRoute, priority = route.priority) {
+  return {
+    matchers: route.matchers,
+    receiver: route.receiver,
+    continue: route.continue,
+    priority,
+    group_by: route.group_by,
+    group_wait_secs: route.group_wait_secs,
+    group_interval_secs: route.group_interval_secs,
+    repeat_interval_secs: route.repeat_interval_secs,
+  };
+}
+
 // ── Live pipeline ─────────────────────────────────────────────────────────────
 
 function PipelineRoute({
   route,
+  position,
+  routeCount,
   receiver,
   channelsByName,
   previewActive,
   matched,
+  warning,
+  connectTop,
+  connectBottom,
+  onMoveUp,
+  onMoveDown,
   onEdit,
+  onInsertAfter,
   onDelete,
+  reorderPending,
   deletePending,
+  actionsDisabled,
 }: {
   route: CcRoute;
+  position: number;
+  routeCount: number;
   receiver: CcReceiver | undefined;
   channelsByName: Map<string, CcChannel>;
   previewActive: boolean;
   matched: boolean;
+  warning?: string;
+  connectTop: boolean;
+  connectBottom: boolean;
+  onMoveUp: () => void;
+  onMoveDown: () => void;
   onEdit: () => void;
-  onDelete: () => void;
+  onInsertAfter?: () => void;
+  onDelete: () => Promise<unknown>;
+  reorderPending: boolean;
   deletePending: boolean;
+  actionsDisabled: boolean;
 }) {
   // Custom timing only: routes on engine defaults stay single-line.
   const timing = ccRouteTimingSummary(
@@ -167,19 +361,98 @@ function PipelineRoute({
     },
     "overrides",
   );
+  const actions = (
+    <div className="col-start-2 row-start-2 flex shrink-0 items-center gap-0.5 sm:col-start-3 sm:row-start-1">
+      <Button
+        variant="ghost"
+        size="icon-lg"
+        className="size-10 sm:size-8"
+        aria-label={`Move route ${position} up`}
+        title="Move route up"
+        disabled={position === 1 || reorderPending || actionsDisabled}
+        onClick={onMoveUp}
+      >
+        <ArrowUp />
+      </Button>
+      <Button
+        variant="ghost"
+        size="icon-lg"
+        className="size-10 sm:size-8"
+        aria-label={`Move route ${position} down`}
+        title="Move route down"
+        disabled={position === routeCount || reorderPending || actionsDisabled}
+        onClick={onMoveDown}
+      >
+        <ArrowDown />
+      </Button>
+      <Button
+        id={`edit-route-${route.id}`}
+        variant="ghost"
+        size="icon-lg"
+        className="size-10 sm:size-8"
+        aria-label={`Edit route ${position}`}
+        disabled={actionsDisabled}
+        onClick={onEdit}
+      >
+        <Pencil />
+      </Button>
+      <ConfirmDeleteAction
+        label={`Delete route ${position}`}
+        title={`Delete route ${position}?`}
+        description={
+          <>
+            Alerts handled by this route will no longer be sent to{" "}
+            <strong>{route.receiver}</strong>. This cannot be undone.
+          </>
+        }
+        confirmLabel="Delete route"
+        pending={deletePending || actionsDisabled}
+        details={
+          <DeleteOperations>
+            <li className="pl-1">
+              Delete route {position}. Alerts that matched it will be evaluated
+              against the remaining routes.
+            </li>
+          </DeleteOperations>
+        }
+        onConfirm={onDelete}
+      />
+    </div>
+  );
+
   return (
     <li
       data-matched={previewActive && matched ? "true" : undefined}
       className={cn(
-        "flex items-start gap-3 px-3 py-2 transition-opacity duration-200",
+        "group/route relative grid grid-cols-[auto_minmax(0,1fr)] items-start gap-x-3 gap-y-1 px-3 pt-3 pb-4 transition-[background-color,opacity] duration-200 hover:bg-muted/50 sm:grid-cols-[auto_minmax(0,1fr)_auto]",
         previewActive &&
           (matched
             ? "bg-primary/5 ring-1 ring-primary/40 ring-inset"
-            : "opacity-40"),
+            : "opacity-60"),
       )}
     >
-      <span className="w-8 shrink-0 pt-0.5 text-center font-mono text-xs text-muted-foreground tabular-nums">
-        #{route.priority}
+      {connectTop && (
+        <span
+          aria-hidden
+          className="absolute top-0 left-[1.625rem] h-3 w-px -translate-x-1/2 bg-border"
+        />
+      )}
+      {connectBottom && (
+        <span
+          aria-hidden
+          className="absolute top-10 bottom-0 left-[1.625rem] w-px -translate-x-1/2 bg-border"
+        />
+      )}
+      <span
+        className={cn(
+          "relative z-10 flex size-7 shrink-0 items-center justify-center rounded-full border border-border bg-background font-mono text-xs text-muted-foreground tabular-nums",
+          previewActive &&
+            matched &&
+            "border-primary/50 bg-primary/10 text-primary",
+        )}
+        title={`Route ${position} of ${routeCount}`}
+      >
+        {position}
       </span>
       <div className="min-w-0 flex-1 space-y-1">
         <div className="flex flex-wrap items-center gap-2">
@@ -236,28 +509,37 @@ function PipelineRoute({
           )}
         </div>
         {timing.length > 0 && (
-          <div className="text-xs text-muted-foreground">
+          <div className="break-words text-xs text-muted-foreground">
             {timing.join(" · ")}
           </div>
         )}
+        {warning && (
+          <div
+            className={cn(
+              "flex items-start gap-1.5 text-xs",
+              toneText({ tone: "warning" }),
+            )}
+          >
+            <TriangleAlert aria-hidden className="mt-0.5 size-3.5 shrink-0" />
+            <span>{warning}</span>
+          </div>
+        )}
       </div>
-      <Button
-        variant="ghost"
-        size="icon-sm"
-        aria-label="Edit route"
-        onClick={onEdit}
-      >
-        <Pencil />
-      </Button>
-      <Button
-        variant="ghost"
-        size="icon-sm"
-        aria-label="Delete route"
-        disabled={deletePending}
-        onClick={onDelete}
-      >
-        <Trash2 />
-      </Button>
+      {actions}
+      {onInsertAfter && (
+        <Button
+          id={`insert-route-after-${route.id}`}
+          type="button"
+          variant="outline"
+          size="icon-sm"
+          className="pointer-events-none absolute -bottom-2 left-[1.625rem] z-10 -translate-x-1/2 rounded-full bg-background text-muted-foreground opacity-0 group-hover/route:pointer-events-auto group-hover/route:opacity-100 focus-visible:pointer-events-auto focus-visible:opacity-100 focus-visible:ring-1 focus-visible:ring-offset-0"
+          aria-label={`Add route between ${position} and ${position + 1}`}
+          title="Add route here"
+          onClick={onInsertAfter}
+        >
+          <Plus aria-hidden />
+        </Button>
+      )}
     </li>
   );
 }
@@ -267,6 +549,7 @@ function FallThroughRow({
   previewActive,
   fellThrough,
   subscriberCount,
+  connected,
   onFirehoseClick,
 }: {
   outcome: "firehose" | "dropped";
@@ -274,22 +557,29 @@ function FallThroughRow({
   /** The preview labels matched no route, so they land on this row. */
   fellThrough: boolean;
   subscriberCount: number;
+  connected: boolean;
   onFirehoseClick: () => void;
 }) {
   return (
     <li
       data-matched={fellThrough ? "true" : undefined}
       className={cn(
-        "flex items-center gap-3 px-3 py-2 transition-opacity duration-200",
+        "relative flex items-center gap-3 px-3 py-2 transition-opacity duration-200",
         previewActive &&
           (fellThrough
             ? "bg-primary/5 ring-1 ring-primary/40 ring-inset"
             : "opacity-40"),
       )}
     >
+      {connected && (
+        <span
+          aria-hidden
+          className="absolute top-0 left-[1.625rem] h-2 w-px -translate-x-1/2 bg-border"
+        />
+      )}
       <span
         aria-hidden
-        className="w-8 shrink-0 text-center font-mono text-xs text-muted-foreground"
+        className="relative z-10 flex size-7 shrink-0 items-center justify-center rounded-full border border-border bg-background font-mono text-xs text-muted-foreground"
       >
         ∅
       </span>
@@ -386,11 +676,117 @@ function SetupStep({
         <div className="text-xs text-muted-foreground">{detail}</div>
       </div>
       {!done && (
-        <Button variant="outline" size="sm" onClick={onAction}>
+        <Button
+          variant="outline"
+          size="sm"
+          className="h-10 sm:h-7"
+          onClick={onAction}
+        >
           {action}
         </Button>
       )}
     </li>
+  );
+}
+
+function DeliveryCoverage({
+  routes,
+  receivers,
+  channelsByName,
+  subscriberCount,
+  pending,
+  unavailable,
+}: {
+  routes: CcRoute[];
+  receivers: CcReceiver[];
+  channelsByName: Map<string, CcChannel>;
+  subscriberCount: number;
+  pending: boolean;
+  unavailable: boolean;
+}) {
+  if (pending || unavailable) {
+    return (
+      <div
+        role="status"
+        className="flex items-start gap-2.5 border-b border-border/60 px-3 py-2.5 text-muted-foreground"
+      >
+        {pending ? (
+          <LoaderCircle
+            aria-hidden
+            className="mt-0.5 size-4 shrink-0 motion-safe:animate-spin"
+          />
+        ) : (
+          <TriangleAlert aria-hidden className="mt-0.5 size-4 shrink-0" />
+        )}
+        <div>
+          <div className="text-sm font-medium">
+            {pending ? "Checking delivery coverage" : "Coverage unavailable"}
+          </div>
+          <p className="text-xs">
+            {pending
+              ? "Loading routes, receivers, and channels."
+              : "Resolve the configuration errors below to verify delivery coverage."}
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  const receiversByName = new Map(receivers.map((r) => [r.name, r]));
+  const brokenRoute = routes.find((route) => {
+    const receiver = receiversByName.get(route.receiver);
+    return (
+      receiver === undefined ||
+      receiver.channels.some((channel) => !channelsByName.has(channel))
+    );
+  });
+  const hasCatchAll = routes.some((route) => route.matchers.length === 0);
+
+  let tone: "healthy" | "warning" | "muted" = "healthy";
+  let title = "All alerts have a delivery path";
+  let detail = "A catch-all route covers alerts that miss earlier routes.";
+
+  if (brokenRoute) {
+    tone = "warning";
+    title = "Delivery configuration needs attention";
+    detail = `The route to ${brokenRoute.receiver} references a missing receiver or channel.`;
+  } else if (routes.length === 0 && subscriberCount === 0) {
+    tone = "warning";
+    title = "No delivery path configured";
+    detail =
+      "Add a route or a fallback webhook before relying on notifications.";
+  } else if (routes.length === 0) {
+    title = "Fallback delivery is active";
+    detail = `Every alert is sent to ${subscriberCount} fallback ${subscriberCount === 1 ? "webhook" : "webhooks"}.`;
+  } else if (!hasCatchAll) {
+    tone = "warning";
+    title = "Unmatched alerts are not delivered";
+    detail =
+      "Add a catch-all route at the end of the pipeline to cover every alert.";
+  }
+
+  const Icon = tone === "healthy" ? CheckCircle2 : TriangleAlert;
+  return (
+    <div
+      role="status"
+      className="flex items-start gap-2.5 border-b border-border/60 px-3 py-2.5"
+    >
+      <Icon
+        aria-hidden
+        className={cn("mt-0.5 size-4 shrink-0", toneText({ tone }))}
+      />
+      <div className="min-w-0">
+        <div
+          className={cn(
+            "text-sm font-medium",
+            tone === "healthy" ? "text-foreground" : toneText({ tone }),
+          )}
+        >
+          {title}
+        </div>
+        <p className="text-xs text-muted-foreground">{detail}</p>
+      </div>
+    </div>
   );
 }
 
@@ -454,6 +850,9 @@ function PipelineSection({
   onPreviewLabelsChange,
   matchedRoutes,
   prefill,
+  previewValueNames,
+  coveragePending,
+  coverageUnavailable,
   subscriberCount,
   onFirehoseClick,
   onAddChannel,
@@ -468,6 +867,10 @@ function PipelineSection({
   matchedRoutes: CcRoute[];
   /** A firing instance's dispatch-time label set, for preview prefill. */
   prefill: Record<string, string> | null;
+  /** Human names for rule and SLO ids included in test labels. */
+  previewValueNames: Map<string, string>;
+  coveragePending: boolean;
+  coverageUnavailable: boolean;
   subscriberCount: number;
   onFirehoseClick: () => void;
   /** Open the create drawers owned by the sibling cards (setup checklist). */
@@ -476,7 +879,12 @@ function PipelineSection({
 }) {
   const qc = useQueryClient();
   const { data, isPending, isError, error } = useQuery(ccQueries.routes());
-  const [editing, setEditing] = useState<CcRoute | "new" | null>(null);
+  const [editing, setEditing] = useState<
+    | { kind: "edit"; route: CcRoute }
+    | { kind: "insert"; index: number; returnFocusId: string }
+    | null
+  >(null);
+  const [previewOpen, setPreviewOpen] = useState(false);
   const receiversByName = useMemo(
     () => new Map(receivers.map((r) => [r.name, r])),
     [receivers],
@@ -492,95 +900,262 @@ function PipelineSection({
       qc.invalidateQueries({ queryKey: ccQueries.routes().queryKey });
       toast.success("Route deleted");
     },
+  });
+
+  const reorder = useMutation({
+    mutationFn: async (ordered: CcRoute[]) => {
+      const updates = ordered
+        .map((route, index) => ({ route, priority: index * 10 }))
+        .filter(({ route, priority }) => route.priority !== priority);
+      for (const { route, priority } of updates) {
+        await updateCcRoute({
+          data: { id: route.id, input: routeInput(route, priority) },
+        });
+      }
+    },
+    onSuccess: () => toast.success("Route order updated"),
     onError: (e) => toast.error(ccErrorMessage(e)),
+    onSettled: () =>
+      qc.invalidateQueries({ queryKey: ccQueries.routes().queryKey }),
   });
 
   const previewActive = Object.keys(previewLabels).length > 0;
   const sorted = [...(data ?? [])].sort((a, b) => a.priority - b.priority);
+  const insertion = editing?.kind === "insert" ? editing : null;
   const fellThrough = previewActive && matchedRouteIds.size === 0;
   const unmatched = ccUnmatchedOutcome(sorted);
+  const duplicatePriority = sorted.some(
+    (route, index) =>
+      index > 0 && route.priority === sorted[index - 1]?.priority,
+  );
+
+  const moveRoute = (index: number, direction: -1 | 1) => {
+    const destination = index + direction;
+    if (destination < 0 || destination >= sorted.length) return;
+    const ordered = [...sorted];
+    [ordered[index], ordered[destination]] = [
+      ordered[destination],
+      ordered[index],
+    ];
+    reorder.mutate(ordered);
+  };
+
+  const closeRouteEditor = (focusId: string) => {
+    setEditing(null);
+    requestAnimationFrame(() => document.getElementById(focusId)?.focus());
+  };
 
   return (
     <Card id="routes" inset="flush-content" className="scroll-mt-4">
       <CardHeader>
-        <CardTitle>Delivery pipeline</CardTitle>
+        <SectionHeading>Delivery pipeline</SectionHeading>
         <CardDescription>
           Routes are checked top to bottom; the first match decides, unless it
           continues.
         </CardDescription>
         <CardAction>
-          <Button onClick={() => setEditing("new")}>
+          <Button
+            id="new-route"
+            className="h-10 sm:h-8"
+            disabled={editing !== null}
+            onClick={() =>
+              setEditing({
+                kind: "insert",
+                index: sorted.length,
+                returnFocusId: "new-route",
+              })
+            }
+          >
             <Plus data-icon="inline-start" />
             New route
           </Button>
         </CardAction>
       </CardHeader>
       <CardContent>
-        {/* The preview evaluates the list below it, so it lives in the same
-            card: typed labels dim non-matching rows in place. */}
-        <div className="border-b border-border/60 px-3 pb-3">
-          <RoutePreview
-            labels={previewLabels}
-            onLabelsChange={onPreviewLabelsChange}
-            matchedRoutes={matchedRoutes}
-            routeCount={(data ?? []).length}
-            receiversByName={receiversByName}
-            channelsByName={channelsByName}
-            subscriberCount={subscriberCount}
-            prefill={prefill}
-          />
-        </div>
+        <DeliveryCoverage
+          routes={sorted}
+          receivers={receivers}
+          channelsByName={channelsByName}
+          subscriberCount={subscriberCount}
+          pending={coveragePending}
+          unavailable={coverageUnavailable}
+        />
+        <Collapsible open={previewOpen} onOpenChange={setPreviewOpen}>
+          <CcDisclosureTrigger
+            open={previewOpen}
+            className="rounded-none border-x-0 border-b border-t-0 bg-transparent px-3 py-2.5 hover:bg-muted/20"
+          >
+            <span className="text-xs font-medium text-foreground">
+              Test delivery
+            </span>
+            <span className="text-xs text-muted-foreground">
+              {previewActive
+                ? `${Object.keys(previewLabels).length} ${Object.keys(previewLabels).length === 1 ? "label" : "labels"} selected`
+                : "Check who would be notified"}
+            </span>
+          </CcDisclosureTrigger>
+          <CollapsibleContent>
+            <div className="border-b border-border/60 px-3 py-3">
+              <RoutePreview
+                labels={previewLabels}
+                onLabelsChange={onPreviewLabelsChange}
+                matchedRoutes={matchedRoutes}
+                routeCount={(data ?? []).length}
+                receiversByName={receiversByName}
+                channelsByName={channelsByName}
+                subscriberCount={subscriberCount}
+                prefill={prefill}
+                valueNames={previewValueNames}
+              />
+            </div>
+          </CollapsibleContent>
+        </Collapsible>
         <SectionBody
           isError={isError}
           error={error}
           isPending={isPending}
           skeletonRows={3}
         >
-          <ul className="divide-y divide-border/60">
-            {sorted.length === 0 && (
+          {duplicatePriority && (
+            <div
+              role="alert"
+              className={cn(
+                "flex items-start gap-2 border-b border-border/60 px-3 py-2.5 text-xs",
+                toneText({ tone: "warning" }),
+              )}
+            >
+              <TriangleAlert aria-hidden className="mt-0.5 size-3.5 shrink-0" />
+              <span>
+                Some routes share the same priority. Move either route once to
+                normalize the pipeline order.
+              </span>
+            </div>
+          )}
+          <ul
+            className={cn(
+              sorted.length === 0 &&
+                editing === null &&
+                "divide-y divide-border/60",
+            )}
+          >
+            {sorted.length === 0 && editing === null && (
               <SetupChecklist
                 channelCount={channelsByName.size}
                 receiverCount={receivers.length}
                 subscriberCount={subscriberCount}
                 onAddChannel={onAddChannel}
                 onAddReceiver={onAddReceiver}
-                onAddRoute={() => setEditing("new")}
+                onAddRoute={() =>
+                  setEditing({
+                    kind: "insert",
+                    index: 0,
+                    returnFocusId: "new-route",
+                  })
+                }
               />
             )}
-            {sorted.map((r) => (
-              <PipelineRoute
-                key={r.id}
-                route={r}
-                receiver={receiversByName.get(r.receiver)}
-                channelsByName={channelsByName}
-                previewActive={previewActive}
-                matched={matchedRouteIds.has(r.id)}
-                onEdit={() => setEditing(r)}
-                onDelete={() => remove.mutate(r.id)}
-                deletePending={remove.isPending}
+            {sorted.map((r, index) => {
+              const displayPosition =
+                index +
+                1 +
+                (insertion !== null && index >= insertion.index ? 1 : 0);
+              const displayRouteCount =
+                sorted.length + (insertion !== null ? 1 : 0);
+
+              return (
+                <Fragment key={r.id}>
+                  {insertion?.index === index && (
+                    <RouteBuilder
+                      route={null}
+                      insertIndex={index}
+                      onCancel={() => closeRouteEditor(insertion.returnFocusId)}
+                      receivers={receivers}
+                      routes={sorted}
+                      connectTop={index > 0}
+                      connectBottom={
+                        index < sorted.length || unmatched !== "unreachable"
+                      }
+                    />
+                  )}
+                  {editing?.kind === "edit" && editing.route.id === r.id ? (
+                    <RouteBuilder
+                      route={r}
+                      onCancel={() => closeRouteEditor(`edit-route-${r.id}`)}
+                      receivers={receivers}
+                      routes={sorted}
+                      connectTop={index > 0}
+                      connectBottom={
+                        index < sorted.length - 1 || unmatched !== "unreachable"
+                      }
+                    />
+                  ) : (
+                    <PipelineRoute
+                      route={r}
+                      position={displayPosition}
+                      routeCount={displayRouteCount}
+                      receiver={receiversByName.get(r.receiver)}
+                      channelsByName={channelsByName}
+                      previewActive={previewActive}
+                      matched={matchedRouteIds.has(r.id)}
+                      connectTop={index > 0}
+                      connectBottom={
+                        index < sorted.length - 1 ||
+                        insertion?.index === index + 1 ||
+                        unmatched !== "unreachable"
+                      }
+                      warning={routeOrderWarning(
+                        sorted,
+                        index,
+                        r.matchers,
+                        r.continue,
+                      )}
+                      onMoveUp={() => moveRoute(index, -1)}
+                      onMoveDown={() => moveRoute(index, 1)}
+                      onEdit={() => setEditing({ kind: "edit", route: r })}
+                      onInsertAfter={
+                        editing === null && index < sorted.length - 1
+                          ? () =>
+                              setEditing({
+                                kind: "insert",
+                                index: index + 1,
+                                returnFocusId: `insert-route-after-${r.id}`,
+                              })
+                          : undefined
+                      }
+                      onDelete={() => remove.mutateAsync(r.id)}
+                      reorderPending={reorder.isPending}
+                      deletePending={remove.isPending}
+                      actionsDisabled={editing !== null}
+                    />
+                  )}
+                </Fragment>
+              );
+            })}
+            {insertion?.index === sorted.length && (
+              <RouteBuilder
+                key="new"
+                route={null}
+                insertIndex={insertion.index}
+                onCancel={() => closeRouteEditor(insertion.returnFocusId)}
+                receivers={receivers}
+                routes={sorted}
+                connectTop={insertion.index > 0}
+                connectBottom={unmatched !== "unreachable"}
               />
-            ))}
+            )}
             {unmatched !== "unreachable" && (
               <FallThroughRow
                 outcome={unmatched}
                 previewActive={previewActive}
                 fellThrough={fellThrough}
                 subscriberCount={subscriberCount}
+                connected={sorted.length > 0 || insertion !== null}
                 onFirehoseClick={onFirehoseClick}
               />
             )}
           </ul>
         </SectionBody>
       </CardContent>
-      <RouteBuilder
-        key={editing === "new" ? "new" : (editing?.id ?? "closed")}
-        open={editing !== null}
-        route={editing === "new" ? null : editing}
-        onOpenChange={(o) => {
-          if (!o) setEditing(null);
-        }}
-        receivers={receivers}
-      />
     </Card>
   );
 }
@@ -592,6 +1167,7 @@ function ReceiversSection({
   routes,
   editing,
   onEditingChange,
+  onReviewRoutes,
 }: {
   channels: CcChannel[];
   /** For per-receiver usage facts; undefined while the routes query loads. */
@@ -599,6 +1175,7 @@ function ReceiversSection({
   /** Lifted so the pipeline's setup checklist can open the create drawer. */
   editing: CcReceiver | "new" | null;
   onEditingChange: (editing: CcReceiver | "new" | null) => void;
+  onReviewRoutes: () => void;
 }) {
   const qc = useQueryClient();
   const { data, isPending, isError, error } = useQuery(ccQueries.receivers());
@@ -613,17 +1190,16 @@ function ReceiversSection({
       qc.invalidateQueries({ queryKey: ccQueries.receivers().queryKey });
       toast.success("Receiver deleted");
     },
-    onError: (e) => toast.error(ccErrorMessage(e)),
   });
 
   return (
     <Card id="receivers" inset="flush-content" className="scroll-mt-4">
       <CardHeader>
-        <CardTitle>Receivers</CardTitle>
+        <SectionHeading>Receivers</SectionHeading>
         <CardAction>
           <Button
             variant="outline"
-            size="sm"
+            className="h-10 sm:h-8"
             onClick={() => onEditingChange("new")}
           >
             <Plus data-icon="inline-start" />
@@ -651,6 +1227,13 @@ function ReceiversSection({
               const targeting = routes?.filter(
                 (rt) => rt.receiver === r.name,
               ).length;
+              const targetCount = targeting ?? 0;
+              const confirmDisabledReason =
+                routes === undefined
+                  ? "Route references are still loading or unavailable. Try again after the pipeline is ready."
+                  : targetCount > 0
+                    ? `${targetCount} ${targetCount === 1 ? "route still targets" : "routes still target"} this receiver. Move ${targetCount === 1 ? "that route" : "those routes"} first. No changes will be made.`
+                    : undefined;
               return (
                 <li key={r.name} className="flex items-start gap-3 px-3 py-2.5">
                   <span className="flex size-7 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
@@ -688,21 +1271,43 @@ function ReceiversSection({
                   </div>
                   <Button
                     variant="ghost"
-                    size="icon-sm"
-                    aria-label="Edit receiver"
+                    size="icon-lg"
+                    className="size-10 sm:size-8"
+                    aria-label={`Edit receiver ${r.name}`}
                     onClick={() => onEditingChange(r)}
                   >
                     <Pencil />
                   </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon-sm"
-                    aria-label="Delete receiver"
-                    disabled={remove.isPending}
-                    onClick={() => remove.mutate(r.name)}
-                  >
-                    <Trash2 />
-                  </Button>
+                  <ConfirmDeleteAction
+                    label={`Delete receiver ${r.name}`}
+                    title={`Delete “${r.name}”?`}
+                    description={
+                      routes === undefined
+                        ? "References must load before this receiver can be deleted."
+                        : targetCount > 0
+                          ? "Routes still depend on this receiver, so it cannot be deleted yet."
+                          : "No route targets this receiver. This cannot be undone."
+                    }
+                    confirmLabel="Delete receiver"
+                    pending={remove.isPending}
+                    details={
+                      confirmDisabledReason === undefined ? (
+                        <DeleteOperations>
+                          <li className="pl-1">
+                            Delete <span className="font-mono">{r.name}</span>.
+                            Its channels remain available.
+                          </li>
+                        </DeleteOperations>
+                      ) : undefined
+                    }
+                    confirmDisabledReason={confirmDisabledReason}
+                    blockedAction={
+                      targetCount > 0
+                        ? { label: "Review routes", onClick: onReviewRoutes }
+                        : undefined
+                    }
+                    onConfirm={() => remove.mutateAsync(r.name)}
+                  />
                 </li>
               );
             })}
@@ -723,40 +1328,100 @@ function ReceiversSection({
   );
 }
 
+function ChannelDeleteOperations({
+  channelName,
+  referencingReceivers,
+}: {
+  channelName: string;
+  referencingReceivers: CcReceiver[];
+}) {
+  return (
+    <DeleteOperations>
+      {referencingReceivers.map((receiver) => (
+        <li key={receiver.id} className="pl-1">
+          Remove <span className="font-mono">{channelName}</span> from{" "}
+          <strong className="font-medium text-foreground">
+            {receiver.name}
+          </strong>
+          . It keeps{" "}
+          <span className="font-mono text-foreground">
+            {receiver.channels
+              .filter((name) => name !== channelName)
+              .join(", ")}
+          </span>
+          .
+        </li>
+      ))}
+      <li className="pl-1">
+        Delete <span className="font-mono">{channelName}</span>.
+      </li>
+    </DeleteOperations>
+  );
+}
+
 function ChannelsSection({
   receivers,
   editing,
   onEditingChange,
+  onEditReceiver,
 }: {
   /** For per-channel usage facts; undefined while the receivers query loads. */
   receivers: CcReceiver[] | undefined;
   /** Lifted so the pipeline's setup checklist can open the create drawer. */
   editing: CcChannel | "new" | null;
   onEditingChange: (editing: CcChannel | "new" | null) => void;
+  onEditReceiver: (receiver: CcReceiver) => void;
 }) {
   const qc = useQueryClient();
   const { data, isPending, isError, error } = useQuery(ccQueries.channels());
 
   const remove = useMutation({
-    mutationFn: (name: string) => deleteCcChannel({ data: { name } }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ccQueries.channels().queryKey });
-      toast.success("Channel deleted");
+    mutationFn: async ({
+      name,
+      referencingReceivers,
+    }: {
+      name: string;
+      referencingReceivers: CcReceiver[];
+    }) => {
+      await Promise.all(
+        referencingReceivers.map((receiver) =>
+          updateCcReceiver({
+            data: {
+              name: receiver.name,
+              channels: receiver.channels.filter(
+                (channelName) => channelName !== name,
+              ),
+            },
+          }),
+        ),
+      );
+      await deleteCcChannel({ data: { name } });
+      return referencingReceivers.length;
     },
-    // Deleting a referenced channel 409s naming the referring receivers; the
-    // engine's message is surfaced verbatim.
-    onError: (e) => toast.error(ccErrorMessage(e)),
+    onSuccess: (receiverCount) => {
+      toast.success(
+        receiverCount === 0
+          ? "Channel deleted"
+          : `Channel deleted and ${receiverCount} ${receiverCount === 1 ? "receiver" : "receivers"} updated`,
+      );
+    },
+    onSettled: () => {
+      qc.invalidateQueries({ queryKey: ccQueries.channels().queryKey });
+      qc.invalidateQueries({ queryKey: ccQueries.receivers().queryKey });
+    },
   });
 
   return (
     <Card id="channels" inset="flush-content" className="scroll-mt-4">
       <CardHeader>
-        <CardTitle>Channels</CardTitle>
-        <CardDescription>Secrets are redacted on read.</CardDescription>
+        <SectionHeading>Channels</SectionHeading>
+        <CardDescription>
+          Saved secrets are hidden after you leave this page.
+        </CardDescription>
         <CardAction>
           <Button
             variant="outline"
-            size="sm"
+            className="h-10 sm:h-8"
             onClick={() => onEditingChange("new")}
           >
             <Plus data-icon="inline-start" />
@@ -783,9 +1448,22 @@ function ChannelsSection({
               // "***" is the engine's redaction for secret targets; showing it
               // told the reader nothing, so the subline carries usage instead.
               const target = channelTarget(c.config);
-              const usedBy = receivers?.filter((r) =>
+              const referencingReceivers = (receivers ?? []).filter((r) =>
                 r.channels.includes(c.name),
-              ).length;
+              );
+              const usedBy =
+                receivers === undefined
+                  ? undefined
+                  : referencingReceivers.length;
+              const blockingReceivers = referencingReceivers.filter(
+                (receiver) => receiver.channels.length === 1,
+              );
+              const confirmDisabledReason =
+                receivers === undefined
+                  ? "Receiver references are still loading or unavailable. Try again after the Receivers section is ready."
+                  : blockingReceivers.length > 0
+                    ? `${blockingReceivers.map((receiver) => receiver.name).join(", ")} ${blockingReceivers.length === 1 ? "has" : "have"} no other channel. Add another channel there first. No changes will be made.`
+                    : undefined;
               return (
                 <li
                   key={c.name}
@@ -824,21 +1502,52 @@ function ChannelsSection({
                   </span>
                   <Button
                     variant="ghost"
-                    size="icon-sm"
-                    aria-label="Edit channel"
+                    size="icon-lg"
+                    className="size-10 sm:size-8"
+                    aria-label={`Edit channel ${c.name}`}
                     onClick={() => onEditingChange(c)}
                   >
                     <Pencil />
                   </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon-sm"
-                    aria-label="Delete channel"
-                    disabled={remove.isPending}
-                    onClick={() => remove.mutate(c.name)}
-                  >
-                    <Trash2 />
-                  </Button>
+                  <ConfirmDeleteAction
+                    label={`Delete channel ${c.name}`}
+                    title={`Delete “${c.name}”?`}
+                    description={
+                      blockingReceivers.length > 0
+                        ? `This channel is the only destination for ${blockingReceivers.length} ${blockingReceivers.length === 1 ? "receiver" : "receivers"}, so it cannot be removed automatically yet.`
+                        : referencingReceivers.length === 0
+                          ? "This channel is not used by any receiver. This cannot be undone."
+                          : `This will update ${referencingReceivers.length} ${referencingReceivers.length === 1 ? "receiver" : "receivers"} before deleting the channel. This cannot be undone.`
+                    }
+                    confirmLabel="Delete channel"
+                    pending={remove.isPending}
+                    details={
+                      confirmDisabledReason === undefined ? (
+                        <ChannelDeleteOperations
+                          channelName={c.name}
+                          referencingReceivers={referencingReceivers}
+                        />
+                      ) : undefined
+                    }
+                    confirmDisabledReason={confirmDisabledReason}
+                    blockedAction={
+                      blockingReceivers.length > 0
+                        ? {
+                            label: `Edit ${blockingReceivers[0]?.name}`,
+                            onClick: () => {
+                              const receiver = blockingReceivers[0];
+                              if (receiver) onEditReceiver(receiver);
+                            },
+                          }
+                        : undefined
+                    }
+                    onConfirm={() =>
+                      remove.mutateAsync({
+                        name: c.name,
+                        referencingReceivers,
+                      })
+                    }
+                  />
                 </li>
               );
             })}
@@ -871,19 +1580,22 @@ function InhibitionsSection() {
       qc.invalidateQueries({ queryKey: ccQueries.inhibitions().queryKey });
       toast.success("Inhibition deleted");
     },
-    onError: (e) => toast.error(ccErrorMessage(e)),
   });
 
   return (
     <Card id="inhibitions" inset="flush-content" className="scroll-mt-4">
       <CardHeader>
-        <CardTitle>Inhibitions</CardTitle>
+        <SectionHeading>Inhibitions</SectionHeading>
         <CardDescription>
           Suppress noisy downstream alerts while a related, higher-level alert
           is already firing.
         </CardDescription>
         <CardAction>
-          <Button variant="outline" size="sm" onClick={() => setOpen(true)}>
+          <Button
+            variant="outline"
+            className="h-10 sm:h-8"
+            onClick={() => setOpen(true)}
+          >
             <Plus data-icon="inline-start" />
             New inhibition
           </Button>
@@ -928,15 +1640,22 @@ function InhibitionsSection() {
                   )}
                   .
                 </div>
-                <Button
-                  variant="ghost"
-                  size="icon-sm"
-                  aria-label="Delete inhibition"
-                  disabled={remove.isPending}
-                  onClick={() => remove.mutate(r.id)}
-                >
-                  <Trash2 />
-                </Button>
+                <ConfirmDeleteAction
+                  label="Delete inhibition"
+                  title="Delete this inhibition?"
+                  description="Alerts currently suppressed by this rule may begin notifying immediately. This cannot be undone."
+                  confirmLabel="Delete inhibition"
+                  pending={remove.isPending}
+                  details={
+                    <DeleteOperations>
+                      <li className="pl-1">
+                        Delete this inhibition. Matching alerts will be
+                        evaluated without it.
+                      </li>
+                    </DeleteOperations>
+                  }
+                  onConfirm={() => remove.mutateAsync(r.id)}
+                />
               </li>
             ))}
           </ul>
@@ -947,7 +1666,7 @@ function InhibitionsSection() {
   );
 }
 
-function FirehoseSection() {
+function FirehoseSection({ routeCount }: { routeCount: number | null }) {
   const qc = useQueryClient();
   const { data, isPending, isError, error } = useQuery(
     ccQueries.subscriptions(),
@@ -970,20 +1689,49 @@ function FirehoseSection() {
       qc.invalidateQueries({ queryKey: ccQueries.subscriptions().queryKey });
       toast.success("Subscription deleted");
     },
-    onError: (e) => toast.error(ccErrorMessage(e)),
   });
+
+  const routeStateKnown = routeCount !== null;
+  const active = routeCount === 0;
+  const subscriberCount = (data ?? []).length;
 
   return (
     <Card id="firehose" inset="flush-content" className="scroll-mt-4">
       <CardHeader>
-        <CardTitle>Fallback webhooks</CardTitle>
+        <SectionHeading>Fallback webhooks</SectionHeading>
         <CardDescription>
-          While the organization has no routes at all, every alert is delivered
-          to every webhook listed here. Once any route exists, alerts that match
-          no route are not delivered.
+          {active
+            ? "Every alert is delivered to every webhook here until the first route is created."
+            : routeStateKnown
+              ? `Inactive because ${routeCount} delivery ${routeCount === 1 ? "route exists" : "routes exist"}. Unmatched alerts are not sent here.`
+              : "Checking whether fallback delivery is active."}
         </CardDescription>
+        <CardAction>
+          <CcStatusLabel
+            tone={
+              !routeStateKnown
+                ? "muted"
+                : active
+                  ? subscriberCount > 0
+                    ? "healthy"
+                    : "warning"
+                  : "muted"
+            }
+          >
+            {!routeStateKnown ? "Checking" : active ? "Active" : "Inactive"}
+          </CcStatusLabel>
+        </CardAction>
       </CardHeader>
       <CardContent className="space-y-3">
+        {routeStateKnown && !active && (
+          <div className="mx-3 flex items-start gap-2 rounded-md border border-border bg-muted/30 p-3 text-xs text-muted-foreground">
+            <TriangleAlert aria-hidden className="mt-0.5 size-3.5 shrink-0" />
+            <p>
+              These webhooks are stored but receive nothing while routes exist.
+              Delete every route to reactivate fallback delivery.
+            </p>
+          </div>
+        )}
         <SectionBody
           isError={isError}
           error={error}
@@ -994,7 +1742,9 @@ function FirehoseSection() {
             when: (data ?? []).length === 0,
             icon: WebhookGlyph,
             title: "No fallback webhooks",
-            hint: "Add a webhook URL below to receive every alert while no routes exist.",
+            hint: active
+              ? "Add a webhook URL below to receive every alert while no routes exist."
+              : "No fallback webhooks are stored. Fallback delivery remains inactive while routes exist.",
           }}
         >
           <ul className="divide-y divide-border/60">
@@ -1011,15 +1761,22 @@ function FirehoseSection() {
                     Added {ccFormatTs(s.created_at)}
                   </div>
                 </div>
-                <Button
-                  variant="ghost"
-                  size="icon-sm"
-                  aria-label="Delete subscription"
-                  disabled={remove.isPending}
-                  onClick={() => remove.mutate(s.id)}
-                >
-                  <Trash2 />
-                </Button>
+                <ConfirmDeleteAction
+                  label="Delete fallback webhook"
+                  title="Delete this fallback webhook?"
+                  description="It will stop receiving alerts whenever fallback delivery is active. This cannot be undone."
+                  confirmLabel="Delete webhook"
+                  pending={remove.isPending}
+                  details={
+                    <DeleteOperations>
+                      <li className="pl-1">
+                        Delete this fallback webhook. Other fallback webhooks
+                        remain unchanged.
+                      </li>
+                    </DeleteOperations>
+                  }
+                  onConfirm={() => remove.mutateAsync(s.id)}
+                />
               </li>
             ))}
           </ul>
@@ -1038,11 +1795,22 @@ function FirehoseSection() {
               type="url"
               className="font-mono"
               value={url}
+              disabled={!active}
               onChange={(e) => setUrl(e.target.value)}
-              placeholder="https://example.com/hook"
+              placeholder={
+                !routeStateKnown
+                  ? "Checking route status"
+                  : active
+                    ? "https://example.com/hook"
+                    : "Inactive while routes exist"
+              }
             />
           </div>
-          <Button type="submit" disabled={!url || create.isPending}>
+          <Button
+            type="submit"
+            className="h-10 sm:h-8"
+            disabled={!routeStateKnown || !active || !url || create.isPending}
+          >
             <Plus data-icon="inline-start" />
             Add
           </Button>
@@ -1111,6 +1879,16 @@ function CcDeliveryPage() {
     () => new Map((channels.data ?? []).map((c) => [c.name, c])),
     [channels.data],
   );
+  const previewValueNames = useMemo(() => {
+    const names = new Map<string, string>();
+    for (const rule of rules.data ?? []) {
+      names.set(rule.id, ccRuleIdentity(rule).name);
+    }
+    for (const slo of slos.data ?? []) {
+      names.set(slo.id, ccSloIdentity(slo).name);
+    }
+    return names;
+  }, [rules.data, slos.data]);
   const subscriberCount = (subscriptions.data ?? []).length;
 
   return (
@@ -1128,6 +1906,19 @@ function CcDeliveryPage() {
         onPreviewLabelsChange={setPreviewLabels}
         matchedRoutes={matchedRoutes}
         prefill={prefill}
+        previewValueNames={previewValueNames}
+        coveragePending={
+          routes.isPending ||
+          receivers.isPending ||
+          channels.isPending ||
+          subscriptions.isPending
+        }
+        coverageUnavailable={
+          routes.isError ||
+          receivers.isError ||
+          channels.isError ||
+          subscriptions.isError
+        }
         subscriberCount={subscriberCount}
         onFirehoseClick={() => {
           setAdvancedOpen(true);
@@ -1148,11 +1939,17 @@ function CcDeliveryPage() {
           routes={routes.data}
           editing={receiverEditing}
           onEditingChange={setReceiverEditing}
+          onReviewRoutes={() =>
+            document
+              .getElementById("routes")
+              ?.scrollIntoView({ behavior: "smooth", block: "start" })
+          }
         />
         <ChannelsSection
           receivers={receivers.data}
           editing={channelEditing}
           onEditingChange={setChannelEditing}
+          onEditReceiver={setReceiverEditing}
         />
       </div>
 
@@ -1166,7 +1963,7 @@ function CcDeliveryPage() {
         <CollapsibleContent>
           <div className="space-y-3 pt-3">
             <InhibitionsSection />
-            <FirehoseSection />
+            <FirehoseSection routeCount={routes.data?.length ?? null} />
           </div>
         </CollapsibleContent>
       </Collapsible>
