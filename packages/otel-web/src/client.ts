@@ -2,7 +2,7 @@ import { attributionAttributes } from "./attribution.js";
 import { resolveTransport } from "./config.js";
 import { createEmitter, noop } from "./emitter.js";
 import { createEnvelope } from "./envelope.js";
-import { startErrors, startReporting } from "./errors.js";
+import { startErrors } from "./errors.js";
 import { bindIdentity, createIdentity, storeFor } from "./identity.js";
 import { startInp } from "./inp.js";
 import { startInteractions } from "./interactions.js";
@@ -30,12 +30,14 @@ export function init(options: InitOptions): EverrClient {
     return INERT;
   }
 
-  // Server runtimes (SSR in meta frameworks like Next.js or TanStack Start,
-  // edge included) get the same pipeline with logger and captureError wired
-  // and nothing browser-bound: no analytics signals, no session envelope, no
-  // global listeners. So the one init() call works from shared code in both
-  // module graphs.
-  if (typeof window === "undefined") return initServer(options, transport);
+  // Server runtimes resolve the "node" conditional export (server.ts),
+  // which attaches to the app's OpenTelemetry SDK instead of this pipeline.
+  // A bundler that still lands this entry off-browser (custom conditions,
+  // exotic edge runtimes) gets the structural no-op rather than a crash.
+  if (typeof window === "undefined") {
+    bindIdentity(INERT_IDENTITY);
+    return INERT;
+  }
 
   // Identity (visitor id, 30-minute-inactivity session, identify()/revoke())
   // runs over the store the persistence option picks: localStorage (the
@@ -133,58 +135,6 @@ export function init(options: InitOptions): EverrClient {
       stopInteractions?.();
       pageviews?.[2]();
       stopWatching();
-      return flush();
-    },
-  };
-}
-
-// Node when present; absent on edge runtimes, where both attrs just drop.
-declare const process:
-  | { release?: { name?: string }; versions?: { node?: string } }
-  | undefined;
-
-// The server half of init(). Delivery note: the hosted ingest denies public
-// origin-bound keys on origin-less (server-to-server) requests, so the
-// server-side `ingestKey` must be a secret key; explicit `endpoint`
-// overrides and the dev collector fallback behave the same as in the
-// browser. Serverless hosts should `flush()` (or waitUntil it) before the
-// runtime freezes; the batch timer is unref'd and never holds the process.
-function initServer(
-  options: InitOptions,
-  transport: NonNullable<ReturnType<typeof resolveTransport>>,
-): EverrClient {
-  const [emit, flush] = createEmitter(
-    ...transport,
-    {
-      "service.name": options.serviceName,
-      "service.version": options.serviceVersion ?? SDK_VERSION,
-      "deployment.environment.name": options.deploymentEnvironment,
-      "everr.sdk.version": SDK_VERSION,
-      "process.runtime.name":
-        typeof process === "undefined" ? undefined : process.release?.name,
-      "process.runtime.version":
-        typeof process === "undefined" ? undefined : process.versions?.node,
-    },
-    { name: SDK_NAME, version: SDK_VERSION },
-    // No envelope: session, page, and attribution context are per-tab
-    // concepts. Server records are distinguished by their resource (runtime
-    // attrs present, browser attrs absent) and carry no session.id.
-    () => ({}),
-  );
-
-  const stopReporting = startReporting(emit);
-  const stopLogger = startLogger(emit);
-  // Identity is browser-bound; on the server identify()/revoke() bind to a
-  // safe no-op so shared-code calls never throw. Per-process identity on
-  // server records would leak users across requests.
-  const stopIdentity = bindIdentity(INERT_IDENTITY);
-
-  return {
-    flush,
-    shutdown: () => {
-      stopIdentity();
-      stopLogger();
-      stopReporting();
       return flush();
     },
   };

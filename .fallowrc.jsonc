@@ -31,6 +31,9 @@
   // installs them in their own app); they are not docs-site dependencies.
   "ignoreDependencies": [
     "@everr/auto-otel-errors",
+    // size-limit resolves its preset from package.json at runtime; nothing
+    // imports it.
+    "@size-limit/preset-small-lib",
     "@opentelemetry/exporter-trace-otlp-http",
     "@opentelemetry/sdk-trace-web"
   ],
@@ -55,6 +58,12 @@
         "packages/docs/src/components/pricing-matrix.tsx",
         "packages/docs/src/components/pricing-toggle.tsx"
       ],
+      "rules": { "unused-files": "off", "unused-exports": "off" }
+    },
+    {
+      // Companion to ConsentBanner (added with the SDK consent work); kept
+      // in-tree until a host app renders it.
+      "files": ["packages/ui/src/components/consent-trigger.tsx"],
       "rules": { "unused-files": "off", "unused-exports": "off" }
     }
   ],

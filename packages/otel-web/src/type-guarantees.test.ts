@@ -29,10 +29,24 @@ function identifyAndRevokeAreFreeFunctions(): void {
   revoke();
 }
 
+// The browser and server entries are two files behind one module specifier
+// (package.json conditional exports), so their public surfaces must stay
+// mutually assignable: shared isomorphic code sees one API.
+function entriesStayInLockstep(
+  server: typeof import("./server.js"),
+  browser: typeof import("./index.js"),
+): void {
+  const browserCoversServer: typeof server = browser;
+  const serverCoversBrowser: typeof browser = server;
+  void browserCoversServer;
+  void serverCoversBrowser;
+}
+
 describe("type guarantees", () => {
   it("hold at compile time", () => {
     expect(rejectsUnknownPersistence.serviceName).toBe("x");
     expect(persistenceIsOptional.persistence).toBeUndefined();
     expect(identifyAndRevokeAreFreeFunctions).toBeTypeOf("function");
+    expect(entriesStayInLockstep).toBeTypeOf("function");
   });
 });

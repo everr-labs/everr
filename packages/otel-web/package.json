@@ -12,7 +12,10 @@
   "type": "module",
   "sideEffects": false,
   "exports": {
-    ".": "./src/index.ts",
+    ".": {
+      "node": "./src/server.ts",
+      "default": "./src/index.ts"
+    },
     "./react": "./src/react.ts"
   },
   "scripts": {
@@ -24,17 +27,31 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@everr/auto-otel-errors": "workspace:*",
     "web-vitals": "^5.3.0"
   },
   "peerDependencies": {
+    "@opentelemetry/api": "^1.9.0",
+    "@opentelemetry/api-logs": "^0.218.0",
     "react": ">=18"
   },
   "peerDependenciesMeta": {
+    "@opentelemetry/api": {
+      "optional": true
+    },
+    "@opentelemetry/api-logs": {
+      "optional": true
+    },
     "react": {
       "optional": true
     }
   },
   "devDependencies": {
+    "@opentelemetry/api": "^1.9.1",
+    "@opentelemetry/api-logs": "^0.218.0",
+    "@opentelemetry/context-async-hooks": "^2.7.1",
+    "@opentelemetry/sdk-logs": "^0.218.0",
+    "@opentelemetry/sdk-trace-base": "^2.7.1",
     "@size-limit/preset-small-lib": "^13.0.3",
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",

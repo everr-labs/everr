@@ -284,6 +284,16 @@ Error capture is `@everr/auto-otel-errors/node`, wired in the setup module above
 
 See `error-tracking.md` for options (`onFatal`, `rateLimit`, `scrubPatterns`, `beforeSend`).
 
+## Full-Stack Frameworks And Shared Code
+
+When a full-stack framework (Next.js, TanStack Start, Remix) uses `@everr/otel-web` in the browser, shared isomorphic code keeps importing `logger` and `captureError` from `@everr/otel-web`: the package's `node` conditional export resolves a server entry that attaches to the app's registered OpenTelemetry SDK instead of running its own pipeline. Records ride the app's `LoggerProvider` with the active context attached, so they join the request trace, including traces propagated from the browser.
+
+The division of ownership stays as above:
+
+- `instrumentation.ts` (or the setup module) owns the NodeSDK startup and the `@everr/auto-otel-errors/node` `init()` for crash handlers. The `@everr/otel-web` server entry never installs process handlers and never exports anything itself.
+- `@everr/otel-web` `init()` options are inert on the server: `ingestKey` and `endpoint` are browser concerns, and lifecycle (`forceFlush` before a serverless freeze, shutdown) belongs to the NodeSDK handle.
+- Without a registered SDK the server entry is a structural no-op: nothing is emitted and no request is issued.
+
 ## Troubleshooting
 
 | Symptom | Check |

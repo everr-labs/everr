@@ -64,7 +64,7 @@ export function errorTypeOf(error: unknown): string {
   return error instanceof Error ? error.name || "Error" : "NonError";
 }
 
-export function startReporting(emit: Emit): () => void {
+function startReporting(emit: Emit): () => void {
   const hits = new Map<string, number[]>();
 
   report = (error, mechanism, handled, extra) => {
