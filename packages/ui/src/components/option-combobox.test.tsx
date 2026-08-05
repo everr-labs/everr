@@ -7,8 +7,18 @@ import { expect, it, vi } from "vitest";
 import { OptionCombobox, type OptionComboboxItem } from "./option-combobox";
 
 const OPTIONS: OptionComboboxItem[] = [
-  { value: "webhook", label: "Webhook", icon: Webhook },
-  { value: "email", label: "Email", icon: Mail },
+  {
+    value: "webhook",
+    label: "Webhook",
+    description: "Send alerts to an HTTP endpoint.",
+    icon: Webhook,
+  },
+  {
+    value: "email",
+    label: "Email",
+    description: "Send alerts to an email address.",
+    icon: Mail,
+  },
 ];
 
 function renderCombobox({ onChange = vi.fn() } = {}) {
@@ -33,9 +43,23 @@ function renderCombobox({ onChange = vi.fn() } = {}) {
 
 it("shows the selected option's label on the trigger", () => {
   renderCombobox();
+  const trigger = screen.getByRole("combobox", { name: "Channel type" });
+  expect(trigger).toHaveTextContent("Webhook");
+  expect(trigger).not.toHaveTextContent("Send alerts to an HTTP endpoint.");
+});
+
+it("shows supporting copy inside the expanded options", async () => {
+  const user = userEvent.setup();
+  renderCombobox();
+
+  await user.click(screen.getByRole("combobox", { name: "Channel type" }));
+
   expect(
-    screen.getByRole("combobox", { name: "Channel type" }),
-  ).toHaveTextContent("Webhook");
+    await screen.findByRole("option", { name: /Webhook/ }),
+  ).toHaveTextContent("Send alerts to an HTTP endpoint.");
+  expect(screen.getByRole("option", { name: /Email/ })).toHaveTextContent(
+    "Send alerts to an email address.",
+  );
 });
 
 it("shows the placeholder while no value is picked", () => {
@@ -58,7 +82,7 @@ it("commits a picked option and closes", async () => {
   const { onChange } = renderCombobox();
 
   await user.click(screen.getByRole("combobox", { name: "Channel type" }));
-  await user.click(await screen.findByRole("option", { name: "Email" }));
+  await user.click(await screen.findByRole("option", { name: /Email/ }));
 
   expect(onChange).toHaveBeenCalledWith("email");
   expect(screen.queryByRole("option")).not.toBeInTheDocument();
@@ -74,9 +98,9 @@ it("marks the current value's row as checked", async () => {
   await user.click(screen.getByRole("combobox", { name: "Channel type" }));
 
   expect(
-    await screen.findByRole("option", { name: "Webhook" }),
+    await screen.findByRole("option", { name: /Webhook/ }),
   ).toHaveAttribute("data-checked");
-  expect(screen.getByRole("option", { name: "Email" })).not.toHaveAttribute(
+  expect(screen.getByRole("option", { name: /Email/ })).not.toHaveAttribute(
     "data-checked",
   );
 });

@@ -30,6 +30,9 @@ interface FilterComboboxProps<TData> {
   placeholder: string;
   searchPlaceholder?: string;
   className?: string;
+  labelClassName?: string;
+  /** Show every selected value and let the trigger grow onto multiple lines. */
+  showAllValues?: boolean;
   /**
    * Offer a `Use "<typed text>"` row when the search text matches no loaded
    * item, so suggestions assist without constraining what can be selected.
@@ -45,6 +48,8 @@ export function FilterCombobox<TData>({
   placeholder,
   searchPlaceholder,
   className = "w-45",
+  labelClassName,
+  showAllValues = false,
   allowCustom = false,
 }: FilterComboboxProps<TData>) {
   const id = useId();
@@ -66,7 +71,7 @@ export function FilterCombobox<TData>({
     }
   };
 
-  const maxShownItems = 1;
+  const maxShownItems = showAllValues ? values.length : 1;
   const visibleItems = values.slice(0, maxShownItems);
   const hiddenCount = values.length - visibleItems.length;
 
@@ -82,7 +87,10 @@ export function FilterCombobox<TData>({
 
   return (
     <div className="flex flex-col gap-1">
-      <Label htmlFor={id} className="text-muted-foreground text-xs">
+      <Label
+        htmlFor={id}
+        className={cn("text-muted-foreground", labelClassName)}
+      >
         {label}
       </Label>
       <Popover open={open} onOpenChange={onOpenChange}>
@@ -93,11 +101,20 @@ export function FilterCombobox<TData>({
               variant="outline"
               role="combobox"
               aria-expanded={open}
-              className={cn("h-8 justify-between", className)}
+              className={cn(
+                "justify-between",
+                showAllValues ? "min-h-8 h-auto py-1" : "h-8",
+                className,
+              )}
             />
           }
         >
-          <div className="flex min-w-0 flex-1 items-center gap-1 overflow-hidden">
+          <div
+            className={cn(
+              "flex min-w-0 flex-1 items-center gap-1",
+              showAllValues ? "flex-wrap" : "overflow-hidden",
+            )}
+          >
             {isAll ? (
               <span className="text-muted-foreground truncate text-xs">
                 {placeholder}
@@ -105,7 +122,14 @@ export function FilterCombobox<TData>({
             ) : (
               <>
                 {visibleItems.map((val) => (
-                  <Badge key={val} variant="outline" className="min-w-0 shrink">
+                  <Badge
+                    key={val}
+                    variant="outline"
+                    className={cn(
+                      "min-w-0 max-w-full",
+                      showAllValues ? "shrink-0" : "shrink",
+                    )}
+                  >
                     <span className="truncate">{val}</span>
                     <Button
                       variant="ghost"

@@ -11,6 +11,7 @@ function renderCombobox({
   values = [] as string[],
   onChange = vi.fn(),
   allowCustom = false,
+  showAllValues = false,
 } = {}) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
@@ -34,6 +35,7 @@ function renderCombobox({
         }}
         placeholder="Any labels"
         allowCustom={allowCustom}
+        showAllValues={showAllValues}
       />
     );
   }
@@ -72,4 +74,16 @@ it("lists selected values the query did not return as checked rows", async () =>
   const row = await screen.findByRole("option", { name: "namespace" });
   await user.click(row);
   expect(onChange).toHaveBeenCalledWith(["cluster"]);
+});
+
+it("shows every selected value when requested", () => {
+  renderCombobox({
+    values: ["cluster", "namespace", "region"],
+    showAllValues: true,
+  });
+
+  expect(screen.getByText("cluster")).toBeVisible();
+  expect(screen.getByText("namespace")).toBeVisible();
+  expect(screen.getByText("region")).toBeVisible();
+  expect(screen.queryByText("+2")).not.toBeInTheDocument();
 });

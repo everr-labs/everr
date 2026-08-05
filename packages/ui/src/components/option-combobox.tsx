@@ -9,11 +9,13 @@ import { Button } from "./button";
 import { Command, CommandGroup, CommandItem, CommandList } from "./command";
 import { Popover, PopoverContent, PopoverTrigger } from "./popover";
 
-/** One closed-set choice: the committed value, its display label, optional icon. */
+/** One closed-set choice with an optional explanation for the menu row. */
 export interface OptionComboboxItem {
   value: string;
   /** Rendered in the row and on the trigger; style it at the call site. */
   label: ReactNode;
+  /** Supporting copy shown only in the expanded menu. */
+  description?: ReactNode;
   /** Any svg-props component: lucide icons and inlined brand marks alike. */
   icon?: ComponentType<SVGProps<SVGSVGElement>>;
 }
@@ -21,7 +23,7 @@ export interface OptionComboboxItem {
 /**
  * The closed-set sibling of SuggestCombobox: holds exactly one value from a
  * fixed option list, with no free text and no search. Options can carry an
- * icon, shown both in the row and on the trigger.
+ * icon and menu-only supporting copy.
  */
 export function OptionCombobox({
   id,
@@ -101,9 +103,19 @@ export function OptionCombobox({
                     }}
                   >
                     {o.icon && (
-                      <o.icon className="text-muted-foreground" aria-hidden />
+                      <o.icon
+                        className="text-muted-foreground mt-0.5 self-start"
+                        aria-hidden
+                      />
                     )}
-                    {o.label}
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate">{o.label}</span>
+                      {o.description && (
+                        <span className="text-muted-foreground block whitespace-normal text-xs leading-snug">
+                          {o.description}
+                        </span>
+                      )}
+                    </span>
                   </CommandItem>
                 ))}
               </CommandGroup>

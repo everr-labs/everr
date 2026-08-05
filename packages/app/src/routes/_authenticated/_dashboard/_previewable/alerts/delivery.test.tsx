@@ -180,6 +180,118 @@ beforeEach(() => {
 });
 
 describe("/alerts/delivery inline route editor", () => {
+  it("keeps an incomplete condition from being saved", async () => {
+    const user = userEvent.setup();
+
+    renderDeliveryRoute();
+
+    await user.click(await screen.findByRole("button", { name: "New route" }));
+    const editor = await screen.findByRole("listitem", {
+      name: "Creating a new route",
+    });
+
+    await user.type(
+      within(editor).getByLabelText("Send to receiver"),
+      "oncall",
+    );
+    await user.click(
+      within(editor).getByRole("button", { name: "Add condition" }),
+    );
+
+    expect(
+      within(editor).getByText(
+        "Choose a label or remove the empty condition before saving.",
+      ),
+    ).toBeVisible();
+    expect(
+      within(editor).getByRole("button", { name: "Create route" }),
+    ).toBeDisabled();
+
+    await user.click(
+      within(editor).getByRole("button", { name: "Remove condition 1" }),
+    );
+    expect(
+      within(editor).getByRole("button", { name: "Create route" }),
+    ).toBeEnabled();
+  });
+
+  it("adds a suggested label to explicit grouping", async () => {
+    mocks.listCcLabelKeys.mockResolvedValue([
+      { key: "severity", synthetic: true },
+      { key: "team", synthetic: false },
+    ]);
+    mocks.createCcRoute.mockResolvedValue(route({ group_by: ["team"] }));
+    const user = userEvent.setup();
+
+    renderDeliveryRoute();
+
+    await user.click(await screen.findByRole("button", { name: "New route" }));
+    const editor = await screen.findByRole("listitem", {
+      name: "Creating a new route",
+    });
+    await user.type(
+      within(editor).getByLabelText("Send to receiver"),
+      "oncall",
+    );
+    await user.click(
+      within(editor).getByRole("button", { name: /Notification timing/ }),
+    );
+    await user.click(
+      within(editor).getByRole("combobox", { name: "Grouping" }),
+    );
+    await user.click(screen.getByRole("option", { name: /By labels/ }));
+    await user.click(
+      within(editor).getByRole("combobox", { name: "Group by labels" }),
+    );
+    await user.click(await screen.findByRole("option", { name: "team" }));
+    await user.click(
+      within(editor).getByRole("button", { name: "Create route" }),
+    );
+
+    await waitFor(() =>
+      expect(mocks.createCcRoute).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          group_by: ["rule", "severity", "team"],
+        }),
+      }),
+    );
+  });
+
+  it("saves one notification group as an explicit empty label list", async () => {
+    mocks.createCcRoute.mockResolvedValue(route({ group_by: [] }));
+    const user = userEvent.setup();
+
+    renderDeliveryRoute();
+
+    await user.click(await screen.findByRole("button", { name: "New route" }));
+    const editor = await screen.findByRole("listitem", {
+      name: "Creating a new route",
+    });
+    await user.type(
+      within(editor).getByLabelText("Send to receiver"),
+      "oncall",
+    );
+    await user.click(
+      within(editor).getByRole("button", { name: /Notification timing/ }),
+    );
+    await user.click(
+      within(editor).getByRole("combobox", { name: "Grouping" }),
+    );
+    await user.click(screen.getByRole("option", { name: /One group/ }));
+    expect(
+      within(editor).getByRole("button", { name: /one group/ }),
+    ).toBeVisible();
+    await user.click(
+      within(editor).getByRole("button", { name: "Create route" }),
+    );
+
+    await waitFor(() =>
+      expect(mocks.createCcRoute).toHaveBeenCalledWith({
+        data: expect.objectContaining({ group_by: [] }),
+      }),
+    );
+  });
+
   it("creates a route with the unchanged payload shape and null timing defaults", async () => {
     mocks.createCcRoute.mockResolvedValue(route());
     const user = userEvent.setup();

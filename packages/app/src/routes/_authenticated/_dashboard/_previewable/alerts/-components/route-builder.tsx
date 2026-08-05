@@ -3,15 +3,15 @@ import {
   Collapsible,
   CollapsibleContent,
 } from "@everr/ui/components/collapsible";
+import { FilterCombobox } from "@everr/ui/components/filter-combobox";
 import { Input } from "@everr/ui/components/input";
 import { Label } from "@everr/ui/components/label";
 import { OptionCombobox } from "@everr/ui/components/option-combobox";
 import { Switch } from "@everr/ui/components/switch";
-import { TagsInput } from "@everr/ui/components/tags-input";
 import { toneText } from "@everr/ui/components/tone";
 import { cn } from "@everr/ui/lib/utils";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { ArrowRight, LoaderCircle, TriangleAlert } from "lucide-react";
+import { LoaderCircle, TriangleAlert } from "lucide-react";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
 import {
@@ -23,8 +23,30 @@ import { ccQueries } from "@/data/cc/queries";
 import { ccRouteTimingSummary } from "@/data/cc/route-timing";
 import { createCcRoute, updateCcRoute } from "@/data/cc/server";
 import type { CcMatcher, CcReceiver, CcRoute } from "@/data/cc/types";
-import { MatchersEditor, matchersPhrase } from "./matchers-editor";
+import { ccLabelKeyFilterOptions, MatchersEditor } from "./matchers-editor";
 import { CcDisclosureTrigger, ccErrorMessage } from "./shared";
+
+type GroupingMode = "automatic" | "single" | "labels";
+
+const GROUPING_OPTIONS = [
+  {
+    value: "automatic",
+    label: "Automatic",
+    description:
+      "Uses rule and severity for rules, and each SLO's own group labels.",
+  },
+  {
+    value: "single",
+    label: "One group",
+    description: "Batches every alert for this receiver into one notification.",
+  },
+  {
+    value: "labels",
+    label: "By labels",
+    description:
+      "Creates a group for each combination of selected label values.",
+  },
+];
 
 /** Parse a numeric duration field. Empty ⇒ null (CC default). */
 function parseDuration(
@@ -176,7 +198,15 @@ export function RouteBuilder({
   const isEdit = route !== null;
   const [continueFlag, setContinueFlag] = useState(route?.continue ?? false);
   const [timingOpen, setTimingOpen] = useState(false);
-  const [groupBy, setGroupBy] = useState<string[]>(route?.group_by ?? []);
+  const [groupingMode, setGroupingMode] = useState<GroupingMode>(() => {
+    if (route?.group_by == null) return "automatic";
+    return route.group_by.length === 0 ? "single" : "labels";
+  });
+  const [groupBy, setGroupBy] = useState<string[]>(() =>
+    route?.group_by && route.group_by.length > 0
+      ? route.group_by
+      : [...CC_DEFAULT_GROUP_BY],
+  );
   const [groupWait, setGroupWait] = useState(
     route?.group_wait_secs != null ? String(route.group_wait_secs) : "",
   );
@@ -192,7 +222,21 @@ export function RouteBuilder({
   const wait = parseDuration(groupWait, 0);
   const interval = parseDuration(groupInterval, 0);
   const repeat = parseDuration(repeatInterval, 60);
-  const hasErrors = !!(wait.error || interval.error || repeat.error);
+  const hasIncompleteMatchers = matchers.some(
+    (matcher) => matcher.label.trim() === "",
+  );
+  const hasErrors = !!(
+    hasIncompleteMatchers ||
+    wait.error ||
+    interval.error ||
+    repeat.error
+  );
+  const resolvedGroupBy =
+    groupingMode === "automatic"
+      ? null
+      : groupingMode === "single"
+        ? []
+        : groupBy;
   const orderWarning = routeOrderWarning(
     sortedRoutes,
     routeIndex,
@@ -210,7 +254,7 @@ export function RouteBuilder({
         receiver,
         continue: continueFlag,
         priority,
-        group_by: groupBy.length > 0 ? groupBy : null,
+        group_by: resolvedGroupBy,
         group_wait_secs: wait.value,
         group_interval_secs: interval.value,
         repeat_interval_secs: repeat.value,
@@ -273,34 +317,27 @@ export function RouteBuilder({
         {position}
       </span>
       <form
-        className="space-y-4"
+        className="w-full max-w-4xl space-y-4"
         onSubmit={(event) => {
           event.preventDefault();
           if (receiver && !hasErrors && !save.isPending) save.mutate();
         }}
       >
-        <header
-          className={cn("min-w-0", !isEdit && "flex min-h-7 items-center")}
-        >
+        <header className="flex min-h-7 min-w-0 items-center">
           <h3 className="text-sm font-medium text-foreground">
             {isEdit ? `Edit route ${position}` : "New route"}
           </h3>
-          {isEdit && (
-            <p className="text-xs text-muted-foreground">
-              Route {position} of {sortedRoutes.length}. Its position stays
-              unchanged.
-            </p>
-          )}
         </header>
 
-        <div className="grid gap-4 xl:grid-cols-[minmax(0,1.35fr)_minmax(16rem,0.65fr)]">
+        <div className="space-y-5">
           <div className="space-y-3">
             <MatchersEditor
-              label="When an alert matches"
+              label="Match alerts"
+              addLabel="Add condition"
               value={matchers}
               onChange={setMatchers}
             />
-            {(orderWarning || matchers.length === 0) && (
+            {orderWarning && (
               <div
                 className={cn(
                   "flex items-start gap-2 rounded-md border border-amber-500/30 bg-amber-500/5 p-3 text-xs",
@@ -311,15 +348,17 @@ export function RouteBuilder({
                   aria-hidden
                   className="mt-0.5 size-3.5 shrink-0"
                 />
-                <p>
-                  {orderWarning ??
-                    "With no conditions, this route matches every alert. Keep it last unless later routes should be unreachable."}
-                </p>
+                <p>{orderWarning}</p>
               </div>
+            )}
+            {hasIncompleteMatchers && (
+              <p className="text-xs text-muted-foreground">
+                Choose a label or remove the empty condition before saving.
+              </p>
             )}
           </div>
 
-          <div className="space-y-4">
+          <div className="grid gap-4 border-t border-border/60 pt-5 sm:grid-cols-2 sm:gap-5">
             <div className="space-y-1.5">
               <Label htmlFor="route-receiver">Send to receiver</Label>
               {receivers.length > 0 ? (
@@ -327,7 +366,7 @@ export function RouteBuilder({
                   id="route-receiver"
                   value={receiver}
                   onChange={setReceiver}
-                  placeholder="Pick a receiver"
+                  placeholder="Select a receiver"
                   options={receivers.map((candidate) => ({
                     value: candidate.name,
                     label: candidate.name,
@@ -342,28 +381,35 @@ export function RouteBuilder({
                 />
               )}
             </div>
-            <Label className="flex items-center gap-2">
+            <div className="flex items-start justify-between gap-4 border-t border-border/60 pt-4 sm:border-t-0 sm:border-l sm:pt-0 sm:pl-5">
+              <div className="min-w-0 space-y-0.5">
+                <Label htmlFor="route-continue">
+                  Continue matching later routes
+                </Label>
+                <p
+                  id="route-continue-description"
+                  className="text-xs leading-relaxed text-muted-foreground"
+                >
+                  Also evaluate matching alerts against the routes below.
+                </p>
+              </div>
               <Switch
+                id="route-continue"
+                aria-describedby="route-continue-description"
                 checked={continueFlag}
                 onCheckedChange={setContinueFlag}
               />
-              Continue matching later routes
-            </Label>
-            <PreviewLine>
-              Alerts where <strong>{matchersPhrase(matchers)}</strong>{" "}
-              <ArrowRight className="inline size-3 text-muted-foreground" />{" "}
-              notify <strong>{receiver || "a receiver"}</strong>.
-            </PreviewLine>
+            </div>
           </div>
         </div>
 
         <Collapsible open={timingOpen} onOpenChange={setTimingOpen}>
           <CcDisclosureTrigger open={timingOpen}>
-            <span className="text-xs font-medium">Timing</span>
+            <span className="text-xs font-medium">Notification timing</span>
             <span className="hidden min-w-0 truncate font-mono text-[0.6875rem] text-muted-foreground sm:block">
               {ccRouteTimingSummary(
                 {
-                  groupBy,
+                  groupBy: resolvedGroupBy,
                   groupWaitSecs: wait.value,
                   groupIntervalSecs: interval.value,
                   repeatIntervalSecs: repeat.value,
@@ -375,19 +421,38 @@ export function RouteBuilder({
           <CollapsibleContent>
             <div className="space-y-3 rounded-b-md border-x border-b border-border/60 p-3">
               <div className="space-y-1.5">
-                <Label htmlFor="route-group-by">
-                  Group by{" "}
-                  <span className="font-normal text-muted-foreground">
-                    (empty uses the default: {CC_DEFAULT_GROUP_BY.join(", ")})
-                  </span>
-                </Label>
-                <TagsInput
-                  aria-label="Group by labels"
-                  placeholder={CC_DEFAULT_GROUP_BY.join(", ")}
-                  value={groupBy}
-                  onValueChange={setGroupBy}
+                <Label htmlFor="route-grouping">Grouping</Label>
+                <OptionCombobox
+                  id="route-grouping"
+                  value={groupingMode}
+                  onChange={(value) => {
+                    const nextMode = value as GroupingMode;
+                    if (nextMode === "labels" && groupBy.length === 0) {
+                      setGroupBy([...CC_DEFAULT_GROUP_BY]);
+                    }
+                    setGroupingMode(nextMode);
+                  }}
+                  options={GROUPING_OPTIONS}
+                  className="w-full max-w-md"
                 />
               </div>
+              {groupingMode === "labels" && (
+                <FilterCombobox
+                  label="Group by labels"
+                  values={groupBy}
+                  onChange={(values) => {
+                    setGroupBy(values);
+                    if (values.length === 0) setGroupingMode("single");
+                  }}
+                  options={ccLabelKeyFilterOptions()}
+                  placeholder="Select labels"
+                  searchPlaceholder="Search or type a label..."
+                  className="w-full max-w-md font-mono"
+                  labelClassName="text-foreground"
+                  showAllValues
+                  allowCustom
+                />
+              )}
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                 <DurationField
                   id="route-group-wait"
@@ -418,12 +483,13 @@ export function RouteBuilder({
           </CollapsibleContent>
         </Collapsible>
 
-        <footer className="flex flex-col-reverse gap-2 border-t border-border/60 pt-3 sm:flex-row sm:justify-end [&_[data-slot=button]]:h-10 sm:[&_[data-slot=button]]:h-8">
+        <footer className="flex flex-col-reverse gap-2 border-t border-border/60 pt-4 sm:flex-row sm:justify-end [&_[data-slot=button]]:h-10 sm:[&_[data-slot=button]]:h-8">
           <Button type="button" variant="outline" onClick={onCancel}>
             Cancel
           </Button>
           <Button
             type="submit"
+            aria-busy={save.isPending}
             disabled={!receiver || hasErrors || save.isPending}
           >
             {save.isPending && (

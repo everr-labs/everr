@@ -33,12 +33,31 @@ A receiver is a named set of channels; routes reference receivers by name, and a
 
 A route is a set of **matchers** (label comparisons such as `severity = critical`, with equals, not-equals, and regex operators), a target receiver, and a priority. Routes are checked in priority order and the first match wins.
 
-Each route also controls timing:
+### Group notifications
 
-- **Group by** collects instances that share the chosen labels into one notification.
-- **Group wait** is how long to hold a new group before the first send, letting related instances batch together.
-- **Group interval** is the minimum time between updates for an already-notified group.
-- **Repeat interval** re-sends the notification while the alert stays firing, so a long-lived incident is not silent after the first message.
+Grouping happens after a route selects a receiver. It does not change which alerts fire or where they are sent. It decides which alert instances are batched into the same Slack message, email, or webhook payload.
+
+For example, if 20 pods trigger the same rule during the group-wait window, grouping them by rule and severity produces one notification containing 20 instances instead of 20 separate notifications.
+
+The route editor offers three grouping modes:
+
+| Mode | Behavior |
+| --- | --- |
+| **Automatic** | For alert rules, groups by rule and severity. For SLOs, groups by SLO and its SLI dimensions while combining its burn-rate tiers. This is the recommended starting point. |
+| **One group** | Puts every alert sent to this receiver into one notification group. This can be useful for a receiver dedicated to one incident stream, but it can mix unrelated alerts. |
+| **By labels** | Creates one group for each combination of selected label values. Grouping by `cluster`, for example, produces a separate notification stream for each cluster. |
+
+Groups are always separate per receiver. Choosing **One group** combines alerts for one receiver, not across every receiver in the organization.
+
+Choose labels that match how responders divide incidents. Labels such as `service`, `cluster`, `region`, or `team` are often useful. Too few labels can combine unrelated incidents; too many labels can fragment one incident into many notifications and defeat batching. Avoid grouping by `status`, particularly when repeat notifications are enabled, because firing and resolved events can land in different groups.
+
+### Control notification timing
+
+Each route also controls when its groups are sent:
+
+- **Group wait** holds a new group before its first send so a burst can become one notification. It is also the minimum delivery delay for a newly created group.
+- **Group interval** is the minimum time between updates for a group that has already been sent.
+- **Repeat interval** re-sends a group while it still contains firing alerts, so a long-lived incident is not silent after its first notification. Leave it empty to notify only when the group's contents change.
 
 ## Inhibitions
 

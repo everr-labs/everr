@@ -70,6 +70,11 @@ export const ccLabelKeyOptions = () => ({
     })),
 });
 
+export const ccLabelKeyFilterOptions = () => ({
+  ...ccLabelKeyOptions(),
+  select: (keys: CcLabelKeySuggestion[]) => keys.map((key) => key.key),
+});
+
 /** An unset key resolves to no suggestions. */
 export const ccLabelValueOptions = (key: string) => ({
   queryKey: ["cc", "label-values", key] as const,
@@ -86,10 +91,12 @@ export function MatchersEditor({
   value,
   onChange,
   label = "Matchers",
+  addLabel = "Add",
 }: {
   value: CcMatcher[];
   onChange: (m: CcMatcher[]) => void;
   label?: string;
+  addLabel?: string;
 }) {
   return (
     <div className="space-y-2">
@@ -102,11 +109,14 @@ export function MatchersEditor({
           onClick={() => onChange(addMatcher(value))}
         >
           <Plus data-icon="inline-start" />
-          Add
+          {addLabel}
         </Button>
       </div>
       {value.map((row, i) => (
-        <div key={i} className="flex items-center gap-2">
+        <div
+          key={i}
+          className="grid grid-cols-[minmax(0,1fr)_4rem] items-center gap-2 sm:grid-cols-[minmax(0,1fr)_4rem_minmax(0,1fr)_2.5rem]"
+        >
           <SuggestCombobox
             label="Matcher label"
             placeholder="label"
@@ -151,7 +161,8 @@ export function MatchersEditor({
             type="button"
             variant="ghost"
             size="icon"
-            aria-label="Remove matcher"
+            className="justify-self-end"
+            aria-label={`Remove condition ${i + 1}`}
             onClick={() => onChange(removeMatcher(value, i))}
           >
             <X />
@@ -160,7 +171,8 @@ export function MatchersEditor({
       ))}
       {value.length === 0 && (
         <p className="text-xs text-muted-foreground">
-          No matchers, matches everything.
+          <span className="font-medium text-foreground">All alerts.</span> No
+          conditions added.
         </p>
       )}
     </div>

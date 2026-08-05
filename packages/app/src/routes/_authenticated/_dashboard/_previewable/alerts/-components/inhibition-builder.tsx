@@ -4,26 +4,16 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
 import { ccQueries } from "@/data/cc/queries";
-import {
-  type CcLabelKeySuggestion,
-  createCcInhibition,
-} from "@/data/cc/server";
+import { createCcInhibition } from "@/data/cc/server";
 import type { CcMatcher } from "@/data/cc/types";
 import { CcDrawer } from "./cc-drawer";
 import {
-  ccLabelKeyOptions,
+  ccLabelKeyFilterOptions,
   MatchersEditor,
   matchersPhrase,
 } from "./matchers-editor";
 import { PreviewLine } from "./route-builder";
 import { CcConceptNote, ccErrorMessage } from "./shared";
-
-// Matcher-row key suggestions (synthetic keys included), flattened to the
-// string list FilterCombobox consumes.
-const ccEqualKeyOptions = () => ({
-  ...ccLabelKeyOptions(),
-  select: (keys: CcLabelKeySuggestion[]) => keys.map((k) => k.key),
-});
 
 export function InhibitionBuilder({
   open,
@@ -94,7 +84,7 @@ export function InhibitionBuilder({
         label="Equal labels"
         values={equal}
         onChange={setEqual}
-        options={ccEqualKeyOptions()}
+        options={ccLabelKeyFilterOptions()}
         placeholder="No shared-value requirement"
         searchPlaceholder="Search or type a label key..."
         className="w-full font-mono"
