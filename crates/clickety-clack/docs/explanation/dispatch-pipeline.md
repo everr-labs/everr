@@ -9,8 +9,8 @@ When the dispatcher consumes an event from `cc:events`, it runs it through this
 pipeline:
 
 ```
-event ─▶ build match labels ─▶ silence? ─▶ inhibition? ─▶ routes? ─┬─yes─▶ group ─▶ (flush) ─▶ dedup ─▶ deliver
-                                  │drop        │drop               └─no──▶ firehose ─▶ dedup ─▶ deliver
+event ─▶ build match labels ─▶ silence? ─▶ inhibition? ─▶ match routes ─┬─match─▶ group ─▶ (flush) ─▶ dedup ─▶ deliver
+                                  │drop        │drop                   └─none──▶ (not delivered)
                                   ▼            ▼
                                (dropped)   (dropped)
 ```
@@ -40,16 +40,12 @@ warnings").
 > ~2 seconds per dispatcher replica. This is why a brand-new silence can take
 > up to ~2s to take effect.
 
-### 3a. Routing (the normal path)
-If the tenant has routes, the event is matched against them in priority order. The
-first matching route selects a receiver; `continue: true` lets later routes also
-match (fan-out). Duplicate receivers collapse, keeping the first match's grouping
-parameters. Each selected receiver becomes a **delivery target**.
-
-### 3b. Firehose (the no-routes fallback)
-If the tenant has **no routes**, the event is delivered **immediately, one
-notification per event**, to every subscription webhook. This is the zero-config
-path; it bypasses grouping entirely.
+### 3. Routing
+The event is matched against routes in priority order. The first matching route
+selects a receiver; `continue: true` lets later routes also match (fan-out).
+Duplicate receivers collapse, keeping the first match's grouping parameters.
+Each selected receiver becomes a **delivery target**. An event that matches no
+route is acknowledged without delivery. A route with no matchers is a catch-all.
 
 ### 4. Grouping
 For routed targets, the event is **buffered** into a Redis group rather than sent
@@ -75,8 +71,7 @@ Before delivery, a **dedup key** is computed per channel: for groups, over
 `(group_id, channel id, sorted active event set)`, so each channel of a
 multi-channel receiver dedups independently while staying stable across renames
 and config edits (renaming a channel or rotating a hook never re-sends an
-identical active set); for the
-firehose, over the event's identity. The `notifications` table records it. Because Redis Streams are
+identical active set). The `notifications` table records it. Because Redis Streams are
 at-least-once, the same event (or identical group snapshot) can be processed
 twice; the dedup log ensures the notification is sent only once. A changed group
 (different active set) yields a different key and a new notification.
@@ -112,8 +107,7 @@ Delivery results are classified:
   attempts, then dead-lettered.
 
 A 429 is transient only for Slack and Telegram, whose rate limits are worth
-retrying; generic webhooks and the subscription firehose treat 429 like any
-other 4xx: permanent.
+retrying; generic webhooks treat 429 like any other 4xx: permanent.
 
 Dead-lettered events go to the `cc:events:deadletter` stream for inspection and
 manual recovery. The audit trail (`notifications` table) records attempts and the

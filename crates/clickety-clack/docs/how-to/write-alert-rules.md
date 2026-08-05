@@ -147,8 +147,7 @@ Default `false`. A suppressed rule is a full dress rehearsal: it is scheduled,
 evaluated against ClickHouse, tracks instance state, and emits firing/resolved
 events into history and the OTLP alert log. The one thing it never does is
 notify: the dispatcher drops its events before routing, grouping, silences,
-inhibitions, and the subscription firehose, and its rule-health events are
-muted the same way.
+and inhibitions, and its rule-health events are muted the same way.
 
 Use it to preview a rule against live data (watch `GET /v1/alerts` and the OTLP
 alert log to see what it *would* have done), then flip `suppressed` to `false` via

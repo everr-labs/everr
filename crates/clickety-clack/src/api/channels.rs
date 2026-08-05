@@ -47,8 +47,7 @@ fn validate_channel_config(
     config: &ChannelConfig,
     allow_private_webhooks: bool,
 ) -> Result<(), ApiError> {
-    // Same SSRF guard as subscription webhooks: the dispatcher POSTs any
-    // tenant-supplied URL from inside the deployment network (see
+    // The dispatcher POSTs tenant-supplied URLs from inside the deployment network (see
     // `crate::api::webhook_url`); which variants carry one is the domain's
     // designation (`ChannelConfig::fetched_url`).
     if let Some(url) = config.fetched_url() {

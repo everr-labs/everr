@@ -26,7 +26,7 @@ async fn no_keys_configured_leaves_the_api_open() {
 
     let resp = app
         .clone()
-        .oneshot(req("/v1/subscriptions", tenant, None))
+        .oneshot(req("/v1/channels", tenant, None))
         .await
         .unwrap();
     assert_eq!(resp.status(), StatusCode::OK);
@@ -42,7 +42,7 @@ async fn configured_keys_gate_v1() {
     // Missing Authorization header: 401 problem-details.
     let resp = app
         .clone()
-        .oneshot(req("/v1/subscriptions", tenant, None))
+        .oneshot(req("/v1/channels", tenant, None))
         .await
         .unwrap();
     assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
@@ -54,7 +54,7 @@ async fn configured_keys_gate_v1() {
     // Wrong key: 401.
     let resp = app
         .clone()
-        .oneshot(req("/v1/subscriptions", tenant, Some("wrong-key")))
+        .oneshot(req("/v1/channels", tenant, Some("wrong-key")))
         .await
         .unwrap();
     assert_eq!(resp.status(), StatusCode::UNAUTHORIZED);
@@ -65,7 +65,7 @@ async fn configured_keys_gate_v1() {
         .oneshot(
             Request::builder()
                 .method("GET")
-                .uri("/v1/subscriptions")
+                .uri("/v1/channels")
                 .header("X-CC-Tenant", tenant.to_string())
                 .header("authorization", "Basic a2V5LWN1cnJlbnQ=")
                 .body(Body::empty())
@@ -78,7 +78,7 @@ async fn configured_keys_gate_v1() {
     // Correct key: through to the handler.
     let resp = app
         .clone()
-        .oneshot(req("/v1/subscriptions", tenant, Some("key-current")))
+        .oneshot(req("/v1/channels", tenant, Some("key-current")))
         .await
         .unwrap();
     assert_eq!(resp.status(), StatusCode::OK);
@@ -87,7 +87,7 @@ async fn configured_keys_gate_v1() {
     // Rotation: the second configured key also passes.
     let resp = app
         .clone()
-        .oneshot(req("/v1/subscriptions", tenant, Some("key-next")))
+        .oneshot(req("/v1/channels", tenant, Some("key-next")))
         .await
         .unwrap();
     assert_eq!(resp.status(), StatusCode::OK);

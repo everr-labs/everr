@@ -47,7 +47,6 @@ export const Route = createFileRoute(
       queryClient.prefetchQuery(ccQueries.routes()),
       queryClient.prefetchQuery(ccQueries.receivers()),
       queryClient.prefetchQuery(ccQueries.silences()),
-      queryClient.prefetchQuery(ccQueries.subscriptions()),
       queryClient.prefetchQuery(
         // Same options the component asks for, preview included, or the
         // prefetch warms a key nothing reads.
@@ -71,7 +70,6 @@ function CcTriagePage() {
   const routes = useQuery(ccQueries.routes());
   const receivers = useQuery(ccQueries.receivers());
   const silences = useQuery(ccQueries.silences());
-  const subscriptions = useQuery(ccQueries.subscriptions());
   const events = useQuery(
     ccQueries.eventHistory(TRIAGE_EVENT_RANGE, {
       limit: TRIAGE_EVENT_LIMIT,
@@ -98,15 +96,7 @@ function CcTriagePage() {
 
   // On a CC outage every count would render 0 — a false "all clear" — so any
   // errored core query fails the whole page.
-  const coreQueries = [
-    alerts,
-    rules,
-    slos,
-    routes,
-    receivers,
-    silences,
-    subscriptions,
-  ];
+  const coreQueries = [alerts, rules, slos, routes, receivers, silences];
   const errored = coreQueries.find((query) => query.isError);
 
   const channelsByReceiver = useMemo(
@@ -207,8 +197,6 @@ function CcTriagePage() {
         groups={boardGroups}
         pending={pending}
         channelsByReceiver={channelsByReceiver}
-        hasRoutes={(routes.data ?? []).length > 0}
-        hasSubscribers={(subscriptions.data ?? []).length > 0}
         sloStatusGroups={sloStatusGroups}
         watchingRules={watchingRules}
         lastEventTs={lastEventTs}

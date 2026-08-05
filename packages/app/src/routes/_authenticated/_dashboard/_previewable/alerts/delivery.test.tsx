@@ -27,7 +27,6 @@ const mocks = vi.hoisted(() => ({
   listCcAlerts: vi.fn(),
   listCcRules: vi.fn(),
   listCcSlos: vi.fn(),
-  listCcSubscriptions: vi.fn(),
   listCcLabelKeys: vi.fn(),
   listCcLabelValues: vi.fn(),
   createCcChannel: vi.fn(),
@@ -41,8 +40,6 @@ const mocks = vi.hoisted(() => ({
   deleteCcRoute: vi.fn(),
   createCcInhibition: vi.fn(),
   deleteCcInhibition: vi.fn(),
-  createCcSubscription: vi.fn(),
-  deleteCcSubscription: vi.fn(),
   toastSuccess: vi.fn(),
   toastError: vi.fn(),
 }));
@@ -55,7 +52,6 @@ vi.mock("@/data/cc/server", () => ({
   listCcAlerts: mocks.listCcAlerts,
   listCcRules: mocks.listCcRules,
   listCcSlos: mocks.listCcSlos,
-  listCcSubscriptions: mocks.listCcSubscriptions,
   listCcLabelKeys: mocks.listCcLabelKeys,
   listCcLabelValues: mocks.listCcLabelValues,
   createCcChannel: mocks.createCcChannel,
@@ -69,8 +65,6 @@ vi.mock("@/data/cc/server", () => ({
   deleteCcRoute: mocks.deleteCcRoute,
   createCcInhibition: mocks.createCcInhibition,
   deleteCcInhibition: mocks.deleteCcInhibition,
-  createCcSubscription: mocks.createCcSubscription,
-  deleteCcSubscription: mocks.deleteCcSubscription,
 }));
 
 vi.mock("sonner", () => ({
@@ -174,7 +168,6 @@ beforeEach(() => {
   mocks.listCcAlerts.mockResolvedValue([]);
   mocks.listCcRules.mockResolvedValue([]);
   mocks.listCcSlos.mockResolvedValue([]);
-  mocks.listCcSubscriptions.mockResolvedValue([]);
   mocks.listCcLabelKeys.mockResolvedValue([]);
   mocks.listCcLabelValues.mockResolvedValue([]);
 });
@@ -526,13 +519,12 @@ describe("/alerts/delivery usage facts", () => {
 });
 
 describe("/alerts/delivery pipeline fall-through", () => {
-  it("with zero routes, points at the fallback webhooks", async () => {
+  it("with zero routes, says alerts are not delivered", async () => {
     renderDeliveryRoute();
 
     const row = await screen.findByText("no match");
-    expect(row.parentElement).toHaveTextContent("fallback webhooks");
-    expect(row.parentElement).toHaveTextContent("none configured");
-    expect(row.parentElement).not.toHaveTextContent("not delivered");
+    expect(row.parentElement).toHaveTextContent("not delivered");
+    expect(row.parentElement).toHaveTextContent("catch-all");
   });
 
   it("with routes and no catch-all, says unmatched alerts are not delivered", async () => {
@@ -543,7 +535,6 @@ describe("/alerts/delivery pipeline fall-through", () => {
     const row = await screen.findByText("no match");
     expect(row.parentElement).toHaveTextContent("not delivered");
     expect(row.parentElement).toHaveTextContent("catch-all");
-    expect(row.parentElement).not.toHaveTextContent("fallback webhooks");
   });
 
   it("with a catch-all route, hides the fall-through row entirely", async () => {
@@ -600,21 +591,6 @@ describe("/alerts/delivery route safety", () => {
         }),
       },
     });
-  });
-
-  it("makes fallback configuration explicitly inactive while routes exist", async () => {
-    mocks.listCcRoutes.mockResolvedValue([route()]);
-    const user = userEvent.setup();
-
-    renderDeliveryRoute();
-
-    await user.click(
-      await screen.findByRole("button", { name: /Advanced delivery/ }),
-    );
-    expect(
-      await screen.findByText(/Inactive because 1 delivery route exists/),
-    ).toBeInTheDocument();
-    expect(screen.getByLabelText("Webhook URL")).toBeDisabled();
   });
 });
 

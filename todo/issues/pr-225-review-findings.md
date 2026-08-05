@@ -155,11 +155,9 @@ describes a deleted system.
 An org with configured Slack webhooks or Telegram bot tokens in
 `alert_settings.delivery` deploys this. The in-process delivery pipeline is gone,
 no CC channel or receiver exists for them, and `/alerts/delivery` shows an empty
-list. Alerts still fire in CC and land in `app.logs`, but nobody is notified, and
-the UI's only hint is "No routes yet: every alert is delivered to all firehose
-subscribers" (`delivery.tsx:322`), of which there are also zero. Active
-`alert_silences` are likewise dropped, so anything deliberately muted starts
-paging again.
+list. Alerts still fire in CC and land in `app.logs`, but nobody is notified.
+Active `alert_silences` are likewise dropped, so anything deliberately muted
+starts paging again.
 
 **Fix:** a one-shot backfill (`alert_settings.delivery` to
 `cc.createChannel`/`createReceiver` plus a catch-all route), or an explicit and
@@ -335,7 +333,7 @@ result rows become instances, so one high-cardinality `GROUP BY` rule can mint
 
 `GET /v1/rules` got proper keyset pagination with a 500 cap. `/v1/alerts`,
 `/v1/silences`, `/v1/routes`, `/v1/receivers`, `/v1/channels`,
-`/v1/inhibitions` and `/v1/subscriptions` did not.
+and `/v1/inhibitions` did not.
 
 ### 13. Preview rows leak into the live alert history
 `packages/app/src/data/alerts/history.server.ts:181-186`,

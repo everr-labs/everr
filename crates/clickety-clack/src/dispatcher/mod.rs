@@ -16,7 +16,6 @@ pub mod slack;
 pub mod slo_inhibit;
 pub mod telegram;
 
-pub use dedup::dedup_key;
 pub use discord::DiscordNotifier;
 pub use email::EmailNotifier;
 pub use notify::{Notification, Notifier, NotifyError, WebhookNotifier};
@@ -141,8 +140,7 @@ impl DispatchCtx {
 }
 
 /// Run the dispatcher consume loop until `shutdown` flips true. Routed events are
-/// buffered into Redis groups (flushed by `run_group_flusher`); no-routes tenants keep
-/// the immediate per-event webhook firehose.
+/// buffered into Redis groups and flushed by `run_group_flusher`.
 pub async fn run_dispatcher(
     consumer: String,
     ctx: DispatchCtx,
@@ -192,8 +190,8 @@ pub async fn run_dispatcher(
 }
 
 /// Resolve an event to its delivery plan. Routed events are buffered into their group(s)
-/// in Redis and a flush timer is armed; no-routes tenants fall back to the immediate
-/// Phase 2a subscription firehose. Returns true if the stream entry is safe to ack
+/// in Redis and a flush timer is armed. Unmatched events are acknowledged without
+/// delivery. Returns true if the stream entry is safe to ack
 /// (false only when a required input could not be loaded — leaves it in the PEL).
 ///
 /// Public so the load-test harness can drive a single event; not a stable API.
@@ -224,9 +222,8 @@ pub async fn process_event(ctx: &DispatchCtx, entry: &EventEntry) -> bool {
     }
 
     // Suppressed (preview-rule) events never notify: drop at ingest, before
-    // silence/inhibition processing, before group buffering, and before the no-routes
-    // subscription firehose. They still reach the OTLP alert-log export (the events
-    // role has its own consumer group).
+    // silence/inhibition processing and before group buffering. They still reach
+    // the OTLP alert-log export (the events role has its own consumer group).
     if ev.suppressed {
         tracing::debug!(entry_id = %entry.id, "suppressed event; dropping before dispatch");
         return true;
@@ -260,10 +257,6 @@ pub async fn process_event(ctx: &DispatchCtx, entry: &EventEntry) -> bool {
     if inhibition::is_inhibited(&labels, &ev.instance_key, &snap.inhibitions, &snap.firing) {
         tracing::debug!(entry_id = %entry.id, "event inhibited; dropping");
         return true;
-    }
-
-    if snap.routes.is_empty() {
-        return firehose_deliver(ctx, ev, &entry.id).await;
     }
 
     let now = now_ms();
@@ -371,74 +364,6 @@ pub async fn process_event_batch(
         (entry.id.clone(), ack)
     }))
     .await
-}
-
-/// Immediate per-event webhook delivery for tenants with no routes (Phase 2a behavior).
-async fn firehose_deliver(ctx: &DispatchCtx, ev: &Event, entry_id: &crate::queue::EventId) -> bool {
-    let subs = match ctx
-        .store
-        .subscriptions_for(ctx.cipher.as_ref(), ev.tenant.clone())
-        .await
-    {
-        Ok(s) => s,
-        Err(e) => {
-            crate::otel::span_error(&e);
-            tracing::error!(error = %e, entry_id = %entry_id, tenant = ?ev.tenant,
-                "loading subscriptions failed; leaving event unacked in PEL for later reclaim");
-            return false;
-        }
-    };
-    let notif = &Notification::single(ev);
-    // Subscriptions are independent (per-subscription ledger row keyed by its own
-    // dedup key), so their Pg round-trip + HTTP delivery overlap; each keeps its
-    // own bookkeeping and the aggregate is "every subscription handled".
-    let handled = futures::future::join_all(subs.into_iter().map(|s| async move {
-        let config = crate::domain::channel::ChannelConfig::Webhook { url: s.webhook_url };
-        let channel = config.channel_name();
-        let target = dedup::canonical_target(&config);
-        let key = dedup::dedup_key(channel, &target, ev);
-        match claim_to_send(
-            &ctx.delivery_deps(),
-            &key,
-            ev,
-            channel,
-            &dedup::redact_target(&target),
-        )
-        .await
-        {
-            Claim::Send => {}
-            Claim::Handled => return true,
-            // Not accounted for by anyone yet, so leave the event unacked and let the
-            // redelivery resolve it (see `Claim::NotAccountedFor`).
-            Claim::NotAccountedFor => return false,
-        }
-        // Subscription firehose delivery reuses `deliver_one`'s webhook path, but is
-        // labeled distinctly ("subscription_webhook" vs "webhook") on the `notify.deliver`
-        // span so a trace query can tell the immediate no-routes firehose apart from a
-        // routed group's webhook channel.
-        if deliver_one(
-            &ctx.delivery_deps(),
-            &config,
-            &key,
-            notif,
-            ev,
-            "subscription_webhook",
-        )
-        .await
-        {
-            // Record the delivery as an OTLP `delivery` log (target = channel name,
-            // matching the pre-multi-channel firehose shape).
-            let facts = DeliveryFacts {
-                delivery_targets: vec![channel.to_string()],
-                silence_id: None,
-                silenced: false,
-            };
-            ctx.sink.record_delivery(ev, &facts).await;
-        }
-        true
-    }))
-    .await;
-    handled.into_iter().all(|ok| ok)
 }
 
 /// The group flusher: every replica claims due groups and delivers each as one batch.
@@ -902,8 +827,7 @@ async fn deliver_group_channels(
         .await
         {
             Claim::Send => {
-                let sent =
-                    deliver_one(deps, &ch.config, &key, notif, rep, ch.config.channel_name()).await;
+                let sent = deliver_one(deps, &ch.config, &key, notif, rep).await;
                 ChannelOutcome::Begun { sent }
             }
             Claim::Handled => ChannelOutcome::Skipped,
@@ -939,9 +863,7 @@ enum Claim {
 }
 
 /// Claim the right to send one notification, applying the reclaim budget. This is the
-/// single place `MAX_NOTIFICATION_CLAIMS` is enforced; both the firehose and the group
-/// fan-out route their ledger claim through here so the policy cannot drift between
-/// them, and map [`Claim`] onto their own ack/drain shape.
+/// single place `MAX_NOTIFICATION_CLAIMS` is enforced for group fan-out.
 async fn claim_to_send(
     deps: &DeliveryDeps<'_>,
     key: &str,
@@ -1013,16 +935,12 @@ async fn fail_and_dead_letter(
 /// then record sent/failed and dead-letter on permanent/exhausted failure. `rep` is the
 /// event used for the dead-letter record. Returns true when delivery succeeded.
 ///
-/// `span_channel` labels the `notify.deliver` span's `channel` field; it is distinct from
-/// `config.channel_name()` (used for the notifier-registry lookup and delivery metrics)
-/// so the no-routes subscription firehose can trace as "subscription_webhook" while still
-/// dispatching through the same "webhook" notifier as a routed group's webhook channel.
 #[tracing::instrument(
     name = "notify.deliver",
     skip_all,
     fields(
         otel.kind = "client",
-        channel = span_channel,
+        channel = tracing::field::Empty,
         target = %dedup::redact_target(&dedup::canonical_target(config)),
         attempts = tracing::field::Empty,
         otel.status_code = tracing::field::Empty,
@@ -1035,9 +953,9 @@ async fn deliver_one(
     key: &str,
     notif: &Notification,
     rep: &Event,
-    span_channel: &'static str,
 ) -> bool {
     let channel = config.channel_name();
+    tracing::Span::current().record("channel", channel);
     let metrics = deps.notifiers.engine_metrics();
     let notifier = match deps.notifiers.get(channel) {
         Some(n) => n,

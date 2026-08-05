@@ -68,16 +68,10 @@ export function ccIsCatchAll(matchers: CcMatcher[]): boolean {
   return matchers.length === 0;
 }
 
-/**
- * Where an alert that matches no route ends up (dispatcher/mod.rs): with zero
- * routes the dispatcher delivers it to every firehose subscription; once any
- * route exists, an unmatched alert is dropped. A catch-all route makes the
- * question unreachable, since nothing can fall past it.
- */
+/** Whether an alert can fall through the route list without being delivered. */
 export function ccUnmatchedOutcome(
   routes: CcRoute[],
-): "firehose" | "dropped" | "unreachable" {
-  if (routes.length === 0) return "firehose";
+): "dropped" | "unreachable" {
   if (routes.some((r) => ccIsCatchAll(r.matchers))) return "unreachable";
   return "dropped";
 }
@@ -131,8 +125,7 @@ export function ccDispatchLabels(
 
 /**
  * Mirrors CC's `select_receivers` (dispatcher/routing.rs): ascending priority,
- * stop after the first match without `continue`. An empty result does NOT
- * imply firehose delivery; see `ccUnmatchedOutcome`.
+ * stop after the first match without `continue`.
  */
 export function ccSelectRoutes(
   routes: CcRoute[],

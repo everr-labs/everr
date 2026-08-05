@@ -92,10 +92,7 @@ async fn relay_recovers_dropped_inline_publish() {
         ..common::dispatch_ctx(&infra)
     };
     let tenant = TenantId::from_trusted(Uuid::new_v4().to_string());
-    store
-        .create_subscription(ctx.cipher.as_ref(), tenant.clone(), &hook)
-        .await
-        .unwrap();
+    common::create_webhook_delivery(&store, ctx.cipher.as_ref(), tenant.clone(), &hook).await;
     let spec = RuleSpec {
         sql: "SELECT service, count() AS n FROM spans GROUP BY service".into(),
         interval_secs: 1,
@@ -116,7 +113,7 @@ async fn relay_recovers_dropped_inline_publish() {
     )
     .await;
 
-    let dispatcher = common::spawn_dispatcher(&ctx, false);
+    let dispatcher = common::spawn_dispatcher(&ctx, true);
 
     let ev_handle = {
         let (store, queue, bus, rx) = (

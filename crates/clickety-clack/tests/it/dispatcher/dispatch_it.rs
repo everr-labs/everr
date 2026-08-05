@@ -1,7 +1,6 @@
 use crate::common;
 use crate::support::create_test_rule;
 use cc::dispatcher::cache::FilterCache;
-use cc::dispatcher::dedup::dedup_key;
 use cc::dispatcher::{flush_group, grouping, process_event, DispatchCtx};
 use cc::domain::channel::ChannelConfig;
 use cc::domain::event::Event;
@@ -25,111 +24,6 @@ fn ev(tenant: TenantId) -> Event {
     e
 }
 
-#[tokio::test]
-async fn dispatcher_delivers_once_and_dedups() {
-    let infra = common::dispatch_infra().await;
-    let store = infra.store.clone();
-    let ctx = common::dispatch_ctx(&infra);
-
-    let (url, hits, _hook) = common::start_counting_webhook().await;
-
-    let tenant = TenantId::from_trusted(Uuid::new_v4().to_string());
-    store
-        .create_subscription(ctx.cipher.as_ref(), tenant.clone(), &url)
-        .await
-        .unwrap();
-
-    let dispatcher = common::spawn_dispatcher(&ctx, false);
-
-    infra.bus.publish(&ev(tenant.clone())).await.unwrap();
-    infra.bus.publish(&ev(tenant.clone())).await.unwrap();
-
-    for _ in 0..50 {
-        if hits.load(Ordering::Relaxed) >= 1 {
-            break;
-        }
-        tokio::time::sleep(Duration::from_millis(100)).await;
-    }
-    tokio::time::sleep(Duration::from_millis(500)).await;
-
-    assert_eq!(
-        hits.load(Ordering::Relaxed),
-        1,
-        "dedup must prevent the second delivery"
-    );
-    let key = dedup_key("webhook", &url, &ev(tenant.clone()));
-    assert_eq!(
-        store
-            .notification_status(&tenant, &key)
-            .await
-            .unwrap()
-            .unwrap()
-            .0,
-        "sent"
-    );
-
-    dispatcher.shutdown().await;
-}
-
-/// The immediate firehose crash window: a sender claimed the notification and died
-/// before delivering. While the lease holds, the event must NOT be acked (nothing has
-/// delivered it); once the lease expires the redelivery reclaims the row and sends,
-/// instead of reading the leftover `pending` row as "already delivered" and dropping
-/// the notification for good.
-#[tokio::test]
-async fn firehose_recovers_a_notification_stranded_by_a_dead_sender() {
-    let infra = common::dispatch_infra().await;
-    let (url, hits, _hook) = common::start_counting_webhook().await;
-    let ctx = common::dispatch_ctx(&infra);
-    let store = infra.store.clone();
-
-    let tenant = TenantId::from_trusted(Uuid::new_v4().to_string());
-    store
-        .create_subscription(ctx.cipher.as_ref(), tenant.clone(), &url)
-        .await
-        .unwrap();
-
-    let event = ev(tenant.clone());
-    let key = dedup_key("webhook", &url, &event);
-    // Stand in for the sender that claimed this notification and then died: the row
-    // is left `pending`, exactly as a crash mid-send would leave it.
-    store
-        .try_begin_notification(&key, &tenant, "webhook", "redacted")
-        .await
-        .unwrap();
-
-    infra.bus.publish(&event).await.unwrap();
-    let entries = infra.bus.consume("test-consumer", 1, 500).await.unwrap();
-    assert_eq!(entries.len(), 1);
-
-    // Inside the lease: the previous sender may still be in flight, so nothing is
-    // delivered AND the event stays unacked so it comes back.
-    let acked = process_event(&ctx, &entries[0]).await;
-    assert!(
-        !acked,
-        "an in-flight lease must not ack the event; that would lose it"
-    );
-    assert_eq!(hits.load(Ordering::Relaxed), 0, "no duplicate send yet");
-
-    // Age the lease past expiry rather than sleeping it out.
-    crate::support::expire_lease(&store, &key).await;
-
-    // Past the lease the row is reclaimable: the redelivery must actually deliver.
-    let acked = process_event(&ctx, &entries[0]).await;
-    assert!(acked, "the reclaimed notification is delivered and acked");
-    assert_eq!(
-        hits.load(Ordering::Relaxed),
-        1,
-        "the stranded notification is delivered on reclaim"
-    );
-    let (status, _) = store
-        .notification_status(&tenant, &key)
-        .await
-        .unwrap()
-        .unwrap();
-    assert_eq!(status, "sent");
-}
-
 /// Capturing `AlertLogSink` that records every `(event, facts)` pair so a test can assert
 /// the dispatcher emitted the expected delivery/silenced alert-log records.
 #[derive(Clone, Default)]
@@ -151,56 +45,119 @@ fn ev_svc(tenant: TenantId, svc: &str) -> Event {
     e
 }
 
-/// A delivered event (firehose webhook path, no routes) emits exactly one `delivery`
-/// alert-log record carrying the delivery target, and no `silenced` record.
 #[tokio::test]
-async fn delivery_emits_a_delivery_record() {
+async fn event_without_routes_is_acked_without_delivery_or_grouping() {
     let infra = common::dispatch_infra().await;
     let store = infra.store.clone();
-
     let (url, hits, _hook) = common::start_counting_webhook().await;
-
-    // No routes for this tenant -> the firehose webhook path delivers immediately.
     let sink = CapturingSink::default();
     let ctx = DispatchCtx {
+        cache: Arc::new(FilterCache::with_ttl(store.clone(), Duration::ZERO)),
         sink: Arc::new(sink.clone()),
         ..common::dispatch_ctx(&infra)
     };
-
     let tenant = TenantId::from_trusted(Uuid::new_v4().to_string());
+
     store
-        .create_subscription(ctx.cipher.as_ref(), tenant.clone(), &url)
+        .create_channel(
+            ctx.cipher.as_ref(),
+            tenant.clone(),
+            "unused-hook",
+            &ChannelConfig::Webhook { url },
+        )
+        .await
+        .unwrap();
+    store
+        .create_receiver(
+            tenant.clone(),
+            "unused-receiver",
+            &["unused-hook".to_string()],
+            &BTreeMap::new(),
+        )
         .await
         .unwrap();
 
-    let event = ev_svc(tenant.clone(), "api");
+    let event = ev_svc(tenant, "api");
     infra.bus.publish(&event).await.unwrap();
-    let entries = infra.bus.consume("test-consumer", 1, 500).await.unwrap();
+    let entries = infra.bus.consume("no-routes", 1, 500).await.unwrap();
     assert_eq!(entries.len(), 1);
 
-    let acked = process_event(&ctx, &entries[0]).await;
-    assert!(acked, "delivered event should ack");
+    assert!(process_event(&ctx, &entries[0]).await);
+    assert_eq!(hits.load(Ordering::Relaxed), 0);
+    assert!(sink.calls.lock().unwrap().is_empty());
+    assert!(infra
+        .groups
+        .claim_due(i64::MAX / 2, 32)
+        .await
+        .unwrap()
+        .is_empty());
+}
 
-    assert_eq!(
-        hits.load(Ordering::Relaxed),
-        1,
-        "webhook should have been hit once"
-    );
-    let calls = sink.calls.lock().unwrap();
-    assert_eq!(
-        calls.len(),
-        1,
-        "exactly one alert-log record; got {calls:?}"
-    );
-    let (rec_ev, facts) = &calls[0];
-    assert_eq!(rec_ev.instance_key, event.instance_key);
-    assert!(!facts.silenced, "delivery record must not be silenced");
-    assert_eq!(facts.silence_id, None);
-    assert_eq!(
-        facts.delivery_targets,
-        vec!["webhook".to_string()],
-        "delivery target is the firehose webhook channel"
-    );
+#[tokio::test]
+async fn event_matching_no_route_is_acked_without_delivery_or_grouping() {
+    let infra = common::dispatch_infra().await;
+    let store = infra.store.clone();
+    let (url, hits, _hook) = common::start_counting_webhook().await;
+    let sink = CapturingSink::default();
+    let ctx = DispatchCtx {
+        cache: Arc::new(FilterCache::with_ttl(store.clone(), Duration::ZERO)),
+        sink: Arc::new(sink.clone()),
+        ..common::dispatch_ctx(&infra)
+    };
+    let tenant = TenantId::from_trusted(Uuid::new_v4().to_string());
+
+    store
+        .create_channel(
+            ctx.cipher.as_ref(),
+            tenant.clone(),
+            "critical-hook",
+            &ChannelConfig::Webhook { url },
+        )
+        .await
+        .unwrap();
+    store
+        .create_receiver(
+            tenant.clone(),
+            "critical-oncall",
+            &["critical-hook".to_string()],
+            &BTreeMap::new(),
+        )
+        .await
+        .unwrap();
+    store
+        .create_route(
+            tenant.clone(),
+            &[Matcher {
+                label: "severity".into(),
+                op: MatchOp::Eq,
+                value: "critical".into(),
+            }],
+            "critical-oncall",
+            false,
+            0,
+            None,
+            Some(0),
+            Some(0),
+            None,
+        )
+        .await
+        .unwrap();
+
+    let mut event = ev_svc(tenant, "api");
+    event.severity = Severity::Warning;
+    infra.bus.publish(&event).await.unwrap();
+    let entries = infra.bus.consume("unmatched-route", 1, 500).await.unwrap();
+    assert_eq!(entries.len(), 1);
+
+    assert!(process_event(&ctx, &entries[0]).await);
+    assert_eq!(hits.load(Ordering::Relaxed), 0);
+    assert!(sink.calls.lock().unwrap().is_empty());
+    assert!(infra
+        .groups
+        .claim_due(i64::MAX / 2, 32)
+        .await
+        .unwrap()
+        .is_empty());
 }
 
 /// A grouped delivery (routed event, buffered then flushed) emits a `delivery` alert-log
@@ -223,7 +180,7 @@ async fn grouped_delivery_uses_clean_receiver_name() {
     };
 
     let tenant = TenantId::from_trusted(Uuid::new_v4().to_string());
-    // A receiver + a catch-all route make this the routed (grouping) path, not the firehose.
+    // A receiver + a catch-all route make this the routed grouping path.
     let receiver_name = "oncall";
     store
         .create_channel(
@@ -318,10 +275,7 @@ async fn silenced_event_emits_a_silenced_record() {
     };
 
     let tenant = TenantId::from_trusted(Uuid::new_v4().to_string());
-    store
-        .create_subscription(ctx.cipher.as_ref(), tenant.clone(), &url)
-        .await
-        .unwrap();
+    common::create_webhook_delivery(&store, ctx.cipher.as_ref(), tenant.clone(), &url).await;
 
     // Active silence covering svc=api.
     let now = OffsetDateTime::now_utc();

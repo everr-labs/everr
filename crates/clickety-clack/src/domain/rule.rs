@@ -48,7 +48,7 @@ pub struct RuleSpec {
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub max_interval_secs: Option<u32>,
     /// Preview mode: the rule evaluates fully and produces events/history, but the
-    /// dispatcher never notifies on its events (no routing, grouping, or firehose).
+    /// dispatcher never routes or groups its events for notification delivery.
     #[serde(default)]
     pub suppressed: bool,
 }

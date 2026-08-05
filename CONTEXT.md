@@ -132,6 +132,9 @@ _Avoid_: Notebook (former name — renamed June 2026; see ADR 0002). Still accep
 A rule that runs a query on a schedule and notifies when it returns rows; an empty result means resolved.
 _Avoid_: monitor
 
+**Alert event stream**:
+An Organization-wide export of every firing and resolved Alert transition to external consumers, independent of notification routes and active alongside them.
+
 **Apply**:
 The idempotent operation (`everr apply`) that reconciles the Dashboards, Alerts, and Runbooks in a directory to match their as-code definitions.
 _Avoid_: deploy, sync, push

@@ -1,7 +1,7 @@
 # How to manage secret encryption and rotate keys
 
 clickety-clack encrypts delivery secrets at rest (Slack, Discord, and webhook
-channel URLs, Telegram bot tokens, subscription webhook URLs). Secrets live only in Postgres: Redis
+channel URLs, plus Telegram bot tokens). Secrets live only in Postgres: Redis
 group metas carry channel names, which the flusher resolves through the store at
 delivery time. It is **fail-closed**: without a valid key, no role starts. This guide
 covers configuring keys, rotating them, and the operational implications. For the
@@ -78,9 +78,8 @@ Rotation is graceful because old keys stay available for decryption:
    under `v2`; existing `v1` ciphertext still decrypts.
 
 2. **Re-encrypt existing secrets** so they move to `v2`. There is no bulk re-key
-   command; trigger a write on each stored secret by updating it through the API
-   (`PUT` the channel; delete and re-create the subscription). Until then, old
-   rows remain readable via `v1`.
+   command; trigger a write on each stored secret by updating its channel through
+   the API (`PUT` the channel). Until then, old rows remain readable via `v1`.
 
 3. **Retire the old key** only after you are confident nothing is still encrypted
    under it. Drop `v1` from `CC_SECRET_KEYS`:
@@ -106,7 +105,7 @@ Rotation is graceful because old keys stay available for decryption:
   failure dead-letters the batch (observable) rather than dropping it silently.
 - **What's *not* encrypted:** email recipient addresses and Telegram chat ids
   are stored structurally (not treated as secrets); Slack, Discord, and webhook
-  channel URLs, Telegram bot tokens, and subscription webhook URLs are encrypted.
+  channel URLs and Telegram bot tokens are encrypted.
   Receivers hold channel names only and carry no secrets at all.
 
 ## Next

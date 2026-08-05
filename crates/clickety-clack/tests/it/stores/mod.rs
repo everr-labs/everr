@@ -11,7 +11,6 @@ mod routing_it;
 mod rule_health_it;
 mod rule_pause_it;
 mod rule_update_it;
-mod secret_at_rest_it;
 mod sharding_it;
 mod silences_it;
 mod slo_alert_store_it;

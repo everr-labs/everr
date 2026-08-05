@@ -1,7 +1,7 @@
 # The security model: secret encryption at rest
 
-This explains how clickety-clack protects the delivery secrets it stores: generic,
-Slack, and Discord webhook URLs, Telegram bot tokens, and subscription webhook URLs, and the
+This explains how clickety-clack protects the delivery secrets it stores:
+generic, Slack, and Discord webhook URLs plus Telegram bot tokens, and the
 design decisions behind it. For the operator steps see
 [manage secret encryption](../how-to/manage-secret-encryption.md).
 
@@ -21,7 +21,6 @@ letters, not in error messages.**
 | Secret | At rest in… | Protection |
 | ------ | ----------- | ---------- |
 | Generic/Slack/Discord URL, Telegram bot token (`channels.config`) | Postgres | AES-256-GCM encrypted |
-| Subscription webhook URL (`subscriptions.webhook_url`) | Postgres | AES-256-GCM encrypted |
 | The delivery target in the audit log (`notifications.target`) | Postgres | one-way `sha256:` digest (not recoverable) |
 | The target in dead-letter records and logs | Redis / logs | redacted digest; transport errors strip the URL |
 
@@ -34,9 +33,9 @@ masked as `"***"` on API responses.
 Encryption is applied where data crosses into storage, not sprinkled through the
 code:
 
-- The **store** encrypts the secret fields of each channel config (and
-  subscription URL) on write and decrypts on read. Application code above the store works with
-  cleartext; the database only ever sees ciphertext.
+- The **store** encrypts the secret fields of each channel config on write and
+  decrypts them on read. Application code above the store works with cleartext;
+  the database only ever sees ciphertext.
 - The **dispatcher** buffers only channel NAMES into the Redis group and
   resolves them through the store at flush time, just before delivery. No
   secret (encrypted or otherwise) is ever written to Redis.
@@ -147,13 +146,12 @@ the boundary. See [Harden the ClickHouse user](../how-to/harden-clickhouse-acces
 Two more boundaries follow the same pattern (validate what the engine can,
 name what the deployment must do):
 
-**Tenant-supplied webhook URLs** (subscriptions, generic webhook channels, and
-Slack channels) are
+**Tenant-supplied webhook URLs** (generic webhook, Slack, and Discord channels) are
 fetched by the dispatcher from inside the deployment network, so they are an
 SSRF surface. The API rejects at create time everything statically
 recognizable as internal: non-HTTP schemes, userinfo, `localhost`, and IP
 literals in private, loopback, link-local, or metadata ranges (see the
-[HTTP API reference](../reference/http-api.md#subscriptions-firehose-webhooks)).
+[HTTP API reference](../reference/http-api.md#channels)).
 Immediately before delivery, the dispatcher repeats structural validation,
 resolves the hostname, rejects the target if any result is internal, and pins
 the approved addresses into a no-proxy HTTP client. Redirects are never followed.
@@ -162,7 +160,7 @@ policy remains a second boundary. `CC_ALLOW_PRIVATE_WEBHOOKS=1` is the dev-only
 escape hatch for private targets, but it does not enable redirects.
 
 **Tenant scoping is defense in depth in the store layer**: every Postgres query
-on a tenant-owned table (rules, instances, subscriptions, receivers, routes,
+on a tenant-owned table (rules, instances, channels, receivers, routes,
 silences, inhibitions, notifications) carries a tenant predicate, even where
 the caller already resolved the row tenant-scoped. A bug that leaks a foreign
 id into a code path therefore reads or writes nothing instead of crossing

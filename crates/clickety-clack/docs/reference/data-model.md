@@ -13,7 +13,6 @@ omitted.
 - [Channel and ChannelConfig](#channel-and-channelconfig)
 - [Receiver](#receiver)
 - [Route](#route)
-- [Subscription](#subscription)
 - [Silence](#silence)
 - [InhibitionRule](#inhibitionrule)
 - [Severity](#severity)
@@ -35,7 +34,7 @@ The definition of an alert.
 | `annotations`   | object<string,string> | `{}`    | Free-form metadata, passed through to events. The keys `summary`, `description`, `link.alert`, and `link.runbook` are also rendered into notifications (see [rule annotations](../how-to/write-alert-rules.md#annotations)). |
 | `resolve_after` | u32                   | `1`     | Consecutive *absent* evaluations needed to resolve. Absorbs flaps. |
 | `max_interval_secs` | u32 \| null       | null    | Opt-in adaptive cadence: cap for the stretched evaluation interval (must be `>= interval_secs`). While set, each quiet evaluation doubles the effective interval from `interval_secs` up to this cap; any active or erroring evaluation snaps it back. Null (the default) keeps the fixed cadence. |
-| `suppressed`    | bool                  | `false` | Preview mode: the rule evaluates fully and produces events and history, but the dispatcher never notifies on its events (no routing, grouping, subscriptions, silences, or inhibitions apply). The OTLP alert log still carries the events. |
+| `suppressed`    | bool                  | `false` | Preview mode: the rule evaluates fully and produces events and history, but the dispatcher never notifies on its events (routing, grouping, silences, and inhibitions do not apply). The OTLP alert log still carries the events. |
 
 Stored as a `Rule`: `{ id, tenant, namespace, name, spec, version, paused }` where
 `name` is unique per `(tenant, namespace)`, `spec` is the object above, `version`
@@ -341,19 +340,6 @@ collapsed with the original send.
 order). The first matching route's receiver is selected; with `continue=true`,
 evaluation proceeds to later routes too. Duplicate receivers are de-duplicated,
 keeping the **first** match's grouping parameters.
-
----
-
-## Subscription
-
-The no-routes firehose destination.
-
-```json
-{ "id": "<uuid>", "tenant": "<uuid>", "webhook_url": "***", "created_at": "<rfc3339>" }
-```
-
-When a tenant has no routes, every event is delivered immediately (one
-notification per event) to all of that tenant's subscriptions.
 
 ---
 

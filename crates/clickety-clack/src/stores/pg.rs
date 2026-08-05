@@ -9,7 +9,6 @@ use crate::domain::rollup::RuleRollup;
 use crate::domain::routing::{Matcher, Route};
 use crate::domain::rule::{Rule, RuleHealth, RuleSpec};
 use crate::domain::silence::Silence;
-use crate::domain::subscription::Subscription;
 use sqlx::postgres::{PgPool, PgPoolOptions, PgRow};
 use sqlx::Row;
 use std::collections::{BTreeMap, HashMap};
@@ -1361,74 +1360,6 @@ impl PgStore {
             out.push(row_to_instance(r, kind)?);
         }
         Ok(out)
-    }
-
-    // ---- subscriptions ----
-
-    pub async fn create_subscription(
-        &self,
-        cipher: &dyn SecretCipher,
-        tenant: TenantId,
-        url: &str,
-    ) -> Result<Subscription, StoreError> {
-        let id = Uuid::new_v4();
-        let enc = crate::crypto::encrypt_str(cipher, url)?;
-        let row = sqlx::query(
-            "INSERT INTO subscriptions (id, tenant, webhook_url) VALUES ($1,$2,$3)
-             RETURNING created_at",
-        )
-        .bind(id)
-        .bind(tenant.as_str())
-        .bind(&enc)
-        .fetch_one(&self.pool)
-        .await?;
-        Ok(Subscription {
-            id,
-            tenant,
-            webhook_url: url.to_string(),
-            created_at: row.get("created_at"),
-        })
-    }
-
-    pub async fn subscriptions_for(
-        &self,
-        cipher: &dyn SecretCipher,
-        tenant: TenantId,
-    ) -> Result<Vec<Subscription>, StoreError> {
-        let rows = sqlx::query(
-            "SELECT id, tenant, webhook_url, created_at FROM subscriptions
-             WHERE tenant=$1 ORDER BY created_at",
-        )
-        .bind(tenant.as_str())
-        .fetch_all(&self.pool)
-        .await?;
-        let mut out = Vec::new();
-        for r in &rows {
-            let enc: String = r.get("webhook_url");
-            let webhook_url = crate::crypto::decrypt_str(cipher, &enc)?;
-            out.push(Subscription {
-                id: r.get("id"),
-                tenant: TenantId::from_trusted(r.get::<String, _>("tenant")),
-                webhook_url,
-                created_at: r.get("created_at"),
-            });
-        }
-        Ok(out)
-    }
-
-    /// Delete a subscription by id. Tenant-scoped: an id belonging to another tenant is
-    /// treated as not found. Returns whether a row was removed.
-    pub async fn delete_subscription(
-        &self,
-        tenant: TenantId,
-        id: Uuid,
-    ) -> Result<bool, StoreError> {
-        let res = sqlx::query("DELETE FROM subscriptions WHERE tenant=$1 AND id=$2")
-            .bind(tenant.as_str())
-            .bind(id)
-            .execute(&self.pool)
-            .await?;
-        Ok(res.rows_affected() > 0)
     }
 
     // ---- notification log ----

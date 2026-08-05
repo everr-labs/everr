@@ -1,7 +1,7 @@
 //! Static SSRF validation for tenant-supplied webhook URLs.
 //!
-//! Tenants hand us URLs (firehose subscriptions, `webhook` receiver channels)
-//! that the dispatcher later fetches from inside the deployment network. This
+//! Tenants hand us URLs through receiver channels that the dispatcher later
+//! fetches from inside the deployment network. This
 //! module rejects, at create time, everything that is *statically* recognizable
 //! as an internal target: non-HTTP schemes, URLs with userinfo, `localhost`,
 //! and IP-literal hosts in private / loopback / link-local / metadata ranges.

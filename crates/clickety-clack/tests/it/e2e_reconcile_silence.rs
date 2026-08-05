@@ -81,11 +81,7 @@ async fn reconcile_resolved_respects_silence() {
 
     let ctx = common::dispatch_ctx(&infra);
     let tenant = TenantId::from_trusted(Uuid::new_v4().to_string());
-    // No routes → firehose path → one webhook per delivered event.
-    store
-        .create_subscription(ctx.cipher.as_ref(), tenant.clone(), &hook)
-        .await
-        .unwrap();
+    common::create_webhook_delivery(&store, ctx.cipher.as_ref(), tenant.clone(), &hook).await;
     let rule = create_test_rule(
         &store,
         tenant.clone(),
@@ -124,7 +120,7 @@ async fn reconcile_resolved_respects_silence() {
         .await
         .unwrap();
 
-    let dispatcher = common::spawn_dispatcher(&ctx, false);
+    let dispatcher = common::spawn_dispatcher(&ctx, true);
 
     let maint_handle = {
         let lease = RedisLease::connect(&infra.redis.url, "cc:maintenance:lease", "m1", 10_000)

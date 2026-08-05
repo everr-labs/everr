@@ -1,6 +1,5 @@
 //! Suppressed (preview-rule) events must never notify: the dispatcher drops them at
-//! ingest, before silence/inhibition processing, before group buffering (routed tenants)
-//! and before the subscription firehose (no-routes tenants).
+//! ingest, before silence/inhibition processing and group buffering.
 
 use crate::common;
 use cc::dispatcher::{process_event, DispatchCtx};
@@ -120,45 +119,4 @@ async fn suppressed_event_is_dropped_before_grouping() {
         "suppressed event must not create a notification group: {due:?}"
     );
     assert_eq!(hits.load(Ordering::Relaxed), 0, "no delivery of any kind");
-}
-
-/// No-routes tenant: a suppressed event skips the subscription firehose entirely: the
-/// webhook is never called and no notification row is even begun.
-#[tokio::test]
-async fn suppressed_event_is_dropped_before_subscription_firehose() {
-    let h = harness().await;
-    let tenant = TenantId::from_trusted(Uuid::new_v4().to_string());
-    let (url, hits, _hook) = common::start_counting_webhook().await;
-
-    h.store
-        .create_subscription(h.ctx.cipher.as_ref(), tenant.clone(), &url)
-        .await
-        .unwrap();
-
-    let ev = suppressed_event(tenant.clone());
-    let entry = entry_for(&h.bus, &ev, "fh-c1").await;
-    let acked = process_event(&h.ctx(), &entry).await;
-
-    assert!(acked, "a suppressed event is dropped, not left in the PEL");
-    assert_eq!(hits.load(Ordering::Relaxed), 0, "firehose must not deliver");
-    let key = cc::dispatcher::dedup_key("webhook", &url, &ev);
-    assert_eq!(
-        h.store.notification_status(&tenant, &key).await.unwrap(),
-        None,
-        "no notification row is begun for a suppressed event"
-    );
-
-    // Sanity check: the same pipeline delivers a NON-suppressed event, so the zero
-    // above is the suppression at work rather than a broken harness.
-    let mut live = suppressed_event(TenantId::from_trusted("ignored".to_string()));
-    live.tenant = ev.tenant.clone();
-    live.suppressed = false;
-    let entry = entry_for(&h.bus, &live, "fh-c2").await;
-    let acked = process_event(&h.ctx(), &entry).await;
-    assert!(acked);
-    assert_eq!(
-        hits.load(Ordering::Relaxed),
-        1,
-        "non-suppressed event on the same path delivers"
-    );
 }

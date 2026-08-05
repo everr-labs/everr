@@ -1,4 +1,4 @@
-# Six CC list endpoints are unbounded, including the one /alerts polls
+# Five CC list endpoints are unbounded, including the one /alerts polls
 
 From the PR #225 review; see [pr-225-review-findings.md](./pr-225-review-findings.md),
 finding 12.
@@ -21,8 +21,8 @@ for the tenant, sorts the whole result in Postgres, and serializes all of it.
   an optional `limit` (default 100, cap 500) and an opaque `cursor` resume token.
 
 Also unpaginated, in rough order of how much they matter:
-`/v1/silences`, `/v1/routes`, `/v1/receivers`, `/v1/channels`, `/v1/inhibitions`,
-`/v1/subscriptions`.
+`/v1/silences`, `/v1/routes`, `/v1/receivers`, `/v1/channels`, and
+`/v1/inhibitions`.
 
 ## Failure scenario
 Nothing in `crates/clickety-clack/src/evaluator/mod.rs` caps how many result rows

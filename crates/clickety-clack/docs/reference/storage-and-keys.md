@@ -14,7 +14,6 @@ runs itself at startup (see [migrations](#migrations)). Connection: `CC_PG_URL`.
 | `rules`         | `id` (uuid PK), `tenant`, `namespace`, `name`, `spec` (jsonb), `version`, `paused`, `next_eval`, `last_eval`, plus health columns (`health_status`, `consecutive_failures`, `degraded_since`, `last_error`, `last_error_at`), rolled-up alert state (`alert_state`, `firing_instance_count`, `last_fired_at`, `last_resolved_at`, `last_seen_at`, `last_row_count`) and `eval_backoff_secs` | Rule definitions. Identity is unique on `(tenant, namespace, name)`; `next_eval` indexes the scheduler scan; the rollup columns feed the alert list without an `instances` scan. |
 | `instances`     | `key` (text PK), `rule`, `tenant`, `status`, `labels` (jsonb), `value`, `active_since`, `last_seen`, `absent_count` | Per-instance state machine. Indexed by `rule` and `(tenant,status)`. |
 | `evaluations`   | `(rule, eval_ts)` PK, `applied_at`, `error`                            | Idempotency ledger: one row per evaluated `(rule, eval_ts)` so redeliveries don't double-evaluate. |
-| `subscriptions` | `id` (uuid PK), `tenant`, `webhook_url`                                | Firehose webhooks. `webhook_url` is **encrypted at rest**. |
 | `notifications` | `dedup_key` (text PK), `tenant`, `channel`, `target`, `status`, `attempts`, `claims`, `last_error`, `created_at`, `updated_at` | Delivery/dedup log, and the send lease. `target` holds a **redacted** `sha256:` digest, never the cleartext secret. `status` ∈ pending/sent/failed; `sent`/`failed` are terminal and dedup every later attempt. A `pending` row is a lease stamped at `updated_at`: once it expires (`NOTIFICATION_LEASE_MS`) another sender reclaims it and bumps `claims`, so a sender that dies mid-send cannot suppress that notification forever. `attempts` counts the delivery retries of one send; `claims` counts the senders that have owned the row. Pruned hourly at `LEDGER_RETENTION` (7 days past last update): the rows are dedup state with no reader outside the claim protocol, and the alert history the UI shows comes from the ClickHouse alert-log export, not from here. |
 | `channels`      | `id` (uuid PK), `tenant`, `name`, `config` (jsonb)                     | Named delivery endpoints. Unique on `(tenant,name)`. `config` secrets are **encrypted at rest**. |
 | `receivers`     | `id` (uuid PK), `tenant`, `name`, `channels` (jsonb array of names), `annotations` (jsonb) | Named sets of channel references. Unique on `(tenant,name)`. Holds channel names only, never secrets. |
@@ -32,7 +31,6 @@ runs itself at startup (see [migrations](#migrations)). Connection: `CC_PG_URL`.
 - `channels.config`: the secret fields inside each channel config (Slack URL,
   Discord URL, webhook URL, Telegram bot token; email recipients and Telegram
   chat ids are structural). Receivers hold channel names only.
-- `subscriptions.webhook_url`.
 - `notifications.target`: stored as a one-way `sha256:` digest, not encryption;
   it is an audit/dedup value, never recoverable to the secret.
 
@@ -84,7 +82,7 @@ the `api`/`all` path (and any role that connects, via `PgStore::migrate()`).
 
 | File            | Adds |
 | --------------- | ---- |
-| `0001_init.sql` | The whole schema: `rules`, `instances`, `evaluations`, `subscriptions`, `notifications`, `receivers`, `routes`, `channels`, `silences`, `inhibitions`, `event_outbox`, `slos`, `slo_status`, `slo_evaluations`, `slo_instances`. |
+| `0001_init.sql` | The whole schema: `rules`, `instances`, `evaluations`, `notifications`, `receivers`, `routes`, `channels`, `silences`, `inhibitions`, `event_outbox`, `slos`, `slo_status`, `slo_evaluations`, `slo_instances`. |
 
 Schema changes go in a new numbered file. `sqlx` checksums what it has applied
 and refuses to start against a database whose recorded migrations no longer match

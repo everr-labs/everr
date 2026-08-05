@@ -210,13 +210,6 @@ export const CcInhibitionSchema = z.object({
   created_at: CcTimestampSchema,
 });
 
-export const CcSubscriptionSchema = z.object({
-  id: z.string(),
-  tenant: z.string(),
-  webhook_url: z.string(),
-  created_at: CcTimestampSchema,
-});
-
 // ---- SLOs ----
 // Mirrors domain/slo.rs serializers. Field names are the OpenSLO-aligned
 // serde renames (targetPercent, timeWindow, isRolling).

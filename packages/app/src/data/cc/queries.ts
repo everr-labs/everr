@@ -22,7 +22,6 @@ import {
   listCcRulesPage,
   listCcSilences,
   listCcSlos,
-  listCcSubscriptions,
 } from "./server";
 
 const CC_POLL_INTERVAL_MS = 15_000;
@@ -190,12 +189,6 @@ export const ccQueries = {
     queryOptions({
       queryKey: ["cc", "silences"] as const,
       queryFn: () => listCcSilences(),
-    }),
-
-  subscriptions: () =>
-    queryOptions({
-      queryKey: ["cc", "subscriptions"] as const,
-      queryFn: () => listCcSubscriptions(),
     }),
 
   // `fingerprint`/`slugs` are server-side WHEREs, so the row cap applies after

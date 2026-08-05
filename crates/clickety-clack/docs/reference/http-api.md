@@ -419,10 +419,22 @@ can back any number of receivers and be rotated with a single `PUT`.
   "config": { "type": "slack", "url": "https://hooks.slack.com/…" } }
 ```
 
-`name` must not be empty (`422`). A `webhook` config's `url` is validated
-against the same SSRF rules as
-[subscription webhook URLs](#subscriptions-firehose-webhooks) (`422` on
-failure). Recipient-style lists must not repeat an entry: a duplicated
+`name` must not be empty (`422`). Generic webhook, Slack, and Discord URLs are
+validated at create time (`422` on failure): the scheme must be `http` or
+`https`, the URL must have a host and no userinfo, and the target must not be
+`localhost` (or any `*.localhost` name) or an IP literal in a blocked range.
+Blocked IPv4: 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 127.0.0.0/8,
+169.254.0.0/16, 0.0.0.0/8, 100.64.0.0/10 (shared/CGNAT), 192.0.0.0/24,
+198.18.0.0/15, 224.0.0.0/4 (multicast), 240.0.0.0/4 (reserved). Blocked IPv6:
+::1, ::, fc00::/7, fe80::/10, ff00::/8 (multicast), plus IPv4-mapped and
+IPv4-compatible forms of the blocked v4 ranges and NAT64 (64:ff9b::/96)
+addresses embedding a blocked v4 address. At delivery time the dispatcher
+repeats validation, resolves domain names, rejects the target if any result is
+internal, pins approved addresses, and refuses redirects. Set
+`CC_ALLOW_PRIVATE_WEBHOOKS=1` (dev only) to allow private targets; see
+[configuration](configuration.md#http-api-authentication).
+
+Recipient-style lists must not repeat an entry: a duplicated
 `email.to` address or `telegram.chat_ids` id is rejected (`422` with `detail`
 naming the duplicates, e.g. `duplicate email recipients: a@x.test`). The same
 address across DIFFERENT channels stays allowed. `config` is a tagged union on
@@ -585,44 +597,6 @@ Matchers may target user labels or the synthetic labels `severity`, `status`,
 
 ---
 
-## Subscriptions (firehose webhooks)
-
-Subscriptions are the no-routing fallback: a tenant with **no routes** delivers
-every event immediately, one notification per event, to every subscription.
-
-| Method & path                  | Description |
-| ------------------------------ | ----------- |
-| `POST /v1/subscriptions`       | Register a webhook URL. Body: `{ "webhook_url": "https://…" }`. |
-| `GET /v1/subscriptions`        | List this tenant's subscriptions with `webhook_url` masked (sorted by creation time). Unpaginated; bounded by tenant scale. |
-| `DELETE /v1/subscriptions/:id` | Delete a subscription by UUID. Unknown id or another tenant's id yields `404`. |
-
-Webhook URLs are validated at create time (`422` on failure): the scheme must
-be `http` or `https`, the URL must have a host and no userinfo, and the target
-must not be `localhost` (or any `*.localhost` name) or an IP literal in a
-blocked range. Blocked IPv4: 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16,
-127.0.0.0/8, 169.254.0.0/16, 0.0.0.0/8, 100.64.0.0/10 (shared/CGNAT),
-192.0.0.0/24, 198.18.0.0/15, 224.0.0.0/4 (multicast), 240.0.0.0/4 (reserved).
-Blocked IPv6: ::1, ::, fc00::/7, fe80::/10, ff00::/8 (multicast), plus
-IPv4-mapped and IPv4-compatible forms of the blocked v4 ranges and NAT64
-(64:ff9b::/96) addresses embedding a blocked v4 address.
-The same rules apply to generic webhook and Slack
-channels. At delivery time the dispatcher repeats validation, resolves domain
-names, rejects the target if any result is internal, pins approved addresses,
-and refuses redirects. Set
-`CC_ALLOW_PRIVATE_WEBHOOKS=1` (dev only) to allow private targets; see
-[configuration](configuration.md#http-api-authentication).
-
-Create response (list elements have the same shape):
-
-```json
-{
-  "id": "<uuid>", "tenant": "<tenant>",
-  "webhook_url": "***", "created_at": "2026-06-14T12:00:00Z"
-}
-```
-
----
-
 ## Silences
 
 Suppress matching events (firing *and* resolved) during a time window.
@@ -683,14 +657,10 @@ exact rule, including the self-inhibition guard.
 
 ## Consuming alert events
 
-Alert events are consumable two ways:
+Alert events are available through OTLP log export:
 
 - **OTLP log export**: the `events` role consumes the Redis event stream (its
   own `cc:logexport` consumer group) and exports every event, including events
   from `suppressed` (preview) rules, as OTLP logs. Query them like any other
   logs.
-- **Firehose webhooks**: for a tenant with no routes,
-  [subscriptions](#subscriptions-firehose-webhooks) push every notifiable
-  event to a webhook as it happens.
-
 For point-in-time state, poll `GET /v1/alerts`.

@@ -70,11 +70,7 @@ async fn silence_and_inhibition_suppress_delivery() {
 
     let ctx = common::dispatch_ctx(&infra);
     let tenant = TenantId::from_trusted(Uuid::new_v4().to_string());
-    // No routes uses the subscription firehose.
-    store
-        .create_subscription(ctx.cipher.as_ref(), tenant.clone(), &hook)
-        .await
-        .unwrap();
+    common::create_webhook_delivery(&store, ctx.cipher.as_ref(), tenant.clone(), &hook).await;
 
     // silence: drop events with svc=api
     let now = OffsetDateTime::now_utc();
@@ -148,7 +144,7 @@ async fn silence_and_inhibition_suppress_delivery() {
         .await
         .unwrap();
 
-    let dispatcher = common::spawn_dispatcher(&ctx, false);
+    let dispatcher = common::spawn_dispatcher(&ctx, true);
 
     // 1. Silenced (svc=api) → dropped.
     infra

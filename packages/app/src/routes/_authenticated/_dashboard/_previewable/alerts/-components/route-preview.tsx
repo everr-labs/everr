@@ -51,10 +51,8 @@ export function RoutePreview({
   labels,
   onLabelsChange,
   matchedRoutes,
-  routeCount,
   receiversByName,
   channelsByName,
-  subscriberCount,
   prefill,
   valueNames,
 }: {
@@ -63,11 +61,8 @@ export function RoutePreview({
   onLabelsChange: (labels: Record<string, string>) => void;
   /** ccSelectRoutes(...) result for `labels`; ignored while inactive. */
   matchedRoutes: CcRoute[];
-  /** Total configured routes: no match only means firehose when this is 0. */
-  routeCount: number;
   receiversByName: Map<string, CcReceiver>;
   channelsByName: Map<string, CcChannel>;
-  subscriberCount: number;
   /** A firing instance's dispatch-time (synthetic) label set, when one exists. */
   prefill: Record<string, string> | null;
   /** Human names keyed by rule and SLO ids included in the label set. */
@@ -103,16 +98,11 @@ export function RoutePreview({
               <TriangleAlert aria-hidden className="mt-0.5 size-3.5 shrink-0" />
               <div>
                 <div className="font-medium">
-                  {routeCount === 0
-                    ? "This alert uses fallback delivery"
-                    : "This alert would not be delivered"}
+                  This alert would not be delivered
                 </div>
                 <div className="mt-0.5 opacity-80">
-                  {routeCount === 0
-                    ? subscriberCount === 0
-                      ? "No fallback webhooks are configured."
-                      : `${subscriberCount} fallback ${subscriberCount === 1 ? "webhook receives" : "webhooks receive"} it.`
-                    : "No route matches these labels. Add a catch-all route to cover it."}
+                  No route matches these labels. Add a catch-all route to cover
+                  it.
                 </div>
               </div>
             </div>

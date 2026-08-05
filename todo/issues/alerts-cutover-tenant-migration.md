@@ -7,8 +7,8 @@ From the PR #225 review; see
 The migrate-vs-reconfigure decision is deferred to this issue as a follow-up.
 The cleanup both options need already landed on the branch:
 
-- The delivery page's routes empty state is truthful with zero firehose
-  subscribers ("delivered to no one" instead of implying delivery happens).
+- The delivery page's routes empty state is truthful when no route exists
+  ("delivered to no one" instead of implying delivery happens).
 - `docs/alert-notifications.md` no longer documents the deleted system; it is
   a pointer to the CC-backed docs and to this issue.
 - The user guide (`set-up-notifications.mdx`) was corrected in the same pass
@@ -74,11 +74,8 @@ the branch.
    and two active rows in `alert_silences`.
 2. The cutover deploys. The tables are gone; no CC channel or receiver exists for
    that org, and no route points anywhere.
-3. `/alerts/delivery` renders its empty state:
-   "No routes yet: every alert is delivered to all firehose subscribers"
-   (`packages/app/src/routes/_authenticated/_dashboard/alerts/delivery.tsx:322`).
-   There are also zero firehose subscribers, so that sentence is describing
-   delivery to nobody.
+3. `/alerts/delivery` renders its empty state and warns that no alert has a
+   delivery path until a route is configured.
 4. Every alert fires into `app.logs` and notifies no one.
 5. The two silences are gone, so whatever was deliberately muted starts paging
    again at the same moment.

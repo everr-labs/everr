@@ -9,7 +9,6 @@ pub mod routes;
 pub mod rules;
 pub mod silences;
 pub mod slos;
-pub mod subscriptions;
 pub mod test_notification;
 pub mod trace;
 pub mod webhook_url;
@@ -124,14 +123,6 @@ pub fn build_supervised_router(
         .route("/v1/slos/:id/resume", post(slos::resume))
         .route("/v1/slos/:id/status", get(slos::status))
         .route("/v1/alerts", get(alerts::list))
-        .route(
-            "/v1/subscriptions",
-            post(subscriptions::create).get(subscriptions::list),
-        )
-        .route(
-            "/v1/subscriptions/:id",
-            axum::routing::delete(subscriptions::delete),
-        )
         .route("/v1/channels", post(channels::create).get(channels::list))
         .route("/v1/channel-tests", post(channels::test))
         .route(

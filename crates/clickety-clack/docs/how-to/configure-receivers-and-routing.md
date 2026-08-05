@@ -3,7 +3,7 @@
 Delivery has three layers: **channels** (named endpoint configs: Slack, email,
 webhook, Telegram), **receivers** (named sets of channel references),
 and **routes** (which alerts go to which receivers, and how they are grouped).
-This guide covers all three, plus the no-routes subscription firehose.
+This guide covers all three.
 
 For exact field shapes see [data model](../reference/data-model.md) and
 [API reference](../reference/http-api.md).
@@ -233,22 +233,7 @@ validation as create; omitted optional fields reset to their defaults. Grouping
 changes (including `repeat_interval_secs`) take effect for a group the next
 time an event is buffered into it.
 
-## 5. No routes? Use subscriptions (firehose)
-
-If a tenant has **no routes at all**, the dispatcher falls back to a firehose:
-every event is delivered **immediately, one per notification**, to every
-registered subscription. This is the zero-config path.
-
-```bash
-curl -s -X POST localhost:8080/v1/subscriptions -H "X-CC-Tenant: $TENANT" \
-  -H 'Content-Type: application/json' \
-  -d '{ "webhook_url": "https://example/firehose" }'
-```
-
-The moment you add your first route, the tenant switches to the routing tree and
-subscriptions are no longer used for that tenant.
-
-## 6. Verify delivery
+## 5. Verify delivery
 
 - Every delivery attempt is logged in the `notifications` table (status
   pending/sent/failed, attempt count, last error: with the secret target stored

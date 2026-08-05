@@ -303,6 +303,51 @@ fn matcher(label: &str, value: &str) -> Matcher {
     }
 }
 
+/// Configure one tenant with a webhook channel, receiver, and catch-all route.
+/// Groups are immediately due and split by `svc` so tests can observe each
+/// independent alert transition without waiting for the production defaults.
+pub async fn create_webhook_delivery(
+    store: &PgStore,
+    cipher: &dyn SecretCipher,
+    tenant: TenantId,
+    webhook_url: &str,
+) {
+    store
+        .create_channel(
+            cipher,
+            tenant.clone(),
+            "ops-hook",
+            &ChannelConfig::Webhook {
+                url: webhook_url.to_string(),
+            },
+        )
+        .await
+        .unwrap();
+    store
+        .create_receiver(
+            tenant.clone(),
+            "ops",
+            &["ops-hook".to_string()],
+            &std::collections::BTreeMap::new(),
+        )
+        .await
+        .unwrap();
+    store
+        .create_route(
+            tenant,
+            &[],
+            "ops",
+            false,
+            0,
+            Some(&["svc".to_string()]),
+            Some(0),
+            Some(0),
+            None,
+        )
+        .await
+        .unwrap();
+}
+
 /// Seed a tenant with a webhook channel + a receiver referencing it, an all-matching
 /// route (group_by=["svc"], group_wait=0 so groups are immediately due), a non-matching
 /// active silence, and an inhibition rule. Returns the tenant id.

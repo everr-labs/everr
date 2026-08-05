@@ -162,11 +162,9 @@ defaults to `["rule", "severity"]`, so alerts from this rule at the same severit
 travel as one batch, held briefly before the first send (10 seconds). See
 [routing and grouping](../how-to/configure-receivers-and-routing.md) to tune this.
 
-> **Routes vs. subscriptions.** A tenant with at least one route uses the routing
-> tree above. A tenant with *no* routes falls back to a "firehose": events go
-> immediately, one per notification, to every webhook registered via
-> `POST /v1/subscriptions`. Subscriptions are the zero-config path; routes are the
-> real one.
+> **Routes are required for delivery.** Events that do not match a route are
+> recorded but not delivered. Add a catch-all route with no matchers when every
+> alert should reach a receiver.
 
 ## Step 6: Silence it while you work
 

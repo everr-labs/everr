@@ -66,14 +66,6 @@ CREATE TABLE evaluations (
 -- (`WHERE eval_ts < cutoff`) needs its own index to avoid scanning the whole ledger.
 CREATE INDEX evaluations_eval_ts_idx ON evaluations (eval_ts);
 
-CREATE TABLE subscriptions (
-    id          UUID PRIMARY KEY,
-    tenant      TEXT NOT NULL,
-    webhook_url TEXT NOT NULL,
-    created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-CREATE INDEX subscriptions_tenant_idx ON subscriptions (tenant);
-
 CREATE TABLE notifications (
     dedup_key   TEXT PRIMARY KEY,
     tenant      TEXT NOT NULL,

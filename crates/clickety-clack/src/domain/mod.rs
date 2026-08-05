@@ -11,7 +11,6 @@ pub mod rule;
 pub mod silence;
 pub mod sink;
 pub mod slo;
-pub mod subscription;
 
 pub use channel::{Channel, ChannelConfig};
 pub use event::{Event, EventKind, EventStatus};
@@ -25,4 +24,3 @@ pub use rule::{Rule, RuleSpec, Severity};
 pub use silence::Silence;
 pub use sink::{AlertLogSink, DeliveryFacts, NullSink, SloSample, SloSampleSink};
 pub use slo::{BurnRateTier, CalendarWindow, SliSpec, Slo, SloSpec, TimeWindow};
-pub use subscription::Subscription;

@@ -177,8 +177,8 @@ describe("ccSelectRoutes", () => {
 });
 
 describe("ccUnmatchedOutcome", () => {
-  it("firehoses only while the org has zero routes", () => {
-    expect(ccUnmatchedOutcome([])).toBe("firehose");
+  it("drops unmatched alerts when there are no routes", () => {
+    expect(ccUnmatchedOutcome([])).toBe("dropped");
   });
 
   it("drops unmatched alerts once any route exists", () => {

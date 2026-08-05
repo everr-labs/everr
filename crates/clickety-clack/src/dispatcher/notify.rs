@@ -25,7 +25,7 @@ pub struct Notification {
 }
 
 impl Notification {
-    /// Wrap a single event as a one-member notification (firehose / immediate path).
+    /// Wrap a single event as a one-member notification.
     pub fn single(ev: &Event) -> Self {
         Self {
             group_key: ev.instance_key.0.clone(),

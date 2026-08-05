@@ -231,10 +231,6 @@ export const listCcSilences = createAuthenticatedServerFn({
   method: "GET",
 }).handler(({ context: { session } }) => cc.listSilences(orgId(session)));
 
-export const listCcSubscriptions = createAuthenticatedServerFn({
-  method: "GET",
-}).handler(({ context: { session } }) => cc.listSubscriptions(orgId(session)));
-
 // Tenancy rides on the org-scoped clickhouse context (row-level policy), not
 // on a SQL organization filter.
 export const listCcEventHistory = createAuthenticatedServerFn({ method: "GET" })
@@ -608,21 +604,4 @@ export const deleteCcSilence = createAuthenticatedServerFn({ method: "POST" })
   .inputValidator(z.object({ id: z.string() }))
   .handler(({ data: { id }, context: { session } }) =>
     cc.deleteSilence(orgId(session), id),
-  );
-
-// ---- Subscriptions ----
-export const createCcSubscription = createAuthenticatedServerFn({
-  method: "POST",
-})
-  .inputValidator(z.object({ webhookUrl: z.url() }))
-  .handler(({ data: { webhookUrl }, context: { session } }) =>
-    cc.createSubscription(orgId(session), webhookUrl),
-  );
-
-export const deleteCcSubscription = createAuthenticatedServerFn({
-  method: "POST",
-})
-  .inputValidator(z.object({ id: z.string() }))
-  .handler(({ data: { id }, context: { session } }) =>
-    cc.deleteSubscription(orgId(session), id),
   );

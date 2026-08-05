@@ -31,7 +31,6 @@ const mocks = vi.hoisted(() => ({
   listCcRoutes: vi.fn(),
   listCcReceivers: vi.fn(),
   listCcSilences: vi.fn(),
-  listCcSubscriptions: vi.fn(),
   listCcEventHistory: vi.fn(),
   createCcSilence: vi.fn(),
 }));
@@ -45,7 +44,6 @@ vi.mock("@/data/cc/server", () => ({
   listCcRoutes: mocks.listCcRoutes,
   listCcReceivers: mocks.listCcReceivers,
   listCcSilences: mocks.listCcSilences,
-  listCcSubscriptions: mocks.listCcSubscriptions,
   listCcEventHistory: mocks.listCcEventHistory,
   createCcSilence: mocks.createCcSilence,
 }));
@@ -215,7 +213,6 @@ function seedBoard() {
   mocks.listCcRoutes.mockResolvedValue([ccRoute()]);
   mocks.listCcReceivers.mockResolvedValue([ccReceiver()]);
   mocks.listCcSilences.mockResolvedValue([ccSilence()]);
-  mocks.listCcSubscriptions.mockResolvedValue([]);
   mocks.listCcEventHistory.mockResolvedValue([eventRow()]);
 }
 
@@ -379,16 +376,7 @@ describe("/alerts triage board", () => {
     expect(dead).toBeInTheDocument();
   });
 
-  it("marks unrouted instances as not delivered while routes exist, even with subscribers", async () => {
-    mocks.listCcSubscriptions.mockResolvedValue([
-      {
-        id: "sub-1",
-        tenant: "org1",
-        webhook_url: "https://example.test/hook",
-        created_at: new Date().toISOString(),
-      },
-    ]);
-
+  it("marks unrouted instances as not delivered", async () => {
     renderTriagePage();
 
     expect(
@@ -396,22 +384,13 @@ describe("/alerts triage board", () => {
     ).toHaveLength(1);
   });
 
-  it("marks unrouted instances as fallback-webhooks only when the org has no routes", async () => {
+  it("marks unrouted instances as not delivered when no routes exist", async () => {
     mocks.listCcRoutes.mockResolvedValue([]);
-    mocks.listCcSubscriptions.mockResolvedValue([
-      {
-        id: "sub-1",
-        tenant: "org1",
-        webhook_url: "https://example.test/hook",
-        created_at: new Date().toISOString(),
-      },
-    ]);
 
     renderTriagePage();
 
     expect(
-      (await screen.findAllByText("not routed · fallback webhooks only"))
-        .length,
+      (await screen.findAllByText("not routed · not delivered")).length,
     ).toBeGreaterThan(0);
   });
 

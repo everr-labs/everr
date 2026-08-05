@@ -21,7 +21,6 @@ import {
   CcSloTestResultSchema,
   CcSloUpdateSchema,
   CcSloViewSchema,
-  CcSubscriptionSchema,
 } from "./schema";
 import type {
   CcChannelConfig,
@@ -401,24 +400,5 @@ export async function createSilence(orgId: string, input: CcSilenceInput) {
 export async function deleteSilence(orgId: string, id: string) {
   return CcDeletedSchema.parse(
     await ccRequest(orgId, "DELETE", `/v1/silences/${id}`),
-  );
-}
-
-// ---- Subscriptions ----
-export async function listSubscriptions(orgId: string) {
-  return z
-    .array(CcSubscriptionSchema)
-    .parse(await ccRequest(orgId, "GET", "/v1/subscriptions"));
-}
-export async function createSubscription(orgId: string, webhookUrl: string) {
-  return CcSubscriptionSchema.parse(
-    await ccRequest(orgId, "POST", "/v1/subscriptions", {
-      webhook_url: webhookUrl,
-    }),
-  );
-}
-export async function deleteSubscription(orgId: string, id: string) {
-  return CcDeletedSchema.parse(
-    await ccRequest(orgId, "DELETE", `/v1/subscriptions/${id}`),
   );
 }

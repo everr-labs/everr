@@ -22,8 +22,6 @@ import {
   Collapsible,
   CollapsibleContent,
 } from "@everr/ui/components/collapsible";
-import { Input } from "@everr/ui/components/input";
-import { Label } from "@everr/ui/components/label";
 import { toneText } from "@everr/ui/components/tone";
 import { cn } from "@everr/ui/lib/utils";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -55,12 +53,10 @@ import {
 } from "@/data/cc/route-resolution";
 import { ccRouteTimingSummary } from "@/data/cc/route-timing";
 import {
-  createCcSubscription,
   deleteCcChannel,
   deleteCcInhibition,
   deleteCcReceiver,
   deleteCcRoute,
-  deleteCcSubscription,
   updateCcReceiver,
   updateCcRoute,
 } from "@/data/cc/server";
@@ -86,14 +82,10 @@ import {
   CcDisclosureTrigger,
   CcEmptyState,
   CcQueryError,
-  CcStatusLabel,
   CcTableSkeleton,
   Conditions,
   ccErrorMessage,
-  ccFormatTs,
 } from "./-components/shared";
-
-const WebhookGlyph = CHANNEL_ICON.webhook;
 
 // Derived from the channel registry so the empty state never advertises a
 // stale menu of types.
@@ -116,7 +108,6 @@ export const Route = createFileRoute(
       queryClient.prefetchQuery(ccQueries.alerts(deps.preview)),
       queryClient.prefetchQuery(ccQueries.rules()),
       queryClient.prefetchQuery(ccQueries.slos(deps.preview)),
-      queryClient.prefetchQuery(ccQueries.subscriptions()),
     ]),
   component: CcDeliveryPage,
 });
@@ -434,13 +425,13 @@ function PipelineRoute({
       {connectTop && (
         <span
           aria-hidden
-          className="absolute top-0 left-[1.625rem] h-3 w-px -translate-x-1/2 bg-border"
+          className="absolute top-0 left-6.5 h-3 w-px -translate-x-1/2 bg-border"
         />
       )}
       {connectBottom && (
         <span
           aria-hidden
-          className="absolute top-10 bottom-0 left-[1.625rem] w-px -translate-x-1/2 bg-border"
+          className="absolute top-10 bottom-0 left-6.5 w-px -translate-x-1/2 bg-border"
         />
       )}
       <span
@@ -532,7 +523,7 @@ function PipelineRoute({
           type="button"
           variant="outline"
           size="icon-sm"
-          className="pointer-events-none absolute -bottom-2 left-[1.625rem] z-10 -translate-x-1/2 rounded-full bg-background text-muted-foreground opacity-0 group-hover/route:pointer-events-auto group-hover/route:opacity-100 focus-visible:pointer-events-auto focus-visible:opacity-100 focus-visible:ring-1 focus-visible:ring-offset-0"
+          className="pointer-events-none absolute -bottom-2 left-6.5 z-10 -translate-x-1/2 rounded-full bg-background text-muted-foreground opacity-0 group-hover/route:pointer-events-auto group-hover/route:opacity-100 focus-visible:pointer-events-auto focus-visible:opacity-100 focus-visible:ring-1 focus-visible:ring-offset-0"
           aria-label={`Add route between ${position} and ${position + 1}`}
           title="Add route here"
           onClick={onInsertAfter}
@@ -545,20 +536,14 @@ function PipelineRoute({
 }
 
 function FallThroughRow({
-  outcome,
   previewActive,
   fellThrough,
-  subscriberCount,
   connected,
-  onFirehoseClick,
 }: {
-  outcome: "firehose" | "dropped";
   previewActive: boolean;
   /** The preview labels matched no route, so they land on this row. */
   fellThrough: boolean;
-  subscriberCount: number;
   connected: boolean;
-  onFirehoseClick: () => void;
 }) {
   return (
     <li
@@ -574,7 +559,7 @@ function FallThroughRow({
       {connected && (
         <span
           aria-hidden
-          className="absolute top-0 left-[1.625rem] h-2 w-px -translate-x-1/2 bg-border"
+          className="absolute top-0 left-6.5 h-2 w-px -translate-x-1/2 bg-border"
         />
       )}
       <span
@@ -592,44 +577,12 @@ function FallThroughRow({
             fellThrough ? "text-primary" : "text-muted-foreground/60",
           )}
         />
-        {outcome === "firehose" ? (
-          <>
-            <button
-              type="button"
-              onClick={onFirehoseClick}
-              className="font-mono text-foreground underline-offset-2 outline-2 outline-dotted outline-transparent transition-colors duration-150 hover:underline focus-visible:outline-primary"
-            >
-              fallback webhooks
-            </button>
-            <span
-              className={cn(
-                "font-mono",
-                toneText({
-                  tone: subscriberCount === 0 ? "warning" : "muted",
-                }),
-              )}
-            >
-              ·{" "}
-              {subscriberCount === 0
-                ? "none configured"
-                : `${subscriberCount} configured`}
-            </span>
-            {fellThrough && (
-              <span className="font-mono text-[0.6875rem] text-primary">
-                matched
-              </span>
-            )}
-          </>
-        ) : (
-          <>
-            <span className={cn("font-mono", toneText({ tone: "warning" }))}>
-              not delivered
-            </span>
-            <span className="text-muted-foreground">
-              · add a catch-all route (no conditions) to set a default receiver
-            </span>
-          </>
-        )}
+        <span className={cn("font-mono", toneText({ tone: "warning" }))}>
+          not delivered
+        </span>
+        <span className="text-muted-foreground">
+          · add a catch-all route (no conditions) to set a default receiver
+        </span>
       </span>
     </li>
   );
@@ -693,14 +646,12 @@ function DeliveryCoverage({
   routes,
   receivers,
   channelsByName,
-  subscriberCount,
   pending,
   unavailable,
 }: {
   routes: CcRoute[];
   receivers: CcReceiver[];
   channelsByName: Map<string, CcChannel>;
-  subscriberCount: number;
   pending: boolean;
   unavailable: boolean;
 }) {
@@ -750,14 +701,10 @@ function DeliveryCoverage({
     tone = "warning";
     title = "Delivery configuration needs attention";
     detail = `The route to ${brokenRoute.receiver} references a missing receiver or channel.`;
-  } else if (routes.length === 0 && subscriberCount === 0) {
+  } else if (routes.length === 0) {
     tone = "warning";
     title = "No delivery path configured";
-    detail =
-      "Add a route or a fallback webhook before relying on notifications.";
-  } else if (routes.length === 0) {
-    title = "Fallback delivery is active";
-    detail = `Every alert is sent to ${subscriberCount} fallback ${subscriberCount === 1 ? "webhook" : "webhooks"}.`;
+    detail = "Add a route before relying on notifications.";
   } else if (!hasCatchAll) {
     tone = "warning";
     title = "Unmatched alerts are not delivered";
@@ -793,14 +740,12 @@ function DeliveryCoverage({
 function SetupChecklist({
   channelCount,
   receiverCount,
-  subscriberCount,
   onAddChannel,
   onAddReceiver,
   onAddRoute,
 }: {
   channelCount: number;
   receiverCount: number;
-  subscriberCount: number;
   onAddChannel: () => void;
   onAddReceiver: () => void;
   onAddRoute: () => void;
@@ -810,9 +755,8 @@ function SetupChecklist({
       <li className="px-3 py-2.5">
         <div className="text-sm font-medium">Set up delivery</div>
         <p className="max-w-prose text-xs text-muted-foreground">
-          {subscriberCount === 0
-            ? "Alerts are evaluated and recorded in history, but delivered to no one until a route exists."
-            : "Until a route exists, every alert is delivered to the fallback webhooks under Advanced delivery."}
+          Alerts are evaluated and recorded in history, but delivered to no one
+          until a route exists.
         </p>
       </li>
       <SetupStep
@@ -853,8 +797,6 @@ function PipelineSection({
   previewValueNames,
   coveragePending,
   coverageUnavailable,
-  subscriberCount,
-  onFirehoseClick,
   onAddChannel,
   onAddReceiver,
 }: {
@@ -871,8 +813,6 @@ function PipelineSection({
   previewValueNames: Map<string, string>;
   coveragePending: boolean;
   coverageUnavailable: boolean;
-  subscriberCount: number;
-  onFirehoseClick: () => void;
   /** Open the create drawers owned by the sibling cards (setup checklist). */
   onAddChannel: () => void;
   onAddReceiver: () => void;
@@ -976,7 +916,6 @@ function PipelineSection({
           routes={sorted}
           receivers={receivers}
           channelsByName={channelsByName}
-          subscriberCount={subscriberCount}
           pending={coveragePending}
           unavailable={coverageUnavailable}
         />
@@ -1000,10 +939,8 @@ function PipelineSection({
                 labels={previewLabels}
                 onLabelsChange={onPreviewLabelsChange}
                 matchedRoutes={matchedRoutes}
-                routeCount={(data ?? []).length}
                 receiversByName={receiversByName}
                 channelsByName={channelsByName}
-                subscriberCount={subscriberCount}
                 prefill={prefill}
                 valueNames={previewValueNames}
               />
@@ -1042,7 +979,6 @@ function PipelineSection({
               <SetupChecklist
                 channelCount={channelsByName.size}
                 receiverCount={receivers.length}
-                subscriberCount={subscriberCount}
                 onAddChannel={onAddChannel}
                 onAddReceiver={onAddReceiver}
                 onAddRoute={() =>
@@ -1145,12 +1081,9 @@ function PipelineSection({
             )}
             {unmatched !== "unreachable" && (
               <FallThroughRow
-                outcome={unmatched}
                 previewActive={previewActive}
                 fellThrough={fellThrough}
-                subscriberCount={subscriberCount}
                 connected={sorted.length > 0 || insertion !== null}
-                onFirehoseClick={onFirehoseClick}
               />
             )}
           </ul>
@@ -1666,160 +1599,6 @@ function InhibitionsSection() {
   );
 }
 
-function FirehoseSection({ routeCount }: { routeCount: number | null }) {
-  const qc = useQueryClient();
-  const { data, isPending, isError, error } = useQuery(
-    ccQueries.subscriptions(),
-  );
-  const [url, setUrl] = useState("");
-
-  const create = useMutation({
-    mutationFn: () => createCcSubscription({ data: { webhookUrl: url } }),
-    onSuccess: (s) => {
-      qc.invalidateQueries({ queryKey: ccQueries.subscriptions().queryKey });
-      toast.success(`Subscription created (${s.id.slice(0, 8)})`);
-      setUrl("");
-    },
-    onError: (e) => toast.error(ccErrorMessage(e)),
-  });
-
-  const remove = useMutation({
-    mutationFn: (id: string) => deleteCcSubscription({ data: { id } }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ccQueries.subscriptions().queryKey });
-      toast.success("Subscription deleted");
-    },
-  });
-
-  const routeStateKnown = routeCount !== null;
-  const active = routeCount === 0;
-  const subscriberCount = (data ?? []).length;
-
-  return (
-    <Card id="firehose" inset="flush-content" className="scroll-mt-4">
-      <CardHeader>
-        <SectionHeading>Fallback webhooks</SectionHeading>
-        <CardDescription>
-          {active
-            ? "Every alert is delivered to every webhook here until the first route is created."
-            : routeStateKnown
-              ? `Inactive because ${routeCount} delivery ${routeCount === 1 ? "route exists" : "routes exist"}. Unmatched alerts are not sent here.`
-              : "Checking whether fallback delivery is active."}
-        </CardDescription>
-        <CardAction>
-          <CcStatusLabel
-            tone={
-              !routeStateKnown
-                ? "muted"
-                : active
-                  ? subscriberCount > 0
-                    ? "healthy"
-                    : "warning"
-                  : "muted"
-            }
-          >
-            {!routeStateKnown ? "Checking" : active ? "Active" : "Inactive"}
-          </CcStatusLabel>
-        </CardAction>
-      </CardHeader>
-      <CardContent className="space-y-3">
-        {routeStateKnown && !active && (
-          <div className="mx-3 flex items-start gap-2 rounded-md border border-border bg-muted/30 p-3 text-xs text-muted-foreground">
-            <TriangleAlert aria-hidden className="mt-0.5 size-3.5 shrink-0" />
-            <p>
-              These webhooks are stored but receive nothing while routes exist.
-              Delete every route to reactivate fallback delivery.
-            </p>
-          </div>
-        )}
-        <SectionBody
-          isError={isError}
-          error={error}
-          isPending={isPending}
-          skeletonRows={2}
-          errorClassName="px-3"
-          empty={{
-            when: (data ?? []).length === 0,
-            icon: WebhookGlyph,
-            title: "No fallback webhooks",
-            hint: active
-              ? "Add a webhook URL below to receive every alert while no routes exist."
-              : "No fallback webhooks are stored. Fallback delivery remains inactive while routes exist.",
-          }}
-        >
-          <ul className="divide-y divide-border/60">
-            {(data ?? []).map((s) => (
-              <li key={s.id} className="flex items-center gap-3 px-3 py-2.5">
-                <span className="flex size-7 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
-                  <WebhookGlyph className="size-4" />
-                </span>
-                <div className="min-w-0 flex-1">
-                  <div className="truncate text-sm font-medium">
-                    Fallback webhook
-                  </div>
-                  <div className="text-xs text-muted-foreground">
-                    Added {ccFormatTs(s.created_at)}
-                  </div>
-                </div>
-                <ConfirmDeleteAction
-                  label="Delete fallback webhook"
-                  title="Delete this fallback webhook?"
-                  description="It will stop receiving alerts whenever fallback delivery is active. This cannot be undone."
-                  confirmLabel="Delete webhook"
-                  pending={remove.isPending}
-                  details={
-                    <DeleteOperations>
-                      <li className="pl-1">
-                        Delete this fallback webhook. Other fallback webhooks
-                        remain unchanged.
-                      </li>
-                    </DeleteOperations>
-                  }
-                  onConfirm={() => remove.mutateAsync(s.id)}
-                />
-              </li>
-            ))}
-          </ul>
-        </SectionBody>
-        <form
-          className="flex items-end gap-2 px-3"
-          onSubmit={(e) => {
-            e.preventDefault();
-            if (url && !create.isPending) create.mutate();
-          }}
-        >
-          <div className="flex-1 space-y-1.5">
-            <Label htmlFor="firehose-url">Webhook URL</Label>
-            <Input
-              id="firehose-url"
-              type="url"
-              className="font-mono"
-              value={url}
-              disabled={!active}
-              onChange={(e) => setUrl(e.target.value)}
-              placeholder={
-                !routeStateKnown
-                  ? "Checking route status"
-                  : active
-                    ? "https://example.com/hook"
-                    : "Inactive while routes exist"
-              }
-            />
-          </div>
-          <Button
-            type="submit"
-            className="h-10 sm:h-8"
-            disabled={!routeStateKnown || !active || !url || create.isPending}
-          >
-            <Plus data-icon="inline-start" />
-            Add
-          </Button>
-        </form>
-      </CardContent>
-    </Card>
-  );
-}
-
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 function CcDeliveryPage() {
@@ -1831,7 +1610,6 @@ function CcDeliveryPage() {
   const alerts = useQuery(ccQueries.alerts(preview));
   const rules = useQuery(ccQueries.rules());
   const slos = useQuery(ccQueries.slos(preview));
-  const subscriptions = useQuery(ccQueries.subscriptions());
 
   // The preview's label set; {} = inactive.
   const [previewLabels, setPreviewLabels] = useState<Record<string, string>>(
@@ -1845,10 +1623,8 @@ function CcDeliveryPage() {
   const [channelEditing, setChannelEditing] = useState<
     CcChannel | "new" | null
   >(null);
-  // Deep links (#firehose, #inhibitions) land inside the collapsed Advanced
-  // section, so those hashes open it from the start.
-  const [advancedOpen, setAdvancedOpen] = useState(() =>
-    ["firehose", "inhibitions"].includes(location.hash),
+  const [advancedOpen, setAdvancedOpen] = useState(
+    () => location.hash === "inhibitions",
   );
 
   const matchedRoutes = useMemo(
@@ -1889,8 +1665,6 @@ function CcDeliveryPage() {
     }
     return names;
   }, [rules.data, slos.data]);
-  const subscriberCount = (subscriptions.data ?? []).length;
-
   return (
     <div className="space-y-3">
       <PageHeader
@@ -1908,27 +1682,11 @@ function CcDeliveryPage() {
         prefill={prefill}
         previewValueNames={previewValueNames}
         coveragePending={
-          routes.isPending ||
-          receivers.isPending ||
-          channels.isPending ||
-          subscriptions.isPending
+          routes.isPending || receivers.isPending || channels.isPending
         }
         coverageUnavailable={
-          routes.isError ||
-          receivers.isError ||
-          channels.isError ||
-          subscriptions.isError
+          routes.isError || receivers.isError || channels.isError
         }
-        subscriberCount={subscriberCount}
-        onFirehoseClick={() => {
-          setAdvancedOpen(true);
-          // Next frame: the section must exist before it can be scrolled to.
-          requestAnimationFrame(() => {
-            document
-              .getElementById("firehose")
-              ?.scrollIntoView({ behavior: "smooth", block: "start" });
-          });
-        }}
         onAddChannel={() => setChannelEditing("new")}
         onAddReceiver={() => setReceiverEditing("new")}
       />
@@ -1956,14 +1714,11 @@ function CcDeliveryPage() {
       <Collapsible open={advancedOpen} onOpenChange={setAdvancedOpen}>
         <CcDisclosureTrigger open={advancedOpen} className="bg-card">
           <span className="text-xs font-medium">Advanced delivery</span>
-          <span className="text-xs text-muted-foreground">
-            inhibitions · fallback webhooks
-          </span>
+          <span className="text-xs text-muted-foreground">inhibitions</span>
         </CcDisclosureTrigger>
         <CollapsibleContent>
           <div className="space-y-3 pt-3">
             <InhibitionsSection />
-            <FirehoseSection routeCount={routes.data?.length ?? null} />
           </div>
         </CollapsibleContent>
       </Collapsible>
