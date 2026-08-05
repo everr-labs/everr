@@ -48,8 +48,8 @@ import { ccRuleIdentity } from "@/data/alerts/rule-identity";
 import { ccQueries } from "@/data/cc/queries";
 import {
   ccDispatchLabels,
+  ccIsCatchAll,
   ccSelectRoutes,
-  ccUnmatchedOutcome,
 } from "@/data/cc/route-resolution";
 import { ccRouteTimingSummary } from "@/data/cc/route-timing";
 import {
@@ -87,8 +87,6 @@ import {
   ccErrorMessage,
 } from "./-components/shared";
 
-// Derived from the channel registry so the empty state never advertises a
-// stale menu of types.
 const CHANNEL_KIND_LIST = new Intl.ListFormat("en", {
   type: "disjunction",
 }).format(Object.values(CHANNEL_LABEL));
@@ -588,11 +586,7 @@ function FallThroughRow({
   );
 }
 
-/**
- * The one-time path from nothing to a working pipeline. Rendered in place of
- * the route list while no route exists; the dependency order (channel, then
- * receiver, then route) is the information the numbers carry.
- */
+/** First-run channel, receiver, and route sequence. */
 function SetupStep({
   index,
   done,
@@ -802,18 +796,13 @@ function PipelineSection({
 }: {
   receivers: CcReceiver[];
   channelsByName: Map<string, CcChannel>;
-  /** Preview label set; empty object = preview inactive. */
   previewLabels: Record<string, string>;
   onPreviewLabelsChange: (labels: Record<string, string>) => void;
-  /** ccSelectRoutes(...) result for the preview labels. */
   matchedRoutes: CcRoute[];
-  /** A firing instance's dispatch-time label set, for preview prefill. */
   prefill: Record<string, string> | null;
-  /** Human names for rule and SLO ids included in test labels. */
   previewValueNames: Map<string, string>;
   coveragePending: boolean;
   coverageUnavailable: boolean;
-  /** Open the create drawers owned by the sibling cards (setup checklist). */
   onAddChannel: () => void;
   onAddReceiver: () => void;
 }) {
@@ -863,7 +852,7 @@ function PipelineSection({
   const sorted = [...(data ?? [])].sort((a, b) => a.priority - b.priority);
   const insertion = editing?.kind === "insert" ? editing : null;
   const fellThrough = previewActive && matchedRouteIds.size === 0;
-  const unmatched = ccUnmatchedOutcome(sorted);
+  const hasCatchAll = sorted.some((route) => ccIsCatchAll(route.matchers));
   const duplicatePriority = sorted.some(
     (route, index) =>
       index > 0 && route.priority === sorted[index - 1]?.priority,
@@ -1008,9 +997,7 @@ function PipelineSection({
                       receivers={receivers}
                       routes={sorted}
                       connectTop={index > 0}
-                      connectBottom={
-                        index < sorted.length || unmatched !== "unreachable"
-                      }
+                      connectBottom={index < sorted.length || !hasCatchAll}
                     />
                   )}
                   {editing?.kind === "edit" && editing.route.id === r.id ? (
@@ -1020,9 +1007,7 @@ function PipelineSection({
                       receivers={receivers}
                       routes={sorted}
                       connectTop={index > 0}
-                      connectBottom={
-                        index < sorted.length - 1 || unmatched !== "unreachable"
-                      }
+                      connectBottom={index < sorted.length - 1 || !hasCatchAll}
                     />
                   ) : (
                     <PipelineRoute
@@ -1037,7 +1022,7 @@ function PipelineSection({
                       connectBottom={
                         index < sorted.length - 1 ||
                         insertion?.index === index + 1 ||
-                        unmatched !== "unreachable"
+                        !hasCatchAll
                       }
                       warning={routeOrderWarning(
                         sorted,
@@ -1076,10 +1061,10 @@ function PipelineSection({
                 receivers={receivers}
                 routes={sorted}
                 connectTop={insertion.index > 0}
-                connectBottom={unmatched !== "unreachable"}
+                connectBottom={!hasCatchAll}
               />
             )}
-            {unmatched !== "unreachable" && (
+            {!hasCatchAll && (
               <FallThroughRow
                 previewActive={previewActive}
                 fellThrough={fellThrough}
@@ -1103,9 +1088,7 @@ function ReceiversSection({
   onReviewRoutes,
 }: {
   channels: CcChannel[];
-  /** For per-receiver usage facts; undefined while the routes query loads. */
   routes: CcRoute[] | undefined;
-  /** Lifted so the pipeline's setup checklist can open the create drawer. */
   editing: CcReceiver | "new" | null;
   onEditingChange: (editing: CcReceiver | "new" | null) => void;
   onReviewRoutes: () => void;
@@ -1155,8 +1138,6 @@ function ReceiversSection({
         >
           <ul className="divide-y divide-border/60">
             {(data ?? []).map((r) => {
-              // A receiver no route targets never gets an alert: the one
-              // misconfiguration this list can catch, so say it loudly.
               const targeting = routes?.filter(
                 (rt) => rt.receiver === r.name,
               ).length;
@@ -1298,9 +1279,7 @@ function ChannelsSection({
   onEditingChange,
   onEditReceiver,
 }: {
-  /** For per-channel usage facts; undefined while the receivers query loads. */
   receivers: CcReceiver[] | undefined;
-  /** Lifted so the pipeline's setup checklist can open the create drawer. */
   editing: CcChannel | "new" | null;
   onEditingChange: (editing: CcChannel | "new" | null) => void;
   onEditReceiver: (receiver: CcReceiver) => void;
@@ -1378,8 +1357,6 @@ function ChannelsSection({
           <ul className="divide-y divide-border/60">
             {(data ?? []).map((c) => {
               const Icon = CHANNEL_ICON[c.config.type];
-              // "***" is the engine's redaction for secret targets; showing it
-              // told the reader nothing, so the subline carries usage instead.
               const target = channelTarget(c.config);
               const referencingReceivers = (receivers ?? []).filter((r) =>
                 r.channels.includes(c.name),
@@ -1611,12 +1588,9 @@ function CcDeliveryPage() {
   const rules = useQuery(ccQueries.rules());
   const slos = useQuery(ccQueries.slos(preview));
 
-  // The preview's label set; {} = inactive.
   const [previewLabels, setPreviewLabels] = useState<Record<string, string>>(
     {},
   );
-  // Create/edit drawer state for receivers and channels lives here so the
-  // pipeline's setup checklist can open the create drawers directly.
   const [receiverEditing, setReceiverEditing] = useState<
     CcReceiver | "new" | null
   >(null);

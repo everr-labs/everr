@@ -303,9 +303,7 @@ fn matcher(label: &str, value: &str) -> Matcher {
     }
 }
 
-/// Configure one tenant with a webhook channel, receiver, and catch-all route.
-/// Groups are immediately due and split by `svc` so tests can observe each
-/// independent alert transition without waiting for the production defaults.
+/// Configure immediate webhook delivery through a catch-all route grouped by `svc`.
 pub async fn create_webhook_delivery(
     store: &PgStore,
     cipher: &dyn SecretCipher,

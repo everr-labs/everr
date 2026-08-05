@@ -1,11 +1,6 @@
 use crate::domain::channel::ChannelConfig;
 
-/// Canonical serialization of a channel config's delivery target: a URL
-/// (webhook/Slack/Discord), comma-joined recipients (email), or the
-/// `{bot_token, chat_ids}` JSON (Telegram).
-///
-/// Hashing input only. [`redact_target`] keys on it; notifiers receive the typed
-/// `ChannelConfig` and never see this string.
+/// Stable serialization used to hash a channel's secret delivery target.
 pub fn canonical_target(config: &ChannelConfig) -> String {
     match config {
         ChannelConfig::Webhook { url } => url.clone(),
@@ -19,9 +14,7 @@ pub fn canonical_target(config: &ChannelConfig) -> String {
     }
 }
 
-/// A non-reversible stand-in for a secret delivery target, safe to persist in the
-/// notification audit log and emit in logs. High-entropy targets (URLs, routing keys)
-/// cannot be recovered from this digest.
+/// A non-reversible delivery target safe for audit logs and telemetry.
 pub fn redact_target(target: &str) -> String {
     use sha2::{Digest, Sha256};
     format!("sha256:{}", hex::encode(Sha256::digest(target.as_bytes())))

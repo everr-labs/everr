@@ -24,11 +24,19 @@ fn ev(tenant: TenantId) -> Event {
     e
 }
 
-/// Capturing `AlertLogSink` that records every `(event, facts)` pair so a test can assert
-/// the dispatcher emitted the expected delivery/silenced alert-log records.
 #[derive(Clone, Default)]
 struct CapturingSink {
     calls: Arc<Mutex<Vec<(Event, DeliveryFacts)>>>,
+}
+
+fn capturing_ctx(infra: &common::DispatchInfra) -> (CapturingSink, DispatchCtx) {
+    let sink = CapturingSink::default();
+    let ctx = DispatchCtx {
+        cache: Arc::new(FilterCache::with_ttl(infra.store.clone(), Duration::ZERO)),
+        sink: Arc::new(sink.clone()),
+        ..common::dispatch_ctx(infra)
+    };
+    (sink, ctx)
 }
 
 #[async_trait::async_trait]
@@ -46,30 +54,25 @@ fn ev_svc(tenant: TenantId, svc: &str) -> Event {
 }
 
 #[tokio::test]
-async fn event_without_routes_is_acked_without_delivery_or_grouping() {
+async fn unrouted_events_are_acked_without_delivery_or_grouping() {
     let infra = common::dispatch_infra().await;
     let store = infra.store.clone();
     let (url, hits, _hook) = common::start_counting_webhook().await;
-    let sink = CapturingSink::default();
-    let ctx = DispatchCtx {
-        cache: Arc::new(FilterCache::with_ttl(store.clone(), Duration::ZERO)),
-        sink: Arc::new(sink.clone()),
-        ..common::dispatch_ctx(&infra)
-    };
-    let tenant = TenantId::from_trusted(Uuid::new_v4().to_string());
+    let (sink, ctx) = capturing_ctx(&infra);
+    let no_routes_tenant = TenantId::from_trusted(Uuid::new_v4().to_string());
 
     store
         .create_channel(
             ctx.cipher.as_ref(),
-            tenant.clone(),
+            no_routes_tenant.clone(),
             "unused-hook",
-            &ChannelConfig::Webhook { url },
+            &ChannelConfig::Webhook { url: url.clone() },
         )
         .await
         .unwrap();
     store
         .create_receiver(
-            tenant.clone(),
+            no_routes_tenant.clone(),
             "unused-receiver",
             &["unused-hook".to_string()],
             &BTreeMap::new(),
@@ -77,39 +80,12 @@ async fn event_without_routes_is_acked_without_delivery_or_grouping() {
         .await
         .unwrap();
 
-    let event = ev_svc(tenant, "api");
-    infra.bus.publish(&event).await.unwrap();
-    let entries = infra.bus.consume("no-routes", 1, 500).await.unwrap();
-    assert_eq!(entries.len(), 1);
-
-    assert!(process_event(&ctx, &entries[0]).await);
-    assert_eq!(hits.load(Ordering::Relaxed), 0);
-    assert!(sink.calls.lock().unwrap().is_empty());
-    assert!(infra
-        .groups
-        .claim_due(i64::MAX / 2, 32)
-        .await
-        .unwrap()
-        .is_empty());
-}
-
-#[tokio::test]
-async fn event_matching_no_route_is_acked_without_delivery_or_grouping() {
-    let infra = common::dispatch_infra().await;
-    let store = infra.store.clone();
-    let (url, hits, _hook) = common::start_counting_webhook().await;
-    let sink = CapturingSink::default();
-    let ctx = DispatchCtx {
-        cache: Arc::new(FilterCache::with_ttl(store.clone(), Duration::ZERO)),
-        sink: Arc::new(sink.clone()),
-        ..common::dispatch_ctx(&infra)
-    };
-    let tenant = TenantId::from_trusted(Uuid::new_v4().to_string());
+    let unmatched_tenant = TenantId::from_trusted(Uuid::new_v4().to_string());
 
     store
         .create_channel(
             ctx.cipher.as_ref(),
-            tenant.clone(),
+            unmatched_tenant.clone(),
             "critical-hook",
             &ChannelConfig::Webhook { url },
         )
@@ -117,7 +93,7 @@ async fn event_matching_no_route_is_acked_without_delivery_or_grouping() {
         .unwrap();
     store
         .create_receiver(
-            tenant.clone(),
+            unmatched_tenant.clone(),
             "critical-oncall",
             &["critical-hook".to_string()],
             &BTreeMap::new(),
@@ -126,7 +102,7 @@ async fn event_matching_no_route_is_acked_without_delivery_or_grouping() {
         .unwrap();
     store
         .create_route(
-            tenant.clone(),
+            unmatched_tenant.clone(),
             &[Matcher {
                 label: "severity".into(),
                 op: MatchOp::Eq,
@@ -143,13 +119,16 @@ async fn event_matching_no_route_is_acked_without_delivery_or_grouping() {
         .await
         .unwrap();
 
-    let mut event = ev_svc(tenant, "api");
-    event.severity = Severity::Warning;
-    infra.bus.publish(&event).await.unwrap();
-    let entries = infra.bus.consume("unmatched-route", 1, 500).await.unwrap();
-    assert_eq!(entries.len(), 1);
+    for (event, consumer) in [
+        (ev_svc(no_routes_tenant, "api"), "no-routes"),
+        (ev_svc(unmatched_tenant, "api"), "unmatched-route"),
+    ] {
+        infra.bus.publish(&event).await.unwrap();
+        let entries = infra.bus.consume(consumer, 1, 500).await.unwrap();
+        assert_eq!(entries.len(), 1);
+        assert!(process_event(&ctx, &entries[0]).await, "{consumer}");
+    }
 
-    assert!(process_event(&ctx, &entries[0]).await);
     assert_eq!(hits.load(Ordering::Relaxed), 0);
     assert!(sink.calls.lock().unwrap().is_empty());
     assert!(infra
@@ -160,10 +139,7 @@ async fn event_matching_no_route_is_acked_without_delivery_or_grouping() {
         .is_empty());
 }
 
-/// A grouped delivery (routed event, buffered then flushed) emits a `delivery` alert-log
-/// record whose target is the CLEAN receiver name — not the `receiver|k=v,...` group key.
-/// Driven deterministically: buffer via `process_event`, then flush the known group id
-/// directly (no flusher loop / sleeps).
+/// Grouped delivery records the receiver name rather than the internal group key.
 #[tokio::test]
 async fn grouped_delivery_uses_clean_receiver_name() {
     let infra = common::dispatch_infra().await;
@@ -171,16 +147,9 @@ async fn grouped_delivery_uses_clean_receiver_name() {
 
     let (url, hits, _hook) = common::start_counting_webhook().await;
 
-    // Zero TTL so the snapshot reflects the receiver/route we just created.
-    let sink = CapturingSink::default();
-    let ctx = DispatchCtx {
-        cache: Arc::new(FilterCache::with_ttl(store.clone(), Duration::ZERO)),
-        sink: Arc::new(sink.clone()),
-        ..common::dispatch_ctx(&infra)
-    };
+    let (sink, ctx) = capturing_ctx(&infra);
 
     let tenant = TenantId::from_trusted(Uuid::new_v4().to_string());
-    // A receiver + a catch-all route make this the routed grouping path.
     let receiver_name = "oncall";
     store
         .create_channel(
@@ -223,7 +192,6 @@ async fn grouped_delivery_uses_clean_receiver_name() {
     let entries = infra.bus.consume("test-consumer", 1, 500).await.unwrap();
     assert_eq!(entries.len(), 1);
 
-    // Buffer the event into its group (arms a flush timer).
     let acked = process_event(&ctx, &entries[0]).await;
     assert!(acked, "routed event should ack after buffering");
     assert_eq!(
@@ -232,8 +200,6 @@ async fn grouped_delivery_uses_clean_receiver_name() {
         "grouped path defers delivery to flush"
     );
 
-    // Recompute the deterministic group id (default group_by: rule, severity) and flush it
-    // directly — same code path the flusher loop drives, without any timing.
     let group_by = grouping::default_group_by();
     let labels = cc::dispatcher::routing::match_labels(&event);
     let values = grouping::group_by_values(&labels, &group_by);
@@ -257,8 +223,7 @@ async fn grouped_delivery_uses_clean_receiver_name() {
     );
 }
 
-/// A silenced event emits exactly one `silenced` alert-log record carrying the matching
-/// silence id and no delivery (the webhook is never hit).
+/// A silenced event records the matching silence without delivery.
 #[tokio::test]
 async fn silenced_event_emits_a_silenced_record() {
     let infra = common::dispatch_infra().await;
@@ -266,18 +231,11 @@ async fn silenced_event_emits_a_silenced_record() {
 
     let (url, hits, _hook) = common::start_counting_webhook().await;
 
-    // Zero TTL so the snapshot reflects the silence we just created.
-    let sink = CapturingSink::default();
-    let ctx = DispatchCtx {
-        cache: Arc::new(FilterCache::with_ttl(store.clone(), Duration::ZERO)),
-        sink: Arc::new(sink.clone()),
-        ..common::dispatch_ctx(&infra)
-    };
+    let (sink, ctx) = capturing_ctx(&infra);
 
     let tenant = TenantId::from_trusted(Uuid::new_v4().to_string());
     common::create_webhook_delivery(&store, ctx.cipher.as_ref(), tenant.clone(), &url).await;
 
-    // Active silence covering svc=api.
     let now = OffsetDateTime::now_utc();
     let silence = store
         .create_silence(
@@ -323,11 +281,7 @@ async fn silenced_event_emits_a_silenced_record() {
     );
 }
 
-/// A late-arriving silence (created AFTER the event is buffered into its group) only takes
-/// effect at FLUSH time. It must still emit exactly one `silenced` alert-log record carrying
-/// the matching silence id, and the event must not be delivered. Driven deterministically:
-/// buffer via `process_event` (no silence yet), create the silence, then flush the known
-/// group id directly.
+/// A silence created after buffering still suppresses delivery at flush time.
 #[tokio::test]
 async fn flush_time_silence_emits_a_silenced_record() {
     let infra = common::dispatch_infra().await;
@@ -335,16 +289,9 @@ async fn flush_time_silence_emits_a_silenced_record() {
 
     let (url, hits, _hook) = common::start_counting_webhook().await;
 
-    // Zero TTL so the flush-time snapshot reflects the silence we create after buffering.
-    let sink = CapturingSink::default();
-    let ctx = DispatchCtx {
-        cache: Arc::new(FilterCache::with_ttl(store.clone(), Duration::ZERO)),
-        sink: Arc::new(sink.clone()),
-        ..common::dispatch_ctx(&infra)
-    };
+    let (sink, ctx) = capturing_ctx(&infra);
 
     let tenant = TenantId::from_trusted(Uuid::new_v4().to_string());
-    // Routed (grouping) path so the event is buffered, not delivered at ingest.
     let receiver_name = "oncall";
     store
         .create_channel(
@@ -387,7 +334,6 @@ async fn flush_time_silence_emits_a_silenced_record() {
     let entries = infra.bus.consume("test-consumer", 1, 500).await.unwrap();
     assert_eq!(entries.len(), 1);
 
-    // Buffer the event into its group (no silence exists yet → not suppressed at ingest).
     let acked = process_event(&ctx, &entries[0]).await;
     assert!(acked, "routed event should ack after buffering");
     assert_eq!(
@@ -400,7 +346,6 @@ async fn flush_time_silence_emits_a_silenced_record() {
         "no record at ingest: the silence does not exist yet"
     );
 
-    // The silence arrives LATE, after the event is already buffered.
     let now = OffsetDateTime::now_utc();
     let silence = store
         .create_silence(
@@ -418,7 +363,6 @@ async fn flush_time_silence_emits_a_silenced_record() {
         .await
         .unwrap();
 
-    // Flush the deterministic group id directly (same path the flusher loop drives).
     let group_by = grouping::default_group_by();
     let labels = cc::dispatcher::routing::match_labels(&event);
     let values = grouping::group_by_values(&labels, &group_by);
@@ -451,10 +395,7 @@ async fn flush_time_silence_emits_a_silenced_record() {
     );
 }
 
-/// An event dropped by an INHIBITION at flush time must emit NO alert-log record (no
-/// event_type exists for inhibition; out of scope). Driven deterministically: buffer the
-/// target event (no inhibition active yet), then create the inhibition rule + firing source,
-/// then flush directly.
+/// Flush-time inhibition suppresses delivery without emitting a delivery record.
 #[tokio::test]
 async fn flush_time_inhibition_emits_no_record() {
     let infra = common::dispatch_infra().await;
@@ -462,12 +403,7 @@ async fn flush_time_inhibition_emits_no_record() {
 
     let (url, hits, _hook) = common::start_counting_webhook().await;
 
-    let sink = CapturingSink::default();
-    let ctx = DispatchCtx {
-        cache: Arc::new(FilterCache::with_ttl(store.clone(), Duration::ZERO)),
-        sink: Arc::new(sink.clone()),
-        ..common::dispatch_ctx(&infra)
-    };
+    let (sink, ctx) = capturing_ctx(&infra);
 
     let tenant = TenantId::from_trusted(Uuid::new_v4().to_string());
     let receiver_name = "oncall";
@@ -507,14 +443,11 @@ async fn flush_time_inhibition_emits_no_record() {
         .await
         .unwrap();
 
-    // Target event: severity=warning, svc=db (Severity::Warning so synthetic "severity"
-    // label matches the inhibition target_matchers).
     let target = ev_svc(tenant.clone(), "db");
     infra.bus.publish(&target).await.unwrap();
     let entries = infra.bus.consume("test-consumer", 1, 500).await.unwrap();
     assert_eq!(entries.len(), 1);
 
-    // Buffer the target (no inhibition active yet → survives ingest, gets grouped).
     let acked = process_event(&ctx, &entries[0]).await;
     assert!(acked, "target event should ack after buffering");
     assert_eq!(
@@ -527,7 +460,6 @@ async fn flush_time_inhibition_emits_no_record() {
         "no record at ingest: the inhibition does not exist yet"
     );
 
-    // Inhibition arrives LATE: a firing critical svc=db source + a rule inhibiting warnings.
     let now = OffsetDateTime::now_utc();
     let spec = RuleSpec {
         sql: "SELECT 1 AS n".into(),
@@ -578,7 +510,6 @@ async fn flush_time_inhibition_emits_no_record() {
         .await
         .unwrap();
 
-    // Flush the deterministic group id directly.
     let group_by = grouping::default_group_by();
     let labels = cc::dispatcher::routing::match_labels(&target);
     let values = grouping::group_by_values(&labels, &group_by);

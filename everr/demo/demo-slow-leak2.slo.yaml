@@ -1,10 +1,10 @@
 kind: SLO
 metadata:
-  name: demo-slow-leak
+  name: demo-slow-leak-2
   project: demo
 spec:
   display:
-    name: "Demo: slow leak"
+    name: "Demo: slow leak 2"
     description: >-
       Synthetic SLO that leaks error budget at a steady 1.2x from a fixed start
       date, so the budget drains linearly and runs out 25 days later. A fixture
@@ -40,7 +40,7 @@ spec:
       SELECT
       toUInt64(dateDiff('second', {window_start:DateTime}, {window_end:DateTime})) AS valid,
       toUInt64(dateDiff('second', {window_start:DateTime}, {window_end:DateTime}))
-      - toUInt64(round(0.012 * greatest(0, dateDiff('second',
+      - toUInt64(round(0.013 * greatest(0, dateDiff('second',
       greatest({window_start:DateTime}, toDateTime('2026-07-18 00:00:00')),
       {window_end:DateTime})))) AS good
   targetPercent: 99

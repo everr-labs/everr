@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
   ccDispatchLabels,
+  ccIsCatchAll,
   ccMatcherMatches,
   ccMatchingSilence,
   ccRouteMatches,
   ccSelectRoutes,
   ccSyntheticLabels,
-  ccUnmatchedOutcome,
 } from "./route-resolution";
 import type { CcMatcher, CcRoute, CcRuleView, CcSlo } from "./types";
 
@@ -176,21 +176,10 @@ describe("ccSelectRoutes", () => {
   });
 });
 
-describe("ccUnmatchedOutcome", () => {
-  it("drops unmatched alerts when there are no routes", () => {
-    expect(ccUnmatchedOutcome([])).toBe("dropped");
-  });
-
-  it("drops unmatched alerts once any route exists", () => {
-    expect(ccUnmatchedOutcome([route(1, [matcher("eq", "core")])])).toBe(
-      "dropped",
-    );
-  });
-
-  it("is unreachable when a catch-all route exists", () => {
-    expect(
-      ccUnmatchedOutcome([route(1, [matcher("eq", "core")]), route(2, [])]),
-    ).toBe("unreachable");
+describe("ccIsCatchAll", () => {
+  it("recognizes only an explicit route without matchers", () => {
+    expect(ccIsCatchAll([])).toBe(true);
+    expect(ccIsCatchAll([matcher("regex", ".*")])).toBe(false);
   });
 });
 

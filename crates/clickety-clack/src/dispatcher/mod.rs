@@ -189,12 +189,8 @@ pub async fn run_dispatcher(
     tracing::info!("dispatcher stopped");
 }
 
-/// Resolve an event to its delivery plan. Routed events are buffered into their group(s)
-/// in Redis and a flush timer is armed. Unmatched events are acknowledged without
-/// delivery. Returns true if the stream entry is safe to ack
-/// (false only when a required input could not be loaded — leaves it in the PEL).
-///
-/// Public so the load-test harness can drive a single event; not a stable API.
+/// Buffer routed events for delivery. Unmatched events are safe to acknowledge.
+/// Returns false when the entry must remain pending for retry.
 #[tracing::instrument(
     name = "dispatcher.process_event",
     skip_all,
@@ -221,9 +217,7 @@ pub async fn process_event(ctx: &DispatchCtx, entry: &EventEntry) -> bool {
         tracing::Span::current().add_link(sc);
     }
 
-    // Suppressed (preview-rule) events never notify: drop at ingest, before
-    // silence/inhibition processing and before group buffering. They still reach
-    // the OTLP alert-log export (the events role has its own consumer group).
+    // Preview events remain available to the independent log-export consumer.
     if ev.suppressed {
         tracing::debug!(entry_id = %entry.id, "suppressed event; dropping before dispatch");
         return true;
@@ -931,10 +925,7 @@ async fn fail_and_dead_letter(
     }
 }
 
-/// Shared delivery + bookkeeping: look up the notifier for `config`'s channel, retry,
-/// then record sent/failed and dead-letter on permanent/exhausted failure. `rep` is the
-/// event used for the dead-letter record. Returns true when delivery succeeded.
-///
+/// Deliver with retries and persist the terminal outcome.
 #[tracing::instrument(
     name = "notify.deliver",
     skip_all,

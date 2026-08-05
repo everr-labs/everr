@@ -68,14 +68,6 @@ export function ccIsCatchAll(matchers: CcMatcher[]): boolean {
   return matchers.length === 0;
 }
 
-/** Whether an alert can fall through the route list without being delivered. */
-export function ccUnmatchedOutcome(
-  routes: CcRoute[],
-): "dropped" | "unreachable" {
-  if (routes.some((r) => ccIsCatchAll(r.matchers))) return "unreachable";
-  return "dropped";
-}
-
 /**
  * The label set the dispatcher matches against (dispatcher/routing.rs
  * `synthetic_labels`): instance labels plus synthetic
