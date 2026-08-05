@@ -54,7 +54,7 @@ describe("init (persistence: memory)", () => {
     expect(a["url.path"]).toBe("/");
     const resource = await resourceAttrs();
     expect(resource["service.name"]).toBe("everr-docs-test");
-    expect(resource["everr.sdk.name"]).toBe("@everr/web-sdk");
+    expect(resource["everr.sdk.name"]).toBe("@everr/otel-web");
     expect(resource["user_agent.original"]).toBeTruthy();
     // Unset optional attributes are filtered out, not shipped as empty values.
     expect(resource).not.toHaveProperty("deployment.environment.name");

@@ -1,4 +1,4 @@
-import { init } from "@everr/web-sdk";
+import { init } from "@everr/otel-web";
 import { env } from "@/env";
 
 // Everr-native browser telemetry, storage-free (memory persistence, no

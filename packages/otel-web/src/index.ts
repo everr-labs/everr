@@ -5,7 +5,7 @@
 // init() works in both module graphs of a full-stack framework: the browser
 // gets the full signal set, the server gets logger and captureError on the
 // same pipeline. React-specific exports live in the dedicated
-// `@everr/web-sdk/react` entry.
+// `@everr/otel-web/react` entry.
 
 export { init } from "./client.js";
 export { captureError } from "./errors.js";

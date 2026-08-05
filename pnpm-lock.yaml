@@ -129,15 +129,15 @@ importers:
       '@everr/datemath':
         specifier: workspace:*
         version: link:../datemath
+      '@everr/otel-web':
+        specifier: workspace:*
+        version: link:../otel-web
       '@everr/telemetry-explorer':
         specifier: workspace:*
         version: link:../telemetry-explorer
       '@everr/ui':
         specifier: workspace:*
         version: link:../ui
-      '@everr/web-sdk':
-        specifier: workspace:*
-        version: link:../web-sdk
       '@octokit/webhooks-methods':
         specifier: ^6.0.0
         version: 6.0.0
@@ -515,12 +515,12 @@ importers:
 
   packages/docs:
     dependencies:
+      '@everr/otel-web':
+        specifier: workspace:*
+        version: link:../otel-web
       '@everr/ui':
         specifier: workspace:*
         version: link:../ui
-      '@everr/web-sdk':
-        specifier: workspace:*
-        version: link:../web-sdk
       '@fontsource-variable/instrument-sans':
         specifier: ^5.2.8
         version: 5.2.8
@@ -615,6 +615,40 @@ importers:
       vite-plugin-svgr:
         specifier: ^5.2.0
         version: 5.2.0(typescript@6.0.3)(vite@8.0.11(@types/node@25.6.2)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.21.0)(yaml@2.9.0))
+
+  packages/otel-web:
+    dependencies:
+      web-vitals:
+        specifier: ^5.3.0
+        version: 5.3.0
+    devDependencies:
+      '@size-limit/preset-small-lib':
+        specifier: ^13.0.3
+        version: 13.0.3(size-limit@13.0.3)
+      '@types/react':
+        specifier: 'catalog:'
+        version: 19.2.14
+      '@types/react-dom':
+        specifier: 'catalog:'
+        version: 19.2.3(@types/react@19.2.14)
+      jsdom:
+        specifier: ^29.1.1
+        version: 29.1.1(@noble/hashes@2.2.0)
+      react:
+        specifier: 'catalog:'
+        version: 19.2.6
+      react-dom:
+        specifier: 'catalog:'
+        version: 19.2.6(react@19.2.6)
+      size-limit:
+        specifier: ^13.0.3
+        version: 13.0.3
+      tsdown:
+        specifier: ^0.22.2
+        version: 0.22.2(tsx@4.21.0)(typescript@6.0.3)
+      typescript:
+        specifier: 'catalog:'
+        version: 6.0.3
 
   packages/telemetry-explorer:
     dependencies:
@@ -734,40 +768,6 @@ importers:
       '@types/react-dom':
         specifier: 'catalog:'
         version: 19.2.3(@types/react@19.2.14)
-      typescript:
-        specifier: 'catalog:'
-        version: 6.0.3
-
-  packages/web-sdk:
-    dependencies:
-      web-vitals:
-        specifier: ^5.3.0
-        version: 5.3.0
-    devDependencies:
-      '@size-limit/preset-small-lib':
-        specifier: ^13.0.3
-        version: 13.0.3(size-limit@13.0.3)
-      '@types/react':
-        specifier: 'catalog:'
-        version: 19.2.14
-      '@types/react-dom':
-        specifier: 'catalog:'
-        version: 19.2.3(@types/react@19.2.14)
-      jsdom:
-        specifier: ^29.1.1
-        version: 29.1.1(@noble/hashes@2.2.0)
-      react:
-        specifier: 'catalog:'
-        version: 19.2.6
-      react-dom:
-        specifier: 'catalog:'
-        version: 19.2.6(react@19.2.6)
-      size-limit:
-        specifier: ^13.0.3
-        version: 13.0.3
-      tsdown:
-        specifier: ^0.22.2
-        version: 0.22.2(tsx@4.21.0)(typescript@6.0.3)
       typescript:
         specifier: 'catalog:'
         version: 6.0.3

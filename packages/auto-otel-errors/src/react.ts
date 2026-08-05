@@ -13,7 +13,7 @@ export function captureReactError(
     return;
   }
 
-  // The attribute name is a wire contract shared with @everr/web-sdk's
+  // The attribute name is a wire contract shared with @everr/otel-web's
   // captureReactError: keep the spelling in lockstep so React errors from
   // both packages group identically.
   client.capture({

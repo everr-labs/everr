@@ -17,7 +17,7 @@ import { startWebVitals } from "./webvitals.js";
 declare const __PACKAGE_VERSION__: string | undefined;
 const SDK_VERSION =
   typeof __PACKAGE_VERSION__ === "string" ? __PACKAGE_VERSION__ : "0.0.0-dev";
-const SDK_NAME = "@everr/web-sdk";
+const SDK_NAME = "@everr/otel-web";
 
 export function init(options: InitOptions): EverrClient {
   // Structural no-op: a keyless production build builds no emitter and no

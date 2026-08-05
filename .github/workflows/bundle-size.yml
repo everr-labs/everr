@@ -14,14 +14,14 @@ on:
     branches: [main]
     paths:
       - .github/workflows/bundle-size.yml
-      - packages/web-sdk/**
+      - packages/otel-web/**
       - package.json
       - pnpm-lock.yaml
       - pnpm-workspace.yaml
   pull_request:
     paths:
       - .github/workflows/bundle-size.yml
-      - packages/web-sdk/**
+      - packages/otel-web/**
       - package.json
       - pnpm-lock.yaml
       - pnpm-workspace.yaml
@@ -55,4 +55,4 @@ jobs:
         # Builds the package, then asserts the cookieless core and (when
         # present) the lazy replay chunk stay within the spec budgets. The
         # measured size is printed so growth is watchable, not just gated.
-        run: pnpm --filter @everr/web-sdk size
+        run: pnpm --filter @everr/otel-web size

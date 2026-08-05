@@ -29,7 +29,7 @@ function wire(envelope: () => Record<string, string> = () => ({})) {
     "https://ingest.example/v1/traces",
     undefined,
     {},
-    { name: "@everr/web-sdk", version: "test" },
+    { name: "@everr/otel-web", version: "test" },
     envelope,
   );
   flush = doFlush;

@@ -1,4 +1,4 @@
-import { init } from "@everr/web-sdk";
+import { init } from "@everr/otel-web";
 import { readConsent } from "@/telemetry/consent";
 
 // Everr-native browser telemetry for the web app (dogfooding): pageviews,

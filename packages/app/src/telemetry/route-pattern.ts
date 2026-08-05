@@ -1,4 +1,4 @@
-import { setRouteResolver } from "@everr/web-sdk";
+import { setRouteResolver } from "@everr/otel-web";
 
 // App-owned bridge from the TanStack router to the SDK's setRouteResolver:
 // telemetry init runs before the router exists, so `getRouter()` registers

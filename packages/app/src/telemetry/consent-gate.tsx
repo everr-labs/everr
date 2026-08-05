@@ -1,6 +1,6 @@
 import { ConsentBanner } from "@everr/ui/components/consent-banner";
 import { ConsentSettingsDialog } from "@everr/ui/components/consent-settings-dialog";
-import { revoke } from "@everr/web-sdk";
+import { revoke } from "@everr/otel-web";
 import { createContext, type ReactNode, useContext, useState } from "react";
 import { CONSENT_COOKIE, type ConsentDecision } from "@/telemetry/consent";
 
@@ -37,7 +37,7 @@ function storeConsent(decision: ConsentDecision): void {
  * the tab's whole life: any change here reloads, so it's never stale.
  *
  * A no-op decision (re-confirming what's already running) just closes the
- * UI. An actual change reloads: @everr/web-sdk's `init()` picks its
+ * UI. An actual change reloads: @everr/otel-web's `init()` picks its
  * persistence (localStorage vs. memory) once, at telemetry boot
  * (`telemetry/client.ts`), and never upgrades or downgrades a live client in
  * place. Withdrawing consent additionally calls the SDK's `revoke()` first,

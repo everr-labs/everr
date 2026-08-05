@@ -36,6 +36,6 @@ Do not mention `everr-dev` in skills.
 
 When I mention "production" as target, use everr instead of everr-dev.
 
-## Web SDK `packages/web-sdk`
+## Web SDK `packages/otel-web`
 
 Keep the bundle size minimal and measure the size using `pnpm size` at each meanungful iteration.

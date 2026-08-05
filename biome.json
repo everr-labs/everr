@@ -22,7 +22,7 @@
 
       "packages/telemetry-explorer/**/src/**/*",
 
-      "packages/web-sdk/**/src/**/*",
+      "packages/otel-web/**/src/**/*",
 
       "packages/datemath/**/src/**/*",
       "packages/datemath/vite.config.ts",

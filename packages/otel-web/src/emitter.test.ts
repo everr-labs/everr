@@ -48,7 +48,7 @@ function makeEmitter(envelope: () => Record<string, string> = () => ({})) {
     "https://ingest.example/v1/traces",
     { Authorization: "Bearer key" },
     { "service.name": "svc", "everr.screen.width": 1920 },
-    { name: "@everr/web-sdk", version: "test" },
+    { name: "@everr/otel-web", version: "test" },
     envelope,
   );
 }
