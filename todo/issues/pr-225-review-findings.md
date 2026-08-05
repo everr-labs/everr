@@ -11,7 +11,7 @@ the code.
 
 ## Status
 
-**Fixed on the branch:** 1, 2, 3, 6, 7, 8, 9, 11, 13, 14, 17, 19, 20, plus the
+**Fixed on the branch:** 1, 2, 3, 6, 7, 8, 11, 13, 14, 17, 19, 20, plus the
 stale `docs-content.test.ts` and `layout.shared.test.tsx` (both were already
 failing before the review). Their sections below are kept as the record of what
 was wrong and why the fix took the shape it did.
@@ -279,19 +279,6 @@ handle literals correctly for the placeholder check.
 ClickHouse's HTTP interface currently rejects multi-statements (verified), so
 this is a defeated control rather than proven execution. Nothing in the codebase
 pins that behavior, and with finding 1 there is no `readonly` backstop behind it.
-
-### 9. A literal NUL byte in source makes a new file binary to git
-`packages/app/src/data/cc/slo-series.server.ts:43`
-
-The group-key separator is an embedded 0x00, so git classifies the file as
-binary: `git diff main...HEAD` renders `Bin 0 -> 10494 bytes` and 264 lines of
-new server code (the read-time SLO budget series plus its ClickHouse SQL) never
-appear in the PR diff, cannot be reviewed, blamed, or merge-resolved. Any tool
-that normalizes text can silently drop or mangle the byte and collapse distinct
-label groups into one series.
-
-**Fix:** write the separator as an escape sequence, the way `refIdentityKey`
-(`data/alerts/schema.ts:108`) already does.
 
 ### 10. Ingest-time suppression strands group membership, causing phantom reminders
 `crates/clickety-clack/src/dispatcher/mod.rs:243-260`

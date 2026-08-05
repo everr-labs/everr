@@ -412,11 +412,7 @@ function InstanceRow({
     group.sloId !== undefined ? null : (group.rule?.spec.value_column ?? null);
   const runbook = ccRunbookParams(inst.rule);
   const isSlo = inst.slo !== undefined || alert.slo !== undefined;
-  const shownLabels = isSlo
-    ? Object.fromEntries(
-        Object.entries(alert.labels).filter(([k]) => k !== "slo_tier"),
-      )
-    : alert.labels;
+  const shownLabels = isSlo ? {} : alert.labels;
   // Accessible name. Labels distinguish a row from its siblings; label-free
   // rows fall back to the source name (merged) or the firing tiers, so no two
   // rows announce identically as "Expand row".

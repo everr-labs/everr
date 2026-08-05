@@ -125,10 +125,9 @@ pub enum RuleUpdate {
 }
 
 /// Outcome of [`PgStore::create_slo`].
-// `Slo` carries an owned `SloSpec` (label columns, tiers, annotations); boxing the
-// `Created` payload would force callers to deref through a `Box` everywhere and break
-// direct `Slo == Slo` comparisons in the store tests, for a lint that's purely about
-// the outcome enum's stack footprint (never hot-path-cloned).
+// Boxing the `Created` payload would force callers to deref through a `Box`
+// everywhere and break direct `Slo == Slo` comparisons in the store tests for a
+// lint about the outcome enum's stack footprint (never hot-path-cloned).
 #[allow(clippy::large_enum_variant)]
 #[derive(Debug, Clone, PartialEq)]
 pub enum SloCreate {

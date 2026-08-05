@@ -8,6 +8,7 @@ use crate::domain::rule::Severity;
 /// The SLI: a single read-only SELECT returning `good` and `valid` numeric
 /// columns, with the window injected by the engine as ClickHouse parameters.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
 pub struct SliSpec {
     pub sql: String,
 }
@@ -442,6 +443,15 @@ mod tests {
         assert!(spec.min_valid_events.is_none());
         assert!(!spec.suppressed); // default false
         assert!(spec.annotations.is_empty());
+    }
+
+    #[test]
+    fn sli_rejects_unknown_fields() {
+        let json = serde_json::json!({
+            "sql": "SELECT 1 AS good, 1 AS valid",
+            "unexpected": []
+        });
+        assert!(serde_json::from_value::<SliSpec>(json).is_err());
     }
 
     fn fp_spec() -> SloSpec {

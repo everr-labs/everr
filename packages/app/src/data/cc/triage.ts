@@ -59,27 +59,21 @@ function ccSloInstanceSeverity(alert: CcAlert) {
 }
 
 /**
- * Every instance label pinned with `eq`, plus a synthetic scoping label (`slo`
- * or `rule`): the dispatcher matches silences against synthetic labels, so a
- * label-free source still gets a precisely scoped silence.
- *
- * `slo_tier` is deliberately not pinned: a board row is one SLO across every
- * tier, and pinning the tier would leave the same problem paging from
- * the next tier down.
+ * Rule instances pin every instance label plus the synthetic `rule` label.
+ * SLO rows use only the synthetic `slo` label so one silence covers every burn
+ * tier watching that budget.
  */
 export function ccSourceScopedSilenceMatchers(alert: CcAlert): CcMatcher[] {
-  const isSlo = alert.slo !== undefined;
+  if (alert.slo !== undefined) {
+    return [{ label: "slo", op: "eq", value: alert.slo }];
+  }
   return [
-    ...Object.entries(alert.labels)
-      .filter(([label]) => !(isSlo && label === "slo_tier"))
-      .map(([label, value]) => ({
-        label,
-        op: "eq" as const,
-        value,
-      })),
-    isSlo && alert.slo !== undefined
-      ? { label: "slo", op: "eq" as const, value: alert.slo }
-      : { label: "rule", op: "eq" as const, value: alert.rule },
+    ...Object.entries(alert.labels).map(([label, value]) => ({
+      label,
+      op: "eq" as const,
+      value,
+    })),
+    { label: "rule", op: "eq", value: alert.rule },
   ];
 }
 

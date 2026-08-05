@@ -76,10 +76,8 @@ async fn union_includes_rule_and_slo_alerts() {
     let slo_id = SloId(Uuid::parse_str(&slo_id_str).unwrap());
     let slo_rule = RuleId(slo_id.0); // instance-key hashing input for slo_instances rows
 
-    let slo_labels = std::collections::BTreeMap::from([
-        ("slo_tier".to_string(), "fast-burn".to_string()),
-        ("svc".to_string(), "checkout".to_string()),
-    ]);
+    let slo_labels =
+        std::collections::BTreeMap::from([("slo_tier".to_string(), "fast-burn".to_string())]);
     let slo_key = InstanceKey::new(slo_rule, &slo_labels);
     let mut slo_inst = InstanceState::new_inactive(
         slo_key,

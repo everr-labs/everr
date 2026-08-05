@@ -5,6 +5,7 @@ import {
   CcReceiverSchema,
   CcRuleViewSchema,
   CcSloSchema,
+  CcSloSpecSchema,
   CcSloStatusSchema,
   CcSloViewSchema,
 } from "./schema";
@@ -101,7 +102,7 @@ it("parses an SLO-sourced alert instance (rule carries the SLO uuid, slo marks i
     slo: "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
     tenant: "t",
     status: "firing",
-    labels: { service: "checkout", slo_tier: "fast-burn" },
+    labels: { slo_tier: "fast-burn" },
     value: 14.6,
     active_since: "2026-06-14T12:00:00Z",
     last_seen: "2026-06-14T12:03:00Z",
@@ -134,6 +135,19 @@ it("SloView (list/get) requires updated_at; the bare Slo (mutations) has none", 
   expect(view.updated_at).toBe("2026-07-01T12:00:00Z");
   expect(CcSloViewSchema.safeParse(bare).success).toBe(false);
   expect(CcSloSchema.safeParse(bare).success).toBe(true);
+});
+
+it("rejects unknown SLI fields", () => {
+  expect(() =>
+    CcSloSpecSchema.parse({
+      sli: {
+        sql: "SELECT 1 AS good, 1 AS valid",
+        unexpected: [],
+      },
+      targetPercent: 99.9,
+      timeWindow: { duration: "30d", isRolling: true },
+    }),
+  ).toThrow();
 });
 
 it("parses the enriched SLO status snapshot (SloStatusOut)", () => {

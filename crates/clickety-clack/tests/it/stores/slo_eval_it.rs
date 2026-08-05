@@ -70,7 +70,7 @@ async fn persist_slo_eval_claim_is_atomic_and_idempotent() {
     let id = make_slo(&s, "persist-atomic").await;
     let eval_ts = OffsetDateTime::from_unix_timestamp(1_700_000_300).unwrap();
     let rule = RuleId(id.0);
-    let labels = BTreeMap::from([("service".to_string(), "checkout".to_string())]);
+    let labels = BTreeMap::from([("slo_tier".to_string(), "fast-burn".to_string())]);
     let mk = |value: f64| {
         let mut inst = InstanceState::new_inactive(
             InstanceKey::new(rule, &labels),

@@ -224,9 +224,11 @@ export const CcSloTierSchema = z.object({
 });
 
 export const CcSloSpecSchema = z.object({
-  sli: z.object({
-    sql: z.string(),
-  }),
+  sli: z
+    .object({
+      sql: z.string(),
+    })
+    .strict(),
   targetPercent: z.number(),
   timeWindow: z.object({
     duration: z.string(),

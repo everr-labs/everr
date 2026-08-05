@@ -14,8 +14,8 @@ export const CC_SYNTHETIC_LABEL_KEYS = [
 export type CcSyntheticLabelKey = (typeof CC_SYNTHETIC_LABEL_KEYS)[number];
 
 /**
- * Mirrors domain/slo.rs RESERVED_SLO_LABELS: `slo` is stamped with the SLO id
- * on SLO-originated events; `slo_tier` is the per-tier instance discriminator.
+ * `slo` is stamped with the SLO id on SLO-originated events; `slo_tier` is the
+ * per-tier instance discriminator.
  * Separate from CC_SYNTHETIC_LABEL_KEYS because those ride on EVERY event,
  * these two only on SLO-originated ones; both are engine-owned vocabulary.
  */
