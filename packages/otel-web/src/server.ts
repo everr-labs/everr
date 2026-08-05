@@ -21,17 +21,22 @@
 // @types/node requirement) out of this package's browser-lib tsc program.
 import { Client } from "@everr/auto-otel-errors/browser";
 import { context } from "@opentelemetry/api";
-import { type LogAttributes, logs } from "@opentelemetry/api-logs";
+import {
+  type LogAttributes,
+  type Logger,
+  logs,
+  SeverityNumber,
+} from "@opentelemetry/api-logs";
 import type { AttrValue, Emit } from "./emitter.js";
+import { bindReport } from "./errors.js";
 import { logger, startLogger } from "./logger.js";
 import type { EverrClient, InitOptions, UserTraits } from "./types.js";
+import { SDK_NAME, SDK_VERSION } from "./version.js";
 
-declare const __PACKAGE_VERSION__: string | undefined;
-const SDK_VERSION =
-  typeof __PACKAGE_VERSION__ === "string" ? __PACKAGE_VERSION__ : "0.0.0-dev";
-const SDK_NAME = "@everr/otel-web";
-
-export { setRouteResolver } from "./route.js";
+// captureError is the same live-binding surface the browser uses (one
+// state machine: warn before init, silent after shutdown); init() below
+// swaps in the auto-otel-errors adapter.
+export { captureError } from "./errors.js";
 export type {
   CaptureSignal,
   EverrClient,
@@ -40,10 +45,6 @@ export type {
   UserTraits,
 } from "./types.js";
 export { logger };
-
-// Pre-init misuse is visible (never throws); shutdown() swaps in null and
-// the surface goes silent by design, mirroring the browser logger contract.
-let errors: Client | null | undefined;
 
 /**
  * Attaches to the app's registered OpenTelemetry SDK. All options are
@@ -54,65 +55,55 @@ let errors: Client | null | undefined;
  * freeze with the NodeSDK handle the app already holds).
  */
 export function init(_options: InitOptions): EverrClient {
-  errors = new Client({}, "node", []);
-  const stopLogger = startLogger(emitViaOtel);
+  // Resolved once: before a global provider registers this is a ProxyLogger
+  // that starts delegating the moment the app's SDK lands.
+  const otelLogger = logs.getLogger(SDK_NAME, SDK_VERSION);
+  const errors = new Client({}, "node", []);
+  const stopLogger = startLogger(emitVia(otelLogger));
+  const stopReporting = bindReport((error, mechanism, handled, extra) =>
+    errors.capture({ error, mechanism, handled, attributes: extra }),
+  );
   return {
     flush: async () => {},
     shutdown: async () => {
       stopLogger();
-      errors = null;
+      stopReporting();
     },
   };
 }
 
-/** Reports a handled error, with optional extra attributes. */
-export function captureError(
-  error: unknown,
-  attributes?: Record<string, string | number | boolean>,
-  options?: { handled?: boolean },
-): void {
-  if (errors === undefined) {
-    console.warn("[everr] SDK not initialized");
-    return;
-  }
-  errors?.capture({
-    error,
-    mechanism: "manual",
-    handled: options?.handled ?? true,
-    attributes,
-  });
-}
-
-// Identity is browser-bound (visitor id, session, user traits on the
-// envelope); per-process identity on server records would leak users across
-// requests, so on the server these are honest no-ops that never throw from
-// shared code.
+// Identity and route resolution are browser-bound (visitor id, session, and
+// the route pattern all live on the per-tab envelope); per-process identity
+// on server records would leak users across requests, so on the server
+// these are honest no-ops that never throw from shared code.
 /** No-op on the server; identity is a browser concept. */
 export function identify(_userId: string, _traits?: UserTraits): void {}
 
 /** No-op on the server; identity is a browser concept. */
 export function revoke(): void {}
 
-const SEVERITY_TEXT: Record<number, string> = {
-  5: "DEBUG",
-  9: "INFO",
-  13: "WARN",
-  17: "ERROR",
-};
+/** No-op on the server; route patterns ride the browser envelope. */
+export function setRouteResolver(
+  _get: (() => string | null | undefined) | null | undefined,
+): void {}
 
 // Adapts the shared logger surface to the OTel Logs API: same Emit shape
-// the browser pipeline uses, resolved to a Logger per call so a provider
-// registered after init() still receives records.
-const emitViaOtel: Emit = (_eventName, attributes, severityNumber, body) => {
-  logs.getLogger(SDK_NAME, SDK_VERSION).emit({
-    severityNumber,
-    severityText: severityNumber ? SEVERITY_TEXT[severityNumber] : undefined,
-    body,
-    attributes: cleanAttributes(attributes),
-    context: context.active(),
-  });
-};
+// the browser pipeline uses. The severity text falls out of the API's
+// numeric enum (5 DEBUG, 9 INFO, 13 WARN, 17 ERROR).
+const emitVia =
+  (otelLogger: Logger): Emit =>
+  (_eventName, attributes, severityNumber, body) => {
+    otelLogger.emit({
+      severityNumber,
+      severityText: severityNumber ? SeverityNumber[severityNumber] : undefined,
+      body,
+      attributes: cleanAttributes(attributes),
+      context: context.active(),
+    });
+  };
 
+// Same skip-nullish convention as the emitter's toKeyValues, so callers
+// write optional attributes plainly.
 function cleanAttributes(
   attributes?: Record<string, AttrValue | null | undefined>,
 ): LogAttributes | undefined {

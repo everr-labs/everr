@@ -41,6 +41,17 @@ type Report = (
 // implementation underneath both entries at once.
 export let report: Report = () => console.warn("[everr] SDK not initialized");
 
+// Swaps the live binding to a host-provided reporter; both entries share
+// this one state machine (warn before init, silent after shutdown), so the
+// public captureError surface exists exactly once. The server entry binds
+// an adapter over @everr/auto-otel-errors here.
+export function bindReport(next: Report): () => void {
+  report = next;
+  return () => {
+    report = () => {};
+  };
+}
+
 /** Reports a handled error, with optional extra attributes. */
 export function captureError(
   error: unknown,

@@ -12,12 +12,8 @@ import { startNetwork } from "./network.js";
 import { startPageviews } from "./pageview.js";
 import { createSessionContext } from "./session.js";
 import type { CaptureSignal, EverrClient, InitOptions } from "./types.js";
+import { SDK_NAME, SDK_VERSION } from "./version.js";
 import { startWebVitals } from "./webvitals.js";
-
-declare const __PACKAGE_VERSION__: string | undefined;
-const SDK_VERSION =
-  typeof __PACKAGE_VERSION__ === "string" ? __PACKAGE_VERSION__ : "0.0.0-dev";
-const SDK_NAME = "@everr/otel-web";
 
 export function init(options: InitOptions): EverrClient {
   // Structural no-op: a keyless production build builds no emitter and no
@@ -35,6 +31,11 @@ export function init(options: InitOptions): EverrClient {
   // A bundler that still lands this entry off-browser (custom conditions,
   // exotic edge runtimes) gets the structural no-op rather than a crash.
   if (typeof window === "undefined") {
+    // Visible, because landing here means the bundler misresolved: server
+    // telemetry only works through the node export condition.
+    console.warn(
+      "[everr] browser entry loaded outside a browser; server telemetry needs the node export condition",
+    );
     bindIdentity(INERT_IDENTITY);
     return INERT;
   }

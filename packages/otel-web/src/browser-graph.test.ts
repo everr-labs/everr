@@ -24,23 +24,27 @@ function importsOf(file: string): string[] {
   return specifiers;
 }
 
-function walk(entry: string, seen = new Set<string>()): Set<string> {
+function walk(
+  entry: string,
+  graph = new Map<string, string[]>(),
+): Map<string, string[]> {
   const file = resolve(entry);
-  if (seen.has(file)) return seen;
-  seen.add(file);
-  for (const spec of importsOf(file)) {
+  if (graph.has(file)) return graph;
+  const specifiers = importsOf(file);
+  graph.set(file, specifiers);
+  for (const spec of specifiers) {
     if (spec.startsWith(".")) {
-      walk(resolve(dirname(file), spec.replace(/\.js$/, ".ts")), seen);
+      walk(resolve(dirname(file), spec.replace(/\.js$/, ".ts")), graph);
     }
   }
-  return seen;
+  return graph;
 }
 
 describe("browser module graph", () => {
   for (const entry of ["src/index.ts", "src/react.ts"]) {
     it(`${entry} never imports the OTel API or auto-otel-errors`, () => {
-      for (const file of walk(entry)) {
-        for (const spec of importsOf(file)) {
+      for (const [file, specifiers] of walk(entry)) {
+        for (const spec of specifiers) {
           for (const forbidden of FORBIDDEN) {
             expect(spec, `${file} imports ${spec}`).not.toContain(forbidden);
           }
@@ -50,7 +54,7 @@ describe("browser module graph", () => {
   }
 
   it("the walker sees through the server entry (self-check)", () => {
-    const specs = [...walk("src/server.ts")].flatMap(importsOf);
+    const specs = [...walk("src/server.ts").values()].flat();
     expect(specs.some((s) => s.startsWith("@opentelemetry/"))).toBe(true);
   });
 });
