@@ -101,6 +101,7 @@ describe("worker runtime", () => {
       pgPool: runtimeMocks.pool,
       parsedCronItems: expect.arrayContaining([
         expect.objectContaining({ task: "alerts/scan" }),
+        expect.objectContaining({ task: "alerts/retention" }),
         ...runtimeMocks.previewsCronItems,
       ]),
     });
@@ -109,6 +110,7 @@ describe("worker runtime", () => {
       "alerts/evaluate-slo",
       "alerts/flush-group",
       "alerts/process-event",
+      "alerts/retention",
       "alerts/scan",
       "alerts/send-delivery",
       "github-events/collector",

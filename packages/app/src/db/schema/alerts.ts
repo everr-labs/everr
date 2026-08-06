@@ -239,6 +239,7 @@ export const alertEvents = pgTable(
     occurredAt: timestamp("occurred_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
+    processedAt: timestamp("processed_at", { withTimezone: true }),
   },
   (table) => [
     foreignKey({
@@ -261,6 +262,9 @@ export const alertEvents = pgTable(
       table.slug,
       sql`occurred_at DESC`,
     ),
+    index("alert_events_processed_idx")
+      .on(table.processedAt, table.id)
+      .where(sql`${table.processedAt} IS NOT NULL`),
     uniqueIndex("alert_events_org_id_uq").on(table.organizationId, table.id),
   ],
 );
@@ -291,6 +295,7 @@ export const alertSilences = pgTable(
       table.organizationId,
       table.endsAt,
     ),
+    index("alert_silences_cleanup_idx").on(table.endsAt, table.id),
   ],
 );
 
@@ -451,6 +456,10 @@ export const alertNotificationGroups = pgTable(
       "alert_notification_groups_repeat_interval_valid",
       sql`${table.repeatIntervalSeconds} IS NULL OR ${table.repeatIntervalSeconds} >= 60`,
     ),
+    index("alert_notification_groups_cleanup_idx").on(
+      table.updatedAt,
+      table.id,
+    ),
   ],
 );
 
@@ -510,6 +519,11 @@ export const alertDeliveries = pgTable(
     }),
     check("alert_deliveries_attempts_nonnegative", sql`${table.attempts} >= 0`),
     index("alert_deliveries_org_idx").on(table.organizationId),
+    index("alert_deliveries_terminal_cleanup_idx")
+      .on(table.updatedAt, table.dedupKey)
+      .where(
+        sql`${table.status} = 'sent' OR (${table.status} = 'failed' AND ${table.attempts} >= 5)`,
+      ),
     uniqueIndex("alert_deliveries_org_key_uq").on(
       table.organizationId,
       table.dedupKey,

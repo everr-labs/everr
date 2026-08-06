@@ -35,6 +35,7 @@ import { errorMessage } from "@/telemetry/logger";
 import { alertingPartitionQueue } from "./01-scanner";
 import { decryptChannelConfig } from "./channel-secrets";
 import { sendChannelNotification } from "./channels";
+import { ALERT_DELIVERY_MAX_ATTEMPTS } from "./config";
 import { nextGroupFlushAt } from "./grouping";
 
 export const ALERT_PROCESS_EVENT_TASK = "alerts/process-event";
@@ -142,6 +143,7 @@ async function deferSuppressedEvent(
         silenced: Boolean(silence),
         silenceId: silence?.id ?? null,
         inhibited,
+        processedAt: shouldRetry ? null : now,
       })
       .where(eq(alertEvents.id, event.id));
     if (!shouldRetry) return;
@@ -264,13 +266,25 @@ export async function processAlertEvent(rawPayload: unknown): Promise<void> {
     .from(alertEvents)
     .where(eq(alertEvents.id, eventId))
     .limit(1);
-  if (!event || event.suppressed) return;
+  if (!event || event.processedAt) return;
+  const now = new Date();
+  if (event.suppressed) {
+    await db
+      .update(alertEvents)
+      .set({ processedAt: now })
+      .where(eq(alertEvents.id, event.id));
+    return;
+  }
   if (
     event.eventType !== "instance_resolved" &&
     !(await eventStillFiring(event))
-  )
+  ) {
+    await db
+      .update(alertEvents)
+      .set({ processedAt: now })
+      .where(eq(alertEvents.id, event.id));
     return;
-  const now = new Date();
+  }
   const silence = await matchingSilence(event, now);
   const inhibited = silence ? false : await isInhibited(event);
   if (silence || inhibited) {
@@ -372,6 +386,10 @@ export async function processAlertEvent(rawPayload: unknown): Promise<void> {
       );
     });
   }
+  await db
+    .update(alertEvents)
+    .set({ processedAt: now })
+    .where(eq(alertEvents.id, event.id));
 }
 
 function formatNotification(events: (typeof alertEvents.$inferSelect)[]) {
@@ -514,7 +532,7 @@ export async function flushAlertGroup(rawPayload: unknown): Promise<void> {
         {
           jobKey: `${ALERT_SEND_DELIVERY_TASK}:${dedupKey}`,
           jobKeyMode: "replace",
-          maxAttempts: 5,
+          maxAttempts: ALERT_DELIVERY_MAX_ATTEMPTS,
         },
       );
     }

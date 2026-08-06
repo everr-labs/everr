@@ -279,6 +279,21 @@ export function alertingSloBurnPace(rate: number | null): AlertingSloBurnPace {
   return "sustainable"; // under 1x: recovers within the window
 }
 
+function alertingSloFiringSeverity(
+  specTiers: readonly AlertingSloTier[],
+  firingTiers: readonly { tier: string }[],
+): AlertingSloTier["severity"] | null {
+  let worst: AlertingSloTier["severity"] | null = null;
+  for (const firing of firingTiers) {
+    const severity = alertingSloTierSeverity(specTiers, {
+      slo_tier: firing.tier,
+    });
+    if (severity === "critical") return "critical";
+    worst = severity;
+  }
+  return worst;
+}
+
 /**
  * SLO pace: a firing tier wins, otherwise use the fastest confirmed burn.
  */
