@@ -19,6 +19,7 @@ import type { AlertEventLogRow } from "@/data/alerts/history.server";
 import {
   type AlertRuleEvaluationOutcome,
   alertRuleEvaluationOutcome,
+  alertRuleRailBucketCount,
   buildAlertRuleEvaluationRail,
   buildAlertRuleIncidentRail,
 } from "./alert-rule-chart-data";
@@ -135,22 +136,27 @@ function StateRails({
   events,
   currentFiringFingerprints,
   domain,
+  intervalSeconds,
 }: {
   evaluationSeries: AlertingRuleEvaluationSeries;
   condition: AlertingRuleCondition;
   events: readonly AlertEventLogRow[];
   currentFiringFingerprints: readonly string[];
   domain: [number, number];
+  intervalSeconds: number;
 }) {
+  const bucketCount = alertRuleRailBucketCount(domain, intervalSeconds * 1_000);
   const evaluationBuckets = buildAlertRuleEvaluationRail(
     evaluationSeries.points,
     condition,
     domain,
+    bucketCount,
   );
   const incidentBuckets = buildAlertRuleIncidentRail(
     events,
     currentFiringFingerprints,
     domain,
+    bucketCount,
   );
   const evaluationRail = evaluationBuckets.map((bucket) => ({
     className: bucket.outcome
@@ -193,17 +199,19 @@ function StateRails({
       <legend className="sr-only">
         Rule checks and firing state over time
       </legend>
-      <div className="grid grid-cols-[4.25rem_minmax(0,1fr)] items-center gap-3">
-        <span className="text-right text-[0.625rem] font-medium tracking-wide text-muted-foreground uppercase">
-          Checks
-        </span>
-        <BucketRail buckets={evaluationRail} className="h-2" />
-      </div>
-      <div className="grid grid-cols-[4.25rem_minmax(0,1fr)] items-center gap-3">
-        <span className="text-right text-[0.625rem] font-medium tracking-wide text-muted-foreground uppercase">
-          Firing
-        </span>
-        <BucketRail buckets={incidentRail} className="h-1.5" />
+      <div className="space-y-1.5">
+        <div className="grid grid-cols-[4.25rem_minmax(0,1fr)] items-center gap-3">
+          <span className="text-right text-[0.625rem] font-medium tracking-wide text-muted-foreground uppercase">
+            Checks
+          </span>
+          <BucketRail buckets={evaluationRail} className="h-2" />
+        </div>
+        <div className="grid grid-cols-[4.25rem_minmax(0,1fr)] items-center gap-3">
+          <span className="text-right text-[0.625rem] font-medium tracking-wide text-muted-foreground uppercase">
+            Firing
+          </span>
+          <BucketRail buckets={incidentRail} className="h-2" />
+        </div>
       </div>
       <div className="flex flex-wrap items-center justify-between gap-x-5 gap-y-1 pl-[5rem] text-[0.6875rem] text-muted-foreground">
         <ul className="flex flex-wrap gap-x-3 gap-y-1">
@@ -345,12 +353,14 @@ export function AlertRuleEvaluationDetails({
   events,
   currentFiringFingerprints,
   domain,
+  intervalSeconds,
 }: {
   evaluationSeries: AlertingRuleEvaluationSeries;
   condition: AlertingRuleCondition;
   events: readonly AlertEventLogRow[];
   currentFiringFingerprints: readonly string[];
   domain: [number, number];
+  intervalSeconds: number;
 }) {
   return (
     <div className="space-y-3">
@@ -360,6 +370,7 @@ export function AlertRuleEvaluationDetails({
         events={events}
         currentFiringFingerprints={currentFiringFingerprints}
         domain={domain}
+        intervalSeconds={intervalSeconds}
       />
       <EvaluationHistory
         evaluationSeries={evaluationSeries}

@@ -122,6 +122,7 @@ function ruleView(row: RuleRow, notificationChannels: string[]) {
       last_fired_at: row.lastFiredAt?.toISOString() ?? null,
       last_resolved_at: row.lastResolvedAt?.toISOString() ?? null,
       last_seen_at: row.lastSeenAt?.toISOString() ?? null,
+      next_evaluation_at: row.nextEvaluationAt?.toISOString() ?? null,
       last_row_count: row.lastRowCount,
     },
   };

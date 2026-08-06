@@ -7,6 +7,7 @@ import type {
   AlertingRuleView,
   AlertingSlo,
 } from "@/data/alerting/types";
+import { queryPostgresAlertEventLog } from "@/data/alerts/history.server";
 import { getPreviewScopes } from "@/data/previews/repoids";
 import { query, querySqlApi } from "@/lib/clickhouse";
 import { emailTestConfigFor } from "./email-test-config";
@@ -17,6 +18,7 @@ import {
   getAlertingSloBudgetSeries,
   getAlertingSloByName,
   listAlertingAlerts,
+  listAlertingEventHistory,
   testAlertingChannel,
 } from "./server";
 import { alertingRuleViewFixture as alertingRule } from "./test-fixtures";
@@ -181,6 +183,31 @@ describe("getAlertingRuleEvaluationSeries", () => {
         points: 120,
       },
     );
+  });
+});
+
+describe("listAlertingEventHistory", () => {
+  it("passes absolute instants to PostgreSQL without ClickHouse formatting", async () => {
+    vi.mocked(queryPostgresAlertEventLog).mockResolvedValue([]);
+
+    await listAlertingEventHistory({
+      data: {
+        limit: 200,
+        timeRange: {
+          from: "2026-08-06T12:00:00Z",
+          to: "2026-08-06T13:00:00Z",
+        },
+        slugs: ["demo/demo-always-firing"],
+      },
+    });
+
+    expect(queryPostgresAlertEventLog).toHaveBeenCalledWith("test_org", {
+      limit: 200,
+      from: new Date("2026-08-06T12:00:00Z"),
+      to: new Date("2026-08-06T13:00:00Z"),
+      previewIds: null,
+      slugs: ["demo/demo-always-firing"],
+    });
   });
 });
 

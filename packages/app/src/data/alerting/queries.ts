@@ -117,7 +117,6 @@ export const alertingQueries = {
       ] as const,
       queryFn: () =>
         getAlertingRuleEvaluationSeries({ data: { ruleId, timeRange } }),
-      refetchInterval: ALERTING_POLL_INTERVAL_MS,
     }),
 
   // Config listing: changes only through user actions, so mutations invalidate

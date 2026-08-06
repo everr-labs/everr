@@ -48,6 +48,7 @@ it("parses a complete RuleView", () => {
       last_fired_at: "2026-06-14T12:00:00Z",
       last_resolved_at: null,
       last_seen_at: "2026-06-14T12:03:00Z",
+      next_evaluation_at: "2026-06-14T12:03:30Z",
       last_row_count: 5,
     },
   });

@@ -36,8 +36,8 @@ export async function queryPostgresAlertEventLog(
   organizationId: string,
   opts: {
     limit: number;
-    fromISO: string;
-    toISO: string;
+    from: Date;
+    to: Date;
     fingerprint?: string;
     slugs?: readonly string[];
     /** null selects live events; an array overlays those Preview ids on live. */
@@ -46,8 +46,8 @@ export async function queryPostgresAlertEventLog(
 ): Promise<AlertEventLogRow[]> {
   const filters = [
     eq(alertEvents.organizationId, organizationId),
-    gte(alertEvents.occurredAt, new Date(opts.fromISO)),
-    lte(alertEvents.occurredAt, new Date(opts.toISO)),
+    gte(alertEvents.occurredAt, opts.from),
+    lte(alertEvents.occurredAt, opts.to),
   ];
   if (opts.previewIds === null) {
     filters.push(isNull(alertEvents.previewId));
@@ -129,7 +129,7 @@ export async function queryPostgresAlertEventLog(
 
 async function recentPostgresLabels(
   organizationId: string,
-  opts: { fromISO: string; toISO: string },
+  opts: { from: Date; to: Date },
 ) {
   return db
     .select({ labels: alertEvents.instanceLabels })
@@ -138,8 +138,8 @@ async function recentPostgresLabels(
       and(
         eq(alertEvents.organizationId, organizationId),
         eq(alertEvents.suppressed, false),
-        gte(alertEvents.occurredAt, new Date(opts.fromISO)),
-        lte(alertEvents.occurredAt, new Date(opts.toISO)),
+        gte(alertEvents.occurredAt, opts.from),
+        lte(alertEvents.occurredAt, opts.to),
       ),
     )
     .orderBy(desc(alertEvents.occurredAt))
@@ -148,7 +148,7 @@ async function recentPostgresLabels(
 
 export async function queryPostgresObservedLabelKeys(
   organizationId: string,
-  opts: { limit: number; fromISO: string; toISO: string },
+  opts: { limit: number; from: Date; to: Date },
 ): Promise<string[]> {
   const counts = new Map<string, number>();
   for (const row of await recentPostgresLabels(organizationId, opts)) {
@@ -168,7 +168,7 @@ export async function queryPostgresObservedLabelKeys(
 export async function queryPostgresObservedLabelValues(
   organizationId: string,
   key: string,
-  opts: { limit: number; fromISO: string; toISO: string },
+  opts: { limit: number; from: Date; to: Date },
 ): Promise<string[]> {
   const counts = new Map<string, number>();
   for (const row of await recentPostgresLabels(organizationId, opts)) {

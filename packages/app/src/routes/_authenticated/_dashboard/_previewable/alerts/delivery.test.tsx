@@ -863,6 +863,7 @@ describe("/alerts/delivery matcher name resolution", () => {
         last_fired_at: null,
         last_resolved_at: null,
         last_seen_at: null,
+        next_evaluation_at: "2026-06-14T12:01:00Z",
         last_row_count: null,
       },
       ...overrides,

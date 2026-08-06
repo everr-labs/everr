@@ -287,7 +287,7 @@ export const listAlertingEventHistory = createAuthenticatedServerFn({
       data: { limit, timeRange, fingerprint, slugs, preview },
       context: { session },
     }) => {
-      const { fromISO, toISO } = resolveTimeRange(timeRange);
+      const { fromDate, toDate } = resolveTimeRange(timeRange);
       const organizationId = orgId(session);
       const previewName = preview?.trim() || null;
       const previewIds =
@@ -298,8 +298,8 @@ export const listAlertingEventHistory = createAuthenticatedServerFn({
             );
       return queryPostgresAlertEventLog(organizationId, {
         limit,
-        fromISO,
-        toISO,
+        from: fromDate,
+        to: toDate,
         previewIds,
         ...(fingerprint !== undefined ? { fingerprint } : {}),
         ...(slugs !== undefined ? { slugs } : {}),
@@ -387,12 +387,12 @@ export const listAlertingLabelKeys = createAuthenticatedServerFn({
   method: "GET",
 }).handler(
   async ({ context: { session } }): Promise<AlertingLabelKeySuggestion[]> => {
-    const { fromISO, toISO } = resolveTimeRange(SUGGESTION_WINDOW);
+    const { fromDate, toDate } = resolveTimeRange(SUGGESTION_WINDOW);
     const [observed, rules, alerts] = await Promise.allSettled([
       queryPostgresObservedLabelKeys(orgId(session), {
         limit: SUGGESTION_LIMIT,
-        fromISO,
-        toISO,
+        from: fromDate,
+        to: toDate,
       }),
       alerting.listAllRules(orgId(session)),
       alerting.listAlerts(orgId(session)),
@@ -462,13 +462,13 @@ export const listAlertingLabelValues = createAuthenticatedServerFn({
           }));
         }
         default: {
-          const { fromISO, toISO } = resolveTimeRange(SUGGESTION_WINDOW);
+          const { fromDate, toDate } = resolveTimeRange(SUGGESTION_WINDOW);
           const [alerts, observed] = await Promise.allSettled([
             alerting.listAlerts(orgId(session)),
             queryPostgresObservedLabelValues(orgId(session), key, {
               limit: SUGGESTION_LIMIT,
-              fromISO,
-              toISO,
+              from: fromDate,
+              to: toDate,
             }),
           ]);
           const merged = new Set<string>();

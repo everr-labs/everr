@@ -7,6 +7,7 @@ import type {
 import type { AlertEventLogRow } from "@/data/alerts/history.server";
 
 export const ALERT_RULE_CHART_SERIES_LIMIT = 12;
+export const ALERT_RULE_RAIL_MAX_BUCKETS = 60;
 
 export type AlertRuleChartSeries = {
   key: string;
@@ -111,6 +112,19 @@ function bucketBounds(
 ): [number, number] {
   const width = (domain[1] - domain[0]) / count;
   return [domain[0] + width * index, domain[0] + width * (index + 1)];
+}
+
+export function alertRuleRailBucketCount(
+  domain: [number, number],
+  intervalMs: number,
+): number {
+  const spanMs = Math.max(0, domain[1] - domain[0]);
+  const minimumBucketMs =
+    Number.isFinite(intervalMs) && intervalMs > 0 ? intervalMs : 1;
+  return Math.max(
+    1,
+    Math.min(ALERT_RULE_RAIL_MAX_BUCKETS, Math.floor(spanMs / minimumBucketMs)),
+  );
 }
 
 export function buildAlertRuleEvaluationRail(

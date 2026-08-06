@@ -333,6 +333,7 @@ export function AlertRuleSignalChart({
         events={events}
         currentFiringFingerprints={currentFiringFingerprints}
         domain={domain}
+        intervalSeconds={intervalSeconds}
       />
 
       {(evaluationSeries.samples_truncated ||

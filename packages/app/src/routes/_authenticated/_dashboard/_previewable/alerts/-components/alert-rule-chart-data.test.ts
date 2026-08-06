@@ -3,6 +3,7 @@ import type { AlertingRuleEvaluationPoint } from "@/data/alerting/types";
 import {
   ALERT_RULE_CHART_SERIES_LIMIT,
   alertRuleEvaluationOutcome,
+  alertRuleRailBucketCount,
   buildAlertRuleChartModel,
   buildAlertRuleEvaluationRail,
   buildAlertRuleEvaluationSpans,
@@ -129,6 +130,30 @@ describe("alert rule evaluation states", () => {
         (bucket) => bucket.outcome,
       ),
     ).toEqual([null, "no_data", "no_data", "breached"]);
+  });
+
+  it("keeps rail buckets at least as wide as the evaluation interval", () => {
+    const intervalMs = 60_000;
+    const shortDomain: [number, number] = [domain[0], domain[0] + 30_000];
+    const unevenDomain: [number, number] = [
+      domain[0],
+      domain[0] + intervalMs * 3.5,
+    ];
+
+    expect(alertRuleRailBucketCount(shortDomain, intervalMs)).toBe(1);
+    expect(alertRuleRailBucketCount(unevenDomain, intervalMs)).toBe(3);
+    expect(alertRuleRailBucketCount(domain, 1)).toBe(60);
+
+    const rail = buildAlertRuleEvaluationRail(
+      [],
+      condition,
+      unevenDomain,
+      alertRuleRailBucketCount(unevenDomain, intervalMs),
+    );
+    expect(rail).toHaveLength(3);
+    expect(
+      rail.every((bucket) => bucket.end - bucket.start >= intervalMs),
+    ).toBe(true);
   });
 
   it("reconstructs incident state backwards from current instances", () => {

@@ -90,8 +90,8 @@ function leafConditions(condition: unknown): Condition[] {
 
 const range = {
   limit: 100,
-  fromISO: "2026-06-01T00:00:00Z",
-  toISO: "2026-06-16T00:00:00Z",
+  from: new Date("2026-06-01T00:00:00Z"),
+  to: new Date("2026-06-16T00:00:00Z"),
 };
 
 beforeEach(() => {
@@ -116,6 +116,14 @@ describe("queryPostgresAlertEventLog", () => {
     expect(conditions).toContainEqual({
       op: "eq",
       args: ["organization_id", "org-1"],
+    });
+    expect(conditions).toContainEqual({
+      op: "gte",
+      args: ["occurred_at", range.from],
+    });
+    expect(conditions).toContainEqual({
+      op: "lte",
+      args: ["occurred_at", range.to],
     });
   });
 

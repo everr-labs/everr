@@ -76,6 +76,7 @@ const AlertingRuleRollupSchema = z.object({
   last_fired_at: AlertingTimestampNullable,
   last_resolved_at: AlertingTimestampNullable,
   last_seen_at: AlertingTimestampNullable,
+  next_evaluation_at: AlertingTimestampNullable,
   last_row_count: z.number().int().nullable(),
 });
 

@@ -10,7 +10,6 @@ import {
   Collapsible,
   CollapsibleContent,
 } from "@everr/ui/components/collapsible";
-import { type Column, DataTable } from "@everr/ui/components/data-table";
 import { RelativeTime } from "@everr/ui/components/relative-time";
 import { Skeleton } from "@everr/ui/components/skeleton";
 import { withTimeRange } from "@everr/ui/lib/time-range";
@@ -18,7 +17,7 @@ import { cn } from "@everr/ui/lib/utils";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { BookOpenText, CircleAlert } from "lucide-react";
-import { useState } from "react";
+import { type ReactNode, useState } from "react";
 import { toast } from "sonner";
 import { alertingConditionOperatorLabel } from "@/data/alerting/condition";
 import { alertingQueries } from "@/data/alerting/queries";
@@ -36,18 +35,15 @@ import { useTimeRange } from "@/hooks/use-time-range";
 import { AlertEventFeed } from "./-components/alert-event-feed";
 import { alertRuleEvaluationOutcome } from "./-components/alert-rule-chart-data";
 import { AlertRuleSignalChart } from "./-components/alert-rule-signal-chart";
+import { EvaluationCountdown } from "./-components/evaluation-countdown";
 import {
-  AlertingAlertStatusLabel,
   AlertingBackLink,
   AlertingDefRow,
   AlertingDisclosureTrigger,
-  AlertingEmptyState,
   AlertingPauseToggle,
   AlertingQueryError,
   AlertingStatusLabel,
   alertingErrorMessage,
-  alertingFormatTs,
-  LabelSet,
 } from "./-components/shared";
 
 function RuleStateLabel({ rule }: { rule: AlertingRuleView }) {
@@ -89,52 +85,36 @@ function RuleStateLabel({ rule }: { rule: AlertingRuleView }) {
   );
 }
 
-function MobileRuleInstances({ instances }: { instances: AlertingAlert[] }) {
-  if (instances.length === 0) {
-    return (
-      <AlertingEmptyState
-        title="No active instances"
-        hint="This rule isn't firing or pending for any label set right now."
-      />
-    );
-  }
-  return (
-    <ul className="divide-y divide-border/60">
-      {instances.map((instance) => (
-        <li key={instance.key} className="space-y-2 px-3 py-3">
-          <div className="flex items-center justify-between gap-3">
-            <AlertingAlertStatusLabel status={instance.status} />
-            <span className="font-mono text-sm tabular-nums">
-              {instance.value ?? "—"}
-            </span>
-          </div>
-          <LabelSet labels={instance.labels} />
-          <dl className="grid grid-cols-2 gap-x-3 gap-y-1 text-xs">
-            <dt className="text-muted-foreground">Active since</dt>
-            <dd className="text-right">
-              {alertingFormatTs(instance.active_since)}
-            </dd>
-            <dt className="text-muted-foreground">Last seen</dt>
-            <dd className="text-right">
-              {instance.last_seen ? (
-                <RelativeTime timestamp={instance.last_seen} />
-              ) : (
-                "—"
-              )}
-              {instance.absent_count > 0 &&
-                ` · absent x${instance.absent_count}`}
-            </dd>
-          </dl>
-        </li>
-      ))}
-    </ul>
-  );
-}
-
 function conciseDuration(seconds: number) {
   if (seconds < 60) return `${Math.max(0, Math.ceil(seconds))}s`;
   if (seconds < 3_600) return `${Math.ceil(seconds / 60)}m`;
   return `${Math.ceil(seconds / 3_600)}h`;
+}
+
+function RuleActivityStat({
+  label,
+  value,
+  detail,
+}: {
+  label: string;
+  value: ReactNode;
+  detail?: ReactNode;
+}) {
+  return (
+    <div className="min-w-0 bg-card px-3 py-2.5">
+      <dt className="text-[0.625rem] font-medium tracking-wide text-muted-foreground uppercase">
+        {label}
+      </dt>
+      <dd className="mt-0.5 min-w-0">
+        <div className="truncate text-sm font-medium tabular-nums">{value}</div>
+        {detail && (
+          <div className="mt-0.5 truncate text-[0.6875rem] text-muted-foreground">
+            {detail}
+          </div>
+        )}
+      </dd>
+    </div>
+  );
 }
 
 function AlertRuleDiagnosis({
@@ -244,6 +224,7 @@ export const Route = createFileRoute(
         }),
       ),
     ]);
+    return { timeDefaults: { refresh: "10s" } };
   },
   component: AlertingRuleDetailPage,
 });
@@ -255,12 +236,19 @@ function AlertingRuleDetailPage() {
   const { preview } = Route.useSearch();
   const qc = useQueryClient();
   const { timeRange } = useTimeRange();
-  const rule = useQuery(alertingQueries.ruleByName(project, slug, preview));
-  const alerts = useQuery(alertingQueries.alerts(preview));
+  const rule = useQuery({
+    ...alertingQueries.ruleByName(project, slug, preview),
+    refetchInterval: false,
+  });
+  const alerts = useQuery({
+    ...alertingQueries.alerts(preview),
+    refetchInterval: false,
+  });
   const pendingRuleId = rule.data?.id ?? "00000000-0000-0000-0000-000000000000";
   const evaluationSeries = useQuery({
     ...alertingQueries.ruleEvaluationSeries(pendingRuleId, timeRange),
     enabled: rule.data !== undefined,
+    refetchInterval: false,
   });
   const pendingScope = rule.data
     ? alertingRuleHandles(rule.data)
@@ -271,6 +259,7 @@ function AlertingRuleDetailPage() {
       preview,
     }),
     enabled: rule.data !== undefined,
+    refetchInterval: false,
   });
   const [sqlOpen, setSqlOpen] = useState(false);
   const [annotationsOpen, setAnnotationsOpen] = useState(false);
@@ -324,18 +313,6 @@ function AlertingRuleDetailPage() {
     r.spec.annotations?.["everr.display.description"];
   const scopeHandles = alertingRuleHandles(r);
   const latestEvaluation = evaluationSeries.data?.points.at(-1);
-  const latestObservedEvaluation = evaluationSeries.data
-    ? [...evaluationSeries.data.points]
-        .reverse()
-        .find((point) => point.samples.some((sample) => sample.value !== null))
-    : undefined;
-  const activeValue = ruleInstances.find(
-    (instance) => instance.status === "firing" || instance.status === "pending",
-  )?.value;
-  const latestValues = (latestObservedEvaluation?.samples ?? []).flatMap(
-    (sample) => (sample.value === null ? [] : [sample.value]),
-  );
-  const currentValue = activeValue ?? latestValues[0] ?? null;
   const latestEvaluationAt =
     latestEvaluation?.t ?? r.rollup.last_seen_at ?? null;
   const conditionOperator = alertingConditionOperatorLabel(
@@ -350,34 +327,23 @@ function AlertingRuleDetailPage() {
         : instance.key,
     ];
   });
-
-  const instCols: Column<AlertingAlert>[] = [
-    {
-      header: "Status",
-      cell: (a) => <AlertingAlertStatusLabel status={a.status} />,
-    },
-    { header: "Labels", cell: (a) => <LabelSet labels={a.labels} /> },
-    {
-      header: "Value",
-      cell: (a) => <span className="tabular-nums">{a.value ?? "—"}</span>,
-    },
-    { header: "Active since", cell: (a) => alertingFormatTs(a.active_since) },
-    {
-      // absent_count is consecutive evaluations without the row — the
-      // instance is on its way to resolving.
-      header: "Last seen",
-      cell: (a) => (
-        <span className="whitespace-nowrap text-xs text-muted-foreground">
-          {a.last_seen ? <RelativeTime timestamp={a.last_seen} /> : "—"}
-          {a.absent_count > 0 && ` · absent x${a.absent_count}`}
-        </span>
-      ),
-    },
-  ];
+  const firingInstanceCount = ruleInstances.filter(
+    (instance) => instance.status === "firing",
+  ).length;
+  const pendingInstanceCount = ruleInstances.length - firingInstanceCount;
+  const lastFiredAt = r.rollup.last_fired_at;
+  const lastResolvedAt = r.rollup.last_resolved_at;
+  const lastTransition =
+    lastFiredAt &&
+    (!lastResolvedAt || Date.parse(lastFiredAt) >= Date.parse(lastResolvedAt))
+      ? { label: "Fired", timestamp: lastFiredAt }
+      : lastResolvedAt
+        ? { label: "Resolved", timestamp: lastResolvedAt }
+        : null;
 
   return (
     <div className="space-y-3">
-      <header className="space-y-2">
+      <header className="space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="flex min-w-0 flex-wrap items-center gap-3">
             <AlertingBackLink to="/alerts/rules" label="Back to rules" />
@@ -408,37 +374,68 @@ function AlertingRuleDetailPage() {
           </div>
         </div>
         <dl
-          className="flex flex-wrap gap-x-5 gap-y-1 pl-7 text-xs"
-          aria-label="Current rule status"
+          className="grid grid-cols-3 gap-px overflow-hidden rounded-lg bg-border/60 ring-1 ring-foreground/10"
+          aria-label="Rule activity summary"
         >
-          <div className="flex items-baseline gap-1.5">
-            <dt className="text-muted-foreground">Instances</dt>
-            <dd className="font-mono tabular-nums">
-              {ruleInstances.length} active
-            </dd>
-          </div>
-          <div className="flex items-baseline gap-1.5">
-            <dt className="text-muted-foreground">
-              {currentValue === null ? "Condition" : "Latest value"}
-            </dt>
-            <dd className="font-mono tabular-nums">
-              {currentValue === null && "value "}
-              {currentValue ?? ""} {conditionOperator}{" "}
-              {r.spec.condition.threshold}
-              {r.spec.for_secs > 0 &&
-                ` for ${conciseDuration(r.spec.for_secs)}`}
-            </dd>
-          </div>
-          <div className="flex items-baseline gap-1.5">
-            <dt className="text-muted-foreground">Evaluated</dt>
-            <dd>
-              {latestEvaluationAt ? (
+          <RuleActivityStat
+            label="Active instances"
+            value={
+              alerts.isPending ? (
+                <Skeleton className="h-5 w-10" />
+              ) : (
+                ruleInstances.length
+              )
+            }
+            detail={
+              alerts.isPending ? (
+                <Skeleton className="h-3 w-24" />
+              ) : (
+                <span className="inline-flex items-center gap-2.5">
+                  <span>
+                    <span className="font-medium text-destructive tabular-nums">
+                      {firingInstanceCount}
+                    </span>{" "}
+                    firing
+                  </span>
+                  <span>
+                    <span className="font-medium text-amber-600 tabular-nums dark:text-amber-400">
+                      {pendingInstanceCount}
+                    </span>{" "}
+                    pending
+                  </span>
+                </span>
+              )
+            }
+          />
+          <RuleActivityStat
+            label="Evaluated"
+            value={
+              latestEvaluationAt ? (
                 <RelativeTime timestamp={latestEvaluationAt} />
               ) : (
                 "Never"
-              )}
-            </dd>
-          </div>
+              )
+            }
+            detail={
+              <EvaluationCountdown
+                nextEvaluationAt={r.rollup.next_evaluation_at}
+                paused={r.paused}
+              />
+            }
+          />
+          <RuleActivityStat
+            label="Last transition"
+            value={
+              lastTransition ? (
+                <>
+                  {lastTransition.label}{" "}
+                  <RelativeTime timestamp={lastTransition.timestamp} />
+                </>
+              ) : (
+                "None"
+              )
+            }
+          />
         </dl>
       </header>
 
@@ -476,69 +473,6 @@ function AlertingRuleDetailPage() {
               intervalSeconds={r.spec.interval_secs}
               currentFiringFingerprints={currentFiringFingerprints}
             />
-          )}
-        </CardContent>
-      </Card>
-
-      <Card inset="flush-content">
-        <CardHeader>
-          <CardTitle>
-            <h3>Current activity</h3>
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <dl className="flex flex-wrap gap-x-6 gap-y-1 px-3 pb-2">
-            {(
-              [
-                ["Last fired", r.rollup.last_fired_at],
-                ["Last resolved", r.rollup.last_resolved_at],
-                ["Last seen", r.rollup.last_seen_at],
-              ] as const
-            ).map(([label, ts]) => (
-              <div key={label} className="flex items-baseline gap-1.5">
-                <dt className="text-[0.625rem] font-medium tracking-wide text-muted-foreground uppercase">
-                  {label}
-                </dt>
-                <dd
-                  className="font-mono text-xs tabular-nums"
-                  title={alertingFormatTs(ts)}
-                >
-                  {ts ? <RelativeTime timestamp={ts} /> : "—"}
-                </dd>
-              </div>
-            ))}
-            <div className="flex items-baseline gap-1.5">
-              <dt className="text-[0.625rem] font-medium tracking-wide text-muted-foreground uppercase">
-                Last row count
-              </dt>
-              <dd className="font-mono text-xs tabular-nums">
-                {String(r.rollup.last_row_count ?? "—")}
-              </dd>
-            </div>
-          </dl>
-          {alerts.isPending ? (
-            <div className="px-3 py-2">
-              <Skeleton className="h-7 w-full" />
-            </div>
-          ) : (
-            <>
-              <div className="md:hidden">
-                <MobileRuleInstances instances={ruleInstances} />
-              </div>
-              <div className="hidden md:block">
-                <DataTable
-                  data={ruleInstances}
-                  columns={instCols}
-                  rowKey={(a) => a.key}
-                  emptyState={
-                    <AlertingEmptyState
-                      title="No active instances"
-                      hint="This rule isn't firing or pending for any label set right now."
-                    />
-                  }
-                />
-              </div>
-            </>
           )}
         </CardContent>
       </Card>

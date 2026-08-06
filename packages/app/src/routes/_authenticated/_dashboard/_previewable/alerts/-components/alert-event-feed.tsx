@@ -60,12 +60,13 @@ export function AlertEventFeed({
   const { timeRange } = useTimeRange();
   // Scoping happens server-side so the row cap applies after it; otherwise
   // busier sources fill the newest-N window and starve this one.
-  const history = useQuery(
-    alertingQueries.eventHistory(timeRange, {
+  const history = useQuery({
+    ...alertingQueries.eventHistory(timeRange, {
       slugs: scopeSlug,
       ...(preview ? { preview } : {}),
     }),
-  );
+    refetchInterval: false,
+  });
 
   const rows = history.data ?? [];
 
