@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { AlertingRuleEvaluationPoint } from "@/data/alerting/types";
 import {
   ALERT_RULE_CHART_SERIES_LIMIT,
+  alertRuleChartPointTarget,
   alertRuleEvaluationOutcome,
   alertRuleRailBucketCount,
   buildAlertRuleChartModel,
@@ -10,6 +11,16 @@ import {
   buildAlertRuleIncidentRail,
   summarizeAlertRuleLatestCheck,
 } from "./alert-rule-chart-data";
+
+describe("alertRuleChartPointTarget", () => {
+  it("tracks usable chart width in stable, bounded steps", () => {
+    expect(alertRuleChartPointTarget(320)).toBe(150);
+    expect(alertRuleChartPointTarget(800)).toBe(375);
+    expect(alertRuleChartPointTarget(820)).toBe(400);
+    expect(alertRuleChartPointTarget(10_000)).toBe(500);
+    expect(alertRuleChartPointTarget(0)).toBe(50);
+  });
+});
 
 const point = (
   t: string,

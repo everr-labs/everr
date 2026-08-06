@@ -107,7 +107,11 @@ export const alertingQueries = {
     });
   },
 
-  ruleEvaluationSeries: (ruleId: string, timeRange: TimeRange) =>
+  ruleEvaluationSeries: (
+    ruleId: string,
+    timeRange: TimeRange,
+    getPoints: () => number,
+  ) =>
     queryOptions({
       queryKey: [
         "alerting",
@@ -116,7 +120,9 @@ export const alertingQueries = {
         { timeRange },
       ] as const,
       queryFn: () =>
-        getAlertingRuleEvaluationSeries({ data: { ruleId, timeRange } }),
+        getAlertingRuleEvaluationSeries({
+          data: { ruleId, timeRange, points: getPoints() },
+        }),
     }),
 
   // Config listing: changes only through user actions, so mutations invalidate

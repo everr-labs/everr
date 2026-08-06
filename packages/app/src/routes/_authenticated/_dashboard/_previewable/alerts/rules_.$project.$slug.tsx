@@ -16,7 +16,13 @@ import { cn } from "@everr/ui/lib/utils";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { BellOff, BookOpenText, CircleAlert } from "lucide-react";
-import { type ReactNode, useRef, useState } from "react";
+import {
+  type ReactNode,
+  useCallback,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 import { toast } from "sonner";
 import { alertingConditionOperatorLabel } from "@/data/alerting/condition";
 import { alertingQueries } from "@/data/alerting/queries";
@@ -32,6 +38,7 @@ import {
 } from "@/data/alerts/rule-identity";
 import { useTimeRange } from "@/hooks/use-time-range";
 import {
+  alertRuleChartPointTarget,
   alertRuleEvaluationOutcome,
   summarizeAlertRuleLatestCheck,
 } from "./-components/alert-rule-chart-data";
@@ -89,6 +96,38 @@ function RuleStateLabel({ rule }: { rule: AlertingRuleView }) {
       OK
     </AlertingStatusLabel>
   );
+}
+
+function useAlertRuleChartMeasurement() {
+  const ref = useRef<HTMLDivElement>(null);
+  const widthRef = useRef(0);
+  const [ready, setReady] = useState(false);
+
+  useLayoutEffect(() => {
+    const element = ref.current;
+    if (!element) return;
+    let measured = false;
+    const update = (width: number) => {
+      if (width <= 0) return;
+      widthRef.current = width;
+      if (!measured) {
+        measured = true;
+        setReady(true);
+      }
+    };
+    update(element.getBoundingClientRect().width);
+    const observer = new ResizeObserver(([entry]) => {
+      if (entry) update(entry.contentRect.width);
+    });
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, []);
+
+  const getPoints = useCallback(
+    () => alertRuleChartPointTarget(widthRef.current),
+    [],
+  );
+  return { ref, ready, getPoints };
 }
 
 function conciseDuration(seconds: number) {
@@ -221,9 +260,6 @@ export const Route = createFileRoute(
     await Promise.all([
       queryClient.prefetchQuery(alertingQueries.alerts(deps.preview)),
       queryClient.prefetchQuery(
-        alertingQueries.ruleEvaluationSeries(rule.id, deps.timeRange),
-      ),
-      queryClient.prefetchQuery(
         alertingQueries.eventHistory(deps.timeRange, {
           slugs: alertingRuleHandles(rule),
           preview: deps.preview,
@@ -243,6 +279,7 @@ function AlertingRuleDetailPage() {
   const qc = useQueryClient();
   const { timeRange } = useTimeRange();
   const silenceDrawer = useRef<SilenceDrawerHandle>(null);
+  const signalChart = useAlertRuleChartMeasurement();
   const rule = useQuery({
     ...alertingQueries.ruleByName(project, slug, preview),
     refetchInterval: false,
@@ -253,8 +290,12 @@ function AlertingRuleDetailPage() {
   });
   const pendingRuleId = rule.data?.id ?? "00000000-0000-0000-0000-000000000000";
   const evaluationSeries = useQuery({
-    ...alertingQueries.ruleEvaluationSeries(pendingRuleId, timeRange),
-    enabled: rule.data !== undefined,
+    ...alertingQueries.ruleEvaluationSeries(
+      pendingRuleId,
+      timeRange,
+      signalChart.getPoints,
+    ),
+    enabled: rule.data !== undefined && signalChart.ready,
     refetchInterval: false,
   });
   const pendingScope = rule.data
@@ -515,7 +556,7 @@ function AlertingRuleDetailPage() {
         </dl>
       </header>
 
-      <Card className="pb-0">
+      <Card ref={signalChart.ref} className="pb-0">
         <CardHeader>
           <CardTitle>
             <h3>Signal history</h3>

@@ -9,6 +9,27 @@ import type { AlertEventLogRow } from "@/data/alerts/history.server";
 export const ALERT_RULE_CHART_SERIES_LIMIT = 12;
 export const ALERT_RULE_RAIL_MAX_BUCKETS = 60;
 
+const ALERT_RULE_CHART_MIN_POINTS = 50;
+const ALERT_RULE_CHART_MAX_POINTS = 500;
+const ALERT_RULE_CHART_HORIZONTAL_CHROME_PX = 64;
+const ALERT_RULE_CHART_PX_PER_POINT = 2;
+const ALERT_RULE_CHART_POINT_QUANTUM = 25;
+
+export function alertRuleChartPointTarget(containerWidth: number): number {
+  const plotWidth = Math.max(
+    0,
+    containerWidth - ALERT_RULE_CHART_HORIZONTAL_CHROME_PX,
+  );
+  const rawTarget = Math.ceil(plotWidth / ALERT_RULE_CHART_PX_PER_POINT);
+  const quantizedTarget =
+    Math.ceil(rawTarget / ALERT_RULE_CHART_POINT_QUANTUM) *
+    ALERT_RULE_CHART_POINT_QUANTUM;
+  return Math.min(
+    ALERT_RULE_CHART_MAX_POINTS,
+    Math.max(ALERT_RULE_CHART_MIN_POINTS, quantizedTarget),
+  );
+}
+
 export type AlertRuleChartSeries = {
   key: string;
   fingerprint: string;
