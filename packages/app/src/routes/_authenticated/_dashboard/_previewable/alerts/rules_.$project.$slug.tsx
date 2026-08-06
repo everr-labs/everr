@@ -32,11 +32,11 @@ import {
   alertingRuleIdentity,
 } from "@/data/alerts/rule-identity";
 import { useTimeRange } from "@/hooks/use-time-range";
-import { AlertEventFeed } from "./-components/alert-event-feed";
 import {
   alertRuleEvaluationOutcome,
   summarizeAlertRuleLatestCheck,
 } from "./-components/alert-rule-chart-data";
+import { AlertRuleHistory } from "./-components/alert-rule-history";
 import { AlertRuleSignalChart } from "./-components/alert-rule-signal-chart";
 import { EvaluationCountdown } from "./-components/evaluation-countdown";
 import {
@@ -314,7 +314,6 @@ function AlertingRuleDetailPage() {
   const annotationDescription =
     r.spec.annotations?.description ??
     r.spec.annotations?.["everr.display.description"];
-  const scopeHandles = alertingRuleHandles(r);
   const latestEvaluation = evaluationSeries.data?.points.at(-1);
   const latestCheck = latestEvaluation
     ? summarizeAlertRuleLatestCheck(latestEvaluation, r.spec.condition)
@@ -495,7 +494,7 @@ function AlertingRuleDetailPage() {
         </dl>
       </header>
 
-      <Card>
+      <Card className="pb-0">
         <CardHeader>
           <CardTitle>
             <h3>Signal history</h3>
@@ -532,6 +531,18 @@ function AlertingRuleDetailPage() {
           )}
         </CardContent>
       </Card>
+
+      <AlertRuleHistory
+        evaluationSeries={evaluationSeries.data}
+        evaluationPending={evaluationSeries.isPending}
+        evaluationError={
+          evaluationSeries.isError ? evaluationSeries.error : null
+        }
+        condition={r.spec.condition}
+        events={eventHistory.data ?? []}
+        eventsPending={eventHistory.isPending}
+        eventsError={eventHistory.isError ? eventHistory.error : null}
+      />
 
       <Card>
         <CardHeader>
@@ -632,8 +643,6 @@ function AlertingRuleDetailPage() {
           </Collapsible>
         </CardContent>
       </Card>
-
-      <AlertEventFeed preview={preview} scopeSlug={scopeHandles} />
     </div>
   );
 }

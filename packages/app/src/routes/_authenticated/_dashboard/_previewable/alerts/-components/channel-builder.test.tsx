@@ -4,7 +4,7 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ChannelBuilder } from "./channel-builder";
 
-// Mirror the mock shape used by alert-event-feed.test.tsx.
+// Keep the alerting query mock at the module boundary used by the component.
 const testAlertingChannel = vi.fn();
 vi.mock("@/data/alerting/server", () => ({
   createAlertingChannel: vi.fn(),

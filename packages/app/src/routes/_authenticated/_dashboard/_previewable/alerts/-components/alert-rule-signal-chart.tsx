@@ -199,163 +199,165 @@ export function AlertRuleSignalChart({
   );
 
   return (
-    <div className="space-y-3">
-      {values.length === 0 || yAxis === null ? (
-        <div className="h-44 sm:h-72">
-          <ChartEmptyState
-            message={
-              failedEvaluations > 0
-                ? `No values recorded; ${failedEvaluations} evaluation${failedEvaluations === 1 ? "" : "s"} failed in this range`
-                : "No recorded numeric values in this range"
-            }
-          />
-        </div>
-      ) : (
-        <ChartContainer
-          config={chartConfig}
-          className="h-60 w-full rounded-sm outline-2 outline-transparent outline-offset-2 focus-visible:outline-primary sm:h-72"
-          role="img"
-          tabIndex={0}
-          aria-label={chartSummary}
-        >
-          <ComposedChart
-            data={model.rows}
-            margin={{ top: 20, right: 16, left: 4 }}
-          >
-            <defs>
-              <pattern
-                id="alert-no-data-hatch"
-                width="6"
-                height="6"
-                patternUnits="userSpaceOnUse"
-                patternTransform="rotate(45)"
-              >
-                <line
-                  x1="0"
-                  y1="0"
-                  x2="0"
-                  y2="6"
-                  stroke="var(--muted-foreground)"
-                  strokeOpacity="0.18"
-                  strokeWidth="1"
-                />
-              </pattern>
-              <pattern
-                id="alert-failed-hatch"
-                width="6"
-                height="6"
-                patternUnits="userSpaceOnUse"
-                patternTransform="rotate(45)"
-              >
-                <line
-                  x1="0"
-                  y1="0"
-                  x2="0"
-                  y2="6"
-                  stroke="var(--color-amber-500)"
-                  strokeOpacity="0.3"
-                  strokeWidth="1.5"
-                />
-              </pattern>
-            </defs>
-            <CartesianGrid vertical={false} />
-            <XAxis
-              dataKey="t"
-              type="number"
-              scale="time"
-              domain={domain}
-              allowDataOverflow
-              ticks={generateTimeTicks(domain, 6)}
-              tickFormatter={createAlertTimeTickFormatter(domain)}
-              tickLine={false}
-              axisLine={false}
-              tickMargin={8}
-            />
-            <YAxis
-              domain={yAxis.domain}
-              ticks={yAxis.ticks}
-              tickLine={false}
-              axisLine={false}
-              tickMargin={8}
-              width={48}
-            />
-            {evaluationSpans.map((span) => (
-              <ReferenceArea
-                key={`${span.start}:${span.outcome}`}
-                x1={span.start}
-                x2={span.end}
-                y1={yAxis.domain[0]}
-                y2={yAxis.domain[1]}
-                fill={`url(#alert-${span.outcome === "no_data" ? "no-data" : "failed"}-hatch)`}
-                strokeOpacity={0}
-              />
-            ))}
-            <ChartTooltip
-              cursor={{ stroke: "var(--border)", strokeDasharray: "3 3" }}
-              content={
-                <ChartTooltipContent
-                  formatter={createChartTooltipFormatter(chartConfig)}
-                  labelFormatter={(_, payload) => {
-                    const t = payload?.[0]?.payload?.t;
-                    return typeof t === "number" ? alertingFormatTs(t) : "";
-                  }}
-                />
+    <>
+      <div className="space-y-3">
+        {values.length === 0 || yAxis === null ? (
+          <div className="h-44 sm:h-72">
+            <ChartEmptyState
+              message={
+                failedEvaluations > 0
+                  ? `No values recorded; ${failedEvaluations} evaluation${failedEvaluations === 1 ? "" : "s"} failed in this range`
+                  : "No recorded numeric values in this range"
               }
             />
-            <ReferenceLine
-              y={condition.threshold}
-              stroke={THRESHOLD_COLOR}
-              strokeDasharray="5 4"
-              strokeWidth={1.5}
-            />
-            {model.series.map((series) => (
-              <Line
-                key={series.key}
-                dataKey={series.key}
-                name={series.key}
-                type="linear"
-                stroke={series.color}
-                strokeWidth={2}
-                dot={samplePointCount === 1 ? { r: 3 } : false}
-                connectNulls={false}
-                isAnimationActive={false}
+          </div>
+        ) : (
+          <ChartContainer
+            config={chartConfig}
+            className="h-60 w-full rounded-sm outline-2 outline-transparent outline-offset-2 focus-visible:outline-primary sm:h-72"
+            role="img"
+            tabIndex={0}
+            aria-label={chartSummary}
+          >
+            <ComposedChart
+              data={model.rows}
+              margin={{ top: 20, right: 16, left: 4 }}
+            >
+              <defs>
+                <pattern
+                  id="alert-no-data-hatch"
+                  width="6"
+                  height="6"
+                  patternUnits="userSpaceOnUse"
+                  patternTransform="rotate(45)"
+                >
+                  <line
+                    x1="0"
+                    y1="0"
+                    x2="0"
+                    y2="6"
+                    stroke="var(--muted-foreground)"
+                    strokeOpacity="0.18"
+                    strokeWidth="1"
+                  />
+                </pattern>
+                <pattern
+                  id="alert-failed-hatch"
+                  width="6"
+                  height="6"
+                  patternUnits="userSpaceOnUse"
+                  patternTransform="rotate(45)"
+                >
+                  <line
+                    x1="0"
+                    y1="0"
+                    x2="0"
+                    y2="6"
+                    stroke="var(--color-amber-500)"
+                    strokeOpacity="0.3"
+                    strokeWidth="1.5"
+                  />
+                </pattern>
+              </defs>
+              <CartesianGrid vertical={false} />
+              <XAxis
+                dataKey="t"
+                type="number"
+                scale="time"
+                domain={domain}
+                allowDataOverflow
+                ticks={generateTimeTicks(domain, 6)}
+                tickFormatter={createAlertTimeTickFormatter(domain)}
+                tickLine={false}
+                axisLine={false}
+                tickMargin={8}
               />
-            ))}
-          </ComposedChart>
-        </ChartContainer>
-      )}
+              <YAxis
+                domain={yAxis.domain}
+                ticks={yAxis.ticks}
+                tickLine={false}
+                axisLine={false}
+                tickMargin={8}
+                width={48}
+              />
+              {evaluationSpans.map((span) => (
+                <ReferenceArea
+                  key={`${span.start}:${span.outcome}`}
+                  x1={span.start}
+                  x2={span.end}
+                  y1={yAxis.domain[0]}
+                  y2={yAxis.domain[1]}
+                  fill={`url(#alert-${span.outcome === "no_data" ? "no-data" : "failed"}-hatch)`}
+                  strokeOpacity={0}
+                />
+              ))}
+              <ChartTooltip
+                cursor={{ stroke: "var(--border)", strokeDasharray: "3 3" }}
+                content={
+                  <ChartTooltipContent
+                    formatter={createChartTooltipFormatter(chartConfig)}
+                    labelFormatter={(_, payload) => {
+                      const t = payload?.[0]?.payload?.t;
+                      return typeof t === "number" ? alertingFormatTs(t) : "";
+                    }}
+                  />
+                }
+              />
+              <ReferenceLine
+                y={condition.threshold}
+                stroke={THRESHOLD_COLOR}
+                strokeDasharray="5 4"
+                strokeWidth={1.5}
+              />
+              {model.series.map((series) => (
+                <Line
+                  key={series.key}
+                  dataKey={series.key}
+                  name={series.key}
+                  type="linear"
+                  stroke={series.color}
+                  strokeWidth={2}
+                  dot={samplePointCount === 1 ? { r: 3 } : false}
+                  connectNulls={false}
+                  isAnimationActive={false}
+                />
+              ))}
+            </ComposedChart>
+          </ChartContainer>
+        )}
 
-      {values.length > 0 && <ChartKey model={model} condition={condition} />}
+        {values.length > 0 && <ChartKey model={model} condition={condition} />}
 
-      <AlertRuleEvaluationDetails
-        evaluationSeries={evaluationSeries}
-        condition={condition}
-        events={events}
-        currentFiringFingerprints={currentFiringFingerprints}
-        domain={domain}
-        intervalSeconds={intervalSeconds}
-      />
+        <AlertRuleEvaluationDetails
+          evaluationSeries={evaluationSeries}
+          condition={condition}
+          events={events}
+          currentFiringFingerprints={currentFiringFingerprints}
+          domain={domain}
+          intervalSeconds={intervalSeconds}
+        />
 
-      {(evaluationSeries.samples_truncated ||
-        model.seriesTruncated ||
-        failedEvaluations > 0) && (
-        <p className="text-xs text-muted-foreground">
-          {[
-            evaluationSeries.samples_truncated
-              ? "Some evaluations exceeded the stored sample limit"
-              : null,
-            model.seriesTruncated
-              ? "Showing the 12 most frequently observed label sets"
-              : null,
-            failedEvaluations > 0
-              ? `${failedEvaluations} failed evaluation${failedEvaluations === 1 ? "" : "s"} shown as gaps`
-              : null,
-          ]
-            .filter(Boolean)
-            .join(". ")}
-          .
-        </p>
-      )}
+        {(evaluationSeries.samples_truncated ||
+          model.seriesTruncated ||
+          failedEvaluations > 0) && (
+          <p className="text-xs text-muted-foreground">
+            {[
+              evaluationSeries.samples_truncated
+                ? "Some evaluations exceeded the stored sample limit"
+                : null,
+              model.seriesTruncated
+                ? "Showing the 12 most frequently observed label sets"
+                : null,
+              failedEvaluations > 0
+                ? `${failedEvaluations} failed evaluation${failedEvaluations === 1 ? "" : "s"} shown as gaps`
+                : null,
+            ]
+              .filter(Boolean)
+              .join(". ")}
+            .
+          </p>
+        )}
+      </div>
 
       <ul className="sr-only" aria-label="Alert transitions in range">
         {visibleTransitions.map((event) => (
@@ -385,6 +387,6 @@ export function AlertRuleSignalChart({
           })}
         </tbody>
       </table>
-    </div>
+    </>
   );
 }

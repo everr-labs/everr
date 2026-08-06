@@ -1,8 +1,4 @@
 import {
-  Collapsible,
-  CollapsibleContent,
-} from "@everr/ui/components/collapsible";
-import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
@@ -23,7 +19,7 @@ import {
   buildAlertRuleEvaluationRail,
   buildAlertRuleIncidentRail,
 } from "./alert-rule-chart-data";
-import { AlertingDisclosureTrigger, alertingFormatTs } from "./shared";
+import { alertingFormatTs } from "./shared";
 
 const OUTCOME_META: Record<
   AlertRuleEvaluationOutcome,
@@ -195,18 +191,18 @@ function StateRails({
   );
 
   return (
-    <fieldset className="space-y-2.5">
+    <fieldset className="space-y-2">
       <legend className="sr-only">
         Rule checks and firing state over time
       </legend>
-      <div className="space-y-1.5">
-        <div className="grid grid-cols-[4.25rem_minmax(0,1fr)] items-center gap-3">
+      <div className="space-y-0.5">
+        <div className="grid grid-cols-[3rem_minmax(0,1fr)] items-center gap-3">
           <span className="text-right text-[0.625rem] font-medium tracking-wide text-muted-foreground uppercase">
             Checks
           </span>
           <BucketRail buckets={evaluationRail} className="h-2" />
         </div>
-        <div className="grid grid-cols-[4.25rem_minmax(0,1fr)] items-center gap-3">
+        <div className="grid grid-cols-[3rem_minmax(0,1fr)] items-center gap-3">
           <span className="text-right text-[0.625rem] font-medium tracking-wide text-muted-foreground uppercase">
             Firing
           </span>
@@ -267,83 +263,80 @@ function valueSummary(
   return `${breached}/${values.length} breached`;
 }
 
-function EvaluationHistory({
+export function AlertRuleEvaluationHistoryTable({
   evaluationSeries,
   condition,
 }: {
   evaluationSeries: AlertingRuleEvaluationSeries;
   condition: AlertingRuleCondition;
 }) {
-  const [open, setOpen] = useState(false);
   const rows = [...evaluationSeries.recent_points].reverse();
   return (
-    <Collapsible open={open} onOpenChange={setOpen}>
-      <AlertingDisclosureTrigger open={open}>
-        <span className="text-xs font-medium">Evaluation history</span>
-        {!open && (
-          <span className="min-w-0 truncate text-[0.6875rem] text-muted-foreground">
-            {rows.length} recent of {evaluationSeries.evaluation_count}
-          </span>
-        )}
-      </AlertingDisclosureTrigger>
-      <CollapsibleContent>
-        <div className="mt-2 overflow-x-auto rounded-md ring-1 ring-foreground/10">
-          <table className="w-full min-w-[42rem] text-left text-xs">
-            <thead className="bg-muted/35 text-muted-foreground">
-              <tr>
-                <th className="px-3 py-2 font-medium" scope="col">
-                  Time
-                </th>
-                <th className="px-3 py-2 font-medium" scope="col">
-                  Outcome
-                </th>
-                <th className="px-3 py-2 font-medium" scope="col">
-                  Value / threshold
-                </th>
-                <th className="px-3 py-2 text-right font-medium" scope="col">
-                  Rows
-                </th>
-                <th className="px-3 py-2 font-medium" scope="col">
-                  Details
-                </th>
+    <div className="max-h-[28rem] overflow-auto overscroll-contain border-t border-border/60">
+      <table className="w-full min-w-[42rem] text-left text-xs">
+        <thead className="sticky top-0 z-10 bg-muted text-muted-foreground">
+          <tr>
+            <th className="px-3 py-2 font-medium" scope="col">
+              Time
+            </th>
+            <th className="px-3 py-2 font-medium" scope="col">
+              Outcome
+            </th>
+            <th className="px-3 py-2 font-medium" scope="col">
+              Value / threshold
+            </th>
+            <th className="px-3 py-2 text-right font-medium" scope="col">
+              Rows
+            </th>
+            <th className="px-3 py-2 font-medium" scope="col">
+              Details
+            </th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-border/60">
+          {rows.map((point) => {
+            const outcome = alertRuleEvaluationOutcome(point, condition);
+            return (
+              <tr key={point.t} className="h-8 hover:bg-muted/30">
+                <td className="whitespace-nowrap px-3 py-0 font-mono tabular-nums">
+                  {alertingFormatTs(point.t)}
+                </td>
+                <td className="whitespace-nowrap px-3 py-0">
+                  <EvaluationOutcomeLabel outcome={outcome} />
+                </td>
+                <td className="whitespace-nowrap px-3 py-0 font-mono tabular-nums">
+                  {valueSummary(point, condition)}
+                </td>
+                <td className="px-3 py-0 text-right font-mono tabular-nums">
+                  {point.row_count ?? "—"}
+                </td>
+                <td
+                  className="max-w-80 truncate px-3 py-0 text-muted-foreground"
+                  title={point.error ?? undefined}
+                >
+                  {point.error ??
+                    (outcome === "no_data"
+                      ? "Query returned no numeric values"
+                      : outcome === "unknown"
+                        ? "Evaluation predates captured samples"
+                        : "—")}
+                </td>
               </tr>
-            </thead>
-            <tbody className="divide-y divide-border/60">
-              {rows.map((point) => {
-                const outcome = alertRuleEvaluationOutcome(point, condition);
-                return (
-                  <tr key={point.t}>
-                    <td className="whitespace-nowrap px-3 py-2 font-mono tabular-nums">
-                      {alertingFormatTs(point.t)}
-                    </td>
-                    <td className="whitespace-nowrap px-3 py-2">
-                      <EvaluationOutcomeLabel outcome={outcome} />
-                    </td>
-                    <td className="whitespace-nowrap px-3 py-2 font-mono tabular-nums">
-                      {valueSummary(point, condition)}
-                    </td>
-                    <td className="px-3 py-2 text-right font-mono tabular-nums">
-                      {point.row_count ?? "—"}
-                    </td>
-                    <td
-                      className="max-w-80 truncate px-3 py-2 text-muted-foreground"
-                      title={point.error ?? undefined}
-                    >
-                      {point.error ??
-                        (outcome === "no_data"
-                          ? "Query returned no numeric values"
-                          : outcome === "unknown"
-                            ? "Evaluation predates captured samples"
-                            : "—")}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      </CollapsibleContent>
-    </Collapsible>
+            );
+          })}
+          {rows.length === 0 && (
+            <tr>
+              <td
+                className="px-3 py-8 text-center text-muted-foreground"
+                colSpan={5}
+              >
+                No evaluations in range
+              </td>
+            </tr>
+          )}
+        </tbody>
+      </table>
+    </div>
   );
 }
 
@@ -363,19 +356,13 @@ export function AlertRuleEvaluationDetails({
   intervalSeconds: number;
 }) {
   return (
-    <div className="space-y-3">
-      <StateRails
-        evaluationSeries={evaluationSeries}
-        condition={condition}
-        events={events}
-        currentFiringFingerprints={currentFiringFingerprints}
-        domain={domain}
-        intervalSeconds={intervalSeconds}
-      />
-      <EvaluationHistory
-        evaluationSeries={evaluationSeries}
-        condition={condition}
-      />
-    </div>
+    <StateRails
+      evaluationSeries={evaluationSeries}
+      condition={condition}
+      events={events}
+      currentFiringFingerprints={currentFiringFingerprints}
+      domain={domain}
+      intervalSeconds={intervalSeconds}
+    />
   );
 }
