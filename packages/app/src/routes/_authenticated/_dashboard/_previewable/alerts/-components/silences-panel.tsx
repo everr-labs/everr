@@ -39,7 +39,10 @@ import {
  * `openWith`, so no prop-reactive state resets are needed.
  */
 export type SilenceDrawerHandle = {
-  openWith: (seed: AlertingMatcher[]) => void;
+  openWith: (
+    seed: AlertingMatcher[],
+    options?: { lockSeed?: boolean; seedValueLabels?: string[] },
+  ) => void;
 };
 
 function toRfc3339(local: string): string {
@@ -217,6 +220,8 @@ export function SilenceCreateDrawer({
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);
   const [matchers, setMatchers] = useState<AlertingMatcher[]>([]);
+  const [lockedMatcherCount, setLockedMatcherCount] = useState(0);
+  const [lockedValueLabels, setLockedValueLabels] = useState<string[]>([]);
   const [starts, setStarts] = useState("");
   const [ends, setEnds] = useState("");
   const [comment, setComment] = useState("");
@@ -224,8 +229,10 @@ export function SilenceCreateDrawer({
   useImperativeHandle(
     ref,
     () => ({
-      openWith: (seed) => {
+      openWith: (seed, options) => {
         setMatchers(seed);
+        setLockedMatcherCount(options?.lockSeed ? seed.length : 0);
+        setLockedValueLabels(options?.seedValueLabels ?? []);
         setStarts(toLocalInput(new Date()));
         setEnds("");
         setComment("");
@@ -288,7 +295,12 @@ export function SilenceCreateDrawer({
         for the window below. At least one matcher is required — a silence is
         always scoped.
       </AlertingConceptNote>
-      <MatchersEditor value={matchers} onChange={setMatchers} />
+      <MatchersEditor
+        value={matchers}
+        onChange={setMatchers}
+        lockedCount={lockedMatcherCount}
+        lockedValueLabels={lockedValueLabels}
+      />
       <div className="space-y-1.5">
         <span className="text-sm font-medium">Duration</span>
         <div className="flex items-center gap-1.5">

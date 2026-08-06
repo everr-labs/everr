@@ -1,4 +1,4 @@
-import { buttonVariants } from "@everr/ui/components/button";
+import { Button, buttonVariants } from "@everr/ui/components/button";
 import {
   Card,
   CardContent,
@@ -15,8 +15,8 @@ import { withTimeRange } from "@everr/ui/lib/time-range";
 import { cn } from "@everr/ui/lib/utils";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { BookOpenText, CircleAlert } from "lucide-react";
-import { type ReactNode, useState } from "react";
+import { BellOff, BookOpenText, CircleAlert } from "lucide-react";
+import { type ReactNode, useRef, useState } from "react";
 import { toast } from "sonner";
 import { alertingConditionOperatorLabel } from "@/data/alerting/condition";
 import { alertingQueries } from "@/data/alerting/queries";
@@ -47,6 +47,10 @@ import {
   AlertingStatusLabel,
   alertingErrorMessage,
 } from "./-components/shared";
+import {
+  SilenceCreateDrawer,
+  type SilenceDrawerHandle,
+} from "./-components/silences-panel";
 
 function RuleStateLabel({ rule }: { rule: AlertingRuleView }) {
   if (rule.paused) {
@@ -238,6 +242,7 @@ function AlertingRuleDetailPage() {
   const { preview } = Route.useSearch();
   const qc = useQueryClient();
   const { timeRange } = useTimeRange();
+  const silenceDrawer = useRef<SilenceDrawerHandle>(null);
   const rule = useQuery({
     ...alertingQueries.ruleByName(project, slug, preview),
     refetchInterval: false,
@@ -366,6 +371,23 @@ function AlertingRuleDetailPage() {
                 <BookOpenText data-icon="inline-start" />
                 Runbook
               </Link>
+            )}
+            {!r.spec.suppressed && (
+              <Button
+                variant="outline"
+                onClick={() =>
+                  silenceDrawer.current?.openWith(
+                    [{ label: "rule", op: "eq", value: ruleId }],
+                    {
+                      lockSeed: true,
+                      seedValueLabels: [identity.name],
+                    },
+                  )
+                }
+              >
+                <BellOff data-icon="inline-start" />
+                Silence
+              </Button>
             )}
             <AlertingPauseToggle
               paused={r.paused}
@@ -638,6 +660,7 @@ function AlertingRuleDetailPage() {
           </Collapsible>
         </CardContent>
       </Card>
+      <SilenceCreateDrawer ref={silenceDrawer} />
     </div>
   );
 }

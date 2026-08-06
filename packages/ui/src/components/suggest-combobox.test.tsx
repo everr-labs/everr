@@ -9,6 +9,7 @@ import { SuggestCombobox, type SuggestItem } from "./suggest-combobox";
 function renderCombobox({
   items = [] as SuggestItem[],
   value = "",
+  displayValue,
   onChange = vi.fn(),
 } = {}) {
   const queryClient = new QueryClient({
@@ -22,6 +23,7 @@ function renderCombobox({
       <SuggestCombobox
         label="Matcher value"
         value={current}
+        displayValue={displayValue}
         onChange={(next) => {
           setCurrent(next);
           onChange(next);
@@ -71,6 +73,40 @@ it("commits a selected suggestion and closes", async () => {
   await user.click(await screen.findByText("critical"));
 
   expect(onChange).toHaveBeenCalledWith("critical");
+});
+
+it("shows a friendly label while committing the underlying value", async () => {
+  const user = userEvent.setup();
+  const { onChange } = renderCombobox({
+    items: [
+      {
+        value: "rule-3186",
+        label: "Always firing (demo)",
+        hint: "rule-3186",
+      },
+    ],
+  });
+
+  await user.click(screen.getByRole("combobox", { name: "Matcher value" }));
+  expect(await screen.findByText("rule-3186")).toBeInTheDocument();
+  await user.click(screen.getByText("Always firing (demo)"));
+
+  expect(onChange).toHaveBeenCalledWith("rule-3186");
+  expect(
+    screen.getByRole("combobox", { name: "Matcher value" }),
+  ).toHaveTextContent("Always firing (demo)");
+});
+
+it("can display a known label before loading suggestions", () => {
+  const { queryFn } = renderCombobox({
+    value: "rule-3186",
+    displayValue: "Always firing (demo)",
+  });
+
+  expect(
+    screen.getByRole("combobox", { name: "Matcher value" }),
+  ).toHaveTextContent("Always firing (demo)");
+  expect(queryFn).not.toHaveBeenCalled();
 });
 
 it("offers a Use row for typed text that matches no suggestion", async () => {

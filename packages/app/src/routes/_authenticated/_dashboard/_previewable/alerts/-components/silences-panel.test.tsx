@@ -172,4 +172,49 @@ describe("SilencesPanel", () => {
     await user.click(screen.getByRole("button", { name: "Add" }));
     expect(create).toBeDisabled();
   });
+
+  it("locks seeded matchers while keeping added matchers editable", async () => {
+    const user = userEvent.setup();
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+    const ref = createRef<SilenceDrawerHandle>();
+    render(
+      <QueryClientProvider client={queryClient}>
+        <SilenceCreateDrawer ref={ref} />
+      </QueryClientProvider>,
+    );
+
+    act(() => {
+      ref.current?.openWith([{ label: "rule", op: "eq", value: "rule-1" }], {
+        lockSeed: true,
+        seedValueLabels: ["Always firing (demo)"],
+      });
+    });
+
+    expect(
+      await screen.findByRole("combobox", { name: "Matcher label" }),
+    ).toBeDisabled();
+    expect(
+      screen.getByRole("combobox", { name: "Matcher operator" }),
+    ).toBeDisabled();
+    expect(
+      screen.getByRole("combobox", { name: "Matcher value" }),
+    ).toBeDisabled();
+    expect(
+      screen.getByRole("combobox", { name: "Matcher value" }),
+    ).toHaveTextContent("Always firing (demo)");
+    expect(screen.getByLabelText("Matcher 1 is locked")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Remove condition 1" }),
+    ).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Add" }));
+    expect(
+      screen.getAllByRole("combobox", { name: "Matcher label" })[1],
+    ).toBeEnabled();
+    expect(
+      screen.getByRole("button", { name: "Remove condition 2" }),
+    ).toBeEnabled();
+  });
 });

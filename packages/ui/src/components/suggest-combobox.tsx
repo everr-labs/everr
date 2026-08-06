@@ -17,12 +17,10 @@ import {
 } from "./command";
 import { Popover, PopoverContent, PopoverTrigger } from "./popover";
 
-/**
- * One suggestion row: the string committed on select, plus an optional
- * `hint` (muted, also searchable) and `tag` badge naming the source.
- */
+/** One suggestion row. `value` is committed; `label` is its display name. */
 export interface SuggestItem {
   value: string;
+  label?: string;
   hint?: string;
   tag?: string;
 }
@@ -39,6 +37,7 @@ interface SuggestComboboxProps<TData> {
   searchPlaceholder?: string;
   className?: string;
   disabled?: boolean;
+  displayValue?: string;
 }
 
 /**
@@ -57,6 +56,7 @@ export function SuggestCombobox<TData>({
   searchPlaceholder,
   className,
   disabled,
+  displayValue,
 }: SuggestComboboxProps<TData>) {
   const { open, onOpenChange, search, setSearch, query, offerCustom } =
     useComboboxCustomEntry();
@@ -74,6 +74,8 @@ export function SuggestCombobox<TData>({
 
   // Hidden when it would duplicate a real suggestion.
   const showCustom = offerCustom((q) => items.some((item) => item.value === q));
+  const selected = items.find((item) => item.value === value);
+  const selectedLabel = displayValue ?? selected?.label;
 
   return (
     <Popover open={open} onOpenChange={onOpenChange}>
@@ -90,8 +92,13 @@ export function SuggestCombobox<TData>({
         }
       >
         {value ? (
-          <span className="min-w-0 flex-1 truncate text-left font-mono text-xs">
-            {value}
+          <span
+            className={cn(
+              "min-w-0 flex-1 truncate text-left text-xs",
+              !selectedLabel && "font-mono",
+            )}
+          >
+            {selectedLabel ?? value}
           </span>
         ) : (
           <span className="text-muted-foreground min-w-0 flex-1 truncate text-left text-xs">
@@ -124,16 +131,27 @@ export function SuggestCombobox<TData>({
                 <CommandItem
                   key={item.value}
                   value={item.value}
-                  keywords={item.hint ? [item.hint] : undefined}
+                  keywords={[item.label, item.hint].filter(
+                    (keyword): keyword is string => keyword !== undefined,
+                  )}
                   data-checked={value === item.value || undefined}
                   onSelect={() => commit(item.value)}
                 >
-                  <span className="truncate font-mono">{item.value}</span>
-                  {item.hint && (
-                    <span className="text-muted-foreground min-w-0 truncate">
-                      {item.hint}
+                  <span className="min-w-0 flex-1">
+                    <span
+                      className={cn(
+                        "block truncate",
+                        !item.label && "font-mono",
+                      )}
+                    >
+                      {item.label ?? item.value}
                     </span>
-                  )}
+                    {item.hint && (
+                      <span className="block truncate font-mono text-[0.6875rem] text-muted-foreground">
+                        {item.hint}
+                      </span>
+                    )}
+                  </span>
                   {item.tag && (
                     <span className="text-muted-foreground ml-auto shrink-0 text-[0.625rem] tracking-wide uppercase">
                       {item.tag}

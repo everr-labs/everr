@@ -5,7 +5,7 @@ import {
   SuggestCombobox,
   type SuggestItem,
 } from "@everr/ui/components/suggest-combobox";
-import { Plus, X } from "lucide-react";
+import { LockKeyhole, Plus, X } from "lucide-react";
 import {
   alertingIsCatchAll,
   alertingOpSymbol,
@@ -89,7 +89,10 @@ export const alertingLabelValueOptions = (key: string) => ({
       : Promise.resolve<AlertingLabelValueSuggestion[]>([]),
   staleTime: SUGGESTION_STALE_MS,
   select: (values: AlertingLabelValueSuggestion[]): SuggestItem[] =>
-    values.map((v) => ({ value: v.value, hint: v.hint })),
+    values.map((v) => ({
+      value: v.value,
+      ...(v.hint ? { label: v.hint, hint: v.value } : {}),
+    })),
 });
 
 export function MatchersEditor({
@@ -97,11 +100,15 @@ export function MatchersEditor({
   onChange,
   label = "Matchers",
   addLabel = "Add",
+  lockedCount = 0,
+  lockedValueLabels = [],
 }: {
   value: AlertingMatcher[];
   onChange: (m: AlertingMatcher[]) => void;
   label?: string;
   addLabel?: string;
+  lockedCount?: number;
+  lockedValueLabels?: readonly (string | undefined)[];
 }) {
   return (
     <div className="space-y-2">
@@ -117,65 +124,89 @@ export function MatchersEditor({
           {addLabel}
         </Button>
       </div>
-      {value.map((row, i) => (
-        <div
-          key={i}
-          className="grid grid-cols-[minmax(0,1fr)_4rem] items-center gap-2 sm:grid-cols-[minmax(0,1fr)_4rem_minmax(0,1fr)_2.5rem]"
-        >
-          <SuggestCombobox
-            label="Matcher label"
-            placeholder="label"
-            className="min-w-0 flex-1"
-            value={row.label}
-            onChange={(label) => onChange(updateMatcher(value, i, { label }))}
-            options={alertingLabelKeyOptions()}
-          />
-          <OptionCombobox
-            label="Matcher operator"
-            className="w-16 shrink-0"
-            value={row.op}
-            onChange={(op) =>
-              onChange(
-                updateMatcher(value, i, { op: op as AlertingMatcher["op"] }),
-              )
-            }
-            options={AlertingMatchOpSchema.options.map((op) => ({
-              value: op,
-              label: <span className="font-mono">{alertingOpSymbol(op)}</span>,
-            }))}
-          />
-          {row.op === "regex" || row.op === "notregex" ? (
-            <Input
-              placeholder="pattern"
-              aria-label="Matcher value"
-              className="min-w-0 flex-1 font-mono"
-              value={row.value}
-              onChange={(e) =>
-                onChange(updateMatcher(value, i, { value: e.target.value }))
-              }
-            />
-          ) : (
-            <SuggestCombobox
-              label="Matcher value"
-              placeholder="value"
-              className="min-w-0 flex-1"
-              value={row.value}
-              onChange={(v) => onChange(updateMatcher(value, i, { value: v }))}
-              options={alertingLabelValueOptions(row.label)}
-            />
-          )}
-          <Button
-            type="button"
-            variant="ghost"
-            size="icon"
-            className="justify-self-end"
-            aria-label={`Remove condition ${i + 1}`}
-            onClick={() => onChange(removeMatcher(value, i))}
+      {value.map((row, i) => {
+        const locked = i < lockedCount;
+        return (
+          <div
+            key={i}
+            className="grid grid-cols-[minmax(0,1fr)_4rem] items-center gap-2 sm:grid-cols-[minmax(0,1fr)_4rem_minmax(0,1fr)_2.5rem]"
           >
-            <X />
-          </Button>
-        </div>
-      ))}
+            <SuggestCombobox
+              label="Matcher label"
+              placeholder="label"
+              className="min-w-0 flex-1"
+              value={row.label}
+              disabled={locked}
+              onChange={(label) => onChange(updateMatcher(value, i, { label }))}
+              options={alertingLabelKeyOptions()}
+            />
+            <OptionCombobox
+              label="Matcher operator"
+              className="w-16 shrink-0"
+              value={row.op}
+              disabled={locked}
+              onChange={(op) =>
+                onChange(
+                  updateMatcher(value, i, {
+                    op: op as AlertingMatcher["op"],
+                  }),
+                )
+              }
+              options={AlertingMatchOpSchema.options.map((op) => ({
+                value: op,
+                label: (
+                  <span className="font-mono">{alertingOpSymbol(op)}</span>
+                ),
+              }))}
+            />
+            {row.op === "regex" || row.op === "notregex" ? (
+              <Input
+                placeholder="pattern"
+                aria-label="Matcher value"
+                className="min-w-0 flex-1 font-mono"
+                value={row.value}
+                disabled={locked}
+                onChange={(e) =>
+                  onChange(updateMatcher(value, i, { value: e.target.value }))
+                }
+              />
+            ) : (
+              <SuggestCombobox
+                label="Matcher value"
+                placeholder="value"
+                className="min-w-0 flex-1"
+                value={row.value}
+                disabled={locked}
+                displayValue={locked ? lockedValueLabels[i] : undefined}
+                onChange={(v) =>
+                  onChange(updateMatcher(value, i, { value: v }))
+                }
+                options={alertingLabelValueOptions(row.label)}
+              />
+            )}
+            {locked ? (
+              <span
+                className="inline-flex size-8 items-center justify-center justify-self-end text-muted-foreground"
+                role="img"
+                aria-label={`Matcher ${i + 1} is locked`}
+              >
+                <LockKeyhole className="size-3.5" aria-hidden />
+              </span>
+            ) : (
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="justify-self-end"
+                aria-label={`Remove condition ${i + 1}`}
+                onClick={() => onChange(removeMatcher(value, i))}
+              >
+                <X />
+              </Button>
+            )}
+          </div>
+        );
+      })}
       {value.length === 0 && (
         <p className="text-xs text-muted-foreground">
           <span className="font-medium text-foreground">All alerts.</span> No
