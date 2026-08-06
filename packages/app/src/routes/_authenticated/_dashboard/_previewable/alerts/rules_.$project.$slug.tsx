@@ -422,6 +422,7 @@ function AlertingRuleDetailPage() {
                     {
                       lockSeed: true,
                       seedValueLabels: [identity.name],
+                      scopeLabel: identity.name,
                     },
                   )
                 }

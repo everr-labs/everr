@@ -38,11 +38,15 @@ import {
  * Imperative on purpose: the drawer resets its own form state inside
  * `openWith`, so no prop-reactive state resets are needed.
  */
+export type SilenceDrawerOptions = {
+  lockSeed?: boolean;
+  seedValueLabels?: readonly (string | undefined)[];
+  scopeLabel?: string;
+  affectedCount?: number;
+};
+
 export type SilenceDrawerHandle = {
-  openWith: (
-    seed: AlertingMatcher[],
-    options?: { lockSeed?: boolean; seedValueLabels?: string[] },
-  ) => void;
+  openWith: (seed: AlertingMatcher[], options?: SilenceDrawerOptions) => void;
 };
 
 function toRfc3339(local: string): string {
@@ -221,7 +225,11 @@ export function SilenceCreateDrawer({
   const [open, setOpen] = useState(false);
   const [matchers, setMatchers] = useState<AlertingMatcher[]>([]);
   const [lockedMatcherCount, setLockedMatcherCount] = useState(0);
-  const [lockedValueLabels, setLockedValueLabels] = useState<string[]>([]);
+  const [lockedValueLabels, setLockedValueLabels] = useState<
+    readonly (string | undefined)[]
+  >([]);
+  const [scopeLabel, setScopeLabel] = useState<string | null>(null);
+  const [affectedCount, setAffectedCount] = useState<number | null>(null);
   const [starts, setStarts] = useState("");
   const [ends, setEnds] = useState("");
   const [comment, setComment] = useState("");
@@ -233,6 +241,8 @@ export function SilenceCreateDrawer({
         setMatchers(seed);
         setLockedMatcherCount(options?.lockSeed ? seed.length : 0);
         setLockedValueLabels(options?.seedValueLabels ?? []);
+        setScopeLabel(options?.scopeLabel ?? null);
+        setAffectedCount(options?.affectedCount ?? null);
         setStarts(toLocalInput(new Date()));
         setEnds("");
         setComment("");
@@ -247,6 +257,11 @@ export function SilenceCreateDrawer({
     if (!starts) setStarts(toLocalInput(base));
     setEnds(toLocalInput(new Date(base.getTime() + h * 3_600_000)));
   };
+  const startsMs = Date.parse(starts);
+  const endsMs = Date.parse(ends);
+  const windowIsValid =
+    Number.isFinite(startsMs) && Number.isFinite(endsMs) && endsMs > startsMs;
+  const invalidWindow = starts !== "" && ends !== "" && !windowIsValid;
 
   const create = useMutation({
     mutationFn: () =>
@@ -278,22 +293,36 @@ export function SilenceCreateDrawer({
           </Button>
           <Button
             disabled={
-              !matchersAreScoped(matchers) ||
-              !starts ||
-              !ends ||
-              create.isPending
+              !matchersAreScoped(matchers) || !windowIsValid || create.isPending
             }
             onClick={() => create.mutate()}
           >
-            Create silence
+            {create.isPending ? "Creating silence" : "Create silence"}
           </Button>
         </>
       }
     >
       <AlertingConceptNote>
-        Alerts whose labels match <em>all</em> of these matchers will be muted
-        for the window below. At least one matcher is required — a silence is
-        always scoped.
+        {scopeLabel ? (
+          <>
+            <strong className="font-medium text-foreground">
+              {scopeLabel}
+            </strong>
+            {affectedCount !== null && (
+              <>
+                {" · "}
+                {affectedCount} firing{" "}
+                {affectedCount === 1 ? "instance" : "instances"}
+              </>
+            )}
+            . The source scope is locked. Added matchers can narrow it further.
+          </>
+        ) : (
+          <>
+            Alerts matching every condition will be muted for the selected
+            window. At least one matcher is required.
+          </>
+        )}
       </AlertingConceptNote>
       <MatchersEditor
         value={matchers}
@@ -342,6 +371,11 @@ export function SilenceCreateDrawer({
           />
         </div>
       </div>
+      {invalidWindow && (
+        <p className="text-xs text-destructive" role="alert">
+          End time must be after start time.
+        </p>
+      )}
       <div className="space-y-1.5">
         <Label htmlFor="silence-comment">Comment</Label>
         <Input

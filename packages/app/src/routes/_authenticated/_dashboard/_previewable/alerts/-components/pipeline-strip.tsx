@@ -27,7 +27,7 @@ function Stage({
 }) {
   return (
     <span className="flex min-w-0 flex-col gap-0.5 px-3 py-2">
-      <span className="text-[0.625rem] font-medium tracking-wide text-muted-foreground uppercase">
+      <span className="text-[0.6875rem] font-medium tracking-wide text-muted-foreground uppercase">
         {label}
       </span>
       <span
@@ -41,7 +41,7 @@ function Stage({
       {secondary && (
         <span
           className={cn(
-            "text-[0.6875rem] whitespace-nowrap",
+            "text-xs whitespace-nowrap",
             toneText({ tone: tone === "degraded" ? "warning" : "muted" }),
           )}
         >
@@ -63,8 +63,43 @@ export function AlertingPipelineStrip({
   return (
     <section
       aria-label="Alerting pipeline"
-      className="grid grid-cols-1 gap-1.5 md:grid-cols-4 md:gap-2"
+      aria-live="polite"
+      className="grid grid-cols-2 gap-1.5 lg:grid-cols-4 lg:gap-2"
     >
+      <div className={STAGE_CELL_CLASS}>
+        <Stage
+          label="Firing"
+          primary={facts.firing}
+          secondary={
+            facts.pending > 0
+              ? `${facts.pending} pending`
+              : facts.firing > 0
+                ? "needs attention"
+                : "all quiet"
+          }
+          tone={facts.firing > 0 ? "firing" : undefined}
+        />
+      </div>
+      <div className={STAGE_CELL_CLASS}>
+        <Stage
+          label="Delivery"
+          primary={
+            <>
+              {facts.routeCount} {facts.routeCount === 1 ? "route" : "routes"} →{" "}
+              {facts.receiverCount}{" "}
+              {facts.receiverCount === 1 ? "receiver" : "receivers"}
+            </>
+          }
+          secondary={
+            facts.unroutedFiring > 0
+              ? `${facts.unroutedFiring} firing unrouted`
+              : facts.routeCount === 0
+                ? "no routes configured"
+                : "routes matching"
+          }
+          tone={facts.unroutedFiring > 0 ? "degraded" : undefined}
+        />
+      </div>
       <div className={STAGE_CELL_CLASS}>
         <Stage
           label="Watching"
@@ -84,45 +119,11 @@ export function AlertingPipelineStrip({
       </div>
       <div className={STAGE_CELL_CLASS}>
         <Stage
-          label="Firing"
-          primary={facts.firing}
-          secondary={
-            facts.pending > 0
-              ? `${facts.pending} pending`
-              : facts.firing > 0
-                ? "needs attention"
-                : "all quiet"
-          }
-          tone={facts.firing > 0 ? "firing" : undefined}
-        />
-      </div>
-      <div className={STAGE_CELL_CLASS}>
-        <Stage
           label="Silenced"
           primary={facts.silenced}
           secondary={`${facts.activeSilences} active ${
             facts.activeSilences === 1 ? "silence" : "silences"
           }`}
-        />
-      </div>
-      <div className={STAGE_CELL_CLASS}>
-        <Stage
-          label="Notifying"
-          primary={
-            <>
-              {facts.routeCount} {facts.routeCount === 1 ? "route" : "routes"} →{" "}
-              {facts.receiverCount}{" "}
-              {facts.receiverCount === 1 ? "receiver" : "receivers"}
-            </>
-          }
-          secondary={
-            facts.unroutedFiring > 0
-              ? `${facts.unroutedFiring} firing unrouted`
-              : facts.routeCount === 0
-                ? "no routes configured"
-                : "routes matching"
-          }
-          tone={facts.unroutedFiring > 0 ? "degraded" : undefined}
         />
       </div>
     </section>

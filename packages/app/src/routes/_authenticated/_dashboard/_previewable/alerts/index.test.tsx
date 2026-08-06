@@ -34,6 +34,14 @@ const mocks = vi.hoisted(() => ({
   listAlertingSilences: vi.fn(),
   listAlertingEventHistory: vi.fn(),
   createAlertingSilence: vi.fn(),
+  deleteAlertingSilence: vi.fn(),
+  toastSuccess: vi.fn(),
+}));
+
+vi.mock("sonner", () => ({
+  toast: {
+    success: mocks.toastSuccess,
+  },
 }));
 
 vi.mock("@/data/alerting/server", () => ({
@@ -47,6 +55,7 @@ vi.mock("@/data/alerting/server", () => ({
   listAlertingSilences: mocks.listAlertingSilences,
   listAlertingEventHistory: mocks.listAlertingEventHistory,
   createAlertingSilence: mocks.createAlertingSilence,
+  deleteAlertingSilence: mocks.deleteAlertingSilence,
 }));
 
 function alertingRule(
@@ -306,6 +315,7 @@ beforeEach(() => {
   mocks.createAlertingSilence.mockResolvedValue(
     alertingSilence({ id: "sil-new" }),
   );
+  mocks.deleteAlertingSilence.mockResolvedValue({ deleted: true });
   seedBoard();
 });
 
@@ -359,16 +369,14 @@ describe("/alerts triage board", () => {
     expect(within(board).queryByText(/^\d+ instances?$/)).toBeNull();
   });
 
-  it("resolves the delivery fact through routes and marks the unrouted ones", async () => {
+  it("resolves delivery through routes without flagging a silenced row", async () => {
     renderTriagePage();
 
-    expect(await screen.findByText("oncall")).toBeInTheDocument();
-    // The receiver is the visible fact; its channels stay on the tooltip.
-    expect(screen.queryByText(/team-slack, pd/)).toBeNull();
-    expect(screen.getByTitle(/team-slack, pd/)).toBeInTheDocument();
-    // Only host=web-1 matches the single route; the one other firing row
-    // (svc=api) says it reaches no one.
-    expect(screen.getAllByText("not routed · not delivered")).toHaveLength(1);
+    await screen.findByTitle(/team-slack, pd/);
+    // Only host=web-1 matches the route. The other firing row is intentionally
+    // silenced, so it is not presented as a delivery failure.
+    expect(screen.queryByText("Not delivered")).toBeNull();
+    expect(screen.queryByRole("alert")).toBeNull();
   });
 
   it("overflows a long receiver list as +N instead of truncating names", async () => {
@@ -402,18 +410,7 @@ describe("/alerts triage board", () => {
 
     // Routed to a receiver that fans out to nothing delivers exactly nothing:
     // it gets the "not routed" warning treatment, not a healthy arrow.
-    const dead = await screen.findByRole("link", {
-      name: /oncall · no channels/,
-    });
-    expect(dead).toBeInTheDocument();
-  });
-
-  it("marks unrouted instances as not delivered", async () => {
-    renderTriagePage();
-
-    expect(
-      await screen.findAllByText("not routed · not delivered"),
-    ).toHaveLength(1);
+    await screen.findByRole("link", { name: /oncall · no channels/ });
   });
 
   it("marks unrouted instances as not delivered when no routes exist", async () => {
@@ -421,9 +418,12 @@ describe("/alerts triage board", () => {
 
     renderTriagePage();
 
+    await screen.findByText("Not delivered");
+    const warning = screen.getByRole("alert");
+    expect(warning).toHaveTextContent("1 firing alert is reaching no one");
     expect(
-      (await screen.findAllByText("not routed · not delivered")).length,
-    ).toBeGreaterThan(0);
+      within(warning).getByRole("link", { name: "Configure delivery" }),
+    ).toBeInTheDocument();
   });
 
   it("expands a row into its evidence, runbook, and fingerprint-scoped feed", async () => {
@@ -491,7 +491,7 @@ describe("/alerts triage board", () => {
     expect(
       screen.queryByRole("link", { name: SLO_ID.slice(0, 8) }),
     ).not.toBeInTheDocument();
-    expect(screen.getByText("SLO")).toBeInTheDocument();
+    expect(screen.getByText("SLO", { selector: "span" })).toBeInTheDocument();
     expect(screen.getByText(unknownRuleId.slice(0, 8))).toBeInTheDocument();
     expect(
       screen.queryByRole("link", { name: unknownRuleId.slice(0, 8) }),
@@ -551,6 +551,13 @@ describe("/alerts triage board", () => {
     expect(
       new Date(data.ends_at).getTime() - new Date(data.starts_at).getTime(),
     ).toBe(3_600_000);
+
+    mocks.toastSuccess.mock.calls.at(-1)?.[1]?.action?.onClick();
+    await waitFor(() =>
+      expect(mocks.deleteAlertingSilence).toHaveBeenCalledWith({
+        data: { id: "sil-new" },
+      }),
+    );
   });
 
   it("shows the SLO's error budget on its firing row", async () => {
@@ -588,9 +595,7 @@ describe("/alerts triage board", () => {
     ).toHaveAttribute("href", "/alerts/slos/default/checkout-availability");
   });
 
-  it("keeps an exhausted budget on its board while the SLO also fires", async () => {
-    // The two boards answer different questions: the fire is on triage, the
-    // spent budget stays on the damage report.
+  it("does not duplicate an exhausted SLO that is already firing", async () => {
     mocks.listAlertingSlos.mockResolvedValue([alertingSlo()]);
     mocks.listAlertingAlerts.mockResolvedValue([sloAlert()]);
     mocks.getAlertingSloStatus.mockResolvedValue({
@@ -600,16 +605,8 @@ describe("/alerts triage board", () => {
     renderTriagePage();
 
     expect(
-      await screen.findByText("Exhausted error budgets"),
-    ).toBeInTheDocument();
-    const board = screen.getByRole("region", { name: "Triage board" });
-    expect(
-      within(board).getByText("checkout-availability"),
-    ).toBeInTheDocument();
-    // One link on the triage row, one on the exhausted-budgets row.
-    expect(
-      screen.getAllByRole("link", { name: /checkout-availability/ }),
-    ).toHaveLength(2);
+      await screen.findAllByRole("link", { name: /checkout-availability/ }),
+    ).toHaveLength(1);
   });
 
   it("overlays the read-time budget on the snapshot's, like the SLO pages", async () => {

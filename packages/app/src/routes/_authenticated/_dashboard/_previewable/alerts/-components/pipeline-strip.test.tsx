@@ -61,7 +61,7 @@ describe("AlertingPipelineStrip", () => {
     expect(within(strip).queryAllByRole("button")).toHaveLength(0);
   });
 
-  it("flags unrouted firing instances on the Notifying stage", async () => {
+  it("flags unrouted firing instances on the Delivery stage", async () => {
     renderStrip(
       <AlertingPipelineStrip facts={{ ...FACTS, unroutedFiring: 3 }} />,
     );

@@ -109,6 +109,20 @@ export function alertingDeliveryFanout(
   return { receivers, channels, dead };
 }
 
+/** Whether an unsilenced instance has no effective notification destination. */
+export function alertingInstanceIsUndeliverable(
+  instance: TriageInstance,
+  channelsByReceiver?: Map<string, string[]>,
+): boolean {
+  if (instance.directChannels.length > 0) return false;
+  if (instance.matchedRoutes.length === 0) return true;
+  if (channelsByReceiver === undefined) return false;
+  return (
+    alertingDeliveryFanout(instance.matchedRoutes, channelsByReceiver).channels
+      .length === 0
+  );
+}
+
 /**
  * Logs-link params: window from shortly before firing until now. Labels are
  * arbitrary SQL columns, so only the well-known service key maps to an
@@ -266,6 +280,7 @@ export function alertingTriageCounts(
   groups: TriageGroup[],
   silences: AlertingSilence[],
   now: number,
+  channelsByReceiver?: Map<string, string[]>,
 ): {
   firing: number;
   pending: number;
@@ -284,8 +299,7 @@ export function alertingTriageCounts(
         // A silenced row is meant not to reach anyone, so it is not "unrouted".
         if (
           lead.silence === null &&
-          lead.directChannels.length === 0 &&
-          lead.matchedRoutes.length === 0
+          alertingInstanceIsUndeliverable(lead, channelsByReceiver)
         ) {
           unroutedFiring += 1;
         }

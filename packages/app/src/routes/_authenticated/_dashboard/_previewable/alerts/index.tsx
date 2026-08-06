@@ -118,8 +118,14 @@ function AlertingTriagePage() {
   // Counts run over the FULL grouping (pending included); the board takes the
   // firing-only cut.
   const counts = useMemo(
-    () => alertingTriageCounts(groups, silences.data ?? EMPTY, Date.now()),
-    [groups, silences.data],
+    () =>
+      alertingTriageCounts(
+        groups,
+        silences.data ?? EMPTY,
+        Date.now(),
+        channelsByReceiver,
+      ),
+    [groups, silences.data, channelsByReceiver],
   );
   const boardGroups = useMemo(() => alertingFiringGroups(groups), [groups]);
 
@@ -167,10 +173,14 @@ function AlertingTriagePage() {
     receiverCount: (receivers.data ?? EMPTY).length,
   };
 
-  const exhausted = useMemo(
-    () => alertingExhaustedBudgets(slosData, sloStatuses),
-    [slosData, sloStatuses],
-  );
+  const exhausted = useMemo(() => {
+    const firingSloIds = new Set(
+      boardGroups.flatMap((group) => group.sloId ?? []),
+    );
+    return alertingExhaustedBudgets(slosData, sloStatuses).filter(
+      ({ slo }) => !firingSloIds.has(slo.id),
+    );
+  }, [boardGroups, slosData, sloStatuses]);
 
   if (errored) return <AlertingQueryError error={errored.error} />;
 
@@ -181,8 +191,7 @@ function AlertingTriagePage() {
     <div className="space-y-3">
       <PageHeader
         title="Triage"
-        lede="Everything firing or muted right now, and the fastest way to act on it: silence it, follow its runbook, check who was told."
-        docsHref="https://everr.dev/docs/concepts/how-alerts-work"
+        lede="Firing and silenced alerts, ordered by urgency."
       />
 
       {/* Gated on load — zeros while fetching would read as a false all-clear. */}
@@ -200,8 +209,8 @@ function AlertingTriagePage() {
         watchingRules={watchingRules}
         lastEventTs={lastEventTs}
         eventsUnavailable={events.isError}
-        onCustomSilence={(matchers) =>
-          silenceDrawer.current?.openWith(matchers)
+        onCustomSilence={(matchers, options) =>
+          silenceDrawer.current?.openWith(matchers, options)
         }
       />
 

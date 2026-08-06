@@ -189,6 +189,8 @@ describe("SilencesPanel", () => {
       ref.current?.openWith([{ label: "rule", op: "eq", value: "rule-1" }], {
         lockSeed: true,
         seedValueLabels: ["Always firing (demo)"],
+        scopeLabel: "Always firing (demo)",
+        affectedCount: 2,
       });
     });
 
@@ -205,6 +207,7 @@ describe("SilencesPanel", () => {
       screen.getByRole("combobox", { name: "Matcher value" }),
     ).toHaveTextContent("Always firing (demo)");
     expect(screen.getByLabelText("Matcher 1 is locked")).toBeInTheDocument();
+    expect(screen.getByText(/2 firing instances/)).toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: "Remove condition 1" }),
     ).not.toBeInTheDocument();
