@@ -20,7 +20,6 @@ import {
   YAxis,
 } from "recharts";
 import {
-  createTimeTickFormatter,
   generateTimeTicks,
   niceLinearDomain,
 } from "@/components/dashboards/visualizations/data-utils";
@@ -30,14 +29,44 @@ import type {
   AlertingRuleEvaluationSeries,
 } from "@/data/alerting/types";
 import type { AlertEventLogRow } from "@/data/alerts/history.server";
-import { buildAlertRuleChartModel } from "./alert-rule-chart-data";
+import {
+  buildAlertRuleChartModel,
+  buildAlertRuleEvaluationSpans,
+} from "./alert-rule-chart-data";
+import { AlertRuleEvaluationDetails } from "./alert-rule-evaluation-details";
+import { alertingFormatTs } from "./shared";
 
-const FIRING_COLOR = "var(--color-red-500)";
-const RESOLVED_COLOR = "var(--color-green-500)";
-const THRESHOLD_COLOR = "var(--color-orange-500)";
+const THRESHOLD_COLOR = "var(--destructive)";
 
 function conditionLabel(condition: AlertingRuleCondition) {
   return `value ${alertingConditionOperatorLabel(condition.operator)} ${condition.threshold}`;
+}
+
+function conditionLegendLabel(condition: AlertingRuleCondition) {
+  switch (condition.operator) {
+    case "gt":
+      return "Breach above";
+    case "gte":
+      return "Breach at or above";
+    case "lt":
+      return "Breach below";
+    case "lte":
+      return "Breach at or below";
+    case "eq":
+      return "Breach at threshold";
+    case "neq":
+      return "Breach except at threshold";
+  }
+}
+
+function createAlertTimeTickFormatter(domain: [number, number]) {
+  const multiDay = domain[1] - domain[0] > 86_400_000;
+  const formatter = new Intl.DateTimeFormat("en-GB", {
+    ...(multiDay
+      ? { day: "2-digit", month: "short" }
+      : { hour: "2-digit", minute: "2-digit", hourCycle: "h23" }),
+  });
+  return (timestamp: number) => formatter.format(new Date(timestamp));
 }
 
 function transitionEvents(events: readonly AlertEventLogRow[]) {
@@ -62,13 +91,9 @@ function transitionEvents(events: readonly AlertEventLogRow[]) {
 function ChartKey({
   model,
   condition,
-  fired,
-  resolved,
 }: {
   model: ReturnType<typeof buildAlertRuleChartModel>;
   condition: AlertingRuleCondition;
-  fired: number;
-  resolved: number;
 }) {
   return (
     <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-2 text-[0.6875rem] text-muted-foreground">
@@ -93,28 +118,8 @@ function ChartKey({
             className="h-0.5 w-4 border-t border-dashed"
             style={{ borderColor: THRESHOLD_COLOR }}
           />
-          {conditionLabel(condition)}
+          {conditionLegendLabel(condition)}
         </li>
-        {fired > 0 && (
-          <li className="flex items-center gap-1.5">
-            <span
-              aria-hidden
-              className="h-3 w-px"
-              style={{ backgroundColor: FIRING_COLOR }}
-            />
-            {fired} fired
-          </li>
-        )}
-        {resolved > 0 && (
-          <li className="flex items-center gap-1.5">
-            <span
-              aria-hidden
-              className="h-3 w-px"
-              style={{ backgroundColor: RESOLVED_COLOR }}
-            />
-            {resolved} resolved
-          </li>
-        )}
       </ul>
     </div>
   );
@@ -125,142 +130,209 @@ export function AlertRuleSignalChart({
   events,
   condition,
   timeRange,
+  intervalSeconds,
+  currentFiringFingerprints,
 }: {
   evaluationSeries: AlertingRuleEvaluationSeries;
   events: readonly AlertEventLogRow[];
   condition: AlertingRuleCondition;
   timeRange: TimeRange;
+  intervalSeconds: number;
+  currentFiringFingerprints: readonly string[];
 }) {
   const model = buildAlertRuleChartModel(evaluationSeries.points);
   const transitions = transitionEvents(events);
-  const fired = transitions.filter((event) => event.type === "firing").length;
-  const resolved = transitions.length - fired;
   const values = model.rows.flatMap((row) =>
     model.series.flatMap((series) => {
       const value = row[series.key];
       return typeof value === "number" ? [value] : [];
     }),
   );
-
-  if (values.length === 0) {
-    return (
-      <ChartEmptyState message="No recorded evaluation values in this range yet" />
-    );
-  }
-
+  const failedEvaluations = model.rows.filter((row) => row.failed).length;
   const { fromDate, toDate } = resolveTimeRange(timeRange);
   const domain: [number, number] = [fromDate.getTime(), toDate.getTime()];
-  const yAxis = niceLinearDomain(
-    Math.min(condition.threshold, ...values),
-    Math.max(condition.threshold, ...values),
+  const samplePointCount = evaluationSeries.points.filter((point) =>
+    point.samples.some((sample) => sample.value !== null),
+  ).length;
+  const visibleTransitions = transitions.filter(
+    (event) => event.t >= domain[0] && event.t <= domain[1],
   );
+  const yAxis =
+    values.length > 0
+      ? niceLinearDomain(
+          Math.min(condition.threshold, ...values),
+          Math.max(condition.threshold, ...values),
+        )
+      : null;
   const chartConfig: ChartConfig = Object.fromEntries(
     model.series.map((series) => [
       series.key,
       { label: series.label, color: series.color },
     ]),
   );
-  const firingAbove =
-    condition.operator === "gt" || condition.operator === "gte";
-  const firingBelow =
-    condition.operator === "lt" || condition.operator === "lte";
-  const failedEvaluations = model.rows.filter((row) => row.failed).length;
+  const latestObservedRow = [...model.rows]
+    .reverse()
+    .find((row) =>
+      model.series.some((series) => typeof row[series.key] === "number"),
+    );
+  const latestValues = model.series.flatMap((series) => {
+    const value = latestObservedRow?.[series.key];
+    return typeof value === "number" ? [`${series.label}: ${value}`] : [];
+  });
+  const chartSummary =
+    values.length > 0
+      ? [
+          `Signal history. Condition: ${conditionLabel(condition)}.`,
+          `Observed minimum ${Math.min(...values)} and maximum ${Math.max(...values)}.`,
+          latestValues.length > 0
+            ? `Latest values: ${latestValues.join(", ")}.`
+            : null,
+        ]
+          .filter(Boolean)
+          .join(" ")
+      : "Signal history has no numeric values in this range.";
+  const evaluationSpans = buildAlertRuleEvaluationSpans(
+    evaluationSeries.points,
+    condition,
+    domain,
+    intervalSeconds * 1_000,
+  );
 
   return (
     <div className="space-y-3">
-      <ChartContainer config={chartConfig} className="h-72 w-full">
-        <ComposedChart
-          data={model.rows}
-          margin={{ top: 20, right: 16, left: 4 }}
-        >
-          <CartesianGrid vertical={false} />
-          <XAxis
-            dataKey="t"
-            type="number"
-            scale="time"
-            domain={domain}
-            ticks={generateTimeTicks(domain, 6)}
-            tickFormatter={createTimeTickFormatter(domain)}
-            tickLine={false}
-            axisLine={false}
-            tickMargin={8}
-          />
-          <YAxis
-            domain={yAxis.domain}
-            ticks={yAxis.ticks}
-            tickLine={false}
-            axisLine={false}
-            tickMargin={8}
-            width={48}
-          />
-          {firingAbove && (
-            <ReferenceArea
-              y1={condition.threshold}
-              y2={yAxis.domain[1]}
-              fill={FIRING_COLOR}
-              fillOpacity={0.06}
-              strokeOpacity={0}
-            />
-          )}
-          {firingBelow && (
-            <ReferenceArea
-              y1={yAxis.domain[0]}
-              y2={condition.threshold}
-              fill={FIRING_COLOR}
-              fillOpacity={0.06}
-              strokeOpacity={0}
-            />
-          )}
-          <ChartTooltip
-            cursor={{ stroke: "var(--border)", strokeDasharray: "3 3" }}
-            content={
-              <ChartTooltipContent
-                formatter={createChartTooltipFormatter(chartConfig)}
-                labelFormatter={(_, payload) => {
-                  const t = payload?.[0]?.payload?.t;
-                  return typeof t === "number"
-                    ? new Date(t).toLocaleString()
-                    : "";
-                }}
-              />
+      {values.length === 0 || yAxis === null ? (
+        <div className="h-44 sm:h-72">
+          <ChartEmptyState
+            message={
+              failedEvaluations > 0
+                ? `No values recorded; ${failedEvaluations} evaluation${failedEvaluations === 1 ? "" : "s"} failed in this range`
+                : "No recorded numeric values in this range"
             }
           />
-          {model.series.map((series) => (
-            <Line
-              key={series.key}
-              dataKey={series.key}
-              name={series.key}
-              type="monotone"
-              stroke={series.color}
-              strokeWidth={2}
-              dot={false}
-              connectNulls={false}
-              isAnimationActive={false}
+        </div>
+      ) : (
+        <ChartContainer
+          config={chartConfig}
+          className="h-60 w-full rounded-sm outline-2 outline-transparent outline-offset-2 focus-visible:outline-primary sm:h-72"
+          role="img"
+          tabIndex={0}
+          aria-label={chartSummary}
+        >
+          <ComposedChart
+            data={model.rows}
+            margin={{ top: 20, right: 16, left: 4 }}
+          >
+            <defs>
+              <pattern
+                id="alert-no-data-hatch"
+                width="6"
+                height="6"
+                patternUnits="userSpaceOnUse"
+                patternTransform="rotate(45)"
+              >
+                <line
+                  x1="0"
+                  y1="0"
+                  x2="0"
+                  y2="6"
+                  stroke="var(--muted-foreground)"
+                  strokeOpacity="0.18"
+                  strokeWidth="1"
+                />
+              </pattern>
+              <pattern
+                id="alert-failed-hatch"
+                width="6"
+                height="6"
+                patternUnits="userSpaceOnUse"
+                patternTransform="rotate(45)"
+              >
+                <line
+                  x1="0"
+                  y1="0"
+                  x2="0"
+                  y2="6"
+                  stroke="var(--color-amber-500)"
+                  strokeOpacity="0.3"
+                  strokeWidth="1.5"
+                />
+              </pattern>
+            </defs>
+            <CartesianGrid vertical={false} />
+            <XAxis
+              dataKey="t"
+              type="number"
+              scale="time"
+              domain={domain}
+              allowDataOverflow
+              ticks={generateTimeTicks(domain, 6)}
+              tickFormatter={createAlertTimeTickFormatter(domain)}
+              tickLine={false}
+              axisLine={false}
+              tickMargin={8}
             />
-          ))}
-          <ReferenceLine
-            y={condition.threshold}
-            stroke={THRESHOLD_COLOR}
-            strokeDasharray="5 4"
-            strokeWidth={1.5}
-          />
-          {transitions.map((event) => (
+            <YAxis
+              domain={yAxis.domain}
+              ticks={yAxis.ticks}
+              tickLine={false}
+              axisLine={false}
+              tickMargin={8}
+              width={48}
+            />
+            {evaluationSpans.map((span) => (
+              <ReferenceArea
+                key={`${span.start}:${span.outcome}`}
+                x1={span.start}
+                x2={span.end}
+                y1={yAxis.domain[0]}
+                y2={yAxis.domain[1]}
+                fill={`url(#alert-${span.outcome === "no_data" ? "no-data" : "failed"}-hatch)`}
+                strokeOpacity={0}
+              />
+            ))}
+            <ChartTooltip
+              cursor={{ stroke: "var(--border)", strokeDasharray: "3 3" }}
+              content={
+                <ChartTooltipContent
+                  formatter={createChartTooltipFormatter(chartConfig)}
+                  labelFormatter={(_, payload) => {
+                    const t = payload?.[0]?.payload?.t;
+                    return typeof t === "number" ? alertingFormatTs(t) : "";
+                  }}
+                />
+              }
+            />
             <ReferenceLine
-              key={event.key}
-              x={event.t}
-              stroke={event.type === "firing" ? FIRING_COLOR : RESOLVED_COLOR}
-              strokeDasharray="2 3"
-              strokeOpacity={0.72}
+              y={condition.threshold}
+              stroke={THRESHOLD_COLOR}
+              strokeDasharray="5 4"
+              strokeWidth={1.5}
             />
-          ))}
-        </ComposedChart>
-      </ChartContainer>
+            {model.series.map((series) => (
+              <Line
+                key={series.key}
+                dataKey={series.key}
+                name={series.key}
+                type="linear"
+                stroke={series.color}
+                strokeWidth={2}
+                dot={samplePointCount === 1 ? { r: 3 } : false}
+                connectNulls={false}
+                isAnimationActive={false}
+              />
+            ))}
+          </ComposedChart>
+        </ChartContainer>
+      )}
 
-      <ChartKey
-        model={model}
+      {values.length > 0 && <ChartKey model={model} condition={condition} />}
+
+      <AlertRuleEvaluationDetails
+        evaluationSeries={evaluationSeries}
         condition={condition}
-        fired={fired}
-        resolved={resolved}
+        events={events}
+        currentFiringFingerprints={currentFiringFingerprints}
+        domain={domain}
       />
 
       {(evaluationSeries.samples_truncated ||
@@ -285,13 +357,33 @@ export function AlertRuleSignalChart({
       )}
 
       <ul className="sr-only" aria-label="Alert transitions in range">
-        {transitions.map((event) => (
+        {visibleTransitions.map((event) => (
           <li key={`accessible-${event.key}`}>
             {event.type === "firing" ? "Fired" : "Resolved"} at{" "}
-            {new Date(event.t).toLocaleString()}
+            {alertingFormatTs(event.t)}
           </li>
         ))}
       </ul>
+      <table className="sr-only">
+        <caption>Latest recorded values by label set</caption>
+        <thead>
+          <tr>
+            <th scope="col">Label set</th>
+            <th scope="col">Value</th>
+          </tr>
+        </thead>
+        <tbody>
+          {latestValues.map((value) => {
+            const separator = value.lastIndexOf(": ");
+            return (
+              <tr key={value}>
+                <th scope="row">{value.slice(0, separator)}</th>
+                <td>{value.slice(separator + 2)}</td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
     </div>
   );
 }

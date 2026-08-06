@@ -156,6 +156,8 @@ describe("getAlertingRuleEvaluationSeries", () => {
   it("resolves the range and keeps the repository read tenant-scoped", async () => {
     mocks.getRuleEvaluationSeries.mockResolvedValue({
       points: [],
+      recent_points: [],
+      evaluation_count: 0,
       samples_truncated: false,
     });
 

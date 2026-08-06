@@ -6,9 +6,28 @@ import type {
 export type StoredAlertEvaluationPoint = {
   scheduledFor: Date;
   error: string | null;
+  rowCount: number | null;
   samples: AlertingEvaluationSample[];
   samplesTruncated: boolean;
 };
+
+function evaluationErrorSummary(error: string | null): string | null {
+  if (error === null) return null;
+  const summary = error.replace(/\s+/g, " ").trim();
+  return summary.length > 500 ? `${summary.slice(0, 497)}...` : summary;
+}
+
+function evaluationPoint(
+  row: StoredAlertEvaluationPoint,
+): AlertingRuleEvaluationSeries["points"][number] {
+  return {
+    t: row.scheduledFor.toISOString(),
+    samples: row.samples,
+    failed: row.error !== null,
+    error: evaluationErrorSummary(row.error),
+    row_count: row.rowCount,
+  };
+}
 
 /**
  * Evenly reduce stored evaluations while preserving both range edges. The
@@ -28,11 +47,9 @@ export function shapeAlertEvaluationSeries(
     selected = indexes.map((index) => rows[index]);
   }
   return {
-    points: selected.map((row) => ({
-      t: row.scheduledFor.toISOString(),
-      samples: row.samples,
-      failed: row.error !== null,
-    })),
+    points: selected.map(evaluationPoint),
+    recent_points: rows.slice(-25).map(evaluationPoint),
+    evaluation_count: rows.length,
     samples_truncated: rows.some((row) => row.samplesTruncated),
   };
 }

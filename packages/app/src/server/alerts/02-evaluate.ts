@@ -247,6 +247,7 @@ export async function evaluateAlert(rawPayload: unknown): Promise<void> {
       .values({
         alertDefinitionId: def.id,
         scheduledFor,
+        rowCount: evidence.rowCount,
         samples: capturedSamples.samples,
         samplesTruncated: capturedSamples.truncated,
       })

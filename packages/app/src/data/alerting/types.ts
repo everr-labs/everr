@@ -56,10 +56,14 @@ export type AlertingRuleEvaluationPoint = {
   t: string;
   samples: AlertingEvaluationSample[];
   failed: boolean;
+  error: string | null;
+  row_count: number | null;
 };
 
 export type AlertingRuleEvaluationSeries = {
   points: AlertingRuleEvaluationPoint[];
+  recent_points: AlertingRuleEvaluationPoint[];
+  evaluation_count: number;
   samples_truncated: boolean;
 };
 

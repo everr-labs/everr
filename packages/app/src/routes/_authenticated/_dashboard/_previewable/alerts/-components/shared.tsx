@@ -525,11 +525,25 @@ export function isDuplicateName(
   return existingNames.includes(next) && next !== current;
 }
 
-/** Compact RFC-3339 → local string; null-safe. */
-export function alertingFormatTs(ts: string | null | undefined): string {
+const ALERTING_DATE_TIME_FORMATTER = new Intl.DateTimeFormat("en-GB", {
+  day: "2-digit",
+  month: "short",
+  year: "numeric",
+  hour: "2-digit",
+  minute: "2-digit",
+  second: "2-digit",
+  hourCycle: "h23",
+});
+
+/** Day-first local timestamp with a deterministic 24-hour clock; null-safe. */
+export function alertingFormatTs(
+  ts: string | number | Date | null | undefined,
+): string {
   if (!ts) return "—";
   const d = new Date(ts);
-  return Number.isNaN(d.getTime()) ? ts : d.toLocaleString();
+  return Number.isNaN(d.getTime())
+    ? String(ts)
+    : ALERTING_DATE_TIME_FORMATTER.format(d);
 }
 
 // ── Navigation ────────────────────────────────────────────────────────────────
@@ -582,11 +596,15 @@ export function AlertingDefRow({
   children: ReactNode;
 }) {
   return (
-    <div className="flex items-baseline gap-3 py-1.5">
-      <dt className="w-28 shrink-0 text-xs text-muted-foreground">{label}</dt>
+    <div className="flex flex-col gap-0.5 py-1.5 sm:flex-row sm:items-baseline sm:gap-3">
+      <dt className="shrink-0 text-xs text-muted-foreground sm:w-28">
+        {label}
+      </dt>
       {/* min-w-0 so a wide value scrolls inside the row rather than
           stretching the card. */}
-      <dd className="min-w-0 flex-1 font-mono text-xs">{children}</dd>
+      <dd className="min-w-0 flex-1 break-words font-mono text-xs [overflow-wrap:anywhere]">
+        {children}
+      </dd>
     </div>
   );
 }

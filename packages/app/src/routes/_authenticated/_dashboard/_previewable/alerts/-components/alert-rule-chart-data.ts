@@ -1,5 +1,10 @@
 import { SERIES_COLORS } from "@/components/dashboards/visualizations/data-utils";
-import type { AlertingRuleEvaluationPoint } from "@/data/alerting/types";
+import { alertingConditionMatches } from "@/data/alerting/condition";
+import type {
+  AlertingRuleCondition,
+  AlertingRuleEvaluationPoint,
+} from "@/data/alerting/types";
+import type { AlertEventLogRow } from "@/data/alerts/history.server";
 
 export const ALERT_RULE_CHART_SERIES_LIMIT = 12;
 
@@ -15,6 +20,177 @@ export type AlertRuleChartRow = {
   failed: boolean;
   [key: string]: number | boolean | null;
 };
+
+export type AlertRuleEvaluationOutcome =
+  | "healthy"
+  | "breached"
+  | "no_data"
+  | "failed"
+  | "unknown";
+
+export type AlertRuleEvaluationSpan = {
+  start: number;
+  end: number;
+  outcome: "no_data" | "failed";
+};
+
+export type AlertRuleEvaluationBucket = {
+  start: number;
+  end: number;
+  outcome: AlertRuleEvaluationOutcome | null;
+  evaluations: number;
+};
+
+export type AlertRuleIncidentBucket = {
+  start: number;
+  end: number;
+  activeInstances: number;
+};
+
+const EVALUATION_OUTCOME_PRIORITY: Record<AlertRuleEvaluationOutcome, number> =
+  {
+    healthy: 0,
+    breached: 1,
+    no_data: 2,
+    failed: 3,
+    unknown: -1,
+  };
+
+export function alertRuleEvaluationOutcome(
+  point: AlertingRuleEvaluationPoint,
+  condition: AlertingRuleCondition,
+): AlertRuleEvaluationOutcome {
+  if (point.failed) return "failed";
+  const values = point.samples.flatMap((sample) =>
+    sample.value === null ? [] : [sample.value],
+  );
+  if (values.length === 0) {
+    return point.row_count === null ? "unknown" : "no_data";
+  }
+  return values.some((value) => alertingConditionMatches({ value }, condition))
+    ? "breached"
+    : "healthy";
+}
+
+export function buildAlertRuleEvaluationSpans(
+  points: readonly AlertingRuleEvaluationPoint[],
+  condition: AlertingRuleCondition,
+  domain: [number, number],
+  intervalMs: number,
+): AlertRuleEvaluationSpan[] {
+  const halfInterval = Math.max(1, intervalMs / 2);
+  const candidates = points.flatMap((point) => {
+    const outcome = alertRuleEvaluationOutcome(point, condition);
+    if (outcome !== "no_data" && outcome !== "failed") return [];
+    const timestamp = Date.parse(point.t);
+    if (!Number.isFinite(timestamp)) return [];
+    const start = Math.max(domain[0], timestamp - halfInterval);
+    const end = Math.min(domain[1], timestamp + halfInterval);
+    return start < end ? [{ start, end, outcome }] : [];
+  });
+  const spans: AlertRuleEvaluationSpan[] = [];
+  for (const candidate of candidates.sort((a, b) => a.start - b.start)) {
+    const previous = spans.at(-1);
+    if (
+      previous &&
+      previous.outcome === candidate.outcome &&
+      candidate.start <= previous.end + intervalMs * 0.25
+    ) {
+      previous.end = Math.max(previous.end, candidate.end);
+    } else {
+      spans.push({ ...candidate });
+    }
+  }
+  return spans;
+}
+
+function bucketBounds(
+  domain: [number, number],
+  index: number,
+  count: number,
+): [number, number] {
+  const width = (domain[1] - domain[0]) / count;
+  return [domain[0] + width * index, domain[0] + width * (index + 1)];
+}
+
+export function buildAlertRuleEvaluationRail(
+  points: readonly AlertingRuleEvaluationPoint[],
+  condition: AlertingRuleCondition,
+  domain: [number, number],
+  bucketCount = 60,
+): AlertRuleEvaluationBucket[] {
+  const count = Math.max(1, bucketCount);
+  const buckets: AlertRuleEvaluationBucket[] = Array.from(
+    { length: count },
+    (_, index) => {
+      const [start, end] = bucketBounds(domain, index, count);
+      return { start, end, outcome: null, evaluations: 0 };
+    },
+  );
+  const span = Math.max(1, domain[1] - domain[0]);
+  for (const point of points) {
+    const timestamp = Date.parse(point.t);
+    if (timestamp < domain[0] || timestamp > domain[1]) continue;
+    const index = Math.min(
+      count - 1,
+      Math.max(0, Math.floor(((timestamp - domain[0]) / span) * count)),
+    );
+    const outcome = alertRuleEvaluationOutcome(point, condition);
+    const bucket = buckets[index];
+    bucket.evaluations += 1;
+    if (
+      bucket.outcome === null ||
+      EVALUATION_OUTCOME_PRIORITY[outcome] >
+        EVALUATION_OUTCOME_PRIORITY[bucket.outcome]
+    ) {
+      bucket.outcome = outcome;
+    }
+  }
+  return buckets;
+}
+
+export function buildAlertRuleIncidentRail(
+  events: readonly AlertEventLogRow[],
+  currentFiringFingerprints: readonly string[],
+  domain: [number, number],
+  bucketCount = 60,
+): AlertRuleIncidentBucket[] {
+  const count = Math.max(1, bucketCount);
+  const transitions = events
+    .flatMap((event) => {
+      if (
+        event.eventType !== "instance_fired" &&
+        event.eventType !== "instance_resolved"
+      ) {
+        return [];
+      }
+      const timestamp = Date.parse(event.timestamp);
+      if (timestamp < domain[0] || timestamp > domain[1]) return [];
+      return [{ ...event, timestamp }];
+    })
+    .sort((a, b) => b.timestamp - a.timestamp);
+  const active = new Set(currentFiringFingerprints);
+  let transitionIndex = 0;
+  const buckets: AlertRuleIncidentBucket[] = [];
+  for (let index = count - 1; index >= 0; index -= 1) {
+    const [start, end] = bucketBounds(domain, index, count);
+    const midpoint = start + (end - start) / 2;
+    while (
+      transitionIndex < transitions.length &&
+      transitions[transitionIndex].timestamp > midpoint
+    ) {
+      const event = transitions[transitionIndex];
+      if (event.eventType === "instance_fired") {
+        active.delete(event.instanceFingerprint);
+      } else {
+        active.add(event.instanceFingerprint);
+      }
+      transitionIndex += 1;
+    }
+    buckets.unshift({ start, end, activeInstances: active.size });
+  }
+  return buckets;
+}
 
 function labelsDisplay(labels: Record<string, string>): string {
   const entries = Object.entries(labels).sort(([a], [b]) => a.localeCompare(b));

@@ -203,6 +203,7 @@ export const alertEvaluations = pgTable(
       .notNull()
       .defaultNow(),
     error: text("error"),
+    rowCount: integer("row_count"),
     samples: jsonb("samples")
       .notNull()
       .default(sql`'[]'::jsonb`)
@@ -211,6 +212,10 @@ export const alertEvaluations = pgTable(
   },
   (table) => [
     primaryKey({ columns: [table.alertDefinitionId, table.scheduledFor] }),
+    check(
+      "alert_evaluations_row_count_nonnegative",
+      sql`${table.rowCount} IS NULL OR ${table.rowCount} >= 0`,
+    ),
     index("alert_evaluations_scheduled_idx").on(table.scheduledFor),
   ],
 );

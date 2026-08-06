@@ -99,9 +99,11 @@ CREATE TABLE "alert_evaluations" (
 	"scheduled_for" timestamp with time zone NOT NULL,
 	"applied_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"error" text,
+	"row_count" integer,
 	"samples" jsonb DEFAULT '[]'::jsonb NOT NULL,
 	"samples_truncated" boolean DEFAULT false NOT NULL,
-	CONSTRAINT "alert_evaluations_alert_definition_id_scheduled_for_pk" PRIMARY KEY("alert_definition_id","scheduled_for")
+	CONSTRAINT "alert_evaluations_alert_definition_id_scheduled_for_pk" PRIMARY KEY("alert_definition_id","scheduled_for"),
+	CONSTRAINT "alert_evaluations_row_count_nonnegative" CHECK ("alert_evaluations"."row_count" IS NULL OR "alert_evaluations"."row_count" >= 0)
 );
 --> statement-breakpoint
 CREATE TABLE "alert_events" (

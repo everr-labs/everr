@@ -101,6 +101,7 @@ export const AlertingAlertSchema = z.object({
   status: AlertingInstanceStatusSchema,
   labels: z.record(z.string(), z.string()),
   value: z.number().nullable(),
+  pending_since: AlertingTimestampNullable.optional(),
   active_since: AlertingTimestampNullable,
   last_seen: AlertingTimestampNullable,
   absent_count: z.number().int(),

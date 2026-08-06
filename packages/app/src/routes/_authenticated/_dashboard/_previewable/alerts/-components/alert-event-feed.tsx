@@ -134,7 +134,9 @@ export function AlertEventFeed({
   return (
     <Card inset="flush-content">
       <CardHeader>
-        <CardTitle>Event history</CardTitle>
+        <CardTitle>
+          <h3>Event history</h3>
+        </CardTitle>
         <CardDescription>
           Alert events for the selected time range, newest first.
         </CardDescription>

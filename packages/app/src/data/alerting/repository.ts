@@ -307,6 +307,7 @@ export async function getRuleEvaluationSeries(
     .select({
       scheduledFor: alertEvaluations.scheduledFor,
       error: alertEvaluations.error,
+      rowCount: alertEvaluations.rowCount,
       samples: alertEvaluations.samples,
       samplesTruncated: alertEvaluations.samplesTruncated,
     })
@@ -575,6 +576,7 @@ export async function listAlerts(organizationId: string) {
       status: row.status,
       labels: row.labels,
       value: row.value,
+      pending_since: row.pendingSince?.toISOString() ?? null,
       active_since: row.activeSince?.toISOString() ?? null,
       last_seen: row.lastSeenAt?.toISOString() ?? null,
       absent_count: row.absentCount,
@@ -587,6 +589,7 @@ export async function listAlerts(organizationId: string) {
       status: row.status,
       labels: row.labels,
       value: row.value,
+      pending_since: null,
       active_since: row.activeSince?.toISOString() ?? null,
       last_seen: row.lastSeenAt?.toISOString() ?? null,
       absent_count: 0,
