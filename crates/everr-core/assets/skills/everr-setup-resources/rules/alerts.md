@@ -1,6 +1,6 @@
 # Alerts
 
-Alerts are defined as code: `kind: AlertRule` YAML files reconciled with `everr apply`, the same gitops flow as dashboards and runbooks: see the skill root for the manifest, file layout (`*.alert.yaml`), and apply semantics. The query is the condition: every row it returns is a firing instance, and an empty result means resolved.
+Alerts are defined as code: `kind: AlertRule` YAML files reconciled with `everr apply`, the same gitops flow as dashboards and runbooks: see the skill root for the manifest, file layout (`*.alert.yaml`), and apply semantics. The query returns data, and `condition` decides which rows are firing instances. This lets the same query show healthy and breaching values in a dashboard panel.
 
 Prerequisite: telemetry already flowing into Everr (traces, logs, or metrics).
 
@@ -20,21 +20,22 @@ spec:
   evaluationInterval: 5m     # required; format: <int><s|m|h|d>, minimum 1m
   for: 0s                    # optional; condition must hold this long before
                              #   firing. Default 0s (fire immediately).
-  resolveAfter: 1            # optional; consecutive empty evaluations before a
-                             #   firing instance resolves. Default 1, min 1.
+  resolveAfter: 1            # optional; consecutive evaluations where an
+                             #   instance does not match before it resolves.
+                             #   Default 1, min 1.
   notificationMessage:
     title: "${ServiceName} is failing"  # required; supports ${column} and ${value}
     description: "${value} errors in the last window"  # optional; same templating
   query: |                   # required ClickHouse SQL, no ${...} templating.
-    SELECT ...
+    SELECT ..., error_rate AS value
+  condition:                 # required numeric threshold, evaluated per row
+    operator: gt             # gt | gte | lt | lte | eq | neq
+    threshold: 0.05
   instanceLabels: [ServiceName]  # optional instance identity columns, ≥1 entry
                                  #   when present. When omitted,
                                  #   apply infers identity from the query's
-                                 #   string-typed result columns (all of them,
-                                 #   minus `valueColumn`); set it explicitly
+                                 #   string-typed result columns; set it explicitly
                                  #   to pin identity.
-  valueColumn: n             # optional; numeric column carried as the alert
-                             #   value, rendered in messages as ${value}
   maxInterval: 15m           # optional; duration string, ceiling for the engine's
                              #   adaptive evaluation backoff before the rule is
                              #   flagged degraded. Must be >= evaluationInterval
@@ -98,7 +99,8 @@ spec:
   notificationMessage:
     title: "DB connection pool exhausted"
   query: |
-    SELECT ...
+    SELECT ..., used_connections AS value
+  condition: { operator: gt, threshold: 0 }
 ```
 
 ```yaml
@@ -114,11 +116,11 @@ spec:
 
 ## Writing Alert Queries
 
-The query drives everything. Thresholds, grouping, and instance identity all live in the SQL.
+The query produces the data. The rule's `condition` applies a numeric threshold to every result row. A matching row is a firing instance; a non-matching row remains available for visualization but does not enter alert state.
 
 ### Thresholds
 
-Express the condition in the query itself. Use `HAVING` for aggregates or `WHERE` for row-level filters.
+Return both healthy and breaching rows, then express the alert threshold in `spec.condition`. Do not hide healthy rows with a threshold `HAVING` or `WHERE`, because those rows are useful when the query is rendered in a panel.
 
 ```sql
 -- Error-rate threshold with a minimum-volume guard
@@ -126,30 +128,40 @@ SELECT
   ServiceName,
   count() AS total,
   countIf(SeverityNumber >= 17) AS errors,
-  round(errors / total, 4) AS error_rate
+  round(errors / total, 4) AS error_rate,
+  if(total >= 100, error_rate, 0) AS value
 FROM logs
 WHERE Timestamp >= now() - INTERVAL 15 MINUTE
 GROUP BY ServiceName
-HAVING total >= 100
-  AND error_rate > 0.05
-ORDER BY error_rate DESC
+ORDER BY value DESC
 LIMIT 50
 ```
 
+```yaml
+condition:
+  operator: gt
+  threshold: 0.05
+```
+
+For a minimum-volume guard, calculate a guarded numeric signal in SQL and alias it to `value`. For example, return `if(total >= 100, error_rate, 0) AS value`, then apply the threshold to it.
+
 ```sql
--- Row-level: reserve this shape for rare, clearly actionable events
-SELECT ServiceName, TraceId, Body
+-- Row-level: return a numeric signal alongside the useful fields
+SELECT ServiceName, TraceId, Body, toUInt8(SeverityNumber >= 21) AS value
 FROM logs
 WHERE Timestamp >= now() - INTERVAL 5 MINUTE
-  AND SeverityNumber >= 21          -- FATAL
 LIMIT 50
+```
+
+```yaml
+condition: { operator: eq, threshold: 1 }
 ```
 
 Prefer rates over raw counts when traffic changes meaningfully. Always add a minimum-volume guard to percentage-based alerts so one failure in one request does not fire. Filter known-benign data in SQL, such as test services, development environments, or maintenance jobs.
 
 ### Instance Identity
 
-Each returned row becomes a firing-instance candidate, identified by its `instanceLabels` values. Set `instanceLabels` to the columns that distinguish "different things that can alert independently" (usually `ServiceName`, a cluster, an endpoint). Rows with distinct label values are independent alerts; rows that share an identity collapse into one instance. Without `instanceLabels`, apply infers the identity from the query's string-typed result columns (every string column except `valueColumn`), so per-row instances are preserved; declare `instanceLabels` explicitly when you want a narrower identity than that.
+Each row that matches the condition becomes a firing-instance candidate, identified by its `instanceLabels` values. Set `instanceLabels` to the columns that distinguish "different things that can alert independently" (usually `ServiceName`, a cluster, an endpoint). Rows with distinct label values are independent alerts; rows that share an identity collapse into one instance. Without `instanceLabels`, apply infers the identity from the query's string-typed result columns, so per-row instances are preserved; declare `instanceLabels` explicitly when you want a narrower identity than that.
 
 Pick stable identities. A column whose value changes between evaluations (a host or pod name, a sample message) fragments the identity and churns: the old instance resolves and a new one fires every time the value changes, even though the service never recovered.
 
@@ -163,11 +175,11 @@ Every listed column must exist in the result set.
 
 `for` requires the condition to hold continuously before firing: with `for: 2m` and `evaluationInterval: 1m`, the query must match on consecutive evaluations for 2 minutes before the notification goes out. While waiting the instance is pending and sends nothing. Default `0s` fires on the first match.
 
-`resolveAfter` is the number of consecutive empty evaluations before a firing instance resolves. Default `1`. Raise it (for example `3`) when the data source has gaps, so a single quiet evaluation does not flap the alert to resolved and back.
+`resolveAfter` is the number of consecutive evaluations where a firing instance is absent or no longer matches before it resolves. Default `1`. Raise it (for example `3`) when the data source has gaps, so one missing or healthy result does not flap the alert to resolved and back.
 
-### `valueColumn`
+### `condition`
 
-Set `valueColumn` to the numeric result column that explains the alert (an error rate, a queue depth). It is carried onto each instance and rendered in notification messages as `${value}`. Omit it for purely boolean conditions.
+Every alert query must return a numeric column named `value`. `condition` compares that column with its threshold. The value is carried onto each matching instance and rendered in notification messages as `${value}`. Null, missing, empty, and non-numeric values do not match. The supported operators are `gt`, `gte`, `lt`, `lte`, `eq`, and `neq`.
 
 ### Evaluation Interval and Time Windows
 
@@ -195,7 +207,7 @@ A rule created in the UI is not owned by an as-code repository. Use `everr resou
 
 ### Keep Result Sets Small
 
-The firing set is the rows. Every returned row is tracked, fingerprinted, and potentially notified.
+The firing set is the rows whose `value` matches the condition. Keep the full result bounded because the evaluator still reads every returned row.
 
 Use selective time windows, `GROUP BY`, and `LIMIT` to keep queries focused. Avoid `SELECT *`; return only the identity columns, measured values, and message fields needed for the alert.
 
@@ -204,7 +216,7 @@ Use selective time windows, `GROUP BY`, and `LIMIT` to keep queries focused. Avo
 `notificationMessage.title` and `notificationMessage.description` support `${...}` interpolation, rendered per instance:
 
 - `${<column>}` may reference any column the query returns: an `instanceLabels` column expands to that instance's value for it, and every other column resolves from the event's evidence (the source row's non-label columns).
-- `${value}` expands to the instance's `valueColumn` value and requires `valueColumn` to be set (or a result column literally named `value`).
+- `${value}` expands to the matching row's required `value` column.
 
 Referencing a column the query does not return fails at apply time. Evidence is capped at 16 non-label columns and 4096 bytes of JSON per event; past the caps, non-label refs may render empty (apply warns when a message depends on columns beyond the 16-column cap).
 
@@ -213,12 +225,12 @@ notificationMessage:
   title: "${ServiceName} exceeded the log volume threshold"
   description: "Emitted ${value} logs in the last window"
 instanceLabels: [ServiceName]
-valueColumn: n
+condition: { operator: gt, threshold: 100 }
 ```
 
 ## Verification
 
-1. Test the query using `everr cloud query` and confirm the result set stays far below 1,000 rows: every returned row is a firing instance.
+1. Test the query using `everr cloud query` and confirm the result set stays far below 1,000 rows. Check both healthy and breaching values against the configured condition.
 2. Run `everr apply ./everr --preview` and confirm the summary shows the expected creates/updates, then open the printed `Preview:` link and check the alert's firing/ok state (preview alerts evaluate but never notify).
 
 ## Common Mistakes
@@ -226,12 +238,12 @@ valueColumn: n
 | Mistake | Fix |
 | --- | --- |
 | `${...}` in the query | Queries are plain SQL; use `${...}` only in `notificationMessage` |
-| `instanceLabels` or `valueColumn` references a missing column | Every referenced column must exist in the query result set |
+| `instanceLabels` references a missing column | Every referenced column must exist in the query result set |
 | Adding a column to `instanceLabels` only so a message can reference it | Not needed: `${...}` resolves instance labels first, then `${value}`, then any other returned column via event evidence (capped at 16 non-label columns). Reserve `instanceLabels` for identity; extra entries change alert identity and churn instances |
-| `${value}` without `valueColumn` | Set `valueColumn` to the numeric column the alert should carry |
+| Query has no numeric `value` column | Alias the numeric signal used by the condition to `value` |
 | `evaluationInterval` below `1m` | Use `1m` or higher |
-| Query returns thousands of rows | Add `LIMIT` and tighten the `WHERE`/`HAVING` |
-| Error-rate alert without a minimum-volume guard | Add `HAVING total >= <baseline>` so tiny samples do not fire |
+| Query returns thousands of rows | Add `LIMIT`, tighten the time window, or aggregate harder |
+| Error-rate alert without a minimum-volume guard | Return a guarded signal such as `if(total >= baseline, error_rate, 0)` and threshold it |
 | Alerting on mean latency | Prefer p95/p99 or another tail-latency signal |
 | Template variable `${Foo}` but the label column is `foo` (case mismatch) | Match column names exactly |
 | Alert flaps on gappy data | Raise `resolveAfter` (and consider `for`) instead of loosening the query |

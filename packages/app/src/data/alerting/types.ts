@@ -9,6 +9,7 @@ import type {
   AlertingReceiverSchema,
   AlertingRouteInputSchema,
   AlertingRouteSchema,
+  AlertingRuleConditionSchema,
   AlertingRuleHealthStatusSchema,
   AlertingRuleInputSchema,
   AlertingRuleSchema,
@@ -29,6 +30,7 @@ import type {
 } from "./schema";
 
 export type AlertingSeverity = z.infer<typeof AlertingSeveritySchema>;
+export type AlertingRuleCondition = z.infer<typeof AlertingRuleConditionSchema>;
 export type AlertingRuleHealthStatus = z.infer<
   typeof AlertingRuleHealthStatusSchema
 >;

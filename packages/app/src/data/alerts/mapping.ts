@@ -116,7 +116,7 @@ export function toRuleInput(
     interval_secs: parseEvaluationInterval(rule.spec.evaluationInterval),
     for_secs: parseForDuration(rule.spec.for),
     label_columns: rule.spec.instanceLabels ?? opts.instanceLabels ?? [],
-    value_column: rule.spec.valueColumn ?? null,
+    condition: rule.spec.condition,
     severity: rule.spec.severity,
     annotations,
     resolve_after: rule.spec.resolveAfter,
@@ -150,7 +150,7 @@ export type SimpleAlertView = {
   instanceLabelColumns: string[];
   forSeconds: number;
   resolveAfter: number;
-  valueColumn: string | null;
+  condition: AlertingRule["spec"]["condition"];
   runbookProject: string | null;
   runbookSlug: string | null;
   // The owning preview registry id, or null for a live rule.
@@ -185,7 +185,7 @@ export function fromAlertingRule(
     instanceLabelColumns: rule.spec.label_columns ?? [],
     forSeconds: rule.spec.for_secs,
     resolveAfter: rule.spec.resolve_after,
-    valueColumn: rule.spec.value_column ?? null,
+    condition: rule.spec.condition,
     runbookProject: runbook?.project ?? null,
     runbookSlug: runbook?.slug ?? null,
     previewId: rule.previewId,
@@ -260,9 +260,7 @@ export function toAlertRuleDocument(
         rule.spec.label_columns && rule.spec.label_columns.length > 0
           ? rule.spec.label_columns
           : undefined,
-      ...(rule.spec.value_column
-        ? { valueColumn: rule.spec.value_column }
-        : {}),
+      condition: rule.spec.condition,
       ...(rule.spec.max_interval_secs !== undefined &&
       rule.spec.max_interval_secs !== null
         ? { maxInterval: formatDurationSeconds(rule.spec.max_interval_secs) }

@@ -43,8 +43,8 @@ const preview = (id: string | null) =>
 beforeEach(() => {
   vi.clearAllMocks();
   ch.mockResolvedValue({
-    rows: [{ service: "api", count: 1 }],
-    columns: ["service", "count"],
+    rows: [{ service: "api", value: 1 }],
+    columns: ["service", "value"],
     columnTypes: ["String", "UInt64"],
   });
   mockedListRules.mockResolvedValue([]);
@@ -61,9 +61,9 @@ function alert(name = "high-errors", overrides = {}) {
       evaluationInterval: "5m",
       // alerting engine substitutes labels, ${value}, and evidence columns in notifications.
       notificationMessage: { title: `\${value} errors in \${service}` },
-      query: "SELECT service, count() AS count FROM logs GROUP BY service",
+      query: "SELECT service, count() AS value FROM logs GROUP BY service",
       instanceLabels: ["service"],
-      valueColumn: "count",
+      condition: { operator: "gt", threshold: 0 },
       ...overrides,
     },
   };
@@ -82,11 +82,11 @@ function managedRule(name: string, over: Record<string, unknown> = {}) {
     repoid,
     name: `default/${name}`,
     spec: {
-      sql: "SELECT service, count() AS count FROM logs GROUP BY service",
+      sql: "SELECT service, count() AS value FROM logs GROUP BY service",
       interval_secs: 300,
       for_secs: 0,
       label_columns: ["service"],
-      value_column: "count",
+      condition: { operator: "gt", threshold: 0 },
       severity: "info",
       annotations: {
         summary: `\${value} errors in \${service}`,
@@ -147,7 +147,10 @@ describe("applyAlertSpecs", () => {
       "https://app.example.com/alerts/rules/default/high-errors",
     );
     expect(input.interval_secs).toBe(300);
-    expect(input.value_column).toBe("count");
+    expect(input.condition).toEqual({
+      operator: "gt",
+      threshold: 0,
+    });
 
     expect(mockedDeleteRule).not.toHaveBeenCalled();
   });
@@ -341,7 +344,7 @@ describe("applyAlertSpecs", () => {
       expect(error).toBeInstanceOf(ApplyValidationError);
       expect(error).toMatchObject({
         message: expect.stringMatching(
-          /labels\.yaml: \$\{nope\} is not a column of the query result.*\(available: service, count\)/,
+          /labels\.yaml: \$\{nope\} is not a column of the query result.*\(available: service, value\)/,
         ),
       });
     }
@@ -351,8 +354,8 @@ describe("applyAlertSpecs", () => {
 
   it("infers the implicit string-column identity when instanceLabels is omitted", async () => {
     ch.mockResolvedValue({
-      rows: [{ failed_replays: 3, last_error: "boom" }],
-      columns: ["failed_replays", "last_error"],
+      rows: [{ value: 3, last_error: "boom" }],
+      columns: ["value", "last_error"],
       columnTypes: ["UInt64", "String"],
     });
 
@@ -364,12 +367,12 @@ describe("applyAlertSpecs", () => {
           path: "replays.yaml",
           resource: alert("replays", {
             instanceLabels: undefined,
-            valueColumn: undefined,
+            condition: { operator: "gt", threshold: 0 },
             notificationMessage: {
-              title: `\${failed_replays} replays failed`,
+              title: `\${value} replays failed`,
               description: `last error: \${last_error}`,
             },
-            query: "SELECT count() AS failed_replays, any(e) AS last_error",
+            query: "SELECT count() AS value, any(e) AS last_error",
           }),
         },
       ],
@@ -385,10 +388,10 @@ describe("applyAlertSpecs", () => {
     expect(input.label_columns).toEqual(["last_error"]);
   });
 
-  it("never infers the valueColumn or non-string columns, and explicit instanceLabels win", async () => {
+  it("never infers non-string columns, and explicit instanceLabels win", async () => {
     ch.mockResolvedValue({
       rows: [],
-      columns: ["service", "region", "count"],
+      columns: ["service", "region", "value"],
       columnTypes: ["LowCardinality(String)", "Nullable(String)", "UInt64"],
     });
 
@@ -429,7 +432,7 @@ describe("applyAlertSpecs", () => {
   });
 
   it("warns (without failing) when evidence refs exceed alerting engine's 16-column evidence cap", async () => {
-    const columns = Array.from({ length: 17 }, (_, i) => `c${i}`);
+    const columns = ["value", ...Array.from({ length: 16 }, (_, i) => `c${i}`)];
     ch.mockResolvedValue({
       rows: [],
       columns: ["service", ...columns],
@@ -444,7 +447,6 @@ describe("applyAlertSpecs", () => {
         {
           path: "wide.yaml",
           resource: alert("wide", {
-            valueColumn: undefined,
             notificationMessage: { title: `\${c3} things on \${service}` },
           }),
         },
@@ -500,7 +502,7 @@ describe("applyAlertSpecs", () => {
     expect(id).toBe("rule-high-errors");
     expect(version).toBe(3);
     expect(spec.sql).toBe(
-      "SELECT service, count() AS count FROM logs GROUP BY service",
+      "SELECT service, count() AS value FROM logs GROUP BY service",
     );
     expect(spec.annotations["link.alert"]).toBe(
       "https://app.example.com/alerts/rules/default/high-errors",
@@ -737,9 +739,9 @@ describe("applyAlertSpecs", () => {
         pattern: /bad-var\.yaml: unsupported query variable/,
       },
       {
-        path: "no-value.yaml",
-        resource: alert("no-value", { valueColumn: undefined }),
-        pattern: /no-value\.yaml: \$\{value\} requires spec\.valueColumn/,
+        path: "no-condition.yaml",
+        resource: alert("no-condition", { condition: undefined }),
+        pattern: /no-condition\.yaml: invalid alert rule/,
       },
       {
         path: "labels.yaml",
@@ -753,7 +755,19 @@ describe("applyAlertSpecs", () => {
         path: "value.yaml",
         resource: alert(),
         columns: [["service"], ["String"]],
-        pattern: /value\.yaml: valueColumn references column "count"/,
+        pattern:
+          /value\.yaml: alert query must return a numeric column named "value"/,
+      },
+      {
+        path: "condition-type.yaml",
+        resource: alert("condition-type", {
+          condition: { operator: "eq", threshold: 1 },
+          instanceLabels: undefined,
+          notificationMessage: { title: "plain title" },
+        }),
+        pattern:
+          /condition-type\.yaml: alert query column "value" must be numeric, got String/,
+        columns: [["value"], ["String"]],
       },
       {
         path: "query.yaml",

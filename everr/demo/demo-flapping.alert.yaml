@@ -12,6 +12,10 @@ spec:
     title: "Demo alert: flapping is in its on phase"
     description: "This rule alternates between firing and resolved every three minutes to test state transitions in the UI."
   instanceLabels: [phase]
+  condition:
+    operator: eq
+    threshold: 1
   query: |
-    SELECT 'flapper' AS phase
-    WHERE intDiv(toUnixTimestamp(now()), 180) % 2 = 0
+    SELECT
+      'flapper' AS phase,
+      toUInt8(intDiv(toUnixTimestamp(now()), 180) % 2 = 0) AS value

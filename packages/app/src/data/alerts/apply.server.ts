@@ -85,8 +85,20 @@ function isStringTypedColumn(chType: string): boolean {
   );
 }
 
+function isNumericTypedColumn(chType: string): boolean {
+  let t = chType.trim();
+  for (;;) {
+    const wrapped = /^(?:Nullable|LowCardinality)\((.*)\)$/.exec(t);
+    if (!wrapped) break;
+    t = wrapped[1];
+  }
+  return /^(?:U?Int(?:8|16|32|64|128|256)|Float(?:32|64)|BFloat16|Decimal(?:32|64|128|256)?)(?:\(|$)/.test(
+    t,
+  );
+}
+
 // Result-dependent validation: run the rule's query against the org's data and
-// check the instance-label, value, and message-template columns against the
+// check the instance-label, condition, and message-template columns against the
 // result schema. Message refs are legal for any result column: the dispatcher resolves
 // them from the event's instance labels first, then ${value}, then the
 // evidence (the remaining result columns). Returns a warning when a message
@@ -116,7 +128,7 @@ async function validateAlertRuleQuery(
     queryResult.columns.filter(
       (column, i) =>
         isStringTypedColumn(queryResult.columnTypes[i] ?? "") &&
-        column !== rule.spec.valueColumn,
+        column !== "value",
     );
   const columnNames = new Set(queryResult.columns);
   for (const column of instanceLabelColumns) {
@@ -126,27 +138,28 @@ async function validateAlertRuleQuery(
       );
     }
   }
-  if (
-    rule.spec.valueColumn !== undefined &&
-    !columnNames.has(rule.spec.valueColumn)
-  ) {
+  const valueColumnIndex = queryResult.columns.indexOf("value");
+  if (valueColumnIndex === -1) {
     throw new ApplyValidationError(
-      `${path}: valueColumn references column "${rule.spec.valueColumn}" which the query does not return`,
+      `${path}: alert query must return a numeric column named "value"`,
+    );
+  }
+  const valueColumnType = queryResult.columnTypes[valueColumnIndex] ?? "";
+  if (!isNumericTypedColumn(valueColumnType)) {
+    throw new ApplyValidationError(
+      `${path}: alert query column "value" must be numeric, got ${valueColumnType || "an unknown type"}`,
     );
   }
 
-  const hasValueColumn = rule.spec.valueColumn !== undefined;
   try {
     validateMessageRefs(
       rule.spec.notificationMessage.title,
       queryResult.columns,
-      hasValueColumn,
     );
     if (rule.spec.notificationMessage.description) {
       validateMessageRefs(
         rule.spec.notificationMessage.description,
         queryResult.columns,
-        hasValueColumn,
       );
     }
   } catch (error) {
@@ -164,9 +177,7 @@ async function validateAlertRuleQuery(
     rule.spec.notificationMessage.description ?? "",
   ]
     .flatMap(extractVariables)
-    .filter(
-      (name) => !labelSet.has(name) && !(name === "value" && hasValueColumn),
-    );
+    .filter((name) => !labelSet.has(name) && name !== "value");
   const warning =
     evidenceRefs.length > 0 && nonLabelColumns.length > EVIDENCE_COLUMN_CAP
       ? `${path}: the query returns ${nonLabelColumns.length} non-label columns but alert events keep at most ${EVIDENCE_COLUMN_CAP} as evidence, so \${${evidenceRefs[0]}} may render empty in notifications`

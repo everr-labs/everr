@@ -27,33 +27,27 @@ describe("validateQueryTemplate", () => {
 });
 
 describe("validateMessageRefs", () => {
-  it("allows any query result column, and the value placeholder when a value column is set", () => {
+  it("allows any query result column, including the conventional value column", () => {
     expect(() =>
-      validateMessageRefs(`\${route} at \${value}`, ["route"], true),
+      validateMessageRefs(`\${route} at \${value}`, ["route", "value"]),
     ).not.toThrow();
     // Non-label columns resolve from the event's evidence at render time.
     expect(() =>
-      validateMessageRefs(`\${errors} on \${route}`, ["route", "errors"], true),
+      validateMessageRefs(`\${errors} on \${route}`, ["route", "errors"]),
     ).not.toThrow();
-    expect(() => validateMessageRefs("no refs", [], false)).not.toThrow();
-    // A result column literally named "value" is fine: alerting engine falls through to it
-    // (via labels or evidence) when the rule has no value column.
-    expect(() =>
-      validateMessageRefs(`\${value}`, ["value"], false),
-    ).not.toThrow();
+    expect(() => validateMessageRefs("no refs", [])).not.toThrow();
+    expect(() => validateMessageRefs(`\${value}`, ["value"])).not.toThrow();
   });
 
-  it("rejects refs to columns the query does not return, and the value placeholder without a value column", () => {
-    expect(() =>
-      validateMessageRefs(`\${n}`, ["route", "errors"], false),
-    ).toThrow(
+  it("rejects refs to columns the query does not return", () => {
+    expect(() => validateMessageRefs(`\${n}`, ["route", "errors"])).toThrow(
       /\$\{n\} is not a column of the query result.*\(available: route, errors\)/,
     );
-    expect(() => validateMessageRefs(`\${n}`, [], false)).toThrow(
+    expect(() => validateMessageRefs(`\${n}`, [])).toThrow(
       /the query returned no columns/,
     );
-    expect(() => validateMessageRefs(`\${value}`, ["route"], false)).toThrow(
-      /requires spec\.valueColumn/,
+    expect(() => validateMessageRefs(`\${value}`, ["route"])).toThrow(
+      /\$\{value\} is not a column of the query result/,
     );
   });
 });

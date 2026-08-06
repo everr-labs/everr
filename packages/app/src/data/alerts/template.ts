@@ -16,7 +16,7 @@ export function validateQueryTemplate(query: string): void {
 /**
  * Notification templates are rendered by the alert worker, which resolves
  * `${x}` against the event's instance labels first, then `${value}` (the
- * rule's `value_column`), then the event's evidence: every remaining query
+ * query's required `value` column), then the event's evidence: every remaining query
  * result column, capped at 16 columns / 4096 bytes of compact JSON (over the
  * byte cap the evidence is dropped and refs into it render empty). Any query
  * result column is therefore a valid reference; anything else would silently
@@ -26,27 +26,16 @@ export function validateQueryTemplate(query: string): void {
 export function validateMessageRefs(
   template: string,
   columns: readonly string[],
-  hasValueColumn: boolean,
 ): void {
   const known = new Set(columns);
   for (const name of extractVariables(template)) {
-    if (name === "value") {
-      // ${value} resolves to the rule's value column, or (when valueColumn is
-      // not set) falls through to a result column literally named "value".
-      if (!hasValueColumn && !known.has("value")) {
-        throw new Error(
-          `\${value} requires spec.valueColumn: set valueColumn to the numeric column the alert should carry`,
-        );
-      }
-      continue;
-    }
     if (!known.has(name)) {
       const available =
         columns.length > 0
           ? ` (available: ${columns.join(", ")})`
           : " (the query returned no columns)";
       throw new Error(
-        `\${${name}} is not a column of the query result: notification templates can reference any query result column${available} or \${value}`,
+        `\${${name}} is not a column of the query result: notification templates can reference any query result column${available}`,
       );
     }
   }

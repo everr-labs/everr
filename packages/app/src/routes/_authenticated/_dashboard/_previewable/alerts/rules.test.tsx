@@ -36,7 +36,7 @@ function alertingRuleView(
     id: "11111111-1111-1111-1111-111111111111",
     spec: {
       interval_secs: 30,
-      value_column: null,
+      condition: { operator: "gt", threshold: 0 },
       severity: "info",
     },
     rollup: {

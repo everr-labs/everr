@@ -25,7 +25,7 @@ function alertingRule(
     spec: {
       interval_secs: 30,
       label_columns: ["host"],
-      value_column: null,
+      condition: { operator: "gt", threshold: 0 },
       annotations: { "everr.display.name": "Flapping check" },
     },
     ...overrides,

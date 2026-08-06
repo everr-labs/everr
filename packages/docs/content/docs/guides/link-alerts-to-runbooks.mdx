@@ -14,10 +14,11 @@ spec:
   evaluationInterval: 1m
   notificationMessage:
     title: "${ServiceName} error rate is high"
+  condition: { operator: gt, threshold: 0.05 }
   query: |
     # same error-rate query as the writing good alerts guide:
     # countIf(SeverityNumber >= 17) / total over 15 minutes, per service
-    SELECT ServiceName, ... FROM logs ...
+    SELECT ServiceName, ... AS value FROM logs ...
 ```
 
 The runbook it points at, `error-spike.runbook.yaml`:

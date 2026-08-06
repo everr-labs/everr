@@ -127,7 +127,8 @@ const alertEntry = (opts: {
     spec: {
       evaluationInterval: "1m",
       notificationMessage: { title: "t" },
-      query: "SELECT 1",
+      query: "SELECT 1 AS value",
+      condition: { operator: "eq", threshold: 1 },
       ...(opts.runbook ? { runbook: opts.runbook } : {}),
     },
   },
@@ -185,7 +186,7 @@ function foreignRule(opts: { name: string; repoid: string; runbook: string }) {
       for_secs: 0,
       resolve_after: 1,
       label_columns: [],
-      value_column: null,
+      condition: { operator: "gt", threshold: 0 },
       suppressed: false,
       annotations: {
         "everr.runbook": opts.runbook,

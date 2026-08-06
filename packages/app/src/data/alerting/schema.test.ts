@@ -17,11 +17,11 @@ const ruleView = {
   previewId: "demo",
   name: "default/checkout-errors",
   spec: {
-    sql: "SELECT host FROM t WHERE x > 1",
+    sql: "SELECT host, x AS value FROM t",
     interval_secs: 30,
     for_secs: 60,
     label_columns: ["host"],
-    value_column: "x",
+    condition: { operator: "gt", threshold: 1 },
     severity: "critical",
     annotations: { runbook: "https://r" },
     resolve_after: 1,

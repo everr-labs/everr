@@ -1,5 +1,9 @@
 import { eq, sql } from "drizzle-orm";
 import { z } from "zod";
+import {
+  alertingConditionMatches,
+  alertingConditionValue,
+} from "@/data/alerting/condition";
 import { renderMessage } from "@/data/alerts/template";
 import { db } from "@/db/client";
 import {
@@ -48,12 +52,6 @@ function nextEvaluationAt(
       now.getTime() + 1_000,
     ),
   );
-}
-
-function numericValue(row: Record<string, unknown>, column?: string | null) {
-  if (!column) return null;
-  const value = Number(row[column]);
-  return Number.isFinite(value) ? value : null;
 }
 
 function storedInstance(
@@ -175,7 +173,7 @@ export async function evaluateAlert(rawPayload: unknown): Promise<void> {
   const evaluatedAt = new Date();
   const evidence = boundEvidence(rows);
   const present = rowsToInstances(
-    rows,
+    rows.filter((row) => alertingConditionMatches(row, def.spec.condition)),
     def.spec.label_columns,
     evaluatedAt,
   ).map(
@@ -183,7 +181,7 @@ export async function evaluateAlert(rawPayload: unknown): Promise<void> {
       fingerprint: instance.fingerprint,
       labels: instance.labels,
       evidence: instance.row,
-      value: numericValue(instance.row, def.spec.value_column),
+      value: alertingConditionValue(instance.row),
     }),
   );
   const presentByFingerprint = new Map(
@@ -298,7 +296,7 @@ export async function evaluateAlert(rawPayload: unknown): Promise<void> {
         consecutiveFailures: 0,
         degradedSince: null,
         lastEvaluatedAt: evaluatedAt,
-        lastSeenAt: rows.length > 0 ? evaluatedAt : def.lastSeenAt,
+        lastSeenAt: present.length > 0 ? evaluatedAt : def.lastSeenAt,
         lastRowCount: evidence.rowCount,
         firingInstanceCount: firing.length,
         currentState: firing.length > 0 ? "firing" : "resolved",
@@ -316,7 +314,7 @@ export async function evaluateAlert(rawPayload: unknown): Promise<void> {
           ...bounded.evidence,
           ...next.labels,
         };
-        if (def.spec.value_column) firstRow.value = next.value;
+        firstRow.value = next.value;
         return [
           {
             organizationId: def.organizationId,

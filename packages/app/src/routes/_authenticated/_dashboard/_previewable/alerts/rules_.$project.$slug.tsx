@@ -20,6 +20,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { BookOpenText } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
+import { alertingConditionOperatorLabel } from "@/data/alerting/condition";
 import { alertingQueries } from "@/data/alerting/queries";
 import { pauseAlertingRule, resumeAlertingRule } from "@/data/alerting/server";
 import type { AlertingAlert } from "@/data/alerting/types";
@@ -211,8 +212,12 @@ function AlertingRuleDetailPage() {
             <AlertingDefRow label="Label columns">
               {r.spec.label_columns.join(", ") || "—"}
             </AlertingDefRow>
-            <AlertingDefRow label="Value column">
-              {r.spec.value_column ?? "—"}
+            <AlertingDefRow label="Condition">
+              <span className="font-mono">
+                value{" "}
+                {alertingConditionOperatorLabel(r.spec.condition.operator)}{" "}
+                {r.spec.condition.threshold}
+              </span>
             </AlertingDefRow>
             {annotations.length > 0 && (
               <AlertingDefRow label="Annotations">

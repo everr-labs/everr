@@ -20,8 +20,9 @@ const baseInput = {
     evaluationInterval: "5m",
     severity: "warning",
     notificationMessage: { title: TITLE_TEMPLATE, description: DESC_TEMPLATE },
-    query: "SELECT route, count() AS count FROM logs GROUP BY route",
+    query: "SELECT route, count() AS value FROM logs GROUP BY route",
     instanceLabels: ["route"],
+    condition: { operator: "gt", threshold: 5 },
   },
 };
 
@@ -62,7 +63,7 @@ describe("toRuleInput", () => {
     expect(input.interval_secs).toBe(300);
     expect(input.for_secs).toBe(0);
     expect(input.resolve_after).toBe(1);
-    expect(input.value_column).toBeNull();
+    expect(input.condition).toEqual({ operator: "gt", threshold: 5 });
     expect(input.label_columns).toEqual(["route"]);
     expect(input.severity).toBe("warning");
     expect(input.annotations.summary).toBe(TITLE_TEMPLATE);
@@ -109,7 +110,7 @@ describe("toRuleInput", () => {
 
   it("round-trips through fromAlertingRule, reading project/slug off the alerting engine name", () => {
     const input = toRuleInput(
-      parseRule({ for: "1d", resolveAfter: 2, valueColumn: "count" }),
+      parseRule({ for: "1d", resolveAfter: 2 }),
       "repo-1",
     );
     expect(fromAlertingRule(asRule(input))).toMatchObject({
@@ -123,7 +124,7 @@ describe("toRuleInput", () => {
       instanceLabelColumns: ["route"],
       forSeconds: 86400,
       resolveAfter: 2,
-      valueColumn: "count",
+      condition: { operator: "gt", threshold: 5 },
     });
 
     const {
@@ -188,7 +189,7 @@ describe("toAlertRuleDocument", () => {
       {
         for: "10m",
         resolveAfter: 3,
-        valueColumn: "count",
+        condition: { operator: "gte", threshold: 10 },
         maxInterval: "1h",
         runbook: "ops/high-5xx",
         annotations: { "team.pager": "platform" },
@@ -206,6 +207,10 @@ describe("toAlertRuleDocument", () => {
     expect(reparsed.spec.evaluationInterval).toBe("5m");
     expect(reparsed.spec.for).toBe("10m");
     expect(reparsed.spec.resolveAfter).toBe(3);
+    expect(reparsed.spec.condition).toEqual({
+      operator: "gte",
+      threshold: 10,
+    });
     expect(reparsed.spec.maxInterval).toBe("1h");
     expect(reparsed.spec.annotations).toEqual({ "team.pager": "platform" });
 

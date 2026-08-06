@@ -6,16 +6,18 @@ spec:
   runbook: demo-alerts
   display:
     name: Always firing (demo)
-    description: Permanently firing rule for exercising the alerting UI. The aggregate query always returns one row, so the instance fires on the first evaluation and never resolves.
+    description: Permanently firing rule for exercising the alerting UI. The aggregate query always returns one row whose value matches the condition, so the instance fires on the first evaluation and never resolves.
   evaluationInterval: 1m
   notificationMessage:
     title: "Demo alert: permanently firing"
     description: "Saw ${value} log records in the last 10 minutes. This rule exists to test the alerting UI and never resolves."
-  valueColumn: points
+  condition:
+    operator: gte
+    threshold: 0
   instanceLabels: [source]
   query: |
     SELECT
       'demo' AS source,
-      count() AS points
+      count() AS value
     FROM app.logs
     WHERE TimestampTime >= now() - INTERVAL 10 MINUTE

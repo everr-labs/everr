@@ -410,8 +410,7 @@ function InstanceRow({
   // For a single-instance source the source scope and the label scope cover
   // the same thing, so the merged line's silence mutes the whole source.
   const merged = group.rows.length === 1;
-  const valueLabel =
-    group.sloId !== undefined ? null : (group.rule?.spec.value_column ?? null);
+  const valueLabel = group.sloId !== undefined ? null : "value";
   const runbook = alertingRunbookParams(inst.rule);
   const isSlo = inst.slo !== undefined || alert.slo !== undefined;
   const shownLabels = isSlo ? {} : alert.labels;

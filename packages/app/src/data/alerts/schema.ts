@@ -1,5 +1,8 @@
 import * as z from "zod";
-import { AlertingSeveritySchema } from "@/data/alerting/schema";
+import {
+  AlertingRuleConditionSchema,
+  AlertingSeveritySchema,
+} from "@/data/alerting/schema";
 import {
   dashboardProjectSchema,
   dashboardSlugSchema,
@@ -137,16 +140,17 @@ export const AlertRuleYamlSchema = z
         // How long the condition must hold before firing. Duration string
         // (<int><s|m|h|d>); "0s" fires on the first matching evaluation.
         for: nonEmptyString.default("0s"),
-        // Consecutive empty evaluations required before a firing instance
-        // resolves. Raise it to tolerate gaps in the data.
+        // Consecutive evaluations where a firing instance is absent or does
+        // not match the condition before it resolves.
         resolveAfter: z.number().int().min(1).default(1),
         severity: AlertingSeveritySchema.default("info"),
         notificationMessage: notificationMessageSchema,
         query: nonEmptyString,
         instanceLabels: z.array(nonEmptyString).min(1).optional(),
-        // Numeric result column carried onto instances/notifications as the
-        // alert value; referenced in messages as ${value}.
-        valueColumn: nonEmptyString.optional(),
+        // Applied to every query result row's required numeric `value`
+        // column. Matching rows are alert instances; all rows remain
+        // available for visualization.
+        condition: AlertingRuleConditionSchema,
         // Upper bound on how long the engine may go without evaluating the rule
         // before flagging it degraded (duration string, engine defaults when
         // unset). Must be >= evaluationInterval when both are set.

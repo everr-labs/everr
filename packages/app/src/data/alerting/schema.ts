@@ -2,6 +2,20 @@ import { z } from "zod";
 
 export const AlertingSeveritySchema = z.enum(["info", "warning", "critical"]);
 export const AlertingMatchOpSchema = z.enum(["eq", "ne", "regex", "notregex"]);
+const AlertingRuleConditionOperatorSchema = z.enum([
+  "gt",
+  "gte",
+  "lt",
+  "lte",
+  "eq",
+  "neq",
+]);
+export const AlertingRuleConditionSchema = z
+  .object({
+    operator: AlertingRuleConditionOperatorSchema,
+    threshold: z.number().finite(),
+  })
+  .strict();
 const AlertingInstanceStatusSchema = z.enum(["inactive", "pending", "firing"]);
 
 // Server functions serialize timestamps as RFC 3339 strings.
@@ -20,7 +34,7 @@ export const AlertingRuleSpecSchema = z.object({
   interval_secs: z.number().int().positive(),
   for_secs: z.number().int().nonnegative(),
   label_columns: z.array(z.string()),
-  value_column: z.string().nullable().optional(),
+  condition: AlertingRuleConditionSchema,
   severity: AlertingSeveritySchema,
   annotations: z.record(z.string(), z.string()).default({}),
   resolve_after: z.number().int().positive().default(1),

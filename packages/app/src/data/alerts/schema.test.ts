@@ -15,6 +15,7 @@ const valid = {
       description: `Worst route: \${route}`,
     },
     query: "SELECT 1",
+    condition: { operator: "gt", threshold: 0 },
   },
 };
 
@@ -39,6 +40,7 @@ describe("AlertRuleYamlSchema", () => {
       { runbook: "a/b/c" },
       { runbook: "Bad_Slug" },
       { runbook: "platform/" },
+      { condition: { operator: "above", threshold: 1 } },
     ]) {
       expect(parseSpec(spec).success).toBe(false);
     }
@@ -79,7 +81,12 @@ describe("AlertRuleYamlSchema canonical fields", () => {
   const { query: _query, ...specWithoutQuery } = valid.spec;
 
   it("rejects retired aliases", () => {
-    for (const alias of ["notebook", "sql", "labelColumns"] as const) {
+    for (const alias of [
+      "notebook",
+      "sql",
+      "labelColumns",
+      "valueColumn",
+    ] as const) {
       const result = parseSpec({
         [alias]: alias === "labelColumns" ? ["route"] : "x",
       });

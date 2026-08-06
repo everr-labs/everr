@@ -23,6 +23,7 @@ export function alertingRuleViewFixture(
       interval_secs: 60,
       for_secs: 0,
       label_columns: [],
+      condition: { operator: "gt", threshold: 0 },
       severity: "critical",
       annotations: {},
       resolve_after: 1,

@@ -27,6 +27,10 @@ spec:
       the `for` clock did not reset across an absent gap: file a bug against
       the engine's state machine.
   instanceLabels: [phase]
+  condition:
+    operator: eq
+    threshold: 1
   query: |
-    SELECT 'limbo' AS phase
-    WHERE intDiv(toUnixTimestamp(now()), 60) % 5 != 0
+    SELECT
+      'limbo' AS phase,
+      toUInt8(intDiv(toUnixTimestamp(now()), 60) % 5 != 0) AS value
