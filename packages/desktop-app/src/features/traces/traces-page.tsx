@@ -23,6 +23,7 @@ import {
 } from "@/components/detail-route-dialog";
 import { ExploreSearchShape } from "../explore/explore-search";
 import { ExploreShell } from "../explore/explore-shell";
+import { ExplorePersistentFilters } from "../explore/persistent-filters";
 import { LocalTelemetryGate } from "../local-telemetry/collector-status";
 import { localSqlClient } from "../logs/local-sql-client";
 
@@ -79,8 +80,6 @@ function TracesListView() {
       title="Traces"
       timeRange={timeRange}
       refresh={refresh}
-      service={service}
-      environment={environment}
       onTimeRangeChange={(range) =>
         navigate({
           to: "/traces",
@@ -92,20 +91,6 @@ function TracesListView() {
         navigate({
           to: "/traces",
           search: (prev) => ({ ...prev, refresh: value || undefined }),
-          replace: true,
-        })
-      }
-      onServiceChange={(values) =>
-        navigate({
-          to: "/traces",
-          search: (prev) => ({ ...prev, service: values }),
-          replace: true,
-        })
-      }
-      onEnvironmentChange={(values) =>
-        navigate({
-          to: "/traces",
-          search: (prev) => ({ ...prev, environment: values }),
           replace: true,
         })
       }
@@ -125,7 +110,14 @@ function TracesListView() {
             attributes: search.attributes,
           }}
           environment={environment}
-          hideSharedFilters
+          persistentFilters={
+            <ExplorePersistentFilters
+              to="/traces"
+              timeRange={timeRange}
+              service={service}
+              environment={environment}
+            />
+          }
           onSearchChange={(patch) =>
             navigate({
               to: "/traces",

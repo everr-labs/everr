@@ -23,30 +23,45 @@ const repo = {
 const baseProps = {
   repo,
   timeRange: { from: "now-1h", to: "now" } as const,
+  q: "",
   levels: [],
-  services: [],
   attributes: [],
   traceId: undefined,
 };
 
 describe("LogFiltersBar", () => {
-  it("renders Service, Environment and the attribute section inside the sidebar", () => {
+  it("renders Search, Severity, Trace and the attribute section in the rail", () => {
     renderWithQueryClient(<LogFiltersBar {...baseProps} onChange={vi.fn()} />);
     expect(
       screen.getByRole("complementary", { name: "Log filters" }),
     ).toBeInTheDocument();
-    expect(screen.getByText("Service")).toBeInTheDocument();
-    expect(screen.getByText("Environment")).toBeInTheDocument();
+    expect(screen.getByText("Search")).toBeInTheDocument();
+    expect(screen.getByText("Severity")).toBeInTheDocument();
+    expect(screen.getByText("Trace")).toBeInTheDocument();
     expect(screen.getByText("Attributes")).toBeInTheDocument();
   });
 
-  it("clear-all resets levels, services, attributes and trace id", () => {
+  it("never renders Service or Environment: those belong to the persistent zone", () => {
+    renderWithQueryClient(<LogFiltersBar {...baseProps} onChange={vi.fn()} />);
+    expect(screen.queryByText("Service")).not.toBeInTheDocument();
+    expect(screen.queryByText("Environment")).not.toBeInTheDocument();
+  });
+
+  it("renders the message search inside the rail", () => {
+    renderWithQueryClient(<LogFiltersBar {...baseProps} onChange={vi.fn()} />);
+    const rail = screen.getByRole("complementary", { name: "Log filters" });
+    expect(rail).toContainElement(
+      screen.getByPlaceholderText("Search messages, errors, IDs"),
+    );
+  });
+
+  it("clear resets the search, levels, attributes and trace id", () => {
     const onChange = vi.fn();
     renderWithQueryClient(
       <LogFiltersBar
         {...baseProps}
+        q="timeout"
         levels={["error"]}
-        services={["api"]}
         attributes={[
           {
             source: "resource",
@@ -59,52 +74,51 @@ describe("LogFiltersBar", () => {
         onChange={onChange}
       />,
     );
-    fireEvent.click(screen.getByRole("button", { name: "Clear all" }));
+    fireEvent.click(screen.getByRole("button", { name: "Clear page filters" }));
+    // q clears to undefined and not to "". The rail sends the same shape as the
+    // search param, so an empty search stays out of the URL.
     expect(onChange).toHaveBeenCalledWith({
+      q: undefined,
       levels: [],
-      services: [],
       attributes: [],
       traceId: undefined,
     });
   });
 
-  it("with hideSharedFilters, clear-all leaves the shared service filter untouched", () => {
+  it("clear never touches the persistent filters", () => {
     const onChange = vi.fn();
     renderWithQueryClient(
       <LogFiltersBar
         {...baseProps}
-        hideSharedFilters
         levels={["error"]}
-        services={["api"]}
+        persistentFilterCount={2}
         onChange={onChange}
       />,
     );
-    fireEvent.click(screen.getByRole("button", { name: "Clear all" }));
+    fireEvent.click(screen.getByRole("button", { name: "Clear page filters" }));
     const patch = onChange.mock.calls[0]?.[0];
     expect(patch).not.toHaveProperty("services");
-    expect(patch).toEqual({ levels: [], attributes: [], traceId: undefined });
+    expect(patch).not.toHaveProperty("environment");
   });
 
-  it("with hideSharedFilters, a shared service alone does not surface Clear all", () => {
+  it("an active persistent filter alone does not surface the clear control", () => {
     renderWithQueryClient(
       <LogFiltersBar
         {...baseProps}
-        hideSharedFilters
-        services={["api"]}
+        persistentFilterCount={2}
         onChange={vi.fn()}
       />,
     );
     expect(
-      screen.queryByRole("button", { name: "Clear all" }),
+      screen.queryByRole("button", { name: "Clear page filters" }),
     ).not.toBeInTheDocument();
   });
 
-  it("deployment.environment renders in the Environment combobox and NOT as an attribute pill", () => {
-    // Invariant: deployment.environment is a dedicated combobox filter. It must
-    // be split out of the attributes passed to AttributeFilterSection so it
-    // never appears as a generic attribute pill in the "Attributes" section.
-    // A leaked pill would mean the env value shows up twice and a
-    // "Remove Environment filter" button would exist.
+  it("shows a legacy deployment.environment attribute as a removable pill", () => {
+    // The top zone of the rail sets Environment, and it writes its own search
+    // param. An older entry, for example from a saved link, must stay visible
+    // and the user must be able to remove it. The query still applies that
+    // entry, so a hidden entry narrows the results for no visible reason.
     renderWithQueryClient(
       <LogFiltersBar
         {...baseProps}
@@ -120,23 +134,16 @@ describe("LogFiltersBar", () => {
       />,
     );
 
-    // The selected value "prod" must appear exactly once — as a badge inside
-    // the Environment combobox button. If the env filter leaked into
-    // AttributeFilterSection it would render a second time in the pill.
-    expect(screen.getAllByText("prod")).toHaveLength(1);
-
-    // A leaked attribute pill for deployment.environment would render a remove
-    // button with this aria-label. It must not exist.
     expect(
-      screen.queryByRole("button", { name: "Remove Environment filter" }),
-    ).not.toBeInTheDocument();
+      screen.getByRole("button", { name: "Remove Environment filter" }),
+    ).toBeInTheDocument();
   });
 
   it("syncs the Trace input when the traceId prop is cleared externally", () => {
     // Regression: the Trace input held a local draft seeded once from traceId.
-    // When traceId is cleared elsewhere (e.g. "Clear all" / link navigation),
-    // the input must follow it — otherwise it shows a stale id and reapplies it
-    // on Enter.
+    // When another control clears traceId, for example "Clear page filters" or
+    // a link, the input must clear too. If it does not, it shows an old id and
+    // applies that id again on Enter.
     const { rerender } = renderWithQueryClient(
       <LogFiltersBar {...baseProps} traceId="abc123" onChange={vi.fn()} />,
     );

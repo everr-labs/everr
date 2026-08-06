@@ -12,9 +12,11 @@ export const ERRORS_PROMOTED_ATTRIBUTES: PromotedAttribute[] = [
   { source: "resource", key: "host.name" },
 ];
 
-// service.name backs the Service filter, so it's redundant as a chip.
-// deployment.environment is also excluded, but that is derived from the
-// dedicated-attribute list passed to DedicatedAttributeSection, not listed here.
+// The top zone of the rail sets both keys. service.name is the Service filter and
+// deployment.environment is the Environment filter, and each keeps its value in
+// its own search param. If the attribute picker offered these keys, the user
+// could add a second filter for a key that a control already sets.
 export const ERRORS_EXCLUDED_KEYS: ReadonlySet<string> = new Set([
   "resource:service.name",
+  "resource:deployment.environment",
 ]);

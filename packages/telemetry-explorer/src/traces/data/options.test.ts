@@ -32,6 +32,7 @@ const rows: TraceSummary[] = [
     rootService: "web",
     rootNamespace: "",
     rootStatus: "Ok",
+    rootStatusCode: "",
     startTs: "2026-05-20 12:00:00.000",
     durationNs: "1000000",
     spanCount: 1,

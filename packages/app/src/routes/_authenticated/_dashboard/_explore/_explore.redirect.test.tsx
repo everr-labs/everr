@@ -6,6 +6,10 @@
  * resolves to `"/"`. Calling `navigate({ search: … })` without `to` then
  * resolves the target as `"/"` → the homepage.
  *
+ * The navigate under test is in `ExplorePersistentFilters`. Each Explore page
+ * puts that component in its filter rail. It must continue to use
+ * `useNavigate()` with no route.
+ *
  * NOTE ON TESTABILITY: `ExploreFileRoute.fullPath` is `undefined` at test
  * time because file routes receive their `fullPath` from the TanStack Start
  * runtime (not from `createFileRoute` alone). As a result the redirect cannot
@@ -36,6 +40,7 @@ import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { z } from "zod";
+import { ExplorePersistentFilters } from "@/components/explore-persistent-filters";
 import { Route as ExploreFileRoute } from "../_explore";
 
 vi.mock("@/data/logs-explorer/remote-repo", () => ({
@@ -119,10 +124,13 @@ describe("ExploreLayout — service filter does not redirect to homepage", () =>
       component: ExploreFileRoute.options.component,
     });
 
+    // Each page puts the Service and Environment controls in its filter rail.
+    // The navigate under test is therefore the one in ExplorePersistentFilters.
+    // This route mounts that component in the same way as a real Explore page.
     const logsRoute = createRoute({
       getParentRoute: () => exploreRoute,
       path: "logs",
-      component: () => <div>logs page</div>,
+      component: () => <ExplorePersistentFilters />,
     });
 
     // A home route at "/" so a buggy navigate({ from: "/", search: … }) would

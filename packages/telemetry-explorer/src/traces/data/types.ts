@@ -6,6 +6,15 @@ export type TraceSummary = {
   rootService: string;
   rootNamespace: string;
   rootStatus: SpanStatus;
+  /**
+   * The HTTP response status code of the root span. It is "" when the root span
+   * is not an HTTP span.
+   *
+   * The value comes from the OpenTelemetry `http.response.status_code`
+   * attribute. When that attribute is absent, it comes from `http.status_code`,
+   * the name before version 1.23 that some SDKs still send.
+   */
+  rootStatusCode: string;
   startTs: string;
   durationNs: string;
   spanCount: number;
