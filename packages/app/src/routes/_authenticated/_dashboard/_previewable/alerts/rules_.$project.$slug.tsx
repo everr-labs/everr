@@ -33,7 +33,10 @@ import {
 } from "@/data/alerts/rule-identity";
 import { useTimeRange } from "@/hooks/use-time-range";
 import { AlertEventFeed } from "./-components/alert-event-feed";
-import { alertRuleEvaluationOutcome } from "./-components/alert-rule-chart-data";
+import {
+  alertRuleEvaluationOutcome,
+  summarizeAlertRuleLatestCheck,
+} from "./-components/alert-rule-chart-data";
 import { AlertRuleSignalChart } from "./-components/alert-rule-signal-chart";
 import { EvaluationCountdown } from "./-components/evaluation-countdown";
 import {
@@ -313,6 +316,9 @@ function AlertingRuleDetailPage() {
     r.spec.annotations?.["everr.display.description"];
   const scopeHandles = alertingRuleHandles(r);
   const latestEvaluation = evaluationSeries.data?.points.at(-1);
+  const latestCheck = latestEvaluation
+    ? summarizeAlertRuleLatestCheck(latestEvaluation, r.spec.condition)
+    : null;
   const latestEvaluationAt =
     latestEvaluation?.t ?? r.rollup.last_seen_at ?? null;
   const conditionOperator = alertingConditionOperatorLabel(
@@ -374,7 +380,7 @@ function AlertingRuleDetailPage() {
           </div>
         </div>
         <dl
-          className="grid grid-cols-3 gap-px overflow-hidden rounded-lg bg-border/60 ring-1 ring-foreground/10"
+          className="grid grid-cols-2 gap-px overflow-hidden rounded-lg bg-border/60 ring-1 ring-foreground/10 lg:grid-cols-4"
           aria-label="Rule activity summary"
         >
           <RuleActivityStat
@@ -405,6 +411,56 @@ function AlertingRuleDetailPage() {
                   </span>
                 </span>
               )
+            }
+          />
+          <RuleActivityStat
+            label="Latest check"
+            value={
+              evaluationSeries.isPending ? (
+                <Skeleton className="h-5 w-16" />
+              ) : evaluationSeries.isError ? (
+                <span className="text-destructive">Unavailable</span>
+              ) : latestEvaluation?.failed ? (
+                <span className="text-destructive">Failed</span>
+              ) : latestCheck ? (
+                `${latestCheck.total} series`
+              ) : (
+                "Never"
+              )
+            }
+            detail={
+              evaluationSeries.isPending ? (
+                <Skeleton className="h-3 w-28" />
+              ) : evaluationSeries.isError ? (
+                <span className="text-destructive">Check could not load</span>
+              ) : latestEvaluation?.failed ? (
+                <span className="text-destructive">Evaluation failed</span>
+              ) : latestCheck && latestCheck.total > 0 ? (
+                <span className="inline-flex items-center gap-2.5">
+                  <span>
+                    <span className="font-medium text-destructive tabular-nums">
+                      {latestCheck.breached}
+                    </span>{" "}
+                    breaching
+                  </span>
+                  <span>
+                    <span className="font-medium text-emerald-600 tabular-nums dark:text-emerald-400">
+                      {latestCheck.healthy}
+                    </span>{" "}
+                    healthy
+                  </span>
+                  {latestCheck.noData > 0 && (
+                    <span>
+                      <span className="font-medium tabular-nums">
+                        {latestCheck.noData}
+                      </span>{" "}
+                      no data
+                    </span>
+                  )}
+                </span>
+              ) : latestCheck ? (
+                "No series returned"
+              ) : null
             }
           />
           <RuleActivityStat

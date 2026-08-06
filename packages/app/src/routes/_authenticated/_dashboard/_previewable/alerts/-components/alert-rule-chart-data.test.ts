@@ -8,6 +8,7 @@ import {
   buildAlertRuleEvaluationRail,
   buildAlertRuleEvaluationSpans,
   buildAlertRuleIncidentRail,
+  summarizeAlertRuleLatestCheck,
 } from "./alert-rule-chart-data";
 
 const point = (
@@ -105,6 +106,19 @@ describe("alert rule evaluation states", () => {
         condition,
       ),
     ).toBe("unknown");
+  });
+
+  it("summarizes each series in the latest check independently", () => {
+    expect(
+      summarizeAlertRuleLatestCheck(
+        point("2026-08-06T12:00:00Z", [
+          { fingerprint: "breached", labels: {}, value: 12 },
+          { fingerprint: "healthy", labels: {}, value: 8 },
+          { fingerprint: "no-data", labels: {}, value: null },
+        ]),
+        condition,
+      ),
+    ).toEqual({ total: 3, breached: 1, healthy: 1, noData: 1 });
   });
 
   it("builds bounded missing-data spans and outcome buckets", () => {

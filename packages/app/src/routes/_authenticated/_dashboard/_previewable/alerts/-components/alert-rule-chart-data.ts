@@ -48,6 +48,13 @@ export type AlertRuleIncidentBucket = {
   activeInstances: number;
 };
 
+export type AlertRuleLatestCheckSummary = {
+  total: number;
+  breached: number;
+  healthy: number;
+  noData: number;
+};
+
 const EVALUATION_OUTCOME_PRIORITY: Record<AlertRuleEvaluationOutcome, number> =
   {
     healthy: 0,
@@ -71,6 +78,25 @@ export function alertRuleEvaluationOutcome(
   return values.some((value) => alertingConditionMatches({ value }, condition))
     ? "breached"
     : "healthy";
+}
+
+export function summarizeAlertRuleLatestCheck(
+  point: AlertingRuleEvaluationPoint,
+  condition: AlertingRuleCondition,
+): AlertRuleLatestCheckSummary {
+  const summary: AlertRuleLatestCheckSummary = {
+    total: point.samples.length,
+    breached: 0,
+    healthy: 0,
+    noData: 0,
+  };
+  for (const sample of point.samples) {
+    if (sample.value === null) summary.noData += 1;
+    else if (alertingConditionMatches({ value: sample.value }, condition)) {
+      summary.breached += 1;
+    } else summary.healthy += 1;
+  }
+  return summary;
 }
 
 export function buildAlertRuleEvaluationSpans(
