@@ -1,20 +1,21 @@
 import { attributionAttributes } from "./attribution.js";
 import { resolveTransport } from "./config.js";
 import { bindEmit } from "./current.js";
+import type { AttrValue, EventName } from "./emitter.js";
 import { createEmitter, noop } from "./emitter.js";
 import { createEnvelope } from "./envelope.js";
-import { startErrors } from "./errors.js";
-import { startInp } from "./inp.js";
-import { startInteractions } from "./interactions.js";
-import { watchNavigation } from "./navigation.js";
-import { startNetwork } from "./network.js";
-import { startPageviews } from "./pageview.js";
-import { startPlugins } from "./plugins.js";
-import { createSessionContext, setPersistence } from "./session.js";
+import { type NavigationListener, watchNavigation } from "./navigation.js";
+import type { PluginContext } from "./plugins/runtime.js";
+import { routePattern } from "./route.js";
+import {
+  createSessionContext,
+  sessionId,
+  setPersistence,
+  visitorId,
+} from "./session.js";
 import { createTracer } from "./tracer.js";
-import type { CaptureSignal, EverrClient, InitOptions } from "./types.js";
+import type { EverrClient, InitOptions } from "./types.js";
 import { SDK_NAME, SDK_VERSION } from "./version.js";
-import { startWebVitals } from "./webvitals.js";
 
 export function init(options: InitOptions): EverrClient {
   // Structural no-op: a keyless production build builds no emitter and no
@@ -22,6 +23,11 @@ export function init(options: InitOptions): EverrClient {
   // setAttributes() still write their in-memory sets, which nothing reads.
   const transport = resolveTransport(options);
   if (!transport) return INERT;
+
+  // Capture is opt-in only: without plugins the base still wires pipeline,
+  // transport, and identity, so logger and captureError work, but nothing is
+  // captured automatically. That is a legitimate composition, not a
+  // misconfiguration.
 
   // Identity (visitor id, 30-minute-inactivity session) runs over the store
   // the persistence option picks: localStorage (the default) is read back
@@ -59,50 +65,49 @@ export function init(options: InitOptions): EverrClient {
   // this pipeline; they sample it per call from current.ts.
   const unbindEmit = bindEmit(emit);
 
-  // Plugins set up after identity resolution and before the first built-in
-  // capture, in array order; each teardown runs in shutdown() below, in
-  // reverse order, before the base capture unpatches.
-  const stopPlugins = startPlugins(
-    options.plugins,
-    emit,
-    createTracer(emitSpan),
-    options.dev === true,
-  );
+  // Plugins are the only capture sources, set up after identity resolution
+  // in array order; each teardown runs in shutdown() below, in reverse
+  // order, before the pipeline unbinds. One context serves every plugin:
+  // ids, route, and page sample the live module state directly, and the
+  // EventName union is a compile-time taxonomy for the built-ins, so plugin
+  // names pass through with a cast. The navigation listener list is live:
+  // the watcher below iterates it per navigation, so ctx.onNavigation
+  // subscriptions from any plugin land in the same dispatch.
+  const navigationListeners: NavigationListener[] = [];
+  const ctx: PluginContext = {
+    emit: (
+      name: string,
+      attributes?: Record<string, AttrValue | null | undefined>,
+    ) => emit(name as EventName, attributes),
+    tracer: createTracer(emitSpan),
+    ids: () => ({ visitorId: visitorId(), sessionId: sessionId() }),
+    route: () => routePattern() ?? null,
+    page: current,
+    onNavigation: (listener) => {
+      navigationListeners.push(listener);
+      return () => {
+        const at = navigationListeners.indexOf(listener);
+        if (at >= 0) navigationListeners.splice(at, 1);
+      };
+    },
+    dev: options.dev === true,
+  };
+  const teardowns: Array<() => void> = [];
+  for (const plugin of options.plugins ?? []) {
+    const teardown = plugin.setup(ctx);
+    if (teardown) teardowns.push(teardown);
+  }
 
-  // The navigation watcher always runs so the envelope's page context stays
-  // fresh for every signal; the disable list only gates the signal listeners.
-  const off = options.disable;
-  const enabled = (signal: CaptureSignal) =>
-    off !== true && !off?.includes(signal);
-  const pageviews = enabled("pageviews")
-    ? startPageviews(emit, current)
-    : undefined;
-  const stopWatching = watchNavigation(rotate, pageviews ? [pageviews[0]] : []);
-  const stopInteractions = enabled("interactions")
-    ? startInteractions(emit)
-    : undefined;
-  const stopWebVitals = enabled("webVitals") ? startWebVitals(emit) : undefined;
-  // One Event Timing observer serves both signals: slow_interaction records
-  // ride the interactions toggle, the INP vital the webVitals toggle.
-  const stopInp =
-    enabled("interactions") || enabled("webVitals")
-      ? startInp(emit, enabled("interactions"), enabled("webVitals"))
-      : undefined;
-  // Patched after the emitter captured the original fetch, so SDK POSTs
-  // bypass the patch structurally.
-  const stopNetwork = enabled("network")
-    ? startNetwork(emitSpan, options.tracePropagationTargets)
-    : undefined;
-  // Errors have no disable key and no options: capture is native and always
-  // on whenever the SDK emits at all. The reporter and the custom logger
-  // both ride the current.ts binding; this only adds the global listeners.
-  const stopErrors = startErrors();
+  // The navigation watcher is envelope infrastructure, not a signal: it
+  // always runs so the page context stays fresh for every record, whether or
+  // not any plugin subscribed.
+  const stopWatching = watchNavigation(rotate, navigationListeners);
 
-  // Exit delivery: the final leave plus whatever is batched rides the
-  // keepalive path. pagehide and visibilitychange-hidden, not beforeunload
-  // (which never fires on mobile and breaks bfcache).
+  // Exit delivery: whatever is batched (including plugin hide-path records,
+  // whose listeners registered earlier and so ran first) rides the keepalive
+  // path. pagehide and visibilitychange-hidden, not beforeunload (which
+  // never fires on mobile and breaks bfcache).
   const onHide = () => {
-    pageviews?.[1]();
     exitFlush();
   };
   const onVisibilityChange = () => {
@@ -116,14 +121,8 @@ export function init(options: InitOptions): EverrClient {
     shutdown: () => {
       removeEventListener("pagehide", onHide);
       removeEventListener("visibilitychange", onVisibilityChange);
-      stopPlugins();
+      for (let i = teardowns.length - 1; i >= 0; i--) teardowns[i]();
       unbindEmit();
-      stopErrors();
-      stopWebVitals?.();
-      stopInp?.();
-      stopNetwork?.();
-      stopInteractions?.();
-      pageviews?.[2]();
       stopWatching();
       return flush();
     },

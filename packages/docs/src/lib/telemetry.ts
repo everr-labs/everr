@@ -1,4 +1,11 @@
-import { init } from "@everr/otel-web";
+import {
+  errors,
+  init,
+  interactions,
+  network,
+  pageviews,
+  performance,
+} from "@everr/otel-web";
 import { env } from "@/env";
 
 // Everr-native browser telemetry, storage-free (memory persistence, no
@@ -15,4 +22,6 @@ init({
   ingestKey: env.VITE_EVERR_PUBLIC_INGEST_KEY,
   endpoint: env.VITE_EVERR_INGEST_ENDPOINT,
   dev: import.meta.env.DEV,
+  // Capture is opt-in only: the full built-in composition.
+  plugins: [errors(), pageviews(), interactions(), performance(), network()],
 });

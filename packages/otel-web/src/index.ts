@@ -12,11 +12,19 @@ export { init } from "./client.js";
 export type { AttrValue } from "./emitter.js";
 export { captureError } from "./errors.js";
 export { logger } from "./logger.js";
-export type { Plugin, PluginContext } from "./plugins.js";
+export {
+  type ErrorMatcher,
+  type ErrorsOptions,
+  errors,
+} from "./plugins/errors/index.js";
+export { interactions } from "./plugins/interactions/index.js";
+export { type NetworkOptions, network } from "./plugins/network/index.js";
+export { pageviews } from "./plugins/pageviews/index.js";
+export { performance } from "./plugins/performance/index.js";
+export type { PageContext, Plugin, PluginContext } from "./plugins/runtime.js";
 export { setRouteResolver } from "./route.js";
 export { identify, revoke, setPersistence } from "./session.js";
 export type {
-  CaptureSignal,
   EverrClient,
   InitOptions,
   Persistence,

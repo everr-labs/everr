@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { Emit } from "./emitter.js";
+import type { Emit } from "../../emitter.js";
 import { startInteractions } from "./interactions.js";
 
 let emitted: Array<{ name: string; attrs?: Record<string, unknown> }>;

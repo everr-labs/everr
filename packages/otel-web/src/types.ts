@@ -1,29 +1,4 @@
-import type { Plugin } from "./plugins.js";
-
-/**
- * Analytics signals that can be disabled at init; everything is on by default
- * and only exclusions are named.
- *
- * - `pageviews` governs `everr.browser.page_view` and
- *   `everr.browser.page_leave` together.
- * - `interactions` governs product-analytics autocapture: every `click` (DOM,
- *   with coordinates), form-field `change`, `submit` (targeting the
- *   submitter button), plus `rage_click` on a frustration burst and
- *   `everr.browser.slow_interaction` from the Event Timing API (entries
- *   above the duration threshold, carrying the native interaction latency).
- * - `webVitals` governs `browser.web_vital` reporting.
- * - `network` governs the fetch patch: request spans on the traces pipeline
- *   and W3C trace-context propagation. Disabled means fetch is never
- *   patched at all.
- *
- * Errors have no signal key (capture is native, always on, and option-free)
- * and replay is never a signal (it will get its own option when it ships).
- */
-export type CaptureSignal =
-  | "pageviews"
-  | "interactions"
-  | "webVitals"
-  | "network";
+import type { Plugin } from "./plugins/runtime.js";
 
 /**
  * Where identity (the visitor id, the session, the identified user) lives.
@@ -65,25 +40,17 @@ export type InitOptions = {
    * no-op that never issues a network request.
    */
   dev?: boolean;
-  /** Signals to turn off; `true` disables all analytics capture. Fixed at init. */
-  disable?: true | CaptureSignal[];
   /** How long identity ids live; see {@link Persistence}. Fixed at init. */
   persistence?: Persistence;
   /**
-   * Plugins set up during init (in order, after identity resolution, before
-   * first capture) and torn down by `shutdown()` (in reverse order). They
-   * run beside the built-in capture; accepted and ignored on the server.
+   * The capture sources, set up during init (in order, after identity
+   * resolution) and torn down by `shutdown()` (in reverse order). Capture is
+   * opt-in only: a bare init wires pipeline, transport, and identity and
+   * captures nothing; compose the built-in factories (`errors()`,
+   * `pageviews()`, `interactions()`, `performance()`, `network()`) alongside
+   * any custom plugins. Accepted and ignored on the server.
    */
   plugins?: Plugin[];
-  /**
-   * Cross-origin URLs that also receive the `traceparent` header (string =
-   * substring match on the full URL, or RegExp). Same-origin requests always
-   * propagate; a cross-origin backend must both be listed here and allow the
-   * header in its CORS config (`Access-Control-Allow-Headers: traceparent`),
-   * or its preflights will fail. Spans are recorded for every request
-   * regardless; this gates only the header.
-   */
-  tracePropagationTargets?: Array<string | RegExp>;
 };
 
 /**

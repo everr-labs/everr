@@ -10,8 +10,8 @@ import {
   type OtlpRecord,
   startClient,
   UNIQUE_ID,
-} from "./test-kit.js";
-import type { EverrClient, InitOptions } from "./types.js";
+} from "../../test-kit.js";
+import type { EverrClient, InitOptions } from "../../types.js";
 
 // The web-vitals library only reports from real PerformanceObserver entries,
 // which jsdom does not produce: the mock captures the registered callbacks so
@@ -161,8 +161,8 @@ describe("web vitals", () => {
     expect(exitEvents).toContain("browser.web_vital");
   });
 
-  it('registers nothing with disable: ["webVitals"]', () => {
-    start({ disable: ["webVitals"] });
+  it("registers nothing when performance() is not composed", () => {
+    start({ plugins: [] });
     expect(callbacks).toHaveLength(0);
   });
 

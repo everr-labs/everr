@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { Emit } from "./emitter.js";
+import type { Emit } from "../../emitter.js";
 import { startInp } from "./inp.js";
 
 // jsdom has neither Event Timing nor PerformanceObserver entries: the tests
@@ -126,7 +126,7 @@ beforeEach(() => {
     configurable: true,
   });
   stubTiming();
-  stop = startInp(emit, true, true);
+  stop = startInp(emit);
 });
 
 afterEach(() => {
@@ -408,7 +408,7 @@ describe("lifecycle", () => {
   it("is a no-op without Event Timing support", () => {
     stop();
     vi.unstubAllGlobals();
-    const noop = startInp(emit, true, true);
+    const noop = startInp(emit);
     noop();
     expect(emitted).toHaveLength(0);
     stop = () => {};

@@ -31,6 +31,9 @@ import { bindEmit } from "./current.js";
 import type { AttrValue, Emit } from "./emitter.js";
 import { bindReport } from "./errors.js";
 import { logger } from "./logger.js";
+import type { ErrorsOptions } from "./plugins/errors/index.js";
+import type { NetworkOptions } from "./plugins/network/index.js";
+import type { Plugin } from "./plugins/runtime.js";
 import type {
   EverrClient,
   InitOptions,
@@ -44,9 +47,8 @@ import { SDK_NAME, SDK_VERSION } from "./version.js";
 // swaps in the auto-otel-errors adapter.
 export type { AttrValue } from "./emitter.js";
 export { captureError } from "./errors.js";
-export type { Plugin, PluginContext } from "./plugins.js";
+export type { Plugin, PluginContext } from "./plugins/runtime.js";
 export type {
-  CaptureSignal,
   EverrClient,
   InitOptions,
   Persistence,
@@ -104,6 +106,29 @@ export function setPersistence(_persistence: Persistence | undefined): void {}
 export function setRouteResolver(
   _get: (() => string | null | undefined) | null | undefined,
 ): void {}
+
+// The built-in plugin factories, so shared code composing
+// `init({ plugins: [...] })` resolves in the server module graph too. The
+// server init ignores plugins entirely, and these never touch the browser
+// implementations: each returns an inert plugin whose setup does nothing.
+const inert = (name: string): Plugin => ({ name, setup: () => {} });
+
+export type {
+  ErrorMatcher,
+  ErrorsOptions,
+} from "./plugins/errors/index.js";
+export type { NetworkOptions } from "./plugins/network/index.js";
+
+/** Inert on the server; error capture belongs to the app's OTel SDK. */
+export const errors = (_options?: ErrorsOptions): Plugin => inert("errors");
+/** Inert on the server; pageviews are a browser concept. */
+export const pageviews = (): Plugin => inert("pageviews");
+/** Inert on the server; interactions are a browser concept. */
+export const interactions = (): Plugin => inert("interactions");
+/** Inert on the server; performance capture is a browser concept. */
+export const performance = (): Plugin => inert("performance");
+/** Inert on the server; the fetch patch is a browser concept. */
+export const network = (_options?: NetworkOptions): Plugin => inert("network");
 
 // Adapts the shared logger surface to the OTel Logs API: same Emit shape
 // the browser pipeline uses. The severity text falls out of the API's

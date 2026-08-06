@@ -1,7 +1,7 @@
-import type { Emit } from "./emitter.js";
-import { pageAttrs } from "./envelope.js";
-import type { NavigationListener } from "./navigation.js";
-import type { CurrentPage } from "./session.js";
+import type { Emit } from "../../emitter.js";
+import { pageAttrs } from "../../envelope.js";
+import type { NavigationListener } from "../../navigation.js";
+import type { CurrentPage } from "../../session.js";
 
 // The pageviews signal: one `everr.browser.page_view` for the hard navigation
 // that loaded the page and one per SPA navigation, plus one

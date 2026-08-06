@@ -4,7 +4,7 @@ import {
   onLCP,
   onTTFB,
 } from "web-vitals/attribution";
-import type { AttrValue, Emit } from "./emitter.js";
+import type { AttrValue, Emit } from "../../emitter.js";
 
 // The webVitals signal: one `browser.web_vital` record per finalized metric
 // (LCP, CLS, TTFB via the web-vitals v5 attribution build; INP is computed

@@ -1,6 +1,21 @@
 import { vi } from "vitest";
 import { init } from "./client.js";
+import { errors } from "./plugins/errors/index.js";
+import { interactions } from "./plugins/interactions/index.js";
+import { network } from "./plugins/network/index.js";
+import { pageviews } from "./plugins/pageviews/index.js";
+import { performance as performancePlugin } from "./plugins/performance/index.js";
+import type { Plugin } from "./plugins/runtime.js";
 import type { EverrClient, InitOptions } from "./types.js";
+
+/** The full built-in composition, the default for test boots. */
+export const allPlugins = (): Plugin[] => [
+  errors(),
+  pageviews(),
+  interactions(),
+  performancePlugin(),
+  network(),
+];
 
 // Shared OTLP capture harness for the package's integration tests: stubs
 // the global fetch (which the emitter reads at call time) and decodes each
@@ -85,7 +100,13 @@ export function startPersistentClient(
   return [init({ ...DEFAULTS, ...options }), batches];
 }
 
-const DEFAULTS = { serviceName: "everr-docs-test", dev: true };
+const DEFAULTS = {
+  serviceName: "everr-docs-test",
+  dev: true,
+  get plugins() {
+    return allPlugins();
+  },
+};
 
 /** The id shape every minted visitor/session id must match. */
 export const UNIQUE_ID = /^\d+-\d{13}$/;

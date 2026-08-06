@@ -1,4 +1,11 @@
-import { init } from "@everr/otel-web";
+import {
+  errors,
+  init,
+  interactions,
+  network,
+  pageviews,
+  performance,
+} from "@everr/otel-web";
 import { readConsent } from "@/telemetry/consent";
 
 // Everr-native browser telemetry for the web app (dogfooding): pageviews,
@@ -23,4 +30,6 @@ init({
   ingestKey: import.meta.env.VITE_EVERR_PUBLIC_INGEST_KEY,
   endpoint: import.meta.env.VITE_EVERR_INGEST_ENDPOINT,
   dev: import.meta.env.DEV,
+  // Capture is opt-in only: the full built-in composition.
+  plugins: [errors(), pageviews(), interactions(), performance(), network()],
 });

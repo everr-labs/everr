@@ -1,7 +1,6 @@
-import type { EmitSpan } from "./emitter.js";
-import { errorTypeOf } from "./errors.js";
-import { routePattern } from "./route.js";
-import { randomHex } from "./session.js";
+import type { Tracer } from "@opentelemetry/api";
+import { errorTypeOf } from "../../errors.js";
+import { routePattern } from "../../route.js";
 
 // The network signal: window.fetch is patched so every request (1) becomes
 // an OTel CLIENT span on the traces pipeline and (2) carries a W3C
@@ -11,19 +10,21 @@ import { randomHex } from "./session.js";
 // Propagation is same-origin by default: a traceparent on a cross-origin
 // request triggers a CORS preflight and fails unless the target server
 // allows the header, so cross-origin backends must be named in the
-// `tracePropagationTargets` init option (string = substring match on the
+// `tracePropagationTargets` option (string = substring match on the
 // full URL, or RegExp). Spans are recorded for every request regardless;
 // the option gates only the header.
 //
-// Each request is its own trace, always sampled (`-01`); pageview/session
-// grouping rides the envelope attrs stamped on the span. The SDK's own
-// telemetry POSTs never reach this patch: the emitter captured the fetch
-// reference before the patch was applied, so a span-of-our-own-batch loop
-// is structurally impossible. Attributes follow HTTP client-span semconv;
-// per semconv, url.full on a client span is the REQUEST url (the envelope's
-// page-context url.* is overridden by design), deliberately query-stripped:
-// query strings carry tokens and PII, and the structural privacy stance is
-// to never capture values. 4xx and 5xx both mark the span as error.
+// Spans ride the SDK's Tracer (the same one plugins get): each request is
+// its own always-sampled trace, and its ids feed the traceparent header;
+// pageview/session grouping rides the envelope attrs stamped on the span.
+// The SDK's own telemetry POSTs never reach this patch: the emitter captured
+// the fetch reference before the patch was applied, so a
+// span-of-our-own-batch loop is structurally impossible. Attributes follow
+// HTTP client-span semconv; per semconv, url.full on a client span is the
+// REQUEST url (the envelope's page-context url.* is overridden by design),
+// deliberately query-stripped: query strings carry tokens and PII, and the
+// structural privacy stance is to never capture values. 4xx and 5xx both
+// mark the span as error.
 //
 // The patch must never break the page: an unparseable URL falls through to
 // the original fetch with the arguments untouched, a failing header clone
@@ -34,7 +35,7 @@ import { randomHex } from "./session.js";
 export type PropagationTarget = string | RegExp;
 
 export function startNetwork(
-  emitSpan: EmitSpan,
+  tracer: Tracer,
   targets: PropagationTarget[] | undefined,
 ): () => void {
   const original = fetch;
@@ -56,10 +57,6 @@ export function startNetwork(
     const method = (
       init?.method ?? (input instanceof Request ? input.method : "GET")
     ).toUpperCase();
-    // One CSPRNG draw covers both ids: 16 bytes of trace id, 8 of span id.
-    const ids = randomHex(24);
-    const traceId = ids.slice(0, 32);
-    const spanId = ids.slice(32);
     // Read the URL parts once: the completion closure captures plain
     // strings, not the URL host object.
     const path = url.pathname;
@@ -70,6 +67,9 @@ export function startNetwork(
     const name = `${method} ${routePattern() ?? path}`;
     const urlFull = url.origin + path;
     const hostname = url.hostname;
+
+    const span = tracer.startSpan(name);
+    const { traceId, spanId } = span.spanContext();
 
     let headers: Headers | undefined;
     if (
@@ -91,23 +91,17 @@ export function startNetwork(
       }
     }
 
-    const start = Date.now();
     const end = (status: number | undefined, errorType?: string) => {
-      emitSpan(
-        traceId,
-        spanId,
-        name,
-        start,
-        Date.now(),
-        {
-          "http.request.method": method,
-          "url.full": urlFull,
-          "server.address": hostname,
-          "http.response.status_code": status,
-          "error.type": errorType,
-        },
-        errorType !== undefined,
-      );
+      span.setAttributes({
+        "http.request.method": method,
+        "url.full": urlFull,
+        "server.address": hostname,
+        "http.response.status_code": status,
+        "error.type": errorType,
+      });
+      // 2 is SpanStatusCode.ERROR; the enum import would cost real bytes.
+      if (errorType !== undefined) span.setStatus({ code: 2 });
+      span.end();
     };
 
     let result: Promise<Response>;

@@ -19,9 +19,7 @@ import type { EverrClient } from "./types.js";
 let client: EverrClient | undefined;
 let batches: OtlpBatch[];
 
-function start(options?: {
-  disable?: true | Array<"pageviews" | "interactions" | "webVitals">;
-}): void {
+function start(options?: { plugins?: [] }): void {
   [client, batches] = startPersistentClient(options);
 }
 
@@ -161,17 +159,11 @@ describe("init (persistence: localStorage)", () => {
     expect(after).not.toHaveProperty("user.id");
   });
 
-  it("emits nothing with disable: true", async () => {
-    start({ disable: true });
+  it("emits nothing with no plugins", async () => {
+    start({ plugins: [] });
     history.pushState(null, "", "/nope");
     expect(await records()).toHaveLength(0);
     expect(batches).toHaveLength(0);
-  });
-
-  it('suppresses pageviews only with disable: ["pageviews"]', async () => {
-    start({ disable: ["pageviews"] });
-    history.pushState(null, "", "/nope");
-    expect(await records()).toHaveLength(0);
   });
 
   it("keeps identify()/revoke() safely inert in a keyless production build", () => {

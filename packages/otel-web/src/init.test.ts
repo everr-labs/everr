@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { init } from "./client.js";
 import { setRouteResolver } from "./route.js";
 import {
+  allPlugins,
   attrs,
   type OtlpBatch,
   type OtlpRecord,
@@ -16,6 +17,9 @@ let batches: OtlpBatch[];
 function start(options?: Partial<InitOptions>): void {
   [client, batches] = startClient(options);
 }
+
+/** The full composition minus one plugin, the analog of the old disable. */
+const without = (name: string) => allPlugins().filter((p) => p.name !== name);
 
 async function records(): Promise<OtlpRecord[]> {
   await client?.flush();
@@ -118,8 +122,8 @@ describe("init (persistence: memory)", () => {
     ]);
   });
 
-  it("emits no leave on hide when pageviews are disabled", async () => {
-    start({ disable: ["pageviews"] });
+  it("emits no leave on hide when pageviews() is not composed", async () => {
+    start({ plugins: without("pageviews") });
     dispatchEvent(new Event("pagehide"));
     expect(await records()).toHaveLength(0);
   });
@@ -172,15 +176,15 @@ describe("init (persistence: memory)", () => {
     expect(sessionStorage.length).toBe(0);
   });
 
-  it("emits nothing with disable: true", async () => {
-    start({ disable: true });
+  it("emits nothing with no plugins", async () => {
+    start({ plugins: [] });
     history.pushState(null, "", "/nope");
     expect(await records()).toHaveLength(0);
     expect(batches).toHaveLength(0);
   });
 
-  it('suppresses pageviews only with disable: ["pageviews"]', async () => {
-    start({ disable: ["pageviews"] });
+  it("suppresses pageviews only by leaving pageviews() out", async () => {
+    start({ plugins: without("pageviews") });
     history.pushState(null, "", "/nope");
     expect(await records()).toHaveLength(0);
   });
@@ -244,8 +248,8 @@ describe("init (persistence: memory)", () => {
     document.body.innerHTML = "";
   });
 
-  it('suppresses interactions only with disable: ["interactions"]', async () => {
-    start({ disable: ["interactions"] });
+  it("suppresses interactions only by leaving interactions() out", async () => {
+    start({ plugins: without("interactions") });
     document.body.innerHTML = "<button>quiet</button>";
     for (let i = 0; i < 3; i++) {
       (document.querySelector("button") as HTMLElement).dispatchEvent(
@@ -257,9 +261,9 @@ describe("init (persistence: memory)", () => {
     document.body.innerHTML = "";
   });
 
-  it("keeps watching navigations when pageviews are off, so the envelope stays fresh", () => {
+  it("keeps watching navigations with no plugins, so the envelope stays fresh", () => {
     const pushState = history.pushState;
-    start({ disable: ["pageviews"] });
+    start({ plugins: [] });
     // The navigation watcher is envelope infrastructure, not a signal: it
     // must patch history even when no pageview listener is registered.
     expect(history.pushState).not.toBe(pushState);

@@ -1,6 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { Plugin, PluginContext } from "./plugins.js";
-import { setRouteResolver } from "./route.js";
+import { setRouteResolver } from "../route.js";
 import {
   attrs,
   type OtlpBatch,
@@ -8,8 +7,10 @@ import {
   type OtlpSpan,
   startClient,
   UNIQUE_ID,
-} from "./test-kit.js";
-import type { EverrClient, InitOptions } from "./types.js";
+} from "../test-kit.js";
+import type { EverrClient, InitOptions } from "../types.js";
+import { pageviews } from "./pageviews/index.js";
+import type { Plugin, PluginContext } from "./runtime.js";
 
 let client: EverrClient | undefined;
 let batches: OtlpBatch[];
@@ -46,11 +47,11 @@ describe("plugin runtime", () => {
         ctx.emit(`everr.test.${name}`);
       },
     });
-    start({ plugins: [plugin("a"), plugin("b")] });
+    start({ plugins: [plugin("a"), plugin("b"), pageviews()] });
     expect(order).toEqual(["a", "b"]);
 
-    // Setup runs before the built-in capture starts: both plugin events
-    // precede the initial page_view.
+    // Array order is capture order: both toy events precede the initial
+    // page_view emitted by the pageviews() plugin composed after them.
     const names = (await records()).map((r) => r.eventName);
     expect(names).toEqual([
       "everr.test.a",
@@ -96,7 +97,7 @@ describe("plugin runtime", () => {
     expect(a["url.path"]).toBe("/overridden");
   });
 
-  it("exposes exactly the five context members", () => {
+  it("exposes exactly the seven context members", () => {
     let ctx: PluginContext | undefined;
     start({
       plugins: [
@@ -112,6 +113,8 @@ describe("plugin runtime", () => {
       "dev",
       "emit",
       "ids",
+      "onNavigation",
+      "page",
       "route",
       "tracer",
     ]);

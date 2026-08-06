@@ -1,6 +1,6 @@
-import type { AttrValue, Emit } from "./emitter.js";
-import { elementAttrs, guardOf } from "./interactions.js";
-import { uniqueId } from "./session.js";
+import { elementAttrs, guardOf } from "../../element.js";
+import type { AttrValue, Emit } from "../../emitter.js";
+import { uniqueId } from "../../session.js";
 
 // Interaction latency tracking: one Event Timing observer feeding two
 // outputs.
@@ -71,11 +71,7 @@ type Interaction = {
   attrs?: Attrs;
 };
 
-export function startInp(
-  emit: Emit,
-  slowInteractions: boolean,
-  inpVital: boolean,
-): () => void {
+export function startInp(emit: Emit): () => void {
   if (
     !(
       globalThis.PerformanceEventTiming &&
@@ -234,7 +230,7 @@ export function startInp(
     }
 
     // Slow record: settle, then emit at most once per interactionId.
-    if (slowInteractions && id && !sentSlow.has(id)) {
+    if (id && !sentSlow.has(id)) {
       const pending = pendingSlow.get(id);
       if (pending) clearTimeout(pending.timer);
       if (pending || interaction.latency >= SLOW_THRESHOLD) {
@@ -273,7 +269,7 @@ export function startInp(
   };
 
   const reportVital = () => {
-    if (!inpVital || vitalReported) return;
+    if (vitalReported) return;
     const inp =
       candidates[
         Math.min(
@@ -399,7 +395,6 @@ function phaseAttrs(
     "everr.interaction.input_delay_ms": inputDelay,
     "everr.interaction.processing_duration_ms": processingDuration,
     "everr.interaction.presentation_delay_ms": nextPaintTime - processingEnd,
-    "everr.interaction.load_state": loadState(interactionTime),
   };
 
   // LoAF pass: a duration breakdown by category (script, style-and-layout,
@@ -461,28 +456,6 @@ function phaseAttrs(
     attrs["everr.interaction.script.duration_ms"] = longestDuration;
   }
   return attrs;
-}
-
-function loadState(
-  timestamp: number,
-): "loading" | "dom-interactive" | "dom-content-loaded" | "complete" {
-  if (document.readyState === "loading") return "loading";
-  const nav = performance.getEntriesByType("navigation")[0] as
-    | PerformanceNavigationTiming
-    | undefined;
-  if (nav) {
-    if (timestamp < nav.domInteractive) return "loading";
-    if (
-      nav.domContentLoadedEventStart === 0 ||
-      timestamp < nav.domContentLoadedEventStart
-    ) {
-      return "dom-interactive";
-    }
-    if (nav.domComplete === 0 || timestamp < nav.domComplete) {
-      return "dom-content-loaded";
-    }
-  }
-  return "complete";
 }
 
 function navigationType(restored: boolean): string {

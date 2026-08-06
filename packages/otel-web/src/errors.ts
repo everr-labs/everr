@@ -1,17 +1,17 @@
 import { currentEmit } from "./current.js";
 
-// Native error capture: window "error" and "unhandledrejection" listeners
-// plus the explicit `captureError` (`captureReactError` lives in the react
-// entry, sharing the live `report` binding, so index consumers never pay
-// for it), emitted through the SDK pipeline so every error carries the
-// analytics envelope and joins the
-// session's other signals. This deliberately owns the small slice of error
-// handling the browser needs instead of depending on @everr/auto-otel-errors:
-// the SDK stays a fraction of the bytes and never contends for that package's
-// global client. The attribute names below are a wire contract shared with it
-// (`exception.*`, `everr.error.*`, `everr.react.*`), so browser and server errors group
-// identically through the errorFingerprint UDF. Errors have no `disable` key
-// and no options.
+// Native error reporting: the explicit `captureError` plus the shared
+// `report` binding every error path rides (`captureReactError` lives in the
+// react entry, the global unhandled handlers in the errors() plugin, both
+// sharing the live binding, so index consumers never pay for either),
+// emitted through the SDK pipeline so every error carries the analytics
+// envelope and joins the session's other signals. This deliberately owns the
+// small slice of error handling the browser needs instead of depending on
+// @everr/auto-otel-errors: the SDK stays a fraction of the bytes and never
+// contends for that package's global client. The attribute names below are a
+// wire contract shared with it (`exception.*`, `everr.error.*`,
+// `everr.react.*`), so browser and server errors group identically through
+// the errorFingerprint UDF.
 //
 // Deliberately absent (decided 2026-07-27, function per byte): message/stack
 // scrubbing (content ships verbatim; scrubbing must return before errors are
@@ -30,22 +30,58 @@ const safeString = (value: unknown): string => {
 
 type ExtraAttrs = Record<string, string | number | boolean>;
 
-type Report = (
+export type Report = (
   error: unknown,
   mechanism: "onerror" | "unhandledrejection" | "react" | "manual",
   handled: boolean,
   extra?: ExtraAttrs,
+  /** The reporting script URL when the handler knows it (ErrorEvent.filename). */
+  fileName?: string,
 ) => void;
+
+/**
+ * A registered error filter: returns true to drop the error. Consulted on
+ * every browser error path (global handlers, React boundaries, manual
+ * `captureError`); a filtered report is a silent success. The registry is
+ * empty unless the errors() plugin registered its declarative filters, so
+ * no filtering exists without it.
+ */
+export type ErrorFilter = (
+  message: string,
+  scriptUrl: string | undefined,
+) => boolean;
+
+let filters: readonly ErrorFilter[] = [];
+
+export function addErrorFilter(filter: ErrorFilter): () => void {
+  filters = [...filters, filter];
+  return () => {
+    filters = filters.filter((f) => f !== filter);
+  };
+}
+
+// The top stack frame's script URL: the first frame-shaped line's
+// `url:line:col`, both Chrome ("at fn (url:1:2)", "at url:1:2") and Firefox
+// ("fn@url:1:2") shapes. Chrome's leading "Error: <message>" line is not
+// frame-shaped, so a url:line:col token inside the message never matches.
+function frameUrl(stack: string | undefined): string | undefined {
+  for (const line of stack?.split("\n") ?? []) {
+    const m = /(?:^\s*at (?:.*[(\s])?|.*@)(\S+?):\d+:\d+\)?$/.exec(line);
+    if (m) return m[1];
+  }
+  return undefined;
+}
 
 // At most 5 reports per identical error (type, message, top frame) per
 // 5s window, so a render or event loop cannot flood the batch queue.
 // Module-level: the window survives a consent re-init, which is the point.
 const hits = new Map<string, number[]>();
 
-// The browser reporter: normalization, rate limit, emit. It samples the
-// current pipeline per call (warn before init, silent after shutdown come
-// from the shared binding), so no wiring step exists on the browser at all.
-const browserReport: Report = (error, mechanism, handled, extra) => {
+// The browser reporter: normalization, filters, rate limit, emit. It samples
+// the current pipeline per call (warn before init, silent after shutdown
+// come from the shared binding), so no wiring step exists on the browser at
+// all.
+const browserReport: Report = (error, mechanism, handled, extra, fileName) => {
   const emit = currentEmit();
   if (!emit) return;
   // Telemetry must never break the page: reporting is best-effort.
@@ -56,6 +92,13 @@ const browserReport: Report = (error, mechanism, handled, extra) => {
     const stack = isError
       ? (error.stack ?? `${error.name}: ${error.message}`)
       : undefined;
+
+    if (
+      filters.length &&
+      filters.some((f) => f(message, frameUrl(stack) ?? fileName))
+    ) {
+      return;
+    }
 
     const key = `${type}|${message}|${stack?.split("\n", 2)[1] ?? ""}`;
     const now = Date.now();
@@ -87,9 +130,10 @@ const browserReport: Report = (error, mechanism, handled, extra) => {
   }
 };
 
-// A live binding: the react entry imports it. The browser reporter is the
-// default and needs no wiring; the server entry swaps in its adapter over
-// @everr/auto-otel-errors here, and unbinding restores the default.
+// A live binding: the react entry and the errors() plugin import it. The
+// browser reporter is the default and needs no wiring; the server entry
+// swaps in its adapter over @everr/auto-otel-errors here, and unbinding
+// restores the default.
 export let report: Report = browserReport;
 
 export function bindReport(next: Report): () => void {
@@ -114,37 +158,4 @@ export function captureError(
  */
 export function errorTypeOf(error: unknown): string {
   return error instanceof Error ? error.name || "Error" : "NonError";
-}
-
-export function startErrors(): () => void {
-  // Cross-handler deduplication: a single unhandled TypeError (e.g.
-  // "Failed to fetch") can fire both `unhandledrejection` and `error` on the
-  // window, each carrying the same error object. Track which objects each
-  // handler has seen so only the first handler to fire reports the error;
-  // the rate limiter in the reporter still throttles volume within a single
-  // handler.
-  const seenByOnerror = new WeakSet<object>();
-  const seenByRejection = new WeakSet<object>();
-  const onError = (event: ErrorEvent) => {
-    if (event.error != null) {
-      if (seenByRejection.has(event.error)) return;
-      seenByOnerror.add(event.error);
-      report(event.error, "onerror", false);
-    }
-  };
-  const onRejection = (event: Event) => {
-    const reason = (event as { reason?: unknown }).reason;
-    if (reason != null && typeof reason === "object") {
-      if (seenByOnerror.has(reason)) return;
-      seenByRejection.add(reason);
-    }
-    report(reason, "unhandledrejection", false);
-  };
-  addEventListener("error", onError);
-  addEventListener("unhandledrejection", onRejection);
-
-  return () => {
-    removeEventListener("error", onError);
-    removeEventListener("unhandledrejection", onRejection);
-  };
 }

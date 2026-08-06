@@ -1,11 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { AttrValue, EmitSpan } from "./emitter.js";
+import type { AttrValue, EmitSpan } from "../../emitter.js";
+import { setRouteResolver } from "../../route.js";
+import { createTracer } from "../../tracer.js";
 import { startNetwork } from "./network.js";
-import { setRouteResolver } from "./route.js";
 
-// Unit tests around the fetch patch: a fake emitSpan captures span calls,
-// and a stubbed fetch stands in for the network so header injection and
-// pass-through semantics are observable.
+// Unit tests around the fetch patch: a fake emitSpan behind the real Tracer
+// captures span calls, and a stubbed fetch stands in for the network so
+// header injection and pass-through semantics are observable.
 
 type SpanCall = {
   traceId: string;
@@ -25,7 +26,7 @@ const emitSpan: EmitSpan = (traceId, spanId, name, _s, _e, attrs, error) => {
 };
 
 function start(targets?: Array<string | RegExp>) {
-  stop = startNetwork(emitSpan, targets);
+  stop = startNetwork(createTracer(emitSpan), targets);
 }
 
 /** The headers the patched fetch actually sent, normalized. */
