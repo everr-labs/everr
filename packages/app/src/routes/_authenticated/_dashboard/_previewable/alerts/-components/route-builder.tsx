@@ -57,7 +57,7 @@ const GROUPING_OPTIONS = [
   },
 ];
 
-/** Parse a numeric duration field. Empty ⇒ null (alerting engine default). */
+/** Parse a numeric duration field. Empty values use the stored default. */
 function parseDuration(
   raw: string,
   min: number,

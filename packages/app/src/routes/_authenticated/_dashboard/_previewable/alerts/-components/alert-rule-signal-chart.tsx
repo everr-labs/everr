@@ -177,7 +177,7 @@ export function AlertRuleSignalChart({
     );
   const latestValues = model.series.flatMap((series) => {
     const value = latestObservedRow?.[series.key];
-    return typeof value === "number" ? [`${series.label}: ${value}`] : [];
+    return typeof value === "number" ? [{ label: series.label, value }] : [];
   });
   const chartSummary =
     values.length > 0
@@ -185,7 +185,7 @@ export function AlertRuleSignalChart({
           `Signal history. Condition: ${conditionLabel(condition)}.`,
           `Observed minimum ${Math.min(...values)} and maximum ${Math.max(...values)}.`,
           latestValues.length > 0
-            ? `Latest values: ${latestValues.join(", ")}.`
+            ? `Latest values: ${latestValues.map(({ label, value }) => `${label}: ${value}`).join(", ")}.`
             : null,
         ]
           .filter(Boolean)
@@ -376,15 +376,12 @@ export function AlertRuleSignalChart({
           </tr>
         </thead>
         <tbody>
-          {latestValues.map((value) => {
-            const separator = value.lastIndexOf(": ");
-            return (
-              <tr key={value}>
-                <th scope="row">{value.slice(0, separator)}</th>
-                <td>{value.slice(separator + 2)}</td>
-              </tr>
-            );
-          })}
+          {latestValues.map(({ label, value }) => (
+            <tr key={label}>
+              <th scope="row">{label}</th>
+              <td>{value}</td>
+            </tr>
+          ))}
         </tbody>
       </table>
     </>

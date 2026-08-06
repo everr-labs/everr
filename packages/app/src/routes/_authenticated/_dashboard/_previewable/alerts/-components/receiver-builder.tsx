@@ -27,7 +27,6 @@ export function ReceiverBuilder({
 }: {
   open: boolean;
   onOpenChange: (o: boolean) => void;
-  /** alerting engine's create answers 409 for an existing name; block duplicates client-side. */
   existingNames: string[];
   channels: AlertingChannel[];
   /** Edit target; the caller remounts (key) per target, so state inits here. */

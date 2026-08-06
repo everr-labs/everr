@@ -17,7 +17,7 @@ import type { SloYaml } from "./schema";
 // Canonical linked runbook reference.
 const ANN_RUNBOOK = "everr.runbook";
 
-/** Maps an as-code SLO to alerting engine's create/update input. */
+/** Maps an as-code SLO to its stored input. */
 export function toSloInput(
   slo: SloYaml,
   repoid: string,
@@ -34,7 +34,7 @@ export function toSloInput(
   }
   if (slo.spec.display?.name) {
     annotations[ANN_DISPLAY_NAME] = slo.spec.display.name;
-    // alerting engine resolves these placeholders when dispatching.
+    // The dispatcher resolves these placeholders from event labels.
     annotations[ANN_ALERTING_SUMMARY] =
       `${slo.spec.display.name}: \${slo_tier} burn - \${burn_rate}x over budget`;
   }
@@ -74,7 +74,7 @@ export function toSloInput(
   };
 }
 
-/** The as-code identity fields read back out of a alerting engine SLO. */
+/** The as-code identity fields read from a stored SLO. */
 export type SloOwnershipView = {
   project: string;
   slug: string;
@@ -115,7 +115,7 @@ export function fromAlertingSlo(
   };
 }
 
-/** Reconstructs the canonical as-code document from a alerting engine SLO. */
+/** Reconstructs the canonical as-code document from a stored SLO. */
 export function toSloDocument(
   slo: Pick<AlertingSlo, "name" | "spec">,
 ): SloYaml {

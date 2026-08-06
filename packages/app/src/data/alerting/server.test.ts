@@ -33,10 +33,7 @@ const mocks = vi.hoisted(() => ({
   testChannel: vi.fn(),
 }));
 
-// The alerting engine client is the fns' only data plane; mocking it at the module
-// boundary leaves the fallback logic real. emailTestConfigFor is a pure
-// helper with its own coverage below, so it (and the rest of the real module)
-// passes through untouched.
+// Mock the repository boundary while keeping server fallback behavior real.
 vi.mock("./repository", () => ({
   listRulesPage: mocks.listRulesPage,
   listSlos: mocks.listSlos,
@@ -301,10 +298,7 @@ describe("SLO budget queries", () => {
   });
 });
 
-// The live alert feed: /v1/alerts returns every non-inactive instance for the
-// tenant — including instances of suppressed preview rules/SLOs, which alerting engine
-// evaluates fully. listAlertingAlerts must scope them out: live-only by default, and
-// the selected preview's overlay when one is chosen.
+// Live results exclude suppressed previews unless that preview is selected.
 describe("listAlertingAlerts", () => {
   function ownedRule(
     id: string,
@@ -463,8 +457,7 @@ describe("emailTestConfigFor", () => {
   });
 
   it("replaces an empty recipient list too", () => {
-    // An empty list would otherwise reach alerting engine and come back ok:false; the
-    // substitution is unconditional for email so there is one rule, not two.
+    // Email tests always target the current user.
     const config: AlertingChannelConfig = { type: "email", to: [] };
     expect(emailTestConfigFor(config, "gio@everr.dev")).toEqual({
       type: "email",

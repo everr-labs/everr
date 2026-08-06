@@ -24,8 +24,7 @@ import type { DbExecutor } from "@/db/client";
 import { querySqlApiWithMeta } from "@/lib/clickhouse";
 import { applyAlertSpecs } from "./apply.server";
 
-// The simple-alert reconciler talks to alerting engine over HTTP and never touches Postgres,
-// so the Reconciler contract's `db` is unused here — a stub satisfies the type.
+// These tests mock the repository, so the reconciler executor is unused.
 const db = {} as unknown as DbExecutor;
 
 const ch = vi.mocked(querySqlApiWithMeta);
@@ -62,7 +61,6 @@ function alert(name = "high-errors", overrides = {}) {
     metadata: { name },
     spec: {
       evaluationInterval: "5m",
-      // alerting engine substitutes labels, ${value}, and evidence columns in notifications.
       notificationMessage: { title: `\${value} errors in \${service}` },
       query: "SELECT service, count() AS value FROM logs GROUP BY service",
       instanceLabels: ["service"],
@@ -72,10 +70,7 @@ function alert(name = "high-errors", overrides = {}) {
   };
 }
 
-// A alerting engine rule view shape as returned by the rules listing, matching what applying
-// the default alert() fixture stores (so the fingerprints are equal). Identity
-// (project/slug, live-vs-preview) lives on the rule's first-class `name`/
-// `namespace` fields now, not an annotation — only everr.repoid stays there.
+// Matches the stored form of the default alert fixture.
 function managedRule(name: string, over: Record<string, unknown> = {}) {
   const { repoid = "repo-1", ...specOver } = over;
   return {
@@ -103,10 +98,7 @@ function managedRule(name: string, over: Record<string, unknown> = {}) {
   };
 }
 
-// A stored PREVIEW copy of the alert() fixture: suppressed, tagged with its
-// owning preview registry id on the first-class `namespace` field. The
-// project/slug `name` and link.alert are unchanged from the live copy — the
-// link target no longer depends on the alerting engine rule id or the live/preview split.
+// A suppressed preview copy of the alert fixture.
 function previewRule(
   name: string,
   previewId: string,
@@ -131,7 +123,7 @@ const CHANGED_SQL =
   "SELECT service, count() AS count FROM old_logs GROUP BY service";
 
 describe("applyAlertSpecs", () => {
-  it("creates a managed alerting engine rule with its identity and links", async () => {
+  it("creates a managed rule with its identity and links", async () => {
     await applyAlertSpecs({
       namespace: live,
       db,
@@ -354,7 +346,7 @@ describe("applyAlertSpecs", () => {
     expect(input.previewId).toBeNull();
   });
 
-  it("dry-run of a first preview apply (no registry row) plans creates without listing alerting engine", async () => {
+  it("plans first-preview creates without listing stored rules", async () => {
     const res = await applyAlertSpecs({
       namespace: preview(null),
       db,
@@ -364,8 +356,7 @@ describe("applyAlertSpecs", () => {
 
     expect(res.created).toEqual(["default/high-errors"]);
     expect(res.deleted).toEqual([]);
-    // A null preview id would alias the live scope; the reconciler must not
-    // even list alerting engine (nothing can be tagged with a not-yet-minted id).
+    // A preview without an id has no existing resource scope.
     expect(mockedListRules).not.toHaveBeenCalled();
     expect(mockedCreateRule).not.toHaveBeenCalled();
     expect(mockedUpdateRule).not.toHaveBeenCalled();
@@ -427,10 +418,7 @@ describe("applyAlertSpecs", () => {
       ],
     });
 
-    // The pre-alerting engine evaluator keyed rows by their string columns when
-    // instanceLabels was omitted; apply infers the same identity from the
-    // result schema so those configs keep per-row instances instead of
-    // collapsing into one.
+    // String columns become the instance identity when instanceLabels is omitted.
     expect(res.created).toEqual(["default/replays"]);
     expect(res.note).toBeUndefined();
     const [, input] = mockedCreateRule.mock.calls[0];
@@ -480,7 +468,7 @@ describe("applyAlertSpecs", () => {
     expect(mockedCreateRule.mock.calls[1][1].label_columns).toEqual(["region"]);
   });
 
-  it("warns (without failing) when evidence refs exceed alerting engine's 16-column evidence cap", async () => {
+  it("warns without failing when references exceed the 16-column evidence cap", async () => {
     const columns = ["value", ...Array.from({ length: 16 }, (_, i) => `c${i}`)];
     ch.mockResolvedValue({
       rows: [],
@@ -560,7 +548,7 @@ describe("applyAlertSpecs", () => {
     expect(mockedCreateRule).not.toHaveBeenCalled();
   });
 
-  it("fails the resource clearly when alerting engine reports a version conflict", async () => {
+  it("fails the resource clearly on a version conflict", async () => {
     mockedListRules.mockResolvedValue([
       managedRule("high-errors", { sql: CHANGED_SQL }),
     ]);

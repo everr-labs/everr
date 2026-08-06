@@ -132,11 +132,8 @@ export const AlertingReceiverSchema = z.object({
   id: z.string(),
   tenant: z.string(),
   name: z.string(),
-  // Channel NAMES, not configs: the engine rejects empty lists and validates
-  // every name, so a parsed receiver has >= 1 element and never carries a secret.
+  // Receivers reference channel names and never carry channel secrets.
   channels: z.array(z.string()).min(1),
-  // The engine also serializes `annotations`, an API-only metadata map the app
-  // neither displays nor edits; dropping it here keeps the app blind to it.
 });
 
 export const AlertingRouteSchema = z.object({
@@ -186,8 +183,7 @@ export const AlertingInhibitionInputSchema = z.object({
 });
 
 export const AlertingSilenceInputSchema = z.object({
-  // The engine reads a missing label as "", so a matcher with an empty label
-  // would match every alert (a global silence).
+  // Empty label names would turn missing labels into a global match.
   matchers: z
     .array(
       AlertingMatcherSchema.refine((m) => m.label.trim() !== "", {

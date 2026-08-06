@@ -356,8 +356,6 @@ describe("/alerts triage board", () => {
         name: "Silence everything under Flapping check",
       }),
     ).toBeInTheDocument();
-    // The count that used to sit in the group header is gone: every row is
-    // drawn right below it, so the number only restated the screen.
     expect(within(board).queryByText(/^\d+ instances?$/)).toBeNull();
   });
 
@@ -617,7 +615,7 @@ describe("/alerts triage board", () => {
   it("overlays the read-time budget on the snapshot's, like the SLO pages", async () => {
     mocks.listAlertingSlos.mockResolvedValue([alertingSlo()]);
     mocks.listAlertingAlerts.mockResolvedValue([sloAlert()]);
-    // The engine's throttled snapshot says 58%; the read-time scan says 25%.
+    // The stored snapshot says 58%; the read-time scan says 25%.
     mocks.getAlertingSloStatus.mockResolvedValue({
       payload: sloPayload(0.581),
     });

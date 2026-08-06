@@ -1,5 +1,4 @@
-// The suggestion server fns: sources merged best-effort, synthetic keys
-// flagged, and the engine's own vocabulary for synthetic values.
+// Suggestion sources merge best-effort and flag synthetic values.
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { AlertingAlert, AlertingSlo } from "@/data/alerting/types";
 import { listAlertingLabelKeys, listAlertingLabelValues } from "./server";
@@ -76,7 +75,7 @@ beforeEach(() => {
 });
 
 describe("listAlertingLabelKeys", () => {
-  it("leads with the engine's reserved keys — dispatcher synthetics then the SLO pipeline's — flagged", async () => {
+  it("leads with reserved dispatcher and SLO keys", async () => {
     const keys = await listAlertingLabelKeys();
     expect(keys).toEqual([
       { key: "severity", synthetic: true },
@@ -133,7 +132,7 @@ describe("listAlertingLabelKeys", () => {
 });
 
 describe("listAlertingLabelValues", () => {
-  it("answers severity/status/kind with the engine's known sets", async () => {
+  it("answers severity, status, and kind with their known values", async () => {
     expect(
       await listAlertingLabelValues({ data: { key: "severity" } }),
     ).toEqual([{ value: "info" }, { value: "warning" }, { value: "critical" }]);

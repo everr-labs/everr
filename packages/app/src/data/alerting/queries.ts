@@ -53,7 +53,7 @@ export const alertingQueries = {
       refetchInterval: ALERTING_POLL_INTERVAL_MS,
     }),
 
-  // Each page is alerting engine's {items, next_cursor} envelope, null cursor = last page.
+  // A null next_cursor marks the last page.
   // With a preview selected the server returns the overlay as a single page.
   rulesPage: (preview?: string) =>
     infiniteQueryOptions({

@@ -22,9 +22,7 @@ export interface KindResult {
   deleted: string[];
   /** Live resources taken over from another owning repo (only with `adopt`). */
   adopted: string[];
-  /** Non-fatal advisory about how this kind was reconciled (e.g. preview
-   * AlertRules are evaluated as suppressed alerting engine rules: real instances and
-   * history, but no notifications). */
+  /** Non-fatal advisory about how this kind was reconciled. */
   note?: string;
 }
 

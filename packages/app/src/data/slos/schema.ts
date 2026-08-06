@@ -8,11 +8,7 @@ import { dashboardProjectSchema } from "@/data/dashboards/schema";
 
 const nonEmptyString = z.string().min(1);
 
-/**
- * A tenant-unique SLO name, matching the alert engine's validation:
- * 1..=128 chars of [A-Za-z0-9_.-]. Enforced at parse time so a bad name fails
- * with the file path instead of an API error mid-apply.
- */
+/** A tenant-unique SLO name accepted by storage and as-code apply. */
 const sloNameSchema = z
   .string()
   .regex(
@@ -20,9 +16,7 @@ const sloNameSchema = z
     "name must be 1-128 chars of [A-Za-z0-9_.-]",
   );
 
-// Upper bound on any window duration: rolling windows cover at most about a
-// year, and the engine's
-// window arithmetic requires the cap.
+// Rolling budget windows cover at most about one year.
 const MAX_WINDOW_SECS = 366 * 86_400;
 const MIN_WINDOW_SECS = 86_400;
 
@@ -31,10 +25,7 @@ const MIN_WINDOW_SECS = 86_400;
 const WINDOW_UNIT_SECONDS = { m: 60, h: 3_600, d: 86_400, w: 604_800 } as const;
 const WINDOW_RE = /^(\d+)([mhdw])$/;
 
-/**
- * Parse an SLO window shorthand ("24h", "30d", "1w") to seconds using the
- * engine's 1-day..366-day bounds. Throws with a message naming the value.
- */
+/** Parse a 1-day to 366-day SLO window shorthand into seconds. */
 export function parseSloWindowSeconds(value: string): number {
   const match = WINDOW_RE.exec(value.trim());
   if (!match) {
@@ -75,10 +66,7 @@ const windowDurationSchema = z.string().superRefine((value, ctx) => {
 const timeWindowSchema = windowDurationSchema;
 
 /**
- * `kind: SLO` as-code document. Mirrors the alert engine's SLO specification
- * in as-code camelCase, with static validation applied at parse time so
- * failures carry the file path and a precise message. The SQL itself is
- * validated by the engine's dry-run evaluation during apply.
+ * `kind: SLO` as-code document. SQL is validated by a dry-run evaluation.
  *
  * ```yaml
  * kind: SLO
@@ -111,8 +99,7 @@ export const SloYamlSchema = z
         display: displaySchema.optional(),
         sli: z
           .object({
-            // A single read-only SELECT returning numeric `good` and `valid`
-            // columns; the engine injects the window as ClickHouse parameters.
+            // A read-only SELECT returning numeric `good` and `valid` columns.
             sql: nonEmptyString.superRefine((sql, ctx) => {
               if (
                 !sql.includes("{window_start:") ||

@@ -1,4 +1,4 @@
-// Mirrors the alert engine's channel types.
+// Channel metadata shared by delivery configuration surfaces.
 import { Mail } from "lucide-react";
 import type { ComponentType, SVGProps } from "react";
 // Brand marks; Slack's and Telegram's colors are intentional and ignore

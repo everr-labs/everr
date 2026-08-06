@@ -133,10 +133,7 @@ describe("POST /api/apply", () => {
     expect(applyResources).not.toHaveBeenCalled();
   });
 
-  // The receiver as-code kind was retired: receivers are UI-managed, and the
-  // strict state schema rejects the old wire key instead of silently ignoring
-  // whatever an outdated CLI would have sent under it.
-  it("returns 400 on the retired alertingReceivers state key", async () => {
+  it("returns 400 on unknown state keys", async () => {
     const res = await POST({
       request: req({
         repoid: "repo-1",
@@ -144,7 +141,7 @@ describe("POST /api/apply", () => {
           dashboards: [],
           runbooks: [],
           alerts: [],
-          alertingReceivers: [],
+          unexpected: [],
         },
       }),
       context: ctx,

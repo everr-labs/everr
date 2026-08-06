@@ -626,7 +626,7 @@ describe("/alerts/delivery channels section", () => {
     );
     expect(create).toBeEnabled();
 
-    // A taken name is blocked here rather than by alerting engine's 409.
+    // Duplicate names are blocked before submission.
     await user.clear(name);
     await user.type(name, "team-slack");
     expect(create).toBeDisabled();
@@ -648,7 +648,7 @@ describe("/alerts/delivery channels section", () => {
     );
   });
 
-  it("deletes a channel, surfacing the engine's 409 (referring receivers) when it refuses", async () => {
+  it("surfaces a channel deletion conflict from referring receivers", async () => {
     mocks.listAlertingChannels.mockResolvedValue([
       channel({ name: "team-slack" }),
     ]);
@@ -785,7 +785,7 @@ describe("/alerts/delivery receivers section", () => {
       name: "Channel team-slack",
     });
 
-    // A taken name is blocked here rather than by alerting engine's 409.
+    // Duplicate names are blocked before submission.
     await user.type(name, "oncall");
     await user.click(teamSlack);
     expect(create).toBeDisabled();
@@ -814,7 +814,7 @@ describe("/alerts/delivery receivers section", () => {
     );
   });
 
-  it("deletes a receiver, surfacing the engine's message when the deletion is rejected", async () => {
+  it("surfaces the reason a receiver deletion is rejected", async () => {
     mocks.listAlertingReceivers.mockResolvedValue([
       receiver({ name: "oncall" }),
     ]);
@@ -912,8 +912,7 @@ describe("/alerts/delivery edit flows", () => {
     );
     const drawer = await findSettledDrawer();
 
-    // The name is an editable label: the engine references channels by id, so
-    // a rename rides along in the same PUT as `newName`.
+    // ID references keep receivers attached across a channel rename.
     const nameInput = within(drawer).getByLabelText("Name");
     expect(nameInput).toHaveValue("oncall-hook");
     // The stored URL is write-only (redacted on read), so the field starts
@@ -959,8 +958,7 @@ describe("/alerts/delivery edit flows", () => {
     );
     const drawer = await findSettledDrawer();
 
-    // The desired name is always sent; the engine treats an unchanged name as
-    // a plain replace.
+    // An unchanged name is a plain replacement.
     expect(within(drawer).getByLabelText("Name")).toHaveValue("oncall");
     expect(within(drawer).getByLabelText("Channel oncall-hook")).toBeChecked();
 

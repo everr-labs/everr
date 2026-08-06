@@ -19,11 +19,7 @@ export interface ResourceSummary {
   slug: string;
   /** "" for UI-created resources. */
   repoid: string;
-  /**
-   * RFC-3339 timestamp of the resource's last write. Postgres-backed kinds
-   * serialize their `updated_at` column; alerts and SLOs surface the alerting engine
-   * entity's `updated_at` (maintained on create, spec update, pause/resume).
-   */
+  /** RFC-3339 timestamp of the resource's last write. */
   updatedAt: string;
 }
 
@@ -275,7 +271,7 @@ const sloBackend: KindBackend = {
   },
 };
 
-/** Where each kind lives: dashboards and runbooks in Postgres, alerts and SLOs in alerting engine. */
+// Document resources use their tables; alerts and SLOs use domain repositories.
 const KIND_BACKENDS: Record<ResourceKind, KindBackend> = {
   dashboard: pgBackend("dashboard", dashboards),
   runbook: pgBackend("runbook", runbooks),
@@ -294,11 +290,7 @@ export async function listResources(
   return perKind.flat();
 }
 
-/**
- * The resource's as-code document, or null when it does not exist. Dashboards
- * and runbooks return their stored `document` JSON; alerts reconstruct a
- * canonical `kind: AlertRule` document from the alerting engine rule's spec.
- */
+/** Returns the canonical as-code document, or null when it does not exist. */
 export async function getResource(
   orgId: string,
   kind: ResourceKind,

@@ -63,11 +63,7 @@ describe("querySloBudgetSeries", () => {
     expect(current?.budgetRemaining).toBe(0);
   });
 
-  it("ends every window 10s before its instant, matching the engine's ingest delay", async () => {
-    // The engine shifts window_end back by ALERTING_SLO_INGEST_DELAY_SECS (default
-    // 10) so it reads only settled rows; read-time scans must measure the same
-    // intervals or the page and the engine disagree at the recent edge. The
-    // point stays plotted at its round instant.
+  it("ends every full window 10s before its plotted instant", async () => {
     const windows: { start: string; end: string }[] = [];
     const capture = (async (_sql: string, params?: Record<string, unknown>) => {
       windows.push({

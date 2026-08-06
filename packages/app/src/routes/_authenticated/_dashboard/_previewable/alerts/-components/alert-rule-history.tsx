@@ -11,6 +11,7 @@ import {
   TabsList,
   TabsTrigger,
 } from "@everr/ui/components/tabs";
+import type { Tone } from "@everr/ui/components/tone";
 import type {
   AlertingRuleCondition,
   AlertingRuleEvaluationSeries,
@@ -27,21 +28,17 @@ import {
   LabelSet,
 } from "./shared";
 
+const EVENT_META: Record<AlertEventType, { label: string; tone: Tone }> = {
+  instance_fired: { label: "Fired", tone: "danger" },
+  instance_resolved: { label: "Resolved", tone: "healthy" },
+  delivery: { label: "Delivery", tone: "info" },
+  rule_health: { label: "Rule health", tone: "warning" },
+  silenced: { label: "Silenced", tone: "muted" },
+};
+
 function EventTypeLabel({ eventType }: { eventType: AlertEventType }) {
-  switch (eventType) {
-    case "instance_fired":
-      return <AlertingStatusLabel tone="danger">Fired</AlertingStatusLabel>;
-    case "instance_resolved":
-      return <AlertingStatusLabel tone="healthy">Resolved</AlertingStatusLabel>;
-    case "delivery":
-      return <AlertingStatusLabel tone="info">Delivery</AlertingStatusLabel>;
-    case "rule_health":
-      return (
-        <AlertingStatusLabel tone="warning">Rule health</AlertingStatusLabel>
-      );
-    case "silenced":
-      return <AlertingStatusLabel tone="muted">Silenced</AlertingStatusLabel>;
-  }
+  const { label, tone } = EVENT_META[eventType];
+  return <AlertingStatusLabel tone={tone}>{label}</AlertingStatusLabel>;
 }
 
 function EventDetails({ event }: { event: AlertEventLogRow }) {

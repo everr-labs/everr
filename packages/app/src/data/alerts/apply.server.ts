@@ -28,9 +28,7 @@ interface ApplyAlertsResult {
   note?: string;
 }
 
-// Surfaced on every preview apply: the rules ARE registered and evaluated in
-// alerting engine (instances, state, history) as suppressed rules, so a reviewer can watch
-// what they would have done — but the dispatcher never notifies on them.
+// Preview evaluations are real, but notification delivery is suppressed.
 const PREVIEW_NOTE =
   "preview alert rules are fully evaluated by the alert worker (suppressed): " +
   "instances and history are real, but no notifications are sent.";
@@ -40,7 +38,6 @@ function validationError(path: string, error: unknown): ApplyValidationError {
   return new ApplyValidationError(`${path}: ${message}`);
 }
 
-// Static validation: schema, evaluation interval, template syntax. No I/O.
 function parseAlertRule(path: string, resource: unknown) {
   const parsed = AlertRuleYamlSchema.safeParse(resource);
   if (!parsed.success) {
@@ -54,9 +51,7 @@ function parseAlertRule(path: string, resource: unknown) {
     parseEvaluationInterval(rule.spec.evaluationInterval);
     parseForDuration(rule.spec.for);
     validateQueryTemplate(rule.spec.query);
-    // Message templates are validated result-dependently (any query result
-    // column is a legal ref) in validateAlertRuleQuery, once the columns are
-    // known.
+    // Template references require the query result schema.
   } catch (error) {
     throw validationError(path, error);
   }
@@ -64,15 +59,10 @@ function parseAlertRule(path: string, resource: unknown) {
   return { rule, slug: rule.metadata.name };
 }
 
-// The alert worker's evidence caps: events
-// carry at most 16 non-label columns, and only when their compact JSON fits in
-// 4096 bytes. Message refs beyond the column cap may render empty.
+// Events retain at most 16 non-label evidence columns within 4096 bytes.
 const EVIDENCE_COLUMN_CAP = 16;
 
-// ClickHouse types whose JSON serialization is a string, unwrapped from
-// Nullable/LowCardinality. This mirrors the pre-alerting engine evaluator's implicit
-// instance identity, which keyed rows by every `typeof value === "string"`
-// column when `instanceLabels` was omitted.
+// String result columns form the instance identity when instanceLabels is omitted.
 function isStringTypedColumn(chType: string): boolean {
   let t = chType.trim();
   for (;;) {
@@ -97,15 +87,8 @@ function isNumericTypedColumn(chType: string): boolean {
   );
 }
 
-// Result-dependent validation: run the rule's query against the org's data and
-// check the instance-label, condition, and message-template columns against the
-// result schema. Message refs are legal for any result column: the dispatcher resolves
-// them from the event's instance labels first, then ${value}, then the
-// evidence (the remaining result columns). Returns a warning when a message
-// references evidence but the query has more non-label columns than the
-// evidence cap keeps, plus the effective instance-label columns (explicit
-// `instanceLabels`, or the identity inferred from string result columns when
-// omitted).
+// Validates result-dependent labels and template references, and returns the
+// explicit or inferred instance identity.
 async function validateAlertRuleQuery(
   path: string,
   rule: AlertRuleYaml,
@@ -166,10 +149,7 @@ async function validateAlertRuleQuery(
     throw validationError(path, error);
   }
 
-  // Refs that alerting engine resolves from evidence (not a label, not the rule value) are
-  // only reliable while the query's non-label columns fit the evidence cap;
-  // past it, alerting engine keeps the first 16 in column-name order and a referenced
-  // column may be cut. Surface that as a warning, not an error.
+  // Evidence references beyond the stored column cap are not guaranteed.
   const labelSet = new Set(instanceLabelColumns);
   const nonLabelColumns = queryResult.columns.filter((c) => !labelSet.has(c));
   const evidenceRefs = [
@@ -186,42 +166,20 @@ async function validateAlertRuleQuery(
   return { instanceLabelColumns, ...(warning ? { warning } : {}) };
 }
 
-// One repo can declare many alerts; firing every validation query at ClickHouse
-// at once would risk exhausting the connection pool. Cap the in-flight queries.
+// Bound ClickHouse validation and database mutations independently.
 const VALIDATION_QUERY_CONCURRENCY = 8;
 
-// Cap on in-flight alerting mutations during a reconcile. Per-rule operations
-// are independent (rules are keyed by id and matched here by name), so
-// they run in a bounded pool instead of strictly one at a time.
 const ALERTING_MUTATION_CONCURRENCY = 8;
 
-// Stable identity for change detection. Ownership is a first-class field and
-// therefore is not part of the rule spec fingerprint.
 function specFingerprint(spec: Record<string, unknown>): string {
   return stableStringify(spec);
 }
 
-// True for alerting engine's optimistic-concurrency failure (PUT with a stale `version`).
 function isAlertingVersionConflict(error: unknown): boolean {
   return error instanceof AlertingError && error.status === 409;
 }
 
-/**
- * Reconcile `kind: AlertRule` resources for one apply target. Each stored rule
- * is owned by this repo and has `previewId: null` for live state or the parent
- * Preview id otherwise. Other repos and the opposite side of the live/preview
- * split are never touched. Rules converge by their first-class `name`.
- * A changed rule is updated in place (PUT, with the rule's `version` as an
- * optimistic-concurrency guard, so instance state survives); a scoped rule
- * absent from config is deleted. Preview rules are evaluated fully but never
- * notify.
- *
- * A live create can collide with another live rule in the same organization
- * this repo does not own. That is the cross-repo ownership conflict,
- * reported for the registry's fail-fast, or taken over in place when
- * adopting (a version-guarded update that preserves the rule's id and
- * instance state). Preview rules are never adoption targets.
- */
+/** Reconciles one repo's live or preview rules without crossing ownership scopes. */
 export const applyAlertSpecs: Reconciler = async ({
   namespace,
   resources,
@@ -229,21 +187,14 @@ export const applyAlertSpecs: Reconciler = async ({
   adopt,
 }): Promise<ApplyAlertsResult> => {
   const { orgId, repoid } = namespace;
-  // The preview registry id scoping this reconcile; null = the live namespace.
-  // A preview id can itself be null during the dry-run of a first apply (no
-  // registry row exists yet), which correctly scopes to zero existing rules.
+  // A missing first-apply preview id scopes to no existing rules.
   const previewId = namespace.kind === "preview" ? namespace.id : null;
 
-  // 1. Parse + statically validate, then run the result-dependent query
-  // validation; finally map each rule to its desired alerting engine spec. This full
-  // pipeline runs for every namespace, including previews, so a preview apply
-  // catches broken queries, bad `${column}` message refs, and missing
-  // instanceLabels columns before the change is merged.
+  // 1. Parse and validate every desired rule.
   const seen = new Map<string, string>();
   const parsed = resources.map(({ path, resource }) => {
     const p = parseAlertRule(path, resource);
-    // Identity is the qualified project/slug (the alerting engine first-class name), so a
-    // same-slug alert in two different projects is two resources, not a dupe.
+    // Project is part of resource identity.
     const qualified = formatResourceName(
       p.rule.metadata.project ?? "default",
       p.slug,
@@ -258,18 +209,13 @@ export const applyAlertSpecs: Reconciler = async ({
     return { ...p, path };
   });
 
-  // The alerting engine listing for step 2 is independent of the validation queries, so it
-  // starts here and overlaps the validation pool. A first-apply dry run has no
-  // preview registry row yet (previewId null on a preview namespace would
-  // alias the LIVE scope), so it skips the listing: nothing tagged with a
-  // not-yet-minted id can exist in alerting engine.
+  // Listing overlaps query validation. A new preview has nothing to list yet.
   const listingPromise: Promise<AlertingRuleView[]> =
     namespace.kind === "preview" && namespace.id === null
       ? Promise.resolve([])
       : alerting.listAllRules(orgId);
 
-  // Bounded pool via the shared limiter; allSettled keeps results in input
-  // order, so the first failure can still be reported deterministically.
+  // allSettled preserves input order for deterministic error reporting.
   const runValidation = createLimiter(VALIDATION_QUERY_CONCURRENCY);
   const [validations, listed, channels] = await Promise.all([
     Promise.allSettled(
@@ -299,14 +245,12 @@ export const applyAlertSpecs: Reconciler = async ({
     }
   }
 
-  // Non-fatal validation findings (e.g. evidence-cap overruns), surfaced on
-  // the apply result's note alongside the preview note.
+  // Surface non-fatal validation findings in the apply note.
   const warnings = validations.flatMap((v) =>
     v.status === "fulfilled" && v.value.warning ? [v.value.warning] : [],
   );
 
-  // The everr app origin: notification links (link.alert / link.runbook) must
-  // be absolute for alerting engine's dispatcher to render them.
+  // Notification links must be absolute.
   const appBaseUrl = authEnv.BETTER_AUTH_URL;
 
   const desired = parsed.map((p, i) => {
@@ -318,24 +262,18 @@ export const applyAlertSpecs: Reconciler = async ({
       input: toRuleInput(p.rule, repoid, {
         appBaseUrl,
         previewId: previewId ?? undefined,
-        // Explicit instanceLabels, or the implicit string-column identity the
-        // validation inferred for a spec that omitted them.
         instanceLabels: v.value.instanceLabelColumns,
       }),
     };
   });
 
-  // 2. Reconcile against rules owned by this repo and the selected target.
-  // `previewId` is null for live rules and the parent Preview id otherwise,
-  // so live and preview applies cannot touch one another.
+  // 2. Scope existing rules to this repo and live/preview target.
   const existing = listed.filter(
     (r) => isOwnedRule(r, repoid) && r.previewId === previewId,
   );
   const existingByName = new Map(existing.map((r) => [r.name, r]));
 
-  // 3. Plan. A rule matched by name is an update when its content changed;
-  // otherwise unchanged (dropped from the plan entirely). Anything unmatched
-  // is a create, subject to the cross-repo ownership check below.
+  // 3. Plan creates and changed rules.
   const updates: { d: (typeof desired)[number]; cur: AlertingRuleView }[] = [];
   const creates: (typeof desired)[number][] = [];
   for (const d of desired) {
@@ -344,7 +282,6 @@ export const applyAlertSpecs: Reconciler = async ({
       creates.push(d);
       continue;
     }
-    // PUT takes the bare spec (identity is immutable after create).
     const {
       name: _name,
       repoid: _repoid,
@@ -361,11 +298,7 @@ export const applyAlertSpecs: Reconciler = async ({
     }
   }
 
-  // 4. Cross-repo ownership: a live create can collide with a live rule
-  // (same tenant and live target) this repo does not own. Reported as conflicts
-  // for the registry's fail-fast, or taken over in place when adopting.
-  // Preview creates never collide with live rules, and preview rules are never
-  // adoption targets.
+  // 4. Resolve cross-repo ownership for live creates.
   const foreignByName =
     namespace.kind === "live"
       ? new Map(
@@ -387,22 +320,13 @@ export const applyAlertSpecs: Reconciler = async ({
       });
   const adopted = adopt ? taken.map(({ d }) => d.input.name) : [];
 
-  // 5. Converge. Mutations run in a bounded pool (skipped entirely on
-  // dry-run); outcomes aggregate by input index and the first failure (in
-  // input order) is rethrown, matching the sequential loop's deterministic
-  // reporting.
+  // 5. Converge in a bounded pool, preserving deterministic errors.
   const runMutation = createLimiter(ALERTING_MUTATION_CONCURRENCY);
   const writes = await Promise.allSettled([
     ...fresh.map((d) =>
       runMutation(undefined, async () => {
         if (dryRun) return;
-        // link.alert/link.runbook are already baked into `d.input` (identity
-        // is known up front, unlike alerting engine's old rule-id-based links), so
-        // creating is a single call: no follow-up PUT to stamp anything.
-        // Defense in depth: a foreign rule can appear between the listing
-        // above and this call (a race), which alerting engine also reports as a 409 —
-        // translate it the same friendly way rather than letting the raw
-        // AlertingError bubble up.
+        // Translate a create race into the same ownership error as the plan.
         try {
           await alerting.createRule(orgId, d.input);
         } catch (error) {
@@ -438,9 +362,7 @@ export const applyAlertSpecs: Reconciler = async ({
     ...updates.map(({ d, cur }) =>
       runMutation(undefined, async () => {
         if (dryRun) return;
-        // Update in place: preserves the rule id and instance state (alerting engine
-        // clears instances only when the label_columns set changes). The
-        // stored version guards against concurrent edits.
+        // Versioned updates preserve instance state unless label columns change.
         const {
           name: _name,
           repoid: _repoid,
@@ -452,7 +374,7 @@ export const applyAlertSpecs: Reconciler = async ({
         } catch (error) {
           if (isAlertingVersionConflict(error)) {
             throw new ApplyValidationError(
-              `${d.path}: alert "${d.input.name}" was modified concurrently in the alert engine (version conflict); re-run apply`,
+              `${d.path}: alert "${d.input.name}" was modified concurrently (version conflict); re-run apply`,
             );
           }
           throw error;
@@ -464,9 +386,7 @@ export const applyAlertSpecs: Reconciler = async ({
     if (outcome.status === "rejected") throw outcome.reason;
   }
 
-  // 6. Scoped rules absent from config are pruned, same bounded pool. Runs
-  // only after every create/update settled cleanly, like the sequential
-  // version.
+  // 6. Prune scoped rules only after all writes succeed.
   const desiredNames = new Set(desired.map((d) => d.input.name));
   const stale = [...existingByName].filter(([name]) => !desiredNames.has(name));
   const deleted: string[] = [];

@@ -216,10 +216,8 @@ export function alertingTiersForWindow(windowSecs: number): AlertingSloTier[] {
 }
 
 /**
- * Burn confirmed by BOTH windows: `min(long, short)` — the same both-windows
- * agreement the engine fires on. Reads 0 once a spike passes (the short window
- * drops first) even while the long window remembers it. Null when either
- * window has no data, so a rate is only claimed when confirmed.
+ * Confirmed burn is the lower of the long and short window rates. It is null
+ * until both windows have data.
  */
 export function alertingEffectiveBurn(
   longBurn: number | null | undefined,
@@ -342,11 +340,7 @@ export type AlertingFreshBudget = {
   budgetRemaining: number | null;
 };
 
-/**
- * Mirrors the engine's `time_to_exhaustion_secs` (engine/slo_math.rs) exactly:
- * null when any input is missing or burn is non-positive, 0 when already
- * overspent, else `window * budget_remaining / burn_rate` truncated.
- */
+/** Forecast exhaustion as `window * budgetRemaining / burnRate`. */
 export function alertingTimeToExhaustionSecs(
   budgetRemaining: number | null,
   burnRate: number | null,
@@ -360,11 +354,6 @@ export function alertingTimeToExhaustionSecs(
   return Math.floor((windowSecs * budgetRemaining) / burnRate);
 }
 
-/**
- * Budget is consulted before the forecast, deliberately reversing the engine's
- * `time_to_exhaustion_secs` (engine/slo_math.rs): a spent budget is exhausted
- * whether or not anything is burning right now.
- */
 export type AlertingSloExhaustion = {
   kind: "exhausted" | "forecast" | "not-shrinking" | "unknown";
   /** What every surface prints; only the tone is left to the caller. */
@@ -387,8 +376,6 @@ export function alertingSloExhaustion(
   if (alertingBudgetExhausted(budgetRemaining)) {
     return { kind: "exhausted", label: "exhausted" };
   }
-  // A zero forecast needs no case of its own: the engine only produces one when
-  // the budget is already spent, which the check above has taken.
   if (tteSecs !== null) {
     return { kind: "forecast", label: alertingFormatSloDuration(tteSecs) };
   }
@@ -472,10 +459,7 @@ export function alertingSloChartRange(
   return { from: `now-${spec.timeWindow.duration}`, to: "now" };
 }
 
-/**
- * Two largest non-zero units ("3d 4h"), mirroring the engine's readout
- * granularity (engine/slo_math.rs `fmt_duration_secs`).
- */
+/** Format the two largest non-zero duration units, for example "3d 4h". */
 export function alertingFormatSloDuration(secs: number): string {
   const s = Math.max(0, Math.floor(secs));
   const d = Math.floor(s / 86_400);

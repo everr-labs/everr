@@ -12,13 +12,7 @@ import { parseWindow } from "./window";
 
 const nonEmptyString = z.string().min(1);
 
-/**
- * A tenant-unique rule name, matching the alert engine's validation:
- * 1..=128 chars of [A-Za-z0-9_.-] (no `/`, which the
- * composed "project/slug" identity adds). Enforced at parse time so a bad
- * name fails with the file path instead of a raw API validation error during
- * apply. Same contract as the SLO schema's name field.
- */
+/** A tenant-unique rule name accepted by storage and as-code apply. */
 const ruleNameSchema = z
   .string()
   .regex(
@@ -166,9 +160,8 @@ export const AlertRuleYamlSchema = z
         // column. Matching rows are alert instances; all rows remain
         // available for visualization.
         condition: AlertingRuleConditionSchema,
-        // Upper bound on how long the engine may go without evaluating the rule
-        // before flagging it degraded (duration string, engine defaults when
-        // unset). Must be >= evaluationInterval when both are set.
+        // Evaluation age that marks the rule degraded. Defaults when unset and
+        // must be at least evaluationInterval when present.
         maxInterval: nonEmptyString.optional(),
         // Pass-through annotations merged onto the alert rule alongside the
         // generated ones; reserved keys (see isReservedAnnotationKey) are

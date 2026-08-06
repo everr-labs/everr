@@ -156,8 +156,7 @@ export async function validateRunbookLinks(opts: {
 /**
  * Reverse check for a live apply: this repo's live runbook rows that are
  * about to be pruned (present in the DB, absent from this batch), cross-
- * referenced against every OTHER repo's live alerting engine rules and SLOs whose
- * `everr.runbook` link resolves to one of them. Each hit is a warning, not a
+ * referenced against every other repo's live rules and SLOs. Each hit is a warning, not a
  * failure — the apply proceeds, but the caller (a linked resource in another
  * repo) is about to lose its runbook. Preview namespaces never prune a live
  * runbook, so they always return `[]`.

@@ -18,15 +18,10 @@ export function alertingOpSymbol(op: AlertingMatcher["op"]): string {
   return OP_SYMBOL[op];
 }
 
-// Mirrors matching.rs REGEX_CACHE (null = known-invalid, never matches).
-// Patterns come from routes/silences/inhibitions, so the distinct count is
-// bounded by configuration size; the map is intentionally unbounded.
+// Invalid patterns are cached as null. Configuration bounds the cache size.
 const REGEX_CACHE = new Map<string, RegExp | null>();
 
-/**
- * Anchored match mirroring matching.rs `regex_full_match`: compiled as
- * `^(?:pattern)$`; an invalid pattern never matches.
- */
+/** Full-string regex match. Invalid patterns never match. */
 function alertingRegexFullMatch(pattern: string, value: string): boolean {
   let re = REGEX_CACHE.get(pattern);
   if (re === undefined) {
@@ -40,10 +35,7 @@ function alertingRegexFullMatch(pattern: string, value: string): boolean {
   return re?.test(value) ?? false;
 }
 
-/**
- * Mirrors matching.rs `matcher_matches`. A missing label is the empty string
- * (Alertmanager-like): `severity != critical` is true when `severity` is absent.
- */
+/** Missing labels match as empty strings. */
 export function alertingMatcherMatches(
   m: AlertingMatcher,
   labels: Record<string, string>,
@@ -74,12 +66,7 @@ export function alertingIsCatchAll(matchers: AlertingMatcher[]): boolean {
   return matchers.length === 0;
 }
 
-/**
- * The label set the dispatcher matches against (dispatcher/routing.rs
- * `synthetic_labels`): instance labels plus synthetic
- * `severity`/`status`/`rule`/`kind` (and `slo` for SLO-originated events),
- * synthetics winning on collision. `kind` is "alert" for instance events.
- */
+/** Dispatcher labels, with system-owned values winning on collision. */
 export function alertingSyntheticLabels(
   labels: Record<string, string>,
   opts: {
@@ -123,10 +110,7 @@ export function alertingDispatchLabels(
   });
 }
 
-/**
- * Mirrors alerting engine's `select_receivers` (dispatcher/routing.rs): ascending priority,
- * stop after the first match without `continue`.
- */
+/** Select matching routes by priority, stopping at the first terminal route. */
 export function alertingSelectRoutes(
   routes: AlertingRoute[],
   labels: Record<string, string>,
@@ -140,10 +124,7 @@ export function alertingSelectRoutes(
   return out;
 }
 
-/**
- * First silence active at `now` whose matchers all match `labels`, or null.
- * Mirrors alerting engine's `matching_silence` (dispatcher/silence.rs).
- */
+/** First active silence whose matchers all match `labels`. */
 export function alertingMatchingSilence<
   S extends { matchers: AlertingMatcher[]; starts_at: string; ends_at: string },
 >(labels: Record<string, string>, silences: S[], now: number): S | null {

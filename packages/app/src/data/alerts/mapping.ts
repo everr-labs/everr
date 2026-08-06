@@ -26,34 +26,12 @@ import {
   parseWindow,
 } from "./window";
 
-// ANN_DISPLAY_NAME/ANN_DISPLAY_DESCRIPTION live in ./annotations, shared with
-// the SLO mapping. The notification templates live ONLY under alerting engine's own
-// `summary`/`description` keys (annotations.ts): alerting engine renders them, and we read
-// the same keys back, so one key per template is both the write and the read
-// path.
-// A linked runbook (project/slug), stored canonically so the alert detail can
-// deep-link to it. Replaces the old Postgres runbook_project/runbook_slug
-// columns now that a simple alert IS a alerting engine rule.
+// Canonical project/slug reference used by alert details and resource exports.
 const ANN_RUNBOOK = "everr.runbook";
 
 /**
- * AlertRule YAML → alerting engine rule create/update input: the spec fields flattened
- * beside the rule's first-class `name`/`previewId`. Shared by the as-code
- * reconciler and tests.
- *
- * `appBaseUrl` (the everr app origin) enables the notification `link.runbook`
- * annotation and the `link.alert` annotation; both are computed upfront here
- * since the rule's identity (project/slug) is known before create, unlike
- * the old alerting engine-generated rule id `link.alert` needed.
- *
- * A `previewId` builds the rule for that preview: it is evaluated fully but
- * suppressed from notification delivery, and live and preview reconciles
- * never touch each other's rules.
- *
- * `rule.spec.annotations` (user-supplied pass-through) is merged in BEFORE
- * the generated keys below, so the generated `everr.*`/`summary`/
- * `description`/link keys always win (the schema already rejects reserved
- * keys, so this merge order never actually needs to resolve a collision).
+ * Maps an AlertRule document to its stored rule input. Generated annotations
+ * override pass-through annotations, and previews remain stateful but suppressed.
  */
 export function toRuleInput(
   rule: AlertRuleYaml,
@@ -61,13 +39,7 @@ export function toRuleInput(
   opts: {
     appBaseUrl?: string;
     previewId?: string;
-    /**
-     * Effective instance-label columns resolved by apply-time validation:
-     * the spec's own `instanceLabels`, or the implicit string-column
-     * identity inferred from the query's result schema when omitted (the
-     * pre-alerting engine evaluator's behavior). `spec.instanceLabels` still wins so
-     * callers without a dry-run (tests) keep the explicit semantics.
-     */
+    /** String columns inferred during validation when the spec omits them. */
     instanceLabels?: string[];
   } = {},
 ): AlertingRuleInput {
@@ -76,7 +48,6 @@ export function toRuleInput(
 
   const annotations: Record<string, string> = {
     ...rule.spec.annotations,
-    // The notification templates, under the keys alerting engine's dispatcher renders.
     [ANN_ALERTING_SUMMARY]: rule.spec.notificationMessage.title,
   };
   if (rule.spec.notificationMessage.description) {
@@ -120,8 +91,7 @@ export function toRuleInput(
     severity: rule.spec.severity,
     annotations,
     resolve_after: rule.spec.resolveAfter,
-    // Absent unless the rule sets maxInterval: alerting engine applies its own default
-    // when the key is missing from the spec.
+    // Omitting this field applies the rule default.
     ...(rule.spec.maxInterval !== undefined
       ? { max_interval_secs: parseWindow(rule.spec.maxInterval) }
       : {}),
@@ -160,11 +130,7 @@ export type SimpleAlertView = {
   suppressed: boolean;
 };
 
-/**
- * Read the simple-alert fields back out of a alerting engine rule: project/slug from the
- * first-class `name` and `previewId`, and the rest
- * (display/runbook/templates) from `spec.annotations` + columns.
- */
+/** Reads the resource identity and display fields from a stored rule. */
 export function fromAlertingRule(
   rule: Pick<
     AlertingRule,
@@ -195,23 +161,12 @@ export function fromAlertingRule(
     runbookProject: runbook?.project ?? null,
     runbookSlug: runbook?.slug ?? null,
     previewId: rule.previewId,
-    // `?? false`: hand-built specs (tests, pre-suppression payloads that
-    // bypassed the schema default) may omit the field.
+    // Inputs that bypass schema parsing may omit this default.
     suppressed: rule.spec.suppressed ?? false,
   };
 }
 
-/**
- * alerting engine rule → the canonical `kind: AlertRule` as-code document, the inverse of
- * {@link toRuleInput} for everr-owned rules. Used by the resources CLI
- * (`everr resources show`) where dashboards/runbooks return their stored YAML
- * document; alerts have no stored document (the alerting engine rule IS the resource), so
- * one is reconstructed from the rule. `metadata.name`/`metadata.project` come
- * from splitting the first-class `name` (project omitted when "default");
- * generated annotations (`summary`, `description`, `link.*`, `everr.*`) fold
- * back into their source fields; everything else is the user's pass-through
- * `spec.annotations`.
- */
+/** Reconstructs the canonical as-code document from a stored rule. */
 export function toAlertRuleDocument(
   rule: Pick<AlertingRule, "name" | "notification_channels" | "spec">,
 ): AlertRuleYaml {

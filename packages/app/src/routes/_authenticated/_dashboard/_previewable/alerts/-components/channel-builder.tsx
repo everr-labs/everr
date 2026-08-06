@@ -87,7 +87,6 @@ export function ChannelBuilder({
 }: {
   open: boolean;
   onOpenChange: (o: boolean) => void;
-  /** alerting engine's create answers 409 for an existing name; block duplicates client-side. */
   existingNames: string[];
   /** Edit target; the caller remounts (key) per target, so state inits here. */
   channel?: AlertingChannel | null;
@@ -98,9 +97,7 @@ export function ChannelBuilder({
   const [draft, setDraft] = useState<ConfigDraft>(() =>
     editing ? draftFromConfig(editing.config) : EMPTY_DRAFT,
   );
-  // testedConfig = JSON.stringify of the config the request was issued for;
-  // the draft can move on while the engine answers, so the result only counts
-  // while it still matches the on-screen config.
+  // Ignore results for drafts changed while the test is in flight.
   const [testResult, setTestResult] = useState<{
     ok: boolean;
     latencyMs: number;
@@ -113,8 +110,7 @@ export function ChannelBuilder({
   const urlField = CHANNEL_URL_FIELD[draft.type];
 
   const patch = (p: Partial<ConfigDraft>) => {
-    // Clear at the one place the draft changes, so a stale tick never vouches
-    // for a config no longer on screen.
+    // A changed draft invalidates its test result.
     setTestResult(null);
     setDraft((d) => ({ ...d, ...p }));
   };
@@ -186,8 +182,7 @@ export function ChannelBuilder({
       <AlertingConceptNote>
         A channel is a named delivery endpoint that any number of receivers can
         reference. Secret fields (webhook URLs, the Telegram token) are
-        write-only: the engine redacts them on read, so editing a channel means
-        entering them again.
+        write-only, so editing a channel means entering them again.
       </AlertingConceptNote>
       <div className="space-y-1.5">
         <Label htmlFor="channel-name">Name</Label>

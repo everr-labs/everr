@@ -60,7 +60,7 @@ function slo(overrides: Partial<AlertingSlo> = {}): AlertingSlo {
 }
 
 describe("canonical tiers", () => {
-  it("mirrors the engine's three SRE-workbook defaults, and resolves severity off them", () => {
+  it("uses the three SRE-workbook tiers and resolves their severity", () => {
     // Every SLO is evaluated on this fixed set (tiers are not user-configurable),
     // and severity resolution reads them. Two critical (page), one warning
     // (ticket).
@@ -172,7 +172,7 @@ describe("alertingSloIdentity", () => {
 });
 
 describe("alertingFormatSloDuration", () => {
-  it("keeps the two largest non-zero units, like the engine's fmt_duration_secs", () => {
+  it("keeps the two largest non-zero duration units", () => {
     expect(alertingFormatSloDuration(30)).toBe("30s");
     expect(alertingFormatSloDuration(45 * 60)).toBe("45m");
     expect(alertingFormatSloDuration(2 * 3600 + 15 * 60)).toBe("2h 15m");
@@ -187,9 +187,7 @@ describe("alertingFormatSloDuration", () => {
 
 describe("alertingSloExhaustion", () => {
   it("says exhausted from the budget alone, with no burn to forecast from", () => {
-    // The regression this exists for: the engine's forecast checks burn before
-    // budget and returns null when nothing is burning, which made a definitively
-    // spent budget read as "no data" instead of "exhausted".
+    // A spent budget is exhausted even when the current burn is zero.
     expect(alertingSloExhaustion(-20.8, null, null).label).toBe("exhausted");
     expect(alertingSloExhaustion(0, null, null).label).toBe("exhausted");
   });
@@ -256,7 +254,7 @@ describe("alertingSloCurrentBurn", () => {
 });
 
 describe("alertingTimeToExhaustionSecs", () => {
-  it("mirrors the engine: window * budget / burn, truncated, 0 once overspent", () => {
+  it("forecasts as window times budget divided by burn, truncated", () => {
     // 2592000s (30d) * 0.10 / 1.4 = 185142.857 -> 185142 (floor).
     expect(alertingTimeToExhaustionSecs(0.1, 1.4, 2_592_000)).toBe(185142);
     expect(alertingTimeToExhaustionSecs(0, 1.4, 2_592_000)).toBe(0);

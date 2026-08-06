@@ -121,7 +121,7 @@ describe("isOwnedSlo", () => {
 });
 
 describe("fromAlertingSlo", () => {
-  it("round-trips project/slug (off the alerting engine name), ownership, runbook, and display", () => {
+  it("round-trips identity, ownership, runbook, and display", () => {
     const input = toSloInput(
       sloYaml(
         {

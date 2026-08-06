@@ -100,7 +100,7 @@ describe("SloYamlSchema", () => {
     ).toBe(true);
   });
 
-  it("enforces alerting engine's SLO name rules and the runbook ref grammar at parse time", () => {
+  it("enforces SLO name rules and runbook reference grammar at parse time", () => {
     const named = (name: string) => ({
       ...sloDoc(),
       metadata: { name },

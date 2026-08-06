@@ -14,22 +14,14 @@ export type AlertingSloBudgetPoint = {
   good: number | null;
   /** Valid events over the budget window ending at `t`. Null: no rows. */
   valid: number | null;
-  /**
-   * Error budget remaining as a 0..1 fraction (may go negative when overspent);
-   * null at zero traffic (or a 100% target). Derived here from good/valid with
-   * the same formula as the engine's `sloBudgetRemaining` (engine/slo_math.rs).
-   */
+  /** Error budget remaining as a fraction, or null without a usable sample. */
   budgetRemaining: number | null;
 };
 
 /** Hard upper bound on trailing-window evals for one series (cost ceiling). */
 const ALERTING_SLO_BUDGET_MAX_POINTS = 200;
 
-// "Nice" grid steps (ascending). Instants snap to whichever step keeps the point
-// count near the target, so each point lands on a round wall-clock time (1m, 5m,
-// 1h, ...) instead of an arbitrary sub-second offset. Round instants make the
-// series deterministic and cacheable across reloads/polls, and align with how a
-// future bucketed rollup would key its buckets.
+// Round steps make series stable across reloads and keep labels readable.
 const NICE_STEPS_MS = [
   60_000, // 1m
   5 * 60_000, // 5m
@@ -54,11 +46,7 @@ function chooseStepMs(spanMs: number, targetPoints: number): number {
 // The SQL API returns every SLI column as a string.
 type SliRow = { good: string; valid: string };
 
-/**
- * SLI window bounds for an instant, mirroring the engine's `sli_window_bounds`:
- * the window ends the ingest-delay allowance before the instant so it reads
- * only settled rows, and keeps its full length.
- */
+/** Keep the full SLI window behind the ingest-delay allowance. */
 function sliWindowMs(
   instantMs: number,
   windowSecs: number,
@@ -67,16 +55,7 @@ function sliWindowMs(
   return { start: end - windowSecs * 1000, end };
 }
 
-/**
- * The SLO's current error budget, computed at read time from a single
- * SLI scan over the trailing window `[now - windowSecs, now]`: the point-in-time
- * counterpart of `querySloBudgetSeries` (which walks many trailing windows across
- * a range). The status hero and listing can show budget as of page view instead
- * of the engine's
- * throttled last evaluation (the budget window only re-evaluates every
- * ~windowSecs/12). Row-level security pins the tenant, exactly as the engine runs
- * the SLI.
- */
+/** Compute the current error budget from one trailing-window SLI scan. */
 export async function querySloBudgetNow(
   clickhouse: ClickhouseQuery,
   opts: {
@@ -115,11 +94,7 @@ function parseChUtc(s: string): number {
   return Date.parse(`${s.replace(" ", "T")}Z`);
 }
 
-/**
- * Error budget remaining from a window's `(good, valid)`, byte-for-byte the
- * engine's `sloBudgetRemaining`: null at no traffic or a 100% target; otherwise
- * `1 - clamp(1 - good/valid, 0, 1) / ((100 - target) / 100)`.
- */
+/** Error budget remaining for a window's `(good, valid)` counters. */
 function budgetRemaining(
   good: number,
   valid: number,
@@ -132,19 +107,8 @@ function budgetRemaining(
 }
 
 /**
- * The SLO's error-budget-remaining over time, computed at read time
- * by running the SLI query directly against the raw telemetry once per plotted
- * point. Each point is a trailing-window aggregate: the SLI over
- * `[t - window, t]`. No stored samples and no
- * backfill are involved, so a freshly-created SLO shows history as far back as
- * the raw data goes (bounded only by telemetry retention).
- *
- * This is the deliberately-simple form: N independent full-window scans (one per
- * point), spread evenly across the selected range and run with bounded
- * concurrency. It is expensive by design (the windows overlap heavily) and is
- * the read-time counterpart of the bucketed rollup path in
- * `todo/ideas/slo-sli-rollups.md`. Row-level security pins the tenant, so the
- * SLI runs against this org's telemetry only, exactly as the engine runs it.
+ * Compute historical error budget from one trailing-window SLI scan per point.
+ * The overlapping scans are bounded by both point count and concurrency.
  */
 export async function querySloBudgetSeries(
   clickhouse: ClickhouseQuery,
@@ -189,9 +153,7 @@ export async function querySloBudgetSeries(
 
   // Bounded concurrency: N heavy scans, capped so one chart load can't flood
   // ClickHouse with the whole series at once.
-  // Each point stays plotted at `t` even though its window ends earlier,
-  // matching how the engine keys an evaluation on its instant, not the shifted
-  // window end.
+  // Plot each point at its evaluation instant, not its shifted window end.
   const run = createLimiter(8);
   const scans = await Promise.all(
     instants.map((t) =>

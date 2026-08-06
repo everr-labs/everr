@@ -2,7 +2,6 @@ import { buttonVariants } from "@everr/ui/components/button";
 import {
   Card,
   CardContent,
-  CardDescription,
   CardHeader,
   CardTitle,
 } from "@everr/ui/components/card";
@@ -499,10 +498,6 @@ function AlertingRuleDetailPage() {
           <CardTitle>
             <h3>Signal history</h3>
           </CardTitle>
-          <CardDescription>
-            Values evaluated by this rule, with its firing threshold and state
-            transitions over the selected time range.
-          </CardDescription>
         </CardHeader>
         <CardContent>
           {evaluationSeries.data && (

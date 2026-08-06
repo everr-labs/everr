@@ -111,7 +111,7 @@ describe("toRuleInput", () => {
     expect(noRunbook.annotations["link.runbook"]).toBeUndefined();
   });
 
-  it("round-trips through fromAlertingRule, reading project/slug off the alerting engine name", () => {
+  it("round-trips through fromAlertingRule with its qualified identity", () => {
     const input = toRuleInput(
       parseRule({ for: "1d", resolveAfter: 2 }),
       "repo-1",
@@ -202,7 +202,7 @@ describe("isOwnedRule", () => {
 });
 
 describe("toAlertRuleDocument", () => {
-  it("round-trips through the schema and back to an equivalent alerting engine rule input", () => {
+  it("round-trips through the schema to an equivalent rule input", () => {
     const parsed = parseRule(
       {
         for: "10m",
@@ -236,7 +236,7 @@ describe("toAlertRuleDocument", () => {
 
     expect(toRuleInput(reparsed, "repo-1")).toEqual(ruleInput);
 
-    // A non-default project comes back off the alerting engine name.
+    // Qualified names preserve non-default projects.
     const scoped = JSON.parse(
       JSON.stringify(
         toAlertRuleDocument(

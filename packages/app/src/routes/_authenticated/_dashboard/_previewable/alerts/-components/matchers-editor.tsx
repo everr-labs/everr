@@ -36,8 +36,7 @@ export function matchersPhrase(m: AlertingMatcher[]): string {
 }
 
 /**
- * True when the set genuinely narrows. The engine reads a missing label as
- * "", so an empty-label row matches every alert.
+ * True when every matcher has a label and therefore narrows the set.
  */
 export function matchersAreScoped(m: AlertingMatcher[]): boolean {
   return m.length > 0 && m.every((x) => x.label.trim() !== "");

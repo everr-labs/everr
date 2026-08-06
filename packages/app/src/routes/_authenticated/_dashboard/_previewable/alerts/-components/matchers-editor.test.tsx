@@ -33,7 +33,7 @@ it("adds, updates, removes matcher rows", () => {
 
 it("treats a set as scoped only when every matcher has a label", () => {
   expect(matchersAreScoped([])).toBe(false);
-  // The engine treats a missing label as a match against every alert.
+  // An empty-label matcher does not narrow the alert set.
   expect(matchersAreScoped(addMatcher([]))).toBe(false);
   expect(matchersAreScoped([{ label: "  ", op: "eq", value: "" }])).toBe(false);
   expect(matchersAreScoped([{ label: "svc", op: "eq", value: "" }])).toBe(true);

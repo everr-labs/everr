@@ -18,7 +18,7 @@ vi.mock("@/data/slos/apply.server", () => ({
 }));
 // Cross-kind runbook-link validation is exercised in its own suite; mock it
 // here so the orchestration test stays focused on routing and avoids the
-// runbook-links module's transitive DB/alerting engine imports.
+// runbook-links module's transitive data imports.
 const validateRunbookLinks = vi.fn();
 const collectOrphanWarnings = vi.fn();
 vi.mock("./runbook-links.server", () => ({
@@ -353,11 +353,7 @@ describe("applyResources", () => {
       );
     }
     expect(upsertPreview).toHaveBeenCalledTimes(1);
-    // Registered on the BASE executor, committed before the reconcile
-    // transaction opens: the alerting engine-backed kinds write suppressed resources tagged
-    // with this id over HTTP, so the row must never be able to roll back out
-    // from under them (orphan namespace), and the orphan sweep's "row before
-    // resources" invariant must hold mid-apply.
+    // Registration must commit before independently persisted preview resources.
     expect(upsertPreview).toHaveBeenCalledWith(db, {
       orgId: "org-1",
       repoid: "repo-1",
@@ -369,11 +365,10 @@ describe("applyResources", () => {
   });
 
   it("keeps the preview registered when a kind fails mid-apply (no orphan namespace)", async () => {
-    // Validation (dry-run) pass succeeds; the real pass fails on the SLO kind,
-    // after the alert kind already wrote to alerting engine.
+    // Validation succeeds, then the real SLO reconcile fails after alert writes.
     sloReconciler
       .mockResolvedValueOnce(empty)
-      .mockRejectedValueOnce(new Error("cc unavailable"));
+      .mockRejectedValueOnce(new Error("SLO repository unavailable"));
 
     await expect(
       applyResources({
@@ -382,12 +377,9 @@ describe("applyResources", () => {
         preview: "gio/x",
         state: { dashboards: [], runbooks: [], alerts: [], slos: [] },
       }),
-    ).rejects.toThrow("cc unavailable");
+    ).rejects.toThrow("SLO repository unavailable");
 
-    // Registration committed on the base executor before the failing
-    // transaction, so the suppressed alerting engine rules the alert kind created stay
-    // under a REGISTERED namespace: the next apply converges them and the
-    // orphan sweep never reaps a live preview.
+    // The registered namespace keeps partial preview resources recoverable.
     expect(upsertPreview).toHaveBeenCalledTimes(1);
     expect(upsertPreview).toHaveBeenCalledWith(db, {
       orgId: "org-1",

@@ -518,8 +518,7 @@ function InstanceRow({
             className={cn("hidden shrink-0 md:block", COL_BUDGET)}
           />
         )}
-        {/* Burn rates print at the engine's own precision (one decimal, ×);
-            a merged row shows its lead tier's rate, the rest on the tooltip. */}
+        {/* Merged rows show the lead tier's rate and the rest in the tooltip. */}
         <FactCell
           col={COL_VALUE}
           className={isSlo ? undefined : "pl-8 md:pl-0"}

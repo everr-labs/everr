@@ -1,4 +1,4 @@
-// Shared alerting engine alert history event types.
+// Shared alert-history event types.
 export const ALERT_EVENT_TYPES = [
   "instance_fired",
   "instance_resolved",

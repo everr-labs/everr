@@ -20,8 +20,7 @@ import * as alerting from "@/data/alerting/repository";
 import type { DbExecutor } from "@/db/client";
 import { applySloSpecs } from "./apply.server";
 
-// The SLO reconciler talks to alerting engine over HTTP and never touches Postgres, so the
-// Reconciler contract's `db` is unused here — a stub satisfies the type.
+// These tests mock the repository, so the reconciler executor is unused.
 const db = {} as unknown as DbExecutor;
 
 const mockedList = alerting.listSlos as ReturnType<typeof vi.fn>;
@@ -58,10 +57,7 @@ function sloDoc(name = "checkout", overrides = {}) {
   };
 }
 
-// An SLO view shape as returned by the listing, matching what applying the
-// default sloDoc() fixture stores (so the fingerprints are equal). Identity
-// (project/slug, live-vs-preview) lives on `name` and `previewId`, not an
-// annotation. Only everr.repoid stays there.
+// Matches the stored form of the default SLO fixture.
 function managedSlo(name: string, specOver: Record<string, unknown> = {}) {
   const { repoid = "repo-1", ...restSpec } = specOver;
   return {
@@ -84,8 +80,7 @@ function managedSlo(name: string, specOver: Record<string, unknown> = {}) {
   };
 }
 
-// A stored Preview copy is suppressed and references its owning Preview. The
-// project/slug name is unchanged from the live copy.
+// A suppressed preview copy of the SLO fixture.
 function previewSlo(
   name: string,
   previewId: string,
@@ -107,15 +102,14 @@ function previewSlo(
 const live = { orgId: "o", repoid: "repo-1", kind: "live" } as const;
 
 describe("applySloSpecs", () => {
-  it("creates a managed alerting engine SLO after validating the spec through the test probe", async () => {
+  it("creates a managed SLO after validating its spec", async () => {
     const res = await applySloSpecs({
       namespace: live,
       db,
       resources: [{ path: "s.yaml", resource: sloDoc() }],
     });
 
-    // Validation first: alerting engine's dry-run test probe takes the bare spec (nothing
-    // is written, so no identity is needed).
+    // Validation takes the bare spec and performs no writes.
     expect(mockedTest).toHaveBeenCalledTimes(1);
     const [tOrg, tSpec] = mockedTest.mock.calls[0];
     expect(tOrg).toBe("o");
@@ -226,7 +220,7 @@ describe("applySloSpecs", () => {
     expect(spec.annotations).not.toHaveProperty("everr.repoid");
   });
 
-  it("dry-run of a first preview apply (no registry row) plans creates without listing alerting engine", async () => {
+  it("plans first-preview creates without listing stored SLOs", async () => {
     const res = await applySloSpecs({
       namespace: { ...live, kind: "preview", id: null },
       db,
@@ -291,7 +285,7 @@ describe("applySloSpecs", () => {
     expect(mockedDelete).not.toHaveBeenCalled();
   });
 
-  it("fails the resource clearly when alerting engine reports a version conflict", async () => {
+  it("fails the resource clearly on a version conflict", async () => {
     mockedList.mockResolvedValue([
       managedSlo("checkout", { targetPercent: 99.5 }),
     ]);
@@ -391,7 +385,7 @@ describe("applySloSpecs", () => {
     expect(mockedUpdate).not.toHaveBeenCalled();
   });
 
-  it("rejects duplicate SLO names before listing alerting engine", async () => {
+  it("rejects duplicate SLO names before listing stored SLOs", async () => {
     await expect(
       applySloSpecs({
         namespace: live,

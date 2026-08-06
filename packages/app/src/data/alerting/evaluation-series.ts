@@ -31,8 +31,8 @@ function evaluationPoint(
 
 /**
  * Evenly reduce stored evaluations while preserving both range edges. The
- * engine evaluates on a regular cadence, so index sampling is equivalent to a
- * time grid without hiding the newest point behind bucket alignment.
+ * regular cadence makes index sampling equivalent to a time grid without
+ * hiding the newest point behind bucket alignment.
  */
 export function shapeAlertEvaluationSeries(
   rows: readonly StoredAlertEvaluationPoint[],

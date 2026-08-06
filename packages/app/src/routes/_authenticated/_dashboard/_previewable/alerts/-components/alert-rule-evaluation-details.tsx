@@ -5,7 +5,10 @@ import {
 } from "@everr/ui/components/tooltip";
 import { cn } from "@everr/ui/lib/utils";
 import { useState } from "react";
-import { alertingConditionOperatorLabel } from "@/data/alerting/condition";
+import {
+  alertingConditionMatches,
+  alertingConditionOperatorLabel,
+} from "@/data/alerting/condition";
 import type {
   AlertingRuleCondition,
   AlertingRuleEvaluationPoint,
@@ -126,7 +129,7 @@ function BucketRail({
   );
 }
 
-function StateRails({
+export function AlertRuleEvaluationDetails({
   evaluationSeries,
   condition,
   events,
@@ -250,12 +253,8 @@ function valueSummary(
     sample.value === null ? [] : [sample.value],
   );
   if (values.length === 0) return "—";
-  const breached = values.filter(
-    (value) =>
-      alertRuleEvaluationOutcome(
-        { ...point, samples: [{ fingerprint: "", labels: {}, value }] },
-        condition,
-      ) === "breached",
+  const breached = values.filter((value) =>
+    alertingConditionMatches({ value }, condition),
   ).length;
   if (values.length === 1) {
     return `${values[0]} ${alertingConditionOperatorLabel(condition.operator)} ${condition.threshold}`;
@@ -337,32 +336,5 @@ export function AlertRuleEvaluationHistoryTable({
         </tbody>
       </table>
     </div>
-  );
-}
-
-export function AlertRuleEvaluationDetails({
-  evaluationSeries,
-  condition,
-  events,
-  currentFiringFingerprints,
-  domain,
-  intervalSeconds,
-}: {
-  evaluationSeries: AlertingRuleEvaluationSeries;
-  condition: AlertingRuleCondition;
-  events: readonly AlertEventLogRow[];
-  currentFiringFingerprints: readonly string[];
-  domain: [number, number];
-  intervalSeconds: number;
-}) {
-  return (
-    <StateRails
-      evaluationSeries={evaluationSeries}
-      condition={condition}
-      events={events}
-      currentFiringFingerprints={currentFiringFingerprints}
-      domain={domain}
-      intervalSeconds={intervalSeconds}
-    />
   );
 }

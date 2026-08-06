@@ -330,9 +330,7 @@ export const getAlertingSloBudgetSeries = createAuthenticatedServerFn({
       if (windowSecs === null) return [];
       const { fromISO, toISO } = resolveTimeRange(timeRange);
 
-      // The recent edge runs to "now": the hero computes its budget at read
-      // time too, so the chart and the hero agree without capping the chart at
-      // the engine's throttled last eval.
+      // Both chart and hero compute through "now" at read time.
       return querySloBudgetSeries(createSloQuery(org), {
         sliSql: slo.spec.sli.sql,
         targetPercent: slo.spec.targetPercent,
@@ -379,7 +377,7 @@ const settled = <T>(r: PromiseSettledResult<T>, fallback: T): T =>
   r.status === "fulfilled" ? r.value : fallback;
 
 /**
- * Ordering guarantee: engine-reserved keys first (flagged synthetic), then
+ * Ordering guarantee: reserved keys first (flagged synthetic), then
  * keys alerts have actually carried (event history in frequency order,
  * declared label_columns, current instance labels).
  */
@@ -402,7 +400,7 @@ export const listAlertingLabelKeys = createAuthenticatedServerFn({
       for (const key of rule.spec.label_columns) merged.add(key);
     for (const alert of settled(alerts, []))
       for (const key of Object.keys(alert.labels)) merged.add(key);
-    // Engine-reserved keys win on collision at dispatch time, so they win here.
+    // Reserved dispatch labels win collisions.
     const reserved = [
       ...ALERTING_SYNTHETIC_LABEL_KEYS,
       ...ALERTING_SLO_RESERVED_LABEL_KEYS,
@@ -418,10 +416,9 @@ export const listAlertingLabelKeys = createAuthenticatedServerFn({
 );
 
 /**
- * Values for one label key. Synthetic keys answer with the engine's own
- * vocabulary; `rule`/`slo` answer with IDs (what the dispatcher actually
- * matches on — dispatcher/routing.rs inserts `rule` as the RuleId), friendly
- * name as hint. Other keys merge instance labels with stored event history.
+ * Values for one label key. Synthetic keys use the dispatch vocabulary;
+ * `rule` and `slo` return IDs with friendly names as hints. Other keys merge
+ * instance labels with stored event history.
  */
 export const listAlertingLabelValues = createAuthenticatedServerFn({
   method: "GET",
@@ -517,7 +514,7 @@ export const resumeAlertingSlo = createAuthenticatedServerFn({ method: "POST" })
 // Deletion happens by removing the document from the repo and re-applying.
 
 // ---- Channels ----
-// alerting engine's POST /v1/channels is create-only (409 on an existing name).
+// Channel names are unique within an organization.
 export const createAlertingChannel = createAuthenticatedServerFn({
   method: "POST",
 })
@@ -531,9 +528,7 @@ export const createAlertingChannel = createAuthenticatedServerFn({
     alerting.createChannel(orgId(session), data),
   );
 
-// PUT replaces the config wholesale; secrets are write-only, so the edit
-// drawer re-enters them. `newName` renames the channel (references inside the
-// engine are id-based, so nothing breaks).
+// Config replacement requires re-entering write-only secrets. References use IDs.
 export const updateAlertingChannel = createAuthenticatedServerFn({
   method: "POST",
 })
@@ -574,8 +569,7 @@ export const testAlertingChannel = createAuthenticatedServerFn({
   );
 
 // ---- Receivers ----
-// alerting engine's POST /v1/receivers is create-only (409 on an existing name).
-// `channels` is a list of channel NAMES; the engine 422s unknown ones.
+// Receiver names are unique; channel references use names at this boundary.
 export const createAlertingReceiver = createAuthenticatedServerFn({
   method: "POST",
 })
@@ -589,10 +583,7 @@ export const createAlertingReceiver = createAuthenticatedServerFn({
     alerting.createReceiver(orgId(session), data),
   );
 
-// Accepts exactly the fields the UI can edit; anything else (like the API-only
-// `annotations` map) is stripped here and reset by the engine's PUT upsert.
-// `newName` renames the receiver (routes target it by id inside the engine,
-// so nothing breaks).
+// Accept only editable fields. Route references use receiver IDs.
 export const updateAlertingReceiver = createAuthenticatedServerFn({
   method: "POST",
 })

@@ -344,7 +344,7 @@ function PipelineRoute({
   deletePending: boolean;
   actionsDisabled: boolean;
 }) {
-  // Custom timing only: routes on engine defaults stay single-line.
+  // Routes using default timing stay on one line.
   const timing = alertingRouteTimingSummary(
     {
       groupBy: route.group_by,

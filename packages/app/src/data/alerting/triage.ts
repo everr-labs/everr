@@ -186,8 +186,7 @@ export type AlertingExhaustedBudget = {
 /**
  * Every SLO whose budget is spent, worst first, whether or not
  * anything is firing on it now. Paused SLOs are skipped: their snapshots are
- * frozen, and a stale "exhausted" would be a claim the engine is no longer
- * making.
+ * frozen and no longer represent current state.
  */
 export function alertingExhaustedBudgets(
   slos: AlertingSlo[],
@@ -238,8 +237,7 @@ export function alertingResolveTriageInstances({
   const ruleById = new Map(rules.map((r) => [r.id, r]));
   const sloById = new Map(slos.map((s) => [s.id, s]));
   return alerts.map((alert) => {
-    // `alert.rule` carries the source uuid for SLO rows too (alerting engine wire
-    // convention); `alert.slo` discriminates, so exactly one side resolves.
+    // alert.slo discriminates SLO sources because alert.rule always carries the source id.
     const slo = alert.slo !== undefined ? sloById.get(alert.slo) : undefined;
     const rule = alert.slo === undefined ? ruleById.get(alert.rule) : undefined;
     const matchLabels = alertingDispatchLabels(alert, rule, slo);
@@ -261,7 +259,7 @@ export function alertingResolveTriageInstances({
 /**
  * Callers must not re-derive these with their own filters: a count split
  * between here and a route drifts when one side changes its definition.
- * Counts rows, not engine instances, so the strip and the board are the same
+ * Counts rows, so the strip and the board are the same
  * tally (an SLO tripping two tiers is one firing thing in both).
  */
 export function alertingTriageCounts(

@@ -31,7 +31,7 @@ describe("alertingErrorInfo", () => {
     expect(alertingErrorInfo(new Error("boom"))).toBeNull();
     expect(alertingErrorInfo("boom")).toBeNull();
     expect(alertingErrorInfo(undefined)).toBeNull();
-    // Right name, missing fields: not a alerting engine error envelope.
+    // The name alone does not satisfy the serialized error shape.
     expect(
       alertingErrorInfo(
         Object.assign(new Error("x"), { name: "AlertingError" }),

@@ -16,8 +16,7 @@ describe("detectTimeKey", () => {
   });
 
   it("does not prefix-match look-alike columns", () => {
-    // `timezone` used to match the old /^time.../ prefix pattern and claim a
-    // text column as the time axis.
+    // Similar prefixes do not make a text column temporal.
     expect(detectTimeKey([{ timezone: "UTC", v: 1 }])).toBeUndefined();
     expect(detectTimeKey([{ timestamp_label: "a", v: 1 }])).toBeUndefined();
     expect(detectTimeKey([{ ts_count: 3, v: 1 }])).toBeUndefined();

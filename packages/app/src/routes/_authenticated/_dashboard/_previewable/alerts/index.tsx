@@ -91,8 +91,7 @@ function AlertingTriagePage() {
     ),
   });
 
-  // On a alerting engine outage every count would render 0 — a false "all clear" — so any
-  // errored core query fails the whole page.
+  // A failed core query must not render as an all-clear zero.
   const coreQueries = [alerts, rules, slos, routes, receivers, silences];
   const errored = coreQueries.find((query) => query.isError);
 
@@ -124,7 +123,7 @@ function AlertingTriagePage() {
   );
   const boardGroups = useMemo(() => alertingFiringGroups(groups), [groups]);
 
-  // The engine snapshot's budget lags (~window/12 between re-evaluations), so
+  // The stored budget lags between evaluations, so
   // displayed SLOs get the same read-time scan the SLO pages use. Bounded:
   // triage never scans SLOs it does not show.
   const freshIds = useMemo(() => {

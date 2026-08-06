@@ -139,8 +139,7 @@ describe("alertingResolveTriageInstances", () => {
   });
 
   it("resolves an SLO-sourced instance to its SLO, never to a rule", () => {
-    // alerting engine's wire convention puts the source uuid in `alert.rule` for SLO rows
-    // too; `alert.slo` is what discriminates.
+    // alert.slo discriminates the source when alert.rule also contains the SLO id.
     const [inst] = resolve({
       alerts: [alertingAlert({ rule: SLO_ID, slo: SLO_ID, labels: {} })],
       slos: [alertingSlo()],
@@ -428,9 +427,7 @@ describe("alertingGroupInstances", () => {
     expect(group.rule).toBeUndefined();
   });
 
-  // Severity comes off the instance's own slo_tier label, so it must not wait
-  // on the SLO listing. It used to: an unresolved SLO source took the rule-side
-  // "info" default despite having no rule, and sorted to the bottom.
+  // Severity comes from slo_tier even when the SLO listing is incomplete.
   it("reads an SLO's severity before the SLO listing has caught up", () => {
     const alerts = [
       alertingAlert({

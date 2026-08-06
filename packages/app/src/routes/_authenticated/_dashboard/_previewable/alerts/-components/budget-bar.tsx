@@ -6,7 +6,7 @@ export function alertingFmtFraction(f: number): string {
   return `${(f * 100).toFixed(2)}%`;
 }
 
-/** Burn rate multiple, the engine's own precision (fmt_burn: one decimal). */
+/** Burn-rate multiple at one-decimal precision. */
 export function alertingFmtBurn(b: number): string {
   return `${b.toFixed(1)}×`;
 }

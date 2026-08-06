@@ -10,8 +10,7 @@ vi.mock("@/data/alerting/repository", () => ({
   adoptSlo: vi.fn(),
 }));
 
-// The Postgres-backed kinds are exercised through their routes; these unit
-// tests only drive the alerting engine-backed slo backend, so `db` can be a stub.
+// These tests exercise repository-backed resources, so db can be a stub.
 vi.mock("@/db/client", () => ({ db: {} }));
 
 import * as alerting from "@/data/alerting/repository";
@@ -170,7 +169,7 @@ describe("slo backend", () => {
     ).toBeNull();
   });
 
-  it("deletes the matching alerting engine SLO", async () => {
+  it("deletes the matching SLO", async () => {
     mockedListSlos.mockResolvedValue([alertingSlo("default/checkout", "r")]);
 
     expect(await deleteResource("org-1", "slo", "default", "checkout")).toBe(

@@ -17,9 +17,8 @@ function alertingGroupingSummary(groupBy: string[] | null) {
 }
 
 /**
- * Timing parts for one route (callers join with " · "). `overrides`: only
- * explicitly set values, empty when the route rides engine defaults;
- * `effective`: every slot filled, engine defaults where unset.
+ * Timing parts for one route. `overrides` contains explicit values;
+ * `effective` fills unset slots with defaults.
  */
 export function alertingRouteTimingSummary(
   timing: AlertingRouteTiming,

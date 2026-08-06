@@ -86,10 +86,8 @@ export function AlertingConceptNote({
   );
 }
 
-// AlertingError status/code survive the server-fn serialization boundary
-// structurally (see alertingErrorInfo): status 0 = transport failure, otherwise the
-// message carries alerting engine's problem+json detail. The regex is a last-resort
-// fallback for failures that never reached the alerting engine client.
+// AlertingError fields survive server-fn serialization structurally. Status 0
+// and transport-shaped messages represent service unavailability.
 export function alertingErrorMessage(error: unknown): string {
   const info = alertingErrorInfo(error);
   if (info) {
@@ -210,7 +208,7 @@ export function AlertingAlertStatusLabel({ status }: { status: string }) {
   );
 }
 
-/** Tier names ("fast-burn", "slow-burn", "ticket") are the engine's own vocabulary. */
+/** Human labels for stored SLO tier names. */
 export function AlertingSloTierBadge({
   tier,
   severity,
@@ -514,8 +512,7 @@ export function AlertingTableSkeleton({ rows = 5 }: { rows?: number }) {
 }
 
 /**
- * Names are editable labels (references are id-based engine-side): a rename
- * may not land on another resource's name, but keeping your own is fine.
+ * IDs keep selections stable through renames; names must remain unique.
  */
 export function isDuplicateName(
   existingNames: string[],
