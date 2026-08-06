@@ -1,0 +1,88 @@
+---
+title: SLO Spec
+description: The full SLO file format, the SLI query contract, and the burn-rate tier model.
+---
+
+An `SLO` is a resource with three top-level keys. Everr validates it on `everr apply` and again on read. The `spec` holds a ClickHouse query that counts good and valid events over a window, a reliability target, and the fixed burn-rate tiers that decide when to alert. For the model behind these fields see [how SLOs work](/docs/concepts/how-slos-work).
+
+```yaml
+kind: SLO
+metadata:
+  name: <slug>
+spec:
+  { ... }
+```
+
+| Key | Type | Notes |
+| --- | --- | --- |
+| `kind` | `"SLO"` | Selects the reconciler. Required. |
+| `metadata.name` | string | The SLO's **slug** and identity. Required. 1 to 128 chars of `[A-Za-z0-9_.-]`, tenant-unique. |
+| `metadata.project` | string | Optional project the SLO belongs to. Defaults to `default`. |
+| `metadata.labels` | map (string to string) | Optional free-form labels carried on the resource. |
+| `spec` | object | The SLO contents, below. |
+
+## `spec`
+
+| Field | Type | Required | Notes |
+| --- | --- | --- | --- |
+| `sli.sql` | string | yes | ClickHouse SQL returning `good` and `valid` counts for the window. Must reference `{window_start:DateTime}` and `{window_end:DateTime}`. See [the SLI contract](#the-sli-query) below. |
+| `targetPercent` | number | yes | The objective, strictly `> 0` and `< 100`. `99.9` means 99.9% of valid events must be good. |
+| `timeWindow` | string | yes | The rolling budget window: `<int><m\|h\|d\|w>`, for example `30d`. No seconds unit, minimum 1 day, and at most 366 days. |
+| `minValidEvents` | int | no | Low-traffic floor: a tier's long window is only allowed to fire once it has seen at least this many valid events, suppressing noise from thin data. Omit to disable. |
+| `display` | object | no | `name` and/or `description`, both optional. Human-facing labels: `display.name` shows in the app and drives the burn notification summary, while the SLO's canonical identity stays the slug. |
+| `runbook` | string | no | A linked runbook: bare `slug` (resolved against the SLO's own project) or `project/slug`, the same grammar `AlertRule`'s `spec.runbook` uses. Must resolve at apply time, either to a runbook in the same apply or to one owned by another repo. Generates the `link.runbook` notification annotation. |
+| `annotations` | map (string to string) | no | Free-form key/value pairs stored alongside Everr's generated annotations. Keys starting with `everr.` are reserved and rejected, as are the notification keys `summary`, `description`, `link.alert`, and `link.runbook`: Everr generates those from other fields (such as the display name and the `runbook` reference). |
+
+Ownership is keyed by the SLO's canonical name (`<project>/<slug>`) and its first-class Repoid. An SLO under another Repoid with a name your config declares is an ownership conflict at apply time: `everr apply` fails fast unless run with `--adopt`, which transfers the SLO in place. An SLO owned by your Repoid is part of that config: apply updates it when the spec drifts and prunes it if no YAML file declares it.
+
+## The SLI query
+
+`sli.sql` is a single read-only `SELECT`. It must return at most one row with two numeric columns:
+
+- `good`: the count of events that met the objective.
+- `valid`: the count of events eligible to be judged (the denominator).
+
+Both are required, by those exact names. The achieved reliability for the window is `good / valid`, and the error budget is what remains of the `1 - targetPercent/100` allowance.
+
+The window is supplied as two ClickHouse query parameters, and the SQL **must** reference both:
+
+- `{window_start:DateTime}`: inclusive lower bound of the rolling window.
+- `{window_end:DateTime}`: exclusive upper bound (now).
+
+```sql
+SELECT countIf(status < 500) AS good, count() AS valid
+FROM checkouts
+WHERE ts >= {window_start:DateTime} AND ts < {window_end:DateTime}
+```
+
+Only these two parameters are available. The SQL does not support `${...}` templating. Its validity against your schema is checked by a dry-run query during apply.
+Zero rows means no data for that window. More than one row is rejected because each SLO tracks one objective and one error budget. Define separate SLO resources when different services or dimensions need independent budgets.
+
+## Burn-rate tiers
+
+Each tier fires when the burn rate exceeds `burnRate` over **both** its long and short windows at once. Everr evaluates the canonical three tiers, calibrated for a 30-day window and scaled proportionally for other SLO windows:
+
+| Tier | Burn rate | Long window | Short window | Severity |
+| --- | --- | --- | --- | --- |
+| `fast-burn` | 14.4× | 1h | 5m | critical |
+| `slow-burn` | 6.0× | 6h | 30m | critical |
+| `ticket` | 1.0× | 3d | 6h | warning |
+
+Custom tiers are not currently configurable in SLO YAML.
+
+## Manifest
+
+The apply identity (the `repoid`) is inferred from the repository's `origin` git remote, or set explicitly in an `everr.yaml` at the apply root. This is the same manifest that governs alert rules and dashboards; see the [AlertRule spec](/docs/reference/alert-spec#manifest) for the full rules.
+
+SLO declarations sit flat in `everr/`, named `*.slo.yaml`. `everr apply ./everr` discovers every `kind: SLO` document under the directory and makes the live SLOs for that repoid exactly match the tree: new documents are created, changed ones updated, and removed ones **deleted**. The kind suffix is a naming convention only: apply routes by the `kind:` field. Use `--preview` to stage changes without notifying (preview SLOs evaluate fully but the dispatcher never sends). See the [`everr apply` reference](/docs/reference/cli#dashboards-gitops).
+
+## Constraints and errors
+
+- `metadata.name` must be 1 to 128 chars of `[A-Za-z0-9_.-]`.
+- `sli.sql` must be non-empty and reference both `{window_start:DateTime}` and `{window_end:DateTime}`.
+- `sli.sql` must return at most one row containing numeric `good` and `valid` columns.
+- `targetPercent` must be strictly `> 0` and `< 100`.
+- `timeWindow` must be `<int><m|h|d|w>`, minimum 1 day and at most 366 days; calendar windows (`isRolling: false`) are rejected.
+- `minValidEvents`, when set, must be a non-negative integer.
+- `annotations` keys starting with `everr.` are rejected, along with `summary`, `description`, `link.alert`, and `link.runbook`: all are reserved for Everr's own generated annotations.
+- Supported document kinds for apply are `Dashboard`, `AlertRule`, `Runbook`, and `SLO`.

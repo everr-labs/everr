@@ -9,9 +9,17 @@ export async function getCoveredRepoids(
   orgId: string,
   preview: string,
 ): Promise<Set<string>> {
+  const rows = await getPreviewScopes(orgId, preview);
+  return new Set(rows.map((row) => row.repoid));
+}
+
+export async function getPreviewScopes(
+  orgId: string,
+  preview: string,
+): Promise<{ id: string; repoid: string }[]> {
   const rows = await db
-    .select({ repoid: previews.repoid })
+    .select({ id: previews.id, repoid: previews.repoid })
     .from(previews)
     .where(and(eq(previews.organizationId, orgId), eq(previews.name, preview)));
-  return new Set(rows.map((row) => row.repoid));
+  return rows;
 }

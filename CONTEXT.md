@@ -132,12 +132,19 @@ _Avoid_: Notebook (former name — renamed June 2026; see ADR 0002). Still accep
 A rule that runs a query on a schedule and notifies when it returns rows; an empty result means resolved.
 _Avoid_: monitor
 
+**Alert event stream**:
+An Organization-wide export of every firing and resolved Alert transition to external consumers, independent of notification routes and active alongside them.
+
 **Apply**:
 The idempotent operation (`everr apply`) that reconciles the Dashboards, Alerts, and Runbooks in a directory to match their as-code definitions.
 _Avoid_: deploy, sync, push
 
+**Preview**:
+A temporary, isolated projection of a branch's as-code resources. Its Alerts and SLOs are evaluated without sending notifications, and all resources owned by the Preview expire together.
+_Avoid_: preview namespace, environment
+
 **Repoid**:
-The stable identity that scopes ownership: every Dashboard, Alert, and Runbook is owned by exactly one Repoid, and apply only ever touches resources under it. Inferred from the repository's `origin` remote (normalized to the `host/owner/repo` slug) unless a Manifest pins one explicitly.
+The stable identity that scopes ownership: every Dashboard, Alert, SLO, and Runbook is owned by exactly one Repoid, and apply only ever touches resources under it. Inferred from the repository's `origin` remote (normalized to the `host/owner/repo` slug) unless a Manifest pins one explicitly.
 _Avoid_: repo id, ownership key
 
 **Ownership boundary**:

@@ -1,5 +1,6 @@
 import { type Column, DataTable } from "@everr/ui/components/data-table";
 import { Empty, EmptyDescription } from "@everr/ui/components/empty";
+import { Meter } from "@everr/ui/components/meter";
 import { useMemo } from "react";
 import type { WorkflowCostByJob } from "@/data/workflows/schemas";
 import { formatCost } from "@/lib/runner-pricing";
@@ -33,12 +34,11 @@ function ShareBar({ value, max }: { value: number; max: number }) {
   const pct = max > 0 ? (value / max) * 100 : 0;
   return (
     <div className="flex items-center gap-2">
-      <div className="h-1.5 w-16 overflow-hidden rounded-full bg-muted">
-        <div
-          className="h-full rounded-full bg-[var(--chart-1)]"
-          style={{ width: `${pct}%` }}
-        />
-      </div>
+      <Meter
+        className="w-16 shrink-0"
+        size="sm"
+        layers={[{ pct, tone: "chart" }]}
+      />
       <span className="w-9 text-right font-mono text-[11px] text-muted-foreground tabular-nums">
         {Math.round(pct)}%
       </span>

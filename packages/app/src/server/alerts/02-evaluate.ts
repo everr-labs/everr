@@ -1,326 +1,373 @@
-// The imperative shell of one alert evaluation. The state machine itself is
-// pure and lives in transition.ts; this module sequences the I/O around it:
-//
-//   1. Validate the queued payload — stale or malformed jobs are dropped with
-//      a warning, never retried.
-//   2. Load the definition from Postgres; skip if missing or deactivated.
-//   3. Read concurrently from ClickHouse: the rule's query result and the
-//      currently firing instance set. If either read fails, mark the
-//      definition errored, record an `evaluation_failed` event, and stop.
-//   4. Derive (pure): bound the evidence, turn rows into labeled instances,
-//      diff them against the previous firing set, and build the transition —
-//      the definition patch plus the notifications to send.
-//   5. Persist the evaluation bookkeeping and the transition's patch to
-//      Postgres.
-//   6. Resolve and enqueue the transition's notifications as retryable
-//      `alerts/deliver` jobs (one per channel target — see delivery.ts).
-//   7. Record the evaluation in ClickHouse: one row per instance transition
-//      and one per notification, carrying the targets it was queued for.
-//      Send failures are recorded later by the delivery job itself.
-//
-// Evaluations of one definition never run concurrently (per-org Graphile
-// queue + job_key), so each run may assume it sees the previous run's state.
-
 import { eq, sql } from "drizzle-orm";
 import { z } from "zod";
-import { ensureDeliveryDefaults } from "@/data/alerts/delivery-settings";
-import { activeSilenceConditions } from "@/data/alerts/silences";
-import { effectiveRepoid, previewJoin } from "@/data/previews/scope";
+import { renderMessage } from "@/data/alerts/template";
 import { db } from "@/db/client";
 import {
   alertDefinitions,
-  alertSettings,
-  alertSilences,
-  previews,
+  alertEvaluations,
+  alertEvents,
+  alertInstances,
 } from "@/db/schema";
 import { querySqlApiWithMeta } from "@/lib/clickhouse";
+import { addWorkerJobInTransaction } from "@/server/worker/jobs";
 import {
   errorMessage,
   exceptionAttributes,
   serverLogger,
 } from "@/telemetry/logger";
-import type { EvaluatePayload } from "./01-scanner";
 import {
-  diffInstances,
-  fetchFiringInstances,
-  type InstanceDiff,
-  rowsToInstances,
-} from "./02-instances";
-import { buildAlertTransition } from "./02-transition";
+  ALERT_EVALUATE_TASK,
+  alertEvaluationJobKey,
+  alertingPartitionQueue,
+  type EvaluatePayload,
+} from "./01-scanner";
+import { rowsToInstances } from "./02-instances";
+import { boundEventEvidence, boundEvidence } from "./03-events";
+import { ALERT_PROCESS_EVENT_TASK } from "./dispatcher";
 import {
-  type AlertEventRow,
-  type BoundedEvidence,
-  boundEvidence,
-  buildEvaluationEvent,
-  buildInstanceEvent,
-  recordAlertEvents,
-} from "./03-events";
-import {
-  enqueueAlertNotification,
-  type NotificationOutcome,
-  type ResolvedDeliveryContext,
-} from "./04-delivery";
-
-// The stored row, enriched at load with the preview name and effective repoid
-// resolved from the registry parent: preview rows keep repoid/name only there
-// (previewId FK), but the evaluator and the events it stamps into ClickHouse
-// need both as plain strings. `preview` is '' for live.
-type AlertDefinition = typeof alertDefinitions.$inferSelect & {
-  preview: string;
-  repoid: string;
-};
+  advanceAlertInstance,
+  newInactiveInstance,
+  type PresentAlertInstance,
+  type StoredAlertInstance,
+} from "./state-machine";
 
 const EvaluatePayloadSchema = z.object({
   alertDefinitionId: z.string().uuid(),
-  scheduledFor: z.coerce.date(),
+  scheduledFor: z.string().datetime(),
+  ruleVersion: z.number().int().positive().optional(),
 });
 
-export async function evaluateAlert(payload: EvaluatePayload): Promise<void> {
-  // 1. Validate the payload.
-  const parsedPayload = parsePayload(payload);
-  if (!parsedPayload) return;
-  const { alertDefinitionId, scheduledFor } = parsedPayload;
-
-  // 2. Load the definition, resolving the preview name and effective repoid
-  // from the registry parent (null on the row for preview rows).
-  const [row] = await db
-    .select({
-      def: alertDefinitions,
-      previewName: sql<string>`coalesce(${previews.name}, '')`,
-      repoid: effectiveRepoid(alertDefinitions),
-    })
-    .from(alertDefinitions)
-    .leftJoin(previews, previewJoin(alertDefinitions))
-    .where(eq(alertDefinitions.id, alertDefinitionId))
-    .limit(1);
-  if (!row?.def.active) return;
-  const def: AlertDefinition = {
-    ...row.def,
-    preview: row.previewName,
-    repoid: row.repoid,
-  };
-  const now = new Date();
-
-  const [[settingsRow], silences] = await Promise.all([
-    db
-      .select({ delivery: alertSettings.delivery })
-      .from(alertSettings)
-      .where(eq(alertSettings.organizationId, def.organizationId))
-      .limit(1),
-    db
-      .select({
-        id: alertSilences.id,
-        matchers: alertSilences.matchers,
-      })
-      .from(alertSilences)
-      .where(activeSilenceConditions(def.organizationId, def.id)),
-  ]);
-  const deliveryContext: ResolvedDeliveryContext = {
-    settings: settingsRow
-      ? { delivery: ensureDeliveryDefaults(settingsRow.delivery) }
-      : null,
-    silences,
-  };
-
-  // 3. Concurrent ClickHouse reads.
-  const [queryResult, firingResult] = await Promise.allSettled([
-    querySqlApiWithMeta<Record<string, unknown>>(
-      def.parsedQuery,
-      def.organizationId,
+function nextEvaluationAt(
+  scheduledFor: Date,
+  intervalSeconds: number,
+  now: Date,
+) {
+  return new Date(
+    Math.max(
+      scheduledFor.getTime() + intervalSeconds * 1_000,
+      now.getTime() + 1_000,
     ),
-    fetchFiringInstances(def),
-  ]);
-
-  if (queryResult.status === "rejected") {
-    await recordEvaluationFailure({
-      def,
-      now,
-      scheduledFor,
-      error: queryResult.reason,
-      logEvent: "alerts.evaluate.query_failed",
-    });
-    return;
-  }
-
-  if (firingResult.status === "rejected") {
-    await recordEvaluationFailure({
-      def,
-      now,
-      scheduledFor,
-      error: firingResult.reason,
-      logEvent: "alerts.evaluate.firing_set_read_failed",
-    });
-    return;
-  }
-
-  const rows = queryResult.value.rows;
-  const previous = firingResult.value;
-
-  // 4. Derive the transition (pure). Instance identity and counts come from the
-  // full result; `evidence` is only the bounded snapshot kept for storage and
-  // message rendering. Deriving `current` from the bounded rows would cap the
-  // firing set at MAX_EVIDENCE_ROWS and falsely resolve everything past it.
-  const evidence = boundEvidence(rows);
-  const current = rowsToInstances(rows, def.instanceLabelColumns ?? [], now);
-  const diff = diffInstances(previous, current);
-  const transition = buildAlertTransition({ previous, current, diff, now });
-
-  // 5. Persist the evaluation bookkeeping and the transition's patch.
-  await db
-    .update(alertDefinitions)
-    .set({
-      lastEvaluationStatus: "ok",
-      lastEvaluationError: "",
-      lastEvaluatedAt: now,
-      lastRowCount: evidence.rowCount,
-      lastEvidenceSnapshot: evidence.rows,
-      ...transition.definitionUpdate,
-    })
-    .where(eq(alertDefinitions.id, def.id));
-
-  // 6. Resolve and enqueue ONE notification for the entire evaluation. This
-  // runs BEFORE the events are recorded: instance_fired/instance_resolved events
-  // are the firing set the next run reads, so recording them before the
-  // notification is durably enqueued would make a retry see the instance as
-  // already firing and skip the re-enqueue, dropping the notification. On
-  // failure we throw without recording, letting the job retry re-derive and
-  // re-enqueue (delivery jobKeys replace, so re-enqueuing is idempotent).
-  // Preview alerts evaluate silently: the state bookkeeping above still runs
-  // so the UI shows firing/ok, but notifications never leave the building.
-  let delivery: NotificationOutcome | null = null;
-  if (transition.actions.length > 0 && def.previewId === null) {
-    delivery = await enqueueAlertNotification(
-      {
-        def,
-        instances: transition.actions.map((a) => ({
-          ...a.instance,
-          kind: a.kind,
-        })),
-      },
-      scheduledFor,
-      deliveryContext,
-    );
-  }
-
-  // 7. Record the evaluation's events.
-  await recordAlertEvents(
-    def,
-    buildEventRows({
-      def,
-      scheduledFor,
-      evidence,
-      diff,
-      delivery,
-    }),
-    "alerts.evaluate.event_insert_failed",
   );
 }
 
-function parsePayload(payload: EvaluatePayload) {
-  const parsed = EvaluatePayloadSchema.safeParse(payload);
-  if (!parsed.success) {
-    serverLogger.warn("alerts.evaluate.invalid_payload", {
-      "alert.definition_id": String(payload.alertDefinitionId),
-      "alert.scheduled_for": String(payload.scheduledFor),
-    });
-    return null;
-  }
-
-  return parsed.data;
+function numericValue(row: Record<string, unknown>, column?: string | null) {
+  if (!column) return null;
+  const value = Number(row[column]);
+  return Number.isFinite(value) ? value : null;
 }
 
-// One row per instance transition, then one evaluation event per notified kind
-// (a churned evaluation emits both a firing and a resolved row). Each carries
-// the targets it was queued for, or the silence that suppressed that kind.
-function buildEventRows(opts: {
-  def: AlertDefinition;
-  scheduledFor: Date;
-  evidence: BoundedEvidence;
-  diff: InstanceDiff;
-  delivery: NotificationOutcome | null;
-}): AlertEventRow[] {
-  const { def, scheduledFor, evidence, diff, delivery } = opts;
-
-  const events: AlertEventRow[] = [
-    ...diff.newlyFired.map((instance) =>
-      buildInstanceEvent({
-        def,
-        eventType: "instance_fired",
-        scheduledFor,
-        fingerprint: instance.fingerprint,
-        labels: instance.labels,
-        row: instance.row,
-      }),
-    ),
-    ...diff.nowResolved.map((instance) =>
-      buildInstanceEvent({
-        def,
-        eventType: "instance_resolved",
-        scheduledFor,
-        fingerprint: instance.fingerprint,
-        labels: instance.labels,
-      }),
-    ),
-  ];
-
-  const kindPresent = {
-    firing: diff.newlyFired.length > 0,
-    resolved: diff.nowResolved.length > 0,
-  } as const;
-  for (const kind of ["firing", "resolved"] as const) {
-    if (!kindPresent[kind]) continue;
-    const meta = delivery?.perKind[kind];
-    events.push(
-      buildEvaluationEvent({
-        def,
-        eventType: kind,
-        scheduledFor,
-        evidence,
-        // Delivered (silenceId === "") records where it went; suppressed
-        // records the silence; no settings records neither.
-        ...(delivery && meta && !meta.silenceId
-          ? { deliveryTargets: delivery.deliveryTargets }
-          : {}),
-        ...(meta ? { silenceId: meta.silenceId } : {}),
-      }),
-    );
-  }
-
-  return events;
+function storedInstance(
+  row: typeof alertInstances.$inferSelect,
+): StoredAlertInstance {
+  return {
+    fingerprint: row.fingerprint,
+    status: row.status,
+    labels: row.labels,
+    evidence: row.evidence,
+    value: row.value,
+    pendingSince: row.pendingSince,
+    activeSince: row.activeSince,
+    lastSeenAt: row.lastSeenAt,
+    absentCount: row.absentCount,
+  };
 }
 
-// A ClickHouse read failed before any state could be derived: mark the
-// definition errored, log, and record an `evaluation_failed` event.
-async function recordEvaluationFailure(opts: {
-  def: AlertDefinition;
-  now: Date;
-  scheduledFor: Date;
-  error: unknown;
-  logEvent: string;
-}): Promise<void> {
-  const { def, now, scheduledFor, error, logEvent } = opts;
-  await db
+async function scheduleNextInTransaction(
+  tx: Parameters<Parameters<typeof db.transaction>[0]>[0],
+  def: typeof alertDefinitions.$inferSelect,
+  scheduledFor: Date,
+  intervalSeconds = def.spec.interval_secs,
+) {
+  const runAt = nextEvaluationAt(scheduledFor, intervalSeconds, new Date());
+  const payload: EvaluatePayload = {
+    alertDefinitionId: def.id,
+    scheduledFor: runAt.toISOString(),
+    ruleVersion: def.version,
+  };
+  await tx
     .update(alertDefinitions)
-    .set({
-      lastEvaluationStatus: "error",
-      lastEvaluationError: errorMessage(error),
-      lastEvaluatedAt: now,
-    })
+    .set({ nextEvaluationAt: runAt })
     .where(eq(alertDefinitions.id, def.id));
-  serverLogger.error(logEvent, {
-    ...exceptionAttributes(error),
+  await addWorkerJobInTransaction(tx, ALERT_EVALUATE_TASK, payload, {
+    jobKey: alertEvaluationJobKey(def.id, payload.scheduledFor),
+    jobKeyMode: "replace",
+    maxAttempts: 5,
+    queueName: alertingPartitionQueue("alert", def.id),
+    runAt,
+  });
+}
+
+async function recordEvaluationFailure(
+  def: typeof alertDefinitions.$inferSelect,
+  scheduledFor: Date,
+  cause: unknown,
+) {
+  const message = errorMessage(cause).slice(0, 8_000);
+  await db.transaction(async (tx) => {
+    const inserted = await tx
+      .insert(alertEvaluations)
+      .values({ alertDefinitionId: def.id, scheduledFor, error: message })
+      .onConflictDoNothing()
+      .returning({ alertDefinitionId: alertEvaluations.alertDefinitionId });
+    if (inserted.length === 0) return;
+    await tx
+      .update(alertDefinitions)
+      .set({
+        lastError: message,
+        lastEvaluatedAt: new Date(),
+        lastErrorAt: new Date(),
+        consecutiveFailures: sql`${alertDefinitions.consecutiveFailures} + 1`,
+        healthStatus: sql`CASE WHEN ${alertDefinitions.consecutiveFailures} + 1 >= 3 THEN 'degraded'::alert_health ELSE ${alertDefinitions.healthStatus} END`,
+        degradedSince: sql`CASE WHEN ${alertDefinitions.consecutiveFailures} + 1 >= 3 THEN coalesce(${alertDefinitions.degradedSince}, now()) ELSE ${alertDefinitions.degradedSince} END`,
+      })
+      .where(eq(alertDefinitions.id, def.id));
+    const failureCount = def.consecutiveFailures + 1;
+    const maximum = def.spec.max_interval_secs ?? def.spec.interval_secs * 16;
+    const backoff = Math.min(
+      maximum,
+      def.spec.interval_secs * 2 ** Math.min(failureCount, 10),
+    );
+    await scheduleNextInTransaction(tx, def, new Date(), backoff);
+  });
+  serverLogger.warn("alerts.evaluate.query_failed", {
+    ...exceptionAttributes(cause),
     "alert.definition_id": def.id,
+    "alert.organization_id": def.organizationId,
     "error.handled": true,
   });
-  await recordAlertEvents(
-    def,
-    [
-      buildEvaluationEvent({
-        def,
-        eventType: "evaluation_failed",
-        scheduledFor,
-      }),
-    ],
-    "alerts.evaluate.event_insert_failed",
+}
+
+export async function evaluateAlert(rawPayload: unknown): Promise<void> {
+  const parsed = EvaluatePayloadSchema.safeParse(rawPayload);
+  if (!parsed.success) {
+    serverLogger.warn("alerts.evaluate.invalid_payload", {
+      "alert.payload": String(rawPayload),
+      "error.handled": true,
+    });
+    return;
+  }
+  const payload = parsed.data;
+  const scheduledFor = new Date(payload.scheduledFor);
+  const [def] = await db
+    .select()
+    .from(alertDefinitions)
+    .where(eq(alertDefinitions.id, payload.alertDefinitionId))
+    .limit(1);
+  if (
+    !def?.active ||
+    (payload.ruleVersion !== undefined && def.version !== payload.ruleVersion)
+  )
+    return;
+
+  let rows: Record<string, unknown>[];
+  try {
+    rows = (
+      await querySqlApiWithMeta<Record<string, unknown>>(
+        def.spec.sql,
+        def.organizationId,
+      )
+    ).rows;
+  } catch (cause) {
+    await recordEvaluationFailure(def, scheduledFor, cause);
+    return;
+  }
+
+  const evaluatedAt = new Date();
+  const evidence = boundEvidence(rows);
+  const present = rowsToInstances(
+    rows,
+    def.spec.label_columns,
+    evaluatedAt,
+  ).map(
+    (instance): PresentAlertInstance => ({
+      fingerprint: instance.fingerprint,
+      labels: instance.labels,
+      evidence: instance.row,
+      value: numericValue(instance.row, def.spec.value_column),
+    }),
   );
+  const presentByFingerprint = new Map(
+    present.map((instance) => [instance.fingerprint, instance]),
+  );
+  const previousRows = await db
+    .select()
+    .from(alertInstances)
+    .where(eq(alertInstances.alertDefinitionId, def.id));
+  const previousByFingerprint = new Map(
+    previousRows.map((row) => [row.fingerprint, storedInstance(row)]),
+  );
+  const fingerprints = new Set([
+    ...previousByFingerprint.keys(),
+    ...presentByFingerprint.keys(),
+  ]);
+  const transitions = [...fingerprints].map((fingerprint) => {
+    const current = presentByFingerprint.get(fingerprint);
+    const stored = previousByFingerprint.get(fingerprint);
+    let previous: StoredAlertInstance;
+    if (stored) {
+      previous = stored;
+    } else {
+      if (!current) {
+        throw new Error(
+          `missing alert instance for fingerprint ${fingerprint}`,
+        );
+      }
+      previous = newInactiveInstance(current);
+    }
+    return advanceAlertInstance({
+      previous,
+      present: current,
+      evaluatedAt,
+      forSeconds: def.spec.for_secs,
+      resolveAfter: def.spec.resolve_after,
+    });
+  });
+
+  await db.transaction(async (tx) => {
+    const [fresh] = await tx
+      .select({
+        active: alertDefinitions.active,
+        version: alertDefinitions.version,
+      })
+      .from(alertDefinitions)
+      .where(eq(alertDefinitions.id, def.id))
+      .for("update")
+      .limit(1);
+    if (
+      !fresh?.active ||
+      (payload.ruleVersion !== undefined &&
+        fresh.version !== payload.ruleVersion)
+    )
+      return;
+    const inserted = await tx
+      .insert(alertEvaluations)
+      .values({ alertDefinitionId: def.id, scheduledFor })
+      .onConflictDoNothing()
+      .returning({ alertDefinitionId: alertEvaluations.alertDefinitionId });
+    if (inserted.length === 0) return;
+
+    for (const transition of transitions) {
+      const next = transition.next;
+      const boundedInstanceEvidence = boundEventEvidence(
+        next.evidence,
+        next.labels,
+      );
+      await tx
+        .insert(alertInstances)
+        .values({
+          organizationId: def.organizationId,
+          alertDefinitionId: def.id,
+          fingerprint: next.fingerprint,
+          status: next.status,
+          labels: next.labels,
+          evidence: boundedInstanceEvidence.evidence,
+          value: next.value,
+          pendingSince: next.pendingSince,
+          activeSince: next.activeSince,
+          lastSeenAt: next.lastSeenAt,
+          absentCount: next.absentCount,
+          updatedAt: evaluatedAt,
+        })
+        .onConflictDoUpdate({
+          target: [
+            alertInstances.alertDefinitionId,
+            alertInstances.fingerprint,
+          ],
+          set: {
+            status: next.status,
+            labels: next.labels,
+            evidence: boundedInstanceEvidence.evidence,
+            value: next.value,
+            pendingSince: next.pendingSince,
+            activeSince: next.activeSince,
+            lastSeenAt: next.lastSeenAt,
+            absentCount: next.absentCount,
+            updatedAt: evaluatedAt,
+          },
+        });
+    }
+
+    const firing = transitions.filter((item) => item.next.status === "firing");
+    const fired = transitions.filter((item) => item.event === "firing");
+    const resolved = transitions.filter((item) => item.event === "resolved");
+    await tx
+      .update(alertDefinitions)
+      .set({
+        lastError: null,
+        healthStatus: "healthy",
+        consecutiveFailures: 0,
+        degradedSince: null,
+        lastEvaluatedAt: evaluatedAt,
+        lastSeenAt: rows.length > 0 ? evaluatedAt : def.lastSeenAt,
+        lastRowCount: evidence.rowCount,
+        firingInstanceCount: firing.length,
+        currentState: firing.length > 0 ? "firing" : "resolved",
+        lastFiredAt: fired.length > 0 ? evaluatedAt : def.lastFiredAt,
+        lastResolvedAt: resolved.length > 0 ? evaluatedAt : def.lastResolvedAt,
+      })
+      .where(eq(alertDefinitions.id, def.id));
+
+    const eventRows: (typeof alertEvents.$inferInsert)[] = transitions.flatMap(
+      (transition) => {
+        if (!transition.event) return [];
+        const next = transition.next;
+        const bounded = boundEventEvidence(next.evidence, next.labels);
+        const firstRow: Record<string, unknown> = {
+          ...bounded.evidence,
+          ...next.labels,
+        };
+        if (def.spec.value_column) firstRow.value = next.value;
+        return [
+          {
+            organizationId: def.organizationId,
+            repoid: def.repoid,
+            previewId: def.previewId,
+            sourceKind: "alert" as const,
+            sourceDefinitionId: def.id,
+            slug: `${def.project}/${def.slug}`,
+            eventType:
+              transition.event === "firing"
+                ? "instance_fired"
+                : "instance_resolved",
+            instanceFingerprint: next.fingerprint,
+            instanceLabels: next.labels,
+            severity: def.spec.severity,
+            notificationTitle: renderMessage(
+              def.spec.annotations.summary ?? "",
+              {
+                firstRow,
+              },
+            ),
+            notificationDescription: renderMessage(
+              def.spec.annotations.description ?? "",
+              { firstRow },
+            ),
+            suppressed: def.spec.suppressed || def.previewId !== null,
+            evidence: bounded.evidence,
+            evidenceTruncated: bounded.truncated,
+            occurredAt: evaluatedAt,
+          },
+        ];
+      },
+    );
+    if (eventRows.length > 0) {
+      const events = await tx
+        .insert(alertEvents)
+        .values(eventRows)
+        .returning({ id: alertEvents.id });
+      for (const event of events) {
+        await addWorkerJobInTransaction(
+          tx,
+          ALERT_PROCESS_EVENT_TASK,
+          { eventId: event.id },
+          {
+            jobKey: `${ALERT_PROCESS_EVENT_TASK}:${event.id}`,
+            jobKeyMode: "replace",
+            maxAttempts: 5,
+          },
+        );
+      }
+    }
+    await scheduleNextInTransaction(tx, def, scheduledFor);
+  });
 }

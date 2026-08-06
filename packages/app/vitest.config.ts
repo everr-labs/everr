@@ -1,6 +1,7 @@
 import {parse} from "dotenv";
 import viteReact from "@vitejs/plugin-react";
 import { defineConfig } from "vitest/config";
+import svgr from "vite-plugin-svgr";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
@@ -12,6 +13,7 @@ export default defineConfig({
 	},
 	plugins: [
 		viteReact(),
+		svgr({ svgrOptions: { dimensions: false } }),
 	],
 	test: {
 		environment: "jsdom",

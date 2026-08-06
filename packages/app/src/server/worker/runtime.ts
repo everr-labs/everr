@@ -107,8 +107,8 @@ async function startRunner(): Promise<Runner> {
     parsedCronItems: [...alertCronItems, ...previewsCronItems],
     pgPool: pool,
     taskList: {
-      ...githubEventsTaskList,
       ...alertTaskList,
+      ...githubEventsTaskList,
       ...previewsTaskList,
     },
   });

@@ -5,7 +5,7 @@ description: The built-in visualizations, the spec options each accepts, how eac
 
 A panel's `plugin.kind` selects its visualization and `plugin.spec` configures it. Everr ships eleven visualizations. An unrecognized `kind` renders an "Unknown visualization" placeholder rather than breaking the dashboard.
 
-They infer their structure from the columns your query returns — see [Shaping data for each visualization](#shaping-data-for-each-visualization) below for the data shapes.
+They infer their structure from the columns your query returns. See [Shaping data for each visualization](#shaping-data-for-each-visualization) below for the data shapes.
 
 Options are validated: `everr apply` rejects a dashboard whose option values don't match the tables below, naming the file and the offending option. Unknown option keys are accepted and preserved. If an already-stored dashboard contains an invalid value, the panel still renders with the default and shows a warning icon in its header listing the ignored options.
 
@@ -99,20 +99,20 @@ plugin:
 | --- | --- | --- | --- |
 | `calculation` | enum | `last` | One of `last`, `first`, `mean`, `min`, `max`, `sum`, `count`, `range`, `diff`. |
 | `unit` | string | `""` | Suffix appended to the value. |
-| `decimals` | number | — | Fixed fraction digits (0–10). Omitted: up to 2, trailing zeros dropped. |
+| `decimals` | number | none | Fixed fraction digits (0 to 10). Omitted: up to 2, trailing zeros dropped. |
 | `sparkline` | boolean | `false` | Draw a sparkline (in time order, or row order without a time column). |
 | `colorMode` | enum | `value` | `value` tints the number; `background` fills the whole tile with the threshold color. |
 | `showLabel` | boolean | `false` | Show the series label on a single-tile panel too. |
-| `noValue` | string | `–` | Text shown for a query that produced no value. |
-| `thresholds` | object | — | Color the value (and sparkline) by thresholds. |
+| `noValue` | string | en dash | Text shown for a query that produced no value. |
+| `thresholds` | object | none | Color the value (and sparkline) by thresholds. |
 | `thresholds.mode` | enum | `absolute` | `absolute` compares the raw value; `percent` compares against `thresholds.max`. |
 | `thresholds.max` | number | series max | Reference for `percent` mode. Set it (e.g. an SLA ceiling) for percentages that don't shift with the time window. |
-| `thresholds.defaultColor` | string | — | Color when no step is crossed. |
-| `thresholds.steps[]` | `{ value, color }` | — | Ascending thresholds; the highest crossed step's color wins. |
+| `thresholds.defaultColor` | string | none | Color when no step is crossed. |
+| `thresholds.steps[]` | `{ value, color }` | none | Ascending thresholds; the highest crossed step's color wins. |
 
 ## GaugeChart
 
-Reduces a numeric column to a single value — same calculations as StatChart — and renders it as a semicircular arc filled proportionally between `min` and `max`. Values outside the bounds clamp the arc to empty/full while the centered text still shows the real value. Data shape: see [Stat and gauge](#stat-and-gauge).
+Reduces a numeric column to a single value (same calculations as StatChart) and renders it as a semicircular arc filled proportionally between `min` and `max`. Values outside the bounds clamp the arc to empty/full while the centered text still shows the real value. Data shape: see [Stat and gauge](#stat-and-gauge).
 
 Threshold steps color the filled arc and draw a tick mark on the gauge at each step's position, so the at-a-glance read is "how close to the next band am I".
 
@@ -135,16 +135,16 @@ plugin:
 | --- | --- | --- | --- |
 | `calculation` | enum | `last` | One of `last`, `first`, `mean`, `min`, `max`, `sum`, `count`, `range`, `diff`. |
 | `unit` | string | `""` | Suffix appended to the value. |
-| `decimals` | number | — | Fixed fraction digits (0–10). Omitted: up to 2, trailing zeros dropped. |
+| `decimals` | number | none | Fixed fraction digits (0 to 10). Omitted: up to 2, trailing zeros dropped. |
 | `min` | number | `0` | Gauge axis lower bound. |
-| `max` | number | `100` | Gauge axis upper bound. Set it to the metric's real ceiling — the arc reads as value ÷ range. |
+| `max` | number | `100` | Gauge axis upper bound. Set it to the metric's real ceiling: the arc reads as value ÷ range. |
 | `showLabel` | boolean | `false` | Show the series label on a single-gauge panel too. |
-| `noValue` | string | `–` | Text shown for a query that produced no value. |
-| `thresholds` | object | — | Color the arc and mark step positions on the gauge. |
+| `noValue` | string | en dash | Text shown for a query that produced no value. |
+| `thresholds` | object | none | Color the arc and mark step positions on the gauge. |
 | `thresholds.mode` | enum | `absolute` | `absolute` compares the raw value; `percent` compares against `thresholds.max`. |
 | `thresholds.max` | number | gauge `max` | Reference for `percent` mode. |
-| `thresholds.defaultColor` | string | — | Arc color when no step is crossed. |
-| `thresholds.steps[]` | `{ value, color }` | — | Ascending thresholds; the highest crossed step's color wins. Each step also draws a tick on the gauge. |
+| `thresholds.defaultColor` | string | none | Arc color when no step is crossed. |
+| `thresholds.steps[]` | `{ value, color }` | none | Ascending thresholds; the highest crossed step's color wins. Each step also draws a tick on the gauge. |
 
 ## GeoMap
 
@@ -170,21 +170,21 @@ plugin:
 | `lonColumn` | string | `lon` | Longitude column (points mode). |
 | `regionColumn` | string | `region` | ISO-3166 alpha-2/alpha-3 column (choropleth mode). |
 | `valueColumn` | string | `value` | Sizes markers / shades regions. |
-| `labelColumn` | string | — | Tooltip title; falls back to the region or coordinates. |
-| `aggregation` | enum | `sum` | Choropleth mode: how rows that map to the same region combine — `sum`, `avg`, `min`, `max`, or `last`. Use `avg`/`max` for non-additive metrics like latency percentiles or error rates; `sum` is only correct for additive metrics like request counts. |
+| `labelColumn` | string | none | Tooltip title; falls back to the region or coordinates. |
+| `aggregation` | enum | `sum` | Choropleth mode: how rows that map to the same region combine: `sum`, `avg`, `min`, `max`, or `last`. Use `avg`/`max` for non-additive metrics like latency percentiles or error rates; `sum` is only correct for additive metrics like request counts. |
 | `unit` | string | `""` | Value formatting in the tooltip and legend. |
 | `showLegend` | boolean | `true` | Points: the value→marker-size mapping, plus per-query swatches when the panel has multiple queries. Choropleth: the color ramp. |
-| `colorScheme` | enum | `blue` | One of `blue`, `green`, `orange`, `red` — marker base / choropleth ramp. |
-| `projection` | enum | `naturalEarth1` | Map projection — `naturalEarth1`, `mercator`, or `equalEarth`. |
+| `colorScheme` | enum | `blue` | One of `blue`, `green`, `orange`, `red`, setting the marker base / choropleth ramp. |
+| `projection` | enum | `naturalEarth1` | Map projection: `naturalEarth1`, `mercator`, or `equalEarth`. |
 | `scaleType` | enum | `linear` | Value→color/size curve, applied to marker radius (points) and color intensity (choropleth). `sqrt` keeps marker **area** proportional to the value (perceptually honest proportional symbols); `log` spreads heavily skewed data (e.g. one country dominating traffic) so smaller values stay visible. For `log`, when the domain minimum is ≤ 0 the scale spans the top three decades below the maximum. |
 | `minRadius` | number | `3` | Points mode: smallest marker radius in viewBox units (the map viewBox is 980×500). |
 | `maxRadius` | number | `22` | Points mode: largest marker radius in viewBox units. |
-| `min` | number | — | Lower bound of the color/size domain. When unset: 0 in choropleth mode, so the ramp and legend read 0→max and no shaded region fades out entirely (the data minimum is used instead if values go negative); the data minimum in points mode. |
-| `max` | number | — | Upper bound of the color/size domain. Auto-derived from data when unset. |
+| `min` | number | none | Lower bound of the color/size domain. When unset: 0 in choropleth mode, so the ramp and legend read 0→max and no shaded region fades out entirely (the data minimum is used instead if values go negative); the data minimum in points mode. |
+| `max` | number | none | Upper bound of the color/size domain. Auto-derived from data when unset. |
 
 ## Treemap
 
-Tiles whose areas are proportional to a numeric column — good for part-of-whole breakdowns like requests per route or storage per table. Data shape: see [Treemap](#shaping-treemap).
+Tiles whose areas are proportional to a numeric column, good for part-of-whole breakdowns like requests per route or storage per table. Data shape: see [Treemap](#shaping-treemap).
 
 With `groupColumn`, tiles are colored by that column's value and the legend lists the groups (a label can appear once per group). Without it, a multi-query panel colors tiles by query, and a single ungrouped query cycles the palette per tile.
 
@@ -203,16 +203,16 @@ plugin:
 | Option | Type | Default | Notes |
 | --- | --- | --- | --- |
 | `nameColumn` | string | `name` | Tile label column. |
-| `valueColumn` | string | `value` | Tile size column — must be positive; rows at or below 0 are dropped. |
-| `groupColumn` | string | — | Group tiles by this column: one color per group, legend lists the groups. Rows with a null group are dropped. |
-| `maxTiles` | number | — | Cap the tile count (≥ 2): the largest `maxTiles - 1` tiles stay, the rest merge into a single muted "Other (n)" tile so long tails don't render as slivers. Unset renders every row. |
+| `valueColumn` | string | `value` | Tile size column; must be positive: rows at or below 0 are dropped. |
+| `groupColumn` | string | none | Group tiles by this column: one color per group, legend lists the groups. Rows with a null group are dropped. |
+| `maxTiles` | number | none | Cap the tile count (≥ 2): the largest `maxTiles - 1` tiles stay, the rest merge into a single muted "Other (n)" tile so long tails don't render as slivers. Unset renders every row. |
 | `unit` | string | `""` | Value formatting in tiles and the tooltip. |
 | `showValues` | boolean | `true` | Render the value inside tiles that are large enough to fit it. |
-| `showLegend` | boolean | `true` | Group color legend — only shown when there are groups (from `groupColumn` or multiple queries). |
+| `showLegend` | boolean | `true` | Group color legend, only shown when there are groups (from `groupColumn` or multiple queries). |
 
 ## StateTimeline
 
-Horizontal lanes of colored segments showing discrete states over time — service health, deploy status, CI results. Supports drag-to-zoom (writes the new range to the URL). Data shape: see [State timeline](#state-timeline).
+Horizontal lanes of colored segments showing discrete states over time: service health, deploy status, CI results. Supports drag-to-zoom (writes the new range to the URL). Data shape: see [State timeline](#state-timeline).
 
 ```yaml
 plugin:
@@ -230,19 +230,19 @@ plugin:
 
 | Option | Type | Default | Notes |
 | --- | --- | --- | --- |
-| `seriesColumn` | string | — | Long-format input: one lane per distinct value of this column. Unset, every non-time column is its own lane. |
+| `seriesColumn` | string | none | Long-format input: one lane per distinct value of this column. Unset, every non-time column is its own lane. |
 | `stateColumn` | string | first remaining column | State column for long-format input. Ignored without `seriesColumn`. |
-| `mergeConsecutive` | boolean | `true` | Merge consecutive samples with the same state into one segment. `false` renders one box per sample — though if that's what you want, [StatusHistory](#statushistory) is usually the better fit. |
+| `mergeConsecutive` | boolean | `true` | Merge consecutive samples with the same state into one segment. `false` renders one box per sample, though if that's what you want, [StatusHistory](#statushistory) is usually the better fit. |
 | `showValues` | boolean | `true` | Render the state text inside segments wide enough to fit it. |
 | `showLegend` | boolean | `true` | State color legend below the timeline. |
 | `colors` | object | `{}` | Fixed state → CSS color mapping (e.g. `{ ok: "#22c55e" }`); unmapped states cycle the shared palette. |
-| `rowHeight` | number | `0.9` | Segment thickness as a fraction of the lane height (0.2–1). |
+| `rowHeight` | number | `0.9` | Segment thickness as a fraction of the lane height (0.2 to 1). |
 
 ## StatusHistory
 
-Horizontal lanes of discrete colored cells, one per sample — periodic health checks, cron-job runs, CI builds per interval, SLO probes. Supports drag-to-zoom (writes the new range to the URL). Data shape: see [Status history](#status-history).
+Horizontal lanes of discrete colored cells, one per sample: periodic health checks, cron-job runs, CI builds per interval, SLO probes. Supports drag-to-zoom (writes the new range to the URL). Data shape: see [Status history](#status-history).
 
-**StatusHistory vs StateTimeline:** they share the same data shapes but answer different questions. StateTimeline treats samples as *state transitions* — a state holds until the next sample, segments stretch to fill time, and consecutive equal states merge into one band. Use it for things that are continuously *in* a state (service up/down, deploy phases, leader/follower) where "how long was it in state X, and when did it change?" is the question. StatusHistory treats samples as *independent observations* — each one is its own cell, nothing extends or merges, and a gap in sampling stays visibly empty instead of being painted over by the previous result. Use it for periodic checks and runs (health probes, cron jobs, per-bucket CI status) where "what did each check return — and did it run at all?" is the question.
+**StatusHistory vs StateTimeline:** they share the same data shapes but answer different questions. StateTimeline treats samples as *state transitions*: a state holds until the next sample, segments stretch to fill time, and consecutive equal states merge into one band. Use it for things that are continuously *in* a state (service up/down, deploy phases, leader/follower) where "how long was it in state X, and when did it change?" is the question. StatusHistory treats samples as *independent observations*: each one is its own cell, nothing extends or merges, and a gap in sampling stays visibly empty instead of being painted over by the previous result. Use it for periodic checks and runs (health probes, cron jobs, per-bucket CI status) where "what did each check return, and did it run at all?" is the question.
 
 ```yaml
 plugin:
@@ -259,19 +259,19 @@ plugin:
 
 | Option | Type | Default | Notes |
 | --- | --- | --- | --- |
-| `seriesColumn` | string | — | Long-format input: one lane per distinct value of this column. Unset, every non-time column is its own lane. |
+| `seriesColumn` | string | none | Long-format input: one lane per distinct value of this column. Unset, every non-time column is its own lane. |
 | `stateColumn` | string | first remaining column | Status column for long-format input. Ignored without `seriesColumn`. |
 | `showValues` | boolean | `false` | Render the status text inside cells wide enough to fit it. |
 | `showLegend` | boolean | `true` | Status color legend below the lanes. |
 | `colors` | object | `{}` | Fixed status → CSS color mapping (e.g. `{ pass: "#22c55e" }`); unmapped statuses cycle the shared palette. |
-| `rowHeight` | number | `0.9` | Cell height as a fraction of the lane height (0.2–1). |
-| `colWidth` | number | `0.9` | Cell width as a fraction of the sampling-interval slot (0.2–1) — lower values add horizontal breathing room between cells. |
+| `rowHeight` | number | `0.9` | Cell height as a fraction of the lane height (0.2 to 1). |
+| `colWidth` | number | `0.9` | Cell width as a fraction of the sampling-interval slot (0.2 to 1); lower values add horizontal breathing room between cells. |
 
 ## Heatmap
 
-A time × bucket grid of color-intensity cells — request-duration histograms over time, status-code distributions, per-entity activity. Supports drag-to-zoom (writes the new range to the URL). Data shape: see [Heatmap](#shaping-heatmap).
+A time × bucket grid of color-intensity cells: request-duration histograms over time, status-code distributions, per-entity activity. Supports drag-to-zoom (writes the new range to the URL). Data shape: see [Heatmap](#shaping-heatmap).
 
-Cells are opaque — a cell at the domain minimum gets the ramp's low-end color, while a cell with no rows draws nothing (the panel background shows through).
+Cells are opaque: a cell at the domain minimum gets the ramp's low-end color, while a cell with no rows draws nothing (the panel background shows through).
 
 ```yaml
 plugin:
@@ -293,13 +293,13 @@ plugin:
 | `showValues` | boolean | `false` | Render the value inside cells wide enough to fit it. |
 | `colorScheme` | enum | `spectral` | Cell color ramp. Multi-hue: `spectral` (cool blue → yellow → hot red), `greenYellowRed`. Single-hue light→dark: `blues`, `greens`, `oranges`, `reds`. |
 | `scaleType` | enum | `linear` | Value→color curve. `sqrt` lifts the low end; `log` spreads heavily skewed data (e.g. histogram counts) so sparse cells stay visible. |
-| `min` | number | `0` (or the data minimum if negative) | Lower bound of the color domain — cells at or below it clamp to the ramp's low-end color. |
+| `min` | number | `0` (or the data minimum if negative) | Lower bound of the color domain; cells at or below it clamp to the ramp's low-end color. |
 | `max` | number | data maximum | Upper bound of the color domain. Set it (e.g. an expected ceiling) for colors that don't shift with the time window. |
-| `cellGap` | number | `1` | Gap between cells in px (0–4). |
+| `cellGap` | number | `1` | Gap between cells in px (0 to 4). |
 
 ## NodeGraph
 
-A directed graph of nodes and weighted edges laid out with a deterministic force-directed layout — service dependency maps, call graphs, data flows. Edge thickness tracks the edge's weight; hovering a node highlights its neighborhood, and hovering a node or edge shows a tooltip with the value and (for nodes) the in/out edge counts. Data shape: see [Node graph](#node-graph).
+A directed graph of nodes and weighted edges laid out with a deterministic force-directed layout: service dependency maps, call graphs, data flows. Edge thickness tracks the edge's weight; hovering a node highlights its neighborhood, and hovering a node or edge shows a tooltip with the value and (for nodes) the in/out edge counts. Data shape: see [Node graph](#node-graph).
 
 ```yaml
 plugin:
@@ -316,11 +316,11 @@ plugin:
 | --- | --- | --- | --- |
 | `sourceColumn` | string | `source` | Edge source column; falls back to the first column when absent. |
 | `targetColumn` | string | `target` | Edge target column; falls back to the second column when absent. |
-| `valueColumn` | string | `value` | Edge weight column — drives edge thickness and node size. Falls back to the first remaining numeric column; without one every edge weighs 1. |
+| `valueColumn` | string | `value` | Edge weight column, driving edge thickness and node size. Falls back to the first remaining numeric column; without one every edge weighs 1. |
 | `unit` | string | `""` | Value formatting in tooltips and edge labels. |
 | `directed` | boolean | `true` | Draw arrowheads pointing at each edge's target. |
 | `showValues` | boolean | `false` | Render the edge's value at its midpoint. |
-| `maxNodes` | number | — | Cap the node count (≥ 2): the highest-value nodes stay, the rest (and their edges) are hidden behind the "not shown" badge. The layout also has a built-in 250-node limit. |
+| `maxNodes` | number | none | Cap the node count (≥ 2): the highest-value nodes stay, the rest (and their edges) are hidden behind the "not shown" badge. The layout also has a built-in 250-node limit. |
 
 ## Shaping data for each visualization
 
@@ -328,7 +328,7 @@ What you `SELECT` determines what renders. The visualizations infer their struct
 
 ### Time series
 
-- One column must be the **time axis**. It's detected by exact name (case-insensitive) — alias it to `ts`, `time`, or `timestamp`.
+- One column must be the **time axis**. It's detected by exact name (case-insensitive), so alias it to `ts`, `time`, or `timestamp`.
 - Remaining **numeric** columns become series (lines).
 - A remaining **string** column is treated as a series label, pivoting one value column into multiple lines. For example, grouping by `ServiceName`:
 
@@ -347,14 +347,14 @@ This produces one line per service.
 <Callout type="warn">
   The label column must be a **non-numeric** string. ClickHouse returns 64-bit
   integers and string columns identically in its JSON output, so a label cast to
-  a numeric string — e.g. `toString(StatusCode)` — can't be told apart from a
+  a numeric string (e.g. `toString(StatusCode)`) can't be told apart from a
   value column and renders as its own line instead of pivoting. Make the label
   unambiguous, for example `concat('status-', toString(StatusCode))`.
 </Callout>
 
 ### Bar
 
-Same column rules as the time series — a time column (`ts`/`time`/`timestamp`) makes one bar group per bucket, numeric columns become series, and a remaining string column pivots a single value column into one series per label. Without a time column the **first string column** becomes the category axis instead:
+Same column rules as the time series: a time column (`ts`/`time`/`timestamp`) makes one bar group per bucket, numeric columns become series, and a remaining string column pivots a single value column into one series per label. Without a time column the **first string column** becomes the category axis instead:
 
 ```sql
 SELECT ServiceName, count() AS spans
@@ -369,7 +369,7 @@ This produces one bar per service, in the query's order. Multiple queries merge 
 
 ### Table [#shaping-table]
 
-Renders every column as-is, in query order. No special column naming is required — return whatever you want to display:
+Renders every column as-is, in query order. No special column naming is required, so return whatever you want to display:
 
 ```sql
 SELECT ServiceName, count() AS spans, round(avg(Duration) / 1e6, 1) AS avg_ms
@@ -384,11 +384,11 @@ With multiple queries the panel shows a per-query selector.
 
 ### Geo map
 
-`GeoMap` takes latitude/longitude rows in points mode or region rows in choropleth mode (the column names are options — see [GeoMap](#geomap)). In points mode it renders **all** query frames, giving each query its own marker color; in choropleth mode it merges every frame by combining the value of each region with the configured `aggregation` (`sum` by default). Region codes that don't resolve to a known country and points with invalid coordinates are dropped — when any rows are skipped, the panel shows a small "N rows not mapped" badge in its top-right corner.
+`GeoMap` takes latitude/longitude rows in points mode or region rows in choropleth mode (the column names are options, see [GeoMap](#geomap)). In points mode it renders **all** query frames, giving each query its own marker color; in choropleth mode it merges every frame by combining the value of each region with the configured `aggregation` (`sum` by default). Region codes that don't resolve to a known country and points with invalid coordinates are dropped; when any rows are skipped, the panel shows a small "N rows not mapped" badge in its top-right corner.
 
 ### Treemap [#shaping-treemap]
 
-`Treemap` takes one label column and one positive numeric column; rows sharing the same label are summed. Rows with a missing label or a non-positive value can't be tiled and are dropped — when any are, the panel shows a small "N rows not shown" badge in its top-right corner.
+`Treemap` takes one label column and one positive numeric column; rows sharing the same label are summed. Rows with a missing label or a non-positive value can't be tiled and are dropped; when any are, the panel shows a small "N rows not shown" badge in its top-right corner.
 
 ### State timeline
 
@@ -404,7 +404,7 @@ GROUP BY ts, service
 ORDER BY ts
 ```
 
-Each state holds until the lane's next sample (the last one holds to the end of the range), so emit a row per bucket — or only on state changes — and return `NULL` for "no data" gaps.
+Each state holds until the lane's next sample (the last one holds to the end of the range), so emit a row per bucket (or only on state changes) and return `NULL` for "no data" gaps.
 
 ### Status history
 
@@ -414,7 +414,7 @@ Each sample renders as a fixed-width cell centered on its timestamp, sized to th
 
 ### Heatmap [#shaping-heatmap]
 
-`Heatmap` needs the same time column (alias to `ts`, `time`, or `timestamp`), plus a bucket column for the y-axis and a numeric column for the cell intensity — `GROUP BY` time and bucket:
+`Heatmap` needs the same time column (alias to `ts`, `time`, or `timestamp`), plus a bucket column for the y-axis and a numeric column for the cell intensity, then `GROUP BY` time and bucket:
 
 ```sql
 SELECT toStartOfInterval(Timestamp, INTERVAL {step:UInt32} SECOND) AS ts,
@@ -428,11 +428,11 @@ GROUP BY ts, bucket
 ORDER BY ts
 ```
 
-Rows that land on the same (time, bucket) cell are summed — within a query and across queries. Buckets that are all numeric (histogram bounds) sort like a y-axis with the largest at the top; categorical buckets keep their first-seen order top-down.
+Rows that land on the same (time, bucket) cell are summed, within a query and across queries. Buckets that are all numeric (histogram bounds) sort like a y-axis with the largest at the top; categorical buckets keep their first-seen order top-down.
 
 ### Node graph
 
-`NodeGraph` takes an edge list — one row per edge with a source column, a target column, and an optional numeric weight (no time axis; aggregate over the window and `LIMIT`):
+`NodeGraph` takes an edge list: one row per edge with a source column, a target column, and an optional numeric weight (no time axis; aggregate over the window and `LIMIT`):
 
 ```sql
 SELECT ServiceName AS source,
@@ -446,11 +446,11 @@ ORDER BY value DESC
 LIMIT 200
 ```
 
-Nodes are derived from the distinct endpoints, sized by the total weight flowing through them. Rows with the same (source, target) pair are summed — within a query and across queries — and the reverse direction is a separate edge (drawn offset so both stay visible). Rows missing either endpoint, and self-loops, are dropped — when any are, the panel shows a small "not shown" badge in its top-right corner. Without a numeric column every edge weighs 1, so a plain `SELECT client, server` edge list still sizes by row count.
+Nodes are derived from the distinct endpoints, sized by the total weight flowing through them. Rows with the same (source, target) pair are summed, within a query and across queries, and the reverse direction is a separate edge (drawn offset so both stay visible). Rows missing either endpoint, and self-loops, are dropped; when any are, the panel shows a small "not shown" badge in its top-right corner. Without a numeric column every edge weighs 1, so a plain `SELECT client, server` edge list still sizes by row count.
 
 ### Stat and gauge
 
-`StatChart` and `GaugeChart` share the same data shape: each reduces a numeric column to a single value via a calculation (`last`, `mean`, `max`, …) — stat shows it as a big number, gauge as a filled arc between `min` and `max`. Return one numeric column (the stat's optional sparkline follows the time column, or row order without one):
+`StatChart` and `GaugeChart` share the same data shape: each reduces a numeric column to a single value via a calculation (`last`, `mean`, `max`, …): stat shows it as a big number, gauge as a filled arc between `min` and `max`. Return one numeric column (the stat's optional sparkline follows the time column, or row order without one):
 
 ```sql
 SELECT toStartOfInterval(Timestamp, INTERVAL {step:UInt32} SECOND) AS ts, count() AS requests
@@ -463,17 +463,17 @@ Multiple resulting series render as multiple tiles or gauges; a query that retur
 
 ## Time range parameters
 
-The dashboard's **global time range** (the picker at the top, stored in the URL) is supplied to every query as two ClickHouse parameters, `{from:String}` and `{to:String}` — UTC datetimes in `YYYY-MM-DD HH:MM:SS.mmm` form. They are **not** injected automatically, so add them to your `WHERE` clause to scope the query to the picker:
+The dashboard's **global time range** (the picker at the top, stored in the URL) is supplied to every query as two ClickHouse parameters, `{from:String}` and `{to:String}`, which are UTC datetimes in `YYYY-MM-DD HH:MM:SS.mmm` form. They are **not** injected automatically, so add them to your `WHERE` clause to scope the query to the picker:
 
 ```sql
 WHERE Timestamp >= {from:String} AND Timestamp <= {to:String}
 ```
 
-A query that omits this scans all of history and won't follow the picker — time-series panels still clamp to the visible range, but `Table` and `StatChart` aggregate everything and stop matching the selected range. The parameters are always provided, so referencing them never errors.
+A query that omits this scans all of history and won't follow the picker: time-series panels still clamp to the visible range, but `Table` and `StatChart` aggregate everything and stop matching the selected range. The parameters are always provided, so referencing them never errors.
 
 ### Adaptive bucketing
 
-Alongside `from`/`to`, every query also receives `{step:UInt32}` — a bucket width in **seconds**, sized from the selected range so the series yields roughly **500 points** at any zoom level. Use it instead of hard-coding a resolution like `toStartOfMinute`, which over- or under-buckets the moment the picker moves:
+Alongside `from`/`to`, every query also receives `{step:UInt32}`, a bucket width in **seconds**, sized from the selected range so the series yields roughly **500 points** at any zoom level. Use it instead of hard-coding a resolution like `toStartOfMinute`, which over- or under-buckets the moment the picker moves:
 
 ```sql
 SELECT toStartOfInterval(Timestamp, INTERVAL {step:UInt32} SECOND) AS ts,
@@ -483,16 +483,16 @@ WHERE Timestamp >= {from:String} AND Timestamp <= {to:String}
 GROUP BY ts ORDER BY ts
 ```
 
-The width snaps to clock-aligned values so bucket boundaries land on clean axis lines — see [Query parameters](/docs/reference/dashboard-spec#query-parameters) for the exact widths. Like `from`/`to`, the parameter is always bound; queries that don't reference it are unaffected.
+The width snaps to clock-aligned values so bucket boundaries land on clean axis lines. See [Query parameters](/docs/reference/dashboard-spec#query-parameters) for the exact widths. Like `from`/`to`, the parameter is always bound; queries that don't reference it are unaffected.
 
 <Callout type="info">
-  The first and last buckets of a range are usually **partial** — the picker's
+  The first and last buckets of a range are usually **partial**: the picker's
   edges rarely fall on a bucket boundary, so the leading bucket starts before
   `from` and the trailing one ends before a full `step` has elapsed. An
   aggregate like `count()` or `sum()` therefore reads lower at the edges: the
   time-series chart clips the leading partial bucket at the left edge and shows
   the trailing one as a dip. This is inherent to time bucketing (Grafana behaves
-  the same) — read edge values as approximate, and don't mistake the trailing
+  the same), so read edge values as approximate, and don't mistake the trailing
   dip for a real drop.
 </Callout>
 
@@ -501,7 +501,7 @@ You can also reference dashboard [variables](/docs/reference/variables) with `$n
 ## TestData query kind (development / test)
 
 `TestData` is a synthetic, deterministic query source for development and visual
-testing — it returns generated rows without touching ClickHouse, so a dashboard
+testing: it returns generated rows without touching ClickHouse, so a dashboard
 renders stable output independent of real telemetry. It powers the Visualization
 Gallery. It is not meant for product dashboards.
 
@@ -511,13 +511,13 @@ resolved time range and adaptive `{step}`, so time-series scenarios span
 
 ### `random_walk`
 
-Numeric time series (or row-indexed series) — for charts and stat tiles.
+Numeric time series (or row-indexed series), for charts and stat tiles.
 
 | Field | Default | Meaning |
 | --- | --- | --- |
-| `series` | — | list of `{ name, start, noise, min?, max?, nullChance?, round? }`; one numeric column each |
+| `series` | none | list of `{ name, start, noise, min?, max?, nullChance?, round? }`; one numeric column each |
 | `seed` | `1` | deterministic generation |
-| `labelColumn` | — | when set, emit long output (`ts`, `<labelColumn>`, `<valueColumn>`) → one series per label (grouped pivot) |
+| `labelColumn` | none | when set, emit long output (`ts`, `<labelColumn>`, `<valueColumn>`) → one series per label (grouped pivot) |
 | `valueColumn` | `value` | value column name for long output |
 | `timeColumn` | `true` | `false` omits `ts` and emits `points` rows (row-order sparkline) |
 | `points` | `50` | row count when `timeColumn: false` |

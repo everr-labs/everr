@@ -1,0 +1,23 @@
+kind: SLO
+metadata:
+  name: demo-always-burning
+  project: demo
+spec:
+  display:
+    name: "Demo: always burning"
+    description: >-
+      Synthetic SLO whose SLI sits near 0%, so the error budget burns
+      constantly. A fixture for exercising the burn-rate UI alongside the demo
+      alert rules.
+  sli:
+    # "good" counts only extreme-severity logs (SeverityNumber >= 250), which
+    # effectively never occur, so the SLI sits near 0% and the budget is always
+    # burning. A fixture for exercising the SLO / burn-rate UI, paired with the
+    # demo alert rules.
+    sql: >-
+      SELECT countIf(SeverityNumber >= 250) AS good, count() AS valid
+      FROM app.logs
+      WHERE TimestampTime >= {window_start:DateTime}
+      AND TimestampTime < {window_end:DateTime}
+  targetPercent: 99.9
+  timeWindow: 1d

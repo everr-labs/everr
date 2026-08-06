@@ -39,6 +39,27 @@ receivers:
         auth:
           authenticator: everr_apikey
 
+  # >>> DEV ONLY: DELETE THIS RECEIVER FOR PRODUCTION <<<
+  # Dev-only self-telemetry ingest for the locally running app (server and
+  # browser) and other first-party dev tools. Unauthenticated on purpose: it
+  # is only exposed on the dev machine by docker-compose (bound to loopback)
+  # and carries no customer data. Its pipelines stamp the internal dev tenant
+  # and ship to BOTH the dev clickhouse and the desktop everr instance.
+  #
+  # This writes to the same clickhouse as the public path with no auth at all,
+  # so a production copy of this file must not carry it. Every dev-only block
+  # in this file is marked with the same `DEV ONLY` banner; grep for it.
+  otlp/dev:
+    protocols:
+      http:
+        endpoint: 0.0.0.0:4320
+        cors:
+          allowed_origins:
+            - http://localhost:5173
+            - http://127.0.0.1:5173
+      grpc:
+        endpoint: 0.0.0.0:4319
+
 processors:
   batch:
   # Internal pipeline (github webhook): tenant comes from a trusted header
@@ -66,6 +87,15 @@ processors:
         key: everr.tenant.id
         from_context: auth.tenant_id
 
+  # >>> DEV ONLY: DELETE THIS PROCESSOR FOR PRODUCTION <<<
+  # Dev self-telemetry: stamp everything onto the internal dev tenant so it is
+  # browsable in the cloud app.
+  resource/dev_tenant:
+    attributes:
+      - action: upsert
+        key: everr.tenant.id
+        value: ${env:DEV_SELF_TENANT_ID:-replace-with-your-dev-org-id}
+
 exporters:
   debug:
     verbosity: detailed
@@ -76,6 +106,11 @@ exporters:
     database: otel
     create_schema: false
     ttl: 72h
+  # >>> DEV ONLY: DELETE THIS EXPORTER FOR PRODUCTION <<<
+  # Forward to the dev machine's local everr desktop instance so distributed
+  # traces assemble whole there (app half + engine half in one store).
+  otlphttp/localdev:
+    endpoint: ${env:EVERR_DEV_OTLP_ENDPOINT:-http://host.docker.internal:54318}
 
 connectors:
   testlogstotraces:
@@ -113,6 +148,21 @@ service:
       receivers: [otlp/public]
       processors: [attributes/strip_user_tenant, resource/public_tenant, batch]
       exporters: [clickhouse, debug]
+
+    # >>> DEV ONLY: DELETE THESE THREE PIPELINES FOR PRODUCTION <<<
+    # Dev self-telemetry (app server + browser, dev tools): both stores.
+    traces/dev:
+      receivers: [otlp/dev]
+      processors: [attributes/strip_user_tenant, resource/dev_tenant, batch]
+      exporters: [clickhouse, otlphttp/localdev]
+    metrics/dev:
+      receivers: [otlp/dev]
+      processors: [attributes/strip_user_tenant, resource/dev_tenant, batch]
+      exporters: [clickhouse, otlphttp/localdev]
+    logs/dev:
+      receivers: [otlp/dev]
+      processors: [attributes/strip_user_tenant, resource/dev_tenant, batch]
+      exporters: [clickhouse, otlphttp/localdev]
 
   # Ship the collector's own telemetry (its logs, metrics, and internal
   # traces) to the dev-machine's local everr collector so we can observe the

@@ -105,7 +105,7 @@ describe("applyRunbookSpecs", () => {
       dryRun: true,
       resources: [{ path: "a.yaml", resource: nb("a") }],
     });
-    expect(result.created).toEqual(["a"]);
+    expect(result.created).toEqual(["default/a"]);
   });
 
   it("updates a runbook whose document changed", async () => {
@@ -123,7 +123,7 @@ describe("applyRunbookSpecs", () => {
     });
     expect(result).toMatchObject({
       created: [],
-      updated: ["a"],
+      updated: ["team/a"],
       deleted: [],
     });
   });
@@ -145,7 +145,7 @@ describe("applyRunbookSpecs", () => {
     expect(result).toEqual({
       created: [],
       updated: [],
-      deleted: ["old"],
+      deleted: ["team/old"],
       adopted: [],
       conflicts: [],
     });
@@ -175,7 +175,7 @@ describe("applyRunbookSpecs", () => {
     });
 
     expect(first.deleted).toEqual([]);
-    expect(second.created).toEqual(["a"]);
+    expect(second.created).toEqual(["default/a"]);
     expect(second.deleted).toEqual([]);
     expect(eq).toHaveBeenCalledWith("repoid", "repo-1");
     expect(eq).toHaveBeenCalledWith("repoid", "repo-2");
@@ -189,7 +189,7 @@ describe("applyRunbookSpecs", () => {
       ...base,
       resources: [{ path: "a.yaml", resource: nb("a", "team") }],
     });
-    expect(result.created).toEqual(["a"]);
+    expect(result.created).toEqual(["team/a"]);
     expect(mockedDb.insert).toHaveBeenCalledOnce();
     // Live creates carry the repoid and a null previewId (schema CHECK).
     const insertChain = mockedDb.insert.mock.results[0]?.value as {
@@ -207,7 +207,7 @@ describe("applyRunbookSpecs", () => {
       dryRun: true,
       resources: [{ path: "a.yaml", resource: nb("a", "team") }],
     });
-    expect(result.created).toEqual(["a"]);
+    expect(result.created).toEqual(["team/a"]);
     expect(mockedDb.insert).not.toHaveBeenCalled();
   });
 
@@ -236,7 +236,7 @@ describe("applyRunbookSpecs", () => {
       },
       resources: [{ path: "a.yaml", resource: nb("a") }],
     });
-    expect(result.created).toEqual(["a"]);
+    expect(result.created).toEqual(["default/a"]);
     // The existing-rows query and writes scope by the registry id.
     const eqCalls = vi.mocked(eq).mock.calls.map(([l, r]) => [l, r]);
     expect(eqCalls).toContainEqual(["preview_id", "prev-1"]);

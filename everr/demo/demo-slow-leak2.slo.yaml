@@ -1,0 +1,50 @@
+kind: SLO
+metadata:
+  name: demo-slow-leak-2
+  project: demo
+spec:
+  display:
+    name: "Demo: slow leak 2"
+    description: >-
+      Synthetic SLO that leaks error budget at a steady 1.2x from a fixed start
+      date, so the budget drains linearly and runs out 25 days later. A fixture
+      for the slow-burn path: the ticket tier fires, nothing pages, and the
+      time to exhaustion counts down in weeks rather than minutes.
+  sli:
+    # No table: `good` and `valid` are computed from the window bounds alone, so
+    # the fixture is exact, instant, and immune to whatever the local stack
+    # happens to be emitting (or not emitting) that day.
+    #
+    # The model is one synthetic event per second. Every second before
+    # `burn_start` is good; 1.2% of the seconds after it are bad. Against a 99%
+    # target (a 1% budget) that is a sustained 1.2x burn on any window that sits
+    # entirely after `burn_start`, and a burn that rises with the post-start
+    # share on the 30d budget window.
+    #
+    # Why those numbers, and how to retune:
+    #   burn on a fully-post-start window = bad_rate / (1 - target) = 1.2%/1% = 1.2x
+    #   time to exhaustion = timeWindow * budget_remaining / burn = 30d * 1 / 1.2 = 25d
+    # So 1.2% against a 99% target is what buys the 25-day horizon on a 30d
+    # window. Raise bad_rate to drain faster; past 6% it clears the slow-burn
+    # tier and starts paging, which is the other fixture's job.
+    #
+    # `burn_start` is deliberately back-dated so the SLO arrives mid-drain
+    # rather than at a full budget: the chart shows the descent already under
+    # way and the readouts have something to say on day one. Move it forward to
+    # reset the fixture (the budget refills as the window rolls past it), or set
+    # it to today to watch the full 100% -> 0% arc.
+    # Written out longhand rather than with a CTE: apply validates the SQL
+    # through a generic parser that only accepts `WITH name AS (subquery)`,
+    # not ClickHouse's scalar `WITH expr AS name` form.
+    sql: >-
+      SELECT
+      toUInt64(dateDiff('second', {window_start:DateTime}, {window_end:DateTime})) AS valid,
+      toUInt64(dateDiff('second', {window_start:DateTime}, {window_end:DateTime}))
+      - toUInt64(round(0.013 * greatest(0, dateDiff('second',
+      greatest({window_start:DateTime}, toDateTime('2026-07-18 00:00:00')),
+      {window_end:DateTime})))) AS good
+  targetPercent: 99
+  timeWindow: 30d
+  # The 5m window (the fast-burn tier's short window) carries 300 synthetic
+  # events, so every tier clears this floor and none of them read "no data".
+  minValidEvents: 100

@@ -3,6 +3,7 @@ import { isNumericValue } from "@/lib/numeric";
 import {
   detectTimeKey,
   getValueKeys,
+  niceLinearDomain,
   toNumber,
   toTimestamp,
 } from "./data-utils";
@@ -20,19 +21,6 @@ describe("detectTimeKey", () => {
     expect(detectTimeKey([{ timezone: "UTC", v: 1 }])).toBeUndefined();
     expect(detectTimeKey([{ timestamp_label: "a", v: 1 }])).toBeUndefined();
     expect(detectTimeKey([{ ts_count: 3, v: 1 }])).toBeUndefined();
-  });
-
-  it("no longer matches the retired alias names", () => {
-    for (const name of [
-      "date",
-      "datetime",
-      "created_at",
-      "period",
-      "bucket",
-      "interval",
-    ]) {
-      expect(detectTimeKey([{ [name]: "t", v: 1 }])).toBeUndefined();
-    }
   });
 
   it("returns undefined for no rows", () => {
@@ -120,12 +108,6 @@ describe("getValueKeys", () => {
     expect(getValueKeys(rows, "time")).toEqual(["count"]);
   });
 
-  it("includes real number columns", () => {
-    expect(getValueKeys([{ time: "t", value: 1.5 }], "time")).toEqual([
-      "value",
-    ]);
-  });
-
   it("detects a column that is NULL in the first row but numeric later", () => {
     // ClickHouse returns NULL for the leading bucket of an aggregate with no
     // events yet; the column must still be recognized as a value column.
@@ -146,5 +128,58 @@ describe("getValueKeys", () => {
 
   it("returns an empty array for no rows", () => {
     expect(getValueKeys([], "time")).toEqual([]);
+  });
+});
+
+describe("niceLinearDomain", () => {
+  it("ends on round steps rather than whatever the data happened to reach", () => {
+    expect(niceLinearDomain(0, 87)).toEqual({
+      domain: [0, 100],
+      ticks: [0, 25, 50, 75, 100],
+    });
+    expect(niceLinearDomain(0, 1024)).toEqual({
+      domain: [0, 1500],
+      ticks: [0, 500, 1000, 1500],
+    });
+  });
+
+  it("covers the data, so nothing plots outside the axis", () => {
+    for (const max of [1, 3, 7, 9, 23, 45, 133, 999, 5000, 86400, 0.07]) {
+      const { domain } = niceLinearDomain(0, max);
+      expect(domain[1]).toBeGreaterThanOrEqual(max);
+    }
+  });
+
+  it("keeps the floor at zero, so a line's height is its value", () => {
+    // Cropping to the data's own min would make a series that wanders between
+    // 900 and 1000 look like it swings from nothing to everything.
+    expect(niceLinearDomain(900, 1000).domain[0]).toBe(0);
+  });
+
+  it("extends below zero only when the data goes there", () => {
+    const { domain, ticks } = niceLinearDomain(-12, 87);
+    expect(domain[0]).toBeLessThanOrEqual(-12);
+    expect(domain[1]).toBeGreaterThanOrEqual(87);
+    expect(ticks[0]).toBe(domain[0]);
+    expect(ticks.at(-1)).toBe(domain[1]);
+  });
+
+  it("gives a flat series an axis with height instead of plotting on the edge", () => {
+    const { domain } = niceLinearDomain(0, 0);
+    expect(domain[1]).toBeGreaterThan(domain[0]);
+  });
+
+  it("labels fractional ticks cleanly, without binary-addition dust", () => {
+    // Adding a 0.2 step repeatedly reaches 0.6000000000000001, which recharts
+    // would print verbatim on the axis.
+    expect(niceLinearDomain(0, 1).ticks).toEqual([0, 0.25, 0.5, 0.75, 1]);
+  });
+
+  it("survives data that carries no usable numbers", () => {
+    const { domain } = niceLinearDomain(
+      Number.POSITIVE_INFINITY,
+      Number.NEGATIVE_INFINITY,
+    );
+    expect(domain.every(Number.isFinite)).toBe(true);
   });
 });

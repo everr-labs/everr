@@ -96,6 +96,7 @@
     "nitro": "catalog:",
     "smee-client": "^5.0.0",
     "typescript": "catalog:",
-    "vite": "catalog:"
+    "vite": "catalog:",
+    "vite-plugin-svgr": "^5.2.0"
   }
 }

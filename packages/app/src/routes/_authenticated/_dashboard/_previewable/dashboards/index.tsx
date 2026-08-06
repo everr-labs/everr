@@ -4,6 +4,7 @@ import { createFileRoute, useSearch } from "@tanstack/react-router";
 import { AlertCircle, LayoutDashboard, SearchIcon } from "lucide-react";
 import { useState } from "react";
 import { DashboardTree } from "@/components/dashboards/dashboard-tree";
+import { PageHeader } from "@/components/page-header";
 import { ResourceEmptyState } from "@/components/resource-empty-state";
 import { dashboardListOptions } from "@/data/dashboards/options";
 
@@ -31,10 +32,7 @@ function DashboardsIndexPage() {
 
   return (
     <div>
-      <div className="mb-6 flex items-center gap-2">
-        <LayoutDashboard className="size-5 text-muted-foreground" />
-        <h1 className="text-lg font-semibold">Dashboards</h1>
-      </div>
+      <PageHeader icon={LayoutDashboard} title="Dashboards" className="mb-6" />
 
       {!isEmpty && (
         <div className="relative mb-4 max-w-sm">

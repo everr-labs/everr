@@ -11,6 +11,7 @@ import {
   type ActionsUsageDimension,
 } from "@/components/cost-analysis/actions-usage-chart";
 import { CostByWorkflowTable } from "@/components/cost-analysis/cost-by-workflow-table";
+import { PageHeader } from "@/components/page-header";
 import { TimeRangePanel } from "@/components/time-range-panel";
 import type { TimeRangeInput } from "@/data/analytics/schemas";
 import {
@@ -103,14 +104,10 @@ function CostAnalysisPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">Cost Analysis</h1>
-          <p className="text-muted-foreground">
-            Estimated CI runner spend based on runner usage
-          </p>
-        </div>
-      </div>
+      <PageHeader
+        title="Cost Analysis"
+        lede="Estimated CI runner spend based on runner usage"
+      />
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <TimeRangePanel

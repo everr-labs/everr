@@ -1,6 +1,6 @@
 ---
 title: Writing good alerts
-description: A worked error-spike rule that fires per service with enough volume to matter — and what makes an alert worth having.
+description: A worked error-spike rule that fires per service with enough volume to matter, and what makes an alert worth having.
 ---
 
 Good alerts start as queries: this rule fires one instance per service whose error rate exceeds 5% over 15 minutes, and stays quiet on tiny samples:
@@ -34,16 +34,16 @@ Every row is a firing instance; empty result = resolved ([how alerts work](/docs
 
 ## Choosing the threshold and window
 
-- Guard percentage alerts with a minimum-volume condition — one failure out of one request is a 100% error rate that should notify no one; the `HAVING total >= 100` clause keeps tiny samples quiet.
-- Align the query window to the evaluation interval — a 15-minute lookback evaluated every `1m` smooths a momentary blip into the window instead of firing on it.
-- Exclude known-benign services and environments in SQL — filter out test services, development environments, or maintenance jobs when those rows don't represent a real problem.
+- Guard percentage alerts with a minimum-volume condition. One failure out of one request is a 100% error rate that should notify no one; the `HAVING total >= 100` clause keeps tiny samples quiet.
+- Align the query window to the evaluation interval: a 15-minute lookback evaluated every `1m` smooths a momentary blip into the window instead of firing on it.
+- Exclude known-benign services and environments in SQL: filter out test services, development environments, or maintenance jobs when those rows don't represent a real problem.
 
 ## What makes it worth alerting on
 
 Before shipping the rule, check it against Google's [SRE practice](https://sre.google/sre-book/monitoring-distributed-systems/):
 
-- Alert on symptoms, not causes — notify on what users feel (elevated errors), not on every underlying cause.
-- Make every alert actionable — if no one would act when it fires, it shouldn't fire.
-- Tune for signal, not noise — pick a threshold and window that stay quiet under normal conditions.
+- Alert on symptoms, not causes: notify on what users feel (elevated errors), not on every underlying cause.
+- Make every alert actionable: if no one would act when it fires, it shouldn't fire.
+- Tune for signal, not noise: pick a threshold and window that stay quiet under normal conditions.
 
 Next: [link the alert to a runbook](/docs/guides/link-alerts-to-runbooks) so responders land on live panels. SQL patterns (thresholds, identity, templating): [Alert query patterns](/docs/reference/alert-queries).

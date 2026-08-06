@@ -1,8 +1,10 @@
+import { sql } from "drizzle-orm";
 import {
   makeWorkerUtils,
   type TaskSpec,
   type WorkerUtils,
 } from "graphile-worker";
+import type { Transaction } from "@/db/client";
 import { pool } from "@/db/client";
 
 // One long-lived WorkerUtils, memoized like the pool it attaches to. It is a
@@ -23,4 +25,25 @@ export async function addWorkerJob(
 ): Promise<void> {
   const utils = await getWorkerUtils();
   await utils.addJob(identifier, payload, spec);
+}
+
+export async function addWorkerJobInTransaction(
+  tx: Transaction,
+  identifier: string,
+  payload: unknown,
+  spec: TaskSpec = {},
+): Promise<void> {
+  await tx.execute(sql`
+    SELECT graphile_worker.add_job(
+      ${identifier},
+      ${JSON.stringify(payload)}::json,
+      queue_name := ${spec.queueName ?? null},
+      run_at := ${spec.runAt ?? new Date()},
+      max_attempts := ${spec.maxAttempts ?? 25},
+      job_key := ${spec.jobKey ?? null},
+      priority := ${spec.priority ?? 0},
+      flags := ${spec.flags ?? null},
+      job_key_mode := ${spec.jobKeyMode ?? "replace"}
+    )
+  `);
 }

@@ -80,6 +80,29 @@ describe("GET /api/cli/resources", () => {
     });
   });
 
+  it("accepts the slo kind", async () => {
+    mockedList.mockResolvedValueOnce([
+      {
+        kind: "slo",
+        project: "default",
+        slug: "checkout-availability",
+        repoid: "github.com/acme/app",
+        updatedAt: "2026-07-01T00:00:00.000Z",
+      },
+    ]);
+
+    const res = await handler()({
+      request: new Request("http://localhost/api/cli/resources?kind=slo"),
+      context,
+    });
+
+    expect(res.status).toBe(200);
+    expect(mockedList).toHaveBeenCalledWith("org-42", {
+      kind: "slo",
+      repoid: undefined,
+    });
+  });
+
   it("rejects an unknown kind with 400", async () => {
     const res = await handler()({
       request: new Request("http://localhost/api/cli/resources?kind=nope"),

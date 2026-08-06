@@ -1,0 +1,74 @@
+---
+title: How SLOs work
+---
+
+An SLO is a reliability target with a budget for failure. You promise "99.9% of checkouts succeed over 30 days", and the engine tracks how much of the allowed 0.1% you have left and how fast you are spending it.
+
+## The SLI
+
+The Service Level Indicator is a SQL query that counts two things: how many events were **good** and how many were **valid** (eligible to be judged). The engine injects the measurement window as two ClickHouse parameters.
+
+```yaml
+kind: SLO
+metadata:
+  name: checkout-availability
+spec:
+  sli:
+    sql: >-
+      SELECT countIf(status < 500) AS good, count() AS valid
+      FROM checkouts
+      WHERE ts >= {window_start:DateTime} AND ts < {window_end:DateTime}
+  targetPercent: 99.9
+  timeWindow: 30d
+```
+
+The query must return exactly the `good` and `valid` columns and must reference both `{window_start:DateTime}` and `{window_end:DateTime}`. The ratio `good / valid` is the achieved reliability for the window.
+
+## The error budget
+
+The target is the floor. The gap between the target and 100% is the **error budget**: the failure you are allowed before the promise breaks. A 99.9% target over 30 days permits 0.1% of valid events to be bad.
+
+The budget is a balance that refills as the window rolls forward. **Budget remaining** is how much of that 0.1% allowance is still unspent: 100% when everything is healthy, 0% when you have used the entire allowance, and it goes negative once you have broken the promise for the window.
+
+## Burn rate
+
+Burn rate is how fast the budget is being spent, expressed as a multiple. A burn rate of `1×` spends exactly the whole budget over the SLO window, no faster and no slower. A burn rate of `14×` empties it fourteen times sooner, so a 30-day budget is gone in roughly two days.
+
+Burn rate, not raw failure percentage, is what the engine alerts on. It answers the operational question directly: at the current rate, how long until the budget is exhausted.
+
+## Multi-window burn-rate tiers
+
+Alerting on a single window forces a bad trade: a short window pages on every transient blip, a long window notices a real outage hours too late. Everr uses the SRE-workbook pattern instead: each tier pairs a **long** window (is this sustained?) with a **short** window (is it still happening right now?), and fires only when both agree the budget is burning past the tier's threshold.
+
+The engine evaluates its three canonical tiers, calibrated for a 30-day window and scaled proportionally for other SLO windows:
+
+| Tier | Burn rate | Long window | Short window | Severity |
+| --- | --- | --- | --- | --- |
+| `fast-burn` | 14.4× | 1h | 5m | critical |
+| `slow-burn` | 6.0× | 6h | 30m | critical |
+| `ticket` | 1.0× | 3d | 6h | warning |
+
+Fast-burn pages someone now (a sharp outage eating the budget in hours). Ticket opens a warning that can wait until tomorrow (a slow leak that will breach the budget eventually). Custom tiers are not currently configurable in SLO YAML.
+
+## Data gaps and low traffic
+
+A window with no rows proves nothing, and the engine treats it that way: the tier keeps whatever state it already had. An idle tier stays idle (a quiet minute never pages you) and a firing tier stays firing (a gap is not evidence of recovery). You cannot miss a burn this way, because for a counting SLI the bad events are themselves rows: if the budget is burning, the window has data.
+
+What sparse data does cost you is precision. A short window that averages a handful of events reads any single failure as an enormous burn rate, so on thin traffic the confirmation window degrades to "something bad happened recently". Two remedies:
+
+- Set [`minValidEvents`](/docs/reference/slo-spec) so a tier cannot fire off single-digit event counts. This is the low-traffic knob; on a sparse SLI, leave it unset and a blip can page you.
+- Prefer a longer SLO window. Tier windows scale with it, so the same trickle of events fills a 30-day SLO's five-minute confirmation window far better than a 7-day SLO's 70-second one.
+
+And since silence holds state rather than resolving it, an SLO can never tell you the service stopped reporting entirely. Pair it with a dead-man [alert rule](/docs/concepts/how-alerts-work) that fires on absence; that split (SLO judges quality, rule detects silence) is deliberate.
+
+## One objective, one budget
+
+An SLO query returns at most one `good`/`valid` row and tracks one error budget. Zero rows means there is no measurement for that window. If services or dimensions need independent budgets, define a separate SLO for each objective. This keeps ownership, alert state, and budget history explicit.
+
+## Notifications
+
+When a tier fires, it produces an alert instance the same way a rule does, carrying the tier's severity. Those instances flow through the same routes and receivers as rule alerts, and silences mute them the same way. Delivery is org-wide app configuration, not part of the SLO's code. See [how alerts work](/docs/concepts/how-alerts-work) and [set up notifications](/docs/guides/set-up-notifications).
+
+## Applied as code
+
+SLOs are defined in YAML and applied with `everr apply`, exactly like alert rules and dashboards. The app surfaces each SLO's budget, burn rate, and firing tiers, and lets you pause one, but the definition lives in your repo: to create, change, or remove an SLO, edit the file and re-apply. For the full file format see the [SLO spec reference](/docs/reference/slo-spec).

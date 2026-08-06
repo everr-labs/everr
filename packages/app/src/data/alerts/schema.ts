@@ -1,16 +1,37 @@
 import * as z from "zod";
+import { AlertingSeveritySchema } from "@/data/alerting/schema";
 import {
   dashboardProjectSchema,
   dashboardSlugSchema,
 } from "@/data/dashboards/schema";
+import { isEverrAnnotationKey, RESERVED_ANNOTATION_KEYS } from "./annotations";
+import { parseWindow } from "./window";
 
 const nonEmptyString = z.string().min(1);
 
+/**
+ * A tenant-unique rule name, matching the alert engine's validation:
+ * 1..=128 chars of [A-Za-z0-9_.-] (no `/`, which the
+ * composed "project/slug" identity adds). Enforced at parse time so a bad
+ * name fails with the file path instead of a raw API validation error during
+ * apply. Same contract as the SLO schema's name field.
+ */
+const ruleNameSchema = z
+  .string()
+  .regex(
+    /^[A-Za-z0-9_.-]{1,128}$/,
+    "name must be 1-128 chars of [A-Za-z0-9_.-]",
+  );
+
 const alertLabelsSchema = z.record(nonEmptyString, nonEmptyString);
-const alertDisplaySchema = z
+
+// A human-facing name/description overlay on a resource whose canonical
+// identity is a technical slug. Shared verbatim by the SLO schema
+// (data/slos/schema.ts) for `spec.display` so the grammar lives once.
+export const displaySchema = z
   .object({
-    name: z.string().optional(),
-    description: z.string().optional(),
+    name: nonEmptyString.optional(),
+    description: nonEmptyString.optional(),
   })
   .strict();
 
@@ -24,7 +45,8 @@ const notificationMessageSchema = z
 // A runbook reference: bare `slug` (resolved against the alert's own project)
 // or `project/slug`. Each segment must be a valid project/slug name; more than
 // one "/" or an empty segment is rejected. Existence is checked at apply time,
-// not here.
+// not here. Shared verbatim by the SLO schema (data/slos/schema.ts) for
+// `spec.runbook` so the grammar lives once.
 // Split a `spec.runbook` ref into its parts. Returns null when it has more
 // than one "/"; `project` is undefined for a bare slug. Shared by the schema
 // (validation) and parseRunbookRef (resolution) so the format lives once.
@@ -38,7 +60,7 @@ function runbookRefParts(
     : { slug: parts[0] };
 }
 
-const runbookRefSchema = z
+export const runbookRefSchema = z
   .string()
   .min(1)
   .superRefine((value, ctx) => {
@@ -82,7 +104,7 @@ export function parseRunbookRef(
  * NUL-separated so neither segment can forge a collision. For internal Map
  * keying only.
  */
-export function identityKey(project: string, slug: string): string {
+export function refIdentityKey(project: string, slug: string): string {
   return `${project}\0${slug}`;
 }
 
@@ -91,49 +113,93 @@ export function formatRunbookRef(project: string, slug: string): string {
   return project === "default" ? slug : `${project}/${slug}`;
 }
 
-export const EverrConfigYamlSchema = z
-  .object({
-    repoid: nonEmptyString,
-  })
-  .strict();
+// Reserved keys are the generated-annotation vocabulary (see ./annotations)
+// plus every internal `everr.`-prefixed marker.
+export function isReservedAnnotationKey(key: string): boolean {
+  return isEverrAnnotationKey(key) || RESERVED_ANNOTATION_KEYS.has(key);
+}
 
 export const AlertRuleYamlSchema = z
   .object({
     kind: z.literal("AlertRule"),
     metadata: z
       .object({
-        name: nonEmptyString,
+        name: ruleNameSchema,
         project: dashboardProjectSchema.optional(),
         labels: alertLabelsSchema.optional(),
       })
       .strict(),
     spec: z
       .object({
-        display: alertDisplaySchema.optional(),
+        display: displaySchema.optional(),
         runbook: runbookRefSchema.optional(),
-        // `notebook` is the legacy alias for `runbook` (ADR 0002); accepted in
-        // config for back-compat and folded into `runbook` by the transform.
-        notebook: runbookRefSchema.optional(),
         evaluationInterval: nonEmptyString,
+        // How long the condition must hold before firing. Duration string
+        // (<int><s|m|h|d>); "0s" fires on the first matching evaluation.
+        for: nonEmptyString.default("0s"),
+        // Consecutive empty evaluations required before a firing instance
+        // resolves. Raise it to tolerate gaps in the data.
+        resolveAfter: z.number().int().min(1).default(1),
+        severity: AlertingSeveritySchema.default("info"),
         notificationMessage: notificationMessageSchema,
         query: nonEmptyString,
         instanceLabels: z.array(nonEmptyString).min(1).optional(),
+        // Numeric result column carried onto instances/notifications as the
+        // alert value; referenced in messages as ${value}.
+        valueColumn: nonEmptyString.optional(),
+        // Upper bound on how long the engine may go without evaluating the rule
+        // before flagging it degraded (duration string, engine defaults when
+        // unset). Must be >= evaluationInterval when both are set.
+        maxInterval: nonEmptyString.optional(),
+        // Pass-through annotations merged onto the alert rule alongside the
+        // generated ones; reserved keys (see isReservedAnnotationKey) are
+        // rejected here so they can never shadow generated sugar.
+        annotations: z.record(nonEmptyString, z.string()).optional(),
       })
       .strict()
       .superRefine((spec, ctx) => {
-        if (spec.notebook !== undefined && spec.runbook !== undefined) {
-          ctx.addIssue({
-            code: z.ZodIssueCode.custom,
-            message:
-              'set only one of "runbook" or the legacy "notebook" field, not both',
-            path: ["runbook"],
-          });
+        if (spec.maxInterval !== undefined) {
+          let maxIntervalSeconds: number | undefined;
+          try {
+            maxIntervalSeconds = parseWindow(spec.maxInterval);
+          } catch (error) {
+            ctx.addIssue({
+              code: z.ZodIssueCode.custom,
+              message:
+                error instanceof Error
+                  ? error.message
+                  : `invalid maxInterval "${spec.maxInterval}"`,
+              path: ["maxInterval"],
+            });
+          }
+          if (maxIntervalSeconds !== undefined && spec.evaluationInterval) {
+            try {
+              const evaluationIntervalSeconds = parseWindow(
+                spec.evaluationInterval,
+              );
+              if (maxIntervalSeconds < evaluationIntervalSeconds) {
+                ctx.addIssue({
+                  code: z.ZodIssueCode.custom,
+                  message: `maxInterval "${spec.maxInterval}" must be >= evaluationInterval "${spec.evaluationInterval}"`,
+                  path: ["maxInterval"],
+                });
+              }
+            } catch {
+              // A malformed evaluationInterval is reported at apply time
+              // (parseEvaluationInterval); nothing to compare against here.
+            }
+          }
         }
-      })
-      .transform(({ notebook, ...spec }) => ({
-        ...spec,
-        runbook: spec.runbook ?? notebook,
-      })),
+        for (const key of Object.keys(spec.annotations ?? {})) {
+          if (isReservedAnnotationKey(key)) {
+            ctx.addIssue({
+              code: z.ZodIssueCode.custom,
+              message: `spec.annotations key "${key}" is reserved (generated from other fields)`,
+              path: ["annotations", key],
+            });
+          }
+        }
+      }),
   })
   .strict();
 
