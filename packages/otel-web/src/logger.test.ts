@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { bindEmit } from "./current.js";
 import { createEmitter } from "./emitter.js";
-import { logger, startLogger } from "./logger.js";
+import { logger } from "./logger.js";
 
 type SentRecord = {
   timeUnixNano: string;
@@ -33,7 +34,7 @@ function wire(envelope: () => Record<string, string> = () => ({})) {
     envelope,
   );
   flush = doFlush;
-  stop = startLogger(emit);
+  stop = bindEmit(emit);
 }
 
 beforeEach(() => {
@@ -47,8 +48,8 @@ afterEach(() => {
 });
 
 describe("logger", () => {
-  // Must run before any startLogger in this file: the pre-init sink is
-  // module-level state that wiring permanently replaces.
+  // Must run before any bindEmit in this file: the pre-init warning is
+  // module-level state that the first bind permanently replaces.
   it("warns instead of throwing before init", () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     try {

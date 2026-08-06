@@ -25,6 +25,7 @@ import {
   init,
   logger,
   revoke,
+  setAttributes,
   setRouteResolver,
 } from "./server.js";
 import type { EverrClient } from "./types.js";
@@ -145,6 +146,15 @@ describe("init (server)", () => {
       serviceName: "everr-docs-test",
       ingestKey: "sk_everr_test",
       endpoint: "https://ingest.example.com",
+      // Accepted and ignored: plugins are a browser-pipeline concept.
+      plugins: [
+        {
+          name: "browser-only",
+          setup: () => {
+            throw new Error("must never run on the server");
+          },
+        },
+      ],
     });
     logger.info("still rides the app's SDK");
     await client.flush();
@@ -152,10 +162,11 @@ describe("init (server)", () => {
     expect(fetchSpy).not.toHaveBeenCalled();
     expect(logExporter.getFinishedLogRecords()).toHaveLength(1);
 
-    // Identity is a browser concept; on the server these never throw and
-    // never stamp anything.
+    // Identity and ambient context are browser concepts; on the server
+    // these never throw and never stamp anything.
     identify("u_123", { plan: "pro" });
     revoke();
+    setAttributes({ "everr.tenant.id": "acme" });
     setRouteResolver(() => "/blog/$slug");
     logger.info("after identify");
     const [, record] = logExporter.getFinishedLogRecords();

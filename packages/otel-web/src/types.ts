@@ -1,3 +1,5 @@
+import type { Plugin } from "./plugins.js";
+
 /**
  * Analytics signals that can be disabled at init; everything is on by default
  * and only exclusions are named.
@@ -68,6 +70,12 @@ export type InitOptions = {
   /** How long identity ids live; see {@link Persistence}. Fixed at init. */
   persistence?: Persistence;
   /**
+   * Plugins set up during init (in order, after identity resolution, before
+   * first capture) and torn down by `shutdown()` (in reverse order). They
+   * run beside the built-in capture; accepted and ignored on the server.
+   */
+  plugins?: Plugin[];
+  /**
    * Cross-origin URLs that also receive the `traceparent` header (string =
    * substring match on the full URL, or RegExp). Same-origin requests always
    * propagate; a cross-origin backend must both be listed here and allow the
@@ -79,13 +87,12 @@ export type InitOptions = {
 };
 
 /**
- * identify() traits: flattened onto subsequent events as dotted `user.*`
- * attributes. Nested objects recurse; scalars only, so arrays are rejected
- * at compile time and nullish leaves are dropped.
+ * identify() traits: stamped onto subsequent events as `user.*` attributes.
+ * Flat scalars only, same contract as setAttributes; dot the keys yourself
+ * for structure (`"company.name"`). A `null` clears nothing (the whole
+ * namespace is replaced per identify anyway).
  */
-export type UserTraits = {
-  [key: string]: string | number | boolean | null | undefined | UserTraits;
-};
+export type UserTraits = Record<string, string | number | boolean | null>;
 
 /**
  * The handle returned by `init()`. Identity capabilities (`identify()`,

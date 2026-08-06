@@ -1,6 +1,7 @@
 import type { EmitSpan } from "./emitter.js";
 import { errorTypeOf } from "./errors.js";
 import { routePattern } from "./route.js";
+import { randomHex } from "./session.js";
 
 // The network signal: window.fetch is patched so every request (1) becomes
 // an OTel CLIENT span on the traces pipeline and (2) carries a W3C
@@ -136,12 +137,4 @@ export function startNetwork(
   return () => {
     if (globalThis.fetch === patched) globalThis.fetch = original;
   };
-}
-
-function randomHex(bytes: number): string {
-  let out = "";
-  for (const b of crypto.getRandomValues(new Uint8Array(bytes))) {
-    out += b.toString(16).padStart(2, "0");
-  }
-  return out;
 }

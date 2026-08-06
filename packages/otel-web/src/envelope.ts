@@ -1,6 +1,12 @@
+import { getAttributes } from "./attributes.js";
 import type { AttrValue } from "./emitter.js";
 import { routePattern } from "./route.js";
-import type { CurrentPage, PageContext } from "./session.js";
+import {
+  type CurrentPage,
+  type PageContext,
+  sessionId,
+  visitorId,
+} from "./session.js";
 
 // The context envelope: stamped on EVERY record emitted through the SDK
 // (analytics and, later, errors), which is what lets any signal slice by
@@ -23,23 +29,20 @@ export function pageAttrs(
   };
 }
 
+// The live module state (session, visitor, route, setAttributes ambient set,
+// identify()'s user.* keys) is sampled per record, so a change takes effect
+// on the very next event; only page context and attribution are per-client.
 export function createEnvelope(
   current: CurrentPage,
+  /** Attribution, fixed for the client's life. */
   attribution: Record<string, string>,
-  /**
-   * Identity attributes (visitor id, identified user), sampled per record
-   * so identify() takes effect on the very next event.
-   */
-  identity: () => Record<string, AttrValue>,
 ): () => Record<string, AttrValue | null | undefined> {
-  return () => {
-    const page = current();
-    return {
-      "session.id": page.sessionId,
-      ...pageAttrs(page),
-      "everr.route.pattern": routePattern(),
-      ...identity(),
-      ...attribution,
-    };
-  };
+  return () => ({
+    "session.id": sessionId(),
+    "everr.visitor.id": visitorId(),
+    ...pageAttrs(current()),
+    "everr.route.pattern": routePattern(),
+    ...attribution,
+    ...getAttributes(),
+  });
 }

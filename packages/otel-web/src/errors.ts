@@ -1,4 +1,4 @@
-import type { Emit } from "./emitter.js";
+import { currentEmit } from "./current.js";
 
 // Native error capture: window "error" and "unhandledrejection" listeners
 // plus the explicit `captureError` (`captureReactError` lives in the react
@@ -37,18 +37,65 @@ type Report = (
   extra?: ExtraAttrs,
 ) => void;
 
-// A live binding: the react entry imports it, and startErrors/stop swap the
-// implementation underneath both entries at once.
-export let report: Report = () => console.warn("[everr] SDK not initialized");
+// At most 5 reports per identical error (type, message, top frame) per
+// 5s window, so a render or event loop cannot flood the batch queue.
+// Module-level: the window survives a consent re-init, which is the point.
+const hits = new Map<string, number[]>();
 
-// Swaps the live binding to a host-provided reporter; both entries share
-// this one state machine (warn before init, silent after shutdown), so the
-// public captureError surface exists exactly once. The server entry binds
-// an adapter over @everr/auto-otel-errors here.
+// The browser reporter: normalization, rate limit, emit. It samples the
+// current pipeline per call (warn before init, silent after shutdown come
+// from the shared binding), so no wiring step exists on the browser at all.
+const browserReport: Report = (error, mechanism, handled, extra) => {
+  const emit = currentEmit();
+  if (!emit) return;
+  // Telemetry must never break the page: reporting is best-effort.
+  try {
+    const isError = error instanceof Error;
+    const type = errorTypeOf(error);
+    const message = isError ? error.message : safeString(error);
+    const stack = isError
+      ? (error.stack ?? `${error.name}: ${error.message}`)
+      : undefined;
+
+    const key = `${type}|${message}|${stack?.split("\n", 2)[1] ?? ""}`;
+    const now = Date.now();
+    const recent = (hits.get(key) ?? []).filter((t) => t > now - 5_000);
+    if (recent.length >= 5) return;
+    recent.push(now);
+    hits.set(key, recent);
+    if (hits.size > 1_000)
+      hits.forEach((stamps, staleKey) => {
+        if (!stamps.some((t) => t > now - 5_000)) hits.delete(staleKey);
+      });
+
+    // 17 is the OTel ERROR severity.
+    emit(
+      "exception",
+      {
+        ...extra,
+        "exception.type": type,
+        "exception.message": message,
+        "exception.stacktrace": stack,
+        "everr.error.handled": handled,
+        "everr.error.mechanism": mechanism,
+      },
+      17,
+      message ? `${type}: ${message}` : type,
+    );
+  } catch {
+    // Swallowed by design.
+  }
+};
+
+// A live binding: the react entry imports it. The browser reporter is the
+// default and needs no wiring; the server entry swaps in its adapter over
+// @everr/auto-otel-errors here, and unbinding restores the default.
+export let report: Report = browserReport;
+
 export function bindReport(next: Report): () => void {
   report = next;
   return () => {
-    report = () => {};
+    report = browserReport;
   };
 }
 
@@ -61,12 +108,6 @@ export function captureError(
   report(error, "manual", options?.handled ?? true, attributes);
 }
 
-// Wires the live `report` binding (rate limit + emit) without any global
-// listeners: the server half of error capture. SSR errors reach it through
-// captureError only; process-level handlers are deliberately absent (an
-// uncaughtException listener changes Node's exit semantics, and request
-// errors are caught by the framework before they ever get there, so hosts
-// wire framework hooks like Next's onRequestError to captureError instead).
 /**
  * The one spelling of an error's type across signals (exception.type here,
  * error.type on network spans): the class name, with the same fallbacks.
@@ -75,64 +116,12 @@ export function errorTypeOf(error: unknown): string {
   return error instanceof Error ? error.name || "Error" : "NonError";
 }
 
-function startReporting(emit: Emit): () => void {
-  const hits = new Map<string, number[]>();
-
-  report = (error, mechanism, handled, extra) => {
-    // Telemetry must never break the page: reporting is best-effort.
-    try {
-      const isError = error instanceof Error;
-      const type = errorTypeOf(error);
-      const message = isError ? error.message : safeString(error);
-      const stack = isError
-        ? (error.stack ?? `${error.name}: ${error.message}`)
-        : undefined;
-
-      // At most 5 reports per identical error (type, message, top frame) per
-      // 5s window, so a render or event loop cannot flood the batch queue.
-      const key = `${type}|${message}|${stack?.split("\n", 2)[1] ?? ""}`;
-      const now = Date.now();
-      const recent = (hits.get(key) ?? []).filter((t) => t > now - 5_000);
-      if (recent.length >= 5) return;
-      recent.push(now);
-      hits.set(key, recent);
-      if (hits.size > 1_000)
-        hits.forEach((stamps, staleKey) => {
-          if (!stamps.some((t) => t > now - 5_000)) hits.delete(staleKey);
-        });
-
-      // 17 is the OTel ERROR severity.
-      emit(
-        "exception",
-        {
-          ...extra,
-          "exception.type": type,
-          "exception.message": message,
-          "exception.stacktrace": stack,
-          "everr.error.handled": handled,
-          "everr.error.mechanism": mechanism,
-        },
-        17,
-        message ? `${type}: ${message}` : type,
-      );
-    } catch {
-      // Swallowed by design.
-    }
-  };
-
-  return () => {
-    report = () => {};
-  };
-}
-
-export function startErrors(emit: Emit): () => void {
-  const stopReporting = startReporting(emit);
-
+export function startErrors(): () => void {
   // Cross-handler deduplication: a single unhandled TypeError (e.g.
   // "Failed to fetch") can fire both `unhandledrejection` and `error` on the
   // window, each carrying the same error object. Track which objects each
   // handler has seen so only the first handler to fire reports the error;
-  // the rate limiter in startReporting still throttles volume within a single
+  // the rate limiter in the reporter still throttles volume within a single
   // handler.
   const seenByOnerror = new WeakSet<object>();
   const seenByRejection = new WeakSet<object>();
@@ -155,7 +144,6 @@ export function startErrors(emit: Emit): () => void {
   addEventListener("unhandledrejection", onRejection);
 
   return () => {
-    stopReporting();
     removeEventListener("error", onError);
     removeEventListener("unhandledrejection", onRejection);
   };

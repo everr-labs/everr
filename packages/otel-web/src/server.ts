@@ -27,16 +27,24 @@ import {
   logs,
   SeverityNumber,
 } from "@opentelemetry/api-logs";
+import { bindEmit } from "./current.js";
 import type { AttrValue, Emit } from "./emitter.js";
 import { bindReport } from "./errors.js";
-import { logger, startLogger } from "./logger.js";
-import type { EverrClient, InitOptions, UserTraits } from "./types.js";
+import { logger } from "./logger.js";
+import type {
+  EverrClient,
+  InitOptions,
+  Persistence,
+  UserTraits,
+} from "./types.js";
 import { SDK_NAME, SDK_VERSION } from "./version.js";
 
 // captureError is the same live-binding surface the browser uses (one
 // state machine: warn before init, silent after shutdown); init() below
 // swaps in the auto-otel-errors adapter.
+export type { AttrValue } from "./emitter.js";
 export { captureError } from "./errors.js";
+export type { Plugin, PluginContext } from "./plugins.js";
 export type {
   CaptureSignal,
   EverrClient,
@@ -59,14 +67,16 @@ export function init(_options: InitOptions): EverrClient {
   // that starts delegating the moment the app's SDK lands.
   const otelLogger = logs.getLogger(SDK_NAME, SDK_VERSION);
   const errors = new Client({}, "node", []);
-  const stopLogger = startLogger(emitVia(otelLogger));
+  // The shared current.ts binding: logger samples it per call, here adapted
+  // onto the app's LoggerProvider.
+  const unbindEmit = bindEmit(emitVia(otelLogger));
   const stopReporting = bindReport((error, mechanism, handled, extra) =>
     errors.capture({ error, mechanism, handled, attributes: extra }),
   );
   return {
     flush: async () => {},
     shutdown: async () => {
-      stopLogger();
+      unbindEmit();
       stopReporting();
     },
   };
@@ -81,6 +91,14 @@ export function identify(_userId: string, _traits?: UserTraits): void {}
 
 /** No-op on the server; identity is a browser concept. */
 export function revoke(): void {}
+
+/** No-op on the server; ambient context rides the browser envelope. */
+export function setAttributes(
+  _attributes: Record<string, AttrValue | null>,
+): void {}
+
+/** No-op on the server; persistence is a browser concept. */
+export function setPersistence(_persistence: Persistence | undefined): void {}
 
 /** No-op on the server; route patterns ride the browser envelope. */
 export function setRouteResolver(

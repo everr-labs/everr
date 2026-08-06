@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { init } from "./client.js";
-import { identify, revoke } from "./identity.js";
+import { identify, revoke } from "./session.js";
 import {
   attrs,
   type OtlpBatch,
@@ -12,10 +12,9 @@ import type { EverrClient } from "./types.js";
 
 // localStorage persistence (the SDK default) through init(): the event
 // schema is identical to memory persistence, only the ids are durable
-// (everr.visitor.id and session.id across reloads and tabs, user.* after
-// identify). identify()/revoke() are the package-level functions (see
-// identity.test.ts for their live-binding contract); localStorage is the
-// identity store, so every test starts and ends clean.
+// (everr.visitor.id and session.id across reloads and tabs). identify()'s
+// user.* keys ride the in-memory ambient set either way; localStorage is
+// the identity store, so every test starts and ends clean.
 
 let client: EverrClient | undefined;
 let batches: OtlpBatch[];
@@ -34,6 +33,7 @@ async function records(): Promise<OtlpRecord[]> {
 afterEach(async () => {
   await client?.shutdown();
   client = undefined;
+  revoke();
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
   localStorage.clear();
@@ -119,7 +119,7 @@ describe("init (persistence: localStorage)", () => {
 
     identify("u_123", {
       plan: "pro",
-      company: { name: "Acme" },
+      "company.name": "Acme",
     });
     history.pushState(null, "", "/dashboard");
     const all = await records();
@@ -134,7 +134,8 @@ describe("init (persistence: localStorage)", () => {
     expect(attrs(viewBefore)).not.toHaveProperty("user.id");
     expect(batches[0].records).toHaveLength(1);
 
-    // The identification persists across a reload.
+    // The identification survives a same-page re-init (the ambient set is
+    // module state); an actual reload starts unidentified, host re-identifies.
     await client?.shutdown();
     [client, batches] = startPersistentClient();
     const [reloaded] = await records();

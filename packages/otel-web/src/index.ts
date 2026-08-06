@@ -7,11 +7,14 @@
 // same pipeline. React-specific exports live in the dedicated
 // `@everr/otel-web/react` entry.
 
+export { setAttributes } from "./attributes.js";
 export { init } from "./client.js";
+export type { AttrValue } from "./emitter.js";
 export { captureError } from "./errors.js";
-export { identify, revoke } from "./identity.js";
 export { logger } from "./logger.js";
+export type { Plugin, PluginContext } from "./plugins.js";
 export { setRouteResolver } from "./route.js";
+export { identify, revoke, setPersistence } from "./session.js";
 export type {
   CaptureSignal,
   EverrClient,

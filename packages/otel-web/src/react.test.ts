@@ -1,8 +1,8 @@
 import { act, createElement } from "react";
 import { createRoot } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { bindEmit } from "./current.js";
 import type { Emit } from "./emitter.js";
-import { startErrors } from "./errors.js";
 import { ErrorBoundary } from "./react.js";
 
 declare global {
@@ -20,7 +20,7 @@ let stopErrors: () => void;
 beforeEach(() => {
   globalThis.IS_REACT_ACT_ENVIRONMENT = true;
   emit = vi.fn();
-  stopErrors = startErrors(emit as unknown as Emit);
+  stopErrors = bindEmit(emit as unknown as Emit);
   // React logs caught render errors via console.error; keep test output clean.
   vi.spyOn(console, "error").mockImplementation(() => {});
 });

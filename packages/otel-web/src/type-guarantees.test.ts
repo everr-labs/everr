@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { identify, revoke } from "./identity.js";
+import { identify, revoke } from "./session.js";
 import type { InitOptions } from "./types.js";
 
 // Compile-time guarantees for the public API. The interesting assertions
@@ -21,10 +21,14 @@ const persistenceIsOptional: InitOptions = {
 // logger): package-level functions, not methods on the returned handle.
 function identifyAndRevokeAreFreeFunctions(): void {
   identify("u_123");
-  identify("u_123", { plan: "pro", company: { name: "Acme" } });
+  identify("u_123", { plan: "pro", "company.name": "Acme" });
   identify("u_123", {
-    // @ts-expect-error - trait values are scalars or nested objects, never arrays
+    // @ts-expect-error - trait values are flat scalars, never arrays
     tags: ["a", "b"],
+  });
+  identify("u_123", {
+    // @ts-expect-error - trait values are flat scalars, never nested objects
+    company: { name: "Acme" },
   });
   revoke();
 }

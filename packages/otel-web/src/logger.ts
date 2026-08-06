@@ -2,26 +2,16 @@
 // SDK pipeline, so user logs carry the analytics envelope and join the
 // session's other signals (same queue, batching, and exit flush). A custom
 // log is a plain OTLP record: no event name, the message as body, the level
-// mapped to its OTel severity number.
+// mapped to its OTel severity number. The current pipeline is sampled per
+// call from the shared binding, so this module holds no state of its own.
 
-import type { AttrValue, Emit } from "./emitter.js";
-
-type LogAttrs = Record<string, AttrValue | null | undefined>;
-
-type Log = (
-  severityNumber: number,
-  body: string,
-  attributes?: LogAttrs,
-) => void;
-
-// Before init this warns (never throws) so miswiring is visible; after
-// shutdown it is silent by design.
-let log: Log = () => console.warn("[everr] SDK not initialized");
+import { currentEmit } from "./current.js";
+import type { AttrValue } from "./emitter.js";
 
 const level =
   (severityNumber: number) =>
-  (body: string, attributes?: LogAttrs): void =>
-    log(severityNumber, body, attributes);
+  (body: string, attributes?: Record<string, AttrValue | null | undefined>) =>
+    currentEmit()?.("", attributes, severityNumber, body);
 
 /** Emits a custom log through the SDK pipeline (enveloped, batched). */
 export const logger = {
@@ -30,11 +20,3 @@ export const logger = {
   warn: level(13),
   error: level(17),
 };
-
-export function startLogger(emit: Emit): () => void {
-  log = (severityNumber, body, attributes) =>
-    emit("", attributes, severityNumber, body);
-  return () => {
-    log = () => {};
-  };
-}

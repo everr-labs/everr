@@ -1,56 +1,37 @@
 import { attributionAttributes } from "./attribution.js";
 import { resolveTransport } from "./config.js";
+import { bindEmit } from "./current.js";
 import { createEmitter, noop } from "./emitter.js";
 import { createEnvelope } from "./envelope.js";
 import { startErrors } from "./errors.js";
-import { bindIdentity, createIdentity, storeFor } from "./identity.js";
 import { startInp } from "./inp.js";
 import { startInteractions } from "./interactions.js";
-import { startLogger } from "./logger.js";
 import { watchNavigation } from "./navigation.js";
 import { startNetwork } from "./network.js";
 import { startPageviews } from "./pageview.js";
-import { createSessionContext } from "./session.js";
+import { startPlugins } from "./plugins.js";
+import { createSessionContext, setPersistence } from "./session.js";
+import { createTracer } from "./tracer.js";
 import type { CaptureSignal, EverrClient, InitOptions } from "./types.js";
 import { SDK_NAME, SDK_VERSION } from "./version.js";
 import { startWebVitals } from "./webvitals.js";
 
 export function init(options: InitOptions): EverrClient {
   // Structural no-op: a keyless production build builds no emitter and no
-  // watcher, so nothing can ever issue a network request. identify()/revoke()
-  // are wired to a safe no-op, so calling them never throws even though
-  // nothing is ever persisted or sent.
+  // watcher, so nothing can ever issue a network request. identify()/
+  // setAttributes() still write their in-memory sets, which nothing reads.
   const transport = resolveTransport(options);
-  if (!transport) {
-    bindIdentity(INERT_IDENTITY);
-    return INERT;
-  }
+  if (!transport) return INERT;
 
-  // Server runtimes resolve the "node" conditional export (server.ts),
-  // which attaches to the app's OpenTelemetry SDK instead of this pipeline.
-  // A bundler that still lands this entry off-browser (custom conditions,
-  // exotic edge runtimes) gets the structural no-op rather than a crash.
-  if (typeof window === "undefined") {
-    // Visible, because landing here means the bundler misresolved: server
-    // telemetry only works through the node export condition.
-    console.warn(
-      "[everr] browser entry loaded outside a browser; server telemetry needs the node export condition",
-    );
-    bindIdentity(INERT_IDENTITY);
-    return INERT;
-  }
-
-  // Identity (visitor id, 30-minute-inactivity session, identify()/revoke())
-  // runs over the store the persistence option picks: localStorage (the
-  // default) is read back across reloads and tabs; memory dies with the
-  // page. The event schema is identical either way.
-  const identity = createIdentity(storeFor(options.persistence));
-  const stopIdentity = bindIdentity(identity);
+  // Identity (visitor id, 30-minute-inactivity session) runs over the store
+  // the persistence option picks: localStorage (the default) is read back
+  // across reloads and tabs; memory dies with the page. The event schema is
+  // identical either way; identify()'s user.* keys ride the ambient set.
+  setPersistence(options.persistence);
 
   const [rotate, current] = createSessionContext(
     location.href,
     document.referrer,
-    identity.session,
   );
 
   const [emit, flush, exitFlush, emitSpan] = createEmitter(
@@ -72,11 +53,20 @@ export function init(options: InitOptions): EverrClient {
       "everr.language": navigator.language,
     },
     { name: SDK_NAME, version: SDK_VERSION },
-    createEnvelope(
-      current,
-      attributionAttributes(location.search),
-      identity.attrs,
-    ),
+    createEnvelope(current, attributionAttributes(location.search)),
+  );
+  // The one binding of the package-level surfaces (logger, captureError) to
+  // this pipeline; they sample it per call from current.ts.
+  const unbindEmit = bindEmit(emit);
+
+  // Plugins set up after identity resolution and before the first built-in
+  // capture, in array order; each teardown runs in shutdown() below, in
+  // reverse order, before the base capture unpatches.
+  const stopPlugins = startPlugins(
+    options.plugins,
+    emit,
+    createTracer(emitSpan),
+    options.dev === true,
   );
 
   // The navigation watcher always runs so the envelope's page context stays
@@ -104,10 +94,9 @@ export function init(options: InitOptions): EverrClient {
     ? startNetwork(emitSpan, options.tracePropagationTargets)
     : undefined;
   // Errors have no disable key and no options: capture is native and always
-  // on whenever the SDK emits at all. Same for the custom logger: it only
-  // emits when the user calls it.
-  const stopErrors = startErrors(emit);
-  const stopLogger = startLogger(emit);
+  // on whenever the SDK emits at all. The reporter and the custom logger
+  // both ride the current.ts binding; this only adds the global listeners.
+  const stopErrors = startErrors();
 
   // Exit delivery: the final leave plus whatever is batched rides the
   // keepalive path. pagehide and visibilitychange-hidden, not beforeunload
@@ -127,8 +116,8 @@ export function init(options: InitOptions): EverrClient {
     shutdown: () => {
       removeEventListener("pagehide", onHide);
       removeEventListener("visibilitychange", onVisibilityChange);
-      stopIdentity();
-      stopLogger();
+      stopPlugins();
+      unbindEmit();
       stopErrors();
       stopWebVitals?.();
       stopInp?.();
@@ -140,7 +129,5 @@ export function init(options: InitOptions): EverrClient {
     },
   };
 }
-
-const INERT_IDENTITY = { identify: noop, revoke: noop };
 
 const INERT: EverrClient = { flush: noop, shutdown: noop };
