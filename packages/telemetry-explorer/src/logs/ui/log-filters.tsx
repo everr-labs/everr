@@ -1,20 +1,17 @@
-import { FilterCombobox } from "@everr/ui/components/filter-combobox";
 import {
   InputGroup,
   InputGroupAddon,
   InputGroupButton,
   InputGroupInput,
 } from "@everr/ui/components/input-group";
-import { Separator } from "@everr/ui/components/separator";
+import { Label } from "@everr/ui/components/label";
 import type { TimeRange } from "@everr/ui/lib/time-range";
 import { cn } from "@everr/ui/lib/utils";
 import { Hash, X } from "lucide-react";
-import { useRef, useState } from "react";
-import { DedicatedAttributeSection } from "../../filters/ui/dedicated-attribute-section";
-import { ENVIRONMENT_ATTRIBUTE } from "../../filters/ui/dedicated-attributes";
-import { EnvironmentFilter } from "../../filters/ui/environment-filter";
-import { FilterSidebar } from "../../filters/ui/filter-sidebar";
-import { logServiceFilterOptions } from "../data/options";
+import { type ReactNode, useRef, useState } from "react";
+import { AttributeFilterSection } from "../../attribute-filter/ui/attribute-filter-section";
+import { ExploreFilterRail } from "../../filters/ui/explore-filter-rail";
+import { FilterSearchBar } from "../../filters/ui/filter-search-bar";
 import type { LogsRepositoryLike } from "../data/repository";
 import type { AttributeFilter, LogLevel } from "../schemas";
 import {
@@ -27,15 +24,18 @@ import { LOG_LEVEL_META, LOG_LEVELS } from "./log-level-meta";
 export interface LogFiltersBarProps {
   repo: LogsRepositoryLike;
   timeRange: TimeRange;
+  q: string;
   levels: LogLevel[];
-  services: string[];
   attributes: AttributeFilter[];
   traceId: string | undefined;
   levelCounts?: Record<LogLevel, number>;
-  hideSharedFilters?: boolean;
+  // The top zone of the rail: Service and Environment. The host app supplies it.
+  persistentFilters?: ReactNode;
+  persistentFilterCount?: number;
   onChange: (patch: {
+    // undefined means no search, which is the shape of the search param.
+    q?: string | undefined;
     levels?: LogLevel[];
-    services?: string[];
     attributes?: AttributeFilter[];
     traceId?: string;
   }) => void;
@@ -53,9 +53,9 @@ function TraceFilter({
   onChange: (traceId?: string) => void;
 }) {
   const [value, setValue] = useState(traceId ?? "");
-  // Resync the draft when the trace id changes externally (e.g. "Clear all",
-  // link navigation, back/forward) so the input doesn't keep — and reapply — a
-  // stale value.
+  // Set the draft again when the trace id changes from outside this component,
+  // for example on "Clear page filters", on a link, or on Back. Without this the
+  // input keeps an old value and applies it again.
   const lastTraceIdRef = useRef(traceId);
   if (lastTraceIdRef.current !== traceId) {
     lastTraceIdRef.current = traceId;
@@ -106,12 +106,13 @@ function TraceFilter({
 export function LogFiltersBar({
   repo,
   timeRange,
+  q,
   levels,
-  services,
   attributes,
   traceId,
   levelCounts,
-  hideSharedFilters = false,
+  persistentFilters,
+  persistentFilterCount = 0,
   onChange,
 }: LogFiltersBarProps) {
   const toggleLevel = (level: LogLevel) => {
@@ -121,97 +122,87 @@ export function LogFiltersBar({
     onChange({ levels: nextLevels });
   };
 
-  // When the service filter is shared (rendered in the topbar —
-  // hideSharedFilters), it is owned there: it must not count toward
-  // hasActiveFilters nor be reset by "Clear all".
-  const hasActiveFilters =
-    levels.length > 0 ||
-    (!hideSharedFilters && services.length > 0) ||
-    attributes.length > 0 ||
-    traceId !== undefined;
+  // The count for the bottom zone of the rail.
+  //
+  // Each control counts one time, whatever number of values it holds. The
+  // "Filters" badge then has the same meaning on every Explore page. Attribute
+  // filters are different: each one is a separate control, so each one counts.
+  const pageFilterCount =
+    (q.length > 0 ? 1 : 0) +
+    (levels.length > 0 ? 1 : 0) +
+    (traceId !== undefined ? 1 : 0) +
+    attributes.length;
 
   return (
-    <FilterSidebar
+    <ExploreFilterRail
       label="Log filters"
-      hasActiveFilters={hasActiveFilters}
+      persistentFilters={persistentFilters}
+      persistentFilterCount={persistentFilterCount}
+      pageFilterCount={pageFilterCount}
       onClear={() =>
         onChange({
+          q: undefined,
           levels: [],
-          ...(hideSharedFilters ? {} : { services: [] }),
           attributes: [],
           traceId: undefined,
         })
       }
     >
-      <div className="space-y-1">
-        {LOG_LEVELS.map((level) => (
-          <button
-            key={level}
-            type="button"
-            className={cn(
-              "flex h-8 w-full items-center justify-between rounded-md px-2 text-left text-xs transition-colors hover:bg-muted/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/30",
-              levels.includes(level) &&
-                "bg-background font-medium shadow-xs ring-1 ring-border",
-            )}
-            onClick={() => toggleLevel(level)}
-          >
-            <span className="flex min-w-0 items-center gap-2">
-              <span
-                className={cn("size-2 rounded-full", levelDotClassName(level))}
-              />
-              <span className="truncate capitalize">{level}</span>
-            </span>
-            <span className="text-muted-foreground font-mono tabular-nums">
-              {levelCounts ? levelCounts[level].toLocaleString() : "—"}
-            </span>
-          </button>
-        ))}
+      <FilterSearchBar
+        id="logs-search"
+        label="Search"
+        showLabel
+        value={q}
+        onChange={(next) => onChange({ q: next || undefined })}
+        placeholder="Search messages, errors, IDs"
+      />
+
+      <div className="flex flex-col gap-1">
+        <Label className="text-muted-foreground text-xs">Severity</Label>
+        <div className="space-y-1">
+          {LOG_LEVELS.map((level) => (
+            <button
+              key={level}
+              type="button"
+              className={cn(
+                "flex h-8 w-full items-center justify-between rounded-md px-2 text-left text-xs transition-colors hover:bg-muted/70 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/30",
+                levels.includes(level) &&
+                  "bg-background font-medium shadow-xs ring-1 ring-border",
+              )}
+              onClick={() => toggleLevel(level)}
+            >
+              <span className="flex min-w-0 items-center gap-2">
+                <span
+                  className={cn(
+                    "size-2 rounded-full",
+                    levelDotClassName(level),
+                  )}
+                />
+                <span className="truncate capitalize">{level}</span>
+              </span>
+              <span className="text-muted-foreground font-mono tabular-nums">
+                {levelCounts ? levelCounts[level].toLocaleString() : "—"}
+              </span>
+            </button>
+          ))}
+        </div>
       </div>
-
-      {!hideSharedFilters && (
-        <>
-          <Separator />
-
-          <FilterCombobox
-            label="Service"
-            values={services}
-            onChange={(nextServices) => onChange({ services: nextServices })}
-            options={logServiceFilterOptions(repo, { timeRange })}
-            placeholder="All services"
-            searchPlaceholder="Search services..."
-            className="w-full"
-          />
-
-          <EnvironmentFilter
-            repo={repo}
-            domain="logs"
-            timeRange={timeRange}
-            attributes={attributes}
-            onChange={(next) => onChange({ attributes: next })}
-          />
-        </>
-      )}
-
-      <Separator />
 
       <TraceFilter
         traceId={traceId}
         onChange={(nextTraceId) => onChange({ traceId: nextTraceId })}
       />
 
-      <Separator />
-
-      <DedicatedAttributeSection
+      <AttributeFilterSection
         repo={repo}
         domain="logs"
         timeRange={timeRange}
         attributes={attributes}
-        dedicated={[ENVIRONMENT_ATTRIBUTE]}
         promotedAttributes={LOGS_PROMOTED_ATTRIBUTES}
         excludedKeys={LOGS_EXCLUDED_KEYS}
         sources={LOGS_ATTRIBUTE_SOURCES_UI}
         onChange={(next) => onChange({ attributes: next })}
       />
-    </FilterSidebar>
+    </ExploreFilterRail>
   );
 }

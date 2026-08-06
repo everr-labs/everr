@@ -6,7 +6,7 @@ import {
 } from "@tanstack/react-query";
 import { type ReactNode, useMemo } from "react";
 import { withEnvironment } from "../../filters/environment";
-import { FilterSearchBar } from "../../filters/ui/filter-search-bar";
+import { countPersistentFilters } from "../../filters/ui/explore-global-filters";
 import {
   listServiceIdentitiesOptions,
   tracesSearchInfiniteOptions,
@@ -41,7 +41,9 @@ export type TracesSearchProps = {
   refresh: string;
   search: TraceSearchValue;
   environment?: string[];
-  hideSharedFilters?: boolean;
+  // The top zone of the rail: Service and Environment. The host app supplies it,
+  // because the two values are search params that the pages share.
+  persistentFilters?: ReactNode;
   onSearchChange: (patch: Partial<TraceSearchValue>) => void;
   renderTraceLink: (props: TraceLinkRenderProps) => ReactNode;
 };
@@ -52,7 +54,7 @@ export function TracesSearch({
   refresh,
   search,
   environment = [],
-  hideSharedFilters = false,
+  persistentFilters,
   onSearchChange,
   renderTraceLink,
 }: TracesSearchProps) {
@@ -92,30 +94,24 @@ export function TracesSearch({
   return (
     <div className="min-h-0 flex-1 overflow-hidden">
       <section className="bg-background text-foreground flex h-full min-h-0 flex-col overflow-hidden">
-        <div className="border-b bg-muted/10 px-3 py-2">
-          <FilterSearchBar
-            id="traces-search"
-            label="Filter traces by span name"
-            value={search.name}
-            onChange={(name) => onSearchChange({ name })}
-            placeholder="Filter by span name"
-          />
-        </div>
-
         <div className="grid min-h-0 flex-1 grid-cols-1 grid-rows-[auto_minmax(0,1fr)] lg:grid-cols-[260px_minmax(0,1fr)] lg:grid-rows-[minmax(0,1fr)]">
           <TraceFilters
             repo={repo}
             timeRange={timeRange}
             value={{
               namespace: search.namespace,
-              service: search.service,
+              name: search.name,
               minMs: search.minMs,
               maxMs: search.maxMs,
               status: search.status,
               attributes: search.attributes,
             }}
             identities={identitiesQuery.data ?? []}
-            hideSharedFilters={hideSharedFilters}
+            persistentFilters={persistentFilters}
+            persistentFilterCount={countPersistentFilters(
+              search.service,
+              environment,
+            )}
             onChange={onSearchChange}
           />
           <main className="flex min-h-0 min-w-0 flex-col">
@@ -130,11 +126,10 @@ export function TracesSearch({
               renderTraceLink={renderTraceLink}
               onLoadMore={() => fetchNextPage()}
               onClearFilters={() =>
+                // The same effect as "Clear page filters" in the rail. Service
+                // and Environment keep their values.
                 onSearchChange({
                   namespace: [],
-                  // Service is owned by the shared topbar filter when
-                  // hideSharedFilters is set; clearing here must not touch it.
-                  ...(hideSharedFilters ? {} : { service: [] }),
                   name: "",
                   minMs: undefined,
                   maxMs: undefined,

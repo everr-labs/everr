@@ -28,25 +28,50 @@ const baseValue = {
 };
 
 describe("ErrorFilters", () => {
-  it("renders Service, Environment and the attribute section in the sidebar", () => {
+  it("renders Search, Order and the attribute section in the rail", () => {
     renderWithQueryClient(
       <ErrorFilters
         repo={repo}
         timeRange={{ from: "now-1h", to: "now" }}
         value={baseValue}
-        services={[]}
         onChange={vi.fn()}
       />,
     );
     expect(
       screen.getByRole("complementary", { name: "Error filters" }),
     ).toBeInTheDocument();
-    expect(screen.getByText("Service")).toBeInTheDocument();
-    expect(screen.getByText("Environment")).toBeInTheDocument();
+    expect(screen.getByText("Search")).toBeInTheDocument();
+    expect(screen.getByText("Order")).toBeInTheDocument();
     expect(screen.getByText("Attributes")).toBeInTheDocument();
   });
 
-  it("renders the environment selection once (combobox, not as a pill)", () => {
+  it("never renders Service or Environment: those belong to the persistent zone", () => {
+    renderWithQueryClient(
+      <ErrorFilters
+        repo={repo}
+        timeRange={{ from: "now-1h", to: "now" }}
+        value={baseValue}
+        onChange={vi.fn()}
+      />,
+    );
+    expect(screen.queryByText("Service")).not.toBeInTheDocument();
+    expect(screen.queryByText("Environment")).not.toBeInTheDocument();
+  });
+
+  it("renders the message search inside the rail", () => {
+    renderWithQueryClient(
+      <ErrorFilters
+        repo={repo}
+        timeRange={{ from: "now-1h", to: "now" }}
+        value={baseValue}
+        onChange={vi.fn()}
+      />,
+    );
+    const rail = screen.getByRole("complementary", { name: "Error filters" });
+    expect(rail).toContainElement(screen.getByPlaceholderText("Search errors"));
+  });
+
+  it("shows a legacy deployment.environment attribute as a removable pill", () => {
     renderWithQueryClient(
       <ErrorFilters
         repo={repo}
@@ -62,19 +87,19 @@ describe("ErrorFilters", () => {
             },
           ],
         }}
-        services={[]}
         onChange={vi.fn()}
       />,
     );
-    // Environment is owned by the dedicated combobox; it must NOT also render as
-    // a removable attribute pill in the Attributes section.
-    expect(screen.getAllByText("prod")).toHaveLength(1);
+    // The top zone of the rail sets Environment, and it writes its own search
+    // param. An older entry, for example from a saved link, must stay visible
+    // and the user must be able to remove it. The query still applies that
+    // entry, so a hidden entry narrows the results for no visible reason.
     expect(
-      screen.queryByRole("button", { name: "Remove Environment filter" }),
-    ).not.toBeInTheDocument();
+      screen.getByRole("button", { name: "Remove Environment filter" }),
+    ).toBeInTheDocument();
   });
 
-  it("clear-all resets service and attributes but not the sort order", () => {
+  it("clear resets the search and attributes but not the sort order", () => {
     const onChange = vi.fn();
     renderWithQueryClient(
       <ErrorFilters
@@ -82,7 +107,7 @@ describe("ErrorFilters", () => {
         timeRange={{ from: "now-1h", to: "now" }}
         value={{
           ...baseValue,
-          service: ["api"],
+          q: "TypeError",
           sort: "count",
           attributes: [
             {
@@ -93,56 +118,56 @@ describe("ErrorFilters", () => {
             },
           ],
         }}
-        services={["api"]}
         onChange={onChange}
       />,
     );
-    fireEvent.click(screen.getByRole("button", { name: "Clear all" }));
-    expect(onChange).toHaveBeenCalledWith({ service: [], attributes: [] });
+    fireEvent.click(screen.getByRole("button", { name: "Clear page filters" }));
+    expect(onChange).toHaveBeenCalledWith({ q: "", attributes: [] });
   });
 
-  it("with hideSharedFilters, clear-all leaves the shared service filter untouched", () => {
+  it("clear never touches the persistent filters", () => {
     const onChange = vi.fn();
     renderWithQueryClient(
       <ErrorFilters
         repo={repo}
         timeRange={{ from: "now-1h", to: "now" }}
-        hideSharedFilters
-        value={{
-          ...baseValue,
-          service: ["api"],
-          attributes: [
-            {
-              source: "resource",
-              key: "http.method",
-              op: "in",
-              values: ["GET"],
-            },
-          ],
-        }}
-        services={["api"]}
+        value={{ ...baseValue, q: "TypeError" }}
+        persistentFilterCount={1}
         onChange={onChange}
       />,
     );
-    fireEvent.click(screen.getByRole("button", { name: "Clear all" }));
+    fireEvent.click(screen.getByRole("button", { name: "Clear page filters" }));
     const patch = onChange.mock.calls[0]?.[0];
     expect(patch).not.toHaveProperty("service");
-    expect(patch).toEqual({ attributes: [] });
+    expect(patch).not.toHaveProperty("environment");
   });
 
-  it("with hideSharedFilters, a shared service alone does not surface Clear all", () => {
+  it("an active persistent filter alone does not surface the clear control", () => {
     renderWithQueryClient(
       <ErrorFilters
         repo={repo}
         timeRange={{ from: "now-1h", to: "now" }}
-        hideSharedFilters
-        value={{ ...baseValue, service: ["api"] }}
-        services={["api"]}
+        value={baseValue}
+        persistentFilterCount={1}
         onChange={vi.fn()}
       />,
     );
     expect(
-      screen.queryByRole("button", { name: "Clear all" }),
+      screen.queryByRole("button", { name: "Clear page filters" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("the sort control alone does not surface the clear control", () => {
+    renderWithQueryClient(
+      <ErrorFilters
+        repo={repo}
+        timeRange={{ from: "now-1h", to: "now" }}
+        value={{ ...baseValue, sort: "count" }}
+        onChange={vi.fn()}
+      />,
+    );
+    expect(
+      screen.queryByRole("button", { name: "Clear page filters" }),
     ).not.toBeInTheDocument();
   });
 });

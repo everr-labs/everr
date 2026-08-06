@@ -31,6 +31,7 @@ import {
 } from "@/components/detail-route-dialog";
 import { ExploreSearchShape } from "../explore/explore-search";
 import { ExploreShell } from "../explore/explore-shell";
+import { ExplorePersistentFilters } from "../explore/persistent-filters";
 import { LocalTelemetryGate } from "../local-telemetry/collector-status";
 import { localSqlClient } from "../logs/local-sql-client";
 
@@ -96,8 +97,6 @@ function ErrorsListView() {
       title="Errors"
       timeRange={timeRange}
       refresh={refresh ?? ""}
-      service={service}
-      environment={environment}
       onTimeRangeChange={(range) =>
         navigate({
           to: "/errors",
@@ -112,20 +111,6 @@ function ErrorsListView() {
           replace: true,
         })
       }
-      onServiceChange={(values) =>
-        navigate({
-          to: "/errors",
-          search: { ...search, service: values },
-          replace: true,
-        })
-      }
-      onEnvironmentChange={(values) =>
-        navigate({
-          to: "/errors",
-          search: { ...search, environment: values },
-          replace: true,
-        })
-      }
     >
       <LocalTelemetryGate>
         <ErrorIssues
@@ -134,7 +119,14 @@ function ErrorsListView() {
           refresh={refresh ?? ""}
           search={{ q, service, fingerprint, sort, attributes }}
           environment={environment}
-          hideSharedFilters
+          persistentFilters={
+            <ExplorePersistentFilters
+              to="/errors"
+              timeRange={timeRange}
+              service={service}
+              environment={environment}
+            />
+          }
           onSearchChange={(patch) =>
             navigate({
               to: "/errors",

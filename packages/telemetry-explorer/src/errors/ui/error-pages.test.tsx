@@ -105,7 +105,6 @@ describe("ErrorFilters", () => {
             sort: "lastSeen",
             attributes: [],
           }}
-          services={["web", "api"]}
           onChange={onChange}
         />,
       ),

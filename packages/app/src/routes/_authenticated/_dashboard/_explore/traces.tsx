@@ -10,6 +10,7 @@ import {
   stripSearchParams,
   useSearch,
 } from "@tanstack/react-router";
+import { ExplorePersistentFilters } from "@/components/explore-persistent-filters";
 import { remoteTracesRepo } from "@/data/traces/remote-repo";
 import { ExploreSearchShape } from "@/lib/explore-search";
 
@@ -67,7 +68,7 @@ function TracesSearchPage() {
         attributes: search.attributes,
       }}
       environment={environment}
-      hideSharedFilters
+      persistentFilters={<ExplorePersistentFilters />}
       onSearchChange={(patch) =>
         // Push a history entry per change so Back undoes filter changes one at a
         // time (including Clear all, which routes through this same handler).
