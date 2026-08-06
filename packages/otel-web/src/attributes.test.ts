@@ -73,11 +73,8 @@ describe("setAttributes", () => {
   it("loses to per-record attributes on collision", async () => {
     start({
       plugins: [
-        {
-          name: "collider",
-          setup: (ctx) => () => {
-            ctx.emit("everr.test.collision", { "everr.tenant.id": "record" });
-          },
+        (ctx) => () => {
+          ctx.emit("everr.test.collision", { "everr.tenant.id": "record" });
         },
       ],
     });

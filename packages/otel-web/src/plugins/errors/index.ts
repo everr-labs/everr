@@ -1,4 +1,4 @@
-import { addErrorFilter, type ErrorFilter, report } from "../../errors.js";
+import { type ErrorFilter, report, setErrorFilter } from "../../errors.js";
 import type { Plugin } from "../runtime.js";
 
 // The errors plugin: the global unhandled-error and unhandled-rejection
@@ -31,22 +31,17 @@ const matches = (
   );
 
 export function errors(options?: ErrorsOptions): Plugin {
-  return {
-    name: "errors",
-    setup: () => {
-      const stopHandlers = startErrors();
-      const filter: ErrorFilter = (message, scriptUrl) =>
-        matches(options?.ignore, message) ||
-        matches(options?.denyUrls, scriptUrl);
-      const removeFilter =
-        options?.ignore || options?.denyUrls
-          ? addErrorFilter(filter)
-          : undefined;
-      return () => {
-        removeFilter?.();
-        stopHandlers();
-      };
-    },
+  return () => {
+    const stopHandlers = startErrors();
+    const filter: ErrorFilter = (message, scriptUrl) =>
+      matches(options?.ignore, message) ||
+      matches(options?.denyUrls, scriptUrl);
+    const removeFilter =
+      options?.ignore || options?.denyUrls ? setErrorFilter(filter) : undefined;
+    return () => {
+      removeFilter?.();
+      stopHandlers();
+    };
   };
 }
 

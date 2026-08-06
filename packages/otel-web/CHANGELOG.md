@@ -25,6 +25,8 @@ init({
 });
 ```
 
+- A plugin is now its setup function: `type Plugin = (ctx: PluginContext) =>
+  (() => void) | void`. The `{ name, setup }` object shape is gone.
 - `disable` and the `CaptureSignal` type are removed. Disabling a signal is
   now leaving its plugin out: `disable: ["interactions"]` becomes a plugin
   list without `interactions()`.

@@ -1,7 +1,6 @@
 import { attributionAttributes } from "./attribution.js";
 import { resolveTransport } from "./config.js";
 import { bindEmit } from "./current.js";
-import type { AttrValue, EventName } from "./emitter.js";
 import { createEmitter, noop } from "./emitter.js";
 import { createEnvelope } from "./envelope.js";
 import { type NavigationListener, watchNavigation } from "./navigation.js";
@@ -68,17 +67,13 @@ export function init(options: InitOptions): EverrClient {
   // Plugins are the only capture sources, set up after identity resolution
   // in array order; each teardown runs in shutdown() below, in reverse
   // order, before the pipeline unbinds. One context serves every plugin:
-  // ids, route, and page sample the live module state directly, and the
-  // EventName union is a compile-time taxonomy for the built-ins, so plugin
-  // names pass through with a cast. The navigation listener list is live:
-  // the watcher below iterates it per navigation, so ctx.onNavigation
-  // subscriptions from any plugin land in the same dispatch.
+  // ids, route, and page sample the live module state directly. The
+  // navigation listener list is live: the watcher below iterates it per
+  // navigation, so ctx.onNavigation subscriptions from any plugin land in
+  // the same dispatch.
   const navigationListeners: NavigationListener[] = [];
   const ctx: PluginContext = {
-    emit: (
-      name: string,
-      attributes?: Record<string, AttrValue | null | undefined>,
-    ) => emit(name as EventName, attributes),
+    emit,
     tracer: createTracer(emitSpan),
     ids: () => ({ visitorId: visitorId(), sessionId: sessionId() }),
     route: () => routePattern() ?? null,
@@ -92,11 +87,8 @@ export function init(options: InitOptions): EverrClient {
     },
     dev: options.dev === true,
   };
-  const teardowns: Array<() => void> = [];
-  for (const plugin of options.plugins ?? []) {
-    const teardown = plugin.setup(ctx);
-    if (teardown) teardowns.push(teardown);
-  }
+
+  const teardowns = (options.plugins ?? []).map((plugin) => plugin(ctx));
 
   // The navigation watcher is envelope infrastructure, not a signal: it
   // always runs so the page context stays fresh for every record, whether or
@@ -121,7 +113,8 @@ export function init(options: InitOptions): EverrClient {
     shutdown: () => {
       removeEventListener("pagehide", onHide);
       removeEventListener("visibilitychange", onVisibilityChange);
-      for (let i = teardowns.length - 1; i >= 0; i--) teardowns[i]();
+      // Reverse setup order, before the pipeline unbinds.
+      for (let i = teardowns.length - 1; i >= 0; i--) teardowns[i]?.();
       unbindEmit();
       stopWatching();
       return flush();

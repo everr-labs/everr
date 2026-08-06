@@ -8,22 +8,19 @@ import { startPageviews } from "./pageview.js";
 // emit while hidden schedules the emitter's coalesced keepalive flush, so
 // the final leave always ships.
 export function pageviews(): Plugin {
-  return {
-    name: "pageviews",
-    setup: (ctx) => {
-      const [onNavigate, onHide, stop] = startPageviews(ctx.emit, ctx.page);
-      const offNavigation = ctx.onNavigation(onNavigate);
-      const onVisibilityChange = () => {
-        if (document.visibilityState === "hidden") onHide();
-      };
-      addEventListener("pagehide", onHide);
-      addEventListener("visibilitychange", onVisibilityChange);
-      return () => {
-        removeEventListener("pagehide", onHide);
-        removeEventListener("visibilitychange", onVisibilityChange);
-        offNavigation();
-        stop();
-      };
-    },
+  return (ctx) => {
+    const [onNavigate, onHide, stop] = startPageviews(ctx.emit, ctx.page);
+    const offNavigation = ctx.onNavigation(onNavigate);
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "hidden") onHide();
+    };
+    addEventListener("pagehide", onHide);
+    addEventListener("visibilitychange", onVisibilityChange);
+    return () => {
+      removeEventListener("pagehide", onHide);
+      removeEventListener("visibilitychange", onVisibilityChange);
+      offNavigation();
+      stop();
+    };
   };
 }

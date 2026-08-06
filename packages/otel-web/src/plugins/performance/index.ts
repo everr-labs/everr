@@ -9,15 +9,12 @@ import { startWebVitals } from "./webvitals.js";
  * the same Event Timing observer that computes INP.
  */
 export function performance(): Plugin {
-  return {
-    name: "performance",
-    setup: (ctx) => {
-      const stopVitals = startWebVitals(ctx.emit);
-      const stopInp = startInp(ctx.emit);
-      return () => {
-        stopVitals();
-        stopInp();
-      };
-    },
+  return (ctx) => {
+    const stopVitals = startWebVitals(ctx.emit);
+    const stopInp = startInp(ctx.emit);
+    return () => {
+      stopVitals();
+      stopInp();
+    };
   };
 }

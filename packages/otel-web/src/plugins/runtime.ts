@@ -1,11 +1,11 @@
-// The plugin contract: init() runs each plugin's setup against a
-// deliberately small context (seven members, nothing else: no transport, no
-// batcher, no record internals), and shutdown() runs the returned teardowns
-// in reverse order before the pipeline unbinds. A consent re-init tears
-// every plugin down and sets it up again, so plugins inherit the new
-// persistence mode for free. The array is taken verbatim, duplicates
-// included, and setup/teardown run unguarded: a throwing plugin is the
-// caller's bug, not the runtime's to paper over.
+// The plugin contract; the runtime lives inline in client.ts init(). init()
+// runs each plugin against a deliberately small context (seven members,
+// nothing else: no transport, no batcher, no record internals), and
+// shutdown() runs the returned teardowns in reverse order before the
+// pipeline unbinds. A consent re-init tears every plugin down and sets it
+// up again, so plugins inherit the new persistence mode for free. The array
+// is taken verbatim, duplicates included, and setup/teardown run unguarded:
+// a throwing plugin is the caller's bug, not the runtime's to paper over.
 
 import type { Tracer } from "@opentelemetry/api";
 import type { AttrValue } from "../emitter.js";
@@ -46,10 +46,10 @@ export interface PluginContext {
   dev: boolean;
 }
 
-export interface Plugin {
-  name: string;
-  /** Runs during init(); the return value is the teardown. */
-  setup(ctx: PluginContext): (() => void) | void;
-}
+/**
+ * A plugin is its setup function: it runs during init() and the return
+ * value, if any, is the teardown.
+ */
+export type Plugin = (ctx: PluginContext) => (() => void) | void;
 
 export type { PageContext } from "../session.js";

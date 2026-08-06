@@ -9,7 +9,9 @@ export type AttrValue = string | number | boolean;
 
 // The full event taxonomy in one typed home: the semconv-registered names
 // stay bare, everything else carries the everr prefix. Type-only (zero
-// runtime bytes), so a missed prefix or stale name is a compile error.
+// runtime bytes), so a missed prefix or stale name is a compile error in the
+// built-ins; the (string & {}) arm lets plugin names through uncast while
+// keeping the union in completions.
 export type EventName =
   | "browser.web_vital"
   | "exception"
@@ -54,7 +56,9 @@ type OtlpSpan = {
  * name): the custom logger's shape, where callers always pass a body.
  */
 export type Emit = (
-  eventName: EventName | "",
+  // (string & {}) lets plugin event names through uncast, keeping the
+  // EventName union alive in completions.
+  eventName: EventName | "" | (string & {}),
   attributes?: Record<string, AttrValue | null | undefined>,
   severityNumber?: number,
   body?: string,

@@ -40,13 +40,12 @@ afterEach(async () => {
 describe("plugin runtime", () => {
   it("runs setups during init, in array order, before the first capture", async () => {
     const order: string[] = [];
-    const plugin = (name: string): Plugin => ({
-      name,
-      setup: (ctx) => {
+    const plugin =
+      (name: string): Plugin =>
+      (ctx) => {
         order.push(name);
         ctx.emit(`everr.test.${name}`);
-      },
-    });
+      };
     start({ plugins: [plugin("a"), plugin("b"), pageviews()] });
     expect(order).toEqual(["a", "b"]);
 
@@ -63,11 +62,8 @@ describe("plugin runtime", () => {
   it("gives ctx.emit the ambient pipeline treatment", async () => {
     start({
       plugins: [
-        {
-          name: "toy",
-          setup: (ctx) => {
-            ctx.emit("everr.test.toy_event", { "everr.test.count": 3 });
-          },
+        (ctx) => {
+          ctx.emit("everr.test.toy_event", { "everr.test.count": 3 });
         },
       ],
     });
@@ -85,11 +81,8 @@ describe("plugin runtime", () => {
   it("per-record attributes win over the envelope", async () => {
     start({
       plugins: [
-        {
-          name: "override",
-          setup: (ctx) => {
-            ctx.emit("everr.test.shadow", { "url.path": "/overridden" });
-          },
+        (ctx) => {
+          ctx.emit("everr.test.shadow", { "url.path": "/overridden" });
         },
       ],
     });
@@ -101,11 +94,8 @@ describe("plugin runtime", () => {
     let ctx: PluginContext | undefined;
     start({
       plugins: [
-        {
-          name: "inspector",
-          setup: (c) => {
-            ctx = c;
-          },
+        (c) => {
+          ctx = c;
         },
       ],
     });
@@ -127,13 +117,10 @@ describe("plugin runtime", () => {
     let route: string | null | undefined;
     start({
       plugins: [
-        {
-          name: "reader",
-          setup: (ctx) => {
-            ids = ctx.ids();
-            route = ctx.route();
-            ctx.emit("everr.test.reader");
-          },
+        (ctx) => {
+          ids = ctx.ids();
+          route = ctx.route();
+          ctx.emit("everr.test.reader");
         },
       ],
     });
@@ -149,11 +136,8 @@ describe("plugin runtime", () => {
     let route: string | null = "unset" as string | null;
     start({
       plugins: [
-        {
-          name: "no-route",
-          setup: (ctx) => {
-            route = ctx.route();
-          },
+        (ctx) => {
+          route = ctx.route();
         },
       ],
     });
@@ -163,19 +147,16 @@ describe("plugin runtime", () => {
   it("ships tracer spans through the traces pipeline with the envelope", async () => {
     start({
       plugins: [
-        {
-          name: "spanner",
-          setup: (ctx) => {
-            const span = ctx.tracer.startSpan("plugin work", {
-              attributes: { "everr.test.step": "one" },
-            });
-            span.setAttribute("everr.test.done", true);
-            span.end();
-            ctx.tracer.startActiveSpan("failed work", (active) => {
-              active.setStatus({ code: 2 });
-              active.end();
-            });
-          },
+        (ctx) => {
+          const span = ctx.tracer.startSpan("plugin work", {
+            attributes: { "everr.test.step": "one" },
+          });
+          span.setAttribute("everr.test.done", true);
+          span.end();
+          ctx.tracer.startActiveSpan("failed work", (active) => {
+            active.setStatus({ code: 2 });
+            active.end();
+          });
         },
       ],
     });
@@ -194,14 +175,14 @@ describe("plugin runtime", () => {
 
   it("runs teardowns on shutdown in reverse order, before the pipeline closes", async () => {
     const order: string[] = [];
-    const plugin = (name: string): Plugin => ({
-      name,
-      setup: (ctx) => () => {
+    const plugin =
+      (name: string): Plugin =>
+      (ctx) =>
+      () => {
         order.push(name);
         // A teardown emit still rides the final flush.
         ctx.emit(`everr.test.bye_${name}`);
-      },
-    });
+      };
     start({ plugins: [plugin("a"), plugin("b")] });
     await client?.shutdown();
     expect(order).toEqual(["b", "a"]);
@@ -213,14 +194,11 @@ describe("plugin runtime", () => {
 
   it("re-initializing tears down and sets up again", async () => {
     const calls: string[] = [];
-    const plugin: Plugin = {
-      name: "consent",
-      setup: () => {
-        calls.push("setup");
-        return () => {
-          calls.push("teardown");
-        };
-      },
+    const plugin: Plugin = () => {
+      calls.push("setup");
+      return () => {
+        calls.push("teardown");
+      };
     };
     start({ plugins: [plugin] });
     await client?.shutdown();

@@ -7,8 +7,5 @@ import { startInteractions } from "./interactions.js";
  * belong to the performance plugin.
  */
 export function interactions(): Plugin {
-  return {
-    name: "interactions",
-    setup: (ctx) => startInteractions(ctx.emit),
-  };
+  return (ctx) => startInteractions(ctx.emit);
 }

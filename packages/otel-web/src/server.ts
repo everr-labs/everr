@@ -110,8 +110,8 @@ export function setRouteResolver(
 // The built-in plugin factories, so shared code composing
 // `init({ plugins: [...] })` resolves in the server module graph too. The
 // server init ignores plugins entirely, and these never touch the browser
-// implementations: each returns an inert plugin whose setup does nothing.
-const inert = (name: string): Plugin => ({ name, setup: () => {} });
+// implementations: each returns an inert plugin that sets up nothing.
+const inert: Plugin = () => {};
 
 export type {
   ErrorMatcher,
@@ -120,15 +120,15 @@ export type {
 export type { NetworkOptions } from "./plugins/network/index.js";
 
 /** Inert on the server; error capture belongs to the app's OTel SDK. */
-export const errors = (_options?: ErrorsOptions): Plugin => inert("errors");
+export const errors = (_options?: ErrorsOptions): Plugin => inert;
 /** Inert on the server; pageviews are a browser concept. */
-export const pageviews = (): Plugin => inert("pageviews");
+export const pageviews = (): Plugin => inert;
 /** Inert on the server; interactions are a browser concept. */
-export const interactions = (): Plugin => inert("interactions");
+export const interactions = (): Plugin => inert;
 /** Inert on the server; performance capture is a browser concept. */
-export const performance = (): Plugin => inert("performance");
+export const performance = (): Plugin => inert;
 /** Inert on the server; the fetch patch is a browser concept. */
-export const network = (_options?: NetworkOptions): Plugin => inert("network");
+export const network = (_options?: NetworkOptions): Plugin => inert;
 
 // Adapts the shared logger surface to the OTel Logs API: same Emit shape
 // the browser pipeline uses. The severity text falls out of the API's

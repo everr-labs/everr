@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { captureError } from "../errors.js";
 import {
+  allPlugins,
   attrs,
   type OtlpBatch,
   type OtlpRecord,
@@ -320,15 +321,7 @@ describe("errors()", () => {
 describe("composing all five", () => {
   it("reproduces today's capture through the public context", async () => {
     document.body.innerHTML = '<button id="all">Go</button>';
-    start({
-      plugins: [
-        errors(),
-        pageviews(),
-        interactions(),
-        performancePlugin(),
-        network(),
-      ],
-    });
+    start({ plugins: allPlugins() });
     document.getElementById("all")?.click();
     dispatchError(new Error("oops"));
     await appFetch(`${location.origin}/api/x`);

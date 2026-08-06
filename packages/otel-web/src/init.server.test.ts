@@ -148,11 +148,8 @@ describe("init (server)", () => {
       endpoint: "https://ingest.example.com",
       // Accepted and ignored: plugins are a browser-pipeline concept.
       plugins: [
-        {
-          name: "browser-only",
-          setup: () => {
-            throw new Error("must never run on the server");
-          },
+        () => {
+          throw new Error("must never run on the server");
         },
       ],
     });

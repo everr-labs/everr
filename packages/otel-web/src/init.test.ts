@@ -1,8 +1,12 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { init } from "./client.js";
+import { errors } from "./plugins/errors/index.js";
+import { interactions } from "./plugins/interactions/index.js";
+import { network } from "./plugins/network/index.js";
+import { pageviews } from "./plugins/pageviews/index.js";
+import { performance as performancePlugin } from "./plugins/performance/index.js";
 import { setRouteResolver } from "./route.js";
 import {
-  allPlugins,
   attrs,
   type OtlpBatch,
   type OtlpRecord,
@@ -17,9 +21,6 @@ let batches: OtlpBatch[];
 function start(options?: Partial<InitOptions>): void {
   [client, batches] = startClient(options);
 }
-
-/** The full composition minus one plugin, the analog of the old disable. */
-const without = (name: string) => allPlugins().filter((p) => p.name !== name);
 
 async function records(): Promise<OtlpRecord[]> {
   await client?.flush();
@@ -123,7 +124,9 @@ describe("init (persistence: memory)", () => {
   });
 
   it("emits no leave on hide when pageviews() is not composed", async () => {
-    start({ plugins: without("pageviews") });
+    start({
+      plugins: [errors(), interactions(), performancePlugin(), network()],
+    });
     dispatchEvent(new Event("pagehide"));
     expect(await records()).toHaveLength(0);
   });
@@ -184,7 +187,9 @@ describe("init (persistence: memory)", () => {
   });
 
   it("suppresses pageviews only by leaving pageviews() out", async () => {
-    start({ plugins: without("pageviews") });
+    start({
+      plugins: [errors(), interactions(), performancePlugin(), network()],
+    });
     history.pushState(null, "", "/nope");
     expect(await records()).toHaveLength(0);
   });
@@ -249,7 +254,9 @@ describe("init (persistence: memory)", () => {
   });
 
   it("suppresses interactions only by leaving interactions() out", async () => {
-    start({ plugins: without("interactions") });
+    start({
+      plugins: [errors(), pageviews(), performancePlugin(), network()],
+    });
     document.body.innerHTML = "<button>quiet</button>";
     for (let i = 0; i < 3; i++) {
       (document.querySelector("button") as HTMLElement).dispatchEvent(

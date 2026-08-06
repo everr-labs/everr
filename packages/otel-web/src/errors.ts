@@ -40,23 +40,23 @@ export type Report = (
 ) => void;
 
 /**
- * A registered error filter: returns true to drop the error. Consulted on
+ * The registered error filter: returns true to drop the error. Consulted on
  * every browser error path (global handlers, React boundaries, manual
- * `captureError`); a filtered report is a silent success. The registry is
- * empty unless the errors() plugin registered its declarative filters, so
- * no filtering exists without it.
+ * `captureError`); a filtered report is a silent success. One slot, not a
+ * registry: only the errors() plugin sets it (at most once per init), so no
+ * filtering exists without it.
  */
 export type ErrorFilter = (
   message: string,
   scriptUrl: string | undefined,
 ) => boolean;
 
-let filters: readonly ErrorFilter[] = [];
+let filter: ErrorFilter | undefined;
 
-export function addErrorFilter(filter: ErrorFilter): () => void {
-  filters = [...filters, filter];
+export function setErrorFilter(next: ErrorFilter): () => void {
+  filter = next;
   return () => {
-    filters = filters.filter((f) => f !== filter);
+    if (filter === next) filter = undefined;
   };
 }
 
@@ -77,7 +77,7 @@ function frameUrl(stack: string | undefined): string | undefined {
 // Module-level: the window survives a consent re-init, which is the point.
 const hits = new Map<string, number[]>();
 
-// The browser reporter: normalization, filters, rate limit, emit. It samples
+// The browser reporter: normalization, filter, rate limit, emit. It samples
 // the current pipeline per call (warn before init, silent after shutdown
 // come from the shared binding), so no wiring step exists on the browser at
 // all.
@@ -93,12 +93,7 @@ const browserReport: Report = (error, mechanism, handled, extra, fileName) => {
       ? (error.stack ?? `${error.name}: ${error.message}`)
       : undefined;
 
-    if (
-      filters.length &&
-      filters.some((f) => f(message, frameUrl(stack) ?? fileName))
-    ) {
-      return;
-    }
+    if (filter?.(message, frameUrl(stack) ?? fileName)) return;
 
     const key = `${type}|${message}|${stack?.split("\n", 2)[1] ?? ""}`;
     const now = Date.now();
