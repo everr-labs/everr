@@ -3,6 +3,7 @@ import { buttonVariants } from "@everr/ui/components/button";
 import {
   Card,
   CardContent,
+  CardDescription,
   CardHeader,
   CardTitle,
 } from "@everr/ui/components/card";
@@ -28,7 +29,9 @@ import {
   alertingRuleHandles,
   alertingRuleIdentity,
 } from "@/data/alerts/rule-identity";
+import { useTimeRange } from "@/hooks/use-time-range";
 import { AlertEventFeed } from "./-components/alert-event-feed";
+import { AlertRuleSignalChart } from "./-components/alert-rule-signal-chart";
 import {
   AlertingAlertStatusLabel,
   AlertingBackLink,
@@ -65,6 +68,9 @@ export const Route = createFileRoute(
     await Promise.all([
       queryClient.prefetchQuery(alertingQueries.alerts(deps.preview)),
       queryClient.prefetchQuery(
+        alertingQueries.ruleEvaluationSeries(rule.id, deps.timeRange),
+      ),
+      queryClient.prefetchQuery(
         alertingQueries.eventHistory(deps.timeRange, {
           slugs: alertingRuleHandles(rule),
           preview: deps.preview,
@@ -81,8 +87,24 @@ function AlertingRuleDetailPage() {
   const { project, slug } = Route.useParams();
   const { preview } = Route.useSearch();
   const qc = useQueryClient();
+  const { timeRange } = useTimeRange();
   const rule = useQuery(alertingQueries.ruleByName(project, slug, preview));
   const alerts = useQuery(alertingQueries.alerts(preview));
+  const pendingRuleId = rule.data?.id ?? "00000000-0000-0000-0000-000000000000";
+  const evaluationSeries = useQuery({
+    ...alertingQueries.ruleEvaluationSeries(pendingRuleId, timeRange),
+    enabled: rule.data !== undefined,
+  });
+  const pendingScope = rule.data
+    ? alertingRuleHandles(rule.data)
+    : ["__rule-loading__"];
+  const eventHistory = useQuery({
+    ...alertingQueries.eventHistory(timeRange, {
+      slugs: pendingScope,
+      preview,
+    }),
+    enabled: rule.data !== undefined,
+  });
   const [sqlOpen, setSqlOpen] = useState(false);
 
   const toggle = useMutation({
@@ -193,6 +215,33 @@ function AlertingRuleDetailPage() {
 
       <Card>
         <CardHeader>
+          <CardTitle>Signal history</CardTitle>
+          <CardDescription>
+            Values evaluated by this rule, with its firing threshold and state
+            transitions over the selected time range.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {evaluationSeries.isError ? (
+            <div className="flex h-72 items-center justify-center text-sm text-destructive">
+              Signal history unavailable (
+              {alertingErrorMessage(evaluationSeries.error)}).
+            </div>
+          ) : evaluationSeries.isPending ? (
+            <Skeleton className="h-72 w-full" />
+          ) : (
+            <AlertRuleSignalChart
+              evaluationSeries={evaluationSeries.data}
+              events={eventHistory.data ?? []}
+              condition={r.spec.condition}
+              timeRange={timeRange}
+            />
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
           <CardTitle>What is it</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
@@ -218,6 +267,11 @@ function AlertingRuleDetailPage() {
                 {alertingConditionOperatorLabel(r.spec.condition.operator)}{" "}
                 {r.spec.condition.threshold}
               </span>
+            </AlertingDefRow>
+            <AlertingDefRow label="Delivery">
+              {r.notification_channels.length > 0
+                ? `Explicit channels: ${r.notification_channels.join(", ")}`
+                : "Advanced routing"}
             </AlertingDefRow>
             {annotations.length > 0 && (
               <AlertingDefRow label="Annotations">

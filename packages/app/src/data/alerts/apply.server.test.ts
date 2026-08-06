@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/data/alerting/repository", () => ({
   listAllRules: vi.fn(),
+  listChannels: vi.fn(),
   createRule: vi.fn(),
   adoptRule: vi.fn(),
   updateRule: vi.fn(),
@@ -29,6 +30,7 @@ const db = {} as unknown as DbExecutor;
 
 const ch = vi.mocked(querySqlApiWithMeta);
 const mockedListRules = alerting.listAllRules as ReturnType<typeof vi.fn>;
+const mockedListChannels = alerting.listChannels as ReturnType<typeof vi.fn>;
 const mockedCreateRule = alerting.createRule as ReturnType<typeof vi.fn>;
 const mockedAdoptRule = alerting.adoptRule as ReturnType<typeof vi.fn>;
 const mockedUpdateRule = alerting.updateRule as ReturnType<typeof vi.fn>;
@@ -48,6 +50,7 @@ beforeEach(() => {
     columnTypes: ["String", "UInt64"],
   });
   mockedListRules.mockResolvedValue([]);
+  mockedListChannels.mockResolvedValue([]);
   mockedCreateRule.mockResolvedValue({ id: "new-rule", version: 1 });
   mockedAdoptRule.mockResolvedValue({ id: "new-rule", version: 4 });
   mockedUpdateRule.mockResolvedValue({ id: "new-rule", version: 2 });
@@ -81,6 +84,7 @@ function managedRule(name: string, over: Record<string, unknown> = {}) {
     previewId: null,
     repoid,
     name: `default/${name}`,
+    notification_channels: [],
     spec: {
       sql: "SELECT service, count() AS value FROM logs GROUP BY service",
       interval_secs: 300,
@@ -153,6 +157,51 @@ describe("applyAlertSpecs", () => {
     });
 
     expect(mockedDeleteRule).not.toHaveBeenCalled();
+  });
+
+  it("resolves explicit notification channels before creating the rule", async () => {
+    mockedListChannels.mockResolvedValue([
+      { id: "channel-1", tenant: "o", name: "team-slack", config: {} },
+    ]);
+
+    await applyAlertSpecs({
+      namespace: live,
+      db,
+      resources: [
+        {
+          path: "direct.alert.yaml",
+          resource: alert("direct", {
+            notification: { channels: ["team-slack"] },
+          }),
+        },
+      ],
+    });
+
+    expect(mockedCreateRule).toHaveBeenCalledWith(
+      "o",
+      expect.objectContaining({ notification_channels: ["team-slack"] }),
+    );
+  });
+
+  it("rejects unknown explicit notification channels during dry-run", async () => {
+    await expect(
+      applyAlertSpecs({
+        namespace: live,
+        db,
+        dryRun: true,
+        resources: [
+          {
+            path: "direct.alert.yaml",
+            resource: alert("direct", {
+              notification: { channels: ["missing"] },
+            }),
+          },
+        ],
+      }),
+    ).rejects.toThrow(
+      "direct.alert.yaml: unknown notification channels: missing",
+    );
+    expect(mockedCreateRule).not.toHaveBeenCalled();
   });
 
   it("dry-run plans without mutating", async () => {

@@ -45,6 +45,17 @@ const notificationMessageSchema = z
   })
   .strict();
 
+const notificationDestinationSchema = z
+  .object({
+    channels: z
+      .array(nonEmptyString)
+      .min(1)
+      .refine((channels) => new Set(channels).size === channels.length, {
+        message: "notification channels must be unique",
+      }),
+  })
+  .strict();
+
 // A runbook reference: bare `slug` (resolved against the alert's own project)
 // or `project/slug`. Each segment must be a valid project/slug name; more than
 // one "/" or an empty segment is rejected. Existence is checked at apply time,
@@ -144,6 +155,10 @@ export const AlertRuleYamlSchema = z
         // not match the condition before it resolves.
         resolveAfter: z.number().int().min(1).default(1),
         severity: AlertingSeveritySchema.default("info"),
+        // An explicit destination bypasses advanced route matching. Channel
+        // configuration and secrets remain organization-owned alerting data;
+        // rules reference channels by name only.
+        notification: notificationDestinationSchema.optional(),
         notificationMessage: notificationMessageSchema,
         query: nonEmptyString,
         instanceLabels: z.array(nonEmptyString).min(1).optional(),

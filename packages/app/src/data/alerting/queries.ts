@@ -7,6 +7,7 @@ import { infiniteQueryOptions, queryOptions } from "@tanstack/react-query";
 import {
   getAlertingRule,
   getAlertingRuleByName,
+  getAlertingRuleEvaluationSeries,
   getAlertingSlo,
   getAlertingSloBudgetNow,
   getAlertingSloBudgetSeries,
@@ -105,6 +106,19 @@ export const alertingQueries = {
         }),
     });
   },
+
+  ruleEvaluationSeries: (ruleId: string, timeRange: TimeRange) =>
+    queryOptions({
+      queryKey: [
+        "alerting",
+        "rule-evaluation-series",
+        ruleId,
+        { timeRange },
+      ] as const,
+      queryFn: () =>
+        getAlertingRuleEvaluationSeries({ data: { ruleId, timeRange } }),
+      refetchInterval: ALERTING_POLL_INTERVAL_MS,
+    }),
 
   // Config listing: changes only through user actions, so mutations invalidate
   // it rather than polling.

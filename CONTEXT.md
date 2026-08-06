@@ -129,8 +129,24 @@ A multi-page Markdown document with embedded Panels and shared variables — the
 _Avoid_: Notebook (former name — renamed June 2026; see ADR 0002). Still accepted in config for back-compat: `kind: Notebook` ≡ `kind: Runbook` and `.notebook.yaml` is recognized, but `Runbook` is canonical everywhere new.
 
 **Alert**:
-A rule that runs a query on a schedule and notifies when it returns rows; an empty result means resolved.
+A rule that runs a query on a schedule and creates firing instances when result rows satisfy its condition.
 _Avoid_: monitor
+
+**Notification channel**:
+An Organization-owned delivery endpoint, such as a Slack webhook, email destination, or Telegram chat.
+_Avoid_: receiver, route
+
+**Receiver**:
+A reusable collection of Notification channels selected by a Notification route.
+_Avoid_: channel, destination
+
+**Notification route**:
+An Organization-wide policy that matches Alert labels and selects Receivers, grouping, and delivery timing.
+_Avoid_: channel, receiver
+
+**Explicit notification destination**:
+Notification channels named by an Alert itself, taking precedence over Notification routes for that Alert.
+_Avoid_: direct route, inline channel
 
 **Alert event stream**:
 An Organization-wide export of every firing and resolved Alert transition to external consumers, independent of notification routes and active alongside them.

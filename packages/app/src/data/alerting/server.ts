@@ -127,6 +127,25 @@ export const getAlertingRuleByName = createAuthenticatedServerFn({
     return rule;
   });
 
+export const getAlertingRuleEvaluationSeries = createAuthenticatedServerFn({
+  method: "GET",
+})
+  .inputValidator(
+    z.object({
+      ruleId: z.string().min(1),
+      timeRange: TimeRangeSchema,
+      points: z.number().int().min(2).max(500).default(300),
+    }),
+  )
+  .handler(({ data: { ruleId, timeRange, points }, context: { session } }) => {
+    const { fromDate, toDate } = resolveTimeRange(timeRange);
+    return alerting.getRuleEvaluationSeries(orgId(session), ruleId, {
+      from: fromDate,
+      to: toDate,
+      points,
+    });
+  });
+
 // The alert repository includes instances of suppressed preview rules/SLOs
 // because previews evaluate fully, so each instance's source is resolved against the
 // live-vs-preview overlay; an instance whose source is not visible is dropped

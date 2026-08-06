@@ -134,6 +134,7 @@ export function toRuleInput(
     name: formatResourceName(project, slug),
     repoid,
     previewId: opts.previewId ?? null,
+    notification_channels: rule.spec.notification?.channels ?? [],
     ...spec,
   };
 }
@@ -145,6 +146,7 @@ export type SimpleAlertView = {
   severity: AlertingSeverity;
   notificationTitleTemplate: string;
   notificationDescriptionTemplate: string;
+  notificationChannels: string[];
   displayName: string | null;
   displayDescription: string | null;
   instanceLabelColumns: string[];
@@ -164,7 +166,10 @@ export type SimpleAlertView = {
  * (display/runbook/templates) from `spec.annotations` + columns.
  */
 export function fromAlertingRule(
-  rule: Pick<AlertingRule, "previewId" | "repoid" | "name" | "spec">,
+  rule: Pick<
+    AlertingRule,
+    "previewId" | "repoid" | "name" | "notification_channels" | "spec"
+  >,
 ): SimpleAlertView {
   const { project, slug } = parseResourceName(rule.name);
   const ann = rule.spec.annotations ?? {};
@@ -180,6 +185,7 @@ export function fromAlertingRule(
     severity: rule.spec.severity,
     notificationTitleTemplate: ann[ANN_ALERTING_SUMMARY] ?? "",
     notificationDescriptionTemplate: ann[ANN_ALERTING_DESCRIPTION] ?? "",
+    notificationChannels: rule.notification_channels,
     displayName: ann[ANN_DISPLAY_NAME] ?? null,
     displayDescription: ann[ANN_DISPLAY_DESCRIPTION] ?? null,
     instanceLabelColumns: rule.spec.label_columns ?? [],
@@ -207,7 +213,7 @@ export function fromAlertingRule(
  * `spec.annotations`.
  */
 export function toAlertRuleDocument(
-  rule: Pick<AlertingRule, "name" | "spec">,
+  rule: Pick<AlertingRule, "name" | "notification_channels" | "spec">,
 ): AlertRuleYaml {
   const { project, slug } = parseResourceName(rule.name);
   const ann = rule.spec.annotations ?? {};
@@ -249,6 +255,9 @@ export function toAlertRuleDocument(
       for: formatDurationSeconds(rule.spec.for_secs),
       resolveAfter: rule.spec.resolve_after,
       severity: rule.spec.severity,
+      ...(rule.notification_channels.length > 0
+        ? { notification: { channels: rule.notification_channels } }
+        : {}),
       notificationMessage: {
         title: ann[ANN_ALERTING_SUMMARY] ?? "",
         ...(ann[ANN_ALERTING_DESCRIPTION]

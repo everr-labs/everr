@@ -271,7 +271,7 @@ export const applyAlertSpecs: Reconciler = async ({
   // Bounded pool via the shared limiter; allSettled keeps results in input
   // order, so the first failure can still be reported deterministically.
   const runValidation = createLimiter(VALIDATION_QUERY_CONCURRENCY);
-  const [validations, listed] = await Promise.all([
+  const [validations, listed, channels] = await Promise.all([
     Promise.allSettled(
       parsed.map((p) =>
         runValidation(undefined, () =>
@@ -280,7 +280,24 @@ export const applyAlertSpecs: Reconciler = async ({
       ),
     ),
     listingPromise,
+    parsed.some((p) => p.rule.spec.notification)
+      ? alerting.listChannels(orgId)
+      : Promise.resolve([]),
   ]);
+
+  const availableChannelNames = new Set(
+    channels.map((channel) => channel.name),
+  );
+  for (const item of parsed) {
+    const missing = (item.rule.spec.notification?.channels ?? []).filter(
+      (channel) => !availableChannelNames.has(channel),
+    );
+    if (missing.length > 0) {
+      throw new ApplyValidationError(
+        `${item.path}: unknown notification channels: ${missing.join(", ")}`,
+      );
+    }
+  }
 
   // Non-fatal validation findings (e.g. evidence-cap overruns), surfaced on
   // the apply result's note alongside the preview note.
@@ -335,8 +352,10 @@ export const applyAlertSpecs: Reconciler = async ({
       ...spec
     } = d.input;
     if (
-      specFingerprint(cur.spec as Record<string, unknown>) !==
-      specFingerprint(spec as unknown as Record<string, unknown>)
+      specFingerprint({
+        ...(cur.spec as Record<string, unknown>),
+        notification_channels: cur.notification_channels,
+      }) !== specFingerprint(spec as unknown as Record<string, unknown>)
     ) {
       updates.push({ d, cur });
     }

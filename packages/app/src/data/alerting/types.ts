@@ -15,6 +15,7 @@ import type {
   AlertingRuleSchema,
   AlertingRuleSpecSchema,
   AlertingRulesPageSchema,
+  AlertingRuleUpdateSchema,
   AlertingRuleViewSchema,
   AlertingSeveritySchema,
   AlertingSilenceInputSchema,
@@ -38,9 +39,30 @@ export type AlertingMatcher = z.infer<typeof AlertingMatcherSchema>;
 export type AlertingRuleSpec = z.infer<typeof AlertingRuleSpecSchema>;
 export type AlertingRule = z.infer<typeof AlertingRuleSchema>;
 export type AlertingRuleInput = z.infer<typeof AlertingRuleInputSchema>;
+export type AlertingRuleUpdate = z.infer<typeof AlertingRuleUpdateSchema>;
 export type AlertingRuleView = z.infer<typeof AlertingRuleViewSchema>;
 export type AlertingRulesPage = z.infer<typeof AlertingRulesPageSchema>;
 export type AlertingAlert = z.infer<typeof AlertingAlertSchema>;
+
+/** One bounded result-row sample captured from a successful rule evaluation. */
+export type AlertingEvaluationSample = {
+  fingerprint: string;
+  labels: Record<string, string>;
+  value: number | null;
+};
+
+/** Evaluation history returned to the alert signal chart. */
+export type AlertingRuleEvaluationPoint = {
+  t: string;
+  samples: AlertingEvaluationSample[];
+  failed: boolean;
+};
+
+export type AlertingRuleEvaluationSeries = {
+  points: AlertingRuleEvaluationPoint[];
+  samples_truncated: boolean;
+};
+
 export type AlertingChannelConfig = z.infer<typeof AlertingChannelConfigSchema>;
 export type AlertingChannel = z.infer<typeof AlertingChannelSchema>;
 export type AlertingReceiver = z.infer<typeof AlertingReceiverSchema>;

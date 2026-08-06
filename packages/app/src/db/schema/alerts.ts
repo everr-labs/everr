@@ -17,6 +17,7 @@ import {
   uuid,
 } from "drizzle-orm/pg-core";
 import type {
+  AlertingEvaluationSample,
   AlertingInhibitionInput,
   AlertingMatcher,
   AlertingRouteInput,
@@ -202,6 +203,11 @@ export const alertEvaluations = pgTable(
       .notNull()
       .defaultNow(),
     error: text("error"),
+    samples: jsonb("samples")
+      .notNull()
+      .default(sql`'[]'::jsonb`)
+      .$type<AlertingEvaluationSample[]>(),
+    samplesTruncated: boolean("samples_truncated").notNull().default(false),
   },
   (table) => [
     primaryKey({ columns: [table.alertDefinitionId, table.scheduledFor] }),
@@ -322,6 +328,38 @@ export const alertChannels = pgTable(
   ],
 );
 
+export const alertDefinitionChannels = pgTable(
+  "alert_definition_channels",
+  {
+    organizationId: text("organization_id").notNull(),
+    alertDefinitionId: uuid("alert_definition_id").notNull(),
+    channelId: uuid("channel_id").notNull(),
+    position: integer("position").notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.alertDefinitionId, table.channelId] }),
+    foreignKey({
+      columns: [table.organizationId, table.alertDefinitionId],
+      foreignColumns: [alertDefinitions.organizationId, alertDefinitions.id],
+      name: "alert_definition_channels_definition_tenant_fk",
+    }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.organizationId, table.channelId],
+      foreignColumns: [alertChannels.organizationId, alertChannels.id],
+      name: "alert_definition_channels_channel_tenant_fk",
+    }),
+    uniqueIndex("alert_definition_channels_definition_position_uq").on(
+      table.alertDefinitionId,
+      table.position,
+    ),
+    check(
+      "alert_definition_channels_position_nonnegative",
+      sql`${table.position} >= 0`,
+    ),
+    index("alert_definition_channels_channel_idx").on(table.channelId),
+  ],
+);
+
 export const alertReceivers = pgTable(
   "alert_receivers",
   {
@@ -422,7 +460,8 @@ export const alertNotificationGroups = pgTable(
     id: uuid("id").primaryKey().defaultRandom(),
     organizationId: text("organization_id").notNull(),
     groupKey: text("group_key").notNull(),
-    receiverId: uuid("receiver_id").notNull(),
+    receiverId: uuid("receiver_id"),
+    directAlertDefinitionId: uuid("direct_alert_definition_id"),
     labels: jsonb("labels")
       .notNull()
       .default(sql`'{}'::jsonb`)
@@ -444,6 +483,11 @@ export const alertNotificationGroups = pgTable(
       foreignColumns: [alertReceivers.organizationId, alertReceivers.id],
       name: "alert_notification_groups_receiver_tenant_fk",
     }).onDelete("cascade"),
+    foreignKey({
+      columns: [table.organizationId, table.directAlertDefinitionId],
+      foreignColumns: [alertDefinitions.organizationId, alertDefinitions.id],
+      name: "alert_notification_groups_direct_definition_tenant_fk",
+    }).onDelete("cascade"),
     uniqueIndex("alert_notification_groups_org_key_uq").on(
       table.organizationId,
       table.groupKey,
@@ -455,6 +499,10 @@ export const alertNotificationGroups = pgTable(
     check(
       "alert_notification_groups_repeat_interval_valid",
       sql`${table.repeatIntervalSeconds} IS NULL OR ${table.repeatIntervalSeconds} >= 60`,
+    ),
+    check(
+      "alert_notification_groups_one_target",
+      sql`num_nonnulls(${table.receiverId}, ${table.directAlertDefinitionId}) = 1`,
     ),
     index("alert_notification_groups_cleanup_idx").on(
       table.updatedAt,

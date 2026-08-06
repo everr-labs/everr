@@ -61,12 +61,31 @@ const COL_DELIVERY = "md:w-48";
 // ── Delivery fact ─────────────────────────────────────────────────────────────
 
 function DeliveryFact({
+  directChannels,
   matchedRoutes,
   channelsByReceiver,
 }: {
+  directChannels: string[];
   matchedRoutes: AlertingRoute[];
   channelsByReceiver: Map<string, string[]>;
 }) {
+  if (directChannels.length > 0) {
+    const shown = directChannels.slice(0, 2);
+    const names =
+      shown.join(", ") +
+      (directChannels.length > shown.length
+        ? ` +${directChannels.length - shown.length}`
+        : "");
+    return (
+      <span
+        className="truncate font-mono text-xs text-muted-foreground"
+        title={`Explicit destination: ${directChannels.join(", ")}`}
+      >
+        <span aria-hidden>→ </span>
+        <span className="text-foreground">{names}</span>
+      </span>
+    );
+  }
   if (matchedRoutes.length === 0) {
     return (
       <Link
@@ -182,9 +201,16 @@ function InstanceDetail({
 
       <div className="space-y-1">
         <div className="text-[0.625rem] font-medium tracking-wide text-muted-foreground uppercase">
-          Route
+          Delivery
         </div>
-        {inst.matchedRoutes.length === 0 ? (
+        {inst.directChannels.length > 0 ? (
+          <div className="flex flex-wrap items-center gap-2 text-xs">
+            <span className="text-muted-foreground">Explicit channels</span>
+            <span className="font-mono text-foreground">
+              {inst.directChannels.join(", ")}
+            </span>
+          </div>
+        ) : inst.matchedRoutes.length === 0 ? (
           <span className="text-xs text-muted-foreground">
             no route matches: recorded in history, delivered to no one
           </span>
@@ -690,6 +716,7 @@ export function TriageBoard({
                   }
                   deliveryFact={
                     <DeliveryFact
+                      directChannels={row.lead.directChannels}
                       matchedRoutes={row.lead.matchedRoutes}
                       channelsByReceiver={channelsByReceiver}
                     />

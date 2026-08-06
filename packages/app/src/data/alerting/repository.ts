@@ -1,12 +1,14 @@
 import { randomUUID } from "node:crypto";
-import { and, asc, desc, eq, inArray, isNull } from "drizzle-orm";
+import { and, asc, desc, eq, gte, inArray, isNull, lte } from "drizzle-orm";
 import { parseResourceName } from "@/data/as-code/identity";
 import { parseSloWindowSeconds } from "@/data/slos/schema";
-import { db } from "@/db/client";
+import { db, type Transaction } from "@/db/client";
 import {
   alertChannels,
+  alertDefinitionChannels,
   alertDefinitions,
   alertDeliveries,
+  alertEvaluations,
   alertInhibitions,
   alertInstances,
   alertReceiverChannels,
@@ -28,12 +30,14 @@ import {
   retainRedactedChannelSecrets,
 } from "@/server/alerts/channel-secrets";
 import { AlertingError } from "./errors";
+import { shapeAlertEvaluationSeries } from "./evaluation-series";
 import {
   AlertingChannelConfigSchema,
   AlertingInhibitionInputSchema,
   AlertingRouteInputSchema,
   AlertingRuleInputSchema,
   AlertingRuleSpecSchema,
+  AlertingRuleUpdateSchema,
   AlertingSilenceInputSchema,
   AlertingSloInputSchema,
   AlertingSloSpecSchema,
@@ -48,7 +52,7 @@ import type {
   AlertingInhibitionInput,
   AlertingRouteInput,
   AlertingRuleInput,
-  AlertingRuleSpec,
+  AlertingRuleUpdate,
   AlertingSilenceInput,
   AlertingSloInput,
   AlertingSloSpec,
@@ -84,22 +88,23 @@ function ruleName(row: RuleRow): string {
   return `${row.project}/${row.slug}`;
 }
 
-function ruleBase(row: RuleRow) {
+function ruleBase(row: RuleRow, notificationChannels: string[]) {
   return {
     id: row.id,
     tenant: row.organizationId,
     repoid: row.repoid,
     previewId: row.previewId,
     name: ruleName(row),
+    notification_channels: notificationChannels,
     spec: row.spec,
     version: row.version,
     paused: !row.active,
   };
 }
 
-function ruleView(row: RuleRow) {
+function ruleView(row: RuleRow, notificationChannels: string[]) {
   return {
-    ...ruleBase(row),
+    ...ruleBase(row, notificationChannels),
     updated_at: row.updatedAt.toISOString(),
     health: {
       status: row.healthStatus,
@@ -120,6 +125,78 @@ function ruleView(row: RuleRow) {
       last_row_count: row.lastRowCount,
     },
   };
+}
+
+async function definitionChannelNames(
+  organizationId: string,
+  definitionIds: string[],
+): Promise<Map<string, string[]>> {
+  if (definitionIds.length === 0) return new Map();
+  const rows = await db
+    .select({
+      alertDefinitionId: alertDefinitionChannels.alertDefinitionId,
+      channelName: alertChannels.name,
+      position: alertDefinitionChannels.position,
+    })
+    .from(alertDefinitionChannels)
+    .innerJoin(
+      alertChannels,
+      and(
+        eq(
+          alertDefinitionChannels.organizationId,
+          alertChannels.organizationId,
+        ),
+        eq(alertDefinitionChannels.channelId, alertChannels.id),
+      ),
+    )
+    .where(
+      and(
+        eq(alertDefinitionChannels.organizationId, organizationId),
+        inArray(alertDefinitionChannels.alertDefinitionId, definitionIds),
+      ),
+    )
+    .orderBy(
+      asc(alertDefinitionChannels.alertDefinitionId),
+      asc(alertDefinitionChannels.position),
+    );
+  const namesByDefinition = new Map<string, string[]>();
+  for (const row of rows) {
+    const names = namesByDefinition.get(row.alertDefinitionId) ?? [];
+    names.push(row.channelName);
+    namesByDefinition.set(row.alertDefinitionId, names);
+  }
+  return namesByDefinition;
+}
+
+async function definitionChannelNamesFor(
+  organizationId: string,
+  definitionId: string,
+): Promise<string[]> {
+  return (
+    (await definitionChannelNames(organizationId, [definitionId])).get(
+      definitionId,
+    ) ?? []
+  );
+}
+
+async function replaceDefinitionChannels(
+  tx: Transaction,
+  organizationId: string,
+  alertDefinitionId: string,
+  channelIds: string[],
+) {
+  await tx
+    .delete(alertDefinitionChannels)
+    .where(eq(alertDefinitionChannels.alertDefinitionId, alertDefinitionId));
+  if (channelIds.length === 0) return;
+  await tx.insert(alertDefinitionChannels).values(
+    channelIds.map((channelId, position) => ({
+      organizationId,
+      alertDefinitionId,
+      channelId,
+      position,
+    })),
+  );
 }
 
 function encodeOffset(offset: number): string {
@@ -166,8 +243,13 @@ export async function listRulesPage(
     .orderBy(desc(alertDefinitions.updatedAt), desc(alertDefinitions.id))
     .limit(limit + 1)
     .offset(offset);
+  const pageRows = rows.slice(0, limit);
+  const channels = await definitionChannelNames(
+    organizationId,
+    pageRows.map((row) => row.id),
+  );
   return {
-    items: rows.slice(0, limit).map(ruleView),
+    items: pageRows.map((row) => ruleView(row, channels.get(row.id) ?? [])),
     next_cursor: rows.length > limit ? encodeOffset(offset + limit) : null,
   };
 }
@@ -209,7 +291,35 @@ async function getRuleRow(
 }
 
 export async function getRule(organizationId: string, id: string) {
-  return ruleView(await getRuleRow(organizationId, id));
+  const row = await getRuleRow(organizationId, id);
+  return ruleView(row, await definitionChannelNamesFor(organizationId, row.id));
+}
+
+export async function getRuleEvaluationSeries(
+  organizationId: string,
+  id: string,
+  opts: { from: Date; to: Date; points: number },
+) {
+  // The evaluation table is keyed by the globally unique definition id; this
+  // lookup is the tenant authorization boundary before reading its history.
+  await getRuleRow(organizationId, id);
+  const rows = await db
+    .select({
+      scheduledFor: alertEvaluations.scheduledFor,
+      error: alertEvaluations.error,
+      samples: alertEvaluations.samples,
+      samplesTruncated: alertEvaluations.samplesTruncated,
+    })
+    .from(alertEvaluations)
+    .where(
+      and(
+        eq(alertEvaluations.alertDefinitionId, id),
+        gte(alertEvaluations.scheduledFor, opts.from),
+        lte(alertEvaluations.scheduledFor, opts.to),
+      ),
+    )
+    .orderBy(asc(alertEvaluations.scheduledFor));
+  return shapeAlertEvaluationSeries(rows, opts.points);
 }
 
 function definitionValues(organizationId: string, input: AlertingRuleInput) {
@@ -232,11 +342,24 @@ export async function createRule(
   rawInput: AlertingRuleInput,
 ) {
   const input = AlertingRuleInputSchema.parse(rawInput);
-  const [row] = await translateConflict(() =>
-    db
-      .insert(alertDefinitions)
-      .values(definitionValues(organizationId, input))
-      .returning(),
+  const channelIds = await resolveOptionalChannelIds(
+    organizationId,
+    input.notification_channels,
+  );
+  const row = await translateConflict(() =>
+    db.transaction(async (tx) => {
+      const [created] = await tx
+        .insert(alertDefinitions)
+        .values(definitionValues(organizationId, input))
+        .returning();
+      await replaceDefinitionChannels(
+        tx,
+        organizationId,
+        created.id,
+        channelIds,
+      );
+      return created;
+    }),
   );
   await enqueueAlertEvaluation({
     alertDefinitionId: row.id,
@@ -244,16 +367,22 @@ export async function createRule(
       row.nextEvaluationAt?.toISOString() ?? new Date().toISOString(),
     ruleVersion: row.version,
   });
-  return ruleBase(row);
+  return ruleBase(row, input.notification_channels);
 }
 
 export async function updateRule(
   organizationId: string,
   id: string,
-  rawSpec: AlertingRuleSpec,
+  rawSpec: AlertingRuleUpdate,
   version?: number,
 ) {
-  const spec = AlertingRuleSpecSchema.parse(rawSpec);
+  const input = AlertingRuleUpdateSchema.parse(rawSpec);
+  const { notification_channels: notificationChannels, ...rawRuleSpec } = input;
+  const spec = AlertingRuleSpecSchema.parse(rawRuleSpec);
+  const channelIds = await resolveOptionalChannelIds(
+    organizationId,
+    notificationChannels,
+  );
   const previous = await getRuleRow(organizationId, id);
   if (version !== undefined && previous.version !== version) {
     error(409, "conflict", `Rule version changed: ${id}`);
@@ -261,38 +390,41 @@ export async function updateRule(
   const labelsChanged =
     JSON.stringify(previous.spec.label_columns) !==
     JSON.stringify(spec.label_columns);
-  const updated = await db.transaction(async (tx) => {
-    const [row] = await tx
-      .update(alertDefinitions)
-      .set({
-        spec,
-        version: previous.version + 1,
-        nextEvaluationAt: new Date(),
-        updatedAt: new Date(),
-      })
-      .where(
-        and(
-          eq(alertDefinitions.organizationId, organizationId),
-          eq(alertDefinitions.id, id),
-          eq(alertDefinitions.version, previous.version),
-        ),
-      )
-      .returning();
-    if (!row) error(409, "conflict", `Rule version changed: ${id}`);
-    if (labelsChanged) {
-      await tx
-        .delete(alertInstances)
-        .where(eq(alertInstances.alertDefinitionId, id));
-    }
-    return row;
-  });
+  const updated = await translateConflict(() =>
+    db.transaction(async (tx) => {
+      const [row] = await tx
+        .update(alertDefinitions)
+        .set({
+          spec,
+          version: previous.version + 1,
+          nextEvaluationAt: new Date(),
+          updatedAt: new Date(),
+        })
+        .where(
+          and(
+            eq(alertDefinitions.organizationId, organizationId),
+            eq(alertDefinitions.id, id),
+            eq(alertDefinitions.version, previous.version),
+          ),
+        )
+        .returning();
+      if (!row) error(409, "conflict", `Rule version changed: ${id}`);
+      if (labelsChanged) {
+        await tx
+          .delete(alertInstances)
+          .where(eq(alertInstances.alertDefinitionId, id));
+      }
+      await replaceDefinitionChannels(tx, organizationId, id, channelIds);
+      return row;
+    }),
+  );
   await enqueueAlertEvaluation({
     alertDefinitionId: updated.id,
     scheduledFor:
       updated.nextEvaluationAt?.toISOString() ?? new Date().toISOString(),
     ruleVersion: updated.version,
   });
-  return ruleBase(updated);
+  return ruleBase(updated, notificationChannels);
 }
 
 export async function adoptRule(
@@ -300,44 +432,62 @@ export async function adoptRule(
   id: string,
   repoid: string,
   version: number,
-  rawSpec?: AlertingRuleSpec,
+  rawSpec?: AlertingRuleUpdate,
 ) {
   if (repoid.length === 0) error(422, "validation", "repoid is required");
   const previous = await getRuleRow(organizationId, id);
   if (previous.version !== version || previous.previewId !== null) {
     error(409, "conflict", `Rule version changed: ${id}`);
   }
-  const spec = rawSpec ? AlertingRuleSpecSchema.parse(rawSpec) : null;
+  const input = rawSpec ? AlertingRuleUpdateSchema.parse(rawSpec) : null;
+  const notificationChannels = input?.notification_channels;
+  const spec = input
+    ? AlertingRuleSpecSchema.parse(
+        Object.fromEntries(
+          Object.entries(input).filter(
+            ([key]) => key !== "notification_channels",
+          ),
+        ),
+      )
+    : null;
+  const channelIds = notificationChannels
+    ? await resolveOptionalChannelIds(organizationId, notificationChannels)
+    : null;
   const labelsChanged =
     spec !== null &&
     JSON.stringify(previous.spec.label_columns) !==
       JSON.stringify(spec.label_columns);
-  const row = await db.transaction(async (tx) => {
-    const [updated] = await tx
-      .update(alertDefinitions)
-      .set({
-        repoid,
-        ...(spec ? { spec, nextEvaluationAt: new Date() } : {}),
-        version: version + 1,
-        updatedAt: new Date(),
-      })
-      .where(
-        and(
-          eq(alertDefinitions.organizationId, organizationId),
-          eq(alertDefinitions.id, id),
-          eq(alertDefinitions.version, version),
-          isNull(alertDefinitions.previewId),
-        ),
-      )
-      .returning();
-    if (!updated) error(409, "conflict", `Rule version changed: ${id}`);
-    if (labelsChanged) {
-      await tx
-        .delete(alertInstances)
-        .where(eq(alertInstances.alertDefinitionId, id));
-    }
-    return updated;
-  });
+  const row = await translateConflict(() =>
+    db.transaction(async (tx) => {
+      const [updated] = await tx
+        .update(alertDefinitions)
+        .set({
+          repoid,
+          ...(spec ? { spec, nextEvaluationAt: new Date() } : {}),
+          version: version + 1,
+          updatedAt: new Date(),
+        })
+        .where(
+          and(
+            eq(alertDefinitions.organizationId, organizationId),
+            eq(alertDefinitions.id, id),
+            eq(alertDefinitions.version, version),
+            isNull(alertDefinitions.previewId),
+          ),
+        )
+        .returning();
+      if (!updated) error(409, "conflict", `Rule version changed: ${id}`);
+      if (labelsChanged) {
+        await tx
+          .delete(alertInstances)
+          .where(eq(alertInstances.alertDefinitionId, id));
+      }
+      if (channelIds) {
+        await replaceDefinitionChannels(tx, organizationId, id, channelIds);
+      }
+      return updated;
+    }),
+  );
   if (!row) error(409, "conflict", `Rule version changed: ${id}`);
   if (spec) {
     await enqueueAlertEvaluation({
@@ -347,7 +497,11 @@ export async function adoptRule(
       ruleVersion: row.version,
     });
   }
-  return ruleBase(row);
+  return ruleBase(
+    row,
+    notificationChannels ??
+      (await definitionChannelNamesFor(organizationId, row.id)),
+  );
 }
 
 export async function deleteRule(organizationId: string, id: string) {
@@ -375,7 +529,7 @@ export async function pauseRule(organizationId: string, id: string) {
     )
     .returning();
   if (!row) error(404, "not_found", `Rule not found: ${id}`);
-  return ruleBase(row);
+  return ruleBase(row, await definitionChannelNamesFor(organizationId, row.id));
 }
 
 export async function resumeRule(organizationId: string, id: string) {
@@ -396,7 +550,7 @@ export async function resumeRule(organizationId: string, id: string) {
       row.nextEvaluationAt?.toISOString() ?? new Date().toISOString(),
     ruleVersion: row.version,
   });
-  return ruleBase(row);
+  return ruleBase(row, await definitionChannelNamesFor(organizationId, row.id));
 }
 
 export async function listAlerts(organizationId: string) {
@@ -812,19 +966,39 @@ export async function updateChannel(
 
 export async function deleteChannel(organizationId: string, name: string) {
   const channel = await getChannelRow(organizationId, name);
-  const refs = await db
-    .select({ receiver: alertReceivers.name })
-    .from(alertReceiverChannels)
-    .innerJoin(
-      alertReceivers,
-      eq(alertReceiverChannels.receiverId, alertReceivers.id),
-    )
-    .where(eq(alertReceiverChannels.channelId, channel.id));
-  if (refs.length > 0) {
+  const [receiverRefs, definitionRefs] = await Promise.all([
+    db
+      .select({ receiver: alertReceivers.name })
+      .from(alertReceiverChannels)
+      .innerJoin(
+        alertReceivers,
+        eq(alertReceiverChannels.receiverId, alertReceivers.id),
+      )
+      .where(eq(alertReceiverChannels.channelId, channel.id)),
+    db
+      .select({
+        project: alertDefinitions.project,
+        slug: alertDefinitions.slug,
+      })
+      .from(alertDefinitionChannels)
+      .innerJoin(
+        alertDefinitions,
+        eq(alertDefinitionChannels.alertDefinitionId, alertDefinitions.id),
+      )
+      .where(eq(alertDefinitionChannels.channelId, channel.id)),
+  ]);
+  if (receiverRefs.length > 0) {
     error(
       409,
       "conflict",
-      `Channel is used by receivers: ${refs.map((r) => r.receiver).join(", ")}`,
+      `Channel is used by receivers: ${receiverRefs.map((r) => r.receiver).join(", ")}`,
+    );
+  }
+  if (definitionRefs.length > 0) {
+    error(
+      409,
+      "conflict",
+      `Channel is used directly by alerts: ${definitionRefs.map((r) => `${r.project}/${r.slug}`).join(", ")}`,
     );
   }
   const [delivery] = await db
@@ -921,6 +1095,13 @@ async function resolveChannelIds(
   if (missing.length > 0)
     error(422, "validation", `Unknown channels: ${missing.join(", ")}`);
   return names.map((name) => byName.get(name) as string);
+}
+
+async function resolveOptionalChannelIds(
+  organizationId: string,
+  names: string[],
+): Promise<string[]> {
+  return names.length === 0 ? [] : resolveChannelIds(organizationId, names);
 }
 
 export async function createReceiver(

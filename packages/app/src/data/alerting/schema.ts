@@ -22,6 +22,11 @@ const AlertingInstanceStatusSchema = z.enum(["inactive", "pending", "firing"]);
 const AlertingTimestampSchema = z.string();
 const AlertingTimestampNullable = AlertingTimestampSchema.nullable();
 const ResourceNameSchema = z.string().regex(/^[^/]+\/.+$/);
+const AlertingChannelNamesSchema = z
+  .array(z.string().min(1))
+  .refine((channels) => new Set(channels).size === channels.length, {
+    message: "notification channels must be unique",
+  });
 
 export const AlertingMatcherSchema = z.object({
   label: z.string(),
@@ -59,6 +64,7 @@ export const AlertingRuleSchema = z.object({
   repoid: z.string().min(1),
   previewId: z.string().nullable(),
   name: ResourceNameSchema,
+  notification_channels: AlertingChannelNamesSchema,
   spec: AlertingRuleSpecSchema,
   version: z.number().int(),
   paused: z.boolean(),
@@ -164,6 +170,11 @@ export const AlertingRuleInputSchema = AlertingRuleSpecSchema.extend({
   name: ResourceNameSchema,
   repoid: z.string().min(1),
   previewId: z.string().nullable(),
+  notification_channels: AlertingChannelNamesSchema.default([]),
+});
+
+export const AlertingRuleUpdateSchema = AlertingRuleSpecSchema.extend({
+  notification_channels: AlertingChannelNamesSchema.default([]),
 });
 
 export const AlertingInhibitionInputSchema = z.object({

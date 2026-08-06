@@ -28,6 +28,8 @@ spec:
 | `resolveAfter` | int | no | Consecutive evaluations where a firing instance is absent or no longer matches before it resolves. Default `1`; raise it (for example `3`) to tolerate gaps in the data. Must be ≥ 1. |
 | `query` | string | yes | ClickHouse SQL. Must return a numeric column named `value`. **No `${...}` templating.** |
 | `condition` | object | yes | A numeric threshold applied to each row's `value`: `{ operator, threshold }`. Supported operators: `gt`, `gte`, `lt`, `lte`, `eq`, `neq`. A matching row is a firing instance. |
+| `notification` | object | no | An explicit notification destination. When present, its channels receive this alert and advanced route matching is skipped. Silences and inhibitions still apply. |
+| `notification.channels` | [string] | yes, within `notification` | One or more unique Organization channel names. Every channel must exist when the rule is applied. |
 | `notificationMessage` | object | yes | The notification text. See below. |
 | `notificationMessage.title` | string | yes | Supports `${column}` (any query result column) and `${value}`. Non-empty. |
 | `notificationMessage.description` | string | no | Supports `${column}` and `${value}`. |
@@ -38,6 +40,18 @@ spec:
 | `runbook` | string | no | A linked runbook: bare `slug` (resolved against the alert's own project) or `project/slug`. Must resolve at apply time, either to a runbook in the same apply or to one owned by another repo. Generates the `link.runbook` notification annotation. |
 
 Ownership is keyed by the rule's canonical name (`<project>/<slug>`) and its first-class Repoid. A rule under another Repoid with a name your config declares is an ownership conflict at apply time: `everr apply` fails fast unless run with `--adopt`, which transfers the rule in place. A rule owned by your Repoid is part of that config: apply updates it when the spec drifts and prunes it if no YAML file declares it.
+
+## Notification destination
+
+By default, an alert is matched against the Organization's notification routes. Set `notification.channels` when a rule has an explicit destination that should override those routes:
+
+```yaml
+spec:
+  notification:
+    channels: [team-slack, primary-on-call]
+```
+
+The channel names reference existing Organization channels. Configuration and secrets stay with the channels and are not copied into the alert definition. Direct notifications use the standard grouping defaults and group instances by rule and severity. Omitting `notification` restores advanced routing. Preview alerts remain suppressed even when they declare an explicit destination.
 
 ## Message templating
 
@@ -75,6 +89,7 @@ Declarations sit flat in `everr/`, named by kind: `*.alert.yaml`, `*.dashboard.y
 - `for` must be a valid duration (`0s` is allowed).
 - `resolveAfter` must be an integer ≥ 1.
 - `notificationMessage.title` is required and non-empty.
+- `notification.channels` must contain unique, non-empty names, and every named channel must exist at apply time.
 - `${...}` in messages must reference a column the `query` returns or be `${value}`.
 - `query` must return a numeric column named `value`.
 - `condition.operator` must be `gt`, `gte`, `lt`, `lte`, `eq`, or `neq`; `condition.threshold` must be a finite number.

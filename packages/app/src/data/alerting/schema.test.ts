@@ -16,6 +16,7 @@ const ruleView = {
   repoid: "repo-1",
   previewId: "demo",
   name: "default/checkout-errors",
+  notification_channels: ["team-slack"],
   spec: {
     sql: "SELECT host, x AS value FROM t",
     interval_secs: 30,

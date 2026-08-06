@@ -12,6 +12,7 @@ import { query, querySqlApi } from "@/lib/clickhouse";
 import { emailTestConfigFor } from "./email-test-config";
 import {
   getAlertingRuleByName,
+  getAlertingRuleEvaluationSeries,
   getAlertingSloBudgetNow,
   getAlertingSloBudgetSeries,
   getAlertingSloByName,
@@ -25,6 +26,7 @@ const mocks = vi.hoisted(() => ({
   listSlos: vi.fn(),
   listAlerts: vi.fn(),
   listAllRules: vi.fn(),
+  getRuleEvaluationSeries: vi.fn(),
   getSlo: vi.fn(),
   testChannel: vi.fn(),
 }));
@@ -38,6 +40,7 @@ vi.mock("./repository", () => ({
   listSlos: mocks.listSlos,
   listAlerts: mocks.listAlerts,
   listAllRules: mocks.listAllRules,
+  getRuleEvaluationSeries: mocks.getRuleEvaluationSeries,
   getSlo: mocks.getSlo,
   testChannel: mocks.testChannel,
 }));
@@ -146,6 +149,36 @@ describe("getAlertingRuleByName", () => {
 
     expect(result.id).toBe("r-prev");
     expect(mocks.listRulesPage).not.toHaveBeenCalled();
+  });
+});
+
+describe("getAlertingRuleEvaluationSeries", () => {
+  it("resolves the range and keeps the repository read tenant-scoped", async () => {
+    mocks.getRuleEvaluationSeries.mockResolvedValue({
+      points: [],
+      samples_truncated: false,
+    });
+
+    await getAlertingRuleEvaluationSeries({
+      data: {
+        ruleId: "11111111-1111-1111-1111-111111111111",
+        timeRange: {
+          from: "2026-08-06T12:00:00Z",
+          to: "2026-08-06T13:00:00Z",
+        },
+        points: 120,
+      },
+    });
+
+    expect(mocks.getRuleEvaluationSeries).toHaveBeenCalledWith(
+      "test_org",
+      "11111111-1111-1111-1111-111111111111",
+      {
+        from: new Date("2026-08-06T12:00:00Z"),
+        to: new Date("2026-08-06T13:00:00Z"),
+        points: 120,
+      },
+    );
   });
 });
 

@@ -2,6 +2,11 @@ import { createHash } from "node:crypto";
 import { and, asc, eq, gt, lte } from "drizzle-orm";
 import { z } from "zod";
 import {
+  ALERTING_DEFAULT_GROUP_BY,
+  ALERTING_DEFAULT_GROUP_INTERVAL_SECS,
+  ALERTING_DEFAULT_GROUP_WAIT_SECS,
+} from "@/data/alerting/defaults";
+import {
   alertingMatchingSilence,
   alertingRouteMatches,
   alertingSelectRoutes,
@@ -15,6 +20,7 @@ import type { AlertingRoute } from "@/data/alerting/types";
 import { db } from "@/db/client";
 import {
   alertChannels,
+  alertDefinitionChannels,
   alertDefinitions,
   alertDeliveries,
   alertDeliveryEvents,
@@ -259,6 +265,90 @@ async function loadRoutes(organizationId: string): Promise<AlertingRoute[]> {
   }));
 }
 
+type DispatchTarget = {
+  receiverId: string | null;
+  directAlertDefinitionId: string | null;
+  groupKey: string;
+  groupLabels: Record<string, string>;
+  groupWaitSeconds: number;
+  groupIntervalSeconds: number;
+  repeatIntervalSeconds: number | null;
+};
+
+async function directDispatchTarget(
+  event: typeof alertEvents.$inferSelect,
+): Promise<DispatchTarget | null> {
+  if (event.sourceKind !== "alert") return null;
+  const [destination] = await db
+    .select({ channelId: alertDefinitionChannels.channelId })
+    .from(alertDefinitionChannels)
+    .where(
+      and(
+        eq(alertDefinitionChannels.organizationId, event.organizationId),
+        eq(alertDefinitionChannels.alertDefinitionId, event.sourceDefinitionId),
+      ),
+    )
+    .limit(1);
+  if (!destination) return null;
+
+  const labels = eventLabels(event);
+  const groupLabels = Object.fromEntries(
+    ALERTING_DEFAULT_GROUP_BY.map((key) => [key, labels[key] ?? ""]),
+  );
+  return {
+    receiverId: null,
+    directAlertDefinitionId: event.sourceDefinitionId,
+    groupKey: hash("direct", event.sourceDefinitionId, stableJson(groupLabels)),
+    groupLabels,
+    groupWaitSeconds: ALERTING_DEFAULT_GROUP_WAIT_SECS,
+    groupIntervalSeconds: ALERTING_DEFAULT_GROUP_INTERVAL_SECS,
+    repeatIntervalSeconds: null,
+  };
+}
+
+async function routedDispatchTargets(
+  event: typeof alertEvents.$inferSelect,
+): Promise<DispatchTarget[]> {
+  const routes = alertingSelectRoutes(
+    await loadRoutes(event.organizationId),
+    eventLabels(event),
+  );
+  const targets: DispatchTarget[] = [];
+  for (const route of routes) {
+    const [receiver] = await db
+      .select()
+      .from(alertReceivers)
+      .where(
+        and(
+          eq(alertReceivers.organizationId, event.organizationId),
+          eq(alertReceivers.name, route.receiver),
+        ),
+      )
+      .limit(1);
+    if (!receiver) continue;
+    const groupLabels = Object.fromEntries(
+      (route.group_by ?? []).map((key) => [key, eventLabels(event)[key] ?? ""]),
+    );
+    targets.push({
+      receiverId: receiver.id,
+      directAlertDefinitionId: null,
+      groupKey: hash(receiver.id, stableJson(groupLabels)),
+      groupLabels,
+      groupWaitSeconds: route.group_wait_secs ?? 30,
+      groupIntervalSeconds: route.group_interval_secs ?? 300,
+      repeatIntervalSeconds: route.repeat_interval_secs,
+    });
+  }
+  return targets;
+}
+
+export async function selectDispatchTargets<T>(
+  directTarget: T | null,
+  routedTargets: () => Promise<T[]>,
+): Promise<T[]> {
+  return directTarget ? [directTarget] : routedTargets();
+}
+
 export async function processAlertEvent(rawPayload: unknown): Promise<void> {
   const { eventId } = EventPayloadSchema.parse(rawPayload);
   const [event] = await db
@@ -298,26 +388,11 @@ export async function processAlertEvent(rawPayload: unknown): Promise<void> {
       .where(eq(alertEvents.id, event.id));
   }
 
-  const routes = alertingSelectRoutes(
-    await loadRoutes(event.organizationId),
-    eventLabels(event),
+  const directTarget = await directDispatchTarget(event);
+  const targets = await selectDispatchTargets(directTarget, () =>
+    routedDispatchTargets(event),
   );
-  for (const route of routes) {
-    const [receiver] = await db
-      .select()
-      .from(alertReceivers)
-      .where(
-        and(
-          eq(alertReceivers.organizationId, event.organizationId),
-          eq(alertReceivers.name, route.receiver),
-        ),
-      )
-      .limit(1);
-    if (!receiver) continue;
-    const groupLabels = Object.fromEntries(
-      (route.group_by ?? []).map((key) => [key, eventLabels(event)[key] ?? ""]),
-    );
-    const groupKey = hash(receiver.id, stableJson(groupLabels));
+  for (const target of targets) {
     await db.transaction(async (tx) => {
       const [existing] = await tx
         .select()
@@ -325,13 +400,11 @@ export async function processAlertEvent(rawPayload: unknown): Promise<void> {
         .where(
           and(
             eq(alertNotificationGroups.organizationId, event.organizationId),
-            eq(alertNotificationGroups.groupKey, groupKey),
+            eq(alertNotificationGroups.groupKey, target.groupKey),
           ),
         )
         .for("update")
         .limit(1);
-      const groupWait = route.group_wait_secs ?? 30;
-      const groupInterval = route.group_interval_secs ?? 300;
       const nextFlushAt = nextGroupFlushAt(
         existing
           ? {
@@ -340,15 +413,15 @@ export async function processAlertEvent(rawPayload: unknown): Promise<void> {
             }
           : null,
         now,
-        groupWait,
-        groupInterval,
+        target.groupWaitSeconds,
+        target.groupIntervalSeconds,
       );
       const [group] = existing
         ? await tx
             .update(alertNotificationGroups)
             .set({
               nextFlushAt,
-              repeatIntervalSeconds: route.repeat_interval_secs,
+              repeatIntervalSeconds: target.repeatIntervalSeconds,
               updatedAt: now,
             })
             .where(eq(alertNotificationGroups.id, existing.id))
@@ -357,11 +430,12 @@ export async function processAlertEvent(rawPayload: unknown): Promise<void> {
             .insert(alertNotificationGroups)
             .values({
               organizationId: event.organizationId,
-              groupKey,
-              receiverId: receiver.id,
-              labels: groupLabels,
+              groupKey: target.groupKey,
+              receiverId: target.receiverId,
+              directAlertDefinitionId: target.directAlertDefinitionId,
+              labels: target.groupLabels,
               nextFlushAt,
-              repeatIntervalSeconds: route.repeat_interval_secs,
+              repeatIntervalSeconds: target.repeatIntervalSeconds,
             })
             .returning();
       await tx
@@ -479,23 +553,52 @@ export async function flushAlertGroup(rawPayload: unknown): Promise<void> {
     (event) => !group.lastFlushedAt || event.occurredAt > group.lastFlushedAt,
   );
   const notificationEvents = hasNewEvents ? latest : active;
-  const channels = await db
-    .select({ channel: alertChannels })
-    .from(alertReceiverChannels)
-    .innerJoin(
-      alertChannels,
-      and(
-        eq(alertReceiverChannels.organizationId, alertChannels.organizationId),
-        eq(alertReceiverChannels.channelId, alertChannels.id),
-      ),
-    )
-    .where(
-      and(
-        eq(alertReceiverChannels.organizationId, group.organizationId),
-        eq(alertReceiverChannels.receiverId, group.receiverId),
-      ),
-    )
-    .orderBy(asc(alertReceiverChannels.position));
+  const channels = group.directAlertDefinitionId
+    ? await db
+        .select({ channel: alertChannels })
+        .from(alertDefinitionChannels)
+        .innerJoin(
+          alertChannels,
+          and(
+            eq(
+              alertDefinitionChannels.organizationId,
+              alertChannels.organizationId,
+            ),
+            eq(alertDefinitionChannels.channelId, alertChannels.id),
+          ),
+        )
+        .where(
+          and(
+            eq(alertDefinitionChannels.organizationId, group.organizationId),
+            eq(
+              alertDefinitionChannels.alertDefinitionId,
+              group.directAlertDefinitionId,
+            ),
+          ),
+        )
+        .orderBy(asc(alertDefinitionChannels.position))
+    : group.receiverId
+      ? await db
+          .select({ channel: alertChannels })
+          .from(alertReceiverChannels)
+          .innerJoin(
+            alertChannels,
+            and(
+              eq(
+                alertReceiverChannels.organizationId,
+                alertChannels.organizationId,
+              ),
+              eq(alertReceiverChannels.channelId, alertChannels.id),
+            ),
+          )
+          .where(
+            and(
+              eq(alertReceiverChannels.organizationId, group.organizationId),
+              eq(alertReceiverChannels.receiverId, group.receiverId),
+            ),
+          )
+          .orderBy(asc(alertReceiverChannels.position))
+      : [];
   const notification = formatNotification(notificationEvents);
   await db.transaction(async (tx) => {
     for (const { channel } of notificationEvents.length > 0 ? channels : []) {

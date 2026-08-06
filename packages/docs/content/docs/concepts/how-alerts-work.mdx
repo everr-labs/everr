@@ -31,4 +31,4 @@ By default an instance's identity is the set of **string** columns the query ret
 
 ## Notifications
 
-Firing and resolved alerts are delivered through routes to receivers (Slack, email, webhooks, PagerDuty, Telegram). Delivery is org-wide app configuration, not part of the rule's code. Silences suppress delivery during maintenance windows without stopping evaluation. See [set up notifications](/docs/guides/set-up-notifications).
+Firing and resolved alerts normally flow through Organization-wide routes, which select receivers and their channels. A rule can instead declare `spec.notification.channels` as an explicit notification destination. When present, those channels receive the alert and route matching is skipped. Silences and inhibitions still apply, and preview alerts remain suppressed. See [set up notifications](/docs/guides/set-up-notifications).

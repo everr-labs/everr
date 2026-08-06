@@ -28,6 +28,7 @@ import {
 import { rowsToInstances } from "./02-instances";
 import { boundEventEvidence, boundEvidence } from "./03-events";
 import { ALERT_PROCESS_EVENT_TASK } from "./dispatcher";
+import { captureAlertEvaluationSamples } from "./evaluation-samples";
 import {
   advanceAlertInstance,
   newInactiveInstance,
@@ -172,6 +173,10 @@ export async function evaluateAlert(rawPayload: unknown): Promise<void> {
 
   const evaluatedAt = new Date();
   const evidence = boundEvidence(rows);
+  const capturedSamples = captureAlertEvaluationSamples(
+    rows,
+    def.spec.label_columns,
+  );
   const present = rowsToInstances(
     rows.filter((row) => alertingConditionMatches(row, def.spec.condition)),
     def.spec.label_columns,
@@ -239,7 +244,12 @@ export async function evaluateAlert(rawPayload: unknown): Promise<void> {
       return;
     const inserted = await tx
       .insert(alertEvaluations)
-      .values({ alertDefinitionId: def.id, scheduledFor })
+      .values({
+        alertDefinitionId: def.id,
+        scheduledFor,
+        samples: capturedSamples.samples,
+        samplesTruncated: capturedSamples.truncated,
+      })
       .onConflictDoNothing()
       .returning({ alertDefinitionId: alertEvaluations.alertDefinitionId });
     if (inserted.length === 0) return;

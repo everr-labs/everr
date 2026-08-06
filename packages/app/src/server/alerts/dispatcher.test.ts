@@ -21,7 +21,27 @@ vi.mock("@/db/client", () => ({
   pool: {},
 }));
 
-import { processAlertEvent } from "./dispatcher";
+import { processAlertEvent, selectDispatchTargets } from "./dispatcher";
+
+describe("notification destination precedence", () => {
+  it("uses an explicit destination without resolving advanced routes", async () => {
+    const routedTargets = vi.fn().mockResolvedValue(["advanced"]);
+
+    await expect(
+      selectDispatchTargets("direct", routedTargets),
+    ).resolves.toEqual(["direct"]);
+    expect(routedTargets).not.toHaveBeenCalled();
+  });
+
+  it("falls back to advanced routes when no destination is explicit", async () => {
+    const routedTargets = vi.fn().mockResolvedValue(["advanced"]);
+
+    await expect(selectDispatchTargets(null, routedTargets)).resolves.toEqual([
+      "advanced",
+    ]);
+    expect(routedTargets).toHaveBeenCalledOnce();
+  });
+});
 
 describe("processAlertEvent retention lifecycle", () => {
   beforeEach(() => {

@@ -125,6 +125,19 @@ describe("alertingResolveTriageInstances", () => {
     expect(inst.silence).toBeNull();
   });
 
+  it("uses explicit channels instead of matching advanced routes", () => {
+    const [inst] = resolve({
+      alerts: [alertingAlert()],
+      rules: [alertingRule({ notification_channels: ["team-slack"] })],
+    });
+
+    expect(inst.directChannels).toEqual(["team-slack"]);
+    expect(inst.matchedRoutes).toEqual([]);
+    expect(
+      alertingTriageCounts(alertingGroupInstances([inst]), [], NOW),
+    ).toMatchObject({ firing: 1, unroutedFiring: 0 });
+  });
+
   it("resolves an SLO-sourced instance to its SLO, never to a rule", () => {
     // alerting engine's wire convention puts the source uuid in `alert.rule` for SLO rows
     // too; `alert.slo` is what discriminates.

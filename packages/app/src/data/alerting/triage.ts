@@ -140,6 +140,7 @@ export type TriageInstance = {
   alert: AlertingAlert;
   rule: AlertingRuleView | undefined;
   slo: AlertingSlo | undefined;
+  directChannels: string[];
   matchedRoutes: AlertingRoute[];
   silence: AlertingSilence | null;
 };
@@ -242,11 +243,16 @@ export function alertingResolveTriageInstances({
     const slo = alert.slo !== undefined ? sloById.get(alert.slo) : undefined;
     const rule = alert.slo === undefined ? ruleById.get(alert.rule) : undefined;
     const matchLabels = alertingDispatchLabels(alert, rule, slo);
+    const directChannels = rule?.notification_channels ?? [];
     return {
       alert,
       rule,
       slo,
-      matchedRoutes: alertingSelectRoutes(routes, matchLabels),
+      directChannels,
+      matchedRoutes:
+        directChannels.length > 0
+          ? []
+          : alertingSelectRoutes(routes, matchLabels),
       silence: alertingMatchingSilence(matchLabels, silences, now),
     };
   });
@@ -278,7 +284,11 @@ export function alertingTriageCounts(
       if (lead.alert.status === "firing") {
         firing += 1;
         // A silenced row is meant not to reach anyone, so it is not "unrouted".
-        if (lead.silence === null && lead.matchedRoutes.length === 0) {
+        if (
+          lead.silence === null &&
+          lead.directChannels.length === 0 &&
+          lead.matchedRoutes.length === 0
+        ) {
           unroutedFiring += 1;
         }
       } else if (lead.alert.status === "pending") {

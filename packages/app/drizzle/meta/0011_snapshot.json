@@ -99,6 +99,124 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
+    "public.alert_definition_channels": {
+      "name": "alert_definition_channels",
+      "schema": "",
+      "columns": {
+        "organization_id": {
+          "name": "organization_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "alert_definition_id": {
+          "name": "alert_definition_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "channel_id": {
+          "name": "channel_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "position": {
+          "name": "position",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {
+        "alert_definition_channels_definition_position_uq": {
+          "name": "alert_definition_channels_definition_position_uq",
+          "columns": [
+            {
+              "expression": "alert_definition_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "position",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "alert_definition_channels_channel_idx": {
+          "name": "alert_definition_channels_channel_idx",
+          "columns": [
+            {
+              "expression": "channel_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "alert_definition_channels_definition_tenant_fk": {
+          "name": "alert_definition_channels_definition_tenant_fk",
+          "tableFrom": "alert_definition_channels",
+          "tableTo": "alert_definitions",
+          "columnsFrom": [
+            "organization_id",
+            "alert_definition_id"
+          ],
+          "columnsTo": [
+            "organization_id",
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        },
+        "alert_definition_channels_channel_tenant_fk": {
+          "name": "alert_definition_channels_channel_tenant_fk",
+          "tableFrom": "alert_definition_channels",
+          "tableTo": "alert_channels",
+          "columnsFrom": [
+            "organization_id",
+            "channel_id"
+          ],
+          "columnsTo": [
+            "organization_id",
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "alert_definition_channels_alert_definition_id_channel_id_pk": {
+          "name": "alert_definition_channels_alert_definition_id_channel_id_pk",
+          "columns": [
+            "alert_definition_id",
+            "channel_id"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "alert_definition_channels_position_nonnegative": {
+          "name": "alert_definition_channels_position_nonnegative",
+          "value": "\"alert_definition_channels\".\"position\" >= 0"
+        }
+      },
+      "isRLSEnabled": false
+    },
     "public.alert_definitions": {
       "name": "alert_definitions",
       "schema": "",
@@ -712,6 +830,20 @@
           "type": "text",
           "primaryKey": false,
           "notNull": false
+        },
+        "samples": {
+          "name": "samples",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'[]'::jsonb"
+        },
+        "samples_truncated": {
+          "name": "samples_truncated",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
         }
       },
       "indexes": {
@@ -1407,7 +1539,13 @@
           "name": "receiver_id",
           "type": "uuid",
           "primaryKey": false,
-          "notNull": true
+          "notNull": false
+        },
+        "direct_alert_definition_id": {
+          "name": "direct_alert_definition_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
         },
         "labels": {
           "name": "labels",
@@ -1535,6 +1673,21 @@
           ],
           "onDelete": "cascade",
           "onUpdate": "no action"
+        },
+        "alert_notification_groups_direct_definition_tenant_fk": {
+          "name": "alert_notification_groups_direct_definition_tenant_fk",
+          "tableFrom": "alert_notification_groups",
+          "tableTo": "alert_definitions",
+          "columnsFrom": [
+            "organization_id",
+            "direct_alert_definition_id"
+          ],
+          "columnsTo": [
+            "organization_id",
+            "id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {},
@@ -1544,6 +1697,10 @@
         "alert_notification_groups_repeat_interval_valid": {
           "name": "alert_notification_groups_repeat_interval_valid",
           "value": "\"alert_notification_groups\".\"repeat_interval_seconds\" IS NULL OR \"alert_notification_groups\".\"repeat_interval_seconds\" >= 60"
+        },
+        "alert_notification_groups_one_target": {
+          "name": "alert_notification_groups_one_target",
+          "value": "num_nonnulls(\"alert_notification_groups\".\"receiver_id\", \"alert_notification_groups\".\"direct_alert_definition_id\") = 1"
         }
       },
       "isRLSEnabled": false

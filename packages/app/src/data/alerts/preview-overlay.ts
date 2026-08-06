@@ -16,7 +16,10 @@ export type RulePreviewScope = {
  * null` = no preview selected: live rows only.
  */
 export function visibleRulesForPreview<
-  T extends Pick<AlertingRule, "previewId" | "repoid" | "name" | "spec">,
+  T extends Pick<
+    AlertingRule,
+    "previewId" | "repoid" | "name" | "notification_channels" | "spec"
+  >,
 >(rules: readonly T[], scopes: readonly RulePreviewScope[] | null): T[] {
   if (scopes === null) {
     return rules.filter((rule) => fromAlertingRule(rule).previewId === null);
