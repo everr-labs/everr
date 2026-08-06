@@ -2,6 +2,7 @@ import { eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import {
   ALERTING_SLO_INGEST_DELAY_SECS,
+  alertingFormatClickHouseDateTime,
   alertingSloCurrentBurn,
   alertingSloTiers,
   alertingTimeToExhaustionSecs,
@@ -66,8 +67,8 @@ async function queryWindow(
     good?: number | string;
     valid?: number | string;
   }>(sqlText, organizationId, {
-    window_start: start.toISOString(),
-    window_end: end.toISOString(),
+    window_start: alertingFormatClickHouseDateTime(start),
+    window_end: alertingFormatClickHouseDateTime(end),
   });
   if (rows.length > 1) throw new Error("SLI query must return at most one row");
   const good = numberValue(rows[0]?.good ?? 0, "good");

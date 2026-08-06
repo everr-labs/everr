@@ -7,6 +7,7 @@ import {
   alertingApplyFreshBudget,
   alertingEffectiveBurn,
   alertingFmtWindowSecs,
+  alertingFormatClickHouseDateTime,
   alertingFormatSloDuration,
   alertingSloBurnPace,
   alertingSloChartRange,
@@ -24,6 +25,14 @@ import type {
   AlertingSloSpec,
   AlertingSloStatusPayload,
 } from "./types";
+
+describe("alertingFormatClickHouseDateTime", () => {
+  it("formats UTC DateTime parameters at second precision", () => {
+    expect(
+      alertingFormatClickHouseDateTime(new Date("2026-08-05T12:47:33.497Z")),
+    ).toBe("2026-08-05 12:47:33");
+  });
+});
 
 function spec(overrides: Partial<AlertingSloSpec> = {}): AlertingSloSpec {
   return {

@@ -39,7 +39,10 @@ import {
   AlertingSloSpecSchema,
   AlertingSloUpdateSchema,
 } from "./schema";
-import { ALERTING_SLO_INGEST_DELAY_SECS } from "./slo";
+import {
+  ALERTING_SLO_INGEST_DELAY_SECS,
+  alertingFormatClickHouseDateTime,
+} from "./slo";
 import type {
   AlertingChannelConfig,
   AlertingInhibitionInput,
@@ -704,8 +707,8 @@ export async function testSlo(
     good: number | string;
     valid: number | string;
   }>(spec.sli.sql, organizationId, {
-    window_start: start.toISOString(),
-    window_end: end.toISOString(),
+    window_start: alertingFormatClickHouseDateTime(start),
+    window_end: alertingFormatClickHouseDateTime(end),
   });
   const good = Number(row?.good ?? 0);
   const valid = Number(row?.valid ?? 0);

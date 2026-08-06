@@ -3,6 +3,7 @@ import { createLimiter } from "@/lib/limiter";
 import {
   ALERTING_SLO_INGEST_DELAY_SECS,
   type AlertingFreshBudget,
+  alertingFormatClickHouseDateTime,
 } from "./slo";
 
 /** One point of an SLO's error-budget-over-time series. */
@@ -90,8 +91,8 @@ export async function querySloBudgetNow(
 ): Promise<AlertingFreshBudget | null> {
   const { start, end } = sliWindowMs(opts.nowMs, opts.windowSecs);
   const rows = await clickhouse<Record<string, string>>(opts.sliSql, {
-    window_start: fmtCh(start),
-    window_end: fmtCh(end),
+    window_start: alertingFormatClickHouseDateTime(new Date(start)),
+    window_end: alertingFormatClickHouseDateTime(new Date(end)),
   });
   if (rows.length === 0) return null;
   if (rows.length > 1) throw new Error("SLI query must return at most one row");
@@ -103,16 +104,12 @@ export async function querySloBudgetNow(
   };
 }
 
-/** ClickHouse `DateTime` literal ("YYYY-MM-DD HH:MM:SS", UTC) for a ms instant. */
-function fmtCh(ms: number): string {
-  return new Date(ms).toISOString().slice(0, 19).replace("T", " ");
-}
-
 /**
  * Parse a ClickHouse UTC wall-clock string ("YYYY-MM-DD HH:MM:SS", no zone) as
  * UTC. Plain `Date.parse` reads that space-separated, zone-less form as LOCAL
  * time, which skews the whole series (and the recent edge) by the server's
- * offset. These strings are always UTC (they come from `toClickHouseDateTime`).
+ * offset. These strings are always UTC (they come from
+ * `alertingFormatClickHouseDateTime`).
  */
 function parseChUtc(s: string): number {
   return Date.parse(`${s.replace(" ", "T")}Z`);
@@ -201,8 +198,8 @@ export async function querySloBudgetSeries(
       run(undefined, () => {
         const { start, end } = sliWindowMs(t, opts.windowSecs);
         return clickhouse<SliRow>(opts.sliSql, {
-          window_start: fmtCh(start),
-          window_end: fmtCh(end),
+          window_start: alertingFormatClickHouseDateTime(new Date(start)),
+          window_end: alertingFormatClickHouseDateTime(new Date(end)),
         });
       }),
     ),

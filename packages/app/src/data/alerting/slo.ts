@@ -99,6 +99,11 @@ const ALERTING_SHORT_WINDOW_FLOOR_SECS = 60;
  */
 export const ALERTING_SLO_INGEST_DELAY_SECS = 10;
 
+/** ClickHouse `DateTime` query parameter value at its native second precision. */
+export function alertingFormatClickHouseDateTime(date: Date): string {
+  return date.toISOString().slice(0, 19).replace("T", " ");
+}
+
 // Base tiers calibrated to ALERTING_CANONICAL_TIER_WINDOW_SECS.
 const ALERTING_BASE_TIERS: readonly {
   name: string;
