@@ -1,19 +1,48 @@
 import { type Attributes, diag } from "@opentelemetry/api";
-import type { Client } from "./client.js";
+import { logs } from "@opentelemetry/api-logs";
+import { Client } from "./client.js";
+import { resolveFlushable } from "./providers.js";
 import { PKG_NAME } from "./version.js";
 
-// The one module-level slot. ErrorsInstrumentation.enable() writes it and
-// disable() clears it, which is the same shape as the OTel API's own global
-// registries (trace.getTracer, logs.getLogger): callers reach for capture
-// without threading an instance through every call site.
-let activeClient: Client | null = null;
+// The one module-level slot, owned by capture rather than the
+// instrumentation: captureError always has a client to report through. The
+// default one is built lazily with default options against the global logger
+// registry; an ErrorsInstrumentation adopts the slot to apply user options
+// (scrubbing, rate limits) to manual captures too.
+let sharedClient: Client | null = null;
+let adoptedBy: object | null = null;
+let providerSeen = false;
+let warnedNoProvider = false;
 
-export function setActiveClient(client: Client | null): void {
-  activeClient = client;
+export function getSharedClient(): Client {
+  if (!sharedClient) {
+    sharedClient = new Client();
+  }
+  return sharedClient;
 }
 
-export function getActiveClient(): Client | null {
-  return activeClient;
+/**
+ * Points captureError at an instrumentation-configured client. Two
+ * instrumentations is a misconfiguration (both capture every fatal error), so
+ * a change of owner warns rather than silently redirecting manual reports;
+ * the same owner re-adopting (setConfig) is fine.
+ */
+export function adoptSharedClient(client: Client, owner: object): void {
+  if (adoptedBy && adoptedBy !== owner) {
+    diag.warn(
+      `${PKG_NAME}: a second ErrorsInstrumentation was constructed; captureError now reports through it`,
+    );
+  }
+  sharedClient = client;
+  adoptedBy = owner;
+}
+
+/** Test-only: restores the lazy default-client state. */
+export function resetSharedClient(): void {
+  sharedClient = null;
+  adoptedBy = null;
+  providerSeen = false;
+  warnedNoProvider = false;
 }
 
 export interface CaptureErrorOptions {
@@ -21,9 +50,10 @@ export interface CaptureErrorOptions {
 }
 
 /**
- * Reports a handled error through the enabled instrumentation. A no-op (with
- * a diag warning) when no instrumentation is enabled, so a miswired app is
- * visible in diagnostics without throwing from a catch block.
+ * Reports a handled error as an OTel exception log record. Works without an
+ * ErrorsInstrumentation: records go through the global logger provider, which
+ * resolves at emit time once an SDK registers. When an instrumentation is
+ * constructed, its options (scrubbing, rate limits) apply here too.
  */
 export function captureError(
   error: unknown,
@@ -34,12 +64,24 @@ export function captureError(
   const handled =
     options?.handled ?? (typeof handledAttr === "boolean" ? handledAttr : true);
 
-  if (!activeClient) {
-    diag.warn(
-      `${PKG_NAME}: captureError called before the instrumentation was enabled; error dropped`,
-    );
-    return;
+  // Records emitted before an SDK registers are dropped, not buffered, so
+  // say so once. A registered provider never unregisters, so the successful
+  // probe latches and the steady-state cost is one boolean test.
+  if (!providerSeen && !warnedNoProvider) {
+    if (resolveFlushable(logs.getLoggerProvider())) {
+      providerSeen = true;
+    } else {
+      warnedNoProvider = true;
+      diag.warn(
+        `${PKG_NAME}: captureError emitted before a LoggerProvider was registered; records are lost until an SDK starts.`,
+      );
+    }
   }
 
-  activeClient.capture({ error, mechanism: "manual", handled, attributes });
+  getSharedClient().capture({
+    error,
+    mechanism: "manual",
+    handled,
+    attributes,
+  });
 }

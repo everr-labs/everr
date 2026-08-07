@@ -10,8 +10,9 @@ import type {
   Instrumentation,
   InstrumentationConfig,
 } from "@opentelemetry/instrumentation";
-import { getActiveClient, setActiveClient } from "./capture.js";
+import { adoptSharedClient } from "./capture.js";
 import { Client } from "./client.js";
+import { resolveFlushable } from "./providers.js";
 import type { Options } from "./types.js";
 import { PKG_NAME, PKG_VERSION } from "./version.js";
 
@@ -56,6 +57,10 @@ export class ErrorsInstrumentation
   constructor(config: ErrorsInstrumentationConfig = {}) {
     this._config = { enabled: true, ...config };
     this.client = new Client(this._config);
+    // captureError works without any instrumentation, but once one exists its
+    // options must apply to manual captures too: scrubbing that only covered
+    // crashes would silently leak the data it was configured to redact.
+    adoptSharedClient(this.client, this);
     // Instrumentations enable themselves on construction; registerInstrumentations
     // only calls enable() for one that opted out with `enabled: false`.
     if (this._config.enabled) {
@@ -70,6 +75,7 @@ export class ErrorsInstrumentation
     }
     this._config = { enabled: true, ...config };
     this.client = new Client(this._config);
+    adoptSharedClient(this.client, this);
     this.applyProviders();
     if (this._config.enabled) {
       this.install();
@@ -148,30 +154,16 @@ export class ErrorsInstrumentation
       process.on(eventName, handler);
       this.teardownFns.push(() => process.off(eventName, handler));
     }
-
-    // Last enable wins the shared captureError slot. Two enabled
-    // instrumentations is a misconfiguration (both capture every fatal error),
-    // so say so rather than silently redirecting manual reports.
-    const previous = getActiveClient();
-    if (previous && previous !== this.client) {
-      diag.warn(
-        `${PKG_NAME}: a second ErrorsInstrumentation was enabled; captureError now reports through it`,
-      );
-    }
-    setActiveClient(this.client);
   }
 
+  // Detaches only the crash listeners. captureError stays live through the
+  // shared client: disable() is the SDK lifecycle hook, not an off switch for
+  // manual reports.
   private remove(): void {
     for (const fn of this.teardownFns) {
       fn();
     }
     this.teardownFns = [];
-    // Only release the slot if it is still ours: disabling an instrumentation
-    // that another one has since replaced must not silently break its
-    // captureError.
-    if (getActiveClient() === this.client) {
-      setActiveClient(null);
-    }
   }
 
   /**
@@ -203,39 +195,4 @@ export class ErrorsInstrumentation
       new Promise<void>((resolve) => setTimeout(resolve, FLUSH_TIMEOUT_MS)),
     ]);
   }
-}
-
-interface Flushable {
-  forceFlush(): Promise<void>;
-}
-
-/**
- * `forceFlush` lives on the SDK provider, but the API hands out proxies:
- * `trace.getTracerProvider()` always returns a ProxyTracerProvider, and
- * `logs.getLoggerProvider()` returns a ProxyLoggerProvider until an SDK
- * registers. Both keep the real provider behind a delegate getter.
- */
-function resolveFlushable(candidate: unknown): Flushable | null {
-  if (typeof candidate !== "object" || candidate === null) {
-    return null;
-  }
-
-  const provider = candidate as Partial<Flushable> & {
-    getDelegate?: () => unknown;
-    _getDelegate?: () => unknown;
-  };
-
-  if (typeof provider.forceFlush === "function") {
-    return provider as Flushable;
-  }
-
-  const delegate = provider.getDelegate ?? provider._getDelegate;
-  if (typeof delegate === "function") {
-    const inner = delegate.call(provider);
-    // A proxy whose delegate is unset returns the noop provider, which has no
-    // forceFlush, so this terminates.
-    return inner === candidate ? null : resolveFlushable(inner);
-  }
-
-  return null;
 }

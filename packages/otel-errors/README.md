@@ -23,7 +23,7 @@ new NodeSDK({
 }).start();
 ```
 
-Manual capture, anywhere after the SDK starts:
+Manual capture works anywhere, with or without the instrumentation. Records emitted before an SDK registers a `LoggerProvider` are lost (a one-time diag warning says so). When an `ErrorsInstrumentation` exists, its options (redaction, rate limits, `beforeSend`) apply to manual captures too.
 
 ```ts
 import { captureError } from "@everr/otel-errors";

@@ -1,6 +1,6 @@
 import { diag } from "@opentelemetry/api";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { captureError } from "./capture.js";
+import { captureError, resetSharedClient } from "./capture.js";
 import { ErrorsInstrumentation } from "./instrumentation.js";
 import { setupTestTelemetry } from "./test-utils.js";
 import { PKG_NAME } from "./version.js";
@@ -25,6 +25,7 @@ beforeEach(() => {
 afterEach(async () => {
   instrumentation?.disable();
   instrumentation = null;
+  resetSharedClient();
   await otel.dispose();
 });
 
@@ -57,40 +58,29 @@ describe("ErrorsInstrumentation lifecycle", () => {
     expect(process.listenerCount("uncaughtException")).toBe(after);
   });
 
-  it("disable removes the listeners and the capture slot", () => {
+  it("disable removes the listeners but captureError keeps working", () => {
     const before = process.listenerCount("uncaughtException");
     const it_ = enable();
     it_.disable();
     expect(process.listenerCount("uncaughtException")).toBe(before);
 
-    const warn = vi.spyOn(diag, "warn").mockImplementation(() => {});
-    captureError(new Error("dropped"));
-    expect(otel.records()).toHaveLength(0);
-    expect(warn).toHaveBeenCalled();
-    warn.mockRestore();
+    captureError(new Error("still reported"));
+    expect(otel.records()).toHaveLength(1);
   });
 
   it("disabling a replaced instrumentation leaves the live one's captureError working", () => {
     const first = enable();
+    const warn = vi.spyOn(diag, "warn").mockImplementation(() => {});
     const second = new ErrorsInstrumentation({ onFatal: "continue" });
     try {
-      // `first` no longer owns the slot, so its disable() must not clear it.
+      expect(warn).toHaveBeenCalledOnce();
       first.disable();
       captureError(new Error("still reported"));
       expect(otel.records()).toHaveLength(1);
     } finally {
+      warn.mockRestore();
       second.disable();
     }
-  });
-
-  it("releases the slot when the owning instrumentation is disabled", () => {
-    const it_ = enable();
-    it_.disable();
-
-    const warn = vi.spyOn(diag, "warn").mockImplementation(() => {});
-    captureError(new Error("dropped"));
-    expect(otel.records()).toHaveLength(0);
-    warn.mockRestore();
   });
 
   it("setConfig reinstalls with the new options", () => {
@@ -99,6 +89,42 @@ describe("ErrorsInstrumentation lifecycle", () => {
     process.emit("uncaughtException", new Error("suppressed"));
     expect(otel.records()).toHaveLength(0);
     expect(it_.getConfig().onFatal).toBe("continue");
+  });
+});
+
+describe("standalone captureError", () => {
+  it("emits through the global logger provider with no instrumentation", () => {
+    captureError(new Error("standalone"), { feature: "billing" });
+    const [record] = otel.records();
+    expect(record.eventName).toBe("exception");
+    expect(record.attributes["everr.error.mechanism"]).toBe("manual");
+    expect(record.attributes.feature).toBe("billing");
+  });
+
+  it("warns once when no LoggerProvider is registered", async () => {
+    await otel.dispose();
+    resetSharedClient();
+
+    const warn = vi.spyOn(diag, "warn").mockImplementation(() => {});
+    captureError(new Error("lost"));
+    captureError(new Error("also lost"));
+    expect(warn).toHaveBeenCalledOnce();
+    warn.mockRestore();
+
+    otel = setupTestTelemetry();
+  });
+
+  it("applies instrumentation options to manual captures", () => {
+    enable({ beforeSend: () => null });
+    captureError(new Error("suppressed"));
+    expect(otel.records()).toHaveLength(0);
+  });
+
+  it("keeps instrumentation options after disable", () => {
+    const it_ = enable({ beforeSend: () => null });
+    it_.disable();
+    captureError(new Error("still suppressed"));
+    expect(otel.records()).toHaveLength(0);
   });
 });
 
