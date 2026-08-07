@@ -30,7 +30,7 @@ export interface InstrumentationContext {
   tracer: Tracer;
   /** The current visitor and session ids (sampled per call). */
   ids(): { visitorId: string; sessionId: string };
-  /** The current route resolver result, or null when none is registered. */
+  /** The current page's route pattern, or null when none resolves. */
   route(): string | null;
   /**
    * The current page context (pageview id, url, path, referrer): the same

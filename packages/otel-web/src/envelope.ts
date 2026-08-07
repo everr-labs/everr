@@ -20,11 +20,14 @@ import {
  */
 export function pageAttrs(
   page: PageContext,
-): Record<string, string | undefined> {
+): Record<string, string | null | undefined> {
   return {
     "everr.page_view.id": page.pageViewId,
     "url.full": page.url,
     "url.path": page.path,
+    // Resolved from this page's URL, so a leave record re-pointed at the
+    // outgoing page carries that page's pattern, not the current one.
+    "everr.route.pattern": routePattern(page.url),
     "everr.referrer.url": page.referrer,
   };
 }
@@ -40,7 +43,6 @@ export function createEnvelope(
     "session.id": sessionId(),
     "everr.visitor.id": visitorId(),
     ...pageAttrs(current()),
-    "everr.route.pattern": routePattern(),
     ...getAttributes(),
   });
 }

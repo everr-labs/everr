@@ -103,7 +103,7 @@ export function setPersistence(_persistence: Persistence | undefined): void {}
 
 /** No-op on the server; route patterns ride the browser envelope. */
 export function setRouteResolver(
-  _get: (() => string | null | undefined) | null | undefined,
+  _get: ((url: string) => string | null | undefined) | null | undefined,
 ): void {}
 
 // The built-in instrumentation factories, so shared code composing

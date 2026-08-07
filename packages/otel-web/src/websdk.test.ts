@@ -138,16 +138,18 @@ describe("init (persistence: memory)", () => {
     expect(await records()).toHaveLength(0);
   });
 
-  it("samples the registered route-pattern callback per record and survives a throwing one", async () => {
-    let pattern: string | undefined;
+  it("resolves each record's own page URL to a pattern and survives a throwing resolver", async () => {
     start();
-    setRouteResolver(() => pattern);
-    pattern = "/blog/$slug";
+    setRouteResolver((url) =>
+      new URL(url).pathname.startsWith("/blog/") ? "/blog/$slug" : undefined,
+    );
     history.pushState(null, "", "/blog/hello");
     const all = await records();
-    // Sampled per record: the initial view predates the pattern, the SPA
-    // navigation's leave and view carry it.
+    // Translated per record from that record's URL: the initial view and the
+    // leave belong to the pre-navigation page (no pattern), the SPA
+    // navigation's view resolves the new URL.
     expect(attrs(all[0])).not.toHaveProperty("everr.route.pattern");
+    expect(attrs(all[1])).not.toHaveProperty("everr.route.pattern");
     expect(attrs(all[2])["everr.route.pattern"]).toBe("/blog/$slug");
 
     // A throwing host callback must never break capture.

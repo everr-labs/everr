@@ -101,7 +101,7 @@ export class WebSDK {
       emit,
       tracer: createTracer(emitSpan),
       ids: () => ({ visitorId: visitorId(), sessionId: sessionId() }),
-      route: () => routePattern() ?? null,
+      route: () => routePattern(current().url) ?? null,
       page: current,
       onNavigation: (listener) => {
         navigationListeners.add(listener);
