@@ -3,21 +3,18 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { AlertingError } from "@/data/alerting/errors";
 import type { AlertingSloTier } from "@/data/alerting/types";
-import {
-  AlertingSloTierBadge,
-  alertingErrorMessage,
-  alertingFormatTs,
-} from "./components";
+import { alertingErrorMessage, alertingFormatTs } from "./components";
+import { AlertingSloTierBadge } from "./status";
 
-// shared.tsx reaches alertingQueries (server fns) for matcher-value resolution; the
-// real module drags server-only env into this client-side test.
-vi.mock("@/data/alerting/server", () => ({
+// Mock server dependencies in this client-side test.
+vi.mock("@/data/alerting/rules/server", () => ({
   listAlertingRules: vi.fn().mockResolvedValue([]),
+}));
+vi.mock("@/data/alerting/slos/server", () => ({
   listAlertingSlos: vi.fn().mockResolvedValue([]),
 }));
 
-// A AlertingError that crossed the server-fn boundary: structurally intact, but
-// no longer an instance of the class.
+// Server serialization preserves the error fields but not the class.
 const wireError = Object.assign(new Error("silence not found"), {
   name: "AlertingError",
   status: 404,

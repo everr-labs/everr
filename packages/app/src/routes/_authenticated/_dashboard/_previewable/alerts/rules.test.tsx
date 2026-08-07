@@ -23,10 +23,14 @@ const mocks = vi.hoisted(() => ({
   resumeAlertingRule: vi.fn(),
 }));
 
-vi.mock("@/data/alerting/server", () => ({
+vi.mock("@/data/alerting/rules/server", () => ({
   listAlertingRulesPage: mocks.listAlertingRulesPage,
   pauseAlertingRule: mocks.pauseAlertingRule,
   resumeAlertingRule: mocks.resumeAlertingRule,
+}));
+
+vi.mock("@/data/alerting/slos/server", () => ({
+  listAlertingSlos: vi.fn().mockResolvedValue([]),
 }));
 
 function alertingRuleView(

@@ -16,57 +16,43 @@ import {
   DropdownMenuTrigger,
 } from "@everr/ui/components/dropdown-menu";
 import { RelativeTime } from "@everr/ui/components/relative-time";
-import { Skeleton } from "@everr/ui/components/skeleton";
-import { toneText } from "@everr/ui/components/tone";
 import { cn } from "@everr/ui/lib/utils";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { BellOff, BookOpenText, ChevronDown, ChevronRight } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
-import { alertingEventStatus } from "@/data/alerting/history/event-types";
-import { alertingQueries } from "@/data/alerting/queries";
-import { fromAlertingRule } from "@/data/alerting/resources/rules/mapping";
+import { silenceQueries } from "@/data/alerting/silences/queries";
 import {
   createAlertingSilence,
   deleteAlertingSilence,
-} from "@/data/alerting/server";
+} from "@/data/alerting/silences/server";
 import {
-  alertingDeliveryFanout,
   alertingGroupSilenceMatchers,
   alertingInstanceIsUndeliverable,
   alertingRowBudget,
   alertingRunbookParams,
   alertingSourceScopedSilenceMatchers,
-  TRIAGE_EVENT_RANGE,
   type TriageGroup,
-  type TriageInstance,
   type TriageRow,
 } from "@/data/alerting/triage/summary";
 import type {
   AlertingMatcher,
-  AlertingRoute,
   AlertingSloStatusPayload,
 } from "@/data/alerting/types";
 import { parseResourceName } from "@/data/as-code/identity";
 import {
-  AlertingSeverityBadge,
-  AlertingStatusDot,
   AlertingTableSkeleton,
   alertingErrorMessage,
   alertingFormatTs,
-  Conditions,
-  EvidenceChips,
-  LabelSet,
-  Pill,
 } from "../shared/components";
+import { LabelSet, Pill } from "../shared/signal";
+import { AlertingSeverityBadge, AlertingStatusDot } from "../shared/status";
 import { AlertingSummaryLabel } from "../shared/summary-card";
 import type { SilenceDrawerOptions } from "../silences/panel";
 import { AlertingBudgetFact, alertingFmtBurn } from "../slos/budget-bar";
-
-// The expanded row needs the newest evidence-carrying event plus the last 6
-// transitions; 100 is generous headroom.
-const TRIAGE_INSTANCE_EVENT_LIMIT = 100;
+import { TriageDeliveryFact } from "./delivery-fact";
+import { TriageInstanceDetail } from "./instance-detail";
 
 // Shared fact-column widths in wide board containers: merged lines and sub-rows both use them,
 // so the facts align down the whole card.
@@ -78,234 +64,6 @@ const COL_DELIVERY = "@[52rem]/triage:w-48";
 function rowStartedAt(row: TriageRow): number {
   const time = row.lead.alert.active_since;
   return time ? new Date(time).getTime() : 0;
-}
-
-// ── Delivery fact ─────────────────────────────────────────────────────────────
-
-function DeliveryFact({
-  directChannels,
-  matchedRoutes,
-  channelsByReceiver,
-}: {
-  directChannels: string[];
-  matchedRoutes: AlertingRoute[];
-  channelsByReceiver: Map<string, string[]>;
-}) {
-  if (directChannels.length > 0) {
-    const shown = directChannels.slice(0, 2);
-    const names =
-      shown.join(", ") +
-      (directChannels.length > shown.length
-        ? ` +${directChannels.length - shown.length}`
-        : "");
-    return (
-      <span
-        className="truncate font-mono text-xs text-muted-foreground"
-        title={`Explicit destination: ${directChannels.join(", ")}`}
-      >
-        <span aria-hidden>→ </span>
-        <span className="text-foreground">{names}</span>
-      </span>
-    );
-  }
-  if (matchedRoutes.length === 0) {
-    return (
-      <Link
-        to="/alerts/delivery"
-        hash="routes"
-        onClick={(e) => e.stopPropagation()}
-        className={cn(
-          "inline-flex min-h-11 items-center whitespace-nowrap text-xs underline-offset-2 hover:underline @[52rem]/triage:min-h-0",
-          toneText({ tone: "warning" }),
-        )}
-      >
-        Not delivered
-      </Link>
-    );
-  }
-  const { receivers, channels, dead } = alertingDeliveryFanout(
-    matchedRoutes,
-    channelsByReceiver,
-  );
-  // "+N" overflow instead of CSS truncation, which chops receiver names
-  // mid-word; the full list stays on the tooltip.
-  const shown = receivers.slice(0, 2);
-  const names =
-    shown.join(", ") +
-    (receivers.length > shown.length
-      ? ` +${receivers.length - shown.length}`
-      : "");
-  if (channels.length === 0) {
-    // Routed, but every matched receiver fans out to zero channels: the
-    // notification reaches no one.
-    return (
-      <Link
-        to="/alerts/delivery"
-        hash="receivers"
-        onClick={(e) => e.stopPropagation()}
-        title={receivers.join(", ")}
-        className={cn(
-          "inline-flex min-h-11 items-center whitespace-nowrap text-xs underline-offset-2 hover:underline @[52rem]/triage:min-h-0",
-          toneText({ tone: "warning" }),
-        )}
-      >
-        No destination
-      </Link>
-    );
-  }
-  return (
-    <span
-      className="truncate font-mono text-xs text-muted-foreground"
-      title={[
-        receivers.join(", "),
-        channels.join(", "),
-        dead.length > 0 ? `no channels: ${dead.join(", ")}` : "",
-      ]
-        .filter(Boolean)
-        .join(" · ")}
-    >
-      <span aria-hidden>→ </span>
-      <span className="text-foreground">{names}</span>
-    </span>
-  );
-}
-
-// ── Row expansion ─────────────────────────────────────────────────────────────
-
-function InstanceDetail({ inst }: { inst: TriageInstance }) {
-  const { alert, rule } = inst;
-  // Fetched only while expanded and scoped by source plus fingerprint.
-  const ownEvents = useQuery(
-    alertingQueries.eventHistory(TRIAGE_EVENT_RANGE, {
-      fingerprint: alert.fingerprint,
-      sourceId: alert.rule,
-      limit: TRIAGE_INSTANCE_EVENT_LIMIT,
-    }),
-  );
-  const own = ownEvents.data ?? [];
-  const latest = own.find(
-    (e) => e.evidence && Object.keys(e.evidence).length > 0,
-  );
-  const transitions = own
-    .filter((e) => alertingEventStatus(e.eventType) !== null)
-    .slice(0, 6);
-  const runbook = alertingRunbookParams(rule);
-  const description = rule ? fromAlertingRule(rule).displayDescription : null;
-
-  return (
-    <div className="space-y-3 border-t border-border/60 bg-muted/10 px-3 py-3 pl-9">
-      {description && (
-        <p className="max-w-prose text-xs text-muted-foreground">
-          {description}
-        </p>
-      )}
-      {latest?.evidence && (
-        <div className="space-y-1">
-          <h3 className="text-xs font-medium text-muted-foreground">
-            Evidence
-          </h3>
-          <EvidenceChips
-            evidence={latest.evidence}
-            truncated={latest.evidenceTruncated}
-          />
-        </div>
-      )}
-
-      {(inst.directChannels.length > 0 || inst.matchedRoutes.length > 0) && (
-        <div className="space-y-1">
-          <h3 className="text-xs font-medium text-muted-foreground">
-            Notifications
-          </h3>
-          {inst.directChannels.length > 0 ? (
-            <div className="flex flex-wrap items-center gap-2 text-xs">
-              <span className="text-muted-foreground">Direct destinations</span>
-              <span className="font-mono text-foreground">
-                {inst.directChannels.join(", ")}
-              </span>
-            </div>
-          ) : (
-            <div className="space-y-1">
-              {inst.matchedRoutes.map((r) => (
-                <div key={r.id} className="flex flex-wrap items-center gap-2">
-                  <span className="font-mono text-xs text-foreground">
-                    {r.receiver}
-                  </span>
-                  <Conditions
-                    matchers={r.matchers}
-                    emptyLabel="* (catch-all)"
-                  />
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-
-      <div className="space-y-1">
-        <h3 className="text-xs font-medium text-muted-foreground">History</h3>
-        {ownEvents.isPending ? (
-          <Skeleton className="h-4 w-44" />
-        ) : ownEvents.isError ? (
-          <span className="text-xs text-muted-foreground">
-            State history unavailable.
-          </span>
-        ) : transitions.length === 0 ? (
-          <span className="text-xs text-muted-foreground">
-            No state changes in the last 24 hours.
-          </span>
-        ) : (
-          <ul className="space-y-0.5">
-            {transitions.map((e) => (
-              <li
-                key={`${e.timestamp}-${e.eventType}`}
-                className="flex items-center gap-2 text-xs tabular-nums"
-              >
-                <AlertingStatusDot
-                  tone={
-                    alertingEventStatus(e.eventType) === "firing"
-                      ? "danger"
-                      : "muted"
-                  }
-                />
-                <span className="w-14 text-muted-foreground">
-                  {alertingEventStatus(e.eventType) ?? e.eventType}
-                </span>
-                <RelativeTime
-                  timestamp={e.timestamp}
-                  className="text-muted-foreground/80"
-                  title={alertingFormatTs(e.timestamp)}
-                />
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
-
-      <div className="flex items-center gap-3 text-xs text-muted-foreground">
-        <span>
-          last seen{" "}
-          {alert.last_seen ? <RelativeTime timestamp={alert.last_seen} /> : "—"}
-        </span>
-        {alert.absent_count > 0 && <span>absent x{alert.absent_count}</span>}
-      </div>
-
-      {runbook && (
-        <div className="flex flex-wrap items-center gap-1.5">
-          <Link
-            to="/runbooks/$project/$slug"
-            params={runbook}
-            className={cn(
-              buttonVariants({ variant: "outline", size: "sm" }),
-              "min-h-11 @[52rem]/triage:min-h-8",
-            )}
-          >
-            <BookOpenText data-icon="inline-start" />
-            Runbook
-          </Link>
-        </div>
-      )}
-    </div>
-  );
 }
 
 // ── Line building blocks ──────────────────────────────────────────────────────
@@ -753,7 +511,7 @@ export function TriageBoard({
       });
     },
     onSuccess: (created, { hours }) => {
-      qc.invalidateQueries({ queryKey: alertingQueries.silences().queryKey });
+      qc.invalidateQueries({ queryKey: silenceQueries.list().queryKey });
       toast.success(`Silenced for ${hours}h`, {
         action: {
           label: "Undo",
@@ -761,7 +519,7 @@ export function TriageBoard({
             void deleteAlertingSilence({ data: { id: created.id } })
               .then(() => {
                 qc.invalidateQueries({
-                  queryKey: alertingQueries.silences().queryKey,
+                  queryKey: silenceQueries.list().queryKey,
                 });
                 toast.success("Silence removed");
               })
@@ -877,14 +635,14 @@ export function TriageBoard({
                         quickSilence.variables?.scopeKey === scopeKey
                       }
                       deliveryFact={
-                        <DeliveryFact
+                        <TriageDeliveryFact
                           directChannels={row.lead.directChannels}
                           matchedRoutes={row.lead.matchedRoutes}
                           channelsByReceiver={channelsByReceiver}
                         />
                       }
                     >
-                      <InstanceDetail inst={row.lead} />
+                      <TriageInstanceDetail instance={row.lead} />
                     </InstanceRow>
                   );
                 });

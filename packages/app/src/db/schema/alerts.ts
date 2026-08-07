@@ -25,6 +25,12 @@ import type {
   AlertingSloSpec,
   AlertingSloStatusPayload,
 } from "@/data/alerting/types";
+import {
+  ALERTING_EVENT_TYPES,
+  ALERTING_HEALTH_STATUSES,
+  ALERTING_INSTANCE_STATUSES,
+  ALERTING_SEVERITIES,
+} from "@/data/alerting/vocabulary";
 import { previews } from "./app";
 
 export const alertStateEnum = pgEnum("alert_state", [
@@ -33,13 +39,12 @@ export const alertStateEnum = pgEnum("alert_state", [
   "firing",
 ]);
 
-export const alertInstanceStateEnum = pgEnum("alert_instance_state", [
-  "inactive",
-  "pending",
-  "firing",
-]);
+export const alertInstanceStateEnum = pgEnum(
+  "alert_instance_state",
+  ALERTING_INSTANCE_STATUSES,
+);
 
-export const alertHealthEnum = pgEnum("alert_health", ["healthy", "degraded"]);
+export const alertHealthEnum = pgEnum("alert_health", ALERTING_HEALTH_STATUSES);
 
 export const alertDeliveryStateEnum = pgEnum("alert_delivery_state", [
   "pending",
@@ -52,19 +57,12 @@ export const alertSourceKindEnum = pgEnum("alert_source_kind", [
   "slo",
 ]);
 
-export const alertEventTypeEnum = pgEnum("alert_event_type", [
-  "instance_fired",
-  "instance_resolved",
-  "delivery",
-  "rule_health",
-  "silenced",
-]);
+export const alertEventTypeEnum = pgEnum(
+  "alert_event_type",
+  ALERTING_EVENT_TYPES,
+);
 
-export const alertSeverityEnum = pgEnum("alert_severity", [
-  "info",
-  "warning",
-  "critical",
-]);
+export const alertSeverityEnum = pgEnum("alert_severity", ALERTING_SEVERITIES);
 
 export const alertDefinitions = pgTable(
   "alert_definitions",

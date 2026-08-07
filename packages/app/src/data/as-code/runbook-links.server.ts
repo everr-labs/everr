@@ -1,13 +1,14 @@
 import { and, eq, or } from "drizzle-orm";
-import * as alerting from "@/data/alerting/repository";
-import { fromAlertingRule } from "@/data/alerting/resources/rules/mapping";
 import {
-  AlertRuleYamlSchema,
   parseRunbookRef,
   refIdentityKey,
-} from "@/data/alerting/resources/rules/schema";
-import { fromAlertingSlo } from "@/data/alerting/resources/slos/mapping";
-import { SloYamlSchema } from "@/data/alerting/resources/slos/schema";
+} from "@/data/alerting/resource/runbook-ref";
+import { listAllRules } from "@/data/alerting/rules/repository";
+import { fromAlertingRule } from "@/data/alerting/rules/resource/mapping";
+import { AlertRuleYamlSchema } from "@/data/alerting/rules/resource/schema";
+import { listSlos } from "@/data/alerting/slos/repository";
+import { fromAlertingSlo } from "@/data/alerting/slos/resource/mapping";
+import { SloYamlSchema } from "@/data/alerting/slos/resource/schema";
 import {
   projectFromDocument,
   slugFromDocument,
@@ -29,8 +30,7 @@ interface TaggedRef {
   ref: { project: string; slug: string };
 }
 
-// Resolve every AlertRule's `spec.runbook` ref. Skips schema-invalid
-// documents — the alert reconciler's own validation reports those.
+// The alert reconciler reports invalid documents.
 function alertRunbookRefs(alerts: ApplyResourceEntry[]): TaggedRef[] {
   return alerts.flatMap(({ path, resource }) => {
     const parsed = AlertRuleYamlSchema.safeParse(resource);
@@ -40,9 +40,7 @@ function alertRunbookRefs(alerts: ApplyResourceEntry[]): TaggedRef[] {
   });
 }
 
-// Resolve every SLO's `spec.runbook` ref, same grammar as the AlertRule one
-// (shared parseRunbookRef). Skips schema-invalid documents — the SLO
-// reconciler's own validation reports those.
+// The SLO reconciler reports invalid documents.
 function sloRunbookRefs(slos: ApplyResourceEntry[]): TaggedRef[] {
   return slos.flatMap(({ path, resource }) => {
     const parsed = SloYamlSchema.safeParse(resource);
@@ -53,18 +51,11 @@ function sloRunbookRefs(slos: ApplyResourceEntry[]): TaggedRef[] {
 }
 
 /**
- * Validate that every alert's and SLO's `spec.runbook` resolves to a runbook
- * that either ships in this same apply batch, or is already owned by another
- * repo's live runbook row. Cross-kind, so it runs from the apply
- * orchestration rather than a single-kind reconciler.
- *
- * A same-repo live DB row does NOT satisfy a ref: this apply's Runbook
- * reconciler prunes exactly the rows in this repo that aren't in the batch,
- * so such a row is about to disappear and letting it resolve the ref would
- * be a lie. Runbook identity is `(project, slug)`. A preview namespace
- * additionally accepts rows already registered under that preview, and the
- * same foreign live rows a live apply accepts, so a config valid live is
- * valid as a preview.
+ * Verify that each alert and SLO references an available runbook.
+ * The runbook can be in this apply batch or in another repository.
+ * A runbook from the same repository must be in the batch because apply can
+ * delete stored resources that are absent from the batch.
+ * A preview can also use runbooks registered in that preview.
  */
 export async function validateRunbookLinks(opts: {
   namespace: Namespace;
@@ -89,9 +80,7 @@ export async function validateRunbookLinks(opts: {
     );
   }
 
-  // Only the refs the batch doesn't already cover need a DB lookup. Dedupe so
-  // the query checks each distinct (project, slug) once — bounded by the
-  // number of linked runbooks, not the repo's runbook count.
+  // Query each unresolved runbook identity once.
   const missing = new Map<string, { project: string; slug: string }>();
   for (const { ref } of links) {
     const key = refIdentityKey(ref.project, ref.slug);
@@ -100,16 +89,9 @@ export async function validateRunbookLinks(opts: {
 
   if (missing.size > 0) {
     const refs = [...missing.values()];
-    // Live: only rows owned by another repo satisfy a ref not in this batch
-    // — this repo's own rows absent from the batch are exactly what this
-    // apply is about to prune. Preview: the preview's own registry-scoped
-    // rows (or the batch) satisfy a ref, and so do OTHER repos' live rows —
-    // a preview simulates this repo's eventual live apply, which foreign
-    // live runbooks survive, so a config that passes live must pass as a
-    // preview too. Own-repo live rows stay excluded for the same prune
-    // reason as the live branch. foreignLiveScope is live-only by contract
-    // (previews skip ownership checks), so probe it with the namespace's
-    // live-shaped identity.
+    // A live apply accepts runbooks from another repository. It rejects stored
+    // runbooks from this repository because reconciliation can delete them.
+    // A preview also accepts runbooks registered in that preview.
     const foreignLive = foreignLiveScope(
       runbooks,
       {
@@ -153,14 +135,8 @@ export async function validateRunbookLinks(opts: {
   }
 }
 
-/**
- * Reverse check for a live apply: this repo's live runbook rows that are
- * about to be pruned (present in the DB, absent from this batch), cross-
- * referenced against every other repo's live rules and SLOs. Each hit is a warning, not a
- * failure — the apply proceeds, but the caller (a linked resource in another
- * repo) is about to lose its runbook. Preview namespaces never prune a live
- * runbook, so they always return `[]`.
- */
+// Warn when a live apply deletes a runbook used by another repository.
+// Previews do not delete live runbooks.
 export async function collectOrphanWarnings(opts: {
   namespace: Namespace;
   runbooks: ApplyResourceEntry[];
@@ -189,8 +165,8 @@ export async function collectOrphanWarnings(opts: {
 
   const { orgId, repoid } = opts.namespace;
   const [rules, slos] = await Promise.all([
-    alerting.listAllRules(orgId, { previewId: null }),
-    alerting.listSlos(orgId, { previewId: null }),
+    listAllRules(orgId, { previewId: null }),
+    listSlos(orgId, { previewId: null }),
   ]);
 
   const warnings: string[] = [];

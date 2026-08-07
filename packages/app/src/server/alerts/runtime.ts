@@ -4,26 +4,25 @@ import {
   parseCronItems,
   type TaskList,
 } from "graphile-worker";
-import { serverLogger } from "@/telemetry/logger";
-import {
-  ALERT_FLUSH_GROUP_TASK,
-  ALERT_PROCESS_EVENT_TASK,
-  ALERT_SEND_DELIVERY_TASK,
-  flushAlertGroup,
-  processAlertEvent,
-  sendAlertDelivery,
-} from "./delivery/dispatcher";
-import { evaluateAlert } from "./evaluation/rule";
-import { evaluateSlo } from "./evaluation/slo";
-import { cleanupAlertingHistory } from "./maintenance/cleanup";
 import {
   ALERT_EVALUATE_TASK,
   type EvaluatePayload,
   type EvaluateSloPayload,
   SLO_EVALUATE_TASK,
-  scanDueAlerts,
-  scanDueSlos,
-} from "./scheduling/scanner";
+} from "@/data/alerting/scheduling/evaluation-jobs.server";
+import { serverLogger } from "@/telemetry/logger";
+import { flushAlertGroup } from "./delivery/flush-group";
+import { processAlertEvent } from "./delivery/process-event";
+import { sendAlertDelivery } from "./delivery/send-delivery";
+import {
+  ALERT_FLUSH_GROUP_TASK,
+  ALERT_PROCESS_EVENT_TASK,
+  ALERT_SEND_DELIVERY_TASK,
+} from "./delivery/tasks";
+import { evaluateAlert } from "./evaluation/rule";
+import { evaluateSlo } from "./evaluation/slo";
+import { cleanupAlertingHistory } from "./maintenance/cleanup";
+import { scanDueAlerts, scanDueSlos } from "./scheduling/scanner";
 
 const ALERT_SCAN_TASK = "alerts/scan";
 const ALERT_RETENTION_TASK = "alerts/retention";

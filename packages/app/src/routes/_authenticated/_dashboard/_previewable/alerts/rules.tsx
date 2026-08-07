@@ -14,23 +14,28 @@ import { SlidersHorizontal } from "lucide-react";
 import type { ReactNode } from "react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/page-header";
-import { alertingQueries } from "@/data/alerting/queries";
 import { alertingRuleIdentity } from "@/data/alerting/rules/identity";
-import { pauseAlertingRule, resumeAlertingRule } from "@/data/alerting/server";
+import { ruleQueries } from "@/data/alerting/rules/queries";
+import {
+  pauseAlertingRule,
+  resumeAlertingRule,
+} from "@/data/alerting/rules/server";
 import { alertingFormatSloDuration } from "@/data/alerting/slos/model";
 import type { AlertingRuleView } from "@/data/alerting/types";
 import {
   AlertingEmptyState,
-  AlertingHealthHeart,
   AlertingPauseToggle,
   AlertingQueryError,
   AlertingRunbookLink,
-  AlertingSeverityBadge,
-  AlertingStatusLabel,
   AlertingTableSkeleton,
   alertingErrorMessage,
   alertingFormatTs,
 } from "./-components/shared/components";
+import {
+  AlertingHealthHeart,
+  AlertingSeverityBadge,
+  AlertingStatusLabel,
+} from "./-components/shared/status";
 
 export const Route = createFileRoute(
   "/_authenticated/_dashboard/_previewable/alerts/rules",
@@ -39,7 +44,7 @@ export const Route = createFileRoute(
   head: () => ({ meta: [{ title: "Everr - Alerting Rules" }] }),
   loaderDeps: ({ search }) => ({ preview: search.preview }),
   loader: ({ context: { queryClient }, deps }) =>
-    queryClient.prefetchInfiniteQuery(alertingQueries.rulesPage(deps.preview)),
+    queryClient.prefetchInfiniteQuery(ruleQueries.rulesPage(deps.preview)),
   component: AlertingRulesPage,
 });
 
@@ -168,7 +173,7 @@ function AlertingRulesPage() {
     fetchNextPage,
     hasNextPage,
     isFetchingNextPage,
-  } = useInfiniteQuery(alertingQueries.rulesPage(preview));
+  } = useInfiniteQuery(ruleQueries.rulesPage(preview));
   const rules = data?.pages.flatMap((p) => p.items) ?? [];
 
   const toggle = useMutation({
@@ -178,7 +183,7 @@ function AlertingRulesPage() {
         : pauseAlertingRule({ data: { ruleId: rule.id } }),
     onSuccess: () => {
       // The ["alerting", "rules"] prefix also matches the paginated page keys.
-      qc.invalidateQueries({ queryKey: alertingQueries.rules().queryKey });
+      qc.invalidateQueries({ queryKey: ruleQueries.rules().queryKey });
       toast.success("Rule updated");
     },
     onError: (e) => toast.error(alertingErrorMessage(e)),

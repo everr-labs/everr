@@ -23,6 +23,7 @@ import {
   generateTimeTicks,
   niceLinearDomain,
 } from "@/components/dashboards/visualizations/data-utils";
+import { alertingEventStatus } from "@/data/alerting/history/event-types";
 import type { AlertEventLogRow } from "@/data/alerting/history/repository.server";
 import { alertingConditionOperatorLabel } from "@/data/alerting/rules/condition";
 import type {
@@ -72,12 +73,7 @@ function createAlertTimeTickFormatter(domain: [number, number]) {
 function transitionEvents(events: readonly AlertEventLogRow[]) {
   const seen = new Set<string>();
   return events.flatMap((event) => {
-    const type =
-      event.eventType === "instance_fired"
-        ? ("firing" as const)
-        : event.eventType === "instance_resolved"
-          ? ("resolved" as const)
-          : null;
+    const type = alertingEventStatus(event.eventType);
     if (!type) return [];
     const t = Date.parse(event.timestamp);
     if (!Number.isFinite(t)) return [];

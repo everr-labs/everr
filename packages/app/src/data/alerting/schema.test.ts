@@ -7,6 +7,7 @@ import {
   AlertingSloSchema,
   AlertingSloSpecSchema,
   AlertingSloStatusSchema,
+  AlertingSloTierSchema,
   AlertingSloViewSchema,
 } from "./schema";
 
@@ -58,6 +59,12 @@ it("parses a complete RuleView", () => {
   expect(parsed.rollup.firing_instance_count).toBe(2);
   expect(parsed.spec.suppressed).toBe(false);
   expect(AlertingRuleViewSchema.safeParse(ruleView).success).toBe(false);
+  expect(
+    AlertingRuleViewSchema.safeParse({
+      ...parsed,
+      updated_at: "not-a-timestamp",
+    }).success,
+  ).toBe(false);
 });
 
 // `name` is what the as-code reconciler matches and prunes on. Defaulting a
@@ -140,6 +147,24 @@ it("SloView (list/get) requires updated_at; the bare Slo (mutations) has none", 
   expect(view.updated_at).toBe("2026-07-01T12:00:00Z");
   expect(AlertingSloViewSchema.safeParse(bare).success).toBe(false);
   expect(AlertingSloSchema.safeParse(bare).success).toBe(true);
+  expect(
+    AlertingSloSchema.safeParse({ ...bare, name: "checkout-availability" })
+      .success,
+  ).toBe(false);
+});
+
+it("uses plain names for SLO tiers", () => {
+  const tier = {
+    name: "fast-burn",
+    long_window: "1h",
+    short_window: "5m",
+    burn_rate: 14.4,
+    severity: "critical",
+  };
+  expect(AlertingSloTierSchema.safeParse(tier).success).toBe(true);
+  expect(AlertingSloTierSchema.safeParse({ ...tier, name: "" }).success).toBe(
+    false,
+  );
 });
 
 it("rejects unknown SLI fields", () => {

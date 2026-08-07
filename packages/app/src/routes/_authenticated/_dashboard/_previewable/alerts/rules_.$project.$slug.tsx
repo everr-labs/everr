@@ -18,13 +18,18 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { BellOff, BookOpenText, CircleAlert } from "lucide-react";
 import { useCallback, useLayoutEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { alertingQueries } from "@/data/alerting/queries";
+import { alertHistoryQueries } from "@/data/alerting/history/queries";
+import { alertInstanceQueries } from "@/data/alerting/instances/queries";
 import { alertingConditionOperatorLabel } from "@/data/alerting/rules/condition";
 import {
   alertingRuleHandles,
   alertingRuleIdentity,
 } from "@/data/alerting/rules/identity";
-import { pauseAlertingRule, resumeAlertingRule } from "@/data/alerting/server";
+import { ruleQueries } from "@/data/alerting/rules/queries";
+import {
+  pauseAlertingRule,
+  resumeAlertingRule,
+} from "@/data/alerting/rules/server";
 import type {
   AlertingAlert,
   AlertingRuleEvaluationSeries,
@@ -45,9 +50,9 @@ import {
   AlertingDisclosureTrigger,
   AlertingPauseToggle,
   AlertingQueryError,
-  AlertingStatusLabel,
   alertingErrorMessage,
 } from "./-components/shared/components";
+import { AlertingStatusLabel } from "./-components/shared/status";
 import {
   AlertingBreachBreakdown,
   AlertingSummaryCard,
@@ -228,12 +233,12 @@ export const Route = createFileRoute(
   loader: async ({ context: { queryClient }, params, deps }) => {
     // Rule first: the event-timeline prefetch is scoped to its handles.
     const rule = await queryClient.ensureQueryData(
-      alertingQueries.ruleByName(params.project, params.slug, deps.preview),
+      ruleQueries.ruleByName(params.project, params.slug, deps.preview),
     );
     await Promise.all([
-      queryClient.prefetchQuery(alertingQueries.alerts(deps.preview)),
+      queryClient.prefetchQuery(alertInstanceQueries.list(deps.preview)),
       queryClient.prefetchQuery(
-        alertingQueries.eventHistory(deps.timeRange, {
+        alertHistoryQueries.events(deps.timeRange, {
           slugs: alertingRuleHandles(rule),
           preview: deps.preview,
         }),
@@ -254,16 +259,16 @@ function AlertingRuleDetailPage() {
   const silenceDrawer = useRef<SilenceDrawerHandle>(null);
   const signalChart = useAlertRuleChartMeasurement();
   const rule = useQuery({
-    ...alertingQueries.ruleByName(project, slug, preview),
+    ...ruleQueries.ruleByName(project, slug, preview),
     refetchInterval: false,
   });
   const alerts = useQuery({
-    ...alertingQueries.alerts(preview),
+    ...alertInstanceQueries.list(preview),
     refetchInterval: false,
   });
   const pendingRuleId = rule.data?.id ?? "00000000-0000-0000-0000-000000000000";
   const evaluationSeries = useQuery({
-    ...alertingQueries.ruleEvaluationSeries(
+    ...ruleQueries.evaluationSeries(
       pendingRuleId,
       timeRange,
       signalChart.getPoints,
@@ -275,7 +280,7 @@ function AlertingRuleDetailPage() {
     ? alertingRuleHandles(rule.data)
     : ["__rule-loading__"];
   const eventHistory = useQuery({
-    ...alertingQueries.eventHistory(timeRange, {
+    ...alertHistoryQueries.events(timeRange, {
       slugs: pendingScope,
       preview,
     }),
@@ -295,10 +300,10 @@ function AlertingRuleDetailPage() {
     },
     onSuccess: () => {
       qc.invalidateQueries({
-        queryKey: alertingQueries.ruleByName(project, slug, preview).queryKey,
+        queryKey: ruleQueries.ruleByName(project, slug, preview).queryKey,
       });
       // The rules listing shows the paused state too.
-      qc.invalidateQueries({ queryKey: alertingQueries.rules().queryKey });
+      qc.invalidateQueries({ queryKey: ruleQueries.rules().queryKey });
       toast.success("Rule updated");
     },
     onError: (e) => toast.error(alertingErrorMessage(e)),

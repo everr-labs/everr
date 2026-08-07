@@ -44,14 +44,7 @@ import {
 import { Fragment, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/page-header";
-import { alertingQueries } from "@/data/alerting/queries";
-import {
-  alertingDispatchLabels,
-  alertingIsCatchAll,
-  alertingSelectRoutes,
-} from "@/data/alerting/routing/resolution";
-import { alertingRouteTimingSummary } from "@/data/alerting/routing/timing";
-import { alertingRuleIdentity } from "@/data/alerting/rules/identity";
+import { deliveryQueries } from "@/data/alerting/delivery/queries";
 import {
   deleteAlertingChannel,
   deleteAlertingInhibition,
@@ -59,8 +52,18 @@ import {
   deleteAlertingRoute,
   updateAlertingReceiver,
   updateAlertingRoute,
-} from "@/data/alerting/server";
+} from "@/data/alerting/delivery/server";
+import { alertInstanceQueries } from "@/data/alerting/instances/queries";
+import {
+  alertingDispatchLabels,
+  alertingIsCatchAll,
+  alertingSelectRoutes,
+} from "@/data/alerting/routing/resolution";
+import { alertingRouteTimingSummary } from "@/data/alerting/routing/timing";
+import { alertingRuleIdentity } from "@/data/alerting/rules/identity";
+import { ruleQueries } from "@/data/alerting/rules/queries";
 import { alertingSloIdentity } from "@/data/alerting/slos/model";
+import { sloQueries } from "@/data/alerting/slos/queries";
 import type {
   AlertingChannel,
   AlertingInhibition,
@@ -90,8 +93,8 @@ import {
   AlertingQueryError,
   AlertingTableSkeleton,
   alertingErrorMessage,
-  Conditions,
 } from "./-components/shared/components";
+import { Conditions } from "./-components/shared/signal";
 
 const CHANNEL_KIND_LIST = new Intl.ListFormat("en", {
   type: "disjunction",
@@ -105,13 +108,13 @@ export const Route = createFileRoute(
   loaderDeps: ({ search: { preview } }) => ({ preview }),
   loader: ({ context: { queryClient }, deps }) =>
     Promise.all([
-      queryClient.prefetchQuery(alertingQueries.routes()),
-      queryClient.prefetchQuery(alertingQueries.receivers()),
-      queryClient.prefetchQuery(alertingQueries.channels()),
-      queryClient.prefetchQuery(alertingQueries.inhibitions()),
-      queryClient.prefetchQuery(alertingQueries.alerts(deps.preview)),
-      queryClient.prefetchQuery(alertingQueries.rules()),
-      queryClient.prefetchQuery(alertingQueries.slos(deps.preview)),
+      queryClient.prefetchQuery(deliveryQueries.routes()),
+      queryClient.prefetchQuery(deliveryQueries.receivers()),
+      queryClient.prefetchQuery(deliveryQueries.channels()),
+      queryClient.prefetchQuery(deliveryQueries.inhibitions()),
+      queryClient.prefetchQuery(alertInstanceQueries.list(deps.preview)),
+      queryClient.prefetchQuery(ruleQueries.rules()),
+      queryClient.prefetchQuery(sloQueries.slos(deps.preview)),
     ]),
   component: AlertingDeliveryPage,
 });
@@ -818,7 +821,7 @@ function PipelineSection({
 }) {
   const qc = useQueryClient();
   const { data, isPending, isError, error } = useQuery(
-    alertingQueries.routes(),
+    deliveryQueries.routes(),
   );
   const [editing, setEditing] = useState<
     | { kind: "edit"; route: AlertingRoute }
@@ -838,7 +841,7 @@ function PipelineSection({
   const remove = useMutation({
     mutationFn: (id: string) => deleteAlertingRoute({ data: { id } }),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: alertingQueries.routes().queryKey });
+      qc.invalidateQueries({ queryKey: deliveryQueries.routes().queryKey });
       toast.success("Route deleted");
     },
   });
@@ -857,7 +860,7 @@ function PipelineSection({
     onSuccess: () => toast.success("Route order updated"),
     onError: (e) => toast.error(alertingErrorMessage(e)),
     onSettled: () =>
-      qc.invalidateQueries({ queryKey: alertingQueries.routes().queryKey }),
+      qc.invalidateQueries({ queryKey: deliveryQueries.routes().queryKey }),
   });
 
   const previewActive = Object.keys(previewLabels).length > 0;
@@ -1109,7 +1112,7 @@ function ReceiversSection({
 }) {
   const qc = useQueryClient();
   const { data, isPending, isError, error } = useQuery(
-    alertingQueries.receivers(),
+    deliveryQueries.receivers(),
   );
   const channelsByName = useMemo(
     () => new Map(channels.map((c) => [c.name, c])),
@@ -1119,7 +1122,7 @@ function ReceiversSection({
   const remove = useMutation({
     mutationFn: (name: string) => deleteAlertingReceiver({ data: { name } }),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: alertingQueries.receivers().queryKey });
+      qc.invalidateQueries({ queryKey: deliveryQueries.receivers().queryKey });
       toast.success("Receiver deleted");
     },
   });
@@ -1302,7 +1305,7 @@ function ChannelsSection({
 }) {
   const qc = useQueryClient();
   const { data, isPending, isError, error } = useQuery(
-    alertingQueries.channels(),
+    deliveryQueries.channels(),
   );
 
   const remove = useMutation({
@@ -1336,8 +1339,8 @@ function ChannelsSection({
       );
     },
     onSettled: () => {
-      qc.invalidateQueries({ queryKey: alertingQueries.channels().queryKey });
-      qc.invalidateQueries({ queryKey: alertingQueries.receivers().queryKey });
+      qc.invalidateQueries({ queryKey: deliveryQueries.channels().queryKey });
+      qc.invalidateQueries({ queryKey: deliveryQueries.receivers().queryKey });
     },
   });
 
@@ -1500,7 +1503,7 @@ function ChannelsSection({
 function InhibitionsSection() {
   const qc = useQueryClient();
   const { data, isPending, isError, error } = useQuery(
-    alertingQueries.inhibitions(),
+    deliveryQueries.inhibitions(),
   );
   const [open, setOpen] = useState(false);
 
@@ -1508,7 +1511,7 @@ function InhibitionsSection() {
     mutationFn: (id: string) => deleteAlertingInhibition({ data: { id } }),
     onSuccess: () => {
       qc.invalidateQueries({
-        queryKey: alertingQueries.inhibitions().queryKey,
+        queryKey: deliveryQueries.inhibitions().queryKey,
       });
       toast.success("Inhibition deleted");
     },
@@ -1603,12 +1606,12 @@ function InhibitionsSection() {
 function AlertingDeliveryPage() {
   const location = useLocation();
   const { preview } = Route.useSearch();
-  const routes = useQuery(alertingQueries.routes());
-  const receivers = useQuery(alertingQueries.receivers());
-  const channels = useQuery(alertingQueries.channels());
-  const alerts = useQuery(alertingQueries.alerts(preview));
-  const rules = useQuery(alertingQueries.rules());
-  const slos = useQuery(alertingQueries.slos(preview));
+  const routes = useQuery(deliveryQueries.routes());
+  const receivers = useQuery(deliveryQueries.receivers());
+  const channels = useQuery(deliveryQueries.channels());
+  const alerts = useQuery(alertInstanceQueries.list(preview));
+  const rules = useQuery(ruleQueries.rules());
+  const slos = useQuery(sloQueries.slos(preview));
 
   const [previewLabels, setPreviewLabels] = useState<Record<string, string>>(
     {},

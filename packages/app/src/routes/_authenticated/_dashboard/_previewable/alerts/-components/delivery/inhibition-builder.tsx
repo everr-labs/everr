@@ -3,8 +3,8 @@ import { FilterCombobox } from "@everr/ui/components/filter-combobox";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
-import { alertingQueries } from "@/data/alerting/queries";
-import { createAlertingInhibition } from "@/data/alerting/server";
+import { deliveryQueries } from "@/data/alerting/delivery/queries";
+import { createAlertingInhibition } from "@/data/alerting/delivery/server";
 import type { AlertingMatcher } from "@/data/alerting/types";
 import {
   AlertingConceptNote,
@@ -41,7 +41,7 @@ export function InhibitionBuilder({
       }),
     onSuccess: () => {
       qc.invalidateQueries({
-        queryKey: alertingQueries.inhibitions().queryKey,
+        queryKey: deliveryQueries.inhibitions().queryKey,
       });
       onOpenChange(false);
       setSource([]);

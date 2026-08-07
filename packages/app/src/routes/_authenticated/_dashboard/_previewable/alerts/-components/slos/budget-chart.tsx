@@ -27,15 +27,12 @@ import {
 import type { AlertingSloBudgetPoint } from "@/data/alerting/slos/series.server";
 import { alertingFmtBudgetRemaining } from "./budget-bar";
 
-// Overspend is unbounded (a budget can read -99900%), so plotting it literally
-// would crush the axis; an exhausted budget rests on the floor while the tooltip
-// reports the actual value.
+// Clamp overspend to keep the axis readable. The tooltip shows the actual value.
 const FLOOR_PCT = 0;
 const CEIL_PCT = 100;
 
-// Plot geometry declared, not measured: recharts hands `chartY` to the mouse
-// handler but not the plot rect, and mapping cursor height to a budget needs
-// both, so the plot box is fixed here and fed to the chart.
+// Recharts provides the cursor height but not the plot rectangle. Use fixed
+// geometry to convert the cursor height to a budget value.
 const CHART_H = 240;
 const MARGIN_TOP = 8;
 const XAXIS_H = 30;
@@ -46,15 +43,11 @@ const HOVER_TIE_PCT = markerTolerance(PLOT.height, CEIL_PCT - FLOOR_PCT);
 
 const EMPTY_KEYS: ReadonlySet<string> = new Set();
 
-/** Row key holding a series' pre-epoch (reconstructed) stretch. */
 const reconKey = (dataKey: string) => `${dataKey}_recon`;
 
 export type SloBudgetEvent = {
-  /** Instant of the transition, ISO 8601. */
   t: string;
-  /** `firing` = a burn tier fired; `resolved` = it cleared. */
   type: "firing" | "resolved";
-  /** Which burn tier, from the instance's `slo_tier` label. Absent if unlabelled. */
   tier?: string;
 };
 
@@ -63,28 +56,21 @@ const EVENT_COLOR = {
   resolved: "var(--color-green-500)",
 } as const;
 const APPLIED_COLOR = "var(--color-blue-500)";
-// Fraction of the plot past which the "applied" label flips to the rule's left.
-// Declared, not measured, like the plot box; flipping early is harmless.
 const APPLIED_LABEL_FLIP_AT = 0.8;
 
-// A 1px dashed rule is far too thin to hover, so each marker instant also gets
-// an invisible wide line as the hit target. `transparent` is a paint value, so
-// the stroke still hit-tests under the default `visiblePainted`.
+// Use a wide transparent line as the marker hit target.
 const MARKER_HIT_WIDTH = 14;
 
 const fmtCount = (n: number) => n.toLocaleString();
 
-/** One spec drives both the plotted mark and its key swatch, so they cannot diverge. */
 type Stroke = {
   width: number;
-  /** Dash and gap in px; omit for a solid stroke. */
   dash?: [on: number, off: number];
   opacity?: number;
 };
 
 const EVENT_STROKE: Stroke = { width: 1, dash: [2, 2], opacity: 0.6 };
 
-/** The plot varies series weight by rank; the key does not. */
 const SERIES_STROKE: Stroke = { width: 2 };
 
 const dashArray = (s: Stroke) => s.dash?.join(" ");
@@ -95,8 +81,7 @@ const SWATCH_LEN = { horizontal: 16, vertical: 12 };
 
 function KeyEntry({ item, vertical }: { item: KeyItem; vertical?: boolean }) {
   const { stroke } = item;
-  // A `dashed` border this short collapses to a solid bar; a repeating
-  // gradient dashes predictably at any size.
+  // A gradient keeps short dashed swatches visible.
   const axis = vertical ? "to bottom" : "to right";
   const [on, off] = stroke.dash ?? [];
   const len = vertical ? SWATCH_LEN.vertical : SWATCH_LEN.horizontal;
@@ -104,8 +89,6 @@ function KeyEntry({ item, vertical }: { item: KeyItem; vertical?: boolean }) {
     <li className="flex items-center gap-1.5">
       <span
         aria-hidden
-        // Swatch matches the mark's orientation: series horizontal, transition
-        // rules vertical.
         className="shrink-0"
         style={{
           width: vertical ? stroke.width : len,
@@ -150,23 +133,17 @@ export function SloBudgetChart({
   events,
 }: {
   points: AlertingSloBudgetPoint[];
-  /**
-   * When the budget's meaning begins (apply / last significant edit, ISO
-   * 8601); everything before it is reconstructed. Omit to treat the whole
-   * range as observed.
-   */
+  // Data before this time is reconstructed.
   epoch?: string;
-  /** Transitions overlaid as vertical markers, each snapped to the nearest plotted instant. */
   events?: SloBudgetEvent[];
 }) {
   const [hover, setHover] = useState<{
     x: number;
     y: number;
     index: number;
-    /** The cursor's height read as a budget %, or null if unmeasurable. */
     pct: number | null;
   } | null>(null);
-  // A hovered vertical marker takes precedence over the point readout.
+  // A marker tooltip takes priority over a point tooltip.
   const [markerHover, setMarkerHover] = useState<{
     x: number;
     y: number;
@@ -191,15 +168,13 @@ export function SloBudgetChart({
 
   const epochMs = epoch ? Date.parse(epoch) : Number.NaN;
   const hasEpoch = Number.isFinite(epochMs);
-  // First instant on/after the epoch; -1 means the whole range predates it.
+  // Use -1 when all points are before the epoch.
   const boundary = hasEpoch
     ? instants.findIndex((p) => Date.parse(p.t) >= epochMs)
     : 0;
-  // The "applied" marker only draws when the boundary falls inside the range:
-  // boundary 0 is off the left edge, -1 is off the right.
+  // Draw the applied marker only when the epoch is inside the range.
   const markerT = boundary > 0 ? instants[boundary].t : null;
-  // The label reads rightwards from its rule, so a late marker spills past the
-  // chart; anchor it on the rule's other side instead.
+  // Move a late label left so it stays inside the chart.
   const appliedLabelPosition =
     boundary / (instants.length - 1) > APPLIED_LABEL_FLIP_AT
       ? "insideTopRight"
@@ -209,10 +184,8 @@ export function SloBudgetChart({
   const isReconstructed = (i: number) =>
     boundary === -1 || (boundary > 0 && i < boundary);
 
-  // Rows carry floored values; true (unfloored) values are read from the
-  // series by index when the tooltip needs them. The line splits at the epoch into
-  // two keys: a `<Line>` carries one stroke style, so dashed-to-solid must be
-  // two lines sharing the boundary point; `plottedPct` rejoins them for reads.
+  // Plot clamped values, but read actual values from the source series. Split
+  // the line at the epoch because one Recharts line has one stroke style.
   const data = instants.map((_, pointIdx) => {
     const row: Record<string, string | number | null> = {
       t: instants[pointIdx].t,
@@ -225,24 +198,20 @@ export function SloBudgetChart({
           : Math.min(CEIL_PCT, Math.max(raw * 100, FLOOR_PCT));
       const reconstructed = isReconstructed(pointIdx);
       row[s.dataKey] = reconstructed ? null : pct;
-      // The boundary point belongs to both keys so the segments meet, but only
-      // when a reconstructed stretch exists: with nothing before the epoch, a
-      // lone shared point would draw a stray dot.
+      // Share the boundary point only when reconstructed data exists.
       row[reconKey(s.dataKey)] =
         reconstructed || (boundary > 0 && pointIdx === boundary) ? pct : null;
     }
     return row;
   });
 
-  /** A series' value at an instant, whichever side of the epoch it fell on. */
   const plottedPct = (pointIdx: number, dataKey: string) => {
     const row = data[pointIdx];
     const v = row?.[dataKey] ?? row?.[reconKey(dataKey)];
     return typeof v === "number" ? v : null;
   };
 
-  // The X axis is categorical, so a marker can only land on an existing tick:
-  // snap to the nearest plotted point, or null outside the range.
+  // Snap markers to categorical X-axis points.
   const pointMs = instants.map((p) => Date.parse(p.t));
   const snapToPoint = (ms: number): string | null => {
     if (
@@ -263,8 +232,7 @@ export function SloBudgetChart({
     return instants[idx].t;
   };
 
-  // Deduped by (instant, type) so several same-type transitions on one tick
-  // draw one bar; the tiers behind each bar feed the marker's tooltip.
+  // Draw one mark for each transition type and instant.
   const eventMarks: {
     key: string;
     t: string;
@@ -287,8 +255,7 @@ export function SloBudgetChart({
     }
   }
 
-  // One hit target per instant, not per bar: a fire and a resolve can snap to
-  // the same tick, and overlapping hit lines would fight for the pointer.
+  // Use one hit target when multiple marks share an instant.
   const markerHits = new Map<string, MarkerTip>();
   for (const m of eventMarks) {
     const tip = markerHits.get(m.t) ?? { t: m.t, rows: [] };
@@ -360,9 +327,7 @@ export function SloBudgetChart({
   return (
     <>
       <ChartContainer
-        // Empty: the config's `--color-<key>` vars need a fixed series set,
-        // and these series are discovered at runtime, so each Line carries its
-        // own colour.
+        // Runtime series provide their colors directly.
         config={{}}
         className="w-full"
         style={{ height: CHART_H }}
@@ -370,8 +335,7 @@ export function SloBudgetChart({
         <LineChart
           data={data}
           margin={{ left: 12, right: 12, top: 8 }}
-          // recharts does the hit-testing (activeTooltipIndex); the native
-          // event carries the viewport coords the portaled card needs.
+          // Recharts finds the point. The native event positions the tooltip.
           onMouseMove={(state, e) => {
             const i = state?.activeTooltipIndex;
             if (
@@ -401,18 +365,15 @@ export function SloBudgetChart({
             axisLine={false}
             tickMargin={8}
             width={44}
-            // Axis bounds equal the quantity's own bounds, so the floor is a
-            // real limit rather than a chosen viewport.
             domain={Y_DOMAIN}
             tickFormatter={(v: number) => `${v}%`}
           />
-          {/* Shade reconstructed history instead of relying on line styling alone. */}
+          {/* Shade reconstructed history. */}
           {reconstructedTo && (
             <ReferenceArea
               x1={instants[0].t}
               x2={reconstructedTo}
               fill="var(--muted-foreground)"
-              // Below ~0.1 the wash vanishes on the dark card.
               fillOpacity={0.16}
               strokeOpacity={0}
               label={{
@@ -423,10 +384,8 @@ export function SloBudgetChart({
               }}
             />
           )}
-          {/* Drives recharts' active index only; the visible card is the
-            portaled CursorTooltip below. */}
+          {/* This tooltip provides only the active index. */}
           <ChartTooltip cursor={false} content={() => null} />
-          {/* Reference lines are declared later so they remain legible over the series. */}
           {[...series].reverse().flatMap((s, i) => {
             const worst = i === series.length - 1;
             const common = {
@@ -438,15 +397,12 @@ export function SloBudgetChart({
               dot: worst
                 ? ({ r: 2.5, strokeWidth: 0, fill: s.color } as const)
                 : (false as const),
-              // Hover markers are drawn separately below; recharts' own
-              // activeDot would be stuck in this line's layer, under the
-              // reference rules.
+              // Draw hover markers above reference rules.
               activeDot: false as const,
               isAnimationActive: false,
               connectNulls: true,
             };
             return [
-              // Dashed = reconstructed (pre-epoch).
               <Line
                 key={reconKey(s.dataKey)}
                 dataKey={reconKey(s.dataKey)}
@@ -456,9 +412,7 @@ export function SloBudgetChart({
               <Line key={s.dataKey} dataKey={s.dataKey} {...common} />,
             ];
           })}
-          {/* Painted over the series so a marker is never buried under a line
-            that crosses it. Unlabelled: there can be dozens, and stacked
-            labels would be unreadable; the key names them once. */}
+          {/* Draw markers above the series. The key labels them. */}
           {eventMarks.map((m) => (
             <ReferenceLine
               key={m.key}
@@ -483,8 +437,7 @@ export function SloBudgetChart({
               }}
             />
           )}
-          {/* Drawn in front of the reference rules so a line on the exhausted
-            floor or crossing an alert marker still shows its point. */}
+          {/* Draw hovered points above reference rules. */}
           {pointHover !== null &&
             hoverMarkers({
               x: instants[pointHover.index].t,
@@ -495,7 +448,7 @@ export function SloBudgetChart({
               })),
               activeKeys: nearestKeys,
             })}
-          {/* Transparent hit targets, painted last so they sit above the rules. */}
+          {/* Draw marker hit targets last. */}
           {[...markerHits.values()].map((tip) => (
             <ReferenceLine
               key={`hit-${tip.t}`}
@@ -540,8 +493,6 @@ export function SloBudgetChart({
                 color: s.color,
                 label: s.label,
                 active: nearestKeys.has(s.dataKey),
-                // Same formatter as the inline meter, so one value is never
-                // worded two ways.
                 value:
                   p.valid === null
                     ? "no data"

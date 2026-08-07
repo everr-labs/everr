@@ -23,12 +23,16 @@ const mocks = vi.hoisted(() => ({
   toastError: vi.fn(),
 }));
 
-vi.mock("@/data/alerting/server", () => ({
+vi.mock("@/data/alerting/slos/server", () => ({
   listAlertingSlos: mocks.listAlertingSlos,
   getAlertingSloStatus: mocks.getAlertingSloStatus,
   getAlertingSloBudgetNow: mocks.getAlertingSloBudgetNow,
   pauseAlertingSlo: mocks.pauseAlertingSlo,
   resumeAlertingSlo: mocks.resumeAlertingSlo,
+}));
+
+vi.mock("@/data/alerting/rules/server", () => ({
+  listAlertingRules: vi.fn().mockResolvedValue([]),
 }));
 
 vi.mock("sonner", () => ({

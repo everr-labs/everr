@@ -1,12 +1,12 @@
 import { useQueries } from "@tanstack/react-query";
 import { useCallback, useMemo } from "react";
-import { alertingQueries } from "@/data/alerting/queries";
 import {
   type AlertingFreshBudget,
   alertingApplyFreshBudget,
   alertingSloTiers,
   alertingSloWindowSecs,
 } from "@/data/alerting/slos/model";
+import { sloQueries } from "@/data/alerting/slos/queries";
 import type {
   AlertingSlo,
   AlertingSloStatusPayload,
@@ -16,7 +16,7 @@ import type {
  * The one read-time-budget overlay behind triage, the SLO listing, and the
  * SLO detail page, so they can never disagree about "current budget". `apply`
  * returns the status unchanged while an SLO's scan is in flight, failed, or
- * was never requested — the snapshot is the instant fallback.
+ * was never requested. The snapshot is the immediate fallback.
  */
 export function useAlertingFreshBudgets(sloIds: readonly string[]): {
   apply: (
@@ -26,7 +26,7 @@ export function useAlertingFreshBudgets(sloIds: readonly string[]): {
   isPending: (sloId: string) => boolean;
 } {
   const scans = useQueries({
-    queries: sloIds.map((id) => alertingQueries.sloBudgetNow(id)),
+    queries: sloIds.map((id) => sloQueries.budgetNow(id)),
     // TanStack caches the combined value per combine-function identity; an
     // inline arrow would hand out a fresh Map every render.
     combine: useCallback(

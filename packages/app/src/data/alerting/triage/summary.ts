@@ -1,5 +1,3 @@
-// Every function here is pure: `now` is always a parameter, never a
-// `Date.now()` call, so callers control staleness and tests are deterministic.
 import type { TimeRange } from "@everr/ui/lib/time-range";
 import {
   alertingDispatchLabels,
@@ -23,8 +21,7 @@ import type {
   AlertingSloStatusPayload,
 } from "@/data/alerting/types";
 
-// The alerts layout hides the global time-range picker, so every triage
-// surface reads the same fixed trailing window of stored events.
+// All triage surfaces use this range because the alerts layout has no time picker.
 export const TRIAGE_EVENT_RANGE: TimeRange = { from: "now-24h", to: "now" };
 
 // ── Vocabulary helpers ────────────────────────────────────────────────────────
@@ -47,7 +44,6 @@ function alertingRuleDisplayName(
   return rule ? alertingRuleIdentity(rule).name : ruleId.slice(0, 8);
 }
 
-/** /runbooks/$project/$slug params when the rule links a runbook, else null. */
 export function alertingRunbookParams(
   rule: AlertingRuleView | undefined,
 ): { project: string; slug: string } | null {
@@ -58,11 +54,7 @@ function alertingSloInstanceSeverity(alert: AlertingAlert) {
   return alertingSloTierSeverity(ALERTING_CANONICAL_SLO_TIERS, alert.labels);
 }
 
-/**
- * Rule instances pin every instance label plus the synthetic `rule` label.
- * SLO rows use only the synthetic `slo` label so one silence covers every burn
- * tier watching that budget.
- */
+// A rule silence targets one instance. An SLO silence targets all burn tiers.
 export function alertingSourceScopedSilenceMatchers(
   alert: AlertingAlert,
 ): AlertingMatcher[] {
@@ -79,7 +71,6 @@ export function alertingSourceScopedSilenceMatchers(
   ];
 }
 
-/** The synthetic scoping label alone: one silence mutes everything under the source. */
 export function alertingGroupSilenceMatchers(
   group: TriageGroup,
 ): AlertingMatcher[] {
@@ -90,11 +81,7 @@ export function alertingGroupSilenceMatchers(
   ];
 }
 
-/**
- * Deduped receivers, the channels they fan out to, and `dead`: receivers that
- * fan out to nothing (no channels, or a receiver that does not exist) —
- * matched routes whose delivery reaches no one.
- */
+// A dead receiver has no channel or does not exist.
 export function alertingDeliveryFanout(
   matchedRoutes: AlertingRoute[],
   channelsByReceiver: Map<string, string[]>,
@@ -109,7 +96,6 @@ export function alertingDeliveryFanout(
   return { receivers, channels, dead };
 }
 
-/** Whether an unsilenced instance has no effective notification destination. */
 export function alertingInstanceIsUndeliverable(
   instance: TriageInstance,
   channelsByReceiver?: Map<string, string[]>,
@@ -123,11 +109,8 @@ export function alertingInstanceIsUndeliverable(
   );
 }
 
-/**
- * Logs-link params: window from shortly before firing until now. Labels are
- * arbitrary SQL columns, so only the well-known service key maps to an
- * explorer filter — anything cleverer would silently build wrong queries.
- */
+// Start the log search before the alert fired. Map only known service labels
+// because other labels can be arbitrary SQL columns.
 export function alertingInstanceLogsSearch(alert: AlertingAlert): {
   from: string;
   to: string;
@@ -148,8 +131,7 @@ export function alertingInstanceLogsSearch(alert: AlertingAlert): {
 
 // ── Shapes ────────────────────────────────────────────────────────────────────
 
-// `rule` and `slo` are mutually exclusive resolutions of the instance's
-// source (alert.slo discriminates).
+// An instance resolves to either a rule or an SLO.
 export type TriageInstance = {
   alert: AlertingAlert;
   rule: AlertingRuleView | undefined;
@@ -159,21 +141,13 @@ export type TriageInstance = {
   silence: AlertingSilence | null;
 };
 
-/**
- * One board row: one thing that is wrong. For a rule, one instance; for an
- * SLO, one row across every burn-rate tier on it, because the tiers watch the
- * same budget, so tripping two of them is still one problem.
- */
+// A rule row contains one instance. An SLO row contains all tiers for one budget.
 export type TriageRow = {
-  /** The most urgent member: the row's identity, value, and event scope. */
   lead: TriageInstance;
-  /** Every member, most urgent first. One element for a rule row. */
   members: TriageInstance[];
-  /** Firing tiers, most urgent first. Empty for a rule row. */
   tiers: string[];
 };
 
-/** One source's rows: a rule's, or an SLO's burn-rate alerting. */
 export type TriageGroup = {
   sourceId: string;
   rule: AlertingRuleView | undefined;
@@ -197,11 +171,8 @@ export type AlertingExhaustedBudget = {
   status: AlertingSloStatusPayload;
 };
 
-/**
- * Every SLO whose budget is spent, worst first, whether or not
- * anything is firing on it now. Paused SLOs are skipped: their snapshots are
- * frozen and no longer represent current state.
- */
+// Return exhausted SLOs from worst to best. Skip paused SLOs because their
+// snapshots do not represent current state.
 export function alertingExhaustedBudgets(
   slos: AlertingSlo[],
   statusBySlo: Map<string, AlertingSloStatusPayload | null>,
@@ -218,10 +189,7 @@ export function alertingExhaustedBudgets(
   return spent.sort((a, b) => a.remaining - b.remaining).map((s) => s.entry);
 }
 
-/**
- * Firing rows only. Pending and inactive instances stay in the derivation
- * (the pipeline strip counts them); groups with no firing row disappear.
- */
+// Keep only groups that contain firing rows.
 export function alertingFiringGroups(groups: TriageGroup[]): TriageGroup[] {
   return groups
     .map((group) => ({
@@ -251,7 +219,7 @@ export function alertingResolveTriageInstances({
   const ruleById = new Map(rules.map((r) => [r.id, r]));
   const sloById = new Map(slos.map((s) => [s.id, s]));
   return alerts.map((alert) => {
-    // alert.slo discriminates SLO sources because alert.rule always carries the source id.
+    // alert.rule contains the source ID for rules and SLOs.
     const slo = alert.slo !== undefined ? sloById.get(alert.slo) : undefined;
     const rule = alert.slo === undefined ? ruleById.get(alert.rule) : undefined;
     const matchLabels = alertingDispatchLabels(alert, rule, slo);
@@ -270,12 +238,8 @@ export function alertingResolveTriageInstances({
   });
 }
 
-/**
- * Callers must not re-derive these with their own filters: a count split
- * between here and a route drifts when one side changes its definition.
- * Counts rows, so the strip and the board are the same
- * tally (an SLO tripping two tiers is one firing thing in both).
- */
+// Count rows so the summary and board use the same totals. Multiple firing
+// tiers for one SLO count as one row.
 export function alertingTriageCounts(
   groups: TriageGroup[],
   silences: AlertingSilence[],
@@ -296,7 +260,7 @@ export function alertingTriageCounts(
     for (const { lead } of group.rows) {
       if (lead.alert.status === "firing") {
         firing += 1;
-        // A silenced row is meant not to reach anyone, so it is not "unrouted".
+        // A silenced row does not need a route.
         if (
           lead.silence === null &&
           alertingInstanceIsUndeliverable(lead, channelsByReceiver)
@@ -306,7 +270,7 @@ export function alertingTriageCounts(
       } else if (lead.alert.status === "pending") {
         pending += 1;
       }
-      // An inactive row matched by a silence is not being muted, just over.
+      // Do not count inactive rows as silenced.
       if (lead.alert.status !== "inactive" && lead.silence !== null) {
         silenced += 1;
       }
@@ -329,10 +293,7 @@ const TIER_RANK = new Map(
   ALERTING_CANONICAL_SLO_TIERS.map((t, i) => [t.name, i]),
 );
 
-/**
- * Collapse an SLO's tier instances into one row, most urgent member
- * leading. Rule instances pass through one-to-one.
- */
+// Collapse all tiers for one SLO into one row. Keep rule instances separate.
 function alertingCollapseRows(
   list: TriageInstance[],
   isSlo: boolean,
@@ -341,7 +302,7 @@ function alertingCollapseRows(
     return list.map((lead) => ({ lead, members: [lead], tiers: [] }));
   }
   return [list].map((members) => {
-    // Canonical tier order is urgency order, so the earliest tier leads.
+    // The first canonical tier has the highest urgency.
     const sorted = [...members].sort(
       (a, b) =>
         (STATUS_RANK[a.alert.status] ?? 3) -
@@ -360,9 +321,7 @@ function alertingCollapseRows(
   });
 }
 
-// Group by source (`alert.rule` carries the uuid for rules and SLOs alike).
-// Ordering guarantee: groups sort status (firing, pending, inactive), then
-// severity, then name; within a group firing rows precede pending and inactive.
+// Sort groups by status, severity, and name. Sort rows by status.
 export function alertingGroupInstances(
   instances: TriageInstance[],
 ): TriageGroup[] {
@@ -375,13 +334,10 @@ export function alertingGroupInstances(
   return [...bySource.entries()]
     .map(([sourceId, list]) => {
       const slo = list[0].slo;
-      // The instance knows it is SLO-sourced even before the SLO listing
-      // resolves the object, so linking/marking never falls back to a rule.
+      // Preserve the SLO source while its definition is loading.
       const sloId = list[0].alert.slo;
       const isSlo = slo !== undefined || sloId !== undefined;
-      // Keyed on `isSlo`, not the resolved SLO: severity reads off the
-      // instance's own `slo_tier` label; waiting for the object would render a
-      // critical burn as "info" and sort it to the bottom until the fetch landed.
+      // Read severity from the instance until the SLO definition loads.
       const severity = isSlo
         ? list.reduce((top: string, inst) => {
             const s = alertingSloInstanceSeverity(inst.alert);
@@ -413,9 +369,7 @@ export function alertingGroupInstances(
     })
     .sort(
       (a, b) =>
-        // Rows are status-sorted, so [0] is the group's most urgent. Status
-        // before severity: otherwise a critical group that finished firing
-        // would outrank a warning group firing right now.
+        // Active status takes priority over severity.
         (STATUS_RANK[a.rows[0].lead.alert.status] ?? 3) -
           (STATUS_RANK[b.rows[0].lead.alert.status] ?? 3) ||
         (SEVERITY_RANK[a.severity] ?? 3) - (SEVERITY_RANK[b.severity] ?? 3) ||

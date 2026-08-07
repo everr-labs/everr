@@ -6,9 +6,16 @@ import { ChannelBuilder } from "./channel-builder";
 
 // Keep the alerting query mock at the module boundary used by the component.
 const testAlertingChannel = vi.fn();
-vi.mock("@/data/alerting/server", () => ({
+vi.mock("@/data/alerting/delivery/server", () => ({
   createAlertingChannel: vi.fn(),
   testAlertingChannel: (...args: unknown[]) => testAlertingChannel(...args),
+}));
+
+vi.mock("@/data/alerting/rules/server", () => ({
+  listAlertingRules: vi.fn().mockResolvedValue([]),
+}));
+vi.mock("@/data/alerting/slos/server", () => ({
+  listAlertingSlos: vi.fn().mockResolvedValue([]),
 }));
 
 // Mirror the mock shape used by -account.test.tsx.

@@ -44,18 +44,32 @@ vi.mock("sonner", () => ({
   },
 }));
 
-vi.mock("@/data/alerting/server", () => ({
+vi.mock("@/data/alerting/instances/server", () => ({
   listAlertingAlerts: mocks.listAlertingAlerts,
+}));
+vi.mock("@/data/alerting/rules/server", () => ({
   listAlertingRules: mocks.listAlertingRules,
+}));
+vi.mock("@/data/alerting/slos/server", () => ({
   listAlertingSlos: mocks.listAlertingSlos,
   getAlertingSloStatus: mocks.getAlertingSloStatus,
   getAlertingSloBudgetNow: mocks.getAlertingSloBudgetNow,
+}));
+vi.mock("@/data/alerting/delivery/server", () => ({
   listAlertingRoutes: mocks.listAlertingRoutes,
   listAlertingReceivers: mocks.listAlertingReceivers,
+}));
+vi.mock("@/data/alerting/silences/server", () => ({
   listAlertingSilences: mocks.listAlertingSilences,
-  listAlertingEventHistory: mocks.listAlertingEventHistory,
   createAlertingSilence: mocks.createAlertingSilence,
   deleteAlertingSilence: mocks.deleteAlertingSilence,
+}));
+vi.mock("@/data/alerting/history/server", () => ({
+  listAlertingEventHistory: mocks.listAlertingEventHistory,
+}));
+vi.mock("@/data/alerting/routing/suggestions.server", () => ({
+  listAlertingLabelKeys: vi.fn().mockResolvedValue([]),
+  listAlertingLabelValues: vi.fn().mockResolvedValue([]),
 }));
 
 function alertingRule(
@@ -734,7 +748,7 @@ describe("/alerts triage board", () => {
     mocks.listAlertingAlerts.mockResolvedValue([]);
     mocks.listAlertingSilences.mockResolvedValue([]);
     // The events read only date-stamps the readout, so losing it must not cost
-    // the all-clear itself — but "no events in 24h" would be a claim we cannot
+    // the all-clear itself. However, "no events in 24h" would be a claim we cannot
     // make, and on an all-clear card that reads as corroboration.
     mocks.listAlertingEventHistory.mockRejectedValue(
       new Error("clickhouse down"),

@@ -1,5 +1,5 @@
-import { applyAlertSpecs } from "@/data/alerting/resources/rules/apply.server";
-import { applySloSpecs } from "@/data/alerting/resources/slos/apply.server";
+import { applyAlertSpecs } from "@/data/alerting/rules/resource/apply.server";
+import { applySloSpecs } from "@/data/alerting/slos/resource/apply.server";
 import { applyDashboardSpecs } from "@/data/dashboards/apply.server";
 import { findPreviewId, upsertPreview } from "@/data/previews/apply.server";
 import type { Namespace } from "@/data/previews/scope";

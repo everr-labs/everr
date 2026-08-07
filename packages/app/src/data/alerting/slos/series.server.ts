@@ -6,19 +6,13 @@ import {
   alertingFormatClickHouseDateTime,
 } from "./model";
 
-/** One point of an SLO's error-budget-over-time series. */
 export type AlertingSloBudgetPoint = {
-  /** ISO 8601 UTC, e.g. "2026-07-20T13:00:00Z". */
   t: string;
-  /** Good events over the budget window ending at `t`. Null: no rows. */
   good: number | null;
-  /** Valid events over the budget window ending at `t`. Null: no rows. */
   valid: number | null;
-  /** Error budget remaining as a fraction, or null without a usable sample. */
   budgetRemaining: number | null;
 };
 
-/** Hard upper bound on trailing-window evals for one series (cost ceiling). */
 const ALERTING_SLO_BUDGET_MAX_POINTS = 200;
 
 // Round steps make series stable across reloads and keep labels readable.
@@ -35,7 +29,6 @@ const NICE_STEPS_MS = [
   7 * 24 * 60 * 60_000, // 1w
 ];
 
-/** Smallest nice step keeping `spanMs / step <= targetPoints` (largest if none). */
 function chooseStepMs(spanMs: number, targetPoints: number): number {
   return (
     NICE_STEPS_MS.find((s) => spanMs / s <= targetPoints) ??
@@ -46,7 +39,6 @@ function chooseStepMs(spanMs: number, targetPoints: number): number {
 // The SQL API returns every SLI column as a string.
 type SliRow = { good: string; valid: string };
 
-/** Keep the full SLI window behind the ingest-delay allowance. */
 function sliWindowMs(
   instantMs: number,
   windowSecs: number,
@@ -55,16 +47,12 @@ function sliWindowMs(
   return { start: end - windowSecs * 1000, end };
 }
 
-/** Compute the current error budget from one trailing-window SLI scan. */
 export async function querySloBudgetNow(
   clickhouse: ClickhouseQuery,
   opts: {
-    /** The SLO's SLI SQL, parameterized on `{window_start}`/`{window_end}`. */
     sliSql: string;
     targetPercent: number;
-    /** Budget window length in seconds (the trailing window's span). */
     windowSecs: number;
-    /** Read-time "now" as a ms instant; the trailing window ends here. */
     nowMs: number;
   },
 ): Promise<AlertingFreshBudget | null> {
@@ -83,18 +71,12 @@ export async function querySloBudgetNow(
   };
 }
 
-/**
- * Parse a ClickHouse UTC wall-clock string ("YYYY-MM-DD HH:MM:SS", no zone) as
- * UTC. Plain `Date.parse` reads that space-separated, zone-less form as LOCAL
- * time, which skews the whole series (and the recent edge) by the server's
- * offset. These strings are always UTC (they come from
- * `alertingFormatClickHouseDateTime`).
- */
+// ClickHouse returns a UTC time without a zone. Add the zone before parsing so
+// the server does not interpret the value as local time.
 function parseChUtc(s: string): number {
   return Date.parse(`${s.replace(" ", "T")}Z`);
 }
 
-/** Error budget remaining for a window's `(good, valid)` counters. */
 function budgetRemaining(
   good: number,
   valid: number,
@@ -106,21 +88,15 @@ function budgetRemaining(
   return Math.abs(remaining) < 1e-12 ? 0 : remaining;
 }
 
-/**
- * Compute historical error budget from one trailing-window SLI scan per point.
- * The overlapping scans are bounded by both point count and concurrency.
- */
+// Run one trailing-window scan for each point.
 export async function querySloBudgetSeries(
   clickhouse: ClickhouseQuery,
   opts: {
-    /** The SLO's SLI SQL, parameterized on `{window_start}`/`{window_end}`. */
     sliSql: string;
     targetPercent: number;
-    /** Budget window length in seconds (each point's trailing window). */
     windowSecs: number;
     fromISO: string;
     toISO: string;
-    /** Target point count; the grid step is chosen to land near it (cap 200). */
     points: number;
   },
 ): Promise<AlertingSloBudgetPoint[]> {
@@ -128,9 +104,7 @@ export async function querySloBudgetSeries(
   const to = parseChUtc(opts.toISO);
   if (!Number.isFinite(from) || !Number.isFinite(to) || to <= from) return [];
 
-  // Snap instants to a round grid: the largest multiple of `step` at or before
-  // each slot, starting at the first grid tick inside the range. Deterministic
-  // across reloads (same range -> same instants) and clean tooltip times.
+  // Use a round grid so the same range produces the same points.
   const step = chooseStepMs(to - from, opts.points);
   const instants: number[] = [];
   for (
@@ -141,9 +115,7 @@ export async function querySloBudgetSeries(
     instants.push(t);
   }
   if (instants.length === 0) return [];
-  // Finish exactly at `to` (now): the grid snaps ticks down, so the last tick
-  // can fall a step short, and the chart's final point would then measure a
-  // different window than the status hero (which reads the window ending now).
+  // End at `to` so the chart and summary measure the same window.
   if (
     instants[instants.length - 1] < to &&
     instants.length < ALERTING_SLO_BUDGET_MAX_POINTS
@@ -151,9 +123,7 @@ export async function querySloBudgetSeries(
     instants.push(to);
   }
 
-  // Bounded concurrency: N heavy scans, capped so one chart load can't flood
-  // ClickHouse with the whole series at once.
-  // Plot each point at its evaluation instant, not its shifted window end.
+  // Limit concurrent scans to protect ClickHouse.
   const run = createLimiter(8);
   const scans = await Promise.all(
     instants.map((t) =>

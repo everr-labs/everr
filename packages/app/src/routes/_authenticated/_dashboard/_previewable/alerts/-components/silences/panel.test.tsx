@@ -35,13 +35,19 @@ const mocks = vi.hoisted(() => ({
   listAlertingSlos: vi.fn().mockResolvedValue([]),
 }));
 
-vi.mock("@/data/alerting/server", () => ({
+vi.mock("@/data/alerting/silences/server", () => ({
   listAlertingSilences: mocks.listAlertingSilences,
   createAlertingSilence: mocks.createAlertingSilence,
   deleteAlertingSilence: mocks.deleteAlertingSilence,
+}));
+vi.mock("@/data/alerting/routing/suggestions.server", () => ({
   listAlertingLabelKeys: mocks.listAlertingLabelKeys,
   listAlertingLabelValues: mocks.listAlertingLabelValues,
+}));
+vi.mock("@/data/alerting/rules/server", () => ({
   listAlertingRules: mocks.listAlertingRules,
+}));
+vi.mock("@/data/alerting/slos/server", () => ({
   listAlertingSlos: mocks.listAlertingSlos,
 }));
 

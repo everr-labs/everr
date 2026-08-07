@@ -1,6 +1,15 @@
 import { z } from "zod";
+import {
+  alertingChannelNamesSchema,
+  alertingResourceNameSchema,
+} from "./resource/schema";
+import {
+  ALERTING_HEALTH_STATUSES,
+  ALERTING_INSTANCE_STATUSES,
+  ALERTING_SEVERITIES,
+} from "./vocabulary";
 
-export const AlertingSeveritySchema = z.enum(["info", "warning", "critical"]);
+export const AlertingSeveritySchema = z.enum(ALERTING_SEVERITIES);
 export const AlertingMatchOpSchema = z.enum(["eq", "ne", "regex", "notregex"]);
 const AlertingRuleConditionOperatorSchema = z.enum([
   "gt",
@@ -16,17 +25,11 @@ export const AlertingRuleConditionSchema = z
     threshold: z.number().finite(),
   })
   .strict();
-const AlertingInstanceStatusSchema = z.enum(["inactive", "pending", "firing"]);
+const AlertingInstanceStatusSchema = z.enum(ALERTING_INSTANCE_STATUSES);
 
-// Server functions serialize timestamps as RFC 3339 strings.
-const AlertingTimestampSchema = z.string();
+const AlertingTimestampSchema = z.string().datetime();
 const AlertingTimestampNullable = AlertingTimestampSchema.nullable();
-const ResourceNameSchema = z.string().regex(/^[^/]+\/.+$/);
-const AlertingChannelNamesSchema = z
-  .array(z.string().min(1))
-  .refine((channels) => new Set(channels).size === channels.length, {
-    message: "notification channels must be unique",
-  });
+const AlertingChannelNamesSchema = alertingChannelNamesSchema();
 
 export const AlertingMatcherSchema = z.object({
   label: z.string(),
@@ -44,11 +47,11 @@ export const AlertingRuleSpecSchema = z.object({
   annotations: z.record(z.string(), z.string()).default({}),
   resolve_after: z.number().int().positive().default(1),
   max_interval_secs: z.number().int().positive().optional(),
-  // Preview mode: evaluated fully, never notified on.
+  // Preview rules run evaluations but do not send notifications.
   suppressed: z.boolean().default(false),
 });
 
-export const AlertingRuleHealthStatusSchema = z.enum(["healthy", "degraded"]);
+export const AlertingRuleHealthStatusSchema = z.enum(ALERTING_HEALTH_STATUSES);
 
 const AlertingRuleHealthSchema = z.object({
   status: AlertingRuleHealthStatusSchema,
@@ -63,7 +66,7 @@ export const AlertingRuleSchema = z.object({
   tenant: z.string(),
   repoid: z.string().min(1),
   previewId: z.string().nullable(),
-  name: ResourceNameSchema,
+  name: alertingResourceNameSchema,
   notification_channels: AlertingChannelNamesSchema,
   spec: AlertingRuleSpecSchema,
   version: z.number().int(),
@@ -150,10 +153,6 @@ export const AlertingRouteSchema = z.object({
   repeat_interval_secs: z.number().int().nullable(),
 });
 
-// ---- Create/update input bodies ----
-// Both the client types (types.ts) and the server-fn input validators
-// (server.ts) derive from these, so the two cannot drift.
-
 export const AlertingRouteInputSchema = z.object({
   matchers: z.array(AlertingMatcherSchema),
   receiver: z.string().min(1),
@@ -165,9 +164,8 @@ export const AlertingRouteInputSchema = z.object({
   repeat_interval_secs: z.number().int().min(60).nullable(),
 });
 
-// Rule creation input: the spec is flattened beside its immutable identity.
 export const AlertingRuleInputSchema = AlertingRuleSpecSchema.extend({
-  name: ResourceNameSchema,
+  name: alertingResourceNameSchema,
   repoid: z.string().min(1),
   previewId: z.string().nullable(),
   notification_channels: AlertingChannelNamesSchema.default([]),
@@ -218,9 +216,8 @@ export const AlertingInhibitionSchema = z.object({
   created_at: AlertingTimestampSchema,
 });
 
-// ---- SLOs ----
 export const AlertingSloTierSchema = z.object({
-  name: ResourceNameSchema,
+  name: z.string().min(1),
   long_window: z.string(),
   short_window: z.string(),
   burn_rate: z.number(),
@@ -243,7 +240,7 @@ export const AlertingSloSpecSchema = z.object({
   }),
   min_valid_events: z.number().int().nonnegative().optional(),
   annotations: z.record(z.string(), z.string()).default({}),
-  // Preview mode: evaluated fully, never notified on.
+  // Preview SLOs run evaluations but do not send notifications.
   suppressed: z.boolean().default(false),
 });
 
@@ -252,9 +249,7 @@ export const AlertingSloSchema = z.object({
   tenant: z.string(),
   repoid: z.string().min(1),
   previewId: z.string().nullable(),
-  // Live names are unique per Organization; preview names are unique within
-  // their owning Preview.
-  name: z.string(),
+  name: alertingResourceNameSchema,
   spec: AlertingSloSpecSchema,
   version: z.number().int(),
   paused: z.boolean(),
@@ -262,9 +257,8 @@ export const AlertingSloSchema = z.object({
 
 export const AlertingSloViewSchema = AlertingSloSchema.extend({
   updated_at: AlertingTimestampSchema,
-  // When the error budget last began: creation or the last budget-significant
-  // edit (sli / target / window), NOT pause/resume or a rename. The chart
-  // splits reconstructed (pre-epoch) history from the real budget here.
+  // This time starts the current error-budget period. Creation and budget
+  // changes reset it. Pause, resume, and rename operations do not reset it.
   budget_epoch: AlertingTimestampSchema,
 });
 
@@ -303,12 +297,9 @@ export const AlertingSloStatusSchema = z.object({
   health: AlertingSloHealthSchema,
 });
 
-// Create input: spec flattened beside the immutable identity fields.
 export const AlertingSloInputSchema = AlertingSloSpecSchema.extend({
-  name: ResourceNameSchema,
+  name: alertingResourceNameSchema,
   repoid: z.string().min(1),
   previewId: z.string().nullable(),
 });
-// PUT body: spec only (identity is immutable after create); the client adds
-// the optional optimistic-concurrency `version`.
 export const AlertingSloUpdateSchema = AlertingSloSpecSchema;

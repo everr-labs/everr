@@ -8,12 +8,12 @@ import { cn } from "@everr/ui/lib/utils";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
-import { alertingQueries } from "@/data/alerting/queries";
+import { deliveryQueries } from "@/data/alerting/delivery/queries";
 import {
   createAlertingChannel,
   testAlertingChannel,
   updateAlertingChannel,
-} from "@/data/alerting/server";
+} from "@/data/alerting/delivery/server";
 import type {
   AlertingChannel,
   AlertingChannelConfig,
@@ -126,7 +126,7 @@ export function ChannelBuilder({
         : createAlertingChannel({ data: { name: trimmed, config } });
     },
     onSuccess: (c) => {
-      qc.invalidateQueries({ queryKey: alertingQueries.channels().queryKey });
+      qc.invalidateQueries({ queryKey: deliveryQueries.channels().queryKey });
       onOpenChange(false);
       toast.success(`Channel "${c.name}" ${editing ? "updated" : "created"}`);
     },

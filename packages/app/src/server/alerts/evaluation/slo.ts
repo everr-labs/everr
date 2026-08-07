@@ -1,6 +1,15 @@
 import { eq, sql } from "drizzle-orm";
 import { z } from "zod";
-import { parseSloWindowSeconds } from "@/data/alerting/resources/slos/schema";
+import {
+  alertingPartitionQueue,
+  alertingRetryAt,
+  alertingRetryDelaySeconds,
+  type EvaluateSloPayload,
+  nextSloEvaluationAt,
+  SLO_EVALUATE_TASK,
+  SLO_EVALUATION_INTERVAL_SECONDS,
+  sloEvaluationJobKey,
+} from "@/data/alerting/scheduling/evaluation-jobs.server";
 import {
   ALERTING_SLO_INGEST_DELAY_SECS,
   alertingFormatClickHouseDateTime,
@@ -8,6 +17,7 @@ import {
   alertingSloTiers,
   alertingTimeToExhaustionSecs,
 } from "@/data/alerting/slos/model";
+import { parseSloWindowSeconds } from "@/data/alerting/slos/resource/schema";
 import type { AlertingSloStatusPayload } from "@/data/alerting/types";
 import { db } from "@/db/client";
 import {
@@ -19,17 +29,7 @@ import {
 import { querySqlApi } from "@/lib/clickhouse";
 import { addWorkerJobInTransaction } from "@/server/worker/jobs";
 import { errorMessage } from "@/telemetry/logger";
-import { ALERT_PROCESS_EVENT_TASK } from "../delivery/dispatcher";
-import {
-  alertingPartitionQueue,
-  alertingRetryAt,
-  alertingRetryDelaySeconds,
-  type EvaluateSloPayload,
-  nextSloEvaluationAt,
-  SLO_EVALUATE_TASK,
-  SLO_EVALUATION_INTERVAL_SECONDS,
-  sloEvaluationJobKey,
-} from "../scheduling/scanner";
+import { ALERT_PROCESS_EVENT_TASK } from "../delivery/tasks";
 
 const PayloadSchema = z.object({
   sloDefinitionId: z.string().uuid(),

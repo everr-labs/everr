@@ -10,13 +10,13 @@ import {
   alertingIsCatchAll,
   alertingOpSymbol,
 } from "@/data/alerting/routing/resolution";
-import { AlertingMatchOpSchema } from "@/data/alerting/schema";
 import {
   type AlertingLabelKeySuggestion,
   type AlertingLabelValueSuggestion,
   listAlertingLabelKeys,
   listAlertingLabelValues,
-} from "@/data/alerting/server";
+} from "@/data/alerting/routing/suggestions.server";
+import { AlertingMatchOpSchema } from "@/data/alerting/schema";
 import type { AlertingMatcher } from "@/data/alerting/types";
 
 const OP_PHRASE: Record<AlertingMatcher["op"], string> = {

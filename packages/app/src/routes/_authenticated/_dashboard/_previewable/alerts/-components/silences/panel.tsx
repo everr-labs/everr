@@ -29,23 +29,23 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Plus } from "lucide-react";
 import { type Ref, useImperativeHandle, useState } from "react";
 import { toast } from "sonner";
-import { alertingQueries } from "@/data/alerting/queries";
+import { silenceQueries } from "@/data/alerting/silences/queries";
 import {
   createAlertingSilence,
   deleteAlertingSilence,
-} from "@/data/alerting/server";
+} from "@/data/alerting/silences/server";
 import type { AlertingMatcher, AlertingSilence } from "@/data/alerting/types";
 import { MatchersEditor, matchersAreScoped } from "../delivery/matchers-editor";
 import {
   AlertingConceptNote,
   AlertingQueryError,
-  AlertingStatusLabel,
   AlertingTableSkeleton,
   alertingErrorMessage,
   alertingFormatTs,
-  Conditions,
 } from "../shared/components";
 import { AlertingDrawer } from "../shared/drawer";
+import { Conditions } from "../shared/signal";
+import { AlertingStatusLabel } from "../shared/status";
 
 /**
  * Imperative on purpose: the drawer resets its own form state inside
@@ -99,14 +99,12 @@ const SILENCE_TONE = {
 
 export function SilencesPanel({ onNewSilence }: { onNewSilence: () => void }) {
   const qc = useQueryClient();
-  const { data, isPending, isError, error } = useQuery(
-    alertingQueries.silences(),
-  );
+  const { data, isPending, isError, error } = useQuery(silenceQueries.list());
 
   const cancel = useMutation({
     mutationFn: (id: string) => deleteAlertingSilence({ data: { id } }),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: alertingQueries.silences().queryKey });
+      qc.invalidateQueries({ queryKey: silenceQueries.list().queryKey });
       toast.success("Silence cancelled");
     },
     onError: (e) => toast.error(alertingErrorMessage(e)),
@@ -324,7 +322,7 @@ export function SilenceCreateDrawer({
         },
       }),
     onSuccess: () => {
-      qc.invalidateQueries({ queryKey: alertingQueries.silences().queryKey });
+      qc.invalidateQueries({ queryKey: silenceQueries.list().queryKey });
       setOpen(false);
       toast.success("Silence created");
     },

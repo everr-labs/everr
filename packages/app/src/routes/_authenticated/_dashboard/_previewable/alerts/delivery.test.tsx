@@ -44,16 +44,11 @@ const mocks = vi.hoisted(() => ({
   toastError: vi.fn(),
 }));
 
-vi.mock("@/data/alerting/server", () => ({
+vi.mock("@/data/alerting/delivery/server", () => ({
   listAlertingRoutes: mocks.listAlertingRoutes,
   listAlertingReceivers: mocks.listAlertingReceivers,
   listAlertingChannels: mocks.listAlertingChannels,
   listAlertingInhibitions: mocks.listAlertingInhibitions,
-  listAlertingAlerts: mocks.listAlertingAlerts,
-  listAlertingRules: mocks.listAlertingRules,
-  listAlertingSlos: mocks.listAlertingSlos,
-  listAlertingLabelKeys: mocks.listAlertingLabelKeys,
-  listAlertingLabelValues: mocks.listAlertingLabelValues,
   createAlertingChannel: mocks.createAlertingChannel,
   updateAlertingChannel: mocks.updateAlertingChannel,
   deleteAlertingChannel: mocks.deleteAlertingChannel,
@@ -65,6 +60,23 @@ vi.mock("@/data/alerting/server", () => ({
   deleteAlertingRoute: mocks.deleteAlertingRoute,
   createAlertingInhibition: mocks.createAlertingInhibition,
   deleteAlertingInhibition: mocks.deleteAlertingInhibition,
+}));
+
+vi.mock("@/data/alerting/instances/server", () => ({
+  listAlertingAlerts: mocks.listAlertingAlerts,
+}));
+
+vi.mock("@/data/alerting/rules/server", () => ({
+  listAlertingRules: mocks.listAlertingRules,
+}));
+
+vi.mock("@/data/alerting/slos/server", () => ({
+  listAlertingSlos: mocks.listAlertingSlos,
+}));
+
+vi.mock("@/data/alerting/routing/suggestions.server", () => ({
+  listAlertingLabelKeys: mocks.listAlertingLabelKeys,
+  listAlertingLabelValues: mocks.listAlertingLabelValues,
 }));
 
 vi.mock("sonner", () => ({

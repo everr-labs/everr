@@ -20,17 +20,26 @@ const mocks = vi.hoisted(() => ({
   getAlertingSloBudgetNow: vi.fn(),
   pauseAlertingSlo: vi.fn(),
   resumeAlertingSlo: vi.fn(),
+  listAlertingEventHistory: vi.fn(),
   toastSuccess: vi.fn(),
   toastError: vi.fn(),
 }));
 
-vi.mock("@/data/alerting/server", () => ({
+vi.mock("@/data/alerting/slos/server", () => ({
   getAlertingSloByName: mocks.getAlertingSloByName,
   getAlertingSloStatus: mocks.getAlertingSloStatus,
   getAlertingSloBudgetSeries: mocks.getAlertingSloBudgetSeries,
   getAlertingSloBudgetNow: mocks.getAlertingSloBudgetNow,
   pauseAlertingSlo: mocks.pauseAlertingSlo,
   resumeAlertingSlo: mocks.resumeAlertingSlo,
+}));
+
+vi.mock("@/data/alerting/rules/server", () => ({
+  listAlertingRules: vi.fn().mockResolvedValue([]),
+}));
+
+vi.mock("@/data/alerting/history/server", () => ({
+  listAlertingEventHistory: mocks.listAlertingEventHistory,
 }));
 
 vi.mock("sonner", () => ({

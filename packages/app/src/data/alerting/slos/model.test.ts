@@ -1,7 +1,7 @@
 // Canonical tiers, tier-severity resolution, event handles, and the
 // budget-projection duration format.
 import { describe, expect, it } from "vitest";
-import { ANN_DISPLAY_NAME } from "@/data/alerting/resources/annotations";
+import { ANN_DISPLAY_NAME } from "@/data/alerting/resource-annotations";
 import type {
   AlertingSlo,
   AlertingSloSpec,
@@ -315,7 +315,7 @@ describe("alertingApplyFreshBudget", () => {
     // The payments-success-rate shape: the fast-burn short window is back to 0
     // (nothing spent recently), but the slow ticket tier still fires on a burst
     // still inside its 3d/6h windows. TTE reads the fastest tier's current spend
-    // (min(4, 0) = 0), so there is no horizon — the ticket's lagging rate must not
+    // (min(4, 0) = 0), so there is no horizon. The ticket's lagging rate must not
     // fabricate an exhaustion time for a budget that is recovering.
     const merged = alertingApplyFreshBudget(
       ALERTING_CANONICAL_SLO_TIERS,
@@ -341,7 +341,7 @@ describe("alertingApplyFreshBudget", () => {
     );
     expect(merged.budget_remaining).toBe(0.3);
     expect(merged.time_to_exhaustion_secs).toBeNull();
-    // The ticket badge still surfaces — the SLO is still firing, it just isn't
+    // The ticket badge still appears. The SLO is firing, but it is not
     // draining right now.
     expect(merged.firing_tiers).toEqual([{ tier: "ticket", status: "firing" }]);
   });

@@ -35,9 +35,8 @@ import {
   alertingRetryDelaySeconds,
   nextAlertEvaluationAt,
   SLO_EVALUATE_TASK,
-  scanDueAlerts,
-  scanDueSlos,
-} from "./scanner";
+} from "@/data/alerting/scheduling/evaluation-jobs.server";
+import { scanDueAlerts, scanDueSlos } from "./scanner";
 
 describe("alert scanner", () => {
   beforeEach(() => {

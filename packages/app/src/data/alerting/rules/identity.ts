@@ -1,6 +1,6 @@
 import type { AlertingRuleView } from "@/data/alerting/types";
 import { parseResourceName } from "@/data/as-code/identity";
-import { fromAlertingRule } from "../resources/rules/mapping";
+import { fromAlertingRule } from "./resource/mapping";
 
 export type AlertingRuleIdentity = {
   /** Human name: displayName || slug. */

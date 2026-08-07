@@ -1,4 +1,4 @@
-import { fromAlertingSlo } from "@/data/alerting/resources/slos/mapping";
+import { fromAlertingSlo } from "@/data/alerting/slos/resource/mapping";
 import type {
   AlertingSlo,
   AlertingSloSpec,
@@ -6,11 +6,8 @@ import type {
   AlertingSloTier,
 } from "../types";
 
-/**
- * The fixed 30-day-calibrated set every SLO is evaluated on. These tiers are
- * not user-configurable: `critical` tiers page and the `warning` tier opens a
- * ticket.
- */
+// Every SLO uses these fixed tiers. Critical tiers page. The warning tier
+// creates a ticket.
 export const ALERTING_CANONICAL_SLO_TIERS: readonly AlertingSloTier[] = [
   {
     name: "fast-burn",
@@ -35,10 +32,7 @@ export const ALERTING_CANONICAL_SLO_TIERS: readonly AlertingSloTier[] = [
   },
 ];
 
-/**
- * An unknown or missing tier resolves to "critical", a conservative default
- * for a tier no longer in the spec.
- */
+// Use critical severity when a tier is unknown.
 export function alertingSloTierSeverity(
   tiers: readonly AlertingSloTier[],
   labels: Record<string, string>,
@@ -47,18 +41,14 @@ export function alertingSloTierSeverity(
   return tiers.find((t) => t.name === name)?.severity ?? "critical";
 }
 
-/** The canonical event-log slug for an SLO. */
 export function alertingSloHandles(slo: AlertingSlo): string[] {
   return [slo.name];
 }
 
 export type AlertingSloIdentity = {
-  /** Human name: displayName || slug. */
   name: string;
   project: string;
-  /** The as-code slug, split off the SLO's first-class `name`. */
   slug: string;
-  /** The display-name annotation, or null when unset (name falls back to slug). */
   displayName: string | null;
 };
 
@@ -69,7 +59,7 @@ export function alertingSloIdentity(
   return { name: displayName || slug, project, slug, displayName };
 }
 
-// Unparseable → Infinity, so a malformed tier can never win the headline slot.
+// Use Infinity for an invalid window so it cannot become the headline value.
 const TIER_WINDOW_SECONDS: Record<string, number> = {
   s: 1,
   m: 60,
@@ -85,26 +75,18 @@ function tierWindowSecs(window: string): number {
     : Number.POSITIVE_INFINITY;
 }
 
-/** The window the canonical burn-rate table is calibrated for (30 days). */
 const ALERTING_CANONICAL_TIER_WINDOW_SECS = 30 * 86_400;
 
-/** Floor on a scaled tier's short window. */
 const ALERTING_SHORT_WINDOW_FLOOR_SECS = 60;
 
-/**
- * Seconds every SLI window ends before the evaluation instant. Rows take a few
- * seconds to settle in ClickHouse, so a window ending at "now" always
- * undercounts its trailing edge. Read-time SLI scans use the same shift so the
- * page and evaluator measure identical intervals.
- */
+// End each SLI window before the evaluation time. This delay lets ClickHouse
+// ingest recent rows. Read queries use the same delay as evaluations.
 export const ALERTING_SLO_INGEST_DELAY_SECS = 10;
 
-/** ClickHouse `DateTime` query parameter value at its native second precision. */
 export function alertingFormatClickHouseDateTime(date: Date): string {
   return date.toISOString().slice(0, 19).replace("T", " ");
 }
 
-// Base tiers calibrated to ALERTING_CANONICAL_TIER_WINDOW_SECS.
 const ALERTING_BASE_TIERS: readonly {
   name: string;
   longSecs: number;
@@ -135,7 +117,6 @@ const ALERTING_BASE_TIERS: readonly {
   },
 ];
 
-/** Seconds to shortest exact shorthand. */
 export function alertingFmtWindowSecs(secs: number): string {
   if (secs % 604_800 === 0) return `${secs / 604_800}w`;
   if (secs % 86_400 === 0) return `${secs / 86_400}d`;
@@ -144,10 +125,7 @@ export function alertingFmtWindowSecs(secs: number): string {
   return `${secs}s`;
 }
 
-/**
- * Two largest non-zero units ("1008m" → "16h 48m"; seconds kept, not rounded).
- * An unparsable window passes through untouched.
- */
+// Use the two largest non-zero units. Preserve an invalid value.
 export function alertingFmtWindowLabel(window: string): string {
   const secs = tierWindowSecs(window);
   if (!Number.isFinite(secs)) return window;
@@ -161,29 +139,19 @@ export function alertingFmtWindowLabel(window: string): string {
   return parts.slice(0, 2).join(" ") || "0s";
 }
 
-/**
- * Tiers scaled to the SLO's own budget window; falls back to the canonical
- * 30-day windows when the spec's window doesn't parse (guarded at the API,
- * defensive here).
- */
+// Scale tiers to the SLO budget window. Use the 30-day window if parsing fails.
 export function alertingSloTiers(spec: AlertingSloSpec): AlertingSloTier[] {
   return alertingTiersForWindow(
     alertingSloWindowSecs(spec) ?? ALERTING_CANONICAL_TIER_WINDOW_SECS,
   );
 }
 
-/**
- * The evaluator measures burn over these scaled windows, so surfaces must
- * label with the same ones. Short windows
- * floor at `ALERTING_SHORT_WINDOW_FLOOR_SECS`, pinning the tier at its 12:1 ratio.
- * When the floor makes two tiers' windows identical (e.g. a 1-day budget),
- * the evaluator keeps only the lower threshold and never evaluates the other, so
- * the dropped tier is omitted here too (it could never carry data).
- */
+// Use the same scaled windows in evaluations and labels. Keep the 12:1 ratio
+// when a short window reaches the minimum. If two tiers become equal, keep the
+// tier with the lower threshold.
 export function alertingTiersForWindow(windowSecs: number): AlertingSloTier[] {
   const k = windowSecs / ALERTING_CANONICAL_TIER_WINDOW_SECS;
-  // Keyed on computed seconds, not rendered windows, so the collapse never
-  // depends on alertingFmtWindowSecs being injective.
+  // Compare seconds because two different windows can have the same label.
   const seen: Array<[number, number]> = [];
   const out: AlertingSloTier[] = [];
   for (const b of ALERTING_BASE_TIERS) {
@@ -202,8 +170,7 @@ export function alertingTiersForWindow(windowSecs: number): AlertingSloTier[] {
       burn_rate: b.burn_rate,
       severity: b.severity,
     };
-    // ALERTING_BASE_TIERS runs fastest-first with strictly decreasing thresholds, so
-    // a colliding newcomer is always the lower-threshold twin: it takes the slot.
+    // Later tiers have lower thresholds and replace equal earlier tiers.
     const twin = seen.findIndex(([l, s]) => l === long && s === short);
     if (twin === -1) {
       seen.push([long, short]);
@@ -215,10 +182,7 @@ export function alertingTiersForWindow(windowSecs: number): AlertingSloTier[] {
   return out;
 }
 
-/**
- * Confirmed burn is the lower of the long and short window rates. It is null
- * until both windows have data.
- */
+// Confirm burn only when both windows have data.
 export function alertingEffectiveBurn(
   longBurn: number | null | undefined,
   shortBurn: number | null | undefined,
@@ -227,12 +191,8 @@ export function alertingEffectiveBurn(
   return Math.min(longBurn, shortBurn);
 }
 
-/**
- * Headline burn: the shortest-long-window tier with a computed long-window
- * rate. `rate` is that long-window value, labelled by `window`; `effective` is
- * `min(long, short)`. Read pace and time-to-exhaustion off `effective` so a
- * recovering budget never reads as draining; show `rate` as the raw figure.
- */
+// Use the shortest available long window for the headline. Show its raw rate.
+// Use the confirmed rate for pace and exhaustion estimates.
 export function alertingSloCurrentBurn(
   specTiers: readonly AlertingSloTier[],
   snapshot: AlertingSloStatusPayload["tiers"],
@@ -263,7 +223,6 @@ export function alertingSloCurrentBurn(
     : { rate: best.rate, effective: best.effective, window: best.window };
 }
 
-// Firing state wins over the rate; then the rate against the 1x sustainable line.
 export type AlertingSloBurnPace =
   | "burning-fast"
   | "burning"
@@ -271,11 +230,7 @@ export type AlertingSloBurnPace =
   | "sustainable"
   | "steady";
 
-/**
- * Pace of a confirmed burn against the 1x sustainable line. The firing paces
- * (`burning-fast`/`burning`) are alertingSloOverallPace's to assign: firing is a
- * tier-state fact, not burn arithmetic.
- */
+// This function classifies burn arithmetic. Overall pace adds firing state.
 export function alertingSloBurnPace(rate: number | null): AlertingSloBurnPace {
   if (rate === null || rate <= 0) return "steady";
   if (rate >= 1) return "draining"; // spending faster than sustainable
@@ -297,9 +252,7 @@ function alertingSloFiringSeverity(
   return worst;
 }
 
-/**
- * SLO pace: a firing tier wins, otherwise use the fastest confirmed burn.
- */
+// Firing state takes priority over the confirmed burn rate.
 export function alertingSloOverallPace(
   specTiers: readonly AlertingSloTier[],
   status: AlertingSloStatusPayload,
@@ -314,8 +267,6 @@ export function alertingSloOverallPace(
 
 export function alertingSloBurnPaceLabel(pace: AlertingSloBurnPace): string {
   switch (pace) {
-    // The two firing paces speak alert severity, not burn arithmetic: that is
-    // the vocabulary every surface renders.
     case "burning-fast":
       return "Critical";
     case "burning":
@@ -329,18 +280,15 @@ export function alertingSloBurnPaceLabel(pace: AlertingSloBurnPace): string {
   }
 }
 
-/** "99.9%" without trailing-zero noise ("99.5%", "99.95%"). */
 export function alertingFormatSloTarget(targetPercent: number): string {
   return `${targetPercent}%`;
 }
 
-/** Read-time error budget from `querySloBudgetNow`. */
 export type AlertingFreshBudget = {
   sli: number | null;
   budgetRemaining: number | null;
 };
 
-/** Forecast exhaustion as `window * budgetRemaining / burnRate`. */
 export function alertingTimeToExhaustionSecs(
   budgetRemaining: number | null,
   burnRate: number | null,
@@ -356,12 +304,10 @@ export function alertingTimeToExhaustionSecs(
 
 export type AlertingSloExhaustion = {
   kind: "exhausted" | "forecast" | "not-shrinking" | "unknown";
-  /** What every surface prints; only the tone is left to the caller. */
   label: string;
 };
 
-/** Every surface decides "exhausted" through here so the <=0 boundary and
- *  its null semantics never drift between pages. */
+// Use one exhaustion boundary on all surfaces.
 export function alertingBudgetExhausted(
   remaining: number | null,
 ): remaining is number {
@@ -385,10 +331,8 @@ export function alertingSloExhaustion(
   return { kind: "unknown", label: "—" };
 }
 
-/**
- * Override the stored budget/SLI/TTE with fresh read-time values. Burn rates
- * and firing tiers stay from the evaluator snapshot.
- */
+// Replace budget values with fresh reads. Keep burn rates and firing tiers
+// from the evaluation snapshot.
 export function alertingApplyFreshBudget(
   specTiers: readonly AlertingSloTier[],
   status: AlertingSloStatusPayload,
@@ -408,7 +352,6 @@ export function alertingApplyFreshBudget(
   };
 }
 
-// `at-risk` is the low-budget warning band; `unknown` is no snapshot yet.
 export type AlertingSloState =
   | "exhausted"
   | "firing-critical"
@@ -434,24 +377,18 @@ export function alertingSloStatusState(
   return "healthy";
 }
 
-/** "30d rolling" (v1 is rolling-only; the flag is honored anyway). */
 export function alertingSloWindowLabel(spec: AlertingSloSpec): string {
   const { duration, isRolling } = spec.timeWindow;
   return isRolling ? `${duration} rolling` : duration;
 }
 
-/** Budget window in whole seconds; null if the duration shorthand doesn't parse. */
 export function alertingSloWindowSecs(spec: AlertingSloSpec): number | null {
   const secs = tierWindowSecs(spec.timeWindow.duration);
   return Number.isFinite(secs) ? secs : null;
 }
 
-/**
- * Chart range: exactly one SLO window ending now, so the rightmost point's
- * trailing window is the same span the status hero reads and the two agree.
- * Datemath (`now-<window>` .. `now`) keeps the query key stable across reloads.
- * Null when the window shorthand doesn't parse.
- */
+// Use one SLO window so the chart and summary use the same period. Datemath
+// keeps the query key stable between refreshes.
 export function alertingSloChartRange(
   spec: AlertingSloSpec,
 ): { from: string; to: string } | null {
@@ -459,7 +396,6 @@ export function alertingSloChartRange(
   return { from: `now-${spec.timeWindow.duration}`, to: "now" };
 }
 
-/** Format the two largest non-zero duration units, for example "3d 4h". */
 export function alertingFormatSloDuration(secs: number): string {
   const s = Math.max(0, Math.floor(secs));
   const d = Math.floor(s / 86_400);

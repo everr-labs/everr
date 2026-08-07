@@ -3,8 +3,13 @@ import { useQueries, useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { useCallback, useMemo, useRef } from "react";
 import { PageHeader } from "@/components/page-header";
-import { alertingQueries } from "@/data/alerting/queries";
+import { deliveryQueries } from "@/data/alerting/delivery/queries";
+import { alertHistoryQueries } from "@/data/alerting/history/queries";
+import { alertInstanceQueries } from "@/data/alerting/instances/queries";
+import { ruleQueries } from "@/data/alerting/rules/queries";
+import { silenceQueries } from "@/data/alerting/silences/queries";
 import { alertingBudgetExhausted } from "@/data/alerting/slos/model";
+import { sloQueries } from "@/data/alerting/slos/queries";
 import {
   alertingExhaustedBudgets,
   alertingFiringGroups,
@@ -41,16 +46,16 @@ export const Route = createFileRoute(
   loaderDeps: ({ search: { preview } }) => ({ preview }),
   loader: ({ context: { queryClient }, deps }) =>
     Promise.all([
-      queryClient.prefetchQuery(alertingQueries.alerts(deps.preview)),
-      queryClient.prefetchQuery(alertingQueries.rules()),
-      queryClient.prefetchQuery(alertingQueries.slos(deps.preview)),
-      queryClient.prefetchQuery(alertingQueries.routes()),
-      queryClient.prefetchQuery(alertingQueries.receivers()),
-      queryClient.prefetchQuery(alertingQueries.silences()),
+      queryClient.prefetchQuery(alertInstanceQueries.list(deps.preview)),
+      queryClient.prefetchQuery(ruleQueries.rules()),
+      queryClient.prefetchQuery(sloQueries.slos(deps.preview)),
+      queryClient.prefetchQuery(deliveryQueries.routes()),
+      queryClient.prefetchQuery(deliveryQueries.receivers()),
+      queryClient.prefetchQuery(silenceQueries.list()),
       queryClient.prefetchQuery(
         // Same options the component asks for, preview included, or the
         // prefetch warms a key nothing reads.
-        alertingQueries.eventHistory(TRIAGE_EVENT_RANGE, {
+        alertHistoryQueries.events(TRIAGE_EVENT_RANGE, {
           limit: TRIAGE_EVENT_LIMIT,
           preview: deps.preview,
         }),
@@ -64,14 +69,14 @@ export const Route = createFileRoute(
 function AlertingTriagePage() {
   const { preview } = Route.useSearch();
   const silenceDrawer = useRef<SilenceDrawerHandle>(null);
-  const alerts = useQuery(alertingQueries.alerts(preview));
-  const rules = useQuery(alertingQueries.rules());
-  const slos = useQuery(alertingQueries.slos(preview));
-  const routes = useQuery(alertingQueries.routes());
-  const receivers = useQuery(alertingQueries.receivers());
-  const silences = useQuery(alertingQueries.silences());
+  const alerts = useQuery(alertInstanceQueries.list(preview));
+  const rules = useQuery(ruleQueries.rules());
+  const slos = useQuery(sloQueries.slos(preview));
+  const routes = useQuery(deliveryQueries.routes());
+  const receivers = useQuery(deliveryQueries.receivers());
+  const silences = useQuery(silenceQueries.list());
   const events = useQuery(
-    alertingQueries.eventHistory(TRIAGE_EVENT_RANGE, {
+    alertHistoryQueries.events(TRIAGE_EVENT_RANGE, {
       limit: TRIAGE_EVENT_LIMIT,
       preview,
     }),
@@ -81,7 +86,7 @@ function AlertingTriagePage() {
   // TanStack caches the combined value per combine-function identity; an
   // inline arrow would hand out a fresh Map every render.
   const snapshotStatuses = useQueries({
-    queries: slosData.map((s) => alertingQueries.sloStatus(s.id)),
+    queries: slosData.map((s) => sloQueries.status(s.id)),
     combine: useCallback(
       (results: { data?: AlertingSloStatus | null }[]) =>
         new Map(
@@ -191,7 +196,7 @@ function AlertingTriagePage() {
     <div className="space-y-3">
       <PageHeader title="Triage" lede="Active alerts, highest impact first." />
 
-      {/* Gated on load — zeros while fetching would read as a false all-clear. */}
+      {/* Wait for the data. Zeros during loading would show a false all-clear. */}
       {pending ? (
         <Skeleton className="h-16 w-full rounded-md" />
       ) : (

@@ -17,7 +17,7 @@ const mocks = vi.hoisted(() => ({
   listAlertingLabelValues: vi.fn(),
 }));
 
-vi.mock("@/data/alerting/server", () => ({
+vi.mock("@/data/alerting/routing/suggestions.server", () => ({
   listAlertingLabelKeys: mocks.listAlertingLabelKeys,
   listAlertingLabelValues: mocks.listAlertingLabelValues,
 }));

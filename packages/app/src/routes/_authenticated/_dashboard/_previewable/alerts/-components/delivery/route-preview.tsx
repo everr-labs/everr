@@ -9,7 +9,7 @@ import type {
   AlertingReceiver,
   AlertingRoute,
 } from "@/data/alerting/types";
-import { Pill } from "../shared/components";
+import { Pill } from "../shared/signal";
 import { CHANNEL_ICON } from "./channel-meta";
 import {
   alertingLabelKeyOptions,

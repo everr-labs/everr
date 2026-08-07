@@ -19,9 +19,6 @@ import { ChevronLeft, ChevronRight, CircleHelp, Gauge } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/page-header";
-import { alertingQueries } from "@/data/alerting/queries";
-import { fromAlertingSlo } from "@/data/alerting/resources/slos/mapping";
-import { pauseAlertingSlo, resumeAlertingSlo } from "@/data/alerting/server";
 import {
   type AlertingSloBurnPace,
   alertingFormatSloTarget,
@@ -33,6 +30,12 @@ import {
   alertingSloTiers,
   alertingSloWindowLabel,
 } from "@/data/alerting/slos/model";
+import { sloQueries } from "@/data/alerting/slos/queries";
+import { fromAlertingSlo } from "@/data/alerting/slos/resource/mapping";
+import {
+  pauseAlertingSlo,
+  resumeAlertingSlo,
+} from "@/data/alerting/slos/server";
 import type {
   AlertingRuleHealthStatus,
   AlertingSlo,
@@ -41,13 +44,13 @@ import type {
 } from "@/data/alerting/types";
 import {
   AlertingEmptyState,
-  AlertingHealthHeart,
   AlertingPauseToggle,
   AlertingQueryError,
   AlertingRunbookLink,
   AlertingTableSkeleton,
   alertingErrorMessage,
 } from "./-components/shared/components";
+import { AlertingHealthHeart } from "./-components/shared/status";
 import { AlertingBudgetBar } from "./-components/slos/budget-bar";
 import { useAlertingFreshBudgets } from "./-components/slos/use-fresh-budgets";
 
@@ -58,7 +61,7 @@ export const Route = createFileRoute(
   head: () => ({ meta: [{ title: "Everr - Alerting SLOs" }] }),
   loaderDeps: ({ search: { preview } }) => ({ preview }),
   loader: ({ context: { queryClient }, deps }) =>
-    queryClient.prefetchQuery(alertingQueries.slos(deps.preview)),
+    queryClient.prefetchQuery(sloQueries.slos(deps.preview)),
   component: AlertingSlosPage,
 });
 
@@ -199,11 +202,11 @@ function AlertingSlosPage() {
   const { preview } = Route.useSearch();
   const previewName = preview?.trim() || undefined;
   const [pageIndex, setPageIndex] = useState(0);
-  const slos = useQuery(alertingQueries.slos(previewName));
+  const slos = useQuery(sloQueries.slos(previewName));
   const slosData = slos.data ?? [];
   // One status query per SLO, cache-shared with the detail page.
   const statuses = useQueries({
-    queries: slosData.map((s) => alertingQueries.sloStatus(s.id)),
+    queries: slosData.map((s) => sloQueries.status(s.id)),
   });
 
   const invalidate = () =>

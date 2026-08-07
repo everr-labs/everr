@@ -5,6 +5,15 @@ import {
   alertingConditionMatches,
   alertingConditionValue,
 } from "@/data/alerting/rules/condition";
+import {
+  ALERT_EVALUATE_TASK,
+  alertEvaluationJobKey,
+  alertingPartitionQueue,
+  alertingRetryAt,
+  alertingRetryDelaySeconds,
+  type EvaluatePayload,
+  nextAlertEvaluationAt,
+} from "@/data/alerting/scheduling/evaluation-jobs.server";
 import { db } from "@/db/client";
 import {
   alertDefinitions,
@@ -19,16 +28,7 @@ import {
   exceptionAttributes,
   serverLogger,
 } from "@/telemetry/logger";
-import { ALERT_PROCESS_EVENT_TASK } from "../delivery/dispatcher";
-import {
-  ALERT_EVALUATE_TASK,
-  alertEvaluationJobKey,
-  alertingPartitionQueue,
-  alertingRetryAt,
-  alertingRetryDelaySeconds,
-  type EvaluatePayload,
-  nextAlertEvaluationAt,
-} from "../scheduling/scanner";
+import { ALERT_PROCESS_EVENT_TASK } from "../delivery/tasks";
 import { boundEventEvidence, boundEvidence } from "./evidence";
 import { rowsToInstances } from "./instances";
 import { captureAlertEvaluationSamples } from "./samples";

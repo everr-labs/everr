@@ -14,17 +14,17 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { LoaderCircle, TriangleAlert } from "lucide-react";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
-import { alertingQueries } from "@/data/alerting/queries";
+import { deliveryQueries } from "@/data/alerting/delivery/queries";
+import {
+  createAlertingRoute,
+  updateAlertingRoute,
+} from "@/data/alerting/delivery/server";
 import {
   ALERTING_DEFAULT_GROUP_BY,
   ALERTING_DEFAULT_GROUP_INTERVAL_SECS,
   ALERTING_DEFAULT_GROUP_WAIT_SECS,
 } from "@/data/alerting/routing/defaults";
 import { alertingRouteTimingSummary } from "@/data/alerting/routing/timing";
-import {
-  createAlertingRoute,
-  updateAlertingRoute,
-} from "@/data/alerting/server";
 import type {
   AlertingMatcher,
   AlertingReceiver,
@@ -300,7 +300,7 @@ export function RouteBuilder({
     },
     onError: (e) => toast.error(alertingErrorMessage(e)),
     onSettled: () =>
-      qc.invalidateQueries({ queryKey: alertingQueries.routes().queryKey }),
+      qc.invalidateQueries({ queryKey: deliveryQueries.routes().queryKey }),
   });
 
   return (

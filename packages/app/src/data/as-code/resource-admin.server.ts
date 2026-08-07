@@ -1,13 +1,14 @@
 import { and, eq, isNull, ne, or } from "drizzle-orm";
-import * as alerting from "@/data/alerting/repository";
+import * as alertRules from "@/data/alerting/rules/repository";
 import {
   fromAlertingRule,
   toAlertRuleDocument,
-} from "@/data/alerting/resources/rules/mapping";
+} from "@/data/alerting/rules/resource/mapping";
+import * as slos from "@/data/alerting/slos/repository";
 import {
   fromAlertingSlo,
   toSloDocument,
-} from "@/data/alerting/resources/slos/mapping";
+} from "@/data/alerting/slos/resource/mapping";
 import type { AlertingRuleView, AlertingSloView } from "@/data/alerting/types";
 import { db } from "@/db/client";
 import { dashboards, runbooks } from "@/db/schema/app";
@@ -147,7 +148,7 @@ function pgBackend(kind: ResourceKind, pgTable: PgTable): KindBackend {
  * The org's live alert rules. Only preview copies are excluded.
  */
 async function listLiveAlertRules(orgId: string): Promise<AlertingRuleView[]> {
-  const rules = await alerting.listAllRules(orgId);
+  const rules = await alertRules.listAllRules(orgId);
   return rules.filter((r) => r.previewId === null);
 }
 
@@ -195,7 +196,7 @@ const alertBackend: KindBackend = {
   async delete(orgId, project, slug) {
     const rule = await findAlertRule(orgId, project, slug);
     if (!rule) return false;
-    await alerting.deleteRule(orgId, rule.id);
+    await alertRules.deleteRule(orgId, rule.id);
     return true;
   },
   async adopt(orgId, project, slug, destRepoid) {
@@ -204,7 +205,7 @@ const alertBackend: KindBackend = {
     if (fromAlertingRule(rule).repoid === destRepoid) {
       return { found: true, alreadyOwned: true };
     }
-    await alerting.adoptRule(orgId, rule.id, destRepoid, rule.version);
+    await alertRules.adoptRule(orgId, rule.id, destRepoid, rule.version);
     return { found: true, alreadyOwned: false };
   },
 };
@@ -213,8 +214,8 @@ const alertBackend: KindBackend = {
  * The org's live SLOs. Only preview copies are excluded.
  */
 async function listLiveSlos(orgId: string): Promise<AlertingSloView[]> {
-  const slos = await alerting.listSlos(orgId);
-  return slos.filter((s) => s.previewId === null);
+  const definitions = await slos.listSlos(orgId);
+  return definitions.filter((slo) => slo.previewId === null);
 }
 
 /**
@@ -263,7 +264,7 @@ const sloBackend: KindBackend = {
   async delete(orgId, project, slug) {
     const slo = await findSlo(orgId, project, slug);
     if (!slo) return false;
-    await alerting.deleteSlo(orgId, slo.id);
+    await slos.deleteSlo(orgId, slo.id);
     return true;
   },
   async adopt(orgId, project, slug, destRepoid) {
@@ -272,7 +273,7 @@ const sloBackend: KindBackend = {
     if (fromAlertingSlo(slo).repoid === destRepoid) {
       return { found: true, alreadyOwned: true };
     }
-    await alerting.adoptSlo(orgId, slo.id, destRepoid, slo.version);
+    await slos.adoptSlo(orgId, slo.id, destRepoid, slo.version);
     return { found: true, alreadyOwned: false };
   },
 };

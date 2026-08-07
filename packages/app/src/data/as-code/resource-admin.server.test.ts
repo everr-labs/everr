@@ -1,10 +1,13 @@
 // @vitest-environment node
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("@/data/alerting/repository", () => ({
+vi.mock("@/data/alerting/rules/repository", () => ({
   listAllRules: vi.fn(),
   deleteRule: vi.fn(),
   adoptRule: vi.fn(),
+}));
+
+vi.mock("@/data/alerting/slos/repository", () => ({
   listSlos: vi.fn(),
   deleteSlo: vi.fn(),
   adoptSlo: vi.fn(),
@@ -13,7 +16,7 @@ vi.mock("@/data/alerting/repository", () => ({
 // These tests exercise repository-backed resources, so db can be a stub.
 vi.mock("@/db/client", () => ({ db: {} }));
 
-import * as alerting from "@/data/alerting/repository";
+import * as slos from "@/data/alerting/slos/repository";
 import {
   adoptResource,
   deleteResource,
@@ -22,9 +25,9 @@ import {
   listResources,
 } from "./resource-admin.server";
 
-const mockedListSlos = vi.mocked(alerting.listSlos);
-const mockedDeleteSlo = vi.mocked(alerting.deleteSlo);
-const mockedAdoptSlo = vi.mocked(alerting.adoptSlo);
+const mockedListSlos = vi.mocked(slos.listSlos);
+const mockedDeleteSlo = vi.mocked(slos.deleteSlo);
+const mockedAdoptSlo = vi.mocked(slos.adoptSlo);
 
 const SQL =
   "SELECT countIf(ok) AS good, count() AS valid FROM t " +

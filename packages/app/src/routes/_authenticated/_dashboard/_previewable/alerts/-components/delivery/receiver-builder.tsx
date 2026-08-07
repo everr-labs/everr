@@ -4,11 +4,11 @@ import { Label } from "@everr/ui/components/label";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { toast } from "sonner";
-import { alertingQueries } from "@/data/alerting/queries";
+import { deliveryQueries } from "@/data/alerting/delivery/queries";
 import {
   createAlertingReceiver,
   updateAlertingReceiver,
-} from "@/data/alerting/server";
+} from "@/data/alerting/delivery/server";
 import type { AlertingChannel, AlertingReceiver } from "@/data/alerting/types";
 import {
   AlertingConceptNote,
@@ -62,7 +62,7 @@ export function ReceiverBuilder({
           });
     },
     onSuccess: (r) => {
-      qc.invalidateQueries({ queryKey: alertingQueries.receivers().queryKey });
+      qc.invalidateQueries({ queryKey: deliveryQueries.receivers().queryKey });
       onOpenChange(false);
       toast.success(`Receiver "${r.name}" ${editing ? "updated" : "created"}`);
     },

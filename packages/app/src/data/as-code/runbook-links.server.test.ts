@@ -97,8 +97,11 @@ vi.mock("@/db/schema", () => ({
   },
 }));
 
-vi.mock("@/data/alerting/repository", () => ({
+vi.mock("@/data/alerting/rules/repository", () => ({
   listAllRules: vi.fn(() => Promise.resolve(alertingRules)),
+}));
+
+vi.mock("@/data/alerting/slos/repository", () => ({
   listSlos: vi.fn(() => Promise.resolve(alertingSlos)),
 }));
 

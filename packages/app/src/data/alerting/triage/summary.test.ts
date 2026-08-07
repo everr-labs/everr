@@ -180,7 +180,7 @@ describe("alertingTriageCounts", () => {
 
     // fp-1 and fp-3 are firing; fp-2 is pending and fp-4 inactive. Only fp-3
     // (svc=api) is matched by the silence, and `silenced` ignores inactive
-    // rows. The single route matches host=web-1, so fp-3 is firing-unrouted —
+    // rows. The single route matches host=web-1, so fp-3 is firing-unrouted.
     // but it is silenced, so it does not count as unrouted either.
     expect(
       alertingTriageCounts(

@@ -19,13 +19,12 @@ import type {
   AlertingRuleEvaluationSeries,
 } from "@/data/alerting/types";
 import {
-  AlertingStatusLabel,
   AlertingTableSkeleton,
   alertingErrorMessage,
   alertingFormatTs,
-  EvidenceChips,
-  LabelSet,
 } from "../shared/components";
+import { EvidenceChips, LabelSet } from "../shared/signal";
+import { AlertingStatusLabel } from "../shared/status";
 import { AlertRuleEvaluationHistoryTable } from "./evaluation-details";
 
 const EVENT_META: Record<AlertEventType, { label: string; tone: Tone }> = {

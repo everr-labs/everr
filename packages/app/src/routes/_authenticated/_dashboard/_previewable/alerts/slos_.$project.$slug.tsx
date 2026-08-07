@@ -15,27 +15,33 @@ import { BookOpenText } from "lucide-react";
 import { useMemo } from "react";
 import { toast } from "sonner";
 import { alertingEventStatus } from "@/data/alerting/history/event-types";
-import { alertingQueries } from "@/data/alerting/queries";
-import { ANN_LABEL_PREFIX } from "@/data/alerting/resources/annotations";
-import { isReservedAnnotationKey } from "@/data/alerting/resources/rules/schema";
-import { fromAlertingSlo } from "@/data/alerting/resources/slos/mapping";
-import { pauseAlertingSlo, resumeAlertingSlo } from "@/data/alerting/server";
+import { alertHistoryQueries } from "@/data/alerting/history/queries";
+import {
+  ANN_LABEL_PREFIX,
+  isReservedAnnotationKey,
+} from "@/data/alerting/resource-annotations";
 import {
   alertingSloChartRange,
   alertingSloHandles,
   alertingSloIdentity,
   alertingSloWindowLabel,
 } from "@/data/alerting/slos/model";
+import { sloQueries } from "@/data/alerting/slos/queries";
+import { fromAlertingSlo } from "@/data/alerting/slos/resource/mapping";
+import {
+  pauseAlertingSlo,
+  resumeAlertingSlo,
+} from "@/data/alerting/slos/server";
 import type { AlertingSlo, AlertingSloView } from "@/data/alerting/types";
 import {
   AlertingBackLink,
   AlertingDefRow,
   AlertingEmptyState,
-  AlertingHealthHeart,
   AlertingPauseToggle,
   AlertingQueryError,
   alertingErrorMessage,
 } from "./-components/shared/components";
+import { AlertingHealthHeart } from "./-components/shared/status";
 import {
   AlertingSummaryCard,
   AlertingSummaryStat,
@@ -51,7 +57,7 @@ export const Route = createFileRoute(
   "/_authenticated/_dashboard/_previewable/alerts/slos_/$project/$slug",
 )({
   // This detail route is flat (slos_), so it doesn't inherit the SLOs listing
-  // crumb — emit it here so the trail reads Alerts > SLOs > <name>.
+  // Add this crumb so the trail reads Alerts > SLOs > <name>.
   staticData: {
     breadcrumb: (match: { loaderData?: { name: string } }) => [
       { label: "SLOs", to: "/alerts/slos" },
@@ -65,24 +71,22 @@ export const Route = createFileRoute(
   loader: async ({ context: { queryClient }, params, deps }) => {
     // Fetch the SLO first: its window sets the range everything else reads.
     const slo = await queryClient.ensureQueryData(
-      alertingQueries.sloByName(params.project, params.slug, deps.preview),
+      sloQueries.sloByName(params.project, params.slug, deps.preview),
     );
     const range = alertingSloChartRange(slo.spec);
     await Promise.all([
-      queryClient.prefetchQuery(alertingQueries.sloStatus(slo.id)),
+      queryClient.prefetchQuery(sloQueries.status(slo.id)),
       // Skipped for a spec whose window doesn't parse (nothing to chart a
       // trailing window over).
       ...(range
         ? [
             queryClient.prefetchQuery(
-              alertingQueries.eventHistory(range, {
+              alertHistoryQueries.events(range, {
                 slugs: alertingSloHandles(slo),
                 preview: deps.preview,
               }),
             ),
-            queryClient.prefetchQuery(
-              alertingQueries.sloBudgetSeries(slo.id, range),
-            ),
+            queryClient.prefetchQuery(sloQueries.budgetSeries(slo.id, range)),
           ]
         : []),
     ]);
@@ -94,7 +98,7 @@ export const Route = createFileRoute(
 // ── How's the budget ──────────────────────────────────────────────────────────
 
 function StatusSection({ slo }: { slo: AlertingSlo }) {
-  const status = useQuery(alertingQueries.sloStatus(slo.id));
+  const status = useQuery(sloQueries.status(slo.id));
   // Read-time scan overrides the snapshot's throttled budget once it lands;
   // the snapshot renders instantly meanwhile.
   const fresh = useAlertingFreshBudgets([slo.id]);
@@ -169,13 +173,13 @@ function BudgetHistorySection({
   // same span as the status hero.
   const range = alertingSloChartRange(slo.spec);
   const series = useQuery({
-    ...alertingQueries.sloBudgetSeries(slo.id, range ?? CHART_RANGE_FALLBACK),
+    ...sloQueries.budgetSeries(slo.id, range ?? CHART_RANGE_FALLBACK),
     enabled: range !== null,
   });
   // Scoped to this SLO's handles server-side so the row cap applies after
   // scoping: busy tenants can't push these markers out of the newest-N window.
   const events = useQuery({
-    ...alertingQueries.eventHistory(range ?? CHART_RANGE_FALLBACK, {
+    ...alertHistoryQueries.events(range ?? CHART_RANGE_FALLBACK, {
       slugs: alertingSloHandles(slo),
       preview,
     }),
@@ -226,9 +230,8 @@ function BudgetHistorySection({
 
 function ObjectiveSection({ slo }: { slo: AlertingSlo }) {
   const ann = slo.spec.annotations;
-  // Reserved annotations (isReservedAnnotationKey) are generated, not
-  // authored, and each already has its own home on this page; only the
-  // author's pass-through annotations are shown raw.
+  // Show only user-defined annotations. The page displays generated values
+  // in their dedicated fields.
   const labels = Object.entries(ann)
     .filter(([k]) => k.startsWith(ANN_LABEL_PREFIX))
     .map(([k, v]) => [k.slice(ANN_LABEL_PREFIX.length), v] as const);
@@ -288,11 +291,11 @@ function AlertingSloDetailPage() {
   const { project, slug } = Route.useParams();
   const { preview } = Route.useSearch();
   const qc = useQueryClient();
-  const slo = useQuery(alertingQueries.sloByName(project, slug, preview));
+  const slo = useQuery(sloQueries.sloByName(project, slug, preview));
   // Same key as the budget section's read: a cache hit, not a second request.
   const sloId = slo.data?.id;
   const status = useQuery({
-    ...alertingQueries.sloStatus(sloId ?? ""),
+    ...sloQueries.status(sloId ?? ""),
     enabled: sloId !== undefined,
   });
   const toggle = useMutation({
@@ -305,7 +308,7 @@ function AlertingSloDetailPage() {
     },
     onSuccess: () => {
       qc.invalidateQueries({
-        queryKey: alertingQueries.sloByName(project, slug, preview).queryKey,
+        queryKey: sloQueries.sloByName(project, slug, preview).queryKey,
       });
       // The SLOs listing shows the paused state too.
       qc.invalidateQueries({ queryKey: ["alerting", "slos"] });
@@ -339,7 +342,7 @@ function AlertingSloDetailPage() {
           <AlertingHealthHeart status={status.data?.health.status} />
           {s.paused && <Badge variant="secondary">paused</Badge>}
           {s.spec.suppressed && (
-            // Evaluates fully but never notifies — worth a loud flag.
+            // Preview SLOs run evaluations but do not send notifications.
             <Badge variant="destructive">suppressed</Badge>
           )}
         </div>
