@@ -7,6 +7,7 @@ import {
   WebSDK,
 } from "@everr/otel-web";
 import { readConsent } from "@/telemetry/consent";
+import { parameterizeTelemetryPath } from "@/telemetry/paths";
 
 // Everr-native browser telemetry for the web app (dogfooding): pageviews,
 // frustration clicks, web vitals, and errors flow to Everr as OTel log
@@ -37,6 +38,11 @@ new WebSDK({
     pageviews(),
     interactions(),
     performance({ pageLoad: true }),
-    network(),
+    // The same parameterization the server stamps on http.route, so a
+    // request's url.template (notably /_serverFn/:id) matches its server
+    // span's route.
+    network({
+      resolveRouteTemplate: (url) => parameterizeTelemetryPath(url.pathname),
+    }),
   ],
 });

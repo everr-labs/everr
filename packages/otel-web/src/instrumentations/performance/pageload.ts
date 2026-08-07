@@ -31,7 +31,12 @@ export function startPageLoad(
   const reportAsset = (entry: PerformanceResourceTiming) => {
     const { initiatorType } = entry;
     if (initiatorType === "fetch" || initiatorType === "xmlhttprequest") return;
-    const url = entry.name.split("?")[0];
+    let url = entry.name.split("?")[0];
+    // Same-origin assets read as paths: the origin is the page's own and
+    // only adds noise to every span name; cross-origin (CDN, third-party)
+    // keeps the full URL, where the host is the signal.
+    if (url.startsWith(location.origin + "/"))
+      url = url.slice(location.origin.length);
     // Newer Resource Timing fields, absent in older engines and lib.dom.
     const { responseStatus, renderBlockingStatus, deliveryType } =
       entry as PerformanceResourceTiming & {
