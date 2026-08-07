@@ -163,6 +163,11 @@ describe("/alerts/slos/$project/$slug route", () => {
   it("reports the SLO's current calculations, charting them over its own window", async () => {
     renderSloDetailRoute();
 
+    const summary = await screen.findByRole("region", {
+      name: "SLO activity summary",
+    });
+    expect(within(summary).getByText("Error budget left")).toBeInTheDocument();
+    expect(within(summary).getByText("Time to exhaustion")).toBeInTheDocument();
     expect(await screen.findByText("over 30d rolling")).toBeInTheDocument();
     expect(screen.getAllByText("99.9%").length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText("99.92%")).toBeInTheDocument();

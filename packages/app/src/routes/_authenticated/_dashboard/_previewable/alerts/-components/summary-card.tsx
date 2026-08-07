@@ -31,7 +31,7 @@ export function AlertingSummaryCard({
 }) {
   return (
     <section aria-label={ariaLabel} aria-live={ariaLive}>
-      <dl className="grid grid-cols-2 gap-px overflow-hidden rounded-lg bg-border/60 ring-1 ring-foreground/10 lg:grid-cols-4">
+      <dl className="flex flex-wrap gap-px overflow-hidden rounded-lg bg-border ring-1 ring-foreground/10">
         {children}
       </dl>
     </section>
@@ -79,7 +79,7 @@ export function AlertingSummaryStat({
   wrapValue?: boolean;
 }) {
   return (
-    <div className="min-w-0 bg-card px-3 py-2.5">
+    <div className="min-w-40 flex-1 basis-40 bg-card px-3 py-2.5">
       <dt>
         <AlertingSummaryLabel>{label}</AlertingSummaryLabel>
       </dt>

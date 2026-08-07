@@ -40,7 +40,11 @@ import {
   SloBudgetChart,
   type SloBudgetEvent,
 } from "./-components/slo-budget-chart";
-import { SloStatsRow } from "./-components/slo-status";
+import { SloSummaryCard } from "./-components/slo-status";
+import {
+  AlertingSummaryCard,
+  AlertingSummaryStat,
+} from "./-components/summary-card";
 import { useAlertingFreshBudgets } from "./-components/use-fresh-budgets";
 
 export const Route = createFileRoute(
@@ -99,11 +103,22 @@ function StatusSection({ slo }: { slo: AlertingSlo }) {
   }
   if (status.isPending) {
     return (
-      <Card>
-        <CardContent>
-          <Skeleton className="h-40 w-full" />
-        </CardContent>
-      </Card>
+      <AlertingSummaryCard ariaLabel="SLO activity summary">
+        {[
+          "Error budget left",
+          "SLO",
+          "SLI",
+          "Burn rate",
+          "Time to exhaustion",
+        ].map((label) => (
+          <AlertingSummaryStat
+            key={label}
+            label={label}
+            value={<Skeleton className="h-6 w-16" />}
+            detail={<Skeleton className="h-3 w-20" />}
+          />
+        ))}
+      </AlertingSummaryCard>
     );
   }
   const payload = status.data?.payload ?? null;
@@ -127,7 +142,7 @@ function StatusSection({ slo }: { slo: AlertingSlo }) {
 
   return (
     <>
-      <SloStatsRow slo={slo} status={snapshot} />
+      <SloSummaryCard slo={slo} status={snapshot} />
       {fresh.isPending(slo.id) && (
         <p className="px-1 text-[0.6875rem] text-muted-foreground">
           Error budget computing&hellip;

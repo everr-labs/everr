@@ -1,4 +1,3 @@
-import { Card, CardContent } from "@everr/ui/components/card";
 import { toneText } from "@everr/ui/components/tone";
 import {
   type AlertingSloState,
@@ -21,9 +20,9 @@ import {
   alertingFmtBurn,
   alertingFmtFraction,
 } from "./budget-bar";
+import { AlertingSummaryCard, AlertingSummaryStat } from "./summary-card";
 
-// Only the firing states are ever read (see the burn Stat); the rest are
-// listed so a new state cannot be added without deciding its tone.
+// Keep every state explicit so new states require a deliberate tone choice.
 const STATE_TEXT: Record<AlertingSloState, string> = {
   exhausted: toneText({ tone: "danger" }),
   "firing-critical": toneText({ tone: "danger" }),
@@ -33,29 +32,7 @@ const STATE_TEXT: Record<AlertingSloState, string> = {
   unknown: toneText({ tone: "muted" }),
 };
 
-function Stat({
-  label,
-  hint,
-  children,
-}: {
-  label: string;
-  hint?: React.ReactNode;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="space-y-1 lg:px-6 lg:first:pl-0 lg:last:pr-0">
-      <dt className="text-[0.625rem] font-medium tracking-wide text-muted-foreground uppercase">
-        {label}
-      </dt>
-      <dd className="text-2xl leading-tight font-semibold">{children}</dd>
-      {hint !== undefined && (
-        <div className="text-[0.6875rem] text-muted-foreground">{hint}</div>
-      )}
-    </div>
-  );
-}
-
-export function SloStatsRow({
+export function SloSummaryCard({
   slo,
   status,
 }: {
@@ -80,61 +57,51 @@ export function SloStatsRow({
       : status !== null
         ? "no recent events"
         : undefined;
+  const burnTone =
+    burn === null
+      ? toneText({ tone: "muted" })
+      : state.startsWith("firing") && (burn.effective ?? 0) > 0
+        ? STATE_TEXT[state]
+        : undefined;
+  const exhaustionTone =
+    exhaustion.kind === "exhausted"
+      ? toneText({ tone: "danger" })
+      : exhaustion.kind === "forecast"
+        ? undefined
+        : toneText({ tone: "muted" });
 
   return (
-    <Card>
-      <CardContent>
-        <dl className="grid grid-cols-2 gap-x-6 gap-y-4 sm:grid-cols-3 lg:grid-cols-5 lg:divide-x lg:divide-border/60">
-          <Stat
-            label="Error budget left"
-            // Deliberately the same meter, formatter and thresholds as the
-            // listing's inline bar.
-            hint={<AlertingBudgetMeter remaining={budget} />}
-          >
-            <span className={alertingBudgetTextTone(budget)}>
-              {budget === null ? "—" : alertingFmtBudgetRemaining(budget)}
-            </span>
-          </Stat>
-          <Stat label="SLO" hint={`over ${alertingSloWindowLabel(slo.spec)}`}>
-            {alertingFormatSloTarget(slo.spec.targetPercent)}
-          </Stat>
-          <Stat label="SLI" hint={`last ${slo.spec.timeWindow.duration}`}>
-            {status?.sli == null ? (
-              <span className="text-muted-foreground">—</span>
-            ) : (
-              alertingFmtFraction(status.sli)
-            )}
-          </Stat>
-          <Stat label="Burn rate" hint={burnHint}>
-            {burn === null ? (
-              <span className="text-muted-foreground">—</span>
-            ) : (
-              <span
-                className={
-                  state.startsWith("firing") && (burn.effective ?? 0) > 0
-                    ? STATE_TEXT[state]
-                    : undefined
-                }
-              >
-                {alertingFmtBurn(burn.rate)}
-              </span>
-            )}
-          </Stat>
-          <Stat label="Time to exhaustion">
-            <span
-              className={
-                exhaustion.kind === "exhausted"
-                  ? toneText({ tone: "danger" })
-                  : exhaustion.kind === "forecast"
-                    ? undefined
-                    : toneText({ tone: "muted" })
-              }
-            >
-              {exhaustion.label}
-            </span>
-          </Stat>
-        </dl>
-      </CardContent>
-    </Card>
+    <AlertingSummaryCard ariaLabel="SLO activity summary">
+      <AlertingSummaryStat
+        label="Error budget left"
+        value={budget === null ? "—" : alertingFmtBudgetRemaining(budget)}
+        valueClassName={alertingBudgetTextTone(budget)}
+        detail={<AlertingBudgetMeter remaining={budget} size="sm" />}
+      />
+      <AlertingSummaryStat
+        label="SLO"
+        value={alertingFormatSloTarget(slo.spec.targetPercent)}
+        detail={`over ${alertingSloWindowLabel(slo.spec)}`}
+      />
+      <AlertingSummaryStat
+        label="SLI"
+        value={status?.sli == null ? "—" : alertingFmtFraction(status.sli)}
+        valueClassName={
+          status?.sli == null ? toneText({ tone: "muted" }) : undefined
+        }
+        detail={`last ${slo.spec.timeWindow.duration}`}
+      />
+      <AlertingSummaryStat
+        label="Burn rate"
+        value={burn === null ? "—" : alertingFmtBurn(burn.rate)}
+        valueClassName={burnTone}
+        detail={burnHint}
+      />
+      <AlertingSummaryStat
+        label="Time to exhaustion"
+        value={exhaustion.label}
+        valueClassName={exhaustionTone}
+      />
+    </AlertingSummaryCard>
   );
 }
