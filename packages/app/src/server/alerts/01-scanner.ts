@@ -10,6 +10,10 @@ export const SLO_EVALUATE_TASK = "alerts/evaluate-slo";
 const SCANNER_BATCH_SIZE = 5_000;
 const EVALUATE_MAX_ATTEMPTS = 5;
 const ENQUEUE_CONCURRENCY = 8;
+const HASH_SPACE_SIZE = 2 ** 32;
+const MAX_INITIAL_RETRY_SECONDS = 10;
+
+export const SLO_EVALUATION_INTERVAL_SECONDS = 60;
 
 export interface EvaluatePayload {
   alertDefinitionId: string;
@@ -30,6 +34,80 @@ export function alertingPartitionQueue(
   const partition =
     createHash("sha256").update(id).digest().readUInt16BE(0) % 64;
   return `alerts-${kind}-${partition}`;
+}
+
+function nextAlertingEvaluationAt(
+  kind: "alert" | "slo",
+  organizationId: string,
+  definitionId: string,
+  intervalSeconds: number,
+  after = new Date(),
+): Date {
+  const intervalMs = intervalSeconds * 1_000;
+  if (!Number.isSafeInteger(intervalMs) || intervalMs <= 0) {
+    throw new Error(
+      "alert evaluation interval must be a positive safe integer",
+    );
+  }
+  const hash = createHash("sha256")
+    .update(`${kind}\0${organizationId}\0${definitionId}`)
+    .digest()
+    .readUInt32BE(0);
+  const phaseMs = Math.floor((hash / HASH_SPACE_SIZE) * intervalMs);
+  const remainder =
+    (((after.getTime() - phaseMs) % intervalMs) + intervalMs) % intervalMs;
+  const delayMs = remainder === 0 ? intervalMs : intervalMs - remainder;
+  return new Date(after.getTime() + delayMs);
+}
+
+export function nextAlertEvaluationAt(
+  organizationId: string,
+  definitionId: string,
+  intervalSeconds: number,
+  after?: Date,
+): Date {
+  return nextAlertingEvaluationAt(
+    "alert",
+    organizationId,
+    definitionId,
+    intervalSeconds,
+    after,
+  );
+}
+
+export function nextSloEvaluationAt(
+  organizationId: string,
+  definitionId: string,
+  after?: Date,
+): Date {
+  return nextAlertingEvaluationAt(
+    "slo",
+    organizationId,
+    definitionId,
+    SLO_EVALUATION_INTERVAL_SECONDS,
+    after,
+  );
+}
+
+export function alertingRetryAt(
+  delaySeconds: number,
+  after = new Date(),
+): Date {
+  const delayMs = delaySeconds * 1_000;
+  if (!Number.isSafeInteger(delayMs) || delayMs <= 0) {
+    throw new Error("alert retry delay must be a positive safe integer");
+  }
+  return new Date(after.getTime() + delayMs);
+}
+
+export function alertingRetryDelaySeconds(
+  intervalSeconds: number,
+  failureCount: number,
+  maximumSeconds: number,
+): number {
+  const initial = Math.min(MAX_INITIAL_RETRY_SECONDS, intervalSeconds);
+  const exponent = Math.min(30, Math.max(0, failureCount - 1));
+  return Math.min(maximumSeconds, initial * 2 ** exponent);
 }
 
 export function alertEvaluationJobKey(

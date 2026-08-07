@@ -31,6 +31,9 @@ import {
   ALERT_EVALUATE_TASK,
   alertEvaluationJobKey,
   alertingPartitionQueue,
+  alertingRetryAt,
+  alertingRetryDelaySeconds,
+  nextAlertEvaluationAt,
   SLO_EVALUATE_TASK,
   scanDueAlerts,
   scanDueSlos,
@@ -83,5 +86,52 @@ describe("alert scanner", () => {
       ),
     );
     expect(queues.size).toBeLessThanOrEqual(64);
+  });
+
+  it("assigns a stable phase within each evaluation interval", () => {
+    const after = new Date("2026-08-06T10:00:00.000Z");
+    const first = nextAlertEvaluationAt("org-1", "rule-1", 60, after);
+    const repeated = nextAlertEvaluationAt("org-1", "rule-1", 60, after);
+    const next = nextAlertEvaluationAt(
+      "org-1",
+      "rule-1",
+      60,
+      new Date(after.getTime() + 60_000),
+    );
+
+    expect(first).toEqual(repeated);
+    expect(first.getTime()).toBeGreaterThan(after.getTime());
+    expect(first.getTime()).toBeLessThanOrEqual(after.getTime() + 60_000);
+    expect(next.getTime() - first.getTime()).toBe(60_000);
+  });
+
+  it("spreads definition phases across the interval", () => {
+    const after = new Date("2026-08-06T10:00:00.000Z");
+    const phases = new Set(
+      Array.from({ length: 256 }, (_, index) =>
+        nextAlertEvaluationAt(
+          `org-${index % 8}`,
+          `rule-${index}`,
+          60,
+          after,
+        ).getTime(),
+      ),
+    );
+
+    expect(phases.size).toBeGreaterThan(240);
+  });
+
+  it("keeps retry delays separate from recurring phases", () => {
+    const after = new Date("2026-08-06T10:00:00.000Z");
+
+    expect(alertingRetryAt(120, after).getTime() - after.getTime()).toBe(
+      120_000,
+    );
+  });
+
+  it("retries quickly before backing off to the configured maximum", () => {
+    expect(alertingRetryDelaySeconds(60, 1, 960)).toBe(10);
+    expect(alertingRetryDelaySeconds(60, 2, 960)).toBe(20);
+    expect(alertingRetryDelaySeconds(60, 8, 60)).toBe(60);
   });
 });

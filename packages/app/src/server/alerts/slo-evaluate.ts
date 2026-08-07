@@ -21,8 +21,12 @@ import { addWorkerJobInTransaction } from "@/server/worker/jobs";
 import { errorMessage } from "@/telemetry/logger";
 import {
   alertingPartitionQueue,
+  alertingRetryAt,
+  alertingRetryDelaySeconds,
   type EvaluateSloPayload,
+  nextSloEvaluationAt,
   SLO_EVALUATE_TASK,
+  SLO_EVALUATION_INTERVAL_SECONDS,
   sloEvaluationJobKey,
 } from "./01-scanner";
 import { ALERT_PROCESS_EVENT_TASK } from "./dispatcher";
@@ -32,8 +36,6 @@ const PayloadSchema = z.object({
   scheduledFor: z.string().datetime(),
   sloVersion: z.number().int().positive().optional(),
 });
-const BASE_CADENCE_SECONDS = 60;
-
 function durationSeconds(value: string) {
   const match = /^(\d+)([smhdw])$/.exec(value);
   if (!match) throw new Error(`invalid SLO tier duration: ${value}`);
@@ -79,12 +81,11 @@ async function queryWindow(
   return { good, valid };
 }
 
-async function scheduleNext(
+async function scheduleSloAtInTransaction(
   tx: Parameters<Parameters<typeof db.transaction>[0]>[0],
   slo: typeof sloDefinitions.$inferSelect,
-  now: Date,
+  runAt: Date,
 ) {
-  const runAt = new Date(now.getTime() + BASE_CADENCE_SECONDS * 1_000);
   const payload: EvaluateSloPayload = {
     sloDefinitionId: slo.id,
     scheduledFor: runAt.toISOString(),
@@ -122,11 +123,16 @@ async function failEvaluation(
         lastError: message,
         lastErrorAt: new Date(),
         consecutiveFailures: sql`${sloDefinitions.consecutiveFailures} + 1`,
-        healthStatus: sql`CASE WHEN ${sloDefinitions.consecutiveFailures} + 1 >= 3 THEN 'degraded'::alert_health ELSE ${sloDefinitions.healthStatus} END`,
-        degradedSince: sql`CASE WHEN ${sloDefinitions.consecutiveFailures} + 1 >= 3 THEN coalesce(${sloDefinitions.degradedSince}, now()) ELSE ${sloDefinitions.degradedSince} END`,
+        healthStatus: "degraded",
+        degradedSince: sql`coalesce(${sloDefinitions.degradedSince}, now())`,
       })
       .where(eq(sloDefinitions.id, slo.id));
-    await scheduleNext(tx, slo, new Date());
+    const retryDelay = alertingRetryDelaySeconds(
+      SLO_EVALUATION_INTERVAL_SECONDS,
+      slo.consecutiveFailures + 1,
+      SLO_EVALUATION_INTERVAL_SECONDS,
+    );
+    await scheduleSloAtInTransaction(tx, slo, alertingRetryAt(retryDelay));
   });
 }
 
@@ -162,7 +168,8 @@ export async function evaluateSlo(rawPayload: unknown): Promise<void> {
     const last = freshness[`${seconds}s`];
     return (
       last === undefined ||
-      nowUnix - last >= Math.max(BASE_CADENCE_SECONDS, Math.floor(seconds / 12))
+      nowUnix - last >=
+        Math.max(SLO_EVALUATION_INTERVAL_SECONDS, Math.floor(seconds / 12))
     );
   });
   let values: Map<number, { good: number; valid: number }>;
@@ -365,6 +372,10 @@ export async function evaluateSlo(rawPayload: unknown): Promise<void> {
         );
       }
     }
-    await scheduleNext(tx, slo, now);
+    await scheduleSloAtInTransaction(
+      tx,
+      slo,
+      nextSloEvaluationAt(slo.organizationId, slo.id),
+    );
   });
 }

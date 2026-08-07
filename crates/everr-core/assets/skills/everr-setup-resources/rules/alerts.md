@@ -39,8 +39,8 @@ spec:
                                  #   string-typed result columns; set it explicitly
                                  #   to pin identity.
   maxInterval: 15m           # optional; duration string, ceiling for the engine's
-                             #   adaptive evaluation backoff before the rule is
-                             #   flagged degraded. Must be >= evaluationInterval
+                             #   adaptive retry backoff. Evaluation health becomes
+                             #   degraded on the first failure. Must be >= evaluationInterval
                              #   when both parse. Defaults to the engine's own value.
   annotations:               # optional; free string map passed through to the
     team: core               #   alert rule. Keys starting with `everr.`,
@@ -193,7 +193,7 @@ Do not use `${...}` templates in queries. Queries are plain SQL. Template variab
 
 ### `maxInterval`
 
-`maxInterval` caps the alert engine's adaptive evaluation backoff: the longest interval the engine may widen out to before the rule is flagged degraded. Set it as a duration string (`<int><s|m|h|d>`), and keep it at or above `evaluationInterval` (apply rejects it otherwise, when both parse). Leave it unset to use the engine's default.
+`maxInterval` caps the alert engine's adaptive retry backoff. Evaluation health becomes degraded on the first failed attempt and returns to healthy after the next successful evaluation. Set the cap as a duration string (`<int><s|m|h|d>`), and keep it at or above `evaluationInterval` (apply rejects it otherwise, when both parse). Leave it unset to use the engine's default.
 
 ### `annotations`
 

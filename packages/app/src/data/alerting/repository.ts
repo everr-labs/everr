@@ -22,6 +22,8 @@ import { querySqlApi } from "@/lib/clickhouse";
 import {
   enqueueAlertEvaluation,
   enqueueSloEvaluation,
+  nextAlertEvaluationAt,
+  nextSloEvaluationAt,
 } from "@/server/alerts/01-scanner";
 import {
   decryptChannelConfig,
@@ -324,17 +326,26 @@ export async function getRuleEvaluationSeries(
   return shapeAlertEvaluationSeries(rows, opts.points);
 }
 
-function definitionValues(organizationId: string, input: AlertingRuleInput) {
+function definitionValues(
+  id: string,
+  organizationId: string,
+  input: AlertingRuleInput,
+) {
   const { project, slug } = parseResourceName(input.name);
   const spec = AlertingRuleSpecSchema.parse(input);
   return {
+    id,
     organizationId,
     repoid: input.repoid,
     previewId: input.previewId,
     project,
     slug,
     spec,
-    nextEvaluationAt: new Date(),
+    nextEvaluationAt: nextAlertEvaluationAt(
+      organizationId,
+      id,
+      spec.interval_secs,
+    ),
     active: true,
   };
 }
@@ -348,11 +359,12 @@ export async function createRule(
     organizationId,
     input.notification_channels,
   );
+  const id = randomUUID();
   const row = await translateConflict(() =>
     db.transaction(async (tx) => {
       const [created] = await tx
         .insert(alertDefinitions)
-        .values(definitionValues(organizationId, input))
+        .values(definitionValues(id, organizationId, input))
         .returning();
       await replaceDefinitionChannels(
         tx,
@@ -392,6 +404,11 @@ export async function updateRule(
   const labelsChanged =
     JSON.stringify(previous.spec.label_columns) !==
     JSON.stringify(spec.label_columns);
+  const nextEvaluationAt = nextAlertEvaluationAt(
+    organizationId,
+    id,
+    spec.interval_secs,
+  );
   const updated = await translateConflict(() =>
     db.transaction(async (tx) => {
       const [row] = await tx
@@ -399,7 +416,7 @@ export async function updateRule(
         .set({
           spec,
           version: previous.version + 1,
-          nextEvaluationAt: new Date(),
+          nextEvaluationAt,
           updatedAt: new Date(),
         })
         .where(
@@ -465,7 +482,16 @@ export async function adoptRule(
         .update(alertDefinitions)
         .set({
           repoid,
-          ...(spec ? { spec, nextEvaluationAt: new Date() } : {}),
+          ...(spec
+            ? {
+                spec,
+                nextEvaluationAt: nextAlertEvaluationAt(
+                  organizationId,
+                  id,
+                  spec.interval_secs,
+                ),
+              }
+            : {}),
           version: version + 1,
           updatedAt: new Date(),
         })
@@ -535,9 +561,15 @@ export async function pauseRule(organizationId: string, id: string) {
 }
 
 export async function resumeRule(organizationId: string, id: string) {
+  const previous = await getRuleRow(organizationId, id);
+  const nextEvaluationAt = nextAlertEvaluationAt(
+    organizationId,
+    id,
+    previous.spec.interval_secs,
+  );
   const [row] = await db
     .update(alertDefinitions)
-    .set({ active: true, nextEvaluationAt: new Date(), updatedAt: new Date() })
+    .set({ active: true, nextEvaluationAt, updatedAt: new Date() })
     .where(
       and(
         eq(alertDefinitions.organizationId, organizationId),
@@ -690,17 +722,19 @@ export async function createSlo(
   const { name, repoid, previewId, ...rawSpec } = input;
   const { project, slug } = parseResourceName(name);
   const spec = AlertingSloSpecSchema.parse(rawSpec);
+  const id = randomUUID();
   const [row] = await translateConflict(() =>
     db
       .insert(sloDefinitions)
       .values({
+        id,
         organizationId,
         repoid,
         previewId,
         project,
         slug,
         spec,
-        nextEvaluationAt: new Date(),
+        nextEvaluationAt: nextSloEvaluationAt(organizationId, id),
       })
       .returning(),
   );
@@ -738,7 +772,7 @@ export async function adoptSlo(
       ...(spec
         ? {
             spec,
-            nextEvaluationAt: new Date(),
+            nextEvaluationAt: nextSloEvaluationAt(organizationId, id),
             ...(budgetChanged ? { budgetEpoch: new Date() } : {}),
           }
         : {}),
@@ -781,12 +815,13 @@ export async function updateSlo(
     previous.spec.targetPercent !== spec.targetPercent ||
     JSON.stringify(previous.spec.timeWindow) !==
       JSON.stringify(spec.timeWindow);
+  const nextEvaluationAt = nextSloEvaluationAt(organizationId, id);
   const [row] = await db
     .update(sloDefinitions)
     .set({
       spec,
       version: previous.version + 1,
-      nextEvaluationAt: new Date(),
+      nextEvaluationAt,
       updatedAt: new Date(),
       ...(budgetChanged ? { budgetEpoch: new Date() } : {}),
     })
@@ -836,9 +871,10 @@ export async function pauseSlo(organizationId: string, id: string) {
 }
 
 export async function resumeSlo(organizationId: string, id: string) {
+  const nextEvaluationAt = nextSloEvaluationAt(organizationId, id);
   const [row] = await db
     .update(sloDefinitions)
-    .set({ paused: false, nextEvaluationAt: new Date(), updatedAt: new Date() })
+    .set({ paused: false, nextEvaluationAt, updatedAt: new Date() })
     .where(
       and(
         eq(sloDefinitions.organizationId, organizationId),

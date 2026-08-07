@@ -23,7 +23,10 @@ import {
   ALERT_EVALUATE_TASK,
   alertEvaluationJobKey,
   alertingPartitionQueue,
+  alertingRetryAt,
+  alertingRetryDelaySeconds,
   type EvaluatePayload,
+  nextAlertEvaluationAt,
 } from "./01-scanner";
 import { rowsToInstances } from "./02-instances";
 import { boundEventEvidence, boundEvidence } from "./03-events";
@@ -42,19 +45,6 @@ const EvaluatePayloadSchema = z.object({
   ruleVersion: z.number().int().positive().optional(),
 });
 
-function nextEvaluationAt(
-  scheduledFor: Date,
-  intervalSeconds: number,
-  now: Date,
-) {
-  return new Date(
-    Math.max(
-      scheduledFor.getTime() + intervalSeconds * 1_000,
-      now.getTime() + 1_000,
-    ),
-  );
-}
-
 function storedInstance(
   row: typeof alertInstances.$inferSelect,
 ): StoredAlertInstance {
@@ -71,13 +61,11 @@ function storedInstance(
   };
 }
 
-async function scheduleNextInTransaction(
+async function scheduleAlertAtInTransaction(
   tx: Parameters<Parameters<typeof db.transaction>[0]>[0],
   def: typeof alertDefinitions.$inferSelect,
-  scheduledFor: Date,
-  intervalSeconds = def.spec.interval_secs,
+  runAt: Date,
 ) {
-  const runAt = nextEvaluationAt(scheduledFor, intervalSeconds, new Date());
   const payload: EvaluatePayload = {
     alertDefinitionId: def.id,
     scheduledFor: runAt.toISOString(),
@@ -116,17 +104,18 @@ async function recordEvaluationFailure(
         lastEvaluatedAt: new Date(),
         lastErrorAt: new Date(),
         consecutiveFailures: sql`${alertDefinitions.consecutiveFailures} + 1`,
-        healthStatus: sql`CASE WHEN ${alertDefinitions.consecutiveFailures} + 1 >= 3 THEN 'degraded'::alert_health ELSE ${alertDefinitions.healthStatus} END`,
-        degradedSince: sql`CASE WHEN ${alertDefinitions.consecutiveFailures} + 1 >= 3 THEN coalesce(${alertDefinitions.degradedSince}, now()) ELSE ${alertDefinitions.degradedSince} END`,
+        healthStatus: "degraded",
+        degradedSince: sql`coalesce(${alertDefinitions.degradedSince}, now())`,
       })
       .where(eq(alertDefinitions.id, def.id));
     const failureCount = def.consecutiveFailures + 1;
     const maximum = def.spec.max_interval_secs ?? def.spec.interval_secs * 16;
-    const backoff = Math.min(
+    const backoff = alertingRetryDelaySeconds(
+      def.spec.interval_secs,
+      failureCount,
       maximum,
-      def.spec.interval_secs * 2 ** Math.min(failureCount, 10),
     );
-    await scheduleNextInTransaction(tx, def, new Date(), backoff);
+    await scheduleAlertAtInTransaction(tx, def, alertingRetryAt(backoff));
   });
   serverLogger.warn("alerts.evaluate.query_failed", {
     ...exceptionAttributes(cause),
@@ -377,6 +366,10 @@ export async function evaluateAlert(rawPayload: unknown): Promise<void> {
         );
       }
     }
-    await scheduleNextInTransaction(tx, def, scheduledFor);
+    await scheduleAlertAtInTransaction(
+      tx,
+      def,
+      nextAlertEvaluationAt(def.organizationId, def.id, def.spec.interval_secs),
+    );
   });
 }
