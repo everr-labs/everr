@@ -41,14 +41,14 @@ export function startInteractions(emit: Emit): () => void {
 
       emit("everr.browser.interaction.rage_click", {
         ...elementAttrs(el),
-        "everr.click.x": x,
-        "everr.click.y": y,
+        "everr.browser.click.x": x,
+        "everr.browser.click.y": y,
       });
     } else {
       emit("everr.browser.interaction.click", {
         ...elementAttrs(el),
-        "everr.click.x": x,
-        "everr.click.y": y,
+        "everr.browser.click.x": x,
+        "everr.browser.click.y": y,
       });
     }
   };

@@ -50,12 +50,12 @@ describe("startInteractions", () => {
       expect(a["everr.element.text"]).toBe("Sign up");
       expect(a["everr.element.selector"]).toBe("#cta");
       expect(a["everr.element.href"]).toBe("/signup");
-      expect(a["everr.click.x"]).toBe(15);
-      expect(a["everr.click.y"]).toBe(25);
+      expect(a["everr.browser.click.x"]).toBe(15);
+      expect(a["everr.browser.click.y"]).toBe(25);
       expect(a["everr.viewport.width"]).toBe(innerWidth);
       // DOM clicks carry no interaction latency: that is the slow_interaction
       // event's job (Event Timing).
-      expect(a).not.toHaveProperty("everr.interaction.duration_ms");
+      expect(a).not.toHaveProperty("everr.browser.interaction.duration");
     });
 
     it("a rage burst emits click, click, then rage_click on the third", () => {
@@ -69,8 +69,8 @@ describe("startInteractions", () => {
         "everr.browser.interaction.rage_click",
       ]);
       const rage = emitted[2].attrs ?? {};
-      expect(rage["everr.click.x"]).toBe(15);
-      expect(rage["everr.click.y"]).toBe(24);
+      expect(rage["everr.browser.click.x"]).toBe(15);
+      expect(rage["everr.browser.click.y"]).toBe(24);
       expect(rage["everr.element.tag"]).toBe("button");
     });
 
@@ -117,8 +117,8 @@ describe("startInteractions", () => {
       expect(a["everr.element.text"]).toBe("Read the docs");
       expect(a["everr.element.selector"]).toBe("#docs-link");
       expect(a["everr.element.href"]).toBe("/docs");
-      expect(a["everr.click.x"]).toBe(20);
-      expect(a["everr.click.y"]).toBe(29);
+      expect(a["everr.browser.click.x"]).toBe(20);
+      expect(a["everr.browser.click.y"]).toBe(29);
     });
 
     it("builds positional selectors when no id anchors the path", () => {
@@ -192,7 +192,7 @@ describe("startInteractions", () => {
       // (The raw attrs object carries the key with an undefined value; the
       // emitter filters nullish at send time, see init.test.ts.)
       expect(a["everr.element.text"]).toBeUndefined();
-      expect(a).not.toHaveProperty("everr.click.x");
+      expect(a).not.toHaveProperty("everr.browser.click.x");
       // Values are never read: there is no attr for them by construction.
       expect(JSON.stringify(a)).not.toContain("@example");
     });
@@ -244,7 +244,7 @@ describe("startInteractions", () => {
       // The submitter is a non-field button: its visible label is captured,
       // never a form value.
       expect(a["everr.element.text"]).toBe("Sign up");
-      expect(a).not.toHaveProperty("everr.click.x");
+      expect(a).not.toHaveProperty("everr.browser.click.x");
     });
 
     it("skips submits with no submitter (e.g. form.requestSubmit())", () => {

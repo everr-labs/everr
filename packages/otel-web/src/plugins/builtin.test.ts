@@ -88,7 +88,7 @@ describe("pageviews()", () => {
     // The leave belongs to the page being left.
     const leave = attrs(after[1]);
     expect(leave["everr.page_view.id"]).toBe(firstPageViewId);
-    expect(leave["everr.page_view.duration_ms"]).toBeDefined();
+    expect(leave["everr.page_view.duration"]).toBeDefined();
     const second = attrs(after[2]);
     expect(second["everr.navigation.type"]).toBe("history_change");
     expect(second["url.path"]).toBe("/next");

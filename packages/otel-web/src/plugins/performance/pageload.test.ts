@@ -178,11 +178,11 @@ describe("asset waterfall", () => {
       "everr.browser.asset.transfer_size": 5000,
       "everr.browser.asset.encoded_body_size": 4800,
       "everr.browser.asset.decoded_body_size": 12000,
-      "everr.browser.asset.dns": 4,
-      "everr.browser.asset.connect": 26,
-      "everr.browser.asset.tls": 18,
-      "everr.browser.asset.ttfb": 49,
-      "everr.browser.asset.download": 40,
+      "everr.browser.asset.dns_duration": 4,
+      "everr.browser.asset.connection_duration": 26,
+      "everr.browser.asset.tls_duration": 18,
+      "everr.browser.asset.request_duration": 49,
+      "everr.browser.asset.download_duration": 40,
     });
   });
 
@@ -217,9 +217,9 @@ describe("asset waterfall", () => {
       responseStatus: 0,
     });
     const a = attrs();
-    expect(a["everr.browser.asset.dns"]).toBeUndefined();
-    expect(a["everr.browser.asset.ttfb"]).toBeUndefined();
-    expect(a["everr.browser.asset.download"]).toBeUndefined();
+    expect(a["everr.browser.asset.dns_duration"]).toBeUndefined();
+    expect(a["everr.browser.asset.request_duration"]).toBeUndefined();
+    expect(a["everr.browser.asset.download_duration"]).toBeUndefined();
     expect(a["http.response.status_code"]).toBeUndefined();
   });
 

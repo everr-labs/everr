@@ -148,10 +148,10 @@ describe("slow interactions", () => {
 
     expect(names()).toEqual(["everr.browser.slow_interaction"]);
     const a = slow()[0].attrs ?? {};
-    expect(a["everr.interaction.id"]).toBe(7);
-    expect(a["everr.interaction.name"]).toBe("click");
-    expect(a["everr.interaction.duration_ms"]).toBe(240);
-    expect(a["everr.interaction.type"]).toBe("pointer");
+    expect(a["everr.browser.interaction.id"]).toBe(7);
+    expect(a["everr.browser.interaction.name"]).toBe("click");
+    expect(a["everr.browser.interaction.duration"]).toBe(240);
+    expect(a["everr.browser.interaction.type"]).toBe("pointer");
     expect(a["everr.element.tag"]).toBe("button");
     expect(a["everr.element.selector"]).toBe("#b");
     expect(a["everr.element.text"]).toBe("Go");
@@ -168,10 +168,10 @@ describe("slow interactions", () => {
     ]);
     settle();
     const a = slow()[0].attrs ?? {};
-    expect(a["everr.interaction.input_delay_ms"]).toBe(100);
-    expect(a["everr.interaction.processing_duration_ms"]).toBe(150);
+    expect(a["everr.browser.interaction.input_delay"]).toBe(100);
+    expect(a["everr.browser.interaction.processing_duration"]).toBe(150);
     // presentation = nextPaint (1000+400) - processingEnd (1250)
-    expect(a["everr.interaction.presentation_delay_ms"]).toBe(150);
+    expect(a["everr.browser.interaction.presentation_delay"]).toBe(150);
   });
 
   it("emits at most once per interactionId", () => {
@@ -191,7 +191,9 @@ describe("slow interactions", () => {
   it("keyboard interactions are typed keyboard", () => {
     feed([{ name: "keydown", duration: 510, interactionId: 9 }]);
     settle();
-    expect(slow()[0].attrs?.["everr.interaction.type"]).toBe("keyboard");
+    expect(slow()[0].attrs?.["everr.browser.interaction.type"]).toBe(
+      "keyboard",
+    );
   });
 
   it("keeps the record but drops element identity for guarded elements", () => {
@@ -201,7 +203,7 @@ describe("slow interactions", () => {
     settle();
     expect(slow()).toHaveLength(1);
     const a = slow()[0].attrs ?? {};
-    expect(a["everr.interaction.duration_ms"]).toBe(320);
+    expect(a["everr.browser.interaction.duration"]).toBe(320);
     expect(a).not.toHaveProperty("everr.element.tag");
     expect(a).not.toHaveProperty("everr.element.selector");
   });
@@ -233,18 +235,26 @@ describe("slow interactions", () => {
     ]);
     settle();
     const a = slow()[0].attrs ?? {};
-    expect(a["everr.interaction.script.source_url"]).toBe(
+    expect(a["everr.browser.interaction.script.source_url"]).toBe(
       "https://app.example/bundle.js",
     );
-    expect(a["everr.interaction.script.function_name"]).toBe("renderList");
-    expect(a["everr.interaction.script.invoker_type"]).toBe("event-listener");
-    expect(a["everr.interaction.script.duration_ms"]).toBe(280);
+    expect(a["everr.browser.interaction.script.function_name"]).toBe(
+      "renderList",
+    );
+    expect(a["everr.browser.interaction.script.invoker_type"]).toBe(
+      "event-listener",
+    );
+    expect(a["everr.browser.interaction.script.duration"]).toBe(280);
     // The category breakdown across intersecting frames: 280ms of script,
     // and the rest of the 400ms interaction unattributed by LoAF data.
-    expect(a["everr.interaction.total_script_duration_ms"]).toBe(280);
-    expect(a["everr.interaction.total_style_and_layout_duration_ms"]).toBe(0);
-    expect(a["everr.interaction.total_paint_duration_ms"]).toBe(0);
-    expect(a["everr.interaction.total_unattributed_duration_ms"]).toBe(120);
+    expect(a["everr.browser.interaction.total_script_duration"]).toBe(280);
+    expect(a["everr.browser.interaction.total_style_and_layout_duration"]).toBe(
+      0,
+    );
+    expect(a["everr.browser.interaction.total_paint_duration"]).toBe(0);
+    expect(a["everr.browser.interaction.total_unattributed_duration"]).toBe(
+      120,
+    );
   });
 
   it("takes the target from any entry that carries one (often only pointerdown does)", () => {
@@ -256,7 +266,7 @@ describe("slow interactions", () => {
     ]);
     settle();
     const a = slow()[0].attrs ?? {};
-    expect(a["everr.interaction.duration_ms"]).toBe(300);
+    expect(a["everr.browser.interaction.duration"]).toBe(300);
     expect(a["everr.element.selector"]).toBe("#b");
   });
 
@@ -302,9 +312,9 @@ describe("INP vital", () => {
     expect(a["everr.landing.path"]).toBe(location.pathname);
     // The join key back to the slow_interaction record, and the same
     // attribution keys that record carries.
-    expect(a["everr.interaction.id"]).toBe(14);
-    expect(a["everr.interaction.input_delay_ms"]).toBe(20);
-    expect(a["everr.interaction.type"]).toBe("pointer");
+    expect(a["everr.browser.interaction.id"]).toBe(14);
+    expect(a["everr.browser.interaction.input_delay"]).toBe(20);
+    expect(a["everr.browser.interaction.type"]).toBe("pointer");
   });
 
   it("carries the element payload of its candidate interaction", () => {

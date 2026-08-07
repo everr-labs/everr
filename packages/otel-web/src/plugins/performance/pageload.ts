@@ -53,20 +53,20 @@ export function startPageLoad(
       "everr.browser.asset.render_blocking":
         renderBlockingStatus === "blocking" ? true : undefined,
       "everr.browser.asset.delivery_type": deliveryType || undefined,
-      "everr.browser.asset.dns": timed
+      "everr.browser.asset.dns_duration": timed
         ? Math.round(entry.domainLookupEnd - entry.domainLookupStart)
         : undefined,
-      "everr.browser.asset.connect": timed
+      "everr.browser.asset.connection_duration": timed
         ? Math.round(entry.connectEnd - entry.connectStart)
         : undefined,
-      "everr.browser.asset.tls":
+      "everr.browser.asset.tls_duration":
         timed && entry.secureConnectionStart > 0
           ? Math.round(entry.connectEnd - entry.secureConnectionStart)
           : undefined,
-      "everr.browser.asset.ttfb": timed
+      "everr.browser.asset.request_duration": timed
         ? Math.round(entry.responseStart - entry.requestStart)
         : undefined,
-      "everr.browser.asset.download": timed
+      "everr.browser.asset.download_duration": timed
         ? Math.round(entry.responseEnd - entry.responseStart)
         : undefined,
     });

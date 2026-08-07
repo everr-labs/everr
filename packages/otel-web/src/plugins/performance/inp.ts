@@ -14,9 +14,9 @@ import { captureLanding, emitVital, whenIdleOrHidden } from "./shared.js";
 //    browser provides it (Chrome 123+).
 // 2. The INP web vital (`browser.web_vital`, name=inp): the estimated-p98
 //    longest interaction, reported once when the page first goes hidden.
-//    Its attribution is the same `everr.interaction.*` / `everr.element.*`
+//    Its attribution is the same `everr.browser.interaction.*` / `everr.element.*`
 //    vocabulary the slow_interaction record carries (not web-vitals' key
-//    names), and `everr.interaction.id` joins it to the slow_interaction
+//    names), and `everr.browser.interaction.id` joins it to the slow_interaction
 //    record that is its candidate.
 //
 // The measurement core (interaction grouping by interactionId with latency
@@ -263,9 +263,9 @@ export function startInp(
     const { entry, frame, latency, attrs } = pending.interaction;
     emit("everr.browser.slow_interaction", {
       ...attrs,
-      "everr.interaction.id": id,
-      "everr.interaction.name": entry.name,
-      "everr.interaction.duration_ms": latency,
+      "everr.browser.interaction.id": id,
+      "everr.browser.interaction.name": entry.name,
+      "everr.browser.interaction.duration": latency,
       ...phaseAttrs(entry, frame, intersectingLoAFs),
     });
   };
@@ -286,7 +286,7 @@ export function startInp(
     // payload included), not web-vitals' key names: the vital and the slow
     // record it joins to answer the same question with the same keys.
     emitVital(emit, "inp", latency, restored, {
-      "everr.interaction.id": id,
+      "everr.browser.interaction.id": id,
       ...attrs,
       ...phaseAttrs(entry, frame, intersectingLoAFs),
     });
@@ -356,7 +356,7 @@ export function startInp(
 
 /**
  * The shared attribution payload: phase breakdown plus LoAF-derived script
- * attribution, one `everr.interaction.*` vocabulary carried by both the
+ * attribution, one `everr.browser.interaction.*` vocabulary carried by both the
  * slow_interaction record and the INP vital.
  */
 function phaseAttrs(
@@ -381,12 +381,13 @@ function phaseAttrs(
   const processingDuration = processingEnd - processingStart;
 
   const attrs: Attrs = {
-    "everr.interaction.type": entry.name.startsWith("key")
+    "everr.browser.interaction.type": entry.name.startsWith("key")
       ? "keyboard"
       : "pointer",
-    "everr.interaction.input_delay_ms": inputDelay,
-    "everr.interaction.processing_duration_ms": processingDuration,
-    "everr.interaction.presentation_delay_ms": nextPaintTime - processingEnd,
+    "everr.browser.interaction.input_delay": inputDelay,
+    "everr.browser.interaction.processing_duration": processingDuration,
+    "everr.browser.interaction.presentation_delay":
+      nextPaintTime - processingEnd,
   };
 
   // LoAF pass: a duration breakdown by category (script, style-and-layout,
@@ -430,22 +431,23 @@ function phaseAttrs(
     totalPaint = nextPaintTime - lastLoafEnd;
   }
 
-  attrs["everr.interaction.total_script_duration_ms"] = totalScript;
-  attrs["everr.interaction.total_style_and_layout_duration_ms"] =
+  attrs["everr.browser.interaction.total_script_duration"] = totalScript;
+  attrs["everr.browser.interaction.total_style_and_layout_duration"] =
     totalStyleAndLayout;
-  attrs["everr.interaction.total_paint_duration_ms"] = totalPaint;
-  attrs["everr.interaction.total_unattributed_duration_ms"] =
+  attrs["everr.browser.interaction.total_paint_duration"] = totalPaint;
+  attrs["everr.browser.interaction.total_unattributed_duration"] =
     nextPaintTime -
     interactionTime -
     totalScript -
     totalStyleAndLayout -
     totalPaint;
   if (longest) {
-    attrs["everr.interaction.script.source_url"] = longest.sourceURL;
-    attrs["everr.interaction.script.function_name"] =
+    attrs["everr.browser.interaction.script.source_url"] = longest.sourceURL;
+    attrs["everr.browser.interaction.script.function_name"] =
       longest.sourceFunctionName;
-    attrs["everr.interaction.script.invoker_type"] = longest.invokerType;
-    attrs["everr.interaction.script.duration_ms"] = longestDuration;
+    attrs["everr.browser.interaction.script.invoker_type"] =
+      longest.invokerType;
+    attrs["everr.browser.interaction.script.duration"] = longestDuration;
   }
   return attrs;
 }

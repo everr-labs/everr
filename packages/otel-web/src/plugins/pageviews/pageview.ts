@@ -44,7 +44,7 @@ export function startPageviews(emit: Emit, current: CurrentPage): Pageviews {
     emit("everr.browser.page_leave", {
       // The leave belongs to the page being left: override the envelope.
       ...pageAttrs(page),
-      "everr.page_view.duration_ms": Date.now() - startedAt,
+      "everr.page_view.duration": Date.now() - startedAt,
       "everr.scroll.depth":
         Math.round(Math.min(height ? maxBottom / height : 0, 1) * 100) / 100,
     });

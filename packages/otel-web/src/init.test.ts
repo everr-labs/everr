@@ -59,7 +59,7 @@ describe("init (persistence: memory)", () => {
     expect(a["url.path"]).toBe("/");
     const resource = await resourceAttrs();
     expect(resource["service.name"]).toBe("everr-docs-test");
-    expect(resource["everr.sdk.name"]).toBe("@everr/otel-web");
+    expect(resource["telemetry.distro.name"]).toBe("@everr/otel-web");
     expect(resource["user_agent.original"]).toBeTruthy();
     // Unset optional attributes are filtered out, not shipped as empty values.
     expect(resource).not.toHaveProperty("deployment.environment.name");
@@ -88,7 +88,7 @@ describe("init (persistence: memory)", () => {
       initialAttrs["everr.page_view.id"],
     );
     expect(leaveAttrs["url.path"]).toBe("/");
-    expect(String(leaveAttrs["everr.page_view.duration_ms"])).toMatch(/^\d+$/);
+    expect(String(leaveAttrs["everr.page_view.duration"])).toMatch(/^\d+$/);
     expect(leaveAttrs["everr.scroll.depth"]).toBe("0");
   });
 
