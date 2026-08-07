@@ -520,9 +520,13 @@ describe("through the client pipeline", () => {
     expect(a["browser.web_vital.name"]).toBe("ttfb");
     expect(a["browser.web_vital.value"]).toBe(120.5);
     expect(a["everr.browser.web_vital.ttfb.request_duration"]).toBe(85.5);
-    expect(a["everr.landing.url"]).toBe(landing);
-    expect(a["everr.landing.path"]).toBe("/");
     expect(a["url.path"]).toBe("/pricing");
+    // The landing url pins the vital's page on the resource, not the record.
+    const resource = Object.fromEntries(
+      batches[0].resource.map((kv) => [kv.key, Object.values(kv.value)[0]]),
+    );
+    expect(resource["everr.landing.url"]).toBe(landing);
+    expect(resource["everr.landing.path"]).toBe("/");
     expect(a["session.id"]).toMatch(UNIQUE_ID);
     expect(a["everr.page_view.id"]).toMatch(UNIQUE_ID);
   });

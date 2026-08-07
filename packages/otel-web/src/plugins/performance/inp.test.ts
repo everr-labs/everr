@@ -309,7 +309,6 @@ describe("INP vital", () => {
     expect(a["browser.web_vital.delta"]).toBe(620);
     expect(a["browser.web_vital.id"]).toMatch(/^\d+-\d{13}$/);
     expect(a["everr.browser.web_vital.rating"]).toBe("poor");
-    expect(a["everr.landing.path"]).toBe(location.pathname);
     // The join key back to the slow_interaction record, and the same
     // attribution keys that record carries.
     expect(a["everr.browser.interaction.id"]).toBe(14);

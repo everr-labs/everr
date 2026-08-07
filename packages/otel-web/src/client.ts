@@ -56,6 +56,12 @@ export function init(options: InitOptions): EverrClient {
       "everr.screen.height": screen.height,
       "everr.timezone": Intl.DateTimeFormat().resolvedOptions().timeZone,
       "browser.language": navigator.language,
+      // Browsers pin web vitals to the initial hard navigation while the
+      // envelope's url.* rotate with SPA navigations; the landing url is
+      // fixed for the client's life, so it rides the resource like the UTM
+      // attribution derived from its query string.
+      "everr.landing.url": location.href,
+      "everr.landing.path": location.pathname,
       ...attributionAttributes(location.search),
     },
     { name: SDK_NAME, version: SDK_VERSION },

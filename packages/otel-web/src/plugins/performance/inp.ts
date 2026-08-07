@@ -1,7 +1,7 @@
 /// <reference path="../../dom.d.ts" />
 import { elementAttrs, guardOf } from "../../element.js";
 import type { AttrValue, Emit } from "../../emitter.js";
-import { captureLanding, emitVital, whenIdleOrHidden } from "./shared.js";
+import { emitVital, whenIdleOrHidden } from "./shared.js";
 
 // Interaction latency tracking: one Event Timing observer feeding two
 // outputs.
@@ -88,7 +88,6 @@ export function startInp(
     return () => {};
   }
 
-  captureLanding();
   let stopped = false;
 
   // --- interactionCount (native, or estimated from ids: Chrome assigns

@@ -2,7 +2,7 @@
 import { selectorOf } from "../../element.js";
 import type { AttrValue, Emit } from "../../emitter.js";
 import type { WebVitalName } from "./index.js";
-import { captureLanding, emitVital, whenIdleOrHidden } from "./shared.js";
+import { emitVital, whenIdleOrHidden } from "./shared.js";
 
 // The classic web vitals (LCP, CLS, TTFB), computed in-house: one
 // `browser.web_vital` record per metric per navigation epoch, with the
@@ -68,7 +68,6 @@ function loadStateAt(time: number): string {
 export function startWebVitals(emit: Emit, vitals: Classic[]): () => void {
   if (!vitals.length) return () => {};
 
-  captureLanding();
   let stopped = false;
   let restored = false;
 

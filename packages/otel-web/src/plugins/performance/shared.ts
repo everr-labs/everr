@@ -4,8 +4,9 @@ import type { WebVitalName } from "./index.js";
 
 // The one assembly of a `browser.web_vital` record, shared by webvitals.ts
 // (LCP, CLS, TTFB) and inp.ts: the semconv attributes, the rating from the
-// per-metric thresholds, the navigation type, and the pinned landing url.
-// The metric-specific attribution rides in as pre-named extra attributes.
+// per-metric thresholds, and the navigation type. The metric-specific
+// attribution rides in as pre-named extra attributes. The landing url a
+// late vital slices by is `everr.landing.*` on the resource (client.ts).
 
 type Attrs = Record<string, AttrValue | null | undefined>;
 
@@ -16,20 +17,6 @@ const THRESHOLDS: Record<WebVitalName, [number, number]> = {
   ttfb: [800, 1800],
   inp: [200, 500],
 };
-
-// Browsers pin every vital to the initial hard navigation, while the
-// envelope's url.* rotate with SPA navigations: the landing url rides each
-// record so late reports still slice by the page that was measured.
-// Captured at setup (both signals call this at init; the second overwrite
-// writes the same values), not at module evaluation, so importing the
-// module has no side effect and a consent-flow re-init lands fresh values.
-let landingUrl: string;
-let landingPath: string;
-
-export function captureLanding(): void {
-  landingUrl = location.href;
-  landingPath = location.pathname;
-}
 
 export function emitVital(
   emit: Emit,
@@ -49,8 +36,6 @@ export function emitVital(
     "everr.browser.web_vital.rating":
       value > poor ? "poor" : value > ni ? "needs-improvement" : "good",
     "everr.browser.web_vital.navigation_type": navigationType(restored),
-    "everr.landing.url": landingUrl,
-    "everr.landing.path": landingPath,
     ...extra,
   });
 }
