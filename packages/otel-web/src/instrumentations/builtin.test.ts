@@ -35,6 +35,11 @@ async function names(): Promise<string[]> {
   return (await records()).map((r) => r.eventName);
 }
 
+async function spanNames(): Promise<string[]> {
+  await client?.flush();
+  return batches.flatMap((b) => b.spans).map((s) => s.name);
+}
+
 // The test-kit fetch stub only understands OTLP posts, so an app request
 // throws inside the patched fetch; the span still records, and swallowing
 // here keeps the test focused on the pipeline.
@@ -183,7 +188,7 @@ describe("slow interactions ownership", () => {
     fire?.([slowEntry]);
     vi.advanceTimersByTime(1_100);
     vi.useRealTimers();
-    expect(await names()).toContain("everr.browser.slow_interaction");
+    expect(await spanNames()).toContain("slow_interaction");
   });
 
   it("interactions() does not", async () => {
@@ -191,12 +196,12 @@ describe("slow interactions ownership", () => {
     // interactions() never registers an Event Timing observer at all.
     expect(fire).toBeUndefined();
     vi.useRealTimers();
-    expect(await names()).not.toContain("everr.browser.slow_interaction");
+    expect(await spanNames()).not.toContain("slow_interaction");
   });
 });
 
 describe("performance({ pageLoad })", () => {
-  it("emits a record per resource entry and stops after runtime teardown", async () => {
+  it("emits a span per resource entry and stops after runtime teardown", async () => {
     let fire: ((entries: unknown[]) => void) | undefined;
     class PO {
       cb: (list: { getEntries: () => unknown[] }) => void;
@@ -230,6 +235,7 @@ describe("performance({ pageLoad })", () => {
         entryType: "resource",
         name: "https://cdn.example.com/app.js?v=1",
         initiatorType: "script",
+        startTime: 10,
         duration: 120,
         domainLookupStart: 0,
         domainLookupEnd: 0,
@@ -244,12 +250,13 @@ describe("performance({ pageLoad })", () => {
         decodedBodySize: 12000,
       },
     ]);
-    const [record] = (await records()).filter(
-      (r) => r.eventName === "everr.browser.asset",
-    );
-    expect(attrs(record)["url.full"]).toBe("https://cdn.example.com/app.js");
-    // The envelope stamps the shared session context on asset records too.
-    expect(attrs(record)["session.id"]).toBeDefined();
+    await client?.flush();
+    const [span] = batches
+      .flatMap((b) => b.spans)
+      .filter((s) => s.name === "GET https://cdn.example.com/app.js");
+    expect(attrs(span)["url.full"]).toBe("https://cdn.example.com/app.js");
+    // The envelope stamps the shared session context on asset spans too.
+    expect(attrs(span)["session.id"]).toBeDefined();
     await client?.shutdown();
     client = undefined;
     expect(fire).toBeUndefined();

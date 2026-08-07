@@ -29,12 +29,12 @@ export type PageLoadOptions = {
 export type PerformanceOptions = {
   /** Which web vitals to record. Default: all of them. */
   webVitals?: WebVitalName[];
-  /** Record `everr.browser.slow_interaction` records. Default true. */
+  /** Record `slow_interaction` spans. Default true. */
   slowInteractions?: boolean;
   /**
    * Capture the initial page load: the static-resource waterfall (one
-   * `everr.browser.asset` record per script/css/img/font...) plus one
-   * `everr.browser.long_animation_frame` record per main-thread stall in
+   * `GET <url>` span per script/css/img/font...) plus one
+   * `long_animation_frame` span per main-thread stall in
    * the same window. High-volume by design and off by default; `true` for
    * the defaults or an options object to tune the window and sampling.
    */
@@ -43,10 +43,10 @@ export type PerformanceOptions = {
 
 /**
  * The performance instrumentation: web vitals, all computed in-house (LCP, CLS, TTFB
- * in webvitals.ts, INP in inp.ts) plus `everr.browser.slow_interaction`
- * records from the same Event Timing observer that computes INP, and the
+ * in webvitals.ts, INP in inp.ts) plus `slow_interaction` spans
+ * from the same Event Timing observer that computes INP, and the
  * opt-in page-load capture (pageload.ts). All outputs are configurable:
- * `webVitals` picks the vitals, `slowInteractions` gates the slow records
+ * `webVitals` picks the vitals, `slowInteractions` gates the slow spans
  * (the shared observer runs only while at least one of INP or slow
  * interactions wants it), `pageLoad` opens the load window.
  */
@@ -63,7 +63,8 @@ export function performance(options?: PerformanceOptions): Instrumentation {
     // startWebVitals with an empty list registers nothing; the inp/slow
     // guard is load-bearing (it keeps the Event Timing observer off).
     const stopVitals = startWebVitals(ctx.emit, classic);
-    const stopInp = inp || slow ? startInp(ctx.emit, inp, slow) : undefined;
+    const stopInp =
+      inp || slow ? startInp(ctx.emit, ctx.tracer, inp, slow) : undefined;
     // The sample decision mirrors sampled(): hashed from the session id at
     // setup, decorrelated from whole-instrumentation sampling by its own suffix.
     const sample = pageLoad?.sample ?? 1;
@@ -72,7 +73,7 @@ export function performance(options?: PerformanceOptions): Instrumentation {
       sample > 0 &&
       (sample >= 1 || hashUnit(`${ctx.ids().sessionId}:pageLoad`) < sample)
         ? startPageLoad(
-            ctx.emit,
+            ctx.tracer,
             pageLoad.settleMs ?? 3000,
             pageLoad.ceilingMs ?? 10000,
           )

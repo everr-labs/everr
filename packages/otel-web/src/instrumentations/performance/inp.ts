@@ -1,4 +1,5 @@
 /// <reference path="../../dom.d.ts" />
+import type { Tracer } from "@opentelemetry/api";
 import { elementAttrs, guardOf } from "../../element.js";
 import type { AttrValue, Emit } from "../../emitter.js";
 import { emitVital, whenIdleOrHidden } from "./shared.js";
@@ -6,18 +7,19 @@ import { emitVital, whenIdleOrHidden } from "./shared.js";
 // Interaction latency tracking: one Event Timing observer feeding two
 // outputs.
 //
-// 1. `everr.browser.slow_interaction`: one record per user interaction whose
-//    latency crosses 200ms (the INP "needs improvement" boundary), emitted
-//    at most once per interactionId after a short settle window, carrying
-//    the element payload, the input-delay / processing / presentation phase
-//    breakdown, and Long Animation Frame script attribution where the
-//    browser provides it (Chrome 123+).
+// 1. `slow_interaction` spans: one CLIENT span per user interaction whose
+//    latency crosses 200ms (the INP "needs improvement" boundary), finished
+//    at most once per interactionId after a short settle window. The span
+//    runs input to next paint (timeOrigin-anchored timestamps, latency as
+//    the duration) and carries the element payload, the input-delay /
+//    processing / presentation phase breakdown, and Long Animation Frame
+//    script attribution where the browser provides it (Chrome 123+).
 // 2. The INP web vital (`browser.web_vital`, name=inp): the estimated-p98
 //    longest interaction, reported once when the page first goes hidden.
 //    Its attribution is the same `everr.browser.interaction.*` / `everr.element.*`
-//    vocabulary the slow_interaction record carries (not web-vitals' key
+//    vocabulary the slow_interaction span carries (not web-vitals' key
 //    names), and `everr.browser.interaction.id` joins it to the slow_interaction
-//    record that is its candidate.
+//    span that is its candidate.
 //
 // The measurement core (interaction grouping by interactionId with latency
 // as the max entry duration, the 10-longest candidate list with the
@@ -76,6 +78,7 @@ type Interaction = {
 // observer); callers skip startInp entirely when both are off.
 export function startInp(
   emit: Emit,
+  tracer: Tracer,
   vital: boolean,
   slow: boolean,
 ): () => void {
@@ -262,13 +265,20 @@ export function startInp(
     pendingSlow.delete(id);
     sentSlow.add(id);
     const { entry, frame, latency, attrs } = pending.interaction;
-    emit("everr.browser.slow_interaction", {
-      ...attrs,
-      "everr.browser.interaction.id": id,
-      "everr.browser.interaction.name": entry.name,
-      "everr.browser.interaction.duration": latency,
-      ...phaseAttrs(entry, frame, intersectingLoAFs),
-    });
+    // Input to next paint as a span: startTime anchors it on the trace
+    // timeline and the latency is the duration, so no duration attribute.
+    const start = Math.round(performance.timeOrigin + entry.startTime);
+    tracer
+      .startSpan("slow_interaction", {
+        startTime: start,
+        attributes: {
+          ...attrs,
+          "everr.browser.interaction.id": id,
+          "everr.browser.interaction.name": entry.name,
+          ...phaseAttrs(entry, frame, intersectingLoAFs),
+        },
+      })
+      .end(start + Math.round(latency));
   };
 
   const reportVital = () => {

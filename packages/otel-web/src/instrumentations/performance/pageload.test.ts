@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { Emit } from "../../emitter.js";
+import { createTracer } from "../../tracer.js";
 import type { InstrumentationContext } from "../runtime.js";
 import { performance as performanceInstrumentation } from "./index.js";
 import { startPageLoad } from "./pageload.js";
@@ -8,19 +8,26 @@ import { startPageLoad } from "./pageload.js";
 // captures the per-type callbacks and the tests drive entries by hand.
 // Timers are faked to walk the load + settle / ceiling stop logic.
 
-let emitted: Array<{ name: string; attrs?: Record<string, unknown> }>;
+let spans: Array<{
+  name: string;
+  duration: number;
+  attrs: Record<string, unknown>;
+}>;
 let stop: () => void;
 
-const emit: Emit = (name, attrs) => {
-  emitted.push({ name, attrs });
-};
+// The real tracer over a capturing span sink: assets and long animation
+// frames are spans, with the entry's duration as the span duration.
+const tracer = createTracer((_traceId, _spanId, name, start, end, a) => {
+  spans.push({ name, duration: end - start, attrs: a });
+});
 
-const attrs = (i = 0) => emitted[i].attrs ?? {};
+const attrs = (i = 0) => spans[i].attrs;
 
 type FakeResource = {
   entryType: string;
   name: string;
   initiatorType: string;
+  startTime: number;
   duration: number;
   domainLookupStart: number;
   domainLookupEnd: number;
@@ -43,6 +50,7 @@ function entry(over: Partial<FakeResource>): FakeResource {
     entryType: "resource",
     name: "https://cdn.example.com/app.js",
     initiatorType: "script",
+    startTime: 8.2,
     duration: 120.6,
     domainLookupStart: 10,
     domainLookupEnd: 14,
@@ -65,8 +73,10 @@ type FakeLoaf = {
   startTime: number;
   duration: number;
   blockingDuration: number;
+  styleAndLayoutStart: number;
   scripts: Array<{
     duration: number;
+    forcedStyleAndLayoutDuration: number;
     sourceURL: string;
     sourceFunctionName: string;
     invokerType: string;
@@ -79,15 +89,19 @@ function loaf(over?: Partial<FakeLoaf>): FakeLoaf {
     startTime: 800.4,
     duration: 240.6,
     blockingDuration: 190.2,
+    // Frame ends at 1041: 30ms of trailing style-and-layout.
+    styleAndLayoutStart: 1011,
     scripts: [
       {
         duration: 60,
+        forcedStyleAndLayoutDuration: 0,
         sourceURL: "https://cdn.example.com/vendor.js",
         sourceFunctionName: "hydrate",
         invokerType: "classic-script",
       },
       {
         duration: 150.4,
+        forcedStyleAndLayoutDuration: 0,
         sourceURL: "https://cdn.example.com/app.js",
         sourceFunctionName: "boot",
         invokerType: "module-script",
@@ -143,7 +157,7 @@ function setReadyState(value: string) {
 
 beforeEach(() => {
   vi.useFakeTimers();
-  emitted = [];
+  spans = [];
   setReadyState("loading");
   stubTiming();
 });
@@ -155,26 +169,28 @@ afterEach(() => {
 });
 
 const start = (settleMs = 3000, ceilingMs = 10000) => {
-  stop = startPageLoad(emit, settleMs, ceilingMs);
+  stop = startPageLoad(tracer, settleMs, ceilingMs);
 };
 
 describe("asset waterfall", () => {
-  it("observes resources buffered and emits one record per entry", () => {
+  it("observes resources buffered and emits one span per entry", () => {
     start();
     expect(buffered).toBe(true);
     feed({}, { name: "https://cdn.example.com/site.css?v=2" });
-    expect(emitted).toHaveLength(2);
-    expect(emitted[0].name).toBe("everr.browser.asset");
+    expect(spans).toHaveLength(2);
+    expect(spans[0].name).toBe("GET https://cdn.example.com/app.js");
+    // The name is query-stripped like url.full.
+    expect(spans[1].name).toBe("GET https://cdn.example.com/site.css");
   });
 
   it("maps timing, sizes, and semconv attributes", () => {
     start();
     feed({});
+    expect(spans[0].duration).toBe(121);
     expect(attrs()).toMatchObject({
       "url.full": "https://cdn.example.com/app.js",
       "http.response.status_code": 200,
       "everr.browser.asset.initiator_type": "script",
-      "everr.browser.asset.duration": 121,
       "everr.browser.asset.transfer_size": 5000,
       "everr.browser.asset.encoded_body_size": 4800,
       "everr.browser.asset.decoded_body_size": 12000,
@@ -192,6 +208,17 @@ describe("asset waterfall", () => {
     expect(attrs()["url.full"]).toBe("https://cdn.example.com/img.png");
   });
 
+  it("omits the origin for same-origin assets, keeps it cross-origin", () => {
+    start();
+    feed(
+      { name: `${location.origin}/assets/main.js` },
+      { name: "https://cdn.example.com/app.js" },
+    );
+    expect(spans[0].name).toBe("GET /assets/main.js");
+    expect(attrs(0)["url.full"]).toBe("/assets/main.js");
+    expect(spans[1].name).toBe("GET https://cdn.example.com/app.js");
+  });
+
   it("excludes fetch and xhr entries", () => {
     start();
     feed(
@@ -199,7 +226,7 @@ describe("asset waterfall", () => {
       { initiatorType: "xmlhttprequest" },
       { initiatorType: "img" },
     );
-    expect(emitted).toHaveLength(1);
+    expect(spans).toHaveLength(1);
     expect(attrs()["everr.browser.asset.initiator_type"]).toBe("img");
   });
 
@@ -232,15 +259,19 @@ describe("asset waterfall", () => {
 });
 
 describe("long animation frames", () => {
-  it("emits one record per frame with the longest script attributed", () => {
+  it("emits one span per frame with the longest script attributed", () => {
     start();
     feedLoaf(loaf());
-    expect(emitted).toHaveLength(1);
-    expect(emitted[0].name).toBe("everr.browser.long_animation_frame");
+    expect(spans).toHaveLength(1);
+    expect(spans[0].name).toBe("long_animation_frame");
+    expect(spans[0].duration).toBe(241);
     expect(attrs()).toMatchObject({
-      "everr.browser.long_animation_frame.start_time": 800,
-      "everr.browser.long_animation_frame.duration": 241,
       "everr.browser.long_animation_frame.blocking_duration": 190,
+      // scripts 60 + 150.4; frame end 1041 - styleAndLayoutStart 1011 = 30;
+      // 240.6 - 210.4 - 30 rounds to 0.
+      "everr.browser.long_animation_frame.script_duration": 210,
+      "everr.browser.long_animation_frame.style_and_layout_duration": 30,
+      "everr.browser.long_animation_frame.unattributed_duration": 0,
       "everr.browser.long_animation_frame.script.source_url":
         "https://cdn.example.com/app.js",
       "everr.browser.long_animation_frame.script.function_name": "boot",
@@ -252,19 +283,54 @@ describe("long animation frames", () => {
   it("carries no script attribution when the frame reports no scripts", () => {
     start();
     feedLoaf(loaf({ scripts: [] }));
-    const a = attrs();
-    expect(a["everr.browser.long_animation_frame.duration"]).toBe(241);
+    expect(spans[0].duration).toBe(241);
     expect(
-      a["everr.browser.long_animation_frame.script.source_url"],
+      attrs()["everr.browser.long_animation_frame.script.source_url"],
     ).toBeUndefined();
+    expect(attrs()["everr.browser.long_animation_frame.script_duration"]).toBe(
+      0,
+    );
+    expect(
+      attrs()["everr.browser.long_animation_frame.unattributed_duration"],
+    ).toBe(211);
+  });
+
+  it("counts forced style/layout inside scripts as style-and-layout", () => {
+    start();
+    feedLoaf(
+      loaf({
+        scripts: [
+          {
+            duration: 150.4,
+            forcedStyleAndLayoutDuration: 10,
+            sourceURL: "https://cdn.example.com/app.js",
+            sourceFunctionName: "boot",
+            invokerType: "module-script",
+          },
+        ],
+      }),
+    );
+    const a = attrs();
+    expect(a["everr.browser.long_animation_frame.script_duration"]).toBe(140);
+    expect(
+      a["everr.browser.long_animation_frame.style_and_layout_duration"],
+    ).toBe(40);
+  });
+
+  it("reports no style-and-layout when the frame had no such phase", () => {
+    start();
+    feedLoaf(loaf({ styleAndLayoutStart: 0, scripts: [] }));
+    expect(
+      attrs()["everr.browser.long_animation_frame.style_and_layout_duration"],
+    ).toBe(0);
   });
 
   it("still captures the waterfall when LoAF observation is unsupported", () => {
     loafThrows = true;
     start();
     feed({});
-    expect(emitted).toHaveLength(1);
-    expect(emitted[0].name).toBe("everr.browser.asset");
+    expect(spans).toHaveLength(1);
+    expect(spans[0].name).toBe("GET https://cdn.example.com/app.js");
   });
 
   it("stops with the same window as the waterfall", () => {
@@ -272,7 +338,7 @@ describe("long animation frames", () => {
     window.dispatchEvent(new Event("load"));
     vi.advanceTimersByTime(3000);
     feedLoaf(loaf());
-    expect(emitted).toHaveLength(0);
+    expect(spans).toHaveLength(0);
   });
 });
 
@@ -285,7 +351,7 @@ describe("the load window", () => {
     vi.advanceTimersByTime(1);
     expect(disconnected).toBe(true);
     feed({});
-    expect(emitted).toHaveLength(0);
+    expect(spans).toHaveLength(0);
   });
 
   it("stops at ceilingMs when load never fires", () => {
@@ -310,11 +376,12 @@ describe("the load window", () => {
 });
 
 describe("the pageLoad option", () => {
-  // A minimal instrumentation context: only emit and ids are consulted by the
-  // pageLoad path; the vitals are disabled so no other observer registers.
+  // A minimal instrumentation context: only the tracer and ids are consulted
+  // by the pageLoad path; the vitals are disabled so no other observer
+  // registers.
   const ctx = (sessionId: string): InstrumentationContext =>
     ({
-      emit,
+      tracer,
       ids: () => ({ visitorId: "v", sessionId }),
     }) as unknown as InstrumentationContext;
 
@@ -338,7 +405,7 @@ describe("the pageLoad option", () => {
     boot(true);
     expect(observers.has("resource")).toBe(true);
     feed({});
-    expect(emitted).toHaveLength(1);
+    expect(spans).toHaveLength(1);
   });
 
   it("samples the whole window per session, all-in or all-out", () => {
@@ -378,12 +445,14 @@ describe("script selection", () => {
         scripts: [
           {
             duration: 150.4,
+            forcedStyleAndLayoutDuration: 0,
             sourceURL: "https://cdn.example.com/app.js",
             sourceFunctionName: "boot",
             invokerType: "module-script",
           },
           {
             duration: 60,
+            forcedStyleAndLayoutDuration: 0,
             sourceURL: "https://cdn.example.com/vendor.js",
             sourceFunctionName: "hydrate",
             invokerType: "classic-script",

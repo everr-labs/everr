@@ -1,6 +1,7 @@
 import fc from "fast-check";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Emit } from "../../emitter.js";
+import { createTracer } from "../../tracer.js";
 import { startInp } from "./inp.js";
 import { startWebVitals } from "./webvitals.js";
 
@@ -15,6 +16,12 @@ const emit: Emit = (name, attrs) => {
   emitted.push({ name, attrs });
 };
 const vitals = () => emitted.filter((e) => e.name === "browser.web_vital");
+
+// Slow interactions are spans: the real tracer over a capturing sink.
+let spans: Array<{ attrs: Record<string, unknown> }>;
+const tracer = createTracer((_traceId, _spanId, _name, _start, _end, attrs) => {
+  spans.push({ attrs });
+});
 
 let observers: Map<string, (list: { getEntries: () => unknown[] }) => void>;
 
@@ -105,7 +112,7 @@ describe("INP", () => {
       fc.property(interactions, ([ids, durations]) => {
         emitted = [];
         setVisibility("visible");
-        const stop = startInp(emit, true, false);
+        const stop = startInp(emit, tracer, true, false);
         fire(
           "event",
           ids.map((id, i) => ({
@@ -157,9 +164,9 @@ describe("INP", () => {
 
     fc.assert(
       fc.property(timing, (entry) => {
-        emitted = [];
+        spans = [];
         setVisibility("visible");
-        const stop = startInp(emit, false, true);
+        const stop = startInp(emit, tracer, false, true);
         fire("event", [
           {
             entryType: "event",
@@ -172,7 +179,7 @@ describe("INP", () => {
         vi.advanceTimersByTime(1_000);
         stop();
 
-        const a = emitted[0]?.attrs ?? {};
+        const a = spans[0]?.attrs ?? {};
         const inputDelay = a["everr.browser.interaction.input_delay"] as number;
         const processing = a[
           "everr.browser.interaction.processing_duration"

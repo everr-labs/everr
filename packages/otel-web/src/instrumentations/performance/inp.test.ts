@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Emit } from "../../emitter.js";
+import { createTracer } from "../../tracer.js";
 import { startInp } from "./inp.js";
 
 // jsdom has neither Event Timing nor PerformanceObserver entries: the tests
@@ -9,15 +10,24 @@ import { startInp } from "./inp.js";
 // slow records settle on a 1s timer.
 
 let emitted: Array<{ name: string; attrs?: Record<string, unknown> }>;
+let spans: Array<{
+  name: string;
+  duration: number;
+  attrs: Record<string, unknown>;
+}>;
 let stop: () => void;
 
 const emit: Emit = (name, attrs) => {
   emitted.push({ name, attrs });
 };
 
-const names = () => emitted.map((e) => e.name);
-const slow = () =>
-  emitted.filter((e) => e.name === "everr.browser.slow_interaction");
+// The real tracer over a capturing span sink: slow interactions are spans,
+// with the latency as the span duration rather than an attribute.
+const tracer = createTracer((_traceId, _spanId, name, start, end, attrs) => {
+  spans.push({ name, duration: end - start, attrs });
+});
+
+const slow = () => spans.filter((s) => s.name === "slow_interaction");
 const vitals = () => emitted.filter((e) => e.name === "browser.web_vital");
 
 type FakeEntry = {
@@ -120,13 +130,14 @@ function hide() {
 beforeEach(() => {
   vi.useFakeTimers();
   emitted = [];
+  spans = [];
   document.body.innerHTML = "";
   Object.defineProperty(document, "visibilityState", {
     value: "visible",
     configurable: true,
   });
   stubTiming();
-  stop = startInp(emit, true, true);
+  stop = startInp(emit, tracer, true, true);
 });
 
 afterEach(() => {
@@ -146,11 +157,12 @@ describe("slow interactions", () => {
     ]);
     settle();
 
-    expect(names()).toEqual(["everr.browser.slow_interaction"]);
-    const a = slow()[0].attrs ?? {};
+    expect(emitted).toHaveLength(0);
+    expect(slow()).toHaveLength(1);
+    expect(slow()[0].duration).toBe(240);
+    const a = slow()[0].attrs;
     expect(a["everr.browser.interaction.id"]).toBe(7);
     expect(a["everr.browser.interaction.name"]).toBe("click");
-    expect(a["everr.browser.interaction.duration"]).toBe(240);
     expect(a["everr.browser.interaction.type"]).toBe("pointer");
     expect(a["everr.element.tag"]).toBe("button");
     expect(a["everr.element.selector"]).toBe("#b");
@@ -167,7 +179,7 @@ describe("slow interactions", () => {
       },
     ]);
     settle();
-    const a = slow()[0].attrs ?? {};
+    const a = slow()[0].attrs;
     expect(a["everr.browser.interaction.input_delay"]).toBe(100);
     expect(a["everr.browser.interaction.processing_duration"]).toBe(150);
     // presentation = nextPaint (1000+400) - processingEnd (1250)
@@ -202,8 +214,8 @@ describe("slow interactions", () => {
     feed([{ duration: 320, target: document.getElementById("x") }]);
     settle();
     expect(slow()).toHaveLength(1);
-    const a = slow()[0].attrs ?? {};
-    expect(a["everr.browser.interaction.duration"]).toBe(320);
+    expect(slow()[0].duration).toBe(320);
+    const a = slow()[0].attrs;
     expect(a).not.toHaveProperty("everr.element.tag");
     expect(a).not.toHaveProperty("everr.element.selector");
   });
@@ -234,7 +246,7 @@ describe("slow interactions", () => {
       },
     ]);
     settle();
-    const a = slow()[0].attrs ?? {};
+    const a = slow()[0].attrs;
     expect(a["everr.browser.interaction.script.source_url"]).toBe(
       "https://app.example/bundle.js",
     );
@@ -265,9 +277,8 @@ describe("slow interactions", () => {
       { name: "click", duration: 300, interactionId: 7, target: null },
     ]);
     settle();
-    const a = slow()[0].attrs ?? {};
-    expect(a["everr.browser.interaction.duration"]).toBe(300);
-    expect(a["everr.element.selector"]).toBe("#b");
+    expect(slow()[0].duration).toBe(300);
+    expect(slow()[0].attrs["everr.element.selector"]).toBe("#b");
   });
 
   it("keeps the element payload when the target is removed before settling", () => {
@@ -279,7 +290,7 @@ describe("slow interactions", () => {
     // captured eagerly at processing time.
     target?.remove();
     settle();
-    const a = slow()[0].attrs ?? {};
+    const a = slow()[0].attrs;
     expect(a["everr.element.tag"]).toBe("button");
     expect(a["everr.element.selector"]).toBe("#close");
   });
@@ -417,7 +428,7 @@ describe("output gating", () => {
   it("suppresses slow records when slow is off, still reports the vital", () => {
     stop();
     emitted = [];
-    stop = startInp(emit, true, false);
+    stop = startInp(emit, tracer, true, false);
     feed([{ duration: 300 }]);
     settle();
     expect(slow()).toHaveLength(0);
@@ -428,7 +439,7 @@ describe("output gating", () => {
   it("suppresses the vital when vital is off, still emits slow records", () => {
     stop();
     emitted = [];
-    stop = startInp(emit, false, true);
+    stop = startInp(emit, tracer, false, true);
     feed([{ duration: 300 }]);
     settle();
     expect(slow()).toHaveLength(1);
@@ -441,9 +452,10 @@ describe("lifecycle", () => {
   it("is a no-op without Event Timing support", () => {
     stop();
     vi.unstubAllGlobals();
-    const noop = startInp(emit, true, true);
+    const noop = startInp(emit, tracer, true, true);
     noop();
     expect(emitted).toHaveLength(0);
+    expect(spans).toHaveLength(0);
     stop = () => {};
   });
 
@@ -453,6 +465,7 @@ describe("lifecycle", () => {
     settle();
     hide();
     expect(emitted).toHaveLength(0);
+    expect(spans).toHaveLength(0);
     stop = () => {};
   });
 });
@@ -478,7 +491,7 @@ describe("frame grouping and LoAF selection", () => {
       },
     ]);
     settle();
-    const a = slow()[0].attrs ?? {};
+    const a = slow()[0].attrs;
     expect(a["everr.browser.interaction.processing_duration"]).toBe(279);
     expect(a["everr.browser.interaction.presentation_delay"]).toBe(1);
   });
@@ -531,7 +544,7 @@ describe("frame grouping and LoAF selection", () => {
       },
     ]);
     settle();
-    const a = slow()[0].attrs ?? {};
+    const a = slow()[0].attrs;
     expect(a["everr.browser.interaction.script.source_url"]).toBe(
       "https://app.example/culprit.js",
     );
@@ -556,7 +569,7 @@ describe("frame grouping and LoAF selection", () => {
       },
     ]);
     settle();
-    const a = slow()[0].attrs ?? {};
+    const a = slow()[0].attrs;
     // No scripts intersected: totals exist, the culprit attrs do not.
     expect(a["everr.browser.interaction.total_script_duration"]).toBe(0);
     expect(a).not.toHaveProperty("everr.browser.interaction.script.source_url");
@@ -595,6 +608,7 @@ describe("candidate list and epochs", () => {
     stop();
     vi.advanceTimersByTime(1_000);
     expect(emitted).toHaveLength(0);
+    expect(spans).toHaveLength(0);
     stop = () => {};
   });
 
@@ -609,7 +623,7 @@ describe("candidate list and epochs", () => {
       }
     }
     vi.stubGlobal("PerformanceObserver", ThrowingPO);
-    const stopInert = startInp(emit, true, true);
+    const stopInert = startInp(emit, tracer, true, true);
     expect(() => stopInert()).not.toThrow();
     expect(emitted).toHaveLength(0);
   });
@@ -637,7 +651,7 @@ describe("latency selection", () => {
     feed([{ duration: 240, interactionId: 7 }]);
     feed([{ duration: 210, interactionId: 7 }]);
     settle();
-    expect(slow()[0].attrs?.["everr.browser.interaction.duration"]).toBe(240);
+    expect(slow()[0].duration).toBe(240);
   });
 });
 
@@ -662,7 +676,7 @@ describe("frame merge boundary", () => {
       },
     ]);
     settle();
-    return slow()[0].attrs?.["everr.browser.interaction.processing_duration"];
+    return slow()[0].attrs["everr.browser.interaction.processing_duration"];
   };
 
   it("merges frames at exactly 8ms apart, splits at 9", () => {
