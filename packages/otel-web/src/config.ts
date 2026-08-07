@@ -40,10 +40,10 @@ export function fetchSend(
   extraHeaders: Record<string, string> | undefined,
 ): Send {
   const headers = { "Content-Type": "application/json", ...extraHeaders };
-  // The fetch reference is captured at init, before the network signal
+  // The fetch reference is captured at WebSDK construction, before the network signal
   // patches the global: SDK POSTs structurally cannot be seen by the patch,
   // so no span-of-our-own-batch loop is possible and no URL exclusion is
-  // needed. Tests stub the global before init, so they capture the stub.
+  // needed. Tests stub the global before constructing, so they capture the stub.
   const doFetch = fetch;
   return (signal, body, keepalive) =>
     doFetch(signal === "logs" ? logsUrl : tracesUrl, {

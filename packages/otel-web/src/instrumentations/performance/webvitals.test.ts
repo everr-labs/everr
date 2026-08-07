@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { WebSDK } from "../../client.js";
 import type { Emit } from "../../emitter.js";
 import {
   attrs,
@@ -6,7 +7,6 @@ import {
   startClient,
   UNIQUE_ID,
 } from "../../test-kit.js";
-import type { EverrClient } from "../../types.js";
 import { startWebVitals } from "./webvitals.js";
 
 // jsdom produces no PerformanceObserver entries and no navigation/paint/
@@ -493,7 +493,7 @@ describe("gating and lifecycle", () => {
 // carry the shared envelope, and hidden-time reports ride the keepalive
 // exit flush.
 describe("through the client pipeline", () => {
-  let client: EverrClient | undefined;
+  let client: WebSDK | undefined;
 
   afterEach(async () => {
     await client?.shutdown();
@@ -547,5 +547,273 @@ describe("through the client pipeline", () => {
       .filter((b) => b.keepalive)
       .flatMap((b) => b.records.map((r) => r.eventName));
     expect(exitEvents).toContain("browser.web_vital");
+  });
+});
+
+describe("first-hidden and load-state edges", () => {
+  it("caps first-hidden from the buffered visibility-state entry", () => {
+    perfEntries["visibility-state"] = [{ name: "hidden", startTime: 500 }];
+    start();
+    fire("largest-contentful-paint", [lcpEntry({ startTime: 1_000 })]);
+    hide();
+    expect(vitals("lcp")).toHaveLength(0);
+  });
+
+  it("counts no paints at all when the page starts hidden", () => {
+    setVisibility("hidden");
+    perfEntries.paint = [fcp()];
+    start();
+    fire("largest-contentful-paint", [lcpEntry({ startTime: 100 })]);
+    fire("layout-shift", [shift()]);
+    hide();
+    expect(vitals("lcp")).toHaveLength(0);
+    expect(vitals("cls")).toHaveLength(0);
+  });
+
+  it("reports ttfb from the load event when startup precedes it", () => {
+    Object.defineProperty(document, "readyState", {
+      value: "loading",
+      configurable: true,
+    });
+    try {
+      start(["ttfb"]);
+      expect(vitals("ttfb")).toHaveLength(0);
+      window.dispatchEvent(new Event("load"));
+      vi.advanceTimersByTime(0);
+      expect(vitals("ttfb")).toHaveLength(1);
+    } finally {
+      Object.defineProperty(document, "readyState", {
+        value: "complete",
+        configurable: true,
+      });
+    }
+  });
+
+  const largestShiftAt = (startTime: number) => {
+    setVisibility("visible");
+    perfEntries.paint = [fcp()];
+    start(["cls"]);
+    fire("layout-shift", [shift({ startTime })]);
+    hide();
+    return vitals("cls")[0].attrs?.["everr.browser.web_vital.cls.load_state"];
+  };
+
+  it("stamps the largest shift's document phase", () => {
+    expect(largestShiftAt(250)).toBe("loading"); // before domInteractive
+    expect(largestShiftAt(350)).toBe("dom-interactive");
+    expect(largestShiftAt(450)).toBe("dom-content-loaded");
+  });
+
+  it("treats missing dom milestones as still-pending phases", () => {
+    perfEntries.navigation = [
+      nav({ domContentLoadedEventStart: 0, domComplete: 0 }),
+    ];
+    expect(largestShiftAt(350)).toBe("dom-interactive");
+    perfEntries.navigation = [nav({ domComplete: 0 })];
+    expect(largestShiftAt(450)).toBe("dom-content-loaded");
+  });
+
+  it("reads the phase as loading while the document still parses", () => {
+    Object.defineProperty(document, "readyState", {
+      value: "loading",
+      configurable: true,
+    });
+    try {
+      expect(largestShiftAt(450)).toBe("loading");
+    } finally {
+      Object.defineProperty(document, "readyState", {
+        value: "complete",
+        configurable: true,
+      });
+    }
+  });
+
+  it("falls back to complete (and navigate) without a usable navigation entry", () => {
+    perfEntries.navigation = [];
+    const a = (() => {
+      perfEntries.paint = [fcp()];
+      start(["cls"]);
+      fire("layout-shift", [shift({ startTime: 100 })]);
+      hide();
+      return vitals("cls")[0].attrs ?? {};
+    })();
+    expect(a["everr.browser.web_vital.cls.load_state"]).toBe("complete");
+    expect(a["everr.browser.web_vital.navigation_type"]).toBe("navigate");
+  });
+
+  it("uses the resource's startTime when TAO hides requestStart", () => {
+    perfEntries.navigation = [nav({ responseStart: 100 })];
+    perfEntries.resource = [
+      {
+        name: "https://x/hero.png",
+        startTime: 200,
+        requestStart: 0,
+        responseEnd: 400,
+      },
+    ];
+    start(["lcp"]);
+    fire("largest-contentful-paint", [
+      lcpEntry({ startTime: 1_000, url: "https://x/hero.png" }),
+    ]);
+    hide();
+    const a = vitals("lcp")[0].attrs ?? {};
+    expect(a["everr.browser.web_vital.lcp.resource_load_delay"]).toBe(100);
+    expect(a["everr.browser.web_vital.lcp.resource_load_duration"]).toBe(200);
+  });
+});
+
+describe("lifecycle edges", () => {
+  it("ignores visibility changes that stay visible", () => {
+    perfEntries.paint = [fcp()];
+    fire("largest-contentful-paint", [lcpEntry()]);
+    fire("layout-shift", [shift()]);
+    document.dispatchEvent(new Event("visibilitychange", { bubbles: true }));
+    expect(vitals()).toHaveLength(0);
+  });
+
+  it("ignores a non-persisted pageshow", () => {
+    vi.advanceTimersByTime(0);
+    expect(vitals("ttfb")).toHaveLength(1);
+    window.dispatchEvent(new Event("pageshow"));
+    vi.advanceTimersByTime(50);
+    expect(vitals()).toHaveLength(1);
+  });
+
+  it("restore with only ttfb configured re-reports just ttfb", () => {
+    start(["ttfb"]);
+    vi.advanceTimersByTime(0);
+    restore();
+    vi.advanceTimersByTime(50);
+    expect(vitals("ttfb")).toHaveLength(2);
+    expect(vitals("lcp")).toHaveLength(0);
+  });
+
+  it("restore without a usable navigation entry skips the ttfb re-report", () => {
+    perfEntries.navigation = [nav({ responseStart: 0 })];
+    start(["ttfb", "lcp"]);
+    restore();
+    vi.advanceTimersByTime(50);
+    expect(vitals("ttfb")).toHaveLength(0);
+    expect(vitals("lcp")).toHaveLength(1);
+  });
+
+  it("restore for lcp and cls only never re-reports ttfb", () => {
+    start(["lcp", "cls"]);
+    restore();
+    vi.advanceTimersByTime(50);
+    expect(vitals("ttfb")).toHaveLength(0);
+    expect(vitals("lcp")).toHaveLength(1);
+  });
+
+  it("a stop between restore and the next paint suppresses the lcp", () => {
+    start(["lcp"]);
+    restore();
+    stop();
+    vi.advanceTimersByTime(50);
+    expect(vitals("lcp")).toHaveLength(0);
+    stop = () => {};
+  });
+});
+
+describe("threshold and window boundaries", () => {
+  it("rates a value exactly on a threshold at the better band", () => {
+    perfEntries.navigation = [nav({ responseStart: 800 })];
+    start(["ttfb"]);
+    vi.advanceTimersByTime(0);
+    expect(vitals("ttfb")[0].attrs?.["everr.browser.web_vital.rating"]).toBe(
+      "good",
+    );
+    perfEntries.navigation = [nav({ responseStart: 1_800 })];
+    start(["ttfb"]);
+    vi.advanceTimersByTime(0);
+    expect(vitals("ttfb")[0].attrs?.["everr.browser.web_vital.rating"]).toBe(
+      "needs-improvement",
+    );
+  });
+
+  it("rejects a navigation entry whose responseStart is exactly now", () => {
+    perfEntries.navigation = [nav({ responseStart: 10_000 })]; // == now
+    start(["ttfb"]);
+    vi.advanceTimersByTime(0);
+    expect(vitals("ttfb")).toHaveLength(0);
+  });
+
+  it("splits CLS sessions at exactly a 1s gap, merges at 999ms", () => {
+    perfEntries.paint = [fcp()];
+    start(["cls"]);
+    fire("layout-shift", [
+      shift({ startTime: 1_000, value: 0.1 }),
+      shift({ startTime: 2_000, value: 0.1 }), // gap exactly 1s: new session
+    ]);
+    hide();
+    expect(vitals("cls")[0].attrs?.["browser.web_vital.value"]).toBeCloseTo(
+      0.1,
+    );
+
+    setVisibility("visible");
+    start(["cls"]);
+    fire("layout-shift", [
+      shift({ startTime: 1_000, value: 0.1 }),
+      shift({ startTime: 1_999, value: 0.1 }), // 999ms gap: same session
+    ]);
+    hide();
+    expect(vitals("cls")[0].attrs?.["browser.web_vital.value"]).toBeCloseTo(
+      0.2,
+    );
+  });
+
+  it("ends a CLS session at exactly the 5s span", () => {
+    perfEntries.paint = [fcp()];
+    start(["cls"]);
+    // Gaps of 900ms keep the chain alive; the shift at exactly first+5000
+    // must start a new session.
+    fire("layout-shift", [
+      ...Array.from({ length: 6 }, (_, i) =>
+        shift({ startTime: 1_000 + i * 900, value: 0.1 }),
+      ), // 1000..5500 in 900ms steps: one session, 4500ms span
+    ]);
+    fire("layout-shift", [shift({ startTime: 6_000, value: 0.1 })]); // span exactly 5000
+    hide();
+    expect(vitals("cls")[0].attrs?.["browser.web_vital.value"]).toBeCloseTo(
+      0.6,
+    );
+  });
+
+  it("keeps the first shift as largest on an exact value tie", () => {
+    perfEntries.paint = [fcp()];
+    start(["cls"]);
+    fire("layout-shift", [
+      shift({ startTime: 1_000, value: 0.1 }),
+      shift({ startTime: 1_500, value: 0.1 }),
+    ]);
+    hide();
+    const a = vitals("cls")[0].attrs ?? {};
+    expect(a["everr.browser.web_vital.cls.largest_shift_time"]).toBe(1_000);
+  });
+
+  it("keeps the first session as worst on an exact session-value tie", () => {
+    perfEntries.paint = [fcp()];
+    start(["cls"]);
+    fire("layout-shift", [
+      shift({ startTime: 1_000, value: 0.1 }),
+      shift({ startTime: 3_000, value: 0.1 }), // separate session, equal value
+    ]);
+    hide();
+    const a = vitals("cls")[0].attrs ?? {};
+    expect(a["everr.browser.web_vital.cls.largest_shift_time"]).toBe(1_000);
+  });
+
+  it("maps a shift exactly on a document milestone to the later phase", () => {
+    const largestShiftAt = (startTime: number) => {
+      setVisibility("visible");
+      perfEntries.paint = [fcp()];
+      start(["cls"]);
+      fire("layout-shift", [shift({ startTime })]);
+      hide();
+      return vitals("cls")[0].attrs?.["everr.browser.web_vital.cls.load_state"];
+    };
+    expect(largestShiftAt(300)).toBe("dom-interactive"); // == domInteractive
+    expect(largestShiftAt(400)).toBe("dom-content-loaded"); // == dclStart
+    expect(largestShiftAt(500)).toBe("complete"); // == domComplete
   });
 });

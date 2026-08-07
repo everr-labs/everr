@@ -1,19 +1,19 @@
 import { vi } from "vitest";
-import { init } from "./client.js";
-import { errors } from "./plugins/errors/index.js";
-import { interactions } from "./plugins/interactions/index.js";
-import { network } from "./plugins/network/index.js";
-import { pageviews } from "./plugins/pageviews/index.js";
-import { performance as performancePlugin } from "./plugins/performance/index.js";
-import type { Plugin } from "./plugins/runtime.js";
-import type { EverrClient, InitOptions } from "./types.js";
+import { WebSDK } from "./client.js";
+import { errors } from "./instrumentations/errors/index.js";
+import { interactions } from "./instrumentations/interactions/index.js";
+import { network } from "./instrumentations/network/index.js";
+import { pageviews } from "./instrumentations/pageviews/index.js";
+import { performance as performanceInstrumentation } from "./instrumentations/performance/index.js";
+import type { Instrumentation } from "./instrumentations/runtime.js";
+import type { WebSDKOptions } from "./types.js";
 
 /** The full built-in composition, the default for test boots. */
-export const allPlugins = (): Plugin[] => [
+export const allInstrumentations = (): Instrumentation[] => [
   errors(),
   pageviews(),
   interactions(),
-  performancePlugin(),
+  performanceInstrumentation(),
   network(),
 ];
 
@@ -82,10 +82,13 @@ export function attrs(record: OtlpRecord | OtlpSpan): Record<string, unknown> {
  * client, so tests leave no storage behind unless they opt in.
  */
 export function startClient(
-  options?: Partial<InitOptions>,
-): [client: EverrClient, batches: OtlpBatch[]] {
+  options?: Partial<WebSDKOptions>,
+): [client: WebSDK, batches: OtlpBatch[]] {
   const batches = stubOtlpFetch();
-  return [init({ persistence: "memory", ...DEFAULTS, ...options }), batches];
+  return [
+    new WebSDK({ persistence: "memory", ...DEFAULTS, ...options }),
+    batches,
+  ];
 }
 
 /**
@@ -94,17 +97,17 @@ export function startClient(
  * (durable identity is the whole point of this persistence).
  */
 export function startPersistentClient(
-  options?: Partial<InitOptions>,
-): [client: EverrClient, batches: OtlpBatch[]] {
+  options?: Partial<WebSDKOptions>,
+): [client: WebSDK, batches: OtlpBatch[]] {
   const batches = stubOtlpFetch();
-  return [init({ ...DEFAULTS, ...options }), batches];
+  return [new WebSDK({ ...DEFAULTS, ...options }), batches];
 }
 
 const DEFAULTS = {
   serviceName: "everr-docs-test",
   dev: true,
-  get plugins() {
-    return allPlugins();
+  get instrumentations() {
+    return allInstrumentations();
   },
 };
 

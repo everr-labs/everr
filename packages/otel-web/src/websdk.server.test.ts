@@ -1,7 +1,7 @@
 // @vitest-environment node
 //
-// The server half of init(): no window, no document, and no in-house
-// pipeline. init() attaches to the app's registered OpenTelemetry SDK via
+// The server half of new WebSDK(): no window, no document, and no in-house
+// pipeline. new WebSDK() attaches to the app's registered OpenTelemetry SDK via
 // the @opentelemetry/api globals; logger and captureError ride the app's
 // LoggerProvider and join its active trace context. No SDK registered means
 // the API's built-in no-ops: silent, structurally inert.
@@ -22,19 +22,18 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   captureError,
   identify,
-  init,
   logger,
   revoke,
   setAttributes,
   setRouteResolver,
+  WebSDK,
 } from "./server.js";
-import type { EverrClient } from "./types.js";
 
 let logExporter: InMemoryLogRecordExporter;
 let spanExporter: InMemorySpanExporter;
 let loggerProvider: LoggerProvider;
 let tracerProvider: BasicTracerProvider;
-let client: EverrClient | undefined;
+let client: WebSDK | undefined;
 
 function registerSdk(): void {
   context.setGlobalContextManager(
@@ -69,14 +68,14 @@ afterEach(async () => {
 
 describe("init (server)", () => {
   // First in the file by design: the pre-init warning only exists before
-  // the module's first init() call.
+  // the module's first new WebSDK() call.
   it("warns before init and goes silent after shutdown", async () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     logger.info("before init");
     captureError(new Error("before init"));
     expect(warn).toHaveBeenCalledTimes(2);
 
-    client = init({ serviceName: "everr-docs-test" });
+    client = new WebSDK({ serviceName: "everr-docs-test" });
     await client.shutdown();
     client = undefined;
     warn.mockClear();
@@ -87,7 +86,7 @@ describe("init (server)", () => {
   });
 
   it("emits custom logs through the app's LoggerProvider", () => {
-    client = init({ serviceName: "everr-docs-test" });
+    client = new WebSDK({ serviceName: "everr-docs-test" });
     logger.info("ssr render done", { "everr.render.ms": 12 });
 
     const [record] = logExporter.getFinishedLogRecords();
@@ -99,7 +98,7 @@ describe("init (server)", () => {
   });
 
   it("correlates logs with the active span context", () => {
-    client = init({ serviceName: "everr-docs-test" });
+    client = new WebSDK({ serviceName: "everr-docs-test" });
     trace.getTracer("test").startActiveSpan("request", (span) => {
       logger.warn("inside the request");
       span.end();
@@ -112,7 +111,7 @@ describe("init (server)", () => {
   });
 
   it("reports captureError with the shared exception wire contract", () => {
-    client = init({ serviceName: "everr-docs-test" });
+    client = new WebSDK({ serviceName: "everr-docs-test" });
     captureError(new Error("ssr boom"), { "everr.loader.route": "/x" });
 
     const [record] = logExporter.getFinishedLogRecords();
@@ -128,7 +127,7 @@ describe("init (server)", () => {
   });
 
   it("marks the active span as errored, matching otel-errors", () => {
-    client = init({ serviceName: "everr-docs-test" });
+    client = new WebSDK({ serviceName: "everr-docs-test" });
     trace.getTracer("test").startActiveSpan("request", (span) => {
       captureError(new Error("boom"));
       span.end();
@@ -142,12 +141,12 @@ describe("init (server)", () => {
 
   it("treats init options as inert: no pipeline, no network, no lifecycle", async () => {
     const fetchSpy = vi.spyOn(globalThis, "fetch");
-    client = init({
+    client = new WebSDK({
       serviceName: "everr-docs-test",
       ingestKey: "sk_everr_test",
       endpoint: "https://ingest.example.com",
-      // Accepted and ignored: plugins are a browser-pipeline concept.
-      plugins: [
+      // Accepted and ignored: instrumentations are a browser-pipeline concept.
+      instrumentations: [
         () => {
           throw new Error("must never run on the server");
         },
@@ -174,7 +173,7 @@ describe("init (server)", () => {
     logs.disable();
     trace.disable();
     const fetchSpy = vi.spyOn(globalThis, "fetch");
-    client = init({ serviceName: "everr-docs-test" });
+    client = new WebSDK({ serviceName: "everr-docs-test" });
     logger.info("into the void");
     captureError(new Error("also into the void"));
     await client.flush();
@@ -184,30 +183,30 @@ describe("init (server)", () => {
 });
 
 describe("inert shared-code surface", () => {
-  it("plugin factories and persistence resolve as no-ops in the server graph", async () => {
+  it("instrumentation factories and persistence resolve as no-ops in the server graph", async () => {
     const {
       errors,
       interactions,
       network,
       pageviews,
-      performance: performancePlugin,
+      performance: performanceInstrumentation,
       setPersistence,
     } = await import("./server.js");
     setPersistence("localStorage");
     const noopContext = {} as never;
-    for (const plugin of [
+    for (const instrumentation of [
       errors({ ignore: ["x"] }),
       pageviews(),
       interactions(),
-      performancePlugin({ pageLoad: true }),
+      performanceInstrumentation({ pageLoad: true }),
       network({ propagateTo: [] } as never),
     ]) {
-      expect(plugin(noopContext)).toBeUndefined();
+      expect(instrumentation(noopContext)).toBeUndefined();
     }
   });
 
   it("drops nullish log attributes, same as the browser emitter", async () => {
-    client = init({ serviceName: "everr-docs-test" });
+    client = new WebSDK({ serviceName: "everr-docs-test" });
     logger.warn("partial attrs", {
       "everr.kept": "yes",
       "everr.dropped": null,

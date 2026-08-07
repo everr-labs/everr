@@ -8,58 +8,58 @@
 // time they were set; a real regression still trips them.
 module.exports = [
   {
-    name: "core (init only, no plugins)",
+    name: "core (WebSDK only, no instrumentations)",
     path: "dist/index.js",
-    import: "{ init }",
+    import: "{ WebSDK }",
     gzip: true,
     limit: "3 KB",
   },
   {
     name: "core + errors",
     path: "dist/index.js",
-    import: "{ init, errors }",
+    import: "{ WebSDK, errors }",
     gzip: true,
     limit: "4 KB",
   },
   {
     name: "core + pageviews",
     path: "dist/index.js",
-    import: "{ init, pageviews }",
+    import: "{ WebSDK, pageviews }",
     gzip: true,
     limit: "3.5 KB",
   },
   {
     name: "core + interactions",
     path: "dist/index.js",
-    import: "{ init, interactions }",
+    import: "{ WebSDK, interactions }",
     gzip: true,
     limit: "4 KB",
   },
   {
-    // The heaviest plugin: the in-house web vitals (LCP/CLS/TTFB/INP),
+    // The heaviest instrumentation: the in-house web vitals (LCP/CLS/TTFB/INP),
     // slow-interaction records with their LoAF attribution, and the opt-in
     // pageLoad capture (asset waterfall + long-animation-frame records).
     name: "core + performance",
     path: "dist/index.js",
-    import: "{ init, performance }",
+    import: "{ WebSDK, performance }",
     gzip: true,
     limit: "7.75 KB",
   },
   {
     name: "core + network",
     path: "dist/index.js",
-    import: "{ init, network }",
+    import: "{ WebSDK, network }",
     gzip: true,
     limit: "4 KB",
   },
   {
-    // All plugin factories composed: verifies the sampled runtime is
+    // All instrumentation factories composed: verifies the sampled runtime is
     // shared rather than duplicated per composition, so this comes in below
     // the sum of the individual increments above, not above it.
-    name: "core + all plugins",
+    name: "core + all instrumentations",
     path: "dist/index.js",
     import:
-      "{ init, errors, pageviews, interactions, performance, network, sampled }",
+      "{ WebSDK, errors, pageviews, interactions, performance, network, sampled }",
     gzip: true,
     limit: "9.5 KB",
   },

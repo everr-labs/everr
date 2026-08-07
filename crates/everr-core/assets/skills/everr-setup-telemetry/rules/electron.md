@@ -163,12 +163,12 @@ declare global {
 
 ```ts
 // renderer, imported once before the app renders
-import { errors, init } from '@everr/otel-web';
+import { errors, WebSDK } from '@everr/otel-web';
 
 export async function initRendererTelemetry() {
   const context = await window.everrTelemetry.getContext();
 
-  return init({
+  return new WebSDK({
     serviceName: context.serviceName,
     serviceVersion: context.serviceVersion,
     serviceInstanceId: context.serviceInstanceId,
@@ -177,14 +177,14 @@ export async function initRendererTelemetry() {
     // the SDK issues no request of its own. Only the main process reads
     // exporter configuration.
     send: (signal, body) => window.everrTelemetry.proxyOtlp(signal, body),
-    plugins: [errors()],
+    instrumentations: [errors()],
   });
 }
 ```
 
-`process.type = renderer` is not settable through `init()`. Distinguish the two sides with a renderer-specific `serviceName` instead, per `resources.md`, or stamp it per record with `setAttributes({ 'everr.process.type': 'renderer' })`.
+`process.type = renderer` is not settable through the WebSDK options. Distinguish the two sides with a renderer-specific `serviceName` instead, per `resources.md`, or stamp it per record with `setAttributes({ 'everr.process.type': 'renderer' })`.
 
-The `errors()` plugin owns the `window` `error`/`unhandledrejection` handlers. Do not also register your own: that double-captures. `captureError(error, attributes)` covers manual capture, and React apps wrap their root with `ErrorBoundary` from `@everr/otel-web/react`.
+The `errors()` instrumentation owns the `window` `error`/`unhandledrejection` handlers. Do not also register your own: that double-captures. `captureError(error, attributes)` covers manual capture, and React apps wrap their root with `ErrorBoundary` from `@everr/otel-web/react`.
 
 Add `pageviews()`, `interactions()`, `performance()`, or `network()` when the renderer is a real UI and those signals are wanted; each is opt-in.
 
@@ -208,7 +208,7 @@ LIMIT 50
 
 ## Troubleshooting
 
-- No renderer logs: verify `initRendererTelemetry()` runs before capture, the preload exposes `everrTelemetry`, and the `everr:proxy-otlp` handler is registered. `init()` with neither `send` nor a key is inert by design, so a dropped `send` looks identical to disabled telemetry.
+- No renderer logs: verify `initRendererTelemetry()` runs before capture, the preload exposes `everrTelemetry`, and the `everr:proxy-otlp` handler is registered. A WebSDK with neither `send` nor a key is inert by design, so a dropped `send` looks identical to disabled telemetry.
 - Proxy failures: verify the renderer's `send` passes the payload through as `body`, and that `everr:proxy-otlp` POSTs to `{endpoint}/v1/{signal}` with `content-type: application/json` (confirm the collector accepts OTLP/JSON). A throwing `send` is swallowed by design, so failures surface in the main process, not the renderer.
 - Each error captured twice: the library's handlers are running alongside leftover hand-rolled `window`/`process` error handlers. Remove the hand-rolled ones.
 - `everrTelemetry` is undefined in the renderer: the preload script is not wired to the `BrowserWindow` (`webPreferences.preload`), or `contextIsolation` is off.

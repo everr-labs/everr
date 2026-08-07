@@ -4,7 +4,7 @@ import type { Emit } from "../../emitter.js";
 // The interactions signal: product-analytics autocapture plus
 // frustration detection. The autocapture half covers form-field `change` and
 // `submit`; the frustration half covers rage and dead clicks. Slow
-// interactions (Event Timing) live in the performance plugin, sharing the
+// interactions (Event Timing) live in the performance instrumentation, sharing the
 // observer that computes INP, but keep this module's taxonomy, element
 // payload, and privacy perimeter (via the shared element.ts helpers): every
 // event carries tag/selector/chain, the autocapture events are gated by the

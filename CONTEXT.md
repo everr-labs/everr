@@ -84,6 +84,14 @@ A numerical time-series measurement, such as a gauge, counter, or histogram.
 
 ### Browser telemetry
 
+**WebSDK**:
+The browser SDK entry point: constructing it (`new WebSDK({...})`) wires transport, identity, and the configured Instrumentations in one step, with no separate start. `shutdown()` tears everything down; a consent upgrade constructs a new one. Inert on the server and in keyless production builds. The web counterpart to OTel's NodeSDK.
+_Avoid_: init (former name), client, browser SDK instance
+
+**Instrumentation**:
+A capture source composed into the WebSDK: the only way the browser SDK captures anything. Built-ins are errors, pageviews, interactions, performance, and network; `sampled` wraps one to capture a fraction of Sessions. OTel's word for exactly this, though Everr's contract is deliberately a bare setup function, not OTel JS's class-shaped interface.
+_Avoid_: plugin (former name), integration, capture source (informal)
+
 **Analytics event**:
 A browser interaction or page lifecycle moment captured as a Log with an event name (`everr.browser.page_view`, `everr.browser.interaction.rage_click`, and the like). Not a separate signal kind: analytics events are Logs.
 _Avoid_: autocapture event, tracking event

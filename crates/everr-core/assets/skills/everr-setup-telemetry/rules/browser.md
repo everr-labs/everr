@@ -17,7 +17,7 @@ If production browser telemetry is needed and no public key exists, tell the use
 - Production: export to `https://ingest.everr.dev/` with `Authorization: Bearer <public-key>`.
 - Inject the public key through a client build-time variable, for example `VITE_EVERR_PUBLIC_INGEST_KEY` in Vite. Public keys are not secrets, but keep the value out of the repo so it can rotate without a commit.
 - Gate on the key: when the variable is unset in a production build, telemetry must be a no-op so a keyless deploy never POSTs anywhere. In dev builds, fall back to the local collector so developers see their own browser telemetry with no setup. `@everr/otel-web` does both by itself from `ingestKey` and `dev`.
-- No SSR guard is needed: `@everr/otel-web`'s `init()` resolves a server entry under the `node` export condition and is inert there.
+- No SSR guard is needed: `@everr/otel-web`'s WebSDK resolves a server entry under the `node` export condition and is inert there.
 
 ## Setup
 
@@ -29,24 +29,24 @@ npm install @everr/otel-web
 
 ```ts
 // src/telemetry.ts, imported once before the app renders
-import { errors, init, interactions, network, pageviews, performance } from "@everr/otel-web";
+import { errors, interactions, network, pageviews, performance, WebSDK } from "@everr/otel-web";
 
-init({
+new WebSDK({
   serviceName: "<browser-service-name>",
   serviceVersion: "<version>",
   deploymentEnvironment: import.meta.env.MODE,
-  // Unset in a production build makes init() inert: no emitter is built, so
+  // Unset in a production build makes the WebSDK inert: no emitter is built, so
   // a keyless deploy structurally cannot POST anywhere. Dev with no key falls
   // back to the local collector.
   ingestKey: import.meta.env.VITE_EVERR_PUBLIC_INGEST_KEY,
   dev: import.meta.env.DEV,
   // Capture is opt-in. errors() owns the window error/unhandledrejection
   // handlers; never register your own alongside it, that double-captures.
-  plugins: [errors(), pageviews(), interactions(), performance({ pageLoad: true }), network()],
+  instrumentations: [errors(), pageviews(), interactions(), performance({ pageLoad: true }), network()],
 });
 ```
 
-`init()` returns early on the server, so the module is safe to import from shared code; no `typeof window` guard is needed. Batches flush on a timer and on page hide, over `fetch` with `keepalive`.
+The WebSDK constructor returns early on the server, so the module is safe to import from shared code; no `typeof window` guard is needed. Batches flush on a timer and on page hide, over `fetch` with `keepalive`.
 
 For React render errors, add the error boundary at the root:
 

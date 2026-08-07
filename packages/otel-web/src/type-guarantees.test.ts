@@ -1,19 +1,19 @@
 import { describe, expect, it } from "vitest";
 import { identify, revoke } from "./session.js";
-import type { InitOptions } from "./types.js";
+import type { WebSDKOptions } from "./types.js";
 
 // Compile-time guarantees for the public API. The interesting assertions
 // are the `@ts-expect-error` lines, enforced by `tsc --noEmit` (tests are
 // included in the typecheck); the runtime block only references the values so
 // vitest and noUnusedLocals stay happy.
 
-const rejectsUnknownPersistence: InitOptions = {
+const rejectsUnknownPersistence: WebSDKOptions = {
   serviceName: "x",
   // @ts-expect-error - persistence is "localStorage" or "memory", nothing else
   persistence: "cookies",
 };
 
-const persistenceIsOptional: InitOptions = {
+const persistenceIsOptional: WebSDKOptions = {
   serviceName: "x",
 };
 

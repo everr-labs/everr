@@ -1,12 +1,12 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { init } from "./client.js";
+import { WebSDK } from "./client.js";
 import { captureError } from "./errors.js";
+import { errors } from "./instrumentations/errors/index.js";
+import { interactions } from "./instrumentations/interactions/index.js";
+import { network } from "./instrumentations/network/index.js";
+import { pageviews } from "./instrumentations/pageviews/index.js";
+import { performance as performanceInstrumentation } from "./instrumentations/performance/index.js";
 import { logger } from "./logger.js";
-import { errors } from "./plugins/errors/index.js";
-import { interactions } from "./plugins/interactions/index.js";
-import { network } from "./plugins/network/index.js";
-import { pageviews } from "./plugins/pageviews/index.js";
-import { performance as performancePlugin } from "./plugins/performance/index.js";
 import { setRouteResolver } from "./route.js";
 import {
   attrs,
@@ -15,12 +15,12 @@ import {
   startClient,
   UNIQUE_ID,
 } from "./test-kit.js";
-import type { EverrClient, InitOptions } from "./types.js";
+import type { WebSDKOptions } from "./types.js";
 
-let client: EverrClient | undefined;
+let client: WebSDK | undefined;
 let batches: OtlpBatch[];
 
-function start(options?: Partial<InitOptions>): void {
+function start(options?: Partial<WebSDKOptions>): void {
   [client, batches] = startClient(options);
 }
 
@@ -127,7 +127,12 @@ describe("init (persistence: memory)", () => {
 
   it("emits no leave on hide when pageviews() is not composed", async () => {
     start({
-      plugins: [errors(), interactions(), performancePlugin(), network()],
+      instrumentations: [
+        errors(),
+        interactions(),
+        performanceInstrumentation(),
+        network(),
+      ],
     });
     dispatchEvent(new Event("pagehide"));
     expect(await records()).toHaveLength(0);
@@ -181,8 +186,8 @@ describe("init (persistence: memory)", () => {
     expect(sessionStorage.length).toBe(0);
   });
 
-  it("emits nothing with no plugins", async () => {
-    start({ plugins: [] });
+  it("emits nothing with no instrumentations", async () => {
+    start({ instrumentations: [] });
     history.pushState(null, "", "/nope");
     expect(await records()).toHaveLength(0);
     expect(batches).toHaveLength(0);
@@ -190,7 +195,12 @@ describe("init (persistence: memory)", () => {
 
   it("suppresses pageviews only by leaving pageviews() out", async () => {
     start({
-      plugins: [errors(), interactions(), performancePlugin(), network()],
+      instrumentations: [
+        errors(),
+        interactions(),
+        performanceInstrumentation(),
+        network(),
+      ],
     });
     history.pushState(null, "", "/nope");
     expect(await records()).toHaveLength(0);
@@ -257,7 +267,12 @@ describe("init (persistence: memory)", () => {
 
   it("suppresses interactions only by leaving interactions() out", async () => {
     start({
-      plugins: [errors(), pageviews(), performancePlugin(), network()],
+      instrumentations: [
+        errors(),
+        pageviews(),
+        performanceInstrumentation(),
+        network(),
+      ],
     });
     document.body.innerHTML = "<button>quiet</button>";
     for (let i = 0; i < 3; i++) {
@@ -270,9 +285,9 @@ describe("init (persistence: memory)", () => {
     document.body.innerHTML = "";
   });
 
-  it("keeps watching navigations with no plugins, so the envelope stays fresh", () => {
+  it("keeps watching navigations with no instrumentations, so the envelope stays fresh", () => {
     const pushState = history.pushState;
-    start({ plugins: [] });
+    start({ instrumentations: [] });
     // The navigation watcher is envelope infrastructure, not a signal: it
     // must patch history even when no pageview listener is registered.
     expect(history.pushState).not.toBe(pushState);
@@ -293,7 +308,7 @@ describe("init (persistence: memory)", () => {
 describe("structural no-op", () => {
   it("returns an inert client with no key, no endpoint, outside dev", () => {
     const pushState = history.pushState;
-    const inert = init({ serviceName: "everr-docs-test" });
+    const inert = new WebSDK({ serviceName: "everr-docs-test" });
     client = inert;
     // No emitter built and nothing patched: pushState is untouched.
     expect(history.pushState).toBe(pushState);
@@ -303,13 +318,13 @@ describe("structural no-op", () => {
 describe("host-owned transport (send)", () => {
   type Delivered = { signal: string; body: string };
 
-  function startWithSend(extra?: Partial<InitOptions>) {
+  function startWithSend(extra?: Partial<WebSDKOptions>) {
     const delivered: Delivered[] = [];
     const fetchSpy = vi.fn(() =>
       Promise.resolve(new Response(null, { status: 200 })),
     );
     vi.stubGlobal("fetch", fetchSpy);
-    client = init({
+    client = new WebSDK({
       serviceName: "everr-host-test",
       send: (signal, body) => {
         delivered.push({ signal, body });
@@ -343,7 +358,7 @@ describe("host-owned transport (send)", () => {
   });
 
   it("routes captured errors through the host as well", async () => {
-    const { delivered } = startWithSend({ plugins: [errors()] });
+    const { delivered } = startWithSend({ instrumentations: [errors()] });
     captureError(new Error("host boom"));
     await client?.flush();
 
@@ -357,7 +372,7 @@ describe("host-owned transport (send)", () => {
       "fetch",
       vi.fn(() => Promise.resolve(new Response(null, { status: 200 }))),
     );
-    client = init({
+    client = new WebSDK({
       serviceName: "everr-host-test",
       send: () => {
         throw new Error("host refused");
@@ -369,10 +384,10 @@ describe("host-owned transport (send)", () => {
 });
 
 describe("base composition details", () => {
-  it("boots with the plugins option absent entirely", async () => {
-    start({ plugins: undefined });
+  it("boots with the instrumentations option absent entirely", async () => {
+    start({ instrumentations: undefined });
     expect(await records()).toHaveLength(0);
-    // The pipeline still works: the logger rides it without any plugin.
+    // The pipeline still works: the logger rides it without any instrumentation.
     const { logger } = await import("./logger.js");
     logger.info("bare boot");
     const [record] = await records();
@@ -380,7 +395,7 @@ describe("base composition details", () => {
   });
 
   it("does not exit-flush on a visibilitychange back to visible", async () => {
-    start({ plugins: [] });
+    start({ instrumentations: [] });
     Object.defineProperty(document, "visibilityState", {
       value: "visible",
       configurable: true,

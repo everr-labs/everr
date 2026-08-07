@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { getAttributes } from "./attributes.js";
+import { getAttributes, setAttributes } from "./attributes.js";
 import {
   identify,
   revoke,
@@ -165,5 +165,34 @@ describe("revoke", () => {
     expect(visitorId()).not.toBe(visitor);
     expect(sessionId()).not.toBe(session);
     expect(localStorage.length).toBe(0);
+  });
+});
+
+describe("identify scoping", () => {
+  it("replaces only the user.* namespace, keeping other ambient attributes", () => {
+    setAttributes({ "everr.team": "core" });
+    identify("u1", { plan: "pro" });
+    identify("u2");
+    const set = getAttributes();
+    expect(set["everr.team"]).toBe("core");
+    expect(set["user.id"]).toBe("u2");
+    // The re-identify cleared the previous user's traits wholesale.
+    expect(set).not.toHaveProperty("user.plan");
+  });
+});
+
+describe("session timeout boundary", () => {
+  it("keeps the session at exactly 30 minutes of inactivity, rotates past it", () => {
+    vi.useFakeTimers();
+    try {
+      setPersistence("memory");
+      const first = sessionId();
+      vi.advanceTimersByTime(30 * 60 * 1000);
+      expect(sessionId()).toBe(first); // exactly at the timeout: same session
+      vi.advanceTimersByTime(30 * 60 * 1000 + 1);
+      expect(sessionId()).not.toBe(first); // one ms past: a fresh session
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

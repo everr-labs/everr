@@ -1,8 +1,8 @@
 import type { RotatePageView } from "./session.js";
 
 // Navigation watching is envelope infrastructure, not a signal: it always
-// runs (plugins or not) so the session's page context stays fresh for every
-// signal that emits after an SPA navigation. Plugins that react to
+// runs (instrumentations or not) so the session's page context stays fresh for every
+// signal that emits after an SPA navigation. Instrumentations that react to
 // navigations (pageviews today) subscribe as listeners via ctx.onNavigation.
 
 export type NavigationListener = () => void;

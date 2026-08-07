@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { init } from "./client.js";
+import { WebSDK } from "./client.js";
 import { identify, revoke } from "./session.js";
 import {
   attrs,
@@ -8,18 +8,17 @@ import {
   startPersistentClient,
   UNIQUE_ID,
 } from "./test-kit.js";
-import type { EverrClient } from "./types.js";
 
-// localStorage persistence (the SDK default) through init(): the event
+// localStorage persistence (the SDK default) through new WebSDK(): the event
 // schema is identical to memory persistence, only the ids are durable
 // (everr.visitor.id and session.id across reloads and tabs). identify()'s
 // user.* keys ride the in-memory ambient set either way; localStorage is
 // the identity store, so every test starts and ends clean.
 
-let client: EverrClient | undefined;
+let client: WebSDK | undefined;
 let batches: OtlpBatch[];
 
-function start(options?: { plugins?: [] }): void {
+function start(options?: { instrumentations?: [] }): void {
   [client, batches] = startPersistentClient(options);
 }
 
@@ -159,15 +158,15 @@ describe("init (persistence: localStorage)", () => {
     expect(after).not.toHaveProperty("user.id");
   });
 
-  it("emits nothing with no plugins", async () => {
-    start({ plugins: [] });
+  it("emits nothing with no instrumentations", async () => {
+    start({ instrumentations: [] });
     history.pushState(null, "", "/nope");
     expect(await records()).toHaveLength(0);
     expect(batches).toHaveLength(0);
   });
 
   it("keeps identify()/revoke() safely inert in a keyless production build", () => {
-    init({ serviceName: "everr-docs-test" });
+    new WebSDK({ serviceName: "everr-docs-test" });
     expect(localStorage.length).toBe(0);
     expect(() => {
       identify("u_123", { plan: "pro" });

@@ -1,28 +1,29 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { WebSDK } from "../client.js";
 import { captureError } from "../errors.js";
 import {
-  allPlugins,
+  allInstrumentations,
   attrs,
   type OtlpBatch,
   type OtlpRecord,
   startClient,
 } from "../test-kit.js";
-import type { EverrClient, InitOptions } from "../types.js";
+import type { WebSDKOptions } from "../types.js";
 import { errors } from "./errors/index.js";
 import { interactions } from "./interactions/index.js";
 import { network } from "./network/index.js";
 import { pageviews } from "./pageviews/index.js";
-import { performance as performancePlugin } from "./performance/index.js";
+import { performance as performanceInstrumentation } from "./performance/index.js";
 
 // The built-in factories, composed explicitly: capture is opt-in only, so
-// everything captured here comes through the plugins and the public
-// PluginContext.
+// everything captured here comes through the instrumentations and the public
+// InstrumentationContext.
 
-let client: EverrClient | undefined;
+let client: WebSDK | undefined;
 let batches: OtlpBatch[];
 
-function start(options?: Partial<InitOptions>): void {
-  [client, batches] = startClient({ plugins: [], ...options });
+function start(options?: Partial<WebSDKOptions>): void {
+  [client, batches] = startClient({ instrumentations: [], ...options });
 }
 
 async function records(): Promise<OtlpRecord[]> {
@@ -72,7 +73,7 @@ afterEach(async () => {
 
 describe("pageviews()", () => {
   it("captures the initial view, SPA navigations, and the leave", async () => {
-    start({ plugins: [pageviews()] });
+    start({ instrumentations: [pageviews()] });
     const [view] = await records();
     expect(view.eventName).toBe("everr.browser.page_view");
     expect(attrs(view)["everr.navigation.type"]).toBe("initial");
@@ -97,7 +98,7 @@ describe("pageviews()", () => {
   });
 
   it("stops navigating and leaving after teardown", async () => {
-    start({ plugins: [pageviews()] });
+    start({ instrumentations: [pageviews()] });
     await client?.shutdown();
     const before = batches.flatMap((b) => b.records).length;
     history.pushState({}, "", "/gone");
@@ -111,7 +112,7 @@ describe("pageviews()", () => {
 describe("interactions()", () => {
   it("captures clicks with the element payload, and stops on shutdown", async () => {
     document.body.innerHTML = '<button id="go">Buy</button>';
-    start({ plugins: [interactions()] });
+    start({ instrumentations: [interactions()] });
     document.getElementById("go")?.click();
     const clicks = (await records()).filter(
       (r) => r.eventName === "everr.browser.interaction.click",
@@ -178,7 +179,7 @@ describe("slow interactions ownership", () => {
   };
 
   it("performance() emits them", async () => {
-    start({ plugins: [performancePlugin()] });
+    start({ instrumentations: [performanceInstrumentation()] });
     fire?.([slowEntry]);
     vi.advanceTimersByTime(1_100);
     vi.useRealTimers();
@@ -186,7 +187,7 @@ describe("slow interactions ownership", () => {
   });
 
   it("interactions() does not", async () => {
-    start({ plugins: [interactions()] });
+    start({ instrumentations: [interactions()] });
     // interactions() never registers an Event Timing observer at all.
     expect(fire).toBeUndefined();
     vi.useRealTimers();
@@ -216,8 +217,8 @@ describe("performance({ pageLoad })", () => {
     }
     vi.stubGlobal("PerformanceObserver", PO);
     start({
-      plugins: [
-        performancePlugin({
+      instrumentations: [
+        performanceInstrumentation({
           webVitals: [],
           slowInteractions: false,
           pageLoad: true,
@@ -257,7 +258,7 @@ describe("performance({ pageLoad })", () => {
 
 describe("network()", () => {
   it("patches fetch, records request spans, and unpatches on shutdown", async () => {
-    start({ plugins: [network()] });
+    start({ instrumentations: [network()] });
     // startClient stubbed fetch before init, so the patch wrapped the stub;
     // shutdown must swap the patch back out for it.
     const patched = fetch;
@@ -287,7 +288,7 @@ describe("errors()", () => {
     (await records()).filter((r) => r.eventName === "exception");
 
   it("reports unhandled window errors exactly once", async () => {
-    start({ plugins: [errors()] });
+    start({ instrumentations: [errors()] });
     dispatchError(boom("kaboom"));
     const got = await exceptions();
     expect(got).toHaveLength(1);
@@ -296,7 +297,7 @@ describe("errors()", () => {
   });
 
   it("removes the handlers on teardown", async () => {
-    start({ plugins: [errors()] });
+    start({ instrumentations: [errors()] });
     await client?.shutdown();
     client = undefined;
     const before = batches.flatMap((b) => b.records).length;
@@ -306,7 +307,9 @@ describe("errors()", () => {
 
   it("ignore drops matching messages from every error path", async () => {
     start({
-      plugins: [errors({ ignore: ["ResizeObserver", /^Script error/] })],
+      instrumentations: [
+        errors({ ignore: ["ResizeObserver", /^Script error/] }),
+      ],
     });
     // Manual captureError is gated too, as a silent success.
     captureError(boom("ResizeObserver loop limit exceeded"));
@@ -319,7 +322,7 @@ describe("errors()", () => {
   });
 
   it("denyUrls drops by the top stack frame's script url", async () => {
-    start({ plugins: [errors({ denyUrls: ["cdn.widget.example"] })] });
+    start({ instrumentations: [errors({ denyUrls: ["cdn.widget.example"] })] });
     captureError(
       boom(
         "widget exploded",
@@ -352,7 +355,7 @@ describe("errors()", () => {
   });
 
   it("denyUrls falls back to the handler filename, and no url means no match", async () => {
-    start({ plugins: [errors({ denyUrls: [/evil\.example/] })] });
+    start({ instrumentations: [errors({ denyUrls: [/evil\.example/] })] });
     dispatchError(
       boom("from third party", "no frames here"),
       "https://evil.example/inject.js",
@@ -371,9 +374,9 @@ describe("errors()", () => {
   });
 
   it("teardown unregisters the filters", async () => {
-    start({ plugins: [errors({ ignore: ["flaky"] })] });
+    start({ instrumentations: [errors({ ignore: ["flaky"] })] });
     await client?.shutdown();
-    start({ plugins: [errors()] });
+    start({ instrumentations: [errors()] });
     captureError(boom("flaky thing"));
     expect(await exceptions()).toHaveLength(1);
   });
@@ -382,7 +385,7 @@ describe("errors()", () => {
 describe("composing all five", () => {
   it("reproduces today's capture through the public context", async () => {
     document.body.innerHTML = '<button id="all">Go</button>';
-    start({ plugins: allPlugins() });
+    start({ instrumentations: allInstrumentations() });
     document.getElementById("all")?.click();
     dispatchError(new Error("oops"));
     await appFetch(`${location.origin}/api/x`);
@@ -405,5 +408,143 @@ describe("composing all five", () => {
     dispatchEvent(new Event("pagehide"));
     expect(batches.flatMap((b) => b.records)).toHaveLength(before);
     history.pushState({}, "", "/");
+  });
+});
+
+describe("capture guards and page context", () => {
+  it("interactions() ignores events whose target is not an element", async () => {
+    start({ instrumentations: [interactions()] });
+    document.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    expect(await names()).not.toContain("everr.browser.interaction.click");
+  });
+
+  it("pageviews() reports the deepest scroll against the real page height", async () => {
+    start({ instrumentations: [pageviews()] });
+    Object.defineProperty(document.documentElement, "scrollHeight", {
+      value: 2_000,
+      configurable: true,
+    });
+    Object.defineProperty(window, "innerHeight", {
+      value: 500,
+      configurable: true,
+    });
+    Object.defineProperty(window, "scrollY", {
+      value: 500,
+      configurable: true,
+    });
+    dispatchEvent(new Event("scroll"));
+    // Scrolling back up must not shrink the recorded depth.
+    Object.defineProperty(window, "scrollY", { value: 0, configurable: true });
+    dispatchEvent(new Event("scroll"));
+    // A visibilitychange that stays visible is not a leave.
+    Object.defineProperty(document, "visibilityState", {
+      value: "visible",
+      configurable: true,
+    });
+    dispatchEvent(new Event("visibilitychange"));
+    expect(await names()).not.toContain("everr.browser.page_leave");
+    dispatchEvent(new Event("pagehide"));
+    const leave = (await records()).find(
+      (r) => r.eventName === "everr.browser.page_leave",
+    );
+    expect(attrs(leave as OtlpRecord)["everr.scroll.depth"]).toBe(0.5);
+  });
+});
+
+describe("errors() edge wiring", () => {
+  it("ignores error events that carry no error object", async () => {
+    start({ instrumentations: [errors()] });
+    const swallow = (event: Event) => event.preventDefault();
+    window.addEventListener("error", swallow);
+    try {
+      window.dispatchEvent(
+        new ErrorEvent("error", { message: "no object", cancelable: true }),
+      );
+    } finally {
+      window.removeEventListener("error", swallow);
+    }
+    expect(await names()).not.toContain("exception");
+  });
+
+  it("consults denyUrls with no url at all for stackless non-Error captures", async () => {
+    start({ instrumentations: [errors({ denyUrls: ["blocked.example"] })] });
+    captureError("stackless string failure");
+    const got = (await records()).filter((r) => r.eventName === "exception");
+    expect(got).toHaveLength(1);
+    expect(attrs(got[0])["exception.message"]).toBe("stackless string failure");
+  });
+
+  it("a newer init's filters win the slot; the older teardown leaves them", async () => {
+    start({ instrumentations: [errors({ ignore: ["from-first"] })] });
+    const first = client;
+    const [second, secondBatches] = (
+      await import("../test-kit.js")
+    ).startClient({ instrumentations: [errors({ ignore: ["from-second"] })] });
+    // The older client's shutdown must not unregister the newer filter (it
+    // does unbind the shared pipeline, so a fresh init rebinds it).
+    await first?.shutdown();
+    void secondBatches;
+    // A fresh init rebinds the pipeline the first shutdown unbound; the
+    // second client's filter must still be the one in the slot.
+    start({ instrumentations: [] });
+    captureError(new Error("from-second: dropped"));
+    captureError(new Error("from-first: no longer filtered"));
+    const got = (await records()).filter((r) => r.eventName === "exception");
+    expect(got).toHaveLength(1);
+    expect(attrs(got[0])["exception.message"]).toBe(
+      "from-first: no longer filtered",
+    );
+    await second.shutdown();
+  });
+});
+
+describe("frame-url parsing precision", () => {
+  it("passes the exact frame url to RegExp deny rules, line and column stripped", async () => {
+    // An end-anchored RegExp matcher only works if frameUrl strips the
+    // multi-digit :line:column exactly; a sloppier parse leaks digits into
+    // the url and the rule stops matching.
+    start({ instrumentations: [errors({ denyUrls: [/w\.js$/] })] });
+    const denied = new Error("widget exploded");
+    denied.stack =
+      "Error: widget exploded\n    at render (https://cdn.widget.example/w.js:10:25)";
+    captureError(denied);
+    // A frame with no :line:column is not a frame; nothing is denied.
+    const kept = new Error("bare frame");
+    kept.stack = "Error: bare frame\n    at https://cdn.widget.example/w.js";
+    captureError(kept);
+    const got = (await records()).filter((r) => r.eventName === "exception");
+    expect(got).toHaveLength(1);
+    expect(attrs(got[0])["exception.message"]).toBe("bare frame");
+  });
+});
+
+describe("frame-url parsing, remaining shapes", () => {
+  it("recognizes bare and anonymous frames, only at line starts, only whole lines", async () => {
+    start({ instrumentations: [errors({ denyUrls: ["cdn.widget.example"] })] });
+    // Chrome bare frame: no function name, no parentheses.
+    const bare = new Error("bare");
+    bare.stack = "Error: bare\n    at https://cdn.widget.example/w.js:1:2";
+    captureError(bare);
+    // Firefox anonymous frame: nothing before the @.
+    const anon = new Error("anon");
+    anon.stack = "@https://cdn.widget.example/w.js:1:2";
+    captureError(anon);
+    // " at url:line:col" inside a message line is not a frame.
+    const message = new Error("failed at https://cdn.widget.example/w.js:1:2");
+    message.stack =
+      "Error: failed at https://cdn.widget.example/w.js:1:2\n    at main (https://app.example/bundle.js:1:2)";
+    captureError(message);
+    // Trailing junk after the column disqualifies the line as a frame.
+    const trailing = new Error("trailing");
+    trailing.stack =
+      "Error: trailing\n    at https://cdn.widget.example/w.js:1:2 [native]";
+    captureError(trailing);
+    const kept = (await records())
+      .filter((r) => r.eventName === "exception")
+      .map((r) => attrs(r)["exception.message"]);
+    expect(kept).toEqual([
+      "failed at https://cdn.widget.example/w.js:1:2",
+      "trailing",
+    ]);
   });
 });

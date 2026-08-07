@@ -282,3 +282,80 @@ describe("startInteractions", () => {
     });
   });
 });
+
+describe("threshold boundaries", () => {
+  const rageClicks = () =>
+    emitted.filter((e) => e.name === "everr.browser.interaction.rage_click");
+
+  it("counts a click gap of exactly one second toward the burst", () => {
+    vi.useFakeTimers();
+    document.body.innerHTML = "<button>Go</button>";
+    const button = document.querySelector("button") as Element;
+    click(button);
+    vi.advanceTimersByTime(1_000);
+    click(button);
+    vi.advanceTimersByTime(1_000);
+    click(button);
+    expect(rageClicks()).toHaveLength(1);
+  });
+
+  it("resets the burst when a gap exceeds one second by any amount", () => {
+    vi.useFakeTimers();
+    document.body.innerHTML = "<button>Go</button>";
+    const button = document.querySelector("button") as Element;
+    click(button);
+    vi.advanceTimersByTime(1_001);
+    click(button);
+    vi.advanceTimersByTime(1_000);
+    click(button);
+    expect(rageClicks()).toHaveLength(0);
+  });
+
+  it("counts a click exactly 30px away toward the burst, 31px resets it", () => {
+    document.body.innerHTML = "<button>Go</button>";
+    const button = document.querySelector("button") as Element;
+    click(button, 0, 0);
+    click(button, 30, 0);
+    click(button, 30, 0);
+    expect(rageClicks()).toHaveLength(1);
+
+    emitted = [];
+    click(button, 100, 0);
+    click(button, 131, 0);
+    click(button, 131, 0);
+    expect(rageClicks()).toHaveLength(0);
+  });
+});
+
+describe("sensitive text redaction", () => {
+  const textOfClick = (label: string) => {
+    document.body.innerHTML = "<button>x</button>";
+    const button = document.querySelector("button") as Element;
+    button.textContent = label;
+    emitted = [];
+    click(button);
+    return emitted[0]?.attrs?.["everr.element.text"];
+  };
+
+  it("redacts credit-card and SSN shaped text, keeping near misses", () => {
+    expect(textOfClick("Card: 4111 1111 1111 1111")).toBeUndefined();
+    expect(textOfClick("4111-1111-1111-1111")).toBeUndefined();
+    expect(textOfClick("SSN 123-45-6789")).toBeUndefined();
+    // Near misses stay: too few digits, wrong group widths.
+    expect(textOfClick("Order 4111 1111 111")).toBe("Order 4111 1111 111");
+    expect(textOfClick("Ref 123-4-6789")).toBe("Ref 123-4-6789");
+    expect(textOfClick("Ref 123-45-678")).toBe("Ref 123-45-678");
+  });
+});
+
+describe("click coordinates", () => {
+  it("adds the scroll offset to the viewport coordinates", () => {
+    vi.stubGlobal("scrollX", 100);
+    vi.stubGlobal("scrollY", 200);
+    document.body.innerHTML = "<button>Go</button>";
+    click(document.querySelector("button") as Element, 15, 25);
+    const a = emitted[0].attrs ?? {};
+    expect(a["everr.browser.click.x"]).toBe(115);
+    expect(a["everr.browser.click.y"]).toBe(225);
+  });
+});

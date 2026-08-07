@@ -2,7 +2,7 @@ import { currentEmit } from "./current.js";
 
 // Native error reporting: the explicit `captureError` plus the shared
 // `report` binding every error path rides (`captureReactError` lives in the
-// react entry, the global unhandled handlers in the errors() plugin, both
+// react entry, the global unhandled handlers in the errors() instrumentation, both
 // sharing the live binding, so index consumers never pay for either),
 // emitted through the SDK pipeline so every error carries the analytics
 // envelope and joins the session's other signals. This deliberately owns the
@@ -43,7 +43,7 @@ export type Report = (
  * The registered error filter: returns true to drop the error. Consulted on
  * every browser error path (global handlers, React boundaries, manual
  * `captureError`); a filtered report is a silent success. One slot, not a
- * registry: only the errors() plugin sets it (at most once per init), so no
+ * registry: only the errors() instrumentation sets it (at most once per WebSDK), so no
  * filtering exists without it.
  */
 export type ErrorFilter = (
@@ -74,11 +74,11 @@ function frameUrl(stack: string | undefined): string | undefined {
 
 // At most 5 reports per identical error (type, message, top frame) per
 // 5s window, so a render or event loop cannot flood the batch queue.
-// Module-level: the window survives a consent re-init, which is the point.
+// Module-level: the window survives a consent re-construction, which is the point.
 const hits = new Map<string, number[]>();
 
 // The browser reporter: normalization, filter, rate limit, emit. It samples
-// the current pipeline per call (warn before init, silent after shutdown
+// the current pipeline per call (warn before a WebSDK exists, silent after shutdown
 // come from the shared binding), so no wiring step exists on the browser at
 // all.
 const browserReport: Report = (error, mechanism, handled, extra, fileName) => {
@@ -125,7 +125,7 @@ const browserReport: Report = (error, mechanism, handled, extra, fileName) => {
   }
 };
 
-// A live binding: the react entry and the errors() plugin import it. The
+// A live binding: the react entry and the errors() instrumentation import it. The
 // browser reporter is the default and needs no wiring; the server entry
 // swaps in its adapter over @everr/otel-errors/core here, and unbinding
 // restores the default.

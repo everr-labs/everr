@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import type { WebSDK } from "./client.js";
 import { captureError } from "./index.js";
 import { captureReactError } from "./react.js";
 import {
@@ -8,9 +9,8 @@ import {
   startClient,
   UNIQUE_ID,
 } from "./test-kit.js";
-import type { EverrClient } from "./types.js";
 
-let client: EverrClient | undefined;
+let client: WebSDK | undefined;
 let batches: OtlpBatch[];
 
 function start(): void {
@@ -217,5 +217,128 @@ describe("error capture through the SDK", () => {
     } finally {
       warn.mockRestore();
     }
+  });
+});
+
+describe("normalization edge shapes", () => {
+  afterEach(async () => {
+    await client?.shutdown();
+    client = undefined;
+  });
+
+  it("stringifies non-Error values, with String() for the unjsonable", async () => {
+    start();
+    captureError(undefined); // JSON.stringify(undefined) is undefined
+    const record = (await records()).find((r) => r.eventName === "exception");
+    const a = attrs(record as OtlpRecord);
+    expect(a["exception.type"]).toBe("NonError");
+    expect(a["exception.message"]).toBe("undefined");
+  });
+
+  it("marks circular values unserializable instead of throwing", async () => {
+    start();
+    const circular: { self?: unknown } = {};
+    circular.self = circular;
+    captureError(circular);
+    const record = (await records()).find((r) => r.eventName === "exception");
+    expect(attrs(record as OtlpRecord)["exception.message"]).toBe(
+      "[unserializable]",
+    );
+  });
+
+  it("falls back to Error for a nameless error and keeps the bare type as body", async () => {
+    start();
+    const nameless = new Error(""); // empty message too
+    nameless.name = "";
+    delete nameless.stack; // stack falls back to "name: message"
+    captureError(nameless);
+    const record = (await records()).find((r) => r.eventName === "exception");
+    expect(record?.body).toEqual({ stringValue: "Error" });
+    const a = attrs(record as OtlpRecord);
+    expect(a["exception.type"]).toBe("Error");
+    expect(a["exception.stacktrace"]).toBe(": ");
+  });
+
+  it("prunes the rate-limit window once it tracks over 1000 distinct errors", async () => {
+    vi.useFakeTimers();
+    try {
+      start();
+      captureError(new Error("prune-seed"));
+      vi.advanceTimersByTime(6_000); // the seed's window goes stale
+      // Crossing 1000 tracked keys triggers the stale sweep on the next hit.
+      for (let i = 0; i < 1_001; i++) captureError(new Error(`prune-${i}`));
+      // The seed was swept: five fresh reports fit its window again.
+      for (let i = 0; i < 5; i++) captureError(new Error("prune-seed"));
+    } finally {
+      vi.useRealTimers();
+    }
+    const seeds = (await records()).filter(
+      (r) =>
+        r.eventName === "exception" &&
+        attrs(r)["exception.message"] === "prune-seed",
+    );
+    expect(seeds).toHaveLength(6);
+  });
+});
+
+describe("cross-handler dedup, remaining orders", () => {
+  it("does not re-report from a rejection after onerror saw the same object", async () => {
+    start();
+    const error = new TypeError("seen by onerror first");
+    window.dispatchEvent(
+      new ErrorEvent("error", { error, message: error.message }),
+    );
+    const event = new Event("unhandledrejection") as Event & {
+      reason?: unknown;
+    };
+    event.reason = error;
+    window.dispatchEvent(event);
+    const all = await records();
+    expect(all.filter((r) => r.eventName === "exception")).toHaveLength(1);
+  });
+
+  it("reports primitive rejection reasons, which dedup cannot track", async () => {
+    start();
+    const event = new Event("unhandledrejection") as Event & {
+      reason?: unknown;
+    };
+    event.reason = "primitive-reason";
+    window.dispatchEvent(event);
+    const record = (await records()).find(
+      (r) =>
+        r.eventName === "exception" &&
+        attrs(r)["exception.message"] === "primitive-reason",
+    );
+    expect(attrs(record as OtlpRecord)["exception.type"]).toBe("NonError");
+  });
+});
+
+describe("rate-limit window boundary", () => {
+  it("frees a slot at exactly five seconds, not before", async () => {
+    vi.useFakeTimers();
+    try {
+      start();
+      // The limiter keys on type, message, and top frame: pin the stack so
+      // every report lands on one key regardless of the call-site line.
+      const edgeError = () => {
+        const error = new Error("window-edge");
+        error.stack = "Error: window-edge\n    at edge (https://app/x.js:1:1)";
+        return error;
+      };
+      for (let i = 0; i < 5; i++) captureError(edgeError());
+      captureError(edgeError()); // 6th in-window: dropped
+      vi.advanceTimersByTime(4_999);
+      captureError(edgeError()); // still in-window: dropped
+      vi.advanceTimersByTime(1); // the first five stamps expire exactly now
+      captureError(edgeError());
+    } finally {
+      vi.useRealTimers();
+    }
+    const edge = (await records()).filter(
+      (r) =>
+        r.eventName === "exception" &&
+        attrs(r)["exception.message"] === "window-edge",
+    );
+    expect(edge).toHaveLength(6);
   });
 });

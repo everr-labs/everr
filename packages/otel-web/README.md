@@ -2,7 +2,7 @@
 
 Browser telemetry as OpenTelemetry log records: page views, interactions, web vitals, network spans, and errors. One small SDK, one OTLP endpoint, no separate analytics vendor.
 
-Capture is opt-in. A bare `init()` wires the pipeline and identity and captures nothing; you compose the plugins you want.
+Capture is opt-in. A bare `new WebSDK()` wires the pipeline and identity and captures nothing; you compose the instrumentations you want.
 
 ## Install
 
@@ -15,14 +15,14 @@ pnpm add @everr/otel-web
 ## Use
 
 ```ts
-import { errors, init, interactions, network, pageviews, performance } from "@everr/otel-web";
+import { errors, interactions, network, pageviews, performance, WebSDK } from "@everr/otel-web";
 
-init({
+new WebSDK({
   serviceName: "acme-web",
   deploymentEnvironment: import.meta.env.MODE,
   ingestKey: import.meta.env.VITE_EVERR_PUBLIC_INGEST_KEY,
   dev: import.meta.env.DEV,
-  plugins: [
+  instrumentations: [
     errors(),
     pageviews(),
     interactions(),
@@ -34,9 +34,9 @@ init({
 
 Without a key or an endpoint, a production build resolves to an inert client that never issues a request. In dev it falls back to the local collector on `127.0.0.1:54318`.
 
-## Plugins
+## Instrumentations
 
-| Plugin | Captures |
+| Instrumentation | Captures |
 | --- | --- |
 | `errors()` | `window` errors and unhandled rejections, with `ignore` and `denyUrls` filters |
 | `pageviews()` | Page views and page leaves, across SPA navigations |
@@ -44,7 +44,7 @@ Without a key or an endpoint, a production build resolves to an inert client tha
 | `performance()` | Web vitals; `{ pageLoad: true }` adds the asset waterfall and long animation frames |
 | `network()` | `fetch` and XHR as client spans |
 
-Wrap any plugin in `sampled(rate, plugin)` to capture a fraction of sessions.
+Wrap any instrumentation in `sampled(rate, instrumentation)` to capture a fraction of sessions.
 
 ## Manual capture
 
@@ -69,7 +69,7 @@ import { ErrorBoundary } from "@everr/otel-web/react";
 
 `persistence: "localStorage"` (the default) keeps a random visitor id and 30-minute-inactivity sessions across reloads and tabs. `persistence: "memory"` uses zero cookies and zero storage: the same ids exist only in JS memory and die with the page.
 
-The event schema is identical either way. A consent-gated app boots with `"memory"` and re-initializes with `"localStorage"` once consent is granted.
+The event schema is identical either way. A consent-gated app boots with `"memory"` and constructs a new WebSDK with `"localStorage"` once consent is granted.
 
 ## Host-owned transport
 
@@ -78,10 +78,10 @@ An app that proxies its own telemetry (a Tauri or Electron renderer, a service w
 ```ts
 import { invoke } from "@tauri-apps/api/core";
 
-init({
+new WebSDK({
   serviceName: "acme-desktop",
   send: (signal, body) => invoke("proxy_otlp", { signal, body }),
-  plugins: [errors()],
+  instrumentations: [errors()],
 });
 ```
 
@@ -89,7 +89,7 @@ init({
 
 ## Server rendering
 
-The `node` export condition resolves a server entry, so isomorphic code can import `logger` and `captureError` from the same specifier. On the server the SDK owns no pipeline: it attaches to the OpenTelemetry SDK your app already registered, and records join the request trace. `init()` options are accepted and inert there, and lifecycle belongs to your `NodeSDK` handle.
+The `node` export condition resolves a server entry, so isomorphic code can import `logger` and `captureError` from the same specifier. On the server the SDK owns no pipeline: it attaches to the OpenTelemetry SDK your app already registered, and records join the request trace. WebSDK options are accepted and inert there, and lifecycle belongs to your `NodeSDK` handle.
 
 For Node process crashes, use [`@everr/otel-errors`](https://github.com/everr-labs/everr/tree/main/packages/otel-errors).
 

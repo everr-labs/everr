@@ -1,12 +1,12 @@
-// The SDK's OTel Tracer, handed to plugins: a minimal implementation of the
+// The SDK's OTel Tracer, handed to instrumentations: a minimal implementation of the
 // @opentelemetry/api Tracer interface over the SDK's own span pipeline, so a
-// plugin span gets exactly the network signal's treatment: enveloped,
+// instrumentation span gets exactly the network signal's treatment: enveloped,
 // batched, and shipped on the traces pipeline. @opentelemetry/api is a
 // type-only import here: no runtime dependency and no registered global
 // provider is involved.
 //
 // Scope of the implementation: every span is its own always-sampled trace
-// (ids minted locally, exposed via spanContext() so a plugin can propagate
+// (ids minted locally, exposed via spanContext() so an instrumentation can propagate
 // them), kind is CLIENT like every SDK span, and there is no context
 // manager, so startActiveSpan runs its callback without activating the span
 // and spans never parent each other. Events and links are accepted and

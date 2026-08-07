@@ -456,3 +456,220 @@ describe("lifecycle", () => {
     stop = () => {};
   });
 });
+
+describe("frame grouping and LoAF selection", () => {
+  it("merges entries presented in the same frame into one processing span", () => {
+    feed([
+      {
+        interactionId: 7,
+        duration: 300,
+        startTime: 1000,
+        processingStart: 1020,
+        processingEnd: 1100,
+      },
+      // A non-interaction entry rendered in the same frame (within 8ms)
+      // stretches the frame's processing window.
+      {
+        interactionId: 0,
+        duration: 10,
+        startTime: 1292,
+        processingStart: 1294,
+        processingEnd: 1299,
+      },
+    ]);
+    settle();
+    const a = slow()[0].attrs ?? {};
+    expect(a["everr.browser.interaction.processing_duration"]).toBe(279);
+    expect(a["everr.browser.interaction.presentation_delay"]).toBe(1);
+  });
+
+  it("intersects only the overlapping LoAFs, in time order", () => {
+    const script = (startTime: number, duration: number, url: string) => ({
+      startTime,
+      duration,
+      forcedStyleAndLayoutDuration: 0,
+      sourceURL: url,
+      sourceFunctionName: "fn",
+      invokerType: "event-listener",
+    });
+    fire("long-animation-frame", [
+      // Ends before the interaction starts: skipped entirely.
+      {
+        startTime: 100,
+        duration: 200,
+        styleAndLayoutStart: 300,
+        scripts: [script(100, 200, "https://app.example/early.js")],
+      },
+      {
+        startTime: 1010,
+        duration: 200,
+        styleAndLayoutStart: 1210,
+        scripts: [
+          // Ended before the interaction began: same-frame earlier work.
+          script(900, 80, "https://app.example/before.js"),
+          // Zero-duration script: no forced-layout apportioning possible.
+          script(1020, 0, "https://app.example/zero.js"),
+          script(1020, 180, "https://app.example/culprit.js"),
+          // Shorter than the current longest: not the culprit.
+          script(1030, 50, "https://app.example/minor.js"),
+        ],
+      },
+      // Starts after the processing window: the scan stops there.
+      {
+        startTime: 5000,
+        duration: 100,
+        styleAndLayoutStart: 5100,
+        scripts: [script(5000, 100, "https://app.example/late.js")],
+      },
+    ]);
+    feed([
+      {
+        duration: 400,
+        startTime: 1000,
+        processingStart: 1010,
+        processingEnd: 1300,
+      },
+    ]);
+    settle();
+    const a = slow()[0].attrs ?? {};
+    expect(a["everr.browser.interaction.script.source_url"]).toBe(
+      "https://app.example/culprit.js",
+    );
+    expect(a["everr.browser.interaction.script.duration"]).toBe(180);
+  });
+
+  it("counts trailing paint time when the last LoAF ends after processing", () => {
+    fire("long-animation-frame", [
+      {
+        startTime: 1000,
+        duration: 320,
+        styleAndLayoutStart: 1320,
+        scripts: [],
+      },
+    ]);
+    feed([
+      {
+        duration: 400,
+        startTime: 1000,
+        processingStart: 1010,
+        processingEnd: 1250,
+      },
+    ]);
+    settle();
+    const a = slow()[0].attrs ?? {};
+    // No scripts intersected: totals exist, the culprit attrs do not.
+    expect(a["everr.browser.interaction.total_script_duration"]).toBe(0);
+    expect(a).not.toHaveProperty("everr.browser.interaction.script.source_url");
+    // The frame outlived processing (1320 >= 1250): paint runs to next paint.
+    expect(a["everr.browser.interaction.total_paint_duration"]).toBe(80);
+  });
+});
+
+describe("candidate list and epochs", () => {
+  it("tracks only the ten longest interactions", () => {
+    feed(
+      Array.from({ length: 12 }, (_, i) => ({
+        interactionId: 7 * (i + 1),
+        duration: 200 + i * 8,
+        startTime: 1000 + i * 2000,
+      })),
+    );
+    hide();
+    // The worst interaction still wins INP after the overflow dropped the
+    // shortest candidates.
+    expect(vitals()[0].attrs?.["browser.web_vital.value"]).toBe(288);
+  });
+
+  it("counts a sub-threshold first input as the INP candidate", () => {
+    fire("first-input", [
+      entry({ entryType: "first-input", interactionId: 0, duration: 60 }),
+    ]);
+    vi.advanceTimersByTime(0);
+    hide();
+    expect(vitals()).toHaveLength(1);
+    expect(vitals()[0].attrs?.["browser.web_vital.value"]).toBe(60);
+  });
+
+  it("drops entries still queued for idle processing at stop", () => {
+    fire("event", [entry({ duration: 300 })]);
+    stop();
+    vi.advanceTimersByTime(1_000);
+    expect(emitted).toHaveLength(0);
+    stop = () => {};
+  });
+
+  it("returns an inert stop when event observation is unsupported", () => {
+    class ThrowingPO {
+      observe() {
+        throw new TypeError("unsupported");
+      }
+      disconnect() {}
+      takeRecords() {
+        return [];
+      }
+    }
+    vi.stubGlobal("PerformanceObserver", ThrowingPO);
+    const stopInert = startInp(emit, true, true);
+    expect(() => stopInert()).not.toThrow();
+    expect(emitted).toHaveLength(0);
+  });
+
+  it("ignores visibility changes that stay visible", () => {
+    feed([{ duration: 250, interactionId: 7 }]);
+    document.dispatchEvent(new Event("visibilitychange", { bubbles: true }));
+    expect(vitals()).toHaveLength(0);
+  });
+
+  it("ignores a non-persisted pageshow", () => {
+    feed([{ duration: 250, interactionId: 7 }]);
+    settle();
+    hide();
+    expect(vitals()).toHaveLength(1);
+    window.dispatchEvent(new Event("pageshow"));
+    hide();
+    // No epoch reset happened: the vital stays at-most-once.
+    expect(vitals()).toHaveLength(1);
+  });
+});
+
+describe("latency selection", () => {
+  it("keeps the max-duration entry when a shorter one follows", () => {
+    feed([{ duration: 240, interactionId: 7 }]);
+    feed([{ duration: 210, interactionId: 7 }]);
+    settle();
+    expect(slow()[0].attrs?.["everr.browser.interaction.duration"]).toBe(240);
+  });
+});
+
+describe("frame merge boundary", () => {
+  const processingOf = (secondStart: number) => {
+    emitted = [];
+    feed([
+      {
+        interactionId: 7,
+        duration: 300,
+        startTime: 1000,
+        processingStart: 1020,
+        processingEnd: 1100,
+      },
+      // A render-time neighbor: merged only within the 8ms window.
+      {
+        interactionId: 0,
+        duration: 10,
+        startTime: secondStart,
+        processingStart: secondStart + 1,
+        processingEnd: 1299,
+      },
+    ]);
+    settle();
+    return slow()[0].attrs?.["everr.browser.interaction.processing_duration"];
+  };
+
+  it("merges frames at exactly 8ms apart, splits at 9", () => {
+    expect(processingOf(1298)).toBe(279); // renderTime 1308, |diff| == 8
+  });
+
+  it("keeps frames separate at 9ms apart", () => {
+    expect(processingOf(1299)).toBe(80); // renderTime 1309: own frame
+  });
+});

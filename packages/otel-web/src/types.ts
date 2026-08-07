@@ -1,5 +1,5 @@
 import type { HostSend } from "./config.js";
-import type { Plugin } from "./plugins/runtime.js";
+import type { Instrumentation } from "./instrumentations/runtime.js";
 
 /**
  * Where identity (the visitor id, the session, the identified user) lives.
@@ -13,13 +13,13 @@ import type { Plugin } from "./plugins/runtime.js";
  *   `identify()` works for the life of the page.
  *
  * Consent is the host's call, not the SDK's: a CMP-gated deployment boots
- * with `"memory"` until consent is granted, then re-initializes with
+ * with `"memory"` until consent is granted, then constructs a new WebSDK with
  * `"localStorage"`. The event schema is identical either way; persistence
  * only changes how long the ids live.
  */
 export type Persistence = "localStorage" | "memory";
 
-export type InitOptions = {
+export type WebSDKOptions = {
   /** The `service.name` resource attribute events are reported under. */
   serviceName: string;
   /** Overrides the `service.version` resource attribute (defaults to the SDK build version). */
@@ -36,7 +36,7 @@ export type InitOptions = {
   /**
    * Ingest key. When set (and no explicit `endpoint` is given) events ship
    * to the hosted Everr ingest. In the browser this is the public
-   * origin-bound key; in server code (SSR init) it must be a secret key,
+   * origin-bound key; in server code (an SSR-constructed WebSDK) it must be a secret key,
    * since the hosted ingest denies public keys on origin-less requests.
    */
   ingestKey?: string;
@@ -50,7 +50,7 @@ export type InitOptions = {
    * handing the bytes to its native side:
    *
    * ```ts
-   * init({ send: (signal, body) => invoke("proxy_otlp", { signal, body }) })
+   * new WebSDK({ send: (signal, body) => invoke("proxy_otlp", { signal, body }) })
    * ```
    *
    * Delivery stays best-effort: a throwing or rejecting `send` is swallowed,
@@ -65,17 +65,17 @@ export type InitOptions = {
    * no-op that never issues a network request.
    */
   dev?: boolean;
-  /** How long identity ids live; see {@link Persistence}. Fixed at init. */
+  /** How long identity ids live; see {@link Persistence}. Fixed at construction. */
   persistence?: Persistence;
   /**
-   * The capture sources, set up during init (in order, after identity
-   * resolution) and torn down by `shutdown()` (in reverse order). Capture is
-   * opt-in only: a bare init wires pipeline, transport, and identity and
+   * The capture sources, set up during construction (in order, after
+   * identity resolution) and torn down by `shutdown()` (in reverse order).
+   * Capture is opt-in only: a bare WebSDK wires pipeline, transport, and identity and
    * captures nothing; compose the built-in factories (`errors()`,
    * `pageviews()`, `interactions()`, `performance()`, `network()`) alongside
-   * any custom plugins. Accepted and ignored on the server.
+   * any custom instrumentations. Accepted and ignored on the server.
    */
-  plugins?: Plugin[];
+  instrumentations?: Instrumentation[];
 };
 
 /**
@@ -85,16 +85,3 @@ export type InitOptions = {
  * namespace is replaced per identify anyway).
  */
 export type UserTraits = Record<string, string | number | boolean | null>;
-
-/**
- * The handle returned by `init()`. Identity capabilities (`identify()`,
- * `revoke()`) are package-level functions instead of handle methods, exactly
- * like `captureError()` and `logger`, so the handle shape never depends on
- * the init options.
- */
-export interface EverrClient {
-  /** Force-flushes any batched records. */
-  flush(): Promise<void>;
-  /** Flushes, stops all capture, and unpatches globals. */
-  shutdown(): Promise<void>;
-}

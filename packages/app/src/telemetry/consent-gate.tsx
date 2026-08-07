@@ -37,7 +37,7 @@ function storeConsent(decision: ConsentDecision): void {
  * the tab's whole life: any change here reloads, so it's never stale.
  *
  * A no-op decision (re-confirming what's already running) just closes the
- * UI. An actual change reloads: @everr/otel-web's `init()` picks its
+ * UI. An actual change reloads: @everr/otel-web's WebSDK picks its
  * persistence (localStorage vs. memory) once, at telemetry boot
  * (`telemetry/client.ts`), and never upgrades or downgrades a live client in
  * place. Withdrawing consent additionally calls the SDK's `revoke()` first,
@@ -64,7 +64,7 @@ export function ConsentGate({
     storeConsent(next);
     // Re-confirming what's already running (memory persistence when nothing
     // was decided yet) just closes the UI; an actual change reloads so
-    // init() reboots with the right persistence. Downgrading from granted
+    // the WebSDK reboots with the right persistence. Downgrading from granted
     // deletes the durable ids first.
     if (next === (initialConsent ?? "denied")) {
       setSettingsOpen(false);

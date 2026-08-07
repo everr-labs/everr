@@ -273,7 +273,7 @@ Capture Rust backend failures and panics per `error-tracking.md` and `rust.md`'s
 
 ```ts
 // src/telemetry.ts, imported once before the app renders
-import { errors, init } from '@everr/otel-web';
+import { errors, WebSDK } from '@everr/otel-web';
 import { invoke } from '@tauri-apps/api/core';
 
 type TelemetryContext = {
@@ -283,12 +283,12 @@ type TelemetryContext = {
   deploymentEnvironment: string;
 };
 
-let client: ReturnType<typeof init> | null = null;
+let client: WebSDK | null = null;
 
 async function initBrowserTelemetry() {
   const context = await invoke<TelemetryContext>('get_telemetry_context');
 
-  client = init({
+  client = new WebSDK({
     serviceName: context.serviceName,
     serviceVersion: context.serviceVersion,
     serviceInstanceId: context.serviceInstanceId,
@@ -298,7 +298,7 @@ async function initBrowserTelemetry() {
     send: (signal, body) => invoke('proxy_otlp', { signal, body }),
     // Capture is opt-in. errors() owns the window error/unhandledrejection
     // handlers; never register your own alongside it, that double-captures.
-    plugins: [errors()],
+    instrumentations: [errors()],
   });
 }
 
@@ -378,7 +378,7 @@ A Rust-side change (the proxy command, headers, endpoint, backend setup) needs a
 
 ## Troubleshooting
 
-- No browser telemetry: verify `initBrowserTelemetry()` runs before capture, `get_telemetry_context` is registered, and `proxy_otlp` accepts the `signal`. `init()` with neither `send` nor a key is inert by design, so a dropped `send` looks identical to disabled telemetry.
+- No browser telemetry: verify `initBrowserTelemetry()` runs before capture, `get_telemetry_context` is registered, and `proxy_otlp` accepts the `signal`. A WebSDK with neither `send` nor a key is inert by design, so a dropped `send` looks identical to disabled telemetry.
 - Proxy failures: verify the browser exporter serializes OTLP/JSON and passes it as `body`, and that `proxy_otlp` POSTs to `{endpoint}/v1/{signal}` with `content-type: application/json` (confirm the collector accepts OTLP/JSON).
 - Each error captured twice: the library's handlers are running alongside leftover hand-rolled `window` error handlers. Remove the hand-rolled ones.
 - Missing release version or session id: verify Rust creates one telemetry context at process startup, passes `context.resource()` into the backend setup, and the browser uses `get_telemetry_context`.

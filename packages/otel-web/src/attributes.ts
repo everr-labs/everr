@@ -1,7 +1,7 @@
 // Ambient non-identity context (tenant, feature flags, experiment arms):
 // setAttributes() is identify()'s sibling for everything that is not who the
 // user is. Plain module state like the route resolver: memory only, dies
-// with the page, deliberately survives shutdown()/re-init (a consent flow
+// with the page, deliberately survives shutdown()/re-construction (a consent flow
 // re-initializes the SDK without losing the host's context). The envelope
 // samples it per record, so every subsequently emitted record carries it
 // and per-record attributes win on collision.

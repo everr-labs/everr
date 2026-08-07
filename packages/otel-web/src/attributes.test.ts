@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { setAttributes } from "./attributes.js";
+import type { WebSDK } from "./client.js";
 import {
   attrs,
   type OtlpBatch,
@@ -7,12 +8,12 @@ import {
   startClient,
   UNIQUE_ID,
 } from "./test-kit.js";
-import type { EverrClient, InitOptions } from "./types.js";
+import type { WebSDKOptions } from "./types.js";
 
-let client: EverrClient | undefined;
+let client: WebSDK | undefined;
 let batches: OtlpBatch[];
 
-function start(options?: Partial<InitOptions>): void {
+function start(options?: Partial<WebSDKOptions>): void {
   [client, batches] = startClient(options);
 }
 
@@ -72,7 +73,7 @@ describe("setAttributes", () => {
 
   it("loses to per-record attributes on collision", async () => {
     start({
-      plugins: [
+      instrumentations: [
         (ctx) => () => {
           ctx.emit("everr.test.collision", { "everr.tenant.id": "record" });
         },

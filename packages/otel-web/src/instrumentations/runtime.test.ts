@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import type { WebSDK } from "../client.js";
 import { setRouteResolver } from "../route.js";
 import {
   attrs,
@@ -8,14 +9,14 @@ import {
   startClient,
   UNIQUE_ID,
 } from "../test-kit.js";
-import type { EverrClient, InitOptions } from "../types.js";
+import type { WebSDKOptions } from "../types.js";
 import { pageviews } from "./pageviews/index.js";
-import type { Plugin, PluginContext } from "./runtime.js";
+import type { Instrumentation, InstrumentationContext } from "./runtime.js";
 
-let client: EverrClient | undefined;
+let client: WebSDK | undefined;
 let batches: OtlpBatch[];
 
-function start(options?: Partial<InitOptions>): void {
+function start(options?: Partial<WebSDKOptions>): void {
   [client, batches] = startClient(options);
 }
 
@@ -37,20 +38,26 @@ afterEach(async () => {
   vi.restoreAllMocks();
 });
 
-describe("plugin runtime", () => {
+describe("instrumentation runtime", () => {
   it("runs setups during init, in array order, before the first capture", async () => {
     const order: string[] = [];
-    const plugin =
-      (name: string): Plugin =>
+    const instrumentation =
+      (name: string): Instrumentation =>
       (ctx) => {
         order.push(name);
         ctx.emit(`everr.test.${name}`);
       };
-    start({ plugins: [plugin("a"), plugin("b"), pageviews()] });
+    start({
+      instrumentations: [
+        instrumentation("a"),
+        instrumentation("b"),
+        pageviews(),
+      ],
+    });
     expect(order).toEqual(["a", "b"]);
 
     // Array order is capture order: both toy events precede the initial
-    // page_view emitted by the pageviews() plugin composed after them.
+    // page_view emitted by the pageviews() instrumentation composed after them.
     const names = (await records()).map((r) => r.eventName);
     expect(names).toEqual([
       "everr.test.a",
@@ -61,7 +68,7 @@ describe("plugin runtime", () => {
 
   it("gives ctx.emit the ambient pipeline treatment", async () => {
     start({
-      plugins: [
+      instrumentations: [
         (ctx) => {
           ctx.emit("everr.test.toy_event", { "everr.test.count": 3 });
         },
@@ -80,7 +87,7 @@ describe("plugin runtime", () => {
 
   it("per-record attributes win over the envelope", async () => {
     start({
-      plugins: [
+      instrumentations: [
         (ctx) => {
           ctx.emit("everr.test.shadow", { "url.path": "/overridden" });
         },
@@ -91,9 +98,9 @@ describe("plugin runtime", () => {
   });
 
   it("exposes exactly the seven context members", () => {
-    let ctx: PluginContext | undefined;
+    let ctx: InstrumentationContext | undefined;
     start({
-      plugins: [
+      instrumentations: [
         (c) => {
           ctx = c;
         },
@@ -116,7 +123,7 @@ describe("plugin runtime", () => {
     let ids: { visitorId: string; sessionId: string } | undefined;
     let route: string | null | undefined;
     start({
-      plugins: [
+      instrumentations: [
         (ctx) => {
           ids = ctx.ids();
           route = ctx.route();
@@ -135,7 +142,7 @@ describe("plugin runtime", () => {
   it("route() is null when no resolver is registered", () => {
     let route: string | null = "unset" as string | null;
     start({
-      plugins: [
+      instrumentations: [
         (ctx) => {
           route = ctx.route();
         },
@@ -146,9 +153,9 @@ describe("plugin runtime", () => {
 
   it("ships tracer spans through the traces pipeline with the envelope", async () => {
     start({
-      plugins: [
+      instrumentations: [
         (ctx) => {
-          const span = ctx.tracer.startSpan("plugin work", {
+          const span = ctx.tracer.startSpan("instrumentation work", {
             attributes: { "everr.test.step": "one" },
           });
           span.setAttribute("everr.test.done", true);
@@ -161,7 +168,7 @@ describe("plugin runtime", () => {
       ],
     });
     const [ok, failed] = await spans();
-    expect(ok.name).toBe("plugin work");
+    expect(ok.name).toBe("instrumentation work");
     expect(ok.traceId).toMatch(/^[0-9a-f]{32}$/);
     expect(ok.spanId).toMatch(/^[0-9a-f]{16}$/);
     expect(ok.status?.code).toBeUndefined();
@@ -175,15 +182,15 @@ describe("plugin runtime", () => {
 
   it("runs teardowns on shutdown in reverse order, before the pipeline closes", async () => {
     const order: string[] = [];
-    const plugin =
-      (name: string): Plugin =>
+    const instrumentation =
+      (name: string): Instrumentation =>
       (ctx) =>
       () => {
         order.push(name);
         // A teardown emit still rides the final flush.
         ctx.emit(`everr.test.bye_${name}`);
       };
-    start({ plugins: [plugin("a"), plugin("b")] });
+    start({ instrumentations: [instrumentation("a"), instrumentation("b")] });
     await client?.shutdown();
     expect(order).toEqual(["b", "a"]);
     const names = batches.flatMap((b) => b.records).map((r) => r.eventName);
@@ -194,15 +201,15 @@ describe("plugin runtime", () => {
 
   it("re-initializing tears down and sets up again", async () => {
     const calls: string[] = [];
-    const plugin: Plugin = () => {
+    const instrumentation: Instrumentation = () => {
       calls.push("setup");
       return () => {
         calls.push("teardown");
       };
     };
-    start({ plugins: [plugin] });
+    start({ instrumentations: [instrumentation] });
     await client?.shutdown();
-    start({ plugins: [plugin], persistence: "localStorage" });
+    start({ instrumentations: [instrumentation], persistence: "localStorage" });
     expect(calls).toEqual(["setup", "teardown", "setup"]);
     await client?.shutdown();
     client = undefined;

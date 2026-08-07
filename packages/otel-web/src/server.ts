@@ -1,6 +1,6 @@
 // The server entry, resolved by the package.json "node" condition so the
 // same `@everr/otel-web` import works in both module graphs of a full-stack
-// framework. On the server there is no everr-owned pipeline: init() attaches
+// framework. On the server there is no everr-owned pipeline: the WebSDK attaches
 // to the OpenTelemetry SDK the app has already registered (NodeSDK in
 // instrumentation.ts) via the @opentelemetry/api globals. logger and
 // captureError ride the app's LoggerProvider with the active context
@@ -30,59 +30,57 @@ import {
 import { bindEmit } from "./current.js";
 import type { AttrValue, Emit } from "./emitter.js";
 import { bindReport } from "./errors.js";
+import type { ErrorsOptions } from "./instrumentations/errors/index.js";
+import type { NetworkOptions } from "./instrumentations/network/index.js";
+import type { PerformanceOptions } from "./instrumentations/performance/index.js";
+import type { Instrumentation } from "./instrumentations/runtime.js";
 import { logger } from "./logger.js";
-import type { ErrorsOptions } from "./plugins/errors/index.js";
-import type { NetworkOptions } from "./plugins/network/index.js";
-import type { PerformanceOptions } from "./plugins/performance/index.js";
-import type { Plugin } from "./plugins/runtime.js";
-import type {
-  EverrClient,
-  InitOptions,
-  Persistence,
-  UserTraits,
-} from "./types.js";
+import type { Persistence, UserTraits, WebSDKOptions } from "./types.js";
 import { SDK_NAME, SDK_VERSION } from "./version.js";
 
 // captureError is the same live-binding surface the browser uses (one
-// state machine: warn before init, silent after shutdown); init() below
-// swaps in the otel-errors adapter.
+// state machine: warn before construction, silent after shutdown); the
+// WebSDK constructor below swaps in the otel-errors adapter.
 export type { AttrValue } from "./emitter.js";
 export { captureError } from "./errors.js";
-export type { Plugin, PluginContext } from "./plugins/runtime.js";
 export type {
-  EverrClient,
-  InitOptions,
-  Persistence,
-  UserTraits,
-} from "./types.js";
+  Instrumentation,
+  InstrumentationContext,
+} from "./instrumentations/runtime.js";
+export type { Persistence, UserTraits, WebSDKOptions } from "./types.js";
 export { logger };
 
 /**
- * Attaches to the app's registered OpenTelemetry SDK. All options are
- * accepted for shared-code compatibility but inert on the server: resource,
- * batching, export, and lifecycle belong to the app's SDK, so `ingestKey` and
- * `endpoint` are browser-only concerns and the returned handle's `flush()`
- * and `shutdown()` resolve immediately (force-flush before a serverless
- * freeze with the NodeSDK handle the app already holds).
+ * The server WebSDK: attaches to the app's registered OpenTelemetry SDK.
+ * All options are accepted for shared-code compatibility but inert on the
+ * server: resource, batching, export, and lifecycle belong to the app's SDK,
+ * so `ingestKey` and `endpoint` are browser-only concerns and the instance's
+ * `flush()` and `shutdown()` resolve immediately (force-flush before a
+ * serverless freeze with the NodeSDK handle the app already holds).
  */
-export function init(_options: InitOptions): EverrClient {
-  // Resolved once: before a global provider registers this is a ProxyLogger
-  // that starts delegating the moment the app's SDK lands.
-  const otelLogger = logs.getLogger(SDK_NAME, SDK_VERSION);
-  const errors = new Client();
-  // The shared current.ts binding: logger samples it per call, here adapted
-  // onto the app's LoggerProvider.
-  const unbindEmit = bindEmit(emitVia(otelLogger));
-  const stopReporting = bindReport((error, mechanism, handled, extra) =>
-    errors.capture({ error, mechanism, handled, attributes: extra }),
-  );
-  return {
-    flush: async () => {},
-    shutdown: async () => {
+export class WebSDK {
+  /** Resolves immediately; batching belongs to the app's SDK. */
+  flush: () => Promise<void>;
+  /** Unbinds logger and captureError from the app's SDK. */
+  shutdown: () => Promise<void>;
+
+  constructor(_options: WebSDKOptions) {
+    // Resolved once: before a global provider registers this is a ProxyLogger
+    // that starts delegating the moment the app's SDK lands.
+    const otelLogger = logs.getLogger(SDK_NAME, SDK_VERSION);
+    const errors = new Client();
+    // The shared current.ts binding: logger samples it per call, here adapted
+    // onto the app's LoggerProvider.
+    const unbindEmit = bindEmit(emitVia(otelLogger));
+    const stopReporting = bindReport((error, mechanism, handled, extra) =>
+      errors.capture({ error, mechanism, handled, attributes: extra }),
+    );
+    this.flush = async () => {};
+    this.shutdown = async () => {
       unbindEmit();
       stopReporting();
-    },
-  };
+    };
+  }
 }
 
 // Identity and route resolution are browser-bound (visitor id, session, and
@@ -108,36 +106,37 @@ export function setRouteResolver(
   _get: (() => string | null | undefined) | null | undefined,
 ): void {}
 
-// The built-in plugin factories, so shared code composing
-// `init({ plugins: [...] })` resolves in the server module graph too. The
-// server init ignores plugins entirely, and these never touch the browser
-// implementations: each returns an inert plugin that sets up nothing.
-const inert: Plugin = () => {};
+// The built-in instrumentation factories, so shared code composing
+// `new WebSDK({ instrumentations: [...] })` resolves in the server module
+// graph too. The server WebSDK ignores instrumentations entirely, and these never touch the browser
+// implementations: each returns an inert instrumentation that sets up nothing.
+const inert: Instrumentation = () => {};
 
 export type {
   ErrorMatcher,
   ErrorsOptions,
-} from "./plugins/errors/index.js";
-export type { NetworkOptions } from "./plugins/network/index.js";
+} from "./instrumentations/errors/index.js";
+export type { NetworkOptions } from "./instrumentations/network/index.js";
 export type {
   PageLoadOptions,
   PerformanceOptions,
   WebVitalName,
-} from "./plugins/performance/index.js";
+} from "./instrumentations/performance/index.js";
 // sampled() is a generic wrapper, not a capture source: it works the same
-// against the server's inert plugins as it does against browser ones.
-export { sampled } from "./plugins/sampled.js";
+// against the server's inert instrumentations as it does against browser ones.
+export { sampled } from "./instrumentations/sampled.js";
 
 /** Inert on the server; error capture belongs to the app's OTel SDK. */
-export const errors = (_options?: ErrorsOptions): Plugin => inert;
+export const errors = (_options?: ErrorsOptions): Instrumentation => inert;
 /** Inert on the server; pageviews are a browser concept. */
-export const pageviews = (): Plugin => inert;
+export const pageviews = (): Instrumentation => inert;
 /** Inert on the server; interactions are a browser concept. */
-export const interactions = (): Plugin => inert;
+export const interactions = (): Instrumentation => inert;
 /** Inert on the server; performance capture is a browser concept. */
-export const performance = (_options?: PerformanceOptions): Plugin => inert;
+export const performance = (_options?: PerformanceOptions): Instrumentation =>
+  inert;
 /** Inert on the server; the fetch patch is a browser concept. */
-export const network = (_options?: NetworkOptions): Plugin => inert;
+export const network = (_options?: NetworkOptions): Instrumentation => inert;
 
 // Adapts the shared logger surface to the OTel Logs API: same Emit shape
 // the browser pipeline uses. The severity text falls out of the API's

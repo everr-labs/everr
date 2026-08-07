@@ -1,4 +1,4 @@
-import type { Plugin } from "../runtime.js";
+import type { Instrumentation } from "../runtime.js";
 import { type PropagationTarget, startNetwork } from "./network.js";
 
 export type NetworkOptions = {
@@ -14,13 +14,13 @@ export type NetworkOptions = {
 };
 
 /**
- * The network plugin: patches window.fetch so every request becomes a CLIENT
+ * The network instrumentation: patches window.fetch so every request becomes a CLIENT
  * span on the traces pipeline and carries W3C trace context where
  * propagation is safe. Teardown unpatches (unless a later patcher won).
  */
-export function network(options?: NetworkOptions): Plugin {
+export function network(options?: NetworkOptions): Instrumentation {
   // Named (not an arrow) so sampled() can hash a real identity from
-  // plugin.name instead of decorrelating nothing.
+  // instrumentation.name instead of decorrelating nothing.
   return function network(ctx) {
     return startNetwork(ctx.tracer, options?.tracePropagationTargets);
   };

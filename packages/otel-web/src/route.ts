@@ -2,7 +2,7 @@
 // active low-cardinality route pattern, sampled per record by the envelope
 // (stamped as `everr.route.pattern`) and by the network signal (span
 // names). A package-level function like identify/captureError: telemetry
-// init runs before any router exists, and registration deliberately
+// WebSDK construction runs before any router exists, and registration deliberately
 // survives shutdown()/re-init (a consent flow re-initializes the SDK long
 // after the router registered).
 

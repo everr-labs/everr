@@ -126,7 +126,7 @@ export function identify(userId: string, traits?: UserTraits): void {
 /**
  * Clears the `user.*` ambient attributes and deletes every stored id
  * (visitor, session). The live client keeps its in-memory ids but stops
- * re-persisting them; the next init starts fresh.
+ * re-persisting them; the next WebSDK starts fresh.
  */
 export function revoke(): void {
   clearUser();
@@ -173,10 +173,8 @@ export function createSessionContext(
   ];
 }
 
+// Always fed location.href (WebSDK construction and the navigation watcher), so the URL
+// is absolute and parseable by construction.
 function pathOf(url: string): string {
-  try {
-    return new URL(url).pathname;
-  } catch {
-    return url;
-  }
+  return new URL(url).pathname;
 }

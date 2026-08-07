@@ -36,7 +36,9 @@
     // imports it.
     "@size-limit/preset-small-lib",
     "@opentelemetry/exporter-trace-otlp-http",
-    "@opentelemetry/sdk-trace-web"
+    "@opentelemetry/sdk-trace-web",
+    // Stryker loads its runner plugin from stryker.config.json at runtime.
+    "@stryker-mutator/vitest-runner"
   ],
   // Docs content (MDX) is loaded dynamically by fumadocs via import.meta.glob
   // in packages/docs/.source/*.ts — fallow can't trace through the glob.

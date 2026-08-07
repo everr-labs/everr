@@ -45,7 +45,9 @@
     "test": "vitest run",
     "test:ci": "vitest run",
     "test:watch": "vitest run --watch",
-    "typecheck": "tsc --noEmit"
+    "test:coverage": "vitest run --coverage",
+    "typecheck": "tsc --noEmit",
+    "test:mutation": "stryker run"
   },
   "dependencies": {
     "@everr/otel-errors": "workspace:*"
@@ -73,8 +75,12 @@
     "@opentelemetry/sdk-logs": "^0.218.0",
     "@opentelemetry/sdk-trace-base": "^2.7.1",
     "@size-limit/preset-small-lib": "^13.0.3",
+    "@stryker-mutator/core": "^9.6.1",
+    "@stryker-mutator/vitest-runner": "^9.6.1",
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
+    "@vitest/coverage-v8": "^4.1.5",
+    "fast-check": "^4.9.0",
     "jsdom": "^29.1.1",
     "react": "catalog:",
     "react-dom": "catalog:",

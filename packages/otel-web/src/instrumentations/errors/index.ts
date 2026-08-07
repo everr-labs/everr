@@ -1,7 +1,7 @@
 import { type ErrorFilter, report, setErrorFilter } from "../../errors.js";
-import type { Plugin } from "../runtime.js";
+import type { Instrumentation } from "../runtime.js";
 
-// The errors plugin: the global unhandled-error and unhandled-rejection
+// The errors instrumentation: the global unhandled-error and unhandled-rejection
 // handlers (reported as unhandled through the shared `report` binding, the
 // same path manual `captureError` and React boundaries ride), plus the
 // declarative `ignore` / `denyUrls` filters, registered on that shared error
@@ -30,9 +30,9 @@ const matches = (
     typeof m === "string" ? value.includes(m) : m.test(value),
   );
 
-export function errors(options?: ErrorsOptions): Plugin {
+export function errors(options?: ErrorsOptions): Instrumentation {
   // Named (not an arrow) so sampled() can hash a real identity from
-  // plugin.name instead of decorrelating nothing.
+  // instrumentation.name instead of decorrelating nothing.
   return function errors() {
     const stopHandlers = startErrors();
     const filter: ErrorFilter = (message, scriptUrl) =>

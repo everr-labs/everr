@@ -1,4 +1,4 @@
-import type { Plugin } from "../runtime.js";
+import type { Instrumentation } from "../runtime.js";
 import { hashUnit } from "../sampled.js";
 import { startInp } from "./inp.js";
 import { startPageLoad } from "./pageload.js";
@@ -42,7 +42,7 @@ export type PerformanceOptions = {
 };
 
 /**
- * The performance plugin: web vitals, all computed in-house (LCP, CLS, TTFB
+ * The performance instrumentation: web vitals, all computed in-house (LCP, CLS, TTFB
  * in webvitals.ts, INP in inp.ts) plus `everr.browser.slow_interaction`
  * records from the same Event Timing observer that computes INP, and the
  * opt-in page-load capture (pageload.ts). All outputs are configurable:
@@ -50,7 +50,7 @@ export type PerformanceOptions = {
  * (the shared observer runs only while at least one of INP or slow
  * interactions wants it), `pageLoad` opens the load window.
  */
-export function performance(options?: PerformanceOptions): Plugin {
+export function performance(options?: PerformanceOptions): Instrumentation {
   const vitals = options?.webVitals ?? ["lcp", "cls", "ttfb", "inp"];
   const slow = options?.slowInteractions ?? true;
   const inp = vitals.includes("inp");
@@ -58,14 +58,14 @@ export function performance(options?: PerformanceOptions): Plugin {
   const pageLoad =
     options?.pageLoad === true ? {} : options?.pageLoad || undefined;
   // Named (not an arrow) so sampled() can hash a real identity from
-  // plugin.name instead of decorrelating nothing.
+  // instrumentation.name instead of decorrelating nothing.
   return function performance(ctx) {
     // startWebVitals with an empty list registers nothing; the inp/slow
     // guard is load-bearing (it keeps the Event Timing observer off).
     const stopVitals = startWebVitals(ctx.emit, classic);
     const stopInp = inp || slow ? startInp(ctx.emit, inp, slow) : undefined;
     // The sample decision mirrors sampled(): hashed from the session id at
-    // setup, decorrelated from whole-plugin sampling by its own suffix.
+    // setup, decorrelated from whole-instrumentation sampling by its own suffix.
     const sample = pageLoad?.sample ?? 1;
     const stopPageLoad =
       pageLoad &&

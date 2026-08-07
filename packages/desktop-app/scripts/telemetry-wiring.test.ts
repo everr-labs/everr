@@ -28,7 +28,7 @@ describe("desktop browser telemetry wiring", () => {
     expect(telemetry).toContain("send:");
     expect(telemetry).toContain('invoke("proxy_otlp", { signal, body })');
 
-    // Errors are the one capture source, and the plugin owns the window
+    // Errors are the one capture source, and the instrumentation owns the window
     // handlers: a hand-rolled listener alongside it would double-capture.
     expect(telemetry).toContain("errors()");
     expect(telemetry).not.toContain("addEventListener(\"error\"");

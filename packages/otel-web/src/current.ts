@@ -1,7 +1,7 @@
 // The live state of the SDK, in one module: the current pipeline binding
 // and the current identity store. Package-level surfaces (logger,
 // captureError, identify, sessionId) sample this state per call instead of
-// each keeping swap machinery, so init()/shutdown() bind and unbind in
+// each keeping swap machinery, so WebSDK construction/shutdown() bind and unbind in
 // exactly one place, and the store can be switched mid-session (a consent
 // flow upgrades memory to localStorage without re-initializing). Emit warns
 // before the first bind (miswiring stays visible), silent after unbind, by
@@ -78,7 +78,7 @@ export function storeFor(persistence: Persistence | undefined): IdentityStore {
   return persistence === "memory" ? memoryStore() : localStorageStore;
 }
 
-// The pre-init default keeps identify()/revoke() harmless before init and
+// The pre-construction default keeps identify()/revoke() harmless before a WebSDK exists and
 // after revoke() (which swaps a fresh memory store in so the live client
 // stops re-persisting).
 let store: IdentityStore = memoryStore();

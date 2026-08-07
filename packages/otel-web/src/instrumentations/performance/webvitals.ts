@@ -71,8 +71,8 @@ export function startWebVitals(emit: Emit, vitals: Classic[]): () => void {
   let stopped = false;
   let restored = false;
 
+  // Every caller checks `stopped` before reporting.
   const report = (name: Classic, value: number, attribution: Attrs) => {
-    if (stopped) return;
     const extra: Attrs = {};
     for (const [key, v] of Object.entries(attribution)) {
       extra[`everr.browser.web_vital.${name}.${key}`] = v;

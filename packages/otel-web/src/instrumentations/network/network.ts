@@ -14,7 +14,7 @@ import { routePattern } from "../../route.js";
 // full URL, or RegExp). Spans are recorded for every request regardless;
 // the option gates only the header.
 //
-// Spans ride the SDK's Tracer (the same one plugins get): each request is
+// Spans ride the SDK's Tracer (the same one instrumentations get): each request is
 // its own always-sampled trace, and its ids feed the traceparent header;
 // pageview/session grouping rides the envelope attrs stamped on the span.
 // The SDK's own telemetry POSTs never reach this patch: the emitter captured

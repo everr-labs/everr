@@ -2,7 +2,7 @@ import type { AttrValue } from "./emitter.js";
 
 // The shared element payload and privacy perimeter, used by every signal
 // that names a DOM element (interactions autocapture, slow interactions and
-// the INP vital in the performance plugin). Guardrails are structural, not
+// the INP vital in the performance instrumentation). Guardrails are structural, not
 // configurable: element values are never read, password and hidden inputs
 // are skipped entirely, captured text is capped and dropped when it looks
 // like a card or SSN, and anything under an `everr-no-capture` class is

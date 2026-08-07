@@ -1,7 +1,7 @@
 // The React-facing surface of the SDK, a dedicated entry so the core stays
 // framework-free and index consumers never carry these bytes (react is an
 // optional peer, needed only by this entry). It imports the errors module's
-// live `report` binding, so reporting works whenever init() has run.
+// live `report` binding, so reporting works whenever a WebSDK exists.
 import { Component, type ErrorInfo, type ReactNode } from "react";
 import { report } from "./errors.js";
 
@@ -9,9 +9,9 @@ export function captureReactError(
   error: unknown,
   errorInfo?: { componentStack?: string | null },
 ): void {
-  // Before init this warns (never throws) so miswiring is visible; after
+  // Before a WebSDK exists this warns (never throws) so miswiring is visible; after
   // shutdown it is silent by design. Works on the server too once the
-  // server-side init() has run.
+  // server-side WebSDK exists.
   report(
     error,
     "react",

@@ -182,3 +182,35 @@ describe("startNetwork", () => {
     expect(spans[1].attrs["http.request.method"]).toBe("PUT");
   });
 });
+
+describe("hardening", () => {
+  it("passes unparsable urls straight through without a span", async () => {
+    start();
+    await fetch("http://");
+    expect(spans).toHaveLength(0);
+    expect(String(lastRequest?.input)).toBe("http://");
+  });
+
+  it("still records the span when the headers cannot be constructed", async () => {
+    start();
+    const invalid = { "bad name\n": "x" } as Record<string, string>;
+    await fetch("/api/ping", { headers: invalid });
+    expect(spans).toHaveLength(1);
+    // Injection was skipped: the caller's init went through untouched.
+    expect(lastRequest?.init?.headers).toBe(invalid);
+  });
+});
+
+describe("status boundaries", () => {
+  it("marks exactly 400 as an error span, and 399 as success", async () => {
+    start();
+    respondWith = () => Promise.resolve(new Response("nope", { status: 400 }));
+    await fetch("/api/bad");
+    respondWith = () => Promise.resolve(new Response("odd", { status: 399 }));
+    await fetch("/api/odd");
+    expect(spans[0].error).toBe(true);
+    expect(spans[0].attrs["error.type"]).toBe("400");
+    expect(spans[1].error).toBeFalsy();
+    expect(spans[1].attrs["error.type"]).toBeUndefined();
+  });
+});

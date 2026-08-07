@@ -113,10 +113,11 @@ export function startInp(
   let pendingLoAFs: PerformanceLongAnimationFrameTiming[] = [];
 
   // --- slow interaction settle state ---
-  const pendingSlow = new Map<
-    number,
-    { interaction: Interaction; timer: ReturnType<typeof setTimeout> }
-  >();
+  type PendingSlow = {
+    interaction: Interaction;
+    timer: ReturnType<typeof setTimeout>;
+  };
+  const pendingSlow = new Map<number, PendingSlow>();
   const sentSlow = new Set<number>();
 
   // --- INP vital epoch (reset on bfcache restore) ---
@@ -235,10 +236,11 @@ export function startInp(
       const pending = pendingSlow.get(id);
       if (pending) clearTimeout(pending.timer);
       if (pending || interaction.latency >= SLOW_THRESHOLD) {
-        pendingSlow.set(id, {
+        const next: PendingSlow = {
           interaction,
-          timer: setTimeout(() => finalizeSlow(id), SETTLE_MS),
-        });
+          timer: setTimeout(() => finalizeSlow(id, next), SETTLE_MS),
+        };
+        pendingSlow.set(id, next);
       }
     }
   };
@@ -253,9 +255,9 @@ export function startInp(
     });
   };
 
-  const finalizeSlow = (id: number) => {
-    const pending = pendingSlow.get(id);
-    if (!pending) return;
+  // Callers own liveness: the settle timer clears on every re-set, finalize,
+  // and stop, so a firing timer's pending entry is always the live one.
+  const finalizeSlow = (id: number, pending: PendingSlow) => {
     clearTimeout(pending.timer);
     pendingSlow.delete(id);
     sentSlow.add(id);
@@ -324,7 +326,7 @@ export function startInp(
     // pending slow records, then report INP: all before the emitter's own
     // hidden listener (registered later in init) runs the exit flush.
     handleEntries(po.takeRecords() as PerformanceEventTiming[]);
-    for (const id of [...pendingSlow.keys()]) finalizeSlow(id);
+    for (const [id, pending] of [...pendingSlow]) finalizeSlow(id, pending);
     reportVital();
   };
   addEventListener("visibilitychange", onVisibilityChange, true);

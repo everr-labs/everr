@@ -1,14 +1,14 @@
 import { describe, expect, it } from "vitest";
-import type { Plugin, PluginContext } from "./runtime.js";
+import type { Instrumentation, InstrumentationContext } from "./runtime.js";
 import { sampled } from "./sampled.js";
 
 /**
- * A context stub carrying only what `sampled()` and toy plugins under test
+ * A context stub carrying only what `sampled()` and toy instrumentations under test
  * touch: `ids()` for the sampling decision. Any other member throws if a
- * test's plugin reaches for it, which would signal the test needs a fuller
+ * test's instrumentation reaches for it, which would signal the test needs a fuller
  * fixture rather than this one.
  */
-function fakeCtx(sessionId: string): PluginContext {
+function fakeCtx(sessionId: string): InstrumentationContext {
   return {
     ids: () => ({ sessionId, visitorId: "v" }),
     emit: () => {
@@ -23,43 +23,43 @@ function fakeCtx(sessionId: string): PluginContext {
 }
 
 describe("sampled()", () => {
-  it("rate 1 always runs the inner plugin, without consulting ids()", () => {
+  it("rate 1 always runs the inner instrumentation, without consulting ids()", () => {
     let ran = false;
-    const plugin: Plugin = () => {
+    const instrumentation: Instrumentation = () => {
       ran = true;
     };
-    const ctx: PluginContext = {
+    const ctx: InstrumentationContext = {
       ...fakeCtx("s1"),
       ids: () => {
         throw new Error("ids() must not be called at rate 1");
       },
     };
-    sampled(plugin, 1)(ctx);
+    sampled(instrumentation, 1)(ctx);
     expect(ran).toBe(true);
   });
 
   it("rate 0 is a no-op: never runs, never consults ids()", () => {
     let ran = false;
-    const plugin: Plugin = () => {
+    const instrumentation: Instrumentation = () => {
       ran = true;
     };
-    const ctx: PluginContext = {
+    const ctx: InstrumentationContext = {
       ...fakeCtx("s1"),
       ids: () => {
         throw new Error("ids() must not be called at rate 0");
       },
     };
-    sampled(plugin, 0)(ctx);
+    sampled(instrumentation, 0)(ctx);
     expect(ran).toBe(false);
   });
 
   it("clamps rates outside [0, 1]", () => {
     let highRuns = 0;
     let lowRuns = 0;
-    const high: Plugin = () => {
+    const high: Instrumentation = () => {
       highRuns++;
     };
-    const low: Plugin = () => {
+    const low: Instrumentation = () => {
       lowRuns++;
     };
     sampled(high, 5)(fakeCtx("s1"));
@@ -68,25 +68,25 @@ describe("sampled()", () => {
     expect(lowRuns).toBe(0);
   });
 
-  it("is session-coherent: same session, same plugin, same decision every time", () => {
+  it("is session-coherent: same session, same instrumentation, same decision every time", () => {
     let runs = 0;
-    const plugin: Plugin = () => {
+    const instrumentation: Instrumentation = () => {
       runs++;
     };
-    const wrapped = sampled(plugin, 0.5);
+    const wrapped = sampled(instrumentation, 0.5);
     for (let i = 0; i < 5; i++) wrapped(fakeCtx("stable-session"));
     expect(runs === 0 || runs === 5).toBe(true);
   });
 
-  it("preserves the wrapped plugin's name", () => {
+  it("preserves the wrapped instrumentation's name", () => {
     const named = function pageviews(): void {};
     expect(sampled(named, 0.5).name).toBe("pageviews");
   });
 
-  it("decorrelates differently-named plugins: they don't all land on the same side", () => {
-    // Across many sessions, differently-named plugins wrapped at the same
+  it("decorrelates differently-named instrumentations: they don't all land on the same side", () => {
+    // Across many sessions, differently-named instrumentations wrapped at the same
     // rate should disagree at least once. A shared/empty name would hash
-    // identically and make every plugin agree on every session.
+    // identically and make every instrumentation agree on every session.
     const names = [
       "pageviews",
       "interactions",
@@ -99,12 +99,12 @@ describe("sampled()", () => {
       const ctx = fakeCtx(`session-${session}`);
       const included = names.map((name) => {
         let ran = false;
-        const plugin = {
+        const instrumentation = {
           [name]: () => {
             ran = true;
           },
-        }[name] as Plugin;
-        sampled(plugin, 0.5)(ctx);
+        }[name] as Instrumentation;
+        sampled(instrumentation, 0.5)(ctx);
         return ran;
       });
       if (included.some(Boolean) && !included.every(Boolean)) disagreed = true;
@@ -112,9 +112,9 @@ describe("sampled()", () => {
     expect(disagreed).toBe(true);
   });
 
-  it("wraps a third-party (userland) plugin the same as a built-in", () => {
+  it("wraps a third-party (userland) instrumentation the same as a built-in", () => {
     let ran = false;
-    const userland: Plugin = (ctx) => {
+    const userland: Instrumentation = (ctx) => {
       ctx.ids();
       ran = true;
     };
@@ -122,9 +122,9 @@ describe("sampled()", () => {
     expect(ran).toBe(true);
   });
 
-  it("returns the inner plugin's teardown when it runs", () => {
+  it("returns the inner instrumentation's teardown when it runs", () => {
     const teardown = () => {};
-    const plugin: Plugin = () => teardown;
-    expect(sampled(plugin, 1)(fakeCtx("s1"))).toBe(teardown);
+    const instrumentation: Instrumentation = () => teardown;
+    expect(sampled(instrumentation, 1)(fakeCtx("s1"))).toBe(teardown);
   });
 });

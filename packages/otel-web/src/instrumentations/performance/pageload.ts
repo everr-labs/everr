@@ -7,7 +7,7 @@ import type { Emit } from "../../emitter.js";
 // `everr.browser.long_animation_frame` record per main-thread stall from a
 // buffered LoAF observer (Chrome 123+), so the waterfall and the jank it
 // caused tell one what-was-slow story. fetch/XHR entries are excluded: app
-// traffic is the network plugin's turf, and emitting both would tell two
+// traffic is the network instrumentation's turf, and emitting both would tell two
 // slightly different stories about every request (this also structurally
 // keeps the SDK's own telemetry POSTs out, since the emitter ships via
 // fetch). Only the loading phase is captured: the observers start at setup

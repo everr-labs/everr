@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Emit } from "../../emitter.js";
-import type { PluginContext } from "../runtime.js";
-import { performance as performancePlugin } from "./index.js";
+import type { InstrumentationContext } from "../runtime.js";
+import { performance as performanceInstrumentation } from "./index.js";
 import { startPageLoad } from "./pageload.js";
 
 // jsdom has no Resource Timing and no LoAF: a stub PerformanceObserver
@@ -310,16 +310,16 @@ describe("the load window", () => {
 });
 
 describe("the pageLoad option", () => {
-  // A minimal plugin context: only emit and ids are consulted by the
+  // A minimal instrumentation context: only emit and ids are consulted by the
   // pageLoad path; the vitals are disabled so no other observer registers.
-  const ctx = (sessionId: string): PluginContext =>
+  const ctx = (sessionId: string): InstrumentationContext =>
     ({
       emit,
       ids: () => ({ visitorId: "v", sessionId }),
-    }) as unknown as PluginContext;
+    }) as unknown as InstrumentationContext;
 
   const boot = (pageLoad: boolean | { sample?: number }, sessionId = "s-1") => {
-    stop = performancePlugin({
+    stop = performanceInstrumentation({
       webVitals: [],
       slowInteractions: false,
       pageLoad,
@@ -327,9 +327,10 @@ describe("the pageLoad option", () => {
   };
 
   it("is off by default: performance() opens no load window", () => {
-    stop = performancePlugin({ webVitals: [], slowInteractions: false })(
-      ctx("s-1"),
-    ) as () => void;
+    stop = performanceInstrumentation({
+      webVitals: [],
+      slowInteractions: false,
+    })(ctx("s-1")) as () => void;
     expect(observers.has("resource")).toBe(false);
   });
 
@@ -366,5 +367,32 @@ describe("the pageLoad option", () => {
     boot({ sample: 0 });
     expect(observers.has("resource")).toBe(false);
     stop = () => {};
+  });
+});
+
+describe("script selection", () => {
+  it("keeps the first script as culprit when later ones are shorter", () => {
+    start();
+    feedLoaf(
+      loaf({
+        scripts: [
+          {
+            duration: 150.4,
+            sourceURL: "https://cdn.example.com/app.js",
+            sourceFunctionName: "boot",
+            invokerType: "module-script",
+          },
+          {
+            duration: 60,
+            sourceURL: "https://cdn.example.com/vendor.js",
+            sourceFunctionName: "hydrate",
+            invokerType: "classic-script",
+          },
+        ],
+      }),
+    );
+    expect(
+      attrs()["everr.browser.long_animation_frame.script.source_url"],
+    ).toBe("https://cdn.example.com/app.js");
   });
 });

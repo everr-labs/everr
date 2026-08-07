@@ -68,3 +68,5 @@ docs/superpowers/
 
 .impeccable/critique
 .scratch/
+reports
+.stryker-tmp
