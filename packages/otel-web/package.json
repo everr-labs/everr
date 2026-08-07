@@ -27,8 +27,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@everr/auto-otel-errors": "workspace:*",
-    "web-vitals": "^5.3.0"
+    "@everr/auto-otel-errors": "workspace:*"
   },
   "peerDependencies": {
     "@opentelemetry/api": "^1.9.0",

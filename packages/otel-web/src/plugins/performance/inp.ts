@@ -1,6 +1,7 @@
+/// <reference path="../../dom.d.ts" />
 import { elementAttrs, guardOf } from "../../element.js";
 import type { AttrValue, Emit } from "../../emitter.js";
-import { uniqueId } from "../../session.js";
+import { captureLanding, emitVital, whenIdleOrHidden } from "./shared.js";
 
 // Interaction latency tracking: one Event Timing observer feeding two
 // outputs.
@@ -71,7 +72,13 @@ type Interaction = {
   attrs?: Attrs;
 };
 
-export function startInp(emit: Emit): () => void {
+// `vital` and `slow` gate the two outputs independently (both share this one
+// observer); callers skip startInp entirely when both are off.
+export function startInp(
+  emit: Emit,
+  vital: boolean,
+  slow: boolean,
+): () => void {
   if (
     !(
       globalThis.PerformanceEventTiming &&
@@ -81,11 +88,7 @@ export function startInp(emit: Emit): () => void {
     return () => {};
   }
 
-  // Browsers pin interactions to the initial hard navigation while the
-  // envelope's url.* rotate with SPA navigations: the landing url rides the
-  // INP record so late reports still slice by the page that was measured.
-  const landingUrl = location.href;
-  const landingPath = location.pathname;
+  captureLanding();
   let stopped = false;
 
   // --- interactionCount (native, or estimated from ids: Chrome assigns
@@ -119,7 +122,6 @@ export function startInp(emit: Emit): () => void {
 
   // --- INP vital epoch (reset on bfcache restore) ---
   let vitalReported = false;
-  let metricId = uniqueId();
   let restored = false;
 
   const groupByRenderTime = (entry: PerformanceEventTiming): Frame => {
@@ -230,7 +232,7 @@ export function startInp(emit: Emit): () => void {
     }
 
     // Slow record: settle, then emit at most once per interactionId.
-    if (id && !sentSlow.has(id)) {
+    if (slow && id && !sentSlow.has(id)) {
       const pending = pendingSlow.get(id);
       if (pending) clearTimeout(pending.timer);
       if (pending || interaction.latency >= SLOW_THRESHOLD) {
@@ -269,7 +271,7 @@ export function startInp(emit: Emit): () => void {
   };
 
   const reportVital = () => {
-    if (vitalReported) return;
+    if (!vital || vitalReported) return;
     const inp =
       candidates[
         Math.min(
@@ -280,19 +282,10 @@ export function startInp(emit: Emit): () => void {
     if (!inp) return;
     vitalReported = true;
     const { entry, frame, latency, id, attrs } = inp;
-    emit("browser.web_vital", {
-      "browser.web_vital.name": "inp",
-      "browser.web_vital.value": latency,
-      "browser.web_vital.delta": latency,
-      "browser.web_vital.id": metricId,
-      "everr.browser.web_vital.rating":
-        latency > 500 ? "poor" : latency > 200 ? "needs-improvement" : "good",
-      "everr.browser.web_vital.navigation_type": navigationType(restored),
-      "everr.landing.url": landingUrl,
-      "everr.landing.path": landingPath,
-      // Attribution is the slow_interaction vocabulary verbatim (element
-      // payload included), not web-vitals' key names: the vital and the slow
-      // record it joins to answer the same question with the same keys.
+    // Attribution is the slow_interaction vocabulary verbatim (element
+    // payload included), not web-vitals' key names: the vital and the slow
+    // record it joins to answer the same question with the same keys.
+    emitVital(emit, "inp", latency, restored, {
       "everr.interaction.id": id,
       ...attrs,
       ...phaseAttrs(entry, frame, intersectingLoAFs),
@@ -337,9 +330,9 @@ export function startInp(emit: Emit): () => void {
   };
   addEventListener("visibilitychange", onVisibilityChange, true);
 
-  // bfcache restore: a fresh navigation epoch. Candidates, the count
-  // baseline, and the metric id reset so the restored page reports its own
-  // INP; already-sent slow interaction ids stay deduped.
+  // bfcache restore: a fresh navigation epoch. Candidates and the count
+  // baseline reset so the restored page reports its own INP (with its own
+  // metric id); already-sent slow interaction ids stay deduped.
   const onPageShow = (event: PageTransitionEvent) => {
     if (!event.persisted) return;
     restored = true;
@@ -347,7 +340,6 @@ export function startInp(emit: Emit): () => void {
     candidates = [];
     candidateMap.clear();
     vitalReported = false;
-    metricId = uniqueId();
   };
   addEventListener("pageshow", onPageShow, true);
 
@@ -456,39 +448,4 @@ function phaseAttrs(
     attrs["everr.interaction.script.duration_ms"] = longestDuration;
   }
   return attrs;
-}
-
-function navigationType(restored: boolean): string {
-  return restored
-    ? "back-forward-cache"
-    : (performance.getEntriesByType("navigation")[0]?.type.replace(/_/g, "-") ??
-        "navigate");
-}
-
-/**
- * Runs the callback in the next idle period, or immediately if the page is
- * (or becomes) hidden, so pending work never outlives the page.
- */
-function whenIdleOrHidden(cb: () => void): void {
-  if (document.visibilityState === "hidden") {
-    cb();
-    return;
-  }
-  const rIC = globalThis.requestIdleCallback || setTimeout;
-  const cIC = globalThis.cancelIdleCallback || clearTimeout;
-  let done = false;
-  const once = () => {
-    if (done) return;
-    done = true;
-    cb();
-  };
-  const onHidden = () => {
-    cIC(idleHandle as number);
-    once();
-  };
-  addEventListener("visibilitychange", onHidden, { once: true, capture: true });
-  const idleHandle = rIC(() => {
-    removeEventListener("visibilitychange", onHidden, { capture: true });
-    once();
-  });
 }

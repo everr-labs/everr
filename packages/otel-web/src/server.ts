@@ -33,6 +33,7 @@ import { bindReport } from "./errors.js";
 import { logger } from "./logger.js";
 import type { ErrorsOptions } from "./plugins/errors/index.js";
 import type { NetworkOptions } from "./plugins/network/index.js";
+import type { PerformanceOptions } from "./plugins/performance/index.js";
 import type { Plugin } from "./plugins/runtime.js";
 import type {
   EverrClient,
@@ -118,6 +119,11 @@ export type {
   ErrorsOptions,
 } from "./plugins/errors/index.js";
 export type { NetworkOptions } from "./plugins/network/index.js";
+export type {
+  PageLoadOptions,
+  PerformanceOptions,
+  WebVitalName,
+} from "./plugins/performance/index.js";
 // sampled() is a generic wrapper, not a capture source: it works the same
 // against the server's inert plugins as it does against browser ones.
 export { sampled } from "./plugins/sampled.js";
@@ -129,7 +135,7 @@ export const pageviews = (): Plugin => inert;
 /** Inert on the server; interactions are a browser concept. */
 export const interactions = (): Plugin => inert;
 /** Inert on the server; performance capture is a browser concept. */
-export const performance = (): Plugin => inert;
+export const performance = (_options?: PerformanceOptions): Plugin => inert;
 /** Inert on the server; the fetch patch is a browser concept. */
 export const network = (_options?: NetworkOptions): Plugin => inert;
 

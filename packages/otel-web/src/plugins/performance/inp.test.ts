@@ -126,7 +126,7 @@ beforeEach(() => {
     configurable: true,
   });
   stubTiming();
-  stop = startInp(emit);
+  stop = startInp(emit, true, true);
 });
 
 afterEach(() => {
@@ -404,11 +404,35 @@ describe("INP vital", () => {
   });
 });
 
+describe("output gating", () => {
+  it("suppresses slow records when slow is off, still reports the vital", () => {
+    stop();
+    emitted = [];
+    stop = startInp(emit, true, false);
+    feed([{ duration: 300 }]);
+    settle();
+    expect(slow()).toHaveLength(0);
+    hide();
+    expect(vitals()).toHaveLength(1);
+  });
+
+  it("suppresses the vital when vital is off, still emits slow records", () => {
+    stop();
+    emitted = [];
+    stop = startInp(emit, false, true);
+    feed([{ duration: 300 }]);
+    settle();
+    expect(slow()).toHaveLength(1);
+    hide();
+    expect(vitals()).toHaveLength(0);
+  });
+});
+
 describe("lifecycle", () => {
   it("is a no-op without Event Timing support", () => {
     stop();
     vi.unstubAllGlobals();
-    const noop = startInp(emit);
+    const noop = startInp(emit, true, true);
     noop();
     expect(emitted).toHaveLength(0);
     stop = () => {};

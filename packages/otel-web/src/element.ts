@@ -53,8 +53,12 @@ function textOf(el: Element): string | undefined {
   return text && !SENSITIVE_TEXT.test(text) ? text.slice(0, 256) : undefined;
 }
 
-/** A stable CSS path: anchored at the nearest id, positional below it. */
-function selectorOf(el: Element): string {
+/**
+ * A stable CSS path: anchored at the nearest id, positional below it. The
+ * one spelling of an element path across signals (interactions, INP, and
+ * the LCP/CLS attribution targets).
+ */
+export function selectorOf(el: Element): string {
   const parts: string[] = [];
   for (let node: Element | null = el; node?.parentElement; ) {
     if (node.id) {

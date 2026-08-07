@@ -194,6 +194,67 @@ describe("slow interactions ownership", () => {
   });
 });
 
+describe("performance({ pageLoad })", () => {
+  it("emits a record per resource entry and stops after runtime teardown", async () => {
+    let fire: ((entries: unknown[]) => void) | undefined;
+    class PO {
+      cb: (list: { getEntries: () => unknown[] }) => void;
+      constructor(cb: (list: { getEntries: () => unknown[] }) => void) {
+        this.cb = cb;
+      }
+      observe(opts: { type: string }) {
+        if (opts.type === "resource") {
+          fire = (entries) => this.cb({ getEntries: () => entries });
+        }
+      }
+      takeRecords() {
+        return [];
+      }
+      disconnect() {
+        fire = undefined;
+      }
+    }
+    vi.stubGlobal("PerformanceObserver", PO);
+    start({
+      plugins: [
+        performancePlugin({
+          webVitals: [],
+          slowInteractions: false,
+          pageLoad: true,
+        }),
+      ],
+    });
+    fire?.([
+      {
+        entryType: "resource",
+        name: "https://cdn.example.com/app.js?v=1",
+        initiatorType: "script",
+        duration: 120,
+        domainLookupStart: 0,
+        domainLookupEnd: 0,
+        connectStart: 0,
+        connectEnd: 0,
+        secureConnectionStart: 0,
+        requestStart: 0,
+        responseStart: 0,
+        responseEnd: 130,
+        transferSize: 5000,
+        encodedBodySize: 4800,
+        decodedBodySize: 12000,
+      },
+    ]);
+    const [record] = (await records()).filter(
+      (r) => r.eventName === "everr.browser.asset",
+    );
+    expect(attrs(record)["url.full"]).toBe("https://cdn.example.com/app.js");
+    // The envelope stamps the shared session context on asset records too.
+    expect(attrs(record)["session.id"]).toBeDefined();
+    await client?.shutdown();
+    client = undefined;
+    expect(fire).toBeUndefined();
+  });
+});
+
 describe("network()", () => {
   it("patches fetch, records request spans, and unpatches on shutdown", async () => {
     start({ plugins: [network()] });

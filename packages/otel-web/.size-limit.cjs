@@ -36,13 +36,14 @@ module.exports = [
     limit: "4 KB",
   },
   {
-    // The web-vitals dependency lands only here: this line carries its
-    // weight, not the "core + all plugins" line below.
+    // The heaviest plugin: the in-house web vitals (LCP/CLS/TTFB/INP),
+    // slow-interaction records with their LoAF attribution, and the opt-in
+    // pageLoad capture (asset waterfall + long-animation-frame records).
     name: "core + performance",
     path: "dist/index.js",
     import: "{ init, performance }",
     gzip: true,
-    limit: "8 KB",
+    limit: "7.75 KB",
   },
   {
     name: "core + network",
@@ -52,7 +53,7 @@ module.exports = [
     limit: "4 KB",
   },
   {
-    // All six plugin factories composed: verifies the sampled runtime is
+    // All plugin factories composed: verifies the sampled runtime is
     // shared rather than duplicated per composition, so this comes in below
     // the sum of the individual increments above, not above it.
     name: "core + all plugins",
@@ -60,6 +61,6 @@ module.exports = [
     import:
       "{ init, errors, pageviews, interactions, performance, network, sampled }",
     gzip: true,
-    limit: "10 KB",
+    limit: "9.5 KB",
   },
 ];

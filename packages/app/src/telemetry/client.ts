@@ -30,6 +30,13 @@ init({
   ingestKey: import.meta.env.VITE_EVERR_PUBLIC_INGEST_KEY,
   endpoint: import.meta.env.VITE_EVERR_INGEST_ENDPOINT,
   dev: import.meta.env.DEV,
-  // Capture is opt-in only: the full built-in composition.
-  plugins: [errors(), pageviews(), interactions(), performance(), network()],
+  // Capture is opt-in only: the full built-in composition. pageLoad opens
+  // the load window (asset waterfall + long-animation-frame records).
+  plugins: [
+    errors(),
+    pageviews(),
+    interactions(),
+    performance({ pageLoad: true }),
+    network(),
+  ],
 });

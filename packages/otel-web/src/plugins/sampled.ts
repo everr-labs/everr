@@ -28,8 +28,11 @@ export function sampled(plugin: Plugin, rate: number): Plugin {
   return wrapped;
 }
 
-/** djb2, folded to an unsigned 32-bit int and normalized to [0, 1). */
-function hashUnit(input: string): number {
+/**
+ * djb2, folded to an unsigned 32-bit int and normalized to [0, 1). Shared
+ * with the performance plugin's pageLoad sampling.
+ */
+export function hashUnit(input: string): number {
   let hash = 5381;
   for (let i = 0; i < input.length; i++) {
     hash = (hash * 33) ^ input.charCodeAt(i);
