@@ -1,8 +1,14 @@
 import { and, eq, isNull, ne, or } from "drizzle-orm";
 import * as alerting from "@/data/alerting/repository";
+import {
+  fromAlertingRule,
+  toAlertRuleDocument,
+} from "@/data/alerting/resources/rules/mapping";
+import {
+  fromAlertingSlo,
+  toSloDocument,
+} from "@/data/alerting/resources/slos/mapping";
 import type { AlertingRuleView, AlertingSloView } from "@/data/alerting/types";
-import { fromAlertingRule, toAlertRuleDocument } from "@/data/alerts/mapping";
-import { fromAlertingSlo, toSloDocument } from "@/data/slos/mapping";
 import { db } from "@/db/client";
 import { dashboards, runbooks } from "@/db/schema/app";
 

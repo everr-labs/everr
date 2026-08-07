@@ -18,27 +18,27 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { BellOff, BookOpenText, CircleAlert } from "lucide-react";
 import { useCallback, useLayoutEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { alertingConditionOperatorLabel } from "@/data/alerting/condition";
 import { alertingQueries } from "@/data/alerting/queries";
+import { alertingConditionOperatorLabel } from "@/data/alerting/rules/condition";
+import {
+  alertingRuleHandles,
+  alertingRuleIdentity,
+} from "@/data/alerting/rules/identity";
 import { pauseAlertingRule, resumeAlertingRule } from "@/data/alerting/server";
 import type {
   AlertingAlert,
   AlertingRuleEvaluationSeries,
   AlertingRuleView,
 } from "@/data/alerting/types";
-import {
-  alertingRuleHandles,
-  alertingRuleIdentity,
-} from "@/data/alerts/rule-identity";
 import { useTimeRange } from "@/hooks/use-time-range";
 import {
   alertRuleChartPointTarget,
   alertRuleEvaluationOutcome,
   summarizeAlertRuleLatestCheck,
-} from "./-components/alert-rule-chart-data";
-import { AlertRuleHistory } from "./-components/alert-rule-history";
-import { AlertRuleSignalChart } from "./-components/alert-rule-signal-chart";
-import { EvaluationCountdown } from "./-components/evaluation-countdown";
+} from "./-components/rules/chart-data";
+import { EvaluationCountdown } from "./-components/rules/evaluation-countdown";
+import { AlertRuleHistory } from "./-components/rules/history";
+import { AlertRuleSignalChart } from "./-components/rules/signal-chart";
 import {
   AlertingBackLink,
   AlertingDefRow,
@@ -47,16 +47,16 @@ import {
   AlertingQueryError,
   AlertingStatusLabel,
   alertingErrorMessage,
-} from "./-components/shared";
-import {
-  SilenceCreateDrawer,
-  type SilenceDrawerHandle,
-} from "./-components/silences-panel";
+} from "./-components/shared/components";
 import {
   AlertingBreachBreakdown,
   AlertingSummaryCard,
   AlertingSummaryStat,
-} from "./-components/summary-card";
+} from "./-components/shared/summary-card";
+import {
+  SilenceCreateDrawer,
+  type SilenceDrawerHandle,
+} from "./-components/silences/panel";
 
 function RuleStateLabel({ rule }: { rule: AlertingRuleView }) {
   if (rule.paused) {

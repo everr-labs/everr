@@ -49,8 +49,9 @@ import {
   alertingDispatchLabels,
   alertingIsCatchAll,
   alertingSelectRoutes,
-} from "@/data/alerting/route-resolution";
-import { alertingRouteTimingSummary } from "@/data/alerting/route-timing";
+} from "@/data/alerting/routing/resolution";
+import { alertingRouteTimingSummary } from "@/data/alerting/routing/timing";
+import { alertingRuleIdentity } from "@/data/alerting/rules/identity";
 import {
   deleteAlertingChannel,
   deleteAlertingInhibition,
@@ -59,25 +60,30 @@ import {
   updateAlertingReceiver,
   updateAlertingRoute,
 } from "@/data/alerting/server";
-import { alertingSloIdentity } from "@/data/alerting/slo";
+import { alertingSloIdentity } from "@/data/alerting/slos/model";
 import type {
   AlertingChannel,
   AlertingInhibition,
   AlertingReceiver,
   AlertingRoute,
 } from "@/data/alerting/types";
-import { alertingRuleIdentity } from "@/data/alerts/rule-identity";
-import { ChannelBuilder } from "./-components/channel-builder";
+import { ChannelBuilder } from "./-components/delivery/channel-builder";
 import {
   CHANNEL_ICON,
   CHANNEL_LABEL,
   type ChannelIcon,
   channelTarget,
-} from "./-components/channel-meta";
-import { InhibitionBuilder } from "./-components/inhibition-builder";
-import { ReceiverBuilder } from "./-components/receiver-builder";
-import { RouteBuilder, routeOrderWarning } from "./-components/route-builder";
-import { ChannelChip, RoutePreview } from "./-components/route-preview";
+} from "./-components/delivery/channel-meta";
+import { InhibitionBuilder } from "./-components/delivery/inhibition-builder";
+import { ReceiverBuilder } from "./-components/delivery/receiver-builder";
+import {
+  RouteBuilder,
+  routeOrderWarning,
+} from "./-components/delivery/route-builder";
+import {
+  ChannelChip,
+  RoutePreview,
+} from "./-components/delivery/route-preview";
 import {
   AlertingDisclosureTrigger,
   AlertingEmptyState,
@@ -85,7 +91,7 @@ import {
   AlertingTableSkeleton,
   alertingErrorMessage,
   Conditions,
-} from "./-components/shared";
+} from "./-components/shared/components";
 
 const CHANNEL_KIND_LIST = new Intl.ListFormat("en", {
   type: "disjunction",

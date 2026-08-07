@@ -10,6 +10,7 @@ import {
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { AlertEventLogRow } from "@/data/alerting/history/repository.server";
 import { alertingRuleViewFixture } from "@/data/alerting/test-fixtures";
 import type {
   AlertingAlert,
@@ -20,7 +21,6 @@ import type {
   AlertingSlo,
   AlertingSloStatusPayload,
 } from "@/data/alerting/types";
-import type { AlertEventLogRow } from "@/data/alerts/history.server";
 import { Route as AlertsIndexFileRoute } from "./index";
 
 const mocks = vi.hoisted(() => ({

@@ -14,19 +14,19 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { BookOpenText } from "lucide-react";
 import { useMemo } from "react";
 import { toast } from "sonner";
+import { alertingEventStatus } from "@/data/alerting/history/event-types";
 import { alertingQueries } from "@/data/alerting/queries";
+import { ANN_LABEL_PREFIX } from "@/data/alerting/resources/annotations";
+import { isReservedAnnotationKey } from "@/data/alerting/resources/rules/schema";
+import { fromAlertingSlo } from "@/data/alerting/resources/slos/mapping";
 import { pauseAlertingSlo, resumeAlertingSlo } from "@/data/alerting/server";
 import {
   alertingSloChartRange,
   alertingSloHandles,
   alertingSloIdentity,
   alertingSloWindowLabel,
-} from "@/data/alerting/slo";
+} from "@/data/alerting/slos/model";
 import type { AlertingSlo, AlertingSloView } from "@/data/alerting/types";
-import { ANN_LABEL_PREFIX } from "@/data/alerts/annotations";
-import { alertingEventStatus } from "@/data/alerts/event-types";
-import { isReservedAnnotationKey } from "@/data/alerts/schema";
-import { fromAlertingSlo } from "@/data/slos/mapping";
 import {
   AlertingBackLink,
   AlertingDefRow,
@@ -35,17 +35,17 @@ import {
   AlertingPauseToggle,
   AlertingQueryError,
   alertingErrorMessage,
-} from "./-components/shared";
-import {
-  SloBudgetChart,
-  type SloBudgetEvent,
-} from "./-components/slo-budget-chart";
-import { SloSummaryCard } from "./-components/slo-status";
+} from "./-components/shared/components";
 import {
   AlertingSummaryCard,
   AlertingSummaryStat,
-} from "./-components/summary-card";
-import { useAlertingFreshBudgets } from "./-components/use-fresh-budgets";
+} from "./-components/shared/summary-card";
+import {
+  SloBudgetChart,
+  type SloBudgetEvent,
+} from "./-components/slos/budget-chart";
+import { SloSummaryCard } from "./-components/slos/status";
+import { useAlertingFreshBudgets } from "./-components/slos/use-fresh-budgets";
 
 export const Route = createFileRoute(
   "/_authenticated/_dashboard/_previewable/alerts/slos_/$project/$slug",

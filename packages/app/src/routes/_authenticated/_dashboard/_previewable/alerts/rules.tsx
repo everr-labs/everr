@@ -15,10 +15,10 @@ import type { ReactNode } from "react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/page-header";
 import { alertingQueries } from "@/data/alerting/queries";
+import { alertingRuleIdentity } from "@/data/alerting/rules/identity";
 import { pauseAlertingRule, resumeAlertingRule } from "@/data/alerting/server";
-import { alertingFormatSloDuration } from "@/data/alerting/slo";
+import { alertingFormatSloDuration } from "@/data/alerting/slos/model";
 import type { AlertingRuleView } from "@/data/alerting/types";
-import { alertingRuleIdentity } from "@/data/alerts/rule-identity";
 import {
   AlertingEmptyState,
   AlertingHealthHeart,
@@ -30,7 +30,7 @@ import {
   AlertingTableSkeleton,
   alertingErrorMessage,
   alertingFormatTs,
-} from "./-components/shared";
+} from "./-components/shared/components";
 
 export const Route = createFileRoute(
   "/_authenticated/_dashboard/_previewable/alerts/rules",

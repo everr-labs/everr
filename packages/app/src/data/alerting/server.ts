@@ -4,20 +4,25 @@ import {
   queryPostgresAlertEventLog,
   queryPostgresObservedLabelKeys,
   queryPostgresObservedLabelValues,
-} from "@/data/alerts/history.server";
-import { visibleRulesForPreview } from "@/data/alerts/preview-overlay";
-import { alertingRuleIdentity } from "@/data/alerts/rule-identity";
+} from "@/data/alerting/history/repository.server";
+import { visibleRulesForPreview } from "@/data/alerting/resources/rules/preview-overlay";
+import { visibleSlosForPreview } from "@/data/alerting/resources/slos/preview-overlay";
+import { alertingRuleIdentity } from "@/data/alerting/rules/identity";
 import {
   findByResourceName,
   formatResourceName,
 } from "@/data/as-code/identity";
 import { getPreviewScopes } from "@/data/previews/repoids";
-import { visibleSlosForPreview } from "@/data/slos/preview-overlay";
 import { type ClickhouseQuery, querySqlApi } from "@/lib/clickhouse";
 import { createAuthenticatedServerFn } from "@/lib/serverFn";
-import { emailTestConfigFor } from "./email-test-config";
+import { emailTestConfigFor } from "./delivery/email-test-config";
 import { AlertingError } from "./errors";
 import * as alerting from "./repository";
+import {
+  ALERTING_SLO_RESERVED_LABEL_KEYS,
+  ALERTING_SYNTHETIC_LABEL_KEYS,
+  ALERTING_SYNTHETIC_LABEL_VALUES,
+} from "./routing/synthetic-labels";
 import {
   AlertingChannelConfigSchema,
   AlertingInhibitionInputSchema,
@@ -28,13 +33,8 @@ import {
   ALERTING_CANONICAL_SLO_TIERS,
   alertingSloIdentity,
   alertingSloWindowSecs,
-} from "./slo";
-import { querySloBudgetNow, querySloBudgetSeries } from "./slo-series.server";
-import {
-  ALERTING_SLO_RESERVED_LABEL_KEYS,
-  ALERTING_SYNTHETIC_LABEL_KEYS,
-  ALERTING_SYNTHETIC_LABEL_VALUES,
-} from "./synthetic-labels";
+} from "./slos/model";
+import { querySloBudgetNow, querySloBudgetSeries } from "./slos/series.server";
 import type { AlertingRuleView, AlertingSloView } from "./types";
 
 const orgId = (session: { session: { activeOrganizationId: string } }) =>

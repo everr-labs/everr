@@ -10,10 +10,10 @@ vi.mock("@/data/dashboards/apply.server", () => ({
 vi.mock("@/data/runbooks/apply.server", () => ({
   applyRunbookSpecs: (...a: unknown[]) => runbookReconciler(...a),
 }));
-vi.mock("@/data/alerts/apply.server", () => ({
+vi.mock("@/data/alerting/resources/rules/apply.server", () => ({
   applyAlertSpecs: (...a: unknown[]) => alertReconciler(...a),
 }));
-vi.mock("@/data/slos/apply.server", () => ({
+vi.mock("@/data/alerting/resources/slos/apply.server", () => ({
   applySloSpecs: (...a: unknown[]) => sloReconciler(...a),
 }));
 // Cross-kind runbook-link validation is exercised in its own suite; mock it

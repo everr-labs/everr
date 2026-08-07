@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { and, asc, desc, eq, gte, inArray, isNull, lte } from "drizzle-orm";
+import { parseSloWindowSeconds } from "@/data/alerting/resources/slos/schema";
 import { parseResourceName } from "@/data/as-code/identity";
-import { parseSloWindowSeconds } from "@/data/slos/schema";
 import { db, type Transaction } from "@/db/client";
 import {
   alertChannels,
@@ -20,19 +20,19 @@ import {
 } from "@/db/schema";
 import { querySqlApi } from "@/lib/clickhouse";
 import {
-  enqueueAlertEvaluation,
-  enqueueSloEvaluation,
-  nextAlertEvaluationAt,
-  nextSloEvaluationAt,
-} from "@/server/alerts/01-scanner";
-import {
   decryptChannelConfig,
   encryptChannelConfig,
   redactChannelConfig,
   retainRedactedChannelSecrets,
-} from "@/server/alerts/channel-secrets";
+} from "@/server/alerts/delivery/channel-secrets";
+import {
+  enqueueAlertEvaluation,
+  enqueueSloEvaluation,
+  nextAlertEvaluationAt,
+  nextSloEvaluationAt,
+} from "@/server/alerts/scheduling/scanner";
 import { AlertingError } from "./errors";
-import { shapeAlertEvaluationSeries } from "./evaluation-series";
+import { shapeAlertEvaluationSeries } from "./rules/evaluation-series";
 import {
   AlertingChannelConfigSchema,
   AlertingInhibitionInputSchema,
@@ -48,7 +48,7 @@ import {
 import {
   ALERTING_SLO_INGEST_DELAY_SECS,
   alertingFormatClickHouseDateTime,
-} from "./slo";
+} from "./slos/model";
 import type {
   AlertingChannelConfig,
   AlertingInhibitionInput,
@@ -1066,7 +1066,9 @@ export async function testChannel(
 ) {
   const started = performance.now();
   try {
-    const { sendChannelTest } = await import("@/server/alerts/channels");
+    const { sendChannelTest } = await import(
+      "@/server/alerts/delivery/channels"
+    );
     await sendChannelTest(AlertingChannelConfigSchema.parse(body.config));
     return { ok: true, latency_ms: Math.round(performance.now() - started) };
   } catch (cause) {

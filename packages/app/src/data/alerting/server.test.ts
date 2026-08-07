@@ -2,15 +2,15 @@
 // against the qualified "project/slug" name (every stored name is qualified,
 // "default/" included — there are no bare-slug names to fall back to).
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { queryPostgresAlertEventLog } from "@/data/alerting/history/repository.server";
 import type {
   AlertingChannelConfig,
   AlertingRuleView,
   AlertingSlo,
 } from "@/data/alerting/types";
-import { queryPostgresAlertEventLog } from "@/data/alerts/history.server";
 import { getPreviewScopes } from "@/data/previews/repoids";
 import { query, querySqlApi } from "@/lib/clickhouse";
-import { emailTestConfigFor } from "./email-test-config";
+import { emailTestConfigFor } from "./delivery/email-test-config";
 import {
   getAlertingRuleByName,
   getAlertingRuleEvaluationSeries,
@@ -52,7 +52,7 @@ vi.mock("@/data/previews/repoids", () => ({
   getCoveredRepoids: vi.fn(),
 }));
 
-vi.mock("@/data/alerts/history.server", () => ({
+vi.mock("@/data/alerting/history/repository.server", () => ({
   queryPostgresAlertEventLog: vi.fn(),
   queryPostgresObservedLabelKeys: vi.fn(),
   queryPostgresObservedLabelValues: vi.fn(),

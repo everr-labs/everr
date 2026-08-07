@@ -24,7 +24,7 @@ vi.mock("./repository", () => ({
   listAlerts: mocks.listAlerts,
 }));
 
-vi.mock("@/data/alerts/history.server", () => ({
+vi.mock("@/data/alerting/history/repository.server", () => ({
   queryPostgresAlertEventLog: vi.fn(),
   queryPostgresObservedLabelKeys: mocks.queryObservedLabelKeys,
   queryPostgresObservedLabelValues: mocks.queryObservedLabelValues,

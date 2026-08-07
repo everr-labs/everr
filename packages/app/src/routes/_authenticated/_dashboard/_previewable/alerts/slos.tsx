@@ -20,6 +20,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { PageHeader } from "@/components/page-header";
 import { alertingQueries } from "@/data/alerting/queries";
+import { fromAlertingSlo } from "@/data/alerting/resources/slos/mapping";
 import { pauseAlertingSlo, resumeAlertingSlo } from "@/data/alerting/server";
 import {
   type AlertingSloBurnPace,
@@ -31,15 +32,13 @@ import {
   alertingSloOverallPace,
   alertingSloTiers,
   alertingSloWindowLabel,
-} from "@/data/alerting/slo";
+} from "@/data/alerting/slos/model";
 import type {
   AlertingRuleHealthStatus,
   AlertingSlo,
   AlertingSloStatusPayload,
   AlertingSloTier,
 } from "@/data/alerting/types";
-import { fromAlertingSlo } from "@/data/slos/mapping";
-import { AlertingBudgetBar } from "./-components/budget-bar";
 import {
   AlertingEmptyState,
   AlertingHealthHeart,
@@ -48,8 +47,9 @@ import {
   AlertingRunbookLink,
   AlertingTableSkeleton,
   alertingErrorMessage,
-} from "./-components/shared";
-import { useAlertingFreshBudgets } from "./-components/use-fresh-budgets";
+} from "./-components/shared/components";
+import { AlertingBudgetBar } from "./-components/slos/budget-bar";
+import { useAlertingFreshBudgets } from "./-components/slos/use-fresh-budgets";
 
 export const Route = createFileRoute(
   "/_authenticated/_dashboard/_previewable/alerts/slos",

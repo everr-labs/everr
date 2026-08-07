@@ -4,7 +4,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useCallback, useMemo, useRef } from "react";
 import { PageHeader } from "@/components/page-header";
 import { alertingQueries } from "@/data/alerting/queries";
-import { alertingBudgetExhausted } from "@/data/alerting/slo";
+import { alertingBudgetExhausted } from "@/data/alerting/slos/model";
 import {
   alertingExhaustedBudgets,
   alertingFiringGroups,
@@ -12,18 +12,18 @@ import {
   alertingResolveTriageInstances,
   alertingTriageCounts,
   TRIAGE_EVENT_RANGE,
-} from "@/data/alerting/triage";
+} from "@/data/alerting/triage/summary";
 import type { AlertingSloStatus } from "@/data/alerting/types";
-import { AlertingExhaustedBudgetsCard } from "./-components/exhausted-budgets";
-import { AlertingPipelineStrip } from "./-components/pipeline-strip";
-import { AlertingQueryError } from "./-components/shared";
+import { AlertingPipelineStrip } from "./-components/delivery/pipeline-strip";
+import { AlertingQueryError } from "./-components/shared/components";
 import {
   SilenceCreateDrawer,
   type SilenceDrawerHandle,
   SilencesPanel,
-} from "./-components/silences-panel";
-import { TriageBoard } from "./-components/triage-board";
-import { useAlertingFreshBudgets } from "./-components/use-fresh-budgets";
+} from "./-components/silences/panel";
+import { AlertingExhaustedBudgetsCard } from "./-components/slos/exhausted-budgets";
+import { useAlertingFreshBudgets } from "./-components/slos/use-fresh-budgets";
+import { TriageBoard } from "./-components/triage/board";
 
 // One stored event only: it date-stamps the all-clear readout (quiet board vs
 // broken pipeline); nothing on this page lists events.

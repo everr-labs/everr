@@ -1,11 +1,13 @@
 import { and, eq, or } from "drizzle-orm";
 import * as alerting from "@/data/alerting/repository";
-import { fromAlertingRule } from "@/data/alerts/mapping";
+import { fromAlertingRule } from "@/data/alerting/resources/rules/mapping";
 import {
   AlertRuleYamlSchema,
   parseRunbookRef,
   refIdentityKey,
-} from "@/data/alerts/schema";
+} from "@/data/alerting/resources/rules/schema";
+import { fromAlertingSlo } from "@/data/alerting/resources/slos/mapping";
+import { SloYamlSchema } from "@/data/alerting/resources/slos/schema";
 import {
   projectFromDocument,
   slugFromDocument,
@@ -15,8 +17,6 @@ import {
   type Namespace,
   previewScope,
 } from "@/data/previews/scope";
-import { fromAlertingSlo } from "@/data/slos/mapping";
-import { SloYamlSchema } from "@/data/slos/schema";
 import { db } from "@/db/client";
 import { runbooks } from "@/db/schema";
 import { ApplyValidationError } from "./errors";

@@ -1,9 +1,9 @@
-import { applyAlertSpecs } from "@/data/alerts/apply.server";
+import { applyAlertSpecs } from "@/data/alerting/resources/rules/apply.server";
+import { applySloSpecs } from "@/data/alerting/resources/slos/apply.server";
 import { applyDashboardSpecs } from "@/data/dashboards/apply.server";
 import { findPreviewId, upsertPreview } from "@/data/previews/apply.server";
 import type { Namespace } from "@/data/previews/scope";
 import { applyRunbookSpecs } from "@/data/runbooks/apply.server";
-import { applySloSpecs } from "@/data/slos/apply.server";
 import { type DbExecutor, db } from "@/db/client";
 import { ApplyValidationError } from "./errors";
 import type { OwnershipConflict } from "./ownership";
