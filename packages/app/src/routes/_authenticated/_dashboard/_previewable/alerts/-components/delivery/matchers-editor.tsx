@@ -15,7 +15,7 @@ import {
   type AlertingLabelValueSuggestion,
   listAlertingLabelKeys,
   listAlertingLabelValues,
-} from "@/data/alerting/routing/suggestions.server";
+} from "@/data/alerting/routing/suggestions";
 import { AlertingMatchOpSchema } from "@/data/alerting/schema";
 import type { AlertingMatcher } from "@/data/alerting/types";
 

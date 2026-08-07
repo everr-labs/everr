@@ -40,7 +40,7 @@ vi.mock("@/data/alerting/silences/server", () => ({
   createAlertingSilence: mocks.createAlertingSilence,
   deleteAlertingSilence: mocks.deleteAlertingSilence,
 }));
-vi.mock("@/data/alerting/routing/suggestions.server", () => ({
+vi.mock("@/data/alerting/routing/suggestions", () => ({
   listAlertingLabelKeys: mocks.listAlertingLabelKeys,
   listAlertingLabelValues: mocks.listAlertingLabelValues,
 }));

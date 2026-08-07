@@ -2,10 +2,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { AlertingAlert, AlertingSlo } from "@/data/alerting/types";
 import { alertingRuleViewFixture } from "../test-fixtures";
-import {
-  listAlertingLabelKeys,
-  listAlertingLabelValues,
-} from "./suggestions.server";
+import { listAlertingLabelKeys, listAlertingLabelValues } from "./suggestions";
 
 // ./server transitively imports @/data/previews/repoids -> @/db/client, whose
 // t3-env access throws under jsdom; stub the db module before that chain loads.

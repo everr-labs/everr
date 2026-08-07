@@ -74,7 +74,7 @@ vi.mock("@/data/alerting/slos/server", () => ({
   listAlertingSlos: mocks.listAlertingSlos,
 }));
 
-vi.mock("@/data/alerting/routing/suggestions.server", () => ({
+vi.mock("@/data/alerting/routing/suggestions", () => ({
   listAlertingLabelKeys: mocks.listAlertingLabelKeys,
   listAlertingLabelValues: mocks.listAlertingLabelValues,
 }));
