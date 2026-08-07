@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { AttrValue, EmitSpan } from "../../emitter.js";
-import { setRouteResolver } from "../../route.js";
 import { createTracer } from "../../tracer.js";
+import type { RouteTemplateResolver } from "./network.js";
 import { startNetwork } from "./network.js";
 
 // Unit tests around the fetch patch: a fake emitSpan behind the real Tracer
@@ -25,8 +25,11 @@ const emitSpan: EmitSpan = (traceId, spanId, name, _s, _e, attrs, error) => {
   spans.push({ traceId, spanId, name, attrs, error });
 };
 
-function start(targets?: Array<string | RegExp>) {
-  stop = startNetwork(createTracer(emitSpan), targets);
+function start(
+  targets?: Array<string | RegExp>,
+  resolveTemplate?: RouteTemplateResolver,
+) {
+  stop = startNetwork(createTracer(emitSpan), targets, resolveTemplate);
 }
 
 /** The headers the patched fetch actually sent, normalized. */
@@ -49,7 +52,6 @@ beforeEach(() => {
 
 afterEach(() => {
   stop();
-  setRouteResolver(null);
   vi.unstubAllGlobals();
 });
 
@@ -66,6 +68,7 @@ describe("startNetwork", () => {
     expect(s.error).toBe(false);
     expect(s.attrs["http.request.method"]).toBe("GET");
     expect(s.attrs["url.full"]).toBe(`${location.origin}/api/users`);
+    expect(s.attrs["url.template"]).toBeUndefined();
     expect(s.attrs["server.address"]).toBe(location.hostname);
     expect(s.attrs["http.response.status_code"]).toBe(200);
     expect(s.attrs["error.type"]).toBeUndefined();
@@ -158,20 +161,20 @@ describe("startNetwork", () => {
     stop = () => {};
   });
 
-  it("names the span by the sampled route pattern, falling back to the path", async () => {
-    start();
-    await fetch("/api/a");
-    setRouteResolver(() => "/blog/$slug");
+  it("names the span by the request's own route template, falling back to the path", async () => {
+    start(undefined, (url) =>
+      url.pathname.startsWith("/api/posts/") ? "/api/posts/{id}" : null,
+    );
     await fetch("/api/posts/123");
-    setRouteResolver(null);
     await fetch("/api/b");
     expect(spans.map((s) => s.name)).toEqual([
-      "GET /api/a",
-      "GET /blog/$slug",
+      "GET /api/posts/{id}",
       "GET /api/b",
     ]);
+    expect(spans[0].attrs["url.template"]).toBe("/api/posts/{id}");
     // The exact target survives on url.full.
-    expect(spans[1].attrs["url.full"]).toBe(`${location.origin}/api/posts/123`);
+    expect(spans[0].attrs["url.full"]).toBe(`${location.origin}/api/posts/123`);
+    expect(spans[1].attrs["url.template"]).toBeUndefined();
   });
 
   it("uppercases the method and reads it from init or the Request", async () => {
@@ -189,6 +192,16 @@ describe("hardening", () => {
     await fetch("http://");
     expect(spans).toHaveLength(0);
     expect(String(lastRequest?.input)).toBe("http://");
+  });
+
+  it("falls back to the path when the route resolver throws", async () => {
+    start(undefined, () => {
+      throw new Error("router exploded");
+    });
+    const res = await fetch("/api/posts/123");
+    expect(res.status).toBe(200);
+    expect(spans[0].name).toBe("GET /api/posts/123");
+    expect(spans[0].attrs["url.template"]).toBeUndefined();
   });
 
   it("still records the span when the headers cannot be constructed", async () => {

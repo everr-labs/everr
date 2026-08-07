@@ -1,5 +1,9 @@
 import type { Instrumentation } from "../runtime.js";
-import { type PropagationTarget, startNetwork } from "./network.js";
+import {
+  type PropagationTarget,
+  type RouteTemplateResolver,
+  startNetwork,
+} from "./network.js";
 
 export type NetworkOptions = {
   /**
@@ -11,6 +15,14 @@ export type NetworkOptions = {
    * regardless; this gates only the header.
    */
   tracePropagationTargets?: PropagationTarget[];
+  /**
+   * Maps a request URL to the low-cardinality route template of the endpoint
+   * it hits (`/api/posts/123` -> `/api/posts/{id}`), used as the span name
+   * (`GET /api/posts/{id}`) and stamped as semconv `url.template`. This is the
+   * request's own route, unrelated to the page's route pattern from
+   * `setRouteResolver`. Without it, spans are named by the request path.
+   */
+  resolveRouteTemplate?: RouteTemplateResolver;
 };
 
 /**
@@ -22,6 +34,10 @@ export function network(options?: NetworkOptions): Instrumentation {
   // Named (not an arrow) so sampled() can hash a real identity from
   // instrumentation.name instead of decorrelating nothing.
   return function network(ctx) {
-    return startNetwork(ctx.tracer, options?.tracePropagationTargets);
+    return startNetwork(
+      ctx.tracer,
+      options?.tracePropagationTargets,
+      options?.resolveRouteTemplate,
+    );
   };
 }

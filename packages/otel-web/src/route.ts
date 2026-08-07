@@ -1,7 +1,9 @@
 // The route-pattern resolver: a host-registered callback returning the
-// active low-cardinality route pattern, sampled per record by the envelope
-// (stamped as `everr.route.pattern`) and by the network signal (span
-// names). A package-level function like identify/captureError: telemetry
+// active low-cardinality route pattern of the *page*, sampled per record by
+// the envelope (stamped as `everr.route.pattern`). It describes the document,
+// not any request the page makes, so the network signal resolves its own
+// request route template instead of borrowing this one.
+// A package-level function like identify/captureError: telemetry
 // WebSDK construction runs before any router exists, and registration deliberately
 // survives shutdown()/re-init (a consent flow re-initializes the SDK long
 // after the router registered).

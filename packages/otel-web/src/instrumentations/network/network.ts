@@ -1,6 +1,5 @@
 import type { Tracer } from "@opentelemetry/api";
 import { errorTypeOf } from "../../errors.js";
-import { routePattern } from "../../route.js";
 
 // The network signal: window.fetch is patched so every request (1) becomes
 // an OTel CLIENT span on the traces pipeline and (2) carries a W3C
@@ -34,9 +33,16 @@ import { routePattern } from "../../route.js";
 
 export type PropagationTarget = string | RegExp;
 
+/**
+ * Maps a request URL to its low-cardinality route template (semconv
+ * `url.template`), e.g. `/api/posts/123` -> `/api/posts/{id}`.
+ */
+export type RouteTemplateResolver = (url: URL) => string | null | undefined;
+
 export function startNetwork(
   tracer: Tracer,
   targets: PropagationTarget[] | undefined,
+  resolveTemplate: RouteTemplateResolver | undefined,
 ): () => void {
   const original = fetch;
 
@@ -60,11 +66,19 @@ export function startNetwork(
     // Read the URL parts once: the completion closure captures plain
     // strings, not the URL host object.
     const path = url.pathname;
-    // Low-cardinality span name: the page's route pattern (the same
-    // dimension the envelope's everr.route.pattern slices by) rather than
-    // the request path, whose ids would mint a span name per entity. The
-    // exact target stays on url.full.
-    const name = `${method} ${routePattern() ?? path}`;
+    // The request's own route template, resolved from the request URL by the
+    // host: the page's route pattern describes the document, not the endpoint
+    // this request hits, so the network signal never borrows it. With a
+    // resolver the span name stays low-cardinality even when the path carries
+    // ids; without one the path is the name. The exact target stays on
+    // url.full either way. Guarded because host code must never break fetch.
+    let template: string | null | undefined;
+    try {
+      template = resolveTemplate?.(url);
+    } catch {
+      template = undefined;
+    }
+    const name = `${method} ${template ?? path}`;
     const urlFull = url.origin + path;
     const hostname = url.hostname;
 
@@ -95,6 +109,7 @@ export function startNetwork(
       span.setAttributes({
         "http.request.method": method,
         "url.full": urlFull,
+        "url.template": template ?? undefined,
         "server.address": hostname,
         "http.response.status_code": status,
         "error.type": errorType,
