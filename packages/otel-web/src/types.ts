@@ -1,3 +1,4 @@
+import type { HostSend } from "./config.js";
 import type { Plugin } from "./plugins/runtime.js";
 
 /**
@@ -23,6 +24,13 @@ export type InitOptions = {
   serviceName: string;
   /** Overrides the `service.version` resource attribute (defaults to the SDK build version). */
   serviceVersion?: string;
+  /**
+   * The `service.instance.id` resource attribute: which install or process
+   * of `serviceName` this is. Omitted from the resource when unset, which is
+   * the right default for a web page (one instance per load is not useful);
+   * a desktop or kiosk host that has a durable install id should set it.
+   */
+  serviceInstanceId?: string;
   /** The `deployment.environment.name` resource attribute, e.g. `import.meta.env.MODE`. */
   deploymentEnvironment?: string;
   /**
@@ -34,6 +42,23 @@ export type InitOptions = {
   ingestKey?: string;
   /** Explicit OTLP base endpoint override (carries the ingest key's header when one is set). */
   endpoint?: string;
+  /**
+   * Takes over delivery. Called with one OTLP/JSON payload per signal, in
+   * place of the SDK's fetch POST; `ingestKey`, `endpoint`, and `dev` are
+   * then unused, and the SDK never issues a request of its own. For hosts
+   * that proxy telemetry themselves, e.g. a Tauri or Electron renderer
+   * handing the bytes to its native side:
+   *
+   * ```ts
+   * init({ send: (signal, body) => invoke("proxy_otlp", { signal, body }) })
+   * ```
+   *
+   * Delivery stays best-effort: a throwing or rejecting `send` is swallowed,
+   * exactly as a failed fetch is. Returning a promise makes `flush()` await
+   * it. Because the host owns transport, the browser keepalive byte budget
+   * does not apply and the exit flush ships the whole batch.
+   */
+  send?: HostSend;
   /**
    * Development mode, e.g. `import.meta.env.DEV`. Without a key or endpoint,
    * dev falls back to the local collector; production becomes a structural

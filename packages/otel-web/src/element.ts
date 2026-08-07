@@ -9,8 +9,8 @@ import type { AttrValue } from "./emitter.js";
 // invisible.
 
 // Card-number (13-16 digits, optionally spaced/dashed) or SSN shaped.
-// Deliberately independent of @everr/auto-otel-errors' scrub patterns: this
-// package stays zero-dep, so the shapes may drift; revisit if they converge.
+// Deliberately independent of @everr/otel-errors' scrub patterns: the browser
+// entry stays zero-dep, so the shapes may drift; revisit if they converge.
 const SENSITIVE_TEXT = /\b(?:\d[ -]?){13,16}\b|\b\d{3}-\d{2}-\d{4}\b/;
 export const FORM_FIELDS = "input,textarea,select";
 

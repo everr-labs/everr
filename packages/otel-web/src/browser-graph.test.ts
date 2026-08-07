@@ -1,7 +1,7 @@
 // @vitest-environment node
 //
 // Decision (2026-08-05 server spec): the browser entry's module graph must
-// stay provably free of the OTel API and the auto-otel-errors dependency;
+// stay provably free of the OTel API and the otel-errors dependency;
 // only the server entry (server.ts, behind the "node" export condition) may
 // touch them. The size gate would only hint at a leak; this walks the
 // static import graph and fails loudly instead.
@@ -9,7 +9,7 @@ import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
-const FORBIDDEN = ["@opentelemetry/", "@everr/auto-otel-errors"];
+const FORBIDDEN = ["@opentelemetry/", "@everr/otel-errors"];
 
 function importsOf(file: string): string[] {
   const source = readFileSync(file, "utf8");
@@ -42,7 +42,7 @@ function walk(
 
 describe("browser module graph", () => {
   for (const entry of ["src/index.ts", "src/react.ts"]) {
-    it(`${entry} never imports the OTel API or auto-otel-errors`, () => {
+    it(`${entry} never imports the OTel API or otel-errors`, () => {
       for (const [file, specifiers] of walk(entry)) {
         for (const spec of specifiers) {
           for (const forbidden of FORBIDDEN) {

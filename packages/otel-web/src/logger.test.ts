@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { fetchSend } from "./config.js";
 import { bindEmit } from "./current.js";
 import { createEmitter } from "./emitter.js";
 import { logger } from "./logger.js";
@@ -26,9 +27,12 @@ function wire(envelope: () => Record<string, string> = () => ({})) {
     }),
   );
   const [emit, doFlush] = createEmitter(
-    "https://ingest.example/v1/logs",
-    "https://ingest.example/v1/traces",
-    undefined,
+    fetchSend(
+      "https://ingest.example/v1/logs",
+      "https://ingest.example/v1/traces",
+      undefined,
+    ),
+    true,
     {},
     { name: "@everr/otel-web", version: "test" },
     envelope,

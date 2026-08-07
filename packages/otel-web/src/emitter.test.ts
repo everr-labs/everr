@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { fetchSend } from "./config.js";
 import { createEmitter, type Emit, type EmitSpan } from "./emitter.js";
 
 type SentBatch = {
@@ -44,9 +45,12 @@ function makeEmitter(envelope: () => Record<string, string> = () => ({})) {
     }),
   );
   return createEmitter(
-    "https://ingest.example/v1/logs",
-    "https://ingest.example/v1/traces",
-    { Authorization: "Bearer key" },
+    fetchSend(
+      "https://ingest.example/v1/logs",
+      "https://ingest.example/v1/traces",
+      { Authorization: "Bearer key" },
+    ),
+    true,
     { "service.name": "svc", "everr.screen.width": 1920 },
     { name: "@everr/otel-web", version: "test" },
     envelope,
@@ -187,9 +191,12 @@ describe("createEmitter", () => {
       vi.fn(() => Promise.reject(new Error("network down"))),
     );
     const [failingEmit, failingFlush] = createEmitter(
-      "https://ingest.example/v1/logs",
-      "https://ingest.example/v1/traces",
-      undefined,
+      fetchSend(
+        "https://ingest.example/v1/logs",
+        "https://ingest.example/v1/traces",
+        undefined,
+      ),
+      true,
       {},
       { name: "s", version: "v" },
       () => ({}),
@@ -252,5 +259,178 @@ describe("span pipeline", () => {
       "https://ingest.example/v1/logs",
       "https://ingest.example/v1/traces",
     ]);
+  });
+});
+
+describe("exit budget and transport hardening", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    [emit, flush, exitFlush, emitSpan] = makeEmitter();
+  });
+
+  it("truncates exit spans to a quarter of the keepalive budget, newest first", () => {
+    const filler = "x".repeat(3000);
+    for (let i = 0; i < 30; i++) {
+      emitSpan("a".repeat(32), "b".repeat(16), `span-${i}`, 1, 2, { filler });
+    }
+    exitFlush();
+    const traces = sent.find((b) => b.url.endsWith("/v1/traces"));
+    expect(traces?.keepalive).toBe(true);
+    expect(traces?.bodyLength).toBeLessThanOrEqual(16_000);
+    const payload = traces?.payload as unknown as {
+      resourceSpans: Array<{
+        scopeSpans: Array<{ spans: Array<{ name: string }> }>;
+      }>;
+    };
+    const names = payload.resourceSpans[0].scopeSpans[0].spans.map(
+      (s) => s.name,
+    );
+    expect(names.length).toBeLessThan(30);
+    // Oldest spans survive: truncation pops from the newest end.
+    expect(names[0]).toBe("span-0");
+  });
+
+  it("shares the exit budget: queued spans shrink what log records may fill", () => {
+    const filler = "x".repeat(3000);
+    for (let i = 0; i < 4; i++) {
+      emitSpan("a".repeat(32), "b".repeat(16), `span-${i}`, 1, 2, { filler });
+    }
+    for (let i = 0; i < 20; i++)
+      emit("everr.browser.interaction.click", { filler });
+    exitFlush();
+    const logs = sent.find((b) => b.url.endsWith("/v1/logs"));
+    const traces = sent.find((b) => b.url.endsWith("/v1/traces"));
+    expect(traces).toBeDefined();
+    expect(
+      (logs?.bodyLength ?? 0) + (traces?.bodyLength ?? 0),
+    ).toBeLessThanOrEqual(64_000);
+  });
+
+  it("swallows a synchronously-throwing fetch on every delivery path", async () => {
+    // The transport binds fetch at creation: the throwing stub must be in
+    // place before the emitter is built for the catch path to be real.
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(() => {
+        throw new Error("blocked");
+      }),
+    );
+    const [emitB, flushB, exitFlushB, emitSpanB] = createEmitter(
+      fetchSend(
+        "https://ingest.example/v1/logs",
+        "https://ingest.example/v1/traces",
+        undefined,
+      ),
+      true,
+      {},
+      { name: "@everr/otel-web", version: "test" },
+      () => ({}),
+    );
+    emitB("everr.browser.page_view");
+    emitSpanB("a".repeat(32), "b".repeat(16), "GET /x", 1, 2, {});
+    await expect(flushB()).resolves.toBeUndefined();
+    emitB("everr.browser.page_view");
+    expect(() => exitFlushB()).not.toThrow();
+  });
+});
+
+describe("a caller-supplied send owns delivery", () => {
+  type Delivered = { signal: string; body: string };
+
+  function makeSendEmitter(
+    send: (signal: string, body: string) => unknown,
+    truncateAtExit = false,
+  ) {
+    return createEmitter(
+      send,
+      truncateAtExit,
+      {},
+      { name: "@everr/otel-web", version: "test" },
+      () => ({}),
+    );
+  }
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+
+  it("ships the whole exit batch: no keepalive budget applies", () => {
+    const delivered: Delivered[] = [];
+    const [emitC, , exitFlushC] = makeSendEmitter((signal, body) => {
+      delivered.push({ signal, body });
+    });
+
+    // Under MAX_BATCH_SIZE so nothing auto-flushes: the exit path sees the
+    // whole queue, and the payload is comfortably past the keepalive budget.
+    const filler = "x".repeat(4000);
+    for (let i = 0; i < 20; i++)
+      emitC("everr.browser.interaction.click", { filler, i });
+    exitFlushC();
+
+    const logs = delivered.find((d) => d.signal === "logs");
+    expect(logs).toBeDefined();
+    expect(logs?.body.length).toBeGreaterThan(64_000);
+    const payload = JSON.parse(logs?.body ?? "{}") as {
+      resourceLogs: Array<{
+        scopeLogs: Array<{ logRecords: unknown[] }>;
+      }>;
+    };
+    expect(payload.resourceLogs[0].scopeLogs[0].logRecords).toHaveLength(20);
+  });
+
+  it("still truncates when the transport asks for it", () => {
+    const delivered: Delivered[] = [];
+    const [emitC, , exitFlushC] = makeSendEmitter((signal, body) => {
+      delivered.push({ signal, body });
+    }, true);
+
+    // Under MAX_BATCH_SIZE so nothing auto-flushes: the exit path sees the
+    // whole queue, and the payload is comfortably past the keepalive budget.
+    const filler = "x".repeat(4000);
+    for (let i = 0; i < 20; i++)
+      emitC("everr.browser.interaction.click", { filler, i });
+    exitFlushC();
+
+    expect(delivered[0].body.length).toBeLessThanOrEqual(64_000);
+  });
+
+  it("swallows a synchronously-throwing send", async () => {
+    const [emitC, flushC, exitFlushC] = makeSendEmitter(() => {
+      throw new Error("host refused");
+    });
+
+    emitC("everr.browser.page_view");
+    await expect(flushC()).resolves.toBeUndefined();
+    emitC("everr.browser.page_view");
+    expect(() => exitFlushC()).not.toThrow();
+  });
+
+  it("swallows a rejecting send", async () => {
+    const [emitC, flushC] = makeSendEmitter(() =>
+      Promise.reject(new Error("proxy down")),
+    );
+
+    emitC("everr.browser.page_view");
+    await expect(flushC()).resolves.toBeUndefined();
+  });
+
+  it("flush awaits the promise send returns", async () => {
+    let settled = false;
+    const [emitC, flushC] = makeSendEmitter(
+      () =>
+        new Promise<void>((resolve) =>
+          setTimeout(() => {
+            settled = true;
+            resolve();
+          }, 50),
+        ),
+    );
+
+    emitC("everr.browser.page_view");
+    const pending = flushC();
+    expect(settled).toBe(false);
+    await vi.advanceTimersByTimeAsync(50);
+    await pending;
+    expect(settled).toBe(true);
   });
 });

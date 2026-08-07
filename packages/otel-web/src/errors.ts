@@ -7,11 +7,11 @@ import { currentEmit } from "./current.js";
 // emitted through the SDK pipeline so every error carries the analytics
 // envelope and joins the session's other signals. This deliberately owns the
 // small slice of error handling the browser needs instead of depending on
-// @everr/auto-otel-errors: the SDK stays a fraction of the bytes and never
-// contends for that package's global client. The attribute names below are a
-// wire contract shared with it (`exception.*`, `everr.error.*`,
-// `everr.react.*`), so browser and server errors group identically through
-// the errorFingerprint UDF.
+// @everr/otel-errors, which is Node-only: the SDK stays a fraction of the
+// bytes and carries no OTel API. The attribute names below are a wire
+// contract shared with it (`exception.*`, `everr.error.*`, `everr.react.*`),
+// so browser and server errors group identically through the
+// errorFingerprint UDF.
 //
 // Deliberately absent (decided 2026-07-27, function per byte): message/stack
 // scrubbing (content ships verbatim; scrubbing must return before errors are
@@ -127,7 +127,7 @@ const browserReport: Report = (error, mechanism, handled, extra, fileName) => {
 
 // A live binding: the react entry and the errors() plugin import it. The
 // browser reporter is the default and needs no wiring; the server entry
-// swaps in its adapter over @everr/auto-otel-errors here, and unbinding
+// swaps in its adapter over @everr/otel-errors/core here, and unbinding
 // restores the default.
 export let report: Report = browserReport;
 

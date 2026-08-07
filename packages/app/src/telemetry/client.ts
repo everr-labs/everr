@@ -11,7 +11,7 @@ import { readConsent } from "@/telemetry/consent";
 // Everr-native browser telemetry for the web app (dogfooding): pageviews,
 // frustration clicks, web vitals, and errors flow to Everr as OTel log
 // records under the app's service name, next to its server telemetry
-// (`node.ts`). Error capture rides @everr/auto-otel-errors inside the SDK
+// (`node.ts`). Error capture rides the SDK's own errors() plugin
 // (window.onerror, unhandledrejection, and the router's error component via
 // the re-exported `captureReactError`), stamped with the same analytics
 // envelope.

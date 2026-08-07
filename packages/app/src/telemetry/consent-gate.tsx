@@ -1,6 +1,6 @@
+import { revoke } from "@everr/otel-web";
 import { ConsentBanner } from "@everr/ui/components/consent-banner";
 import { ConsentSettingsDialog } from "@everr/ui/components/consent-settings-dialog";
-import { revoke } from "@everr/otel-web";
 import { createContext, type ReactNode, useContext, useState } from "react";
 import { CONSENT_COOKIE, type ConsentDecision } from "@/telemetry/consent";
 

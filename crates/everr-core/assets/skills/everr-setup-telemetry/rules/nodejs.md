@@ -11,7 +11,7 @@ Use this rule for Node.js services, CLIs, workers, background jobs, and test run
 - Load telemetry before importing HTTP, framework, database, queue, AWS SDK, GraphQL, gRPC, logger, or job-runner modules.
 - Export to OTLP over HTTP for Everr local and hosted ingest unless project constraints require a different protocol.
 - Prefer framework-native OpenTelemetry support or OpenTelemetry contrib instrumentation for common libraries, then add manual spans only for work the library instrumentation cannot see.
-- Use `@everr/auto-otel-errors/node` for error capture: call `init()` after `sdk.start()`. Do not hand-roll process error handlers or exception logging.
+- Use `@everr/otel-errors` for error capture: add `new ErrorsInstrumentation()` to the SDK's `instrumentations`. Do not hand-roll process error handlers or exception logging.
 
 ## Framework-Specific OpenTelemetry First
 
@@ -44,10 +44,10 @@ Use this precedence order:
 
 ## Packages
 
-Follow the package manager already used by the project. For a complete traces, logs, and metrics setup, plus `@everr/auto-otel-errors` for error capture:
+Follow the package manager already used by the project. For a complete traces, logs, and metrics setup, plus `@everr/otel-errors` for error capture:
 
 ```bash
-npm install @everr/auto-otel-errors @opentelemetry/api @opentelemetry/api-logs @opentelemetry/sdk-node @opentelemetry/sdk-trace-node @opentelemetry/sdk-metrics @opentelemetry/sdk-logs @opentelemetry/resources @opentelemetry/auto-instrumentations-node @opentelemetry/exporter-trace-otlp-proto @opentelemetry/exporter-metrics-otlp-proto @opentelemetry/exporter-logs-otlp-proto
+npm install @everr/otel-errors @opentelemetry/instrumentation @opentelemetry/api @opentelemetry/api-logs @opentelemetry/sdk-node @opentelemetry/sdk-trace-node @opentelemetry/sdk-metrics @opentelemetry/sdk-logs @opentelemetry/resources @opentelemetry/auto-instrumentations-node @opentelemetry/exporter-trace-otlp-proto @opentelemetry/exporter-metrics-otlp-proto @opentelemetry/exporter-logs-otlp-proto
 ```
 
 If the app only needs traces at first, install the SDK, auto-instrumentations, resources, trace SDK, and trace exporter. Add metrics and logs packages when those signals are part of the task.
@@ -81,7 +81,7 @@ Latest Node.js versions support .ts files, stick with them if possible.
 
 ```typescript
 // src/telemetry-setup.ts
-import { init as initErrorTracking } from '@everr/auto-otel-errors/node';
+import { ErrorsInstrumentation } from '@everr/otel-errors';
 import { getNodeAutoInstrumentations } from '@opentelemetry/auto-instrumentations-node';
 import { OTLPLogExporter } from '@opentelemetry/exporter-logs-otlp-proto';
 import { OTLPMetricExporter } from '@opentelemetry/exporter-metrics-otlp-proto';
@@ -142,6 +142,11 @@ function startTelemetry() {
       ),
     ],
     instrumentations: [
+      // Error capture. It owns the uncaughtException/unhandledRejection
+      // handlers (flush logs, spans, and metrics, then exit), active-span
+      // ERROR marking, rate limiting, and redaction. Pass
+      // { onFatal: 'continue' } to capture without exiting on a fatal error.
+      new ErrorsInstrumentation(),
       getNodeAutoInstrumentations({
         '@opentelemetry/instrumentation-fs': { enabled: false },
       }),
@@ -150,11 +155,6 @@ function startTelemetry() {
 
   sdk.start();
 
-  // Error capture: install after sdk.start() so the global providers are live.
-  // It owns the uncaughtException/unhandledRejection handlers (flush, then exit),
-  // active-span ERROR marking, rate limiting, and redaction. Pass
-  // { onFatal: 'continue' } to capture without exiting on a fatal error.
-  initErrorTracking();
   installShutdownHandlers(sdk);
 
   return { sdk };
@@ -212,7 +212,7 @@ function installShutdownHandlers(sdk: NodeSDK) {
 
 ```
 
-`@everr/auto-otel-errors` owns crash handling, so there is no `installFatalErrorHandlers` here — the library installs the `uncaughtException`/`unhandledRejection` handlers, flushes, and exits.
+`@everr/otel-errors` owns crash handling, so there is no `installFatalErrorHandlers` here: the instrumentation installs the `uncaughtException`/`unhandledRejection` handlers, flushes, and exits.
 
 If the app has a singleton/hot-reload pattern already, use that pattern instead of the `Symbol.for` guard.
 
@@ -241,7 +241,7 @@ Use low-cardinality span names. Prefer operation names and route templates over 
 
 ```typescript
 import { SpanStatusCode, trace } from '@opentelemetry/api';
-import { captureError } from '@everr/auto-otel-errors/node';
+import { captureError } from '@everr/otel-errors';
 
 const tracer = trace.getTracer('checkout-worker');
 
@@ -276,13 +276,14 @@ For incoming requests, rely on HTTP or framework instrumentation to extract cont
 
 ## Error Tracking
 
-Error capture is `@everr/auto-otel-errors/node`, wired in the setup module above with `init()` after `sdk.start()`. This is the path for Node — do not hand-roll `process.on('uncaughtException')`, `unhandledRejection`, `console` patches, or per-call exception logging.
+Error capture is `@everr/otel-errors`, registered in the setup module above as `new ErrorsInstrumentation()` in the SDK's `instrumentations`. This is the path for Node: do not hand-roll `process.on('uncaughtException')`, `unhandledRejection`, `console` patches, or per-call exception logging.
 
-- It installs the `uncaughtException`/`unhandledRejection` handlers (flush, then exit; pass `onFatal: 'continue'` to capture without exiting), marks the active span `ERROR`, and applies rate limiting and redaction.
+- It installs the `uncaughtException`/`unhandledRejection` handlers (flush logs, spans, and metrics, then exit; pass `onFatal: 'continue'` to capture without exiting), marks the active span `ERROR`, and applies rate limiting and redaction.
+- The SDK injects its own `LoggerProvider`, so records go to the app's log pipeline rather than through a global lookup.
 - Use `captureError(error, attributes)` in catch blocks for manual capture (see Custom Spans above).
-- Framework adapters: `@everr/auto-otel-errors/express` (`errorHandler()` as the last middleware) and `@everr/auto-otel-errors/fastify` (`errorTrackingPlugin`).
+- There are no framework adapters. Express and Fastify errors already reach the `uncaughtException` path or the framework's own error hook; call `captureError` there if the framework swallows them.
 
-See `error-tracking.md` for options (`onFatal`, `rateLimit`, `scrubPatterns`, `beforeSend`).
+Options are `onFatal`, `rateLimit`, `redactPatterns`, `redactKeys`, and `beforeSend`. See `error-tracking.md` for what to capture and `sensitive-data.md` for redaction.
 
 ## Full-Stack Frameworks And Shared Code
 
@@ -290,7 +291,7 @@ When a full-stack framework (Next.js, TanStack Start, Remix) uses `@everr/otel-w
 
 The division of ownership stays as above:
 
-- `instrumentation.ts` (or the setup module) owns the NodeSDK startup and the `@everr/auto-otel-errors/node` `init()` for crash handlers. The `@everr/otel-web` server entry never installs process handlers and never exports anything itself.
+- `instrumentation.ts` (or the setup module) owns the NodeSDK startup and the `@everr/otel-errors` `ErrorsInstrumentation` for crash handlers. The `@everr/otel-web` server entry never installs process handlers and never exports anything itself.
 - `@everr/otel-web` `init()` options are inert on the server: `ingestKey` and `endpoint` are browser concerns, and lifecycle (`forceFlush` before a serverless freeze, shutdown) belongs to the NodeSDK handle.
 - Without a registered SDK the server entry is a structural no-op: nothing is emitted and no request is issued.
 
@@ -307,6 +308,6 @@ The division of ownership stays as above:
 | High cardinality | Span names or metric/log attributes contain IDs, paths, queries, or raw messages |
 | Missing DB spans | Database module imported before setup or unsupported driver version |
 | Missing trace-log correlation | Logger helper not reading active context or logs emitted outside active spans |
-| Each error captured twice | `@everr/auto-otel-errors` running alongside leftover hand-rolled `uncaughtException`/`unhandledRejection` handlers — remove the hand-rolled ones |
+| Each error captured twice | `@everr/otel-errors` running alongside leftover hand-rolled `uncaughtException`/`unhandledRejection` handlers: remove the hand-rolled ones |
 
 After changes, run the instrumented path and validate with `everr local query`. Filter by `ServiceName`, a recent time window, and a run/request/test marker when practical.

@@ -1,9 +1,11 @@
 // The SDK's own emit pipeline: an in-memory queue, a batch timer, and one
-// fetch POST of OTLP JSON per flush. Owning the queue (instead of OTel's
+// OTLP JSON payload per signal per flush, handed to the transport's `send`
+// (a fetch POST by default). Owning the queue (instead of OTel's
 // BatchLogRecordProcessor) is what lets the exit flush truncate to the
 // keepalive budget. Wire shapes follow the OTLP JSON mapping (intValue is
 // a decimal string); everything else internal is positional, since property
 // names survive minification and tuple indexes do not.
+import type { Send, Signal } from "./config.js";
 
 export type AttrValue = string | number | boolean;
 
@@ -120,21 +122,19 @@ function toKeyValues(
 }
 
 export function createEmitter(
-  logsUrl: string,
-  tracesUrl: string,
-  extraHeaders: Record<string, string> | undefined,
+  /** Delivers one OTLP/JSON payload per signal; see config.ts. */
+  send: Send,
+  /**
+   * Whether the exit batch must fit the fetch keepalive budget. False when
+   * the host owns delivery and no such budget exists.
+   */
+  truncateAtExit: boolean,
   resourceAttributes: Record<string, AttrValue | null | undefined>,
   scope: { name: string; version: string },
   /** Called per record; returns the context envelope to stamp. */
   envelope: () => Record<string, AttrValue | null | undefined>,
 ): Emitter {
   const resource = toKeyValues(resourceAttributes);
-  const headers = { "Content-Type": "application/json", ...extraHeaders };
-  // The fetch reference is captured at init, before the network signal
-  // patches the global: SDK POSTs structurally cannot be seen by the patch,
-  // so no span-of-our-own-batch loop is possible and no URL exclusion is
-  // needed. Tests stub the global before init, so they capture the stub.
-  const doFetch = fetch;
   let queue: OtlpLogRecord[] = [];
   let spanQueue: OtlpSpan[] = [];
   let timer: ReturnType<typeof setTimeout> | undefined;
@@ -156,19 +156,17 @@ export function createEmitter(
   const bytes = (body: string) => new Blob([body]).size;
 
   // Telemetry must never break the page: delivery is best-effort, sync
-  // throws included. keepalive survives the page teardown; deliberately
-  // no sendBeacon fallback (it cannot carry the Authorization header, so it
+  // throws included, and that holds for a caller-supplied send as much as
+  // for fetch. keepalive survives the page teardown; deliberately no
+  // sendBeacon fallback (it cannot carry the Authorization header, so it
   // could never deliver to the hosted ingest anyway).
   const post = (
-    url: string,
+    signal: Signal,
     body: string,
     keepalive?: boolean,
   ): Promise<void> => {
     try {
-      return doFetch(url, { method: "POST", headers, body, keepalive }).then(
-        noop,
-        noop,
-      );
+      return Promise.resolve(send(signal, body, keepalive)).then(noop, noop);
     } catch {
       return noop();
     }
@@ -179,11 +177,11 @@ export function createEmitter(
     timer = undefined;
     const posts: Promise<void>[] = [];
     if (queue.length) {
-      posts.push(post(logsUrl, buildLogs(), keepalive));
+      posts.push(post("logs", buildLogs(), keepalive));
       queue = [];
     }
     if (spanQueue.length) {
-      posts.push(post(tracesUrl, buildSpans(), keepalive));
+      posts.push(post("traces", buildSpans(), keepalive));
       spanQueue = [];
     }
     return posts.length === 1 ? posts[0] : Promise.all(posts).then(noop, noop);
@@ -193,16 +191,20 @@ export function createEmitter(
     // Truncate whole records, newest first, until both keepalive payloads
     // fit the budget together: spans get at most a quarter, log records the
     // remainder (page_leave and buffered vitals outrank in-flight fetches).
-    let spanBytes = 0;
-    if (spanQueue.length) {
-      spanBytes = bytes(buildSpans());
-      while (spanQueue.length > 1 && spanBytes > EXIT_BUDGET / 4) {
-        spanQueue.pop();
+    // Skipped entirely when the host owns delivery: the budget is a fetch
+    // constraint, and dropping records for it would lose data for nothing.
+    if (truncateAtExit) {
+      let spanBytes = 0;
+      if (spanQueue.length) {
         spanBytes = bytes(buildSpans());
+        while (spanQueue.length > 1 && spanBytes > EXIT_BUDGET / 4) {
+          spanQueue.pop();
+          spanBytes = bytes(buildSpans());
+        }
       }
+      while (queue.length > 1 && bytes(buildLogs()) > EXIT_BUDGET - spanBytes)
+        queue.pop();
     }
-    while (queue.length > 1 && bytes(buildLogs()) > EXIT_BUDGET - spanBytes)
-      queue.pop();
     void flush(true);
   };
 

@@ -9,17 +9,17 @@
 // means the API's built-in no-ops: silent and structurally inert, so keyless
 // or SDK-less processes never issue a network request.
 //
-// Error capture delegates to @everr/auto-otel-errors' core Client
+// Error capture delegates to @everr/otel-errors' core Client
 // (normalization, scrubbing, rate limiting, and the recordException +
 // setStatus(ERROR) span marking) instead of reimplementing it, but
-// constructs its own instance: the package-level auto-otel-errors client,
-// and with it the process crash handlers, stay the app's to init in the
-// server entrypoint.
+// constructs its own instance: the ErrorsInstrumentation, and with it the
+// process crash handlers, stays the app's to register on its NodeSDK in
+// the server entrypoint.
 
-// The Client class is runtime-parameterized and identical across that
-// package's entries; the /browser subpath keeps node-globals (and its
-// @types/node requirement) out of this package's browser-lib tsc program.
-import { Client } from "@everr/auto-otel-errors/browser";
+// The /core subpath is that package's runtime-neutral half: it keeps the
+// instrumentation (and its @types/node requirement) out of this package's
+// browser-lib tsc program, which deliberately has no node typings.
+import { Client } from "@everr/otel-errors/core";
 import { context } from "@opentelemetry/api";
 import {
   type LogAttributes,
@@ -45,7 +45,7 @@ import { SDK_NAME, SDK_VERSION } from "./version.js";
 
 // captureError is the same live-binding surface the browser uses (one
 // state machine: warn before init, silent after shutdown); init() below
-// swaps in the auto-otel-errors adapter.
+// swaps in the otel-errors adapter.
 export type { AttrValue } from "./emitter.js";
 export { captureError } from "./errors.js";
 export type { Plugin, PluginContext } from "./plugins/runtime.js";
@@ -69,7 +69,7 @@ export function init(_options: InitOptions): EverrClient {
   // Resolved once: before a global provider registers this is a ProxyLogger
   // that starts delegating the moment the app's SDK lands.
   const otelLogger = logs.getLogger(SDK_NAME, SDK_VERSION);
-  const errors = new Client({}, "node", []);
+  const errors = new Client();
   // The shared current.ts binding: logger samples it per call, here adapted
   // onto the app's LoggerProvider.
   const unbindEmit = bindEmit(emitVia(otelLogger));
@@ -147,7 +147,9 @@ const emitVia =
   (_eventName, attributes, severityNumber, body) => {
     otelLogger.emit({
       severityNumber,
-      severityText: severityNumber ? SeverityNumber[severityNumber] : undefined,
+      // Indexing with the enum: no everr emit path omits the severity, and
+      // an out-of-enum number safely yields undefined.
+      severityText: SeverityNumber[severityNumber as number],
       body,
       attributes: cleanAttributes(attributes),
       context: context.active(),

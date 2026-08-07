@@ -48,6 +48,7 @@ export function init(options: InitOptions): EverrClient {
       "service.name": options.serviceName,
       "service.namespace": "everr",
       "service.version": options.serviceVersion ?? SDK_VERSION,
+      "service.instance.id": options.serviceInstanceId,
       "deployment.environment.name": options.deploymentEnvironment,
       "telemetry.distro.name": SDK_NAME,
       "telemetry.distro.version": SDK_VERSION,

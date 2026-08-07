@@ -3,7 +3,6 @@
   "version": "0.1.0",
   "description": "Everr browser telemetry SDK: analytics, errors, and web vitals as OTel log records",
   "license": "MIT",
-  "private": true,
   "repository": {
     "type": "git",
     "url": "git+https://github.com/everr-labs/everr.git",
@@ -11,12 +10,34 @@
   },
   "type": "module",
   "sideEffects": false,
+  "files": [
+    "dist"
+  ],
   "exports": {
     ".": {
       "node": "./src/server.ts",
       "default": "./src/index.ts"
     },
     "./react": "./src/react.ts"
+  },
+  "publishConfig": {
+    "access": "public",
+    "exports": {
+      ".": {
+        "node": {
+          "types": "./dist/server.d.ts",
+          "default": "./dist/server.js"
+        },
+        "default": {
+          "types": "./dist/index.d.ts",
+          "default": "./dist/index.js"
+        }
+      },
+      "./react": {
+        "types": "./dist/react.d.ts",
+        "default": "./dist/react.js"
+      }
+    }
   },
   "scripts": {
     "build": "tsdown",
@@ -27,7 +48,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@everr/auto-otel-errors": "workspace:*"
+    "@everr/otel-errors": "workspace:*"
   },
   "peerDependencies": {
     "@opentelemetry/api": "^1.9.0",
