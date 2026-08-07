@@ -95,6 +95,7 @@ export const AlertingRulesPageSchema = z.object({
 
 export const AlertingAlertSchema = z.object({
   key: z.string(),
+  fingerprint: z.string(),
   // `rule` carries the source id; `slo` is additionally present for SLOs.
   rule: z.string(),
   slo: z.string().optional(),

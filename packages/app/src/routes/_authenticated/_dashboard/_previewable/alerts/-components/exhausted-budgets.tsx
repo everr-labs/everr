@@ -1,7 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import { alertingSloIdentity } from "@/data/alerting/slo";
 import type { AlertingExhaustedBudget } from "@/data/alerting/triage";
-import { AlertingBudgetBar } from "./budget-bar";
+import { AlertingBudgetFact } from "./budget-bar";
 import { SectionCard } from "./shared";
 
 export function AlertingExhaustedBudgetsCard({
@@ -34,10 +34,7 @@ export function AlertingExhaustedBudgetsCard({
                   {identity.name}
                 </span>
               </span>
-              <AlertingBudgetBar
-                remaining={status.budget_remaining}
-                className="w-24 shrink-0"
-              />
+              <AlertingBudgetFact remaining={status.budget_remaining} />
             </Link>
           );
         })}

@@ -1,5 +1,10 @@
 import { toneText } from "@everr/ui/components/tone";
-import { cn } from "@everr/ui/lib/utils";
+import { Link } from "@tanstack/react-router";
+import {
+  AlertingBreachBreakdown,
+  AlertingSummaryCard,
+  AlertingSummaryStat,
+} from "./summary-card";
 
 export type AlertingPipelineFacts = {
   watchingRules: number;
@@ -14,118 +19,127 @@ export type AlertingPipelineFacts = {
   unroutedFiring: number;
 };
 
-function Stage({
-  label,
-  primary,
-  secondary,
-  tone,
-}: {
-  label: string;
-  primary: React.ReactNode;
-  secondary?: React.ReactNode;
-  tone?: "firing" | "degraded";
-}) {
+function MetricNumber({ children }: { children: React.ReactNode }) {
   return (
-    <span className="flex min-w-0 flex-col gap-0.5 px-3 py-2">
-      <span className="text-[0.6875rem] font-medium tracking-wide text-muted-foreground uppercase">
-        {label}
-      </span>
-      <span
-        className={cn(
-          "text-sm font-semibold tabular-nums whitespace-nowrap",
-          tone === "firing" && "text-destructive",
-        )}
-      >
-        {primary}
-      </span>
-      {secondary && (
-        <span
-          className={cn(
-            "text-xs whitespace-nowrap",
-            toneText({ tone: tone === "degraded" ? "warning" : "muted" }),
-          )}
-        >
-          {secondary}
-        </span>
-      )}
-    </span>
+    <span className="font-semibold leading-none tabular-nums">{children}</span>
   );
 }
 
-// Every cell is deliberately inert: navigation is the sidebar's job.
-const STAGE_CELL_CLASS = "rounded-md border border-border bg-card";
+function MetricCount({
+  value,
+  singular,
+  plural,
+}: {
+  value: number;
+  singular: string;
+  plural: string;
+}) {
+  return (
+    <span className="inline-flex items-baseline gap-1 whitespace-nowrap">
+      <MetricNumber>{value}</MetricNumber>{" "}
+      <span className="text-xs">{value === 1 ? singular : plural}</span>
+    </span>
+  );
+}
 
 export function AlertingPipelineStrip({
   facts,
 }: {
   facts: AlertingPipelineFacts;
 }) {
+  const breaching = facts.firing + facts.pending;
+
   return (
-    <section
-      aria-label="Alerting pipeline"
-      aria-live="polite"
-      className="grid grid-cols-2 gap-1.5 lg:grid-cols-4 lg:gap-2"
-    >
-      <div className={STAGE_CELL_CLASS}>
-        <Stage
-          label="Firing"
-          primary={facts.firing}
-          secondary={
-            facts.pending > 0
-              ? `${facts.pending} pending`
-              : facts.firing > 0
-                ? "needs attention"
-                : "all quiet"
-          }
-          tone={facts.firing > 0 ? "firing" : undefined}
-        />
-      </div>
-      <div className={STAGE_CELL_CLASS}>
-        <Stage
-          label="Delivery"
-          primary={
-            <>
-              {facts.routeCount} {facts.routeCount === 1 ? "route" : "routes"} →{" "}
-              {facts.receiverCount}{" "}
-              {facts.receiverCount === 1 ? "receiver" : "receivers"}
-            </>
-          }
-          secondary={
-            facts.unroutedFiring > 0
-              ? `${facts.unroutedFiring} firing unrouted`
-              : facts.routeCount === 0
-                ? "no routes configured"
-                : "routes matching"
-          }
-          tone={facts.unroutedFiring > 0 ? "degraded" : undefined}
-        />
-      </div>
-      <div className={STAGE_CELL_CLASS}>
-        <Stage
-          label="Watching"
-          primary={
-            <>
-              {facts.watchingRules}{" "}
-              {facts.watchingRules === 1 ? "rule" : "rules"} ·{" "}
-              {facts.watchingSlos} {facts.watchingSlos === 1 ? "SLO" : "SLOs"}
-            </>
-          }
-          secondary={
-            facts.pausedRules > 0
-              ? `${facts.pausedRules} paused`
-              : "none paused"
-          }
-        />
-      </div>
-      <div className={STAGE_CELL_CLASS}>
-        <Stage
-          label="Silenced"
-          primary={facts.silenced}
-          secondary={`${facts.activeSilences} active ${
-            facts.activeSilences === 1 ? "silence" : "silences"
-          }`}
-        />
-      </div>
-    </section>
+    <AlertingSummaryCard ariaLabel="Alerting pipeline" ariaLive="polite">
+      <AlertingSummaryStat
+        label="Breaching instances"
+        value={<MetricNumber>{breaching}</MetricNumber>}
+        valueClassName={breaching > 0 ? "text-destructive" : undefined}
+        detail={
+          <AlertingBreachBreakdown
+            firing={facts.firing}
+            pending={facts.pending}
+          />
+        }
+      />
+      <AlertingSummaryStat
+        label="Delivery"
+        wrapValue
+        value={
+          <span className="flex flex-wrap items-baseline gap-x-1.5 gap-y-0.5">
+            <MetricCount
+              value={facts.routeCount}
+              singular="route"
+              plural="routes"
+            />
+            <span className="text-xs text-muted-foreground"> · </span>
+            <MetricCount
+              value={facts.receiverCount}
+              singular="destination"
+              plural="destinations"
+            />
+          </span>
+        }
+        detail={
+          facts.routeCount === 0
+            ? "Not configured"
+            : facts.unroutedFiring > 0
+              ? "Coverage incomplete"
+              : "Delivery ready"
+        }
+        detailClassName={
+          facts.unroutedFiring > 0 ? toneText({ tone: "warning" }) : undefined
+        }
+      />
+      <AlertingSummaryStat
+        label="Watching"
+        wrapValue
+        value={
+          <span className="flex flex-wrap items-baseline gap-x-1.5 gap-y-0.5">
+            <Link
+              to="/alerts/rules"
+              className="rounded-sm underline-offset-2 outline-2 outline-dotted outline-transparent hover:underline focus-visible:outline-primary"
+            >
+              <MetricCount
+                value={facts.watchingRules}
+                singular="rule"
+                plural="rules"
+              />
+            </Link>
+            <span className="text-xs text-muted-foreground"> · </span>
+            <Link
+              to="/alerts/slos"
+              className="rounded-sm underline-offset-2 outline-2 outline-dotted outline-transparent hover:underline focus-visible:outline-primary"
+            >
+              <MetricCount
+                value={facts.watchingSlos}
+                singular="SLO"
+                plural="SLOs"
+              />
+            </Link>
+          </span>
+        }
+        detail={
+          facts.pausedRules > 0 ? `${facts.pausedRules} paused` : "All enabled"
+        }
+      />
+      <AlertingSummaryStat
+        label="Silenced"
+        value={
+          <MetricCount
+            value={facts.silenced}
+            singular="alert"
+            plural="alerts"
+          />
+        }
+        detail={
+          facts.activeSilences === 0
+            ? "No active silences"
+            : `${facts.activeSilences} active ${
+                facts.activeSilences === 1 ? "silence" : "silences"
+              }`
+        }
+      />
+    </AlertingSummaryCard>
   );
 }

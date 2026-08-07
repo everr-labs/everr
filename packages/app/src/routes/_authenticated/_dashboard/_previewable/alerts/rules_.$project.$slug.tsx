@@ -16,13 +16,7 @@ import { cn } from "@everr/ui/lib/utils";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { BellOff, BookOpenText, CircleAlert } from "lucide-react";
-import {
-  type ReactNode,
-  useCallback,
-  useLayoutEffect,
-  useRef,
-  useState,
-} from "react";
+import { useCallback, useLayoutEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { alertingConditionOperatorLabel } from "@/data/alerting/condition";
 import { alertingQueries } from "@/data/alerting/queries";
@@ -58,6 +52,11 @@ import {
   SilenceCreateDrawer,
   type SilenceDrawerHandle,
 } from "./-components/silences-panel";
+import {
+  AlertingBreachBreakdown,
+  AlertingSummaryCard,
+  AlertingSummaryStat,
+} from "./-components/summary-card";
 
 function RuleStateLabel({ rule }: { rule: AlertingRuleView }) {
   if (rule.paused) {
@@ -134,32 +133,6 @@ function conciseDuration(seconds: number) {
   if (seconds < 60) return `${Math.max(0, Math.ceil(seconds))}s`;
   if (seconds < 3_600) return `${Math.ceil(seconds / 60)}m`;
   return `${Math.ceil(seconds / 3_600)}h`;
-}
-
-function RuleActivityStat({
-  label,
-  value,
-  detail,
-}: {
-  label: string;
-  value: ReactNode;
-  detail?: ReactNode;
-}) {
-  return (
-    <div className="min-w-0 bg-card px-3 py-2.5">
-      <dt className="text-[0.625rem] font-medium tracking-wide text-muted-foreground uppercase">
-        {label}
-      </dt>
-      <dd className="mt-0.5 min-w-0">
-        <div className="truncate text-sm font-medium tabular-nums">{value}</div>
-        {detail && (
-          <div className="mt-0.5 truncate text-[0.6875rem] text-muted-foreground">
-            {detail}
-          </div>
-        )}
-      </dd>
-    </div>
-  );
 }
 
 function AlertRuleDiagnosis({
@@ -422,7 +395,6 @@ function AlertingRuleDetailPage() {
                     {
                       lockSeed: true,
                       seedValueLabels: [identity.name],
-                      scopeLabel: identity.name,
                     },
                   )
                 }
@@ -441,15 +413,12 @@ function AlertingRuleDetailPage() {
             />
           </div>
         </div>
-        <dl
-          className="grid grid-cols-2 gap-px overflow-hidden rounded-lg bg-border/60 ring-1 ring-foreground/10 lg:grid-cols-4"
-          aria-label="Rule activity summary"
-        >
-          <RuleActivityStat
-            label="Active instances"
+        <AlertingSummaryCard ariaLabel="Rule activity summary">
+          <AlertingSummaryStat
+            label="Breaching instances"
             value={
               alerts.isPending ? (
-                <Skeleton className="h-5 w-10" />
+                <Skeleton className="h-6 w-10" />
               ) : (
                 ruleInstances.length
               )
@@ -458,28 +427,18 @@ function AlertingRuleDetailPage() {
               alerts.isPending ? (
                 <Skeleton className="h-3 w-24" />
               ) : (
-                <span className="inline-flex items-center gap-2.5">
-                  <span>
-                    <span className="font-medium text-destructive tabular-nums">
-                      {firingInstanceCount}
-                    </span>{" "}
-                    firing
-                  </span>
-                  <span>
-                    <span className="font-medium text-amber-600 tabular-nums dark:text-amber-400">
-                      {pendingInstanceCount}
-                    </span>{" "}
-                    pending
-                  </span>
-                </span>
+                <AlertingBreachBreakdown
+                  firing={firingInstanceCount}
+                  pending={pendingInstanceCount}
+                />
               )
             }
           />
-          <RuleActivityStat
+          <AlertingSummaryStat
             label="Latest check"
             value={
               evaluationSeries.isPending ? (
-                <Skeleton className="h-5 w-16" />
+                <Skeleton className="h-6 w-16" />
               ) : evaluationSeries.isError ? (
                 <span className="text-destructive">Unavailable</span>
               ) : latestEvaluation?.failed ? (
@@ -525,7 +484,7 @@ function AlertingRuleDetailPage() {
               ) : null
             }
           />
-          <RuleActivityStat
+          <AlertingSummaryStat
             label="Evaluated"
             value={
               latestEvaluationAt ? (
@@ -541,7 +500,7 @@ function AlertingRuleDetailPage() {
               />
             }
           />
-          <RuleActivityStat
+          <AlertingSummaryStat
             label="Last transition"
             value={
               lastTransition ? (
@@ -554,7 +513,7 @@ function AlertingRuleDetailPage() {
               )
             }
           />
-        </dl>
+        </AlertingSummaryCard>
       </header>
 
       <Card ref={signalChart.ref} className="pb-0">

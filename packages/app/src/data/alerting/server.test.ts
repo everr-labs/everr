@@ -194,6 +194,8 @@ describe("listAlertingEventHistory", () => {
           from: "2026-08-06T12:00:00Z",
           to: "2026-08-06T13:00:00Z",
         },
+        fingerprint: "fp-1",
+        sourceId: "rule-1",
         slugs: ["demo/demo-always-firing"],
       },
     });
@@ -203,6 +205,8 @@ describe("listAlertingEventHistory", () => {
       from: new Date("2026-08-06T12:00:00Z"),
       to: new Date("2026-08-06T13:00:00Z"),
       previewIds: null,
+      fingerprint: "fp-1",
+      sourceId: "rule-1",
       slugs: ["demo/demo-always-firing"],
     });
   });
@@ -331,6 +335,7 @@ describe("listAlertingAlerts", () => {
   function instance(rule: string, slo?: string) {
     return {
       key: `${slo ?? rule}|svc=api`,
+      fingerprint: "svc=api",
       rule: slo ?? rule,
       ...(slo !== undefined ? { slo } : {}),
       tenant: "test_org",

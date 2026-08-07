@@ -100,6 +100,7 @@ it("parses an SLO-sourced alert instance (rule carries the SLO uuid, slo marks i
   // SLO rows carry the source UUID in both fields.
   const a = AlertingAlertSchema.parse({
     key: "fp-slo",
+    fingerprint: "fast-burn",
     rule: "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
     slo: "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
     tenant: "t",

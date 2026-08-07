@@ -571,6 +571,7 @@ export async function listAlerts(organizationId: string) {
   return [
     ...rows.map((row) => ({
       key: `${row.alertDefinitionId}:${row.fingerprint}`,
+      fingerprint: row.fingerprint,
       rule: row.alertDefinitionId,
       slo: undefined as string | undefined,
       tenant: row.organizationId,
@@ -584,6 +585,7 @@ export async function listAlerts(organizationId: string) {
     })),
     ...sloRows.map((row) => ({
       key: `${row.sloDefinitionId}:${row.tier}`,
+      fingerprint: row.tier,
       rule: row.sloDefinitionId,
       slo: row.sloDefinitionId as string | undefined,
       tenant: row.organizationId,

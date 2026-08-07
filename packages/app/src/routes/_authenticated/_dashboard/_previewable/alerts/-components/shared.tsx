@@ -737,7 +737,7 @@ export function SectionCard({
           <h2 className="text-xs font-semibold text-foreground">{title}</h2>
           <Link
             to={to}
-            className="inline-flex items-center gap-1 text-[0.6875rem] text-muted-foreground underline-offset-2 transition-colors duration-150 hover:text-foreground hover:underline"
+            className="-mr-2 inline-flex min-h-11 items-center gap-1 px-2 text-xs text-muted-foreground underline-offset-2 transition-colors duration-150 hover:text-foreground hover:underline md:min-h-8"
           >
             {linkLabel}
             <ArrowRight aria-hidden className="size-3" />

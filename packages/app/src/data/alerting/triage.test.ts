@@ -35,6 +35,7 @@ function alertingRule(
 function alertingAlert(overrides: Partial<AlertingAlert> = {}): AlertingAlert {
   return {
     key: "fp-1",
+    fingerprint: "fp-1",
     rule: "rule-1",
     tenant: "org1",
     status: "firing",

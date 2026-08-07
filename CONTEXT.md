@@ -129,8 +129,19 @@ A multi-page Markdown document with embedded Panels and shared variables — the
 _Avoid_: Notebook (former name — renamed June 2026; see ADR 0002). Still accepted in config for back-compat: `kind: Notebook` ≡ `kind: Runbook` and `.notebook.yaml` is recognized, but `Runbook` is canonical everywhere new.
 
 **Alert**:
-A rule that runs a query on a schedule and creates firing instances when result rows satisfy its condition.
+A rule that evaluates query results against a condition and tracks one Alert instance for each result series.
 _Avoid_: monitor
+
+**Breaching**:
+An Alert instance whose current value satisfies the Alert condition. Breaching includes both Pending and Firing instances.
+_Avoid_: active (ambiguous), firing (a narrower state)
+
+**Pending**:
+A Breaching Alert instance whose condition has not yet held for the required duration.
+
+**Firing**:
+A Breaching Alert instance whose condition has held for the required duration and is eligible for notification.
+_Avoid_: breaching (a broader state)
 
 **Notification channel**:
 An Organization-owned delivery endpoint, such as a Slack webhook, email destination, or Telegram chat.

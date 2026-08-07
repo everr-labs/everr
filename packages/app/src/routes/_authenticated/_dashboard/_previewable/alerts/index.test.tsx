@@ -79,7 +79,8 @@ function alertingRule(
 
 function alertingAlert(overrides: Partial<AlertingAlert> = {}): AlertingAlert {
   return {
-    key: "fp-1",
+    key: "rule-1:fp-1",
+    fingerprint: "fp-1",
     rule: "rule-1",
     tenant: "org1",
     status: "firing",
@@ -119,7 +120,8 @@ function alertingSlo(overrides: Partial<AlertingSlo> = {}): AlertingSlo {
 
 function sloAlert(overrides: Partial<AlertingAlert> = {}): AlertingAlert {
   return alertingAlert({
-    key: "fp-slo-1",
+    key: `${SLO_ID}:fast-burn`,
+    fingerprint: "fast-burn",
     rule: SLO_ID,
     slo: SLO_ID,
     labels: { slo_tier: "fast-burn" },
@@ -328,10 +330,14 @@ describe("/alerts triage board", () => {
     });
     expect(strip).toHaveTextContent("2 rules · 0 SLOs");
     expect(strip).toHaveTextContent("1 active silence");
-    // The strip is a readout: the counts by state live here, and nothing on it
-    // is clickable.
     expect(within(strip).queryAllByRole("button")).toHaveLength(0);
-    expect(within(strip).queryAllByRole("link")).toHaveLength(0);
+    expect(
+      within(strip).getByRole("link", { name: "2 rules" }),
+    ).toHaveAttribute("href", "/alerts/rules");
+    expect(within(strip).getByRole("link", { name: "0 SLOs" })).toHaveAttribute(
+      "href",
+      "/alerts/slos",
+    );
 
     // The board is triage, not inventory: pending and inactive instances are
     // counted by the strip but not listed.
@@ -349,6 +355,7 @@ describe("/alerts triage board", () => {
   });
 
   it("names each row's controls after the row, not 'instance'", async () => {
+    const user = userEvent.setup();
     renderTriagePage();
     const board = await screen.findByRole("region", { name: "Triage board" });
 
@@ -363,10 +370,22 @@ describe("/alerts triage board", () => {
     ).toBeInTheDocument();
     expect(
       within(board).getByRole("button", {
-        name: "Silence everything under Flapping check",
+        name: "Silence Flapping check",
+      }),
+    ).toBeInTheDocument();
+    expect(
+      within(board).getByRole("button", {
+        name: "Quick silence Flapping check",
       }),
     ).toBeInTheDocument();
     expect(within(board).queryByText(/^\d+ instances?$/)).toBeNull();
+
+    await user.click(
+      within(board).getByRole("button", { name: "Silence Flapping check" }),
+    );
+    expect(
+      await screen.findByRole("heading", { name: "New silence" }),
+    ).toBeInTheDocument();
   });
 
   it("resolves delivery through routes without flagging a silenced row", async () => {
@@ -410,7 +429,7 @@ describe("/alerts triage board", () => {
 
     // Routed to a receiver that fans out to nothing delivers exactly nothing:
     // it gets the "not routed" warning treatment, not a healthy arrow.
-    await screen.findByRole("link", { name: /oncall · no channels/ });
+    await screen.findByRole("link", { name: "No destination" });
   });
 
   it("marks unrouted instances as not delivered when no routes exist", async () => {
@@ -420,13 +439,13 @@ describe("/alerts triage board", () => {
 
     await screen.findByText("Not delivered");
     const warning = screen.getByRole("alert");
-    expect(warning).toHaveTextContent("1 firing alert is reaching no one");
+    expect(warning).toHaveTextContent("1 firing alert is not being delivered");
     expect(
       within(warning).getByRole("link", { name: "Configure delivery" }),
     ).toBeInTheDocument();
   });
 
-  it("expands a row into its evidence, runbook, and fingerprint-scoped feed", async () => {
+  it("expands a row into its evidence, runbook, and instance-scoped feed", async () => {
     const user = userEvent.setup();
     renderTriagePage();
 
@@ -441,20 +460,39 @@ describe("/alerts triage board", () => {
     expect(screen.getAllByRole("link", { name: /Runbook/ })).not.toHaveLength(
       0,
     );
+    expect(screen.queryByRole("link", { name: "View logs" })).toBeNull();
 
     // The page reads a single stored event, only to date-stamp the all-clear
     // readout; each expanded row fetches its own, narrowed server-side by
-    // fingerprint. Nothing else on the page asks ClickHouse for events.
+    // instance and source. Nothing else on the page asks for event history.
     const calls = mocks.listAlertingEventHistory.mock.calls.map(
       (c) => (c[0] as { data: Record<string, unknown> }).data,
     );
     expect(calls).toContainEqual(expect.objectContaining({ limit: 1 }));
     expect(calls).toContainEqual(
-      expect.objectContaining({ fingerprint: "fp-1" }),
+      expect.objectContaining({
+        fingerprint: "fp-1",
+        sourceId: "rule-1",
+      }),
     );
     expect(
       calls.every((c) => c.limit === 1 || c.fingerprint !== undefined),
     ).toBe(true);
+  });
+
+  it("distinguishes unavailable instance history from no state changes", async () => {
+    const user = userEvent.setup();
+    mocks.listAlertingEventHistory
+      .mockResolvedValueOnce([eventRow()])
+      .mockRejectedValueOnce(new Error("postgres unavailable"));
+
+    renderTriagePage();
+    await expandRowByLabel(user, "web-1");
+
+    expect(
+      await screen.findByText("State history unavailable."),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/No state changes/)).toBeNull();
   });
 
   it("renders SLO-sourced instances under the SLO's name and links to its detail page", async () => {
@@ -501,17 +539,14 @@ describe("/alerts triage board", () => {
   const silenceCases: {
     source: string;
     seed: () => void;
-    row: string;
+    quickName: string;
     matchers: { label: string; op: string; value: string }[];
   }[] = [
     {
       source: "rule-sourced",
       seed: seedBoard,
-      row: "web-1",
-      matchers: [
-        { label: "host", op: "eq", value: "web-1" },
-        { label: "rule", op: "eq", value: "rule-1" },
-      ],
+      quickName: "Quick silence Flapping check",
+      matchers: [{ label: "rule", op: "eq", value: "rule-1" }],
     },
     {
       source: "SLO-sourced",
@@ -519,7 +554,7 @@ describe("/alerts triage board", () => {
         mocks.listAlertingSlos.mockResolvedValue([alertingSlo()]);
         mocks.listAlertingAlerts.mockResolvedValue([sloAlert()]);
       },
-      row: "critical",
+      quickName: "Quick silence checkout-availability",
       // No slo_tier: muting the SLO covers every burn-rate tier.
       matchers: [{ label: "slo", op: "eq", value: SLO_ID }],
     },
@@ -529,15 +564,15 @@ describe("/alerts triage board", () => {
     silenceCases,
   )("silences a $source row for the chosen window, scoped to its source", async ({
     seed,
-    row,
+    quickName,
     matchers,
   }) => {
     seed();
     const user = userEvent.setup();
     renderTriagePage();
 
-    await expandRowByLabel(user, row);
-    await user.click(screen.getByRole("button", { name: "1h" }));
+    await user.click(await screen.findByRole("button", { name: quickName }));
+    await user.click(await screen.findByRole("menuitem", { name: "1 hour" }));
 
     expect(mocks.createAlertingSilence).toHaveBeenCalledTimes(1);
     const { data } = mocks.createAlertingSilence.mock.calls[0][0] as {
@@ -589,7 +624,10 @@ describe("/alerts triage board", () => {
     expect(
       await screen.findByText("Exhausted error budgets"),
     ).toBeInTheDocument();
-    expect(screen.getByText("-2.40%")).toBeInTheDocument();
+    expect(screen.getByText("Exhausted")).toHaveAttribute(
+      "title",
+      "-2.40% remaining",
+    );
     expect(
       screen.getByRole("link", { name: /checkout-availability/ }),
     ).toHaveAttribute("href", "/alerts/slos/default/checkout-availability");

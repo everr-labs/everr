@@ -273,6 +273,8 @@ export const listAlertingEventHistory = createAuthenticatedServerFn({
       timeRange: TimeRangeSchema,
       // Server-side WHERE: one alert instance's events.
       fingerprint: z.string().min(1).optional(),
+      // Combined with fingerprint to avoid collisions across alert sources.
+      sourceId: z.string().min(1).optional(),
       // Server-side WHERE: one source's rule handles. A tenant-wide newest-N
       // window would let other sources fill the cap and starve the scoped one.
       slugs: z.array(z.string().min(1)).min(1).optional(),
@@ -284,7 +286,7 @@ export const listAlertingEventHistory = createAuthenticatedServerFn({
   )
   .handler(
     async ({
-      data: { limit, timeRange, fingerprint, slugs, preview },
+      data: { limit, timeRange, fingerprint, sourceId, slugs, preview },
       context: { session },
     }) => {
       const { fromDate, toDate } = resolveTimeRange(timeRange);
@@ -302,6 +304,7 @@ export const listAlertingEventHistory = createAuthenticatedServerFn({
         to: toDate,
         previewIds,
         ...(fingerprint !== undefined ? { fingerprint } : {}),
+        ...(sourceId !== undefined ? { sourceId } : {}),
         ...(slugs !== undefined ? { slugs } : {}),
       });
     },

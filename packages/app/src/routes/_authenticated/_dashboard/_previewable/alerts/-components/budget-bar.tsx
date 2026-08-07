@@ -1,6 +1,7 @@
 import { Meter } from "@everr/ui/components/meter";
 import { toneText } from "@everr/ui/components/tone";
 import { cn } from "@everr/ui/lib/utils";
+import { AlertingSummaryLabel } from "./summary-card";
 
 export function alertingFmtFraction(f: number): string {
   return `${(f * 100).toFixed(2)}%`;
@@ -76,6 +77,7 @@ export function AlertingBudgetBar({
   remaining,
   className,
   hang = false,
+  summarizeExhausted = false,
 }: {
   /** Budget remaining as a 0..1 fraction (may go negative); null = unknown. */
   remaining: number | null;
@@ -87,6 +89,8 @@ export function AlertingBudgetBar({
    * a caller's grid out of alignment.
    */
   hang?: boolean;
+  /** Lead with the state while preserving the exact overspend in a tooltip. */
+  summarizeExhausted?: boolean;
 }) {
   if (remaining === null) {
     return <span className="text-xs text-muted-foreground">—</span>;
@@ -103,14 +107,47 @@ export function AlertingBudgetBar({
       {/* The printed figure is the accessible value; the meter only
           double-encodes it visually. */}
       <span
+        title={
+          summarizeExhausted && remaining <= 0
+            ? `${alertingFmtBudgetRemaining(remaining)} remaining`
+            : undefined
+        }
         className={cn(
           "font-mono text-xs tabular-nums whitespace-nowrap",
           tone === undefined ? "text-foreground" : `font-medium ${tone}`,
         )}
       >
-        {alertingFmtBudgetRemaining(remaining)}
+        {summarizeExhausted && remaining <= 0
+          ? "Exhausted"
+          : alertingFmtBudgetRemaining(remaining)}
       </span>
       <AlertingBudgetMeter remaining={remaining} size="sm" />
+    </span>
+  );
+}
+
+export function AlertingBudgetFact({
+  remaining,
+  className,
+}: {
+  remaining: number | null;
+  className?: string;
+}) {
+  return (
+    <span
+      className={cn(
+        "flex w-24 shrink-0 flex-col items-end whitespace-nowrap",
+        className,
+      )}
+      title="Error budget remaining"
+    >
+      <AlertingSummaryLabel className="truncate">budget</AlertingSummaryLabel>
+      <AlertingBudgetBar
+        remaining={remaining}
+        summarizeExhausted
+        hang
+        className="w-full items-end"
+      />
     </span>
   );
 }

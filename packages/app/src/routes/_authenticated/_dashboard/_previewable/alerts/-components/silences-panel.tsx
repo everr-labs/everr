@@ -1,3 +1,13 @@
+import {
+  AlertDialog,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@everr/ui/components/alert-dialog";
 import { Button } from "@everr/ui/components/button";
 import {
   Card,
@@ -9,10 +19,14 @@ import {
 } from "@everr/ui/components/card";
 import { type Column, DataTable } from "@everr/ui/components/data-table";
 import { DateTimePicker } from "@everr/ui/components/date-time-picker";
-import { Input } from "@everr/ui/components/input";
 import { Label } from "@everr/ui/components/label";
+import { Textarea } from "@everr/ui/components/textarea";
+import {
+  ToggleGroup,
+  ToggleGroupItem,
+} from "@everr/ui/components/toggle-group";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { BellOff, Plus } from "lucide-react";
+import { Plus } from "lucide-react";
 import { type Ref, useImperativeHandle, useState } from "react";
 import { toast } from "sonner";
 import { alertingQueries } from "@/data/alerting/queries";
@@ -25,7 +39,6 @@ import { AlertingDrawer } from "./alerting-drawer";
 import { MatchersEditor, matchersAreScoped } from "./matchers-editor";
 import {
   AlertingConceptNote,
-  AlertingEmptyState,
   AlertingQueryError,
   AlertingStatusLabel,
   AlertingTableSkeleton,
@@ -41,8 +54,6 @@ import {
 export type SilenceDrawerOptions = {
   lockSeed?: boolean;
   seedValueLabels?: readonly (string | undefined)[];
-  scopeLabel?: string;
-  affectedCount?: number;
 };
 
 export type SilenceDrawerHandle = {
@@ -155,14 +166,30 @@ export function SilencesPanel({ onNewSilence }: { onNewSilence: () => void }) {
       header: "",
       cell: (s) =>
         g.cancellable ? (
-          <Button
-            variant="ghost"
-            size="sm"
-            disabled={cancel.isPending}
-            onClick={() => cancel.mutate(s.id)}
-          >
-            Cancel
-          </Button>
+          <AlertDialog>
+            <AlertDialogTrigger render={<Button variant="ghost" size="sm" />}>
+              Cancel
+            </AlertDialogTrigger>
+            <AlertDialogContent>
+              <AlertDialogHeader>
+                <AlertDialogTitle>Cancel silence?</AlertDialogTitle>
+                <AlertDialogDescription>
+                  Matching alerts may be delivered again immediately. This
+                  silence was scheduled to end {alertingFormatTs(s.ends_at)}.
+                </AlertDialogDescription>
+              </AlertDialogHeader>
+              <AlertDialogFooter>
+                <AlertDialogCancel>Keep silence</AlertDialogCancel>
+                <AlertDialogCancel
+                  variant="destructive"
+                  disabled={cancel.isPending}
+                  onClick={() => cancel.mutate(s.id)}
+                >
+                  Cancel silence
+                </AlertDialogCancel>
+              </AlertDialogFooter>
+            </AlertDialogContent>
+          </AlertDialog>
         ) : null,
     },
   ];
@@ -170,51 +197,72 @@ export function SilencesPanel({ onNewSilence }: { onNewSilence: () => void }) {
   if (isError) return <AlertingQueryError error={error} />;
 
   return (
-    <Card inset="flush-content" id="silences" className="scroll-mt-4">
+    <Card
+      inset="flush-content"
+      size={silences.length === 0 && !isPending ? "sm" : "default"}
+      id="silences"
+      className="scroll-mt-4"
+    >
       <CardHeader>
-        <CardTitle>Silences</CardTitle>
+        <CardTitle>
+          <h2>Silences</h2>
+        </CardTitle>
         <CardDescription>
-          Muting windows: alerts matching a silence stay visible here but are
-          not delivered.
+          {silences.length === 0 && !isPending
+            ? "No active silences."
+            : "Silenced alerts stay visible but are not delivered."}
         </CardDescription>
         <CardAction>
-          <Button variant="outline" onClick={onNewSilence}>
+          <Button
+            variant="outline"
+            className="min-h-11 md:min-h-8"
+            onClick={onNewSilence}
+          >
             <Plus data-icon="inline-start" />
             New silence
           </Button>
         </CardAction>
       </CardHeader>
-      <CardContent>
-        {isPending ? (
-          <AlertingTableSkeleton rows={3} />
-        ) : silences.length === 0 ? (
-          <AlertingEmptyState
-            icon={BellOff}
-            title="No silences"
-            hint="Silence a firing instance from the board above, or create one here to mute matching alerts for a window."
-          />
-        ) : (
-          <div className="space-y-1">
-            {grouped.map((g) => (
-              <section key={g.key}>
-                <h3 className="px-3 pt-2 pb-1 text-[0.625rem] font-medium tracking-wide text-muted-foreground uppercase">
-                  {g.title}
-                </h3>
-                <DataTable
-                  data={g.rows}
-                  columns={columns(g)}
-                  rowKey={(s) => s.id}
-                />
-              </section>
-            ))}
-          </div>
-        )}
-      </CardContent>
+      {(isPending || silences.length > 0) && (
+        <CardContent>
+          {isPending ? (
+            <AlertingTableSkeleton rows={3} />
+          ) : (
+            <div className="space-y-1">
+              {grouped.map((g) => (
+                <section key={g.key}>
+                  <h3 className="px-3 pt-2 pb-1 text-xs font-medium text-muted-foreground">
+                    {g.title}
+                  </h3>
+                  <DataTable
+                    data={g.rows}
+                    columns={columns(g)}
+                    rowKey={(s) => s.id}
+                  />
+                </section>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      )}
     </Card>
   );
 }
 
 // ── Create drawer ─────────────────────────────────────────────────────────────
+
+type SilenceDuration = "1h" | "8h" | "24h" | "custom";
+
+const SILENCE_DURATIONS: readonly {
+  value: SilenceDuration;
+  label: string;
+  hours?: number;
+}[] = [
+  { value: "1h", label: "1h", hours: 1 },
+  { value: "8h", label: "8h", hours: 8 },
+  { value: "24h", label: "24h", hours: 24 },
+  { value: "custom", label: "Custom" },
+];
 
 export function SilenceCreateDrawer({
   ref,
@@ -228,8 +276,7 @@ export function SilenceCreateDrawer({
   const [lockedValueLabels, setLockedValueLabels] = useState<
     readonly (string | undefined)[]
   >([]);
-  const [scopeLabel, setScopeLabel] = useState<string | null>(null);
-  const [affectedCount, setAffectedCount] = useState<number | null>(null);
+  const [duration, setDuration] = useState<SilenceDuration>("1h");
   const [starts, setStarts] = useState("");
   const [ends, setEnds] = useState("");
   const [comment, setComment] = useState("");
@@ -241,10 +288,10 @@ export function SilenceCreateDrawer({
         setMatchers(seed);
         setLockedMatcherCount(options?.lockSeed ? seed.length : 0);
         setLockedValueLabels(options?.seedValueLabels ?? []);
-        setScopeLabel(options?.scopeLabel ?? null);
-        setAffectedCount(options?.affectedCount ?? null);
-        setStarts(toLocalInput(new Date()));
-        setEnds("");
+        const now = new Date();
+        setDuration("1h");
+        setStarts(toLocalInput(now));
+        setEnds(toLocalInput(new Date(now.getTime() + 3_600_000)));
         setComment("");
         setOpen(true);
       },
@@ -252,10 +299,13 @@ export function SilenceCreateDrawer({
     [],
   );
 
-  const applyDuration = (h: number) => {
-    const base = starts ? new Date(starts) : new Date();
-    if (!starts) setStarts(toLocalInput(base));
-    setEnds(toLocalInput(new Date(base.getTime() + h * 3_600_000)));
+  const selectDuration = (next: SilenceDuration) => {
+    setDuration(next);
+    const preset = SILENCE_DURATIONS.find((item) => item.value === next);
+    if (preset?.hours === undefined) return;
+    const now = new Date();
+    setStarts(toLocalInput(now));
+    setEnds(toLocalInput(new Date(now.getTime() + preset.hours * 3_600_000)));
   };
   const startsMs = Date.parse(starts);
   const endsMs = Date.parse(ends);
@@ -302,28 +352,12 @@ export function SilenceCreateDrawer({
         </>
       }
     >
-      <AlertingConceptNote>
-        {scopeLabel ? (
-          <>
-            <strong className="font-medium text-foreground">
-              {scopeLabel}
-            </strong>
-            {affectedCount !== null && (
-              <>
-                {" · "}
-                {affectedCount} firing{" "}
-                {affectedCount === 1 ? "instance" : "instances"}
-              </>
-            )}
-            . The source scope is locked. Added matchers can narrow it further.
-          </>
-        ) : (
-          <>
-            Alerts matching every condition will be muted for the selected
-            window. At least one matcher is required.
-          </>
-        )}
-      </AlertingConceptNote>
+      {lockedMatcherCount === 0 && (
+        <AlertingConceptNote>
+          Alerts matching every condition will be muted for the selected window.
+          At least one matcher is required.
+        </AlertingConceptNote>
+      )}
       <MatchersEditor
         value={matchers}
         onChange={setMatchers}
@@ -332,30 +366,46 @@ export function SilenceCreateDrawer({
       />
       <div className="space-y-1.5">
         <span className="text-sm font-medium">Duration</span>
-        <div className="flex items-center gap-1.5">
-          {[1, 8, 24].map((h) => (
-            <Button
-              key={h}
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={() => applyDuration(h)}
+        <ToggleGroup
+          value={[duration]}
+          variant="outline"
+          size="lg"
+          spacing={0}
+          className="w-full"
+          aria-label="Silence duration"
+          onValueChange={(values) => {
+            const next = values[0];
+            if (
+              next === "1h" ||
+              next === "8h" ||
+              next === "24h" ||
+              next === "custom"
+            ) {
+              selectDuration(next);
+            }
+          }}
+        >
+          {SILENCE_DURATIONS.map((item) => (
+            <ToggleGroupItem
+              key={item.value}
+              value={item.value}
+              className="h-10 min-w-0 flex-1"
             >
-              {h}h
-            </Button>
+              {item.label}
+            </ToggleGroupItem>
           ))}
-          <span className="pl-1 text-xs text-muted-foreground">
-            or set the window below
-          </span>
-        </div>
+        </ToggleGroup>
       </div>
-      <div className="grid grid-cols-2 gap-3">
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <div className="space-y-1.5">
           <Label htmlFor="silence-starts">Starts</Label>
           <DateTimePicker
             id="silence-starts"
             value={starts}
-            onChange={setStarts}
+            onChange={(value) => {
+              setStarts(value);
+              setDuration("custom");
+            }}
             placeholder="Pick a start"
             timeLabel="Start time"
           />
@@ -365,7 +415,10 @@ export function SilenceCreateDrawer({
           <DateTimePicker
             id="silence-ends"
             value={ends}
-            onChange={setEnds}
+            onChange={(value) => {
+              setEnds(value);
+              setDuration("custom");
+            }}
             placeholder="Pick an end"
             timeLabel="End time"
           />
@@ -378,11 +431,11 @@ export function SilenceCreateDrawer({
       )}
       <div className="space-y-1.5">
         <Label htmlFor="silence-comment">Comment</Label>
-        <Input
+        <Textarea
           id="silence-comment"
           value={comment}
           onChange={(e) => setComment(e.target.value)}
-          placeholder="maintenance window"
+          placeholder="Why is this alert being silenced?"
         />
       </div>
     </AlertingDrawer>

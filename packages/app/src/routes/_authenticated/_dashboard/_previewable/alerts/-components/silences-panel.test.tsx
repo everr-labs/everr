@@ -7,7 +7,14 @@ import {
   Outlet,
   RouterProvider,
 } from "@tanstack/react-router";
-import { act, render, screen, within } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { createRef } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -139,8 +146,18 @@ describe("SilencesPanel", () => {
     await user.click(
       within(row("now")).getByRole("button", { name: "Cancel" }),
     );
+    expect(mocks.deleteAlertingSilence).not.toHaveBeenCalled();
+    expect(
+      screen.getByRole("heading", { name: "Cancel silence?" }),
+    ).toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Cancel silence" }));
     expect(mocks.deleteAlertingSilence).toHaveBeenCalledWith({
       data: { id: "sil-active" },
+    });
+    await waitFor(() => {
+      expect(
+        screen.queryByRole("heading", { name: "Cancel silence?" }),
+      ).not.toBeInTheDocument();
     });
 
     // Creating is the page's job: the panel only asks for the drawer.
@@ -166,8 +183,18 @@ describe("SilencesPanel", () => {
     const create = await screen.findByRole("button", {
       name: "Create silence",
     });
+    expect(screen.getByLabelText("Starts")).toBeInTheDocument();
+    expect(screen.getByLabelText("Ends")).toBeInTheDocument();
+    expect(screen.getByLabelText("Comment").tagName).toBe("TEXTAREA");
     await user.click(screen.getByRole("button", { name: "8h" }));
     expect(create).toBeEnabled();
+    fireEvent.change(screen.getByLabelText("Start time"), {
+      target: { value: "10:00" },
+    });
+    expect(screen.getByRole("button", { name: "Custom" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
 
     await user.click(screen.getByRole("button", { name: "Add" }));
     expect(create).toBeDisabled();
@@ -189,8 +216,6 @@ describe("SilencesPanel", () => {
       ref.current?.openWith([{ label: "rule", op: "eq", value: "rule-1" }], {
         lockSeed: true,
         seedValueLabels: ["Always firing (demo)"],
-        scopeLabel: "Always firing (demo)",
-        affectedCount: 2,
       });
     });
 
@@ -207,7 +232,6 @@ describe("SilencesPanel", () => {
       screen.getByRole("combobox", { name: "Matcher value" }),
     ).toHaveTextContent("Always firing (demo)");
     expect(screen.getByLabelText("Matcher 1 is locked")).toBeInTheDocument();
-    expect(screen.getByText(/2 firing instances/)).toBeInTheDocument();
     expect(
       screen.queryByRole("button", { name: "Remove condition 1" }),
     ).not.toBeInTheDocument();

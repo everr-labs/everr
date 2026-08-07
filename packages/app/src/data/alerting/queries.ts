@@ -229,13 +229,14 @@ export const alertingQueries = {
       queryFn: () => listAlertingSilences(),
     }),
 
-  // `fingerprint`/`slugs` are server-side WHEREs, so the row cap applies after
+  // Instance and source filters run server-side, so the row cap applies after
   // scoping; `limit: 1` = the newest event only (freshness readouts).
   eventHistory: (
     timeRange: TimeRange,
     opts: {
       limit?: number;
       fingerprint?: string;
+      sourceId?: string;
       slugs?: readonly string[];
       // Preview-rule records are filtered out server-side so another
       // engineer's open preview cannot pollute the live audit trail.
@@ -253,6 +254,7 @@ export const alertingQueries = {
           timeRange,
           limit,
           fingerprint: opts.fingerprint ?? null,
+          sourceId: opts.sourceId ?? null,
           slugs,
           preview,
         },
@@ -265,6 +267,7 @@ export const alertingQueries = {
             ...(opts.fingerprint !== undefined
               ? { fingerprint: opts.fingerprint }
               : {}),
+            ...(opts.sourceId !== undefined ? { sourceId: opts.sourceId } : {}),
             ...(slugs === null ? {} : { slugs }),
             ...(preview === null ? {} : { preview }),
           },

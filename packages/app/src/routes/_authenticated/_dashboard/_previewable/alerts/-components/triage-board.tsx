@@ -1,20 +1,27 @@
 // Every group here is firing: the route filters via alertingFiringGroups.
 
 import { Button, buttonVariants } from "@everr/ui/components/button";
-import { Card, CardContent } from "@everr/ui/components/card";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+} from "@everr/ui/components/card";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuTrigger,
+} from "@everr/ui/components/dropdown-menu";
 import { RelativeTime } from "@everr/ui/components/relative-time";
 import { Skeleton } from "@everr/ui/components/skeleton";
 import { toneText } from "@everr/ui/components/tone";
 import { cn } from "@everr/ui/lib/utils";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import {
-  BellOff,
-  BookOpenText,
-  ChevronRight,
-  FileSearch,
-  LoaderCircle,
-} from "lucide-react";
+import { BellOff, BookOpenText, ChevronDown, ChevronRight } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { alertingQueries } from "@/data/alerting/queries";
@@ -26,7 +33,6 @@ import {
   alertingDeliveryFanout,
   alertingGroupSilenceMatchers,
   alertingInstanceIsUndeliverable,
-  alertingInstanceLogsSearch,
   alertingRowBudget,
   alertingRunbookParams,
   alertingSourceScopedSilenceMatchers,
@@ -36,7 +42,6 @@ import {
   type TriageRow,
 } from "@/data/alerting/triage";
 import type {
-  AlertingAlert,
   AlertingMatcher,
   AlertingRoute,
   AlertingSloStatusPayload,
@@ -44,7 +49,7 @@ import type {
 import { alertingEventStatus } from "@/data/alerts/event-types";
 import { fromAlertingRule } from "@/data/alerts/mapping";
 import { parseResourceName } from "@/data/as-code/identity";
-import { AlertingBudgetBar, alertingFmtBurn } from "./budget-bar";
+import { AlertingBudgetFact, alertingFmtBurn } from "./budget-bar";
 import {
   AlertingSeverityBadge,
   AlertingStatusDot,
@@ -57,6 +62,7 @@ import {
   Pill,
 } from "./shared";
 import type { SilenceDrawerOptions } from "./silences-panel";
+import { AlertingSummaryLabel } from "./summary-card";
 
 // The expanded row needs the newest evidence-carrying event plus the last 6
 // transitions; 100 is generous headroom.
@@ -64,10 +70,10 @@ const TRIAGE_INSTANCE_EVENT_LIMIT = 100;
 
 // Shared fact-column widths in wide board containers: merged lines and sub-rows both use them,
 // so the facts align down the whole card.
-const COL_VALUE = "@[44rem]/triage:w-20";
-const COL_BUDGET = "@[44rem]/triage:w-28";
-const COL_SINCE = "@[44rem]/triage:w-20";
-const COL_DELIVERY = "@[44rem]/triage:w-48";
+const COL_VALUE = "@[52rem]/triage:w-20";
+const COL_BUDGET = "@[52rem]/triage:w-28";
+const COL_SINCE = "@[52rem]/triage:w-20";
+const COL_DELIVERY = "@[52rem]/triage:w-48";
 
 function rowStartedAt(row: TriageRow): number {
   const time = row.lead.alert.active_since;
@@ -109,7 +115,7 @@ function DeliveryFact({
         hash="routes"
         onClick={(e) => e.stopPropagation()}
         className={cn(
-          "inline-flex min-h-11 items-center whitespace-nowrap text-xs underline-offset-2 hover:underline @[44rem]/triage:min-h-0",
+          "inline-flex min-h-11 items-center whitespace-nowrap text-xs underline-offset-2 hover:underline @[52rem]/triage:min-h-0",
           toneText({ tone: "warning" }),
         )}
       >
@@ -139,11 +145,11 @@ function DeliveryFact({
         onClick={(e) => e.stopPropagation()}
         title={receivers.join(", ")}
         className={cn(
-          "inline-flex min-h-11 items-center whitespace-nowrap text-xs underline-offset-2 hover:underline @[44rem]/triage:min-h-0",
+          "inline-flex min-h-11 items-center whitespace-nowrap text-xs underline-offset-2 hover:underline @[52rem]/triage:min-h-0",
           toneText({ tone: "warning" }),
         )}
       >
-        {names} · no channels
+        No destination
       </Link>
     );
   }
@@ -166,23 +172,13 @@ function DeliveryFact({
 
 // ── Row expansion ─────────────────────────────────────────────────────────────
 
-function InstanceDetail({
-  inst,
-  onSilence,
-  silencePending,
-  onCustomSilence,
-}: {
-  inst: TriageInstance;
-  onSilence: (hours: number) => void;
-  silencePending: boolean;
-  onCustomSilence: () => void;
-}) {
+function InstanceDetail({ inst }: { inst: TriageInstance }) {
   const { alert, rule } = inst;
-  // Fetched (and polled) only while the row is expanded; the fingerprint
-  // narrows server-side, so one row's detail never ships the whole window.
+  // Fetched only while expanded and scoped by source plus fingerprint.
   const ownEvents = useQuery(
     alertingQueries.eventHistory(TRIAGE_EVENT_RANGE, {
-      fingerprint: alert.key,
+      fingerprint: alert.fingerprint,
+      sourceId: alert.rule,
       limit: TRIAGE_INSTANCE_EVENT_LIMIT,
     }),
   );
@@ -205,9 +201,9 @@ function InstanceDetail({
       )}
       {latest?.evidence && (
         <div className="space-y-1">
-          <div className="text-[0.6875rem] font-medium tracking-wide text-muted-foreground uppercase">
+          <h3 className="text-xs font-medium text-muted-foreground">
             Evidence
-          </div>
+          </h3>
           <EvidenceChips
             evidence={latest.evidence}
             truncated={latest.evidenceTruncated}
@@ -215,53 +211,47 @@ function InstanceDetail({
         </div>
       )}
 
-      <div className="space-y-1">
-        <div className="text-[0.6875rem] font-medium tracking-wide text-muted-foreground uppercase">
-          Delivery
+      {(inst.directChannels.length > 0 || inst.matchedRoutes.length > 0) && (
+        <div className="space-y-1">
+          <h3 className="text-xs font-medium text-muted-foreground">
+            Notifications
+          </h3>
+          {inst.directChannels.length > 0 ? (
+            <div className="flex flex-wrap items-center gap-2 text-xs">
+              <span className="text-muted-foreground">Direct destinations</span>
+              <span className="font-mono text-foreground">
+                {inst.directChannels.join(", ")}
+              </span>
+            </div>
+          ) : (
+            <div className="space-y-1">
+              {inst.matchedRoutes.map((r) => (
+                <div key={r.id} className="flex flex-wrap items-center gap-2">
+                  <span className="font-mono text-xs text-foreground">
+                    {r.receiver}
+                  </span>
+                  <Conditions
+                    matchers={r.matchers}
+                    emptyLabel="* (catch-all)"
+                  />
+                </div>
+              ))}
+            </div>
+          )}
         </div>
-        {inst.directChannels.length > 0 ? (
-          <div className="flex flex-wrap items-center gap-2 text-xs">
-            <span className="text-muted-foreground">Explicit channels</span>
-            <span className="font-mono text-foreground">
-              {inst.directChannels.join(", ")}
-            </span>
-          </div>
-        ) : inst.matchedRoutes.length === 0 ? (
-          <div className="flex flex-wrap items-center gap-2 text-xs">
-            <span className="text-muted-foreground">
-              No delivery route matches this alert.
-            </span>
-            <Link
-              to="/alerts/delivery"
-              hash="routes"
-              className="inline-flex min-h-11 items-center font-medium text-foreground underline-offset-2 hover:underline @[44rem]/triage:min-h-0"
-            >
-              Configure delivery
-            </Link>
-          </div>
-        ) : (
-          <div className="space-y-1">
-            {inst.matchedRoutes.map((r) => (
-              <div key={r.id} className="flex flex-wrap items-center gap-2">
-                <span className="font-mono text-xs text-foreground">
-                  {r.receiver}
-                </span>
-                <Conditions matchers={r.matchers} emptyLabel="* (catch-all)" />
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
+      )}
 
       <div className="space-y-1">
-        <div className="text-[0.6875rem] font-medium tracking-wide text-muted-foreground uppercase">
-          Recent transitions
-        </div>
+        <h3 className="text-xs font-medium text-muted-foreground">History</h3>
         {ownEvents.isPending ? (
           <Skeleton className="h-4 w-44" />
+        ) : ownEvents.isError ? (
+          <span className="text-xs text-muted-foreground">
+            State history unavailable.
+          </span>
         ) : transitions.length === 0 ? (
           <span className="text-xs text-muted-foreground">
-            no stored transitions in the last 24h
+            No state changes in the last 24 hours.
           </span>
         ) : (
           <ul className="space-y-0.5">
@@ -299,85 +289,91 @@ function InstanceDetail({
         {alert.absent_count > 0 && <span>absent x{alert.absent_count}</span>}
       </div>
 
-      <div className="flex flex-wrap items-center gap-1.5">
-        <span className="pr-1 text-[0.6875rem] font-medium tracking-wide text-muted-foreground uppercase">
-          Silence
-        </span>
-        {[1, 8, 24].map((h) => (
-          <Button
-            key={h}
-            variant="outline"
-            size="sm"
-            className="min-h-11 min-w-11 @[44rem]/triage:min-h-7"
-            disabled={silencePending}
-            onClick={() => onSilence(h)}
-          >
-            {h}h
-          </Button>
-        ))}
-        <Button
-          variant="outline"
-          size="sm"
-          className="min-h-11 px-3 @[44rem]/triage:min-h-7"
-          disabled={silencePending}
-          onClick={onCustomSilence}
-        >
-          Custom
-        </Button>
-        {silencePending && (
-          <span
-            className="inline-flex items-center gap-1.5 text-xs text-muted-foreground"
-            role="status"
-          >
-            <LoaderCircle className="size-3.5 animate-spin" aria-hidden />
-            Silencing
-          </span>
-        )}
-        {runbook && (
+      {runbook && (
+        <div className="flex flex-wrap items-center gap-1.5">
           <Link
             to="/runbooks/$project/$slug"
             params={runbook}
             className={cn(
-              buttonVariants({ variant: "ghost", size: "sm" }),
-              "min-h-11 @[44rem]/triage:min-h-7",
+              buttonVariants({ variant: "outline", size: "sm" }),
+              "min-h-11 @[52rem]/triage:min-h-8",
             )}
           >
             <BookOpenText data-icon="inline-start" />
             Runbook
           </Link>
-        )}
-        <Link
-          to="/logs"
-          search={alertingInstanceLogsSearch(alert)}
-          className={cn(
-            buttonVariants({ variant: "ghost", size: "sm" }),
-            "min-h-11 @[44rem]/triage:min-h-7",
-          )}
-        >
-          <FileSearch data-icon="inline-start" />
-          View logs
-        </Link>
-      </div>
+        </div>
+      )}
     </div>
   );
 }
 
 // ── Line building blocks ──────────────────────────────────────────────────────
 
-// Hidden in narrow board containers: the expanded detail carries every action, which is the
-// touch path.
 function LineActions({ children }: { children: React.ReactNode }) {
   return (
-    // Fixed width: the runbook shortcut exists only on some rows, and a
-    // shrinking slot would knock the fact columns out of alignment.
-    <span className="hidden shrink-0 items-center justify-end gap-0.5 @[44rem]/triage:flex @[44rem]/triage:w-14">
+    <span className="ml-auto flex shrink-0 items-center justify-end gap-0.5 pl-14 @[52rem]/triage:ml-0 @[52rem]/triage:w-24 @[52rem]/triage:pl-0">
       {children}
     </span>
   );
 }
 
 const lineActionClass =
-  "flex size-11 shrink-0 items-center justify-center rounded text-muted-foreground outline-2 outline-dotted outline-transparent transition-colors duration-150 hover:text-foreground focus-visible:outline-primary @[44rem]/triage:size-7 [&_svg]:size-3.5";
+  "flex size-11 shrink-0 items-center justify-center rounded text-muted-foreground outline-2 outline-dotted outline-transparent transition-colors duration-150 hover:text-foreground focus-visible:outline-primary @[52rem]/triage:size-8 [&_svg]:size-3.5";
+
+function SilenceSplitAction({
+  label,
+  pending,
+  onOpen,
+  onQuick,
+}: {
+  label: string;
+  pending: boolean;
+  onOpen: () => void;
+  onQuick: (hours: number) => void;
+}) {
+  return (
+    <span className="flex shrink-0 items-center">
+      <Button
+        variant="outline"
+        className="h-11 rounded-r-none border-r-0 px-3 text-muted-foreground @[52rem]/triage:h-8 @[52rem]/triage:px-2"
+        aria-label={`Silence ${label}`}
+        disabled={pending}
+        onClick={onOpen}
+      >
+        <BellOff />
+      </Button>
+      <DropdownMenu>
+        <DropdownMenuTrigger
+          disabled={pending}
+          aria-label={`Quick silence ${label}`}
+          render={
+            <Button
+              variant="outline"
+              className="h-11 rounded-l-none gap-1 px-1.5 text-muted-foreground @[52rem]/triage:h-8"
+            />
+          }
+        >
+          <ChevronDown className="size-3" aria-hidden />
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="min-w-36">
+          <DropdownMenuGroup>
+            <DropdownMenuLabel>Quick silence</DropdownMenuLabel>
+            {[1, 8, 24].map((hours) => (
+              <DropdownMenuItem
+                key={hours}
+                className="min-h-11 md:min-h-7"
+                onClick={() => onQuick(hours)}
+              >
+                {hours} {hours === 1 ? "hour" : "hours"}
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuGroup>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </span>
+  );
+}
 
 function FactCell({
   col,
@@ -396,15 +392,13 @@ function FactCell({
   return (
     <span
       className={cn(
-        "flex shrink-0 flex-col whitespace-nowrap @[44rem]/triage:items-end",
+        "flex shrink-0 flex-col whitespace-nowrap @[52rem]/triage:items-end",
         col,
         className,
       )}
       title={title}
     >
-      <span className="truncate text-[0.6875rem] font-medium tracking-wide text-muted-foreground uppercase">
-        {label}
-      </span>
+      <AlertingSummaryLabel className="truncate">{label}</AlertingSummaryLabel>
       {children}
     </span>
   );
@@ -419,7 +413,7 @@ function GroupIdentity({ group }: { group: TriageGroup }) {
             to="/alerts/slos/$project/$slug"
             params={parseResourceName(group.slo.name)}
             onClick={(e) => e.stopPropagation()}
-            className="inline-flex min-h-11 items-center text-sm font-medium text-foreground underline-offset-2 hover:underline @[44rem]/triage:min-h-0"
+            className="inline-flex min-h-11 items-center text-sm font-medium text-foreground underline-offset-2 hover:underline @[52rem]/triage:min-h-0"
           >
             {group.name}
           </Link>
@@ -433,7 +427,7 @@ function GroupIdentity({ group }: { group: TriageGroup }) {
           to="/alerts/rules/$project/$slug"
           params={parseResourceName(group.rule.name)}
           onClick={(e) => e.stopPropagation()}
-          className="inline-flex min-h-11 items-center text-sm font-medium text-foreground underline-offset-2 hover:underline @[44rem]/triage:min-h-0"
+          className="inline-flex min-h-11 items-center text-sm font-medium text-foreground underline-offset-2 hover:underline @[52rem]/triage:min-h-0"
         >
           {group.name}
         </Link>
@@ -457,7 +451,9 @@ function InstanceRow({
   group,
   expanded,
   onToggle,
-  onGroupSilence,
+  onOpenSilence,
+  onQuickSilence,
+  silencePending,
   deliveryFact,
   budget,
   children,
@@ -466,7 +462,9 @@ function InstanceRow({
   group: TriageGroup;
   expanded: boolean;
   onToggle: () => void;
-  onGroupSilence: () => void;
+  onOpenSilence: () => void;
+  onQuickSilence: (hours: number) => void;
+  silencePending: boolean;
   deliveryFact: React.ReactNode;
   /** This row's error budget remaining (0..1, may go negative). Null while
    *  the status snapshot is unresolved; rule rows have none and pass null. */
@@ -489,6 +487,7 @@ function InstanceRow({
     Object.entries(shownLabels)
       .map(([k, v]) => `${k}=${v}`)
       .join(", ") || (merged ? group.name : row.tiers.join(", ") || "row");
+  const silenceLabel = merged ? group.name : rowName;
   // Oldest active_since across every member tier, not just the lead's.
   const activeSince = row.members
     .map((m) => m.alert.active_since)
@@ -517,14 +516,14 @@ function InstanceRow({
         }}
         // The fact cells share a two-line height (the budget meter hangs out
         // of flow); wide-container padding gives the hang room to clear the divider.
-        className="flex cursor-pointer flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2 transition-colors duration-150 hover:bg-muted/40 @[44rem]/triage:flex-nowrap @[44rem]/triage:gap-y-0.5 @[44rem]/triage:pb-2.5"
+        className="flex cursor-pointer flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2 transition-colors duration-150 hover:bg-muted/40 @[52rem]/triage:flex-nowrap @[52rem]/triage:gap-y-0.5 @[52rem]/triage:pb-2.5"
       >
         <button
           type="button"
           aria-expanded={expanded}
           aria-label={`${expanded ? "Collapse" : "Expand"} ${rowName}`}
           onClick={onToggle}
-          className="flex size-11 shrink-0 items-center justify-center rounded text-muted-foreground outline-2 outline-dotted outline-transparent transition-colors duration-150 hover:text-foreground focus-visible:outline-primary @[44rem]/triage:size-7"
+          className="flex size-11 shrink-0 items-center justify-center rounded text-muted-foreground outline-2 outline-dotted outline-transparent transition-colors duration-150 hover:text-foreground focus-visible:outline-primary @[52rem]/triage:size-8"
         >
           <ChevronRight
             className={cn(
@@ -541,33 +540,31 @@ function InstanceRow({
         </span>
         {/* Forces the fact columns onto their own line in narrow containers; the pl-8 on
             the first cell lines that row up under the content column. */}
-        <span className="basis-full @[44rem]/triage:hidden" aria-hidden />
+        <span className="basis-full @[52rem]/triage:hidden" aria-hidden />
         {/* Rule rows keep the empty budget slot in wide containers so the grid holds. */}
         {isSlo ? (
-          <FactCell
-            col={COL_BUDGET}
-            className="pl-14 @[44rem]/triage:pl-0"
-            label="budget left"
-            title="Error budget remaining"
-          >
-            {/* `hang` keeps the figure on the shared value line, the meter
-                tucked into the row padding above. */}
-            <AlertingBudgetBar remaining={budget} hang className="w-24" />
-          </FactCell>
+          <AlertingBudgetFact
+            remaining={budget}
+            className={cn(COL_BUDGET, "pl-14 @[52rem]/triage:pl-0")}
+          />
         ) : (
           <span
             aria-hidden
-            className={cn("hidden shrink-0 @[44rem]/triage:block", COL_BUDGET)}
+            className={cn("hidden shrink-0 @[52rem]/triage:block", COL_BUDGET)}
           />
         )}
         {/* Merged rows show the lead tier's rate and the rest in the tooltip. */}
         <FactCell
           col={COL_VALUE}
-          className={isSlo ? undefined : "pl-14 @[44rem]/triage:pl-0"}
-          label={isSlo ? "burn rate" : (valueLabel ?? "value")}
+          className={isSlo ? undefined : "pl-14 @[52rem]/triage:pl-0"}
+          label={isSlo ? "burning" : (valueLabel ?? "value")}
           title={
-            isSlo && row.members.length > 1
-              ? `burn rate — ${perTierRates}`
+            isSlo
+              ? row.members.length > 1
+                ? `Budget burn by tier: ${perTierRates}`
+                : typeof alert.value === "number"
+                  ? `Error budget is being consumed ${alertingFmtBurn(alert.value)} faster than target`
+                  : undefined
               : undefined
           }
         >
@@ -586,7 +583,7 @@ function InstanceRow({
               : undefined
           }
         >
-          <span className="text-xs text-muted-foreground">
+          <span className="text-xs text-foreground">
             {activeSince ? <RelativeTime timestamp={activeSince} /> : "—"}
           </span>
         </FactCell>
@@ -594,7 +591,7 @@ function InstanceRow({
             assert the opposite of the truth. */}
         <span
           className={cn(
-            "flex min-w-0 basis-full items-center gap-2 overflow-hidden pl-14 @[44rem]/triage:basis-auto @[44rem]/triage:pl-0 @[44rem]/triage:flex-none @[44rem]/triage:justify-end",
+            "flex min-w-0 basis-full items-center gap-2 overflow-hidden pl-14 @[52rem]/triage:basis-auto @[52rem]/triage:pl-0 @[52rem]/triage:flex-none @[52rem]/triage:justify-end",
             COL_DELIVERY,
           )}
         >
@@ -627,21 +624,12 @@ function InstanceRow({
               <BookOpenText />
             </Link>
           )}
-          {/* A merged line's silence mutes the whole source; a sub-row's pins
-              this row's labels so its siblings keep paging. */}
-          <button
-            type="button"
-            aria-label={
-              merged
-                ? `Silence everything under ${group.name}`
-                : `Silence ${rowName}`
-            }
-            title="Silence"
-            onClick={onGroupSilence}
-            className={lineActionClass}
-          >
-            <BellOff />
-          </button>
+          <SilenceSplitAction
+            label={silenceLabel}
+            pending={silencePending}
+            onOpen={onOpenSilence}
+            onQuick={onQuickSilence}
+          />
         </LineActions>
       </div>
       {expanded && children}
@@ -673,9 +661,6 @@ function silenceSeed(
           ? group.name
           : undefined,
       ),
-      scopeLabel: group.name,
-      affectedCount: (row ? row.members : group.rows.flatMap((r) => r.members))
-        .length,
     },
   ];
 }
@@ -718,22 +703,49 @@ export function TriageBoard({
       count + group.rows.filter((row) => rowIsUnrouted(row)).length,
     0,
   );
-  const shownGroups = [...groups].sort(
-    (a, b) =>
+  const groupBudget = (group: TriageGroup) =>
+    group.sloId === undefined
+      ? null
+      : alertingRowBudget(sloStatuses.get(group.sloId));
+  const groupBurn = (group: TriageGroup) =>
+    Math.max(
+      ...group.rows.flatMap((row) =>
+        row.members.map((member) =>
+          typeof member.alert.value === "number" ? member.alert.value : 0,
+        ),
+      ),
+    );
+  const shownGroups = [...groups].sort((a, b) => {
+    const aBudget = groupBudget(a);
+    const bBudget = groupBudget(b);
+    return (
       (SEVERITY_PRIORITY[a.severity] ?? 3) -
         (SEVERITY_PRIORITY[b.severity] ?? 3) ||
       Number(b.rows.some(rowIsUnrouted)) - Number(a.rows.some(rowIsUnrouted)) ||
+      Number((bBudget ?? 1) <= 0) - Number((aBudget ?? 1) <= 0) ||
+      (a.sloId !== undefined && b.sloId !== undefined
+        ? (aBudget ?? Number.POSITIVE_INFINITY) -
+            (bBudget ?? Number.POSITIVE_INFINITY) || groupBurn(b) - groupBurn(a)
+        : 0) ||
       rowStartedAt(b.rows[0]) - rowStartedAt(a.rows[0]) ||
-      a.name.localeCompare(b.name),
-  );
-  const silenceInstance = useMutation({
-    mutationFn: ({ alert, hours }: { alert: AlertingAlert; hours: number }) => {
+      a.name.localeCompare(b.name)
+    );
+  });
+  const quickSilence = useMutation({
+    mutationFn: ({
+      matchers,
+      hours,
+    }: {
+      scopeKey: string;
+      matchers: AlertingMatcher[];
+      hours: number;
+    }) => {
       // One clock read: two would let the window straddle a millisecond and
       // come out at hours + 1ms.
       const now = Date.now();
       return createAlertingSilence({
         data: {
-          matchers: alertingSourceScopedSilenceMatchers(alert),
+          matchers,
           starts_at: new Date(now).toISOString(),
           ends_at: new Date(now + hours * 3_600_000).toISOString(),
           comment: `silenced from triage (${hours}h)`,
@@ -772,13 +784,13 @@ export function TriageBoard({
             <p className="text-sm font-semibold text-destructive">
               {unroutedCount}{" "}
               {unroutedCount === 1 ? "firing alert is" : "firing alerts are"}{" "}
-              reaching no one
+              not being delivered
             </p>
           </div>
           <Link
             to="/alerts/delivery"
             className={cn(
-              buttonVariants({ variant: "default" }),
+              buttonVariants({ variant: "outline" }),
               "min-h-11 lg:min-h-8",
             )}
           >
@@ -795,6 +807,11 @@ export function TriageBoard({
         aria-busy={pending}
         className="@container/triage"
       >
+        <CardHeader className="border-b border-border/60 py-2">
+          <CardTitle>
+            <h2>Active alerts</h2>
+          </CardTitle>
+        </CardHeader>
         <CardContent>
           {pending ? (
             <AlertingTableSkeleton rows={6} />
@@ -819,62 +836,58 @@ export function TriageBoard({
                 )}
               </p>
               <p className="max-w-sm text-xs text-muted-foreground">
-                Firing instances appear here the moment a rule&rsquo;s query
-                returns rows.
+                Firing instances appear here when a rule&rsquo;s condition is
+                met.
               </p>
             </div>
           ) : (
             <div className="divide-y divide-border/60">
               {shownGroups.map((group) => {
                 const merged = group.rows.length === 1;
-                const rows = group.rows.map((row) => (
-                  <InstanceRow
-                    key={row.lead.alert.key}
-                    row={row}
-                    group={group}
-                    budget={
-                      group.sloId !== undefined
-                        ? alertingRowBudget(sloStatuses.get(group.sloId))
-                        : null
-                    }
-                    expanded={expandedKey === row.lead.alert.key}
-                    onToggle={() =>
-                      setExpandedKey((k) =>
-                        k === row.lead.alert.key ? null : row.lead.alert.key,
-                      )
-                    }
-                    onGroupSilence={() => {
-                      onCustomSilence(
-                        ...silenceSeed(group, merged ? undefined : row),
-                      );
-                    }}
-                    deliveryFact={
-                      <DeliveryFact
-                        directChannels={row.lead.directChannels}
-                        matchedRoutes={row.lead.matchedRoutes}
-                        channelsByReceiver={channelsByReceiver}
-                      />
-                    }
-                  >
-                    <InstanceDetail
-                      inst={row.lead}
-                      silencePending={
-                        silenceInstance.isPending &&
-                        silenceInstance.variables?.alert.key ===
-                          row.lead.alert.key
+                const rows = group.rows.map((row) => {
+                  const [matchers, options] = silenceSeed(
+                    group,
+                    merged ? undefined : row,
+                  );
+                  const scopeKey = row.lead.alert.key;
+                  return (
+                    <InstanceRow
+                      key={scopeKey}
+                      row={row}
+                      group={group}
+                      budget={
+                        group.sloId !== undefined
+                          ? alertingRowBudget(sloStatuses.get(group.sloId))
+                          : null
                       }
-                      onSilence={(hours) =>
-                        silenceInstance.mutate({
-                          alert: row.lead.alert,
-                          hours,
-                        })
+                      expanded={expandedKey === scopeKey}
+                      onToggle={() =>
+                        setExpandedKey((k) =>
+                          k === scopeKey ? null : scopeKey,
+                        )
                       }
-                      onCustomSilence={() => {
-                        onCustomSilence(...silenceSeed(group, row));
+                      onOpenSilence={() => {
+                        onCustomSilence(matchers, options);
                       }}
-                    />
-                  </InstanceRow>
-                ));
+                      onQuickSilence={(hours) =>
+                        quickSilence.mutate({ scopeKey, matchers, hours })
+                      }
+                      silencePending={
+                        quickSilence.isPending &&
+                        quickSilence.variables?.scopeKey === scopeKey
+                      }
+                      deliveryFact={
+                        <DeliveryFact
+                          directChannels={row.lead.directChannels}
+                          matchedRoutes={row.lead.matchedRoutes}
+                          channelsByReceiver={channelsByReceiver}
+                        />
+                      }
+                    >
+                      <InstanceDetail inst={row.lead} />
+                    </InstanceRow>
+                  );
+                });
                 return (
                   // Rows carry the padding so their hover highlight runs
                   // divider to divider.
@@ -885,20 +898,25 @@ export function TriageBoard({
                       <>
                         <div className="flex items-center gap-2 px-3 pt-2 pb-0.5">
                           <GroupIdentity group={group} />
-                          {/* Not LineActions: this header has no expanded
-                            detail, so its action must stay visible on touch. */}
                           <span className="ml-auto flex shrink-0 items-center">
-                            <button
-                              type="button"
-                              aria-label={`Silence everything under ${group.name}`}
-                              title="Silence all"
-                              onClick={() => {
+                            <SilenceSplitAction
+                              label={group.name}
+                              pending={
+                                quickSilence.isPending &&
+                                quickSilence.variables?.scopeKey ===
+                                  `group:${group.sourceId}`
+                              }
+                              onOpen={() => {
                                 onCustomSilence(...silenceSeed(group));
                               }}
-                              className={lineActionClass}
-                            >
-                              <BellOff />
-                            </button>
+                              onQuick={(hours) => {
+                                quickSilence.mutate({
+                                  scopeKey: `group:${group.sourceId}`,
+                                  matchers: silenceSeed(group)[0],
+                                  hours,
+                                });
+                              }}
+                            />
                           </span>
                         </div>
                         {rows}

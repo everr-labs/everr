@@ -39,6 +39,7 @@ export async function queryPostgresAlertEventLog(
     from: Date;
     to: Date;
     fingerprint?: string;
+    sourceId?: string;
     slugs?: readonly string[];
     /** null selects live events; an array overlays those Preview ids on live. */
     previewIds: readonly string[] | null;
@@ -63,6 +64,9 @@ export async function queryPostgresAlertEventLog(
   }
   if (opts.fingerprint !== undefined) {
     filters.push(eq(alertEvents.instanceFingerprint, opts.fingerprint));
+  }
+  if (opts.sourceId !== undefined) {
+    filters.push(eq(alertEvents.sourceDefinitionId, opts.sourceId));
   }
   if (opts.slugs !== undefined) {
     filters.push(inArray(alertEvents.slug, [...opts.slugs]));

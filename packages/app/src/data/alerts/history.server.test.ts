@@ -50,6 +50,7 @@ vi.mock("@/db/schema", () => ({
     occurredAt: "occurred_at",
     suppressed: "suppressed",
     instanceFingerprint: "instance_fingerprint",
+    sourceDefinitionId: "source_definition_id",
     slug: "slug",
     instanceLabels: "instance_labels",
   },
@@ -142,6 +143,25 @@ describe("queryPostgresAlertEventLog", () => {
     expect(conditions).not.toContainEqual({
       op: "eq",
       args: ["suppressed", false],
+    });
+  });
+
+  it("scopes an instance by source and fingerprint", async () => {
+    await queryPostgresAlertEventLog("org-1", {
+      ...range,
+      previewIds: null,
+      sourceId: "rule-1",
+      fingerprint: "fp-1",
+    });
+
+    const conditions = leafConditions(mocks.conditions[0]);
+    expect(conditions).toContainEqual({
+      op: "eq",
+      args: ["source_definition_id", "rule-1"],
+    });
+    expect(conditions).toContainEqual({
+      op: "eq",
+      args: ["instance_fingerprint", "fp-1"],
     });
   });
 

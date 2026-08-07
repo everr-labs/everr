@@ -43,21 +43,26 @@ describe("AlertingPipelineStrip", () => {
 
     expect(strip).toHaveTextContent("4 rules · 2 SLOs");
     expect(strip).toHaveTextContent("1 paused");
+    expect(strip).toHaveTextContent("Breaching instances");
+    expect(strip).toHaveTextContent("3 firing");
     expect(strip).toHaveTextContent("1 pending");
     expect(strip).toHaveTextContent("1 active silence");
-    expect(strip).toHaveTextContent("2 routes → 3 receivers");
+    expect(strip).toHaveTextContent("2 routes · 3 destinations");
   });
 
-  it("is a readout: no cell navigates or acts", async () => {
+  it("links the watched resource counts to their listings", async () => {
     renderStrip(<AlertingPipelineStrip facts={FACTS} />);
     const strip = await screen.findByRole("region", {
       name: "Alerting pipeline",
     });
 
-    // Four identical-looking cards where some navigate away and others filter
-    // in place would be several affordances wearing one costume. Filtering is
-    // the board's segmented control; navigation is the sidebar.
-    expect(within(strip).queryAllByRole("link")).toHaveLength(0);
+    expect(
+      within(strip).getByRole("link", { name: "4 rules" }),
+    ).toHaveAttribute("href", "/alerts/rules");
+    expect(within(strip).getByRole("link", { name: "2 SLOs" })).toHaveAttribute(
+      "href",
+      "/alerts/slos",
+    );
     expect(within(strip).queryAllByRole("button")).toHaveLength(0);
   });
 
@@ -65,13 +70,22 @@ describe("AlertingPipelineStrip", () => {
     renderStrip(
       <AlertingPipelineStrip facts={{ ...FACTS, unroutedFiring: 3 }} />,
     );
-    expect(await screen.findByText("3 firing unrouted")).toBeInTheDocument();
+    expect(await screen.findByText("Coverage incomplete")).toBeInTheDocument();
   });
 
-  it("says all quiet when nothing is firing or pending", async () => {
+  it("counts pending and firing instances as breaching", async () => {
     renderStrip(
-      <AlertingPipelineStrip facts={{ ...FACTS, firing: 0, pending: 0 }} />,
+      <AlertingPipelineStrip facts={{ ...FACTS, firing: 2, pending: 2 }} />,
     );
-    expect(await screen.findByText("all quiet")).toBeInTheDocument();
+    const strip = await screen.findByRole("region", {
+      name: "Alerting pipeline",
+    });
+    const breaching = within(strip)
+      .getByText("Breaching instances")
+      .closest("div");
+    if (!breaching) throw new Error("Breaching summary is missing");
+    expect(within(breaching).getByText("4")).toBeInTheDocument();
+    expect(breaching).toHaveTextContent("2 firing");
+    expect(breaching).toHaveTextContent("2 pending");
   });
 });

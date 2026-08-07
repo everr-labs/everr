@@ -33,6 +33,7 @@ vi.mock("@/data/alerts/history.server", () => ({
 function alertingAlert(labels: Record<string, string>): AlertingAlert {
   return {
     key: "k1",
+    fingerprint: "k1",
     rule: "44444444-4444-4444-4444-444444444444",
     tenant: "org1",
     status: "firing",

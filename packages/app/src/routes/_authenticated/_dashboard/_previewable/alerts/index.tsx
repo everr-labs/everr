@@ -189,10 +189,7 @@ function AlertingTriagePage() {
 
   return (
     <div className="space-y-3">
-      <PageHeader
-        title="Triage"
-        lede="Firing and silenced alerts, ordered by urgency."
-      />
+      <PageHeader title="Triage" lede="Active alerts, highest impact first." />
 
       {/* Gated on load — zeros while fetching would read as a false all-clear. */}
       {pending ? (
