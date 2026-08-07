@@ -9,7 +9,7 @@ export type NavigationListener = () => void;
 
 export function watchNavigation(
   rotate: RotatePageView,
-  listeners: readonly NavigationListener[],
+  listeners: Iterable<NavigationListener>,
 ): () => void {
   let lastUrl = location.href;
   const onUrlChange = () => {

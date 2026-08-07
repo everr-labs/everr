@@ -8,7 +8,9 @@ import { startPageviews } from "./pageview.js";
 // emit while hidden schedules the emitter's coalesced keepalive flush, so
 // the final leave always ships.
 export function pageviews(): Plugin {
-  return (ctx) => {
+  // Named (not an arrow) so sampled() can hash a real identity from
+  // plugin.name instead of decorrelating nothing.
+  return function pageviews(ctx) {
     const [onNavigate, onHide, stop] = startPageviews(ctx.emit, ctx.page);
     const offNavigation = ctx.onNavigation(onNavigate);
     const onVisibilityChange = () => {

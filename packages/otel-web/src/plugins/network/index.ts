@@ -19,5 +19,9 @@ export type NetworkOptions = {
  * propagation is safe. Teardown unpatches (unless a later patcher won).
  */
 export function network(options?: NetworkOptions): Plugin {
-  return (ctx) => startNetwork(ctx.tracer, options?.tracePropagationTargets);
+  // Named (not an arrow) so sampled() can hash a real identity from
+  // plugin.name instead of decorrelating nothing.
+  return function network(ctx) {
+    return startNetwork(ctx.tracer, options?.tracePropagationTargets);
+  };
 }

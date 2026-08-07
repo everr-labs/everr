@@ -22,6 +22,7 @@ export { type NetworkOptions, network } from "./plugins/network/index.js";
 export { pageviews } from "./plugins/pageviews/index.js";
 export { performance } from "./plugins/performance/index.js";
 export type { PageContext, Plugin, PluginContext } from "./plugins/runtime.js";
+export { sampled } from "./plugins/sampled.js";
 export { setRouteResolver } from "./route.js";
 export { identify, revoke, setPersistence } from "./session.js";
 export type {

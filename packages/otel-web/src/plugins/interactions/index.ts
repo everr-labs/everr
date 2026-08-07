@@ -7,5 +7,9 @@ import { startInteractions } from "./interactions.js";
  * belong to the performance plugin.
  */
 export function interactions(): Plugin {
-  return (ctx) => startInteractions(ctx.emit);
+  // Named (not an arrow) so sampled() can hash a real identity from
+  // plugin.name instead of decorrelating nothing.
+  return function interactions(ctx) {
+    return startInteractions(ctx.emit);
+  };
 }

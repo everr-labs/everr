@@ -118,6 +118,9 @@ export type {
   ErrorsOptions,
 } from "./plugins/errors/index.js";
 export type { NetworkOptions } from "./plugins/network/index.js";
+// sampled() is a generic wrapper, not a capture source: it works the same
+// against the server's inert plugins as it does against browser ones.
+export { sampled } from "./plugins/sampled.js";
 
 /** Inert on the server; error capture belongs to the app's OTel SDK. */
 export const errors = (_options?: ErrorsOptions): Plugin => inert;

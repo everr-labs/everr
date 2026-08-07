@@ -24,6 +24,9 @@
     // Static entry points reached via Vite resolve.alias in
     // packages/app/vite.config.ts (use-sync-external-store/shim).
     "packages/app/src/ssr-shims/**",
+    // size-limit's own config file, resolved by its CLI at runtime; nothing
+    // in the package imports it.
+    "packages/otel-web/.size-limit.cjs",
   ],
   // @everr/auto-otel-errors: referenced in docs/examples, not a build dep.
   // The two @opentelemetry/* entries are imported only by the OTel web SDK

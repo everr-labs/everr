@@ -56,9 +56,10 @@ export function init(options: InitOptions): EverrClient {
       "everr.screen.height": screen.height,
       "everr.timezone": Intl.DateTimeFormat().resolvedOptions().timeZone,
       "everr.language": navigator.language,
+      ...attributionAttributes(location.search),
     },
     { name: SDK_NAME, version: SDK_VERSION },
-    createEnvelope(current, attributionAttributes(location.search)),
+    createEnvelope(current),
   );
   // The one binding of the package-level surfaces (logger, captureError) to
   // this pipeline; they sample it per call from current.ts.
@@ -71,7 +72,7 @@ export function init(options: InitOptions): EverrClient {
   // navigation listener list is live: the watcher below iterates it per
   // navigation, so ctx.onNavigation subscriptions from any plugin land in
   // the same dispatch.
-  const navigationListeners: NavigationListener[] = [];
+  const navigationListeners = new Set<NavigationListener>();
   const ctx: PluginContext = {
     emit,
     tracer: createTracer(emitSpan),
@@ -79,10 +80,9 @@ export function init(options: InitOptions): EverrClient {
     route: () => routePattern() ?? null,
     page: current,
     onNavigation: (listener) => {
-      navigationListeners.push(listener);
+      navigationListeners.add(listener);
       return () => {
-        const at = navigationListeners.indexOf(listener);
-        if (at >= 0) navigationListeners.splice(at, 1);
+        navigationListeners.delete(listener);
       };
     },
     dev: options.dev === true,

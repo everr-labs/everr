@@ -31,7 +31,9 @@ const matches = (
   );
 
 export function errors(options?: ErrorsOptions): Plugin {
-  return () => {
+  // Named (not an arrow) so sampled() can hash a real identity from
+  // plugin.name instead of decorrelating nothing.
+  return function errors() {
     const stopHandlers = startErrors();
     const filter: ErrorFilter = (message, scriptUrl) =>
       matches(options?.ignore, message) ||

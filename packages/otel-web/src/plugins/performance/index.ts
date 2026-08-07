@@ -9,7 +9,9 @@ import { startWebVitals } from "./webvitals.js";
  * the same Event Timing observer that computes INP.
  */
 export function performance(): Plugin {
-  return (ctx) => {
+  // Named (not an arrow) so sampled() can hash a real identity from
+  // plugin.name instead of decorrelating nothing.
+  return function performance(ctx) {
     const stopVitals = startWebVitals(ctx.emit);
     const stopInp = startInp(ctx.emit);
     return () => {

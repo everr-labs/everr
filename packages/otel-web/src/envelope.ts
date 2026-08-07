@@ -31,18 +31,16 @@ export function pageAttrs(
 
 // The live module state (session, visitor, route, setAttributes ambient set,
 // identify()'s user.* keys) is sampled per record, so a change takes effect
-// on the very next event; only page context and attribution are per-client.
+// on the very next event; page context is per-client, attribution now rides
+// resourceAttributes (client.ts) since it too is fixed for the client's life.
 export function createEnvelope(
   current: CurrentPage,
-  /** Attribution, fixed for the client's life. */
-  attribution: Record<string, string>,
 ): () => Record<string, AttrValue | null | undefined> {
   return () => ({
     "session.id": sessionId(),
     "everr.visitor.id": visitorId(),
     ...pageAttrs(current()),
     "everr.route.pattern": routePattern(),
-    ...attribution,
     ...getAttributes(),
   });
 }
