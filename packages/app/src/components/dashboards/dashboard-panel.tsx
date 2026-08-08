@@ -95,7 +95,7 @@ export function DashboardPanel({
         description={display?.description}
         status={status}
         errorMessage={errorMessage}
-        className="h-full"
+        className="h-full rounded-none border ring-0"
         inset={getVisualizationInset(plugin.kind)}
         action={
           action || specWarnings.length > 0 ? (

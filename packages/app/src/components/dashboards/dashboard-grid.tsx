@@ -29,7 +29,12 @@ export function DashboardGrid() {
           width={width}
           className="layout"
           layout={layout}
-          gridConfig={{ cols: GRID_COLS, rowHeight: ROW_HEIGHT }}
+          gridConfig={{
+            cols: GRID_COLS,
+            rowHeight: ROW_HEIGHT,
+            margin: [0, 0],
+            containerPadding: [0, 0],
+          }}
           dragConfig={{ enabled: false }}
           resizeConfig={{ enabled: false }}
           // No compaction: render panels at their authored x/y so intentional
