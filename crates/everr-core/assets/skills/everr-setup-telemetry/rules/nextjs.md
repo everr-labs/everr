@@ -4,7 +4,9 @@ Use this rule for Next.js 13+ App Router projects that need server-side
 OpenTelemetry instrumentation.
 
 This rule is intentionally server-only. Keep device-side instrumentation out of
-this setup.
+this setup: the browser half is `browser.md` (`@everr/otel-web`), and joining
+browser and server traces into one trace follows the seam section of
+`vite-ssr.md`, which applies to Next.js unchanged.
 
 ## Prerequisites
 

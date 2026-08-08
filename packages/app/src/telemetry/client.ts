@@ -11,8 +11,8 @@ import { parameterizeTelemetryPath } from "@/telemetry/paths";
 
 // Everr-native browser telemetry for the web app (dogfooding): pageviews,
 // frustration clicks, web vitals, and errors flow to Everr as OTel log
-// records under the app's service name, next to its server telemetry
-// (`node.ts`). Error capture rides the SDK's own errors() instrumentation
+// records under a browser service name distinct from the server's
+// (`node.ts`), so the two sides stay separable in queries. Error capture rides the SDK's own errors() instrumentation
 // (window.onerror, unhandledrejection, and the router's error component via
 // the re-exported `captureReactError`), stamped with the same analytics
 // envelope.
@@ -26,7 +26,7 @@ import { parameterizeTelemetryPath } from "@/telemetry/paths";
 // the router with it.
 new WebSDK({
   persistence: readConsent() === "granted" ? "localStorage" : "memory",
-  serviceName: "everr-dev-app",
+  serviceName: "everr-dev-app-web",
   deploymentEnvironment: import.meta.env.MODE,
   ingestKey: import.meta.env.VITE_EVERR_PUBLIC_INGEST_KEY,
   endpoint: import.meta.env.VITE_EVERR_INGEST_ENDPOINT,

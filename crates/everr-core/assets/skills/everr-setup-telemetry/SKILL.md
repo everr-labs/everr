@@ -36,6 +36,8 @@ Always read the relevant rule files before editing instrumentation. Use the tabl
 | `nodejs` | Node.js instrumentation setup and runtime pitfalls |
 | `nextjs` | Next.js App Router, server/client split, trace propagation |
 | `browser` | Web frontends exporting OTLP directly from the browser with a public origin-bound key |
+| `vite-ssr` | Full-stack Vite apps with Node SSR: wiring both halves and joining browser and server traces |
+| `tanstack-start` | TanStack Start: router-aware browser telemetry, request spans, and server function middleware |
 | `tauri` | Tauri v2 desktop/mobile: Rust backend + browser frontend proxying telemetry through IPC |
 | `electron` | Electron desktop: Node main process + Chromium renderer proxying telemetry through IPC |
 | `rust` | Rust tracing-based OpenTelemetry setup and runtime pitfalls |
