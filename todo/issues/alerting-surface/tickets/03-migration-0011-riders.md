@@ -12,10 +12,10 @@ generate`).
 
 **Status:** ready-for-agent
 
-- [ ] The `kind` discriminator on the journal table
-- [ ] The event-type enum extended with pending, terminal and hold decision values, and `evaluation_failed` as a journaled state kind
-- [ ] The id default is a `uuidv7()` expression, not `defaultRandom()`
-- [ ] The episode id column on the journal tables, per Episodes and chain membership in the design doc
-- [ ] A PostgreSQL-stamped commit-side timestamp column on the journal tables
-- [ ] Folded into migration 0011 with the snapshot patched; applied to the dev database
-- [ ] Engine unit tests stay green
+- [x] The `kind` discriminator on the journal table
+- [x] The event-type enum extended with pending, terminal and hold decision values, and `evaluation_failed` as a journaled state kind
+- [x] The id default is a `uuidv7()` expression, not `defaultRandom()`
+- [x] The episode id column on the journal tables, per Episodes and chain membership in the design doc
+- [x] A PostgreSQL-stamped commit-side timestamp column on the journal tables
+- [x] Folded into migration 0011 with the snapshot patched; applied to the dev database
+- [x] Engine unit tests stay green

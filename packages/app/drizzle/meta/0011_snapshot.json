@@ -607,6 +607,13 @@
           "notNull": true,
           "default": "now()"
         },
+        "journaled_at": {
+          "name": "journaled_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
         "updated_at": {
           "name": "updated_at",
           "type": "timestamp with time zone",
@@ -881,7 +888,7 @@
           "type": "uuid",
           "primaryKey": true,
           "notNull": true,
-          "default": "gen_random_uuid()"
+          "default": "uuidv7()"
         },
         "organization_id": {
           "name": "organization_id",
@@ -919,6 +926,20 @@
           "typeSchema": "public",
           "primaryKey": false,
           "notNull": true
+        },
+        "kind": {
+          "name": "kind",
+          "type": "alert_event_kind",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'notifying'"
+        },
+        "episode_id": {
+          "name": "episode_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
         },
         "instance_fingerprint": {
           "name": "instance_fingerprint",
@@ -985,6 +1006,13 @@
         },
         "occurred_at": {
           "name": "occurred_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "journaled_at": {
+          "name": "journaled_at",
           "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": true,
@@ -1283,6 +1311,12 @@
           "primaryKey": false,
           "notNull": true,
           "default": 0
+        },
+        "episode_id": {
+          "name": "episode_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
         },
         "updated_at": {
           "name": "updated_at",
@@ -4822,15 +4856,27 @@
         "failed"
       ]
     },
+    "public.alert_event_kind": {
+      "name": "alert_event_kind",
+      "schema": "public",
+      "values": [
+        "notifying",
+        "state"
+      ]
+    },
     "public.alert_event_type": {
       "name": "alert_event_type",
       "schema": "public",
       "values": [
+        "instance_pending",
         "instance_fired",
         "instance_resolved",
+        "instance_closed",
         "delivery",
         "rule_health",
-        "silenced"
+        "silenced",
+        "hold_changed",
+        "evaluation_failed"
       ]
     },
     "public.alert_health": {

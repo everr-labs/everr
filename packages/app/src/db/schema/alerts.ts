@@ -54,6 +54,14 @@ export const alertEventTypeEnum = pgEnum(
   ALERTING_EVENT_TYPES,
 );
 
+// State-only rows (pending, closed, hold decisions, failed evaluations) are
+// born processed and exist only to be projected; they must never be
+// deliverable, whatever their event type says.
+export const alertEventKindEnum = pgEnum("alert_event_kind", [
+  "notifying",
+  "state",
+]);
+
 export const alertSeverityEnum = pgEnum("alert_severity", ALERTING_SEVERITIES);
 
 export const alertDefinitions = pgTable(
@@ -154,6 +162,10 @@ export const alertInstances = pgTable(
     activeSince: timestamp("active_since", { withTimezone: true }),
     lastSeenAt: timestamp("last_seen_at", { withTimezone: true }),
     absentCount: integer("absent_count").notNull().default(0),
+    // The open episode, so the evaluator can stamp every lifecycle row of one
+    // incident with the same id. Null while the instance is inactive, and null
+    // on rows written before the writers exist, so no foreign key.
+    episodeId: uuid("episode_id"),
     updatedAt: timestamp("updated_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -202,13 +214,20 @@ export const alertEvaluations = pgTable(
 export const alertEvents = pgTable(
   "alert_events",
   {
-    id: uuid("id").primaryKey().defaultRandom(),
+    // UUIDv7, not drizzle's `defaultRandom()`: the id sorts by creation time,
+    // which is what makes an id range a time bound on the projected history.
+    // Postgres 18 has `uuidv7()` natively.
+    id: uuid("id").primaryKey().default(sql`uuidv7()`),
     organizationId: text("organization_id").notNull(),
     repoid: text("repoid").notNull(),
     previewId: uuid("preview_id"),
     sourceDefinitionId: uuid("source_definition_id").notNull(),
     slug: text("slug").notNull(),
     eventType: alertEventTypeEnum("event_type").notNull(),
+    kind: alertEventKindEnum("kind").notNull().default("notifying"),
+    // The episode this lifecycle row belongs to: the id of the row that opened
+    // it. Null on rows that belong to no episode (evaluation and hold rows).
+    episodeId: uuid("episode_id"),
     instanceFingerprint: text("instance_fingerprint").notNull().default(""),
     instanceLabels: jsonb("instance_labels")
       .notNull()
@@ -224,6 +243,11 @@ export const alertEvents = pgTable(
     inhibited: boolean("inhibited").notNull().default(false),
     silenceId: uuid("silence_id"),
     occurredAt: timestamp("occurred_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    // Commit-side time, stamped by PostgreSQL. The reconciliation diff filters
+    // on this; `occurred_at` is domain time and can be backdated by the caller.
+    journaledAt: timestamp("journaled_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
     processedAt: timestamp("processed_at", { withTimezone: true }),
@@ -545,6 +569,11 @@ export const alertDeliveries = pgTable(
     attempts: integer("attempts").notNull().default(0),
     lastError: text("last_error"),
     createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    // Commit-side time, stamped by PostgreSQL, for the reconciliation diff.
+    // `created_at` and `updated_at` follow the delivery's own lifecycle.
+    journaledAt: timestamp("journaled_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true })
