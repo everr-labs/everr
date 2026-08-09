@@ -1,20 +1,20 @@
 import fc from "fast-check";
 import { describe, expect, it } from "vitest";
 import {
-  DEFAULT_SCRUB_PATTERNS,
-  filterKeyValueData,
+  DEFAULT_REDACT_PATTERNS,
+  redactAttributeKeys,
+  redactString,
   SENSITIVE_KEY_SNIPPETS,
-  scrubString,
   stripUrlQueryAndFragment,
-} from "./scrub.js";
+} from "./redact.js";
 
-// Property tests for scrubbing: key filtering preserves the key set and only
+// Property tests for redaction: key filtering preserves the key set and only
 // ever swaps values for the redaction marker, and the default patterns remove
 // constructed secrets wherever they land inside a string.
 
 const word = fc.stringMatching(/^[a-z]{1,8}$/);
 
-describe("filterKeyValueData", () => {
+describe("redactAttributeKeys", () => {
   const behavior = fc.oneof(
     fc.constant<boolean>(true),
     fc.constant<boolean>(false),
@@ -26,7 +26,7 @@ describe("filterKeyValueData", () => {
   it("preserves the key set and only substitutes the marker", () => {
     fc.assert(
       fc.property(data, behavior, (attrs, b) => {
-        const out = filterKeyValueData(attrs, b);
+        const out = redactAttributeKeys(attrs, b);
         expect(Object.keys(out).sort()).toEqual(Object.keys(attrs).sort());
         for (const key of Object.keys(out)) {
           expect([attrs[key], "[Filtered]"]).toContainEqual(out[key]);
@@ -41,7 +41,7 @@ describe("filterKeyValueData", () => {
       .map(([snippet, before, after]) => `${before}_${snippet}_${after}`);
     fc.assert(
       fc.property(sensitiveKey, behavior, fc.string(), (key, b, value) => {
-        const out = filterKeyValueData({ [key]: value }, b);
+        const out = redactAttributeKeys({ [key]: value }, b);
         expect(out[key]).toBe(b === false ? value : "[Filtered]");
       }),
     );
@@ -53,7 +53,7 @@ describe("filterKeyValueData", () => {
         fc.dictionary(word, fc.string()),
         fc.array(word, { minLength: 1, maxLength: 3 }),
         (attrs, allow) => {
-          const out = filterKeyValueData(attrs, { allow });
+          const out = redactAttributeKeys(attrs, { allow });
           for (const key of Object.keys(attrs)) {
             const allowed = allow.some((t) => key.includes(t));
             if (!allowed) expect(out[key]).toBe("[Filtered]");
@@ -64,16 +64,16 @@ describe("filterKeyValueData", () => {
   });
 });
 
-describe("scrubString with the default patterns", () => {
+describe("redactString with the default patterns", () => {
   it("removes constructed email addresses wherever they appear", () => {
     const email = fc
       .tuple(word, word, fc.constantFrom("com", "io", "dev"))
       .map(([local, domain, tld]) => `${local}@${domain}.${tld}`);
     fc.assert(
       fc.property(word, email, word, (prefix, address, suffix) => {
-        const out = scrubString(
+        const out = redactString(
           `${prefix} ${address} ${suffix}`,
-          DEFAULT_SCRUB_PATTERNS,
+          DEFAULT_REDACT_PATTERNS,
         );
         expect(out).not.toContain(address);
         expect(out).toContain("[Filtered]");
@@ -85,9 +85,9 @@ describe("scrubString with the default patterns", () => {
     const token = fc.stringMatching(/^[A-Za-z0-9._-]{8,40}$/);
     fc.assert(
       fc.property(token, (t) => {
-        const out = scrubString(
+        const out = redactString(
           `Authorization: Bearer ${t}`,
-          DEFAULT_SCRUB_PATTERNS,
+          DEFAULT_REDACT_PATTERNS,
         );
         expect(out).toBe("Authorization: [Filtered]");
       }),
@@ -101,9 +101,9 @@ describe("scrubString with the default patterns", () => {
     const value = fc.stringMatching(/^[A-Z0-9]{6,20}$/);
     fc.assert(
       fc.property(param, value, (p, v) => {
-        const out = scrubString(
+        const out = redactString(
           `https://example.com/cb?${p}=${v}&ok=1`,
-          DEFAULT_SCRUB_PATTERNS,
+          DEFAULT_REDACT_PATTERNS,
         );
         expect(out).toContain(`${p}=`);
         expect(out).not.toContain(v);

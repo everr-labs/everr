@@ -1,5 +1,5 @@
 import type { Attributes } from "@opentelemetry/api";
-import type { CollectBehavior } from "./scrub.js";
+import type { CollectBehavior } from "./redact.js";
 
 /**
  * How the error reached us. The three names this package produces stay in the
@@ -14,7 +14,7 @@ export type Mechanism =
   | "manual"
   | (string & {});
 
-export type ErrorSeverity = "debug" | "info" | "warn" | "error" | "fatal";
+export type ErrorSeverity = "error" | "fatal";
 
 export interface ErrorEvent {
   error: unknown;

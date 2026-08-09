@@ -83,7 +83,7 @@ new ErrorsInstrumentation({
 
 ## `@everr/otel-errors/core`
 
-The capture path with no Node and no `@opentelemetry/instrumentation` dependency: `Client`, `normalizeError`, `RateLimiter`, and the scrub helpers. It exists so a browser-targeted SDK can reuse the normalization, redaction, and attribute contract without pulling `@types/node` into its globals. [`@everr/otel-web`](https://github.com/everr-labs/everr/tree/main/packages/otel-web)'s server entry is its consumer.
+The capture path with no Node and no `@opentelemetry/instrumentation` dependency: `Client`, `normalizeError`, `RateLimiter`, and the redaction helpers. It exists so a browser-targeted SDK can reuse the normalization, redaction, and attribute contract without pulling `@types/node` into its globals. [`@everr/otel-web`](https://github.com/everr-labs/everr/tree/main/packages/otel-web)'s server entry is its consumer.
 
 ```ts
 import { Client } from "@everr/otel-errors/core";

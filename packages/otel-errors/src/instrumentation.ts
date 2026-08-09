@@ -48,24 +48,17 @@ export class ErrorsInstrumentation
   readonly instrumentationVersion = PKG_VERSION;
 
   private _config: ErrorsInstrumentationConfig = {};
-  private client: Client;
+  // Definitely assigned: the constructor's configure() call always sets it.
+  private client!: Client;
   private loggerProvider: LoggerProvider | undefined;
   private tracerProvider: TracerProvider | undefined;
   private meterProvider: MeterProvider | undefined;
   private teardownFns: Array<() => void> = [];
 
   constructor(config: ErrorsInstrumentationConfig = {}) {
-    this._config = { enabled: true, ...config };
-    this.client = new Client(this._config);
-    // captureError works without any instrumentation, but once one exists its
-    // options must apply to manual captures too: scrubbing that only covered
-    // crashes would silently leak the data it was configured to redact.
-    adoptSharedClient(this.client, this);
     // Instrumentations enable themselves on construction; registerInstrumentations
     // only calls enable() for one that opted out with `enabled: false`.
-    if (this._config.enabled) {
-      this.install();
-    }
+    this.configure(config);
   }
 
   setConfig(config: ErrorsInstrumentationConfig = {}): void {
@@ -73,10 +66,17 @@ export class ErrorsInstrumentation
     if (wasEnabled) {
       this.remove();
     }
+    this.configure(config);
+    this.applyProviders();
+  }
+
+  private configure(config: ErrorsInstrumentationConfig): void {
     this._config = { enabled: true, ...config };
     this.client = new Client(this._config);
+    // captureError works without any instrumentation, but once one exists its
+    // options must apply to manual captures too: redaction that only covered
+    // crashes would silently leak the data it was configured to redact.
     adoptSharedClient(this.client, this);
-    this.applyProviders();
     if (this._config.enabled) {
       this.install();
     }

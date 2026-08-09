@@ -83,7 +83,7 @@ function isAlphaNumeric(char: string): boolean {
   return /^[a-z0-9]$/.test(char);
 }
 
-export function filterKeyValueData(
+export function redactAttributeKeys(
   data: Attributes,
   behavior: CollectBehavior,
 ): Attributes {
@@ -114,14 +114,14 @@ export function filterKeyValueData(
   return result;
 }
 
-export const DEFAULT_SCRUB_PATTERNS: RegExp[] = [
+export const DEFAULT_REDACT_PATTERNS: RegExp[] = [
   /\bBearer\s+[\w.+/=-]+/gi,
   SENSITIVE_QUERY_PARAM_PATTERN,
   /\b\d(?:[ -]?\d){12,15}\b/g,
   /[\w.+-]+@[\w-]+\.[\w.-]+/g,
 ];
 
-export function scrubString(value: string, patterns: RegExp[]): string {
+export function redactString(value: string, patterns: RegExp[]): string {
   let out = value;
   for (const pattern of patterns) {
     out =
@@ -132,7 +132,7 @@ export function scrubString(value: string, patterns: RegExp[]): string {
   return out;
 }
 
-export function scrubAttributes(
+export function redactAttributes(
   attributes: Attributes,
   patterns: RegExp[],
 ): Attributes {
@@ -144,7 +144,7 @@ export function scrubAttributes(
     }
 
     const sanitized = isUrlKey(key) ? stripUrlQueryAndFragment(value) : value;
-    out[key] = scrubString(sanitized, patterns);
+    out[key] = redactString(sanitized, patterns);
   }
   return out;
 }

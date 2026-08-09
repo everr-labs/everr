@@ -41,10 +41,10 @@ describe("Client.capture", () => {
     expect(record.attributes["log.record.uid"]).toMatch(/^[0-9a-f-]{32,36}$/);
   });
 
-  it("never scrubs the uid, even when it matches the credit-card pattern", () => {
+  it("never redacts the uid, even when it matches the credit-card pattern", () => {
     // A numeric-heavy UUID whose leading groups are all digits — the default
-    // credit-card scrub pattern would redact it to "[Filtered]" if the uid went
-    // through scrubbing.
+    // credit-card redaction pattern would redact it to "[Filtered]" if the uid went
+    // through redaction.
     const uid = "40000000-0000-4000-8000-000000000002";
     const spy = vi
       .spyOn(globalThis.crypto, "randomUUID")

@@ -7,11 +7,11 @@ export { type NormalizedError, normalizeError } from "./normalize.js";
 export { RateLimiter } from "./rate-limit.js";
 export {
   type CollectBehavior,
-  DEFAULT_SCRUB_PATTERNS,
-  scrubAttributes,
-  scrubString,
+  DEFAULT_REDACT_PATTERNS,
+  redactAttributes,
+  redactString,
   stripUrlQueryAndFragment,
-} from "./scrub.js";
+} from "./redact.js";
 export type {
   ErrorEvent,
   ErrorSeverity,

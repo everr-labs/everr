@@ -8,7 +8,7 @@ import { PKG_NAME } from "./version.js";
 // instrumentation: captureError always has a client to report through. The
 // default one is built lazily with default options against the global logger
 // registry; an ErrorsInstrumentation adopts the slot to apply user options
-// (scrubbing, rate limits) to manual captures too.
+// (redaction, rate limits) to manual captures too.
 let sharedClient: Client | null = null;
 let adoptedBy: object | null = null;
 let providerSeen = false;
@@ -53,7 +53,7 @@ export interface CaptureErrorOptions {
  * Reports a handled error as an OTel exception log record. Works without an
  * ErrorsInstrumentation: records go through the global logger provider, which
  * resolves at emit time once an SDK registers. When an instrumentation is
- * constructed, its options (scrubbing, rate limits) apply here too.
+ * constructed, its options (redaction, rate limits) apply here too.
  */
 export function captureError(
   error: unknown,

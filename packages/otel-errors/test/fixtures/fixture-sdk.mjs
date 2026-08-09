@@ -13,77 +13,60 @@ function writeLine(payload) {
   process.stdout.write(`${JSON.stringify(payload)}\n`);
 }
 
-class StdoutLogExporter {
-  export(records, resultCallback) {
-    for (const record of records) {
-      writeLine({
-        kind: "log",
-        body: record.body,
-        eventName: record.eventName,
-        severityNumber: record.severityNumber,
-        mechanism: record.attributes["everr.error.mechanism"],
-      });
-    }
-    resultCallback({ code: 0 });
-  }
-
-  shutdown() {
-    return Promise.resolve();
-  }
-
-  forceFlush() {
-    return Promise.resolve();
-  }
-}
-
-class StdoutMetricExporter {
-  export(metrics, resultCallback) {
-    for (const scope of metrics.scopeMetrics ?? []) {
-      for (const metric of scope.metrics ?? []) {
-        writeLine({ kind: "metric", name: metric.descriptor.name });
+/** An exporter that writes one JSON line per payload produced by `toPayloads`. */
+function stdoutExporter(toPayloads) {
+  return {
+    export(batch, resultCallback) {
+      for (const payload of toPayloads(batch)) {
+        writeLine(payload);
       }
-    }
-    resultCallback({ code: 0 });
-  }
-
-  shutdown() {
-    return Promise.resolve();
-  }
-
-  forceFlush() {
-    return Promise.resolve();
-  }
+      resultCallback({ code: 0 });
+    },
+    shutdown() {
+      return Promise.resolve();
+    },
+    forceFlush() {
+      return Promise.resolve();
+    },
+  };
 }
 
-class StdoutSpanExporter {
-  export(spans, resultCallback) {
-    for (const span of spans) {
-      writeLine({ kind: "span", name: span.name });
-    }
-    resultCallback({ code: 0 });
-  }
+const stdoutLogExporter = () =>
+  stdoutExporter((records) =>
+    records.map((record) => ({
+      kind: "log",
+      body: record.body,
+      eventName: record.eventName,
+      severityNumber: record.severityNumber,
+      mechanism: record.attributes["everr.error.mechanism"],
+    })),
+  );
 
-  shutdown() {
-    return Promise.resolve();
-  }
+const stdoutMetricExporter = () =>
+  stdoutExporter((metrics) =>
+    (metrics.scopeMetrics ?? []).flatMap((scope) =>
+      (scope.metrics ?? []).map((metric) => ({
+        kind: "metric",
+        name: metric.descriptor.name,
+      })),
+    ),
+  );
 
-  forceFlush() {
-    return Promise.resolve();
-  }
-}
+const stdoutSpanExporter = () =>
+  stdoutExporter((spans) => spans.map((span) => ({ kind: "span", name: span.name })));
 
 /** Registers the SDK exactly as an application does, and returns it. */
 export function startSdk(config = {}) {
   const sdk = new NodeSDK({
     logRecordProcessors: [
-      new BatchLogRecordProcessor(new StdoutLogExporter(), NEVER_ON_A_TIMER),
+      new BatchLogRecordProcessor(stdoutLogExporter(), NEVER_ON_A_TIMER),
     ],
     spanProcessors: [
-      new BatchSpanProcessor(new StdoutSpanExporter(), NEVER_ON_A_TIMER),
+      new BatchSpanProcessor(stdoutSpanExporter(), NEVER_ON_A_TIMER),
     ],
     metricReaders: [
       new PeriodicExportingMetricReader({
-        exporter: new StdoutMetricExporter(),
+        exporter: stdoutMetricExporter(),
         exportIntervalMillis: 300_000,
       }),
     ],

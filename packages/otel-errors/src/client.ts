@@ -11,11 +11,11 @@ import { type NormalizedError, normalizeError } from "./normalize.js";
 import { RateLimiter } from "./rate-limit.js";
 import {
   type CollectBehavior,
-  DEFAULT_SCRUB_PATTERNS,
-  filterKeyValueData,
-  scrubAttributes,
-  scrubString,
-} from "./scrub.js";
+  DEFAULT_REDACT_PATTERNS,
+  redactAttributeKeys,
+  redactAttributes,
+  redactString,
+} from "./redact.js";
 import type { ErrorEvent, ErrorSeverity, Mechanism, Options } from "./types.js";
 import { PKG_NAME, PKG_VERSION } from "./version.js";
 
@@ -29,7 +29,7 @@ export interface CaptureInput {
 }
 
 /**
- * The runtime-neutral capture path: normalize, scrub, rate limit, mark the
+ * The runtime-neutral capture path: normalize, redact, rate limit, mark the
  * active span, emit one log record. It holds no process or DOM state, so any
  * runtime can drive it. `ErrorsInstrumentation` drives it on Node;
  * `@everr/otel-web`'s server entry constructs its own instance.
@@ -54,7 +54,7 @@ export class Client {
             options.rateLimit?.count ?? 5,
             options.rateLimit?.windowMs ?? 5000,
           );
-    this.redactPatterns = options.redactPatterns ?? DEFAULT_SCRUB_PATTERNS;
+    this.redactPatterns = options.redactPatterns ?? DEFAULT_REDACT_PATTERNS;
     this.redactKeys = options.redactKeys ?? true;
   }
 
@@ -120,18 +120,18 @@ export class Client {
       "everr.error.handled": event.handled,
       "everr.error.mechanism": event.mechanism,
     };
-    const filteredAttributes = filterKeyValueData(
+    const filteredAttributes = redactAttributeKeys(
       rawAttributes,
       this.redactKeys,
     );
     const attributes = {
-      ...scrubAttributes(filteredAttributes, this.redactPatterns),
+      ...redactAttributes(filteredAttributes, this.redactPatterns),
       // The uid is a library-generated identifier, never user data, so it's set
-      // after scrubbing: a numeric-heavy UUID would otherwise trip the
+      // after redaction: a numeric-heavy UUID would otherwise trip the
       // credit-card pattern and get partially redacted to "[Filtered]".
       "log.record.uid": errorId,
     };
-    const body = scrubString(event.message, this.redactPatterns);
+    const body = redactString(event.message, this.redactPatterns);
     const activeSpan = trace.getActiveSpan();
 
     // Attach the error to the surrounding span so traces show the failure.
@@ -171,18 +171,7 @@ function markActiveSpan(
 }
 
 function severityNumber(severity: ErrorSeverity): SeverityNumber {
-  switch (severity) {
-    case "debug":
-      return SeverityNumber.DEBUG;
-    case "info":
-      return SeverityNumber.INFO;
-    case "warn":
-      return SeverityNumber.WARN;
-    case "fatal":
-      return SeverityNumber.FATAL;
-    case "error":
-      return SeverityNumber.ERROR;
-  }
+  return severity === "fatal" ? SeverityNumber.FATAL : SeverityNumber.ERROR;
 }
 
 function generateErrorId(): string {
