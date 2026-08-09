@@ -1,5 +1,7 @@
 # Error Tracking
 
+Use this rule when the stack has no `@everr` SDK owning error capture: languages beyond JS (Python, Go, Java, Ruby, ...) and any runtime without a dedicated rule file. The JS runtimes carry their own compact hints (`@everr/otel-errors` on Node, `errors()` in the browser), and `rust.md` has "Errors And Panics"; this rule is the generic contract those hints compress.
+
 Error tracking is the combination of:
 - Span status on the failed operation.
 - Structured exception logs with trace correlation.
@@ -68,46 +70,4 @@ Redact at the source when possible and use collector-side redaction only as a se
 
 ## Validation
 
-Especially when instrumenting errors, it is a MUST to try to throw a syntetic error and see if it is reported correctly.
-
-Use a browser or an API call to trigger the error using a public path.
-
-VALIDATION IS IMPORTANT, don't skip it.
-
-Validate error tracking from multiple sourcers:
-- API handlers
-- UI components in SSR
-- Server functions
-- Middlewares
-- Cron or background tasks
-
-## Validation queries
-
-Recent error spans:
-
-```sql
-SELECT Timestamp, ServiceName, SpanName, StatusMessage, TraceId
-FROM traces
-WHERE Timestamp > now() - INTERVAL 10 MINUTE
-  AND ServiceName = '<service-name>'
-  AND StatusCode = 'Error'
-ORDER BY Timestamp DESC
-LIMIT 20
-```
-
-Recent exception logs:
-
-```sql
-SELECT Timestamp, ServiceName, SeverityText, Body, LogAttributes, TraceId
-FROM logs
-WHERE Timestamp > now() - INTERVAL 10 MINUTE
-  AND ServiceName = '<service-name>'
-  AND SeverityNumber >= 17
-  AND mapContains(ResourceAttributes, 'service.name')
-  AND (
-    mapContains(LogAttributes, 'exception.type')
-    OR mapContains(LogAttributes, 'exception.message')
-  )
-ORDER BY Timestamp DESC
-LIMIT 20
-```
+Throwing a synthetic error and proving it lands exactly once is mandatory: follow the Error Path Gate in `validation.md`, which also holds the queries.

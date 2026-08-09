@@ -301,9 +301,7 @@ Metric attributes must be bounded and low-cardinality. Do not use request IDs, u
 
 ## Errors And Panics
 
-Use `error-tracking.md` before adding panic hooks or exception-style telemetry.
-
-- Record operation failures on the current span with safe context.
+- Record operation failures on the current span with safe context: status `ERROR` only on the failing operation's span, one structured event carrying the error type and message, and `error.handled` (`false` for panics and fatal failures).
 - Emit one structured error event at the failing boundary.
 - For panic hooks, emit a redacted event, flush providers if possible, then call the previous hook or preserve the normal panic.
 - Do not catch panics or convert fatal failures into successful exits just to keep telemetry alive.

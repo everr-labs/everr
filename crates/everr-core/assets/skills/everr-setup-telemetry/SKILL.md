@@ -27,20 +27,22 @@ Always read the relevant rule files before editing instrumentation. Use the tabl
 | --- | --- |
 | `resolve-values` | Resolve configuration values from the codebase before hardcoding or asking |
 | `resources` | Resource attributes: service identity, version, environment, instance |
+| `error-tracking` | Error capture contract for stacks without an `@everr` SDK (Python, Go, Java, ...) |
 | `spans` | Spans: naming, kind, status, attributes, and hygiene |
 | `logs` | Logs: structured logging, severity, trace correlation, delivery |
 | `metrics` | Metrics: instrument types, naming, units, and cardinality |
-| `error-tracking` | Error tracking: exceptions, release context, crash capture |
 | `sensitive-data` | PII prevention, sanitization, hashing, redaction |
 | `validation` | Telemetry validation locally and after deployment |
 | `nodejs` | Node.js instrumentation setup and runtime pitfalls |
 | `nextjs` | Next.js App Router, server/client split, trace propagation |
 | `browser` | Web frontends exporting OTLP directly from the browser with a public origin-bound key |
+| `vite-ssr` | Full-stack Vite apps with Node SSR: wiring both halves and joining browser and server traces |
+| `tanstack-start` | TanStack Start: router-aware browser telemetry, request spans, and server function middleware |
 | `tauri` | Tauri v2 desktop/mobile: Rust backend + browser frontend proxying telemetry through IPC |
 | `electron` | Electron desktop: Node main process + Chromium renderer proxying telemetry through IPC |
 | `rust` | Rust tracing-based OpenTelemetry setup and runtime pitfalls |
 
-For most runtime work, read `resolve-values`, `resources`, `error-tracking`, `sensitive-data`, `validation`, and the signal/runtime rules that match the task.
+For most runtime work, read `resolve-values`, `resources`, `sensitive-data`, `validation`, and the signal/runtime rules that match the task.
 
 ## Default Workflow
 
@@ -55,7 +57,8 @@ For most runtime work, read `resolve-values`, `resources`, `error-tracking`, `se
 7. Configure endpoint selection for both environments: local development exports to the `otlp:` URL from `everr local status`; production exports to `https://ingest.everr.dev/` with an ingest key from the secret manager.
 8. Gate local-only exporters so local collector URLs do not ship in production bundles, and gate hosted ingest so it only runs when a production ingest key is present.
 9. Trigger the instrumented path and verify fresh local rows with `everr local query`, filtered by the expected `ServiceName`, a recent time window, and a unique run, request, or test id when practical.
-10. Do not claim setup works until query results prove the new telemetry came from the path just exercised.
+10. Run the project's production build (or its typecheck when no build exists). Dev servers skip strict type checking, so telemetry that flows in dev can still break the build.
+11. Do not claim setup works until query results prove the new telemetry came from the path just exercised and the build passes.
 
 ## Command Choice
 
@@ -145,4 +148,5 @@ See `rules/validation.md` for the full validation checklist.
 | Adding a run, request, or test marker but querying only by service and time | Filter the query by the marker too, or do not claim the marker proved freshness. |
 | Mirroring every `console.*` call into logs | Prefer targeted OTel logs or the app's structured logger; any bridge must be temporary, gated, redacted, and bounded. |
 | Verifying by UI visibility or absence of exporter errors | Run `everr local query` and show rows from the exercised path. |
+| Validating only against the dev server | Run the production build too; strict type checking is skipped in dev, and OTLP exporter `headers` options are a common casualty (a conditional headers value uses `undefined` for the keyless branch, never `{}`). |
 | Exposing `EVERR_INGEST_KEY` to the browser | Browsers use a public origin-bound ingest key (`rules/browser.md`); secret keys stay server-side. |

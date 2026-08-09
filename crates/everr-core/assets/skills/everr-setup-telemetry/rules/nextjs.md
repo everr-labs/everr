@@ -4,7 +4,9 @@ Use this rule for Next.js 13+ App Router projects that need server-side
 OpenTelemetry instrumentation.
 
 This rule is intentionally server-only. Keep device-side instrumentation out of
-this setup.
+this setup: the browser half is `browser.md` (`@everr/otel-web`), and joining
+browser and server traces into one trace follows the seam section of
+`vite-ssr.md`, which applies to Next.js unchanged.
 
 ## Prerequisites
 
@@ -136,10 +138,14 @@ function otlpEndpoint(signal: 'traces' | 'metrics' | 'logs') {
   return `${base.replace(/\/+$/, '')}/v1/${signal}`;
 }
 
+// Keyless means `undefined`, never `{}`: under strict TypeScript a
+// conditional `{ Authorization: ... } : {}` infers the union
+// `{ Authorization?: undefined }`, which is not assignable to the exporters'
+// `Record<string, string>` headers and fails `next build`. `undefined` is.
 function otlpHeaders() {
   return process.env.EVERR_INGEST_KEY
     ? { Authorization: `Bearer ${process.env.EVERR_INGEST_KEY}` }
-    : {};
+    : undefined;
 }
 
 function serviceResource() {
@@ -189,15 +195,18 @@ if (!globalThis.__otelSdk) {
   const resource = serviceResource();
   const headers = otlpHeaders();
 
+  // Options-object form: since sdk-logs 0.221 the constructor takes
+  // `{ exporter }`; the older positional-exporter form compiles on some
+  // versions but leaves the exporter undefined and silently drops logs.
   const loggerProvider = new LoggerProvider({
     resource,
     processors: [
-      new BatchLogRecordProcessor(
-        new OTLPLogExporter({
+      new BatchLogRecordProcessor({
+        exporter: new OTLPLogExporter({
           url: otlpEndpoint('logs'),
           headers,
         }),
-      ),
+      }),
     ],
   });
   logs.setGlobalLoggerProvider(loggerProvider);
@@ -328,7 +337,7 @@ For final failures:
 - Preserve framework semantics: rethrow, return the intended error response, or
   let Next.js handle the failure exactly as before.
 
-See [error tracking](./error-tracking.md) and [spans](./spans.md).
+Add `error.handled` (`false` for `onRequestError` and process crashes, `true` for caught-and-converted failures), and record each error exactly once: `onRequestError` already covers handled request failures, so route handlers only emit their own exception log when they swallow the error before Next.js sees it. See [spans](./spans.md).
 
 ## Metrics
 
@@ -373,15 +382,17 @@ addresses, tokens, exception messages, or stacktraces to metric attributes.
 
 After setup:
 
-1. Start the app with a local OTLP endpoint.
-2. Hit a route handler that should produce telemetry.
-3. Verify a server span exists for the route under `service.name`.
-4. Verify an exception path emits an error-severity log with
+1. Run `next build`. The dev server skips strict type checking, so a setup
+   that works under `next dev` can still fail the production build.
+2. Start the app with a local OTLP endpoint.
+3. Hit a route handler that should produce telemetry.
+4. Verify a server span exists for the route under `service.name`.
+5. Verify an exception path emits an error-severity log with
    `exception.type`, `exception.message`, and `exception.stacktrace`.
-5. Verify the error log has `TraceId` and `SpanId` when it happens inside an
+6. Verify the error log has `TraceId` and `SpanId` when it happens inside an
    active span.
-6. Verify metrics arrive with units and low-cardinality attributes.
-7. Stop the process and confirm shutdown flushes traces, logs, and metrics.
+7. Verify metrics arrive with units and low-cardinality attributes.
+8. Stop the process and confirm shutdown flushes traces, logs, and metrics.
 
 ## References
 
