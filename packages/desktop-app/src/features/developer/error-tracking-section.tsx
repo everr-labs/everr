@@ -1,4 +1,4 @@
-import { captureError } from "@everr/auto-otel-errors/browser";
+import { captureError } from "@everr/otel-web";
 import { Button } from "@everr/ui/components/button";
 import { toast } from "sonner";
 

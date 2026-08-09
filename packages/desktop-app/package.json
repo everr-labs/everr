@@ -23,17 +23,9 @@
     "tauri": "tauri"
   },
   "dependencies": {
-    "@everr/auto-otel-errors": "workspace:*",
+    "@everr/otel-web": "workspace:*",
     "@everr/telemetry-explorer": "workspace:*",
     "@everr/ui": "workspace:*",
-    "@opentelemetry/api": "^1.9.1",
-    "@opentelemetry/api-logs": "^0.218.0",
-    "@opentelemetry/core": "^2.7.1",
-    "@opentelemetry/resources": "^2.7.1",
-    "@opentelemetry/otlp-transformer": "^0.218.0",
-    "@opentelemetry/sdk-logs": "^0.218.0",
-    "@opentelemetry/sdk-trace-base": "^2.7.1",
-    "@opentelemetry/semantic-conventions": "^1.40.0",
     "@tanstack/react-query": "catalog:",
     "@tanstack/react-router": "1.169.2",
     "@tauri-apps/api": "^2.11.0",

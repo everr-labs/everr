@@ -7,7 +7,7 @@ const telemetryMocks = vi.hoisted(() => ({
   captureReactError: vi.fn(),
 }));
 
-vi.mock("@everr/auto-otel-errors/react", async () => {
+vi.mock("@everr/otel-web/react", async () => {
   const React = await import("react");
 
   class ErrorBoundary extends React.Component<

@@ -1,4 +1,4 @@
-import { ErrorBoundary } from "@everr/auto-otel-errors/react";
+import { ErrorBoundary } from "@everr/otel-web/react";
 import type { ReactNode } from "react";
 
 function ErrorFallback() {

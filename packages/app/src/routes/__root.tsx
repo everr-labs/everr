@@ -14,31 +14,36 @@ import {
 } from "@tanstack/react-router";
 import { TanStackRouterDevtoolsPanel } from "@tanstack/react-router-devtools";
 import { createServerFn } from "@tanstack/react-start";
-import { getRequestHeaders } from "@tanstack/react-start/server";
+import { getCookie, getRequestHeaders } from "@tanstack/react-start/server";
 import { auth } from "@/lib/auth.server";
 import appCss from "@/styles/app.css?url";
+import { CONSENT_COOKIE, isConsentDecision } from "@/telemetry/consent";
+import { ConsentGate } from "@/telemetry/consent-gate";
 import type { RouterContext } from "../router";
 
-const getSession = createServerFn({ method: "GET" }).handler(async () => {
+// The consent cookie rides the same server round trip as the session so the
+// server-rendered markup already has the banner's correct open/closed state:
+// no post-hydration flash either way.
+const getRootContext = createServerFn({ method: "GET" }).handler(async () => {
   const session = await auth.api.getSession({
     headers: getRequestHeaders(),
   });
-
-  if (!session?.session || !session?.user) {
-    return null;
-  }
+  const consentValue = getCookie(CONSENT_COOKIE);
 
   return {
-    user: session.user,
-    session: session.session,
+    session:
+      session?.session && session?.user
+        ? { user: session.user, session: session.session }
+        : null,
+    consent: isConsentDecision(consentValue) ? consentValue : undefined,
   };
 });
 
 export const Route = createRootRouteWithContext<RouterContext>()({
   beforeLoad: async () => {
-    const session = await getSession();
+    const { session, consent } = await getRootContext();
 
-    return { session };
+    return { session, consent };
   },
   head: () => ({
     meta: [
@@ -82,10 +87,12 @@ export const Route = createRootRouteWithContext<RouterContext>()({
 });
 
 function Component() {
-  const { queryClient } = Route.useRouteContext();
+  const { queryClient, consent } = Route.useRouteContext();
   return (
     <QueryClientProvider client={queryClient}>
-      <Outlet />
+      <ConsentGate initialConsent={consent}>
+        <Outlet />
+      </ConsentGate>
       <TanStackDevtools
         config={{ position: "bottom-right" }}
         plugins={[
