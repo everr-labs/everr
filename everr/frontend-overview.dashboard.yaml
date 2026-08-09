@@ -41,7 +41,7 @@ spec:
               SELECT DISTINCT coalesce(nullIf(LogAttributes['everr.route.pattern'], ''), LogAttributes['url.path']) AS route
               FROM logs
               WHERE Timestamp > now() - INTERVAL 7 DAY
-                AND EventName IN ('browser.web_vital', 'everr.browser.page_view', 'exception')
+                AND EventName IN ('browser.web_vital', 'everr.browser.page_view')
                 AND route != ''
               ORDER BY route
               LIMIT 200
