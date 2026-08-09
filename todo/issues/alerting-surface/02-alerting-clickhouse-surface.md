@@ -771,6 +771,7 @@ queries must not add a `tenant_id` predicate.
 | `silenced`, `inhibited` | `Bool` | Frozen at write time. Meaningful only on `notification_deferred` and `notification_suppressed` rows; always false on a transition |
 | `silence_id` | `UUID` | The matched silence, zero if none |
 | `silence_comment`, `silence_matchers_json` | `String` | Frozen from the silence, so the row reads without PostgreSQL |
+| `inhibition_comment`, `inhibition_source_json` | `String` | Reserved for inhibitions, mirroring the silence freeze columns; no writer yet, always empty today |
 | `delivery_targets` | `Map(String, Array(String))` | Channel type to channel name; never an address |
 | `delivery_dedup_key` | `String` | The PostgreSQL delivery key; the reconciliation diff joins on it. Empty off delivery rows |
 
@@ -1786,6 +1787,8 @@ These are free at recreation time and expensive after, so they ride it:
   claim is currently false in code. Proper fix: sanitize at the write
   boundary (strip URLs and tokens before insert), enforced by the same
   type-level boundary the redaction open question already calls for.
+  Resolved by ticket 02: `sanitizeAlertError` in `history/content.ts` strips
+  URLs, bare webhook hosts and bot tokens before every insert.
 - **"At what value" is unanswerable, and audit snapshots no longer arrive to
   fix it.** Scope question 1 promises the value, but no row carries the
   rule's condition or threshold, so `row_count = 3` is uninterpretable.

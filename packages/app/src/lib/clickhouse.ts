@@ -1,6 +1,7 @@
 import { createHmac, randomUUID } from "node:crypto";
 import { env } from "@/env";
 import { createClient } from "@/lib/clickhouse-client";
+import { SQL_API_TENANT_TABLES } from "@/lib/sql-api-tables";
 import { instrumentClickhouseOperation } from "@/telemetry/clickhouse";
 
 // The client default of 2500ms forces a fresh TLS handshake on most queries
@@ -45,20 +46,6 @@ export async function query<T>(
 
   return result.json<T>();
 }
-
-// Tables that get a per-org row policy provisioned. Must match the read tables
-// granted to sql_api_role in clickhouse/init/15-create-sql-api-role.sql. The
-// canonical readable-table list — exported so callers (e.g. the MCP tool
-// description) advertise exactly these instead of hand-syncing copies.
-export const SQL_API_TENANT_TABLES = [
-  "traces",
-  "logs",
-  "metrics_gauge",
-  "metrics_sum",
-  "metrics_histogram",
-  "metrics_exponential_histogram",
-  "metrics_summary",
-] as const;
 
 function sqlApiOrgUserName(organizationId: string): string {
   return `sql_api_org_${organizationId}`;

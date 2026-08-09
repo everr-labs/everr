@@ -48,7 +48,7 @@ CREATE SETTINGS PROFILE IF NOT EXISTS sql_api_profile SETTINGS
   allow_ddl = 0 READONLY,                              -- no CREATE/ALTER/DROP
   allow_introspection_functions = 0 READONLY;          -- no addressToLine/demangle/etc.
 
--- Role: SELECT only on the four tenant-scoped read tables. We deliberately
+-- Role: SELECT only on the tenant-scoped read tables. We deliberately
 -- avoid `app.*` so future internal tables (and app.tenant_retention_source,
 -- which is cross-tenant and has no RLS) don't auto-expand the surface area.
 -- Per-org users `sql_api_org_<id>` are granted this role at provision time.
@@ -60,6 +60,19 @@ GRANT SELECT ON app.metrics_sum       TO sql_api_role;
 GRANT SELECT ON app.metrics_histogram              TO sql_api_role;
 GRANT SELECT ON app.metrics_exponential_histogram TO sql_api_role;
 GRANT SELECT ON app.metrics_summary              TO sql_api_role;
+-- Tenancy template, copy all three parts for every future alerting object: the
+-- SELECT grant here, the default-deny row policy at the bottom of this file,
+-- and the table name in SQL_API_TENANT_TABLES
+-- (packages/app/src/lib/sql-api-tables.ts), which provisions the per-
+-- organization row policy and advertises the table to callers. If any one of
+-- the three is missing, the table is either unreachable or readable across
+-- tenants. Organizations provisioned before the new entry also need a policy
+-- backfill; see clickhouse/migrate-alert-events-sql-api-access.sql.
+-- app.alert_events_logs_mv needs no grant or policy of its own: row policies
+-- apply when the destination table (app.logs) is read, and a MV body runs
+-- with the inserting user's privileges, so projected alert rows are already
+-- covered by the logs policies above and below.
+GRANT SELECT ON app.alert_events  TO sql_api_role;
 
 -- Clean up accidental/manual system grants. SHOW TABLES handles schema
 -- discovery without exposing storage counters from system.tables or the
@@ -109,3 +122,5 @@ CREATE ROW POLICY IF NOT EXISTS sql_api_default_deny_metrics_exponential_histogr
   ON app.metrics_exponential_histogram FOR SELECT USING 0 TO sql_api_role;
 CREATE ROW POLICY IF NOT EXISTS sql_api_default_deny_metrics_summary
   ON app.metrics_summary               FOR SELECT USING 0 TO sql_api_role;
+CREATE ROW POLICY IF NOT EXISTS sql_api_default_deny_alert_events
+  ON app.alert_events  FOR SELECT USING 0 TO sql_api_role;
