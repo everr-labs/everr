@@ -1,4 +1,3 @@
-import { randomUUID } from "node:crypto";
 import { eq, sql } from "drizzle-orm";
 import { z } from "zod";
 import { renderMessage } from "@/data/alerting/delivery/template";
@@ -32,15 +31,23 @@ import {
 import { ALERT_PROCESS_EVENT_TASK } from "../delivery/tasks";
 import {
   type AlertHistoryDefinition,
+  type AlertHistoryRow,
   evaluationFailureHistoryRow,
   evaluationHistoryRow,
   instanceHistoryRow,
   recordAlertHistory,
+  ZERO_UUID,
 } from "../history/clickhouse";
+import {
+  alertServiceFallback,
+  buildAlertContextJson,
+} from "../history/content";
+import { uuidv7 } from "../history/ids";
 import { boundEventEvidence, boundEvidence } from "./evidence";
 import { rowsToInstances } from "./instances";
 import { captureAlertEvaluationSamples } from "./samples";
 import {
+  type AlertInstanceTransition,
   advanceAlertInstance,
   newInactiveInstance,
   type PresentAlertInstance,
@@ -79,8 +86,102 @@ function historyDefinition(
     slug: `${def.project}/${def.slug}`,
     previewId: def.previewId,
     severity: def.spec.severity,
-    suppressed: def.spec.suppressed || def.previewId !== null,
+    ruleMuted: def.spec.suppressed || def.previewId !== null,
+    serviceFallback: alertServiceFallback(def.spec.annotations),
   };
+}
+
+type TransitionEvent = {
+  outbox: typeof alertEvents.$inferInsert;
+  history: AlertHistoryRow;
+  fingerprint: string;
+  /**
+   * The value `alert_instances.episode_id` takes with this transition: the
+   * fired event's id opens the episode, a resolve closes it. `null` clears.
+   */
+  episodeUpdate: string | null;
+};
+
+export function transitionEventRows(opts: {
+  def: typeof alertDefinitions.$inferSelect;
+  historyDef: AlertHistoryDefinition;
+  transition: AlertInstanceTransition;
+  evaluatedAt: Date;
+  /** The instance's open episode before this evaluation, if any. */
+  storedEpisodeId: string | null;
+}): TransitionEvent[] {
+  const { def, historyDef, transition, evaluatedAt } = opts;
+  if (!transition.event) return [];
+  const next = transition.next;
+  const bounded = boundEventEvidence(next.evidence, next.labels);
+  const firstRow: Record<string, unknown> = {
+    ...bounded.evidence,
+    ...next.labels,
+    value: next.value,
+  };
+  // The journal row and its projection share this id, and the surface
+  // promises a time-decodable id, so it must be v7.
+  const id = uuidv7(evaluatedAt);
+  const eventType =
+    transition.event === "firing"
+      ? ("instance_fired" as const)
+      : ("instance_resolved" as const);
+  // No pending phase exists yet, so the fired event opens its own episode;
+  // the resolved row carries the episode it closes. Pending and closed rows
+  // extend this when they land.
+  const episodeId = eventType === "instance_fired" ? id : opts.storedEpisodeId;
+  const notificationTitle = renderMessage(def.spec.annotations.summary ?? "", {
+    firstRow,
+  });
+  const notificationDescription = renderMessage(
+    def.spec.annotations.description ?? "",
+    { firstRow },
+  );
+  return [
+    {
+      outbox: {
+        id,
+        organizationId: def.organizationId,
+        repoid: def.repoid,
+        previewId: def.previewId,
+        sourceDefinitionId: def.id,
+        slug: historyDef.slug,
+        eventType,
+        episodeId,
+        instanceFingerprint: next.fingerprint,
+        instanceLabels: next.labels,
+        severity: def.spec.severity,
+        notificationTitle,
+        notificationDescription,
+        suppressed: historyDef.ruleMuted,
+        occurredAt: evaluatedAt,
+      } satisfies typeof alertEvents.$inferInsert,
+      history: instanceHistoryRow({
+        def: historyDef,
+        eventId: id,
+        eventType,
+        occurredAt: evaluatedAt,
+        episodeId: episodeId ?? ZERO_UUID,
+        fingerprint: next.fingerprint,
+        labels: next.labels,
+        evidence: bounded.evidence,
+        evidenceTruncated: bounded.truncated,
+        contextJson: buildAlertContextJson({
+          summary: notificationTitle,
+          description: notificationDescription,
+          alertLink: def.spec.annotations["link.alert"],
+          runbookLink: def.spec.annotations["link.runbook"],
+          condition: {
+            operator: def.spec.condition.operator,
+            threshold: def.spec.condition.threshold,
+            value: next.value,
+          },
+        }),
+      }),
+      fingerprint: next.fingerprint,
+      episodeUpdate: eventType === "instance_fired" ? id : null,
+    },
+  ];
 }
 
 async function scheduleAlertAtInTransaction(
@@ -259,58 +360,23 @@ async function evaluateAlertRule(
     });
   });
 
+  const storedEpisodeByFingerprint = new Map(
+    previousRows.map((row) => [row.fingerprint, row.episodeId]),
+  );
   const historyDef = historyDefinition(def);
-  const transitionEvents = transitions.flatMap((transition) => {
-    if (!transition.event) return [];
-    const next = transition.next;
-    const bounded = boundEventEvidence(next.evidence, next.labels);
-    const firstRow: Record<string, unknown> = {
-      ...bounded.evidence,
-      ...next.labels,
-      value: next.value,
-    };
-    const id = randomUUID();
-    const eventType =
-      transition.event === "firing"
-        ? ("instance_fired" as const)
-        : ("instance_resolved" as const);
-    return [
-      {
-        outbox: {
-          id,
-          organizationId: def.organizationId,
-          repoid: def.repoid,
-          previewId: def.previewId,
-          sourceDefinitionId: def.id,
-          slug: historyDef.slug,
-          eventType,
-          instanceFingerprint: next.fingerprint,
-          instanceLabels: next.labels,
-          severity: def.spec.severity,
-          notificationTitle: renderMessage(def.spec.annotations.summary ?? "", {
-            firstRow,
-          }),
-          notificationDescription: renderMessage(
-            def.spec.annotations.description ?? "",
-            { firstRow },
-          ),
-          suppressed: historyDef.suppressed,
-          occurredAt: evaluatedAt,
-        } satisfies typeof alertEvents.$inferInsert,
-        history: instanceHistoryRow({
-          def: historyDef,
-          eventId: id,
-          eventType,
-          scheduledFor,
-          occurredAt: evaluatedAt,
-          fingerprint: next.fingerprint,
-          labels: next.labels,
-          evidence: bounded.evidence,
-          evidenceTruncated: bounded.truncated,
-        }),
-      },
-    ];
-  });
+  const transitionEvents = transitions.flatMap((transition) =>
+    transitionEventRows({
+      def,
+      historyDef,
+      transition,
+      evaluatedAt,
+      storedEpisodeId:
+        storedEpisodeByFingerprint.get(transition.next.fingerprint) ?? null,
+    }),
+  );
+  const episodeUpdateByFingerprint = new Map(
+    transitionEvents.map((event) => [event.fingerprint, event.episodeUpdate]),
+  );
 
   const applied = await db.transaction(async (tx) => {
     const [fresh] = await tx
@@ -344,6 +410,9 @@ async function evaluateAlertRule(
         next.evidence,
         next.labels,
       );
+      // Only a transition moves the episode; a quiet evaluation must not
+      // clear an open one.
+      const episodeUpdate = episodeUpdateByFingerprint.get(next.fingerprint);
       await tx
         .insert(alertInstances)
         .values({
@@ -358,6 +427,7 @@ async function evaluateAlertRule(
           activeSince: next.activeSince,
           lastSeenAt: next.lastSeenAt,
           absentCount: next.absentCount,
+          episodeId: episodeUpdate ?? null,
           updatedAt: evaluatedAt,
         })
         .onConflictDoUpdate({
@@ -375,6 +445,9 @@ async function evaluateAlertRule(
             lastSeenAt: next.lastSeenAt,
             absentCount: next.absentCount,
             updatedAt: evaluatedAt,
+            ...(episodeUpdate === undefined
+              ? {}
+              : { episodeId: episodeUpdate }),
           },
         });
     }

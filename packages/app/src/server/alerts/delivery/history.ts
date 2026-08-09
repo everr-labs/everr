@@ -1,6 +1,10 @@
 import { and, eq } from "drizzle-orm";
 import { db } from "@/db/client";
-import { alertDeliveryEvents, alertEvents } from "@/db/schema";
+import {
+  alertDefinitions,
+  alertDeliveryEvents,
+  alertEvents,
+} from "@/db/schema";
 import { exceptionAttributes, serverLogger } from "@/telemetry/logger";
 import {
   type AlertDeliveryTargets,
@@ -8,6 +12,7 @@ import {
   deliveryHistoryRow,
   recordAlertHistory,
 } from "../history/clickhouse";
+import { alertServiceFallback } from "../history/content";
 
 /**
  * Channel type to the channel names it reached, for `delivery_targets`.
@@ -42,7 +47,7 @@ async function deliveryLinkedEvents(
   dedupKey: string,
 ): Promise<LinkedEvent[]> {
   const rows = await db
-    .select({ event: alertEvents })
+    .select({ event: alertEvents, spec: alertDefinitions.spec })
     .from(alertDeliveryEvents)
     .innerJoin(
       alertEvents,
@@ -51,13 +56,22 @@ async function deliveryLinkedEvents(
         eq(alertDeliveryEvents.eventId, alertEvents.id),
       ),
     )
+    // Left join: a rule deleted mid-delivery must not drop the trail row, it
+    // just loses the everr.service fallback.
+    .leftJoin(
+      alertDefinitions,
+      and(
+        eq(alertEvents.organizationId, alertDefinitions.organizationId),
+        eq(alertEvents.sourceDefinitionId, alertDefinitions.id),
+      ),
+    )
     .where(
       and(
         eq(alertDeliveryEvents.organizationId, organizationId),
         eq(alertDeliveryEvents.deliveryDedupKey, dedupKey),
       ),
     );
-  return rows.map(({ event }) => ({
+  return rows.map(({ event, spec }) => ({
     id: event.id,
     definition: {
       id: event.sourceDefinitionId,
@@ -66,7 +80,8 @@ async function deliveryLinkedEvents(
       slug: event.slug,
       previewId: event.previewId,
       severity: event.severity,
-      suppressed: event.suppressed,
+      ruleMuted: event.suppressed,
+      serviceFallback: alertServiceFallback(spec?.annotations ?? {}),
     },
     fingerprint: event.instanceFingerprint,
     labels: event.instanceLabels,
@@ -104,8 +119,8 @@ export async function recordDeliveryOutcome(opts: {
         deliveryHistoryRow({
           def: event.definition,
           notificationEventId: event.id,
+          dedupKey: opts.dedupKey,
           occurredAt: opts.occurredAt,
-          scheduledFor: event.occurredAt,
           fingerprint: event.fingerprint,
           labels: event.labels,
           deliveryTargets: targets,

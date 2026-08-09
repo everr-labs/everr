@@ -746,14 +746,14 @@ queries must not add a `tenant_id` predicate.
 
 | Column | Type | Notes |
 |---|---|---|
-| `event_id` | `UUID` | Unique per row. UUIDv7 on non-delivery rows: `UUIDv7ToDateTime(event_id)` recovers its creation time, and the value equals the PostgreSQL journal row it projects (the `alert_events` id on transition rows, the hold decision row's id on `notification_deferred` rows). Delivery rows are the exception: their id is deterministic, derived from the journal event and `delivery_dedup_key` so repair is idempotent; it carries no embedded time, and nothing needs it there, because a chain's time bound derives from `notification_event_id` and delivery rows carry `event_time` |
+| `event_id` | `UUID` | Unique per row. UUIDv7 on non-delivery rows: `UUIDv7ToDateTime(event_id)` recovers its creation time, and the value equals the PostgreSQL journal row it projects (the `alert_events` id on transition rows, the hold decision row's id on `notification_deferred` rows). Delivery rows are the exception: their id is deterministic, derived from the journal event and `delivery_dedup_key` so repair is idempotent; it carries no embedded time, and nothing needs it there, because a chain's time bound derives from `notification_event_id` and delivery rows carry `event_time`. Failed attempts additionally hash their attempt time, so each retry keeps its own row, while the succeeded id stays stable for repair convergence |
 | `notification_event_id` | `UUID` | Links a transition to the suppression and delivery rows that follow it. Zero on evaluation rows. UUIDv7, so its embedded time is the chain start; see Worked queries |
 | `tenant_id` | `LowCardinality(String)` | Enforced by row policy; a `cloud query` caller must never filter on it |
 | `alert_definition_id` | `UUID` | Bloom skip index |
 | `repoid`, `slug` | `LowCardinality(String)` | Sort key prefix; filtering on both is significantly faster |
 | `preview_id` | `UUID` | Zero UUID means live |
 | `is_live` | `Bool` | Computed by `DEFAULT` from `preview_id`, so it stays visible to `SELECT *` and filtering to live alerts never types a zero sentinel |
-| `event_type` | `LowCardinality(String)` | See the event-type table above. Set skip index |
+| `event_type` | `LowCardinality(String)` | See the event-type table above. Second partition dimension: evaluation rows sit in their own partitions, so every non-evaluation query skips them whole |
 | `write_source` | `LowCardinality(String)` | `'live'` or `'reconciled'` |
 | `evaluation_scheduled_at`, `event_time` | `DateTime64(3)` | The partition key's time dimension is `toYYYYMM(event_time)`, so a plain `event_time` bound prunes with no second predicate. `evaluation_scheduled_at` is zero (epoch 1970) off evaluation rows; never `dateDiff` against it there. Delivery `event_time` is send time, not evaluation time |
 | `row_count` | `UInt64` | Rows returned by the rule query, which is arbitrary user SQL |
@@ -1027,16 +1027,31 @@ LIMIT 100
 
 ### What exists
 
-The table with its sort key and bloom skip indexes, the frozen decision
-columns, `delivery_targets`, and seven of the ten event types: all but
-`instance_pending`, `notification_deferred` and `instance_closed`. The column set predates the
-recreation decisions below. Labels are still a JSON string. `rule_muted` is
-still called `suppressed`. `is_live`, `service_name`, `write_source`,
-`reason`, `delivery_dedup_key` and the frozen silence fields do not exist
-yet. The table still partitions on
-`event_date`, which an `event_time` predicate does not prune. Every id is
-still UUIDv4, from both the row builders and the column default, so no id
-carries a readable creation time yet.
+The recreated table in the shape The table recreation below describes:
+the composite partition key, the immutable sort key with bloom skip
+indexes, `instance_labels` as a Map, `is_live` through `DEFAULT`,
+`write_source`, `service_name`, `rule_muted`, `reason`,
+`delivery_dedup_key`, `episode_id`, `context_json`, the frozen silence
+and inhibition columns, the split TTL, the deduplication window, and the
+codecs. Seven of the ten event types have writers: all but
+`instance_pending`, `notification_deferred` and `instance_closed`.
+
+The row builders mint UUIDv7 (`history/ids.ts`), matching the
+`generateUUIDv7()` column default, so `UUIDv7ToDateTime(event_id)`
+recovers the creation time on every non-delivery row. Delivery rows carry
+the deterministic id derived from the journal event and
+`delivery_dedup_key`. Transition rows freeze `context_json` at write time
+and resolve `service_name` from the instance labels with the
+`everr.service` annotation as fallback. Delivery errors pass the
+sanitizer in `history/content.ts` before they are written. The insert
+path sets `materialized_views_ignore_errors`, so a projection failure
+cannot take the typed row down with it. The narrowed projection is live:
+`instance_fired` and `instance_resolved`, live write source only,
+readable `Body`, `ServiceName` from `service_name`,
+`everr.signal = 'alert'`. Existing deployments recreate through
+`clickhouse/migrate-alert-events-final-shape.sql`, which drops and
+recreates the table and its projection; pre-recreation history is lost,
+accepted for this release stage.
 
 Silences expire rather than delete, so `silence_id` resolves for as long as
 the cleanup retention holds.
@@ -1050,23 +1065,26 @@ test instead of passing silently.
 
 ### What is missing
 
-The table recreation, the journal promotion (the `kind` discriminator,
-born-processed events, hold decision rows), reconciliation,
-`app.alert_state`, `instance_pending` with its pending-cleared terminal row,
-terminal rows on pause and delete with the pause-time instance reset,
-`notification_deferred` with the frozen silence comment and matchers, the
-audit journal (PostgreSQL only), and engine spans.
+The journal promotion writers (born-processed events, hold decision rows;
+the schema riders landed with migration 0011), reconciliation,
+`app.alert_state`, `instance_pending` with its pending-cleared terminal
+row, terminal rows on pause and delete with the pause-time instance
+reset, `notification_deferred` with the frozen silence comment and
+matchers, the inhibition-source freeze (the columns exist, step 6 writes
+them), episode stamping for pending and closed rows (fired and resolved
+rows carry it: the fired event opens its own episode until a pending phase
+exists), the audit journal (PostgreSQL only), and engine spans.
 
 PostgreSQL `alert_events` already stores every notifying transition with the
 same id ClickHouse uses. The journal promotion narrows the meaning of an
 existing table; it does not add one.
 
-Three consequences while the gap is open. Transition and delivery rows are
+Two consequences while the gap is open. Transition and delivery rows are
 written fire-and-forget, so an absent row means unknown, not "it did not
-fire" or "not delivered". A notification held by a silence and then delivered
-leaves no trace of the hold. And `app.alert_events_logs_mv` still copies
-every event type with full attributes into `app.logs`; the recreation drops
-that view, so alert history is read from the typed table only.
+fire" or "not delivered"; the deduplication window and the deterministic
+delivery ids are groundwork for the reconciler that closes this, but the
+reconciler does not exist yet. And a notification held by a silence and
+then delivered leaves no trace of the hold.
 
 ### The table recreation
 
@@ -1095,7 +1113,7 @@ lands as one recreation. Settled:
   rows when a value is added), `row_count` as `UInt64`, `tenant_id` as
   `LowCardinality(String)`, `silence_id` as `UUID` with the zero sentinel,
   `evidence_truncated` and `samples_truncated` as real columns, `Delta` plus
-  `ZSTD` codecs on the `DateTime64` columns and higher `ZSTD` on the two
+  `ZSTD` codecs on the `DateTime64` columns and higher `ZSTD` on the three
   JSON columns, and reserved columns that freeze the inhibiting source next
   to `inhibited`, mirroring the silence freeze; step 6 writes them.
 - `service_name`, resolved at write time from the instance labels.
@@ -1723,7 +1741,8 @@ These are free at recreation time and expensive after, so they ride it:
 - `instance_labels` keys on `LowCardinality(String)`, cashing in the
   document's own low-cardinality-by-construction argument.
 - Codecs are decided: `Delta` plus `ZSTD` on the `DateTime64` columns,
-  higher `ZSTD` on `evidence_json` and `samples_json`, the dominant bytes.
+  higher `ZSTD` on `evidence_json`, `samples_json` and `context_json`, the
+  dominant bytes.
 - The Reference lists `evidence_truncated` and `samples_truncated` as
   columns; today it implies they are flags inside the JSON, and an unlisted
   column is unusable to the one-shot caller.

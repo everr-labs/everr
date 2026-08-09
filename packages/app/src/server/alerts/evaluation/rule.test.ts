@@ -41,7 +41,8 @@ vi.mock("../history/clickhouse", async (importOriginal) => ({
 }));
 
 import { ALERT_EVALUATE_TASK } from "@/data/alerting/scheduling/evaluation-jobs.server";
-import { evaluateAlert } from "./rule";
+import { evaluateAlert, transitionEventRows } from "./rule";
+import type { AlertInstanceTransition } from "./state-machine";
 
 /** Records what the failure path writes, without a database behind it. */
 function recordingTx() {
@@ -155,5 +156,110 @@ describe("evaluateAlert scheduling state", () => {
 
     expect(mocks.definitionUpdates).toEqual([]);
     expect(mocks.scheduledJobs).toEqual([]);
+  });
+});
+
+describe("transitionEventRows episode stamping", () => {
+  const evaluatedAt = new Date("2026-08-06T10:00:00Z");
+  const episodeDef = {
+    ...definition,
+    spec: {
+      ...definition.spec,
+      condition: { operator: "gt", threshold: 0 },
+    },
+  } as unknown as Parameters<typeof transitionEventRows>[0]["def"];
+  const historyDef = {
+    id: RULE_ID,
+    organizationId: "org-1",
+    repoid: "host/owner/repo",
+    slug: "default/high-5xx",
+    previewId: null,
+    severity: "critical",
+    ruleMuted: false,
+    serviceFallback: "alert",
+  };
+
+  function transition(
+    event: "firing" | "resolved" | null,
+  ): AlertInstanceTransition {
+    return {
+      next: {
+        fingerprint: "api",
+        status: event === "firing" ? "firing" : "inactive",
+        labels: { service: "api" },
+        evidence: { value: 1 },
+        value: 1,
+        pendingSince: null,
+        activeSince: event === "firing" ? evaluatedAt : null,
+        lastSeenAt: evaluatedAt,
+        absentCount: 0,
+      },
+      event,
+    };
+  }
+
+  it("opens the episode on fire and carries it onto the resolve", () => {
+    const [fired] = transitionEventRows({
+      def: episodeDef,
+      historyDef,
+      transition: transition("firing"),
+      evaluatedAt,
+      storedEpisodeId: null,
+    });
+    expect(fired?.outbox.episodeId).toBe(fired?.outbox.id);
+    expect(fired?.history.episode_id).toBe(fired?.outbox.id);
+    expect(fired?.episodeUpdate).toBe(fired?.outbox.id);
+
+    const [resolved] = transitionEventRows({
+      def: episodeDef,
+      historyDef,
+      transition: transition("resolved"),
+      evaluatedAt,
+      storedEpisodeId: fired?.outbox.id ?? null,
+    });
+    expect(resolved?.outbox.episodeId).toBe(fired?.outbox.id);
+    expect(resolved?.history.episode_id).toBe(fired?.outbox.id);
+    // The resolve closes the episode: the instance's open episode clears.
+    expect(resolved?.episodeUpdate).toBeNull();
+  });
+
+  it("mints a fresh episode id for a second fire", () => {
+    const args = {
+      def: episodeDef,
+      historyDef,
+      transition: transition("firing"),
+      evaluatedAt,
+      storedEpisodeId: null,
+    };
+    const [first] = transitionEventRows(args);
+    const [second] = transitionEventRows(args);
+    expect(first?.outbox.episodeId).toBeDefined();
+    expect(second?.outbox.episodeId).not.toBe(first?.outbox.episodeId);
+  });
+
+  it("writes the zero sentinel when a resolve finds no open episode", () => {
+    const [resolved] = transitionEventRows({
+      def: episodeDef,
+      historyDef,
+      transition: transition("resolved"),
+      evaluatedAt,
+      storedEpisodeId: null,
+    });
+    expect(resolved?.outbox.episodeId).toBeNull();
+    expect(resolved?.history.episode_id).toBe(
+      "00000000-0000-0000-0000-000000000000",
+    );
+  });
+
+  it("returns nothing when the evaluation caused no transition", () => {
+    expect(
+      transitionEventRows({
+        def: episodeDef,
+        historyDef,
+        transition: transition(null),
+        evaluatedAt,
+        storedEpisodeId: null,
+      }),
+    ).toEqual([]);
   });
 });
