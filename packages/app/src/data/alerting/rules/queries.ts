@@ -32,10 +32,10 @@ export const ruleQueries = {
         }),
       initialPageParam: null as string | null,
       getNextPageParam: (last) => last.next_cursor,
-      refetchInterval: (query) =>
-        (query.state.data?.pages.length ?? 0) > 1
-          ? false
-          : ALERTING_POLL_INTERVAL_MS,
+      // A background refetch (no fetchMore direction) walks every already
+      // loaded page in sequence, not just the first, so polling here keeps
+      // organizations with many pages of rules live too.
+      refetchInterval: ALERTING_POLL_INTERVAL_MS,
     }),
 
   rule: (ruleId: string) =>

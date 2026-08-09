@@ -27,6 +27,10 @@ vi.mock("@/server/worker/jobs", () => ({
   addWorkerJob: mocks.addWorkerJob,
 }));
 
+// scanDueAlerts reads the preview kill switch on every call; a plain "on"
+// keeps the unrelated scheduling tests below exercising their normal path.
+vi.mock("@/env", () => ({ env: { EVERR_PREVIEW_ALERTS: "on" } }));
+
 import {
   ALERT_EVALUATE_TASK,
   alertEvaluationJobKey,
@@ -35,7 +39,11 @@ import {
   alertingRetryDelaySeconds,
   nextAlertEvaluationAt,
 } from "@/data/alerting/scheduling/evaluation-jobs.server";
-import { scanDueAlerts, staleEnqueueCutoff } from "./scanner";
+import {
+  previewDefinitionsEnqueueable,
+  scanDueAlerts,
+  staleEnqueueCutoff,
+} from "./scanner";
 
 describe("alert scanner", () => {
   beforeEach(() => {
@@ -133,5 +141,13 @@ describe("alert scanner", () => {
     const waitedSeconds =
       (now.getTime() - staleEnqueueCutoff(now).getTime()) / 1_000;
     expect(waitedSeconds).toBeGreaterThanOrEqual(600);
+  });
+
+  it("allows preview definitions to enqueue when the switch is on", () => {
+    expect(previewDefinitionsEnqueueable("on")).toBe(true);
+  });
+
+  it("is the kill switch that stops preview definitions from enqueueing when off", () => {
+    expect(previewDefinitionsEnqueueable("off")).toBe(false);
   });
 });

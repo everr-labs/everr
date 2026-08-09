@@ -11,7 +11,7 @@ const row = (
 ): StoredAlertEvaluationPoint => ({
   scheduledFor: new Date(Date.UTC(2026, 7, 6, 12, minute)),
   error: null,
-  rowCount: 1,
+  rowCount: 0,
   samples: [{ fingerprint: "api", labels: { service: "api" }, value: minute }],
   samplesTruncated,
 });
@@ -26,6 +26,23 @@ describe("shapeAlertEvaluationSeries", () => {
     expect(result.points.map((point) => point.t)).toEqual([
       "2026-08-06T12:00:00.000Z",
       "2026-08-06T12:03:00.000Z",
+      "2026-08-06T12:06:00.000Z",
+      "2026-08-06T12:09:00.000Z",
+    ]);
+  });
+
+  it("keeps a breaching evaluation sitting between sampled indexes", () => {
+    const rows = Array.from({ length: 10 }, (_, i) => row(i));
+    rows[5] = { ...rows[5], rowCount: 3 };
+
+    const result = shapeAlertEvaluationSeries(rows, 4);
+
+    // The even grid alone would pick 0, 3, 6, 9 and drop the breach at
+    // minute 5; the recovery point at minute 6 is kept too since the state
+    // transition back to ok is itself worth showing.
+    expect(result.points.map((point) => point.t)).toEqual([
+      "2026-08-06T12:00:00.000Z",
+      "2026-08-06T12:05:00.000Z",
       "2026-08-06T12:06:00.000Z",
       "2026-08-06T12:09:00.000Z",
     ]);

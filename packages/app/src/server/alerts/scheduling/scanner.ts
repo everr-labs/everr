@@ -2,6 +2,7 @@ import { and, asc, eq, inArray, isNull, lt, lte, or } from "drizzle-orm";
 import { enqueueAlertEvaluation } from "@/data/alerting/scheduling/evaluation-jobs.server";
 import { db } from "@/db/client";
 import { alertDefinitions } from "@/db/schema";
+import { env } from "@/env";
 
 const SCANNER_BATCH_SIZE = 5_000;
 const ENQUEUE_CONCURRENCY = 8;
@@ -26,6 +27,17 @@ export function staleEnqueueCutoff(now: Date): Date {
   return new Date(now.getTime() - STALE_ENQUEUE_SECONDS * 1_000);
 }
 
+/**
+ * `EVERR_PREVIEW_ALERTS=off` is the documented kill switch for preview
+ * evaluation load. Decided as a pure function of the raw setting so it is
+ * testable without a database, the same way `staleEnqueueCutoff` is.
+ */
+export function previewDefinitionsEnqueueable(
+  previewAlertsSetting: "on" | "off",
+): boolean {
+  return previewAlertsSetting === "on";
+}
+
 async function boundedEnqueue<T>(
   items: readonly T[],
   enqueue: (item: T) => Promise<void>,
@@ -42,6 +54,9 @@ export async function scanDueAlerts(
 ): Promise<number> {
   const batchSize = opts.batchSize ?? SCANNER_BATCH_SIZE;
   const now = opts.now ?? new Date();
+  const includePreviewDefinitions = previewDefinitionsEnqueueable(
+    env.EVERR_PREVIEW_ALERTS,
+  );
   const rows = await db
     .select({
       id: alertDefinitions.id,
@@ -61,6 +76,9 @@ export async function scanDueAlerts(
           ),
           lt(alertDefinitions.lastEnqueuedAt, staleEnqueueCutoff(now)),
         ),
+        includePreviewDefinitions
+          ? undefined
+          : isNull(alertDefinitions.previewId),
       ),
     )
     .orderBy(asc(alertDefinitions.nextEvaluationAt))

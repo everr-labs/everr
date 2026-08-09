@@ -62,10 +62,41 @@ function evaluationPoint(
   };
 }
 
+type EvaluationState = "ok" | "breaching" | "failed";
+
+// `rowCount` is the count of rows the alert query matched at that
+// evaluation, so a positive count is the breach signal itself; a failed
+// evaluation carries no row count (see repository.ts), so error takes
+// priority.
+function evaluationState(row: StoredAlertEvaluationPoint): EvaluationState {
+  if (row.error !== null) return "failed";
+  if (row.rowCount !== null && row.rowCount > 0) return "breaching";
+  return "ok";
+}
+
+// Indexes a downsampled chart must never drop: both range edges, every
+// failed or breaching evaluation, and every point where the state changes
+// (entering or recovering from an incident), even when the new state is
+// itself "ok".
+function requiredEvaluationIndexes(
+  rows: readonly StoredAlertEvaluationPoint[],
+): Set<number> {
+  const required = new Set<number>([0, rows.length - 1]);
+  let previousState = evaluationState(rows[0]);
+  for (let index = 1; index < rows.length; index++) {
+    const state = evaluationState(rows[index]);
+    if (state !== "ok") required.add(index);
+    if (state !== previousState) required.add(index);
+    previousState = state;
+  }
+  return required;
+}
+
 /**
- * Evenly reduce stored evaluations while preserving both range edges. The
- * regular cadence makes index sampling equivalent to a time grid without
- * hiding the newest point behind bucket alignment.
+ * Reduce stored evaluations to a display budget without hiding the point
+ * that matters. Exceptional evaluations and state transitions are kept
+ * unconditionally; an even index grid then fills whatever budget remains,
+ * so the regular cadence still reads as a time grid when nothing is wrong.
  */
 export function shapeAlertEvaluationSeries(
   rows: readonly StoredAlertEvaluationPoint[],
@@ -74,10 +105,14 @@ export function shapeAlertEvaluationSeries(
   const count = Math.max(2, targetPoints);
   let selected: readonly StoredAlertEvaluationPoint[] = rows;
   if (rows.length > count) {
-    const indexes = Array.from({ length: count }, (_, i) =>
-      Math.round((i * (rows.length - 1)) / (count - 1)),
-    );
-    selected = indexes.map((index) => rows[index]);
+    const indexes = requiredEvaluationIndexes(rows);
+    const target = Math.max(indexes.size, count);
+    for (let i = 0; i < count && indexes.size < target; i++) {
+      indexes.add(Math.round((i * (rows.length - 1)) / (count - 1)));
+    }
+    selected = Array.from(indexes)
+      .sort((a, b) => a - b)
+      .map((index) => rows[index]);
   }
   return {
     points: selected.map(evaluationPoint),
