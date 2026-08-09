@@ -1,0 +1,414 @@
+kind: Dashboard
+metadata:
+  name: frontend-overview
+spec:
+  display:
+    name: Frontend Overview
+    description: Core Web Vitals, page loads, and errors from @everr/otel-web, sliced by service and route.
+  duration: 30m
+  refreshInterval: 30s
+  variables:
+    - kind: ListVariable
+      spec:
+        name: service
+        display: { name: Service }
+        allowMultiple: true
+        allowAllValue: true
+        sort: alphabetical-asc
+        plugin:
+          kind: ClickHouseSQLVariable
+          spec:
+            query: |
+              SELECT DISTINCT ServiceName
+              FROM logs
+              WHERE Timestamp > now() - INTERVAL 7 DAY
+                AND EventName = 'browser.web_vital'
+              ORDER BY ServiceName
+              LIMIT 100
+    - kind: ListVariable
+      spec:
+        name: route
+        display: { name: Route }
+        allowMultiple: true
+        allowAllValue: true
+        sort: alphabetical-asc
+        plugin:
+          kind: ClickHouseSQLVariable
+          spec:
+            query: |
+              SELECT DISTINCT coalesce(nullIf(LogAttributes['everr.route.pattern'], ''), LogAttributes['url.path']) AS route
+              FROM logs
+              WHERE Timestamp > now() - INTERVAL 7 DAY
+                AND EventName IN ('browser.web_vital', 'everr.browser.page_view', 'exception')
+                AND route != ''
+              ORDER BY route
+              LIMIT 200
+  panels:
+    page-loads:
+      kind: Panel
+      spec:
+        display:
+          name: Page Loads
+          description: Pageviews in the selected range, hard navigations and SPA route changes alike.
+        plugin:
+          kind: StatChart
+          spec:
+            calculation: last
+        queries:
+          - kind: ClickHouseSQL
+            spec:
+              plugin:
+                kind: ClickHouseSQL
+                spec:
+                  query: |
+                    SELECT count() AS page_loads
+                    FROM logs
+                    WHERE Timestamp >= {from:String} AND Timestamp <= {to:String}
+                      AND EventName = 'everr.browser.page_view'
+                      AND ServiceName IN $service
+                      AND coalesce(nullIf(LogAttributes['everr.route.pattern'], ''), LogAttributes['url.path']) IN $route
+
+    errors:
+      kind: Panel
+      spec:
+        display:
+          name: Errors
+          description: Browser exceptions captured in the selected range.
+        plugin:
+          kind: StatChart
+          spec:
+            calculation: last
+            thresholds:
+              mode: absolute
+              defaultColor: "#22c55e"
+              steps:
+                - { value: 1, color: "#ef4444" }
+        queries:
+          - kind: ClickHouseSQL
+            spec:
+              plugin:
+                kind: ClickHouseSQL
+                spec:
+                  query: |
+                    SELECT count() AS errors
+                    FROM logs
+                    WHERE Timestamp >= {from:String} AND Timestamp <= {to:String}
+                      AND EventName = 'exception'
+                      AND ServiceName IN $service
+                      AND coalesce(nullIf(LogAttributes['everr.route.pattern'], ''), LogAttributes['url.path']) IN $route
+
+    ttfb:
+      kind: Panel
+      spec:
+        display:
+          name: TTFB
+          description: Time to First Byte, p75. Good under 800ms, poor over 1800ms.
+        plugin:
+          kind: GaugeChart
+          spec:
+            calculation: last
+            unit: ms
+            decimals: 0
+            min: 0
+            noValue: no data
+            max: 3600
+            thresholds:
+              mode: absolute
+              defaultColor: "#22c55e"
+              steps:
+                - { value: 800, color: "#f59e0b" }
+                - { value: 1800, color: "#ef4444" }
+        queries:
+          - kind: ClickHouseSQL
+            spec:
+              plugin:
+                kind: ClickHouseSQL
+                spec:
+                  query: |
+                    SELECT quantile(0.75)(toFloat64OrZero(LogAttributes['browser.web_vital.value'])) AS ttfb
+                    FROM logs
+                    WHERE Timestamp >= {from:String} AND Timestamp <= {to:String}
+                      AND EventName = 'browser.web_vital'
+                      AND LogAttributes['browser.web_vital.name'] = 'ttfb'
+                      AND ServiceName IN $service
+                      AND coalesce(nullIf(LogAttributes['everr.route.pattern'], ''), LogAttributes['url.path']) IN $route
+                    HAVING count() > 0
+
+    lcp:
+      kind: Panel
+      spec:
+        display:
+          name: LCP
+          description: Largest Contentful Paint, p75. Good under 2.5s, poor over 4s.
+        plugin:
+          kind: GaugeChart
+          spec:
+            calculation: last
+            unit: ms
+            decimals: 0
+            min: 0
+            noValue: no data
+            max: 8000
+            thresholds:
+              mode: absolute
+              defaultColor: "#22c55e"
+              steps:
+                - { value: 2500, color: "#f59e0b" }
+                - { value: 4000, color: "#ef4444" }
+        queries:
+          - kind: ClickHouseSQL
+            spec:
+              plugin:
+                kind: ClickHouseSQL
+                spec:
+                  query: |
+                    SELECT quantile(0.75)(toFloat64OrZero(LogAttributes['browser.web_vital.value'])) AS lcp
+                    FROM logs
+                    WHERE Timestamp >= {from:String} AND Timestamp <= {to:String}
+                      AND EventName = 'browser.web_vital'
+                      AND LogAttributes['browser.web_vital.name'] = 'lcp'
+                      AND ServiceName IN $service
+                      AND coalesce(nullIf(LogAttributes['everr.route.pattern'], ''), LogAttributes['url.path']) IN $route
+                    HAVING count() > 0
+
+    cls:
+      kind: Panel
+      spec:
+        display:
+          name: CLS
+          description: Cumulative Layout Shift, p75. Good under 0.1, poor over 0.25.
+        plugin:
+          kind: GaugeChart
+          spec:
+            calculation: last
+            decimals: 2
+            min: 0
+            noValue: no data
+            max: 0.5
+            thresholds:
+              mode: absolute
+              defaultColor: "#22c55e"
+              steps:
+                - { value: 0.1, color: "#f59e0b" }
+                - { value: 0.25, color: "#ef4444" }
+        queries:
+          - kind: ClickHouseSQL
+            spec:
+              plugin:
+                kind: ClickHouseSQL
+                spec:
+                  query: |
+                    SELECT quantile(0.75)(toFloat64OrZero(LogAttributes['browser.web_vital.value'])) AS cls
+                    FROM logs
+                    WHERE Timestamp >= {from:String} AND Timestamp <= {to:String}
+                      AND EventName = 'browser.web_vital'
+                      AND LogAttributes['browser.web_vital.name'] = 'cls'
+                      AND ServiceName IN $service
+                      AND coalesce(nullIf(LogAttributes['everr.route.pattern'], ''), LogAttributes['url.path']) IN $route
+                    HAVING count() > 0
+
+    inp:
+      kind: Panel
+      spec:
+        display:
+          name: INP
+          description: Interaction to Next Paint, p75. Good under 200ms, poor over 500ms.
+        plugin:
+          kind: GaugeChart
+          spec:
+            calculation: last
+            unit: ms
+            decimals: 0
+            min: 0
+            noValue: no data
+            max: 1000
+            thresholds:
+              mode: absolute
+              defaultColor: "#22c55e"
+              steps:
+                - { value: 200, color: "#f59e0b" }
+                - { value: 500, color: "#ef4444" }
+        queries:
+          - kind: ClickHouseSQL
+            spec:
+              plugin:
+                kind: ClickHouseSQL
+                spec:
+                  query: |
+                    SELECT quantile(0.75)(toFloat64OrZero(LogAttributes['browser.web_vital.value'])) AS inp
+                    FROM logs
+                    WHERE Timestamp >= {from:String} AND Timestamp <= {to:String}
+                      AND EventName = 'browser.web_vital'
+                      AND LogAttributes['browser.web_vital.name'] = 'inp'
+                      AND ServiceName IN $service
+                      AND coalesce(nullIf(LogAttributes['everr.route.pattern'], ''), LogAttributes['url.path']) IN $route
+                    HAVING count() > 0
+
+    page-loads-errors:
+      kind: Panel
+      spec:
+        display:
+          name: Page Loads & Errors
+        plugin:
+          kind: BarChart
+          spec:
+            showLegend: true
+            stacking: none
+        queries:
+          - kind: ClickHouseSQL
+            spec:
+              plugin:
+                kind: ClickHouseSQL
+                spec:
+                  query: |
+                    SELECT toStartOfInterval(Timestamp, INTERVAL {step:UInt32} SECOND) AS ts,
+                           countIf(EventName = 'everr.browser.page_view') AS page_loads,
+                           countIf(EventName = 'exception') AS errors
+                    FROM logs
+                    WHERE Timestamp >= {from:String} AND Timestamp <= {to:String}
+                      AND EventName IN ('everr.browser.page_view', 'exception')
+                      AND ServiceName IN $service
+                      AND coalesce(nullIf(LogAttributes['everr.route.pattern'], ''), LogAttributes['url.path']) IN $route
+                    GROUP BY ts
+                    ORDER BY ts
+
+    page-performance:
+      kind: Panel
+      spec:
+        display:
+          name: Page Performance
+          description: p75 per route (milliseconds, except CLS). NULL means no sample for that vital on that route.
+        plugin:
+          kind: Table
+          spec:
+            stickyHeader: true
+        queries:
+          - kind: ClickHouseSQL
+            spec:
+              plugin:
+                kind: ClickHouseSQL
+                spec:
+                  query: |
+                    SELECT page,
+                           if(countIf(vital = 'ttfb') > 0, round(quantileIf(0.75)(value, vital = 'ttfb'), 0), NULL) AS ttfb_ms,
+                           if(countIf(vital = 'lcp') > 0, round(quantileIf(0.75)(value, vital = 'lcp'), 0), NULL) AS lcp_ms,
+                           if(countIf(vital = 'cls') > 0, round(quantileIf(0.75)(value, vital = 'cls'), 3), NULL) AS cls,
+                           if(countIf(vital = 'inp') > 0, round(quantileIf(0.75)(value, vital = 'inp'), 0), NULL) AS inp_ms,
+                           countIf(event = 'exception') AS errors,
+                           countIf(event = 'everr.browser.page_view') AS page_loads
+                    FROM (
+                      SELECT coalesce(nullIf(LogAttributes['everr.route.pattern'], ''), LogAttributes['url.path']) AS page,
+                             EventName AS event,
+                             LogAttributes['browser.web_vital.name'] AS vital,
+                             toFloat64OrZero(LogAttributes['browser.web_vital.value']) AS value
+                      FROM logs
+                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String}
+                        AND EventName IN ('browser.web_vital', 'everr.browser.page_view', 'exception')
+                        AND ServiceName IN $service
+                    )
+                    WHERE page != '' AND page IN $route
+                    GROUP BY page
+                    ORDER BY errors DESC, lcp_ms DESC
+                    LIMIT 50
+
+    page-load-p75:
+      kind: Panel
+      spec:
+        display:
+          name: Page Load (TTFB, LCP) - p75
+        plugin:
+          kind: TimeSeriesChart
+          spec:
+            unit: ms
+            showLegend: true
+            connectNulls: true
+        queries:
+          - kind: ClickHouseSQL
+            spec:
+              plugin:
+                kind: ClickHouseSQL
+                spec:
+                  query: |
+                    SELECT toStartOfInterval(Timestamp, INTERVAL {step:UInt32} SECOND) AS ts,
+                           quantileIf(0.75)(toFloat64OrZero(LogAttributes['browser.web_vital.value']), LogAttributes['browser.web_vital.name'] = 'ttfb') AS ttfb,
+                           quantileIf(0.75)(toFloat64OrZero(LogAttributes['browser.web_vital.value']), LogAttributes['browser.web_vital.name'] = 'lcp') AS lcp
+                    FROM logs
+                    WHERE Timestamp >= {from:String} AND Timestamp <= {to:String}
+                      AND EventName = 'browser.web_vital'
+                      AND LogAttributes['browser.web_vital.name'] IN ('ttfb', 'lcp')
+                      AND ServiceName IN $service
+                      AND coalesce(nullIf(LogAttributes['everr.route.pattern'], ''), LogAttributes['url.path']) IN $route
+                    GROUP BY ts
+                    ORDER BY ts
+
+    cls-p75:
+      kind: Panel
+      spec:
+        display:
+          name: Cumulative Layout Shift (CLS) - p75
+        plugin:
+          kind: TimeSeriesChart
+          spec:
+            showLegend: true
+            connectNulls: true
+        queries:
+          - kind: ClickHouseSQL
+            spec:
+              plugin:
+                kind: ClickHouseSQL
+                spec:
+                  query: |
+                    SELECT toStartOfInterval(Timestamp, INTERVAL {step:UInt32} SECOND) AS ts,
+                           quantile(0.75)(toFloat64OrZero(LogAttributes['browser.web_vital.value'])) AS cls
+                    FROM logs
+                    WHERE Timestamp >= {from:String} AND Timestamp <= {to:String}
+                      AND EventName = 'browser.web_vital'
+                      AND LogAttributes['browser.web_vital.name'] = 'cls'
+                      AND ServiceName IN $service
+                      AND coalesce(nullIf(LogAttributes['everr.route.pattern'], ''), LogAttributes['url.path']) IN $route
+                    GROUP BY ts
+                    ORDER BY ts
+
+    inp-p75:
+      kind: Panel
+      spec:
+        display:
+          name: Input Response time (INP) - p75
+        plugin:
+          kind: TimeSeriesChart
+          spec:
+            unit: ms
+            showLegend: true
+            connectNulls: true
+        queries:
+          - kind: ClickHouseSQL
+            spec:
+              plugin:
+                kind: ClickHouseSQL
+                spec:
+                  query: |
+                    SELECT toStartOfInterval(Timestamp, INTERVAL {step:UInt32} SECOND) AS ts,
+                           quantile(0.75)(toFloat64OrZero(LogAttributes['browser.web_vital.value'])) AS inp
+                    FROM logs
+                    WHERE Timestamp >= {from:String} AND Timestamp <= {to:String}
+                      AND EventName = 'browser.web_vital'
+                      AND LogAttributes['browser.web_vital.name'] = 'inp'
+                      AND ServiceName IN $service
+                      AND coalesce(nullIf(LogAttributes['everr.route.pattern'], ''), LogAttributes['url.path']) IN $route
+                    GROUP BY ts
+                    ORDER BY ts
+  layouts:
+    - kind: Grid
+      spec:
+        items:
+          - { x: 0, y: 0, width: 4, height: 6, content: { $ref: "#/spec/panels/page-loads" } }
+          - { x: 4, y: 0, width: 4, height: 6, content: { $ref: "#/spec/panels/errors" } }
+          - { x: 8, y: 0, width: 4, height: 6, content: { $ref: "#/spec/panels/ttfb" } }
+          - { x: 12, y: 0, width: 4, height: 6, content: { $ref: "#/spec/panels/lcp" } }
+          - { x: 16, y: 0, width: 4, height: 6, content: { $ref: "#/spec/panels/cls" } }
+          - { x: 20, y: 0, width: 4, height: 6, content: { $ref: "#/spec/panels/inp" } }
+          - { x: 0, y: 6, width: 24, height: 8, content: { $ref: "#/spec/panels/page-loads-errors" } }
+          - { x: 0, y: 14, width: 24, height: 10, content: { $ref: "#/spec/panels/page-performance" } }
+          - { x: 0, y: 24, width: 8, height: 8, content: { $ref: "#/spec/panels/page-load-p75" } }
+          - { x: 8, y: 24, width: 8, height: 8, content: { $ref: "#/spec/panels/cls-p75" } }
+          - { x: 16, y: 24, width: 8, height: 8, content: { $ref: "#/spec/panels/inp-p75" } }
