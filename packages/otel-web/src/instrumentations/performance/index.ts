@@ -45,7 +45,7 @@ export type PerformanceOptions = {
  * The performance instrumentation: web vitals, all computed in-house (LCP, CLS, TTFB
  * in webvitals.ts, INP in inp.ts) plus `slow_interaction` spans
  * from the same Event Timing observer that computes INP, and the
- * opt-in page-load capture (pageload.ts). All outputs are configurable:
+ * on-by-default page-load capture (pageload.ts). All outputs are configurable:
  * `webVitals` picks the vitals, `slowInteractions` gates the slow spans
  * (the shared observer runs only while at least one of INP or slow
  * interactions wants it), `pageLoad: false` closes the load window.

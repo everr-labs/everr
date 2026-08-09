@@ -40,6 +40,25 @@ export function emitVital(
   });
 }
 
+/**
+ * The one `<prefix>.script.*` spelling of a LoAF longest-script culprit,
+ * shared by the interaction attribution (inp.ts) and the page-load LoAF
+ * spans (pageload.ts). The caller picks the duration (intersecting share
+ * for interactions, raw script duration for LoAF spans).
+ */
+export function scriptAttrs(
+  prefix: string,
+  script: PerformanceScriptTiming,
+  duration: number,
+): Attrs {
+  return {
+    [`${prefix}.script.source_url`]: script.sourceURL,
+    [`${prefix}.script.function_name`]: script.sourceFunctionName,
+    [`${prefix}.script.invoker_type`]: script.invokerType,
+    [`${prefix}.script.duration`]: duration,
+  };
+}
+
 /** The one navigation_type spelling per vital. */
 function navigationType(restored: boolean): string {
   return restored

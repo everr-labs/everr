@@ -2,7 +2,7 @@
 import type { Tracer } from "@opentelemetry/api";
 import { elementAttrs, guardOf } from "../../element.js";
 import type { AttrValue, Emit } from "../../emitter.js";
-import { emitVital, whenIdleOrHidden } from "./shared.js";
+import { emitVital, scriptAttrs, whenIdleOrHidden } from "./shared.js";
 
 // Interaction latency tracking: one Event Timing observer feeding two
 // outputs.
@@ -453,12 +453,10 @@ function phaseAttrs(
     totalStyleAndLayout -
     totalPaint;
   if (longest) {
-    attrs["everr.browser.interaction.script.source_url"] = longest.sourceURL;
-    attrs["everr.browser.interaction.script.function_name"] =
-      longest.sourceFunctionName;
-    attrs["everr.browser.interaction.script.invoker_type"] =
-      longest.invokerType;
-    attrs["everr.browser.interaction.script.duration"] = longestDuration;
+    Object.assign(
+      attrs,
+      scriptAttrs("everr.browser.interaction", longest, longestDuration),
+    );
   }
   return attrs;
 }

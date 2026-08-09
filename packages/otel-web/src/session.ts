@@ -55,9 +55,12 @@ export function visitorId(): string {
   return visitor;
 }
 
+/** The stored session: its id plus the last-activity timestamp. */
+type SessionState = { id: string; t: number };
+
 // In-memory continuity for when storage is unusable or was just switched:
 // without this fallback every record would mint a fresh session id.
-let memory: { id: string; t: number } | null = null;
+let memory: SessionState | null = null;
 
 /** Resolves the session id for the record being emitted, touching activity. */
 export function sessionId(): string {
@@ -68,7 +71,7 @@ export function sessionId(): string {
       store.read(SESSION_KEY) ?? "null",
     );
     if (typeof parsed?.id === "string" && typeof parsed.t === "number")
-      base = parsed as { id: string; t: number };
+      base = parsed as SessionState;
   } catch {
     // Corrupt stored state: fall through to memory or a fresh session.
   }

@@ -1,5 +1,6 @@
 /// <reference path="../../dom.d.ts" />
 import type { Tracer } from "@opentelemetry/api";
+import { scriptAttrs } from "./shared.js";
 
 // The page-load window: one `GET <url>` CLIENT span per static
 // resource in the initial load's waterfall (script, css, img, font, link,
@@ -128,14 +129,12 @@ export function startPageLoad(
       "everr.browser.long_animation_frame.unattributed_duration": Math.round(
         entry.duration - script - styleAndLayout,
       ),
-      "everr.browser.long_animation_frame.script.source_url":
-        longest?.sourceURL,
-      "everr.browser.long_animation_frame.script.function_name":
-        longest?.sourceFunctionName,
-      "everr.browser.long_animation_frame.script.invoker_type":
-        longest?.invokerType,
-      "everr.browser.long_animation_frame.script.duration":
-        longest && Math.round(longest.duration),
+      ...(longest &&
+        scriptAttrs(
+          "everr.browser.long_animation_frame",
+          longest,
+          Math.round(longest.duration),
+        )),
     });
   };
 

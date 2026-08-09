@@ -37,7 +37,7 @@ module.exports = [
   },
   {
     // The heaviest instrumentation: the in-house web vitals (LCP/CLS/TTFB/INP),
-    // slow-interaction records with their LoAF attribution, and the opt-in
+    // slow-interaction records with their LoAF attribution, and the on-by-default
     // pageLoad capture (asset waterfall + long-animation-frame records).
     name: "core + performance",
     path: "dist/index.js",

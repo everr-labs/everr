@@ -13,9 +13,10 @@ import type { Instrumentation } from "./instrumentations/runtime.js";
  *   `identify()` works for the life of the page.
  *
  * Consent is the host's call, not the SDK's: a CMP-gated deployment boots
- * with `"memory"` until consent is granted, then constructs a new WebSDK with
- * `"localStorage"`. The event schema is identical either way; persistence
- * only changes how long the ids live.
+ * with `"memory"` until consent is granted, then calls
+ * `setPersistence("localStorage")` on the live client; `revoke()` drops back.
+ * The event schema is identical either way; persistence only changes how
+ * long the ids live.
  */
 export type Persistence = "localStorage" | "memory";
 
@@ -65,7 +66,7 @@ export type WebSDKOptions = {
    * no-op that never issues a network request.
    */
   dev?: boolean;
-  /** How long identity ids live; see {@link Persistence}. Fixed at construction. */
+  /** How long identity ids live; see {@link Persistence}. Switchable later via `setPersistence()`. */
   persistence?: Persistence;
   /**
    * The capture sources, set up during construction (in order, after

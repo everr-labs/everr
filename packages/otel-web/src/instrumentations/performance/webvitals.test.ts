@@ -12,7 +12,7 @@ import { startWebVitals } from "./webvitals.js";
 // jsdom produces no PerformanceObserver entries and no navigation/paint/
 // resource timeline: the tests stub PerformanceObserver (capturing the
 // per-type callbacks) and the performance global (serving configured
-// entries per type), then drive entries by hand — the coverage the
+// entries per type), then drive entries by hand: the coverage the
 // web-vitals library's e2e suite provided, ported to the in-house
 // implementation.
 
