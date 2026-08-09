@@ -21,7 +21,9 @@ vi.mock("@/db/client", () => ({
   pool: {},
 }));
 
-import { processAlertEvent } from "./process-event";
+import { QueryBuilder } from "drizzle-orm/pg-core";
+import { alertEvents } from "@/db/schema";
+import { processAlertEvent, processedStampGuard } from "./process-event";
 import { selectDispatchTargets } from "./targeting";
 
 describe("notification destination precedence", () => {
@@ -82,5 +84,22 @@ describe("processAlertEvent retention lifecycle", () => {
     });
 
     expect(mocks.update).not.toHaveBeenCalled();
+  });
+});
+
+// The stamp is the dispatch's claim against a concurrent lifecycle cancel;
+// without the null guard both sides own the event and its chain gets two
+// terminals.
+describe("processedStampGuard", () => {
+  it("claims the event only while it is unprocessed", () => {
+    const { sql, params } = new QueryBuilder()
+      .select()
+      .from(alertEvents)
+      .where(processedStampGuard("0ee52a7c-c9d7-4bca-9c67-a21db2096acf"))
+      .toSQL();
+
+    expect(sql).toContain('"id" = ');
+    expect(sql).toContain('"processed_at" is null');
+    expect(params).toEqual(["0ee52a7c-c9d7-4bca-9c67-a21db2096acf"]);
   });
 });

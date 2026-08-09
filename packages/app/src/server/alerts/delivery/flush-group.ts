@@ -326,7 +326,7 @@ export async function flushAlertGroup(rawPayload: unknown): Promise<void> {
   if (droppedRows.length > 0) {
     const decidedAt = new Date();
     await recordAlertHistory(
-      droppedRows[0].event.sourceDefinitionId,
+      null,
       droppedRows.map(({ event, ruleActive, ruleSpec }) =>
         suppressionHistoryRow({
           def: {

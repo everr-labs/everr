@@ -110,7 +110,7 @@ export async function deleteStalePreviews(
   });
   if (closures.length > 0) {
     await recordAlertHistory(
-      closures[0].def.id,
+      null,
       closures.map(({ instance, def }) =>
         instanceHistoryRow({
           def: {

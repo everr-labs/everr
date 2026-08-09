@@ -1,4 +1,5 @@
 import { and, eq, isNull, ne } from "drizzle-orm";
+import type { AlertingLifecycleReason } from "@/data/alerting/vocabulary";
 import type { Transaction } from "@/db/client";
 import {
   type alertDefinitions,
@@ -11,7 +12,10 @@ import { addWorkerJobInTransaction } from "@/server/worker/jobs";
 
 type RuleRow = typeof alertDefinitions.$inferSelect;
 type InstanceRow = typeof alertInstances.$inferSelect;
-type LifecycleReason = "rule_paused" | "rule_deleted";
+type LifecycleReason = Extract<
+  AlertingLifecycleReason,
+  "rule_paused" | "rule_deleted"
+>;
 
 /**
  * The journal terminal for an instance a mutation ends. Born processed and
@@ -23,7 +27,7 @@ export function instanceClosedJournalRow(
   instance: Pick<InstanceRow, "fingerprint" | "labels" | "episodeId">,
   reason: LifecycleReason,
   at: Date,
-): typeof alertEvents.$inferInsert {
+): typeof alertEvents.$inferInsert & { id: string } {
   return {
     id: uuidv7(at),
     organizationId: def.organizationId,
@@ -75,16 +79,9 @@ export async function closeRuleLifecycle(
   const canceled = await tx
     .update(alertEvents)
     .set({ processedAt: at })
-    .where(
-      and(
-        eq(alertEvents.organizationId, def.organizationId),
-        eq(alertEvents.sourceDefinitionId, def.id),
-        eq(alertEvents.kind, "notifying"),
-        isNull(alertEvents.processedAt),
-      ),
-    )
+    .where(cancelableNotifyingEventsFilter(def))
     .returning({ id: alertEvents.id });
-  const closedEventIds = closedRows.flatMap((row) => (row.id ? [row.id] : []));
+  const closedEventIds = closedRows.map((row) => row.id);
   const suppressedEventIds = canceled.map((row) => row.id);
   if (closedEventIds.length > 0 || suppressedEventIds.length > 0) {
     await addWorkerJobInTransaction(
@@ -95,4 +92,22 @@ export async function closeRuleLifecycle(
     );
   }
   return { closedEventIds, suppressedEventIds };
+}
+
+/**
+ * What a mutation may cancel: the rule's own not-yet-processed notifying
+ * events, nothing else. Scoped by organization and definition so no other
+ * tenant's or rule's in-flight work is touched, to `kind = 'notifying'` so
+ * born-processed state rows stay out, and to `processed_at IS NULL` so an
+ * event a worker already claimed keeps exactly one owner.
+ */
+export function cancelableNotifyingEventsFilter(
+  def: Pick<RuleRow, "id" | "organizationId">,
+) {
+  return and(
+    eq(alertEvents.organizationId, def.organizationId),
+    eq(alertEvents.sourceDefinitionId, def.id),
+    eq(alertEvents.kind, "notifying"),
+    isNull(alertEvents.processedAt),
+  );
 }

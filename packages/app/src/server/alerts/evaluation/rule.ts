@@ -106,6 +106,17 @@ const TRANSITION_EVENT_TYPES = {
   pending_cleared: "instance_closed",
 } as const;
 
+/**
+ * State-only rows are born processed: they exist to be projected, and the
+ * delivery pipeline must never see them, so no process job may be enqueued
+ * for them.
+ */
+export function shouldEnqueueProcessEvent(
+  outbox: Pick<typeof alertEvents.$inferInsert, "kind">,
+): boolean {
+  return outbox.kind !== "state";
+}
+
 export function transitionEventRows(opts: {
   def: typeof alertDefinitions.$inferSelect;
   historyDef: AlertHistoryDefinition;
@@ -142,10 +153,10 @@ export function transitionEventRows(opts: {
     eventType === "instance_pending" || eventType === "instance_closed";
   const reason =
     eventType === "instance_resolved"
-      ? "condition_cleared"
+      ? ("condition_cleared" as const)
       : eventType === "instance_closed"
-        ? "pending_cleared"
-        : "";
+        ? ("pending_cleared" as const)
+        : undefined;
   const notificationTitle = renderMessage(def.spec.annotations.summary ?? "", {
     firstRow,
   });
@@ -503,10 +514,7 @@ async function evaluateAlertRule(
     const eventRows = transitionEvents.map(({ outbox }) => outbox);
     if (eventRows.length > 0) {
       await tx.insert(alertEvents).values(eventRows);
-      // State-only rows are born processed: they exist to be projected, and
-      // the delivery pipeline must never see them, so no job is enqueued.
-      for (const { outbox } of transitionEvents) {
-        if (outbox.kind === "state") continue;
+      for (const outbox of eventRows.filter(shouldEnqueueProcessEvent)) {
         await enqueueProcessAlertEvent(tx, outbox.id);
       }
     }

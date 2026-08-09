@@ -2,6 +2,7 @@ import { and, eq } from "drizzle-orm";
 import { type DbExecutor, db } from "@/db/client";
 import {
   alertDefinitions,
+  alertDeliveryEvents,
   alertEvents,
   alertNotificationGroupEvents,
 } from "@/db/schema";
@@ -63,4 +64,38 @@ export function deliverableGroupMemberQuery(
       ),
     )
     .where(eq(alertNotificationGroupEvents.groupId, groupId));
+}
+
+/**
+ * At least one still-active rule behind a composed notification. A send job
+ * can outlive a pause or a delete that committed after its delivery row was
+ * written; a notification whose every source rule is gone must not send. One
+ * live rule is enough: dropping the whole send would lose that rule's only
+ * notification.
+ */
+export function liveRuleForDeliveryQuery(
+  executor: DbExecutor,
+  dedupKey: string,
+) {
+  return executor
+    .select({ eventId: alertDeliveryEvents.eventId })
+    .from(alertDeliveryEvents)
+    .innerJoin(
+      alertEvents,
+      and(
+        eq(alertDeliveryEvents.organizationId, alertEvents.organizationId),
+        eq(alertDeliveryEvents.eventId, alertEvents.id),
+        eq(alertEvents.kind, "notifying"),
+      ),
+    )
+    .innerJoin(
+      alertDefinitions,
+      and(
+        eq(alertEvents.organizationId, alertDefinitions.organizationId),
+        eq(alertEvents.sourceDefinitionId, alertDefinitions.id),
+        eq(alertDefinitions.active, true),
+      ),
+    )
+    .where(eq(alertDeliveryEvents.deliveryDedupKey, dedupKey))
+    .limit(1);
 }

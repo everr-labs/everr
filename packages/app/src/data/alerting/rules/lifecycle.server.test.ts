@@ -1,3 +1,4 @@
+import { QueryBuilder } from "drizzle-orm/pg-core";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
@@ -13,8 +14,10 @@ vi.mock("@/server/worker/jobs", () => ({
 }));
 
 import type { Transaction } from "@/db/client";
+import { alertEvents } from "@/db/schema";
 import { ALERT_PROJECT_LIFECYCLE_TASK } from "@/server/alerts/history/tasks";
 import {
+  cancelableNotifyingEventsFilter,
   closeRuleLifecycle,
   instanceClosedJournalRow,
 } from "./lifecycle.server";
@@ -113,7 +116,7 @@ describe("closeRuleLifecycle", () => {
 
     const result = await closeRuleLifecycle(
       recordingTx(state),
-      def as never,
+      def,
       "rule_paused",
       at,
     );
@@ -135,6 +138,24 @@ describe("closeRuleLifecycle", () => {
     ]);
   });
 
+  // The recording tx above cannot see predicates, so the cancel's WHERE is
+  // pinned on real rendered SQL: without every one of these four conditions
+  // the update cancels another tenant's, another rule's, a state-kind, or an
+  // already-claimed event.
+  it("cancels only the rule's own unclaimed notifying events", () => {
+    const { sql, params } = new QueryBuilder()
+      .select()
+      .from(alertEvents)
+      .where(cancelableNotifyingEventsFilter(def))
+      .toSQL();
+
+    expect(sql).toContain('"organization_id" = ');
+    expect(sql).toContain('"source_definition_id" = ');
+    expect(sql).toContain('"kind" = ');
+    expect(sql).toContain('"processed_at" is null');
+    expect(params).toEqual([def.organizationId, def.id, "notifying"]);
+  });
+
   it("enqueues nothing when the rule has no open instances and no in-flight events", async () => {
     const state = {
       openInstances: [],
@@ -145,7 +166,7 @@ describe("closeRuleLifecycle", () => {
 
     const result = await closeRuleLifecycle(
       recordingTx(state),
-      def as never,
+      def,
       "rule_deleted",
       at,
     );

@@ -23,3 +23,23 @@ export const ALERTING_EVENT_TYPES = [
   "hold_changed",
   "evaluation_failed",
 ] as const;
+
+// The closed vocabulary of reasons a terminal row can carry. History rows are
+// append-only, so a typo here would be an unlabelled reason forever; every
+// writer must pick from this list, not from a bare string.
+const ALERTING_LIFECYCLE_REASONS = [
+  "condition_cleared",
+  "pending_cleared",
+  "rule_paused",
+  "rule_deleted",
+  "preview_deleted",
+] as const;
+
+export type AlertingLifecycleReason =
+  (typeof ALERTING_LIFECYCLE_REASONS)[number];
+
+export function isAlertingLifecycleReason(
+  value: string,
+): value is AlertingLifecycleReason {
+  return (ALERTING_LIFECYCLE_REASONS as readonly string[]).includes(value);
+}

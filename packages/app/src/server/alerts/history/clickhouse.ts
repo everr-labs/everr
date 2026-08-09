@@ -1,4 +1,5 @@
 import type { AlertingEvaluationSample } from "@/data/alerting/types";
+import type { AlertingLifecycleReason } from "@/data/alerting/vocabulary";
 import { insertAdminRows } from "@/lib/clickhouse";
 import { exceptionAttributes, serverLogger } from "@/telemetry/logger";
 import {
@@ -204,7 +205,7 @@ export function instanceHistoryRow(opts: {
   evidenceTruncated: boolean;
   contextJson: string;
   /** `condition_cleared` on a resolve; the closing reason on `instance_closed`. */
-  reason?: string;
+  reason?: AlertingLifecycleReason;
 }): AlertHistoryRow {
   // Only the notifying transitions head a notification chain: the suppression
   // and delivery rows written by later jobs point back here. Pending and
@@ -246,7 +247,7 @@ export function suppressionHistoryRow(opts: {
   silenceId: string | null;
   /** Set on lifecycle terminals (`rule_paused`, `rule_deleted`); empty when a
    * silence or inhibition made the decision. */
-  reason?: string;
+  reason?: AlertingLifecycleReason;
 }): AlertHistoryRow {
   return {
     ...baseHistoryRow({
@@ -302,7 +303,9 @@ export function deliveryHistoryRow(opts: {
 }
 
 export async function recordAlertHistory(
-  definitionId: string,
+  // Null when one batch spans many definitions; a single arbitrary id would
+  // misattribute the whole failure to one rule.
+  definitionId: string | null,
   rows: AlertHistoryRow[],
 ): Promise<void> {
   if (rows.length === 0) return;
@@ -315,7 +318,7 @@ export async function recordAlertHistory(
   } catch (error) {
     serverLogger.error("alerts.history.insert_failed", {
       ...exceptionAttributes(error),
-      "alert.definition_id": definitionId,
+      ...(definitionId ? { "alert.definition_id": definitionId } : {}),
       "alert.event_count": rows.length,
       "error.handled": true,
     });

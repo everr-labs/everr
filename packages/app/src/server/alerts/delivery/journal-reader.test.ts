@@ -7,6 +7,7 @@ import type { DbExecutor } from "@/db/client";
 import {
   deliverableEventQuery,
   deliverableGroupMemberQuery,
+  liveRuleForDeliveryQuery,
 } from "./journal-reader";
 
 // A detached builder renders the exact SQL the reader would execute, so these
@@ -42,5 +43,16 @@ describe("the delivery pipeline's journal boundary", () => {
 
     expect(sql).toContain('left join "alert_definitions"');
     expect(sql).toContain('"active"');
+  });
+
+  it("counts a delivery's rules as live only when notifying and active", () => {
+    const { sql, params } = liveRuleForDeliveryQuery(builder(), "dk-1").toSQL();
+
+    expect(sql).toContain('"alert_delivery_events"');
+    expect(sql).toContain('"kind" = ');
+    expect(sql).toContain('"active" = ');
+    expect(params).toContain("notifying");
+    expect(params).toContain(true);
+    expect(params).toContain("dk-1");
   });
 });

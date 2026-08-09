@@ -19,6 +19,10 @@ import type {
   AlertingRuleEvaluationSeries,
 } from "@/data/alerting/types";
 import {
+  type AlertingLifecycleReason,
+  isAlertingLifecycleReason,
+} from "@/data/alerting/vocabulary";
+import {
   AlertingTableSkeleton,
   alertingErrorMessage,
   alertingFormatTs,
@@ -48,17 +52,28 @@ function EventTypeLabel({ eventType }: { eventType: AlertEventType }) {
 
 // The closing reasons a terminal row can carry. `condition_cleared` is not
 // here on purpose: that is a plain resolve and the event label already says
-// Resolved.
-const CLOSE_REASON_LABELS: Record<string, string> = {
+// Resolved. Keyed over the closed vocabulary so a new reason cannot ship
+// without a label.
+const CLOSE_REASON_LABELS: Record<
+  Exclude<AlertingLifecycleReason, "condition_cleared">,
+  string
+> = {
   pending_cleared: "Pending cleared",
   rule_paused: "Rule paused",
   rule_deleted: "Rule deleted",
   preview_deleted: "Preview deleted",
 };
 
+function closeReasonLabel(reason: string): string | null {
+  if (!isAlertingLifecycleReason(reason) || reason === "condition_cleared") {
+    return null;
+  }
+  return CLOSE_REASON_LABELS[reason];
+}
+
 function EventDetails({ event }: { event: AlertEventLogRow }) {
   const flags = [
-    CLOSE_REASON_LABELS[event.reason] ?? null,
+    closeReasonLabel(event.reason),
     event.suppressed ? "Suppressed" : null,
     event.silenced ? "Silenced" : null,
     event.inhibited ? "Inhibited" : null,

@@ -68,7 +68,7 @@ export async function projectAlertLifecycle(
           evidence: {},
           evidenceTruncated: false,
           contextJson: "{}",
-          reason: row.reason,
+          reason: row.reason || undefined,
         }),
       ];
     }),
@@ -90,5 +90,5 @@ export async function projectAlertLifecycle(
       ];
     }),
   ];
-  await recordAlertHistory(rows[0].sourceDefinitionId, historyRows);
+  await recordAlertHistory(null, historyRows);
 }

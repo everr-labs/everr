@@ -4,8 +4,8 @@ vi.mock("@/db/client", () => ({ db: {}, pool: {} }));
 
 import { rollupAlertState } from "./repository";
 
-// Finding 11: everything except firing used to collapse to inactive, which
-// made the Pending state unreachable in every list and detail view.
+// The rollup must pass `pending` through: collapsing everything but firing to
+// inactive makes the Pending state unreachable in every list and detail view.
 describe("rollupAlertState", () => {
   it("covers inactive, pending, firing, and resolved", () => {
     expect(rollupAlertState("unknown")).toBe("inactive");

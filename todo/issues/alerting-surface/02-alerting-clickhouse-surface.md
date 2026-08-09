@@ -469,8 +469,11 @@ Pause also cancels the delivery side, in the same transaction (decided
 2026-08-09): the rule's unprocessed and deferred events are marked terminal
 with a `notification_suppressed` row carrying `reason = 'rule_paused'`,
 which also closes their held chains, and group flush re-checks rule
-liveness at claim time. Nothing sends after a pause. The same shape covers
-delete with its own reason.
+liveness at claim time, and the send job re-checks it once more before the
+provider call. Nothing sends after a pause. A chain that already notified is
+not suppressed retroactively: the terminal `notification_suppressed` marks
+only chains that never notified. The same shape covers delete with its own
+reason.
 
 The state view stays a pure fold over transitions and never needs rule
 liveness. The investigator also gets a useful fact: "stopped because someone

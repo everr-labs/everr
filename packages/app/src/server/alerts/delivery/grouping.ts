@@ -54,7 +54,7 @@ export function groupNotificationPlan<E extends GroupedEvent>(
   return { active, notify: hasUnflushed ? latest : active };
 }
 
-export type MemberLiveness = "deliverable" | "dropped" | "dropped_unnotified";
+type MemberLiveness = "deliverable" | "dropped" | "dropped_unnotified";
 
 /**
  * What a flush does with a claimed membership, given the owning rule's

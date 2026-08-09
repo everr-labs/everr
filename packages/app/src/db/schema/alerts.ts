@@ -22,6 +22,7 @@ import type {
   AlertingRouteInput,
   AlertingRuleSpec,
 } from "@/data/alerting/types";
+import type { AlertingLifecycleReason } from "@/data/alerting/vocabulary";
 import {
   ALERTING_EVENT_TYPES,
   ALERTING_HEALTH_STATUSES,
@@ -231,8 +232,12 @@ export const alertEvents = pgTable(
     episodeId: uuid("episode_id"),
     // Why a terminal row ended its instance: condition_cleared on a resolve;
     // pending_cleared, rule_paused or rule_deleted on instance_closed. The
-    // journal carries it so a repaired projection recovers it.
-    reason: text("reason").notNull().default(""),
+    // journal carries it so a repaired projection recovers it. Branded to the
+    // closed vocabulary so a writer cannot journal a reason no reader labels.
+    reason: text("reason")
+      .notNull()
+      .default("")
+      .$type<AlertingLifecycleReason | "">(),
     instanceFingerprint: text("instance_fingerprint").notNull().default(""),
     instanceLabels: jsonb("instance_labels")
       .notNull()

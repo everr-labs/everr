@@ -41,7 +41,11 @@ vi.mock("../history/clickhouse", async (importOriginal) => ({
 }));
 
 import { ALERT_EVALUATE_TASK } from "@/data/alerting/scheduling/evaluation-jobs.server";
-import { evaluateAlert, transitionEventRows } from "./rule";
+import {
+  evaluateAlert,
+  shouldEnqueueProcessEvent,
+  transitionEventRows,
+} from "./rule";
 import type { AlertInstanceTransition } from "./state-machine";
 
 /** Records what the failure path writes, without a database behind it. */
@@ -340,5 +344,53 @@ describe("transitionEventRows episode stamping", () => {
     expect(resolved?.outbox.reason).toBe("condition_cleared");
     expect(resolved?.outbox.kind).toBe("notifying");
     expect(resolved?.history.reason).toBe("condition_cleared");
+  });
+});
+
+describe("shouldEnqueueProcessEvent", () => {
+  const evaluatedAt = new Date("2026-08-06T10:00:00Z");
+  const args = (status: "pending" | "firing") => ({
+    def: {
+      ...definition,
+      spec: { ...definition.spec, condition: { operator: "gt", threshold: 0 } },
+    } as unknown as Parameters<typeof transitionEventRows>[0]["def"],
+    historyDef: {
+      id: RULE_ID,
+      organizationId: "org-1",
+      repoid: "host/owner/repo",
+      slug: "default/high-5xx",
+      previewId: null,
+      severity: "critical",
+      ruleMuted: false,
+      serviceFallback: "alert",
+    },
+    transition: {
+      next: {
+        fingerprint: "api",
+        status,
+        labels: { service: "api" },
+        evidence: { value: 1 },
+        value: 1,
+        pendingSince: status === "pending" ? evaluatedAt : null,
+        activeSince: status === "firing" ? evaluatedAt : null,
+        lastSeenAt: evaluatedAt,
+        absentCount: 0,
+      },
+      event: status,
+    } as AlertInstanceTransition,
+    evaluatedAt,
+    storedEpisodeId: null,
+  });
+
+  it("never enqueues a process job for a born-processed state row", () => {
+    const [pending] = transitionEventRows(args("pending"));
+    expect(pending?.outbox.kind).toBe("state");
+    expect(shouldEnqueueProcessEvent(pending?.outbox ?? {})).toBe(false);
+  });
+
+  it("enqueues for notifying transitions", () => {
+    const [fired] = transitionEventRows(args("firing"));
+    expect(fired?.outbox.kind).not.toBe("state");
+    expect(shouldEnqueueProcessEvent(fired?.outbox ?? {})).toBe(true);
   });
 });
