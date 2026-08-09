@@ -210,7 +210,7 @@ export const AlertingSilenceInputSchema = z.object({
   starts_at: z.string(),
   ends_at: z.string(),
   comment: z.string().optional(),
-  author: z.string().optional(),
+  // No `author`: it is stamped from the authenticated principal on the server.
 });
 
 export const AlertingSilenceSchema = z.object({

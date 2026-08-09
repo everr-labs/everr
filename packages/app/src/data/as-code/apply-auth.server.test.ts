@@ -204,8 +204,30 @@ describe("buildApplyContext", () => {
     });
     expect(ctx.session.session.activeOrganizationId).toBe("org-k");
     expect(ctx.session.user.id).toBe("apikey:1");
+    expect(ctx.session.principalId).toBe("apikey:1");
     expect(ctx.organization).toEqual({ id: "org-k", name: "Kettle" });
     expect(ctx.applyActions).toEqual(["read", "write", "delete"]);
+  });
+
+  it("derives the audit actor from the principal, key or user", () => {
+    const actorFor = (principalId: string) =>
+      buildApplyContext({
+        organizationId: "org-k",
+        organizationName: "Kettle",
+        principalId,
+        applyActions: null,
+      }).actor;
+
+    expect(actorFor("apikey:1")).toEqual({
+      kind: "apikey",
+      id: "1",
+      display: "apikey:1",
+    });
+    expect(actorFor("user:u1")).toEqual({
+      kind: "user",
+      id: "u1",
+      display: "user:u1",
+    });
   });
 
   it("threads a null applyActions through for session auth", () => {

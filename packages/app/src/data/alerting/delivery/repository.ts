@@ -20,6 +20,7 @@ import {
   AlertingInhibitionInputSchema,
   AlertingRouteInputSchema,
 } from "../schema";
+import type { AlertingMutationScope } from "../session";
 import type {
   AlertingChannelConfig,
   AlertingInhibitionInput,
@@ -53,7 +54,7 @@ export async function listChannels(organizationId: string) {
 }
 
 export async function createChannel(
-  organizationId: string,
+  { organizationId }: AlertingMutationScope,
   body: { name: string; config: AlertingChannelConfig },
 ) {
   const id = randomUUID();
@@ -94,7 +95,7 @@ async function getChannelRow(organizationId: string, name: string) {
 }
 
 export async function updateChannel(
-  organizationId: string,
+  { organizationId }: AlertingMutationScope,
   name: string,
   body: { name?: string; config: AlertingChannelConfig },
 ) {
@@ -126,7 +127,10 @@ export async function updateChannel(
   return channelView(row);
 }
 
-export async function deleteChannel(organizationId: string, name: string) {
+export async function deleteChannel(
+  { organizationId }: AlertingMutationScope,
+  name: string,
+) {
   const channel = await getChannelRow(organizationId, name);
   const [receiverRefs, definitionRefs] = await Promise.all([
     db
@@ -286,7 +290,7 @@ export async function resolveOptionalChannelIds(
 }
 
 export async function createReceiver(
-  organizationId: string,
+  { organizationId }: AlertingMutationScope,
   body: { name: string; channels: string[] },
 ) {
   const channelIds = await resolveChannelIds(organizationId, body.channels);
@@ -336,7 +340,7 @@ async function getReceiverRow(organizationId: string, name: string) {
 }
 
 export async function updateReceiver(
-  organizationId: string,
+  { organizationId }: AlertingMutationScope,
   name: string,
   body: { name?: string; channels: string[] },
 ) {
@@ -370,7 +374,10 @@ export async function updateReceiver(
   );
 }
 
-export async function deleteReceiver(organizationId: string, name: string) {
+export async function deleteReceiver(
+  { organizationId }: AlertingMutationScope,
+  name: string,
+) {
   const receiver = await getReceiverRow(organizationId, name);
   const routes = await db
     .select({ id: alertRoutes.id })
@@ -404,7 +411,7 @@ export async function listRoutes(organizationId: string) {
 }
 
 export async function createRoute(
-  organizationId: string,
+  { organizationId }: AlertingMutationScope,
   rawInput: AlertingRouteInput,
 ) {
   const input = AlertingRouteInputSchema.parse(rawInput);
@@ -424,7 +431,7 @@ export async function createRoute(
 }
 
 export async function updateRoute(
-  organizationId: string,
+  { organizationId }: AlertingMutationScope,
   id: string,
   rawInput: AlertingRouteInput,
 ) {
@@ -453,7 +460,10 @@ export async function updateRoute(
   };
 }
 
-export async function deleteRoute(organizationId: string, id: string) {
+export async function deleteRoute(
+  { organizationId }: AlertingMutationScope,
+  id: string,
+) {
   const rows = await db
     .delete(alertRoutes)
     .where(
@@ -481,7 +491,7 @@ export async function listInhibitions(organizationId: string) {
 }
 
 export async function createInhibition(
-  organizationId: string,
+  { organizationId }: AlertingMutationScope,
   rawInput: AlertingInhibitionInput,
 ) {
   const config = AlertingInhibitionInputSchema.parse(rawInput);
@@ -497,7 +507,10 @@ export async function createInhibition(
   };
 }
 
-export async function deleteInhibition(organizationId: string, id: string) {
+export async function deleteInhibition(
+  { organizationId }: AlertingMutationScope,
+  id: string,
+) {
   const rows = await db
     .delete(alertInhibitions)
     .where(

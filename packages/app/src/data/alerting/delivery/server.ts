@@ -5,7 +5,7 @@ import {
   AlertingInhibitionInputSchema,
   AlertingRouteInputSchema,
 } from "../schema";
-import { alertingOrganizationId } from "../session";
+import { alertingMutationScope, alertingOrganizationId } from "../session";
 import { emailTestConfigFor } from "./email-test-config";
 import * as delivery from "./repository";
 
@@ -43,7 +43,7 @@ export const createAlertingChannel = createAuthenticatedServerFn({
     }),
   )
   .handler(({ data, context: { session } }) =>
-    delivery.createChannel(alertingOrganizationId(session), data),
+    delivery.createChannel(alertingMutationScope(session), data),
   );
 
 export const updateAlertingChannel = createAuthenticatedServerFn({
@@ -57,7 +57,7 @@ export const updateAlertingChannel = createAuthenticatedServerFn({
     }),
   )
   .handler(({ data, context: { session } }) =>
-    delivery.updateChannel(alertingOrganizationId(session), data.name, {
+    delivery.updateChannel(alertingMutationScope(session), data.name, {
       name: data.newName,
       config: data.config,
     }),
@@ -68,7 +68,7 @@ export const deleteAlertingChannel = createAuthenticatedServerFn({
 })
   .inputValidator(z.object({ name: z.string().min(1) }))
   .handler(({ data: { name }, context: { session } }) =>
-    delivery.deleteChannel(alertingOrganizationId(session), name),
+    delivery.deleteChannel(alertingMutationScope(session), name),
   );
 
 export const testAlertingChannel = createAuthenticatedServerFn({
@@ -91,7 +91,7 @@ export const createAlertingReceiver = createAuthenticatedServerFn({
     }),
   )
   .handler(({ data, context: { session } }) =>
-    delivery.createReceiver(alertingOrganizationId(session), data),
+    delivery.createReceiver(alertingMutationScope(session), data),
   );
 
 export const updateAlertingReceiver = createAuthenticatedServerFn({
@@ -105,7 +105,7 @@ export const updateAlertingReceiver = createAuthenticatedServerFn({
     }),
   )
   .handler(({ data, context: { session } }) =>
-    delivery.updateReceiver(alertingOrganizationId(session), data.name, {
+    delivery.updateReceiver(alertingMutationScope(session), data.name, {
       name: data.newName,
       channels: data.channels,
     }),
@@ -116,7 +116,7 @@ export const deleteAlertingReceiver = createAuthenticatedServerFn({
 })
   .inputValidator(z.object({ name: z.string().min(1) }))
   .handler(({ data: { name }, context: { session } }) =>
-    delivery.deleteReceiver(alertingOrganizationId(session), name),
+    delivery.deleteReceiver(alertingMutationScope(session), name),
   );
 
 export const createAlertingRoute = createAuthenticatedServerFn({
@@ -124,7 +124,7 @@ export const createAlertingRoute = createAuthenticatedServerFn({
 })
   .inputValidator(AlertingRouteInputSchema)
   .handler(({ data, context: { session } }) =>
-    delivery.createRoute(alertingOrganizationId(session), data),
+    delivery.createRoute(alertingMutationScope(session), data),
   );
 
 export const updateAlertingRoute = createAuthenticatedServerFn({
@@ -132,7 +132,7 @@ export const updateAlertingRoute = createAuthenticatedServerFn({
 })
   .inputValidator(z.object({ id: z.string(), input: AlertingRouteInputSchema }))
   .handler(({ data: { id, input }, context: { session } }) =>
-    delivery.updateRoute(alertingOrganizationId(session), id, input),
+    delivery.updateRoute(alertingMutationScope(session), id, input),
   );
 
 export const deleteAlertingRoute = createAuthenticatedServerFn({
@@ -140,7 +140,7 @@ export const deleteAlertingRoute = createAuthenticatedServerFn({
 })
   .inputValidator(z.object({ id: z.string() }))
   .handler(({ data: { id }, context: { session } }) =>
-    delivery.deleteRoute(alertingOrganizationId(session), id),
+    delivery.deleteRoute(alertingMutationScope(session), id),
   );
 
 export const createAlertingInhibition = createAuthenticatedServerFn({
@@ -148,7 +148,7 @@ export const createAlertingInhibition = createAuthenticatedServerFn({
 })
   .inputValidator(AlertingInhibitionInputSchema)
   .handler(({ data, context: { session } }) =>
-    delivery.createInhibition(alertingOrganizationId(session), data),
+    delivery.createInhibition(alertingMutationScope(session), data),
   );
 
 export const deleteAlertingInhibition = createAuthenticatedServerFn({
@@ -156,5 +156,5 @@ export const deleteAlertingInhibition = createAuthenticatedServerFn({
 })
   .inputValidator(z.object({ id: z.string() }))
   .handler(({ data: { id }, context: { session } }) =>
-    delivery.deleteInhibition(alertingOrganizationId(session), id),
+    delivery.deleteInhibition(alertingMutationScope(session), id),
   );
