@@ -7,6 +7,7 @@ vi.mock("@/db/client", () => ({ db: {}, pool: {} }));
 import {
   type GroupMember,
   groupNotificationPlan,
+  memberLiveness,
   nextGroupFlushAt,
   nextGroupFlushState,
 } from "./grouping";
@@ -217,5 +218,24 @@ describe("nextGroupFlushState", () => {
         now,
       }),
     ).toEqual({ nextFlushAt: repeatAt, enqueue: true });
+  });
+});
+
+describe("memberLiveness", () => {
+  const flushed = new Date("2026-08-06T09:55:00Z");
+
+  it("delivers only for a live rule", () => {
+    expect(memberLiveness(true, null)).toBe("deliverable");
+    expect(memberLiveness(true, flushed)).toBe("deliverable");
+  });
+
+  it("drops paused and deleted rules, recording never-notified chains", () => {
+    // false = paused, null = the definition row is gone (deleted).
+    expect(memberLiveness(false, null)).toBe("dropped_unnotified");
+    expect(memberLiveness(null, null)).toBe("dropped_unnotified");
+    // Already carried into a notification once: drop without a terminal row,
+    // the withheld thing is only the repeat.
+    expect(memberLiveness(false, flushed)).toBe("dropped");
+    expect(memberLiveness(null, flushed)).toBe("dropped");
   });
 });

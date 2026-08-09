@@ -17,11 +17,19 @@ const EPOCH_ISO = "1970-01-01T00:00:00.000Z";
 type AlertHistoryEventType =
   | "evaluation_succeeded"
   | "evaluation_failed"
+  | "instance_pending"
   | "instance_fired"
   | "instance_resolved"
+  | "instance_closed"
   | "notification_suppressed"
   | "delivery_succeeded"
   | "delivery_failed";
+
+type AlertInstanceEventType =
+  | "instance_pending"
+  | "instance_fired"
+  | "instance_resolved"
+  | "instance_closed";
 
 /**
  * Channel name to the targets it reached. Never a URL, token, or address: the
@@ -185,24 +193,30 @@ export function evaluationFailureHistoryRow(opts: {
 export function instanceHistoryRow(opts: {
   def: AlertHistoryDefinition;
   eventId: string;
-  eventType: "instance_fired" | "instance_resolved";
+  eventType: AlertInstanceEventType;
   occurredAt: Date;
-  /** The episode's opening event id: the fired event's own id until a pending
-   * phase exists. */
+  /** The episode's opening event id: the pending event's own id, or the fired
+   * event's own id when there is no pending phase. */
   episodeId: string;
   fingerprint: string;
   labels: Record<string, string>;
   evidence: Record<string, unknown>;
   evidenceTruncated: boolean;
   contextJson: string;
+  /** `condition_cleared` on a resolve; the closing reason on `instance_closed`. */
+  reason?: string;
 }): AlertHistoryRow {
+  // Only the notifying transitions head a notification chain: the suppression
+  // and delivery rows written by later jobs point back here. Pending and
+  // closed rows never notify, so their chain id stays zero.
+  const notifies =
+    opts.eventType === "instance_fired" ||
+    opts.eventType === "instance_resolved";
   return {
     ...baseHistoryRow({
       def: opts.def,
       eventId: opts.eventId,
-      // A transition is the head of its own notification chain: the
-      // suppression and delivery rows written by later jobs point back here.
-      notificationEventId: opts.eventId,
+      ...(notifies ? { notificationEventId: opts.eventId } : {}),
       eventType: opts.eventType,
       occurredAt: opts.occurredAt,
     }),
@@ -212,6 +226,7 @@ export function instanceHistoryRow(opts: {
     evidence_json: JSON.stringify(opts.evidence),
     evidence_truncated: opts.evidenceTruncated,
     context_json: opts.contextJson,
+    reason: opts.reason ?? "",
   };
 }
 
@@ -229,6 +244,9 @@ export function suppressionHistoryRow(opts: {
   silenced: boolean;
   inhibited: boolean;
   silenceId: string | null;
+  /** Set on lifecycle terminals (`rule_paused`, `rule_deleted`); empty when a
+   * silence or inhibition made the decision. */
+  reason?: string;
 }): AlertHistoryRow {
   return {
     ...baseHistoryRow({
@@ -241,6 +259,7 @@ export function suppressionHistoryRow(opts: {
     silenced: opts.silenced,
     inhibited: opts.inhibited,
     silence_id: opts.silenceId ?? ZERO_UUID,
+    reason: opts.reason ?? "",
   };
 }
 

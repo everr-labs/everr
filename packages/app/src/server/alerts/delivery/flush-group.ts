@@ -13,12 +13,19 @@ import {
 } from "@/db/schema";
 import { CHANNEL_TEXT_MAX } from "@/lib/channel-text-limits";
 import { addWorkerJobInTransaction } from "@/server/worker/jobs";
+import {
+  recordAlertHistory,
+  suppressionHistoryRow,
+} from "../history/clickhouse";
+import { alertServiceFallback } from "../history/content";
 import { ALERT_DELIVERY_MAX_ATTEMPTS } from "./config";
 import {
   type GroupMember,
   groupNotificationPlan,
+  memberLiveness,
   nextGroupFlushState,
 } from "./grouping";
+import { deliverableGroupMemberQuery } from "./journal-reader";
 import {
   deferSuppressedEvent,
   isInhibited,
@@ -104,23 +111,7 @@ export async function flushAlertGroup(rawPayload: unknown): Promise<void> {
       .for("update")
       .limit(1);
     if (!group || group.nextFlushAt > new Date()) return null;
-    const rows = await tx
-      .select({
-        event: alertEvents,
-        flushedAt: alertNotificationGroupEvents.flushedAt,
-      })
-      .from(alertNotificationGroupEvents)
-      .innerJoin(
-        alertEvents,
-        and(
-          eq(
-            alertNotificationGroupEvents.organizationId,
-            alertEvents.organizationId,
-          ),
-          eq(alertNotificationGroupEvents.eventId, alertEvents.id),
-        ),
-      )
-      .where(eq(alertNotificationGroupEvents.groupId, group.id));
+    const rows = await deliverableGroupMemberQuery(tx, group.id);
     return rows.length === 0 ? null : { group, rows };
   });
   if (!claimed) return;
@@ -129,7 +120,17 @@ export async function flushAlertGroup(rawPayload: unknown): Promise<void> {
   // suppression is evaluated below belongs to the next flush.
   const claimedEventIds = new Set(rows.map(({ event }) => event.id));
   const members: GroupMember<(typeof rows)[number]["event"]>[] = [];
-  for (const { event, flushedAt } of rows) {
+  // A member whose rule was paused or deleted after it joined the group must
+  // not notify. Its membership stays in the claimed set, so the committing
+  // delete below removes it; a member that never made a notification also
+  // gets its terminal suppression row so its chain does not dangle.
+  const droppedRows = rows.filter(
+    ({ event, flushedAt, ruleActive }) =>
+      memberLiveness(ruleActive, flushedAt) === "dropped_unnotified" &&
+      !event.suppressed,
+  );
+  for (const { event, flushedAt, ruleActive } of rows) {
+    if (memberLiveness(ruleActive, flushedAt) !== "deliverable") continue;
     if (event.suppressed) continue;
     const now = new Date();
     const silence = await matchingSilence(event, now);
@@ -322,4 +323,32 @@ export async function flushAlertGroup(rawPayload: unknown): Promise<void> {
       );
     }
   });
+  if (droppedRows.length > 0) {
+    const decidedAt = new Date();
+    await recordAlertHistory(
+      droppedRows[0].event.sourceDefinitionId,
+      droppedRows.map(({ event, ruleActive, ruleSpec }) =>
+        suppressionHistoryRow({
+          def: {
+            id: event.sourceDefinitionId,
+            organizationId: event.organizationId,
+            repoid: event.repoid,
+            slug: event.slug,
+            previewId: event.previewId,
+            severity: event.severity,
+            ruleMuted: event.suppressed,
+            serviceFallback: alertServiceFallback(ruleSpec?.annotations ?? {}),
+          },
+          notificationEventId: event.id,
+          occurredAt: decidedAt,
+          fingerprint: event.instanceFingerprint,
+          labels: event.instanceLabels,
+          silenced: false,
+          inhibited: false,
+          silenceId: null,
+          reason: ruleActive === null ? "rule_deleted" : "rule_paused",
+        }),
+      ),
+    );
+  }
 }

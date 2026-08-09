@@ -54,6 +54,24 @@ export function groupNotificationPlan<E extends GroupedEvent>(
   return { active, notify: hasUnflushed ? latest : active };
 }
 
+export type MemberLiveness = "deliverable" | "dropped" | "dropped_unnotified";
+
+/**
+ * What a flush does with a claimed membership, given the owning rule's
+ * liveness. A paused (`ruleActive` false) or deleted (`ruleActive` null) rule
+ * must not notify, so its members are dropped at claim time. A dropped member
+ * that was never carried into a notification also gets a terminal
+ * `notification_suppressed` row; without it, its chain would read as still in
+ * flight forever.
+ */
+export function memberLiveness(
+  ruleActive: boolean | null,
+  flushedAt: Date | null,
+): MemberLiveness {
+  if (ruleActive) return "deliverable";
+  return flushedAt === null ? "dropped_unnotified" : "dropped";
+}
+
 /**
  * When the group should next flush, given a membership may have been added
  * while this flush was evaluating suppression.

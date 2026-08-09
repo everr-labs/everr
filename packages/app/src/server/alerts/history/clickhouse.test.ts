@@ -165,6 +165,56 @@ describe("ClickHouse alert history", () => {
     ).toBe(ZERO_UUID);
   });
 
+  it("keeps pending and closed rows outside any notification chain", () => {
+    const pending = instanceHistoryRow({
+      def,
+      eventId: "019c3aba-29f8-7d6e-9e55-301cf47fa80d",
+      eventType: "instance_pending",
+      occurredAt,
+      episodeId: "019c3aba-29f8-7d6e-9e55-301cf47fa80d",
+      fingerprint: "api",
+      labels: { service: "api" },
+      evidence: {},
+      evidenceTruncated: false,
+      contextJson: "{}",
+    });
+    const closed = instanceHistoryRow({
+      def,
+      eventId: "019c3aba-4444-7d6e-9e55-301cf47fa80d",
+      eventType: "instance_closed",
+      occurredAt,
+      episodeId: "019c3aba-29f8-7d6e-9e55-301cf47fa80d",
+      fingerprint: "api",
+      labels: { service: "api" },
+      evidence: {},
+      evidenceTruncated: false,
+      contextJson: "{}",
+      reason: "rule_paused",
+    });
+
+    expect(pending.notification_event_id).toBe(ZERO_UUID);
+    expect(pending.episode_id).toBe("019c3aba-29f8-7d6e-9e55-301cf47fa80d");
+    expect(closed.notification_event_id).toBe(ZERO_UUID);
+    expect(closed.episode_id).toBe("019c3aba-29f8-7d6e-9e55-301cf47fa80d");
+    expect(closed.reason).toBe("rule_paused");
+  });
+
+  it("carries a lifecycle reason on a terminal suppression", () => {
+    const row = suppressionHistoryRow({
+      def,
+      notificationEventId: "019c3aba-29f8-7d6e-9e55-301cf47fa80d",
+      occurredAt,
+      fingerprint: "api",
+      labels: { service: "api" },
+      silenced: false,
+      inhibited: false,
+      silenceId: null,
+      reason: "rule_paused",
+    });
+    expect(row.reason).toBe("rule_paused");
+    expect(row.silenced).toBe(false);
+  });
+
   it("freezes the suppression decision against the transition it withheld", () => {
     const row = suppressionHistoryRow({
       def,

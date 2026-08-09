@@ -8,6 +8,7 @@ import {
 } from "@/db/schema";
 import { addWorkerJobInTransaction } from "@/server/worker/jobs";
 import { nextGroupFlushAt } from "./grouping";
+import { claimDeliverableEvent } from "./journal-reader";
 import {
   deferSuppressedEvent,
   eventStillFiring,
@@ -19,11 +20,7 @@ import { ALERT_FLUSH_GROUP_TASK, AlertEventTaskPayloadSchema } from "./tasks";
 
 export async function processAlertEvent(rawPayload: unknown): Promise<void> {
   const { eventId } = AlertEventTaskPayloadSchema.parse(rawPayload);
-  const [event] = await db
-    .select()
-    .from(alertEvents)
-    .where(eq(alertEvents.id, eventId))
-    .limit(1);
+  const event = await claimDeliverableEvent(eventId);
   if (!event || event.processedAt) return;
   const now = new Date();
   if (event.suppressed) {

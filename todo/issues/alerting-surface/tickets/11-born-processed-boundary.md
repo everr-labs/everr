@@ -11,6 +11,6 @@ queries the journal for deliverable events.
 
 **Status:** ready-for-agent
 
-- [ ] One reader function selects only notifying events
-- [ ] No other code path queries the journal for deliverable events
-- [ ] A test proves a state-only event never reaches delivery
+- [x] One reader function selects only notifying events (`delivery/journal-reader.ts`, 2026-08-09)
+- [x] No other code path queries the journal for deliverable events (process-event and flush-group both read through the module)
+- [x] A test proves a state-only event never reaches delivery (`journal-reader.test.ts` pins the `kind = 'notifying'` WHERE clause on both reads)
