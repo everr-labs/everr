@@ -17,9 +17,10 @@ import { parameterizeTelemetryPath } from "@/telemetry/paths";
 // the re-exported `captureReactError`), stamped with the same analytics
 // envelope.
 //
-// Persistence follows the stored consent cookie (see
-// telemetry/consent-gate.tsx): memory (no storage, ids die with the page)
-// until the banner is accepted, then localStorage on the next boot. The
+// Persistence boots from the stored consent cookie: memory (no storage, ids
+// die with the page) until consent is granted. A consent change flips the
+// live client in place via setPersistence()/revoke() (see
+// telemetry/consent-gate.tsx); this only picks the initial mode. The
 // WebSDK is inert on the server and, without a key outside dev, never issues a
 // network request; dev sends to the local collector. The route pattern is pushed
 // by the TanStack adapter via setRouteResolver; `getRouter()` registers
