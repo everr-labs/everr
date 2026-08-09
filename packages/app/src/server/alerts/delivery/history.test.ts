@@ -13,7 +13,12 @@ vi.mock("@/db/schema", () => ({
     deliveryDedupKey: "de_dedup",
     eventId: "de_event",
   },
-  alertEvents: { organizationId: "ae_org", id: "ae_id" },
+  alertEvents: {
+    organizationId: "ae_org",
+    id: "ae_id",
+    sourceDefinitionId: "ae_def",
+  },
+  alertDefinitions: { organizationId: "ad_org", id: "ad_id", spec: "ad_spec" },
 }));
 
 vi.mock("@/db/client", () => ({
@@ -22,6 +27,7 @@ vi.mock("@/db/client", () => ({
       const chain = {
         from: vi.fn(() => chain),
         innerJoin: vi.fn(() => chain),
+        leftJoin: vi.fn(() => chain),
         where: vi.fn(() =>
           mocks.selectError
             ? Promise.reject(mocks.selectError)
@@ -110,6 +116,21 @@ describe("recordDeliveryOutcome", () => {
     expect(rows[1]).toMatchObject({
       notification_event_id: "019c3abf-0000-7000-8000-000000000002",
       instance_fingerprint: "fp-2",
+    });
+  });
+
+  it("uses the rule's everr.service annotation when no label names one", async () => {
+    mocks.linkedRows = [
+      {
+        ...linkedEvent,
+        spec: { annotations: { "everr.service": "checkout" } },
+      },
+    ];
+
+    await recordDeliveryOutcome(outcome);
+
+    expect(mocks.recordAlertHistory.mock.calls[0]?.[1]?.[0]).toMatchObject({
+      service_name: "checkout",
     });
   });
 

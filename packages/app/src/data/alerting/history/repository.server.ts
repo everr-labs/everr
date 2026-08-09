@@ -151,7 +151,7 @@ export async function queryClickHouseAlertEventLog(
   if (opts.previewIds === null) {
     filters.push(
       "preview_id = toUUID('00000000-0000-0000-0000-000000000000')",
-      "suppressed = false",
+      "rule_muted = false",
     );
   } else if (opts.previewIds.length === 0) {
     filters.push("preview_id = toUUID('00000000-0000-0000-0000-000000000000')");
@@ -178,9 +178,9 @@ export async function queryClickHouseAlertEventLog(
         event_type AS eventType,
         slug,
         instance_fingerprint AS instanceFingerprint,
-        instance_labels_json AS labelsJson,
+        toJSONString(instance_labels) AS labelsJson,
         severity,
-        suppressed,
+        rule_muted AS suppressed,
         evidence_json AS evidenceJson,
         evidence_truncated AS evidenceTruncated
       FROM app.alert_events
@@ -235,11 +235,11 @@ async function recentClickHouseLabels(
 ) {
   return query<{ labelsJson: string }>(
     `
-      SELECT instance_labels_json AS labelsJson
+      SELECT toJSONString(instance_labels) AS labelsJson
       FROM app.alert_events
       WHERE tenant_id = {organizationId:String}
         AND event_type IN ('instance_fired', 'instance_resolved')
-        AND suppressed = false
+        AND rule_muted = false
         AND event_time >= {from:DateTime64(3)}
         AND event_time <= {to:DateTime64(3)}
       ORDER BY event_time DESC
