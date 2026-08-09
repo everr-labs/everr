@@ -167,10 +167,7 @@ async function validateAlertRuleQuery(
   return { instanceLabelColumns, ...(warning ? { warning } : {}) };
 }
 
-// Bound ClickHouse validation and database mutations independently.
 const VALIDATION_QUERY_CONCURRENCY = 8;
-
-const ALERTING_MUTATION_CONCURRENCY = 8;
 
 function specFingerprint(spec: Record<string, unknown>): string {
   return stableStringify(spec);
@@ -186,6 +183,7 @@ export const applyAlertSpecs: Reconciler = async ({
   resources,
   dryRun,
   adopt,
+  db: executor,
 }): Promise<ApplyAlertsResult> => {
   const { orgId, repoid } = namespace;
   // A missing first-apply preview id scopes to no existing rules.
@@ -321,15 +319,18 @@ export const applyAlertSpecs: Reconciler = async ({
       });
   const adopted = adopt ? taken.map(({ d }) => d.input.name) : [];
 
-  // 5. Converge in a bounded pool, preserving deterministic errors.
-  const runMutation = createLimiter(ALERTING_MUTATION_CONCURRENCY);
+  // 5. Converge sequentially on the registry executor: mutations run as
+  // savepoints on its single connection, and savepoints must nest strictly,
+  // so a concurrent pool here would interleave them. allSettled still
+  // preserves deterministic error reporting.
+  const runMutation = createLimiter(1);
   const writes = await Promise.allSettled([
     ...fresh.map((d) =>
       runMutation(undefined, async () => {
         if (dryRun) return;
         // Translate a create race into the same ownership error as the plan.
         try {
-          await alerting.createRule(orgId, d.input);
+          await alerting.createRule(orgId, d.input, executor);
         } catch (error) {
           if (isAlertingVersionConflict(error)) {
             throw new ApplyValidationError(
@@ -356,6 +357,7 @@ export const applyAlertSpecs: Reconciler = async ({
               repoid,
               foreign.version,
               spec,
+              executor,
             );
           }),
         )
@@ -371,7 +373,7 @@ export const applyAlertSpecs: Reconciler = async ({
           ...spec
         } = d.input;
         try {
-          await alerting.updateRule(orgId, cur.id, spec, cur.version);
+          await alerting.updateRule(orgId, cur.id, spec, cur.version, executor);
         } catch (error) {
           if (isAlertingVersionConflict(error)) {
             throw new ApplyValidationError(
@@ -394,7 +396,7 @@ export const applyAlertSpecs: Reconciler = async ({
   const deletions = await Promise.allSettled(
     stale.map(([, cur]) =>
       runMutation(undefined, async () => {
-        if (!dryRun) await alerting.deleteRule(orgId, cur.id);
+        if (!dryRun) await alerting.deleteRule(orgId, cur.id, executor);
       }),
     ),
   );

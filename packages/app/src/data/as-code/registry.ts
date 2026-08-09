@@ -215,18 +215,16 @@ export async function applyResources(opts: {
 
   if (dryRun) return { dryRun: true, results: withOrphanWarnings(validated) };
 
-  // Real apply. The preview registration commits first on the base executor.
-  // Alert reconciliation currently performs its own database writes outside
-  // the transaction below, and every preview-owned definition has a
-  // foreign key to this row. A registered-but-partially-applied preview is the
-  // safe failure mode: the next apply upserts the same row and every reconciler
-  // converges. Live is not registered.
+  // Real apply. The preview registration commits first on the base executor:
+  // every preview-owned definition has a foreign key to this row, and a
+  // registered-but-empty preview is the safe failure mode (the next apply
+  // upserts the same row). Live is not registered.
   const applied = await resolveNamespace((name) =>
     upsertPreview(db, { orgId, repoid, name }),
   );
-  // One transaction for the reconcile loop. Reconcilers that use the supplied
-  // executor commit or roll back together; alerting reconcilers currently use
-  // their own database operations and recover by convergence on re-apply.
+  // One transaction for the reconcile loop: every reconciler writes through
+  // the supplied executor, so a later kind's failure rolls back earlier
+  // kinds' mutations and apply never half-changes live state.
   const results: KindResult[] = [];
   await db.transaction(async (tx) => {
     for (const { key, kind, reconcile } of REGISTRY) {

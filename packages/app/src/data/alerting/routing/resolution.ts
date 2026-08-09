@@ -5,35 +5,24 @@ import type {
   AlertingRuleView,
 } from "../types";
 
-const OP_SYMBOL: Record<AlertingMatcher["op"], string> = {
-  eq: "=",
-  ne: "≠",
-  regex: "=~",
-  notregex: "!~",
-};
+const OP_SYMBOL = { eq: "=", ne: "≠" } satisfies Record<
+  AlertingMatcher["op"],
+  string
+>;
 
 export function alertingOpSymbol(op: AlertingMatcher["op"]): string {
-  return OP_SYMBOL[op];
+  // A row persisted before an op was retired renders its raw op name, never
+  // the string "undefined".
+  return (OP_SYMBOL as Record<string, string | undefined>)[op] ?? op;
 }
 
-// Invalid patterns are cached as null. Configuration bounds the cache size.
-const REGEX_CACHE = new Map<string, RegExp | null>();
-
-/** Full-string regex match. Invalid patterns never match. */
-function alertingRegexFullMatch(pattern: string, value: string): boolean {
-  let re = REGEX_CACHE.get(pattern);
-  if (re === undefined) {
-    try {
-      re = new RegExp(`^(?:${pattern})$`);
-    } catch {
-      re = null;
-    }
-    REGEX_CACHE.set(pattern, re);
-  }
-  return re?.test(value) ?? false;
+// Rows written before the regex ops were removed never match. The `never`
+// parameter forces a new enum op to add its case before this compiles.
+function staleMatcherOpNeverMatches(_op: never): boolean {
+  return false;
 }
 
-/** Missing labels match as empty strings. */
+/** Missing labels match as empty strings. Matching is exact only. */
 export function alertingMatcherMatches(
   m: AlertingMatcher,
   labels: Record<string, string>,
@@ -44,10 +33,8 @@ export function alertingMatcherMatches(
       return v === m.value;
     case "ne":
       return v !== m.value;
-    case "regex":
-      return alertingRegexFullMatch(m.value, v);
-    case "notregex":
-      return !alertingRegexFullMatch(m.value, v);
+    default:
+      return staleMatcherOpNeverMatches(m.op);
   }
 }
 
@@ -58,8 +45,7 @@ export function alertingRouteMatches(
   return matchers.every((m) => alertingMatcherMatches(m, labels));
 }
 
-/** No matchers = matches every alert. (A `.*` regex also would, but the UI
- * only treats the explicit no-conditions form as a catch-all.) */
+/** No matchers = matches every alert. */
 export function alertingIsCatchAll(matchers: AlertingMatcher[]): boolean {
   return matchers.length === 0;
 }

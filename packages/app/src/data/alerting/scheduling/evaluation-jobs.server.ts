@@ -1,5 +1,7 @@
 import { createHash } from "node:crypto";
-import { addWorkerJob } from "@/server/worker/jobs";
+import type { TaskSpec } from "graphile-worker";
+import type { Transaction } from "@/db/client";
+import { addWorkerJob, addWorkerJobInTransaction } from "@/server/worker/jobs";
 
 export const ALERT_EVALUATE_TASK = "alerts/evaluate";
 
@@ -87,11 +89,8 @@ export function alertEvaluationJobKey(
   return `${ALERT_EVALUATE_TASK}:${id}:${scheduledFor}`;
 }
 
-export function enqueueAlertEvaluation(
-  payload: EvaluatePayload,
-  runAt = new Date(payload.scheduledFor),
-): Promise<void> {
-  return addWorkerJob(ALERT_EVALUATE_TASK, payload, {
+function evaluationTaskSpec(payload: EvaluatePayload, runAt: Date): TaskSpec {
+  return {
     jobKey: alertEvaluationJobKey(
       payload.alertDefinitionId,
       payload.scheduledFor,
@@ -100,5 +99,31 @@ export function enqueueAlertEvaluation(
     maxAttempts: EVALUATE_MAX_ATTEMPTS,
     queueName: alertingPartitionQueue("alert", payload.alertDefinitionId),
     runAt,
-  });
+  };
+}
+
+export function enqueueAlertEvaluation(
+  payload: EvaluatePayload,
+  runAt = new Date(payload.scheduledFor),
+): Promise<void> {
+  return addWorkerJob(
+    ALERT_EVALUATE_TASK,
+    payload,
+    evaluationTaskSpec(payload, runAt),
+  );
+}
+
+// Enqueued through graphile's SQL function so the job commits or rolls back
+// with the mutation that scheduled it.
+export function enqueueAlertEvaluationInTransaction(
+  tx: Transaction,
+  payload: EvaluatePayload,
+  runAt = new Date(payload.scheduledFor),
+): Promise<void> {
+  return addWorkerJobInTransaction(
+    tx,
+    ALERT_EVALUATE_TASK,
+    payload,
+    evaluationTaskSpec(payload, runAt),
+  );
 }

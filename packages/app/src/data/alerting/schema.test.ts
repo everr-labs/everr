@@ -1,8 +1,13 @@
 import { expect, it } from "vitest";
 import {
+  ALERTING_MATCHER_LABEL_MAX,
+  ALERTING_MATCHER_VALUE_MAX,
+  ALERTING_MATCHERS_MAX,
   AlertingChannelSchema,
   AlertingReceiverSchema,
+  AlertingRouteInputSchema,
   AlertingRuleViewSchema,
+  AlertingSilenceInputSchema,
 } from "./schema";
 
 const ruleView = {
@@ -84,6 +89,85 @@ it("rejects receiver channels that are not a non-empty list of names", () => {
   expect(() =>
     AlertingReceiverSchema.parse(receiver([{ type: "slack", url: "***" }])),
   ).toThrow();
+});
+
+const routeInput = (matchers: unknown) => ({
+  matchers,
+  receiver: "oncall",
+  continue: false,
+  priority: 1,
+  group_by: null,
+  group_wait_secs: null,
+  group_interval_secs: null,
+  repeat_interval_secs: null,
+});
+
+it("rejects the removed regex ops and names them in the error", () => {
+  for (const op of ["regex", "notregex"] as const) {
+    const result = AlertingRouteInputSchema.safeParse(
+      routeInput([{ label: "team", op, value: "^pay.*" }]),
+    );
+    expect(result.success).toBe(false);
+    const message = result.error?.issues[0]?.message ?? "";
+    expect(message).toContain(op);
+    expect(message).toContain("removed");
+    expect(message).toContain("eq");
+  }
+
+  const unknown = AlertingRouteInputSchema.safeParse(
+    routeInput([{ label: "team", op: "glob", value: "pay*" }]),
+  );
+  expect(unknown.success).toBe(false);
+  expect(unknown.error?.issues[0]?.message).toContain("eq");
+});
+
+it("bounds matcher counts and label and value lengths", () => {
+  const matchers = (count: number, value = "pay") =>
+    Array.from({ length: count }, () => ({ label: "team", op: "eq", value }));
+
+  expect(
+    AlertingRouteInputSchema.safeParse(
+      routeInput([
+        {
+          label: "x".repeat(ALERTING_MATCHER_LABEL_MAX + 1),
+          op: "eq",
+          value: "pay",
+        },
+      ]),
+    ).success,
+  ).toBe(false);
+
+  expect(
+    AlertingRouteInputSchema.safeParse(
+      routeInput(matchers(ALERTING_MATCHERS_MAX)),
+    ).success,
+  ).toBe(true);
+  expect(
+    AlertingRouteInputSchema.safeParse(
+      routeInput(matchers(ALERTING_MATCHERS_MAX + 1)),
+    ).success,
+  ).toBe(false);
+
+  const silence = (matchers: unknown) => ({
+    matchers,
+    starts_at: "2026-07-01T11:00:00Z",
+    ends_at: "2026-07-01T13:00:00Z",
+  });
+  expect(
+    AlertingSilenceInputSchema.safeParse(
+      silence(matchers(1, "x".repeat(ALERTING_MATCHER_VALUE_MAX))),
+    ).success,
+  ).toBe(true);
+  expect(
+    AlertingSilenceInputSchema.safeParse(
+      silence(matchers(1, "x".repeat(ALERTING_MATCHER_VALUE_MAX + 1))),
+    ).success,
+  ).toBe(false);
+  expect(
+    AlertingSilenceInputSchema.safeParse(
+      silence(matchers(ALERTING_MATCHERS_MAX + 1)),
+    ).success,
+  ).toBe(false);
 });
 
 it("rejects a channel with an unknown config type", () => {

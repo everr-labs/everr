@@ -10,7 +10,19 @@ import {
 } from "./vocabulary";
 
 export const AlertingSeveritySchema = z.enum(ALERTING_SEVERITIES);
-export const AlertingMatchOpSchema = z.enum(["eq", "ne", "regex", "notregex"]);
+
+// Matching is exact only. `regex`/`notregex` were removed: user patterns
+// reached the native RegExp engine, where catastrophic backtracking and an
+// unbounded pattern cache were a denial-of-service path.
+const ALERTING_REMOVED_MATCH_OPS = ["regex", "notregex"];
+
+export const AlertingMatchOpSchema = z.enum(["eq", "ne"], {
+  error: (issue) =>
+    typeof issue.input === "string" &&
+    ALERTING_REMOVED_MATCH_OPS.includes(issue.input)
+      ? `matcher op "${issue.input}" was removed: matchers are exact match only, use "eq" or "ne"`
+      : `matcher op must be "eq" or "ne"`,
+});
 const AlertingRuleConditionOperatorSchema = z.enum([
   "gt",
   "gte",
@@ -31,11 +43,20 @@ const AlertingTimestampSchema = z.string().datetime();
 const AlertingTimestampNullable = AlertingTimestampSchema.nullable();
 const AlertingChannelNamesSchema = alertingChannelNamesSchema();
 
+// Generous bounds that keep a matcher set bounded in memory and in the
+// dispatcher's per-alert work. They are not a UX policy.
+export const ALERTING_MATCHERS_MAX = 64;
+export const ALERTING_MATCHER_LABEL_MAX = 256;
+export const ALERTING_MATCHER_VALUE_MAX = 1024;
+
 export const AlertingMatcherSchema = z.object({
-  label: z.string(),
+  label: z.string().max(ALERTING_MATCHER_LABEL_MAX),
   op: AlertingMatchOpSchema,
-  value: z.string(),
+  value: z.string().max(ALERTING_MATCHER_VALUE_MAX),
 });
+
+const alertingMatchersSchema = <T extends z.ZodType>(matcher: T) =>
+  z.array(matcher).max(ALERTING_MATCHERS_MAX);
 
 export const AlertingRuleSpecSchema = z.object({
   sql: z.string(),
@@ -141,7 +162,7 @@ export const AlertingReceiverSchema = z.object({
 export const AlertingRouteSchema = z.object({
   id: z.string(),
   tenant: z.string(),
-  matchers: z.array(AlertingMatcherSchema),
+  matchers: alertingMatchersSchema(AlertingMatcherSchema),
   receiver: z.string(),
   continue: z.boolean(),
   priority: z.number().int(),
@@ -152,7 +173,7 @@ export const AlertingRouteSchema = z.object({
 });
 
 export const AlertingRouteInputSchema = z.object({
-  matchers: z.array(AlertingMatcherSchema),
+  matchers: alertingMatchersSchema(AlertingMatcherSchema),
   receiver: z.string().min(1),
   continue: z.boolean(),
   priority: z.number().int(),
@@ -174,20 +195,18 @@ export const AlertingRuleUpdateSchema = AlertingRuleSpecSchema.extend({
 });
 
 export const AlertingInhibitionInputSchema = z.object({
-  source_matchers: z.array(AlertingMatcherSchema),
-  target_matchers: z.array(AlertingMatcherSchema),
+  source_matchers: alertingMatchersSchema(AlertingMatcherSchema),
+  target_matchers: alertingMatchersSchema(AlertingMatcherSchema),
   equal: z.array(z.string()),
 });
 
 export const AlertingSilenceInputSchema = z.object({
   // Empty label names would turn missing labels into a global match.
-  matchers: z
-    .array(
-      AlertingMatcherSchema.refine((m) => m.label.trim() !== "", {
-        message: "matcher label is required",
-      }),
-    )
-    .min(1),
+  matchers: alertingMatchersSchema(
+    AlertingMatcherSchema.refine((m) => m.label.trim() !== "", {
+      message: "matcher label is required",
+    }),
+  ).min(1),
   starts_at: z.string(),
   ends_at: z.string(),
   comment: z.string().optional(),
@@ -197,7 +216,7 @@ export const AlertingSilenceInputSchema = z.object({
 export const AlertingSilenceSchema = z.object({
   id: z.string(),
   tenant: z.string(),
-  matchers: z.array(AlertingMatcherSchema),
+  matchers: alertingMatchersSchema(AlertingMatcherSchema),
   starts_at: AlertingTimestampSchema,
   ends_at: AlertingTimestampSchema,
   comment: z.string().nullable().optional(),
@@ -209,8 +228,8 @@ export const AlertingSilenceSchema = z.object({
 export const AlertingInhibitionSchema = z.object({
   id: z.string(),
   tenant: z.string(),
-  source_matchers: z.array(AlertingMatcherSchema),
-  target_matchers: z.array(AlertingMatcherSchema),
+  source_matchers: alertingMatchersSchema(AlertingMatcherSchema),
+  target_matchers: alertingMatchersSchema(AlertingMatcherSchema),
   equal: z.array(z.string()).nullable().optional(),
   created_at: AlertingTimestampSchema,
 });
