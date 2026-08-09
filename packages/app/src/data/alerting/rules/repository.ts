@@ -26,6 +26,7 @@ import {
   AlertingRuleSpecSchema,
   AlertingRuleUpdateSchema,
 } from "../schema";
+import type { AlertingMutationScope } from "../session";
 import type { AlertingRuleInput, AlertingRuleUpdate } from "../types";
 import {
   parseAlertEvaluationSamples,
@@ -557,7 +558,10 @@ export async function deleteRule(
   return { deleted: rows.length > 0 };
 }
 
-export async function pauseRule(organizationId: string, id: string) {
+export async function pauseRule(
+  { organizationId }: AlertingMutationScope,
+  id: string,
+) {
   const [row] = await db
     .update(alertDefinitions)
     .set({ active: false, updatedAt: new Date() })
@@ -573,7 +577,10 @@ export async function pauseRule(organizationId: string, id: string) {
   return ruleBase(row, await definitionChannelNamesFor(organizationId, row.id));
 }
 
-export async function resumeRule(organizationId: string, id: string) {
+export async function resumeRule(
+  { organizationId }: AlertingMutationScope,
+  id: string,
+) {
   const previous = await getRuleRow(organizationId, id);
   const nextEvaluationAt = nextAlertEvaluationAt(
     organizationId,

@@ -8,6 +8,7 @@ import {
 } from "@/server/alerts/delivery/tasks";
 import { throwAlertingPersistenceError } from "../persistence";
 import { AlertingSilenceInputSchema } from "../schema";
+import type { AlertingMutationScope } from "../session";
 import type { AlertingSilenceInput } from "../types";
 
 function toSilence(row: typeof alertSilences.$inferSelect) {
@@ -34,7 +35,7 @@ export async function listSilences(organizationId: string) {
 }
 
 export async function createSilence(
-  organizationId: string,
+  { organizationId, actor }: AlertingMutationScope,
   rawInput: AlertingSilenceInput,
 ) {
   const input = AlertingSilenceInputSchema.parse(rawInput);
@@ -54,7 +55,8 @@ export async function createSilence(
       startsAt,
       endsAt,
       comment: input.comment ?? "",
-      author: input.author ?? "",
+      // Server-derived: the caller cannot name somebody else as the author.
+      author: actor.display,
       matchers: input.matchers,
     })
     .returning();
@@ -74,7 +76,10 @@ export async function createSilence(
  * `now` would put it before `starts_at`, so it collapses to `starts_at` and
  * the window ends up empty instead of inverted.
  */
-export async function expireSilence(organizationId: string, id: string) {
+export async function expireSilence(
+  { organizationId }: AlertingMutationScope,
+  id: string,
+) {
   return db.transaction(async (tx) => {
     const rows = await tx
       .update(alertSilences)

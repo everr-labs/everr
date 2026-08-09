@@ -19,6 +19,7 @@ vi.mock("@/db/client", () => {
   return { db: { transaction: (fn: (t: unknown) => unknown) => fn(tx) } };
 });
 
+import { SYSTEM_ACTOR } from "../session";
 import { expireSilence } from "./repository";
 
 beforeEach(() => {
@@ -29,7 +30,9 @@ beforeEach(() => {
 it("releases the canceled silence's held events in one statement", async () => {
   mocks.updateReturning.mockResolvedValue([{ id: "sil-1" }]);
 
-  await expect(expireSilence("org-1", "sil-1")).resolves.toEqual({
+  await expect(
+    expireSilence({ organizationId: "org-1", actor: SYSTEM_ACTOR }, "sil-1"),
+  ).resolves.toEqual({
     expired: true,
   });
 
@@ -46,7 +49,9 @@ it("releases the canceled silence's held events in one statement", async () => {
 it("enqueues nothing when the silence was already closed", async () => {
   mocks.updateReturning.mockResolvedValue([]);
 
-  await expect(expireSilence("org-1", "sil-1")).resolves.toEqual({
+  await expect(
+    expireSilence({ organizationId: "org-1", actor: SYSTEM_ACTOR }, "sil-1"),
+  ).resolves.toEqual({
     expired: false,
   });
   expect(mocks.execute).not.toHaveBeenCalled();
