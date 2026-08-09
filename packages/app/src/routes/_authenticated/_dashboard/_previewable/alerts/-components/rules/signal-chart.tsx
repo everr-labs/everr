@@ -70,6 +70,12 @@ function createAlertTimeTickFormatter(domain: [number, number]) {
   return (timestamp: number) => formatter.format(new Date(timestamp));
 }
 
+const TRANSITION_LABELS = {
+  firing: "Fired",
+  resolved: "Resolved",
+  closed: "Closed",
+} as const;
+
 function transitionEvents(events: readonly AlertEventLogRow[]) {
   const seen = new Set<string>();
   return events.flatMap((event) => {
@@ -358,8 +364,7 @@ export function AlertRuleSignalChart({
       <ul className="sr-only" aria-label="Alert transitions in range">
         {visibleTransitions.map((event) => (
           <li key={`accessible-${event.key}`}>
-            {event.type === "firing" ? "Fired" : "Resolved"} at{" "}
-            {alertingFormatTs(event.t)}
+            {TRANSITION_LABELS[event.type]} at {alertingFormatTs(event.t)}
           </li>
         ))}
       </ul>

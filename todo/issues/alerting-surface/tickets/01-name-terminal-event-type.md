@@ -16,4 +16,4 @@ processed, discriminated by the existing `reason` column
 
 - [x] The name appears in the design doc's event-type table and Reference
 - [x] The event-type arithmetic in the design doc is corrected
-- [ ] The alerting vocabulary constants include the new type
+- [x] The alerting vocabulary constants include the new type

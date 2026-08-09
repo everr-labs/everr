@@ -2,7 +2,8 @@ DROP TABLE "alert_silences";--> statement-breakpoint
 DROP TABLE "alert_definitions";--> statement-breakpoint
 DROP TABLE "alert_settings";--> statement-breakpoint
 CREATE TYPE "public"."alert_delivery_state" AS ENUM('pending', 'sent', 'failed');--> statement-breakpoint
-CREATE TYPE "public"."alert_event_type" AS ENUM('instance_fired', 'instance_resolved', 'delivery', 'rule_health', 'silenced');--> statement-breakpoint
+CREATE TYPE "public"."alert_event_kind" AS ENUM('notifying', 'state');--> statement-breakpoint
+CREATE TYPE "public"."alert_event_type" AS ENUM('instance_pending', 'instance_fired', 'instance_resolved', 'instance_closed', 'delivery', 'rule_health', 'silenced', 'hold_changed', 'evaluation_failed');--> statement-breakpoint
 CREATE TYPE "public"."alert_health" AS ENUM('healthy', 'degraded');--> statement-breakpoint
 CREATE TYPE "public"."alert_instance_state" AS ENUM('inactive', 'pending', 'firing');--> statement-breakpoint
 CREATE TYPE "public"."alert_severity" AS ENUM('info', 'warning', 'critical');--> statement-breakpoint
@@ -83,6 +84,7 @@ CREATE TABLE "alert_deliveries" (
 	"attempts" integer DEFAULT 0 NOT NULL,
 	"last_error" text,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"journaled_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
 	CONSTRAINT "alert_deliveries_attempts_nonnegative" CHECK ("alert_deliveries"."attempts" >= 0)
 );
@@ -102,13 +104,15 @@ CREATE TABLE "alert_evaluations" (
 );
 --> statement-breakpoint
 CREATE TABLE "alert_events" (
-	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+	"id" uuid PRIMARY KEY DEFAULT uuidv7() NOT NULL,
 	"organization_id" text NOT NULL,
 	"repoid" text NOT NULL,
 	"preview_id" uuid,
 	"source_definition_id" uuid NOT NULL,
 	"slug" text NOT NULL,
 	"event_type" "alert_event_type" NOT NULL,
+	"kind" "alert_event_kind" DEFAULT 'notifying' NOT NULL,
+	"episode_id" uuid,
 	"instance_fingerprint" text DEFAULT '' NOT NULL,
 	"instance_labels" jsonb DEFAULT '{}'::jsonb NOT NULL,
 	"severity" "alert_severity" DEFAULT 'info' NOT NULL,
@@ -119,6 +123,7 @@ CREATE TABLE "alert_events" (
 	"inhibited" boolean DEFAULT false NOT NULL,
 	"silence_id" uuid,
 	"occurred_at" timestamp with time zone DEFAULT now() NOT NULL,
+	"journaled_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"processed_at" timestamp with time zone,
 	CONSTRAINT "alert_events_repoid_nonempty" CHECK (length("alert_events"."repoid") > 0)
 );
@@ -143,6 +148,7 @@ CREATE TABLE "alert_instances" (
 	"active_since" timestamp with time zone,
 	"last_seen_at" timestamp with time zone,
 	"absent_count" integer DEFAULT 0 NOT NULL,
+	"episode_id" uuid,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
 	CONSTRAINT "alert_instances_absent_count_nonnegative" CHECK ("alert_instances"."absent_count" >= 0)
 );
