@@ -17,6 +17,7 @@ import {
 import type { ComponentType } from "react";
 import { INSTALL_COMMAND } from "@/common/install-command";
 import { InstallCommandBlock } from "@/components/install-command-block";
+import { PageHeader } from "@/components/page-header";
 
 export const Route = createFileRoute("/_authenticated/_dashboard/_padded/")({
   staticData: { breadcrumb: "Home", hideTimeRangePicker: true },
@@ -29,12 +30,7 @@ export const Route = createFileRoute("/_authenticated/_dashboard/_padded/")({
 function HomePage() {
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-xl font-bold tracking-tight">Home</h1>
-        <p className="text-muted-foreground text-sm">
-          Pick up where you left off.
-        </p>
-      </div>
+      <PageHeader title="Home" lede="Pick up where you left off." />
 
       <InstallEverrCard />
 

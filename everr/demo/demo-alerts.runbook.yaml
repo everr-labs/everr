@@ -1,0 +1,11 @@
+kind: Runbook
+metadata:
+  name: demo-alerts
+  project: demo
+spec:
+  display:
+    name: Demo alerts runbook
+    description: What the two demo alert rules are for and how to quiet them.
+  duration: 6h
+  markdown:
+    file: ./demo-alerts.runbook.md

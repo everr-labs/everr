@@ -42,7 +42,10 @@ const globalTelemetry = globalThis as typeof globalThis & {
 };
 
 if (!globalTelemetry.__everrAppTelemetry) {
-  globalTelemetry.__everrAppTelemetry = startTelemetry();
+  globalTelemetry.__everrAppTelemetry =
+    process.env.TSS_PRERENDERING === "true"
+      ? { sdk: null, shuttingDown: false }
+      : startTelemetry();
 }
 
 export function getTelemetryTracer(name = "everr-app.server") {

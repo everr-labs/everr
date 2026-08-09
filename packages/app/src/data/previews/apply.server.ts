@@ -57,6 +57,11 @@ export async function findPreviewId(
  * the predicate is its own guard, so a concurrent re-apply that refreshes
  * lastAppliedAt is simply not matched. Live rows have no registry row and are
  * never touched.
+ *
+ * Alert rules also reference the preview row with ON DELETE CASCADE, so their
+ * definitions and dependent evaluation state are removed by the same database
+ * transaction. Already-queued evaluation jobs safely no-op when their
+ * definition no longer exists.
  */
 export async function deleteStalePreviews(
   retentionDays: number,

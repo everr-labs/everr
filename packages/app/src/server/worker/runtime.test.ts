@@ -6,7 +6,6 @@ type MockRunOptions = {
   concurrency: number;
   events: EventEmitter;
   noHandleSignals: boolean;
-  parsedCronItems: unknown[];
   pgPool: unknown;
   taskList: Record<string, unknown>;
 };
@@ -14,8 +13,6 @@ type MockRunOptions = {
 const runtimeMocks = vi.hoisted(() => {
   const runOptions: MockRunOptions[] = [];
   return {
-    alertCronItems: [{ task: "alerts/scan" }],
-    alertTaskList: { "alerts/scan": vi.fn(), "alerts/evaluate": vi.fn() },
     githubEventsTaskList: {
       "github-events/collector": vi.fn(),
       "github-events/status": vi.fn(),
@@ -38,12 +35,8 @@ const runtimeMocks = vi.hoisted(() => {
 });
 
 vi.mock("graphile-worker", () => ({
+  parseCronItems: (items: unknown[]) => items,
   run: runtimeMocks.run,
-}));
-
-vi.mock("@/server/alerts/00-runtime", () => ({
-  alertCronItems: runtimeMocks.alertCronItems,
-  alertTaskList: runtimeMocks.alertTaskList,
 }));
 
 vi.mock("@/server/github-events/tasks", () => ({
@@ -106,14 +99,19 @@ describe("worker runtime", () => {
       concurrency: 2,
       noHandleSignals: true,
       pgPool: runtimeMocks.pool,
-      parsedCronItems: [
-        ...runtimeMocks.alertCronItems,
+      parsedCronItems: expect.arrayContaining([
+        expect.objectContaining({ task: "alerts/scan" }),
+        expect.objectContaining({ task: "alerts/retention" }),
         ...runtimeMocks.previewsCronItems,
-      ],
+      ]),
     });
     expect(Object.keys(runtimeMocks.runOptions[0].taskList).sort()).toEqual([
       "alerts/evaluate",
+      "alerts/flush-group",
+      "alerts/process-event",
+      "alerts/retention",
       "alerts/scan",
+      "alerts/send-delivery",
       "github-events/collector",
       "github-events/status",
       "previews/retention",
@@ -159,7 +157,7 @@ describe("worker runtime", () => {
       attempts: 1,
       id: "18001",
       max_attempts: 25,
-      task_identifier: "alerts/evaluate",
+      task_identifier: "github-events/collector",
     };
 
     runtimeMocks.runOptions[0].events.emit("job:start", { job, worker });
@@ -172,8 +170,8 @@ describe("worker runtime", () => {
         "graphile_worker.job.duration_ms": expect.any(Number),
         "graphile_worker.job.id": "18001",
         "graphile_worker.job.max_attempts": 25,
-        "graphile_worker.job.name": "alerts/evaluate",
-        "graphile_worker.task.identifier": "alerts/evaluate",
+        "graphile_worker.job.name": "github-events/collector",
+        "graphile_worker.task.identifier": "github-events/collector",
         "graphile_worker.worker.id": "worker-test",
       }),
     );

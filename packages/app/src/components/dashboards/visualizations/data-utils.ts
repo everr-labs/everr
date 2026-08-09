@@ -4,15 +4,33 @@ import type { QueryResultRow } from "./index";
 
 export { toNumber };
 
-/** Shared series palette. Index 0 doubles as the accent color for brush
- * selections and sparklines. */
+/**
+ * Shared series palette. Index 0 doubles as the accent color for brush
+ * selections and sparklines.
+ *
+ * ORDER IS LOAD-BEARING and entries are append-only: charts assign colors by
+ * series index, so inserting or reordering re-colors every saved dashboard.
+ *
+ * The first six are the widely-spaced hues. Six hues is about what hue alone
+ * can keep apart, so the rest separate on LIGHTNESS as well — each sits in a
+ * hue gap and is visibly darker or lighter than its nearest neighbour. That
+ * ordering also means the most distinguishable colors are used first, and a
+ * value difference (unlike a hue difference) survives every form of color
+ * blindness.
+ */
 export const SERIES_COLORS = [
-  "hsl(217, 91%, 60%)",
-  "hsl(142, 71%, 45%)",
-  "hsl(0, 84%, 60%)",
-  "hsl(280, 68%, 60%)",
-  "hsl(35, 92%, 50%)",
-  "hsl(190, 90%, 50%)",
+  "hsl(217, 91%, 60%)", // blue
+  "hsl(142, 71%, 45%)", // green
+  "hsl(0, 84%, 60%)", // red
+  "hsl(280, 68%, 60%)", // purple
+  "hsl(35, 92%, 50%)", // orange
+  "hsl(190, 90%, 50%)", // cyan
+  "hsl(330, 80%, 62%)", // rose — the widest remaining hue gap
+  "hsl(85, 62%, 42%)", // olive — darker, so it holds against green
+  "hsl(250, 78%, 70%)", // indigo — lighter, so it holds against blue/purple
+  "hsl(168, 72%, 34%)", // deep teal — darker than both green and cyan
+  "hsl(20, 68%, 44%)", // rust — darker orange
+  "hsl(300, 44%, 48%)", // plum — darker, desaturated purple
 ];
 
 /** Clean clock intervals a time axis may tick at, ascending. */
@@ -75,6 +93,47 @@ export function generateTimeTicks(
     ticks.push(t);
   }
   return ticks;
+}
+
+/** A step of 1, 2, 2.5 or 5 times a power of ten, at least as large as `raw`. */
+function niceStep(raw: number): number {
+  const magnitude = 10 ** Math.floor(Math.log10(raw));
+  const f = raw / magnitude;
+  const m = f <= 1 ? 1 : f <= 2 ? 2 : f <= 2.5 ? 2.5 : f <= 5 ? 5 : 10;
+  return m * magnitude;
+}
+
+/**
+ * A value axis stated outright: round bounds, round ticks, and the numbers
+ * available to the caller.
+ *
+ * recharts will size a value axis on its own, but it keeps the result to
+ * itself, so anything that has to turn a cursor height back into a value (the
+ * hover highlight) has nowhere to read it from. Declaring the axis fixes that
+ * and picks rounder steps besides: recharts' own algorithm is happy to land on
+ * 35, 65 or 1500, where this one holds to 1, 2, 2.5 and 5.
+ *
+ * The floor is pinned at zero unless the data goes below it, so a series'
+ * height on the plot stays proportional to its value.
+ */
+export function niceLinearDomain(
+  min: number,
+  max: number,
+  tickCount = 5,
+): { domain: [number, number]; ticks: number[] } {
+  const lo0 = Math.min(0, Number.isFinite(min) ? min : 0);
+  const hi0 = Math.max(lo0, Number.isFinite(max) ? max : 0);
+  // A flat series still needs an axis with height, or it plots on the edge.
+  const step = niceStep(Math.max(hi0 - lo0, Number.EPSILON) / (tickCount - 1));
+  const lo = Math.floor(lo0 / step) * step;
+  const hi = Math.ceil(hi0 / step) * step;
+  const ticks: number[] = [];
+  // Rounded per tick: repeated addition of a step like 0.2 accumulates binary
+  // error into labels such as "0.6000000000000001".
+  for (let i = 0; lo + i * step <= hi + step / 2; i++) {
+    ticks.push(Number((lo + i * step).toPrecision(12)));
+  }
+  return { domain: [lo, hi === lo ? lo + step : hi], ticks };
 }
 
 const QUERY_LETTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";

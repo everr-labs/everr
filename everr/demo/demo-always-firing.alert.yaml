@@ -1,0 +1,27 @@
+kind: AlertRule
+metadata:
+  name: demo-always-firing
+  project: demo
+spec:
+  runbook: demo-alerts
+  display:
+    name: Always firing (demo)
+    description: Multi-series rule for exercising the alerting UI. It always returns three stable instances, two breaching and one healthy.
+  evaluationInterval: 1m
+  notificationMessage:
+    title: "Demo alert: ${source} is firing"
+    description: "${source} returned ${value}. This rule exists to test multi-instance alerting."
+  condition:
+    operator: gte
+    threshold: 2
+  instanceLabels: [source]
+  query: |
+    SELECT
+      source,
+      value
+    FROM VALUES(
+      'source String, value UInt64',
+      ('api', 1),
+      ('worker', 2),
+      ('scheduler', 3)
+    )

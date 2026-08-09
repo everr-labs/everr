@@ -1,7 +1,11 @@
 import { and, eq, isNull, ne, or } from "drizzle-orm";
-import type { PgColumn } from "drizzle-orm/pg-core";
+import * as alertRules from "@/data/alerting/rules/repository";
+import {
+  fromAlertingRule,
+  toAlertRuleDocument,
+} from "@/data/alerting/rules/resource/mapping";
+import type { AlertingRuleView } from "@/data/alerting/types";
 import { db } from "@/db/client";
-import { alertDefinitions } from "@/db/schema/alerts";
 import { dashboards, runbooks } from "@/db/schema/app";
 
 export const RESOURCE_KINDS = ["dashboard", "runbook", "alert"] as const;
@@ -11,39 +15,13 @@ export function isResourceKind(value: string): value is ResourceKind {
   return (RESOURCE_KINDS as readonly string[]).includes(value);
 }
 
-/**
- * The Drizzle table backing each kind, plus its soft-delete marker when it has
- * one. Only `alertDefinitions` carries a legacy `deletedAt`, which the rest of
- * the codebase always excludes when reading "live" alerts (see
- * data/alerts/server.ts).
- */
-const KIND_TABLES: Record<
-  ResourceKind,
-  { table: unknown; deletedAt?: PgColumn }
-> = {
-  dashboard: { table: dashboards },
-  runbook: { table: runbooks },
-  alert: { table: alertDefinitions, deletedAt: alertDefinitions.deletedAt },
-};
-
-// Drizzle infers a distinct row/table type per pgTable, so a value typed as
-// `PgTable` can't be passed straight into `.select().from()` without the
-// compiler losing track of column identity. The KIND_TABLES values are
-// structurally compatible (same column shapes) but TS won't unify the union;
-// this single localized cast at the query boundary keeps behavior identical
-// while satisfying the compiler.
-type LiveTable = typeof dashboards;
-
-function tableFor(kind: ResourceKind): LiveTable {
-  return KIND_TABLES[kind].table as LiveTable;
-}
-
 export interface ResourceSummary {
   kind: ResourceKind;
   project: string;
   slug: string;
   /** "" for UI-created resources. */
   repoid: string;
+  /** RFC-3339 timestamp of the resource's last write. */
   updatedAt: string;
 }
 
@@ -53,58 +31,186 @@ export interface ListFilters {
   repoid?: string;
 }
 
-/**
- * Conditions scoping a query to a live row of `kind`: the caller's org, not a
- * preview row, and not soft-deleted (for kinds with a soft-delete marker).
- */
-function liveScope(kind: ResourceKind, orgId: string) {
-  const table = tableFor(kind);
-  const conds = [eq(table.organizationId, orgId), isNull(table.previewId)];
-  const { deletedAt } = KIND_TABLES[kind];
-  if (deletedAt) conds.push(isNull(deletedAt));
-  return conds;
+export interface AdoptResult {
+  found: boolean;
+  alreadyOwned: boolean;
 }
 
-/** The full `(org, live, project, slug)` identity match for one live row. */
-function scopedRow(
-  kind: ResourceKind,
+/** The per-kind storage operations the generic admin functions dispatch to. */
+interface KindBackend {
+  list(orgId: string, repoid: string | undefined): Promise<ResourceSummary[]>;
+  get(orgId: string, project: string, slug: string): Promise<unknown | null>;
+  delete(orgId: string, project: string, slug: string): Promise<boolean>;
+  adopt(
+    orgId: string,
+    project: string,
+    slug: string,
+    destRepoid: string,
+  ): Promise<AdoptResult>;
+}
+
+type PgTable = typeof dashboards | typeof runbooks;
+
+// Drizzle infers a distinct row/table type per pgTable, so a value typed as
+// `PgTable` can't be passed straight into `.select().from()` without the
+// compiler losing track of column identity. The PG-backed tables are
+// structurally compatible (same column shapes) but TS won't unify the union;
+// this single localized cast at the backend boundary keeps behavior identical
+// while satisfying the compiler.
+type LiveTable = typeof dashboards;
+
+/**
+ * The Postgres-backed storage for one kind: dashboards and runbooks share this
+ * implementation, parameterized by their table.
+ */
+function pgBackend(kind: ResourceKind, pgTable: PgTable): KindBackend {
+  const table = pgTable as LiveTable;
+
+  /**
+   * Conditions scoping a query to a live row of the kind: the caller's org and
+   * not a preview row.
+   */
+  const liveScope = (orgId: string) => [
+    eq(table.organizationId, orgId),
+    isNull(table.previewId),
+  ];
+
+  /** The full `(org, live, project, slug)` identity match for one live row. */
+  const scopedRow = (orgId: string, project: string, slug: string) =>
+    and(...liveScope(orgId), eq(table.project, project), eq(table.slug, slug));
+
+  return {
+    async list(orgId, repoid) {
+      const conds = liveScope(orgId);
+      if (repoid !== undefined) conds.push(eq(table.repoid, repoid));
+      const rows = await db
+        .select({
+          project: table.project,
+          slug: table.slug,
+          repoid: table.repoid,
+          updatedAt: table.updatedAt,
+        })
+        .from(table)
+        .where(and(...conds));
+      return rows.map((r) => ({
+        kind,
+        project: r.project,
+        slug: r.slug,
+        repoid: r.repoid ?? "",
+        updatedAt: r.updatedAt.toISOString(),
+      }));
+    },
+    async get(orgId, project, slug) {
+      const [row] = await db
+        .select({ document: table.document })
+        .from(table)
+        .where(scopedRow(orgId, project, slug))
+        .limit(1);
+      return row?.document ?? null;
+    },
+    async delete(orgId, project, slug) {
+      const result = await db
+        .delete(table)
+        .where(scopedRow(orgId, project, slug));
+      return (result.rowCount ?? 0) > 0;
+    },
+    async adopt(orgId, project, slug, destRepoid) {
+      const where = scopedRow(orgId, project, slug);
+      // Flip ownership in one statement; the ownership guard leaves 0 rows only
+      // for the rare not-found / already-owned cases, which the follow-up
+      // select disambiguates.
+      const updated = await db
+        .update(table)
+        .set({ repoid: destRepoid })
+        .where(
+          and(where, or(isNull(table.repoid), ne(table.repoid, destRepoid))),
+        );
+      if ((updated.rowCount ?? 0) > 0) {
+        return { found: true, alreadyOwned: false };
+      }
+      const [existing] = await db
+        .select({ repoid: table.repoid })
+        .from(table)
+        .where(where)
+        .limit(1);
+      if (!existing) return { found: false, alreadyOwned: false };
+      return { found: true, alreadyOwned: true };
+    },
+  };
+}
+
+/**
+ * The org's live alert rules. Only preview copies are excluded.
+ */
+async function listLiveAlertRules(orgId: string): Promise<AlertingRuleView[]> {
+  const rules = await alertRules.listAllRules(orgId);
+  return rules.filter((r) => r.previewId === null);
+}
+
+/**
+ * The live alert rule for `(project, slug)`, or null. Matches on the parsed
+ * identity rather than the formatted name so an unqualified engine-native
+ * name resolves under its implied "default" project.
+ */
+async function findAlertRule(
   orgId: string,
   project: string,
   slug: string,
-) {
-  const table = tableFor(kind);
-  return and(
-    ...liveScope(kind, orgId),
-    eq(table.project, project),
-    eq(table.slug, slug),
+): Promise<AlertingRuleView | null> {
+  const rules = await listLiveAlertRules(orgId);
+  return (
+    rules.find((r) => {
+      const view = fromAlertingRule(r);
+      return view.project === project && view.slug === slug;
+    }) ?? null
   );
 }
 
-async function listOneKind(
-  orgId: string,
-  kind: ResourceKind,
-  repoid: string | undefined,
-): Promise<ResourceSummary[]> {
-  const table = tableFor(kind);
-  const conds = liveScope(kind, orgId);
-  if (repoid !== undefined) conds.push(eq(table.repoid, repoid));
-  const rows = await db
-    .select({
-      project: table.project,
-      slug: table.slug,
-      repoid: table.repoid,
-      updatedAt: table.updatedAt,
-    })
-    .from(table)
-    .where(and(...conds));
-  return rows.map((r) => ({
-    kind,
-    project: r.project,
-    slug: r.slug,
-    repoid: r.repoid ?? "",
-    updatedAt: r.updatedAt.toISOString(),
-  }));
-}
+/**
+ * Alerts store ownership in a first-class `repoid` column. A canonical
+ * `kind: AlertRule` document is reconstructed from the stored definition.
+ */
+const alertBackend: KindBackend = {
+  async list(orgId, repoid) {
+    const rules = await listLiveAlertRules(orgId);
+    return rules
+      .map((r) => ({ view: fromAlertingRule(r), updatedAt: r.updated_at }))
+      .filter(({ view }) => repoid === undefined || view.repoid === repoid)
+      .map(({ view, updatedAt }) => ({
+        kind: "alert" as const,
+        project: view.project,
+        slug: view.slug,
+        repoid: view.repoid,
+        updatedAt,
+      }));
+  },
+  async get(orgId, project, slug) {
+    const rule = await findAlertRule(orgId, project, slug);
+    return rule ? toAlertRuleDocument(rule) : null;
+  },
+  async delete(orgId, project, slug) {
+    const rule = await findAlertRule(orgId, project, slug);
+    if (!rule) return false;
+    await alertRules.deleteRule(orgId, rule.id);
+    return true;
+  },
+  async adopt(orgId, project, slug, destRepoid) {
+    const rule = await findAlertRule(orgId, project, slug);
+    if (!rule) return { found: false, alreadyOwned: false };
+    if (fromAlertingRule(rule).repoid === destRepoid) {
+      return { found: true, alreadyOwned: true };
+    }
+    await alertRules.adoptRule(orgId, rule.id, destRepoid, rule.version);
+    return { found: true, alreadyOwned: false };
+  },
+};
+
+// Document resources use their tables; alerts use the domain repository.
+const KIND_BACKENDS: Record<ResourceKind, KindBackend> = {
+  dashboard: pgBackend("dashboard", dashboards),
+  runbook: pgBackend("runbook", runbooks),
+  alert: alertBackend,
+};
 
 export async function listResources(
   orgId: string,
@@ -112,43 +218,29 @@ export async function listResources(
 ): Promise<ResourceSummary[]> {
   const kinds = filters.kind ? [filters.kind] : [...RESOURCE_KINDS];
   const perKind = await Promise.all(
-    kinds.map((k) => listOneKind(orgId, k, filters.repoid)),
+    kinds.map((k) => KIND_BACKENDS[k].list(orgId, filters.repoid)),
   );
   return perKind.flat();
 }
 
-/** The stored `document` JSON, or null when the resource does not exist. */
+/** Returns the canonical as-code document, or null when it does not exist. */
 export async function getResource(
   orgId: string,
   kind: ResourceKind,
   project: string,
   slug: string,
 ): Promise<unknown | null> {
-  const table = tableFor(kind);
-  const [row] = await db
-    .select({ document: table.document })
-    .from(table)
-    .where(scopedRow(kind, orgId, project, slug))
-    .limit(1);
-  return row?.document ?? null;
+  return KIND_BACKENDS[kind].get(orgId, project, slug);
 }
 
-/** True when a row was deleted, false when none matched. */
+/** True when a resource was deleted, false when none matched. */
 export async function deleteResource(
   orgId: string,
   kind: ResourceKind,
   project: string,
   slug: string,
 ): Promise<boolean> {
-  const result = await db
-    .delete(tableFor(kind))
-    .where(scopedRow(kind, orgId, project, slug));
-  return (result.rowCount ?? 0) > 0;
-}
-
-export interface AdoptResult {
-  found: boolean;
-  alreadyOwned: boolean;
+  return KIND_BACKENDS[kind].delete(orgId, project, slug);
 }
 
 /**
@@ -163,21 +255,5 @@ export async function adoptResource(
   slug: string,
   destRepoid: string,
 ): Promise<AdoptResult> {
-  const table = tableFor(kind);
-  const where = scopedRow(kind, orgId, project, slug);
-  // Flip ownership in one statement; the ownership guard leaves 0 rows only
-  // for the rare not-found / already-owned cases, which the follow-up select
-  // disambiguates.
-  const updated = await db
-    .update(table)
-    .set({ repoid: destRepoid })
-    .where(and(where, or(isNull(table.repoid), ne(table.repoid, destRepoid))));
-  if ((updated.rowCount ?? 0) > 0) return { found: true, alreadyOwned: false };
-  const [existing] = await db
-    .select({ repoid: table.repoid })
-    .from(table)
-    .where(where)
-    .limit(1);
-  if (!existing) return { found: false, alreadyOwned: false };
-  return { found: true, alreadyOwned: true };
+  return KIND_BACKENDS[kind].adopt(orgId, project, slug, destRepoid);
 }
