@@ -2,6 +2,7 @@ import { and, eq } from "drizzle-orm";
 import { db } from "@/db/client";
 import {
   alertChannels,
+  alertDefinitionChannels,
   alertDefinitions,
   alertDeliveries,
   alertEvents,
@@ -35,6 +36,11 @@ export async function deletePostgresOrganizationData(
     await tx
       .delete(alertReceiverChannels)
       .where(eq(alertReceiverChannels.organizationId, organizationId));
+    // The direct rule-to-channel mapping's channel FK does not cascade, so
+    // it must clear before alertChannels or the delete below is rejected.
+    await tx
+      .delete(alertDefinitionChannels)
+      .where(eq(alertDefinitionChannels.organizationId, organizationId));
     await tx
       .delete(alertRoutes)
       .where(eq(alertRoutes.organizationId, organizationId));

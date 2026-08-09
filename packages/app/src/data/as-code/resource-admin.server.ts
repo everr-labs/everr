@@ -191,7 +191,7 @@ const alertBackend: KindBackend = {
   async delete(orgId, project, slug) {
     const rule = await findAlertRule(orgId, project, slug);
     if (!rule) return false;
-    await alertRules.deleteRule(orgId, rule.id);
+    await alertRules.deleteRule(orgId, rule.id, db);
     return true;
   },
   async adopt(orgId, project, slug, destRepoid) {
@@ -200,7 +200,14 @@ const alertBackend: KindBackend = {
     if (fromAlertingRule(rule).repoid === destRepoid) {
       return { found: true, alreadyOwned: true };
     }
-    await alertRules.adoptRule(orgId, rule.id, destRepoid, rule.version);
+    await alertRules.adoptRule(
+      orgId,
+      rule.id,
+      destRepoid,
+      rule.version,
+      undefined,
+      db,
+    );
     return { found: true, alreadyOwned: false };
   },
 };

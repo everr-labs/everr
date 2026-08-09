@@ -28,7 +28,8 @@ import type { DbExecutor } from "@/db/client";
 import { querySqlApiWithMeta } from "@/lib/clickhouse";
 import { applyAlertSpecs } from "./apply.server";
 
-// These tests mock the repository, so the reconciler executor is unused.
+// The repository is mocked, so the executor's identity is all that matters:
+// the reconciler must hand this exact object to every mutation.
 const db = {} as unknown as DbExecutor;
 
 const ch = vi.mocked(querySqlApiWithMeta);
@@ -155,6 +156,47 @@ describe("applyAlertSpecs", () => {
     expect(mockedDeleteRule).not.toHaveBeenCalled();
   });
 
+  it("passes the registry executor to every mutation, so apply commits or rolls back whole", async () => {
+    mockedListRules.mockResolvedValue([
+      managedRule("changed", { sql: CHANGED_SQL }),
+      managedRule("stale"),
+      managedRule("foreign", { repoid: "other-repo" }),
+    ]);
+
+    await applyAlertSpecs({
+      namespace: live,
+      db,
+      adopt: true,
+      resources: [
+        { path: "new.yaml", resource: alert("brand-new") },
+        { path: "changed.yaml", resource: alert("changed") },
+        { path: "foreign.yaml", resource: alert("foreign") },
+      ],
+    });
+
+    expect(mockedCreateRule).toHaveBeenCalledTimes(1);
+    expect(mockedCreateRule).toHaveBeenCalledWith("o", expect.anything(), db);
+    expect(mockedUpdateRule).toHaveBeenCalledTimes(1);
+    expect(mockedUpdateRule).toHaveBeenCalledWith(
+      "o",
+      "rule-changed",
+      expect.anything(),
+      3,
+      db,
+    );
+    expect(mockedAdoptRule).toHaveBeenCalledTimes(1);
+    expect(mockedAdoptRule).toHaveBeenCalledWith(
+      "o",
+      "rule-foreign",
+      "repo-1",
+      3,
+      expect.anything(),
+      db,
+    );
+    expect(mockedDeleteRule).toHaveBeenCalledTimes(1);
+    expect(mockedDeleteRule).toHaveBeenCalledWith("o", "rule-stale", db);
+  });
+
   it("resolves explicit notification channels before creating the rule", async () => {
     mockedListChannels.mockResolvedValue([
       { id: "channel-1", tenant: "o", name: "team-slack", config: {} },
@@ -176,6 +218,7 @@ describe("applyAlertSpecs", () => {
     expect(mockedCreateRule).toHaveBeenCalledWith(
       "o",
       expect.objectContaining({ notification_channels: ["team-slack"] }),
+      db,
     );
   });
 
@@ -263,7 +306,7 @@ describe("applyAlertSpecs", () => {
 
     expect(res.deleted).toEqual(["default/stale"]);
     expect(mockedDeleteRule).toHaveBeenCalledTimes(1);
-    expect(mockedDeleteRule).toHaveBeenCalledWith("o", "prev-rule-stale");
+    expect(mockedDeleteRule).toHaveBeenCalledWith("o", "prev-rule-stale", db);
   });
 
   it("a live apply updates and prunes only the live copy when a preview copy of the same name coexists", async () => {
@@ -297,7 +340,7 @@ describe("applyAlertSpecs", () => {
 
     expect(pruned.deleted).toEqual(["default/high-errors"]);
     expect(mockedDeleteRule).toHaveBeenCalledTimes(1);
-    expect(mockedDeleteRule).toHaveBeenCalledWith("o", "rule-high-errors");
+    expect(mockedDeleteRule).toHaveBeenCalledWith("o", "rule-high-errors", db);
   });
 
   it("leaves an unchanged preview rule alone and updates a changed one in place", async () => {
@@ -610,7 +653,7 @@ describe("applyAlertSpecs", () => {
 
     expect(res.deleted).toEqual(["default/gone"]);
     expect(mockedDeleteRule).toHaveBeenCalledTimes(1);
-    expect(mockedDeleteRule).toHaveBeenCalledWith("o", "x");
+    expect(mockedDeleteRule).toHaveBeenCalledWith("o", "x", db);
   });
 
   it("reports cross-repo name collisions as ownership conflicts (no writes)", async () => {

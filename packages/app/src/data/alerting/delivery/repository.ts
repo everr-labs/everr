@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { and, asc, desc, eq, inArray } from "drizzle-orm";
-import { db } from "@/db/client";
+import { type DbExecutor, db } from "@/db/client";
 import {
   alertChannels,
   alertDefinitionChannels,
@@ -245,6 +245,7 @@ export async function listReceivers(organizationId: string) {
 async function resolveChannelIds(
   organizationId: string,
   names: string[],
+  executor: DbExecutor = db,
 ): Promise<string[]> {
   if (names.length === 0) {
     throwAlertingPersistenceError(
@@ -253,7 +254,7 @@ async function resolveChannelIds(
       "receiver needs a channel",
     );
   }
-  const rows = await db
+  const rows = await executor
     .select({ id: alertChannels.id, name: alertChannels.name })
     .from(alertChannels)
     .where(
@@ -277,8 +278,11 @@ async function resolveChannelIds(
 export async function resolveOptionalChannelIds(
   organizationId: string,
   names: string[],
+  executor: DbExecutor = db,
 ): Promise<string[]> {
-  return names.length === 0 ? [] : resolveChannelIds(organizationId, names);
+  return names.length === 0
+    ? []
+    : resolveChannelIds(organizationId, names, executor);
 }
 
 export async function createReceiver(
