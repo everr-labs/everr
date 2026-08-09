@@ -1,5 +1,5 @@
 ---
-"@everr/otel-errors": minor
+"@everr/otel-errors": patch
 ---
 
 Renamed from `@everr/auto-otel-errors`, and reduced to the Node runtime.
