@@ -4,6 +4,7 @@ export type AlertEventType = (typeof ALERTING_EVENT_TYPES)[number];
 
 /** `app.alert_events` types that are instance state changes. */
 const ALERT_TRANSITION_EVENT_TYPES = [
+  "instance_pending",
   "instance_fired",
   "instance_resolved",
   "instance_closed",
@@ -36,8 +37,10 @@ export const ALERT_OUTCOME_EVENT_TYPES_SQL = sqlStringList(
 // observed.
 export function alertingEventStatus(
   eventType: string,
-): "firing" | "resolved" | "closed" | null {
+): "pending" | "firing" | "resolved" | "closed" | null {
   switch (eventType) {
+    case "instance_pending":
+      return "pending";
     case "instance_fired":
       return "firing";
     case "instance_resolved":

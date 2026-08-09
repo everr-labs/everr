@@ -179,16 +179,21 @@ describe("transitionEventRows episode stamping", () => {
   };
 
   function transition(
-    event: "firing" | "resolved" | null,
+    event: AlertInstanceTransition["event"],
   ): AlertInstanceTransition {
     return {
       next: {
         fingerprint: "api",
-        status: event === "firing" ? "firing" : "inactive",
+        status:
+          event === "firing"
+            ? "firing"
+            : event === "pending"
+              ? "pending"
+              : "inactive",
         labels: { service: "api" },
         evidence: { value: 1 },
         value: 1,
-        pendingSince: null,
+        pendingSince: event === "pending" ? evaluatedAt : null,
         activeSince: event === "firing" ? evaluatedAt : null,
         lastSeenAt: evaluatedAt,
         absentCount: 0,
@@ -260,5 +265,80 @@ describe("transitionEventRows episode stamping", () => {
         storedEpisodeId: null,
       }),
     ).toEqual([]);
+  });
+
+  it("opens the episode at pending and lets the fire inherit it", () => {
+    const [pending] = transitionEventRows({
+      def: episodeDef,
+      historyDef,
+      transition: transition("pending"),
+      evaluatedAt,
+      storedEpisodeId: null,
+    });
+    expect(pending?.outbox.eventType).toBe("instance_pending");
+    expect(pending?.outbox.episodeId).toBe(pending?.outbox.id);
+    expect(pending?.episodeUpdate).toBe(pending?.outbox.id);
+
+    const [fired] = transitionEventRows({
+      def: episodeDef,
+      historyDef,
+      transition: transition("firing"),
+      evaluatedAt,
+      storedEpisodeId: pending?.outbox.id ?? null,
+    });
+    expect(fired?.outbox.episodeId).toBe(pending?.outbox.id);
+    expect(fired?.history.episode_id).toBe(pending?.outbox.id);
+    expect(fired?.episodeUpdate).toBe(pending?.outbox.id);
+  });
+
+  it("journals pending born processed, state kind, and outside any chain", () => {
+    const [pending] = transitionEventRows({
+      def: episodeDef,
+      historyDef,
+      transition: transition("pending"),
+      evaluatedAt,
+      storedEpisodeId: null,
+    });
+    expect(pending?.outbox.kind).toBe("state");
+    expect(pending?.outbox.processedAt).toEqual(evaluatedAt);
+    expect(pending?.history.notification_event_id).toBe(
+      "00000000-0000-0000-0000-000000000000",
+    );
+  });
+
+  it("closes a cleared pending with instance_closed and its reason", () => {
+    const episodeId = "019c3ab6-54d6-7e26-bc76-8cadd67542fb";
+    const [closed] = transitionEventRows({
+      def: episodeDef,
+      historyDef,
+      transition: transition("pending_cleared"),
+      evaluatedAt,
+      storedEpisodeId: episodeId,
+    });
+    expect(closed?.outbox.eventType).toBe("instance_closed");
+    expect(closed?.outbox.kind).toBe("state");
+    expect(closed?.outbox.processedAt).toEqual(evaluatedAt);
+    expect(closed?.outbox.reason).toBe("pending_cleared");
+    expect(closed?.outbox.episodeId).toBe(episodeId);
+    expect(closed?.history.episode_id).toBe(episodeId);
+    expect(closed?.history.reason).toBe("pending_cleared");
+    expect(closed?.history.notification_event_id).toBe(
+      "00000000-0000-0000-0000-000000000000",
+    );
+    // The terminal closes the episode: the instance's open episode clears.
+    expect(closed?.episodeUpdate).toBeNull();
+  });
+
+  it("stamps condition_cleared on a resolve", () => {
+    const [resolved] = transitionEventRows({
+      def: episodeDef,
+      historyDef,
+      transition: transition("resolved"),
+      evaluatedAt,
+      storedEpisodeId: null,
+    });
+    expect(resolved?.outbox.reason).toBe("condition_cleared");
+    expect(resolved?.outbox.kind).toBe("notifying");
+    expect(resolved?.history.reason).toBe("condition_cleared");
   });
 });

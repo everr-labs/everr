@@ -100,4 +100,79 @@ describe("advanceAlertInstance", () => {
     expect(two.next.status).toBe("inactive");
     expect(two.event).toBe("resolved");
   });
+
+  it("emits a pending event on entry to pending, and only then", () => {
+    const entered = advanceAlertInstance({
+      previous: newInactiveInstance(present),
+      present,
+      evaluatedAt: at(0),
+      forSeconds: 60,
+      resolveAfter: 1,
+    });
+    const stillPending = advanceAlertInstance({
+      previous: entered.next,
+      present,
+      evaluatedAt: at(30),
+      forSeconds: 60,
+      resolveAfter: 1,
+    });
+    expect(entered.event).toBe("pending");
+    expect(stillPending.event).toBeNull();
+  });
+
+  it("does not emit a pending event when the fire is immediate", () => {
+    const result = advanceAlertInstance({
+      previous: newInactiveInstance(present),
+      present,
+      evaluatedAt: at(0),
+      forSeconds: 0,
+      resolveAfter: 1,
+    });
+    expect(result.event).toBe("firing");
+  });
+
+  it("clears a pending instance with a pending_cleared event, not a resolve", () => {
+    const entered = advanceAlertInstance({
+      previous: newInactiveInstance(present),
+      present,
+      evaluatedAt: at(0),
+      forSeconds: 60,
+      resolveAfter: 1,
+    });
+    const cleared = advanceAlertInstance({
+      previous: entered.next,
+      present: undefined,
+      evaluatedAt: at(30),
+      forSeconds: 60,
+      resolveAfter: 1,
+    });
+    expect(cleared.next.status).toBe("inactive");
+    expect(cleared.event).toBe("pending_cleared");
+  });
+
+  it("keeps a reappearance inside the pending phase silent", () => {
+    const entered = advanceAlertInstance({
+      previous: newInactiveInstance(present),
+      present,
+      evaluatedAt: at(0),
+      forSeconds: 120,
+      resolveAfter: 2,
+    });
+    const absent = advanceAlertInstance({
+      previous: entered.next,
+      present: undefined,
+      evaluatedAt: at(30),
+      forSeconds: 120,
+      resolveAfter: 2,
+    });
+    const reappeared = advanceAlertInstance({
+      previous: absent.next,
+      present,
+      evaluatedAt: at(60),
+      forSeconds: 120,
+      resolveAfter: 2,
+    });
+    expect(reappeared.next.status).toBe("pending");
+    expect(reappeared.event).toBeNull();
+  });
 });

@@ -18,6 +18,8 @@ import {
   ALERT_SEND_DELIVERY_TASK,
 } from "./delivery/tasks";
 import { evaluateAlert } from "./evaluation/rule";
+import { projectAlertLifecycle } from "./history/project-lifecycle";
+import { ALERT_PROJECT_LIFECYCLE_TASK } from "./history/tasks";
 import { cleanupAlertingHistory } from "./maintenance/cleanup";
 import { scanDueAlerts } from "./scheduling/scanner";
 
@@ -40,6 +42,12 @@ export const alertTaskList: TaskList = {
   [ALERT_SEND_DELIVERY_TASK]: context.bind(ROOT_CONTEXT, async (payload) => {
     await sendAlertDelivery(payload);
   }),
+  [ALERT_PROJECT_LIFECYCLE_TASK]: context.bind(
+    ROOT_CONTEXT,
+    async (payload) => {
+      await projectAlertLifecycle(payload);
+    },
+  ),
   [ALERT_RETENTION_TASK]: context.bind(ROOT_CONTEXT, async () => {
     const counts = await cleanupAlertingHistory();
     const deleted = Object.values(counts).reduce(

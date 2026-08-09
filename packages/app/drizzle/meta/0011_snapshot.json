@@ -941,6 +941,13 @@
           "primaryKey": false,
           "notNull": false
         },
+        "reason": {
+          "name": "reason",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "''"
+        },
         "instance_fingerprint": {
           "name": "instance_fingerprint",
           "type": "text",
@@ -4927,6 +4934,7 @@
       "values": [
         "unknown",
         "resolved",
+        "pending",
         "firing"
       ]
     },

@@ -109,6 +109,7 @@ describe("worker runtime", () => {
       "alerts/evaluate",
       "alerts/flush-group",
       "alerts/process-event",
+      "alerts/project-lifecycle",
       "alerts/retention",
       "alerts/scan",
       "alerts/send-delivery",

@@ -35,7 +35,7 @@ describe("queryClickHouseAlertEventLog", () => {
     const [sql, organizationId, params] = mocks.query.mock.calls[0];
     expect(sql).toContain("FROM app.alert_events");
     expect(sql).toContain(
-      "event_type IN ('instance_fired', 'instance_resolved', 'instance_closed')",
+      "event_type IN ('instance_pending', 'instance_fired', 'instance_resolved', 'instance_closed')",
     );
     expect(sql).toContain(
       "preview_id = toUUID('00000000-0000-0000-0000-000000000000')",

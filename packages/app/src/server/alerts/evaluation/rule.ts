@@ -93,10 +93,18 @@ type TransitionEvent = {
   fingerprint: string;
   /**
    * The value `alert_instances.episode_id` takes with this transition: the
-   * fired event's id opens the episode, a resolve closes it. `null` clears.
+   * event that leaves inactive opens the episode, a terminal closes it.
+   * `null` clears.
    */
   episodeUpdate: string | null;
 };
+
+const TRANSITION_EVENT_TYPES = {
+  pending: "instance_pending",
+  firing: "instance_fired",
+  resolved: "instance_resolved",
+  pending_cleared: "instance_closed",
+} as const;
 
 export function transitionEventRows(opts: {
   def: typeof alertDefinitions.$inferSelect;
@@ -118,14 +126,26 @@ export function transitionEventRows(opts: {
   // The journal row and its projection share this id, and the surface
   // promises a time-decodable id, so it must be v7.
   const id = uuidv7(evaluatedAt);
-  const eventType =
-    transition.event === "firing"
-      ? ("instance_fired" as const)
-      : ("instance_resolved" as const);
-  // No pending phase exists yet, so the fired event opens its own episode;
-  // the resolved row carries the episode it closes. Pending and closed rows
-  // extend this when they land.
-  const episodeId = eventType === "instance_fired" ? id : opts.storedEpisodeId;
+  const eventType = TRANSITION_EVENT_TYPES[transition.event];
+  // The event that leaves inactive opens the episode with its own id: the
+  // pending row when a for-duration exists, else the fired row. A fire that
+  // follows a pending phase inherits the open episode, and the terminals
+  // carry the episode they close.
+  const opens =
+    eventType === "instance_pending" ||
+    (eventType === "instance_fired" && opts.storedEpisodeId === null);
+  const episodeId = opens ? id : opts.storedEpisodeId;
+  const terminal =
+    eventType === "instance_resolved" || eventType === "instance_closed";
+  // Pending and closed rows are state-only: born processed, never delivered.
+  const stateOnly =
+    eventType === "instance_pending" || eventType === "instance_closed";
+  const reason =
+    eventType === "instance_resolved"
+      ? "condition_cleared"
+      : eventType === "instance_closed"
+        ? "pending_cleared"
+        : "";
   const notificationTitle = renderMessage(def.spec.annotations.summary ?? "", {
     firstRow,
   });
@@ -143,7 +163,9 @@ export function transitionEventRows(opts: {
         sourceDefinitionId: def.id,
         slug: historyDef.slug,
         eventType,
+        kind: stateOnly ? ("state" as const) : ("notifying" as const),
         episodeId,
+        reason,
         instanceFingerprint: next.fingerprint,
         instanceLabels: next.labels,
         severity: def.spec.severity,
@@ -151,6 +173,7 @@ export function transitionEventRows(opts: {
         notificationDescription,
         suppressed: historyDef.ruleMuted,
         occurredAt: evaluatedAt,
+        ...(stateOnly ? { processedAt: evaluatedAt } : {}),
       } satisfies typeof alertEvents.$inferInsert,
       history: instanceHistoryRow({
         def: historyDef,
@@ -162,6 +185,7 @@ export function transitionEventRows(opts: {
         labels: next.labels,
         evidence: bounded.evidence,
         evidenceTruncated: bounded.truncated,
+        reason,
         contextJson: buildAlertContextJson({
           summary: notificationTitle,
           description: notificationDescription,
@@ -175,7 +199,7 @@ export function transitionEventRows(opts: {
         }),
       }),
       fingerprint: next.fingerprint,
-      episodeUpdate: eventType === "instance_fired" ? id : null,
+      episodeUpdate: terminal ? null : episodeId,
     },
   ];
 }
@@ -449,6 +473,9 @@ async function evaluateAlertRule(
     }
 
     const firing = transitions.filter((item) => item.next.status === "firing");
+    const pending = transitions.filter(
+      (item) => item.next.status === "pending",
+    );
     const fired = transitions.filter((item) => item.event === "firing");
     const resolved = transitions.filter((item) => item.event === "resolved");
     await tx
@@ -462,7 +489,12 @@ async function evaluateAlertRule(
         lastSeenAt: present.length > 0 ? evaluatedAt : def.lastSeenAt,
         lastRowCount: evidence.rowCount,
         firingInstanceCount: firing.length,
-        currentState: firing.length > 0 ? "firing" : "resolved",
+        currentState:
+          firing.length > 0
+            ? "firing"
+            : pending.length > 0
+              ? "pending"
+              : "resolved",
         lastFiredAt: fired.length > 0 ? evaluatedAt : def.lastFiredAt,
         lastResolvedAt: resolved.length > 0 ? evaluatedAt : def.lastResolvedAt,
       })
@@ -470,12 +502,12 @@ async function evaluateAlertRule(
 
     const eventRows = transitionEvents.map(({ outbox }) => outbox);
     if (eventRows.length > 0) {
-      const events = await tx
-        .insert(alertEvents)
-        .values(eventRows)
-        .returning({ id: alertEvents.id });
-      for (const event of events) {
-        await enqueueProcessAlertEvent(tx, event.id);
+      await tx.insert(alertEvents).values(eventRows);
+      // State-only rows are born processed: they exist to be projected, and
+      // the delivery pipeline must never see them, so no job is enqueued.
+      for (const { outbox } of transitionEvents) {
+        if (outbox.kind === "state") continue;
+        await enqueueProcessAlertEvent(tx, outbox.id);
       }
     }
     await scheduleAlertAtInTransaction(

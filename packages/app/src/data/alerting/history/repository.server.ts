@@ -27,6 +27,8 @@ export type AlertEventLogRow = {
   suppressed: boolean;
   silenced: boolean;
   inhibited: boolean;
+  /** Why a terminal row ended its instance; empty off terminals. */
+  reason: string;
   deliveryTargets: string[];
   evidence: AlertEvidence | null;
   evidenceTruncated: boolean;
@@ -41,6 +43,7 @@ type ClickHouseAlertEventRow = {
   labelsJson: string;
   severity: string;
   suppressed: boolean;
+  reason: string;
   evidenceJson: string;
   evidenceTruncated: boolean;
 };
@@ -181,6 +184,7 @@ export async function queryClickHouseAlertEventLog(
         toJSONString(instance_labels) AS labelsJson,
         severity,
         rule_muted AS suppressed,
+        reason,
         evidence_json AS evidenceJson,
         evidence_truncated AS evidenceTruncated
       FROM app.alert_events
@@ -222,6 +226,7 @@ export async function queryClickHouseAlertEventLog(
       suppressed: Boolean(row.suppressed),
       silenced: outcome?.silenced ?? false,
       inhibited: outcome?.inhibited ?? false,
+      reason: row.reason,
       deliveryTargets: outcome?.deliveryTargets ?? [],
       evidence: parseJsonObject(row.evidenceJson),
       evidenceTruncated: Boolean(row.evidenceTruncated),

@@ -1,6 +1,7 @@
 DROP TABLE "alert_silences";--> statement-breakpoint
 DROP TABLE "alert_definitions";--> statement-breakpoint
 DROP TABLE "alert_settings";--> statement-breakpoint
+ALTER TYPE "public"."alert_state" ADD VALUE 'pending' BEFORE 'firing';--> statement-breakpoint
 CREATE TYPE "public"."alert_delivery_state" AS ENUM('pending', 'sent', 'failed');--> statement-breakpoint
 CREATE TYPE "public"."alert_event_kind" AS ENUM('notifying', 'state');--> statement-breakpoint
 CREATE TYPE "public"."alert_event_type" AS ENUM('instance_pending', 'instance_fired', 'instance_resolved', 'instance_closed', 'delivery', 'rule_health', 'silenced', 'hold_changed', 'evaluation_failed');--> statement-breakpoint
@@ -113,6 +114,7 @@ CREATE TABLE "alert_events" (
 	"event_type" "alert_event_type" NOT NULL,
 	"kind" "alert_event_kind" DEFAULT 'notifying' NOT NULL,
 	"episode_id" uuid,
+	"reason" text DEFAULT '' NOT NULL,
 	"instance_fingerprint" text DEFAULT '' NOT NULL,
 	"instance_labels" jsonb DEFAULT '{}'::jsonb NOT NULL,
 	"severity" "alert_severity" DEFAULT 'info' NOT NULL,

@@ -21,7 +21,12 @@ export interface PresentAlertInstance {
 
 export interface AlertInstanceTransition {
   next: StoredAlertInstance;
-  event: "firing" | "resolved" | null;
+  /**
+   * `pending` and `pending_cleared` are state-only: they are journaled born
+   * processed and never notify. `firing` and `resolved` enter the delivery
+   * pipeline.
+   */
+  event: "pending" | "firing" | "resolved" | "pending_cleared" | null;
 }
 
 function inactive(previous: StoredAlertInstance): StoredAlertInstance {
@@ -72,7 +77,12 @@ export function advanceAlertInstance(input: {
         event: "firing",
       };
     }
-    return { next, event: null };
+    // Entering pending is an event; staying pending (or reappearing while
+    // still pending) is not.
+    return {
+      next,
+      event: previous.status === "inactive" ? "pending" : null,
+    };
   }
 
   if (previous.status === "inactive") return { next: previous, event: null };
@@ -82,7 +92,7 @@ export function advanceAlertInstance(input: {
   }
   return {
     next: inactive({ ...previous, absentCount }),
-    event: previous.status === "firing" ? "resolved" : null,
+    event: previous.status === "firing" ? "resolved" : "pending_cleared",
   };
 }
 

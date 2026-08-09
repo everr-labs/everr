@@ -33,6 +33,7 @@ import { previews } from "./app";
 export const alertStateEnum = pgEnum("alert_state", [
   "unknown",
   "resolved",
+  "pending",
   "firing",
 ]);
 
@@ -228,6 +229,10 @@ export const alertEvents = pgTable(
     // The episode this lifecycle row belongs to: the id of the row that opened
     // it. Null on rows that belong to no episode (evaluation and hold rows).
     episodeId: uuid("episode_id"),
+    // Why a terminal row ended its instance: condition_cleared on a resolve;
+    // pending_cleared, rule_paused or rule_deleted on instance_closed. The
+    // journal carries it so a repaired projection recovers it.
+    reason: text("reason").notNull().default(""),
     instanceFingerprint: text("instance_fingerprint").notNull().default(""),
     instanceLabels: jsonb("instance_labels")
       .notNull()

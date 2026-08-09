@@ -46,8 +46,19 @@ function EventTypeLabel({ eventType }: { eventType: AlertEventType }) {
   return <AlertingStatusLabel tone={tone}>{label}</AlertingStatusLabel>;
 }
 
+// The closing reasons a terminal row can carry. `condition_cleared` is not
+// here on purpose: that is a plain resolve and the event label already says
+// Resolved.
+const CLOSE_REASON_LABELS: Record<string, string> = {
+  pending_cleared: "Pending cleared",
+  rule_paused: "Rule paused",
+  rule_deleted: "Rule deleted",
+  preview_deleted: "Preview deleted",
+};
+
 function EventDetails({ event }: { event: AlertEventLogRow }) {
   const flags = [
+    CLOSE_REASON_LABELS[event.reason] ?? null,
     event.suppressed ? "Suppressed" : null,
     event.silenced ? "Silenced" : null,
     event.inhibited ? "Inhibited" : null,

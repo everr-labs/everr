@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { toClickHouseDateTime } from "@everr/ui/lib/time-range";
-import { and, asc, desc, eq, inArray, isNull } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNull, ne } from "drizzle-orm";
 import { parseResourceName } from "@/data/as-code/identity";
 import { type DbExecutor, db, type Transaction } from "@/db/client";
 import {
@@ -32,6 +32,7 @@ import {
   parseAlertEvaluationSamples,
   shapeAlertEvaluationSeries,
 } from "./evaluation-series";
+import { closeRuleLifecycle } from "./lifecycle.server";
 
 type RuleRow = typeof alertDefinitions.$inferSelect;
 
@@ -53,6 +54,24 @@ function ruleBase(row: RuleRow, notificationChannels: string[]) {
   };
 }
 
+/**
+ * The rollup state a stored definition state renders as. `pending` is a
+ * breach inside its for-duration and must stay distinguishable from OK;
+ * `unknown` and `resolved` both read as inactive.
+ */
+export function rollupAlertState(
+  currentState: RuleRow["currentState"],
+): "inactive" | "pending" | "firing" {
+  switch (currentState) {
+    case "firing":
+      return "firing";
+    case "pending":
+      return "pending";
+    default:
+      return "inactive";
+  }
+}
+
 function ruleView(row: RuleRow, notificationChannels: string[]) {
   return {
     ...ruleBase(row, notificationChannels),
@@ -65,10 +84,7 @@ function ruleView(row: RuleRow, notificationChannels: string[]) {
       last_error_at: row.lastErrorAt?.toISOString() ?? null,
     },
     rollup: {
-      alert_state:
-        row.currentState === "firing"
-          ? ("firing" as const)
-          : ("inactive" as const),
+      alert_state: rollupAlertState(row.currentState),
       firing_instance_count: row.firingInstanceCount,
       last_fired_at: row.lastFiredAt?.toISOString() ?? null,
       last_resolved_at: row.lastResolvedAt?.toISOString() ?? null,
@@ -546,34 +562,81 @@ export async function deleteRule(
   id: string,
   executor: DbExecutor,
 ) {
-  const rows = await executor
-    .delete(alertDefinitions)
-    .where(
-      and(
-        eq(alertDefinitions.organizationId, organizationId),
-        eq(alertDefinitions.id, id),
-      ),
-    )
-    .returning({ id: alertDefinitions.id });
-  return { deleted: rows.length > 0 };
+  const now = new Date();
+  return await executor.transaction(async (tx) => {
+    const [def] = await tx
+      .select()
+      .from(alertDefinitions)
+      .where(
+        and(
+          eq(alertDefinitions.organizationId, organizationId),
+          eq(alertDefinitions.id, id),
+        ),
+      )
+      .limit(1);
+    if (!def) return { deleted: false };
+    // The terminals must be journaled before the cascade forgets the open
+    // instances; the journal rows themselves have no FK to the definition,
+    // so they outlive it.
+    await closeRuleLifecycle(tx, def, "rule_deleted", now);
+    await tx
+      .delete(alertDefinitions)
+      .where(
+        and(
+          eq(alertDefinitions.organizationId, organizationId),
+          eq(alertDefinitions.id, id),
+        ),
+      );
+    return { deleted: true };
+  });
 }
 
 export async function pauseRule(
   { organizationId }: AlertingMutationScope,
   id: string,
 ) {
-  const [row] = await db
-    .update(alertDefinitions)
-    .set({ active: false, updatedAt: new Date() })
-    .where(
-      and(
-        eq(alertDefinitions.organizationId, organizationId),
-        eq(alertDefinitions.id, id),
-      ),
-    )
-    .returning();
-  if (!row)
-    throwAlertingPersistenceError(404, "not_found", `Rule not found: ${id}`);
+  const now = new Date();
+  const row = await db.transaction(async (tx) => {
+    const [updated] = await tx
+      .update(alertDefinitions)
+      .set({
+        active: false,
+        // The rollup must not keep reporting a firing state the pause just
+        // closed; resume re-derives it from scratch.
+        currentState: "unknown",
+        firingInstanceCount: 0,
+        updatedAt: now,
+      })
+      .where(
+        and(
+          eq(alertDefinitions.organizationId, organizationId),
+          eq(alertDefinitions.id, id),
+        ),
+      )
+      .returning();
+    if (!updated)
+      throwAlertingPersistenceError(404, "not_found", `Rule not found: ${id}`);
+    await closeRuleLifecycle(tx, updated, "rule_paused", now);
+    // Reset after the close read the open set, so resume starts from scratch:
+    // re-pending, re-firing, re-notifying.
+    await tx
+      .update(alertInstances)
+      .set({
+        status: "inactive",
+        pendingSince: null,
+        activeSince: null,
+        absentCount: 0,
+        episodeId: null,
+        updatedAt: now,
+      })
+      .where(
+        and(
+          eq(alertInstances.alertDefinitionId, id),
+          ne(alertInstances.status, "inactive"),
+        ),
+      );
+    return updated;
+  });
   return ruleBase(row, await definitionChannelNamesFor(organizationId, row.id));
 }
 

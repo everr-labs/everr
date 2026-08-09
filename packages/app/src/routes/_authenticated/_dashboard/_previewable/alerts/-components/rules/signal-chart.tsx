@@ -71,6 +71,7 @@ function createAlertTimeTickFormatter(domain: [number, number]) {
 }
 
 const TRANSITION_LABELS = {
+  pending: "Pending",
   firing: "Fired",
   resolved: "Resolved",
   closed: "Closed",

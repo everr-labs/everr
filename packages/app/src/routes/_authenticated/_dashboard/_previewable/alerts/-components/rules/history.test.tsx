@@ -42,6 +42,7 @@ function eventRow(overrides: Partial<AlertEventLogRow> = {}): AlertEventLogRow {
     suppressed: false,
     silenced: false,
     inhibited: false,
+    reason: "",
     deliveryTargets: [],
     evidence: { value: 2 },
     evidenceTruncated: false,
