@@ -121,7 +121,10 @@ async function routedDispatchTargets(
     if (!receiver) continue;
     const labels = alertEventDispatchLabels(event);
     const groupLabels = Object.fromEntries(
-      (route.group_by ?? []).map((key) => [key, labels[key] ?? ""]),
+      (route.group_by ?? [...ALERTING_DEFAULT_GROUP_BY]).map((key) => [
+        key,
+        labels[key] ?? "",
+      ]),
     );
     targets.push({
       receiverId: receiver.id,
