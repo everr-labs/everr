@@ -31,7 +31,6 @@ export async function instrumentServerFunction<T>(
         if (!isExpectedServerFunctionError(error)) {
           captureError(error, {
             ...attributes,
-            "error.handled": false,
             "error.source": "server_fn",
           });
         }

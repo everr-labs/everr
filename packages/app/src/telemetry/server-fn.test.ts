@@ -58,7 +58,6 @@ describe("instrumentServerFunction", () => {
     ).rejects.toThrow("database unavailable");
 
     expect(telemetryMocks.captureError).toHaveBeenCalledWith(error, {
-      "error.handled": false,
       "error.source": "server_fn",
       "rpc.method": "getActiveOrganization",
       "rpc.service": "server_function",

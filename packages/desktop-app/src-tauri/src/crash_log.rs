@@ -36,7 +36,7 @@ pub(crate) fn install_panic_hook() {
             .unwrap_or_else(|| "unknown location".to_string());
 
         let stacktrace = format!("PANIC at {location}: {message}");
-        emit_rust_exception("panic", "Panic", &message, &stacktrace, false);
+        emit_rust_exception("panic", "Panic", &message, &stacktrace);
         write_log(&format!("PANIC at {location}: {message}"));
         default_hook(info);
     }));
@@ -50,7 +50,6 @@ pub(crate) fn log_error(context: &str, error: &anyhow::Error) {
         "RustError",
         &error.to_string(),
         &format!("{error:#}"),
-        true,
     );
     write_log(&message);
 }
@@ -60,7 +59,6 @@ fn emit_rust_exception(
     exception_type: &'static str,
     exception_message: &str,
     exception_stacktrace: &str,
-    handled: bool,
 ) {
     let exception_message = sanitize_error_message(exception_message);
 
@@ -73,7 +71,6 @@ fn emit_rust_exception(
             exception.type = exception_type,
             exception.message = exception_message.as_str(),
             exception.stacktrace = exception_stacktrace,
-            error.handled = handled,
         },
         "everr.rust.error"
     );

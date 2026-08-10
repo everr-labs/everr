@@ -219,7 +219,6 @@ describe("recordAlertEvents", () => {
         "exception.message": "clickhouse down",
         "alert.definition_id": "d1",
         "alert.event_count": 1,
-        "error.handled": true,
       }),
     );
   });

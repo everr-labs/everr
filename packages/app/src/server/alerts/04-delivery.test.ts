@@ -466,7 +466,6 @@ describe("runDeliverySend", () => {
         "alert.definition_id": "a1",
         "alert.delivery_target": "123",
         "graphile_worker.job.attempts": 1,
-        "error.handled": false,
       }),
     );
     expect(recordEvents).not.toHaveBeenCalled();
@@ -493,7 +492,7 @@ describe("runDeliverySend", () => {
     );
     expect(vi.mocked(serverLogger.warn)).toHaveBeenCalledWith(
       "alerts.delivery.telegram_failed",
-      expect.objectContaining({ "error.handled": true }),
+      expect.objectContaining({ "graphile_worker.job.attempts": 5 }),
     );
   });
 
