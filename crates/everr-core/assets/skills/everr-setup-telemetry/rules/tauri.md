@@ -265,7 +265,7 @@ Keep `ingest_headers_from_env()` server-side. If exporting to Everr hosted inges
 
 ## Rust Backend Errors
 
-Capture Rust backend failures and panics per `rust.md`'s "Errors And Panics": emit one structured exception event at the failing boundary, and install a panic hook that emits a redacted event with `error.handled=false` before delegating to the previous hook. Do not log Tauri command arguments, auth tokens, request headers, request bodies, local file contents, paths from file dialogs, or user-entered text.
+Capture Rust backend failures and panics per `rust.md`'s "Errors And Panics": emit one structured exception event at the failing boundary, and install a panic hook that emits a redacted event at `FATAL` severity before delegating to the previous hook. Do not log Tauri command arguments, auth tokens, request headers, request bodies, local file contents, paths from file dialogs, or user-entered text.
 
 ## Browser Telemetry
 

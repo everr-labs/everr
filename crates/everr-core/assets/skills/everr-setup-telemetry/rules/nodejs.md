@@ -258,7 +258,6 @@ await tracer.startActiveSpan('invoice.send', async (span) => {
     span.setStatus({ code: SpanStatusCode.OK });
   } catch (error) {
     captureError(error, {
-      'error.handled': true,
       'error.source': 'invoice.send',
     });
     throw error;
@@ -287,7 +286,7 @@ Error capture is `@everr/otel-errors`, registered in the setup module above as `
 
 Options are `onFatal`, `rateLimit`, `redactPatterns`, `redactKeys`, and `beforeSend`. See `sensitive-data.md` for redaction.
 
-What a captured error must look like: span status `ERROR` only on the span of the failed operation (with a short, non-sensitive message), one exception log in the active span context carrying `exception.type`, `exception.message`, `exception.stacktrace`, and `error.handled` (`true` for caught-and-converted failures, `false` for crashes). Each error is recorded exactly once: check the framework's own error hook before adding capture so the same exception does not land twice.
+What a captured error must look like: span status `ERROR` only on the span of the failed operation (with a short, non-sensitive message), one exception log in the active span context carrying `exception.type`, `exception.message`, and `exception.stacktrace`. Crashes are distinguished by `FATAL` severity and by `everr.error.mechanism`, both of which the package sets, so do not add a handled flag of your own. Each error is recorded exactly once: check the framework's own error hook before adding capture so the same exception does not land twice.
 
 ## Full-Stack Frameworks And Shared Code
 

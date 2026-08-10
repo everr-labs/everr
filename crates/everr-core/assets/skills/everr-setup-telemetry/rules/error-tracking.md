@@ -47,10 +47,7 @@ Keep stack traces as one structured field. Do not emit multiline stack traces as
 
 ## Handled vs Unhandled
 
-Use a low-cardinality handled flag when useful:
-
-- `error.handled=true` for exceptions caught and converted into a controlled failure response.
-- `error.handled=false` for unhandled exceptions, fatal crashes, and process-level failures.
+Do not add a handled flag. How the error reached you is already on the record: `@everr/otel-errors` and `@everr/otel-web` stamp `everr.error.mechanism` (`uncaughtException`, `unhandledrejection`, `onerror`, `react`, `manual`), and a crash carries `FATAL` severity where a caught failure carries `ERROR`. A boolean beside those is a second, weaker spelling of the same fact.
 
 If the codebase already has a project-specific error namespace, follow it. Otherwise keep custom error attributes sparse and documented.
 

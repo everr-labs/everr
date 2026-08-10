@@ -337,7 +337,7 @@ For final failures:
 - Preserve framework semantics: rethrow, return the intended error response, or
   let Next.js handle the failure exactly as before.
 
-Add `error.handled` (`false` for `onRequestError` and process crashes, `true` for caught-and-converted failures), and record each error exactly once: `onRequestError` already covers handled request failures, so route handlers only emit their own exception log when they swallow the error before Next.js sees it. See [spans](./spans.md).
+Do not add a handled flag: `everr.error.mechanism` and the record's severity already separate a crash from a caught-and-converted failure. Record each error exactly once: `onRequestError` already covers handled request failures, so route handlers only emit their own exception log when they swallow the error before Next.js sees it. See [spans](./spans.md).
 
 ## Metrics
 

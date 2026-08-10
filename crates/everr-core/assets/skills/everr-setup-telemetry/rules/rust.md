@@ -301,7 +301,7 @@ Metric attributes must be bounded and low-cardinality. Do not use request IDs, u
 
 ## Errors And Panics
 
-- Record operation failures on the current span with safe context: status `ERROR` only on the failing operation's span, one structured event carrying the error type and message, and `error.handled` (`false` for panics and fatal failures).
+- Record operation failures on the current span with safe context: status `ERROR` only on the failing operation's span, and one structured event carrying the error type and message. Do not add a handled flag: mark panics and fatal failures with `FATAL` severity instead.
 - Emit one structured error event at the failing boundary.
 - For panic hooks, emit a redacted event, flush providers if possible, then call the previous hook or preserve the normal panic.
 - Do not catch panics or convert fatal failures into successful exits just to keep telemetry alive.

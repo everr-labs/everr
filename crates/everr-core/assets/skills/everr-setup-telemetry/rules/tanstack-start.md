@@ -58,7 +58,7 @@ export default {
 
 - Extract the parent context from the request headers with `propagation.extract` so browser-injected `traceparent` (and any first-party client's) parents the span. Requests without the header extract to an empty context and root themselves.
 - Parameterize the path before it becomes the span name or `http.route`; raw paths are unbounded cardinality.
-- Set `http.response.status_code` from the response; capture 5xx responses and thrown errors with `captureError` and `error.handled: false`.
+- Set `http.response.status_code` from the response; capture 5xx responses and thrown errors with `captureError`.
 - When wrapping the handler this way, disable the HTTP auto-instrumentation's incoming-request span (`disableIncomingRequestInstrumentation: true`) so each request gets one SERVER span, not two.
 
 ### Server Functions

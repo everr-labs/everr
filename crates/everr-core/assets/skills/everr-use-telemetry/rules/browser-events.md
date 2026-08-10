@@ -46,7 +46,7 @@ Semconv names stay bare: `browser.web_vital.name` (`lcp`, `cls`, `ttfb`, `inp`),
 
 ### Exceptions
 
-`exception.type`, `exception.message`, `exception.stacktrace`, `everr.error.mechanism` (`onerror`, `unhandledrejection`, `react`, `manual`), `everr.error.handled` (boolean), `everr.react.component_stack` (React boundaries only). These are error logs (`SeverityNumber >= 17`), so the fingerprint grouping in SKILL.md applies to them unchanged.
+`exception.type`, `exception.message`, `exception.stacktrace`, `everr.error.mechanism` (`onerror`, `unhandledrejection`, `react`, `manual`), `everr.react.component_stack` (React boundaries only). These are error logs (`SeverityNumber >= 17`), so the fingerprint grouping in SKILL.md applies to them unchanged.
 
 ## Spans (in `traces`)
 
