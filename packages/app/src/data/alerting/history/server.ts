@@ -15,12 +15,16 @@ export const listAlertingEventHistory = createAuthenticatedServerFn({
       fingerprint: z.string().min(1).optional(),
       sourceId: z.string().min(1).optional(),
       slugs: z.array(z.string().min(1)).min(1).optional(),
+      // Per-rule callers pass the rule's own repoid, so the read hits the
+      // sort key's (tenant_id, repoid, slug, ...) prefix; org-wide history
+      // leaves it unset on purpose.
+      repoid: z.string().min(1).optional(),
       preview: z.string().optional(),
     }),
   )
   .handler(
     async ({
-      data: { limit, timeRange, fingerprint, sourceId, slugs, preview },
+      data: { limit, timeRange, fingerprint, sourceId, slugs, repoid, preview },
       context: { session },
     }) => {
       const { fromDate, toDate } = resolveTimeRange(timeRange);
@@ -38,6 +42,7 @@ export const listAlertingEventHistory = createAuthenticatedServerFn({
         ...(fingerprint !== undefined ? { fingerprint } : {}),
         ...(sourceId !== undefined ? { sourceId } : {}),
         ...(slugs !== undefined ? { slugs } : {}),
+        ...(repoid !== undefined ? { repoid } : {}),
       });
     },
   );

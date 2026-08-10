@@ -16,4 +16,4 @@ exists.
 
 - [ ] Provider idempotency where available
 - [ ] Recipient-level fan-out state when one delivery targets several recipients
-- [ ] The remaining at-least-once behavior is documented
+- [x] The remaining at-least-once behavior is documented (design doc Durability section; not yet in the user docs)

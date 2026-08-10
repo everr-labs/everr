@@ -81,6 +81,26 @@ describe("toRuleInput", () => {
     expect(noDescription.annotations.description).toBeUndefined();
   });
 
+  // instanceFingerprint sorts label keys before hashing, so authored order
+  // carries no identity meaning; storing it as-authored would make a
+  // reorder-only edit look like a membership change to the spec diff.
+  it("sorts label_columns regardless of authored or inferred order", () => {
+    const explicit = toRuleInput(
+      parseRule({ instanceLabels: ["zone", "route"] }),
+      "repo-1",
+    );
+    expect(explicit.label_columns).toEqual(["route", "zone"]);
+
+    const inferred = toRuleInput(
+      parseRule({ instanceLabels: undefined }),
+      "repo-1",
+      {
+        instanceLabels: ["zone", "route"],
+      },
+    );
+    expect(inferred.label_columns).toEqual(["route", "zone"]);
+  });
+
   it("carries a linked runbook via everr.runbook, and link.runbook when appBaseUrl is set", () => {
     const scoped = toRuleInput(
       parseRule({ runbook: "payments/triage-5xx" }),
@@ -96,10 +116,12 @@ describe("toRuleInput", () => {
       runbookSlug: "triage-5xx",
     });
 
-    // Bare slug resolves against the alert's own project ("default" here), and
-    // without a base URL (or without a runbook) there is no link annotation.
+    // A bare authored slug resolves against the alert's own project
+    // ("default" here) to interpret user intent, but the stored annotation
+    // is always fully qualified: re-applying the exported document must not
+    // depend on which project the alert happens to live in.
     const bare = toRuleInput(parseRule({ runbook: "triage-5xx" }), "repo-1");
-    expect(bare.annotations["everr.runbook"]).toBe("triage-5xx");
+    expect(bare.annotations["everr.runbook"]).toBe("default/triage-5xx");
     expect(bare.annotations["link.runbook"]).toBeUndefined();
     expect(fromAlertingRule(asRule(bare))).toMatchObject({
       runbookProject: "default",
@@ -246,5 +268,22 @@ describe("toAlertRuleDocument", () => {
     );
     expect(scoped.metadata.project).toBe("payments");
     expect(scoped.metadata.name).toBe("high-5xx");
+  });
+
+  // A runbook in the "default" project, linked from an alert in a
+  // different project, used to lose its project on export (formatRunbookRef
+  // dropped "default"), so the exported document re-resolved the bare slug
+  // against the alert's own project on re-apply.
+  it("keeps a default-project runbook qualified when the alert lives elsewhere", () => {
+    const parsed = parseRule({ runbook: "default/oom" }, { project: "web" });
+    const ruleInput = toRuleInput(parsed, "repo-1");
+    expect(ruleInput.annotations["everr.runbook"]).toBe("default/oom");
+
+    const doc = toAlertRuleDocument(asRule(ruleInput));
+    expect(doc.metadata.project).toBe("web");
+    expect(doc.spec.runbook).toBe("default/oom");
+
+    const reparsed = AlertRuleYamlSchema.parse(JSON.parse(JSON.stringify(doc)));
+    expect(toRuleInput(reparsed, "repo-1")).toEqual(ruleInput);
   });
 });

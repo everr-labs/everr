@@ -29,6 +29,9 @@ export function TriageInstanceDetail({
     alertHistoryQueries.events(TRIAGE_EVENT_RANGE, {
       fingerprint: alert.fingerprint,
       sourceId: alert.rule,
+      // `rule` can be undefined for a raced or deleted rule; the fingerprint
+      // and sourceId filters alone still scope this to one alert.
+      ...(rule ? { repoid: rule.repoid } : {}),
       limit: TRIAGE_INSTANCE_EVENT_LIMIT,
     }),
   );

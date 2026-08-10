@@ -240,6 +240,7 @@ export const Route = createFileRoute(
       queryClient.prefetchQuery(
         alertHistoryQueries.events(deps.timeRange, {
           slugs: alertingRuleHandles(rule),
+          repoid: rule.repoid,
           preview: deps.preview,
         }),
       ),
@@ -282,6 +283,7 @@ function AlertingRuleDetailPage() {
   const eventHistory = useQuery({
     ...alertHistoryQueries.events(timeRange, {
       slugs: pendingScope,
+      ...(rule.data ? { repoid: rule.data.repoid } : {}),
       preview,
     }),
     enabled: rule.data !== undefined,

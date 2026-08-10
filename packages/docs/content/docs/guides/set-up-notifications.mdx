@@ -9,8 +9,8 @@ Alert rules are defined as code, but delivery is configured in the app and appli
 
 When an alert fires or resolves, it walks a fixed path:
 
-1. **Routes** are checked top to bottom by priority; the first route whose matchers fit the alert's labels decides the receiver.
-2. The matched **receiver** fans the notification out to every **channel** it references (Slack, Discord, email, webhook, or Telegram).
+1. **Routes** are checked top to bottom by priority; the first route whose matchers fit the alert's labels picks a receiver (a route with continue enabled lets later routes also pick a receiver for the same alert).
+2. Each matched **receiver** fans the notification out to every **channel** it references (Slack, Discord, email, webhook, or Telegram).
 3. An alert that matches no route is **not delivered**, so end the route list with a catch-all (a route with no matchers) if you want a default receiver.
 
 Silences and inhibitions suppress delivery without stopping evaluation.
@@ -23,7 +23,7 @@ Channel types: **email** (recipient addresses), **Slack** (an [Incoming Webhook]
 
 Webhook URLs (generic, Slack, and Discord) and Telegram bot tokens are write-only: after saving, Everr shows them redacted (`***`). Email recipients are not secrets and stay visible as entered. To rotate a redacted secret, edit the channel and enter the new value; the secret fields start blank on edit precisely because the stored values are never shown again. Names are editable labels: renaming a channel or receiver never breaks the receivers and routes that reference it.
 
-A channel that is still referenced cannot be deleted: Everr surfaces the engine's refusal, naming the receivers that still use it. Delete or repoint those receivers first.
+A channel that is still referenced cannot be deleted. Everr refuses and names what still uses it: receivers that include the channel, or alert rules that name it directly in `spec.notification.channels`. A channel with delivery history also cannot be deleted. Delete or repoint the receivers and rules first.
 
 ## Receivers
 
@@ -31,7 +31,9 @@ A receiver is a named set of channels; routes reference receivers by name, and a
 
 ## Routes
 
-A route is a set of **matchers** (label comparisons such as `severity = critical`, with equals, not-equals, and regex operators), a target receiver, and a priority. Routes are checked in priority order and the first match wins.
+A route is a set of **matchers** (label comparisons such as `severity = critical`, using equals or not-equals operators), a target receiver, and a priority. `severity` is set on every alert rule (see [the AlertRule spec](/docs/reference/alert-spec#spec)) and is one of the labels a matcher can compare against.
+
+Routes are checked in priority order. The first route whose matchers fit the alert's labels receives it. Enable **Continue matching later routes** on a route to pass the alert on to later routes too, so more than one receiver can act on the same alert.
 
 ### Group notifications
 

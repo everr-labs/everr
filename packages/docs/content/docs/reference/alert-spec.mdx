@@ -3,7 +3,7 @@ title: AlertRule Spec
 description: The full AlertRule file format, the apply manifest, and the alert evaluation states.
 ---
 
-An `AlertRule` is a resource with three top-level keys. Everr validates it on `everr apply` and again on read. The `spec` holds a ClickHouse query, a threshold condition, and the notification text to send when instances start and stop firing. The query always returns its useful data; the condition decides which rows fire.
+An `AlertRule` is a resource with three top-level keys. Everr validates it on `everr apply`; reads return the spec exactly as it was stored at apply time, with no re-validation. The `spec` holds a ClickHouse query, a threshold condition, and the notification text to send when instances start and stop firing. The query always returns its useful data; the condition decides which rows fire.
 
 ```yaml
 kind: AlertRule
@@ -16,7 +16,9 @@ spec:
 | Key | Type | Notes |
 | --- | --- | --- |
 | `kind` | `"AlertRule"` | Selects the reconciler. Required. |
-| `metadata.name` | string | The rule's **slug** and identity. Required, non-empty. |
+| `metadata.name` | string | The rule's **slug**. Required. 1 to 128 characters from `[A-Za-z0-9_.-]`; cannot be exactly `.` or `..`. |
+| `metadata.project` | string | Groups the rule with other resources. Optional, defaults to `default`. Lowercase letters, digits, and hyphens only; cannot start or end with a hyphen. Together with `metadata.name` it forms the rule's canonical identity, `<project>/<slug>`. |
+| `metadata.labels` | map (string to string) | Optional, descriptive metadata. Stored as `everr.label.<key>` annotations on the rule; routes cannot match on them. Use `spec.annotations` or the synthetic labels described in [set up notifications](/docs/guides/set-up-notifications) for values that need to drive routing. |
 | `spec` | object | The rule contents, below. |
 
 ## `spec`
@@ -26,6 +28,7 @@ spec:
 | `evaluationInterval` | string | yes | How often the query runs. `<int><s\|m\|h\|d>`, **minimum `1m`**. |
 | `for` | string | no | How long the condition must hold continuously before firing. `<int><s\|m\|h\|d>`; default `0s` (fire on the first matching evaluation). While waiting, the instance is pending and sends nothing. |
 | `resolveAfter` | int | no | Consecutive evaluations where a firing instance is absent or no longer matches before it resolves. Default `1`; raise it (for example `3`) to tolerate gaps in the data. Must be ≥ 1. |
+| `severity` | string | no | One of `info`, `warning`, `critical`. Default `info`. Stamped as the `severity` label on every dispatched event, so notification routes can match on it. See [set up notifications](/docs/guides/set-up-notifications). |
 | `query` | string | yes | ClickHouse SQL. Must return a numeric column named `value`. **No `${...}` templating.** |
 | `condition` | object | yes | A numeric threshold applied to each row's `value`: `{ operator, threshold }`. Supported operators: `gt`, `gte`, `lt`, `lte`, `eq`, `neq`. A matching row is a firing instance. |
 | `notification` | object | no | An explicit notification destination. When present, its channels receive this alert and advanced route matching is skipped. Silences and inhibitions still apply. |
@@ -88,6 +91,7 @@ Declarations sit flat in `everr/`, named by kind: `*.alert.yaml`, `*.dashboard.y
 - `evaluationInterval` must be ≥ `1m`.
 - `for` must be a valid duration (`0s` is allowed).
 - `resolveAfter` must be an integer ≥ 1.
+- `severity`, when set, must be `info`, `warning`, or `critical`.
 - `notificationMessage.title` is required and non-empty.
 - `notification.channels` must contain unique, non-empty names, and every named channel must exist at apply time.
 - `${...}` in messages must reference a column the `query` returns or be `${value}`.

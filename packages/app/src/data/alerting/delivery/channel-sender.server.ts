@@ -14,6 +14,30 @@ export interface ChannelNotification {
   url?: string;
 }
 
+// A 4xx from the provider means retrying the identical request cannot
+// succeed (a revoked webhook, a malformed payload), except 408 and 429,
+// which mean "try again". Everything else (5xx, network failure, timeout) is
+// transient and worth Graphile's retry budget.
+const RETRYABLE_CLIENT_ERROR_STATUSES = new Set([408, 429]);
+
+export class ChannelSendError extends Error {
+  readonly permanent: boolean;
+
+  constructor(message: string, opts: { permanent: boolean }) {
+    super(message);
+    this.name = "ChannelSendError";
+    this.permanent = opts.permanent;
+  }
+}
+
+function isPermanentStatus(status: number): boolean {
+  return (
+    status >= 400 &&
+    status < 500 &&
+    !RETRYABLE_CLIENT_ERROR_STATUSES.has(status)
+  );
+}
+
 function blockedIpv4(address: string): boolean {
   const octets = address.split(".").map(Number);
   if (octets.length !== 4 || octets.some((value) => !Number.isInteger(value)))
@@ -96,8 +120,9 @@ async function postJson(urlRaw: string, body: unknown): Promise<void> {
   });
   if (!response.ok) {
     const detail = await response.text().catch(() => "");
-    throw new Error(
+    throw new ChannelSendError(
       `notification webhook failed: ${response.status} ${detail}`,
+      { permanent: isPermanentStatus(response.status) },
     );
   }
 }

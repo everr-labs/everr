@@ -19,6 +19,7 @@ import {
   evaluationHistoryRow,
   instanceHistoryRow,
   recordAlertHistory,
+  recordAlertHistoryStrict,
   suppressionHistoryRow,
   ZERO_UUID,
 } from "./clickhouse";
@@ -96,6 +97,8 @@ describe("ClickHouse alert history", () => {
     expect(transition).toMatchObject({
       event_id: "019c3aba-29f8-7d6e-9e55-301cf47fa80d",
       event_type: "instance_fired",
+      // A transition runs no query; row_count must not claim otherwise.
+      row_count: 0,
       evidence_json: '{"value":42}',
       context_json: '{"summary":"42 errors"}',
       instance_labels: { service: "api" },
@@ -361,5 +364,81 @@ describe("ClickHouse alert history", () => {
         "error.handled": true,
       }),
     );
+  });
+
+  describe("recordAlertHistoryStrict", () => {
+    // A Graphile retry resends the exact same rows (built from the same
+    // journal rows read by id), so a stable token is what makes the retry
+    // converge instead of duplicating terminal rows.
+    it("inserts synchronously with a token derived from the sorted row ids", async () => {
+      const first = suppressionHistoryRow({
+        def,
+        notificationEventId: "019c3aba-29f8-7d6e-9e55-301cf47fa80d",
+        occurredAt,
+        fingerprint: "api",
+        labels: { service: "api" },
+        silenced: false,
+        inhibited: false,
+        silenceId: null,
+        reason: "rule_paused",
+      });
+      const second = instanceHistoryRow({
+        def,
+        eventId: "019c3aba-1111-7d6e-9e55-301cf47fa80d",
+        eventType: "instance_closed",
+        occurredAt,
+        episodeId: ZERO_UUID,
+        fingerprint: "api",
+        labels: { service: "api" },
+        evidence: {},
+        evidenceTruncated: false,
+        contextJson: "{}",
+        reason: "rule_paused",
+      });
+
+      // Passed in reverse-sorted order: the token must not depend on it.
+      await recordAlertHistoryStrict([first, second]);
+
+      expect(mocks.insertAdminRows).toHaveBeenCalledWith(
+        "app.alert_events",
+        [first, second],
+        {
+          async_insert: 0,
+          date_time_input_format: "best_effort",
+          insert_deduplication_token: `app.alert_events:${[
+            first.event_id,
+            second.event_id,
+          ]
+            .sort()
+            .join(",")}`,
+        },
+      );
+    });
+
+    it("does not insert for an empty batch", async () => {
+      await recordAlertHistoryStrict([]);
+      expect(mocks.insertAdminRows).not.toHaveBeenCalled();
+    });
+
+    it("throws rather than swallowing a failed insert", async () => {
+      mocks.insertAdminRows.mockRejectedValue(new Error("unavailable"));
+      const row = instanceHistoryRow({
+        def,
+        eventId: "019c3aba-29f8-7d6e-9e55-301cf47fa80d",
+        eventType: "instance_closed",
+        occurredAt,
+        episodeId: ZERO_UUID,
+        fingerprint: "api",
+        labels: { service: "api" },
+        evidence: {},
+        evidenceTruncated: false,
+        contextJson: "{}",
+        reason: "rule_paused",
+      });
+
+      await expect(recordAlertHistoryStrict([row])).rejects.toThrow(
+        "unavailable",
+      );
+    });
   });
 });

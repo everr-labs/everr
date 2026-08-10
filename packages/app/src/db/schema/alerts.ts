@@ -27,9 +27,16 @@ import {
   ALERTING_EVENT_TYPES,
   ALERTING_HEALTH_STATUSES,
   ALERTING_INSTANCE_STATUSES,
+  ALERTING_LIFECYCLE_REASONS,
   ALERTING_SEVERITIES,
 } from "@/data/alerting/vocabulary";
 import { previews } from "./app";
+
+// Derived from the vocabulary export, not hand-listed, so a reason added
+// there without a CHECK update fails loudly instead of journaling silently.
+const ALERT_EVENTS_REASON_VOCABULARY_SQL = ["", ...ALERTING_LIFECYCLE_REASONS]
+  .map((reason) => `'${reason}'`)
+  .join(", ");
 
 export const alertStateEnum = pgEnum("alert_state", [
   "unknown",
@@ -140,6 +147,13 @@ export const alertDefinitions = pgTable(
       table.id,
     ),
     index("alert_definitions_due_idx").on(table.active, table.nextEvaluationAt),
+    // Backs listRulesPage's ORDER BY updated_at DESC, id DESC per org: every
+    // `everr apply` walks the full listing in 500-row pages.
+    index("alert_definitions_org_updated_idx").on(
+      table.organizationId,
+      sql`updated_at DESC`,
+      sql`id DESC`,
+    ),
   ],
 );
 
@@ -193,6 +207,11 @@ export const alertInstances = pgTable(
     index("alert_instances_org_firing_idx")
       .on(table.organizationId, sql`updated_at DESC`)
       .where(sql`${table.status} = 'firing'`),
+    // Backs the retention sweep: it selects the oldest inactive rows across
+    // every organization, so the index cannot lead on organization_id.
+    index("alert_instances_inactive_updated_idx")
+      .on(table.updatedAt, table.id)
+      .where(sql`${table.status} = 'inactive'`),
   ],
 );
 
@@ -277,12 +296,18 @@ export const alertEvents = pgTable(
     // The born-processed boundary rests on kind agreeing with event_type: the
     // delivery reads select kind = 'notifying', and kind defaults to it, so a
     // state-stream row journaled by a writer that forgot the field becomes a
-    // notification candidate. One-directional per type: the legacy types stay
-    // unconstrained, and future streams pick their side when their writers
-    // land.
+    // notification candidate. Every event type falls on exactly one side.
     check(
       "alert_events_kind_matches_type",
       sql`(${table.eventType} NOT IN ('instance_pending', 'instance_closed', 'evaluation_failed', 'hold_changed') OR ${table.kind} = 'state') AND (${table.eventType} NOT IN ('instance_fired', 'instance_resolved') OR ${table.kind} = 'notifying')`,
+    ),
+    // Enforces the closed reason vocabulary the `reason` column comment
+    // promises: derived from ALERTING_LIFECYCLE_REASONS so a reason added
+    // there without a matching migration is caught at write time, not
+    // silently blanked by a reader that doesn't recognize it.
+    check(
+      "alert_events_reason_in_vocabulary",
+      sql`${table.reason} IN (${sql.raw(ALERT_EVENTS_REASON_VOCABULARY_SQL)})`,
     ),
     index("alert_events_org_occurred_idx").on(
       table.organizationId,
@@ -309,6 +334,13 @@ export const alertEvents = pgTable(
       .where(
         sql`${table.processedAt} IS NULL AND ${table.silenceId} IS NOT NULL`,
       ),
+    // Backs cancelableNotifyingEventsFilter: every pause, delete and label
+    // change scans a rule's own unprocessed events inside the mutation's
+    // transaction. Same shape as alert_events_held_silence_idx: the
+    // unprocessed set is tiny next to the full journal.
+    index("alert_events_cancelable_idx")
+      .on(table.organizationId, table.sourceDefinitionId)
+      .where(sql`${table.processedAt} IS NULL`),
     uniqueIndex("alert_events_org_id_uq").on(table.organizationId, table.id),
   ],
 );
@@ -557,6 +589,13 @@ export const alertNotificationGroups = pgTable(
       table.updatedAt,
       table.id,
     ),
+    // Backs orphanedDirectChainsFilter: a rule delete scans its own direct
+    // groups inside the mutation's transaction, with no index on the FK
+    // column otherwise.
+    index("alert_notification_groups_direct_definition_idx").on(
+      table.organizationId,
+      table.directAlertDefinitionId,
+    ),
   ],
 );
 
@@ -627,6 +666,11 @@ export const alertDeliveries = pgTable(
     }),
     check("alert_deliveries_attempts_nonnegative", sql`${table.attempts} >= 0`),
     index("alert_deliveries_org_idx").on(table.organizationId),
+    // Backs deleteChannel's reference check, filtered on both columns.
+    index("alert_deliveries_org_channel_idx").on(
+      table.organizationId,
+      table.channelId,
+    ),
     index("alert_deliveries_terminal_cleanup_idx")
       .on(table.updatedAt, table.dedupKey)
       .where(

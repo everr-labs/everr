@@ -1,10 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
-  rows: [] as unknown[],
+  // Consumed in call order: claimDeliverableEvent's own select first, then
+  // (only on the branches that reach it) eventStillFiring's.
+  selectQueue: [] as unknown[][],
+  stampReturn: [] as { id: string }[],
   set: vi.fn(),
   update: vi.fn(),
   where: vi.fn(),
+  history: [] as unknown[][],
 }));
 
 vi.mock("@/db/client", () => ({
@@ -12,13 +16,22 @@ vi.mock("@/db/client", () => ({
     select: () => ({
       from: () => ({
         where: () => ({
-          limit: () => Promise.resolve(mocks.rows),
+          limit: () => Promise.resolve(mocks.selectQueue.shift() ?? []),
         }),
       }),
     }),
     update: mocks.update,
   },
   pool: {},
+}));
+
+vi.mock("../history/clickhouse", () => ({
+  recordAlertHistory: (_defId: string | null, rows: unknown[]) => {
+    mocks.history.push(rows);
+    return Promise.resolve();
+  },
+  suppressionHistoryRow: (opts: unknown) => opts,
+  historyDefFromJournalRow: (row: unknown) => row,
 }));
 
 import { QueryBuilder } from "drizzle-orm/pg-core";
@@ -51,44 +64,95 @@ describe("notification destination precedence", () => {
   });
 });
 
+const EVENT_ID = "0ee52a7c-c9d7-4bca-9c67-a21db2096acf";
+
 describe("processAlertEvent retention lifecycle", () => {
   beforeEach(() => {
-    mocks.rows = [];
-    mocks.where.mockReset().mockResolvedValue(undefined);
+    mocks.selectQueue = [];
+    mocks.stampReturn = [{ id: EVENT_ID }];
+    mocks.history = [];
+    mocks.where
+      .mockReset()
+      .mockReturnValue({ returning: () => Promise.resolve(mocks.stampReturn) });
     mocks.set.mockReset().mockReturnValue({ where: mocks.where });
     mocks.update.mockReset().mockReturnValue({ set: mocks.set });
   });
 
   it("marks intentionally suppressed events as processed", async () => {
-    mocks.rows = [
-      {
-        id: "0ee52a7c-c9d7-4bca-9c67-a21db2096acf",
-        processedAt: null,
-        suppressed: true,
-      },
+    mocks.selectQueue = [
+      [{ id: EVENT_ID, processedAt: null, suppressed: true }],
     ];
 
-    await processAlertEvent({
-      eventId: "0ee52a7c-c9d7-4bca-9c67-a21db2096acf",
-    });
+    await processAlertEvent({ eventId: EVENT_ID });
 
     expect(mocks.set).toHaveBeenCalledWith({ processedAt: expect.any(Date) });
+    expect(mocks.history).toEqual([]);
   });
 
   it("does not process an event twice after completion", async () => {
-    mocks.rows = [
-      {
-        id: "0ee52a7c-c9d7-4bca-9c67-a21db2096acf",
-        processedAt: new Date("2026-08-06T12:00:00Z"),
-        suppressed: false,
-      },
+    mocks.selectQueue = [
+      [
+        {
+          id: EVENT_ID,
+          processedAt: new Date("2026-08-06T12:00:00Z"),
+          suppressed: false,
+        },
+      ],
     ];
 
-    await processAlertEvent({
-      eventId: "0ee52a7c-c9d7-4bca-9c67-a21db2096acf",
-    });
+    await processAlertEvent({ eventId: EVENT_ID });
 
     expect(mocks.update).not.toHaveBeenCalled();
+  });
+
+  it("records a terminal when a fire is no longer firing by the time it is processed", async () => {
+    mocks.selectQueue = [
+      // claimDeliverableEvent's own read.
+      [
+        {
+          id: EVENT_ID,
+          processedAt: null,
+          suppressed: false,
+          eventType: "instance_fired",
+          sourceDefinitionId: "def-1",
+          instanceFingerprint: "fp-1",
+          instanceLabels: {},
+        },
+      ],
+      // eventStillFiring's firing-instance lookup: none found.
+      [],
+    ];
+
+    await processAlertEvent({ eventId: EVENT_ID });
+
+    expect(mocks.set).toHaveBeenCalledWith({ processedAt: expect.any(Date) });
+    expect(mocks.history).toHaveLength(1);
+    expect(mocks.history[0]).toEqual([
+      expect.objectContaining({ reason: "no_longer_firing" }),
+    ]);
+  });
+
+  it("records no terminal when the no-longer-firing claim is lost to a concurrent cancel", async () => {
+    mocks.selectQueue = [
+      [
+        {
+          id: EVENT_ID,
+          processedAt: null,
+          suppressed: false,
+          eventType: "instance_fired",
+          sourceDefinitionId: "def-1",
+          instanceFingerprint: "fp-1",
+          instanceLabels: {},
+        },
+      ],
+      [],
+    ];
+    // The stamp write finds the event already claimed by a lifecycle cancel.
+    mocks.stampReturn = [];
+
+    await processAlertEvent({ eventId: EVENT_ID });
+
+    expect(mocks.history).toEqual([]);
   });
 });
 

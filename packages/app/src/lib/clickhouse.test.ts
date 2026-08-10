@@ -82,6 +82,30 @@ describe("query", () => {
       expect.any(Function),
     );
   });
+
+  it("forwards caller-supplied settings alongside the tenant scope", async () => {
+    await query("SELECT 1", ORG, undefined, { max_execution_time: 30 });
+
+    expect(mockQuery).toHaveBeenCalledWith({
+      query: "SELECT 1",
+      query_params: undefined,
+      format: "JSONEachRow",
+      clickhouse_settings: {
+        max_execution_time: 30,
+        SQL_everr_tenant_id: ORG,
+      },
+    });
+  });
+
+  it("never lets a caller-supplied setting override the tenant scope", async () => {
+    await query("SELECT 1", ORG, undefined, {
+      SQL_everr_tenant_id: "someone-elses-org",
+    });
+
+    expect(mockQuery.mock.calls[0][0].clickhouse_settings).toEqual({
+      SQL_everr_tenant_id: ORG,
+    });
+  });
 });
 
 describe("querySqlApi", () => {

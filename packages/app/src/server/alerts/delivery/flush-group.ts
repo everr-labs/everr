@@ -28,14 +28,18 @@ import {
 import { deliverableGroupMemberQuery } from "./journal-reader";
 import {
   deferSuppressedEvent,
-  isInhibited,
-  matchingSilence,
+  loadActiveSilences,
+  loadInhibitionContext,
+  matchInhibition,
+  matchSilence,
 } from "./suppression";
 import { alertDeliveryHash } from "./targeting";
 import {
   ALERT_FLUSH_GROUP_TASK,
   ALERT_SEND_DELIVERY_TASK,
   AlertGroupTaskPayloadSchema,
+  flushGroupJobKey,
+  IDLE_GROUP_FLUSH_AT,
 } from "./tasks";
 
 // The body budgets against the tightest channel limit, keeping a margin for
@@ -48,6 +52,14 @@ const BODY_MAX_EVENTS = 20;
 const LINE_MAX_CHARS = 200;
 // Room kept back for the "…and N more" line so appending it cannot overflow.
 const OMITTED_LINE_RESERVE = 48;
+
+// Bounds one flush's claimed membership set. Past this, a storm feeding one
+// group (thousands of firing instances into one receiver) would push a
+// single worker through a suppression check per member with no upper bound.
+// Whatever is left past the cap stays linked and unflushed, and the pending
+// count this flush already computes turns that into an immediate follow-up
+// flush rather than a lost member.
+const FLUSH_GROUP_MEMBER_CLAIM_CAP = 500;
 
 export type NotificationEvent = Pick<
   typeof alertEvents.$inferSelect,
@@ -111,8 +123,22 @@ export async function flushAlertGroup(rawPayload: unknown): Promise<void> {
       .for("update")
       .limit(1);
     if (!group || group.nextFlushAt > new Date()) return null;
-    const rows = await deliverableGroupMemberQuery(tx, group.id);
-    return rows.length === 0 ? null : { group, rows };
+    const rows = await deliverableGroupMemberQuery(
+      tx,
+      group.id,
+      FLUSH_GROUP_MEMBER_CLAIM_CAP,
+    );
+    if (rows.length === 0) {
+      // Nothing claimed: park on the idle sentinel instead of leaving
+      // nextFlushAt in the past, or the next event dispatched to this group
+      // would skip its whole group wait and page alone.
+      await tx
+        .update(alertNotificationGroups)
+        .set({ nextFlushAt: IDLE_GROUP_FLUSH_AT, updatedAt: new Date() })
+        .where(eq(alertNotificationGroups.id, group.id));
+      return null;
+    }
+    return { group, rows };
   });
   if (!claimed) return;
   const { group, rows } = claimed;
@@ -125,20 +151,33 @@ export async function flushAlertGroup(rawPayload: unknown): Promise<void> {
   // delete below removes it; a member that never made a notification also
   // gets its terminal suppression row so its chain does not dangle.
   const droppedRows: typeof rows = [];
+  const candidateRows: typeof rows = [];
   for (const row of rows) {
-    const { event, flushedAt, ruleActive } = row;
-    // Muted chains sit outside the terminal surface: history consumers filter
-    // `rule_muted = false`, so a muted member is neither notified nor closed.
-    if (event.suppressed) continue;
-    const liveness = memberLiveness(ruleActive, flushedAt);
+    const liveness = memberLiveness(row.ruleActive, row.flushedAt);
     if (liveness === "dropped_unnotified") {
       droppedRows.push(row);
       continue;
     }
     if (liveness !== "deliverable") continue;
-    const now = new Date();
-    const silence = await matchingSilence(event, now);
-    const inhibited = silence ? false : await isInhibited(event);
+    candidateRows.push(row);
+  }
+  // Loaded once for the whole flush, not once per member: matchingSilence
+  // and isInhibited each ran an org-wide scan, so a flush with hundreds of
+  // members used to issue hundreds of identical scans.
+  const now = new Date();
+  const [silences, inhibitionContext] =
+    candidateRows.length > 0
+      ? await Promise.all([
+          loadActiveSilences(group.organizationId, now),
+          loadInhibitionContext(group.organizationId),
+        ])
+      : [[], { inhibitions: [], sources: [] }];
+  for (const row of candidateRows) {
+    const { event, flushedAt } = row;
+    const silence = matchSilence(event, silences, now);
+    const inhibited = silence
+      ? false
+      : matchInhibition(event, inhibitionContext);
     if (silence || inhibited) {
       await deferSuppressedEvent(event, silence, inhibited, now);
       // Drop the membership now and disown the id. Deferral reschedules
@@ -164,7 +203,11 @@ export async function flushAlertGroup(rawPayload: unknown): Promise<void> {
     }
     members.push({ event, flushedAt });
   }
-  const { active, notify: notificationEvents } = groupNotificationPlan(members);
+  const {
+    active,
+    notify: notificationEvents,
+    droppedUnannounced,
+  } = groupNotificationPlan(members);
   const channels = group.directAlertDefinitionId
     ? await db
         .select({ channel: alertChannels })
@@ -210,6 +253,15 @@ export async function flushAlertGroup(rawPayload: unknown): Promise<void> {
             ),
           )
           .orderBy(asc(alertReceiverChannels.position))
+      : [];
+  // A notification-worthy set with nowhere to send it: the flush below still
+  // marks these members flushed and advances lastNotifiedAt, so without a
+  // terminal here their chains would read as delivered with no record of why
+  // nothing went out. Guarded on repo-level channel requirements today, but
+  // the invariant ("chains end in an outcome") must hold regardless.
+  const noChannelDrops =
+    channels.length === 0 && notificationEvents.length > 0
+      ? notificationEvents
       : [];
   const notification = formatNotification(notificationEvents);
   await db.transaction(async (tx) => {
@@ -318,7 +370,7 @@ export async function flushAlertGroup(rawPayload: unknown): Promise<void> {
         ALERT_FLUSH_GROUP_TASK,
         { groupId: group.id },
         {
-          jobKey: `${ALERT_FLUSH_GROUP_TASK}:${group.id}:${nextFlushAt.toISOString()}`,
+          jobKey: flushGroupJobKey(group.id, nextFlushAt),
           jobKeyMode: "replace",
           maxAttempts: 5,
           queueName: alertingPartitionQueue("group", group.id),
@@ -327,11 +379,14 @@ export async function flushAlertGroup(rawPayload: unknown): Promise<void> {
       );
     }
   });
-  if (droppedRows.length > 0) {
+  if (
+    droppedRows.length > 0 ||
+    droppedUnannounced.length > 0 ||
+    noChannelDrops.length > 0
+  ) {
     const decidedAt = new Date();
-    await recordAlertHistory(
-      null,
-      droppedRows.map(({ event, ruleActive }) =>
+    await recordAlertHistory(null, [
+      ...droppedRows.map(({ event, ruleActive }) =>
         suppressionHistoryRow({
           def: historyDefFromJournalRow(event),
           notificationEventId: event.id,
@@ -344,6 +399,37 @@ export async function flushAlertGroup(rawPayload: unknown): Promise<void> {
           reason: ruleActive === null ? "rule_deleted" : "rule_paused",
         }),
       ),
-    );
+      // A resolve whose fire never went out: nobody was ever told this
+      // instance was firing, so the resolve does not notify either, but its
+      // chain still needs a terminal so it does not read as forever in
+      // flight.
+      ...droppedUnannounced.map((event) =>
+        suppressionHistoryRow({
+          def: historyDefFromJournalRow(event),
+          notificationEventId: event.id,
+          occurredAt: decidedAt,
+          fingerprint: event.instanceFingerprint,
+          labels: event.instanceLabels,
+          silenced: false,
+          inhibited: false,
+          silenceId: null,
+        }),
+      ),
+      // A receiver or rule with no channels attached: nothing was sent, but
+      // the flush still marked these flushed and advanced lastNotifiedAt.
+      ...noChannelDrops.map((event) =>
+        suppressionHistoryRow({
+          def: historyDefFromJournalRow(event),
+          notificationEventId: event.id,
+          occurredAt: decidedAt,
+          fingerprint: event.instanceFingerprint,
+          labels: event.instanceLabels,
+          silenced: false,
+          inhibited: false,
+          silenceId: null,
+          reason: "no_channels",
+        }),
+      ),
+    ]);
   }
 }

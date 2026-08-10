@@ -146,6 +146,17 @@ export function shouldEnqueueProcessEvent(
   return outbox.kind !== "state";
 }
 
+/**
+ * A row that was already inactive and is still absent carries nothing new:
+ * rewriting it every tick would defeat the retention cutoff on
+ * `alert_instances`, since `updated_at` would never age.
+ */
+export function isNoopInactiveTransition(
+  transition: Pick<AlertInstanceTransition, "event" | "next">,
+): boolean {
+  return transition.event === null && transition.next.status === "inactive";
+}
+
 export function transitionEventRows(opts: {
   def: typeof alertDefinitions.$inferSelect;
   historyDef: AlertHistoryDefinition;
@@ -153,11 +164,18 @@ export function transitionEventRows(opts: {
   evaluatedAt: Date;
   /** The instance's open episode before this evaluation, if any. */
   storedEpisodeId: string | null;
+  /**
+   * Precomputed `boundEventEvidence(transition.next.evidence,
+   * transition.next.labels)`, when the caller already needs it elsewhere for
+   * the same transition. Computed on demand otherwise.
+   */
+  bounded?: { evidence: Record<string, unknown>; truncated: boolean };
 }): TransitionEvent[] {
   const { def, historyDef, transition, evaluatedAt } = opts;
   if (!transition.event) return [];
   const next = transition.next;
-  const bounded = boundEventEvidence(next.evidence, next.labels);
+  const bounded =
+    opts.bounded ?? boundEventEvidence(next.evidence, next.labels);
   const firstRow: Record<string, unknown> = {
     ...bounded.evidence,
     ...next.labels,
@@ -246,7 +264,7 @@ async function scheduleAlertAtInTransaction(
   };
   await tx
     .update(alertDefinitions)
-    .set({ nextEvaluationAt: runAt })
+    .set({ nextEvaluationAt: runAt, lastEnqueuedAt: runAt })
     .where(eq(alertDefinitions.id, def.id));
   await addWorkerJobInTransaction(tx, ALERT_EVALUATE_TASK, payload, {
     jobKey: alertEvaluationJobKey(def.id, payload.scheduledFor),
@@ -259,12 +277,33 @@ async function scheduleAlertAtInTransaction(
 
 async function recordEvaluationFailure(
   def: typeof alertDefinitions.$inferSelect,
+  payload: z.infer<typeof EvaluatePayloadSchema>,
   scheduledFor: Date,
   cause: unknown,
 ) {
   const message = errorMessage(cause).slice(0, 8_000);
   const occurredAt = new Date();
   const applied = await db.transaction(async (tx) => {
+    // Mirrors the success path's guard: a rule paused or deleted between the
+    // outer read and this transaction must not be written back degraded
+    // with a queued retry, and a deleted rule's id would violate the
+    // alert_evaluations FK below.
+    const [fresh] = await tx
+      .select({
+        active: alertDefinitions.active,
+        version: alertDefinitions.version,
+        consecutiveFailures: alertDefinitions.consecutiveFailures,
+      })
+      .from(alertDefinitions)
+      .where(eq(alertDefinitions.id, def.id))
+      .for("update")
+      .limit(1);
+    if (
+      !fresh?.active ||
+      (payload.ruleVersion !== undefined &&
+        fresh.version !== payload.ruleVersion)
+    )
+      return false;
     const inserted = await tx
       .insert(alertEvaluations)
       .values({ alertDefinitionId: def.id, scheduledFor })
@@ -282,7 +321,7 @@ async function recordEvaluationFailure(
         degradedSince: sql`coalesce(${alertDefinitions.degradedSince}, now())`,
       })
       .where(eq(alertDefinitions.id, def.id));
-    const failureCount = def.consecutiveFailures + 1;
+    const failureCount = fresh.consecutiveFailures + 1;
     const maximum = def.spec.max_interval_secs ?? def.spec.interval_secs * 16;
     const backoff = alertingRetryDelaySeconds(
       def.spec.interval_secs,
@@ -349,7 +388,7 @@ export async function evaluateAlert(rawPayload: unknown): Promise<void> {
   try {
     await evaluateAlertRule(def, payload, scheduledFor);
   } catch (cause) {
-    await recordEvaluationFailure(def, scheduledFor, cause);
+    await recordEvaluationFailure(def, payload, scheduledFor, cause);
   }
 }
 
@@ -367,14 +406,9 @@ async function evaluateAlertRule(
 
   const evaluatedAt = new Date();
   const evidence = boundEvidence(rows);
-  const capturedSamples = captureAlertEvaluationSamples(
-    rows,
-    def.spec.label_columns,
-  );
   const present = rowsToInstances(
     rows.filter((row) => alertingConditionMatches(row, def.spec.condition)),
     def.spec.label_columns,
-    evaluatedAt,
   ).map(
     (instance): PresentAlertInstance => ({
       fingerprint: instance.fingerprint,
@@ -385,6 +419,14 @@ async function evaluateAlertRule(
   );
   const presentByFingerprint = new Map(
     present.map((instance) => [instance.fingerprint, instance]),
+  );
+  // Matching rows first, so a rule with more than the sample cap's worth of
+  // label sets never buries the breaching ones under healthy filler and the
+  // series doesn't miss a breach that paged someone.
+  const capturedSamples = captureAlertEvaluationSamples(
+    rows,
+    def.spec.label_columns,
+    new Set(presentByFingerprint.keys()),
   );
   const previousRows = await db
     .select()
@@ -424,6 +466,17 @@ async function evaluateAlertRule(
     previousRows.map((row) => [row.fingerprint, row.episodeId]),
   );
   const historyDef = historyDefinition(def);
+  // Computed once per transition and reused for both the journal row below
+  // and the instance upsert further down, instead of recomputing the same
+  // bound evidence twice from the same inputs.
+  const boundedEvidenceByFingerprint = new Map(
+    transitions
+      .filter((transition) => !isNoopInactiveTransition(transition))
+      .map((transition) => [
+        transition.next.fingerprint,
+        boundEventEvidence(transition.next.evidence, transition.next.labels),
+      ]),
+  );
   const transitionEvents = transitions.flatMap((transition) =>
     transitionEventRows({
       def,
@@ -432,6 +485,7 @@ async function evaluateAlertRule(
       evaluatedAt,
       storedEpisodeId:
         storedEpisodeByFingerprint.get(transition.next.fingerprint) ?? null,
+      bounded: boundedEvidenceByFingerprint.get(transition.next.fingerprint),
     }),
   );
   const episodeUpdateByFingerprint = new Map(
@@ -465,11 +519,18 @@ async function evaluateAlertRule(
     if (inserted.length === 0) return false;
 
     for (const transition of transitions) {
+      if (isNoopInactiveTransition(transition)) continue;
       const next = transition.next;
-      const boundedInstanceEvidence = boundEventEvidence(
-        next.evidence,
-        next.labels,
+      const boundedInstanceEvidence = boundedEvidenceByFingerprint.get(
+        next.fingerprint,
       );
+      // Every non-skipped transition got an entry above, keyed by the same
+      // fingerprint.
+      if (!boundedInstanceEvidence) {
+        throw new Error(
+          `missing bounded evidence for fingerprint ${next.fingerprint}`,
+        );
+      }
       // Only a transition moves the episode; a quiet evaluation must not
       // clear an open one.
       const episodeUpdate = episodeUpdateByFingerprint.get(next.fingerprint);

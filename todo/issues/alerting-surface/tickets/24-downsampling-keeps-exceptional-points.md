@@ -10,5 +10,5 @@ downsampling.
 
 **Status:** ready-for-agent
 
-- [ ] Exceptional points and state transitions are preserved before the display budget fills with representative samples
-- [ ] A test with one exceptional point between sampled indexes
+- [x] Exceptional points and state transitions are preserved before the display budget fills with representative samples
+- [x] A test with one exceptional point between sampled indexes

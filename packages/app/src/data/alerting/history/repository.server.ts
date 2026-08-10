@@ -8,8 +8,14 @@ import { clickhouseIsoMillis } from "./clickhouse";
 import {
   ALERT_OUTCOME_EVENT_TYPES_SQL,
   ALERT_TRANSITION_EVENT_TYPES_SQL,
-  type AlertEventType,
+  type AlertTransitionEventType,
 } from "./event-types";
+
+// Per-query, not a client default (@/lib/clickhouse.query is shared with
+// dashboards, where a global cap could break a long-running scan): every
+// query in this file is a bounded alerting history read, so 30s is a bug, not
+// a legitimate slow query.
+const ALERTING_QUERY_SETTINGS = { max_execution_time: 30 };
 
 export type JsonValue =
   | string
@@ -23,7 +29,7 @@ export type AlertEvidence = { [key: string]: JsonValue };
 
 export type AlertEventLogRow = {
   timestamp: string;
-  eventType: AlertEventType;
+  eventType: AlertTransitionEventType;
   slug: string;
   instanceFingerprint: string;
   labels: Record<string, string>;
@@ -41,10 +47,10 @@ export type AlertEventLogRow = {
 type ClickHouseAlertEventRow = {
   eventId: string;
   timestamp: string;
-  eventType: AlertEventType;
+  eventType: AlertTransitionEventType;
   slug: string;
   instanceFingerprint: string;
-  labelsJson: string;
+  labels: Record<string, string>;
   severity: string;
   suppressed: boolean;
   reason: string;
@@ -62,14 +68,6 @@ function parseJsonObject(json: string): Record<string, JsonValue> {
     // Malformed evidence must not hide the rest of an event.
   }
   return {};
-}
-
-function parseLabels(json: string): Record<string, string> {
-  return Object.fromEntries(
-    Object.entries(parseJsonObject(json)).flatMap(([key, value]) =>
-      typeof value === "string" ? [[key, value]] : [],
-    ),
-  );
 }
 
 type NotificationOutcome = {
@@ -123,6 +121,7 @@ async function queryNotificationOutcomes(
       from: toClickHouseDateTime(from),
       eventIds: [...eventIds],
     },
+    ALERTING_QUERY_SETTINGS,
   );
   return new Map(
     rows.map((row) => [
@@ -145,6 +144,13 @@ export async function queryClickHouseAlertEventLog(
     fingerprint?: string;
     sourceId?: string;
     slugs?: readonly string[];
+    /**
+     * The sort key is (tenant_id, repoid, slug, ...), so a per-rule read
+     * (one known repoid) should always supply this: without it, the read
+     * falls back to a generic exclusion search past the repoid prefix. Leave
+     * unset only for a caller that genuinely spans repos (org-wide history).
+     */
+    repoid?: string;
     /** null selects live events; an array overlays those Preview ids on live. */
     previewIds: readonly string[] | null;
   },
@@ -156,16 +162,14 @@ export async function queryClickHouseAlertEventLog(
     "event_time <= {to:DateTime64(3)}",
   ];
   if (opts.previewIds === null) {
-    filters.push(
-      "preview_id = toUUID('00000000-0000-0000-0000-000000000000')",
-      "rule_muted = false",
-    );
+    filters.push("is_live");
   } else if (opts.previewIds.length === 0) {
-    filters.push("preview_id = toUUID('00000000-0000-0000-0000-000000000000')");
+    filters.push("is_live");
   } else {
-    filters.push(
-      "(preview_id = toUUID('00000000-0000-0000-0000-000000000000') OR preview_id IN {previewIds:Array(UUID)})",
-    );
+    filters.push("(is_live OR preview_id IN {previewIds:Array(UUID)})");
+  }
+  if (opts.repoid !== undefined) {
+    filters.push("repoid = {repoid:String}");
   }
   if (opts.fingerprint !== undefined) {
     filters.push("instance_fingerprint = {fingerprint:String}");
@@ -185,7 +189,7 @@ export async function queryClickHouseAlertEventLog(
         event_type AS eventType,
         slug,
         instance_fingerprint AS instanceFingerprint,
-        toJSONString(instance_labels) AS labelsJson,
+        instance_labels AS labels,
         severity,
         rule_muted AS suppressed,
         reason,
@@ -203,12 +207,14 @@ export async function queryClickHouseAlertEventLog(
       to: toClickHouseDateTime(opts.to),
       limit: opts.limit,
       ...(opts.previewIds?.length ? { previewIds: [...opts.previewIds] } : {}),
+      ...(opts.repoid !== undefined ? { repoid: opts.repoid } : {}),
       ...(opts.fingerprint !== undefined
         ? { fingerprint: opts.fingerprint }
         : {}),
       ...(opts.sourceId !== undefined ? { sourceId: opts.sourceId } : {}),
       ...(opts.slugs !== undefined ? { slugs: [...opts.slugs] } : {}),
     },
+    ALERTING_QUERY_SETTINGS,
   );
 
   if (rows.length === 0) return [];
@@ -225,7 +231,7 @@ export async function queryClickHouseAlertEventLog(
       eventType: row.eventType,
       slug: row.slug,
       instanceFingerprint: row.instanceFingerprint,
-      labels: parseLabels(row.labelsJson),
+      labels: row.labels,
       severity: row.severity,
       suppressed: Boolean(row.suppressed),
       silenced: outcome?.silenced ?? false,
@@ -238,48 +244,44 @@ export async function queryClickHouseAlertEventLog(
   });
 }
 
-async function recentClickHouseLabels(
-  organizationId: string,
-  opts: { from: Date; to: Date },
-) {
-  return query<{ labelsJson: string }>(
-    `
-      SELECT toJSONString(instance_labels) AS labelsJson
-      FROM app.alert_events
-      WHERE tenant_id = {organizationId:String}
+// Shared by both label-suggestion queries: recent, unmuted instance labels,
+// the population the suggestion ranks over.
+const OBSERVED_LABEL_FILTERS = `
+        tenant_id = {organizationId:String}
         AND event_type IN ('instance_fired', 'instance_resolved')
         AND rule_muted = false
         AND event_time >= {from:DateTime64(3)}
-        AND event_time <= {to:DateTime64(3)}
-      ORDER BY event_time DESC
-      LIMIT 10000
+        AND event_time <= {to:DateTime64(3)}`;
+
+/**
+ * Rank observed label keys (or, given `key`, values for that key) by
+ * frequency in ClickHouse rather than pulling up to 10,000 label blobs into
+ * Node to count there. `arrayJoin` explodes each row's keys before the
+ * `GROUP BY`, so `count()` ranks over rows, not blobs.
+ */
+export async function queryClickHouseObservedLabelKeys(
+  organizationId: string,
+  opts: { limit: number; from: Date; to: Date },
+): Promise<string[]> {
+  const rows = await query<{ key: string }>(
+    `
+      SELECT arrayJoin(mapKeys(instance_labels)) AS key
+      FROM app.alert_events
+      WHERE ${OBSERVED_LABEL_FILTERS}
+      GROUP BY key
+      ORDER BY count() DESC, key ASC
+      LIMIT {limit:UInt32}
     `,
     organizationId,
     {
       organizationId,
       from: toClickHouseDateTime(opts.from),
       to: toClickHouseDateTime(opts.to),
+      limit: opts.limit,
     },
+    ALERTING_QUERY_SETTINGS,
   );
-}
-
-export async function queryClickHouseObservedLabelKeys(
-  organizationId: string,
-  opts: { limit: number; from: Date; to: Date },
-): Promise<string[]> {
-  const counts = new Map<string, number>();
-  for (const row of await recentClickHouseLabels(organizationId, opts)) {
-    for (const key of Object.keys(parseLabels(row.labelsJson))) {
-      counts.set(key, (counts.get(key) ?? 0) + 1);
-    }
-  }
-  return [...counts]
-    .sort(
-      ([keyA, countA], [keyB, countB]) =>
-        countB - countA || keyA.localeCompare(keyB),
-    )
-    .slice(0, opts.limit)
-    .map(([key]) => key);
+  return rows.map((row) => row.key);
 }
 
 export async function queryClickHouseObservedLabelValues(
@@ -287,16 +289,25 @@ export async function queryClickHouseObservedLabelValues(
   key: string,
   opts: { limit: number; from: Date; to: Date },
 ): Promise<string[]> {
-  const counts = new Map<string, number>();
-  for (const row of await recentClickHouseLabels(organizationId, opts)) {
-    const value = parseLabels(row.labelsJson)[key];
-    if (value) counts.set(value, (counts.get(value) ?? 0) + 1);
-  }
-  return [...counts]
-    .sort(
-      ([valueA, countA], [valueB, countB]) =>
-        countB - countA || valueA.localeCompare(valueB),
-    )
-    .slice(0, opts.limit)
-    .map(([value]) => value);
+  const rows = await query<{ value: string }>(
+    `
+      SELECT instance_labels[{key:String}] AS value
+      FROM app.alert_events
+      WHERE ${OBSERVED_LABEL_FILTERS}
+        AND has(instance_labels, {key:String})
+      GROUP BY value
+      ORDER BY count() DESC, value ASC
+      LIMIT {limit:UInt32}
+    `,
+    organizationId,
+    {
+      organizationId,
+      key,
+      from: toClickHouseDateTime(opts.from),
+      to: toClickHouseDateTime(opts.to),
+      limit: opts.limit,
+    },
+    ALERTING_QUERY_SETTINGS,
+  );
+  return rows.map((row) => row.value);
 }

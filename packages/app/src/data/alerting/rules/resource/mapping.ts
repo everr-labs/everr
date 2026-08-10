@@ -83,7 +83,13 @@ export function toRuleInput(
     sql: rule.spec.query,
     interval_secs: parseEvaluationInterval(rule.spec.evaluationInterval),
     for_secs: parseForDuration(rule.spec.for),
-    label_columns: rule.spec.instanceLabels ?? opts.instanceLabels ?? [],
+    // Sorted, not authored order: identity is fingerprinted over sorted
+    // label keys, so the stored spec must not churn (and reorder-only
+    // updates must not close every open instance) when a user or an
+    // inference pass merely reorders the same columns.
+    label_columns: [
+      ...(rule.spec.instanceLabels ?? opts.instanceLabels ?? []),
+    ].sort(),
     condition: rule.spec.condition,
     severity: rule.spec.severity,
     annotations,
@@ -136,8 +142,10 @@ export function fromAlertingRule(
 ): SimpleAlertView {
   const { project, slug } = parseResourceName(rule.name);
   const ann = rule.spec.annotations ?? {};
-  // The stored ref is already canonical (project/slug or a bare slug for the
-  // default project), so any alertProject fallback works to split it back out.
+  // formatRunbookRef always qualifies now, so a stored ref is always
+  // "project/slug". A bare ref here can only be a pre-fix legacy row, and
+  // the old bug only ever dropped the "default" project, so that is the
+  // fallback (never the alert's own project, which may differ).
   const runbook = ann[ANN_RUNBOOK]
     ? parseRunbookRef(ann[ANN_RUNBOOK], "default")
     : null;
@@ -199,9 +207,11 @@ export function toAlertRuleDocument(
     },
     spec: {
       ...(display ? { display } : {}),
-      // The stored ref is already canonical (project/slug, or a bare slug for
-      // the default project), which the schema accepts as-is. `undefined`
-      // values drop out when the document is serialized to JSON/YAML.
+      // The stored ref is already qualified ("project/slug"), which the
+      // schema accepts as-is; re-applying this document must resolve the
+      // same runbook regardless of which project the alert itself lives in.
+      // `undefined` values drop out when the document is serialized to
+      // JSON/YAML.
       runbook: ann[ANN_RUNBOOK] ?? undefined,
       evaluationInterval: formatDurationSeconds(rule.spec.interval_secs),
       for: formatDurationSeconds(rule.spec.for_secs),

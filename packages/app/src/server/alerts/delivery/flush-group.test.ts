@@ -1,11 +1,125 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
-// formatNotification is pure; the mock only keeps the module import from
-// reaching the real database client.
-vi.mock("@/db/client", () => ({ db: {}, pool: {} }));
+const mocks = vi.hoisted(() => ({
+  groupRow: null as Record<string, unknown> | null,
+  memberRows: [] as unknown[],
+  updates: [] as Record<string, unknown>[],
+  // Consumed in order by the commit transaction: the re-read-under-lock
+  // select, then the pending-unflushed-count select.
+  commitSelectQueue: [] as unknown[][],
+  loadSilences: vi.fn(() => Promise.resolve([])),
+  loadInhibition: vi.fn(() =>
+    Promise.resolve({ inhibitions: [], sources: [] }),
+  ),
+  recordHistory: vi.fn(() => Promise.resolve()),
+  transactionCalls: 0,
+  // The channels attached to a group's receiver or direct rule.
+  channelRows: [] as unknown[],
+}));
+
+vi.mock("@/db/client", () => {
+  return {
+    db: {
+      // The receiver/rule -> channels lookup, outside any transaction.
+      select: () => ({
+        from: () => ({
+          innerJoin: () => ({
+            where: () => ({
+              orderBy: () => Promise.resolve(mocks.channelRows),
+            }),
+          }),
+        }),
+      }),
+      transaction: (fn: (tx: unknown) => Promise<unknown>) => {
+        mocks.transactionCalls += 1;
+        if (mocks.transactionCalls === 1) {
+          // The claim transaction: lock-read the group, maybe park it idle.
+          const tx = {
+            select: () => ({
+              from: () => ({
+                where: () => ({
+                  for: () => ({
+                    limit: () =>
+                      Promise.resolve(mocks.groupRow ? [mocks.groupRow] : []),
+                  }),
+                }),
+              }),
+            }),
+            update: () => ({
+              set: (values: Record<string, unknown>) => {
+                mocks.updates.push(values);
+                return { where: () => Promise.resolve(undefined) };
+              },
+            }),
+          };
+          return fn(tx);
+        }
+        // The commit transaction: re-read under lock, insert/delete
+        // memberships, read the pending count, reschedule.
+        const tx = {
+          select: () => ({
+            from: () => ({
+              where: () => {
+                const rows = mocks.commitSelectQueue.shift() ?? [];
+                return Object.assign(Promise.resolve(rows), {
+                  for: () => ({ limit: () => Promise.resolve(rows) }),
+                });
+              },
+            }),
+          }),
+          insert: () => ({ values: () => Promise.resolve(undefined) }),
+          delete: () => ({ where: () => Promise.resolve(undefined) }),
+          update: () => ({
+            set: (values: Record<string, unknown>) => {
+              mocks.updates.push(values);
+              return { where: () => Promise.resolve(undefined) };
+            },
+          }),
+        };
+        return fn(tx);
+      },
+    },
+    pool: {},
+  };
+});
+
+vi.mock("./journal-reader", () => ({
+  deliverableGroupMemberQuery: () => Promise.resolve(mocks.memberRows),
+}));
+
+vi.mock("./suppression", () => ({
+  loadActiveSilences: mocks.loadSilences,
+  loadInhibitionContext: mocks.loadInhibition,
+  matchSilence: () => null,
+  matchInhibition: () => false,
+  deferSuppressedEvent: vi.fn(),
+}));
+
+vi.mock("../history/clickhouse", () => ({
+  recordAlertHistory: mocks.recordHistory,
+  historyDefFromJournalRow: (row: unknown) => row,
+  suppressionHistoryRow: (opts: unknown) => opts,
+}));
 
 import { CHANNEL_TEXT_MAX } from "@/lib/channel-text-limits";
-import { formatNotification, type NotificationEvent } from "./flush-group";
+import {
+  flushAlertGroup,
+  formatNotification,
+  type NotificationEvent,
+} from "./flush-group";
+import { IDLE_GROUP_FLUSH_AT } from "./tasks";
+
+beforeEach(() => {
+  mocks.groupRow = null;
+  mocks.memberRows = [];
+  mocks.updates = [];
+  mocks.commitSelectQueue = [];
+  mocks.transactionCalls = 0;
+  mocks.loadSilences.mockClear();
+  mocks.loadInhibition.mockClear();
+  mocks.recordHistory.mockClear();
+  mocks.channelRows = [];
+});
 
 function event(overrides: Partial<NotificationEvent> = {}): NotificationEvent {
   return {
@@ -78,5 +192,253 @@ describe("formatNotification", () => {
     expect(formatNotification(events).title).toBe(
       "Everr alert: 50 firing, 30 resolved",
     );
+  });
+});
+
+describe("flushAlertGroup empty claim", () => {
+  it("parks nextFlushAt on the idle sentinel instead of leaving it in the past", async () => {
+    mocks.groupRow = {
+      id: "5cbb1c68-5cc9-4444-8000-000000000001",
+      nextFlushAt: new Date("2026-08-10T09:00:00Z"),
+    };
+    mocks.memberRows = [];
+
+    await flushAlertGroup({ groupId: "5cbb1c68-5cc9-4444-8000-000000000001" });
+
+    expect(mocks.updates).toEqual([
+      expect.objectContaining({ nextFlushAt: IDLE_GROUP_FLUSH_AT }),
+    ]);
+  });
+
+  it("touches nothing when the group is not due yet", async () => {
+    mocks.groupRow = {
+      id: "5cbb1c68-5cc9-4444-8000-000000000001",
+      nextFlushAt: new Date(Date.now() + 60_000),
+    };
+    mocks.memberRows = [];
+
+    await flushAlertGroup({ groupId: "5cbb1c68-5cc9-4444-8000-000000000001" });
+
+    expect(mocks.updates).toEqual([]);
+  });
+});
+
+describe("flushAlertGroup suppression batching", () => {
+  const GROUP_ID = "5cbb1c68-5cc9-4444-8000-000000000002";
+
+  function member(i: number) {
+    return {
+      event: {
+        id: `event-${i}`,
+        organizationId: "org-1",
+        sourceDefinitionId: "def-1",
+        instanceFingerprint: `fp-${i}`,
+        occurredAt: new Date("2026-08-10T08:59:00Z"),
+        eventType: "instance_fired",
+        instanceLabels: {},
+        silenced: false,
+        inhibited: false,
+        silenceId: null,
+      },
+      flushedAt: null,
+      ruleActive: true,
+    };
+  }
+
+  it("loads silences and inhibition sources once, not once per member", async () => {
+    const group = {
+      id: GROUP_ID,
+      organizationId: "org-1",
+      nextFlushAt: new Date("2026-08-10T09:00:00Z"),
+      directAlertDefinitionId: null,
+      receiverId: null,
+      repeatIntervalSeconds: null,
+      lastNotifiedAt: null,
+    };
+    mocks.groupRow = group;
+    // 5 distinct firing members: with the per-member design this would have
+    // been 5 silence scans and 5 inhibition scans.
+    mocks.memberRows = Array.from({ length: 5 }, (_, i) => member(i));
+    mocks.commitSelectQueue = [
+      [group], // re-read under lock
+      [{ unflushed: 0 }], // pending count
+    ];
+
+    await flushAlertGroup({ groupId: GROUP_ID });
+
+    expect(mocks.loadSilences).toHaveBeenCalledTimes(1);
+    expect(mocks.loadInhibition).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not load either when nothing survives to the suppression check", async () => {
+    const group = {
+      id: GROUP_ID,
+      organizationId: "org-1",
+      nextFlushAt: new Date("2026-08-10T09:00:00Z"),
+      directAlertDefinitionId: null,
+      receiverId: null,
+      repeatIntervalSeconds: null,
+      lastNotifiedAt: null,
+    };
+    mocks.groupRow = group;
+    // A paused rule: dropped before the suppression check runs.
+    mocks.memberRows = [{ ...member(0), ruleActive: false }];
+    mocks.commitSelectQueue = [[group], [{ unflushed: 0 }]];
+
+    await flushAlertGroup({ groupId: GROUP_ID });
+
+    expect(mocks.loadSilences).not.toHaveBeenCalled();
+    expect(mocks.loadInhibition).not.toHaveBeenCalled();
+  });
+});
+
+describe("flushAlertGroup flap handling", () => {
+  const GROUP_ID = "5cbb1c68-5cc9-4444-8000-000000000003";
+
+  it("records a terminal for a flap instead of notifying an unannounced resolve", async () => {
+    const group = {
+      id: GROUP_ID,
+      organizationId: "org-1",
+      nextFlushAt: new Date("2026-08-10T09:00:00Z"),
+      directAlertDefinitionId: null,
+      receiverId: null,
+      repeatIntervalSeconds: null,
+      lastNotifiedAt: null,
+    };
+    mocks.groupRow = group;
+    // Fire at T, resolve at T+15, both still unflushed at the flush: the
+    // fire never went out.
+    mocks.memberRows = [
+      {
+        event: {
+          id: "fire-event",
+          organizationId: "org-1",
+          sourceDefinitionId: "def-1",
+          instanceFingerprint: "fp-1",
+          occurredAt: new Date("2026-08-10T08:59:00Z"),
+          eventType: "instance_fired",
+          instanceLabels: {},
+          silenced: false,
+          inhibited: false,
+          silenceId: null,
+        },
+        flushedAt: null,
+        ruleActive: true,
+      },
+      {
+        event: {
+          id: "resolve-event",
+          organizationId: "org-1",
+          sourceDefinitionId: "def-1",
+          instanceFingerprint: "fp-1",
+          occurredAt: new Date("2026-08-10T08:59:15Z"),
+          eventType: "instance_resolved",
+          instanceLabels: {},
+          silenced: false,
+          inhibited: false,
+          silenceId: null,
+        },
+        flushedAt: null,
+        ruleActive: true,
+      },
+    ];
+    mocks.commitSelectQueue = [
+      [group], // re-read under lock
+      [{ unflushed: 0 }], // pending count
+    ];
+
+    await flushAlertGroup({ groupId: GROUP_ID });
+
+    expect(mocks.recordHistory).toHaveBeenCalledWith(
+      null,
+      expect.arrayContaining([
+        expect.objectContaining({ notificationEventId: "resolve-event" }),
+      ]),
+    );
+    const [, rows] = mocks.recordHistory.mock.calls[0] as unknown as [
+      unknown,
+      { notificationEventId: string }[],
+    ];
+    expect(rows).toHaveLength(1);
+  });
+});
+
+describe("flushAlertGroup zero channels", () => {
+  const GROUP_ID = "5cbb1c68-5cc9-4444-8000-000000000004";
+  const group = {
+    id: GROUP_ID,
+    organizationId: "org-1",
+    nextFlushAt: new Date("2026-08-10T09:00:00Z"),
+    directAlertDefinitionId: null,
+    receiverId: "receiver-1",
+    repeatIntervalSeconds: null,
+    lastNotifiedAt: null,
+  };
+
+  it("records a terminal when a notification-worthy set has no channel to send to", async () => {
+    mocks.groupRow = group;
+    mocks.channelRows = []; // the receiver has no channels attached
+    mocks.memberRows = [
+      {
+        event: {
+          id: "fire-event",
+          organizationId: "org-1",
+          sourceDefinitionId: "def-1",
+          instanceFingerprint: "fp-1",
+          occurredAt: new Date("2026-08-10T08:59:00Z"),
+          eventType: "instance_fired",
+          instanceLabels: {},
+          silenced: false,
+          inhibited: false,
+          silenceId: null,
+        },
+        flushedAt: null,
+        ruleActive: true,
+      },
+    ];
+    mocks.commitSelectQueue = [[group], [{ unflushed: 0 }]];
+
+    await flushAlertGroup({ groupId: GROUP_ID });
+
+    expect(mocks.recordHistory).toHaveBeenCalledWith(
+      null,
+      expect.arrayContaining([
+        expect.objectContaining({
+          notificationEventId: "fire-event",
+          reason: "no_channels",
+        }),
+      ]),
+    );
+  });
+
+  it("writes nothing when there is nothing to notify either", async () => {
+    mocks.groupRow = group;
+    mocks.channelRows = [];
+    // A paused rule drops before notificationEvents is computed from any
+    // live candidate: nothing to notify, so nothing to blame on missing
+    // channels.
+    mocks.memberRows = [
+      {
+        event: {
+          id: "fire-event",
+          organizationId: "org-1",
+          sourceDefinitionId: "def-1",
+          instanceFingerprint: "fp-1",
+          occurredAt: new Date("2026-08-10T08:59:00Z"),
+          eventType: "instance_fired",
+          instanceLabels: {},
+          silenced: false,
+          inhibited: false,
+          silenceId: null,
+        },
+        flushedAt: new Date("2026-08-10T08:00:00Z"),
+        ruleActive: false,
+      },
+    ];
+    mocks.commitSelectQueue = [[group], [{ unflushed: 0 }]];
+
+    await flushAlertGroup({ groupId: GROUP_ID });
+
+    expect(mocks.recordHistory).not.toHaveBeenCalled();
   });
 });

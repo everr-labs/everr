@@ -10,5 +10,9 @@ executor the resource registry supplies.
 
 **Status:** ready-for-agent
 
-- [ ] The supplied executor passes through every alert repository mutation, or the transaction contract is explicitly replaced with a durable convergence protocol
+- [x] The supplied executor passes through every alert repository mutation, or the transaction contract is explicitly replaced with a durable convergence protocol
 - [ ] An integration test where a later resource kind fails after alerting mutations begin
+
+Record check 2026-08-10: the executor is threaded through every mutation and
+the reconcile loop runs in one transaction. The existing tests assert the
+plumbing against mocks; no test exercises a real rollback across kinds.

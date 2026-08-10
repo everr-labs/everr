@@ -24,7 +24,7 @@ beforeEach(() => {
 });
 
 describe("queryClickHouseAlertEventLog", () => {
-  it("selects live, unsuppressed transition history", async () => {
+  it("selects live transition history", async () => {
     await queryClickHouseAlertEventLog("org-1", {
       ...range,
       previewIds: null,
@@ -37,10 +37,10 @@ describe("queryClickHouseAlertEventLog", () => {
     expect(sql).toContain(
       "event_type IN ('instance_pending', 'instance_fired', 'instance_resolved', 'instance_closed')",
     );
-    expect(sql).toContain(
-      "preview_id = toUUID('00000000-0000-0000-0000-000000000000')",
-    );
-    expect(sql).toContain("rule_muted = false");
+    expect(sql).toContain("is_live");
+    // JSONEachRow renders a Map column natively; no toJSONString round-trip.
+    expect(sql).toContain("instance_labels AS labels");
+    expect(sql).not.toContain("toJSONString");
     expect(sql).toContain("alert_definition_id = {sourceId:UUID}");
     expect(sql).toContain("instance_fingerprint = {fingerprint:String}");
     expect(organizationId).toBe("org-1");
@@ -52,6 +52,45 @@ describe("queryClickHouseAlertEventLog", () => {
       from: "2026-06-01 00:00:00.000",
       to: "2026-06-16 00:00:00.000",
     });
+    const settings = mocks.query.mock.calls[0]?.[3];
+    expect(settings).toMatchObject({ max_execution_time: 30 });
+  });
+
+  it("does not filter out a muted live rule's own history", async () => {
+    // rule_muted marks a rule that never notifies; it must not also hide
+    // that rule's history from its own detail page (rule_muted AS
+    // suppressed is returned for the UI to render, not to filter on).
+    await queryClickHouseAlertEventLog("org-1", { ...range, previewIds: null });
+    const [liveSql] = mocks.query.mock.calls[0];
+    expect(liveSql).not.toContain("rule_muted = false");
+
+    mocks.query.mockClear();
+    await queryClickHouseAlertEventLog("org-1", { ...range, previewIds: [] });
+    const [emptyPreviewSql] = mocks.query.mock.calls[0];
+    // The null and empty-array preview branches both mean "live only" and
+    // must filter identically.
+    expect(emptyPreviewSql).toBe(liveSql);
+  });
+
+  it("filters on repoid for a per-rule read, hitting the sort-key prefix", async () => {
+    await queryClickHouseAlertEventLog("org-1", {
+      ...range,
+      previewIds: null,
+      slugs: ["default/high-5xx"],
+      repoid: "repo-1",
+    });
+
+    const [sql, , params] = mocks.query.mock.calls[0];
+    expect(sql).toContain("repoid = {repoid:String}");
+    expect(params).toMatchObject({ repoid: "repo-1" });
+  });
+
+  it("leaves repoid unfiltered for an org-wide read", async () => {
+    await queryClickHouseAlertEventLog("org-1", { ...range, previewIds: null });
+
+    const [sql, , params] = mocks.query.mock.calls[0];
+    expect(sql).not.toContain("repoid = {repoid:String}");
+    expect(params).not.toHaveProperty("repoid");
   });
 
   it("overlays selected Preview ids on live history", async () => {
@@ -63,7 +102,7 @@ describe("queryClickHouseAlertEventLog", () => {
 
     const [sql, , params] = mocks.query.mock.calls[0];
     expect(sql).toContain(
-      "(preview_id = toUUID('00000000-0000-0000-0000-000000000000') OR preview_id IN {previewIds:Array(UUID)})",
+      "(is_live OR preview_id IN {previewIds:Array(UUID)})",
     );
     expect(sql).toContain("slug IN {slugs:Array(String)}");
     expect(params).toMatchObject({
@@ -81,7 +120,7 @@ describe("queryClickHouseAlertEventLog", () => {
           eventType: "instance_fired",
           slug: "default/high-5xx",
           instanceFingerprint: "fp-1",
-          labelsJson: '{"host":"web-1"}',
+          labels: { host: "web-1" },
           severity: "critical",
           suppressed: 0,
           reason: "",
@@ -132,21 +171,44 @@ describe("queryClickHouseAlertEventLog", () => {
 });
 
 describe("observed label suggestions", () => {
-  it("ranks keys and values from ClickHouse transition labels", async () => {
-    mocks.query.mockResolvedValue([
-      { labelsJson: '{"service":"api","region":"eu"}' },
-      { labelsJson: '{"service":"api"}' },
-      { labelsJson: '{"service":"web"}' },
-    ]);
+  // The rank is computed in ClickHouse (GROUP BY + count()), not in Node, so
+  // these assert the pushed-down shape and the row-to-result mapping, not a
+  // ranking algorithm that no longer lives here.
+
+  it("ranks keys in ClickHouse via arrayJoin(mapKeys(...))", async () => {
+    mocks.query.mockResolvedValue([{ key: "service" }, { key: "region" }]);
 
     await expect(
       queryClickHouseObservedLabelKeys("org-1", { ...range, limit: 2 }),
     ).resolves.toEqual(["service", "region"]);
+
+    const [sql, organizationId, params] = mocks.query.mock.calls[0];
+    expect(sql).toContain("arrayJoin(mapKeys(instance_labels)) AS key");
+    expect(sql).toContain("GROUP BY key");
+    expect(sql).toContain("ORDER BY count() DESC, key ASC");
+    expect(sql).toContain("LIMIT {limit:UInt32}");
+    expect(organizationId).toBe("org-1");
+    expect(params).toMatchObject({ organizationId: "org-1", limit: 2 });
+    expect(mocks.query.mock.calls[0]?.[3]).toMatchObject({
+      max_execution_time: 30,
+    });
+  });
+
+  it("ranks values for one key via Map access, excluding rows missing it", async () => {
+    mocks.query.mockResolvedValue([{ value: "api" }, { value: "web" }]);
+
     await expect(
       queryClickHouseObservedLabelValues("org-1", "service", {
         ...range,
         limit: 2,
       }),
     ).resolves.toEqual(["api", "web"]);
+
+    const [sql, , params] = mocks.query.mock.calls[0];
+    expect(sql).toContain("instance_labels[{key:String}] AS value");
+    expect(sql).toContain("has(instance_labels, {key:String})");
+    expect(sql).toContain("GROUP BY value");
+    expect(sql).toContain("ORDER BY count() DESC, value ASC");
+    expect(params).toMatchObject({ key: "service", limit: 2 });
   });
 });

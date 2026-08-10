@@ -513,8 +513,14 @@ describe("applyAlertSpecs", () => {
   it("never infers non-string columns, and explicit instanceLabels win", async () => {
     ch.mockResolvedValue({
       rows: [],
-      columns: ["service", "region", "value"],
-      columnTypes: ["LowCardinality(String)", "Nullable(String)", "UInt64"],
+      columns: ["service", "region", "bucket", "value"],
+      columnTypes: [
+        "LowCardinality(String)",
+        "Nullable(String)",
+        // A `toStartOfMinute(...) AS bucket` shape: temporal, not identity.
+        "DateTime",
+        "UInt64",
+      ],
     });
 
     await applyAlertSpecs({
@@ -530,9 +536,11 @@ describe("applyAlertSpecs", () => {
         },
       ],
     });
+    // Sorted, not query order: label_columns carries no authored order once
+    // an inference pass produces it either. bucket never becomes identity.
     expect(mockedCreateRule.mock.calls[0][1].label_columns).toEqual([
-      "service",
       "region",
+      "service",
     ]);
 
     // Same query result, but the spec names its own identity: the inferred

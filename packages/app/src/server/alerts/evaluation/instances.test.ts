@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
-  diffInstances,
   extractInstanceLabels,
   instanceFingerprint,
+  NULL_LABEL_VALUE,
   rowsToInstances,
 } from "./instances";
 
@@ -28,6 +28,20 @@ describe("extractInstanceLabels", () => {
     });
   });
 
+  // The regression: a SQL NULL and the literal empty string both mapped to
+  // "", so two distinct series shared one instance row.
+  it("maps an explicit SQL NULL to a value distinct from the empty string", () => {
+    expect(extractInstanceLabels({ zone: null }, ["zone"])).toEqual({
+      zone: NULL_LABEL_VALUE,
+    });
+    expect(NULL_LABEL_VALUE).not.toBe("");
+    expect(
+      instanceFingerprint(extractInstanceLabels({ zone: null }, ["zone"])),
+    ).not.toBe(
+      instanceFingerprint(extractInstanceLabels({ zone: "" }, ["zone"])),
+    );
+  });
+
   it("returns empty labels for rows with no string columns", () => {
     expect(extractInstanceLabels({ error_count: 7 }, [])).toEqual({});
   });
@@ -51,7 +65,6 @@ describe("instanceFingerprint", () => {
 
 describe("rowsToInstances", () => {
   it("keeps the first row per fingerprint", () => {
-    const firedAt = new Date("2026-06-12T10:00:00Z");
     const instances = rowsToInstances(
       [
         { route: "/x", error_count: 9 },
@@ -59,38 +72,9 @@ describe("rowsToInstances", () => {
         { route: "/y", error_count: 1 },
       ],
       [],
-      firedAt,
     );
     expect(instances).toHaveLength(2);
     expect(instances[0].labels).toEqual({ route: "/x" });
     expect(instances[0].row).toEqual({ route: "/x", error_count: 9 });
-    expect(instances[0].firedAt).toBe(firedAt);
-  });
-});
-
-describe("diffInstances", () => {
-  const inst = (route: string) => {
-    const labels = { route };
-    return { fingerprint: instanceFingerprint(labels), labels, row: { route } };
-  };
-
-  it("computes newlyFired and nowResolved", () => {
-    const prevX = {
-      fingerprint: instanceFingerprint({ route: "/x" }),
-      labels: { route: "/x" },
-    };
-    const prevZ = {
-      fingerprint: instanceFingerprint({ route: "/z" }),
-      labels: { route: "/z" },
-    };
-    const diff = diffInstances([prevX, prevZ], [inst("/x"), inst("/y")]);
-    expect(diff.newlyFired.map((i) => i.labels.route)).toEqual(["/y"]);
-    expect(diff.nowResolved.map((i) => i.labels.route)).toEqual(["/z"]);
-  });
-
-  it("handles empty to empty", () => {
-    const diff = diffInstances([], []);
-    expect(diff.newlyFired).toEqual([]);
-    expect(diff.nowResolved).toEqual([]);
   });
 });

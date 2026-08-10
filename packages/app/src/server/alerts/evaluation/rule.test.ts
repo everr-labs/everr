@@ -2,6 +2,15 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   definition: null as unknown,
+  // The row a failure transaction's FOR UPDATE re-read sees. Defaults to
+  // mirror `definition`; tests that need to simulate a concurrent pause or
+  // delete between the outer read and the failure transaction override it.
+  freshDefinition: undefined as Record<string, unknown> | null | undefined,
+  // The alert_instances rows a fresh evaluateAlertRule call reads back, as
+  // if they were the previous call's persisted state.
+  instanceRows: [] as Record<string, unknown>[],
+  instanceUpserts: [] as Record<string, unknown>[],
+  eventRows: [] as Record<string, unknown>[],
   query: vi.fn(),
   transaction: vi.fn(),
   definitionUpdates: [] as Record<string, unknown>[],
@@ -25,7 +34,7 @@ vi.mock("@/db/client", () => ({
         // The two reads differ in shape: the definition lookup ends in
         // .limit(1), the instance lookup awaits .where() directly.
         where: () =>
-          Object.assign(Promise.resolve([] as unknown[]), {
+          Object.assign(Promise.resolve(mocks.instanceRows), {
             limit: () => Promise.resolve([mocks.definition]),
           }),
       }),
@@ -50,8 +59,11 @@ vi.mock("../history/clickhouse", async (importOriginal) => ({
 }));
 
 import { ALERT_EVALUATE_TASK } from "@/data/alerting/scheduling/evaluation-jobs.server";
+import { alertEvaluations, alertEvents, alertInstances } from "@/db/schema";
+import { ALERT_PROCESS_EVENT_TASK } from "../delivery/tasks";
 import {
   evaluateAlert,
+  isNoopInactiveTransition,
   shouldEnqueueProcessEvent,
   transitionEventRows,
 } from "./rule";
@@ -62,7 +74,17 @@ function recordingTx() {
   return {
     select: () => ({
       from: () => ({
-        where: () => ({ for: () => ({ limit: () => Promise.resolve([]) }) }),
+        where: () => ({
+          for: () => ({
+            limit: () => {
+              const fresh =
+                mocks.freshDefinition === undefined
+                  ? { active: true, version: 3, consecutiveFailures: 0 }
+                  : mocks.freshDefinition;
+              return Promise.resolve(fresh === null ? [] : [fresh]);
+            },
+          }),
+        }),
       }),
     }),
     insert: () => ({
@@ -79,6 +101,94 @@ function recordingTx() {
       },
     }),
   };
+}
+
+/**
+ * Drives the real success-path transaction: the FOR UPDATE guard, the
+ * alert_evaluations dedup insert, and a table-aware insert() that applies
+ * INSERT ... ON CONFLICT DO UPDATE semantics against `mocks.instanceRows`
+ * (unset fields on a conflict keep the existing row's value, the same way
+ * Postgres does), so a later evaluateAlert call reading previousRows sees
+ * exactly what this one persisted.
+ */
+function fullTx(opts?: {
+  active?: boolean;
+  version?: number;
+  applies?: boolean;
+}) {
+  return {
+    select: () => ({
+      from: () => ({
+        where: () => ({
+          for: () => ({
+            limit: () =>
+              Promise.resolve(
+                (opts?.active ?? true)
+                  ? [
+                      {
+                        active: true,
+                        version: opts?.version ?? definition.version,
+                      },
+                    ]
+                  : [],
+              ),
+          }),
+        }),
+      }),
+    }),
+    insert: (table: unknown) => {
+      if (table === alertEvaluations) {
+        return {
+          values: () => ({
+            onConflictDoNothing: () => ({
+              returning: () =>
+                Promise.resolve(
+                  (opts?.applies ?? true)
+                    ? [{ alertDefinitionId: RULE_ID }]
+                    : [],
+                ),
+            }),
+          }),
+        };
+      }
+      if (table === alertInstances) {
+        return {
+          values: (row: Record<string, unknown>) => ({
+            onConflictDoUpdate: (upsert: { set: Record<string, unknown> }) => {
+              const existing = mocks.instanceRows.find(
+                (candidate) => candidate.fingerprint === row.fingerprint,
+              );
+              mocks.instanceUpserts.push(
+                existing ? { ...existing, ...upsert.set } : row,
+              );
+              return Promise.resolve();
+            },
+          }),
+        };
+      }
+      if (table === alertEvents) {
+        return {
+          values: (rows: Record<string, unknown>[]) => {
+            mocks.eventRows.push(...rows);
+            return Promise.resolve();
+          },
+        };
+      }
+      throw new Error("fullTx: unexpected insert table");
+    },
+    update: () => ({
+      set: (values: Record<string, unknown>) => {
+        mocks.definitionUpdates.push(values);
+        return { where: () => Promise.resolve() };
+      },
+    }),
+  };
+}
+
+/** Feeds the previous call's persisted instance rows into the next call. */
+function persistInstances() {
+  mocks.instanceRows = mocks.instanceUpserts;
+  mocks.instanceUpserts = [];
 }
 
 const RULE_ID = "6f1c9d20-3b7a-4c11-9f2e-8a5d4c3b2a10";
@@ -101,9 +211,9 @@ const definition = {
     suppressed: false,
     interval_secs: 60,
     for_secs: 0,
-    resolve_after: 0,
-    label_columns: [],
-    condition: { column: "value", op: "gt", value: 0 },
+    resolve_after: 1,
+    label_columns: ["service"],
+    condition: { operator: "gt", threshold: 0 },
     annotations: {},
   },
 };
@@ -117,6 +227,10 @@ const payload = {
 describe("evaluateAlert scheduling state", () => {
   beforeEach(() => {
     mocks.definition = definition;
+    mocks.freshDefinition = undefined;
+    mocks.instanceRows = [];
+    mocks.instanceUpserts = [];
+    mocks.eventRows = [];
     mocks.definitionUpdates = [];
     mocks.scheduledJobs = [];
     mocks.query.mockReset();
@@ -164,6 +278,85 @@ describe("evaluateAlert scheduling state", () => {
     expect(mocks.scheduledJobs).toContainEqual(
       expect.objectContaining({ task: ALERT_EVALUATE_TASK }),
     );
+  });
+
+  // The regression: only nextEvaluationAt advanced, so the scanner's
+  // lastEnqueuedAt < nextEvaluationAt clause stayed permanently true and it
+  // re-enqueued every rule on every tick, on top of whatever chain the rule
+  // itself was already running.
+  it("advances lastEnqueuedAt together with nextEvaluationAt on reschedule", async () => {
+    mocks.query.mockResolvedValue({ rows: [] });
+    mocks.transaction
+      .mockRejectedValueOnce(new Error("instance write blew up"))
+      .mockImplementationOnce((cb: (tx: unknown) => Promise<unknown>) =>
+        cb(recordingTx()),
+      );
+
+    await evaluateAlert(payload);
+
+    const reschedule = mocks.definitionUpdates.find(
+      (update) => "nextEvaluationAt" in update,
+    );
+    expect(reschedule).toBeDefined();
+    expect(reschedule?.lastEnqueuedAt).toEqual(reschedule?.nextEvaluationAt);
+  });
+
+  // A pause or delete racing the failed evaluation must win: writing the
+  // rule back degraded with a queued retry would resurrect a rule the user
+  // just turned off, and a deleted rule's id would violate the
+  // alert_evaluations foreign key.
+  it("drops the failure silently when the rule went inactive mid-flight", async () => {
+    mocks.query.mockResolvedValue({ rows: [] });
+    mocks.freshDefinition = {
+      active: false,
+      version: 3,
+      consecutiveFailures: 0,
+    };
+    mocks.transaction
+      .mockRejectedValueOnce(new Error("instance write blew up"))
+      .mockImplementationOnce((cb: (tx: unknown) => Promise<unknown>) =>
+        cb(recordingTx()),
+      );
+
+    await expect(evaluateAlert(payload)).resolves.toBeUndefined();
+
+    expect(mocks.definitionUpdates).toEqual([]);
+    expect(mocks.scheduledJobs).toEqual([]);
+    expect(mocks.history).not.toHaveBeenCalled();
+  });
+
+  it("drops the failure silently when the rule was deleted mid-flight", async () => {
+    mocks.query.mockResolvedValue({ rows: [] });
+    mocks.freshDefinition = null;
+    mocks.transaction
+      .mockRejectedValueOnce(new Error("instance write blew up"))
+      .mockImplementationOnce((cb: (tx: unknown) => Promise<unknown>) =>
+        cb(recordingTx()),
+      );
+
+    await expect(evaluateAlert(payload)).resolves.toBeUndefined();
+
+    expect(mocks.definitionUpdates).toEqual([]);
+    expect(mocks.scheduledJobs).toEqual([]);
+  });
+
+  it("drops the failure silently when the rule's spec version moved on", async () => {
+    mocks.query.mockResolvedValue({ rows: [] });
+    mocks.freshDefinition = {
+      active: true,
+      version: 4,
+      consecutiveFailures: 0,
+    };
+    mocks.transaction
+      .mockRejectedValueOnce(new Error("instance write blew up"))
+      .mockImplementationOnce((cb: (tx: unknown) => Promise<unknown>) =>
+        cb(recordingTx()),
+      );
+
+    await expect(evaluateAlert(payload)).resolves.toBeUndefined();
+
+    expect(mocks.definitionUpdates).toEqual([]);
+    expect(mocks.scheduledJobs).toEqual([]);
   });
 
   it("records the failure reason for a non-query error", async () => {
@@ -371,6 +564,24 @@ describe("transitionEventRows episode stamping", () => {
     expect(resolved?.outbox.kind).toBe("notifying");
     expect(resolved?.history.reason).toBe("condition_cleared");
   });
+
+  // The caller (evaluateAlertRule) computes bounded evidence once per
+  // transition and passes it in so it is not recomputed here from the same
+  // inputs.
+  it("uses the caller's precomputed bounded evidence instead of recomputing it", () => {
+    const [fired] = transitionEventRows({
+      def: episodeDef,
+      historyDef,
+      transition: transition("firing"),
+      evaluatedAt,
+      storedEpisodeId: null,
+      bounded: { evidence: { injected: "marker" }, truncated: true },
+    });
+    expect(fired?.history.evidence_json).toBe(
+      JSON.stringify({ injected: "marker" }),
+    );
+    expect(fired?.history.evidence_truncated).toBe(true);
+  });
 });
 
 describe("shouldEnqueueProcessEvent", () => {
@@ -417,5 +628,198 @@ describe("shouldEnqueueProcessEvent", () => {
     const [fired] = transitionEventRows(args("firing"));
     expect(fired?.outbox.kind).not.toBe("state");
     expect(shouldEnqueueProcessEvent(fired?.outbox ?? {})).toBe(true);
+  });
+});
+
+describe("isNoopInactiveTransition", () => {
+  const evaluatedAt = new Date("2026-08-06T10:00:00Z");
+  const inactiveInstance = {
+    fingerprint: "api",
+    status: "inactive" as const,
+    labels: { service: "api" },
+    evidence: {},
+    value: null,
+    pendingSince: null,
+    activeSince: null,
+    lastSeenAt: evaluatedAt,
+    absentCount: 0,
+  };
+
+  it("is true for a row that stayed inactive with no event", () => {
+    expect(
+      isNoopInactiveTransition({ next: inactiveInstance, event: null }),
+    ).toBe(true);
+  });
+
+  it("is false once an event fires, even if the row lands inactive", () => {
+    expect(
+      isNoopInactiveTransition({
+        next: inactiveInstance,
+        event: "pending_cleared",
+      }),
+    ).toBe(false);
+  });
+
+  it("is false for a live status with no event, such as a held pending", () => {
+    expect(
+      isNoopInactiveTransition({
+        next: { ...inactiveInstance, status: "pending" },
+        event: null,
+      }),
+    ).toBe(false);
+  });
+});
+
+describe("evaluateAlert full evaluation lifecycle", () => {
+  const scheduledAt = (minute: number) => ({
+    ...payload,
+    scheduledFor: `2026-08-06T10:0${minute}:00.000Z`,
+  });
+
+  beforeEach(() => {
+    mocks.definition = definition;
+    mocks.instanceRows = [];
+    mocks.instanceUpserts = [];
+    mocks.eventRows = [];
+    mocks.definitionUpdates = [];
+    mocks.scheduledJobs = [];
+    mocks.query.mockReset();
+    mocks.transaction.mockReset();
+    mocks.history.mockReset().mockResolvedValue(undefined);
+    mocks.previewAlerts = "on";
+  });
+
+  it("drives an instance through fire, hold, and resolve across three evaluations", async () => {
+    // Fire: the first breaching evaluation, from no prior instance.
+    mocks.query.mockResolvedValueOnce({
+      rows: [{ service: "api", value: 5 }],
+    });
+    mocks.transaction.mockImplementationOnce(
+      (cb: (tx: unknown) => Promise<unknown>) => cb(fullTx()),
+    );
+    await evaluateAlert(scheduledAt(0));
+
+    expect(mocks.eventRows).toHaveLength(1);
+    expect(mocks.eventRows[0]).toMatchObject({
+      eventType: "instance_fired",
+      kind: "notifying",
+    });
+    const firedEventId = mocks.eventRows[0].id as string;
+    expect(mocks.scheduledJobs).toContainEqual(
+      expect.objectContaining({
+        task: ALERT_PROCESS_EVENT_TASK,
+        payload: { eventId: firedEventId },
+      }),
+    );
+    expect(mocks.instanceUpserts).toHaveLength(1);
+    expect(mocks.instanceUpserts[0]).toMatchObject({
+      status: "firing",
+      value: 5,
+      episodeId: firedEventId,
+    });
+    expect(mocks.definitionUpdates).toContainEqual(
+      expect.objectContaining({
+        currentState: "firing",
+        firingInstanceCount: 1,
+      }),
+    );
+
+    persistInstances();
+    mocks.eventRows = [];
+    mocks.scheduledJobs = [];
+    mocks.definitionUpdates = [];
+
+    // Hold: still breaching, so no new event, but the instance row keeps
+    // tracking the latest value on the episode fire already opened.
+    mocks.query.mockResolvedValueOnce({
+      rows: [{ service: "api", value: 7 }],
+    });
+    mocks.transaction.mockImplementationOnce(
+      (cb: (tx: unknown) => Promise<unknown>) => cb(fullTx()),
+    );
+    await evaluateAlert(scheduledAt(1));
+
+    expect(mocks.eventRows).toHaveLength(0);
+    expect(mocks.instanceUpserts).toHaveLength(1);
+    expect(mocks.instanceUpserts[0]).toMatchObject({
+      status: "firing",
+      value: 7,
+      episodeId: firedEventId,
+    });
+    expect(
+      mocks.scheduledJobs.some((job) => job.task === ALERT_PROCESS_EVENT_TASK),
+    ).toBe(false);
+
+    persistInstances();
+    mocks.eventRows = [];
+    mocks.scheduledJobs = [];
+    mocks.definitionUpdates = [];
+
+    // Resolve: the row drops out of the query result entirely.
+    mocks.query.mockResolvedValueOnce({ rows: [] });
+    mocks.transaction.mockImplementationOnce(
+      (cb: (tx: unknown) => Promise<unknown>) => cb(fullTx()),
+    );
+    await evaluateAlert(scheduledAt(2));
+
+    expect(mocks.eventRows).toHaveLength(1);
+    expect(mocks.eventRows[0]).toMatchObject({
+      eventType: "instance_resolved",
+      kind: "notifying",
+    });
+    expect(mocks.instanceUpserts[0]).toMatchObject({
+      status: "inactive",
+      episodeId: null,
+    });
+    expect(mocks.definitionUpdates).toContainEqual(
+      expect.objectContaining({
+        currentState: "resolved",
+        firingInstanceCount: 0,
+      }),
+    );
+  });
+
+  // The applied === false guard: a duplicate scheduledFor (already recorded)
+  // must not write a second copy of anything.
+  it("suppresses a stale evaluation instead of writing anything", async () => {
+    mocks.query.mockResolvedValueOnce({
+      rows: [{ service: "api", value: 5 }],
+    });
+    mocks.transaction.mockImplementationOnce(
+      (cb: (tx: unknown) => Promise<unknown>) => cb(fullTx({ applies: false })),
+    );
+
+    await evaluateAlert(payload);
+
+    expect(mocks.instanceUpserts).toEqual([]);
+    expect(mocks.eventRows).toEqual([]);
+    expect(mocks.history).not.toHaveBeenCalled();
+  });
+
+  it("does not enqueue a process job for a state-kind pending transition", async () => {
+    mocks.definition = {
+      ...definition,
+      spec: { ...definition.spec, for_secs: 300 },
+    };
+    mocks.query.mockResolvedValueOnce({
+      rows: [{ service: "api", value: 5 }],
+    });
+    mocks.transaction.mockImplementationOnce(
+      (cb: (tx: unknown) => Promise<unknown>) => cb(fullTx()),
+    );
+
+    await evaluateAlert(payload);
+
+    expect(mocks.eventRows).toHaveLength(1);
+    expect(mocks.eventRows[0]).toMatchObject({
+      eventType: "instance_pending",
+      kind: "state",
+    });
+    expect(
+      mocks.scheduledJobs.some((job) => job.task === ALERT_PROCESS_EVENT_TASK),
+    ).toBe(false);
+    expect(
+      mocks.scheduledJobs.some((job) => job.task === ALERT_EVALUATE_TASK),
+    ).toBe(true);
   });
 });

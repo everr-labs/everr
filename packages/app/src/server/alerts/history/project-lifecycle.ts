@@ -10,6 +10,26 @@ import {
 } from "./clickhouse";
 import { AlertLifecycleProjectionPayloadSchema } from "./tasks";
 
+// suppressedEventIds only ever names rows a claiming update already stamped:
+// closeRuleLifecycle sets processedAt on the events it cancels in the same
+// transaction that enqueues this task, and an orphaned membership belongs to
+// an event a group dispatch already claimed earlier. A null here means that
+// invariant broke, and a minted `new Date()` would silently give a Graphile
+// retry a different event_time than the first attempt on the same
+// deterministic event_id, which the design doc requires to stay stable.
+function requireProcessedAt(row: {
+  id: string;
+  processedAt: Date | null;
+}): Date {
+  if (row.processedAt === null) {
+    throw new Error(
+      `alert_events row ${row.id} has no processedAt; the lifecycle projection` +
+        " only reads rows a claiming update already stamped",
+    );
+  }
+  return row.processedAt;
+}
+
 /**
  * Project the lifecycle terminals a pause or delete journaled. Runs after the
  * mutation's commit; the journal rows are self-sufficient, so a definition
@@ -57,7 +77,7 @@ export async function projectAlertLifecycle(
         suppressionHistoryRow({
           def: historyDefFromJournalRow(row),
           notificationEventId: row.id,
-          occurredAt: row.processedAt ?? new Date(),
+          occurredAt: requireProcessedAt(row),
           fingerprint: row.instanceFingerprint,
           labels: row.instanceLabels,
           silenced: false,

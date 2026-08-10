@@ -17,9 +17,6 @@ export const ALERTING_EVENT_TYPES = [
   "instance_fired",
   "instance_resolved",
   "instance_closed",
-  "delivery",
-  "rule_health",
-  "silenced",
   "hold_changed",
   "evaluation_failed",
 ] as const;
@@ -27,13 +24,21 @@ export const ALERTING_EVENT_TYPES = [
 // The closed vocabulary of reasons a terminal row can carry. History rows are
 // append-only, so a typo here would be an unlabelled reason forever; every
 // writer must pick from this list, not from a bare string.
-const ALERTING_LIFECYCLE_REASONS = [
+export const ALERTING_LIFECYCLE_REASONS = [
   "condition_cleared",
   "pending_cleared",
   "labels_changed",
   "rule_paused",
   "rule_deleted",
   "preview_deleted",
+  // A firing event reached delivery processing after its instance had
+  // already stopped firing (a worker outage and recovery, most often): the
+  // notification is withheld, not dropped silently.
+  "no_longer_firing",
+  // A group flushed a notification-worthy set to a receiver or rule with no
+  // channels attached: nothing was sent, but the chain still needs an
+  // outcome.
+  "no_channels",
 ] as const;
 
 export type AlertingLifecycleReason =

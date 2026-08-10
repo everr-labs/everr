@@ -2,10 +2,22 @@ import { describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   steps: [] as string[],
+  dbTransaction: vi.fn(),
 }));
 
 vi.mock("@/db/client", () => ({
-  db: {},
+  db: {
+    transaction: mocks.dbTransaction,
+    // definitionChannelNamesFor's chain, run against `db` after the
+    // transaction commits: no channels attached in these fixtures.
+    select: () => ({
+      from: () => ({
+        innerJoin: () => ({
+          where: () => ({ orderBy: () => Promise.resolve([]) }),
+        }),
+      }),
+    }),
+  },
   pool: {},
   runInTransaction: (
     executor: { transaction: (fn: unknown) => Promise<unknown> },
@@ -23,7 +35,8 @@ vi.mock("./lifecycle.server", () => ({
 }));
 
 import { alertInstances } from "@/db/schema";
-import { rollupAlertState, updateRule } from "./repository";
+import { SYSTEM_ACTOR } from "../session";
+import { pauseRule, rollupAlertState, updateRule } from "./repository";
 
 // The rollup must pass `pending` through: collapsing everything but firing to
 // inactive makes the Pending state unreachable in every list and detail view.
@@ -61,12 +74,14 @@ const previous = {
   nextEvaluationAt: null,
 };
 
-function fakeExecutor() {
+function fakeExecutor(storedSpec: typeof spec = spec) {
+  const stored = { ...previous, spec: storedSpec };
   const tx = {
     update: () => ({
       set: () => ({
         where: () => ({
-          returning: () => Promise.resolve([{ ...previous, version: 2, spec }]),
+          returning: () =>
+            Promise.resolve([{ ...stored, version: 2, spec: storedSpec }]),
         }),
       }),
     }),
@@ -81,7 +96,7 @@ function fakeExecutor() {
   return {
     select: () => ({
       from: () => ({
-        where: () => ({ limit: () => Promise.resolve([previous]) }),
+        where: () => ({ limit: () => Promise.resolve([stored]) }),
       }),
     }),
     transaction: (fn: (tx: unknown) => Promise<unknown>) => fn(tx),
@@ -118,5 +133,69 @@ describe("updateRule", () => {
     );
 
     expect(mocks.steps).toEqual([]);
+  });
+
+  it("leaves instances alone when the label columns are only reordered", async () => {
+    mocks.steps = [];
+    const storedSpec = { ...spec, label_columns: ["host", "region"] };
+
+    await updateRule(
+      "org-1",
+      previous.id,
+      {
+        ...storedSpec,
+        label_columns: ["region", "host"],
+        notification_channels: [],
+      },
+      1,
+      fakeExecutor(storedSpec),
+    );
+
+    expect(mocks.steps).toEqual([]);
+  });
+});
+
+// A rule paused mid-degradation must read healthy again: a stale degraded
+// status (or a consecutiveFailures streak that never gets to run) would
+// otherwise survive the pause and greet resume near the retry-backoff
+// ceiling.
+describe("pauseRule", () => {
+  it("resets health alongside the rollup state", async () => {
+    const degraded = {
+      ...previous,
+      healthStatus: "degraded" as const,
+      consecutiveFailures: 4,
+      degradedSince: new Date("2024-01-01T00:00:00Z"),
+    };
+    let definitionsUpdatePayload: Record<string, unknown> | undefined;
+    const tx = {
+      update: (table: unknown) => ({
+        set: (payload: Record<string, unknown>) => {
+          if (table !== alertInstances) definitionsUpdatePayload = payload;
+          return {
+            where: () => ({
+              returning: () =>
+                table === alertInstances
+                  ? Promise.resolve([])
+                  : Promise.resolve([{ ...degraded, ...payload }]),
+            }),
+          };
+        },
+      }),
+    };
+    mocks.dbTransaction.mockImplementation(
+      (fn: (tx: unknown) => Promise<unknown>) => fn(tx),
+    );
+
+    await pauseRule(
+      { organizationId: "org-1", actor: SYSTEM_ACTOR },
+      degraded.id,
+    );
+
+    expect(definitionsUpdatePayload).toMatchObject({
+      healthStatus: "healthy",
+      consecutiveFailures: 0,
+      degradedSince: null,
+    });
   });
 });

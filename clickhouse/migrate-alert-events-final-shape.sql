@@ -5,6 +5,12 @@
 -- accepted for this release stage (04-alerting-branch-review.md, "Breaking
 -- Postgres migration" applies the same stance to alerting data).
 --
+-- DO NOT RE-RUN once this has been applied and
+-- migrate-alert-events-sql-api-access.sql's backfill has run: DROP TABLE
+-- below discards every row collected since the last run, including from
+-- organizations the backfill just gave read access to. The statements are
+-- IF EXISTS / IF NOT EXISTS for a clean first apply, not for safe repetition.
+--
 -- Apply with an admin user, e.g.:
 --   clickhouse-client --user default --password '<ADMIN_PASSWORD>' --multiquery \
 --     < clickhouse/migrate-alert-events-final-shape.sql
@@ -34,7 +40,7 @@ CREATE TABLE app.alert_events
   is_live Bool DEFAULT preview_id = toUUID('00000000-0000-0000-0000-000000000000'),
   event_type LowCardinality(String),
   write_source LowCardinality(String) DEFAULT 'live',
-  evaluation_scheduled_at DateTime64(3) CODEC(Delta, ZSTD(1)),
+  evaluation_scheduled_at DateTime64(3) DEFAULT toDateTime64(0, 3) CODEC(Delta, ZSTD(1)),
   event_time DateTime64(3) DEFAULT now64(3) CODEC(Delta, ZSTD(1)),
   row_count UInt64 DEFAULT 0,
   evidence_truncated Bool DEFAULT false,

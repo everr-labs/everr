@@ -294,7 +294,7 @@ export async function getRuleEvaluationSeries(
   id: string,
   opts: { from: Date; to: Date; points: number },
 ) {
-  await getRuleRow(organizationId, id);
+  const def = await getRuleRow(organizationId, id);
   const rows = await query<{
     scheduledFor: string;
     eventType: "evaluation_succeeded" | "evaluation_failed";
@@ -340,6 +340,20 @@ export async function getRuleEvaluationSeries(
       samplesTruncated: Boolean(row.samplesTruncated),
     })),
     opts.points,
+    def.spec.condition,
+  );
+}
+
+// instanceFingerprint sorts label keys before hashing, so a reorder of
+// label_columns with the same membership is a no-op for every open
+// instance. Comparing the raw arrays would close and re-fire them on a
+// reorder alone.
+function labelColumnsChanged(
+  previous: readonly string[],
+  next: readonly string[],
+): boolean {
+  return (
+    JSON.stringify([...previous].sort()) !== JSON.stringify([...next].sort())
   );
 }
 
@@ -434,9 +448,10 @@ export async function updateRule(
       `Rule version changed: ${id}`,
     );
   }
-  const labelsChanged =
-    JSON.stringify(previous.spec.label_columns) !==
-    JSON.stringify(spec.label_columns);
+  const labelsChanged = labelColumnsChanged(
+    previous.spec.label_columns,
+    spec.label_columns,
+  );
   const nextEvaluationAt = nextAlertEvaluationAt(
     organizationId,
     id,
@@ -523,8 +538,7 @@ export async function adoptRule(
     : null;
   const labelsChanged =
     spec !== null &&
-    JSON.stringify(previous.spec.label_columns) !==
-      JSON.stringify(spec.label_columns);
+    labelColumnsChanged(previous.spec.label_columns, spec.label_columns);
   const row = await translateAlertingConflict(() =>
     runInTransaction(executor, async (tx) => {
       const [updated] = await tx
@@ -631,9 +645,15 @@ export async function pauseRule(
       .set({
         active: false,
         // The rollup must not keep reporting a firing state the pause just
-        // closed; resume re-derives it from scratch.
+        // closed; resume re-derives it from scratch. Health resets the same
+        // way: a rule paused mid-degradation must not read degraded forever,
+        // or resume near the retry-backoff ceiling from a streak that never
+        // gets to run again.
         currentState: "unknown",
         firingInstanceCount: 0,
+        healthStatus: "healthy",
+        consecutiveFailures: 0,
+        degradedSince: null,
         updatedAt: now,
       })
       .where(

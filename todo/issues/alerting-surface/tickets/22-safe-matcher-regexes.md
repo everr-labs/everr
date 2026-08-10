@@ -17,7 +17,7 @@ of this branch.
 
 **Status:** ready-for-agent
 
-- [ ] `regex` and `notregex` are removed from the matcher op enum and every consumer (routing resolution, silences, inhibitions)
-- [ ] Apply rejects specs that still use the removed ops, with a clear error
-- [ ] The regex evaluation path and its process-wide cache are deleted
-- [ ] Matcher counts and value lengths keep sane bounds at the schema boundary
+- [x] `regex` and `notregex` are removed from the matcher op enum and every consumer (routing resolution, silences, inhibitions)
+- [x] Apply rejects specs that still use the removed ops, with a clear error
+- [x] The regex evaluation path and its process-wide cache are deleted
+- [x] Matcher counts and value lengths keep sane bounds at the schema boundary
