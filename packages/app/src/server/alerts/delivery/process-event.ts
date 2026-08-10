@@ -16,7 +16,11 @@ import {
   matchingSilence,
 } from "./suppression";
 import { dispatchTargetsForEvent } from "./targeting";
-import { ALERT_FLUSH_GROUP_TASK, AlertEventTaskPayloadSchema } from "./tasks";
+import {
+  ALERT_FLUSH_GROUP_TASK,
+  AlertEventTaskPayloadSchema,
+  flushGroupJobKey,
+} from "./tasks";
 
 export async function processAlertEvent(rawPayload: unknown): Promise<void> {
   const { eventId } = AlertEventTaskPayloadSchema.parse(rawPayload);
@@ -82,7 +86,7 @@ export async function processAlertEvent(rawPayload: unknown): Promise<void> {
           ALERT_FLUSH_GROUP_TASK,
           { groupId: group.id },
           {
-            jobKey: `${ALERT_FLUSH_GROUP_TASK}:${group.id}:${group.nextFlushAt.toISOString()}:${event.id}`,
+            jobKey: flushGroupJobKey(group.id, group.nextFlushAt),
             jobKeyMode: "replace",
             maxAttempts: 5,
             queueName: alertingPartitionQueue("group", group.id),

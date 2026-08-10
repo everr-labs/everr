@@ -36,6 +36,7 @@ import {
   ALERT_FLUSH_GROUP_TASK,
   ALERT_SEND_DELIVERY_TASK,
   AlertGroupTaskPayloadSchema,
+  flushGroupJobKey,
 } from "./tasks";
 
 // The body budgets against the tightest channel limit, keeping a margin for
@@ -318,7 +319,7 @@ export async function flushAlertGroup(rawPayload: unknown): Promise<void> {
         ALERT_FLUSH_GROUP_TASK,
         { groupId: group.id },
         {
-          jobKey: `${ALERT_FLUSH_GROUP_TASK}:${group.id}:${nextFlushAt.toISOString()}`,
+          jobKey: flushGroupJobKey(group.id, nextFlushAt),
           jobKeyMode: "replace",
           maxAttempts: 5,
           queueName: alertingPartitionQueue("group", group.id),

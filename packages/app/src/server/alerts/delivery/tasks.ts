@@ -22,6 +22,14 @@ export const IDLE_GROUP_FLUSH_AT = new Date("9999-12-31T23:59:59.999Z");
 
 export const PROCESS_EVENT_MAX_ATTEMPTS = 5;
 
+// A flush job's identity is the group and when it is due, nothing else. A
+// storm of events landing on one group must collapse onto the one job that
+// runs at that time, not enqueue one job per event: `jobKeyMode: "replace"`
+// only dedupes when both dispatch sites build the same key.
+export function flushGroupJobKey(groupId: string, flushAt: Date): string {
+  return `${ALERT_FLUSH_GROUP_TASK}:${groupId}:${flushAt.toISOString()}`;
+}
+
 // Every process-event enqueue shares one retry policy and one job-key scheme,
 // so a policy change is a one-site edit. The optional key suffix keeps
 // re-checks (deferrals, releases) from replacing the original dispatch job.
