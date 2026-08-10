@@ -1,4 +1,4 @@
-// captureError is the manual reporting surface for handled errors; it flows
+// captureError is the manual error reporting surface; it flows
 // through the SDK's emitter once a WebSDK has been constructed and safely
 // warns before that. identify()/revoke() work the same way, live once a
 // browser WebSDK exists; the `persistence` option decides how long their

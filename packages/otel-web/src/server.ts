@@ -72,8 +72,8 @@ export class WebSDK {
     // The shared current.ts binding: logger samples it per call, here adapted
     // onto the app's LoggerProvider.
     const unbindEmit = bindEmit(emitVia(otelLogger));
-    const stopReporting = bindReport((error, mechanism, handled, extra) =>
-      errors.capture({ error, mechanism, handled, attributes: extra }),
+    const stopReporting = bindReport((error, mechanism, context) =>
+      errors.capture({ error, mechanism, context }),
     );
     this.flush = async () => {};
     this.shutdown = async () => {

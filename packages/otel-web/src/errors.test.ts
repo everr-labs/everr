@@ -45,7 +45,6 @@ describe("error capture through the SDK", () => {
     expect(a["exception.type"]).toBe("TypeError");
     expect(a["exception.message"]).toBe("render boom");
     expect(String(a["exception.stacktrace"])).toContain("TypeError");
-    expect(a["everr.error.handled"]).toBe(false);
     expect(a["everr.error.mechanism"]).toBe("onerror");
     // The analytics envelope joins the error to the session's other signals.
     expect(a["session.id"]).toMatch(UNIQUE_ID);
@@ -74,7 +73,6 @@ describe("error capture through the SDK", () => {
     const record = (await records()).find((r) => r.eventName === "exception");
     const a = attrs(record as OtlpRecord);
     expect(a["everr.error.mechanism"]).toBe("react");
-    expect(a["everr.error.handled"]).toBe(true);
     expect(String(a["everr.react.component_stack"])).toContain("Broken");
     expect(a["session.id"]).toMatch(UNIQUE_ID);
   });
@@ -115,7 +113,7 @@ describe("error capture through the SDK", () => {
     expect(all.filter((r) => r.eventName === "exception")).toHaveLength(0);
   });
 
-  it("captures handled errors via captureError with extra attributes", async () => {
+  it("captures errors via captureError with context attributes", async () => {
     start();
     captureError(new Error("db write failed"), {
       "everr.feature": "billing",
@@ -124,7 +122,6 @@ describe("error capture through the SDK", () => {
     const record = (await records()).find((r) => r.eventName === "exception");
     const a = attrs(record as OtlpRecord);
     expect(a["everr.error.mechanism"]).toBe("manual");
-    expect(a["everr.error.handled"]).toBe(true);
     expect(a["everr.feature"]).toBe("billing");
     expect(a["everr.attempt"]).toBe("2");
   });

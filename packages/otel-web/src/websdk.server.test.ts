@@ -121,7 +121,6 @@ describe("init (server)", () => {
     expect(a["exception.type"]).toBe("Error");
     expect(a["exception.message"]).toBe("ssr boom");
     expect(String(a["exception.stacktrace"])).toContain("ssr boom");
-    expect(a["everr.error.handled"]).toBe(true);
     expect(a["everr.error.mechanism"]).toBe("manual");
     expect(a["everr.loader.route"]).toBe("/x");
   });

@@ -61,7 +61,7 @@ function startErrors(): () => void {
     if (event.error != null) {
       if (seenByRejection.has(event.error)) return;
       seenByOnerror.add(event.error);
-      report(event.error, "onerror", false, undefined, event.filename);
+      report(event.error, "onerror", undefined, event.filename);
     }
   };
   const onRejection = (event: Event) => {
@@ -70,7 +70,7 @@ function startErrors(): () => void {
       if (seenByOnerror.has(reason)) return;
       seenByRejection.add(reason);
     }
-    report(reason, "unhandledrejection", false);
+    report(reason, "unhandledrejection");
   };
   addEventListener("error", onError);
   addEventListener("unhandledrejection", onRejection);

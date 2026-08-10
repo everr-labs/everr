@@ -15,7 +15,6 @@ export function captureReactError(
   report(
     error,
     "react",
-    true,
     errorInfo?.componentStack
       ? { "everr.react.component_stack": errorInfo.componentStack }
       : undefined,

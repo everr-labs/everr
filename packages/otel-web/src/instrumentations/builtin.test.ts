@@ -299,7 +299,6 @@ describe("errors()", () => {
     dispatchError(boom("kaboom"));
     const got = await exceptions();
     expect(got).toHaveLength(1);
-    expect(attrs(got[0])["everr.error.handled"]).toBe(false);
     expect(attrs(got[0])["everr.error.mechanism"]).toBe("onerror");
   });
 

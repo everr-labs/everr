@@ -60,7 +60,6 @@ describe("ErrorBoundary", () => {
       "exception",
       expect.objectContaining({
         "exception.message": "render boom",
-        "everr.error.handled": true,
         "everr.error.mechanism": "react",
         "everr.react.component_stack": expect.stringContaining("Bomb"),
       }),

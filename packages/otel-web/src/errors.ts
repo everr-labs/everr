@@ -28,13 +28,13 @@ const safeString = (value: unknown): string => {
   }
 };
 
-type ExtraAttrs = Record<string, string | number | boolean>;
+/** Caller-supplied attributes attached to one error report. */
+export type ErrorContext = Record<string, string | number | boolean>;
 
 export type Report = (
   error: unknown,
   mechanism: "onerror" | "unhandledrejection" | "react" | "manual",
-  handled: boolean,
-  extra?: ExtraAttrs,
+  context?: ErrorContext,
   /** The reporting script URL when the handler knows it (ErrorEvent.filename). */
   fileName?: string,
 ) => void;
@@ -81,7 +81,7 @@ const hits = new Map<string, number[]>();
 // the current pipeline per call (warn before a WebSDK exists, silent after shutdown
 // come from the shared binding), so no wiring step exists on the browser at
 // all.
-const browserReport: Report = (error, mechanism, handled, extra, fileName) => {
+const browserReport: Report = (error, mechanism, context, fileName) => {
   const emit = currentEmit();
   if (!emit) return;
   // Telemetry must never break the page: reporting is best-effort.
@@ -110,11 +110,10 @@ const browserReport: Report = (error, mechanism, handled, extra, fileName) => {
     emit(
       "exception",
       {
-        ...extra,
+        ...context,
         "exception.type": type,
         "exception.message": message,
         "exception.stacktrace": stack,
-        "everr.error.handled": handled,
         "everr.error.mechanism": mechanism,
       },
       17,
@@ -138,13 +137,9 @@ export function bindReport(next: Report): () => void {
   };
 }
 
-/** Reports a handled error, with optional extra attributes. */
-export function captureError(
-  error: unknown,
-  attributes?: ExtraAttrs,
-  options?: { handled?: boolean },
-): void {
-  report(error, "manual", options?.handled ?? true, attributes);
+/** Reports an error, with optional context attributes. */
+export function captureError(error: unknown, context?: ErrorContext): void {
+  report(error, "manual", context);
 }
 
 /**
