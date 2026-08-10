@@ -421,6 +421,7 @@ export async function updateRule(
     id,
     spec.interval_secs,
   );
+  const now = new Date();
   const updated = await translateAlertingConflict(() =>
     executor.transaction(async (tx) => {
       const [row] = await tx
@@ -429,7 +430,7 @@ export async function updateRule(
           spec,
           version: previous.version + 1,
           nextEvaluationAt,
-          updatedAt: new Date(),
+          updatedAt: now,
         })
         .where(
           and(
@@ -446,6 +447,11 @@ export async function updateRule(
           `Rule version changed: ${id}`,
         );
       if (labelsChanged) {
+        // New label columns mean new fingerprints, so the old instances can
+        // never match again. They still must end like any other destruction:
+        // terminals journaled and in-flight events canceled, or their open
+        // episodes dangle forever and fired chains die without a record.
+        await closeRuleLifecycle(tx, row, "labels_changed", now);
         await tx
           .delete(alertInstances)
           .where(eq(alertInstances.alertDefinitionId, id));
@@ -533,6 +539,8 @@ export async function adoptRule(
           `Rule version changed: ${id}`,
         );
       if (labelsChanged) {
+        // Same contract as updateRule: close before the fingerprints change.
+        await closeRuleLifecycle(tx, updated, "labels_changed", new Date());
         await tx
           .delete(alertInstances)
           .where(eq(alertInstances.alertDefinitionId, id));

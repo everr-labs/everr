@@ -30,6 +30,7 @@ export const ALERTING_EVENT_TYPES = [
 const ALERTING_LIFECYCLE_REASONS = [
   "condition_cleared",
   "pending_cleared",
+  "labels_changed",
   "rule_paused",
   "rule_deleted",
   "preview_deleted",

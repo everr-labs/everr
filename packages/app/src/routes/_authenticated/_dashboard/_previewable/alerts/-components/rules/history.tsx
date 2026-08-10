@@ -59,6 +59,7 @@ const CLOSE_REASON_LABELS: Record<
   string
 > = {
   pending_cleared: "Pending cleared",
+  labels_changed: "Labels changed",
   rule_paused: "Rule paused",
   rule_deleted: "Rule deleted",
   preview_deleted: "Preview deleted",

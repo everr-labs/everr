@@ -14,7 +14,7 @@ type RuleRow = typeof alertDefinitions.$inferSelect;
 type InstanceRow = typeof alertInstances.$inferSelect;
 type LifecycleReason = Extract<
   AlertingLifecycleReason,
-  "rule_paused" | "rule_deleted"
+  "labels_changed" | "rule_paused" | "rule_deleted"
 >;
 
 /**

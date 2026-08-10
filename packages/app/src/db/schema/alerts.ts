@@ -231,7 +231,8 @@ export const alertEvents = pgTable(
     // it. Null on rows that belong to no episode (evaluation and hold rows).
     episodeId: uuid("episode_id"),
     // Why a terminal row ended its instance: condition_cleared on a resolve;
-    // pending_cleared, rule_paused or rule_deleted on instance_closed. The
+    // pending_cleared, labels_changed, rule_paused or rule_deleted on
+    // instance_closed. The
     // journal carries it so a repaired projection recovers it. Branded to the
     // closed vocabulary so a writer cannot journal a reason no reader labels.
     reason: text("reason")

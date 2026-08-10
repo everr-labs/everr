@@ -12,5 +12,5 @@ export const ALERT_PROJECT_LIFECYCLE_TASK = "alerts/project-lifecycle";
 export const AlertLifecycleProjectionPayloadSchema = z.object({
   closedEventIds: z.array(z.string().uuid()),
   suppressedEventIds: z.array(z.string().uuid()),
-  reason: z.enum(["rule_paused", "rule_deleted"]),
+  reason: z.enum(["labels_changed", "rule_paused", "rule_deleted"]),
 });
