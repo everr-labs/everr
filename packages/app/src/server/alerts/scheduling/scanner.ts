@@ -1,4 +1,4 @@
-import { and, asc, eq, inArray, isNull, lt, lte, or } from "drizzle-orm";
+import { and, asc, eq, inArray, isNull, lt, lte, or, sql } from "drizzle-orm";
 import { enqueueAlertEvaluation } from "@/data/alerting/scheduling/evaluation-jobs.server";
 import { db } from "@/db/client";
 import { alertDefinitions } from "@/db/schema";
@@ -60,7 +60,11 @@ export async function scanDueAlerts(
   const rows = await db
     .select({
       id: alertDefinitions.id,
-      scheduledFor: alertDefinitions.nextEvaluationAt,
+      // The lte(nextEvaluationAt, now) predicate below excludes NULL, so
+      // every row this query returns has one; the cast reflects that instead
+      // of carrying the column's nullable type into a fallback that can
+      // never run.
+      scheduledFor: sql<Date>`${alertDefinitions.nextEvaluationAt}`,
       version: alertDefinitions.version,
     })
     .from(alertDefinitions)
@@ -87,7 +91,7 @@ export async function scanDueAlerts(
   await boundedEnqueue(rows, (row) =>
     enqueueAlertEvaluation({
       alertDefinitionId: row.id,
-      scheduledFor: row.scheduledFor?.toISOString() ?? now.toISOString(),
+      scheduledFor: row.scheduledFor.toISOString(),
       ruleVersion: row.version,
     }),
   );
