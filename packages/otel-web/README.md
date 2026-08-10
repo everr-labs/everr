@@ -134,4 +134,4 @@ For Node process crashes, register that package's `ErrorsInstrumentation` on you
 
 ## License
 
-MIT
+Apache-2.0. See [LICENSE](./LICENSE).
