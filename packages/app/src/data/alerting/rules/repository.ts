@@ -2,7 +2,12 @@ import { randomUUID } from "node:crypto";
 import { toClickHouseDateTime } from "@everr/ui/lib/time-range";
 import { and, asc, desc, eq, inArray, isNull, ne } from "drizzle-orm";
 import { parseResourceName } from "@/data/as-code/identity";
-import { type DbExecutor, db, type Transaction } from "@/db/client";
+import {
+  type DbExecutor,
+  db,
+  runInTransaction,
+  type Transaction,
+} from "@/db/client";
 import {
   alertChannels,
   alertDefinitionChannels,
@@ -388,7 +393,7 @@ export async function createRule(
   );
   const id = randomUUID();
   const row = await translateAlertingConflict(() =>
-    executor.transaction(async (tx) => {
+    runInTransaction(executor, async (tx) => {
       const [created] = await tx
         .insert(alertDefinitions)
         .values(definitionValues(id, organizationId, input))
@@ -439,7 +444,7 @@ export async function updateRule(
   );
   const now = new Date();
   const updated = await translateAlertingConflict(() =>
-    executor.transaction(async (tx) => {
+    runInTransaction(executor, async (tx) => {
       const [row] = await tx
         .update(alertDefinitions)
         .set({
@@ -521,7 +526,7 @@ export async function adoptRule(
     JSON.stringify(previous.spec.label_columns) !==
       JSON.stringify(spec.label_columns);
   const row = await translateAlertingConflict(() =>
-    executor.transaction(async (tx) => {
+    runInTransaction(executor, async (tx) => {
       const [updated] = await tx
         .update(alertDefinitions)
         .set({
@@ -587,7 +592,7 @@ export async function deleteRule(
   executor: DbExecutor,
 ) {
   const now = new Date();
-  return await executor.transaction(async (tx) => {
+  return await runInTransaction(executor, async (tx) => {
     const [def] = await tx
       .select()
       .from(alertDefinitions)

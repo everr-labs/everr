@@ -156,6 +156,28 @@ describe("applyAlertSpecs", () => {
     expect(mockedDeleteRule).not.toHaveBeenCalled();
   });
 
+  // Mutations run directly on the shared transaction, not inside savepoints,
+  // so the first failure aborts it and nothing after it may run more SQL.
+  // The registry rolls the whole apply back either way.
+  it("stops at the first failed mutation", async () => {
+    mockedListRules.mockResolvedValue([]);
+    mockedCreateRule.mockRejectedValueOnce(new Error("insert blew up"));
+
+    await expect(
+      applyAlertSpecs({
+        namespace: live,
+        db,
+        resources: [
+          { path: "a.yaml", resource: alert("first") },
+          { path: "b.yaml", resource: alert("second") },
+        ],
+      }),
+    ).rejects.toThrow("insert blew up");
+
+    expect(mockedCreateRule).toHaveBeenCalledTimes(1);
+    expect(mockedDeleteRule).not.toHaveBeenCalled();
+  });
+
   // Reads must ride the same connection too: a bare-pool read here runs while
   // the registry transaction holds its connection, and enough concurrent
   // applies deadlock the whole pool.

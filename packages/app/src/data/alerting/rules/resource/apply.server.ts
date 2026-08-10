@@ -321,92 +321,69 @@ export const applyAlertSpecs: Reconciler = async ({
       });
   const adopted = adopt ? taken.map(({ d }) => d.input.name) : [];
 
-  // 5. Converge sequentially on the registry executor: mutations run as
-  // savepoints on its single connection, and savepoints must nest strictly,
-  // so a concurrent pool here would interleave them. allSettled still
-  // preserves deterministic error reporting.
-  const runMutation = createLimiter(1);
-  const writes = await Promise.allSettled([
-    ...fresh.map((d) =>
-      runMutation(undefined, async () => {
-        if (dryRun) return;
-        // Translate a create race into the same ownership error as the plan.
-        try {
-          await alerting.createRule(orgId, d.input, executor);
-        } catch (error) {
-          if (isAlertingVersionConflict(error)) {
-            throw new ApplyValidationError(
-              `${d.path}: alert "${d.input.name}" was created by another repo since the last listing; re-run apply`,
-            );
-          }
-          throw error;
+  // 5. Converge sequentially on the registry executor, fail-fast. Mutations
+  // run directly on the shared transaction, not inside savepoints: every
+  // writing savepoint burns a subtransaction id, and past 64 in one apply
+  // every snapshot in the cluster degrades to pg_subtrans lookups. The first
+  // failure aborts the shared transaction, which loses nothing: the registry
+  // rolls the entire apply back on any mutation failure, so work after the
+  // first failure was always discarded.
+  if (!dryRun) {
+    for (const d of fresh) {
+      // Translate a create race into the same ownership error as the plan.
+      try {
+        await alerting.createRule(orgId, d.input, executor);
+      } catch (error) {
+        if (isAlertingVersionConflict(error)) {
+          throw new ApplyValidationError(
+            `${d.path}: alert "${d.input.name}" was created by another repo since the last listing; re-run apply`,
+          );
         }
-      }),
-    ),
-    ...(adopt
-      ? taken.map(({ d, foreign }) =>
-          runMutation(undefined, async () => {
-            if (dryRun) return;
-            const {
-              name: _name,
-              repoid,
-              previewId: _previewId,
-              ...spec
-            } = d.input;
-            await alerting.adoptRule(
-              orgId,
-              foreign.id,
-              repoid,
-              foreign.version,
-              spec,
-              executor,
-            );
-          }),
-        )
-      : []),
-    ...updates.map(({ d, cur }) =>
-      runMutation(undefined, async () => {
-        if (dryRun) return;
-        // Versioned updates preserve instance state unless label columns change.
-        const {
-          name: _name,
-          repoid: _repoid,
-          previewId: _previewId,
-          ...spec
-        } = d.input;
-        try {
-          await alerting.updateRule(orgId, cur.id, spec, cur.version, executor);
-        } catch (error) {
-          if (isAlertingVersionConflict(error)) {
-            throw new ApplyValidationError(
-              `${d.path}: alert "${d.input.name}" was modified concurrently (version conflict); re-run apply`,
-            );
-          }
-          throw error;
+        throw error;
+      }
+    }
+    if (adopt) {
+      for (const { d, foreign } of taken) {
+        const { name: _name, repoid, previewId: _previewId, ...spec } = d.input;
+        await alerting.adoptRule(
+          orgId,
+          foreign.id,
+          repoid,
+          foreign.version,
+          spec,
+          executor,
+        );
+      }
+    }
+    for (const { d, cur } of updates) {
+      // Versioned updates preserve instance state unless label columns change.
+      const {
+        name: _name,
+        repoid: _repoid,
+        previewId: _previewId,
+        ...spec
+      } = d.input;
+      try {
+        await alerting.updateRule(orgId, cur.id, spec, cur.version, executor);
+      } catch (error) {
+        if (isAlertingVersionConflict(error)) {
+          throw new ApplyValidationError(
+            `${d.path}: alert "${d.input.name}" was modified concurrently (version conflict); re-run apply`,
+          );
         }
-      }),
-    ),
-  ]);
-  for (const outcome of writes) {
-    if (outcome.status === "rejected") throw outcome.reason;
+        throw error;
+      }
+    }
   }
 
   // 6. Prune scoped rules only after all writes succeed.
   const desiredNames = new Set(desired.map((d) => d.input.name));
   const stale = [...existingByName].filter(([name]) => !desiredNames.has(name));
   const deleted: string[] = [];
-  const deletions = await Promise.allSettled(
-    stale.map(([, cur]) =>
-      runMutation(undefined, async () => {
-        if (!dryRun) await alerting.deleteRule(orgId, cur.id, executor);
-      }),
-    ),
-  );
-  stale.forEach(([, cur], i) => {
-    const outcome = deletions[i];
-    if (outcome.status === "rejected") throw outcome.reason;
+  for (const [, cur] of stale) {
+    if (!dryRun) await alerting.deleteRule(orgId, cur.id, executor);
     deleted.push(cur.name);
-  });
+  }
 
   const notes = [
     ...(namespace.kind === "preview" ? [PREVIEW_NOTE] : []),

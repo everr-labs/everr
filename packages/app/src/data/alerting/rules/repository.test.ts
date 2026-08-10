@@ -4,7 +4,14 @@ const mocks = vi.hoisted(() => ({
   steps: [] as string[],
 }));
 
-vi.mock("@/db/client", () => ({ db: {}, pool: {} }));
+vi.mock("@/db/client", () => ({
+  db: {},
+  pool: {},
+  runInTransaction: (
+    executor: { transaction: (fn: unknown) => Promise<unknown> },
+    fn: unknown,
+  ) => executor.transaction(fn),
+}));
 vi.mock("@/server/worker/jobs", () => ({
   addWorkerJobInTransaction: () => Promise.resolve(),
 }));
