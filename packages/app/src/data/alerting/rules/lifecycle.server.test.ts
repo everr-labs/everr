@@ -20,6 +20,7 @@ import {
   cancelableNotifyingEventsFilter,
   closeRuleLifecycle,
   instanceClosedJournalRow,
+  orphanedDirectChainsFilter,
 } from "./lifecycle.server";
 
 const def = {
@@ -77,10 +78,21 @@ function recordingTx(state: {
   canceledIds: string[];
   insertedJournalRows: unknown[][];
   eventUpdates: Record<string, unknown>[];
+  orphanedEventIds?: string[];
 }) {
   return {
     select: () => ({
       from: () => ({ where: () => Promise.resolve(state.openInstances) }),
+    }),
+    selectDistinct: () => ({
+      from: () => ({
+        innerJoin: () => ({
+          where: () =>
+            Promise.resolve(
+              (state.orphanedEventIds ?? []).map((eventId) => ({ eventId })),
+            ),
+        }),
+      }),
     }),
     insert: () => ({
       values: (rows: unknown[]) => {
@@ -154,6 +166,54 @@ describe("closeRuleLifecycle", () => {
     expect(sql).toContain('"kind" = ');
     expect(sql).toContain('"processed_at" is null');
     expect(params).toEqual([def.organizationId, def.id, "notifying"]);
+  });
+
+  // A delete's cascade removes the rule's direct groups before their flush can
+  // run, so the chains those memberships carried must get their terminals from
+  // the delete itself. A pause leaves its groups alive; the flush owns those.
+  it("claims orphaned direct-group chains on delete, not on pause", async () => {
+    const orphanedId = "22222222-2222-7222-8222-222222222222";
+    const state = () => ({
+      openInstances: [],
+      canceledIds: [],
+      insertedJournalRows: [] as unknown[][],
+      eventUpdates: [] as Record<string, unknown>[],
+      orphanedEventIds: [orphanedId],
+    });
+
+    const deleted = await closeRuleLifecycle(
+      recordingTx(state()),
+      def,
+      "rule_deleted",
+      at,
+    );
+    expect(deleted.suppressedEventIds).toEqual([orphanedId]);
+
+    mocks.jobs = [];
+    const paused = await closeRuleLifecycle(
+      recordingTx(state()),
+      def,
+      "rule_paused",
+      at,
+    );
+    expect(paused.suppressedEventIds).toEqual([]);
+  });
+
+  // The membership query's predicates are pinned on real rendered SQL: it must
+  // take only this rule's direct groups' unflushed memberships, and skip any
+  // event that already notified or still has a surviving group to flush it.
+  it("selects only chains with no other route to an outcome", () => {
+    const { sql } = new QueryBuilder()
+      .select()
+      .from(alertEvents)
+      .where(orphanedDirectChainsFilter(def))
+      .toSQL();
+
+    expect(sql).toContain('"direct_alert_definition_id" = ');
+    expect(sql).toContain('"flushed_at" is null');
+    expect(sql).toContain("not exists");
+    expect(sql).toContain('"flushed_at" is not null');
+    expect(sql).toContain("IS DISTINCT FROM");
   });
 
   it("enqueues nothing when the rule has no open instances and no in-flight events", async () => {
