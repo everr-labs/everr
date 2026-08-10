@@ -38,6 +38,9 @@ describe("queryClickHouseAlertEventLog", () => {
       "event_type IN ('instance_pending', 'instance_fired', 'instance_resolved', 'instance_closed')",
     );
     expect(sql).toContain("is_live");
+    // JSONEachRow renders a Map column natively; no toJSONString round-trip.
+    expect(sql).toContain("instance_labels AS labels");
+    expect(sql).not.toContain("toJSONString");
     expect(sql).toContain("alert_definition_id = {sourceId:UUID}");
     expect(sql).toContain("instance_fingerprint = {fingerprint:String}");
     expect(organizationId).toBe("org-1");
@@ -94,7 +97,7 @@ describe("queryClickHouseAlertEventLog", () => {
           eventType: "instance_fired",
           slug: "default/high-5xx",
           instanceFingerprint: "fp-1",
-          labelsJson: '{"host":"web-1"}',
+          labels: { host: "web-1" },
           severity: "critical",
           suppressed: 0,
           reason: "",

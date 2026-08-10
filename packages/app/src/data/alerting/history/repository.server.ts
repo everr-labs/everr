@@ -44,7 +44,7 @@ type ClickHouseAlertEventRow = {
   eventType: AlertEventType;
   slug: string;
   instanceFingerprint: string;
-  labelsJson: string;
+  labels: Record<string, string>;
   severity: string;
   suppressed: boolean;
   reason: string;
@@ -180,7 +180,7 @@ export async function queryClickHouseAlertEventLog(
         event_type AS eventType,
         slug,
         instance_fingerprint AS instanceFingerprint,
-        toJSONString(instance_labels) AS labelsJson,
+        instance_labels AS labels,
         severity,
         rule_muted AS suppressed,
         reason,
@@ -220,7 +220,7 @@ export async function queryClickHouseAlertEventLog(
       eventType: row.eventType,
       slug: row.slug,
       instanceFingerprint: row.instanceFingerprint,
-      labels: parseLabels(row.labelsJson),
+      labels: row.labels,
       severity: row.severity,
       suppressed: Boolean(row.suppressed),
       silenced: outcome?.silenced ?? false,
