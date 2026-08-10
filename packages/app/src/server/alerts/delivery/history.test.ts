@@ -13,7 +13,12 @@ vi.mock("@/db/schema", () => ({
     deliveryDedupKey: "de_dedup",
     eventId: "de_event",
   },
-  alertEvents: { organizationId: "ae_org", id: "ae_id" },
+  alertEvents: {
+    organizationId: "ae_org",
+    id: "ae_id",
+    sourceDefinitionId: "ae_def",
+  },
+  alertDefinitions: { organizationId: "ad_org", id: "ad_id", spec: "ad_spec" },
 }));
 
 vi.mock("@/db/client", () => ({
@@ -22,6 +27,7 @@ vi.mock("@/db/client", () => ({
       const chain = {
         from: vi.fn(() => chain),
         innerJoin: vi.fn(() => chain),
+        leftJoin: vi.fn(() => chain),
         where: vi.fn(() =>
           mocks.selectError
             ? Promise.reject(mocks.selectError)

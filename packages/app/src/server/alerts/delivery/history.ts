@@ -66,7 +66,7 @@ async function deliveryLinkedEvents(
       slug: event.slug,
       previewId: event.previewId,
       severity: event.severity,
-      suppressed: event.suppressed,
+      ruleMuted: event.suppressed,
     },
     fingerprint: event.instanceFingerprint,
     labels: event.instanceLabels,
@@ -104,8 +104,8 @@ export async function recordDeliveryOutcome(opts: {
         deliveryHistoryRow({
           def: event.definition,
           notificationEventId: event.id,
+          dedupKey: opts.dedupKey,
           occurredAt: opts.occurredAt,
-          scheduledFor: event.occurredAt,
           fingerprint: event.fingerprint,
           labels: event.labels,
           deliveryTargets: targets,

@@ -40,7 +40,7 @@ describe("queryClickHouseAlertEventLog", () => {
     expect(sql).toContain(
       "preview_id = toUUID('00000000-0000-0000-0000-000000000000')",
     );
-    expect(sql).toContain("suppressed = false");
+    expect(sql).toContain("rule_muted = false");
     expect(sql).toContain("alert_definition_id = {sourceId:UUID}");
     expect(sql).toContain("instance_fingerprint = {fingerprint:String}");
     expect(organizationId).toBe("org-1");
