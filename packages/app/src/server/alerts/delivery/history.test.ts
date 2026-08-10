@@ -119,21 +119,6 @@ describe("recordDeliveryOutcome", () => {
     });
   });
 
-  it("uses the rule's everr.service annotation when no label names one", async () => {
-    mocks.linkedRows = [
-      {
-        ...linkedEvent,
-        spec: { annotations: { "everr.service": "checkout" } },
-      },
-    ];
-
-    await recordDeliveryOutcome(outcome);
-
-    expect(mocks.recordAlertHistory.mock.calls[0]?.[1]?.[0]).toMatchObject({
-      service_name: "checkout",
-    });
-  });
-
   it("marks the trail as failed when the send reported an error", async () => {
     await recordDeliveryOutcome({ ...outcome, error: "429" });
 

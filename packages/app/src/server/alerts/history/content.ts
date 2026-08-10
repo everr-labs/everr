@@ -21,23 +21,13 @@ export function capAlertLabels(
   return capped;
 }
 
-/** The rule-level service fallback: the `everr.service` annotation. */
-export function alertServiceFallback(
-  annotations: Record<string, string | undefined>,
-): string {
-  return annotations["everr.service"] ?? "alert";
-}
-
 /**
  * The service an alert row concerns, resolved at write time: an instance
  * label naming a service wins (per instance, so a rule grouped by service
- * gets one value per firing instance), then the rule-level fallback, then the
- * `alert` marker. Write-time resolution is what lets the `app.logs`
- * projection group alert rows with the service they describe.
+ * gets one value per firing instance), then the `alert` marker.
  */
 export function resolveAlertServiceName(
   labels: Record<string, string>,
-  fallback: string,
 ): string {
   const candidates = Object.keys(labels)
     .filter((key) => SERVICE_LABEL_RE.test(key) && labels[key] !== "")
@@ -48,7 +38,7 @@ export function resolveAlertServiceName(
     });
   const chosen = candidates[0];
   if (chosen !== undefined) return labels[chosen];
-  return fallback === "" ? "alert" : fallback;
+  return "alert";
 }
 
 const URL_RE = /\b(?:https?|wss?):\/\/[^\s"'<>)\]]+/gi;

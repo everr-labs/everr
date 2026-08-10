@@ -40,7 +40,6 @@ export type AlertHistoryDefinition = {
   /** The rule never notifies at all: `spec.suppressed` or a preview copy. */
   ruleMuted: boolean;
   /** Rule-level service fallback when no instance label names one. */
-  serviceFallback: string;
 };
 
 export type AlertHistoryRow = {
@@ -109,7 +108,7 @@ function baseHistoryRow(opts: {
     error: "",
     instance_fingerprint: "",
     instance_labels: {},
-    service_name: opts.def.serviceFallback,
+    service_name: "alert",
     severity: opts.def.severity,
     rule_muted: opts.def.ruleMuted,
     reason: "",
@@ -128,7 +127,6 @@ function baseHistoryRow(opts: {
 // Every instance-scoped row inherits the label cap and write-time service
 // resolution from here, so no builder can bypass either.
 function instanceRowFields(
-  def: AlertHistoryDefinition,
   fingerprint: string,
   labels: Record<string, string>,
 ) {
@@ -136,7 +134,7 @@ function instanceRowFields(
   return {
     instance_fingerprint: fingerprint,
     instance_labels: capped,
-    service_name: resolveAlertServiceName(capped, def.serviceFallback),
+    service_name: resolveAlertServiceName(capped),
   };
 }
 
@@ -208,7 +206,7 @@ export function instanceHistoryRow(opts: {
       eventType: opts.eventType,
       occurredAt: opts.occurredAt,
     }),
-    ...instanceRowFields(opts.def, opts.fingerprint, opts.labels),
+    ...instanceRowFields(opts.fingerprint, opts.labels),
     episode_id: opts.episodeId,
     row_count: 1,
     evidence_json: JSON.stringify(opts.evidence),
@@ -239,7 +237,7 @@ export function suppressionHistoryRow(opts: {
       eventType: "notification_suppressed",
       occurredAt: opts.occurredAt,
     }),
-    ...instanceRowFields(opts.def, opts.fingerprint, opts.labels),
+    ...instanceRowFields(opts.fingerprint, opts.labels),
     silenced: opts.silenced,
     inhibited: opts.inhibited,
     silence_id: opts.silenceId ?? ZERO_UUID,
@@ -276,7 +274,7 @@ export function deliveryHistoryRow(opts: {
       eventType: failed ? "delivery_failed" : "delivery_succeeded",
       occurredAt: opts.occurredAt,
     }),
-    ...instanceRowFields(opts.def, opts.fingerprint, opts.labels),
+    ...instanceRowFields(opts.fingerprint, opts.labels),
     delivery_targets: opts.deliveryTargets,
     delivery_dedup_key: opts.dedupKey,
     error,
@@ -294,9 +292,6 @@ export async function recordAlertHistory(
       async_insert: 1,
       wait_for_async_insert: 1,
       date_time_input_format: "best_effort",
-      // A schema mismatch in the app.logs projection must not fail the
-      // alerting insert itself.
-      materialized_views_ignore_errors: 1,
     });
   } catch (error) {
     serverLogger.error("alerts.history.insert_failed", {

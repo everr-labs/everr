@@ -32,7 +32,6 @@ const def = {
   previewId: null,
   severity: "critical",
   ruleMuted: false,
-  serviceFallback: "alert",
 };
 const scheduledFor = new Date("2026-08-07T12:00:00Z");
 const occurredAt = new Date("2026-08-07T12:00:01Z");
@@ -83,7 +82,6 @@ describe("ClickHouse alert history", () => {
         async_insert: 1,
         wait_for_async_insert: 1,
         date_time_input_format: "best_effort",
-        materialized_views_ignore_errors: 1,
       },
     );
     expect(evaluation).toMatchObject({

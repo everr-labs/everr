@@ -38,10 +38,7 @@ import {
   recordAlertHistory,
   ZERO_UUID,
 } from "../history/clickhouse";
-import {
-  alertServiceFallback,
-  buildAlertContextJson,
-} from "../history/content";
+import { buildAlertContextJson } from "../history/content";
 import { uuidv7 } from "../history/ids";
 import { boundEventEvidence, boundEvidence } from "./evidence";
 import { rowsToInstances } from "./instances";
@@ -87,7 +84,6 @@ function historyDefinition(
     previewId: def.previewId,
     severity: def.spec.severity,
     ruleMuted: def.spec.suppressed || def.previewId !== null,
-    serviceFallback: alertServiceFallback(def.spec.annotations),
   };
 }
 

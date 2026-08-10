@@ -29,35 +29,22 @@ describe("capAlertLabels", () => {
 
 describe("resolveAlertServiceName", () => {
   it("prefers a service label, case-insensitively, in any spelling", () => {
-    expect(resolveAlertServiceName({ service: "checkout" }, "alert")).toBe(
-      "checkout",
-    );
-    expect(resolveAlertServiceName({ Service_Name: "api" }, "alert")).toBe(
-      "api",
-    );
-    expect(resolveAlertServiceName({ "service-name": "web" }, "alert")).toBe(
-      "web",
-    );
-    expect(resolveAlertServiceName({ servicename: "jobs" }, "alert")).toBe(
-      "jobs",
-    );
+    expect(resolveAlertServiceName({ service: "checkout" })).toBe("checkout");
+    expect(resolveAlertServiceName({ Service_Name: "api" })).toBe("api");
+    expect(resolveAlertServiceName({ "service-name": "web" })).toBe("web");
+    expect(resolveAlertServiceName({ servicename: "jobs" })).toBe("jobs");
   });
 
   it("prefers the exact service key when several match", () => {
     expect(
-      resolveAlertServiceName(
-        { service_name: "beta", service: "alpha" },
-        "alert",
-      ),
+      resolveAlertServiceName({ service_name: "beta", service: "alpha" }),
     ).toBe("alpha");
   });
 
-  it("falls back per rule, then to the alert marker", () => {
-    expect(resolveAlertServiceName({ region: "eu" }, "checkout-api")).toBe(
-      "checkout-api",
-    );
-    expect(resolveAlertServiceName({}, "alert")).toBe("alert");
-    expect(resolveAlertServiceName({ service: "" }, "alert")).toBe("alert");
+  it("falls back to the alert marker", () => {
+    expect(resolveAlertServiceName({ region: "eu" })).toBe("alert");
+    expect(resolveAlertServiceName({})).toBe("alert");
+    expect(resolveAlertServiceName({ service: "" })).toBe("alert");
   });
 });
 
