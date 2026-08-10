@@ -21,6 +21,7 @@ import {
   Zap,
 } from "lucide-react";
 import type { ReactNode } from "react";
+import { PageHeader } from "@/components/page-header";
 import {
   ensureOrgBillingAdmin,
   getOrgEntitlement,
@@ -123,13 +124,15 @@ function Body({ entitlement }: { entitlement: Entitlement | undefined }) {
 
 function Header({ orgName }: { orgName?: string }) {
   return (
-    <div>
-      <h1 className="text-xl font-bold tracking-tight">Billing</h1>
-      <p className="text-muted-foreground text-sm">
-        Manage the plan and billing for{" "}
-        <span className="font-medium">{orgName ?? "your organization"}</span>.
-      </p>
-    </div>
+    <PageHeader
+      title="Billing"
+      lede={
+        <>
+          Manage the plan and billing for{" "}
+          <span className="font-medium">{orgName ?? "your organization"}</span>.
+        </>
+      }
+    />
   );
 }
 

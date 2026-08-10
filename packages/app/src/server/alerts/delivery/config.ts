@@ -1,0 +1,1 @@
+export const ALERT_DELIVERY_MAX_ATTEMPTS = 5;

@@ -113,10 +113,5 @@
       "file": "packages/app/src/data/dashboards/schema.ts",
       "exports": ["*"]
     },
-    {
-      // TestData query spec — schema-only module, consumers added in follow-up tasks.
-      "file": "packages/app/src/data/dashboards/testdata/spec.ts",
-      "exports": ["*"]
-    },
   ]
 }

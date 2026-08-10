@@ -30,6 +30,17 @@ vi.mock("drizzle-orm", async (importOriginal) => {
 });
 
 import {
+  alertChannels,
+  alertDefinitions,
+  alertDeliveries,
+  alertEvents,
+  alertInhibitions,
+  alertInstances,
+  alertNotificationGroups,
+  alertReceiverChannels,
+  alertReceivers,
+  alertRoutes,
+  alertSilences,
   apikey,
   githubInstallationOrganizations,
   workflowJobs,
@@ -60,11 +71,37 @@ describe("deletePostgresOrganizationData", () => {
 
     expect(mockTransaction).toHaveBeenCalledTimes(1);
     expect(whereCalls.map((call) => call.table)).toEqual([
+      alertDeliveries,
+      alertNotificationGroups,
+      alertReceiverChannels,
+      alertRoutes,
+      alertChannels,
+      alertReceivers,
+      alertInhibitions,
+      alertSilences,
+      alertEvents,
+      alertInstances,
+      alertDefinitions,
       workflowJobs,
       workflowRuns,
       githubInstallationOrganizations,
       apikey,
     ]);
+    for (const table of [
+      alertDeliveries,
+      alertNotificationGroups,
+      alertReceiverChannels,
+      alertRoutes,
+      alertChannels,
+      alertReceivers,
+      alertInhibitions,
+      alertSilences,
+      alertEvents,
+      alertInstances,
+      alertDefinitions,
+    ]) {
+      expect(mockEq).toHaveBeenCalledWith(table.organizationId, ORG);
+    }
     expect(mockEq).toHaveBeenCalledWith(workflowJobs.organizationId, ORG);
     expect(mockEq).toHaveBeenCalledWith(workflowRuns.organizationId, ORG);
     expect(mockEq).toHaveBeenCalledWith(

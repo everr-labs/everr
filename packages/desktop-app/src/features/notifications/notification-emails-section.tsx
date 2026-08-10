@@ -4,7 +4,6 @@ import { Input } from "@everr/ui/components/input";
 import {
   Tooltip,
   TooltipContent,
-  TooltipProvider,
   TooltipTrigger,
 } from "@everr/ui/components/tooltip";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -116,29 +115,27 @@ export function NotificationEmailsSection() {
       description="Emails used to match CI events to you."
     >
       {emails.length > 0 && (
-        <TooltipProvider>
-          <div className="flex flex-wrap gap-1.5">
-            {emails.map((email) => (
-              <Badge
-                key={email}
-                variant="outline"
-                className="gap-1.5 pl-2.5 pr-1 py-1 text-[0.75rem]"
-              >
-                {email}
-                <Tooltip>
-                  <TooltipTrigger
-                    className="flex size-4 shrink-0 cursor-pointer items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-white/[0.1] hover:text-foreground disabled:pointer-events-none"
-                    disabled={mutation.isPending}
-                    onClick={() => removeEmail(email)}
-                  >
-                    <X className="size-3" />
-                  </TooltipTrigger>
-                  <TooltipContent side="top">Remove</TooltipContent>
-                </Tooltip>
-              </Badge>
-            ))}
-          </div>
-        </TooltipProvider>
+        <div className="flex flex-wrap gap-1.5">
+          {emails.map((email) => (
+            <Badge
+              key={email}
+              variant="outline"
+              className="gap-1.5 pl-2.5 pr-1 py-1 text-[0.75rem]"
+            >
+              {email}
+              <Tooltip>
+                <TooltipTrigger
+                  className="flex size-4 shrink-0 cursor-pointer items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-white/[0.1] hover:text-foreground disabled:pointer-events-none"
+                  disabled={mutation.isPending}
+                  onClick={() => removeEmail(email)}
+                >
+                  <X className="size-3" />
+                </TooltipTrigger>
+                <TooltipContent side="top">Remove</TooltipContent>
+              </Tooltip>
+            </Badge>
+          ))}
+        </div>
       )}
 
       <div className="grid gap-1.5">

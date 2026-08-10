@@ -1,10 +1,14 @@
-import type { QueryFunction, QueryKey } from "@tanstack/react-query";
 import { useQuery } from "@tanstack/react-query";
 import { ChevronDownIcon, XIcon } from "lucide-react";
-import { useId, useState } from "react";
+import { useId } from "react";
 import { cn } from "../lib/utils";
 import { Badge } from "./badge";
 import { Button } from "./button";
+import {
+  type ComboboxQueryOptions,
+  CustomValueItem,
+  useComboboxCustomEntry,
+} from "./combobox-custom-entry";
 import {
   Command,
   CommandEmpty,
@@ -16,11 +20,7 @@ import {
 import { Label } from "./label";
 import { Popover, PopoverContent, PopoverTrigger } from "./popover";
 
-interface FilterQueryOptions<TData> {
-  queryKey: QueryKey;
-  queryFn: QueryFunction<TData>;
-  select: (data: TData) => string[];
-}
+type FilterQueryOptions<TData> = ComboboxQueryOptions<TData, string>;
 
 interface FilterComboboxProps<TData> {
   label: string;
@@ -30,6 +30,14 @@ interface FilterComboboxProps<TData> {
   placeholder: string;
   searchPlaceholder?: string;
   className?: string;
+  labelClassName?: string;
+  /** Show every selected value and let the trigger grow onto multiple lines. */
+  showAllValues?: boolean;
+  /**
+   * Offer a `Use "<typed text>"` row when the search text matches no loaded
+   * item, so suggestions assist without constraining what can be selected.
+   */
+  allowCustom?: boolean;
 }
 
 export function FilterCombobox<TData>({
@@ -40,9 +48,13 @@ export function FilterCombobox<TData>({
   placeholder,
   searchPlaceholder,
   className = "w-45",
+  labelClassName,
+  showAllValues = false,
+  allowCustom = false,
 }: FilterComboboxProps<TData>) {
   const id = useId();
-  const [open, setOpen] = useState(false);
+  const { open, onOpenChange, search, setSearch, query, offerCustom } =
+    useComboboxCustomEntry();
 
   const { data: items = [], isLoading } = useQuery({
     ...options,
@@ -59,16 +71,29 @@ export function FilterCombobox<TData>({
     }
   };
 
-  const maxShownItems = 1;
+  const maxShownItems = showAllValues ? values.length : 1;
   const visibleItems = values.slice(0, maxShownItems);
   const hiddenCount = values.length - visibleItems.length;
 
+  // Hidden when it would duplicate a loaded item or a selection.
+  const showCustom =
+    allowCustom && offerCustom((q) => items.includes(q) || values.includes(q));
+
+  // Selections the query did not return (custom entries, or values whose
+  // suggestion aged out of the list) still need a checked row: without one
+  // they hide behind the trigger's +N badge with no way to toggle them off
+  // short of clearing everything.
+  const selectedOnly = values.filter((v) => !items.includes(v));
+
   return (
     <div className="flex flex-col gap-1">
-      <Label htmlFor={id} className="text-muted-foreground text-xs">
+      <Label
+        htmlFor={id}
+        className={cn("text-muted-foreground", labelClassName)}
+      >
         {label}
       </Label>
-      <Popover open={open} onOpenChange={setOpen}>
+      <Popover open={open} onOpenChange={onOpenChange}>
         <PopoverTrigger
           render={
             <Button
@@ -76,11 +101,20 @@ export function FilterCombobox<TData>({
               variant="outline"
               role="combobox"
               aria-expanded={open}
-              className={cn("h-8 justify-between", className)}
+              className={cn(
+                "justify-between",
+                showAllValues ? "min-h-8 h-auto py-1" : "h-8",
+                className,
+              )}
             />
           }
         >
-          <div className="flex min-w-0 flex-1 items-center gap-1 overflow-hidden">
+          <div
+            className={cn(
+              "flex min-w-0 flex-1 items-center gap-1",
+              showAllValues ? "flex-wrap" : "overflow-hidden",
+            )}
+          >
             {isAll ? (
               <span className="text-muted-foreground truncate text-xs">
                 {placeholder}
@@ -88,7 +122,14 @@ export function FilterCombobox<TData>({
             ) : (
               <>
                 {visibleItems.map((val) => (
-                  <Badge key={val} variant="outline" className="min-w-0 shrink">
+                  <Badge
+                    key={val}
+                    variant="outline"
+                    className={cn(
+                      "min-w-0 max-w-full",
+                      showAllValues ? "shrink-0" : "shrink",
+                    )}
+                  >
                     <span className="truncate">{val}</span>
                     <Button
                       variant="ghost"
@@ -121,13 +162,15 @@ export function FilterCombobox<TData>({
         </PopoverTrigger>
         <PopoverContent
           align="start"
-          className="w-(--radix-popper-anchor-width) min-w-48 p-0"
+          className="w-(--anchor-width) min-w-48 p-0"
         >
           <Command className="p-0 *-data-[slot=command-input-wrapper]:p-0">
             <CommandInput
               wrapperClassName="p-0 border-b"
               inputGroupClassName="border-none rounded-none bg-transparent h-8"
               placeholder={searchPlaceholder ?? `Search...`}
+              value={search}
+              onValueChange={setSearch}
             />
             <CommandList>
               <CommandEmpty>
@@ -141,6 +184,25 @@ export function FilterCombobox<TData>({
                 >
                   <span className="truncate">{placeholder}</span>
                 </CommandItem>
+                {showCustom && (
+                  <CustomValueItem
+                    query={query}
+                    onSelect={() => {
+                      toggleSelection(query);
+                      setSearch("");
+                    }}
+                  />
+                )}
+                {selectedOnly.map((item) => (
+                  <CommandItem
+                    key={item}
+                    value={item}
+                    data-checked
+                    onSelect={() => toggleSelection(item)}
+                  >
+                    <span className="truncate">{item}</span>
+                  </CommandItem>
+                ))}
                 {items.map((item) => (
                   <CommandItem
                     key={item}

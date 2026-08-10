@@ -52,7 +52,9 @@ function NavItemFlyout({ item }: { item: NavItem }) {
               render={
                 <Link
                   to={subItem.url}
-                  activeOptions={{ exact: subItem.url === "/" }}
+                  activeOptions={{
+                    exact: subItem.url === "/" || subItem.exact,
+                  }}
                   activeProps={{ "data-active": true }}
                 />
               }
@@ -123,7 +125,7 @@ export function NavMain({ items }: { items: NavItem[] }) {
                             <Link
                               to={subItem.url}
                               activeOptions={{
-                                exact: subItem.url === "/",
+                                exact: subItem.url === "/" || subItem.exact,
                               }}
                               activeProps={{ "data-active": true }}
                             />

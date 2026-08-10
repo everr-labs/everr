@@ -17,9 +17,8 @@ interface IdentifiedTable extends ScopedTable {
 
 /**
  * The apply target: the live state of a repo, or a preview. Always carries the
- * (org, repoid) it applies to; a preview also carries its registry id (null
- * while a first apply is still being dry-run — the preview row doesn't exist
- * yet). Replaces the old `preview === ""` string sentinel.
+ * (org, repoid) it applies to; a preview also carries its registry id, which is
+ * null while its first dry run has no registry row.
  */
 export type Namespace = {
   readonly orgId: string;

@@ -61,7 +61,7 @@ everr apply ./everr --preview     # always stage into a preview first; live stat
 everr apply ./everr               # prints the destination org, then asks to confirm
 ```
 
-Apply discovers all `.yaml`/`.yml` files under the directory, classifies them by `kind`, and reconciles creates, updates, and deletes. It is **declarative and delete-by-default within the `repoid`**: new files are created, changed files updated, removed files **deleted** (alerts are soft-deleted, history is preserved). This spans **all resource kinds**: the tree is the complete desired state for that repoid, so applying a dashboards-only directory also prunes runbooks and alerts previously applied under the same repoid. Never split one repoid across two apply directories. Re-applying with no changes prints `Nothing to apply.`
+Apply discovers all `.yaml`/`.yml` files under the directory, classifies them by `kind`, and reconciles creates, updates, and deletes. It is **declarative and delete-by-default within the `repoid`**: new files are created, changed files updated, and removed files are **deleted**. Live alert event history is retained independently of the deleted rule. This spans **all resource kinds**: the tree is the complete desired state for that repoid, so applying a dashboards-only directory also prunes runbooks and alerts previously applied under the same repoid. Never split one repoid across two apply directories. Re-applying with no changes prints `Nothing to apply.`
 
 In CI, set `EVERR_API_KEY` and pass `--yes`. Only deploy to production when the user is satisfied with the changes.
 

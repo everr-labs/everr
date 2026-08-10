@@ -66,4 +66,7 @@ docs/superpowers/
 .auth
 .pnpm-store
 
-.impeccable/critique
+**/.impeccable/critique
+# impeccable local state (machine-specific cache + local consent)
+**/.impeccable/hook.cache.json
+**/.impeccable/config.local.json

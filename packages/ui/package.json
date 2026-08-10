@@ -16,8 +16,10 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
+    "date-fns": "^4.4.0",
     "lucide-react": "catalog:",
     "react": "catalog:",
+    "react-day-picker": "^10.0.1",
     "react-dom": "catalog:",
     "react-resizable-panels": "^4.11.0",
     "recharts": "catalog:",
@@ -28,8 +30,12 @@
     "zod": "catalog:"
   },
   "devDependencies": {
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.2",
+    "@testing-library/user-event": "^14.6.1",
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
+    "jsdom": "^29.1.1",
     "typescript": "catalog:"
   }
 }

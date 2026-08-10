@@ -2,6 +2,7 @@
 // bundle loads (no-op during SSR and when unconfigured). See telemetry/client.
 import "@/telemetry/client";
 import { Toaster } from "@everr/ui/components/sonner";
+import { TooltipProvider } from "@everr/ui/components/tooltip";
 import { TanStackDevtools } from "@tanstack/react-devtools";
 import { FormDevtoolsPanel } from "@tanstack/react-form-devtools";
 import { QueryClientProvider } from "@tanstack/react-query";
@@ -84,26 +85,28 @@ export const Route = createRootRouteWithContext<RouterContext>()({
 function Component() {
   const { queryClient } = Route.useRouteContext();
   return (
-    <QueryClientProvider client={queryClient}>
-      <Outlet />
-      <TanStackDevtools
-        config={{ position: "bottom-right" }}
-        plugins={[
-          {
-            name: "Tanstack Router",
-            render: <TanStackRouterDevtoolsPanel />,
-          },
-          {
-            name: "React Query",
-            render: <ReactQueryDevtoolsPanel />,
-          },
-          {
-            name: "React Form",
-            render: <FormDevtoolsPanel />,
-          },
-        ]}
-      />
-    </QueryClientProvider>
+    <TooltipProvider delay={200}>
+      <QueryClientProvider client={queryClient}>
+        <Outlet />
+        <TanStackDevtools
+          config={{ position: "bottom-right" }}
+          plugins={[
+            {
+              name: "Tanstack Router",
+              render: <TanStackRouterDevtoolsPanel />,
+            },
+            {
+              name: "React Query",
+              render: <ReactQueryDevtoolsPanel />,
+            },
+            {
+              name: "React Form",
+              render: <FormDevtoolsPanel />,
+            },
+          ]}
+        />
+      </QueryClientProvider>
+    </TooltipProvider>
   );
 }
 

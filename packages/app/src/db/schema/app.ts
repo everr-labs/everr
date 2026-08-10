@@ -300,6 +300,12 @@ export const previews = pgTable(
       .defaultNow(),
   },
   (table) => [
+    uniqueIndex("previews_id_tenant_uq").on(table.id, table.organizationId),
+    uniqueIndex("previews_id_tenant_repo_uq").on(
+      table.id,
+      table.organizationId,
+      table.repoid,
+    ),
     uniqueIndex("previews_tenant_repo_name_uq").on(
       table.organizationId,
       table.repoid,

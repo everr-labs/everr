@@ -3,7 +3,7 @@ title: AlertRule Spec
 description: The full AlertRule file format, the apply manifest, and the alert evaluation states.
 ---
 
-An `AlertRule` is a resource with three top-level keys. Everr validates it on `everr apply` and again on read. The `spec` holds a ClickHouse query whose every returned row is a firing instance, plus the notification text to send when instances start and stop firing.
+An `AlertRule` is a resource with three top-level keys. Everr validates it on `everr apply` and again on read. The `spec` holds a ClickHouse query, a threshold condition, and the notification text to send when instances start and stop firing. The query always returns its useful data; the condition decides which rows fire.
 
 ```yaml
 kind: AlertRule
@@ -24,18 +24,45 @@ spec:
 | Field | Type | Required | Notes |
 | --- | --- | --- | --- |
 | `evaluationInterval` | string | yes | How often the query runs. `<int><s\|m\|h\|d>`, **minimum `1m`**. |
-| `query` | string | yes | ClickHouse SQL. Every returned row is a firing instance; empty = resolved. **No `${...}` templating.** |
+| `for` | string | no | How long the condition must hold continuously before firing. `<int><s\|m\|h\|d>`; default `0s` (fire on the first matching evaluation). While waiting, the instance is pending and sends nothing. |
+| `resolveAfter` | int | no | Consecutive evaluations where a firing instance is absent or no longer matches before it resolves. Default `1`; raise it (for example `3`) to tolerate gaps in the data. Must be ≥ 1. |
+| `query` | string | yes | ClickHouse SQL. Must return a numeric column named `value`. **No `${...}` templating.** |
+| `condition` | object | yes | A numeric threshold applied to each row's `value`: `{ operator, threshold }`. Supported operators: `gt`, `gte`, `lt`, `lte`, `eq`, `neq`. A matching row is a firing instance. |
+| `notification` | object | no | An explicit notification destination. When present, its channels receive this alert and advanced route matching is skipped. Silences and inhibitions still apply. |
+| `notification.channels` | [string] | yes, within `notification` | One or more unique Organization channel names. Every channel must exist when the rule is applied. |
 | `notificationMessage` | object | yes | The notification text. See below. |
-| `notificationMessage.title` | string | yes | Supports `${column}`. Non-empty. |
-| `notificationMessage.description` | string | no | Supports `${column}`. |
-| `instanceLabels` | [string] | no | Override for instance identity; ≥1 entry when present. Default identity is all string columns the query returns. |
+| `notificationMessage.title` | string | yes | Supports `${column}` (any query result column) and `${value}`. Non-empty. |
+| `notificationMessage.description` | string | no | Supports `${column}` and `${value}`. |
+| `instanceLabels` | [string] | no | The columns that form instance identity; ≥1 entry when present. Each must be a column the query returns. Without it, apply infers the identity from every string-typed result column, so each distinct combination is its own instance; a query with no string columns yields a single instance. |
+| `maxInterval` | string | no | Duration string (`<int><s\|m\|h\|d>`), the ceiling for adaptive retry backoff. Evaluation health becomes degraded on the first failed attempt and returns to healthy after the next successful evaluation. When both durations parse, `maxInterval` must be greater than or equal to `evaluationInterval`. Omit it to use the default cap. |
+| `annotations` | map (string to string) | no | Free-form key/value pairs stored with the alert rule alongside Everr's own generated annotations. Keys starting with `everr.`, and the exact keys `summary`, `description`, `link.alert`, and `link.runbook`, are reserved for Everr's generated sugar and rejected here. |
 | `display` | object | no | `name` and/or `description`, both optional. Human-facing labels. |
+| `runbook` | string | no | A linked runbook: bare `slug` (resolved against the alert's own project) or `project/slug`. Must resolve at apply time, either to a runbook in the same apply or to one owned by another repo. Generates the `link.runbook` notification annotation. |
+
+Ownership is keyed by the rule's canonical name (`<project>/<slug>`) and its first-class Repoid. A rule under another Repoid with a name your config declares is an ownership conflict at apply time: `everr apply` fails fast unless run with `--adopt`, which transfers the rule in place. A rule owned by your Repoid is part of that config: apply updates it when the spec drifts and prunes it if no YAML file declares it.
+
+## Notification destination
+
+By default, an alert is matched against the Organization's notification routes. Set `notification.channels` when a rule has an explicit destination that should override those routes:
+
+```yaml
+spec:
+  notification:
+    channels: [team-slack, primary-on-call]
+```
+
+The channel names reference existing Organization channels. Configuration and secrets stay with the channels and are not copied into the alert definition. Direct notifications use the standard grouping defaults and group instances by rule and severity. Omitting `notification` restores advanced routing. Preview alerts remain suppressed even when they declare an explicit destination.
 
 ## Message templating
 
-`notificationMessage.title` and `notificationMessage.description` support `${column}` placeholders. Each placeholder is replaced with that firing instance's value for the named column, so one query produces one tailored message per instance.
+`notificationMessage.title` and `notificationMessage.description` support `${...}` placeholders, substituted per firing instance when the notification is rendered:
 
-Every referenced name must be a column the `query` returns; this is validated on apply. A missing or null value renders as empty text. The `query` SQL itself does **not** support templating, placeholders work only in the notification message fields.
+- `${<column>}` expands to that instance's value for any column the query returns: an `instanceLabels` column resolves from the instance's labels, and every other column resolves from the event's evidence (the source row's remaining columns).
+- `${value}` expands to the matching row's required numeric `value` column.
+
+Referencing a column the query does not return is an apply-time error. A missing, null, empty, or non-numeric `value` does not match the condition.
+
+Evidence is capped: an event carries at most 16 non-label columns, and only while their compact JSON stays under 4096 bytes; past the caps, refs to non-label columns may render empty (apply warns when a message depends on columns beyond the 16-column cap). The `query` SQL itself does **not** support templating, placeholders work only in the notification message fields.
 
 ## Manifest
 
@@ -54,13 +81,20 @@ repoid: "my-explicit-id"
 
 If there is neither an `origin` remote nor an `everr.yaml` manifest, apply errors and tells you to add a remote or create `everr.yaml`.
 
-Declarations sit flat in `everr/`, named by kind: `*.alert.yaml`, `*.dashboard.yaml`, `*.runbook.yaml` (the legacy `*.notebook.yaml` suffix is still recognized). `everr apply ./everr` discovers every `kind: Dashboard`, `kind: AlertRule`, and `kind: Runbook` document under the directory and makes the live resources for that repoid exactly match the tree: new documents are created, changed ones updated, and removed ones **deleted**. The kind suffix is a naming convention only — apply routes by the `kind:` field. Use `--preview` to stage the changes for review without touching the live state (preview rules evaluate but never notify). See the [`everr apply` reference](/docs/reference/cli#dashboards-gitops).
+Declarations sit flat in `everr/`, named by kind: `*.alert.yaml`, `*.dashboard.yaml`, and `*.runbook.yaml` (the legacy `*.notebook.yaml` suffix is still recognized). `everr apply ./everr` discovers every `kind: Dashboard`, `kind: AlertRule`, and `kind: Runbook` document under the directory and makes the live resources for that repoid exactly match the tree: new documents are created, changed ones updated, and removed ones **deleted**. The kind suffix is a naming convention only: apply routes by the `kind:` field. Use `--preview` to stage the changes for review without touching the live state (preview rules evaluate but never notify). See the [`everr apply` reference](/docs/reference/cli#dashboards-gitops).
 
 ## Constraints and errors
 
 - `evaluationInterval` must be ≥ `1m`.
+- `for` must be a valid duration (`0s` is allowed).
+- `resolveAfter` must be an integer ≥ 1.
 - `notificationMessage.title` is required and non-empty.
-- `${column}` must reference a column the `query` returns.
-- `instanceLabels` needs ≥1 entry when present.
+- `notification.channels` must contain unique, non-empty names, and every named channel must exist at apply time.
+- `${...}` in messages must reference a column the `query` returns or be `${value}`.
+- `query` must return a numeric column named `value`.
+- `condition.operator` must be `gt`, `gte`, `lt`, `lte`, `eq`, or `neq`; `condition.threshold` must be a finite number.
+- `instanceLabels` needs ≥1 entry when present; every entry must be a column the `query` returns.
 - `query` rejects `${...}`.
-- Supported document kinds for apply are `Dashboard` and `AlertRule`.
+- `maxInterval`, when set, must be a valid duration and, when `evaluationInterval` also parses, greater than or equal to it.
+- `annotations` keys starting with `everr.`, and the exact keys `summary`, `description`, `link.alert`, and `link.runbook`, are rejected: those are reserved for Everr's own generated annotations.
+- Supported document kinds for apply are `Dashboard`, `AlertRule`, and `Runbook`.
