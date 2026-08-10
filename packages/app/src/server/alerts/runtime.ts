@@ -76,7 +76,9 @@ export const alertCronItems: ParsedCronItem[] = parseCronItems([
   },
   {
     task: ALERT_RETENTION_TASK,
-    match: "43 3 * * *",
+    // Hourly, not daily: a day between runs let the backlog outrun what one
+    // run's time budget can drain.
+    match: "43 * * * *",
     identifier: "alerts-retention",
     options: { backfillPeriod: 0 },
   },

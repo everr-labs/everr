@@ -10,7 +10,12 @@ const IDLE_GROUP_RETENTION_DAYS = 7;
 // (alert_events) is the durable record of what happened to an instance.
 const INSTANCE_RETENTION_DAYS = 7;
 const CLEANUP_BATCH_SIZE = 1_000;
-const MAX_BATCHES_PER_RUN = 10;
+// A backlog outgrows a fixed batch count long before it outgrows a time
+// budget: at 100 rules on a 1-minute interval, alert_evaluations alone
+// accumulates ~144k rows/day, far past what MAX_BATCHES_PER_RUN=10 could
+// ever drain in one run. Loop on wall clock instead, bounded well inside the
+// hourly cron cadence so a run never overlaps the next one.
+const CLEANUP_BUDGET_MS = 5 * 60 * 1_000;
 
 type AlertingCleanupCounts = {
   alertEvaluations: number;
@@ -51,11 +56,15 @@ function deletedRows(result: { rowCount?: number | null }): number {
 export async function cleanupAlertingHistory(options?: {
   now?: Date;
   batchSize?: number;
-  maxBatches?: number;
+  budgetMs?: number;
+  /** Wall clock for the budget loop, separate from `now`'s cutoff math. */
+  clock?: () => number;
 }): Promise<AlertingCleanupCounts> {
   const now = options?.now ?? new Date();
   const batchSize = options?.batchSize ?? CLEANUP_BATCH_SIZE;
-  const maxBatches = options?.maxBatches ?? MAX_BATCHES_PER_RUN;
+  const budgetMs = options?.budgetMs ?? CLEANUP_BUDGET_MS;
+  const clock = options?.clock ?? Date.now;
+  const deadline = clock() + budgetMs;
   const evaluationCutoff = new Date(
     now.getTime() - EVALUATION_RETENTION_DAYS * DAY_MS,
   );
@@ -70,7 +79,7 @@ export async function cleanupAlertingHistory(options?: {
   );
   let totals = { ...EMPTY_COUNTS };
 
-  for (let batch = 0; batch < maxBatches; batch += 1) {
+  for (;;) {
     const counts = await db.transaction(async (tx) => {
       const alertEvaluations = await tx.execute(sql`
         WITH doomed AS (
@@ -204,6 +213,7 @@ export async function cleanupAlertingHistory(options?: {
     });
     totals = addCounts(totals, counts);
     if (Object.values(counts).every((count) => count < batchSize)) break;
+    if (clock() >= deadline) break;
   }
 
   return totals;
