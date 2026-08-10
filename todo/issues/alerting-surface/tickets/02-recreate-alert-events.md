@@ -13,13 +13,13 @@ The table recreation in `../02-alerting-clickhouse-surface.md`.
 
 **Status:** ready-for-agent
 
-- [ ] Composite partition key on `(month, evaluation-or-not)`; `event_date` dropped; no set index
-- [ ] Column changes per The table recreation and the recreation findings, including the reserved inhibition-freeze columns
-- [ ] `episode_id` per Episodes and chain membership: the opening event's id on lifecycle rows, zero elsewhere
-- [ ] `context_json` frozen at write time: summary, description, runbook and alert links, condition summary; labels and matcher values take a hard length cap at the write boundary
-- [ ] Codecs and the split TTL (evaluations at 30 days, the rest at tenant retention)
-- [ ] `event_id` is UUIDv7 from both the builders and the column default on non-delivery rows; delivery rows take deterministic ids derived from the journal event and the delivery key, per the `event_id` row in the doc's Reference
-- [ ] The narrowed `app.logs` projection: fired and resolved only, live rows only, `ServiceName` resolved at write time, `everr.signal = 'alert'`
-- [ ] The `error` column is sanitized at the write boundary; no URLs or tokens
-- [ ] A migration for existing deployments, every statement with its own `SETTINGS`
-- [ ] Ingestion verified with `everr-dev`
+- [x] Composite partition key on `(month, evaluation-or-not)`; `event_date` dropped; no set index
+- [x] Column changes per The table recreation and the recreation findings, including the reserved inhibition-freeze columns
+- [x] `episode_id` per Episodes and chain membership: the opening event's id on lifecycle rows, zero elsewhere
+- [x] `context_json` frozen at write time: summary, description, runbook and alert links, condition summary; labels and matcher values take a hard length cap at the write boundary
+- [x] Codecs and the split TTL (evaluations at 30 days, the rest at tenant retention)
+- [x] `event_id` is UUIDv7 from both the builders and the column default on non-delivery rows; delivery rows and terminal `notification_suppressed` rows take deterministic ids, per the `event_id` row in the doc's Reference
+- [x] The `app.logs` projection is cut entirely: `app.logs` carries no alert rows, and the migration drops the legacy MV (decision recorded in the design doc under "Whether alerting belongs in `app.logs`")
+- [x] The `error` column is sanitized at the write boundary; no URLs or tokens
+- [x] A migration for existing deployments; TTL and dedup options ride each statement's own `SETTINGS` clause, never a session-level `SET`
+- [x] Ingestion verified with `everr-dev` (live fire/resolve cycles on the dev stack, episode stamping and chain reads checked)
