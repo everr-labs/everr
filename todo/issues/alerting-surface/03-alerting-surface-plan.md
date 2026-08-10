@@ -136,9 +136,9 @@ Required outcome: the `kind` discriminator on `alert_events`; the
 `alert_event_type` enum extended with `instance_pending`, the terminal
 type, the hold decision type, and `evaluation_failed` as a journaled state
 kind (per the Durability table); the id default as a `uuidv7()`
-expression, not `defaultRandom()`; a PostgreSQL-stamped commit-side
-timestamp column on the journal tables, so the future reconciler diff never
-filters on a Node clock. Follow Changing the schema in the doc: no
+expression, not `defaultRandom()`; a PostgreSQL-stamped timestamp column
+(`journaled_at`, transaction-start time) on the journal tables, so the
+future reconciler diff never filters on a Node clock. Follow Changing the schema in the doc: no
 `drizzle-kit generate`.
 
 ### 6. Tenancy: let `cloud query` reach the table
@@ -195,10 +195,12 @@ Required outcome:
   converges with its reconciled copy instead of duplicating.
 - The evaluation-failure stream is journaled on the write path and diffed
   like the transitions; success rows stay fire and forget.
-- The window filters on the commit-side timestamp from issue 5, evaluated
-  on the PostgreSQL clock.
+- The window filters on `journaled_at` from issue 5, evaluated on the
+  PostgreSQL clock; it is transaction-start time, so the window carries a
+  visibility margin.
 - Both window bounds as tested invariants: wider than any plausible outage
-  plus the delivery retry span, narrower than min(tenant `logs_days`, the
+  plus the delivery retry span plus the longest journal-writing
+  transaction, narrower than min(tenant `logs_days`, the
   90-day journal retention in
   `server/alerts/maintenance/cleanup.ts`).
 - Reconciled rows carry `write_source = 'reconciled'` and the journal
