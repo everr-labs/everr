@@ -73,7 +73,10 @@ describe("sendAlertDelivery rule liveness", () => {
       expect.objectContaining({ status: "failed" }),
     );
     expect(mocks.outcome).toHaveBeenCalledWith(
-      expect.objectContaining({ error: expect.stringContaining("paused") }),
+      expect.objectContaining({
+        outcome: "failed",
+        error: expect.stringContaining("paused"),
+      }),
     );
   });
 
@@ -83,6 +86,9 @@ describe("sendAlertDelivery rule liveness", () => {
     expect(mocks.send).toHaveBeenCalledOnce();
     expect(mocks.set).toHaveBeenCalledWith(
       expect.objectContaining({ status: "sent" }),
+    );
+    expect(mocks.outcome).toHaveBeenCalledWith(
+      expect.objectContaining({ outcome: "succeeded" }),
     );
   });
 });

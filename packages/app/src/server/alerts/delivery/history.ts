@@ -88,6 +88,7 @@ export async function recordDeliveryOutcome(opts: {
   channelType: string;
   channelName: string;
   occurredAt: Date;
+  outcome: "succeeded" | "failed";
   error?: string;
 }): Promise<void> {
   try {
@@ -109,6 +110,7 @@ export async function recordDeliveryOutcome(opts: {
           fingerprint: event.fingerprint,
           labels: event.labels,
           deliveryTargets: targets,
+          outcome: opts.outcome,
           ...(opts.error === undefined ? {} : { error: opts.error }),
         }),
       ),

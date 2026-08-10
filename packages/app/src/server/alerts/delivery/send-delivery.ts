@@ -45,6 +45,7 @@ export async function sendAlertDelivery(rawPayload: unknown): Promise<void> {
       channelType: "unknown",
       channelName: row.delivery.channelName,
       occurredAt: new Date(),
+      outcome: "failed",
       error,
     });
     return;
@@ -86,6 +87,7 @@ export async function sendAlertDelivery(rawPayload: unknown): Promise<void> {
       channelType,
       channelName: row.delivery.channelName,
       occurredAt: new Date(),
+      outcome: "failed",
       error,
     });
     throw cause;
@@ -99,5 +101,6 @@ export async function sendAlertDelivery(rawPayload: unknown): Promise<void> {
     channelType,
     channelName: row.delivery.channelName,
     occurredAt: new Date(),
+    outcome: "succeeded",
   });
 }

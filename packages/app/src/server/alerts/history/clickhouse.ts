@@ -277,9 +277,14 @@ export function deliveryHistoryRow(opts: {
   fingerprint: string;
   labels: Record<string, string>;
   deliveryTargets: AlertDeliveryTargets;
+  // The caller states the outcome from the branch it is in; it is never
+  // inferred from the message. A failure with an empty message must stay a
+  // failure: classified as a success it would take the convergent success id,
+  // and the append-only table would carry a lie the reconciler cannot detect.
+  outcome: "succeeded" | "failed";
   error?: string;
 }): AlertHistoryRow {
-  const failed = opts.error !== undefined && opts.error !== "";
+  const failed = opts.outcome === "failed";
   const error = failed ? sanitizeAlertError(opts.error ?? "") : "";
   return {
     ...baseHistoryRow({
@@ -287,7 +292,7 @@ export function deliveryHistoryRow(opts: {
       eventId: deterministicDeliveryEventId({
         notificationEventId: opts.notificationEventId,
         dedupKey: opts.dedupKey,
-        outcome: failed ? "failed" : "succeeded",
+        outcome: opts.outcome,
         attemptAt: opts.occurredAt,
       }),
       notificationEventId: opts.notificationEventId,

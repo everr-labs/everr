@@ -262,11 +262,13 @@ describe("ClickHouse alert history", () => {
       fingerprint: "api",
       labels: { service: "api" },
       deliveryTargets: { slack: ["on-call"] },
+      outcome: "succeeded" as const,
     };
     const sent = deliveryHistoryRow(opts);
     const sentAgain = deliveryHistoryRow(opts);
     const failed = deliveryHistoryRow({
       ...opts,
+      outcome: "failed",
       error:
         "429 Too Many Requests from https://hooks.slack.com/services/T0/B0/secret",
     });
@@ -287,19 +289,28 @@ describe("ClickHouse alert history", () => {
     expect(failed.evidence_json).not.toContain("secret");
   });
 
-  it("treats an empty error string as a success rather than a failure", () => {
-    expect(
-      deliveryHistoryRow({
-        def,
-        notificationEventId: "019c3aba-29f8-7d6e-9e55-301cf47fa80d",
-        dedupKey: "group-1:slack:on-call",
-        occurredAt,
-        fingerprint: "api",
-        labels: { service: "api" },
-        deliveryTargets: { slack: ["on-call"] },
-        error: "",
-      }).event_type,
-    ).toBe("delivery_succeeded");
+  // Classified as a success it would take the convergent success id, and the
+  // append-only trail would permanently claim a delivery that never happened.
+  it("keeps a failure with an empty message a failure", () => {
+    const opts = {
+      def,
+      notificationEventId: "019c3aba-29f8-7d6e-9e55-301cf47fa80d",
+      dedupKey: "group-1:slack:on-call",
+      occurredAt,
+      fingerprint: "api",
+      labels: { service: "api" },
+      deliveryTargets: { slack: ["on-call"] },
+    };
+    const emptyFailure = deliveryHistoryRow({
+      ...opts,
+      outcome: "failed",
+      error: "",
+    });
+
+    expect(emptyFailure.event_type).toBe("delivery_failed");
+    expect(emptyFailure.event_id).not.toBe(
+      deliveryHistoryRow({ ...opts, outcome: "succeeded" }).event_id,
+    );
   });
 
   it("does not fail alert evaluation when history storage is unavailable", async () => {

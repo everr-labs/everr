@@ -73,7 +73,8 @@ const outcome = {
   channelType: "slack",
   channelName: "on-call",
   occurredAt: new Date("2026-06-10T00:00:05Z"),
-};
+  outcome: "succeeded",
+} as const;
 
 beforeEach(() => {
   mocks.linkedRows = [linkedEvent];
@@ -120,7 +121,11 @@ describe("recordDeliveryOutcome", () => {
   });
 
   it("marks the trail as failed when the send reported an error", async () => {
-    await recordDeliveryOutcome({ ...outcome, error: "429" });
+    await recordDeliveryOutcome({
+      ...outcome,
+      outcome: "failed",
+      error: "429",
+    });
 
     expect(mocks.recordAlertHistory.mock.calls[0][1][0]).toMatchObject({
       event_type: "delivery_failed",
