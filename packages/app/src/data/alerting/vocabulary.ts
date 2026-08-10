@@ -38,6 +38,10 @@ const ALERTING_LIFECYCLE_REASONS = [
   // already stopped firing (a worker outage and recovery, most often): the
   // notification is withheld, not dropped silently.
   "no_longer_firing",
+  // A group flushed a notification-worthy set to a receiver or rule with no
+  // channels attached: nothing was sent, but the chain still needs an
+  // outcome.
+  "no_channels",
 ] as const;
 
 export type AlertingLifecycleReason =

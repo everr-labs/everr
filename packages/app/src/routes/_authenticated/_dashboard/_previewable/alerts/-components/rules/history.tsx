@@ -61,6 +61,7 @@ const CLOSE_REASON_LABELS: Record<
   rule_deleted: "Rule deleted",
   preview_deleted: "Preview deleted",
   no_longer_firing: "No longer firing",
+  no_channels: "No channels configured",
 };
 
 function closeReasonLabel(reason: AlertingLifecycleReason | ""): string | null {

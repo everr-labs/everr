@@ -254,6 +254,15 @@ export async function flushAlertGroup(rawPayload: unknown): Promise<void> {
           )
           .orderBy(asc(alertReceiverChannels.position))
       : [];
+  // A notification-worthy set with nowhere to send it: the flush below still
+  // marks these members flushed and advances lastNotifiedAt, so without a
+  // terminal here their chains would read as delivered with no record of why
+  // nothing went out. Guarded on repo-level channel requirements today, but
+  // the invariant ("chains end in an outcome") must hold regardless.
+  const noChannelDrops =
+    channels.length === 0 && notificationEvents.length > 0
+      ? notificationEvents
+      : [];
   const notification = formatNotification(notificationEvents);
   await db.transaction(async (tx) => {
     // Re-read under lock: another writer may have moved nextFlushAt while this
@@ -370,7 +379,11 @@ export async function flushAlertGroup(rawPayload: unknown): Promise<void> {
       );
     }
   });
-  if (droppedRows.length > 0 || droppedUnannounced.length > 0) {
+  if (
+    droppedRows.length > 0 ||
+    droppedUnannounced.length > 0 ||
+    noChannelDrops.length > 0
+  ) {
     const decidedAt = new Date();
     await recordAlertHistory(null, [
       ...droppedRows.map(({ event, ruleActive }) =>
@@ -400,6 +413,21 @@ export async function flushAlertGroup(rawPayload: unknown): Promise<void> {
           silenced: false,
           inhibited: false,
           silenceId: null,
+        }),
+      ),
+      // A receiver or rule with no channels attached: nothing was sent, but
+      // the flush still marked these flushed and advanced lastNotifiedAt.
+      ...noChannelDrops.map((event) =>
+        suppressionHistoryRow({
+          def: historyDefFromJournalRow(event),
+          notificationEventId: event.id,
+          occurredAt: decidedAt,
+          fingerprint: event.instanceFingerprint,
+          labels: event.instanceLabels,
+          silenced: false,
+          inhibited: false,
+          silenceId: null,
+          reason: "no_channels",
         }),
       ),
     ]);

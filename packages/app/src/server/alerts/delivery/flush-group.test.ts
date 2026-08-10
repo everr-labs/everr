@@ -13,11 +13,23 @@ const mocks = vi.hoisted(() => ({
   ),
   recordHistory: vi.fn(() => Promise.resolve()),
   transactionCalls: 0,
+  // The channels attached to a group's receiver or direct rule.
+  channelRows: [] as unknown[],
 }));
 
 vi.mock("@/db/client", () => {
   return {
     db: {
+      // The receiver/rule -> channels lookup, outside any transaction.
+      select: () => ({
+        from: () => ({
+          innerJoin: () => ({
+            where: () => ({
+              orderBy: () => Promise.resolve(mocks.channelRows),
+            }),
+          }),
+        }),
+      }),
       transaction: (fn: (tx: unknown) => Promise<unknown>) => {
         mocks.transactionCalls += 1;
         if (mocks.transactionCalls === 1) {
@@ -106,6 +118,7 @@ beforeEach(() => {
   mocks.loadSilences.mockClear();
   mocks.loadInhibition.mockClear();
   mocks.recordHistory.mockClear();
+  mocks.channelRows = [];
 });
 
 function event(overrides: Partial<NotificationEvent> = {}): NotificationEvent {
@@ -347,5 +360,85 @@ describe("flushAlertGroup flap handling", () => {
       { notificationEventId: string }[],
     ];
     expect(rows).toHaveLength(1);
+  });
+});
+
+describe("flushAlertGroup zero channels", () => {
+  const GROUP_ID = "5cbb1c68-5cc9-4444-8000-000000000004";
+  const group = {
+    id: GROUP_ID,
+    organizationId: "org-1",
+    nextFlushAt: new Date("2026-08-10T09:00:00Z"),
+    directAlertDefinitionId: null,
+    receiverId: "receiver-1",
+    repeatIntervalSeconds: null,
+    lastNotifiedAt: null,
+  };
+
+  it("records a terminal when a notification-worthy set has no channel to send to", async () => {
+    mocks.groupRow = group;
+    mocks.channelRows = []; // the receiver has no channels attached
+    mocks.memberRows = [
+      {
+        event: {
+          id: "fire-event",
+          organizationId: "org-1",
+          sourceDefinitionId: "def-1",
+          instanceFingerprint: "fp-1",
+          occurredAt: new Date("2026-08-10T08:59:00Z"),
+          eventType: "instance_fired",
+          instanceLabels: {},
+          silenced: false,
+          inhibited: false,
+          silenceId: null,
+        },
+        flushedAt: null,
+        ruleActive: true,
+      },
+    ];
+    mocks.commitSelectQueue = [[group], [{ unflushed: 0 }]];
+
+    await flushAlertGroup({ groupId: GROUP_ID });
+
+    expect(mocks.recordHistory).toHaveBeenCalledWith(
+      null,
+      expect.arrayContaining([
+        expect.objectContaining({
+          notificationEventId: "fire-event",
+          reason: "no_channels",
+        }),
+      ]),
+    );
+  });
+
+  it("writes nothing when there is nothing to notify either", async () => {
+    mocks.groupRow = group;
+    mocks.channelRows = [];
+    // A paused rule drops before notificationEvents is computed from any
+    // live candidate: nothing to notify, so nothing to blame on missing
+    // channels.
+    mocks.memberRows = [
+      {
+        event: {
+          id: "fire-event",
+          organizationId: "org-1",
+          sourceDefinitionId: "def-1",
+          instanceFingerprint: "fp-1",
+          occurredAt: new Date("2026-08-10T08:59:00Z"),
+          eventType: "instance_fired",
+          instanceLabels: {},
+          silenced: false,
+          inhibited: false,
+          silenceId: null,
+        },
+        flushedAt: new Date("2026-08-10T08:00:00Z"),
+        ruleActive: false,
+      },
+    ];
+    mocks.commitSelectQueue = [[group], [{ unflushed: 0 }]];
+
+    await flushAlertGroup({ groupId: GROUP_ID });
+
+    expect(mocks.recordHistory).not.toHaveBeenCalled();
   });
 });
