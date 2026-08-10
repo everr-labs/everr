@@ -2,15 +2,25 @@ import { is, SQL } from "drizzle-orm";
 import { PgDialect } from "drizzle-orm/pg-core";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const mocks = vi.hoisted(() => ({
-  deliveryRows: [] as unknown[],
-  liveRules: [] as unknown[],
-  set: vi.fn(),
-  update: vi.fn(),
-  where: vi.fn(),
-  send: vi.fn(),
-  outcome: vi.fn(),
-}));
+const mocks = vi.hoisted(() => {
+  class MockChannelSendError extends Error {
+    readonly permanent: boolean;
+    constructor(message: string, opts: { permanent: boolean }) {
+      super(message);
+      this.permanent = opts.permanent;
+    }
+  }
+  return {
+    deliveryRows: [] as unknown[],
+    liveRules: [] as unknown[],
+    set: vi.fn(),
+    update: vi.fn(),
+    where: vi.fn(),
+    send: vi.fn(),
+    outcome: vi.fn(),
+    ChannelSendError: MockChannelSendError,
+  };
+});
 
 vi.mock("@/db/client", () => ({
   db: {
@@ -35,6 +45,7 @@ vi.mock("@/data/alerting/delivery/channel-secrets.server", () => ({
 }));
 vi.mock("@/data/alerting/delivery/channel-sender.server", () => ({
   sendChannelNotification: mocks.send,
+  ChannelSendError: mocks.ChannelSendError,
 }));
 vi.mock("./history", () => ({ recordDeliveryOutcome: mocks.outcome }));
 
@@ -220,5 +231,50 @@ describe("sendAlertDelivery status write after a successful send", () => {
       (call) => call[0]?.status === "sent",
     );
     expect(sentCall).toBeDefined();
+  });
+});
+
+describe("sendAlertDelivery permanent vs transient send errors", () => {
+  beforeEach(() => {
+    mocks.deliveryRows = [deliveryRow];
+    mocks.liveRules = [{ eventId: "e-1" }];
+    mocks.outcome.mockReset().mockResolvedValue(undefined);
+    mocks.where.mockReset().mockResolvedValue(undefined);
+    mocks.set.mockReset().mockReturnValue({ where: mocks.where });
+    mocks.update.mockReset().mockReturnValue({ set: mocks.set });
+  });
+
+  it("records a permanent failure at the max attempts and does not rethrow", async () => {
+    mocks.send.mockReset().mockRejectedValue(
+      new mocks.ChannelSendError("notification webhook failed: 400", {
+        permanent: true,
+      }),
+    );
+
+    await expect(
+      sendAlertDelivery({ dedupKey: "dk-1" }),
+    ).resolves.toBeUndefined();
+
+    expect(mocks.set).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: "failed",
+        attempts: ALERT_DELIVERY_MAX_ATTEMPTS,
+      }),
+    );
+  });
+
+  it("rethrows a transient failure for the job queue to retry", async () => {
+    mocks.send.mockReset().mockRejectedValue(
+      new mocks.ChannelSendError("notification webhook failed: 500", {
+        permanent: false,
+      }),
+    );
+
+    await expect(sendAlertDelivery({ dedupKey: "dk-1" })).rejects.toThrow();
+
+    const [failedCall] = mocks.set.mock.calls.filter(
+      (call) => call[0]?.status === "failed",
+    );
+    expect(is(failedCall?.[0].attempts, SQL)).toBe(true);
   });
 });

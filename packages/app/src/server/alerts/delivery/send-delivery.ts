@@ -1,6 +1,9 @@
 import { and, eq, ne, type SQL, sql } from "drizzle-orm";
 import { decryptChannelConfig } from "@/data/alerting/delivery/channel-secrets.server";
-import { sendChannelNotification } from "@/data/alerting/delivery/channel-sender.server";
+import {
+  ChannelSendError,
+  sendChannelNotification,
+} from "@/data/alerting/delivery/channel-sender.server";
 import { db } from "@/db/client";
 import { alertChannels, alertDeliveries } from "@/db/schema";
 import { errorMessage } from "@/telemetry/logger";
@@ -105,6 +108,11 @@ export async function sendAlertDelivery(rawPayload: unknown): Promise<void> {
     channelType = config.type;
     await sendChannelNotification(config, row.delivery.notification);
   } catch (cause) {
+    // A permanent failure (a 4xx other than 408/429: a revoked webhook, a
+    // malformed payload) cannot succeed on retry, so it is recorded
+    // terminally at the max attempts and not rethrown. Anything else is
+    // transient and must reach Graphile's retry.
+    const permanent = cause instanceof ChannelSendError && cause.permanent;
     // failDelivery's own write can throw too (a transient DB error, say);
     // let that one through unchanged rather than the real send failure it
     // would otherwise replace. `cause` on the original still carries it.
@@ -114,8 +122,12 @@ export async function sendAlertDelivery(rawPayload: unknown): Promise<void> {
         errorMessage(cause).slice(0, 8_000),
         // Computed in the UPDATE, not from the Node-side `row` read: two
         // racing runs of the same delivery would otherwise both compute the
-        // same stale count and one attempt would go uncounted.
-        sql`${alertDeliveries.attempts} + 1`,
+        // same stale count and one attempt would go uncounted. A permanent
+        // failure instead jumps straight to the max, the same terminal
+        // count retention and the cleanup index already require.
+        permanent
+          ? ALERT_DELIVERY_MAX_ATTEMPTS
+          : sql`${alertDeliveries.attempts} + 1`,
       );
     } catch (bookkeepingError) {
       throw new Error(
@@ -125,6 +137,7 @@ export async function sendAlertDelivery(rawPayload: unknown): Promise<void> {
         },
       );
     }
+    if (permanent) return;
     throw cause;
   }
   // The send succeeded. Nothing from here on may run inside a try whose catch

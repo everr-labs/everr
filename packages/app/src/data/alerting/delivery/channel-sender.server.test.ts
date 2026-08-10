@@ -7,7 +7,10 @@ vi.mock("@/lib/slack.server", () => ({
   sendSlackMessage: mocks.sendSlackMessage,
 }));
 
-import { sendChannelNotification } from "./channel-sender.server";
+import {
+  ChannelSendError,
+  sendChannelNotification,
+} from "./channel-sender.server";
 
 // A public IP so validateOutboundUrl passes without a DNS lookup.
 const HOOK_URL = "https://8.8.8.8/hook";
@@ -63,4 +66,41 @@ it("leaves an in-limit message untouched", async () => {
   await sendChannelNotification({ type: "discord", url: HOOK_URL }, small);
 
   expect(sentDiscordContent()).toBe(`${small.title}\n\n${small.body}`);
+});
+
+it("marks a 400 permanent: retrying an identical malformed request cannot help", async () => {
+  fetchMock.mockResolvedValueOnce(new Response("bad payload", { status: 400 }));
+
+  const error = await sendChannelNotification(
+    { type: "webhook", url: HOOK_URL },
+    { title: "t", body: "b" },
+  ).catch((caught: unknown) => caught);
+
+  expect(error).toBeInstanceOf(ChannelSendError);
+  expect((error as ChannelSendError).permanent).toBe(true);
+});
+
+it("marks a 500 transient: worth retrying", async () => {
+  fetchMock.mockResolvedValueOnce(new Response("", { status: 500 }));
+
+  const error = await sendChannelNotification(
+    { type: "webhook", url: HOOK_URL },
+    { title: "t", body: "b" },
+  ).catch((caught: unknown) => caught);
+
+  expect(error).toBeInstanceOf(ChannelSendError);
+  expect((error as ChannelSendError).permanent).toBe(false);
+});
+
+it.each([
+  408, 429,
+])("keeps %d retryable even though it is a 4xx", async (status) => {
+  fetchMock.mockResolvedValueOnce(new Response("", { status }));
+
+  const error = await sendChannelNotification(
+    { type: "webhook", url: HOOK_URL },
+    { title: "t", body: "b" },
+  ).catch((caught: unknown) => caught);
+
+  expect((error as ChannelSendError).permanent).toBe(false);
 });
