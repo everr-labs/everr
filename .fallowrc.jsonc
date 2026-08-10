@@ -27,6 +27,8 @@
     // size-limit's own config file, resolved by its CLI at runtime; nothing
     // in the package imports it.
     "packages/otel-web/.size-limit.cjs",
+    // On-demand skill eval runner, invoked directly with `node`.
+    "evals/setup-telemetry/run.mjs",
   ],
   // The two @opentelemetry/* entries are imported only by the OTel web SDK
   // sample in content/docs/guides/browser-telemetry.mdx (the reader

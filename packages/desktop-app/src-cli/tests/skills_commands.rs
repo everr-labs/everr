@@ -208,7 +208,7 @@ fn skills_update_without_scope_refreshes_telemetry_rules() {
 
     let rule_path = env
         .home_dir
-        .join(".agents/skills/everr-setup-telemetry/rules/error-tracking.md");
+        .join(".agents/skills/everr-setup-telemetry/rules/validation.md");
     fs::write(&rule_path, "stale rule").expect("write stale rule");
 
     env.command()
