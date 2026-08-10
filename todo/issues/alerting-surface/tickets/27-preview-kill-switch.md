@@ -10,5 +10,9 @@ never used.
 
 **Status:** ready-for-agent
 
-- [ ] The switch is enforced before preview work is enqueued
+- [x] The switch is enforced before preview work is enqueued
 - [ ] Both values are tested
+
+Record check 2026-08-10: enforcement exists at the scanner and at the per-rule
+reschedule. The off value is tested; the on branch of the gate condition is not
+reached by any current test.

@@ -10,6 +10,6 @@ visible before an incident finds it.
 
 **Status:** ready-for-agent
 
-- [ ] A counter or span event on both history insert failure sites
+- [x] A counter or span event on both history insert failure sites (implemented as named error log records: `alerts.history.insert_failed`, `alerts.history.delivery_outcome_failed`)
 - [ ] A repair counter per stream in the reconciler
 - [ ] Verified visible through Everr telemetry with `everr-dev`

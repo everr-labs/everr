@@ -9,5 +9,5 @@ receiving live list updates instead of polling silently stopping.
 
 **Status:** ready-for-agent
 
-- [ ] Paginated rule data refreshes without silently disabling updates
-- [ ] Coverage for an organization with at least two pages
+- [x] Paginated rule data refreshes without silently disabling updates
+- [x] Coverage for an organization with at least two pages

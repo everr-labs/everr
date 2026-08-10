@@ -16,3 +16,8 @@ join to read it.
 - [ ] The silence comment and matchers freeze onto deferred and suppressed rows
 - [ ] The inhibiting source freezes into the columns ticket 02 reserved
 - [ ] A deferred chain that ends without delivery gets its own terminal suppressed row with a matching reason
+
+Record check 2026-08-10: the terminal row on the deferred path exists
+(`deferSuppressedEvent`), but it omits `reason`, so the column defaults to the
+empty string. The parallel direct drop in `process-event.ts` writes
+`no_longer_firing`. The freeze columns from ticket 02 are still written empty.

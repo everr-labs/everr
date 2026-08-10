@@ -10,5 +10,10 @@ reject the cleanup and roll it back.
 
 **Status:** ready-for-agent
 
-- [ ] Cleanup ordering handles direct rule-to-channel mappings
+- [x] Cleanup ordering handles direct rule-to-channel mappings
 - [ ] An organization cleanup integration test with direct rule channels
+
+Record check 2026-08-10: the ordering fix is in
+`organization-data-cleanup.server.ts` with the constraint stated in a comment.
+The existing test asserts delete ordering against mocks; no test exercises the
+real foreign keys.

@@ -12,8 +12,12 @@ design doc's findings.
 
 **Status:** ready-for-agent
 
-- [ ] SELECT grant for the SQL API role on the table
-- [ ] Default-deny policy plus per-organization row policy
-- [ ] Provisioning code creates the policy for new organizations
+- [x] SELECT grant for the SQL API role on the table
+- [x] Default-deny policy plus per-organization row policy
+- [x] Provisioning code creates the policy for new organizations
 - [ ] Verified with `everr-dev cloud query`: own rows visible, other tenants' rows absent
-- [ ] Documented as the copyable tenancy template
+- [x] Documented as the copyable tenancy template
+
+Record check 2026-08-10: the code side is complete (`15-create-sql-api-role.sql`,
+`provisionSqlApiOrgUser`, `sql-api-tables.ts`). Open: the live query check, and
+the backfill migration's manual second step for pre-existing organizations.

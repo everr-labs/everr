@@ -11,3 +11,7 @@ the preview's own evidence and transitions, not empty or live-scope data.
 
 - [ ] Preview identity carries through the history query
 - [ ] A test covers the same rule identity in live and preview scopes
+
+Record check 2026-08-10: the rule detail page carries preview scope correctly.
+The triage-board expander, the surface this ticket names, still queries with a
+null preview scope, and preview rows are not `is_live`, so it returns empty.

@@ -14,7 +14,7 @@ the design doc's findings; finding 21 in
 
 **Status:** ready-for-agent
 
-- [ ] Delivery rows get deterministic ids derived from the journal
+- [x] Delivery rows get deterministic ids derived from the journal
 - [ ] The diff compares outcomes: a succeeded journal status with no succeeded row is repaired
 - [ ] A sweep moves abandoned deliveries past the retry horizon to terminal failed, with a stuck-delivery counter
 - [ ] The "Excluded from ClickHouse" row on dedup keys is narrowed in the design doc
