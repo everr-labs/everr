@@ -24,7 +24,7 @@ beforeEach(() => {
 });
 
 describe("queryClickHouseAlertEventLog", () => {
-  it("selects live, unsuppressed transition history", async () => {
+  it("selects live transition history", async () => {
     await queryClickHouseAlertEventLog("org-1", {
       ...range,
       previewIds: null,
@@ -40,7 +40,6 @@ describe("queryClickHouseAlertEventLog", () => {
     expect(sql).toContain(
       "preview_id = toUUID('00000000-0000-0000-0000-000000000000')",
     );
-    expect(sql).toContain("rule_muted = false");
     expect(sql).toContain("alert_definition_id = {sourceId:UUID}");
     expect(sql).toContain("instance_fingerprint = {fingerprint:String}");
     expect(organizationId).toBe("org-1");
@@ -52,6 +51,22 @@ describe("queryClickHouseAlertEventLog", () => {
       from: "2026-06-01 00:00:00.000",
       to: "2026-06-16 00:00:00.000",
     });
+  });
+
+  it("does not filter out a muted live rule's own history", async () => {
+    // rule_muted marks a rule that never notifies; it must not also hide
+    // that rule's history from its own detail page (rule_muted AS
+    // suppressed is returned for the UI to render, not to filter on).
+    await queryClickHouseAlertEventLog("org-1", { ...range, previewIds: null });
+    const [liveSql] = mocks.query.mock.calls[0];
+    expect(liveSql).not.toContain("rule_muted = false");
+
+    mocks.query.mockClear();
+    await queryClickHouseAlertEventLog("org-1", { ...range, previewIds: [] });
+    const [emptyPreviewSql] = mocks.query.mock.calls[0];
+    // The null and empty-array preview branches both mean "live only" and
+    // must filter identically.
+    expect(emptyPreviewSql).toBe(liveSql);
   });
 
   it("overlays selected Preview ids on live history", async () => {

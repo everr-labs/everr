@@ -156,10 +156,7 @@ export async function queryClickHouseAlertEventLog(
     "event_time <= {to:DateTime64(3)}",
   ];
   if (opts.previewIds === null) {
-    filters.push(
-      "preview_id = toUUID('00000000-0000-0000-0000-000000000000')",
-      "rule_muted = false",
-    );
+    filters.push("preview_id = toUUID('00000000-0000-0000-0000-000000000000')");
   } else if (opts.previewIds.length === 0) {
     filters.push("preview_id = toUUID('00000000-0000-0000-0000-000000000000')");
   } else {
