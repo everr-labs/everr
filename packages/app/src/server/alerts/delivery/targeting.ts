@@ -131,8 +131,10 @@ async function routedDispatchTargets(
       directAlertDefinitionId: null,
       groupKey: alertDeliveryHash(receiver.id, stableJson(groupLabels)),
       groupLabels,
-      groupWaitSeconds: route.group_wait_secs ?? 30,
-      groupIntervalSeconds: route.group_interval_secs ?? 300,
+      groupWaitSeconds:
+        route.group_wait_secs ?? ALERTING_DEFAULT_GROUP_WAIT_SECS,
+      groupIntervalSeconds:
+        route.group_interval_secs ?? ALERTING_DEFAULT_GROUP_INTERVAL_SECS,
       repeatIntervalSeconds: route.repeat_interval_secs,
     });
   }

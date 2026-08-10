@@ -25,6 +25,10 @@ vi.mock("@/db/client", () => ({
   pool: {},
 }));
 
+import {
+  ALERTING_DEFAULT_GROUP_INTERVAL_SECS,
+  ALERTING_DEFAULT_GROUP_WAIT_SECS,
+} from "@/data/alerting/routing/defaults";
 import type { alertEvents } from "@/db/schema";
 import { dispatchTargetsForEvent } from "./targeting";
 
@@ -108,5 +112,34 @@ describe("routedDispatchTargets group_by default", () => {
     );
 
     expect(first.groupKey).not.toBe(second.groupKey);
+  });
+});
+
+describe("routedDispatchTargets timing defaults", () => {
+  it("falls back to the shared default wait and interval, not a local literal", async () => {
+    mocks.limitQueue = [[], [{ id: "receiver-1" }]];
+    mocks.joinQueue = [
+      [
+        {
+          route: {
+            id: "route-1",
+            priority: 0,
+            config: {
+              matchers: [],
+              group_wait_secs: null,
+              group_interval_secs: null,
+            },
+          },
+          receiver: "on-call",
+        },
+      ],
+    ];
+
+    const [target] = await dispatchTargetsForEvent(event());
+
+    expect(target.groupWaitSeconds).toBe(ALERTING_DEFAULT_GROUP_WAIT_SECS);
+    expect(target.groupIntervalSeconds).toBe(
+      ALERTING_DEFAULT_GROUP_INTERVAL_SECS,
+    );
   });
 });
