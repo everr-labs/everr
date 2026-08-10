@@ -632,9 +632,15 @@ export async function pauseRule(
       .set({
         active: false,
         // The rollup must not keep reporting a firing state the pause just
-        // closed; resume re-derives it from scratch.
+        // closed; resume re-derives it from scratch. Health resets the same
+        // way: a rule paused mid-degradation must not read degraded forever,
+        // or resume near the retry-backoff ceiling from a streak that never
+        // gets to run again.
         currentState: "unknown",
         firingInstanceCount: 0,
+        healthStatus: "healthy",
+        consecutiveFailures: 0,
+        degradedSince: null,
         updatedAt: now,
       })
       .where(
