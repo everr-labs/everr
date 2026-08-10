@@ -1,6 +1,6 @@
 -- One-shot migration for an existing cloud ClickHouse: recreates
--- app.alert_events and its app.logs projection in their final shape
--- (init/12-create-alert-events.sql). PARTITION BY and ORDER BY are immutable,
+-- app.alert_events in its final shape (init/12-create-alert-events.sql) and
+-- drops the legacy app.logs projection. PARTITION BY and ORDER BY are immutable,
 -- so this is a drop-and-recreate; losing pre-recreation alert history is
 -- accepted for this release stage (04-alerting-branch-review.md, "Breaking
 -- Postgres migration" applies the same stance to alerting data).
@@ -15,6 +15,8 @@
 -- CREATE TABLE carries allow_suspicious_ttl_expressions for its
 -- dictGetOrDefault TTL alongside its MergeTree settings.
 
+-- The legacy view copied every alert event into app.logs. Nothing consumes
+-- those rows: alert history is read from the typed table only.
 DROP VIEW IF EXISTS app.alert_events_logs_mv;
 
 DROP TABLE IF EXISTS app.alert_events;
@@ -79,7 +81,3 @@ ON app.alert_events
 FOR SELECT
 USING tenant_id = getSetting('SQL_everr_tenant_id')
 TO app_ro;
-
--- The legacy view copied every alert event into app.logs. Nothing consumes
--- those rows: alert history is read from the typed table only.
-DROP VIEW IF EXISTS app.alert_events_logs_mv;

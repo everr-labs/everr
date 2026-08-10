@@ -44,8 +44,7 @@ CREATE TABLE IF NOT EXISTS app.alert_events
   error String DEFAULT '',
   instance_fingerprint String DEFAULT '',
   instance_labels Map(LowCardinality(String), String) DEFAULT map(),
-  -- Resolved at write time: an instance label naming a service, else the
-  -- rule's everr.service annotation, else 'alert'.
+  -- Resolved at write time: an instance label naming a service, else 'alert'.
   service_name LowCardinality(String) DEFAULT 'alert',
   -- Validated at the spec boundary, not here: an Enum would make the
   -- non-throwing writer drop rows when a severity is added.
@@ -72,9 +71,9 @@ CREATE TABLE IF NOT EXISTS app.alert_events
   -- prevent. Written from the suppression job once inhibition freezing lands.
   inhibition_comment String DEFAULT '',
   inhibition_source_json String DEFAULT '',
-  -- Channel name to the targets it reached. Denormalized so a delivery trail
-  -- never needs a join back to PostgreSQL. Never carries a URL, token, or
-  -- address: see deliveryTargets in delivery/history.ts.
+  -- Channel type to the channel names it reached. Denormalized so a delivery
+  -- trail never needs a join back to PostgreSQL. Never carries a URL, token,
+  -- or address: see deliveryTargets in delivery/history.ts.
   delivery_targets Map(String, Array(String)) DEFAULT map(),
   -- The PostgreSQL delivery key; the reconciliation diff joins on it. Empty
   -- off delivery rows.
