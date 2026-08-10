@@ -1,4 +1,4 @@
-import { and, eq, gt, lte, sql } from "drizzle-orm";
+import { and, eq, gt, isNull, lte, sql } from "drizzle-orm";
 import {
   alertingMatchingSilence,
   alertingRouteMatches,
@@ -69,8 +69,8 @@ export async function deferSuppressedEvent(
 ) {
   const shouldRetry =
     event.eventType !== "instance_resolved" && (await eventStillFiring(event));
-  await db.transaction(async (tx) => {
-    await tx
+  const claimed = await db.transaction(async (tx) => {
+    const stamped = await tx
       .update(alertEvents)
       .set({
         silenced: Boolean(silence),
@@ -78,16 +78,37 @@ export async function deferSuppressedEvent(
         inhibited,
         processedAt: shouldRetry ? null : now,
       })
-      .where(eq(alertEvents.id, event.id));
-    if (!shouldRetry) return;
-    const runAt = silence
-      ? new Date(silence.ends_at)
-      : new Date(now.getTime() + 60_000);
-    await enqueueProcessAlertEvent(tx, event.id, {
-      keySuffix: runAt.toISOString(),
-      runAt,
-    });
+      // This write is a claim, like the dispatch stamp: a concurrent pause or
+      // delete cancels through `processed_at IS NULL` and projects the chain's
+      // terminal, and an unguarded defer would overwrite that stamp, revive
+      // the canceled event or write a second terminal. Matching the value this
+      // processor read keeps exactly one owner: the process path read NULL,
+      // the flush path read its own dispatch stamp, and a cancel's stamp
+      // matches neither.
+      .where(
+        and(
+          eq(alertEvents.id, event.id),
+          event.processedAt === null
+            ? isNull(alertEvents.processedAt)
+            : eq(alertEvents.processedAt, event.processedAt),
+        ),
+      )
+      .returning({ id: alertEvents.id });
+    if (stamped.length === 0) return false;
+    if (shouldRetry) {
+      const runAt = silence
+        ? new Date(silence.ends_at)
+        : new Date(now.getTime() + 60_000);
+      await enqueueProcessAlertEvent(tx, event.id, {
+        keySuffix: runAt.toISOString(),
+        runAt,
+      });
+    }
+    return true;
   });
+  // The cancel that won the claim owns the terminal; recording one here too
+  // would put two suppression rows on one chain.
+  if (!claimed) return;
   // Only a terminal suppression is a fact. A deferred event will be
   // reconsidered when the silence lapses, so recording it now would claim a
   // notification was withheld that may still go out.
