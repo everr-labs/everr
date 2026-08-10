@@ -17,7 +17,6 @@ import {
   recordAlertHistory,
   suppressionHistoryRow,
 } from "../history/clickhouse";
-import { alertServiceFallback } from "../history/content";
 import { alertEventDispatchLabels } from "./targeting";
 import { ALERT_PROCESS_EVENT_TASK } from "./tasks";
 
@@ -101,18 +100,6 @@ export async function deferSuppressedEvent(
   // reconsidered when the silence lapses, so recording it now would claim a
   // notification was withheld that may still go out.
   if (shouldRetry) return;
-  // The journal row does not carry the rule's annotations; a rule deleted in
-  // the meantime falls back to the `alert` marker.
-  const [rule] = await db
-    .select({ spec: alertDefinitions.spec })
-    .from(alertDefinitions)
-    .where(
-      and(
-        eq(alertDefinitions.organizationId, event.organizationId),
-        eq(alertDefinitions.id, event.sourceDefinitionId),
-      ),
-    )
-    .limit(1);
   await recordAlertHistory(event.sourceDefinitionId, [
     suppressionHistoryRow({
       def: {
@@ -123,7 +110,6 @@ export async function deferSuppressedEvent(
         previewId: event.previewId,
         severity: event.severity,
         ruleMuted: event.suppressed,
-        serviceFallback: alertServiceFallback(rule?.spec.annotations ?? {}),
       },
       notificationEventId: event.id,
       occurredAt: now,

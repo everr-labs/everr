@@ -176,7 +176,6 @@ describe("transitionEventRows episode stamping", () => {
     previewId: null,
     severity: "critical",
     ruleMuted: false,
-    serviceFallback: "alert",
   };
 
   function transition(

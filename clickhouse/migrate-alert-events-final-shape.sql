@@ -80,45 +80,6 @@ FOR SELECT
 USING tenant_id = getSetting('SQL_everr_tenant_id')
 TO app_ro;
 
-CREATE MATERIALIZED VIEW app.alert_events_logs_mv
-TO app.logs
-AS
-SELECT
-  toDateTime64(event_time, 9) AS Timestamp,
-  toDateTime(event_time) AS TimestampTime,
-  '' AS TraceId,
-  '' AS SpanId,
-  toUInt8(0) AS TraceFlags,
-  'INFO' AS SeverityText,
-  toUInt8(9) AS SeverityNumber,
-  service_name AS ServiceName,
-  concat(
-    'alert ', slug, ' ',
-    if(event_type = 'instance_fired', 'fired', 'resolved'),
-    if(instance_fingerprint != '', concat(' (', instance_fingerprint, ')'), '')
-  ) AS Body,
-  '' AS ResourceSchemaUrl,
-  map(
-    'everr.tenant.id', tenant_id,
-    'everr.signal', 'alert',
-    'deployment.environment', if(preview_id = toUUID('00000000-0000-0000-0000-000000000000'), 'production', toString(preview_id))
-  ) AS ResourceAttributes,
-  '' AS ScopeSchemaUrl,
-  'everr.alerting' AS ScopeName,
-  '' AS ScopeVersion,
-  map() AS ScopeAttributes,
-  map(
-    'alert.event_id', toString(event_id),
-    'alert.notification_event_id', toString(notification_event_id),
-    'alert.definition_id', toString(alert_definition_id),
-    'alert.slug', slug,
-    'alert.preview_id', toString(preview_id),
-    'alert.event_type', event_type,
-    'alert.instance_fingerprint', instance_fingerprint,
-    'alert.severity', severity
-  ) AS LogAttributes,
-  concat('alert.', slug, '.', event_type) AS EventName,
-  tenant_id AS tenant_id
-FROM app.alert_events
-WHERE event_type IN ('instance_fired', 'instance_resolved')
-  AND write_source = 'live';
+-- The legacy view copied every alert event into app.logs. Nothing consumes
+-- those rows: alert history is read from the typed table only.
+DROP VIEW IF EXISTS app.alert_events_logs_mv;

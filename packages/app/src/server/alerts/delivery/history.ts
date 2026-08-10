@@ -1,10 +1,6 @@
 import { and, eq } from "drizzle-orm";
 import { db } from "@/db/client";
-import {
-  alertDefinitions,
-  alertDeliveryEvents,
-  alertEvents,
-} from "@/db/schema";
+import { alertDeliveryEvents, alertEvents } from "@/db/schema";
 import { exceptionAttributes, serverLogger } from "@/telemetry/logger";
 import {
   type AlertDeliveryTargets,
@@ -12,7 +8,6 @@ import {
   deliveryHistoryRow,
   recordAlertHistory,
 } from "../history/clickhouse";
-import { alertServiceFallback } from "../history/content";
 
 /**
  * Channel type to the channel names it reached, for `delivery_targets`.
@@ -47,7 +42,7 @@ async function deliveryLinkedEvents(
   dedupKey: string,
 ): Promise<LinkedEvent[]> {
   const rows = await db
-    .select({ event: alertEvents, spec: alertDefinitions.spec })
+    .select({ event: alertEvents })
     .from(alertDeliveryEvents)
     .innerJoin(
       alertEvents,
@@ -56,22 +51,13 @@ async function deliveryLinkedEvents(
         eq(alertDeliveryEvents.eventId, alertEvents.id),
       ),
     )
-    // Left join: a rule deleted mid-delivery must not drop the trail row, it
-    // just loses the everr.service fallback.
-    .leftJoin(
-      alertDefinitions,
-      and(
-        eq(alertEvents.organizationId, alertDefinitions.organizationId),
-        eq(alertEvents.sourceDefinitionId, alertDefinitions.id),
-      ),
-    )
     .where(
       and(
         eq(alertDeliveryEvents.organizationId, organizationId),
         eq(alertDeliveryEvents.deliveryDedupKey, dedupKey),
       ),
     );
-  return rows.map(({ event, spec }) => ({
+  return rows.map(({ event }) => ({
     id: event.id,
     definition: {
       id: event.sourceDefinitionId,
@@ -81,7 +67,6 @@ async function deliveryLinkedEvents(
       previewId: event.previewId,
       severity: event.severity,
       ruleMuted: event.suppressed,
-      serviceFallback: alertServiceFallback(spec?.annotations ?? {}),
     },
     fingerprint: event.instanceFingerprint,
     labels: event.instanceLabels,
