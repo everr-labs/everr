@@ -15,7 +15,9 @@ import { visibleRulesForPreview } from "./resource/preview-overlay";
 export const listAlertingRules = createAuthenticatedServerFn({
   method: "GET",
 }).handler(({ context: { session } }) =>
-  rules.listAllRules(alertingOrganizationId(session)),
+  // Live scope: every caller (triage headline count, routing suggestions)
+  // reads this as "the organization's rules", not "including previews".
+  rules.listAllRules(alertingOrganizationId(session), { previewId: null }),
 );
 
 export const listAlertingRulesPage = createAuthenticatedServerFn({
