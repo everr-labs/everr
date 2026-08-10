@@ -15,10 +15,7 @@ export const localSqlClient: SqlClient = {
     try {
       return await invokeCommand<Row[]>("telemetry_sql_query", { sql, params });
     } catch (error) {
-      captureError(error, {
-        "error.handled": true,
-        "error.source": "desktop.local_sql",
-      });
+      captureError(error, { "error.source": "desktop.local_sql" });
       throw error;
     }
   },
