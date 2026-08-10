@@ -16,7 +16,7 @@ const defaultTimeRange = { from: "now-1h", to: "now" } as const;
 
 const defaultValue = {
   namespace: [],
-  service: [],
+  name: "",
   minMs: undefined,
   maxMs: undefined,
   status: "all" as const,
@@ -32,8 +32,8 @@ function renderWithQueryClient(children: ReactNode) {
   );
 }
 
-describe("TraceFilters sidebar", () => {
-  it("renders Status, Service, Environment and the attribute section", () => {
+describe("TraceFilters rail", () => {
+  it("renders Search, Status, Namespace, Duration and the attribute section", () => {
     renderWithQueryClient(
       <TraceFilters
         repo={makeRepo()}
@@ -46,13 +46,14 @@ describe("TraceFilters sidebar", () => {
     expect(
       screen.getByRole("complementary", { name: "Trace filters" }),
     ).toBeInTheDocument();
+    expect(screen.getByText("Search")).toBeInTheDocument();
     expect(screen.getByText("Status")).toBeInTheDocument();
-    expect(screen.getByText("Service")).toBeInTheDocument();
-    expect(screen.getByText("Environment")).toBeInTheDocument();
+    expect(screen.getByText("Namespace")).toBeInTheDocument();
+    expect(screen.getByText("Min ms")).toBeInTheDocument();
     expect(screen.getByText("Attributes")).toBeInTheDocument();
   });
 
-  it("does not render the span-name input (it moved to the header bar)", () => {
+  it("renders the span-name search inside the rail", () => {
     renderWithQueryClient(
       <TraceFilters
         repo={makeRepo()}
@@ -62,12 +63,48 @@ describe("TraceFilters sidebar", () => {
         onChange={vi.fn()}
       />,
     );
-    expect(
-      screen.queryByPlaceholderText("Span name contains..."),
-    ).not.toBeInTheDocument();
+    const rail = screen.getByRole("complementary", { name: "Trace filters" });
+    expect(rail).toContainElement(
+      screen.getByPlaceholderText("Filter by span name"),
+    );
   });
 
-  it("renders the environment selection once (combobox, not as a pill)", () => {
+  it("never renders Service or Environment: those belong to the persistent zone", () => {
+    renderWithQueryClient(
+      <TraceFilters
+        repo={makeRepo()}
+        timeRange={defaultTimeRange}
+        value={defaultValue}
+        identities={[{ serviceNamespace: "", serviceName: "web" }]}
+        onChange={vi.fn()}
+      />,
+    );
+    expect(screen.queryByText("Service")).not.toBeInTheDocument();
+    expect(screen.queryByText("Environment")).not.toBeInTheDocument();
+  });
+
+  it("renders the persistent zone above the page filters when given one", () => {
+    renderWithQueryClient(
+      <TraceFilters
+        repo={makeRepo()}
+        timeRange={defaultTimeRange}
+        value={defaultValue}
+        identities={[]}
+        persistentFilters={<div>persistent zone</div>}
+        onChange={vi.fn()}
+      />,
+    );
+    const rail = screen.getByRole("complementary", { name: "Trace filters" });
+    const zone = screen.getByText("persistent zone");
+    const status = screen.getByText("Status");
+    expect(rail).toContainElement(zone);
+    // Node.compareDocumentPosition returns 4 when zone comes before status.
+    expect(zone.compareDocumentPosition(status)).toBe(
+      Node.DOCUMENT_POSITION_FOLLOWING,
+    );
+  });
+
+  it("shows a legacy deployment.environment attribute as a removable pill", () => {
     renderWithQueryClient(
       <TraceFilters
         repo={makeRepo()}
@@ -87,29 +124,30 @@ describe("TraceFilters sidebar", () => {
         onChange={vi.fn()}
       />,
     );
-    // Environment is owned by the dedicated combobox; it must NOT also render as
-    // a removable attribute pill in the Attributes section.
-    expect(screen.getAllByText("prod")).toHaveLength(1);
+    // The top zone of the rail sets Environment, and it writes its own search
+    // param. An older entry, for example from a saved link, must stay visible
+    // and the user must be able to remove it. The query still applies that
+    // entry, so a hidden entry narrows the results for no visible reason.
     expect(
-      screen.queryByRole("button", { name: "Remove Environment filter" }),
-    ).not.toBeInTheDocument();
+      screen.getByRole("button", { name: "Remove Environment filter" }),
+    ).toBeInTheDocument();
   });
 
-  it("clear-all resets namespace, service, durations, status and attributes", () => {
+  it("clear resets the page zone, including the search text", () => {
     const onChange = vi.fn();
     renderWithQueryClient(
       <TraceFilters
         repo={makeRepo()}
         timeRange={defaultTimeRange}
-        value={{ ...defaultValue, status: "error", service: ["web"] }}
+        value={{ ...defaultValue, status: "error", name: "checkout" }}
         identities={[]}
         onChange={onChange}
       />,
     );
-    fireEvent.click(screen.getByRole("button", { name: "Clear all" }));
+    fireEvent.click(screen.getByRole("button", { name: "Clear page filters" }));
     expect(onChange).toHaveBeenCalledWith({
       namespace: [],
-      service: [],
+      name: "",
       minMs: undefined,
       maxMs: undefined,
       status: "all",
@@ -117,43 +155,37 @@ describe("TraceFilters sidebar", () => {
     });
   });
 
-  it("with hideSharedFilters, clear-all leaves the shared service filter untouched", () => {
+  it("clear never touches the persistent filters", () => {
     const onChange = vi.fn();
     renderWithQueryClient(
       <TraceFilters
         repo={makeRepo()}
         timeRange={defaultTimeRange}
-        hideSharedFilters
-        value={{ ...defaultValue, status: "error", service: ["web"] }}
+        value={{ ...defaultValue, status: "error" }}
         identities={[]}
+        persistentFilterCount={2}
         onChange={onChange}
       />,
     );
-    fireEvent.click(screen.getByRole("button", { name: "Clear all" }));
+    fireEvent.click(screen.getByRole("button", { name: "Clear page filters" }));
     const patch = onChange.mock.calls[0]?.[0];
     expect(patch).not.toHaveProperty("service");
-    expect(patch).toEqual({
-      namespace: [],
-      minMs: undefined,
-      maxMs: undefined,
-      status: "all",
-      attributes: [],
-    });
+    expect(patch).not.toHaveProperty("environment");
   });
 
-  it("with hideSharedFilters, a shared service alone does not surface Clear all", () => {
+  it("an active persistent filter alone does not surface the clear control", () => {
     renderWithQueryClient(
       <TraceFilters
         repo={makeRepo()}
         timeRange={defaultTimeRange}
-        hideSharedFilters
-        value={{ ...defaultValue, service: ["web"] }}
+        value={defaultValue}
         identities={[]}
+        persistentFilterCount={2}
         onChange={vi.fn()}
       />,
     );
     expect(
-      screen.queryByRole("button", { name: "Clear all" }),
+      screen.queryByRole("button", { name: "Clear page filters" }),
     ).not.toBeInTheDocument();
   });
 });

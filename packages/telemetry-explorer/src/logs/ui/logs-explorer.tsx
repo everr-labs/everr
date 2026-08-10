@@ -16,7 +16,7 @@ import type { ReactNode } from "react";
 import { memo, useCallback, useEffect, useMemo, useState } from "react";
 import { Virtuoso } from "react-virtuoso";
 import { withEnvironment } from "../../filters/environment";
-import { FilterSearchBar } from "../../filters/ui/filter-search-bar";
+import { countPersistentFilters } from "../../filters/ui/explore-global-filters";
 import {
   logsExplorerInfiniteOptions,
   logsHistogramOptions,
@@ -44,7 +44,9 @@ export interface LogsExplorerProps {
   timeRange: TimeRange;
   search: LogsExplorerSearch;
   environment?: string[];
-  hideSharedFilters?: boolean;
+  // The top zone of the rail: Service and Environment. The host app supplies it,
+  // because the two values are search params that the pages share.
+  persistentFilters?: ReactNode;
   onSearchChange: (next: LogsExplorerSearch) => void;
   onTimeRangeSelect?: (from: Date, to: Date) => void;
   renderRunLink?: (ctx: {
@@ -186,7 +188,7 @@ export function LogsExplorer({
   timeRange,
   search,
   environment = [],
-  hideSharedFilters = false,
+  persistentFilters,
   onSearchChange,
   onTimeRangeSelect,
   renderRunLink,
@@ -286,19 +288,13 @@ export function LogsExplorer({
   return (
     <div className="min-h-0 flex-1 overflow-hidden">
       <section className="bg-background text-foreground flex h-full min-h-0 flex-col overflow-hidden">
-        <div className="border-b bg-muted/10 px-3 py-2">
-          <FilterSearchBar
-            id="logs-search"
-            label="Search logs"
-            value={filters.q ?? ""}
-            onChange={(q) => applyFilters({ q: q || undefined })}
-            placeholder="Search messages, errors, IDs"
-          />
-        </div>
-
         <div
           className={cn(
-            "grid min-h-0 flex-1 grid-rows-[minmax(0,1fr)] grid-cols-1 lg:grid-cols-[260px_minmax(0,1fr)]",
+            // Below `lg` the rail becomes a bar with a "Filters" button. The
+            // bar must take only the height that it needs, which is `auto`, so
+            // that the log list keeps the remaining height. The traces grid and
+            // the errors grid use the same rule.
+            "grid min-h-0 flex-1 grid-cols-1 grid-rows-[auto_minmax(0,1fr)] lg:grid-cols-[260px_minmax(0,1fr)] lg:grid-rows-[minmax(0,1fr)]",
             selectedLogState &&
               "lg:grid-cols-[220px_minmax(0,1fr)_320px] xl:grid-cols-[260px_minmax(0,1fr)_360px]",
           )}
@@ -306,13 +302,17 @@ export function LogsExplorer({
           <LogFiltersBar
             repo={repo}
             timeRange={timeRange}
+            q={filters.q ?? ""}
             levels={filters.levels}
-            services={filters.services}
             attributes={filters.attributes}
             traceId={filters.traceId}
             levelCounts={levelCounts}
-            hideSharedFilters={hideSharedFilters}
-            onChange={(patch) => applyFilters(patch)}
+            persistentFilters={persistentFilters}
+            persistentFilterCount={countPersistentFilters(
+              filters.services,
+              environment,
+            )}
+            onChange={applyFilters}
           />
 
           <main className="min-h-0 min-w-0">

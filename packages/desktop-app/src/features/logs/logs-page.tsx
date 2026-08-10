@@ -11,6 +11,7 @@ import { useMemo } from "react";
 import { z } from "zod";
 import { ExploreSearchShape } from "../explore/explore-search";
 import { ExploreShell } from "../explore/explore-shell";
+import { ExplorePersistentFilters } from "../explore/persistent-filters";
 import { LocalTelemetryGate } from "../local-telemetry/collector-status";
 import { localSqlClient } from "./local-sql-client";
 
@@ -60,8 +61,6 @@ export function LogsPage() {
       title="Logs"
       timeRange={timeRange}
       refresh={search.refresh ?? ""}
-      service={service}
-      environment={environment}
       onTimeRangeChange={(range) =>
         navigate({
           to: "/logs",
@@ -76,20 +75,6 @@ export function LogsPage() {
           replace: true,
         })
       }
-      onServiceChange={(values) =>
-        navigate({
-          to: "/logs",
-          search: (prev) => ({ ...prev, service: values }),
-          replace: true,
-        })
-      }
-      onEnvironmentChange={(values) =>
-        navigate({
-          to: "/logs",
-          search: (prev) => ({ ...prev, environment: values }),
-          replace: true,
-        })
-      }
     >
       <LocalTelemetryGate>
         <LogsExplorer
@@ -97,7 +82,14 @@ export function LogsPage() {
           timeRange={timeRange}
           search={explorerSearch}
           environment={environment}
-          hideSharedFilters
+          persistentFilters={
+            <ExplorePersistentFilters
+              to="/logs"
+              timeRange={timeRange}
+              service={service}
+              environment={environment}
+            />
+          }
           onSearchChange={({ services: _ignored, ...next }) =>
             navigate({
               to: "/logs",

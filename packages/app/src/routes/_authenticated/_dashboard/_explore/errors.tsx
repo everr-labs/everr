@@ -10,6 +10,7 @@ import {
   stripSearchParams,
   useSearch,
 } from "@tanstack/react-router";
+import { ExplorePersistentFilters } from "@/components/explore-persistent-filters";
 import { remoteErrorsRepo } from "@/data/errors/remote-repo";
 import { useRealtimeSubscription } from "@/hooks/use-realtime-subscription";
 import { ExploreSearchShape } from "@/lib/explore-search";
@@ -56,10 +57,11 @@ function ErrorsPage() {
       refresh={refresh ?? "off"}
       search={{ q, service, fingerprint, sort, attributes }}
       environment={environment}
-      hideSharedFilters
+      persistentFilters={<ExplorePersistentFilters />}
       onSearchChange={(patch) =>
         // Push a history entry per change so Back undoes filter changes one at a
-        // time (including Clear all, which routes through this same handler).
+        // time (including Clear page filters, which routes through this same
+        // handler).
         navigate({
           search: (prev) => ({ ...prev, ...patch }),
         })

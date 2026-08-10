@@ -1,13 +1,29 @@
 import { ListFilter } from "lucide-react";
 import type { ReactNode } from "react";
 
+/**
+ * The Explore filter rail.
+ *
+ * The rail has two zones, and a thick divider separates them. The top zone holds
+ * Service and Environment, which stay set on Traces, Logs and Errors. The bottom
+ * zone holds the filters of the current page, and the search field is first.
+ *
+ * No label marks the division. Position alone shows which two filters stay set,
+ * so their order and their position must not change.
+ *
+ * The name of "Clear page filters" gives the exact effect. It resets the bottom
+ * zone only. The user clears Service and Environment from the "All services" and
+ * "All environments" row in each control.
+ */
 export function FilterSidebar({
   label,
+  persistentFilters,
   hasActiveFilters,
   onClear,
   children,
 }: {
   label: string;
+  persistentFilters?: ReactNode;
   hasActiveFilters: boolean;
   onClear: () => void;
   children: ReactNode;
@@ -17,22 +33,32 @@ export function FilterSidebar({
       aria-label={label}
       className="bg-muted/15 flex h-full min-h-0 flex-col gap-3 overflow-auto border-b p-3 lg:border-r lg:border-b-0"
     >
-      <div className="flex items-center justify-between gap-2">
-        <div className="flex items-center gap-2 text-xs font-medium">
-          <ListFilter className="text-muted-foreground size-3.5" />
-          Filter
-        </div>
-        {hasActiveFilters && (
-          <button
-            type="button"
-            className="text-muted-foreground hover:text-foreground text-xs underline"
-            onClick={onClear}
-          >
-            Clear all
-          </button>
-        )}
+      <div className="text-muted-foreground flex items-center gap-2 text-[0.6875rem] font-medium tracking-wider uppercase">
+        <ListFilter className="size-3.5" />
+        Filters
       </div>
-      {children}
+
+      {persistentFilters ? (
+        <>
+          <div className="flex flex-col gap-3">{persistentFilters}</div>
+          <div
+            role="presentation"
+            className="bg-border/80 my-1 h-0.5 shrink-0 rounded-full"
+          />
+        </>
+      ) : null}
+
+      <div className="flex flex-col gap-3">{children}</div>
+
+      {hasActiveFilters && (
+        <button
+          type="button"
+          className="text-muted-foreground hover:text-foreground self-start text-xs underline"
+          onClick={onClear}
+        >
+          Clear page filters
+        </button>
+      )}
     </aside>
   );
 }

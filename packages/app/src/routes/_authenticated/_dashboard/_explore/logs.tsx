@@ -9,6 +9,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, Link, useSearch } from "@tanstack/react-router";
 import { FileSearch } from "lucide-react";
 import { z } from "zod";
+import { ExplorePersistentFilters } from "@/components/explore-persistent-filters";
 import { remoteRepo } from "@/data/logs-explorer/remote-repo";
 import { runJobsOptions } from "@/data/runs/options";
 import { ExploreSearchShape } from "@/lib/explore-search";
@@ -56,7 +57,7 @@ function LogsExplorerPage() {
       timeRange={timeRange}
       search={explorerSearch}
       environment={environment}
-      hideSharedFilters
+      persistentFilters={<ExplorePersistentFilters />}
       onSearchChange={({ services: _ignored, ...next }) =>
         // Push a history entry per change so Back undoes filter changes one at a
         // time (the time-range brush below stays on replace — it's continuous).

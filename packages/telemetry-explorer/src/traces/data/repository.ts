@@ -45,6 +45,19 @@ const TO_TS_SQL = "parseDateTime64BestEffort({toTs:String}, 9)";
 const TIME_WINDOW_SQL = `Timestamp BETWEEN ${FROM_TS_SQL} AND ${TO_TS_SQL}`;
 const SERVICE_NAMESPACE_RESOURCE_ATTRIBUTE = "service.namespace";
 
+// The HTTP status code of the root span. `http.response.status_code` is the
+// stable OpenTelemetry attribute. `http.status_code` is the name before version
+// 1.23 that some SDKs still send.
+//
+// A key that is absent from a Map reads as '' in ClickHouse. The second choice
+// is therefore a test for an empty string, and no test for null is necessary. A
+// span that is not an HTTP span gives ''.
+const ROOT_HTTP_STATUS_CODE_SQL = `if(
+  SpanAttributes['http.response.status_code'] != '',
+  SpanAttributes['http.response.status_code'],
+  SpanAttributes['http.status_code']
+)`;
+
 // Traces store Timestamp as DateTime64(9); attribute discovery must parse its
 // bounds the same way the search queries do, or sub-second rows near the upper
 // bound get dropped and the offered keys/values disagree with the results.
@@ -213,6 +226,9 @@ export class TracesRepository {
           if(countIf(ParentSpanId = '') > 0,
              argMinIf(StatusCode,  (Timestamp, SpanId), ParentSpanId = ''),
              argMin  (StatusCode,  (Timestamp, SpanId))) AS rootStatus,
+          if(countIf(ParentSpanId = '') > 0,
+             argMinIf(${ROOT_HTTP_STATUS_CODE_SQL}, (Timestamp, SpanId), ParentSpanId = ''),
+             argMin  (${ROOT_HTTP_STATUS_CODE_SQL}, (Timestamp, SpanId))) AS rootStatusCode,
           min(Timestamp) AS startTsRaw,
           toUInt64(dateDiff('nanosecond', min(Timestamp),
                             max(addNanoseconds(Timestamp, Duration)))) AS durationNsRaw,
@@ -233,6 +249,7 @@ export class TracesRepository {
         rootService,
         rootNamespace,
         rootStatus,
+        rootStatusCode,
         toString(startTsRaw)    AS startTs,
         toString(durationNsRaw) AS durationNs,
         spanCount,

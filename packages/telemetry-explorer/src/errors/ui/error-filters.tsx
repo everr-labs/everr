@@ -1,16 +1,13 @@
-import { FilterCombobox } from "@everr/ui/components/filter-combobox";
 import { Label } from "@everr/ui/components/label";
-import { Separator } from "@everr/ui/components/separator";
 import {
   ToggleGroup,
   ToggleGroupItem,
 } from "@everr/ui/components/toggle-group";
 import type { TimeRange } from "@everr/ui/lib/time-range";
-import { useId } from "react";
-import { DedicatedAttributeSection } from "../../filters/ui/dedicated-attribute-section";
-import { ENVIRONMENT_ATTRIBUTE } from "../../filters/ui/dedicated-attributes";
-import { EnvironmentFilter } from "../../filters/ui/environment-filter";
-import { FilterSidebar } from "../../filters/ui/filter-sidebar";
+import { type ReactNode, useId } from "react";
+import { AttributeFilterSection } from "../../attribute-filter/ui/attribute-filter-section";
+import { ExploreFilterRail } from "../../filters/ui/explore-filter-rail";
+import { FilterSearchBar } from "../../filters/ui/filter-search-bar";
 import type { ErrorsRepositoryLike } from "../data/repository";
 import type { AttributeFilter } from "../data/schemas";
 import type { ErrorSort } from "../data/types";
@@ -28,92 +25,46 @@ export type ErrorFiltersValue = {
   attributes: AttributeFilter[];
 };
 
-function ServiceAndEnvironment({
-  services,
-  value,
-  repo,
-  timeRange,
-  onChange,
-}: {
-  services: string[];
-  value: ErrorFiltersValue;
-  repo: ErrorsRepositoryLike;
-  timeRange: TimeRange;
-  onChange: (patch: Partial<ErrorFiltersValue>) => void;
-}) {
-  const serviceOptions = [
-    ...services,
-    ...value.service.filter((service) => !services.includes(service)),
-  ];
-  const serviceFilterOptions = {
-    queryKey: ["errors", "service-filter-options", serviceOptions] as const,
-    queryFn: async () => serviceOptions,
-    select: (data: string[]) => data,
-  };
-
-  return (
-    <>
-      <FilterCombobox
-        label="Service"
-        values={value.service}
-        onChange={(nextServices) => onChange({ service: nextServices })}
-        options={serviceFilterOptions}
-        placeholder="All services"
-        searchPlaceholder="Search services..."
-        className="w-full"
-      />
-
-      <EnvironmentFilter
-        repo={repo}
-        domain="errors"
-        timeRange={timeRange}
-        attributes={value.attributes}
-        onChange={(attributes) => onChange({ attributes })}
-      />
-
-      <Separator />
-    </>
-  );
-}
-
 export function ErrorFilters({
   repo,
   timeRange,
   value,
-  services = [],
-  hideSharedFilters = false,
+  persistentFilters,
+  persistentFilterCount = 0,
   onChange,
 }: {
   repo: ErrorsRepositoryLike;
   timeRange: TimeRange;
   value: ErrorFiltersValue;
-  services?: string[];
-  hideSharedFilters?: boolean;
+  // The top zone of the rail: Service and Environment. The host app supplies it.
+  persistentFilters?: ReactNode;
+  persistentFilterCount?: number;
   onChange: (patch: Partial<ErrorFiltersValue>) => void;
 }) {
   const orderLabelId = useId();
 
-  // "Clear all" resets active filters only. Sort is an ordering preference (it
-  // always has a value), and q is owned by the separate search bar, so neither
-  // counts toward hasActiveFilters nor is reset by onClear. When the service
-  // filter is shared (rendered in the topbar — hideSharedFilters), it is owned
-  // there too: excluded from hasActiveFilters and left untouched by onClear.
-  const hasActiveFilters =
-    (!hideSharedFilters && value.service.length > 0) ||
-    value.attributes.length > 0;
+  // Sort sets an order and does not filter. It always has a value, so it never
+  // counts as active, and "Clear page filters" does not change it.
+  const pageFilterCount =
+    (value.q.length > 0 ? 1 : 0) + value.attributes.length;
 
   return (
-    <FilterSidebar
+    <ExploreFilterRail
       label="Error filters"
-      hasActiveFilters={hasActiveFilters}
-      onClear={() =>
-        onChange(
-          hideSharedFilters
-            ? { attributes: [] }
-            : { service: [], attributes: [] },
-        )
-      }
+      persistentFilters={persistentFilters}
+      persistentFilterCount={persistentFilterCount}
+      pageFilterCount={pageFilterCount}
+      onClear={() => onChange({ q: "", attributes: [] })}
     >
+      <FilterSearchBar
+        id="errors-search"
+        label="Search"
+        showLabel
+        value={value.q}
+        onChange={(q) => onChange({ q })}
+        placeholder="Search errors"
+      />
+
       <div className="flex flex-col gap-1">
         <Label id={orderLabelId} className="text-muted-foreground text-xs">
           Order
@@ -145,29 +96,16 @@ export function ErrorFilters({
         </ToggleGroup>
       </div>
 
-      <Separator />
-
-      {!hideSharedFilters && (
-        <ServiceAndEnvironment
-          services={services}
-          value={value}
-          repo={repo}
-          timeRange={timeRange}
-          onChange={onChange}
-        />
-      )}
-
-      <DedicatedAttributeSection
+      <AttributeFilterSection
         repo={repo}
         domain="errors"
         timeRange={timeRange}
         attributes={value.attributes}
-        dedicated={[ENVIRONMENT_ATTRIBUTE]}
         promotedAttributes={ERRORS_PROMOTED_ATTRIBUTES}
         excludedKeys={ERRORS_EXCLUDED_KEYS}
         sources={ERRORS_ATTRIBUTE_SOURCES_UI}
         onChange={(attributes) => onChange({ attributes })}
       />
-    </FilterSidebar>
+    </ExploreFilterRail>
   );
 }
