@@ -37,6 +37,7 @@ import {
   ALERT_SEND_DELIVERY_TASK,
   AlertGroupTaskPayloadSchema,
   flushGroupJobKey,
+  IDLE_GROUP_FLUSH_AT,
 } from "./tasks";
 
 // The body budgets against the tightest channel limit, keeping a margin for
@@ -113,7 +114,17 @@ export async function flushAlertGroup(rawPayload: unknown): Promise<void> {
       .limit(1);
     if (!group || group.nextFlushAt > new Date()) return null;
     const rows = await deliverableGroupMemberQuery(tx, group.id);
-    return rows.length === 0 ? null : { group, rows };
+    if (rows.length === 0) {
+      // Nothing claimed: park on the idle sentinel instead of leaving
+      // nextFlushAt in the past, or the next event dispatched to this group
+      // would skip its whole group wait and page alone.
+      await tx
+        .update(alertNotificationGroups)
+        .set({ nextFlushAt: IDLE_GROUP_FLUSH_AT, updatedAt: new Date() })
+        .where(eq(alertNotificationGroups.id, group.id));
+      return null;
+    }
+    return { group, rows };
   });
   if (!claimed) return;
   const { group, rows } = claimed;

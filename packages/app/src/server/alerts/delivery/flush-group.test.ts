@@ -1,11 +1,55 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
-// formatNotification is pure; the mock only keeps the module import from
-// reaching the real database client.
-vi.mock("@/db/client", () => ({ db: {}, pool: {} }));
+const mocks = vi.hoisted(() => ({
+  groupRow: null as Record<string, unknown> | null,
+  memberRows: [] as unknown[],
+  updates: [] as Record<string, unknown>[],
+}));
+
+vi.mock("@/db/client", () => ({
+  db: {
+    transaction: (fn: (tx: unknown) => Promise<unknown>) => {
+      const tx = {
+        select: () => ({
+          from: () => ({
+            where: () => ({
+              for: () => ({
+                limit: () =>
+                  Promise.resolve(mocks.groupRow ? [mocks.groupRow] : []),
+              }),
+            }),
+          }),
+        }),
+        update: () => ({
+          set: (values: Record<string, unknown>) => {
+            mocks.updates.push(values);
+            return { where: () => Promise.resolve(undefined) };
+          },
+        }),
+      };
+      return fn(tx);
+    },
+  },
+  pool: {},
+}));
+
+vi.mock("./journal-reader", () => ({
+  deliverableGroupMemberQuery: () => Promise.resolve(mocks.memberRows),
+}));
 
 import { CHANNEL_TEXT_MAX } from "@/lib/channel-text-limits";
-import { formatNotification, type NotificationEvent } from "./flush-group";
+import {
+  flushAlertGroup,
+  formatNotification,
+  type NotificationEvent,
+} from "./flush-group";
+import { IDLE_GROUP_FLUSH_AT } from "./tasks";
+
+beforeEach(() => {
+  mocks.groupRow = null;
+  mocks.memberRows = [];
+  mocks.updates = [];
+});
 
 function event(overrides: Partial<NotificationEvent> = {}): NotificationEvent {
   return {
@@ -78,5 +122,33 @@ describe("formatNotification", () => {
     expect(formatNotification(events).title).toBe(
       "Everr alert: 50 firing, 30 resolved",
     );
+  });
+});
+
+describe("flushAlertGroup empty claim", () => {
+  it("parks nextFlushAt on the idle sentinel instead of leaving it in the past", async () => {
+    mocks.groupRow = {
+      id: "5cbb1c68-5cc9-4444-8000-000000000001",
+      nextFlushAt: new Date("2026-08-10T09:00:00Z"),
+    };
+    mocks.memberRows = [];
+
+    await flushAlertGroup({ groupId: "5cbb1c68-5cc9-4444-8000-000000000001" });
+
+    expect(mocks.updates).toEqual([
+      expect.objectContaining({ nextFlushAt: IDLE_GROUP_FLUSH_AT }),
+    ]);
+  });
+
+  it("touches nothing when the group is not due yet", async () => {
+    mocks.groupRow = {
+      id: "5cbb1c68-5cc9-4444-8000-000000000001",
+      nextFlushAt: new Date(Date.now() + 60_000),
+    };
+    mocks.memberRows = [];
+
+    await flushAlertGroup({ groupId: "5cbb1c68-5cc9-4444-8000-000000000001" });
+
+    expect(mocks.updates).toEqual([]);
   });
 });
