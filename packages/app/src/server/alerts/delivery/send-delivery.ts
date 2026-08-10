@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm";
+import { and, eq, ne, type SQL, sql } from "drizzle-orm";
 import { decryptChannelConfig } from "@/data/alerting/delivery/channel-secrets.server";
 import { sendChannelNotification } from "@/data/alerting/delivery/channel-sender.server";
 import { db } from "@/db/client";
@@ -28,7 +28,7 @@ export async function sendAlertDelivery(rawPayload: unknown): Promise<void> {
   const failDelivery = async (
     channelType: string,
     rawError: string,
-    attempts: number,
+    attempts: number | SQL,
   ) => {
     // A provider's error text routinely echoes back the webhook URL, which
     // for Slack, Discord and Telegram IS the secret; sanitize before it
@@ -43,7 +43,15 @@ export async function sendAlertDelivery(rawPayload: unknown): Promise<void> {
         lastError: error,
         updatedAt: new Date(),
       })
-      .where(eq(alertDeliveries.dedupKey, dedupKey));
+      // Guarded on status <> 'sent': a racing or duplicate run must never be
+      // able to mark an already-delivered row failed, whatever this read of
+      // `row` saw.
+      .where(
+        and(
+          eq(alertDeliveries.dedupKey, dedupKey),
+          ne(alertDeliveries.status, "sent"),
+        ),
+      );
     await recordDeliveryOutcome({
       organizationId: row.delivery.organizationId,
       dedupKey,
@@ -109,7 +117,10 @@ export async function sendAlertDelivery(rawPayload: unknown): Promise<void> {
     await failDelivery(
       channelType,
       errorMessage(cause).slice(0, 8_000),
-      row.delivery.attempts + 1,
+      // Computed in the UPDATE, not from the Node-side `row` read: two racing
+      // runs of the same delivery would otherwise both compute the same
+      // stale count and one attempt would go uncounted.
+      sql`${alertDeliveries.attempts} + 1`,
     );
     throw cause;
   }

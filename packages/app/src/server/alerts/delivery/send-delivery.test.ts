@@ -1,3 +1,5 @@
+import { is, SQL } from "drizzle-orm";
+import { PgDialect } from "drizzle-orm/pg-core";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
@@ -130,5 +132,30 @@ describe("sendAlertDelivery send failure", () => {
     );
     expect(failedCall?.[0].lastError).not.toContain("SECRET");
     expect(failedCall?.[0].lastError).toContain("[redacted-url]");
+  });
+
+  it("guards the failure write so a racing sent row can never flip back to failed", async () => {
+    mocks.send.mockReset().mockRejectedValue(new Error("boom"));
+
+    await expect(sendAlertDelivery({ dedupKey: "dk-1" })).rejects.toThrow();
+
+    const condition = mocks.where.mock.calls[0]?.[0] as SQL;
+    const rendered = new PgDialect().sqlToQuery(condition);
+    expect(rendered.sql).toContain('"status" <> ');
+    expect(rendered.params).toContain("sent");
+  });
+
+  it("increments attempts in the database, not from the Node-side read", async () => {
+    mocks.send.mockReset().mockRejectedValue(new Error("boom"));
+
+    await expect(sendAlertDelivery({ dedupKey: "dk-1" })).rejects.toThrow();
+
+    const [failedCall] = mocks.set.mock.calls.filter(
+      (call) => call[0]?.status === "failed",
+    );
+    // An SQL fragment (`attempts + 1` computed by Postgres), not the plain
+    // number read at the top of this run: two racing sends of the same
+    // delivery must not both compute the same stale count.
+    expect(is(failedCall?.[0].attempts, SQL)).toBe(true);
   });
 });
