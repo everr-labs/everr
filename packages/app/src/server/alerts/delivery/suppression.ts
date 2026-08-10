@@ -1,4 +1,4 @@
-import { and, eq, gt, lte } from "drizzle-orm";
+import { and, eq, gt, lte, sql } from "drizzle-orm";
 import {
   alertingMatchingSilence,
   alertingRouteMatches,
@@ -132,6 +132,11 @@ export async function isInhibited(event: typeof alertEvents.$inferSelect) {
       and(
         eq(alertInstances.organizationId, event.organizationId),
         eq(alertInstances.status, "firing"),
+        // Sources must come from the same world as the target: live rules for
+        // live events, and only the same preview for preview events. A firing
+        // preview instance must not mute a live alert. Muted rules stay valid
+        // sources on purpose: a muted root cause still holds its dependents.
+        sql`${alertDefinitions.previewId} IS NOT DISTINCT FROM ${event.previewId}`,
       ),
     );
   const sources = ruleSources.map(({ instance, def }) =>
