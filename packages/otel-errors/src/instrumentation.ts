@@ -10,17 +10,30 @@ import type {
   Instrumentation,
   InstrumentationConfig,
 } from "@opentelemetry/instrumentation";
-import { adoptSharedClient } from "./capture.js";
-import { Client } from "./client.js";
+import { capture, setLogger } from "./capture.js";
 import { resolveFlushable } from "./providers.js";
-import type { Options } from "./types.js";
 import { PKG_NAME, PKG_VERSION } from "./version.js";
 
 const FLUSH_TIMEOUT_MS = 2000;
 
-export interface ErrorsInstrumentationConfig
-  extends InstrumentationConfig,
-    Options {}
+/**
+ * Crash-handling only. Redaction, rate limiting, and `beforeSend` belong to
+ * the shared client and are set through `configure`, so an app configures
+ * capture in one place whether or not it registers this instrumentation.
+ */
+export interface ErrorsInstrumentationConfig extends InstrumentationConfig {
+  /**
+   * What to do after a fatal error is flushed. "exit" (the default) restores
+   * the crash Node would have performed had no listener been installed;
+   * "continue" leaves the process running.
+   */
+  onFatal?: "exit" | "continue";
+}
+
+// Two instrumentations means two sets of crash handlers, so every crash is
+// captured twice and the exits race. Module-level because the collision is
+// between instances, and warn-only because the second one still works.
+let installed: object | null = null;
 
 type FatalEventName = "uncaughtException" | "unhandledRejection";
 
@@ -48,8 +61,6 @@ export class ErrorsInstrumentation
   readonly instrumentationVersion = PKG_VERSION;
 
   private _config: ErrorsInstrumentationConfig = {};
-  // Definitely assigned: the constructor's configure() call always sets it.
-  private client!: Client;
   private loggerProvider: LoggerProvider | undefined;
   private tracerProvider: TracerProvider | undefined;
   private meterProvider: MeterProvider | undefined;
@@ -72,11 +83,6 @@ export class ErrorsInstrumentation
 
   private configure(config: ErrorsInstrumentationConfig): void {
     this._config = { enabled: true, ...config };
-    this.client = new Client(this._config);
-    // captureError works without any instrumentation, but once one exists its
-    // options must apply to manual captures too: redaction that only covered
-    // crashes would silently leak the data it was configured to redact.
-    adoptSharedClient(this.client, this);
     if (this._config.enabled) {
       this.install();
     }
@@ -111,9 +117,7 @@ export class ErrorsInstrumentation
 
   private applyProviders(): void {
     if (this.loggerProvider) {
-      this.client.setLogger(
-        this.loggerProvider.getLogger(PKG_NAME, PKG_VERSION),
-      );
+      setLogger(this.loggerProvider.getLogger(PKG_NAME, PKG_VERSION));
     }
   }
 
@@ -124,10 +128,17 @@ export class ErrorsInstrumentation
       return;
     }
 
+    if (installed && installed !== this) {
+      diag.warn(
+        `${PKG_NAME}: a second ErrorsInstrumentation was installed; every crash is now captured twice`,
+      );
+    }
+    installed = this;
+
     for (const [eventName, mechanism] of FATAL_EVENTS) {
       const handler = (...args: unknown[]) => {
         const [reason] = args;
-        this.client.capture({
+        capture({
           error: reason,
           mechanism,
           severity: "fatal",
@@ -163,6 +174,9 @@ export class ErrorsInstrumentation
       fn();
     }
     this.teardownFns = [];
+    if (installed === this) {
+      installed = null;
+    }
   }
 
   /**

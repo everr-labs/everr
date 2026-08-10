@@ -1,6 +1,6 @@
 import { diag } from "@opentelemetry/api";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { captureError, resetSharedClient } from "./capture.js";
+import { captureError, configure, resetSharedClient } from "./capture.js";
 import { ErrorsInstrumentation } from "./instrumentation.js";
 import { setupTestTelemetry } from "./test-utils.js";
 import { PKG_NAME } from "./version.js";
@@ -83,12 +83,15 @@ describe("ErrorsInstrumentation lifecycle", () => {
     }
   });
 
-  it("setConfig reinstalls with the new options", () => {
+  it("setConfig reinstalls with the new crash options", () => {
     const it_ = enable();
-    it_.setConfig({ onFatal: "continue", beforeSend: () => null });
-    process.emit("uncaughtException", new Error("suppressed"));
-    expect(otel.records()).toHaveLength(0);
+    const before = process.listenerCount("uncaughtException");
+    it_.setConfig({ onFatal: "continue" });
     expect(it_.getConfig().onFatal).toBe("continue");
+    // Reinstalled, not doubled: setConfig removes before it re-adds.
+    expect(process.listenerCount("uncaughtException")).toBe(before);
+    process.emit("uncaughtException", new Error("crash"));
+    expect(otel.records()).toHaveLength(1);
   });
 });
 
@@ -114,17 +117,37 @@ describe("standalone captureError", () => {
     otel = setupTestTelemetry();
   });
 
-  it("applies instrumentation options to manual captures", () => {
-    enable({ beforeSend: () => null });
+  it("reports through the configured shared client", () => {
+    configure({ beforeSend: () => null });
+    enable();
     captureError(new Error("suppressed"));
     expect(otel.records()).toHaveLength(0);
   });
 
-  it("keeps instrumentation options after disable", () => {
-    const it_ = enable({ beforeSend: () => null });
-    it_.disable();
+  it("leaves the shared configuration alone on disable", () => {
+    configure({ beforeSend: () => null });
+    enable().disable();
     captureError(new Error("still suppressed"));
     expect(otel.records()).toHaveLength(0);
+  });
+
+  it("warns when a second instrumentation installs its own crash handlers", () => {
+    const warn = vi.spyOn(diag, "warn").mockImplementation(() => {});
+    enable();
+    const second = new ErrorsInstrumentation({ onFatal: "continue" });
+    expect(warn).toHaveBeenCalledOnce();
+    expect(warn.mock.calls[0]?.[0]).toContain("captured twice");
+    second.disable();
+    warn.mockRestore();
+  });
+
+  it("does not warn when one instrumentation re-installs", () => {
+    const warn = vi.spyOn(diag, "warn").mockImplementation(() => {});
+    const it_ = enable();
+    it_.disable();
+    it_.enable();
+    expect(warn).not.toHaveBeenCalled();
+    warn.mockRestore();
   });
 });
 

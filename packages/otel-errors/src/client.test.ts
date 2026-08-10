@@ -3,7 +3,7 @@ import { SeverityNumber } from "@opentelemetry/api-logs";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Client } from "./client.js";
 import { setupTestTelemetry } from "./test-utils.js";
-import type { Options } from "./types.js";
+import type { ClientOptions } from "./types.js";
 
 let otel: ReturnType<typeof setupTestTelemetry>;
 
@@ -15,7 +15,7 @@ afterEach(async () => {
   await otel.dispose();
 });
 
-function makeClient(options: Options = {}) {
+function makeClient(options: ClientOptions = {}) {
   return new Client(options);
 }
 

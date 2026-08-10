@@ -2,7 +2,11 @@
 // @opentelemetry/instrumentation dependency, so a browser-targeted tsc
 // program can consume it without pulling @types/node into its globals.
 // @everr/otel-web's server entry is its consumer.
-export { type CaptureInput, Client } from "./client.js";
+// `capture` is exported here and not from ./node: it is the surface for SDKs
+// built on this package, which report their own mechanisms. An application
+// wants `captureError`.
+export { capture, configure, setLogger } from "./capture.js";
+export type { CaptureInput } from "./client.js";
 export { type NormalizedError, normalizeError } from "./normalize.js";
 export { RateLimiter } from "./rate-limit.js";
 export {
@@ -13,9 +17,9 @@ export {
   stripUrlQueryAndFragment,
 } from "./redact.js";
 export type {
+  ClientOptions,
   ErrorEvent,
   ErrorSeverity,
   Mechanism,
-  Options,
 } from "./types.js";
 export { PKG_NAME, PKG_VERSION } from "./version.js";

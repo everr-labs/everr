@@ -25,17 +25,22 @@ export interface ErrorEvent {
   context: Attributes;
 }
 
-export interface Options {
+/**
+ * The shared client's configuration, applied through `configure`. Every field
+ * is optional and every call merges: an absent key keeps its current value, a
+ * present one replaces that field wholesale. There is no deep merge, so a
+ * `redactPatterns` array is the whole set and never a union with the last one.
+ *
+ * Each field carries its own "off" value (`rateLimit: false`,
+ * `redactPatterns: []`, `redactKeys: false`). `beforeSend` is the exception:
+ * `undefined` is indistinguishable from absent under a merge, so `null` is
+ * how a caller removes a hook it installed.
+ */
+export interface ClientOptions {
   /** Drops the event when it returns null, or rewrites it in place. */
-  beforeSend?: (event: ErrorEvent) => ErrorEvent | null;
+  beforeSend?: ((event: ErrorEvent) => ErrorEvent | null) | null;
   redactPatterns?: RegExp[];
   redactKeys?: CollectBehavior;
   /** Per-fingerprint throttle. `false` disables it. Defaults to 5 per 5s. */
   rateLimit?: { count: number; windowMs: number } | false;
-  /**
-   * What to do after a fatal error is flushed. "exit" (the default) restores
-   * the crash Node would have performed had no listener been installed;
-   * "continue" leaves the process running.
-   */
-  onFatal?: "exit" | "continue";
 }

@@ -23,7 +23,7 @@ new NodeSDK({
 }).start();
 ```
 
-Manual capture works anywhere, with or without the instrumentation. Records emitted before an SDK registers a `LoggerProvider` are lost (a one-time diag warning says so). When an `ErrorsInstrumentation` exists, its options (redaction, rate limits, `beforeSend`) apply to manual captures too.
+Manual capture works anywhere, with or without the instrumentation. Records emitted before an SDK registers a `LoggerProvider` are lost (a one-time diag warning says so). Every error path in the process shares one client, so whatever you pass to `configure` covers manual captures and crashes alike.
 
 ```ts
 import { captureError } from "@everr/otel-errors";
@@ -60,10 +60,12 @@ The exit is deliberate. Installing an `uncaughtException` listener stops the cra
 
 ## Config
 
+The process has one error client. `configure` sets it up, merging over whatever is already there: an absent key keeps its current value, and a present one replaces that field.
+
 ```ts
-new ErrorsInstrumentation({
-  enabled: true,
-  onFatal: "exit",
+import { configure } from "@everr/otel-errors";
+
+configure({
   rateLimit: { count: 5, windowMs: 5000 },
   redactPatterns: [/\bsk_live_\w+/g],
   redactKeys: { deny: ["session"] },
@@ -73,23 +75,31 @@ new ErrorsInstrumentation({
 
 | Option | Default | Effect |
 | --- | --- | --- |
-| `enabled` | `true` | `false` defers installation until the SDK registers the instrumentation |
-| `onFatal` | `"exit"` | `"continue"` keeps the process alive after a fatal error |
-| `rateLimit` | 5 per 5s | Per-fingerprint throttle. `false` disables it |
+| `rateLimit` | 5 per 5s | Per-fingerprint throttle. `false` disables it. Re-stating it restarts the windows |
 | `redactPatterns` | emails, tokens, cards | Patterns replaced with `[Filtered]` in the body and string attributes |
 | `redactKeys` | `true` | Drops attributes whose key looks sensitive. Also accepts `{ allow }` or `{ deny }` |
-| `beforeSend` | none | Rewrites the event, or returns `null` to drop it |
+| `beforeSend` | none | Rewrites the event, or returns `null` to drop it. `null` removes an installed hook |
+
+Call it whenever you like: capture works before the first call, and a later call applies to every error path from then on.
+
+The instrumentation itself takes only what belongs to crash handling:
+
+| Option | Default | Effect |
+| --- | --- | --- |
+| `enabled` | `true` | `false` defers installation until the SDK registers the instrumentation |
+| `onFatal` | `"exit"` | `"continue"` keeps the process alive after a fatal error |
 
 ## `@everr/otel-errors/core`
 
-The capture path with no Node and no `@opentelemetry/instrumentation` dependency: `Client`, `normalizeError`, `RateLimiter`, and the redaction helpers. It exists so a browser-targeted SDK can reuse the normalization, redaction, and attribute contract without pulling `@types/node` into its globals. [`@everr/otel-web`](https://github.com/everr-labs/everr/tree/main/packages/otel-web)'s server entry is its consumer.
+The capture path with no Node and no `@opentelemetry/instrumentation` dependency: `capture`, `configure`, `setLogger`, `normalizeError`, `RateLimiter`, and the redaction helpers. It exists so a browser-targeted SDK can reuse the normalization, redaction, and attribute contract without pulling `@types/node` into its globals. [`@everr/otel-web`](https://github.com/everr-labs/everr/tree/main/packages/otel-web)'s server entry is its consumer.
+
+`capture` is the surface for SDKs that report their own mechanisms, where an application wants `captureError`:
 
 ```ts
-import { Client } from "@everr/otel-errors/core";
+import { capture, setLogger } from "@everr/otel-errors/core";
 
-const client = new Client({ rateLimit: false });
-client.setLogger(myLoggerProvider.getLogger("my-sdk"));
-client.capture({ error, mechanism: "react" });
+setLogger(myLoggerProvider.getLogger("my-sdk"));
+capture({ error, mechanism: "react" });
 ```
 
 ## License

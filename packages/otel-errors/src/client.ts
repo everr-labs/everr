@@ -16,7 +16,12 @@ import {
   redactAttributes,
   redactString,
 } from "./redact.js";
-import type { ErrorEvent, ErrorSeverity, Mechanism, Options } from "./types.js";
+import type {
+  ClientOptions,
+  ErrorEvent,
+  ErrorSeverity,
+  Mechanism,
+} from "./types.js";
 import { PKG_NAME, PKG_VERSION } from "./version.js";
 
 export interface CaptureInput {
@@ -31,31 +36,65 @@ export interface CaptureInput {
 /**
  * The runtime-neutral capture path: normalize, redact, rate limit, mark the
  * active span, emit one log record. It holds no process or DOM state, so any
- * runtime can drive it. `ErrorsInstrumentation` drives it on Node;
- * `@everr/otel-web`'s server entry constructs its own instance.
+ * runtime can drive it.
+ *
+ * The class is deliberately not exported from either package entry: one
+ * instance per process is the contract, and `capture.ts` owns it. It stays a
+ * class rather than module state so the tests can exercise the capture path
+ * against isolated instances.
  */
 export class Client {
-  readonly options: Options;
+  private options: ClientOptions = {};
   private logger: Logger;
-  private readonly rateLimiter: RateLimiter | null;
-  private readonly redactPatterns: RegExp[];
-  private readonly redactKeys: CollectBehavior;
+  private rateLimiter: RateLimiter | null;
+  private redactPatterns: RegExp[] = DEFAULT_REDACT_PATTERNS;
+  private redactKeys: CollectBehavior = true;
   private processing = false;
 
-  constructor(options: Options = {}) {
-    this.options = options;
+  constructor(options: ClientOptions = {}) {
     // Falls back to the global API registry, which is a no-op logger until
     // an SDK registers. setLogger swaps in an SDK-injected one.
     this.logger = logs.getLogger(PKG_NAME, PKG_VERSION);
-    this.rateLimiter =
-      options.rateLimit === false
-        ? null
-        : new RateLimiter(
-            options.rateLimit?.count ?? 5,
-            options.rateLimit?.windowMs ?? 5000,
-          );
-    this.redactPatterns = options.redactPatterns ?? DEFAULT_REDACT_PATTERNS;
-    this.redactKeys = options.redactKeys ?? true;
+    // The default limiter, replaced by configure() only when the caller
+    // states a rateLimit of its own.
+    this.rateLimiter = new RateLimiter(5, 5000);
+    this.configure(options);
+  }
+
+  /**
+   * Merges options over the current configuration. An absent key keeps its
+   * current value, so a caller that re-states one field never resets the
+   * others to their defaults. The rate limiter is rebuilt only when
+   * `rateLimit` is present, because rebuilding drops the accumulated
+   * per-fingerprint windows.
+   */
+  configure(options: ClientOptions): void {
+    // `undefined` counts as absent everywhere, including when it is passed
+    // explicitly: a caller forwarding an optional config
+    // (`configure({ beforeSend: cfg.beforeSend })`) must not uninstall a hook
+    // or restart the rate-limit windows just because its own field is unset.
+    // That is what `beforeSend: null` is for. A plain spread would not hold
+    // this line, so the merge is a filtered copy.
+    for (const [key, value] of Object.entries(options)) {
+      if (value !== undefined) {
+        (this.options as Record<string, unknown>)[key] = value;
+      }
+    }
+    // Rebuilt only on an explicit rateLimit, because a rebuild drops the
+    // accumulated per-fingerprint windows.
+    if (options.rateLimit !== undefined) {
+      const rateLimit = options.rateLimit;
+      this.rateLimiter =
+        rateLimit === false
+          ? null
+          : new RateLimiter(rateLimit.count, rateLimit.windowMs);
+    }
+    if (options.redactPatterns !== undefined) {
+      this.redactPatterns = options.redactPatterns;
+    }
+    if (options.redactKeys !== undefined) {
+      this.redactKeys = options.redactKeys;
+    }
   }
 
   /** Binds emission to a specific provider's logger instead of the global. */
