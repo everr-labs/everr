@@ -11,6 +11,12 @@ import {
   type AlertEventType,
 } from "./event-types";
 
+// Per-query, not a client default (@/lib/clickhouse.query is shared with
+// dashboards, where a global cap could break a long-running scan): every
+// query in this file is a bounded alerting history read, so 30s is a bug, not
+// a legitimate slow query.
+const ALERTING_QUERY_SETTINGS = { max_execution_time: 30 };
+
 export type JsonValue =
   | string
   | number
@@ -115,6 +121,7 @@ async function queryNotificationOutcomes(
       from: toClickHouseDateTime(from),
       eventIds: [...eventIds],
     },
+    ALERTING_QUERY_SETTINGS,
   );
   return new Map(
     rows.map((row) => [
@@ -196,6 +203,7 @@ export async function queryClickHouseAlertEventLog(
       ...(opts.sourceId !== undefined ? { sourceId: opts.sourceId } : {}),
       ...(opts.slugs !== undefined ? { slugs: [...opts.slugs] } : {}),
     },
+    ALERTING_QUERY_SETTINGS,
   );
 
   if (rows.length === 0) return [];
@@ -260,6 +268,7 @@ export async function queryClickHouseObservedLabelKeys(
       to: toClickHouseDateTime(opts.to),
       limit: opts.limit,
     },
+    ALERTING_QUERY_SETTINGS,
   );
   return rows.map((row) => row.key);
 }
@@ -287,6 +296,7 @@ export async function queryClickHouseObservedLabelValues(
       to: toClickHouseDateTime(opts.to),
       limit: opts.limit,
     },
+    ALERTING_QUERY_SETTINGS,
   );
   return rows.map((row) => row.value);
 }

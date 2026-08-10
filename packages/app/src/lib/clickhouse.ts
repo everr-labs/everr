@@ -22,10 +22,17 @@ export type ClickhouseQuery = <T>(
   params?: Record<string, unknown>,
 ) => Promise<T[]>;
 
+type AppQuerySettings = NonNullable<
+  Parameters<typeof clickhouse.query>[0]["clickhouse_settings"]
+>;
+
 export async function query<T>(
   query: string,
   organizationId: string,
   query_params?: Record<string, unknown>,
+  // Per-query, not a client default: this client is shared with dashboards,
+  // where a global execution-time cap could cut off a legitimate long scan.
+  clickhouse_settings?: AppQuerySettings,
 ): Promise<T[]> {
   if (typeof organizationId !== "string" || !organizationId) {
     throw new Error("Missing ClickHouse tenant context");
@@ -39,6 +46,8 @@ export async function query<T>(
         query_params,
         format: "JSONEachRow",
         clickhouse_settings: {
+          ...clickhouse_settings,
+          // Last, so a caller-supplied setting can never override the tenant scope.
           SQL_everr_tenant_id: organizationId,
         },
       }),

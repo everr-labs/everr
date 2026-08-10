@@ -52,6 +52,8 @@ describe("queryClickHouseAlertEventLog", () => {
       from: "2026-06-01 00:00:00.000",
       to: "2026-06-16 00:00:00.000",
     });
+    const settings = mocks.query.mock.calls[0]?.[3];
+    expect(settings).toMatchObject({ max_execution_time: 30 });
   });
 
   it("does not filter out a muted live rule's own history", async () => {
@@ -166,6 +168,9 @@ describe("observed label suggestions", () => {
     expect(sql).toContain("LIMIT {limit:UInt32}");
     expect(organizationId).toBe("org-1");
     expect(params).toMatchObject({ organizationId: "org-1", limit: 2 });
+    expect(mocks.query.mock.calls[0]?.[3]).toMatchObject({
+      max_execution_time: 30,
+    });
   });
 
   it("ranks values for one key via Map access, excluding rows missing it", async () => {
