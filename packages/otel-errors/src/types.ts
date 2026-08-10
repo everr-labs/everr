@@ -21,8 +21,8 @@ export interface ErrorEvent {
   message: string;
   severity: ErrorSeverity;
   mechanism: Mechanism;
-  handled: boolean;
-  attributes: Attributes;
+  /** The caller-supplied attributes attached to this error. */
+  context: Attributes;
 }
 
 export interface Options {

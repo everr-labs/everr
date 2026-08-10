@@ -24,7 +24,6 @@ describe("Client.capture", () => {
     makeClient().capture({
       error: new TypeError("boom"),
       mechanism: "manual",
-      handled: true,
     });
     const [record] = otel.records();
     expect(record.eventName).toBe("exception");
@@ -36,7 +35,6 @@ describe("Client.capture", () => {
     expect(record.attributes["exception.stacktrace"]).toContain(
       "client.test.ts",
     );
-    expect(record.attributes["everr.error.handled"]).toBe(true);
     expect(record.attributes["everr.error.mechanism"]).toBe("manual");
     expect(record.attributes["log.record.uid"]).toMatch(/^[0-9a-f-]{32,36}$/);
   });
@@ -53,7 +51,6 @@ describe("Client.capture", () => {
       makeClient().capture({
         error: new Error("boom"),
         mechanism: "manual",
-        handled: true,
       });
       const [record] = otel.records();
       expect(record.attributes["log.record.uid"]).toBe(uid);
@@ -66,7 +63,6 @@ describe("Client.capture", () => {
     makeClient().capture({
       error: new Error("dead"),
       mechanism: "uncaughtException",
-      handled: false,
       severity: "fatal",
     });
     const [record] = otel.records();
@@ -78,7 +74,7 @@ describe("Client.capture", () => {
     const client = makeClient({ rateLimit: { count: 5, windowMs: 60_000 } });
     const error = new Error("same");
     for (let i = 0; i < 10; i++) {
-      client.capture({ error, mechanism: "manual", handled: true });
+      client.capture({ error, mechanism: "manual" });
     }
     expect(otel.records()).toHaveLength(5);
   });
@@ -87,19 +83,17 @@ describe("Client.capture", () => {
     const client = makeClient({
       beforeSend: (event) => {
         if (event.message.includes("drop-me")) return null;
-        event.attributes = { ...event.attributes, app: "test" };
+        event.context = { ...event.context, app: "test" };
         return event;
       },
     });
     client.capture({
       error: new Error("drop-me"),
       mechanism: "manual",
-      handled: true,
     });
     client.capture({
       error: new Error("keep"),
       mechanism: "manual",
-      handled: true,
     });
     const records = otel.records();
     expect(records).toHaveLength(1);
@@ -110,8 +104,7 @@ describe("Client.capture", () => {
     makeClient().capture({
       error: new Error("login failed for a@b.com"),
       mechanism: "manual",
-      handled: true,
-      attributes: { "url.full": "/cb?token=s3cret" },
+      context: { "url.full": "/cb?token=s3cret" },
     });
     const [record] = otel.records();
     expect(record.body).toBe("Error: login failed for [Filtered]");
@@ -125,8 +118,7 @@ describe("Client.capture", () => {
     }).capture({
       error: new Error("secret"),
       mechanism: "manual",
-      handled: true,
-      attributes: { "x-api-key": "keep" },
+      context: { "x-api-key": "keep" },
     });
 
     const [record] = otel.records();
@@ -140,7 +132,6 @@ describe("Client.capture", () => {
         client.capture({
           error: new Error("nested"),
           mechanism: "manual",
-          handled: true,
         });
         return event;
       },
@@ -148,7 +139,6 @@ describe("Client.capture", () => {
     client.capture({
       error: new Error("outer"),
       mechanism: "manual",
-      handled: true,
     });
     expect(otel.records()).toHaveLength(1);
   });
@@ -160,7 +150,6 @@ describe("Client.capture", () => {
       client.capture({
         error: new Error("in-trace"),
         mechanism: "manual",
-        handled: true,
       });
       requestSpan.end();
     });
@@ -178,7 +167,6 @@ describe("Client.capture", () => {
       client.capture({
         error: new Error("boom"),
         mechanism: "manual",
-        handled: true,
       });
       requestSpan.end();
     });
@@ -196,7 +184,6 @@ describe("Client.capture", () => {
     client.capture({
       error: new Error("routed"),
       mechanism: "manual",
-      handled: true,
     });
 
     expect(otel.records()).toHaveLength(0);
@@ -208,7 +195,6 @@ describe("Client.capture", () => {
     makeClient().capture({
       error: new Error("bare"),
       mechanism: "manual",
-      handled: true,
     });
     expect(otel.spans()).toHaveLength(0);
   });

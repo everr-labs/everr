@@ -45,25 +45,14 @@ export function resetSharedClient(): void {
   warnedNoProvider = false;
 }
 
-export interface CaptureErrorOptions {
-  handled?: boolean;
-}
-
 /**
- * Reports a handled error as an OTel exception log record. Works without an
+ * Reports an error as an OTel exception log record, with optional context
+ * attributes. Works without an
  * ErrorsInstrumentation: records go through the global logger provider, which
  * resolves at emit time once an SDK registers. When an instrumentation is
  * constructed, its options (redaction, rate limits) apply here too.
  */
-export function captureError(
-  error: unknown,
-  attributes?: Attributes,
-  options?: CaptureErrorOptions,
-): void {
-  const handledAttr = attributes?.["error.handled"];
-  const handled =
-    options?.handled ?? (typeof handledAttr === "boolean" ? handledAttr : true);
-
+export function captureError(error: unknown, context?: Attributes): void {
   // Records emitted before an SDK registers are dropped, not buffered, so
   // say so once. A registered provider never unregisters, so the successful
   // probe latches and the steady-state cost is one boolean test.
@@ -81,7 +70,6 @@ export function captureError(
   getSharedClient().capture({
     error,
     mechanism: "manual",
-    handled,
-    attributes,
+    context,
   });
 }

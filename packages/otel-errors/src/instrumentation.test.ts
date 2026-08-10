@@ -129,7 +129,7 @@ describe("standalone captureError", () => {
 });
 
 describe("ErrorsInstrumentation capture", () => {
-  it("captures uncaughtException as fatal and unhandled", () => {
+  it("captures uncaughtException as fatal", () => {
     enable();
     process.emit("uncaughtException", new Error("crash"));
     const [record] = otel.records();
@@ -137,7 +137,6 @@ describe("ErrorsInstrumentation capture", () => {
     expect(record.attributes["everr.error.mechanism"]).toBe(
       "uncaughtException",
     );
-    expect(record.attributes["everr.error.handled"]).toBe(false);
     expect(record.severityText).toBe("FATAL");
   });
 
@@ -156,26 +155,7 @@ describe("ErrorsInstrumentation capture", () => {
     captureError(new Error("manual boom"), { feature: "billing" });
     const [record] = otel.records();
     expect(record.attributes["everr.error.mechanism"]).toBe("manual");
-    expect(record.attributes["everr.error.handled"]).toBe(true);
     expect(record.attributes.feature).toBe("billing");
-  });
-
-  it("captureError reads handled from the error.handled attribute", () => {
-    enable();
-    captureError(new Error("boom"), { "error.handled": false });
-    const [record] = otel.records();
-    expect(record.attributes["everr.error.handled"]).toBe(false);
-  });
-
-  it("captureError options win over the attribute", () => {
-    enable();
-    captureError(
-      new Error("boom"),
-      { "error.handled": false },
-      { handled: true },
-    );
-    const [record] = otel.records();
-    expect(record.attributes["everr.error.handled"]).toBe(true);
   });
 
   it("emits through an SDK-injected LoggerProvider instead of the global", () => {

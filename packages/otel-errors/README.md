@@ -44,7 +44,6 @@ One log record per error, with `eventName: "exception"`:
 | `exception.type` | The error's constructor name, or `NonError` |
 | `exception.message` | The message, redacted |
 | `exception.stacktrace` | The stack, when there is one |
-| `everr.error.handled` | `false` for the two fatal handlers, `true` for `captureError` |
 | `everr.error.mechanism` | `uncaughtException`, `unhandledrejection`, or `manual` |
 | `log.record.uid` | A generated id, never redacted |
 
@@ -90,7 +89,7 @@ import { Client } from "@everr/otel-errors/core";
 
 const client = new Client({ rateLimit: false });
 client.setLogger(myLoggerProvider.getLogger("my-sdk"));
-client.capture({ error, mechanism: "react", handled: true });
+client.capture({ error, mechanism: "react" });
 ```
 
 ## License

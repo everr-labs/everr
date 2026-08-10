@@ -130,7 +130,6 @@ export class ErrorsInstrumentation
         this.client.capture({
           error: reason,
           mechanism,
-          handled: false,
           severity: "fatal",
         });
 

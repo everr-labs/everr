@@ -22,10 +22,10 @@ import { PKG_NAME, PKG_VERSION } from "./version.js";
 export interface CaptureInput {
   error: unknown;
   mechanism: Mechanism;
-  handled: boolean;
   severity?: ErrorSeverity;
   message?: string;
-  attributes?: Attributes;
+  /** Caller-supplied attributes, merged under the `exception.*` set. */
+  context?: Attributes;
 }
 
 /**
@@ -98,8 +98,7 @@ export class Client {
           : normalized.type),
       severity: input.severity ?? "error",
       mechanism: input.mechanism,
-      handled: input.handled,
-      attributes: input.attributes ?? {},
+      context: input.context ?? {},
     };
 
     if (this.options.beforeSend) {
@@ -111,13 +110,12 @@ export class Client {
 
     const errorId = generateErrorId();
     const rawAttributes: Attributes = {
-      ...event.attributes,
+      ...event.context,
       "exception.type": normalized.type,
       "exception.message": normalized.message,
       ...(normalized.stacktrace
         ? { "exception.stacktrace": normalized.stacktrace }
         : {}),
-      "everr.error.handled": event.handled,
       "everr.error.mechanism": event.mechanism,
     };
     const filteredAttributes = redactAttributeKeys(
