@@ -294,7 +294,7 @@ export async function getRuleEvaluationSeries(
   id: string,
   opts: { from: Date; to: Date; points: number },
 ) {
-  await getRuleRow(organizationId, id);
+  const def = await getRuleRow(organizationId, id);
   const rows = await query<{
     scheduledFor: string;
     eventType: "evaluation_succeeded" | "evaluation_failed";
@@ -340,6 +340,7 @@ export async function getRuleEvaluationSeries(
       samplesTruncated: Boolean(row.samplesTruncated),
     })),
     opts.points,
+    def.spec.condition,
   );
 }
 

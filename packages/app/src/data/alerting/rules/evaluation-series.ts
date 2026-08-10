@@ -1,7 +1,9 @@
 import type {
   AlertingEvaluationSample,
+  AlertingRuleCondition,
   AlertingRuleEvaluationSeries,
 } from "../types";
+import { alertingConditionMatches } from "./condition";
 
 export type StoredAlertEvaluationPoint = {
   scheduledFor: Date;
@@ -64,14 +66,22 @@ function evaluationPoint(
 
 type EvaluationState = "ok" | "breaching" | "failed";
 
-// `rowCount` is the count of rows the alert query matched at that
-// evaluation, so a positive count is the breach signal itself; a failed
-// evaluation carries no row count (see repository.ts), so error takes
-// priority.
-function evaluationState(row: StoredAlertEvaluationPoint): EvaluationState {
+// `rowCount` is the count of rows the unfiltered alert query returned, not
+// the count that matched the condition (a GROUP BY rule's row_count can be
+// entirely healthy rows), so it cannot stand in for the breach signal. The
+// condition has to be re-applied to the stored samples, the same way the
+// chart's own outcome computation already does (chart-data.ts).
+function evaluationState(
+  row: StoredAlertEvaluationPoint,
+  condition: AlertingRuleCondition,
+): EvaluationState {
   if (row.error !== null) return "failed";
-  if (row.rowCount !== null && row.rowCount > 0) return "breaching";
-  return "ok";
+  const breaching = row.samples.some(
+    (sample) =>
+      sample.value !== null &&
+      alertingConditionMatches({ value: sample.value }, condition),
+  );
+  return breaching ? "breaching" : "ok";
 }
 
 // Indexes a downsampled chart must never drop: both range edges, every
@@ -80,11 +90,12 @@ function evaluationState(row: StoredAlertEvaluationPoint): EvaluationState {
 // itself "ok".
 function requiredEvaluationIndexes(
   rows: readonly StoredAlertEvaluationPoint[],
+  condition: AlertingRuleCondition,
 ): Set<number> {
   const required = new Set<number>([0, rows.length - 1]);
-  let previousState = evaluationState(rows[0]);
+  let previousState = evaluationState(rows[0], condition);
   for (let index = 1; index < rows.length; index++) {
-    const state = evaluationState(rows[index]);
+    const state = evaluationState(rows[index], condition);
     if (state !== "ok") required.add(index);
     if (state !== previousState) required.add(index);
     previousState = state;
@@ -101,11 +112,12 @@ function requiredEvaluationIndexes(
 export function shapeAlertEvaluationSeries(
   rows: readonly StoredAlertEvaluationPoint[],
   targetPoints: number,
+  condition: AlertingRuleCondition,
 ): AlertingRuleEvaluationSeries {
   const count = Math.max(2, targetPoints);
   let selected: readonly StoredAlertEvaluationPoint[] = rows;
   if (rows.length > count) {
-    let indexes = requiredEvaluationIndexes(rows);
+    let indexes = requiredEvaluationIndexes(rows, condition);
     if (indexes.size > count) {
       // A whole-window incident (or constant flapping) makes every point
       // required, which would ship the full row set to the browser. Grid the
