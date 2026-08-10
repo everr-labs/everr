@@ -16,6 +16,6 @@ generate`).
 - [x] The event-type enum extended with pending, terminal and hold decision values, and `evaluation_failed` as a journaled state kind
 - [x] The id default is a `uuidv7()` expression, not `defaultRandom()`
 - [x] The episode id column on the journal tables, per Episodes and chain membership in the design doc
-- [x] A PostgreSQL-stamped commit-side timestamp column on the journal tables
+- [x] A PostgreSQL-stamped timestamp column (`journaled_at`) on the journal tables; transaction-start time, so ticket 06's diff window carries a visibility margin
 - [x] Folded into migration 0011 with the snapshot patched; applied to the dev database
 - [x] Engine unit tests stay green

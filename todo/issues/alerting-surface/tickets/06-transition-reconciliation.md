@@ -17,7 +17,7 @@ in the design doc's findings.
 - [ ] Repair inserts are idempotent: deduplication token per stream and id, deduplication window set on the table, insert mode pinned
 - [ ] The live insert path carries the same deduplication token and insert mode, so an in-doubt live write converges with its reconciled copy
 - [ ] Evaluation failures are journaled on the write path and diffed as their own stream; success rows stay fire and forget
-- [ ] The diff filters on the commit-side timestamp, evaluated on the PostgreSQL clock
-- [ ] Both window bounds are tested invariants: wider than outage plus retry span, narrower than retention
+- [ ] The diff filters on `journaled_at`, evaluated on the PostgreSQL clock. It is transaction-start time, not commit time: a row becomes visible up to one transaction duration after its stamp
+- [ ] Both window bounds are tested invariants: wider than outage plus retry span plus the longest journal-writing transaction (a slow registry apply), narrower than retention
 - [ ] Reconciled rows carry the reconciled write source and the journal timestamp as event time
 - [ ] Where the container suite is required for proof, the test is written for it and said so

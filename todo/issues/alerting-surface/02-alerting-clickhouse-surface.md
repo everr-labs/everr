@@ -565,15 +565,20 @@ hygiene, not the correctness mechanism: a serial queue cannot exclude an
 expired job lock's revived run or a crashed run's retry.
 
 The diff window is wide, and both of its bounds are invariants under test.
-The diff filters on a commit-side timestamp column that PostgreSQL stamps
-on the journal row, evaluated against the PostgreSQL clock, never the
+The diff filters on `journaled_at`, a timestamp PostgreSQL stamps on the
+journal row, evaluated against the PostgreSQL clock, never the
 reconciler's process clock and never the Node-stamped domain time
-(`occurred_at` stays the domain time). The window spans days, not minutes:
-the journaled streams are small (see Volume arithmetic), a wide diff stays
-cheap, and re-diffing already-repaired ranges is harmless once inserts are
-idempotent. The lower bound must exceed any plausible outage plus the
-maximum delivery retry span, or rows are lost forever while the journal
-still holds them. The upper bound must stay below min(tenant `logs_days`,
+(`occurred_at` stays the domain time). One honesty note: `now()` is
+transaction-start time, not commit time, so a row becomes visible up to
+one transaction duration after its stamp; a diff window narrower than the
+longest journal-writing transaction (a slow registry apply) would let a
+committed row land inside an already-diffed range and never be examined.
+The window spans days, not minutes: the journaled streams are small (see
+Volume arithmetic), a wide diff stays cheap, and re-diffing
+already-repaired ranges is harmless once inserts are idempotent. The
+lower bound must exceed any plausible outage plus the maximum delivery
+retry span plus the longest journal-writing transaction, or rows are lost
+forever while the journal still holds them. The upper bound must stay below min(tenant `logs_days`,
 the 90-day journal retention), or the diff resurrects TTL-expired rows
 every cycle, forever.
 
@@ -1674,9 +1679,10 @@ recreation all require `delivery_dedup_key`; narrow the exclusion row.
   task timeout, no `max_execution_time` on the rule query), and
   `occurred_at` comes from the Node clock early in the job, long before
   commit. Proper fix: the journal tables gain a PostgreSQL-stamped
-  commit-side timestamp column and the diff filters on it; `occurred_at`
-  stays the domain time. That removes both the unbounded gap and the
-  Node-versus-PostgreSQL clock skew in one change.
+  timestamp column (`journaled_at`; transaction-start time, so the diff
+  window carries a visibility margin) and the diff filters on it;
+  `occurred_at` stays the domain time. That removes both the unbounded gap
+  and the Node-versus-PostgreSQL clock skew in one change.
 - **Hold-decision change detection is an unguarded read-modify-write.**
   Nothing says where the previous `(silenced, inhibited, silence_id)` triple
   is read from or under what lock, and `processAlertEvent` takes no
