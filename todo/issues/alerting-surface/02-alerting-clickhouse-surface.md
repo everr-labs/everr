@@ -130,7 +130,6 @@ flowchart LR
 
   subgraph ch [ClickHouse, projections]
     CE[(app.alert_events)]
-    LG[(app.logs)]
   end
 
   E -->|upsert instance state| PI
@@ -152,7 +151,6 @@ flowchart LR
 
   PE -->|repair by diff| CE
   PD -->|repair by diff| CE
-  CE -->|live rows only, narrow projection| LG
 ```
 
 ### The transition journal
@@ -475,74 +473,6 @@ The state view stays a pure fold over transitions and never needs rule
 liveness. The investigator also gets a useful fact: "stopped because someone
 deleted the rule" is a different story from "recovered".
 
-### The app.logs projection
-
-The projection exists for correlation: an engineer reading application output
-around an incident sees the alert transition inline.
-
-It carries `instance_fired` and `instance_resolved` only, live rows only
-(`write_source = 'live'`), with a readable `Body` and enough identity to
-locate the source row. No evidence, samples, row counts or delivery targets.
-Those live in the typed table. A second full copy would have its own
-retention and schema mapping and could disagree with the source.
-
-The `write_source` filter also matters for durability. A re-driven stream
-cannot feed an append-only projection. The projection excludes reconciled
-rows at insert time, and that exclusion is what lets the transition stream be
-reconciled at all. See Rejected alternatives.
-
-#### ServiceName is the alerted service
-
-`app.logs` is `ORDER BY (ServiceName, SpanName, toDateTime(Timestamp))`. An
-alert row with `ServiceName = 'alert'` is grouped apart from the service it
-describes: a filter on `checkout-api` would not return it.
-
-`ServiceName` is therefore the service the alert concerns, resolved per row:
-
-1. The instance's own labels, where they contain a service key. This is per
-   instance: a rule that groups by service produces a different value for
-   each firing instance.
-2. An `everr.service` annotation on the rule, following the existing
-   `everr.display.name` convention. No schema change.
-3. `'alert'`, when the rule concerns no single service or spans several.
-
-The resolution runs at write time, in the evaluation job, where the instance
-labels and the rule spec are both in hand. It lands in the `service_name`
-column, and the projection copies the column. It cannot run in the
-materialized view: the annotation is not on the row, and the view would
-hardcode the label-matching heuristic into DDL.
-
-A value declared once at rule-definition time cannot be the primary source.
-Alert rules are arbitrary SQL. They span services, cover none, or produce a
-different service per instance. A single declared value would be silently
-wrong for many rules.
-
-A label counts as a service key when it matches `/^service([_-]?name)?$/i`.
-
-#### Distinguishing alert rows from service output
-
-A resource attribute: `everr.signal = 'alert'`. The projection already writes
-`everr.tenant.id` into `ResourceAttributes`, and `resource` is a logs
-attribute-filter source, so the UI can filter on it with no further work.
-
-Not `service.namespace`. The OTel specification defines it as a grouping for
-related services, usually a team or system, not a marker for signal kind.
-Users' own services may already set it. An overwrite would remove alert rows
-from their `service.namespace` filters.
-
-`ScopeName = 'everr.alerting'` is the semantically correct field, but the
-attribute filter operates on maps and `ScopeName` is a bare column, so the UI
-cannot filter on it. It stays; the resource attribute makes the distinction
-usable.
-
-**Accepted tradeoff.** A filter on service now returns rows the service did
-not emit. Volume is negligible for two event types, but this changes the
-meaning of "logs for service X", and per-service metering would charge these
-rows to the customer's service.
-
-Preview rows carry `deployment.environment`, not a separate `'alert-preview'`
-service name.
-
 ## Durability
 
 Fire-and-forget is acceptable where a missing row reads as a gap. It is not
@@ -641,8 +571,8 @@ still holds them. The upper bound must stay below min(tenant `logs_days`,
 the 90-day journal retention), or the diff resurrects TTL-expired rows
 every cycle, forever.
 
-Reconciled rows are marked `write_source = 'reconciled'`, which keeps them
-out of the `app.logs` projection. They carry the PostgreSQL timestamp
+Reconciled rows are marked `write_source = 'reconciled'`, so a reader can
+always separate the live stream from repairs. They carry the PostgreSQL timestamp
 (`occurred_at` for transitions, `updated_at` for deliveries) as `event_time`,
 never the insert time, so duration queries read real event time, not
 reconciliation lag.
@@ -684,32 +614,11 @@ ones that did. Reconciling from PostgreSQL state avoids the problem.
 
 **`ReplacingMergeTree` with blind re-insert.** The sort key ends in
 `event_id`, so an engine switch would make re-insert idempotent and remove
-the need to track what was already written. It does not work while the
-re-driven stream is projected:
-
-```mermaid
-flowchart TB
-  I1[insert row R] --> T
-  I2[re-drain inserts R again] --> T
-  T[app.alert_events<br/>ReplacingMergeTree]
-  T -->|background merge| T2[R stored once]
-  I1 -->|MV fires per insert| L
-  I2 -->|MV fires per insert| L
-  L[app.logs<br/>plain MergeTree]
-  L -->|nothing ever collapses it| L2[R stored twice, forever]
-```
-
-An incremental materialized view fires per INSERT, not per merge. The engine
-deduplicates on merge, the projection never sees the collapse, and every
-re-insert leaves a permanent duplicate in `app.logs`. It would also expose
-pre-merge duplicates to `SELECT *` and `count()` on the source table.
-
-The `WHERE write_source = 'live'` filter in the materialized view removes
-that objection: an incremental view filters at insert time, so re-driven rows
-never reach `app.logs` under any engine. `ReplacingMergeTree` therefore stays
+the need to track what was already written. The engine deduplicates on
+merge, not on insert, so every re-drain exposes pre-merge duplicates to
+`SELECT *` and `count()` until the merge runs. `ReplacingMergeTree` stays
 available if the diff query proves expensive. Diff reconciliation is still
-preferred: no engine change, and no pre-merge duplicates exposed to
-`SELECT *` and `count()`.
+preferred: no engine change, and no pre-merge duplicates.
 
 **A table PROJECTION ordered by `notification_event_id`.** It would serve the
 chain point read exactly, at the cost of a second copy of the projected
@@ -842,7 +751,7 @@ queries must not add a `tenant_id` predicate.
 | `preview_id` | `UUID` | Zero UUID means live |
 | `is_live` | `Bool` | Computed by `DEFAULT` from `preview_id`, so it stays visible to `SELECT *` and filtering to live alerts never types a zero sentinel |
 | `event_type` | `LowCardinality(String)` | See the event-type table above. Set skip index |
-| `write_source` | `LowCardinality(String)` | `'live'` or `'reconciled'`. The `app.logs` projection copies live rows only |
+| `write_source` | `LowCardinality(String)` | `'live'` or `'reconciled'` |
 | `evaluation_scheduled_at`, `event_time` | `DateTime64(3)` | The partition key's time dimension is `toYYYYMM(event_time)`, so a plain `event_time` bound prunes with no second predicate. `evaluation_scheduled_at` is zero (epoch 1970) off evaluation rows; never `dateDiff` against it there. Delivery `event_time` is send time, not evaluation time |
 | `row_count` | `UInt64` | Rows returned by the rule query, which is arbitrary user SQL |
 | `evidence_json`, `samples_json` | `String` | Opaque JSON |
@@ -1143,7 +1052,7 @@ born-processed events, hold decision rows), reconciliation,
 `app.alert_state`, `instance_pending` with its pending-cleared terminal row,
 terminal rows on pause and delete with the pause-time instance reset,
 `notification_deferred` with the frozen silence comment and matchers, the
-audit journal (PostgreSQL only), engine spans, and the narrowed projection.
+audit journal (PostgreSQL only), and engine spans.
 
 PostgreSQL `alert_events` already stores every notifying transition with the
 same id ClickHouse uses. The journal promotion narrows the meaning of an
@@ -1153,8 +1062,8 @@ Three consequences while the gap is open. Transition and delivery rows are
 written fire-and-forget, so an absent row means unknown, not "it did not
 fire" or "not delivered". A notification held by a silence and then delivered
 leaves no trace of the hold. And `app.alert_events_logs_mv` still copies
-every event type with full attributes into `app.logs`, so that projection is
-a second full copy, not the narrow one described above.
+every event type with full attributes into `app.logs`; the recreation drops
+that view, so alert history is read from the typed table only.
 
 ### The table recreation
 
@@ -1186,8 +1095,8 @@ lands as one recreation. Settled:
   `ZSTD` codecs on the `DateTime64` columns and higher `ZSTD` on the two
   JSON columns, and reserved columns that freeze the inhibiting source next
   to `inhibited`, mirroring the silence freeze; step 6 writes them.
-- `service_name`, resolved at write time; see the projection section.
-- `write_source`, so reconciled rows exist without reaching the projection.
+- `service_name`, resolved at write time from the instance labels.
+- `write_source`, so reconciled rows are distinguishable from live ones.
 - `reason` on terminal rows; see The stream closes its own instances.
 - `delivery_dedup_key`, the reconciliation join key for deliveries.
 - `silence_comment` and `silence_matchers_json`, so step 6 below becomes a
@@ -1298,11 +1207,9 @@ The steps here are the design units; the issues are the review units.
    `inhibited`, mirroring `silence_comment` and `silence_matchers_json`:
    without them, `inhibited = true` is the id-only dead end the silence
    freeze exists to prevent. Step 6 writes them; columns are free at
-   recreation time and expensive after. The narrowed projection rides
-   along, because a materialized view is recreated with its source:
-   `instance_fired` and `instance_resolved`, live rows only, readable
-   `Body`, `ServiceName` copied from `service_name`,
-   `everr.signal = 'alert'`. Blocker 5 resolves here: the terminal event
+   recreation time and expensive after. The legacy `app.alert_events_logs_mv`
+   is dropped with the recreation: alert history is read from the typed
+   table, not from `app.logs`. Blocker 5 resolves here: the terminal event
    type gets its name before the DDL exists, because the `reason` values
    and the event-type set depend on it. First, because every later step
    lands on this shape.
@@ -1459,7 +1366,7 @@ request open. It sits on top of a `wip` commit that predates it.
 
 | Concern | File |
 |---|---|
-| Table DDL and the `app.logs` projection | `clickhouse/init/12-create-alert-events.sql` |
+| Table DDL | `clickhouse/init/12-create-alert-events.sql` |
 | ClickHouse row builders and the insert | `server/alerts/history/clickhouse.ts` |
 | PostgreSQL schema | `db/schema/alerts.ts` |
 | Scheduler scan and the stale-enqueue net | `server/alerts/scheduling/scanner.ts` |
@@ -1520,7 +1427,8 @@ is the intended target.
   stream additionally moves out if TTL merge load shows in metrics, per
   Reference.
 - **Whether alerting belongs in `app.logs`: settled.** It gets a typed
-  table, and a narrow projection is retained for correlation.
+  table; `app.logs` carries no alert rows (the projection was cut
+  2026-08-10, nothing consumed it).
 - Cost and cardinality at tenant scale. Volume arithmetic in Reference
   bounds it on paper and the conditional TTL bounds the evaluation stream,
   but measuring against those assumed inputs is still worthwhile before
@@ -1868,8 +1776,8 @@ These are free at recreation time and expensive after, so they ride it:
   item that creates it and keeps it in lockstep with the Reference.
 - **The `app.logs` MV couples the projection to the alerting insert.** With
   `materialized_views_ignore_errors` at its default, a schema mismatch in
-  the view fails the source-table insert itself. Set it to 1 on the alerting
-  insert and note the MV as a hard dependency of `app.logs` schema changes.
+  the view fails the source-table insert itself. Resolved by removal: the
+  projection was cut entirely (2026-08-10), so no view rides the insert.
 
 ### Deferred, revisit on evidence
 
@@ -1893,9 +1801,6 @@ These are free at recreation time and expensive after, so they ride it:
 - `ALTER TABLE ADD PROJECTION` covers new parts only; historical reads need
   `MATERIALIZE PROJECTION`, a full rewrite. The escalation is cheap to
   declare, not cheap to apply retroactively.
-- The `app.logs` projection is permanently lossy for repaired rows; the
-  Durability table should say so, since it carries the two event types
-  classified "must not be missing" everywhere else.
 - A crash between provider success and the status update pages a person
   twice while history shows one delivery; state that the trail counts
   recorded outcomes, not provider calls.

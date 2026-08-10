@@ -70,7 +70,7 @@ never flip mid-history (see the `event_id` row in the doc's Reference);
 the table's `event_id` default becomes `generateUUIDv7()` (rides issue 3).
 The PostgreSQL side is issue 5.
 
-### 3. The recreation DDL and the narrowed projection
+### 3. The recreation DDL
 
 Doc step 1, the immutable core. Lands once; `ORDER BY` and `PARTITION BY`
 cannot change after production history exists.
@@ -98,11 +98,8 @@ Required outcome:
   `evidence_json` and `samples_json`.
 - The split TTL: evaluation rows at 30 days, the rest at tenant
   `logs_days`.
-- The narrowed `app.logs` materialized view: `instance_fired` and
-  `instance_resolved` only, `write_source = 'live'` only, readable `Body`,
-  `ServiceName` from `service_name`, `everr.signal = 'alert'` in
-  `ResourceAttributes`. Set `materialized_views_ignore_errors = 1` on the
-  alerting insert.
+- The legacy `app.alert_events_logs_mv` is dropped: alert history is read
+  from the typed table, not from `app.logs`.
 
 ### 4. Row builders for the new shape
 
@@ -116,8 +113,8 @@ Files:
 - `packages/app/src/server/alerts/delivery/send-delivery.ts`
 
 Required outcome: `service_name` resolved at write time (instance labels
-matching `/^service([_-]?name)?$/i`, then the `everr.service` annotation,
-then `'alert'`); `write_source = 'live'` on every live insert; `rule_muted`
+matching `/^service([_-]?name)?$/i`, then `'alert'`);
+`write_source = 'live'` on every live insert; `rule_muted`
 computed from `spec.suppressed` or preview membership;
 `evaluation_scheduled_at` zero off evaluation rows; the `error` column
 sanitized at the write boundary so webhook URLs and tokens never land in
@@ -285,8 +282,7 @@ Doc step 7, second half. Pause and delete journal one terminal event per
 open instance, with the reason, in the mutation's own transaction. Pause
 also resets its instances to `inactive` so resume starts from scratch.
 Preview deletion writes its terminals as projections only, ephemeral by
-declaration. Decide whether the `app.logs` projection carries
-`instance_pending`.
+declaration.
 
 ### 17. `app.alert_state`
 
