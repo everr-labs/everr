@@ -399,10 +399,6 @@ async function evaluateAlertRule(
 
   const evaluatedAt = new Date();
   const evidence = boundEvidence(rows);
-  const capturedSamples = captureAlertEvaluationSamples(
-    rows,
-    def.spec.label_columns,
-  );
   const present = rowsToInstances(
     rows.filter((row) => alertingConditionMatches(row, def.spec.condition)),
     def.spec.label_columns,
@@ -417,6 +413,14 @@ async function evaluateAlertRule(
   );
   const presentByFingerprint = new Map(
     present.map((instance) => [instance.fingerprint, instance]),
+  );
+  // Matching rows first, so a rule with more than the sample cap's worth of
+  // label sets never buries the breaching ones under healthy filler and the
+  // series doesn't miss a breach that paged someone.
+  const capturedSamples = captureAlertEvaluationSamples(
+    rows,
+    def.spec.label_columns,
+    new Set(presentByFingerprint.keys()),
   );
   const previousRows = await db
     .select()
