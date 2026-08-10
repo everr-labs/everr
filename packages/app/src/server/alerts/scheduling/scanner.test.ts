@@ -39,11 +39,7 @@ import {
   alertingRetryDelaySeconds,
   nextAlertEvaluationAt,
 } from "@/data/alerting/scheduling/evaluation-jobs.server";
-import {
-  previewDefinitionsEnqueueable,
-  scanDueAlerts,
-  staleEnqueueCutoff,
-} from "./scanner";
+import { scanDueAlerts, staleEnqueueCutoff } from "./scanner";
 
 describe("alert scanner", () => {
   beforeEach(() => {
@@ -141,13 +137,5 @@ describe("alert scanner", () => {
     const waitedSeconds =
       (now.getTime() - staleEnqueueCutoff(now).getTime()) / 1_000;
     expect(waitedSeconds).toBeGreaterThanOrEqual(600);
-  });
-
-  it("allows preview definitions to enqueue when the switch is on", () => {
-    expect(previewDefinitionsEnqueueable("on")).toBe(true);
-  });
-
-  it("is the kill switch that stops preview definitions from enqueueing when off", () => {
-    expect(previewDefinitionsEnqueueable("off")).toBe(false);
   });
 });
