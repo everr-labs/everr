@@ -1,8 +1,10 @@
 import { lookup } from "node:dns/promises";
 import { isIP } from "node:net";
 import type { AlertingChannelConfig } from "@/data/alerting/types";
+import { CHANNEL_TEXT_MAX } from "@/lib/channel-text-limits";
 import { sendSlackMessage } from "@/lib/slack.server";
 import { sendTelegramMessage } from "@/lib/telegram.server";
+import { truncateWithEllipsis } from "@/lib/truncate";
 
 const SEND_TIMEOUT_MS = 10_000;
 
@@ -100,13 +102,35 @@ async function postJson(urlRaw: string, body: unknown): Promise<void> {
   }
 }
 
+// The url is the pointer to the alert page and the highest-value token in
+// the message. When a channel limit forces a cut, the body gives way and the
+// url survives whole; only a title and url that alone exceed the limit fall
+// back to a blind cut.
+function composeText(notification: ChannelNotification, max: number): string {
+  const url = notification.url ?? "";
+  const frameLength = url
+    ? notification.title.length + url.length + 4
+    : notification.title.length + 2;
+  const bodyBudget = max - frameLength;
+  if (bodyBudget <= 0) {
+    return truncateWithEllipsis(
+      [notification.title, url].filter(Boolean).join("\n\n"),
+      max,
+    );
+  }
+  return [
+    notification.title,
+    truncateWithEllipsis(notification.body, bodyBudget),
+    url,
+  ]
+    .filter(Boolean)
+    .join("\n\n");
+}
+
 export async function sendChannelNotification(
   config: AlertingChannelConfig,
   notification: ChannelNotification,
 ): Promise<void> {
-  const text = [notification.title, notification.body, notification.url]
-    .filter(Boolean)
-    .join("\n\n");
   switch (config.type) {
     case "webhook":
       await postJson(config.url, notification);
@@ -120,7 +144,10 @@ export async function sendChannelNotification(
             blocks: [
               {
                 type: "section",
-                text: { type: "mrkdwn", text },
+                text: {
+                  type: "mrkdwn",
+                  text: composeText(notification, CHANNEL_TEXT_MAX.slack),
+                },
               },
             ],
           },
@@ -128,12 +155,18 @@ export async function sendChannelNotification(
       });
       return;
     case "discord":
-      await postJson(config.url, { content: text });
+      await postJson(config.url, {
+        content: composeText(notification, CHANNEL_TEXT_MAX.discord),
+      });
       return;
     case "telegram":
       await Promise.all(
         config.chat_ids.map((chatId) =>
-          sendTelegramMessage(config.bot_token, chatId, text),
+          sendTelegramMessage(
+            config.bot_token,
+            chatId,
+            composeText(notification, CHANNEL_TEXT_MAX.telegram),
+          ),
         ),
       );
       return;
@@ -144,7 +177,9 @@ export async function sendChannelNotification(
           mailer.send({
             to,
             subject: notification.title,
-            text,
+            text: [notification.title, notification.body, notification.url]
+              .filter(Boolean)
+              .join("\n\n"),
           }),
         ),
       );

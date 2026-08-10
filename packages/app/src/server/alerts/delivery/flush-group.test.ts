@@ -4,11 +4,8 @@ import { describe, expect, it, vi } from "vitest";
 // reaching the real database client.
 vi.mock("@/db/client", () => ({ db: {}, pool: {} }));
 
+import { CHANNEL_TEXT_MAX } from "@/lib/channel-text-limits";
 import { formatNotification, type NotificationEvent } from "./flush-group";
-
-// The sender composes title + body + optional URL into one Discord message
-// whose hard limit is 2000 characters; the body must leave room for the rest.
-const DISCORD_CONTENT_LIMIT = 2000;
 
 function event(overrides: Partial<NotificationEvent> = {}): NotificationEvent {
   return {
@@ -44,7 +41,9 @@ describe("formatNotification", () => {
     const shown = lines.length - 1;
     expect(shown).toBeLessThanOrEqual(20);
     expect(lines.at(-1)).toBe(`…and ${300 - shown} more events in this group`);
-    expect(body.length).toBeLessThan(DISCORD_CONTENT_LIMIT - title.length - 4);
+    expect(body.length).toBeLessThan(
+      CHANNEL_TEXT_MAX.discord - title.length - 4,
+    );
   });
 
   it("caps one pathological event so it cannot eat the budget", () => {

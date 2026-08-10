@@ -11,6 +11,7 @@ import {
   alertNotificationGroups,
   alertReceiverChannels,
 } from "@/db/schema";
+import { CHANNEL_TEXT_MAX } from "@/lib/channel-text-limits";
 import { addWorkerJobInTransaction } from "@/server/worker/jobs";
 import { ALERT_DELIVERY_MAX_ATTEMPTS } from "./config";
 import {
@@ -30,13 +31,12 @@ import {
   AlertGroupTaskPayloadSchema,
 } from "./tasks";
 
-// Discord rejects messages over 2000 characters, the tightest channel limit,
-// and a rejected notification is a lost page. The sender frames the body with
-// the title and an optional URL, so the body budget keeps a margin under that
-// cap; Slack (3000 per section) and Telegram (4096, truncated downstream)
-// then fit for free. The title carries the full firing/resolved counts, so
-// cutting lines never hides how big the group is.
-const BODY_MAX_CHARS = 1800;
+// The body budgets against the tightest channel limit, keeping a margin for
+// the title and url framing; the sender cuts the body further when a long
+// url eats past the margin, never the url itself. The title carries the full
+// firing/resolved counts, so cutting lines never hides how big the group is.
+const COMPOSE_FRAME_MARGIN = 200;
+const BODY_MAX_CHARS = CHANNEL_TEXT_MAX.discord - COMPOSE_FRAME_MARGIN;
 const BODY_MAX_EVENTS = 20;
 const LINE_MAX_CHARS = 200;
 // Room kept back for the "…and N more" line so appending it cannot overflow.

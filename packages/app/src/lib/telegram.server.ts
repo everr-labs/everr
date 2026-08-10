@@ -1,7 +1,6 @@
+import { CHANNEL_TEXT_MAX } from "@/lib/channel-text-limits";
 import { truncateWithEllipsis } from "@/lib/truncate";
 
-// Telegram rejects messages longer than this outright.
-const MAX_TEXT_LENGTH = 4096;
 const SEND_TIMEOUT_MS = 10_000;
 
 // Alert messages are deliberately plain text: no parse_mode and no inline
@@ -18,7 +17,7 @@ export async function sendTelegramMessage(
   }
 
   // A truncated alert beats a dropped one.
-  const bounded = truncateWithEllipsis(text, MAX_TEXT_LENGTH);
+  const bounded = truncateWithEllipsis(text, CHANNEL_TEXT_MAX.telegram);
 
   const response = await fetch(
     `https://api.telegram.org/bot${token}/sendMessage`,
