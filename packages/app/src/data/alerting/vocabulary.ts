@@ -27,7 +27,7 @@ export const ALERTING_EVENT_TYPES = [
 // The closed vocabulary of reasons a terminal row can carry. History rows are
 // append-only, so a typo here would be an unlabelled reason forever; every
 // writer must pick from this list, not from a bare string.
-const ALERTING_LIFECYCLE_REASONS = [
+export const ALERTING_LIFECYCLE_REASONS = [
   "condition_cleared",
   "pending_cleared",
   "labels_changed",

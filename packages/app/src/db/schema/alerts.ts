@@ -27,8 +27,16 @@ import {
   ALERTING_EVENT_TYPES,
   ALERTING_HEALTH_STATUSES,
   ALERTING_INSTANCE_STATUSES,
+  ALERTING_LIFECYCLE_REASONS,
   ALERTING_SEVERITIES,
 } from "@/data/alerting/vocabulary";
+
+// Derived from the vocabulary export, not hand-listed, so a reason added
+// there without a CHECK update fails loudly instead of journaling silently.
+const ALERT_EVENTS_REASON_VOCABULARY_SQL = ["", ...ALERTING_LIFECYCLE_REASONS]
+  .map((reason) => `'${reason}'`)
+  .join(", ");
+
 import { previews } from "./app";
 
 export const alertStateEnum = pgEnum("alert_state", [
@@ -295,6 +303,14 @@ export const alertEvents = pgTable(
     check(
       "alert_events_kind_matches_type",
       sql`(${table.eventType} NOT IN ('instance_pending', 'instance_closed', 'evaluation_failed', 'hold_changed') OR ${table.kind} = 'state') AND (${table.eventType} NOT IN ('instance_fired', 'instance_resolved') OR ${table.kind} = 'notifying')`,
+    ),
+    // Enforces the closed reason vocabulary the `reason` column comment
+    // promises: derived from ALERTING_LIFECYCLE_REASONS so a reason added
+    // there without a matching migration is caught at write time, not
+    // silently blanked by a reader that doesn't recognize it.
+    check(
+      "alert_events_reason_in_vocabulary",
+      sql`${table.reason} IN (${sql.raw(ALERT_EVENTS_REASON_VOCABULARY_SQL)})`,
     ),
     index("alert_events_org_occurred_idx").on(
       table.organizationId,
