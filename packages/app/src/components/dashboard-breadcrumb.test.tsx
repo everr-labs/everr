@@ -181,58 +181,64 @@ describe("DashboardBreadcrumb", () => {
 
   it("renders parent and leaf breadcrumbs correctly", () => {
     mockUseMatches.mockReturnValue([
-      makeMatch("/cost-analysis", "Cost Analysis"),
-      makeMatch("/tests-overview", "Tests Overview"),
+      makeMatch("/dashboards", "Dashboards"),
+      makeMatch("/dashboards/my-dash", "My Dash"),
     ]);
     render(<DashboardBreadcrumb />);
 
-    const parentLink = screen.getByText("Cost Analysis").closest("a");
-    expect(parentLink).toHaveAttribute("href", "/cost-analysis");
+    const parentLink = screen.getByText("Dashboards").closest("a");
+    expect(parentLink).toHaveAttribute("href", "/dashboards");
 
     expect(
-      screen
-        .getByText("Tests Overview")
-        .closest("[data-slot='breadcrumb-page']"),
+      screen.getByText("My Dash").closest("[data-slot='breadcrumb-page']"),
     ).toBeInTheDocument();
   });
 
   it("renders multi-segment breadcrumbs from array return", () => {
     const segmentsFn = () =>
       [
-        { label: "Tests Overview", search: {} },
-        { label: "my-pkg", search: { pkg: "my-pkg" } },
+        { label: "My Dash", search: {} },
+        { label: "my-proj", search: { project: "my-proj" } },
         {
-          label: "TraceWaterfall",
-          search: { pkg: "my-pkg", path: "my-pkg > TraceWaterfall" },
+          label: "Overview",
+          search: { project: "my-proj", slug: "overview" },
         },
       ] as BreadcrumbSegment[];
 
-    mockUseMatches.mockReturnValue([makeMatch("/tests-overview", segmentsFn)]);
+    mockUseMatches.mockReturnValue([
+      makeMatch("/dashboards/my-dash", segmentsFn),
+    ]);
     render(<DashboardBreadcrumb />);
 
     // First two are links, last is a page
-    const rootLink = screen.getByText("Tests Overview").closest("a");
-    expect(rootLink).toHaveAttribute("href", "/tests-overview?");
+    const rootLink = screen.getByText("My Dash").closest("a");
+    expect(rootLink).toHaveAttribute("href", "/dashboards/my-dash?");
 
-    const pkgLink = screen.getByText("my-pkg").closest("a");
-    expect(pkgLink).toHaveAttribute("href", "/tests-overview?pkg=my-pkg");
+    const pkgLink = screen.getByText("my-proj").closest("a");
+    expect(pkgLink).toHaveAttribute(
+      "href",
+      "/dashboards/my-dash?project=my-proj",
+    );
 
     expect(
-      screen
-        .getByText("TraceWaterfall")
-        .closest("[data-slot='breadcrumb-page']"),
+      screen.getByText("Overview").closest("[data-slot='breadcrumb-page']"),
     ).toBeInTheDocument();
   });
 
   it("renders separators between multi-segment crumbs", () => {
     const segmentsFn = () =>
       [
-        { label: "Tests Overview", search: {} },
-        { label: "pkg", search: { pkg: "pkg" } },
-        { label: "Describe", search: { pkg: "pkg", path: "pkg > Describe" } },
+        { label: "My Dash", search: {} },
+        { label: "my-proj", search: { project: "my-proj" } },
+        {
+          label: "Overview",
+          search: { project: "my-proj", slug: "overview" },
+        },
       ] as BreadcrumbSegment[];
 
-    mockUseMatches.mockReturnValue([makeMatch("/tests-overview", segmentsFn)]);
+    mockUseMatches.mockReturnValue([
+      makeMatch("/dashboards/my-dash", segmentsFn),
+    ]);
     const { container } = render(<DashboardBreadcrumb />);
 
     const separators = container.querySelectorAll(

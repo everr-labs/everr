@@ -12,7 +12,6 @@ import {
   ChevronRight,
   Download,
   FileText,
-  FlaskConical,
 } from "lucide-react";
 import type { ComponentType } from "react";
 import { INSTALL_COMMAND } from "@/common/install-command";
@@ -61,13 +60,6 @@ function HomePage() {
             title="Logs"
             description="Search logs across runs"
             icon={FileText}
-          />
-        </Link>
-        <Link to="/tests-overview" className="block h-full">
-          <SectionCard
-            title="Tests"
-            description="Spot flaky and slow tests"
-            icon={FlaskConical}
           />
         </Link>
         <Link to="/cost-analysis" className="block h-full">

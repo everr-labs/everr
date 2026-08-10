@@ -1,13 +1,4 @@
 /**
- * Spans carrying `everr.test.*` attributes only come from CI runners.
- * Filtering by ServiceName aligns with the `traces` ORDER BY prefix
- * `(tenant_id, ServiceName, …)` and lets ClickHouse use the primary index
- * instead of scanning every span in the time window.
- */
-export const TEST_SPAN_SERVICE_FILTER =
-  "ServiceName IN ('github-actions', 'everr-labs-everr')";
-
-/**
  * SQL expression to build the full test name from parent_test and test name.
  * Uses "/" as the join separator for deduplication purposes.
  *
@@ -29,39 +20,4 @@ export function testFullNameExpr(
 ): string {
   const expr = `if(${parentAttr} != '', concat(${parentAttr}, '/', ${nameAttr}), ${nameAttr})`;
   return alias ? `${expr} as ${alias}` : expr;
-}
-
-/**
- * SQL condition that excludes parent/suite tests, keeping only leaf tests.
- * A leaf test is one whose full name never appears as another test's parent_test.
- */
-export function leafTestFilter(
-  opts: {
-    fromParam?: string;
-    toParam?: string;
-    leftExpr?: string;
-    rightExpr?: string;
-    extraConditions?: string[];
-  } = {},
-): string {
-  const {
-    fromParam = "fromTime",
-    toParam = "toTime",
-    leftExpr = testFullNameExpr(null),
-    rightExpr = "SpanAttributes['everr.test.parent_test']",
-    extraConditions = [],
-  } = opts;
-  const scopedConditions =
-    extraConditions.length > 0
-      ? `\n      AND ${extraConditions.join("\n      AND ")}`
-      : "";
-
-  return `${leftExpr} NOT IN (
-    SELECT DISTINCT ${rightExpr}
-    FROM traces
-    WHERE ${TEST_SPAN_SERVICE_FILTER}
-      AND SpanAttributes['everr.test.parent_test'] != ''
-      AND Timestamp >= {${fromParam}:String} AND Timestamp <= {${toParam}:String}
-      ${scopedConditions}
-  )`;
 }
