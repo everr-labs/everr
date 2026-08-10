@@ -91,7 +91,9 @@ new WebSDK({
 
 The `node` export condition resolves a server entry, so isomorphic code can import `logger` and `captureError` from the same specifier. On the server the SDK owns no pipeline: it attaches to the OpenTelemetry SDK your app already registered, and records join the request trace. WebSDK options are accepted and inert there, and lifecycle belongs to your `NodeSDK` handle.
 
-For Node process crashes, use [`@everr/otel-errors`](https://github.com/everr-labs/everr/tree/main/packages/otel-errors).
+`captureError` needs no `WebSDK` on the server. It reports through [`@everr/otel-errors`](https://github.com/everr-labs/everr/tree/main/packages/otel-errors)' shared client, so whatever redaction and rate limits you `configure` there cover these records too, and `shutdown()` leaves error capture running. `logger` keeps the gate: it needs a constructed `WebSDK`, and goes silent after `shutdown()`.
+
+For Node process crashes, register that package's `ErrorsInstrumentation` on your `NodeSDK`.
 
 ## License
 

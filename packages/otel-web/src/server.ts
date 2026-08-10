@@ -9,17 +9,28 @@
 // means the API's built-in no-ops: silent and structurally inert, so keyless
 // or SDK-less processes never issue a network request.
 //
-// Error capture delegates to @everr/otel-errors' core Client
-// (normalization, scrubbing, rate limiting, and the recordException +
-// setStatus(ERROR) span marking) instead of reimplementing it, but
-// constructs its own instance: the ErrorsInstrumentation, and with it the
-// process crash handlers, stays the app's to register on its NodeSDK in
-// the server entrypoint.
+// Error capture delegates to @everr/otel-errors (normalization, redaction,
+// rate limiting, and the recordException + setStatus(ERROR) span marking)
+// instead of reimplementing it. That package owns one client per process, so
+// an app that configures redaction for its own crash handlers covers these
+// records too, and the ErrorsInstrumentation with its crash handlers stays
+// the app's to register on its NodeSDK.
+//
+// The error path binds at module load, not in the WebSDK constructor: with
+// nothing per-instance left to attach to, gating it would only make
+// captureError silently no-op in a module graph that never constructs a
+// WebSDK. logger keeps the constructor gate, because its emitter genuinely
+// is per-instance, and shutdown() unbinds only that.
+//
+// This is the one module-load side effect in the package, so package.json's
+// `sideEffects: false` is a half-truth for this entry. It stays: the flag
+// lets a bundler drop the module only when nothing is imported from it, and
+// a graph that imports nothing here has no captureError to bind for.
 
 // The /core subpath is that package's runtime-neutral half: it keeps the
 // instrumentation (and its @types/node requirement) out of this package's
 // browser-lib tsc program, which deliberately has no node typings.
-import { Client } from "@everr/otel-errors/core";
+import { capture } from "@everr/otel-errors/core";
 import { context } from "@opentelemetry/api";
 import {
   type LogAttributes,
@@ -38,9 +49,13 @@ import { logger } from "./logger.js";
 import type { Persistence, UserTraits, WebSDKOptions } from "./types.js";
 import { SDK_NAME, SDK_VERSION } from "./version.js";
 
-// captureError is the same live-binding surface the browser uses (one
-// state machine: warn before construction, silent after shutdown); the
-// WebSDK constructor below swaps in the otel-errors adapter.
+// The one binding of the shared report surface to otel-errors, done at module
+// load so server-side captureError works with no setup. Never unbound: the
+// shared client outlives any WebSDK, so there is nothing to restore it to.
+bindReport((error, mechanism, context) =>
+  capture({ error, mechanism, context }),
+);
+
 export type { AttrValue } from "./emitter.js";
 export { captureError } from "./errors.js";
 export type {
@@ -61,24 +76,19 @@ export { logger };
 export class WebSDK {
   /** Resolves immediately; batching belongs to the app's SDK. */
   flush: () => Promise<void>;
-  /** Unbinds logger and captureError from the app's SDK. */
+  /** Unbinds logger from the app's SDK. Error capture stays live. */
   shutdown: () => Promise<void>;
 
   constructor(_options: WebSDKOptions) {
     // Resolved once: before a global provider registers this is a ProxyLogger
     // that starts delegating the moment the app's SDK lands.
     const otelLogger = logs.getLogger(SDK_NAME, SDK_VERSION);
-    const errors = new Client();
     // The shared current.ts binding: logger samples it per call, here adapted
     // onto the app's LoggerProvider.
     const unbindEmit = bindEmit(emitVia(otelLogger));
-    const stopReporting = bindReport((error, mechanism, context) =>
-      errors.capture({ error, mechanism, context }),
-    );
     this.flush = async () => {};
     this.shutdown = async () => {
       unbindEmit();
-      stopReporting();
     };
   }
 }

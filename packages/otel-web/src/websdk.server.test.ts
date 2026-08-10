@@ -5,6 +5,7 @@
 // the @opentelemetry/api globals; logger and captureError ride the app's
 // LoggerProvider and join its active trace context. No SDK registered means
 // the API's built-in no-ops: silent, structurally inert.
+import { setLogger } from "@everr/otel-errors/core";
 import { context, SpanStatusCode, trace } from "@opentelemetry/api";
 import { logs } from "@opentelemetry/api-logs";
 import { AsyncLocalStorageContextManager } from "@opentelemetry/context-async-hooks";
@@ -44,6 +45,10 @@ function registerSdk(): void {
     processors: [new SimpleLogRecordProcessor(logExporter)],
   });
   logs.setGlobalLoggerProvider(loggerProvider);
+  // otel-errors resolves its logger once, on the shared client's first use,
+  // so a per-test provider swap needs the same rebinding an app gets from
+  // ErrorsInstrumentation.setLoggerProvider.
+  setLogger(loggerProvider.getLogger("test"));
   spanExporter = new InMemorySpanExporter();
   tracerProvider = new BasicTracerProvider({
     spanProcessors: [new SimpleSpanProcessor(spanExporter)],
@@ -69,20 +74,25 @@ afterEach(async () => {
 describe("init (server)", () => {
   // First in the file by design: the pre-init warning only exists before
   // the module's first new WebSDK() call.
-  it("warns before init and goes silent after shutdown", async () => {
+  it("gates logger on init but never gates error capture", async () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     logger.info("before init");
+    expect(warn).toHaveBeenCalledTimes(1);
+    // Errors need no WebSDK on the server: the shared otel-errors client is
+    // bound at module load, so this lands.
     captureError(new Error("before init"));
-    expect(warn).toHaveBeenCalledTimes(2);
+    expect(logExporter.getFinishedLogRecords()).toHaveLength(1);
 
     client = new WebSDK({ serviceName: "everr-docs-test" });
     await client.shutdown();
     client = undefined;
     warn.mockClear();
+
     logger.info("after shutdown");
-    captureError(new Error("after shutdown"));
     expect(warn).not.toHaveBeenCalled();
-    expect(logExporter.getFinishedLogRecords()).toHaveLength(0);
+    // Still one record: the logger went silent, the error path did not.
+    captureError(new Error("after shutdown"));
+    expect(logExporter.getFinishedLogRecords()).toHaveLength(2);
   });
 
   it("emits custom logs through the app's LoggerProvider", () => {
@@ -171,6 +181,9 @@ describe("init (server)", () => {
   it("is a structural no-op when no OTel SDK is registered", async () => {
     logs.disable();
     trace.disable();
+    // What an SDK-less process actually holds: the API's no-op logger. The
+    // rebinding undoes registerSdk's, which a real such process never made.
+    setLogger(logs.getLogger("test"));
     const fetchSpy = vi.spyOn(globalThis, "fetch");
     client = new WebSDK({ serviceName: "everr-docs-test" });
     logger.info("into the void");
