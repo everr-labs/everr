@@ -203,7 +203,11 @@ export async function flushAlertGroup(rawPayload: unknown): Promise<void> {
     }
     members.push({ event, flushedAt });
   }
-  const { active, notify: notificationEvents } = groupNotificationPlan(members);
+  const {
+    active,
+    notify: notificationEvents,
+    droppedUnannounced,
+  } = groupNotificationPlan(members);
   const channels = group.directAlertDefinitionId
     ? await db
         .select({ channel: alertChannels })
@@ -366,11 +370,10 @@ export async function flushAlertGroup(rawPayload: unknown): Promise<void> {
       );
     }
   });
-  if (droppedRows.length > 0) {
+  if (droppedRows.length > 0 || droppedUnannounced.length > 0) {
     const decidedAt = new Date();
-    await recordAlertHistory(
-      null,
-      droppedRows.map(({ event, ruleActive }) =>
+    await recordAlertHistory(null, [
+      ...droppedRows.map(({ event, ruleActive }) =>
         suppressionHistoryRow({
           def: historyDefFromJournalRow(event),
           notificationEventId: event.id,
@@ -383,6 +386,22 @@ export async function flushAlertGroup(rawPayload: unknown): Promise<void> {
           reason: ruleActive === null ? "rule_deleted" : "rule_paused",
         }),
       ),
-    );
+      // A resolve whose fire never went out: nobody was ever told this
+      // instance was firing, so the resolve does not notify either, but its
+      // chain still needs a terminal so it does not read as forever in
+      // flight.
+      ...droppedUnannounced.map((event) =>
+        suppressionHistoryRow({
+          def: historyDefFromJournalRow(event),
+          notificationEventId: event.id,
+          occurredAt: decidedAt,
+          fingerprint: event.instanceFingerprint,
+          labels: event.instanceLabels,
+          silenced: false,
+          inhibited: false,
+          silenceId: null,
+        }),
+      ),
+    ]);
   }
 }

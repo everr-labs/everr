@@ -23,6 +23,14 @@ export interface GroupNotificationPlan<E> {
   active: E[];
   /** What this flush reports. `active` is always a subset. */
   notify: E[];
+  /**
+   * A resolve whose fire never reached a notification: this instance's only
+   * fire-type member in this batch was never flushed. Excluded from
+   * `notify` (announcing a recovery nobody was told about is worse than
+   * silence), but the chain still needs a terminal so it does not read as
+   * forever in flight.
+   */
+  droppedUnannounced: E[];
 }
 
 /**
@@ -37,21 +45,42 @@ export interface GroupNotificationPlan<E> {
 export function groupNotificationPlan<E extends GroupedEvent>(
   members: GroupMember<E>[],
 ): GroupNotificationPlan<E> {
-  const latestByInstance = new Map<string, E>();
-  for (const { event } of [...members].sort(
+  const sorted = [...members].sort(
     (a, b) => a.event.occurredAt.getTime() - b.event.occurredAt.getTime(),
-  )) {
-    latestByInstance.set(
-      `${event.sourceDefinitionId}:${event.instanceFingerprint}`,
-      event,
-    );
-  }
-  const latest = [...latestByInstance.values()];
-  const active = latest.filter(
-    (event) => event.eventType !== "instance_resolved",
   );
+  const latestByInstance = new Map<string, E>();
+  // Whether this instance's fire-type member(s) in this batch were ever
+  // carried into a prior notification. Only tracked from fire-type members:
+  // a lone resolve with no fire counterpart in the batch is a reconsidered
+  // deferral (the fire went out through an earlier, separate flush whose
+  // membership row is already gone), not a flap, and this must not touch it.
+  const fireMemberSeen = new Map<string, boolean>();
+  for (const { event, flushedAt } of sorted) {
+    const key = `${event.sourceDefinitionId}:${event.instanceFingerprint}`;
+    latestByInstance.set(key, event);
+    if (event.eventType !== "instance_resolved") {
+      fireMemberSeen.set(
+        key,
+        (fireMemberSeen.get(key) ?? false) || flushedAt !== null,
+      );
+    }
+  }
+  const latest = [...latestByInstance.entries()];
+  const active = latest
+    .filter(([, event]) => event.eventType !== "instance_resolved")
+    .map(([, event]) => event);
   const hasUnflushed = members.some((member) => member.flushedAt === null);
-  return { active, notify: hasUnflushed ? latest : active };
+  const announced = hasUnflushed ? latest.map(([, event]) => event) : active;
+  const notify: E[] = [];
+  const droppedUnannounced: E[] = [];
+  for (const event of announced) {
+    const key = `${event.sourceDefinitionId}:${event.instanceFingerprint}`;
+    const flap =
+      event.eventType === "instance_resolved" &&
+      fireMemberSeen.get(key) === false;
+    (flap ? droppedUnannounced : notify).push(event);
+  }
+  return { active, notify, droppedUnannounced };
 }
 
 type MemberLiveness = "deliverable" | "dropped" | "dropped_unnotified";

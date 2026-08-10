@@ -145,16 +145,56 @@ describe("groupNotificationPlan", () => {
     ).toEqual(["a", "b"]);
   });
 
-  it("keeps only the newest event per instance", () => {
+  // The regression this fix closes: fire at T, resolve at T+15, flush at
+  // T+30. Both memberships are unflushed (never carried into a
+  // notification), so the old code reported only the newest event per
+  // instance: "1 resolved" for an alert nobody was ever told was firing.
+  it("drops a flap instead of announcing a resolve whose fire never went out", () => {
     const plan = groupNotificationPlan([
-      member({ occurredAt: "2026-08-06T09:00:00Z" }),
+      member({ occurredAt: "2026-08-06T09:00:00Z", flushedAt: null }),
       member({
         eventType: "instance_resolved",
         occurredAt: "2026-08-06T09:30:00Z",
+        flushedAt: null,
+      }),
+    ]);
+    expect(plan.notify).toEqual([]);
+    expect(plan.droppedUnannounced).toHaveLength(1);
+    expect(plan.droppedUnannounced[0].eventType).toBe("instance_resolved");
+    expect(plan.active).toEqual([]);
+  });
+
+  it("keeps notifying a resolve once its fire already went out in an earlier flush", () => {
+    const plan = groupNotificationPlan([
+      member({
+        occurredAt: "2026-08-06T09:00:00Z",
+        flushedAt: "2026-08-06T09:10:00Z",
+      }),
+      member({
+        eventType: "instance_resolved",
+        occurredAt: "2026-08-06T09:30:00Z",
+        flushedAt: null,
       }),
     ]);
     expect(plan.notify).toHaveLength(1);
     expect(plan.notify[0].eventType).toBe("instance_resolved");
+    expect(plan.droppedUnannounced).toEqual([]);
+  });
+
+  it("does not treat a lone deferred resolve as a flap", () => {
+    // No fire-type member for this instance is in the batch at all: the
+    // fire went out through an earlier, separate flush whose membership row
+    // is already gone. This is the deferred-silence case the module doc
+    // above describes, not a flap.
+    const plan = groupNotificationPlan([
+      member({
+        eventType: "instance_resolved",
+        occurredAt: "2026-08-06T09:50:00Z",
+        flushedAt: null,
+      }),
+    ]);
+    expect(plan.notify).toHaveLength(1);
+    expect(plan.droppedUnannounced).toEqual([]);
   });
 });
 
