@@ -144,6 +144,13 @@ export async function queryClickHouseAlertEventLog(
     fingerprint?: string;
     sourceId?: string;
     slugs?: readonly string[];
+    /**
+     * The sort key is (tenant_id, repoid, slug, ...), so a per-rule read
+     * (one known repoid) should always supply this: without it, the read
+     * falls back to a generic exclusion search past the repoid prefix. Leave
+     * unset only for a caller that genuinely spans repos (org-wide history).
+     */
+    repoid?: string;
     /** null selects live events; an array overlays those Preview ids on live. */
     previewIds: readonly string[] | null;
   },
@@ -160,6 +167,9 @@ export async function queryClickHouseAlertEventLog(
     filters.push("is_live");
   } else {
     filters.push("(is_live OR preview_id IN {previewIds:Array(UUID)})");
+  }
+  if (opts.repoid !== undefined) {
+    filters.push("repoid = {repoid:String}");
   }
   if (opts.fingerprint !== undefined) {
     filters.push("instance_fingerprint = {fingerprint:String}");
@@ -197,6 +207,7 @@ export async function queryClickHouseAlertEventLog(
       to: toClickHouseDateTime(opts.to),
       limit: opts.limit,
       ...(opts.previewIds?.length ? { previewIds: [...opts.previewIds] } : {}),
+      ...(opts.repoid !== undefined ? { repoid: opts.repoid } : {}),
       ...(opts.fingerprint !== undefined
         ? { fingerprint: opts.fingerprint }
         : {}),

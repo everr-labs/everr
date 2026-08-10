@@ -13,6 +13,8 @@ export const alertHistoryQueries = {
       fingerprint?: string;
       sourceId?: string;
       slugs?: readonly string[];
+      /** The rule's own repoid; only a genuinely per-rule caller should set this. */
+      repoid?: string;
       preview?: string;
     } = {},
   ) => {
@@ -29,6 +31,7 @@ export const alertHistoryQueries = {
           fingerprint: opts.fingerprint ?? null,
           sourceId: opts.sourceId ?? null,
           slugs,
+          repoid: opts.repoid ?? null,
           preview,
         },
       ] as const,
@@ -42,6 +45,7 @@ export const alertHistoryQueries = {
               : {}),
             ...(opts.sourceId !== undefined ? { sourceId: opts.sourceId } : {}),
             ...(slugs === null ? {} : { slugs }),
+            ...(opts.repoid !== undefined ? { repoid: opts.repoid } : {}),
             ...(preview === null ? {} : { preview }),
           },
         }),

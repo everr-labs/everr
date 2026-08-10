@@ -72,6 +72,27 @@ describe("queryClickHouseAlertEventLog", () => {
     expect(emptyPreviewSql).toBe(liveSql);
   });
 
+  it("filters on repoid for a per-rule read, hitting the sort-key prefix", async () => {
+    await queryClickHouseAlertEventLog("org-1", {
+      ...range,
+      previewIds: null,
+      slugs: ["default/high-5xx"],
+      repoid: "repo-1",
+    });
+
+    const [sql, , params] = mocks.query.mock.calls[0];
+    expect(sql).toContain("repoid = {repoid:String}");
+    expect(params).toMatchObject({ repoid: "repo-1" });
+  });
+
+  it("leaves repoid unfiltered for an org-wide read", async () => {
+    await queryClickHouseAlertEventLog("org-1", { ...range, previewIds: null });
+
+    const [sql, , params] = mocks.query.mock.calls[0];
+    expect(sql).not.toContain("repoid = {repoid:String}");
+    expect(params).not.toHaveProperty("repoid");
+  });
+
   it("overlays selected Preview ids on live history", async () => {
     await queryClickHouseAlertEventLog("org-1", {
       ...range,
