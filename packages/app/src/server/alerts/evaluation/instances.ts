@@ -6,6 +6,12 @@ export interface AlertInstance {
   row: Record<string, unknown>;
 }
 
+// A SQL NULL and the literal empty string are different values; collapsing
+// both to "" would fingerprint two distinct series as the same instance.
+// Missing columns (the key absent from the row entirely) still map to "",
+// since there is no SQL value there to distinguish.
+export const NULL_LABEL_VALUE = "<null>";
+
 export function extractInstanceLabels(
   row: Record<string, unknown>,
   instanceLabelColumns: readonly string[],
@@ -15,7 +21,11 @@ export function extractInstanceLabels(
     for (const column of instanceLabelColumns) {
       const value = row[column];
       labels[column] =
-        value === undefined || value === null ? "" : String(value);
+        value === undefined
+          ? ""
+          : value === null
+            ? NULL_LABEL_VALUE
+            : String(value);
     }
     return labels;
   }

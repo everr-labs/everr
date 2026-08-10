@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   extractInstanceLabels,
   instanceFingerprint,
+  NULL_LABEL_VALUE,
   rowsToInstances,
 } from "./instances";
 
@@ -25,6 +26,20 @@ describe("extractInstanceLabels", () => {
     expect(extractInstanceLabels({ route: "/x" }, ["zone"])).toEqual({
       zone: "",
     });
+  });
+
+  // The regression: a SQL NULL and the literal empty string both mapped to
+  // "", so two distinct series shared one instance row.
+  it("maps an explicit SQL NULL to a value distinct from the empty string", () => {
+    expect(extractInstanceLabels({ zone: null }, ["zone"])).toEqual({
+      zone: NULL_LABEL_VALUE,
+    });
+    expect(NULL_LABEL_VALUE).not.toBe("");
+    expect(
+      instanceFingerprint(extractInstanceLabels({ zone: null }, ["zone"])),
+    ).not.toBe(
+      instanceFingerprint(extractInstanceLabels({ zone: "" }, ["zone"])),
+    );
   });
 
   it("returns empty labels for rows with no string columns", () => {
