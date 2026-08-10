@@ -274,6 +274,16 @@ export const alertEvents = pgTable(
       name: "alert_events_preview_tenant_fk",
     }).onDelete("cascade"),
     check("alert_events_repoid_nonempty", sql`length(${table.repoid}) > 0`),
+    // The born-processed boundary rests on kind agreeing with event_type: the
+    // delivery reads select kind = 'notifying', and kind defaults to it, so a
+    // state-stream row journaled by a writer that forgot the field becomes a
+    // notification candidate. One-directional per type: the legacy types stay
+    // unconstrained, and future streams pick their side when their writers
+    // land.
+    check(
+      "alert_events_kind_matches_type",
+      sql`(${table.eventType} NOT IN ('instance_pending', 'instance_closed', 'evaluation_failed', 'hold_changed') OR ${table.kind} = 'state') AND (${table.eventType} NOT IN ('instance_fired', 'instance_resolved') OR ${table.kind} = 'notifying')`,
+    ),
     index("alert_events_org_occurred_idx").on(
       table.organizationId,
       sql`occurred_at DESC`,

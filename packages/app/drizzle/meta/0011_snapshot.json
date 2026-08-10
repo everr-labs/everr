@@ -1194,6 +1194,10 @@
         "alert_events_repoid_nonempty": {
           "name": "alert_events_repoid_nonempty",
           "value": "length(\"alert_events\".\"repoid\") > 0"
+        },
+        "alert_events_kind_matches_type": {
+          "name": "alert_events_kind_matches_type",
+          "value": "(\"alert_events\".\"event_type\" NOT IN ('instance_pending', 'instance_closed', 'evaluation_failed', 'hold_changed') OR \"alert_events\".\"kind\" = 'state') AND (\"alert_events\".\"event_type\" NOT IN ('instance_fired', 'instance_resolved') OR \"alert_events\".\"kind\" = 'notifying')"
         }
       },
       "isRLSEnabled": false
