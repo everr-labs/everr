@@ -68,10 +68,6 @@ GRANT SELECT ON app.metrics_summary              TO sql_api_role;
 -- the three is missing, the table is either unreachable or readable across
 -- tenants. Organizations provisioned before the new entry also need a policy
 -- backfill; see clickhouse/migrate-alert-events-sql-api-access.sql.
--- app.alert_events_logs_mv needs no grant or policy of its own: row policies
--- apply when the destination table (app.logs) is read, and a MV body runs
--- with the inserting user's privileges, so projected alert rows are already
--- covered by the logs policies above and below.
 GRANT SELECT ON app.alert_events  TO sql_api_role;
 
 -- Clean up accidental/manual system grants. SHOW TABLES handles schema

@@ -218,13 +218,3 @@ HAVING countIf(event_type = 'instance_fired'
 ORDER BY fired_at DESC
 LIMIT 100
 ```
-
-## Alert Rows In `logs`
-
-Fired and resolved transitions are also projected into `logs`, so an engineer
-reading application output around an incident sees the alert inline. Those
-rows carry `ScopeName = 'everr.alerting'`, the alerted service in
-`ServiceName`, `ResourceAttributes['everr.signal'] = 'alert'`, and the ids in
-`LogAttributes` (`alert.event_id`, `alert.notification_event_id`,
-`alert.slug`, `alert.event_type`). The projection carries identity only: for
-evidence, samples, context, silences or delivery, query `alert_events`.
