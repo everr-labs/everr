@@ -343,7 +343,7 @@ export function deliveryHistoryRow(opts: {
   };
 }
 
-function insertAlertHistoryRows(rows: AlertHistoryRow[]): Promise<void> {
+function insertAlertHistoryRowsAsync(rows: AlertHistoryRow[]): Promise<void> {
   return insertAdminRows("app.alert_events", rows, {
     async_insert: 1,
     wait_for_async_insert: 1,
@@ -351,17 +351,42 @@ function insertAlertHistoryRows(rows: AlertHistoryRow[]): Promise<void> {
   });
 }
 
+// Anchors dedup to the batch's logical identity (which journal or hold-decision
+// rows it projects), not to matching insert bytes: the same rows in a
+// different order, or from a racing second writer, still converge.
+function alertHistoryDedupToken(rows: readonly AlertHistoryRow[]): string {
+  const ids = rows.map((row) => row.event_id).sort();
+  return `app.alert_events:${ids.join(",")}`;
+}
+
+// Retry convergence needs insert_deduplication_token to actually dedup, and
+// that requires a synchronous insert: non_replicated_deduplication_window
+// (set on the table) documents token dedup for regular inserts on a
+// non-replicated MergeTree, but token handling under async_insert has been
+// inconsistent across ClickHouse versions. This path is a rare lifecycle
+// projection, not the hot path, so paying for a synchronous insert here is
+// cheap.
+function insertAlertHistoryRowsSync(rows: AlertHistoryRow[]): Promise<void> {
+  return insertAdminRows("app.alert_events", rows, {
+    async_insert: 0,
+    date_time_input_format: "best_effort",
+    insert_deduplication_token: alertHistoryDedupToken(rows),
+  });
+}
+
 /**
  * The throwing form, for callers whose only job is the insert: the lifecycle
  * projection runs as a Graphile task with retries, and a swallowed failure
- * there would report success while the chain's terminals are lost. Deterministic
- * row ids make the retry convergent.
+ * there would report success while the chain's terminals are lost. This path
+ * inserts synchronously with insert_deduplication_token set from the sorted
+ * row ids, so a retry that resends the same logical batch converges on one
+ * write instead of duplicating terminal rows.
  */
 export async function recordAlertHistoryStrict(
   rows: AlertHistoryRow[],
 ): Promise<void> {
   if (rows.length === 0) return;
-  await insertAlertHistoryRows(rows);
+  await insertAlertHistoryRowsSync(rows);
 }
 
 export async function recordAlertHistory(
@@ -372,7 +397,7 @@ export async function recordAlertHistory(
 ): Promise<void> {
   if (rows.length === 0) return;
   try {
-    await insertAlertHistoryRows(rows);
+    await insertAlertHistoryRowsAsync(rows);
   } catch (error) {
     serverLogger.error("alerts.history.insert_failed", {
       ...exceptionAttributes(error),

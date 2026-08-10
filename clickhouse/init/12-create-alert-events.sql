@@ -100,9 +100,11 @@ ORDER BY (tenant_id, repoid, slug, event_type, event_time, event_id)
 -- else lives at the tenant retention.
 TTL toDateTime(event_time) + INTERVAL least(toUInt32(30), dictGetOrDefault('app.tenant_retention', 'logs_days', tenant_id, toUInt32(3650))) DAY DELETE WHERE event_type IN ('evaluation_succeeded', 'evaluation_failed'),
     toDateTime(event_time) + INTERVAL dictGetOrDefault('app.tenant_retention', 'logs_days', tenant_id, toUInt32(3650)) DAY DELETE WHERE event_type NOT IN ('evaluation_succeeded', 'evaluation_failed')
--- The deduplication window is sized now, at recreation time, so the
--- reconciler's insert_deduplication_token scheme has it when it lands with
--- the reconciliation ticket; nothing sets tokens yet.
+-- The deduplication window is sized now, at recreation time. recordAlertHistoryStrict
+-- (server/alerts/history/clickhouse.ts) sets insert_deduplication_token today,
+-- synchronously, for the lifecycle projection's Graphile retries; the live
+-- best-effort path and the reconciler (when it lands) still need their own
+-- token scheme.
 -- allow_suspicious_ttl_expressions rides the statement, not the session, so
 -- SHOW CREATE matches migrated deployments.
 SETTINGS index_granularity = 8192, non_replicated_deduplication_window = 10000, allow_suspicious_ttl_expressions = 1;
