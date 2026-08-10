@@ -775,7 +775,7 @@ queries must not add a `tenant_id` predicate.
 | `service_name` | `LowCardinality(String)` | The service the alert concerns, resolved at write time; `'alert'` when none |
 | `severity` | `LowCardinality(String)` | `info`, `warning` or `critical`, validated at the spec boundary, not by the insert path (a non-throwing writer must not drop rows when a value is added). The rule's severity when the row was written; editing a rule changes later rows, not past ones |
 | `rule_muted` | `Bool` | The rule never notifies (`spec.suppressed` or a preview). Set on every row; unrelated to `silenced` |
-| `reason` | `LowCardinality(String)` | `condition_cleared` on `instance_resolved`; `pending_cleared`, `rule_paused`, `rule_deleted` or `preview_deleted` on `instance_closed`; the matching value on a terminal `notification_suppressed` |
+| `reason` | `LowCardinality(String)` | `condition_cleared` on `instance_resolved`; `pending_cleared`, `labels_changed`, `rule_paused`, `rule_deleted` or `preview_deleted` on `instance_closed`; `rule_paused`, `rule_deleted`, `no_longer_firing` or `no_channels` on a terminal `notification_suppressed`. The closed vocabulary is `ALERTING_LIFECYCLE_REASONS` in `data/alerting/vocabulary.ts` |
 | `silenced`, `inhibited` | `Bool` | Frozen at write time. Meaningful only on `notification_deferred` and `notification_suppressed` rows; always false on a transition |
 | `silence_id` | `UUID` | The matched silence, zero if none |
 | `silence_comment`, `silence_matchers_json` | `String` | Frozen from the silence, so the row reads without PostgreSQL |

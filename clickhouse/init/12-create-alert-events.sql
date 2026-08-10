@@ -53,8 +53,11 @@ CREATE TABLE IF NOT EXISTS app.alert_events
   -- on every row; unrelated to `silenced`, which is per notification.
   rule_muted Bool DEFAULT false,
   -- On terminal instance rows: condition_cleared on instance_resolved;
-  -- pending_cleared, rule_paused, rule_deleted or preview_deleted on
-  -- instance_closed; the matching value on a terminal notification_suppressed.
+  -- pending_cleared, labels_changed, rule_paused, rule_deleted or
+  -- preview_deleted on instance_closed; rule_paused, rule_deleted,
+  -- no_longer_firing or no_channels on a terminal notification_suppressed.
+  -- The closed vocabulary lives in ALERTING_LIFECYCLE_REASONS
+  -- (src/data/alerting/vocabulary.ts).
   reason LowCardinality(String) DEFAULT '',
   -- Notification outcome, frozen at the moment it was decided. A silence
   -- created later never rewrites what these say happened. Meaningful only on
