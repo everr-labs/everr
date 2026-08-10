@@ -8,8 +8,6 @@ import {
   getSuccessRateVariant,
   normalizeTimestampToUtc,
   parseDuration,
-  testNameLastSegment,
-  testNameSeparator,
 } from "./formatting";
 
 describe("formatDuration", () => {
@@ -152,21 +150,5 @@ describe("normalizeTimestampToUtc", () => {
 
   it("leaves invalid timestamps unchanged", () => {
     expect(normalizeTimestampToUtc("not-a-date")).toBe("not-a-date");
-  });
-});
-
-describe("testNameSeparator", () => {
-  it("detects Vitest, Rust, and Go hierarchies", () => {
-    expect(testNameSeparator("pkg > suite > test")).toBe(" > ");
-    expect(testNameSeparator("suite::nested::test")).toBe("::");
-    expect(testNameSeparator("Suite/SubTest")).toBe("/");
-  });
-});
-
-describe("testNameLastSegment", () => {
-  it("returns the last segment across supported test hierarchies", () => {
-    expect(testNameLastSegment("pkg > suite > test")).toBe("test");
-    expect(testNameLastSegment("suite::nested::test")).toBe("test");
-    expect(testNameLastSegment("Suite/SubTest")).toBe("SubTest");
   });
 });

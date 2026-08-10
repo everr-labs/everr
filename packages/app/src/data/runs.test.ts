@@ -51,7 +51,7 @@ describe("getRunJobs", () => {
 });
 
 describe("getRunSpans", () => {
-  it("maps the isSuite attribute when present", async () => {
+  it("maps a step span from the query result", async () => {
     mockedQuery.mockResolvedValue([
       {
         spanId: "suite-span",
@@ -60,7 +60,7 @@ describe("getRunSpans", () => {
         startTime: "1000",
         endTime: "2000",
         duration: "1000",
-        conclusion: "",
+        conclusion: "success",
         jobId: "job-1",
         jobName: "test",
         stepNumber: "3",
@@ -73,26 +73,12 @@ describe("getRunSpans", () => {
         sender: "",
         runAttempt: "",
         htmlUrl: "",
-        testName: "src/test.ts > formatDuration",
-        testResult: "pass",
-        testDuration: "1",
-        testFramework: "vitest",
-        testLanguage: "typescript",
-        isSubtest: "1",
-        isSuite: "true",
       },
     ]);
 
     const result = await getRunSpans({ data: "trace-1" });
 
     expect(mockedQuery).toHaveBeenCalledTimes(1);
-    expect(mockedQuery.mock.calls[0]?.[0]).toContain("everr.test.is_suite");
-    expect(mockedQuery.mock.calls[0]?.[0]).toContain(
-      "ResourceAttributes['everr.test.framework']",
-    );
-    expect(mockedQuery.mock.calls[0]?.[0]).toContain(
-      "ResourceAttributes['everr.test.language']",
-    );
     expect(result).toEqual([
       {
         spanId: "suite-span",
@@ -113,13 +99,6 @@ describe("getRunSpans", () => {
         sender: undefined,
         runAttempt: undefined,
         htmlUrl: undefined,
-        testName: "src/test.ts > formatDuration",
-        testResult: "pass",
-        testDuration: 1,
-        testFramework: "vitest",
-        testLanguage: "typescript",
-        isSubtest: true,
-        isSuite: true,
       },
     ]);
   });

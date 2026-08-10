@@ -122,7 +122,6 @@ export const getRepoDurationTrend = createAuthenticatedServerFn({
 				AND ResourceAttributes['vcs.repository.name'] = {repo:String}
 				AND ResourceAttributes['cicd.pipeline.task.run.id'] != ''
 				AND SpanAttributes['everr.github.workflow_job_step.number'] = ''
-				AND SpanAttributes['everr.test.name'] = ''
 			GROUP BY date
 			ORDER BY date ASC WITH FILL FROM toDate({fromTime:String}) TO toDate({toTime:String}) + 1
 		`;

@@ -107,10 +107,6 @@ _Avoid_: machine, agent
 A test whose outcome varies for the same code — sometimes passing, sometimes failing.
 _Avoid_: intermittent failure
 
-**Test telemetry**:
-Tests represented as Signals: each test case's execution captured as a Span (carrying `everr.test.*` attributes) by parsing a test framework's verbose output. The basis for surfacing pass/fail, duration, and Flaky tests over time.
-_Avoid_: test analytics, test insights, test reporting
-
 ### Resources as code
 
 **Dashboard**:

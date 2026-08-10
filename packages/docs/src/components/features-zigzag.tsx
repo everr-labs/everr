@@ -102,10 +102,9 @@ const FEATURES: Feature[] = [
   {
     index: "05",
     title: "CI you can query",
-    body: "A GitHub App turns every Actions run into structured, queryable data: workflows, jobs, steps, and per-test spans. Every run is a trace and every job carries its cost, so you can optimize for performance, cost, or both.",
+    body: "A GitHub App turns every Actions run into structured, queryable data: workflows, jobs, and steps. Every run is a trace and every job carries its cost, so you can optimize for performance, cost, or both.",
     points: [
       "Workflows, jobs, and steps as queryable traces",
-      "Per-test spans for slow and flaky tests",
       "Estimated cost attributed by job, workflow, and runner",
       "Get notified when a workflow run fails",
     ],
@@ -456,9 +455,8 @@ spec:
   );
 }
 
-/** Two staggered windows for the CI card: one run rendered as a trace waterfall
- *  (back) and a flaky-test history panel (front). The `test` span ties them
- *  together, mirroring what the GitHub App ingests, runs and per-test spans. */
+/** A run rendered as a trace waterfall, mirroring what the GitHub App
+ *  ingests: workflows, jobs, and steps as spans. */
 function CiShot() {
   const spans = [
     {
@@ -497,19 +495,8 @@ function CiShot() {
     },
   ];
 
-  const runs = [
-    { name: "auth.login", passes: [1, 1, 0, 1, 1, 0, 1, 1], flakes: 2 },
-    { name: "pool.acquire", passes: [1, 1, 1, 0, 1, 1, 1, 1], flakes: 1 },
-    { name: "cart.checkout", passes: [1, 1, 1, 1, 1, 1, 1, 1], flakes: 0 },
-    { name: "upload.large", passes: [1, 0, 1, 0, 1, 1, 0, 1], flakes: 3 },
-  ].map((t) => ({
-    ...t,
-    cells: t.passes.map((p, i) => ({ id: `${t.name}-${i}`, pass: p === 1 })),
-  }));
-
   return (
-    <div className="relative pb-24">
-      {/* Back window: one run as a trace waterfall */}
+    <div className="relative">
       <div className="w-[88%] overflow-hidden rounded-xl border border-fd-border bg-fd-card shadow-xl shadow-black/20">
         <WindowChrome size="sm" title="ci.yml · run #1842" trailing="4m 18s" />
         <div className="space-y-1.5 px-3 py-3">
@@ -537,41 +524,6 @@ function CiShot() {
               </span>
               <span className="w-10 shrink-0 text-right tabular-nums text-fd-muted-foreground/55">
                 {s.dur}
-              </span>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Front window: flaky-test history, staggered down and to the right */}
-      <div className="absolute bottom-0 right-0 w-[74%] overflow-hidden rounded-xl border border-fd-border bg-fd-card shadow-2xl shadow-black/40">
-        <WindowChrome size="sm" title="flaky tests · 30d" />
-        <div className="space-y-2 px-3 py-3">
-          {runs.map((t) => (
-            <div
-              key={t.name}
-              className="flex items-center gap-2 font-mono text-[10px] sm:text-[11px]"
-            >
-              <span className="w-[4.5rem] shrink-0 truncate text-fd-muted-foreground">
-                {t.name}
-              </span>
-              <span className="flex flex-1 gap-0.5">
-                {t.cells.map((c) => (
-                  <span
-                    key={c.id}
-                    className={cn(
-                      "h-2.5 flex-1 rounded-[1px]",
-                      c.pass ? "bg-fd-muted-foreground/20" : "bg-primary",
-                    )}
-                  />
-                ))}
-              </span>
-              <span className="w-12 shrink-0 text-right tabular-nums">
-                {t.flakes > 0 ? (
-                  <span className="text-fd-foreground">{t.flakes} flaky</span>
-                ) : (
-                  <span className="text-fd-muted-foreground/50">stable</span>
-                )}
               </span>
             </div>
           ))}

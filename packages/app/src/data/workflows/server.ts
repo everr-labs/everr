@@ -38,7 +38,6 @@ const JOB_COST_FILTER = [
   nonEmptyResourceAttribute("cicd.pipeline.task.run.id"),
   `lowerUTF8(${resourceAttribute("cicd.pipeline.task.run.result")}) != 'skip'`,
   "SpanAttributes['everr.github.workflow_job_step.number'] = ''",
-  "SpanAttributes['everr.test.name'] = ''",
 ].join(AND);
 
 export const getWorkflowCostSummary = createAuthenticatedServerFn({
@@ -319,7 +318,6 @@ export const getWorkflowRunTimelines = createAuthenticatedServerFn({
 			WHERE TraceId IN {traceIds:Array(String)}
 				AND ${nonEmptyResourceAttribute("cicd.pipeline.task.run.id")}
 				AND SpanAttributes['everr.github.workflow_job_step.number'] = ''
-				AND SpanAttributes['everr.test.name'] = ''
 			GROUP BY trace_id, jobId
 			ORDER BY startMs ASC
 		`,
@@ -387,8 +385,7 @@ export const getWorkflowRecentRuns = createAuthenticatedServerFn({
       whereClause: `Timestamp >= {fromTime:String} AND Timestamp <= {toTime:String}
 					AND ${RUN_FILTER}
 					AND ${nonEmptyResourceAttribute("cicd.pipeline.task.run.result")}
-					AND SpanAttributes['everr.github.workflow_job_step.number'] = ''
-					AND SpanAttributes['everr.test.name'] = ''`,
+					AND SpanAttributes['everr.github.workflow_job_step.number'] = ''`,
       groupByExpr: "TraceId",
       groupByAlias: "trace_id",
       includeRunAttempt: true,
