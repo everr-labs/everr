@@ -158,4 +158,67 @@ describe("sendAlertDelivery send failure", () => {
     // delivery must not both compute the same stale count.
     expect(is(failedCall?.[0].attempts, SQL)).toBe(true);
   });
+
+  it("keeps the original send error when failDelivery's own write also throws", async () => {
+    const sendError = new Error("provider rejected the request");
+    mocks.send.mockReset().mockRejectedValue(sendError);
+    // The failure bookkeeping write itself fails too.
+    mocks.where.mockReset().mockRejectedValue(new Error("db unavailable"));
+
+    let thrown: unknown;
+    try {
+      await sendAlertDelivery({ dedupKey: "dk-1" });
+    } catch (error) {
+      thrown = error;
+    }
+    expect(thrown).toBeInstanceOf(Error);
+    const cause = (thrown as Error).cause as {
+      sendError: Error;
+      bookkeepingError: Error;
+    };
+    expect(cause.sendError.message).toBe(sendError.message);
+  });
+});
+
+describe("sendAlertDelivery status write after a successful send", () => {
+  beforeEach(() => {
+    mocks.deliveryRows = [deliveryRow];
+    mocks.liveRules = [{ eventId: "e-1" }];
+    mocks.send.mockReset().mockResolvedValue(undefined);
+    mocks.outcome.mockReset().mockResolvedValue(undefined);
+    mocks.where.mockReset().mockResolvedValue(undefined);
+    mocks.set.mockReset().mockReturnValue({ where: mocks.where });
+    mocks.update.mockReset().mockReturnValue({ set: mocks.set });
+  });
+
+  it("does not classify the delivery failed when only the status write fails", async () => {
+    mocks.where.mockReset().mockRejectedValue(new Error("db unavailable"));
+
+    await expect(sendAlertDelivery({ dedupKey: "dk-1" })).rejects.toThrow();
+
+    expect(mocks.send).toHaveBeenCalledOnce();
+    // Never classified failed: the send succeeded, only the bookkeeping
+    // write did not land.
+    const failedCalls = mocks.set.mock.calls.filter(
+      (call) => call[0]?.status === "failed",
+    );
+    expect(failedCalls).toHaveLength(0);
+    expect(mocks.outcome).not.toHaveBeenCalledWith(
+      expect.objectContaining({ outcome: "failed" }),
+    );
+    // Retried once before giving up.
+    expect(mocks.where).toHaveBeenCalledTimes(2);
+  });
+
+  it("records the succeeded outcome once the status write lands", async () => {
+    await sendAlertDelivery({ dedupKey: "dk-1" });
+
+    expect(mocks.outcome).toHaveBeenCalledWith(
+      expect.objectContaining({ outcome: "succeeded" }),
+    );
+    const sentCall = mocks.set.mock.calls.find(
+      (call) => call[0]?.status === "sent",
+    );
+    expect(sentCall).toBeDefined();
+  });
 });

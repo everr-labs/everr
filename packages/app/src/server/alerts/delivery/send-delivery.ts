@@ -104,29 +104,66 @@ export async function sendAlertDelivery(rawPayload: unknown): Promise<void> {
     );
     channelType = config.type;
     await sendChannelNotification(config, row.delivery.notification);
-    await db
+  } catch (cause) {
+    // failDelivery's own write can throw too (a transient DB error, say);
+    // let that one through unchanged rather than the real send failure it
+    // would otherwise replace. `cause` on the original still carries it.
+    try {
+      await failDelivery(
+        channelType,
+        errorMessage(cause).slice(0, 8_000),
+        // Computed in the UPDATE, not from the Node-side `row` read: two
+        // racing runs of the same delivery would otherwise both compute the
+        // same stale count and one attempt would go uncounted.
+        sql`${alertDeliveries.attempts} + 1`,
+      );
+    } catch (bookkeepingError) {
+      throw new Error(
+        "alert delivery send failed, and recording it failed too",
+        {
+          cause: { sendError: cause, bookkeepingError },
+        },
+      );
+    }
+    throw cause;
+  }
+  // The send succeeded. Nothing from here on may run inside a try whose catch
+  // reaches failDelivery: that would mark a delivered notification failed and
+  // have Graphile send it a second time.
+  const markSent = () =>
+    db
       .update(alertDeliveries)
       .set({
         status: "sent",
-        attempts: row.delivery.attempts + 1,
+        attempts: sql`${alertDeliveries.attempts} + 1`,
         lastError: null,
         updatedAt: new Date(),
       })
-      .where(eq(alertDeliveries.dedupKey, dedupKey));
-  } catch (cause) {
-    await failDelivery(
-      channelType,
-      errorMessage(cause).slice(0, 8_000),
-      // Computed in the UPDATE, not from the Node-side `row` read: two racing
-      // runs of the same delivery would otherwise both compute the same
-      // stale count and one attempt would go uncounted.
-      sql`${alertDeliveries.attempts} + 1`,
-    );
-    throw cause;
+      .where(
+        and(
+          eq(alertDeliveries.dedupKey, dedupKey),
+          ne(alertDeliveries.status, "sent"),
+        ),
+      );
+  try {
+    await markSent();
+  } catch {
+    try {
+      await markSent();
+    } catch (statusWriteError) {
+      // The send went out but neither attempt to record it landed. Do not
+      // classify this row failed: it was not a failed send. Leave it
+      // pending and throw a distinct error so this run is not confused with
+      // a send failure; the job queue's retry (or the reconciliation sweep,
+      // ticket 23) is what resolves a row stuck here.
+      throw new Error(
+        "alert delivery sent, but its status write failed twice",
+        { cause: statusWriteError },
+      );
+    }
   }
-  // Outside the try on purpose. Recording history must never be able to send
-  // this delivery down the failure path, which would mark a delivered
-  // notification as failed and have Graphile send it a second time.
+  // Outside the write's own try on purpose. Recording history must never be
+  // able to send this delivery down the failure path.
   await recordDeliveryOutcome({
     organizationId: row.delivery.organizationId,
     dedupKey,
