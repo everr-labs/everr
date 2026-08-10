@@ -97,6 +97,8 @@ describe("ClickHouse alert history", () => {
     expect(transition).toMatchObject({
       event_id: "019c3aba-29f8-7d6e-9e55-301cf47fa80d",
       event_type: "instance_fired",
+      // A transition runs no query; row_count must not claim otherwise.
+      row_count: 0,
       evidence_json: '{"value":42}',
       context_json: '{"summary":"42 errors"}',
       instance_labels: { service: "api" },

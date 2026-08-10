@@ -255,7 +255,10 @@ export function instanceHistoryRow(opts: {
     }),
     ...instanceRowFields(opts.fingerprint, opts.labels),
     episode_id: opts.episodeId,
-    row_count: 1,
+    // row_count means one thing: rows the rule's query returned. A
+    // transition or a lifecycle terminal runs no query, so it stays 0, the
+    // DDL default, rather than a hardcoded 1 that claims a query result.
+    row_count: 0,
     evidence_json: JSON.stringify(opts.evidence),
     evidence_truncated: opts.evidenceTruncated,
     context_json: opts.contextJson,
