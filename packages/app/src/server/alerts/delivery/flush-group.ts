@@ -128,9 +128,6 @@ export async function flushAlertGroup(rawPayload: unknown): Promise<void> {
   const droppedRows: typeof rows = [];
   for (const row of rows) {
     const { event, flushedAt, ruleActive } = row;
-    // Muted chains sit outside the terminal surface: history consumers filter
-    // `rule_muted = false`, so a muted member is neither notified nor closed.
-    if (event.suppressed) continue;
     const liveness = memberLiveness(ruleActive, flushedAt);
     if (liveness === "dropped_unnotified") {
       droppedRows.push(row);
