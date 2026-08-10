@@ -864,10 +864,12 @@ the evaluation TTL.
 
 ### Worked queries
 
-Every query below filters `is_live`. Preview rows are visible on this
-surface by design (decided 2026-08-09), so live-only is the default
-posture, stated once: drop the `is_live` predicate only when the question
-is about a preview.
+Every query below that selects by predicate filters `is_live`. Preview
+rows are visible on this surface by design (decided 2026-08-09), so
+live-only is the default posture, stated once: drop the `is_live`
+predicate only when the question is about a preview, or on a point lookup
+by `notification_event_id`, where the id already pins one chain, live or
+preview, and the filter would hide a preview chain asked for by id.
 
 What fired in the last day:
 
