@@ -50,7 +50,6 @@ describe("instrumentServerFetch", () => {
     expect(telemetryMocks.captureError).toHaveBeenCalledWith(
       expect.any(Error),
       {
-        "error.handled": false,
         "error.source": "server.response",
         "http.request.method": "POST",
         "http.response.status_code": 500,

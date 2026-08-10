@@ -1,76 +1,50 @@
-import { init as initErrorTracking } from "@everr/auto-otel-errors/browser";
-import { logs } from "@opentelemetry/api-logs";
-import { OTLPLogExporter } from "@opentelemetry/exporter-logs-otlp-http";
-import { resourceFromAttributes } from "@opentelemetry/resources";
 import {
-  BatchLogRecordProcessor,
-  LoggerProvider,
-} from "@opentelemetry/sdk-logs";
-import { resolveTelemetryConfig, signalUrl } from "./config";
+  errors,
+  interactions,
+  network,
+  pageviews,
+  performance,
+  WebSDK,
+} from "@everr/otel-web";
+import { readConsent } from "@/telemetry/consent";
+import { parameterizeTelemetryPath } from "@/telemetry/paths";
 
-// Browser error tracking for the web app (dogfooding): captured errors become
-// OTel log records that ship to Everr over OTLP/HTTP. This mirrors the app's
-// server telemetry (`node.ts`) but for the browser, and reuses the same
-// endpoint/key resolution in `config.ts`.
+// Everr-native browser telemetry for the web app (dogfooding): pageviews,
+// frustration clicks, web vitals, and errors flow to Everr as OTel log
+// records under a browser service name distinct from the server's
+// (`node.ts`), so the two sides stay separable in queries. Error capture rides the SDK's own errors() instrumentation
+// (window.onerror, unhandledrejection, and the router's error component via
+// the re-exported `captureReactError`), stamped with the same analytics
+// envelope.
 //
-// `@everr/auto-otel-errors` is transport-less: its `init()` is a no-op unless a
-// global `LoggerProvider` is registered first, which is exactly what this
-// module does before calling it.
-
-const BATCH_OPTIONS = {
-  maxQueueSize: 100,
-  maxExportBatchSize: 32,
-  scheduledDelayMillis: 5_000,
-  exportTimeoutMillis: 30_000,
-};
-
-function initClientErrorTracking(): void {
-  // Runs once at client bundle load (this is a side-effect module). No-op on
-  // the server.
-  if (typeof window === "undefined") return;
-
-  const ingestKey = import.meta.env.VITE_EVERR_PUBLIC_INGEST_KEY?.trim();
-  const endpointOverride = import.meta.env.VITE_EVERR_INGEST_ENDPOINT?.trim();
-
-  // In production, only send when a public key (or explicit endpoint) is
-  // configured, so a keyless deploy never POSTs to a collector that isn't
-  // there. In dev, fall back to the local collector so developers see their
-  // own browser errors with no setup.
-  if (!ingestKey && !endpointOverride && !import.meta.env.DEV) return;
-
-  const config = resolveTelemetryConfig(
-    {
-      EVERR_INGEST_KEY: ingestKey,
-      OTEL_EXPORTER_OTLP_ENDPOINT: endpointOverride,
-      DEPLOYMENT_ENVIRONMENT: import.meta.env.MODE,
-    },
-    crypto.randomUUID(),
-  );
-  if (!config) return;
-
-  const loggerProvider = new LoggerProvider({
-    resource: resourceFromAttributes(config.resourceAttributes),
-    processors: [
-      new BatchLogRecordProcessor(
-        new OTLPLogExporter({
-          url: signalUrl(config.endpoint, "logs"),
-          headers: config.headers,
-        }),
-        BATCH_OPTIONS,
-      ),
-    ],
-  });
-  logs.setGlobalLoggerProvider(loggerProvider);
-
-  // Installs window `error` / `unhandledrejection` handlers and wires manual
-  // `captureError` / the React `ErrorBoundary`. Each capture emits one log
-  // record through the provider above.
-  initErrorTracking();
-
-  // Best-effort flush of anything still batched when the page goes away.
-  window.addEventListener("beforeunload", () => {
-    void loggerProvider.shutdown();
-  });
-}
-
-initClientErrorTracking();
+// Persistence boots from the stored consent cookie: memory (no storage, ids
+// die with the page) until consent is granted. A consent change flips the
+// live client in place via setPersistence()/revoke() (see
+// telemetry/consent-gate.tsx); this only picks the initial mode. The
+// WebSDK is inert on the server and, without a key outside dev, never issues a
+// network request; dev sends to the local collector. The route pattern is pushed
+// by the TanStack adapter via setRouteResolver; `getRouter()` registers
+// the router with it.
+new WebSDK({
+  persistence: readConsent() === "granted" ? "localStorage" : "memory",
+  serviceName: "everr-dev-app-web",
+  deploymentEnvironment: import.meta.env.MODE,
+  ingestKey: import.meta.env.VITE_EVERR_PUBLIC_INGEST_KEY,
+  endpoint: import.meta.env.VITE_EVERR_INGEST_ENDPOINT,
+  dev: import.meta.env.DEV,
+  // Capture is opt-in only: the full built-in composition. performance()
+  // includes the page-load window (asset waterfall + long-animation-frame
+  // records) by default.
+  instrumentations: [
+    errors(),
+    pageviews(),
+    interactions(),
+    performance(),
+    // The same parameterization the server stamps on http.route, so a
+    // request's url.template (notably /_serverFn/:id) matches its server
+    // span's route.
+    network({
+      resolveRouteTemplate: (url) => parameterizeTelemetryPath(url.pathname),
+    }),
+  ],
+});

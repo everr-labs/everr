@@ -60,7 +60,6 @@ export async function recordAlertEvents(
       ...exceptionAttributes(error),
       "alert.definition_id": def.id,
       "alert.event_count": events.length,
-      "error.handled": true,
     });
   }
 }

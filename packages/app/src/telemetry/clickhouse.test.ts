@@ -61,7 +61,6 @@ describe("instrumentClickhouseOperation", () => {
       "clickhouse.client": "app",
       "db.operation.name": "QUERY",
       "db.system.name": "clickhouse",
-      "error.handled": false,
       "error.source": "clickhouse",
     });
     expect(telemetryMocks.loggerInfo).not.toHaveBeenCalled();
@@ -114,7 +113,6 @@ describe("instrumentClickhouseOperation", () => {
       "clickhouse.client": "sql_api",
       "db.operation.name": "QUERY",
       "db.system.name": "clickhouse",
-      "error.handled": false,
       "error.source": "clickhouse",
     });
     expect(telemetryMocks.loggerInfo).not.toHaveBeenCalled();

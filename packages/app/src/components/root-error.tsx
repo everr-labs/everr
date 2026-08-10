@@ -1,4 +1,4 @@
-import { captureReactError } from "@everr/auto-otel-errors/react";
+import { captureReactError } from "@everr/otel-web/react";
 import { RetryError } from "@everr/ui/components/retry-error";
 import type { ErrorComponentProps } from "@tanstack/react-router";
 import { useEffect } from "react";

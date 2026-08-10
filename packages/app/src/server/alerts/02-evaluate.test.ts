@@ -182,7 +182,6 @@ describe("evaluateAlert", () => {
       expect.objectContaining({
         "alert.definition_id": alertDefinitionId,
         "exception.message": "readonly",
-        "error.handled": true,
       }),
     );
     expect(deliver).toHaveBeenCalledWith(
@@ -437,7 +436,6 @@ describe("evaluateAlert", () => {
       expect.objectContaining({
         "alert.definition_id": alertDefinitionId,
         "exception.message": "query down",
-        "error.handled": true,
       }),
     );
     expect(serverLogger.error).toHaveBeenCalledWith(
@@ -445,7 +443,6 @@ describe("evaluateAlert", () => {
       expect.objectContaining({
         "alert.definition_id": alertDefinitionId,
         "exception.message": "readonly",
-        "error.handled": true,
       }),
     );
     expect(deliver).not.toHaveBeenCalled();

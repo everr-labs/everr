@@ -1,4 +1,4 @@
-import { captureError } from "@everr/auto-otel-errors/browser";
+import { captureError } from "@everr/otel-web";
 import type { SqlClient } from "@everr/telemetry-explorer/logs";
 import { invokeCommand } from "@/lib/tauri";
 
