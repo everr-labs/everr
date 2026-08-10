@@ -105,10 +105,23 @@ export function shapeAlertEvaluationSeries(
   const count = Math.max(2, targetPoints);
   let selected: readonly StoredAlertEvaluationPoint[] = rows;
   if (rows.length > count) {
-    const indexes = requiredEvaluationIndexes(rows);
-    const target = Math.max(indexes.size, count);
-    for (let i = 0; i < count && indexes.size < target; i++) {
-      indexes.add(Math.round((i * (rows.length - 1)) / (count - 1)));
+    let indexes = requiredEvaluationIndexes(rows);
+    if (indexes.size > count) {
+      // A whole-window incident (or constant flapping) makes every point
+      // required, which would ship the full row set to the browser. Grid the
+      // required set itself down to the budget: the incident's edges and
+      // extent survive, interior points beyond display resolution do not.
+      const ordered = Array.from(indexes).sort((a, b) => a - b);
+      indexes = new Set<number>();
+      for (let i = 0; i < count; i++) {
+        indexes.add(
+          ordered[Math.round((i * (ordered.length - 1)) / (count - 1))],
+        );
+      }
+    } else {
+      for (let i = 0; i < count && indexes.size < count; i++) {
+        indexes.add(Math.round((i * (rows.length - 1)) / (count - 1)));
+      }
     }
     selected = Array.from(indexes)
       .sort((a, b) => a - b)

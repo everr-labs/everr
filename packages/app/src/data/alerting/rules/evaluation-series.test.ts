@@ -48,6 +48,22 @@ describe("shapeAlertEvaluationSeries", () => {
     ]);
   });
 
+  // A rule breaching for the whole window makes every point required; without
+  // a cap the chart response carries the full row set, samples included.
+  it("bounds a whole-window incident to the display budget, edges intact", () => {
+    const rows = Array.from({ length: 1000 }, (_, i) => ({
+      ...row(i),
+      rowCount: 3,
+    }));
+
+    const result = shapeAlertEvaluationSeries(rows, 300);
+
+    expect(result.points.length).toBeLessThanOrEqual(300);
+    expect(result.points[0].t).toBe(rows[0].scheduledFor.toISOString());
+    expect(result.points.at(-1)?.t).toBe(rows[999].scheduledFor.toISOString());
+    expect(result.evaluation_count).toBe(1000);
+  });
+
   it("reports truncation even when the truncated evaluation is downsampled out", () => {
     const rows = Array.from({ length: 10 }, (_, i) => row(i, i === 1));
     expect(shapeAlertEvaluationSeries(rows, 2).samples_truncated).toBe(true);

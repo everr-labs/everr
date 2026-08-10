@@ -278,6 +278,12 @@ export async function getRule(organizationId: string, id: string) {
   return ruleView(row, await definitionChannelNamesFor(organizationId, row.id));
 }
 
+// Bounds transfer and server memory for pathological windows: samples_json
+// rides every row, so an uncapped month at a one-minute cadence is tens of
+// thousands of rows. Newest rows win; the shaper reduces further to the
+// display budget.
+const EVALUATION_SERIES_ROW_CAP = 20_000;
+
 export async function getRuleEvaluationSeries(
   organizationId: string,
   id: string,
@@ -306,7 +312,8 @@ export async function getRuleEvaluationSeries(
         AND alert_definition_id = {alertDefinitionId:UUID}
         AND evaluation_scheduled_at >= {from:DateTime64(3)}
         AND evaluation_scheduled_at <= {to:DateTime64(3)}
-      ORDER BY evaluation_scheduled_at
+      ORDER BY evaluation_scheduled_at DESC
+      LIMIT {rowCap:UInt32}
     `,
     organizationId,
     {
@@ -314,8 +321,10 @@ export async function getRuleEvaluationSeries(
       alertDefinitionId: id,
       from: toClickHouseDateTime(opts.from),
       to: toClickHouseDateTime(opts.to),
+      rowCap: EVALUATION_SERIES_ROW_CAP,
     },
   );
+  rows.reverse();
   return shapeAlertEvaluationSeries(
     rows.map((row) => ({
       scheduledFor: new Date(row.scheduledFor),
