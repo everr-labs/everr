@@ -103,3 +103,32 @@ describe("sendAlertDelivery rule liveness", () => {
     );
   });
 });
+
+describe("sendAlertDelivery send failure", () => {
+  beforeEach(() => {
+    mocks.deliveryRows = [deliveryRow];
+    mocks.liveRules = [{ eventId: "e-1" }];
+    mocks.outcome.mockReset().mockResolvedValue(undefined);
+    mocks.where.mockReset().mockResolvedValue(undefined);
+    mocks.set.mockReset().mockReturnValue({ where: mocks.where });
+    mocks.update.mockReset().mockReturnValue({ set: mocks.set });
+  });
+
+  it("sanitizes the webhook url out of last_error before it reaches Postgres", async () => {
+    mocks.send
+      .mockReset()
+      .mockRejectedValue(
+        new Error(
+          "notification webhook failed: 500 at https://hooks.slack.com/services/T0/B0/SECRET",
+        ),
+      );
+
+    await expect(sendAlertDelivery({ dedupKey: "dk-1" })).rejects.toThrow();
+
+    const [failedCall] = mocks.set.mock.calls.filter(
+      (call) => call[0]?.status === "failed",
+    );
+    expect(failedCall?.[0].lastError).not.toContain("SECRET");
+    expect(failedCall?.[0].lastError).toContain("[redacted-url]");
+  });
+});

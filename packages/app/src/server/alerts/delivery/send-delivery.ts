@@ -4,6 +4,7 @@ import { sendChannelNotification } from "@/data/alerting/delivery/channel-sender
 import { db } from "@/db/client";
 import { alertChannels, alertDeliveries } from "@/db/schema";
 import { errorMessage } from "@/telemetry/logger";
+import { sanitizeAlertError } from "../history/content";
 import { ALERT_DELIVERY_MAX_ATTEMPTS } from "./config";
 import { recordDeliveryOutcome } from "./history";
 import { liveRuleForDeliveryQuery } from "./journal-reader";
@@ -26,9 +27,14 @@ export async function sendAlertDelivery(rawPayload: unknown): Promise<void> {
   if (!row || row.delivery.status === "sent") return;
   const failDelivery = async (
     channelType: string,
-    error: string,
+    rawError: string,
     attempts: number,
   ) => {
+    // A provider's error text routinely echoes back the webhook URL, which
+    // for Slack, Discord and Telegram IS the secret; sanitize before it
+    // reaches Postgres, same as the identical string already does on the
+    // ClickHouse path (deliveryHistoryRow).
+    const error = sanitizeAlertError(rawError);
     await db
       .update(alertDeliveries)
       .set({
