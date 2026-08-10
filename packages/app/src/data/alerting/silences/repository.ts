@@ -8,7 +8,7 @@ import {
 } from "@/server/alerts/delivery/tasks";
 import { throwAlertingPersistenceError } from "../persistence";
 import { AlertingSilenceInputSchema } from "../schema";
-import type { AlertingMutationScope } from "../session";
+import { type AlertingMutationScope, alertingActorPrincipal } from "../session";
 import type { AlertingSilenceInput } from "../types";
 
 function toSilence(row: typeof alertSilences.$inferSelect) {
@@ -56,7 +56,10 @@ export async function createSilence(
       endsAt,
       comment: input.comment ?? "",
       // Server-derived: the caller cannot name somebody else as the author.
+      // The display renders; the principal is the identity a later rename
+      // cannot rewrite, and what ticket 17's audit reads.
       author: actor.display,
+      authorPrincipal: alertingActorPrincipal(actor),
       matchers: input.matchers,
     })
     .returning();

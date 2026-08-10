@@ -2081,6 +2081,13 @@
           "notNull": true,
           "default": "''"
         },
+        "author_principal": {
+          "name": "author_principal",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "''"
+        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp with time zone",

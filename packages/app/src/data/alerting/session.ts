@@ -20,6 +20,16 @@ export const SYSTEM_ACTOR: AlertingActor = {
 };
 
 /**
+ * The canonical stored identity of an actor: `user:<id>`, `apikey:<id>`, or
+ * `system`. Persist this next to any stored display: the display is
+ * self-editable profile data (a rename rewrites who a trail appears to name),
+ * the principal is the fact a rename cannot touch.
+ */
+export function alertingActorPrincipal(actor: AlertingActor): string {
+  return actor.kind === "system" ? "system" : `${actor.kind}:${actor.id}`;
+}
+
+/**
  * What every alerting mutation takes: the organization it writes to, and the
  * principal it writes on behalf of. Reads keep taking the organization id
  * alone, because nothing about a read is attributable.

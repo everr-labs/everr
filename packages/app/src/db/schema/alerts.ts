@@ -312,6 +312,10 @@ export const alertSilences = pgTable(
       .$type<AlertingMatcher[]>(),
     comment: text("comment").notNull().default(""),
     author: text("author").notNull().default(""),
+    // The stable identity behind `author` (`user:<id>`, `apikey:<id>`,
+    // `system`). `author` holds the display at creation time, which is
+    // self-editable profile data; this is what the audit trail attributes to.
+    authorPrincipal: text("author_principal").notNull().default(""),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),

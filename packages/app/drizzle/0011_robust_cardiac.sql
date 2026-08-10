@@ -51,6 +51,7 @@ CREATE TABLE "alert_silences" (
 	"matchers" jsonb DEFAULT '[]'::jsonb NOT NULL,
 	"comment" text DEFAULT '' NOT NULL,
 	"author" text DEFAULT '' NOT NULL,
+	"author_principal" text DEFAULT '' NOT NULL,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"canceled_at" timestamp with time zone,
 	CONSTRAINT "alert_silences_valid_window" CHECK ("alert_silences"."ends_at" >= "alert_silences"."starts_at")
