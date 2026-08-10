@@ -1,0 +1,58 @@
+name: Bundle Size
+
+permissions:
+  contents: read
+
+concurrency:
+  # For pushes, this lets concurrent runs happen, so each push gets a result.
+  # But for other events (e.g. PRs), we can cancel the previous runs.
+  group: ${{ github.workflow }}-${{ github.event_name == 'push' && github.sha || github.ref }}
+  cancel-in-progress: true
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/bundle-size.yml
+      - packages/otel-web/**
+      - package.json
+      - pnpm-lock.yaml
+      - pnpm-workspace.yaml
+  pull_request:
+    paths:
+      - .github/workflows/bundle-size.yml
+      - packages/otel-web/**
+      - package.json
+      - pnpm-lock.yaml
+      - pnpm-workspace.yaml
+
+jobs:
+  size:
+    name: Size gate
+    runs-on: blacksmith-2vcpu-ubuntu-2404
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Collect resource usage
+        uses: ./.github/actions/everr-action
+        with:
+          check-run-id: ${{ job.check_run_id }}
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build and gate bundle size
+        # Builds the package, then asserts the cookieless core and (when
+        # present) the lazy replay chunk stay within the spec budgets. The
+        # measured size is printed so growth is watchable, not just gated.
+        run: pnpm --filter @everr/otel-web size

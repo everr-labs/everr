@@ -24,6 +24,9 @@
     // Static entry points reached via Vite resolve.alias in
     // packages/app/vite.config.ts (use-sync-external-store/shim).
     "packages/app/src/ssr-shims/**",
+    // size-limit's own config file, resolved by its CLI at runtime; nothing
+    // in the package imports it.
+    "packages/otel-web/.size-limit.cjs",
   ],
   // @everr/auto-otel-errors: referenced in docs/examples, not a build dep.
   // The two @opentelemetry/* entries are imported only by the OTel web SDK
@@ -31,8 +34,13 @@
   // installs them in their own app); they are not docs-site dependencies.
   "ignoreDependencies": [
     "@everr/auto-otel-errors",
+    // size-limit resolves its preset from package.json at runtime; nothing
+    // imports it.
+    "@size-limit/preset-small-lib",
     "@opentelemetry/exporter-trace-otlp-http",
-    "@opentelemetry/sdk-trace-web"
+    "@opentelemetry/sdk-trace-web",
+    // Stryker loads its runner plugin from stryker.config.json at runtime.
+    "@stryker-mutator/vitest-runner"
   ],
   // Docs content (MDX) is loaded dynamically by fumadocs via import.meta.glob
   // in packages/docs/.source/*.ts — fallow can't trace through the glob.
@@ -71,7 +79,8 @@
     "@everr/auto-otel-errors",
     // Published to npm: the exported surface is the product, so exports with
     // no in-repo consumer are intentional.
-    "@everr/otel-errors"
+    "@everr/otel-errors",
+    "@everr/otel-web"
   ],
   // Error subclasses commonly set `name` and are discriminated via
   // `err.name === "..."` rather than `instanceof`; fallow can't see those
