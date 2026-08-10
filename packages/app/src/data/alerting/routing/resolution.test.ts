@@ -37,27 +37,35 @@ function route(
 }
 
 describe("alertingMatcherMatches", () => {
-  // A missing label reads as the empty string, so `ne` and `notregex` match it
-  // and a permissive pattern does too. An invalid pattern never matches, which
-  // notregex negates into a match.
+  // A missing label reads as the empty string, so `ne` matches it.
   it.each<[AlertingMatcher["op"], string, Record<string, string>, boolean]>([
     ["eq", "pay", { team: "pay" }, true],
     ["eq", "pay", { team: "core" }, false],
     ["eq", "pay", {}, false],
+    ["eq", "", {}, true],
     ["ne", "pay", { team: "core" }, true],
     ["ne", "pay", {}, true],
     ["ne", "pay", { team: "pay" }, false],
-    ["regex", "^pay.*", { team: "payments" }, true],
-    ["regex", "^pay.*", { team: "core" }, false],
-    ["regex", ".*", {}, true],
-    ["regex", "pay", {}, false],
-    ["regex", "(", { team: "pay" }, false],
-    ["notregex", "^pay.*", { team: "core" }, true],
-    ["notregex", "^pay.*", {}, true],
-    ["notregex", "^pay.*", { team: "payments" }, false],
-    ["notregex", "(", { team: "pay" }, true],
   ])("team %s %s against %j is %s", (op, value, labels, expected) => {
     expect(alertingMatcherMatches(matcher(op, value), labels)).toBe(expected);
+  });
+
+  // Matching is exact: a value that reads as a pattern is compared literally.
+  it("compares pattern-looking values literally", () => {
+    expect(
+      alertingMatcherMatches(matcher("eq", "^pay.*"), { team: "pay" }),
+    ).toBe(false);
+    expect(
+      alertingMatcherMatches(matcher("eq", "^pay.*"), { team: "^pay.*" }),
+    ).toBe(true);
+  });
+
+  // Rows persisted before the regex ops were removed must not match.
+  it("never matches a removed op left in stored data", () => {
+    const stale = { label: "team", op: "regex", value: ".*" } as unknown;
+    expect(
+      alertingMatcherMatches(stale as AlertingMatcher, { team: "pay" }),
+    ).toBe(false);
   });
 });
 
@@ -141,7 +149,7 @@ describe("alertingSelectRoutes", () => {
 describe("alertingIsCatchAll", () => {
   it("recognizes only an explicit route without matchers", () => {
     expect(alertingIsCatchAll([])).toBe(true);
-    expect(alertingIsCatchAll([matcher("regex", ".*")])).toBe(false);
+    expect(alertingIsCatchAll([matcher("ne", "")])).toBe(false);
   });
 });
 

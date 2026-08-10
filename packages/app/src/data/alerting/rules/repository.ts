@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { toClickHouseDateTime } from "@everr/ui/lib/time-range";
 import { and, asc, desc, eq, inArray, isNull } from "drizzle-orm";
 import { parseResourceName } from "@/data/as-code/identity";
-import { db, type Transaction } from "@/db/client";
+import { type DbExecutor, db, type Transaction } from "@/db/client";
 import {
   alertChannels,
   alertDefinitionChannels,
@@ -18,6 +18,7 @@ import {
 } from "../persistence";
 import {
   enqueueAlertEvaluation,
+  enqueueAlertEvaluationInTransaction,
   nextAlertEvaluationAt,
 } from "../scheduling/evaluation-jobs.server";
 import {
@@ -80,9 +81,10 @@ function ruleView(row: RuleRow, notificationChannels: string[]) {
 async function definitionChannelNames(
   organizationId: string,
   definitionIds: string[],
+  executor: DbExecutor = db,
 ): Promise<Map<string, string[]>> {
   if (definitionIds.length === 0) return new Map();
-  const rows = await db
+  const rows = await executor
     .select({
       alertDefinitionId: alertDefinitionChannels.alertDefinitionId,
       channelName: alertChannels.name,
@@ -121,11 +123,12 @@ async function definitionChannelNames(
 async function definitionChannelNamesFor(
   organizationId: string,
   definitionId: string,
+  executor: DbExecutor = db,
 ): Promise<string[]> {
   return (
-    (await definitionChannelNames(organizationId, [definitionId])).get(
-      definitionId,
-    ) ?? []
+    (
+      await definitionChannelNames(organizationId, [definitionId], executor)
+    ).get(definitionId) ?? []
   );
 }
 
@@ -229,8 +232,9 @@ export async function listAllRules(
 async function getRuleRow(
   organizationId: string,
   id: string,
+  executor: DbExecutor = db,
 ): Promise<RuleRow> {
-  const [row] = await db
+  const [row] = await executor
     .select()
     .from(alertDefinitions)
     .where(
@@ -325,18 +329,33 @@ function definitionValues(
   };
 }
 
+// In-transaction so the evaluation job cannot outlive a rolled-back rule,
+// and a mutated rule is never left unscheduled by a crash.
+function scheduleEvaluation(tx: Transaction, row: RuleRow): Promise<void> {
+  return enqueueAlertEvaluationInTransaction(tx, {
+    alertDefinitionId: row.id,
+    scheduledFor:
+      row.nextEvaluationAt?.toISOString() ?? new Date().toISOString(),
+    ruleVersion: row.version,
+  });
+}
+
+// The executor is required on every mutation: a defaulted `db` would let a
+// missed call site silently escape the caller's transaction.
 export async function createRule(
   organizationId: string,
   rawInput: AlertingRuleInput,
+  executor: DbExecutor,
 ) {
   const input = AlertingRuleInputSchema.parse(rawInput);
   const channelIds = await resolveOptionalChannelIds(
     organizationId,
     input.notification_channels,
+    executor,
   );
   const id = randomUUID();
   const row = await translateAlertingConflict(() =>
-    db.transaction(async (tx) => {
+    executor.transaction(async (tx) => {
       const [created] = await tx
         .insert(alertDefinitions)
         .values(definitionValues(id, organizationId, input))
@@ -347,15 +366,10 @@ export async function createRule(
         created.id,
         channelIds,
       );
+      await scheduleEvaluation(tx, created);
       return created;
     }),
   );
-  await enqueueAlertEvaluation({
-    alertDefinitionId: row.id,
-    scheduledFor:
-      row.nextEvaluationAt?.toISOString() ?? new Date().toISOString(),
-    ruleVersion: row.version,
-  });
   return ruleBase(row, input.notification_channels);
 }
 
@@ -363,7 +377,8 @@ export async function updateRule(
   organizationId: string,
   id: string,
   rawSpec: AlertingRuleUpdate,
-  version?: number,
+  version: number | undefined,
+  executor: DbExecutor,
 ) {
   const input = AlertingRuleUpdateSchema.parse(rawSpec);
   const { notification_channels: notificationChannels, ...rawRuleSpec } = input;
@@ -371,8 +386,9 @@ export async function updateRule(
   const channelIds = await resolveOptionalChannelIds(
     organizationId,
     notificationChannels,
+    executor,
   );
-  const previous = await getRuleRow(organizationId, id);
+  const previous = await getRuleRow(organizationId, id, executor);
   if (version !== undefined && previous.version !== version) {
     throwAlertingPersistenceError(
       409,
@@ -389,7 +405,7 @@ export async function updateRule(
     spec.interval_secs,
   );
   const updated = await translateAlertingConflict(() =>
-    db.transaction(async (tx) => {
+    executor.transaction(async (tx) => {
       const [row] = await tx
         .update(alertDefinitions)
         .set({
@@ -418,15 +434,10 @@ export async function updateRule(
           .where(eq(alertInstances.alertDefinitionId, id));
       }
       await replaceDefinitionChannels(tx, organizationId, id, channelIds);
+      await scheduleEvaluation(tx, row);
       return row;
     }),
   );
-  await enqueueAlertEvaluation({
-    alertDefinitionId: updated.id,
-    scheduledFor:
-      updated.nextEvaluationAt?.toISOString() ?? new Date().toISOString(),
-    ruleVersion: updated.version,
-  });
   return ruleBase(updated, notificationChannels);
 }
 
@@ -435,11 +446,12 @@ export async function adoptRule(
   id: string,
   repoid: string,
   version: number,
-  rawSpec?: AlertingRuleUpdate,
+  rawSpec: AlertingRuleUpdate | undefined,
+  executor: DbExecutor,
 ) {
   if (repoid.length === 0)
     throwAlertingPersistenceError(422, "validation", "repoid is required");
-  const previous = await getRuleRow(organizationId, id);
+  const previous = await getRuleRow(organizationId, id, executor);
   if (previous.version !== version || previous.previewId !== null) {
     throwAlertingPersistenceError(
       409,
@@ -459,14 +471,18 @@ export async function adoptRule(
       )
     : null;
   const channelIds = notificationChannels
-    ? await resolveOptionalChannelIds(organizationId, notificationChannels)
+    ? await resolveOptionalChannelIds(
+        organizationId,
+        notificationChannels,
+        executor,
+      )
     : null;
   const labelsChanged =
     spec !== null &&
     JSON.stringify(previous.spec.label_columns) !==
       JSON.stringify(spec.label_columns);
   const row = await translateAlertingConflict(() =>
-    db.transaction(async (tx) => {
+    executor.transaction(async (tx) => {
       const [updated] = await tx
         .update(alertDefinitions)
         .set({
@@ -507,6 +523,7 @@ export async function adoptRule(
       if (channelIds) {
         await replaceDefinitionChannels(tx, organizationId, id, channelIds);
       }
+      if (spec) await scheduleEvaluation(tx, updated);
       return updated;
     }),
   );
@@ -516,23 +533,19 @@ export async function adoptRule(
       "conflict",
       `Rule version changed: ${id}`,
     );
-  if (spec) {
-    await enqueueAlertEvaluation({
-      alertDefinitionId: row.id,
-      scheduledFor:
-        row.nextEvaluationAt?.toISOString() ?? new Date().toISOString(),
-      ruleVersion: row.version,
-    });
-  }
   return ruleBase(
     row,
     notificationChannels ??
-      (await definitionChannelNamesFor(organizationId, row.id)),
+      (await definitionChannelNamesFor(organizationId, row.id, executor)),
   );
 }
 
-export async function deleteRule(organizationId: string, id: string) {
-  const rows = await db
+export async function deleteRule(
+  organizationId: string,
+  id: string,
+  executor: DbExecutor,
+) {
+  const rows = await executor
     .delete(alertDefinitions)
     .where(
       and(

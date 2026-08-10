@@ -91,16 +91,16 @@ describe("MatchersEditor comboboxes", () => {
     ]);
   });
 
-  it("falls back to a free-text input for regex operators", async () => {
+  // Matching is exact only, so the operator menu offers no pattern ops.
+  it("offers only the exact-match operators", async () => {
     const user = userEvent.setup();
-    const latest = renderEditor([{ label: "svc", op: "regex", value: "" }]);
+    renderEditor([{ label: "svc", op: "eq", value: "" }]);
 
-    const field = screen.getByLabelText("Matcher value");
-    await user.type(field, "^web-.*$");
+    await user.click(
+      screen.getByRole("combobox", { name: "Matcher operator" }),
+    );
 
-    expect(latest.matchers).toEqual([
-      { label: "svc", op: "regex", value: "^web-.*$" },
-    ]);
-    expect(mocks.listAlertingLabelValues).not.toHaveBeenCalled();
+    const options = await screen.findAllByRole("option");
+    expect(options.map((o) => o.textContent)).toEqual(["=", "≠"]);
   });
 });

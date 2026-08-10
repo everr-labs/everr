@@ -99,6 +99,17 @@ describe("applyResources", () => {
     expect(alertReconciler).toHaveBeenCalledWith(
       expect.objectContaining({ namespace: liveNs, resources: [alert] }),
     );
+    // The write pass (the last call; the first is validation) hands every
+    // reconciler the shared transaction executor, so a failing kind rolls
+    // back the others' mutations (the rejection path is covered by the
+    // mid-apply failure test below).
+    for (const reconciler of [
+      dashboardReconciler,
+      runbookReconciler,
+      alertReconciler,
+    ]) {
+      expect(reconciler.mock.lastCall?.[0].db).toEqual({ tx: true });
+    }
     expect(validateRunbookLinks).toHaveBeenCalledWith({
       namespace: liveNs,
       alerts: [alert],
@@ -343,7 +354,8 @@ describe("applyResources", () => {
       }),
     ).rejects.toThrow("alert repository unavailable");
 
-    // The registered namespace keeps partial preview resources recoverable.
+    // The preview row commits outside the reconcile transaction, so the next
+    // apply upserts the same namespace instead of re-registering.
     expect(upsertPreview).toHaveBeenCalledTimes(1);
     expect(upsertPreview).toHaveBeenCalledWith(db, {
       orgId: "org-1",

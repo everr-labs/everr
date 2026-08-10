@@ -31,6 +31,7 @@ vi.mock("drizzle-orm", async (importOriginal) => {
 
 import {
   alertChannels,
+  alertDefinitionChannels,
   alertDefinitions,
   alertDeliveries,
   alertEvents,
@@ -74,6 +75,7 @@ describe("deletePostgresOrganizationData", () => {
       alertDeliveries,
       alertNotificationGroups,
       alertReceiverChannels,
+      alertDefinitionChannels,
       alertRoutes,
       alertChannels,
       alertReceivers,
@@ -91,6 +93,7 @@ describe("deletePostgresOrganizationData", () => {
       alertDeliveries,
       alertNotificationGroups,
       alertReceiverChannels,
+      alertDefinitionChannels,
       alertRoutes,
       alertChannels,
       alertReceivers,

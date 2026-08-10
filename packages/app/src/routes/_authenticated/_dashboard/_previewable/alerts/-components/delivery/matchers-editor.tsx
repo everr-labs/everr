@@ -1,5 +1,4 @@
 import { Button } from "@everr/ui/components/button";
-import { Input } from "@everr/ui/components/input";
 import { OptionCombobox } from "@everr/ui/components/option-combobox";
 import {
   SuggestCombobox,
@@ -19,19 +18,12 @@ import {
 import { AlertingMatchOpSchema } from "@/data/alerting/schema";
 import type { AlertingMatcher } from "@/data/alerting/types";
 
-const OP_PHRASE: Record<AlertingMatcher["op"], string> = {
-  eq: "=",
-  ne: "≠",
-  regex: "matches",
-  notregex: "doesn't match",
-};
-
 /** Plain-language preview of a matcher set, e.g. "severity = critical and team = pay". */
 export function matchersPhrase(m: AlertingMatcher[]): string {
   const real = m.filter((x) => x.label.trim() !== "");
   if (alertingIsCatchAll(real)) return "any alert";
   return real
-    .map((x) => `${x.label} ${OP_PHRASE[x.op]} ${x.value || "…"}`)
+    .map((x) => `${x.label} ${alertingOpSymbol(x.op)} ${x.value || "…"}`)
     .join(" and ");
 }
 
@@ -159,31 +151,17 @@ export function MatchersEditor({
                 ),
               }))}
             />
-            {row.op === "regex" || row.op === "notregex" ? (
-              <Input
-                placeholder="pattern"
-                aria-label="Matcher value"
-                className="min-w-0 flex-1 font-mono"
-                value={row.value}
-                disabled={locked}
-                onChange={(e) =>
-                  onChange(updateMatcher(value, i, { value: e.target.value }))
-                }
-              />
-            ) : (
-              <SuggestCombobox
-                label="Matcher value"
-                placeholder="value"
-                className="min-w-0 flex-1"
-                value={row.value}
-                disabled={locked}
-                displayValue={locked ? lockedValueLabels[i] : undefined}
-                onChange={(v) =>
-                  onChange(updateMatcher(value, i, { value: v }))
-                }
-                options={alertingLabelValueOptions(row.label)}
-              />
-            )}
+            <SuggestCombobox
+              label="Matcher value"
+              placeholder="value"
+              className="min-w-0 flex-1"
+              value={row.value}
+              disabled={locked}
+              displayValue={locked ? lockedValueLabels[i] : undefined}
+              onChange={(v) => onChange(updateMatcher(value, i, { value: v }))}
+              options={alertingLabelValueOptions(row.label)}
+            />
+
             {locked ? (
               <span
                 className="inline-flex size-8 items-center justify-center justify-self-end text-muted-foreground"
