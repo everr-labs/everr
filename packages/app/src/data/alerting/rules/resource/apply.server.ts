@@ -63,7 +63,10 @@ function parseAlertRule(path: string, resource: unknown) {
 // Events retain at most 16 non-label evidence columns within 4096 bytes.
 const EVIDENCE_COLUMN_CAP = 16;
 
-// String result columns form the instance identity when instanceLabels is omitted.
+// String result columns form the instance identity when instanceLabels is
+// omitted. Temporal types are deliberately excluded: a `toStartOfMinute(ts)
+// AS bucket` column is a String-adjacent shape but changes every evaluation,
+// so inferring it as identity would open a new episode per bucket forever.
 function isStringTypedColumn(chType: string): boolean {
   let t = chType.trim();
   for (;;) {
@@ -71,9 +74,7 @@ function isStringTypedColumn(chType: string): boolean {
     if (!wrapped) break;
     t = wrapped[1];
   }
-  return /^(?:String|FixedString|Enum8|Enum16|UUID|Date32|Date|DateTime64|DateTime|IPv4|IPv6)(?:\(|$)/.test(
-    t,
-  );
+  return /^(?:String|FixedString|Enum8|Enum16|UUID|IPv4|IPv6)(?:\(|$)/.test(t);
 }
 
 function isNumericTypedColumn(chType: string): boolean {
