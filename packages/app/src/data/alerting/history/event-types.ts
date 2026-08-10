@@ -1,6 +1,9 @@
-import type { ALERTING_EVENT_TYPES } from "../vocabulary";
-
-export type AlertEventType = (typeof ALERTING_EVENT_TYPES)[number];
+// Type-only: the writer module (server/alerts/history/clickhouse.ts) pulls in
+// server-only dependencies (ClickHouse admin credentials, node:crypto), but
+// this file is imported by client-bundled route components. A type-only
+// import is erased at build time, so the real ClickHouse event-type union can
+// anchor these arrays without shipping the writer into the browser.
+import type { AlertHistoryEventType } from "@/server/alerts/history/clickhouse";
 
 /** `app.alert_events` types that are instance state changes. */
 const ALERT_TRANSITION_EVENT_TYPES = [
@@ -8,7 +11,10 @@ const ALERT_TRANSITION_EVENT_TYPES = [
   "instance_fired",
   "instance_resolved",
   "instance_closed",
-] as const;
+] as const satisfies readonly AlertHistoryEventType[];
+
+export type AlertTransitionEventType =
+  (typeof ALERT_TRANSITION_EVENT_TYPES)[number];
 
 /**
  * The outcome rows a transition produces in later jobs, correlated back to it
@@ -19,7 +25,7 @@ const ALERT_OUTCOME_EVENT_TYPES = [
   "notification_suppressed",
   "delivery_succeeded",
   "delivery_failed",
-] as const;
+] as const satisfies readonly AlertHistoryEventType[];
 
 function sqlStringList(values: readonly string[]): string {
   return values.map((value) => `'${value}'`).join(", ");
@@ -37,7 +43,7 @@ export const ALERT_OUTCOME_EVENT_TYPES_SQL = sqlStringList(
 // observed. Keyed over the closed transition list, so a new transition type
 // cannot ship without a status.
 const ALERT_TRANSITION_STATUS: Record<
-  (typeof ALERT_TRANSITION_EVENT_TYPES)[number],
+  AlertTransitionEventType,
   "pending" | "firing" | "resolved" | "closed"
 > = {
   instance_pending: "pending",
@@ -56,7 +62,7 @@ export function alertingEventStatus(
 
 function isAlertTransitionEventType(
   eventType: string,
-): eventType is (typeof ALERT_TRANSITION_EVENT_TYPES)[number] {
+): eventType is AlertTransitionEventType {
   return (ALERT_TRANSITION_EVENT_TYPES as readonly string[]).includes(
     eventType,
   );

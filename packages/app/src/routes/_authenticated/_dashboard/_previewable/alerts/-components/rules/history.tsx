@@ -12,7 +12,7 @@ import {
   TabsTrigger,
 } from "@everr/ui/components/tabs";
 import type { Tone } from "@everr/ui/components/tone";
-import type { AlertEventType } from "@/data/alerting/history/event-types";
+import type { AlertTransitionEventType } from "@/data/alerting/history/event-types";
 import type { AlertEventLogRow } from "@/data/alerting/history/repository.server";
 import type {
   AlertingRuleCondition,
@@ -28,18 +28,26 @@ import { EvidenceChips, LabelSet } from "../shared/signal";
 import { AlertingStatusLabel } from "../shared/status";
 import { AlertRuleEvaluationHistoryTable } from "./evaluation-details";
 
-const EVENT_META: Record<AlertEventType, { label: string; tone: Tone }> = {
+// Keyed over AlertTransitionEventType, the exact set
+// queryClickHouseAlertEventLog's WHERE clause can return: every entry here is
+// reachable, and a new transition type is a compile error until it gets one.
+const EVENT_META: Record<
+  AlertTransitionEventType,
+  { label: string; tone: Tone }
+> = {
   instance_pending: { label: "Pending", tone: "warning" },
   instance_fired: { label: "Fired", tone: "danger" },
   instance_resolved: { label: "Resolved", tone: "healthy" },
   // Closed ends the instance without a recovery, so it stays neutral rather
   // than borrowing the healthy tone of a resolve.
   instance_closed: { label: "Closed", tone: "muted" },
-  hold_changed: { label: "Hold changed", tone: "muted" },
-  evaluation_failed: { label: "Evaluation failed", tone: "warning" },
 };
 
-function EventTypeLabel({ eventType }: { eventType: AlertEventType }) {
+function EventTypeLabel({
+  eventType,
+}: {
+  eventType: AlertTransitionEventType;
+}) {
   const { label, tone } = EVENT_META[eventType];
   return <AlertingStatusLabel tone={tone}>{label}</AlertingStatusLabel>;
 }

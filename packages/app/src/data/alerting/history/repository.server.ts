@@ -8,7 +8,7 @@ import { clickhouseIsoMillis } from "./clickhouse";
 import {
   ALERT_OUTCOME_EVENT_TYPES_SQL,
   ALERT_TRANSITION_EVENT_TYPES_SQL,
-  type AlertEventType,
+  type AlertTransitionEventType,
 } from "./event-types";
 
 // Per-query, not a client default (@/lib/clickhouse.query is shared with
@@ -29,7 +29,7 @@ export type AlertEvidence = { [key: string]: JsonValue };
 
 export type AlertEventLogRow = {
   timestamp: string;
-  eventType: AlertEventType;
+  eventType: AlertTransitionEventType;
   slug: string;
   instanceFingerprint: string;
   labels: Record<string, string>;
@@ -47,7 +47,7 @@ export type AlertEventLogRow = {
 type ClickHouseAlertEventRow = {
   eventId: string;
   timestamp: string;
-  eventType: AlertEventType;
+  eventType: AlertTransitionEventType;
   slug: string;
   instanceFingerprint: string;
   labels: Record<string, string>;
