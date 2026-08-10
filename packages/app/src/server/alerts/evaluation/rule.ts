@@ -21,7 +21,9 @@ import {
   alertEvents,
   alertInstances,
 } from "@/db/schema";
+import { env } from "@/env";
 import { querySqlApiWithMeta } from "@/lib/clickhouse";
+import { previewDefinitionsEnqueueable } from "@/server/alerts/scheduling/scanner";
 import { addWorkerJobInTransaction } from "@/server/worker/jobs";
 import {
   errorMessage,
@@ -312,6 +314,16 @@ export async function evaluateAlert(rawPayload: unknown): Promise<void> {
   if (
     !def?.active ||
     (payload.ruleVersion !== undefined && def.version !== payload.ruleVersion)
+  )
+    return;
+  // The kill switch has to stop chains, not only the scanner backstop:
+  // evaluations reschedule themselves and applies enqueue directly, so gating
+  // only the scanner sheds no load. Returning here without rescheduling ends
+  // the chain; when the switch turns back on, the scanner's stale-enqueue
+  // clause picks the overdue definition up again.
+  if (
+    def.previewId !== null &&
+    !previewDefinitionsEnqueueable(env.EVERR_PREVIEW_ALERTS)
   )
     return;
 

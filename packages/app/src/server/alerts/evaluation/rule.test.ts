@@ -7,6 +7,15 @@ const mocks = vi.hoisted(() => ({
   definitionUpdates: [] as Record<string, unknown>[],
   scheduledJobs: [] as { task: string; payload: unknown }[],
   history: vi.fn(),
+  previewAlerts: "on" as "on" | "off",
+}));
+
+vi.mock("@/env", () => ({
+  env: {
+    get EVERR_PREVIEW_ALERTS() {
+      return mocks.previewAlerts;
+    },
+  },
 }));
 
 vi.mock("@/db/client", () => ({
@@ -113,6 +122,23 @@ describe("evaluateAlert scheduling state", () => {
     mocks.query.mockReset();
     mocks.transaction.mockReset();
     mocks.history.mockReset().mockResolvedValue(undefined);
+    mocks.previewAlerts = "on";
+  });
+
+  // The switch must end running chains, not only gate the scanner: the
+  // evaluation neither runs nor reschedules itself, so preview load actually
+  // stops. The scanner backstop resumes the chain when the switch returns.
+  it("stops a preview chain when the kill switch is off", async () => {
+    mocks.definition = {
+      ...definition,
+      previewId: "0f1c9d20-3b7a-4c11-9f2e-8a5d4c3b2a10",
+    };
+    mocks.previewAlerts = "off";
+
+    await evaluateAlert(payload);
+
+    expect(mocks.query).not.toHaveBeenCalled();
+    expect(mocks.scheduledJobs).toEqual([]);
   });
 
   it("reschedules when the failure happens after the ClickHouse query", async () => {
