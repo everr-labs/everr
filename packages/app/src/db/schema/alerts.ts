@@ -140,6 +140,13 @@ export const alertDefinitions = pgTable(
       table.id,
     ),
     index("alert_definitions_due_idx").on(table.active, table.nextEvaluationAt),
+    // Backs listRulesPage's ORDER BY updated_at DESC, id DESC per org: every
+    // `everr apply` walks the full listing in 500-row pages.
+    index("alert_definitions_org_updated_idx").on(
+      table.organizationId,
+      sql`updated_at DESC`,
+      sql`id DESC`,
+    ),
   ],
 );
 
@@ -646,6 +653,11 @@ export const alertDeliveries = pgTable(
     }),
     check("alert_deliveries_attempts_nonnegative", sql`${table.attempts} >= 0`),
     index("alert_deliveries_org_idx").on(table.organizationId),
+    // Backs deleteChannel's reference check, filtered on both columns.
+    index("alert_deliveries_org_channel_idx").on(
+      table.organizationId,
+      table.channelId,
+    ),
     index("alert_deliveries_terminal_cleanup_idx")
       .on(table.updatedAt, table.dedupKey)
       .where(
