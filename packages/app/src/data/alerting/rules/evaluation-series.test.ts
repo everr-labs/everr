@@ -48,6 +48,25 @@ describe("shapeAlertEvaluationSeries", () => {
     ]);
   });
 
+  // A required cluster at the window start must not consume the filler grid:
+  // walked to a budget cutoff, every filler point lands left of the cutoff
+  // and the newest part of the window renders required points only.
+  it("spreads the leftover budget across the whole window", () => {
+    const rows = Array.from({ length: 100 }, (_, i) =>
+      i >= 1 && i <= 4 ? { ...row(i), rowCount: 3 } : row(i),
+    );
+
+    const result = shapeAlertEvaluationSeries(rows, 10);
+
+    const times = result.points.map((point) => Date.parse(point.t));
+    const midWindow = times.filter(
+      (t) =>
+        t > rows[40].scheduledFor.getTime() &&
+        t < rows[98].scheduledFor.getTime(),
+    );
+    expect(midWindow.length).toBeGreaterThan(0);
+  });
+
   // A rule breaching for the whole window makes every point required; without
   // a cap the chart response carries the full row set, samples included.
   it("bounds a whole-window incident to the display budget, edges intact", () => {

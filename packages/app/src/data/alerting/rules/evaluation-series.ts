@@ -119,8 +119,21 @@ export function shapeAlertEvaluationSeries(
         );
       }
     } else {
-      for (let i = 0; i < count && indexes.size < count; i++) {
-        indexes.add(Math.round((i * (rows.length - 1)) / (count - 1)));
+      // Fill from the full-budget grid, thinned evenly when required points
+      // already claimed part of the budget. A grid walked until the budget
+      // runs out puts every filler point left of where it stops, and the
+      // newest part of the window, the part a reader cares about most,
+      // renders required points only.
+      const grid: number[] = [];
+      for (let i = 0; i < count; i++) {
+        const index = Math.round((i * (rows.length - 1)) / (count - 1));
+        if (!indexes.has(index)) grid.push(index);
+      }
+      const keep = Math.min(grid.length, count - indexes.size);
+      for (let i = 0; i < keep; i++) {
+        indexes.add(
+          grid[Math.round((i * (grid.length - 1)) / Math.max(1, keep - 1))],
+        );
       }
     }
     selected = Array.from(indexes)
