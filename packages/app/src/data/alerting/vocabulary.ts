@@ -17,9 +17,6 @@ export const ALERTING_EVENT_TYPES = [
   "instance_fired",
   "instance_resolved",
   "instance_closed",
-  "delivery",
-  "rule_health",
-  "silenced",
   "hold_changed",
   "evaluation_failed",
 ] as const;

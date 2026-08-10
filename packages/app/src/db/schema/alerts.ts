@@ -30,14 +30,13 @@ import {
   ALERTING_LIFECYCLE_REASONS,
   ALERTING_SEVERITIES,
 } from "@/data/alerting/vocabulary";
+import { previews } from "./app";
 
 // Derived from the vocabulary export, not hand-listed, so a reason added
 // there without a CHECK update fails loudly instead of journaling silently.
 const ALERT_EVENTS_REASON_VOCABULARY_SQL = ["", ...ALERTING_LIFECYCLE_REASONS]
   .map((reason) => `'${reason}'`)
   .join(", ");
-
-import { previews } from "./app";
 
 export const alertStateEnum = pgEnum("alert_state", [
   "unknown",
@@ -297,9 +296,7 @@ export const alertEvents = pgTable(
     // The born-processed boundary rests on kind agreeing with event_type: the
     // delivery reads select kind = 'notifying', and kind defaults to it, so a
     // state-stream row journaled by a writer that forgot the field becomes a
-    // notification candidate. One-directional per type: the legacy types stay
-    // unconstrained, and future streams pick their side when their writers
-    // land.
+    // notification candidate. Every event type falls on exactly one side.
     check(
       "alert_events_kind_matches_type",
       sql`(${table.eventType} NOT IN ('instance_pending', 'instance_closed', 'evaluation_failed', 'hold_changed') OR ${table.kind} = 'state') AND (${table.eventType} NOT IN ('instance_fired', 'instance_resolved') OR ${table.kind} = 'notifying')`,

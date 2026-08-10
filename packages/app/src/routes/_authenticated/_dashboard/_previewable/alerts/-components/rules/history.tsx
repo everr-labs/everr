@@ -35,9 +35,6 @@ const EVENT_META: Record<AlertEventType, { label: string; tone: Tone }> = {
   // Closed ends the instance without a recovery, so it stays neutral rather
   // than borrowing the healthy tone of a resolve.
   instance_closed: { label: "Closed", tone: "muted" },
-  delivery: { label: "Delivery", tone: "info" },
-  rule_health: { label: "Rule health", tone: "warning" },
-  silenced: { label: "Silenced", tone: "muted" },
   hold_changed: { label: "Hold changed", tone: "muted" },
   evaluation_failed: { label: "Evaluation failed", tone: "warning" },
 };

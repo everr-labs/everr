@@ -1,7 +1,7 @@
 import { getTableConfig, PgDialect } from "drizzle-orm/pg-core";
 import { describe, expect, it } from "vitest";
 import { ALERTING_LIFECYCLE_REASONS } from "@/data/alerting/vocabulary";
-import { alertEvents } from "./alerts";
+import { alertEvents, alertEventTypeEnum } from "./alerts";
 
 const dialect = new PgDialect();
 
@@ -21,5 +21,15 @@ describe("alert_events_reason_in_vocabulary", () => {
     for (const reason of ALERTING_LIFECYCLE_REASONS) {
       expect(sql).toContain(`'${reason}'`);
     }
+  });
+});
+
+// delivery, rule_health and silenced had no writer anywhere and the table
+// migration that introduced the enum leaves no legacy data behind them.
+describe("alert_event_type enum", () => {
+  it("carries no dead event types", () => {
+    expect(alertEventTypeEnum.enumValues).not.toContain("delivery");
+    expect(alertEventTypeEnum.enumValues).not.toContain("rule_health");
+    expect(alertEventTypeEnum.enumValues).not.toContain("silenced");
   });
 });
