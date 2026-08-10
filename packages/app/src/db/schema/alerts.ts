@@ -193,6 +193,11 @@ export const alertInstances = pgTable(
     index("alert_instances_org_firing_idx")
       .on(table.organizationId, sql`updated_at DESC`)
       .where(sql`${table.status} = 'firing'`),
+    // Backs the retention sweep: it selects the oldest inactive rows across
+    // every organization, so the index cannot lead on organization_id.
+    index("alert_instances_inactive_updated_idx")
+      .on(table.updatedAt, table.id)
+      .where(sql`${table.status} = 'inactive'`),
   ],
 );
 

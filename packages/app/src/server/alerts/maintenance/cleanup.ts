@@ -6,6 +6,9 @@ const DAY_MS = 24 * 60 * 60 * 1_000;
 const EVALUATION_RETENTION_DAYS = 7;
 const HISTORY_RETENTION_DAYS = 90;
 const IDLE_GROUP_RETENTION_DAYS = 7;
+// Inactive instance rows carry no history a reader still needs: the journal
+// (alert_events) is the durable record of what happened to an instance.
+const INSTANCE_RETENTION_DAYS = 7;
 const CLEANUP_BATCH_SIZE = 1_000;
 const MAX_BATCHES_PER_RUN = 10;
 
@@ -15,6 +18,7 @@ type AlertingCleanupCounts = {
   deliveries: number;
   notificationGroups: number;
   silences: number;
+  instances: number;
 };
 
 const EMPTY_COUNTS: AlertingCleanupCounts = {
@@ -23,6 +27,7 @@ const EMPTY_COUNTS: AlertingCleanupCounts = {
   deliveries: 0,
   notificationGroups: 0,
   silences: 0,
+  instances: 0,
 };
 
 function addCounts(
@@ -35,6 +40,7 @@ function addCounts(
     deliveries: total.deliveries + batch.deliveries,
     notificationGroups: total.notificationGroups + batch.notificationGroups,
     silences: total.silences + batch.silences,
+    instances: total.instances + batch.instances,
   };
 }
 
@@ -58,6 +64,9 @@ export async function cleanupAlertingHistory(options?: {
   );
   const idleGroupCutoff = new Date(
     now.getTime() - IDLE_GROUP_RETENTION_DAYS * DAY_MS,
+  );
+  const instanceCutoff = new Date(
+    now.getTime() - INSTANCE_RETENTION_DAYS * DAY_MS,
   );
   let totals = { ...EMPTY_COUNTS };
 
@@ -169,6 +178,20 @@ export async function cleanupAlertingHistory(options?: {
         USING doomed
         WHERE target.ctid = doomed.ctid
       `);
+      const instances = await tx.execute(sql`
+        WITH doomed AS (
+          SELECT id
+          FROM alert_instances
+          WHERE status = 'inactive'
+            AND updated_at < ${instanceCutoff}
+          ORDER BY updated_at, id
+          LIMIT ${batchSize}
+          FOR UPDATE SKIP LOCKED
+        )
+        DELETE FROM alert_instances AS target
+        USING doomed
+        WHERE target.id = doomed.id
+      `);
 
       return {
         alertEvaluations: deletedRows(alertEvaluations),
@@ -176,6 +199,7 @@ export async function cleanupAlertingHistory(options?: {
         deliveries: deletedRows(deliveries),
         notificationGroups: deletedRows(notificationGroups),
         silences: deletedRows(silences),
+        instances: deletedRows(instances),
       };
     });
     totals = addCounts(totals, counts);

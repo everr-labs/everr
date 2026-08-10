@@ -61,6 +61,7 @@ export const alertTaskList: TaskList = {
         "alerts.retention.events": counts.events,
         "alerts.retention.notification_groups": counts.notificationGroups,
         "alerts.retention.silences": counts.silences,
+        "alerts.retention.instances": counts.instances,
       });
     }
   }),

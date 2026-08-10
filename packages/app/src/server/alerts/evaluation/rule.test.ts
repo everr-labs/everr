@@ -52,6 +52,7 @@ vi.mock("../history/clickhouse", async (importOriginal) => ({
 import { ALERT_EVALUATE_TASK } from "@/data/alerting/scheduling/evaluation-jobs.server";
 import {
   evaluateAlert,
+  isNoopInactiveTransition,
   shouldEnqueueProcessEvent,
   transitionEventRows,
 } from "./rule";
@@ -438,5 +439,44 @@ describe("shouldEnqueueProcessEvent", () => {
     const [fired] = transitionEventRows(args("firing"));
     expect(fired?.outbox.kind).not.toBe("state");
     expect(shouldEnqueueProcessEvent(fired?.outbox ?? {})).toBe(true);
+  });
+});
+
+describe("isNoopInactiveTransition", () => {
+  const evaluatedAt = new Date("2026-08-06T10:00:00Z");
+  const inactiveInstance = {
+    fingerprint: "api",
+    status: "inactive" as const,
+    labels: { service: "api" },
+    evidence: {},
+    value: null,
+    pendingSince: null,
+    activeSince: null,
+    lastSeenAt: evaluatedAt,
+    absentCount: 0,
+  };
+
+  it("is true for a row that stayed inactive with no event", () => {
+    expect(
+      isNoopInactiveTransition({ next: inactiveInstance, event: null }),
+    ).toBe(true);
+  });
+
+  it("is false once an event fires, even if the row lands inactive", () => {
+    expect(
+      isNoopInactiveTransition({
+        next: inactiveInstance,
+        event: "pending_cleared",
+      }),
+    ).toBe(false);
+  });
+
+  it("is false for a live status with no event, such as a held pending", () => {
+    expect(
+      isNoopInactiveTransition({
+        next: { ...inactiveInstance, status: "pending" },
+        event: null,
+      }),
+    ).toBe(false);
   });
 });

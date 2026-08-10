@@ -146,6 +146,17 @@ export function shouldEnqueueProcessEvent(
   return outbox.kind !== "state";
 }
 
+/**
+ * A row that was already inactive and is still absent carries nothing new:
+ * rewriting it every tick would defeat the retention cutoff on
+ * `alert_instances`, since `updated_at` would never age.
+ */
+export function isNoopInactiveTransition(
+  transition: Pick<AlertInstanceTransition, "event" | "next">,
+): boolean {
+  return transition.event === null && transition.next.status === "inactive";
+}
+
 export function transitionEventRows(opts: {
   def: typeof alertDefinitions.$inferSelect;
   historyDef: AlertHistoryDefinition;
@@ -465,6 +476,7 @@ async function evaluateAlertRule(
     if (inserted.length === 0) return false;
 
     for (const transition of transitions) {
+      if (isNoopInactiveTransition(transition)) continue;
       const next = transition.next;
       const boundedInstanceEvidence = boundEventEvidence(
         next.evidence,
