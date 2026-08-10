@@ -2,6 +2,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   definition: null as unknown,
+  // The row a failure transaction's FOR UPDATE re-read sees. Defaults to
+  // mirror `definition`; tests that need to simulate a concurrent pause or
+  // delete between the outer read and the failure transaction override it.
+  freshDefinition: undefined as Record<string, unknown> | null | undefined,
   query: vi.fn(),
   transaction: vi.fn(),
   definitionUpdates: [] as Record<string, unknown>[],
@@ -63,7 +67,17 @@ function recordingTx() {
   return {
     select: () => ({
       from: () => ({
-        where: () => ({ for: () => ({ limit: () => Promise.resolve([]) }) }),
+        where: () => ({
+          for: () => ({
+            limit: () => {
+              const fresh =
+                mocks.freshDefinition === undefined
+                  ? { active: true, version: 3, consecutiveFailures: 0 }
+                  : mocks.freshDefinition;
+              return Promise.resolve(fresh === null ? [] : [fresh]);
+            },
+          }),
+        }),
       }),
     }),
     insert: () => ({
@@ -118,6 +132,7 @@ const payload = {
 describe("evaluateAlert scheduling state", () => {
   beforeEach(() => {
     mocks.definition = definition;
+    mocks.freshDefinition = undefined;
     mocks.definitionUpdates = [];
     mocks.scheduledJobs = [];
     mocks.query.mockReset();
@@ -186,6 +201,64 @@ describe("evaluateAlert scheduling state", () => {
     );
     expect(reschedule).toBeDefined();
     expect(reschedule?.lastEnqueuedAt).toEqual(reschedule?.nextEvaluationAt);
+  });
+
+  // A pause or delete racing the failed evaluation must win: writing the
+  // rule back degraded with a queued retry would resurrect a rule the user
+  // just turned off, and a deleted rule's id would violate the
+  // alert_evaluations foreign key.
+  it("drops the failure silently when the rule went inactive mid-flight", async () => {
+    mocks.query.mockResolvedValue({ rows: [] });
+    mocks.freshDefinition = {
+      active: false,
+      version: 3,
+      consecutiveFailures: 0,
+    };
+    mocks.transaction
+      .mockRejectedValueOnce(new Error("instance write blew up"))
+      .mockImplementationOnce((cb: (tx: unknown) => Promise<unknown>) =>
+        cb(recordingTx()),
+      );
+
+    await expect(evaluateAlert(payload)).resolves.toBeUndefined();
+
+    expect(mocks.definitionUpdates).toEqual([]);
+    expect(mocks.scheduledJobs).toEqual([]);
+    expect(mocks.history).not.toHaveBeenCalled();
+  });
+
+  it("drops the failure silently when the rule was deleted mid-flight", async () => {
+    mocks.query.mockResolvedValue({ rows: [] });
+    mocks.freshDefinition = null;
+    mocks.transaction
+      .mockRejectedValueOnce(new Error("instance write blew up"))
+      .mockImplementationOnce((cb: (tx: unknown) => Promise<unknown>) =>
+        cb(recordingTx()),
+      );
+
+    await expect(evaluateAlert(payload)).resolves.toBeUndefined();
+
+    expect(mocks.definitionUpdates).toEqual([]);
+    expect(mocks.scheduledJobs).toEqual([]);
+  });
+
+  it("drops the failure silently when the rule's spec version moved on", async () => {
+    mocks.query.mockResolvedValue({ rows: [] });
+    mocks.freshDefinition = {
+      active: true,
+      version: 4,
+      consecutiveFailures: 0,
+    };
+    mocks.transaction
+      .mockRejectedValueOnce(new Error("instance write blew up"))
+      .mockImplementationOnce((cb: (tx: unknown) => Promise<unknown>) =>
+        cb(recordingTx()),
+      );
+
+    await expect(evaluateAlert(payload)).resolves.toBeUndefined();
+
+    expect(mocks.definitionUpdates).toEqual([]);
+    expect(mocks.scheduledJobs).toEqual([]);
   });
 
   it("records the failure reason for a non-query error", async () => {

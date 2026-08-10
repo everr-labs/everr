@@ -270,12 +270,33 @@ async function scheduleAlertAtInTransaction(
 
 async function recordEvaluationFailure(
   def: typeof alertDefinitions.$inferSelect,
+  payload: z.infer<typeof EvaluatePayloadSchema>,
   scheduledFor: Date,
   cause: unknown,
 ) {
   const message = errorMessage(cause).slice(0, 8_000);
   const occurredAt = new Date();
   const applied = await db.transaction(async (tx) => {
+    // Mirrors the success path's guard: a rule paused or deleted between the
+    // outer read and this transaction must not be written back degraded
+    // with a queued retry, and a deleted rule's id would violate the
+    // alert_evaluations FK below.
+    const [fresh] = await tx
+      .select({
+        active: alertDefinitions.active,
+        version: alertDefinitions.version,
+        consecutiveFailures: alertDefinitions.consecutiveFailures,
+      })
+      .from(alertDefinitions)
+      .where(eq(alertDefinitions.id, def.id))
+      .for("update")
+      .limit(1);
+    if (
+      !fresh?.active ||
+      (payload.ruleVersion !== undefined &&
+        fresh.version !== payload.ruleVersion)
+    )
+      return false;
     const inserted = await tx
       .insert(alertEvaluations)
       .values({ alertDefinitionId: def.id, scheduledFor })
@@ -293,7 +314,7 @@ async function recordEvaluationFailure(
         degradedSince: sql`coalesce(${alertDefinitions.degradedSince}, now())`,
       })
       .where(eq(alertDefinitions.id, def.id));
-    const failureCount = def.consecutiveFailures + 1;
+    const failureCount = fresh.consecutiveFailures + 1;
     const maximum = def.spec.max_interval_secs ?? def.spec.interval_secs * 16;
     const backoff = alertingRetryDelaySeconds(
       def.spec.interval_secs,
@@ -360,7 +381,7 @@ export async function evaluateAlert(rawPayload: unknown): Promise<void> {
   try {
     await evaluateAlertRule(def, payload, scheduledFor);
   } catch (cause) {
-    await recordEvaluationFailure(def, scheduledFor, cause);
+    await recordEvaluationFailure(def, payload, scheduledFor, cause);
   }
 }
 
