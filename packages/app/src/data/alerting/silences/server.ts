@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { createAuthenticatedServerFn } from "@/lib/serverFn";
 import { AlertingSilenceInputSchema } from "../schema";
-import { alertingOrganizationId } from "../session";
+import { alertingMutationScope, alertingOrganizationId } from "../session";
 import * as silences from "./repository";
 
 export const listAlertingSilences = createAuthenticatedServerFn({
@@ -15,7 +15,7 @@ export const createAlertingSilence = createAuthenticatedServerFn({
 })
   .inputValidator(AlertingSilenceInputSchema)
   .handler(({ data, context: { session } }) =>
-    silences.createSilence(alertingOrganizationId(session), data),
+    silences.createSilence(alertingMutationScope(session), data),
   );
 
 export const expireAlertingSilence = createAuthenticatedServerFn({
@@ -23,5 +23,5 @@ export const expireAlertingSilence = createAuthenticatedServerFn({
 })
   .inputValidator(z.object({ id: z.string() }))
   .handler(({ data: { id }, context: { session } }) =>
-    silences.expireSilence(alertingOrganizationId(session), id),
+    silences.expireSilence(alertingMutationScope(session), id),
   );

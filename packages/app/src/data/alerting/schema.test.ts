@@ -170,6 +170,16 @@ it("bounds matcher counts and label and value lengths", () => {
   ).toBe(false);
 });
 
+it("drops a client-supplied silence author", () => {
+  const parsed = AlertingSilenceInputSchema.parse({
+    matchers: [{ label: "team", op: "eq", value: "pay" }],
+    starts_at: "2026-07-01T11:00:00Z",
+    ends_at: "2026-07-01T13:00:00Z",
+    author: "someone else",
+  });
+  expect(parsed).not.toHaveProperty("author");
+});
+
 it("rejects a channel with an unknown config type", () => {
   expect(() =>
     AlertingChannelSchema.parse({

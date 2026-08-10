@@ -7,7 +7,7 @@ import {
 import { getPreviewScopes } from "@/data/previews/repoids";
 import { createAuthenticatedServerFn } from "@/lib/serverFn";
 import { AlertingError } from "../errors";
-import { alertingOrganizationId } from "../session";
+import { alertingMutationScope, alertingOrganizationId } from "../session";
 import type { AlertingRuleView } from "../types";
 import * as rules from "./repository";
 import { visibleRulesForPreview } from "./resource/preview-overlay";
@@ -114,7 +114,7 @@ export const getAlertingRuleEvaluationSeries = createAuthenticatedServerFn({
 export const pauseAlertingRule = createAuthenticatedServerFn({ method: "POST" })
   .inputValidator(z.object({ ruleId: z.string() }))
   .handler(({ data: { ruleId }, context: { session } }) =>
-    rules.pauseRule(alertingOrganizationId(session), ruleId),
+    rules.pauseRule(alertingMutationScope(session), ruleId),
   );
 
 export const resumeAlertingRule = createAuthenticatedServerFn({
@@ -122,5 +122,5 @@ export const resumeAlertingRule = createAuthenticatedServerFn({
 })
   .inputValidator(z.object({ ruleId: z.string() }))
   .handler(({ data: { ruleId }, context: { session } }) =>
-    rules.resumeRule(alertingOrganizationId(session), ruleId),
+    rules.resumeRule(alertingMutationScope(session), ruleId),
   );
