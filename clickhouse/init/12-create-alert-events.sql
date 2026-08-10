@@ -27,8 +27,10 @@ CREATE TABLE IF NOT EXISTS app.alert_events
   -- 'live' or 'reconciled'. The app.logs projection copies live rows only,
   -- which is what lets the reconciler re-drive rows without duplicating logs.
   write_source LowCardinality(String) DEFAULT 'live',
-  -- Zero (epoch) off evaluation rows; never dateDiff against it there.
-  evaluation_scheduled_at DateTime64(3) CODEC(Delta, ZSTD(1)),
+  -- Zero (epoch) off evaluation rows; never dateDiff against it there. Every
+  -- writer sends this explicitly; the DEFAULT documents the sentinel in
+  -- SHOW CREATE rather than changing what gets written.
+  evaluation_scheduled_at DateTime64(3) DEFAULT toDateTime64(0, 3) CODEC(Delta, ZSTD(1)),
   event_time DateTime64(3) DEFAULT now64(3) CODEC(Delta, ZSTD(1)),
   row_count UInt64 DEFAULT 0,
   evidence_truncated Bool DEFAULT false,
