@@ -37,9 +37,7 @@ describe("queryClickHouseAlertEventLog", () => {
     expect(sql).toContain(
       "event_type IN ('instance_pending', 'instance_fired', 'instance_resolved', 'instance_closed')",
     );
-    expect(sql).toContain(
-      "preview_id = toUUID('00000000-0000-0000-0000-000000000000')",
-    );
+    expect(sql).toContain("is_live");
     expect(sql).toContain("alert_definition_id = {sourceId:UUID}");
     expect(sql).toContain("instance_fingerprint = {fingerprint:String}");
     expect(organizationId).toBe("org-1");
@@ -78,7 +76,7 @@ describe("queryClickHouseAlertEventLog", () => {
 
     const [sql, , params] = mocks.query.mock.calls[0];
     expect(sql).toContain(
-      "(preview_id = toUUID('00000000-0000-0000-0000-000000000000') OR preview_id IN {previewIds:Array(UUID)})",
+      "(is_live OR preview_id IN {previewIds:Array(UUID)})",
     );
     expect(sql).toContain("slug IN {slugs:Array(String)}");
     expect(params).toMatchObject({

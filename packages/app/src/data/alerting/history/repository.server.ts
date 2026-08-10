@@ -156,13 +156,11 @@ export async function queryClickHouseAlertEventLog(
     "event_time <= {to:DateTime64(3)}",
   ];
   if (opts.previewIds === null) {
-    filters.push("preview_id = toUUID('00000000-0000-0000-0000-000000000000')");
+    filters.push("is_live");
   } else if (opts.previewIds.length === 0) {
-    filters.push("preview_id = toUUID('00000000-0000-0000-0000-000000000000')");
+    filters.push("is_live");
   } else {
-    filters.push(
-      "(preview_id = toUUID('00000000-0000-0000-0000-000000000000') OR preview_id IN {previewIds:Array(UUID)})",
-    );
+    filters.push("(is_live OR preview_id IN {previewIds:Array(UUID)})");
   }
   if (opts.fingerprint !== undefined) {
     filters.push("instance_fingerprint = {fingerprint:String}");
