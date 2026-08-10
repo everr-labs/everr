@@ -13,7 +13,7 @@ export function captureAlertEvaluationSamples(
   instanceLabelColumns: readonly string[],
   matchingFingerprints: ReadonlySet<string>,
 ): { samples: AlertingEvaluationSample[]; truncated: boolean } {
-  const instances = rowsToInstances(rows, instanceLabelColumns, new Date(0));
+  const instances = rowsToInstances(rows, instanceLabelColumns);
   // Matching instances first: a rule with more label sets than the sample
   // budget must not let healthy filler crowd out the breaching ones, or a
   // breach the chart is supposed to guarantee survives downsampling

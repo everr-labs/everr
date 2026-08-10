@@ -402,7 +402,6 @@ async function evaluateAlertRule(
   const present = rowsToInstances(
     rows.filter((row) => alertingConditionMatches(row, def.spec.condition)),
     def.spec.label_columns,
-    evaluatedAt,
   ).map(
     (instance): PresentAlertInstance => ({
       fingerprint: instance.fingerprint,
