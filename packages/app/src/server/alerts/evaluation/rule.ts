@@ -246,7 +246,7 @@ async function scheduleAlertAtInTransaction(
   };
   await tx
     .update(alertDefinitions)
-    .set({ nextEvaluationAt: runAt })
+    .set({ nextEvaluationAt: runAt, lastEnqueuedAt: runAt })
     .where(eq(alertDefinitions.id, def.id));
   await addWorkerJobInTransaction(tx, ALERT_EVALUATE_TASK, payload, {
     jobKey: alertEvaluationJobKey(def.id, payload.scheduledFor),

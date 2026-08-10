@@ -166,6 +166,27 @@ describe("evaluateAlert scheduling state", () => {
     );
   });
 
+  // The regression: only nextEvaluationAt advanced, so the scanner's
+  // lastEnqueuedAt < nextEvaluationAt clause stayed permanently true and it
+  // re-enqueued every rule on every tick, on top of whatever chain the rule
+  // itself was already running.
+  it("advances lastEnqueuedAt together with nextEvaluationAt on reschedule", async () => {
+    mocks.query.mockResolvedValue({ rows: [] });
+    mocks.transaction
+      .mockRejectedValueOnce(new Error("instance write blew up"))
+      .mockImplementationOnce((cb: (tx: unknown) => Promise<unknown>) =>
+        cb(recordingTx()),
+      );
+
+    await evaluateAlert(payload);
+
+    const reschedule = mocks.definitionUpdates.find(
+      (update) => "nextEvaluationAt" in update,
+    );
+    expect(reschedule).toBeDefined();
+    expect(reschedule?.lastEnqueuedAt).toEqual(reschedule?.nextEvaluationAt);
+  });
+
   it("records the failure reason for a non-query error", async () => {
     mocks.query.mockResolvedValue({ rows: [] });
     mocks.transaction
