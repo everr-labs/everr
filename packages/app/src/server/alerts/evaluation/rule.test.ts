@@ -466,6 +466,24 @@ describe("transitionEventRows episode stamping", () => {
     expect(resolved?.outbox.kind).toBe("notifying");
     expect(resolved?.history.reason).toBe("condition_cleared");
   });
+
+  // The caller (evaluateAlertRule) computes bounded evidence once per
+  // transition and passes it in so it is not recomputed here from the same
+  // inputs.
+  it("uses the caller's precomputed bounded evidence instead of recomputing it", () => {
+    const [fired] = transitionEventRows({
+      def: episodeDef,
+      historyDef,
+      transition: transition("firing"),
+      evaluatedAt,
+      storedEpisodeId: null,
+      bounded: { evidence: { injected: "marker" }, truncated: true },
+    });
+    expect(fired?.history.evidence_json).toBe(
+      JSON.stringify({ injected: "marker" }),
+    );
+    expect(fired?.history.evidence_truncated).toBe(true);
+  });
 });
 
 describe("shouldEnqueueProcessEvent", () => {

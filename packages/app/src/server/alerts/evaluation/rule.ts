@@ -164,11 +164,18 @@ export function transitionEventRows(opts: {
   evaluatedAt: Date;
   /** The instance's open episode before this evaluation, if any. */
   storedEpisodeId: string | null;
+  /**
+   * Precomputed `boundEventEvidence(transition.next.evidence,
+   * transition.next.labels)`, when the caller already needs it elsewhere for
+   * the same transition. Computed on demand otherwise.
+   */
+  bounded?: { evidence: Record<string, unknown>; truncated: boolean };
 }): TransitionEvent[] {
   const { def, historyDef, transition, evaluatedAt } = opts;
   if (!transition.event) return [];
   const next = transition.next;
-  const bounded = boundEventEvidence(next.evidence, next.labels);
+  const bounded =
+    opts.bounded ?? boundEventEvidence(next.evidence, next.labels);
   const firstRow: Record<string, unknown> = {
     ...bounded.evidence,
     ...next.labels,
@@ -459,6 +466,17 @@ async function evaluateAlertRule(
     previousRows.map((row) => [row.fingerprint, row.episodeId]),
   );
   const historyDef = historyDefinition(def);
+  // Computed once per transition and reused for both the journal row below
+  // and the instance upsert further down, instead of recomputing the same
+  // bound evidence twice from the same inputs.
+  const boundedEvidenceByFingerprint = new Map(
+    transitions
+      .filter((transition) => !isNoopInactiveTransition(transition))
+      .map((transition) => [
+        transition.next.fingerprint,
+        boundEventEvidence(transition.next.evidence, transition.next.labels),
+      ]),
+  );
   const transitionEvents = transitions.flatMap((transition) =>
     transitionEventRows({
       def,
@@ -467,6 +485,7 @@ async function evaluateAlertRule(
       evaluatedAt,
       storedEpisodeId:
         storedEpisodeByFingerprint.get(transition.next.fingerprint) ?? null,
+      bounded: boundedEvidenceByFingerprint.get(transition.next.fingerprint),
     }),
   );
   const episodeUpdateByFingerprint = new Map(
@@ -502,10 +521,16 @@ async function evaluateAlertRule(
     for (const transition of transitions) {
       if (isNoopInactiveTransition(transition)) continue;
       const next = transition.next;
-      const boundedInstanceEvidence = boundEventEvidence(
-        next.evidence,
-        next.labels,
+      const boundedInstanceEvidence = boundedEvidenceByFingerprint.get(
+        next.fingerprint,
       );
+      // Every non-skipped transition got an entry above, keyed by the same
+      // fingerprint.
+      if (!boundedInstanceEvidence) {
+        throw new Error(
+          `missing bounded evidence for fingerprint ${next.fingerprint}`,
+        );
+      }
       // Only a transition moves the episode; a quiet evaluation must not
       // clear an open one.
       const episodeUpdate = episodeUpdateByFingerprint.get(next.fingerprint);
