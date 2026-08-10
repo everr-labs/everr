@@ -194,6 +194,7 @@ export async function listRulesPage(
     previewId?: string | null;
     name?: string;
   } = {},
+  executor: DbExecutor = db,
 ) {
   const limit = Math.min(Math.max(opts.limit ?? 100, 1), 500);
   const offset = decodeOffset(opts.cursor);
@@ -210,7 +211,7 @@ export async function listRulesPage(
     filters.push(eq(alertDefinitions.project, project));
     filters.push(eq(alertDefinitions.slug, slug));
   }
-  const rows = await db
+  const rows = await executor
     .select()
     .from(alertDefinitions)
     .where(and(...filters))
@@ -221,6 +222,7 @@ export async function listRulesPage(
   const channels = await definitionChannelNames(
     organizationId,
     pageRows.map((row) => row.id),
+    executor,
   );
   return {
     items: pageRows.map((row) => ruleView(row, channels.get(row.id) ?? [])),
@@ -231,15 +233,20 @@ export async function listRulesPage(
 export async function listAllRules(
   organizationId: string,
   opts: { previewId?: string | null; name?: string } = {},
+  executor: DbExecutor = db,
 ) {
   const all: ReturnType<typeof ruleView>[] = [];
   let cursor: string | undefined;
   do {
-    const page = await listRulesPage(organizationId, {
-      ...opts,
-      limit: 500,
-      ...(cursor ? { cursor } : {}),
-    });
+    const page = await listRulesPage(
+      organizationId,
+      {
+        ...opts,
+        limit: 500,
+        ...(cursor ? { cursor } : {}),
+      },
+      executor,
+    );
     all.push(...page.items);
     cursor = page.next_cursor ?? undefined;
   } while (cursor);

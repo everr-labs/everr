@@ -208,27 +208,29 @@ export const applyAlertSpecs: Reconciler = async ({
     return { ...p, path };
   });
 
-  // Listing overlaps query validation. A new preview has nothing to list yet.
-  const listingPromise: Promise<AlertingRuleView[]> =
-    namespace.kind === "preview" && namespace.id === null
-      ? Promise.resolve([])
-      : alerting.listAllRules(orgId);
-
   // allSettled preserves input order for deterministic error reporting.
   const runValidation = createLimiter(VALIDATION_QUERY_CONCURRENCY);
-  const [validations, listed, channels] = await Promise.all([
-    Promise.allSettled(
-      parsed.map((p) =>
-        runValidation(undefined, () =>
-          validateAlertRuleQuery(p.path, p.rule, orgId),
-        ),
+  const validationsPromise = Promise.allSettled(
+    parsed.map((p) =>
+      runValidation(undefined, () =>
+        validateAlertRuleQuery(p.path, p.rule, orgId),
       ),
     ),
-    listingPromise,
-    parsed.some((p) => p.rule.spec.notification)
-      ? listChannels(orgId)
-      : Promise.resolve([]),
-  ]);
+  );
+  // The ClickHouse validations above fan out concurrently; these PostgreSQL
+  // reads run serially on the registry executor. They must not touch the bare
+  // pool: this code already holds the registry transaction's connection, and
+  // acquiring a second one here is a hold-and-acquire, so enough concurrent
+  // applies exhaust the pool and every one waits forever for a connection
+  // none will release. A new preview has nothing to list yet.
+  const listed: AlertingRuleView[] =
+    namespace.kind === "preview" && namespace.id === null
+      ? []
+      : await alerting.listAllRules(orgId, {}, executor);
+  const channels = parsed.some((p) => p.rule.spec.notification)
+    ? await listChannels(orgId, executor)
+    : [];
+  const validations = await validationsPromise;
 
   const availableChannelNames = new Set(
     channels.map((channel) => channel.name),

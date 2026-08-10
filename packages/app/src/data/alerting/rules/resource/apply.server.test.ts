@@ -156,6 +156,21 @@ describe("applyAlertSpecs", () => {
     expect(mockedDeleteRule).not.toHaveBeenCalled();
   });
 
+  // Reads must ride the same connection too: a bare-pool read here runs while
+  // the registry transaction holds its connection, and enough concurrent
+  // applies deadlock the whole pool.
+  it("passes the registry executor to the listing read", async () => {
+    mockedListRules.mockResolvedValue([]);
+
+    await applyAlertSpecs({
+      namespace: live,
+      db,
+      resources: [{ path: "new.yaml", resource: alert("brand-new") }],
+    });
+
+    expect(mockedListRules).toHaveBeenCalledWith("o", {}, db);
+  });
+
   it("passes the registry executor to every mutation, so apply commits or rolls back whole", async () => {
     mockedListRules.mockResolvedValue([
       managedRule("changed", { sql: CHANGED_SQL }),
@@ -215,6 +230,7 @@ describe("applyAlertSpecs", () => {
       ],
     });
 
+    expect(mockedListChannels).toHaveBeenCalledWith("o", db);
     expect(mockedCreateRule).toHaveBeenCalledWith(
       "o",
       expect.objectContaining({ notification_channels: ["team-slack"] }),

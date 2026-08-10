@@ -44,8 +44,11 @@ function channelView(row: typeof alertChannels.$inferSelect) {
   };
 }
 
-export async function listChannels(organizationId: string) {
-  const rows = await db
+export async function listChannels(
+  organizationId: string,
+  executor: DbExecutor = db,
+) {
+  const rows = await executor
     .select()
     .from(alertChannels)
     .where(eq(alertChannels.organizationId, organizationId))

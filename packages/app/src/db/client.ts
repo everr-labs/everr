@@ -14,6 +14,10 @@ export const pool = new Pool({
   user: dbEnv.DATABASE_USER,
   password: dbEnv.DATABASE_PASSWORD,
   ssl: shouldUseSsl ? { rejectUnauthorized: false } : false,
+  // pg's default is 0: wait forever. Under pool exhaustion (for example a
+  // hold-and-acquire bug) that turns an error spike into a permanent
+  // whole-app hang; a bounded wait fails the request loudly instead.
+  connectionTimeoutMillis: 10_000,
 });
 
 export const db = drizzle(pool, { schema });
