@@ -30,7 +30,28 @@ import {
   AlertGroupTaskPayloadSchema,
 } from "./tasks";
 
-function formatNotification(events: (typeof alertEvents.$inferSelect)[]) {
+// Discord rejects messages over 2000 characters, the tightest channel limit,
+// and a rejected notification is a lost page. The sender frames the body with
+// the title and an optional URL, so the body budget keeps a margin under that
+// cap; Slack (3000 per section) and Telegram (4096, truncated downstream)
+// then fit for free. The title carries the full firing/resolved counts, so
+// cutting lines never hides how big the group is.
+const BODY_MAX_CHARS = 1800;
+const BODY_MAX_EVENTS = 20;
+const LINE_MAX_CHARS = 200;
+// Room kept back for the "…and N more" line so appending it cannot overflow.
+const OMITTED_LINE_RESERVE = 48;
+
+export type NotificationEvent = Pick<
+  typeof alertEvents.$inferSelect,
+  | "eventType"
+  | "slug"
+  | "instanceLabels"
+  | "notificationTitle"
+  | "notificationDescription"
+>;
+
+export function formatNotification(events: NotificationEvent[]) {
   const firing = events.filter(
     (event) => event.eventType !== "instance_resolved",
   ).length;
@@ -41,20 +62,33 @@ function formatNotification(events: (typeof alertEvents.$inferSelect)[]) {
   ]
     .filter(Boolean)
     .join(", ");
-  const body = events
-    .map((event) => {
-      const labels = Object.entries(event.instanceLabels)
-        .sort(([a], [b]) => a.localeCompare(b))
-        .map(([key, value]) => `${key}=${value}`)
-        .join(", ");
-      const heading = event.notificationTitle || event.slug;
-      const detail = event.notificationDescription
-        ? `: ${event.notificationDescription}`
-        : "";
-      return `${event.eventType === "instance_resolved" ? "Resolved" : "Firing"}: ${heading}${labels ? ` (${labels})` : ""}${detail}`;
-    })
-    .join("\n");
-  return { title: `Everr alert: ${title}`, body };
+  const lines: string[] = [];
+  let used = 0;
+  for (const event of events) {
+    if (lines.length >= BODY_MAX_EVENTS) break;
+    const labels = Object.entries(event.instanceLabels)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([key, value]) => `${key}=${value}`)
+      .join(", ");
+    const heading = event.notificationTitle || event.slug;
+    const detail = event.notificationDescription
+      ? `: ${event.notificationDescription}`
+      : "";
+    const full = `${event.eventType === "instance_resolved" ? "Resolved" : "Firing"}: ${heading}${labels ? ` (${labels})` : ""}${detail}`;
+    const line =
+      full.length > LINE_MAX_CHARS
+        ? `${full.slice(0, LINE_MAX_CHARS - 1)}…`
+        : full;
+    const cost = line.length + (lines.length > 0 ? 1 : 0);
+    if (used + cost > BODY_MAX_CHARS - OMITTED_LINE_RESERVE) break;
+    lines.push(line);
+    used += cost;
+  }
+  const omitted = events.length - lines.length;
+  if (omitted > 0) {
+    lines.push(`…and ${omitted} more events in this group`);
+  }
+  return { title: `Everr alert: ${title}`, body: lines.join("\n") };
 }
 
 export async function flushAlertGroup(rawPayload: unknown): Promise<void> {
