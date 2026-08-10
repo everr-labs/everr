@@ -362,7 +362,6 @@ describe("shouldEnqueueProcessEvent", () => {
       previewId: null,
       severity: "critical",
       ruleMuted: false,
-      serviceFallback: "alert",
     },
     transition: {
       next: {

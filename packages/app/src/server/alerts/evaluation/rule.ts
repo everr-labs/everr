@@ -88,7 +88,9 @@ function historyDefinition(
 }
 
 type TransitionEvent = {
-  outbox: typeof alertEvents.$inferInsert;
+  // The id is minted here, never left to the column default: the episode
+  // logic and the enqueue need it before the insert returns.
+  outbox: typeof alertEvents.$inferInsert & { id: string };
   history: AlertHistoryRow;
   fingerprint: string;
   /**

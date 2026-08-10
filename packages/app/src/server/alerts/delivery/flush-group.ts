@@ -17,7 +17,6 @@ import {
   recordAlertHistory,
   suppressionHistoryRow,
 } from "../history/clickhouse";
-import { alertServiceFallback } from "../history/content";
 import { ALERT_DELIVERY_MAX_ATTEMPTS } from "./config";
 import {
   type GroupMember,
@@ -327,7 +326,7 @@ export async function flushAlertGroup(rawPayload: unknown): Promise<void> {
     const decidedAt = new Date();
     await recordAlertHistory(
       null,
-      droppedRows.map(({ event, ruleActive, ruleSpec }) =>
+      droppedRows.map(({ event, ruleActive }) =>
         suppressionHistoryRow({
           def: {
             id: event.sourceDefinitionId,
@@ -337,7 +336,6 @@ export async function flushAlertGroup(rawPayload: unknown): Promise<void> {
             previewId: event.previewId,
             severity: event.severity,
             ruleMuted: event.suppressed,
-            serviceFallback: alertServiceFallback(ruleSpec?.annotations ?? {}),
           },
           notificationEventId: event.id,
           occurredAt: decidedAt,

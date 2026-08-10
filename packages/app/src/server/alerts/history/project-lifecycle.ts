@@ -1,6 +1,6 @@
 import { inArray } from "drizzle-orm";
 import { db } from "@/db/client";
-import { alertDefinitions, alertEvents } from "@/db/schema";
+import { alertEvents } from "@/db/schema";
 import {
   type AlertHistoryDefinition,
   instanceHistoryRow,
@@ -8,7 +8,6 @@ import {
   suppressionHistoryRow,
   ZERO_UUID,
 } from "./clickhouse";
-import { alertServiceFallback } from "./content";
 import { AlertLifecycleProjectionPayloadSchema } from "./tasks";
 
 /**
@@ -30,12 +29,6 @@ export async function projectAlertLifecycle(
     .where(inArray(alertEvents.id, ids));
   if (rows.length === 0) return;
   const rowById = new Map(rows.map((row) => [row.id, row]));
-  const definitionIds = [...new Set(rows.map((row) => row.sourceDefinitionId))];
-  const definitions = await db
-    .select({ id: alertDefinitions.id, spec: alertDefinitions.spec })
-    .from(alertDefinitions)
-    .where(inArray(alertDefinitions.id, definitionIds));
-  const specById = new Map(definitions.map((def) => [def.id, def.spec]));
 
   const historyDef = (
     row: typeof alertEvents.$inferSelect,
@@ -47,9 +40,6 @@ export async function projectAlertLifecycle(
     previewId: row.previewId,
     severity: row.severity,
     ruleMuted: row.suppressed,
-    serviceFallback: alertServiceFallback(
-      specById.get(row.sourceDefinitionId)?.annotations ?? {},
-    ),
   });
 
   const historyRows = [

@@ -6,7 +6,6 @@ import {
   recordAlertHistory,
   ZERO_UUID,
 } from "@/server/alerts/history/clickhouse";
-import { alertServiceFallback } from "@/server/alerts/history/content";
 import { uuidv7 } from "@/server/alerts/history/ids";
 
 /**
@@ -121,7 +120,6 @@ export async function deleteStalePreviews(
             previewId: def.previewId,
             severity: def.spec.severity,
             ruleMuted: true,
-            serviceFallback: alertServiceFallback(def.spec.annotations),
           },
           eventId: uuidv7(now),
           eventType: "instance_closed",

@@ -42,7 +42,6 @@ export function deliverableGroupMemberQuery(
       event: alertEvents,
       flushedAt: alertNotificationGroupEvents.flushedAt,
       ruleActive: alertDefinitions.active,
-      ruleSpec: alertDefinitions.spec,
     })
     .from(alertNotificationGroupEvents)
     .innerJoin(
