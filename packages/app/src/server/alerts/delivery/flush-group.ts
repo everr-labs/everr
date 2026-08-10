@@ -28,8 +28,10 @@ import {
 import { deliverableGroupMemberQuery } from "./journal-reader";
 import {
   deferSuppressedEvent,
-  isInhibited,
-  matchingSilence,
+  loadActiveSilences,
+  loadInhibitionContext,
+  matchInhibition,
+  matchSilence,
 } from "./suppression";
 import { alertDeliveryHash } from "./targeting";
 import {
@@ -50,6 +52,14 @@ const BODY_MAX_EVENTS = 20;
 const LINE_MAX_CHARS = 200;
 // Room kept back for the "…and N more" line so appending it cannot overflow.
 const OMITTED_LINE_RESERVE = 48;
+
+// Bounds one flush's claimed membership set. Past this, a storm feeding one
+// group (thousands of firing instances into one receiver) would push a
+// single worker through a suppression check per member with no upper bound.
+// Whatever is left past the cap stays linked and unflushed, and the pending
+// count this flush already computes turns that into an immediate follow-up
+// flush rather than a lost member.
+const FLUSH_GROUP_MEMBER_CLAIM_CAP = 500;
 
 export type NotificationEvent = Pick<
   typeof alertEvents.$inferSelect,
@@ -113,7 +123,11 @@ export async function flushAlertGroup(rawPayload: unknown): Promise<void> {
       .for("update")
       .limit(1);
     if (!group || group.nextFlushAt > new Date()) return null;
-    const rows = await deliverableGroupMemberQuery(tx, group.id);
+    const rows = await deliverableGroupMemberQuery(
+      tx,
+      group.id,
+      FLUSH_GROUP_MEMBER_CLAIM_CAP,
+    );
     if (rows.length === 0) {
       // Nothing claimed: park on the idle sentinel instead of leaving
       // nextFlushAt in the past, or the next event dispatched to this group
@@ -137,17 +151,33 @@ export async function flushAlertGroup(rawPayload: unknown): Promise<void> {
   // delete below removes it; a member that never made a notification also
   // gets its terminal suppression row so its chain does not dangle.
   const droppedRows: typeof rows = [];
+  const candidateRows: typeof rows = [];
   for (const row of rows) {
-    const { event, flushedAt, ruleActive } = row;
-    const liveness = memberLiveness(ruleActive, flushedAt);
+    const liveness = memberLiveness(row.ruleActive, row.flushedAt);
     if (liveness === "dropped_unnotified") {
       droppedRows.push(row);
       continue;
     }
     if (liveness !== "deliverable") continue;
-    const now = new Date();
-    const silence = await matchingSilence(event, now);
-    const inhibited = silence ? false : await isInhibited(event);
+    candidateRows.push(row);
+  }
+  // Loaded once for the whole flush, not once per member: matchingSilence
+  // and isInhibited each ran an org-wide scan, so a flush with hundreds of
+  // members used to issue hundreds of identical scans.
+  const now = new Date();
+  const [silences, inhibitionContext] =
+    candidateRows.length > 0
+      ? await Promise.all([
+          loadActiveSilences(group.organizationId, now),
+          loadInhibitionContext(group.organizationId),
+        ])
+      : [[], { inhibitions: [], sources: [] }];
+  for (const row of candidateRows) {
+    const { event, flushedAt } = row;
+    const silence = matchSilence(event, silences, now);
+    const inhibited = silence
+      ? false
+      : matchInhibition(event, inhibitionContext);
     if (silence || inhibited) {
       await deferSuppressedEvent(event, silence, inhibited, now);
       // Drop the membership now and disown the id. Deferral reschedules

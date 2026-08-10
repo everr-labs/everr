@@ -1,4 +1,4 @@
-import { and, eq, gt, isNull, lte, sql } from "drizzle-orm";
+import { and, eq, gt, isNull, lte } from "drizzle-orm";
 import {
   alertingMatchingSilence,
   alertingRouteMatches,
@@ -20,28 +20,54 @@ import {
 import { alertEventDispatchLabels } from "./targeting";
 import { enqueueProcessAlertEvent } from "./tasks";
 
-export async function matchingSilence(
-  event: typeof alertEvents.$inferSelect,
-  now: Date,
-) {
+export type ActiveSilence = Awaited<
+  ReturnType<typeof loadActiveSilences>
+>[number];
+
+/**
+ * Every silence active for the org right now. Load once per batch of events
+ * being evaluated and pass the result to `matchSilence`, rather than
+ * re-querying per event: a flush evaluating hundreds of members must not
+ * issue hundreds of identical org-wide scans.
+ */
+export async function loadActiveSilences(organizationId: string, now: Date) {
   const silences = await db
     .select()
     .from(alertSilences)
     .where(
       and(
-        eq(alertSilences.organizationId, event.organizationId),
+        eq(alertSilences.organizationId, organizationId),
         lte(alertSilences.startsAt, now),
         gt(alertSilences.endsAt, now),
       ),
     );
+  return silences.map((silence) => ({
+    ...silence,
+    starts_at: silence.startsAt.toISOString(),
+    ends_at: silence.endsAt.toISOString(),
+  }));
+}
+
+export function matchSilence(
+  event: typeof alertEvents.$inferSelect,
+  silences: ActiveSilence[],
+  now: Date,
+) {
   return alertingMatchingSilence(
     alertEventDispatchLabels(event),
-    silences.map((silence) => ({
-      ...silence,
-      starts_at: silence.startsAt.toISOString(),
-      ends_at: silence.endsAt.toISOString(),
-    })),
+    silences,
     now.getTime(),
+  );
+}
+
+export async function matchingSilence(
+  event: typeof alertEvents.$inferSelect,
+  now: Date,
+) {
+  return matchSilence(
+    event,
+    await loadActiveSilences(event.organizationId, now),
+    now,
   );
 }
 
@@ -128,12 +154,24 @@ export async function deferSuppressedEvent(
   ]);
 }
 
-export async function isInhibited(event: typeof alertEvents.$inferSelect) {
-  if (event.eventType === "instance_resolved") return false;
+export type InhibitionContext = Awaited<
+  ReturnType<typeof loadInhibitionContext>
+>;
+
+/**
+ * Every inhibition rule and every firing instance for the org right now, for
+ * `matchInhibition` to evaluate in memory. Load once per batch rather than
+ * per event: `isInhibited` used to run this pair of org-wide scans for every
+ * single member a flush considered.
+ */
+export async function loadInhibitionContext(organizationId: string): Promise<{
+  inhibitions: (typeof alertInhibitions.$inferSelect)[];
+  sources: { previewId: string | null; labels: Record<string, string> }[];
+}> {
   const inhibitions = await db
     .select()
     .from(alertInhibitions)
-    .where(eq(alertInhibitions.organizationId, event.organizationId));
+    .where(eq(alertInhibitions.organizationId, organizationId));
   const ruleSources = await db
     .select({ instance: alertInstances, def: alertDefinitions })
     .from(alertInstances)
@@ -143,31 +181,51 @@ export async function isInhibited(event: typeof alertEvents.$inferSelect) {
     )
     .where(
       and(
-        eq(alertInstances.organizationId, event.organizationId),
+        eq(alertInstances.organizationId, organizationId),
         eq(alertInstances.status, "firing"),
-        // Sources must come from the same world as the target: live rules for
-        // live events, and only the same preview for preview events. A firing
-        // preview instance must not mute a live alert. Muted rules stay valid
-        // sources on purpose: a muted root cause still holds its dependents.
-        sql`${alertDefinitions.previewId} IS NOT DISTINCT FROM ${event.previewId}`,
       ),
     );
-  const sources = ruleSources.map(({ instance, def }) =>
-    alertingSyntheticLabels(instance.labels, {
-      severity: def.spec.severity,
-      status: "firing",
-      rule: def.id,
-    }),
-  );
+  return {
+    inhibitions,
+    sources: ruleSources.map(({ instance, def }) => ({
+      previewId: def.previewId,
+      labels: alertingSyntheticLabels(instance.labels, {
+        severity: def.spec.severity,
+        status: "firing",
+        rule: def.id,
+      }),
+    })),
+  };
+}
+
+export function matchInhibition(
+  event: typeof alertEvents.$inferSelect,
+  context: InhibitionContext,
+): boolean {
+  if (event.eventType === "instance_resolved") return false;
   const target = alertEventDispatchLabels(event);
-  return inhibitions.some(({ config }) => {
+  return context.inhibitions.some(({ config }) => {
     if (!alertingRouteMatches(config.target_matchers, target)) return false;
-    return sources.some(
+    return context.sources.some(
       (source) =>
-        alertingRouteMatches(config.source_matchers, source) &&
+        // Sources must come from the same world as the target: live rules
+        // for live events, and only the same preview for preview events. A
+        // firing preview instance must not mute a live alert. Muted rules
+        // stay valid sources on purpose: a muted root cause still holds its
+        // dependents.
+        source.previewId === event.previewId &&
+        alertingRouteMatches(config.source_matchers, source.labels) &&
         config.equal.every(
-          (key) => (source[key] ?? "") === (target[key] ?? ""),
+          (key) => (source.labels[key] ?? "") === (target[key] ?? ""),
         ),
     );
   });
+}
+
+export async function isInhibited(event: typeof alertEvents.$inferSelect) {
+  if (event.eventType === "instance_resolved") return false;
+  return matchInhibition(
+    event,
+    await loadInhibitionContext(event.organizationId),
+  );
 }

@@ -4,37 +4,82 @@ const mocks = vi.hoisted(() => ({
   groupRow: null as Record<string, unknown> | null,
   memberRows: [] as unknown[],
   updates: [] as Record<string, unknown>[],
+  // Consumed in order by the commit transaction: the re-read-under-lock
+  // select, then the pending-unflushed-count select.
+  commitSelectQueue: [] as unknown[][],
+  loadSilences: vi.fn(() => Promise.resolve([])),
+  loadInhibition: vi.fn(() =>
+    Promise.resolve({ inhibitions: [], sources: [] }),
+  ),
+  transactionCalls: 0,
 }));
 
-vi.mock("@/db/client", () => ({
-  db: {
-    transaction: (fn: (tx: unknown) => Promise<unknown>) => {
-      const tx = {
-        select: () => ({
-          from: () => ({
-            where: () => ({
-              for: () => ({
-                limit: () =>
-                  Promise.resolve(mocks.groupRow ? [mocks.groupRow] : []),
+vi.mock("@/db/client", () => {
+  return {
+    db: {
+      transaction: (fn: (tx: unknown) => Promise<unknown>) => {
+        mocks.transactionCalls += 1;
+        if (mocks.transactionCalls === 1) {
+          // The claim transaction: lock-read the group, maybe park it idle.
+          const tx = {
+            select: () => ({
+              from: () => ({
+                where: () => ({
+                  for: () => ({
+                    limit: () =>
+                      Promise.resolve(mocks.groupRow ? [mocks.groupRow] : []),
+                  }),
+                }),
               }),
             }),
+            update: () => ({
+              set: (values: Record<string, unknown>) => {
+                mocks.updates.push(values);
+                return { where: () => Promise.resolve(undefined) };
+              },
+            }),
+          };
+          return fn(tx);
+        }
+        // The commit transaction: re-read under lock, insert/delete
+        // memberships, read the pending count, reschedule.
+        const tx = {
+          select: () => ({
+            from: () => ({
+              where: () => {
+                const rows = mocks.commitSelectQueue.shift() ?? [];
+                return Object.assign(Promise.resolve(rows), {
+                  for: () => ({ limit: () => Promise.resolve(rows) }),
+                });
+              },
+            }),
           }),
-        }),
-        update: () => ({
-          set: (values: Record<string, unknown>) => {
-            mocks.updates.push(values);
-            return { where: () => Promise.resolve(undefined) };
-          },
-        }),
-      };
-      return fn(tx);
+          insert: () => ({ values: () => Promise.resolve(undefined) }),
+          delete: () => ({ where: () => Promise.resolve(undefined) }),
+          update: () => ({
+            set: (values: Record<string, unknown>) => {
+              mocks.updates.push(values);
+              return { where: () => Promise.resolve(undefined) };
+            },
+          }),
+        };
+        return fn(tx);
+      },
     },
-  },
-  pool: {},
-}));
+    pool: {},
+  };
+});
 
 vi.mock("./journal-reader", () => ({
   deliverableGroupMemberQuery: () => Promise.resolve(mocks.memberRows),
+}));
+
+vi.mock("./suppression", () => ({
+  loadActiveSilences: mocks.loadSilences,
+  loadInhibitionContext: mocks.loadInhibition,
+  matchSilence: () => null,
+  matchInhibition: () => false,
+  deferSuppressedEvent: vi.fn(),
 }));
 
 import { CHANNEL_TEXT_MAX } from "@/lib/channel-text-limits";
@@ -49,6 +94,10 @@ beforeEach(() => {
   mocks.groupRow = null;
   mocks.memberRows = [];
   mocks.updates = [];
+  mocks.commitSelectQueue = [];
+  mocks.transactionCalls = 0;
+  mocks.loadSilences.mockClear();
+  mocks.loadInhibition.mockClear();
 });
 
 function event(overrides: Partial<NotificationEvent> = {}): NotificationEvent {
@@ -150,5 +199,74 @@ describe("flushAlertGroup empty claim", () => {
     await flushAlertGroup({ groupId: "5cbb1c68-5cc9-4444-8000-000000000001" });
 
     expect(mocks.updates).toEqual([]);
+  });
+});
+
+describe("flushAlertGroup suppression batching", () => {
+  const GROUP_ID = "5cbb1c68-5cc9-4444-8000-000000000002";
+
+  function member(i: number) {
+    return {
+      event: {
+        id: `event-${i}`,
+        organizationId: "org-1",
+        sourceDefinitionId: "def-1",
+        instanceFingerprint: `fp-${i}`,
+        occurredAt: new Date("2026-08-10T08:59:00Z"),
+        eventType: "instance_fired",
+        instanceLabels: {},
+        silenced: false,
+        inhibited: false,
+        silenceId: null,
+      },
+      flushedAt: null,
+      ruleActive: true,
+    };
+  }
+
+  it("loads silences and inhibition sources once, not once per member", async () => {
+    const group = {
+      id: GROUP_ID,
+      organizationId: "org-1",
+      nextFlushAt: new Date("2026-08-10T09:00:00Z"),
+      directAlertDefinitionId: null,
+      receiverId: null,
+      repeatIntervalSeconds: null,
+      lastNotifiedAt: null,
+    };
+    mocks.groupRow = group;
+    // 5 distinct firing members: with the per-member design this would have
+    // been 5 silence scans and 5 inhibition scans.
+    mocks.memberRows = Array.from({ length: 5 }, (_, i) => member(i));
+    mocks.commitSelectQueue = [
+      [group], // re-read under lock
+      [{ unflushed: 0 }], // pending count
+    ];
+
+    await flushAlertGroup({ groupId: GROUP_ID });
+
+    expect(mocks.loadSilences).toHaveBeenCalledTimes(1);
+    expect(mocks.loadInhibition).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not load either when nothing survives to the suppression check", async () => {
+    const group = {
+      id: GROUP_ID,
+      organizationId: "org-1",
+      nextFlushAt: new Date("2026-08-10T09:00:00Z"),
+      directAlertDefinitionId: null,
+      receiverId: null,
+      repeatIntervalSeconds: null,
+      lastNotifiedAt: null,
+    };
+    mocks.groupRow = group;
+    // A paused rule: dropped before the suppression check runs.
+    mocks.memberRows = [{ ...member(0), ruleActive: false }];
+    mocks.commitSelectQueue = [[group], [{ unflushed: 0 }]];
+
+    await flushAlertGroup({ groupId: GROUP_ID });
+
+    expect(mocks.loadSilences).not.toHaveBeenCalled();
+    expect(mocks.loadInhibition).not.toHaveBeenCalled();
   });
 });

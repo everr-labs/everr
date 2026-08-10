@@ -29,6 +29,7 @@ describe("the delivery pipeline's journal boundary", () => {
     const { sql, params } = deliverableGroupMemberQuery(
       builder(),
       "1af52a7c-c9d7-4bca-9c67-a21db2096acf",
+      500,
     ).toSQL();
 
     expect(sql).toContain('"kind" = ');
@@ -39,10 +40,23 @@ describe("the delivery pipeline's journal boundary", () => {
     const { sql } = deliverableGroupMemberQuery(
       builder(),
       "1af52a7c-c9d7-4bca-9c67-a21db2096acf",
+      500,
     ).toSQL();
 
     expect(sql).toContain('left join "alert_definitions"');
     expect(sql).toContain('"active"');
+  });
+
+  it("caps and orders the claim so a storm cannot pull an unbounded set", () => {
+    const { sql, params } = deliverableGroupMemberQuery(
+      builder(),
+      "1af52a7c-c9d7-4bca-9c67-a21db2096acf",
+      500,
+    ).toSQL();
+
+    expect(sql).toContain("order by");
+    expect(sql).toContain("limit");
+    expect(params).toContain(500);
   });
 
   it("counts a delivery's rules as live only when notifying and active", () => {

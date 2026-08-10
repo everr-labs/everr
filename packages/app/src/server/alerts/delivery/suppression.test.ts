@@ -63,7 +63,11 @@ vi.mock("../history/clickhouse", () => ({
 }));
 
 import type { alertEvents } from "@/db/schema";
-import { deferSuppressedEvent, isInhibited } from "./suppression";
+import {
+  deferSuppressedEvent,
+  isInhibited,
+  matchInhibition,
+} from "./suppression";
 
 beforeEach(() => {
   mocks.wheres = [];
@@ -74,7 +78,7 @@ beforeEach(() => {
   mocks.history = [];
 });
 
-it("draws inhibition sources only from the event's own world", async () => {
+it("resolves false with no inhibition rules configured", async () => {
   const event = {
     eventType: "instance_fired",
     organizationId: "org-1",
@@ -83,12 +87,61 @@ it("draws inhibition sources only from the event's own world", async () => {
     severity: "critical",
     instanceLabels: {},
   } as unknown as typeof alertEvents.$inferSelect;
+  // loadInhibitionContext's two queries: inhibitions, then firing sources.
+  mocks.selectRows = [[], []];
 
   await expect(isInhibited(event)).resolves.toBe(false);
+});
 
-  const sources = new PgDialect().sqlToQuery(mocks.wheres[1] as SQL);
-  expect(sources.sql).toContain('"preview_id" IS NOT DISTINCT FROM');
-  expect(sources.params).toContain("prev-1");
+// The context is loaded once per flush and evaluated in memory for every
+// member, so the world scoping that used to sit in the SQL filter
+// (preview_id IS NOT DISTINCT FROM) is now matchInhibition's job.
+describe("matchInhibition", () => {
+  const target = {
+    eventType: "instance_fired",
+    organizationId: "org-1",
+    previewId: "prev-1",
+    sourceDefinitionId: "def-1",
+    severity: "critical",
+    instanceLabels: {},
+  } as unknown as typeof alertEvents.$inferSelect;
+  const config = { target_matchers: [], source_matchers: [], equal: [] };
+  const sourceLabels = {
+    rule: "def-2",
+    status: "firing",
+    severity: "critical",
+    kind: "alert",
+  };
+
+  it("does not let a source from a different preview inhibit a live target", () => {
+    expect(
+      matchInhibition(target, {
+        inhibitions: [{ config }] as never,
+        sources: [{ previewId: null, labels: sourceLabels }],
+      }),
+    ).toBe(false);
+  });
+
+  it("does not let a live source inhibit a preview target", () => {
+    expect(
+      matchInhibition(
+        { ...target, previewId: null },
+        {
+          inhibitions: [{ config }] as never,
+          sources: [{ previewId: "prev-1", labels: sourceLabels }],
+        },
+      ),
+    ).toBe(false);
+  });
+
+  it("inhibits once a source shares the target's own world", () => {
+    expect(
+      matchInhibition(target, {
+        inhibitions: [{ config }] as never,
+        sources: [{ previewId: "prev-1", labels: sourceLabels }],
+      }),
+    ).toBe(true);
+  });
 });
 
 describe("deferSuppressedEvent", () => {

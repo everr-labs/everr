@@ -1,4 +1,4 @@
-import { and, eq } from "drizzle-orm";
+import { and, asc, eq } from "drizzle-orm";
 import { type DbExecutor, db } from "@/db/client";
 import {
   alertDefinitions,
@@ -32,10 +32,19 @@ export async function claimDeliverableEvent(eventId: string) {
  * same statement. `ruleActive` is null when the definition is gone (the rule
  * was deleted; its journal rows outlive it), false when it is paused. The
  * flush drops both instead of notifying.
+ *
+ * `cap` bounds how many rows one flush claims: a storm feeding one group
+ * (thousands of firing instances into one receiver) must not push a single
+ * worker through a suppression check per member unbounded. Ordered by event
+ * id (UUIDv7, creation-ordered) so a capped claim always takes the oldest
+ * members first; whatever is left stays linked and unflushed, which the
+ * flush's own pending-member count already turns into an immediate
+ * follow-up flush.
  */
 export function deliverableGroupMemberQuery(
   executor: DbExecutor,
   groupId: string,
+  cap: number,
 ) {
   return executor
     .select({
@@ -62,7 +71,9 @@ export function deliverableGroupMemberQuery(
         eq(alertEvents.sourceDefinitionId, alertDefinitions.id),
       ),
     )
-    .where(eq(alertNotificationGroupEvents.groupId, groupId));
+    .where(eq(alertNotificationGroupEvents.groupId, groupId))
+    .orderBy(asc(alertEvents.id))
+    .limit(cap);
 }
 
 /**
