@@ -21,7 +21,8 @@ beforeEach(() => {
   globalThis.IS_REACT_ACT_ENVIRONMENT = true;
   emit = vi.fn();
   stopErrors = bindEmit(emit as unknown as Emit);
-  // React logs caught render errors via console.error; keep test output clean.
+  // React writes a render error that it catches with console.error. This code
+  // keeps the output of the test clear.
   vi.spyOn(console, "error").mockImplementation(() => {});
 });
 

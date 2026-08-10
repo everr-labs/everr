@@ -1,7 +1,8 @@
-// Real Node processes, driven by a real NodeSDK, because the fatal path ends
-// in process.exit and cannot be observed in-process. Each fixture registers
-// the instrumentation the way an application does and prints what its
-// exporters receive, one JSON object per line.
+// These tests start true Node processes with a true NodeSDK. This is
+// necessary, because the fatal path ends with process.exit, and thus the same
+// process cannot examine it. Each fixture registers the instrumentation as an
+// application registers it. Then the fixture prints the data that its
+// exporters receive, one JSON object on each line.
 import { execSync, spawnSync } from "node:child_process";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";

@@ -88,7 +88,8 @@ describe("ErrorsInstrumentation lifecycle", () => {
     const before = process.listenerCount("uncaughtException");
     it_.setConfig({ onFatal: "continue" });
     expect(it_.getConfig().onFatal).toBe("continue");
-    // Reinstalled, not doubled: setConfig removes before it re-adds.
+    // The code installs the handlers again. It does not install two sets,
+    // because setConfig removes the handlers before it adds them again.
     expect(process.listenerCount("uncaughtException")).toBe(before);
     process.emit("uncaughtException", new Error("crash"));
     expect(otel.records()).toHaveLength(1);

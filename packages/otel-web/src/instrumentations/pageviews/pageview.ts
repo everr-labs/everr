@@ -3,16 +3,20 @@ import { pageAttrs } from "../../envelope.js";
 import type { NavigationListener } from "../../navigation.js";
 import type { CurrentPage } from "../../session.js";
 
-// The pageviews signal: one `everr.browser.page_view` for the hard navigation
-// that loaded the page and one per SPA navigation, plus one
-// `everr.browser.page_leave` per pageview (on navigation away or page hide)
-// carrying its duration and max scroll depth. The navigation watcher rotates the page context before
-// listeners run, so the leave overrides the envelope with the outgoing
-// page's context (shared `pageAttrs` keys).
+// The pageviews signal. It sends one `everr.browser.page_view` record for the
+// full navigation that loaded the page, and one record for each SPA navigation.
+// It also sends one `everr.browser.page_leave` record for each page view, when
+// the user goes to a different page or when the page becomes hidden. That
+// record carries the time on the page and the maximum scroll depth.
+//
+// The navigation watcher makes the new page context before the listeners
+// operate. Thus the leave record replaces the envelope with the context of the
+// page that the user leaves. It uses the shared `pageAttrs` keys.
 
 type Pageviews = [
   onNavigate: NavigationListener,
-  /** Emits the current pageview's leave; at most one per pageview. */
+  /** Sends the leave record of the current page view. It sends a maximum of one
+   * record for each page view. */
   onHide: () => void,
   stop: () => void,
 ];
@@ -23,13 +27,15 @@ export function startPageviews(emit: Emit, current: CurrentPage): Pageviews {
   let maxBottom = 0;
   let left = false;
 
-  // Cheap reads only: the layout-forcing scrollHeight is deferred to leave.
+  // This code reads only the values that are quick to read. A read of
+  // scrollHeight causes a new layout, and thus the code reads it at the leave.
   const onScroll = () => {
     const bottom = scrollY + innerHeight;
     if (bottom > maxBottom) maxBottom = bottom;
   };
   addEventListener("scroll", onScroll, { passive: true });
-  // Initial sample: a fully visible page counts even if never scrolled.
+  // The first measurement. A page that the user sees fully counts, also when
+  // the user does not scroll it.
   onScroll();
 
   const emitView = (navigationType: "initial" | "history_change") =>
@@ -42,7 +48,8 @@ export function startPageviews(emit: Emit, current: CurrentPage): Pageviews {
     left = true;
     const height = document.documentElement.scrollHeight;
     emit("everr.browser.page_leave", {
-      // The leave belongs to the page being left: override the envelope.
+      // The leave record belongs to the page that the user leaves. Thus the
+      // code replaces the envelope.
       ...pageAttrs(page),
       "everr.page_view.duration": Date.now() - startedAt,
       "everr.scroll.depth":

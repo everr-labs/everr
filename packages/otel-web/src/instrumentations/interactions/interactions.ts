@@ -1,25 +1,30 @@
 import { elementAttrs, FORM_FIELDS, guardOf, targetOf } from "../../element.js";
 import type { Emit } from "../../emitter.js";
 
-// The interactions signal: product-analytics autocapture plus
-// frustration detection. The autocapture half covers form-field `change` and
-// `submit`; the frustration half covers rage and dead clicks. Slow
-// interactions (Event Timing) live in the performance instrumentation, sharing the
-// observer that computes INP, but keep this module's taxonomy, element
-// payload, and privacy perimeter (via the shared element.ts helpers): every
-// event carries tag/selector/chain, the autocapture events are gated by the
-// structural privacy guards, and rage/dead stay the only signals that carry
-// pointer coordinates (Event Timing reports none).
+// The interactions signal. It captures the data for the product analytics
+// automatically, and it finds the frustration of the user. The automatic
+// capture covers a `change` event of a form field and a `submit` event. The
+// frustration part covers a rage click and a dead click.
 //
-// This is the interim ungated emitter: every qualifying interaction ships
-// immediately through the batch pipeline. The eventual breadcrumb model will
-// gate raw autocapture behind an "interesting event" (error, slow click,
-// dead/rage click); the element/guard helpers are reused verbatim, only the
-// gating changes.
+// The slow interactions are in the performance instrumentation, and they use
+// the same observer that calculates the INP. But they use the event names, the
+// element data, and the privacy limits of this module, through the shared
+// functions in element.ts. Thus each event carries the tag, the selector, and
+// the chain. The privacy limits in the structure control the events of the
+// automatic capture. The rage click and the dead click are the only signals
+// that carry the coordinates of the pointer, because Event Timing gives no
+// coordinates.
+//
+// This emitter sends each interaction immediately on the batch pipeline, and
+// this condition is temporary. The next model uses breadcrumbs. Then an
+// interesting event controls the raw automatic capture, for example an error, a
+// slow click, a dead click, or a rage click. That model uses the same functions
+// for the element and the privacy limits, and only the control changes.
 
 export function startInteractions(emit: Emit): () => void {
-  // Rage-click thresholds: three clicks within 30px at gaps of at most 1s
-  // make a rage click; 3s without a page reaction makes a dead click.
+  // The limits for a rage click. Three clicks in an area of 30 px, with an
+  // interval of a maximum of 1 s between them, make a rage click. An interval
+  // of 3 s with no change of the page makes a dead click.
   let rage: [x: number, y: number, at: number, count: number] | undefined;
 
   const onClick = (event: MouseEvent) => {
@@ -53,23 +58,27 @@ export function startInteractions(emit: Emit): () => void {
     }
   };
 
-  // Capture phase: see clicks even when handlers stop propagation.
+  // The listener uses the capture phase. Thus it receives a click also when a
+  // different handler stops the propagation.
   addEventListener("click", onClick, true);
 
   const onChange = (event: Event) => {
-    // targetOf applies the no-capture / password / hidden guards; the
-    // closest(FORM_FIELDS) check restricts to the same element set the
-    // privacy perimeter already speaks, so non-field `change` (contenteditable
-    // divs and the like) is never autocaptured.
+    // The targetOf function applies the tests for the no-capture class, a
+    // password input, and a hidden input. The closest(FORM_FIELDS) test permits
+    // only the elements that the privacy limits know. Thus the code never
+    // captures a `change` event of a different element automatically, for
+    // example a div with contenteditable.
     const el = targetOf(event);
     if (!el?.closest(FORM_FIELDS)) return;
     emit("everr.browser.interaction.change", elementAttrs(el));
   };
 
   const onSubmit = (event: Event) => {
-    // Target the triggering button (event.submitter): the element the user
-    // acted on, joining cleanly to the click stream. A JS-submitted form with
-    // no submitter is skipped, since the interactive element is the point.
+    // The code uses the button that caused the submit, which is
+    // event.submitter. That is the element that the user operated, and thus the
+    // record connects correctly to the clicks. If JS submits the form, there is
+    // no submitter, and the code ignores the event, because the element that
+    // the user operated is the necessary data.
     const submitter = (event as SubmitEvent).submitter;
     const el = submitter ? guardOf(submitter) : null;
     if (!el) return;

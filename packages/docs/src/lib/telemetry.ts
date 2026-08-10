@@ -8,13 +8,17 @@ import {
 } from "@everr/otel-web";
 import { env } from "@/env";
 
-// Everr-native browser telemetry, storage-free (memory persistence, no
-// cookies, ids die with the page): pageviews, frustration clicks, and web
-// vitals flow to Everr as OTel log records. Runs alongside PostHog during
-// the parallel-run window. The WebSDK is inert on the server and, without a
-// key outside dev, never issues a network request; dev sends to the local
-// collector. The route pattern is pushed by the TanStack adapter via
-// setRouteResolver; `getRouter()` registers the router with it.
+// The browser telemetry of the docs site. It writes nothing to a store: it uses
+// the memory store, it sets no cookie, and its ids end with the page. The page
+// views, the frustration clicks, and the web vitals go to Everr as OTel log
+// records. This code operates with PostHog while the two systems operate
+// together.
+//
+// The WebSDK does nothing on the server. Without a key, and not in the
+// development mode, it makes no network request. In the development mode it
+// sends the data to the local collector. The TanStack adapter gives the route
+// pattern with setRouteResolver, and `getRouter()` registers the router with
+// that adapter.
 new WebSDK({
   persistence: "memory",
   serviceName: "everr-docs",
@@ -22,7 +26,8 @@ new WebSDK({
   ingestKey: env.VITE_EVERR_PUBLIC_INGEST_KEY,
   endpoint: env.VITE_EVERR_INGEST_ENDPOINT,
   dev: import.meta.env.DEV,
-  // Capture is opt-in only: the full built-in composition.
+  // The caller must select the capture. This site uses all the built-in
+  // instrumentations.
   instrumentations: [
     errors(),
     pageviews(),

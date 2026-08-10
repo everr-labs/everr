@@ -1,41 +1,50 @@
 import type { Tracer } from "@opentelemetry/api";
 import { errorTypeOf } from "../../errors.js";
 
-// The network signal: window.fetch is patched so every request (1) becomes
-// an OTel CLIENT span on the traces pipeline and (2) carries a W3C
-// traceparent header where propagation is safe, making the browser request
-// the root of the distributed trace the server's spans parent to.
+// The network signal. This module changes window.fetch. Thus each request does
+// two things. First, it becomes an OTel CLIENT span on the traces pipeline.
+// Second, it carries a W3C traceparent header when that is safe. Thus the
+// request of the browser is the root of the distributed trace, and the spans of
+// the server are below it.
 //
-// Propagation is same-origin by default: a traceparent on a cross-origin
-// request triggers a CORS preflight and fails unless the target server
-// allows the header, so cross-origin backends must be named in the
-// `tracePropagationTargets` option (string = substring match on the
-// full URL, or RegExp). Spans are recorded for every request regardless;
-// the option gates only the header.
+// By default the header goes only to the same origin. A traceparent header on a
+// request to a different origin causes a CORS preflight request. That request
+// fails when the server does not permit the header. Thus you must put a server
+// of a different origin in the `tracePropagationTargets` option. A string must
+// occur in the full URL, and a RegExp must agree with the full URL. The SDK
+// records a span for each request in all conditions, and the option controls
+// only the header.
 //
-// Spans ride the SDK's Tracer (the same one instrumentations get): each request is
-// its own always-sampled trace, and its ids feed the traceparent header;
-// pageview/session grouping rides the envelope attrs stamped on the span.
-// The SDK's own telemetry POSTs never reach this patch: the emitter captured
-// the fetch reference before the patch was applied, so a
-// span-of-our-own-batch loop is structurally impossible. Attributes follow
-// HTTP client-span semconv; per semconv, url.full on a client span is the
-// REQUEST url (the envelope's page-context url.* is overridden by design),
-// deliberately query-stripped: query strings carry tokens and PII, and the
-// structural privacy stance is to never capture values. 4xx and 5xx both
-// mark the span as error.
+// The Tracer of the SDK makes the spans, and the instrumentations use that same
+// Tracer. Each request is its own trace, and the SDK always samples it. The ids
+// of that trace go into the traceparent header. The envelope attributes on the
+// span connect the span to the page view and the session.
 //
-// The patch must never break the page: an unparseable URL falls through to
-// the original fetch with the arguments untouched, a failing header clone
-// downgrades to no propagation, and shutdown restores the original only if
-// the global is still ours (a later patcher wins, exactly as we would want
-// an earlier one to let us win).
+// The telemetry POST operations of the SDK never come to this changed fetch.
+// The emitter kept its reference to fetch before this module changed the
+// global. Thus the SDK cannot make a span for its own batch.
+//
+// The attributes agree with the semconv for an HTTP client span. In that
+// semconv, url.full on a client span is the URL of the REQUEST. Thus it
+// replaces the url.* keys of the page context in the envelope, and this is
+// correct. The code removes the query string, and this is also correct: a query
+// string can contain a token or personal data, and the privacy limits of this
+// package never permit a capture of a value. A 4xx status and a 5xx status both
+// make the span an error.
+//
+// The changed fetch must never cause a failure of the page. If the code cannot
+// read the URL, it calls the original fetch with the same arguments. If it
+// cannot copy the headers, it sends no traceparent header. The shutdown
+// restores the original fetch only when the global fetch is still the function
+// of this module. Thus a module that changed fetch after this module wins, and
+// this module wins in the opposite condition.
 
 export type PropagationTarget = string | RegExp;
 
 /**
- * Maps a request URL to its low-cardinality route template (semconv
- * `url.template`), e.g. `/api/posts/123` -> `/api/posts/{id}`.
+ * Changes the URL of a request into its route template, which is the semconv
+ * attribute `url.template`. That template has a small number of different
+ * values. For example, it changes `/api/posts/123` into `/api/posts/{id}`.
  */
 export type RouteTemplateResolver = (url: URL) => string | null | undefined;
 
@@ -63,15 +72,19 @@ export function startNetwork(
     const method = (
       init?.method ?? (input instanceof Request ? input.method : "GET")
     ).toUpperCase();
-    // Read the URL parts once: the completion closure captures plain
-    // strings, not the URL host object.
+    // The code reads the parts of the URL one time. Thus the function at the
+    // end keeps only strings, and it does not keep the URL object.
     const path = url.pathname;
-    // The request's own route template, resolved from the request URL by the
-    // host: the page's route pattern describes the document, not the endpoint
-    // this request hits, so the network signal never borrows it. With a
-    // resolver the span name stays low-cardinality even when the path carries
-    // ids; without one the path is the name. The exact target stays on
-    // url.full either way. Guarded because host code must never break fetch.
+    // The route template of the request. The host calculates it from the URL of
+    // the request. The route pattern of the page describes the document, and it
+    // does not describe the endpoint of this request. Thus the network signal
+    // never uses that pattern.
+    //
+    // With this function, the name of the span has a small number of different
+    // values, also when the path contains an id. Without it, the name is the
+    // path. In the two conditions, url.full contains the exact target. The code
+    // uses a try block, because the code of the host must never cause a failure
+    // of fetch.
     let template: string | null | undefined;
     try {
       template = resolveTemplate?.(url);
@@ -93,8 +106,9 @@ export function startNetwork(
       )
     ) {
       try {
-        // Precedence mirrors fetch itself: init.headers override a Request
-        // input's headers; we start from whichever wins and add ours.
+        // The sequence is the same as in fetch: the headers in init replace the
+        // headers of a Request object. The code starts from the headers that
+        // win, then it adds its own header.
         headers = new Headers(
           init?.headers ??
             (input instanceof Request ? input.headers : undefined),
@@ -114,7 +128,8 @@ export function startNetwork(
         "http.response.status_code": status,
         "error.type": errorType,
       });
-      // 2 is SpanStatusCode.ERROR; the enum import would cost real bytes.
+      // The value 2 is SpanStatusCode.ERROR. An import of the enum adds many
+      // bytes to the build.
       if (errorType !== undefined) span.setStatus({ code: 2 });
       span.end();
     };

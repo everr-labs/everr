@@ -4,11 +4,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { capture, configure, resetSharedClient, setLogger } from "./capture.js";
 import { setupTestTelemetry } from "./test-utils.js";
 
-// The capture path, exercised through the free functions, because the client
-// is a true singleton: the constructor is private and `Client.shared()` is
-// the only instance there is. Isolation comes from resetSharedClient() in
-// afterEach, which is sound because vitest runs the tests in a file
-// sequentially.
+// Tests for the capture path. They use the exported functions, because the
+// process has only one client: the constructor is private, and
+// `Client.shared()` gives the only instance. The resetSharedClient() call in
+// afterEach keeps each test separate. This is correct, because vitest runs the
+// tests in one file in sequence.
 
 let otel: ReturnType<typeof setupTestTelemetry>;
 
@@ -42,9 +42,9 @@ describe("the capture path", () => {
   });
 
   it("never redacts the uid, even when it matches the credit-card pattern", () => {
-    // A numeric-heavy UUID whose leading groups are all digits — the default
-    // credit-card redaction pattern would redact it to "[Filtered]" if the uid went
-    // through redaction.
+    // A UUID with many digits, and the first groups contain only digits. If
+    // the uid goes through the redaction, the default pattern for a credit
+    // card changes the uid to "[Filtered]".
     const uid = "40000000-0000-4000-8000-000000000002";
     const spy = vi
       .spyOn(globalThis.crypto, "randomUUID")

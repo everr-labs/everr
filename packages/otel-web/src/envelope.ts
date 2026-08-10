@@ -8,15 +8,16 @@ import {
   visitorId,
 } from "./session.js";
 
-// The context envelope: stamped on EVERY record emitted through the SDK
-// (analytics and, later, errors), which is what lets any signal slice by
-// page and join by session. Attribute names follow OTel semconv where a
-// convention exists and the `everr.` prefix elsewhere.
+// The context envelope. The SDK writes it on EACH record that it sends, the
+// analytics records and the error records. Thus a query can divide each signal
+// by page, and it can connect the signals by session. The attribute names agree
+// with the OTel semconv when a convention exists. The other names have the
+// `everr.` prefix.
 
 /**
- * The page-scoped envelope keys, shared with signals that re-point a record
- * at a specific page (page_leave overrides the envelope with the outgoing
- * page's context via these same keys).
+ * The envelope keys for one page. A signal can move a record to a different
+ * page, and it uses these keys. For example, page_leave replaces the envelope
+ * with the context of the page that the user leaves.
  */
 export function pageAttrs(
   page: PageContext,
@@ -25,17 +26,20 @@ export function pageAttrs(
     "everr.page_view.id": page.pageViewId,
     "url.full": page.url,
     "url.path": page.path,
-    // Resolved from this page's URL, so a leave record re-pointed at the
-    // outgoing page carries that page's pattern, not the current one.
+    // The code finds this from the URL of this page. Thus a leave record that
+    // moves to the previous page carries the pattern of that page, and not the
+    // pattern of the current page.
     "everr.route.pattern": routePattern(page.url),
     "everr.referrer.url": page.referrer,
   };
 }
 
-// The live module state (session, visitor, route, setAttributes ambient set,
-// identify()'s user.* keys) is sampled per record, so a change takes effect
-// on the very next event; page context is per-client, attribution now rides
-// resourceAttributes (client.ts) since it too is fixed for the client's life.
+// The code reads the current module data for each record. That data is the
+// session, the visitor, the route, the ambient set of setAttributes, and the
+// user.* keys from identify(). Thus a change applies to the next event. The
+// page context belongs to one client. The resource attributes in client.ts now
+// carry the attribution, because it also does not change during the life of the
+// client.
 export function createEnvelope(
   current: CurrentPage,
 ): () => Record<string, AttrValue | null | undefined> {

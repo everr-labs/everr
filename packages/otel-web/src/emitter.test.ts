@@ -142,9 +142,9 @@ describe("createEmitter", () => {
   });
 
   it("never drops a record on the normal flush path, whatever the burst size", async () => {
-    // No queue cap until sampling exists: a burst far beyond the batch size
-    // must deliver every record, via the batch-size auto-flushes plus the
-    // final manual flush.
+    // The queue has no limit until the sampling exists. Thus a large number of
+    // records, much more than the batch size, must all go to the server. The
+    // automatic flushes at the batch size and the last manual flush send them.
     for (let i = 0; i < 250; i++) emit("everr.browser.page_view");
     await flush();
     expect(sentRecords()).toHaveLength(250);
@@ -169,8 +169,8 @@ describe("createEmitter", () => {
     const names = sentRecords().map((r) => r.eventName);
     expect(sent[0].bodyLength).toBeLessThanOrEqual(64_000);
     expect(names.length).toBeLessThan(31);
-    // Oldest records survive: the leading exception ships, the newest
-    // interactions absorb the truncation.
+    // The oldest records stay. Thus the SDK sends the first exception record,
+    // and it removes the most recent interaction records.
     expect(names[0]).toBe("exception");
   });
 
@@ -232,7 +232,7 @@ describe("span pipeline", () => {
     expect(span.startTimeUnixNano).toBe("1000000000");
     expect(span.endTimeUnixNano).toBe("1400000000");
     expect(span.status).toBeUndefined();
-    // The envelope rides span attributes like it rides log records.
+    // The span attributes carry the envelope, the same as the log records.
     const keys = (span.attributes as Array<{ key: string }>).map((a) => a.key);
     expect(keys).toContain("session.id");
     expect(keys).toContain("http.request.method");
@@ -286,7 +286,8 @@ describe("exit budget and transport hardening", () => {
       (s) => s.name,
     );
     expect(names.length).toBeLessThan(30);
-    // Oldest spans survive: truncation pops from the newest end.
+    // The oldest spans stay, because the code removes the most recent spans
+    // first.
     expect(names[0]).toBe("span-0");
   });
 
@@ -307,8 +308,9 @@ describe("exit budget and transport hardening", () => {
   });
 
   it("swallows a synchronously-throwing fetch on every delivery path", async () => {
-    // The transport binds fetch at creation: the throwing stub must be in
-    // place before the emitter is built for the catch path to be real.
+    // The transport keeps its reference to fetch when the code makes it. Thus
+    // the replacement that throws an error must be in place before the code
+    // makes the emitter, and then the test examines the true catch path.
     vi.stubGlobal(
       "fetch",
       vi.fn(() => {

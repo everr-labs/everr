@@ -8,10 +8,10 @@ import {
   startClient,
 } from "./test-kit.js";
 
-// The tracer handed to instrumentations via ctx.tracer: a minimal @opentelemetry/api
-// Tracer over the SDK's span pipeline. Exercised the way an instrumentation would,
-// through a custom instrumentation composed into the WebSDK, with the wire output
-// asserted on the traces batches.
+// The tracer that ctx.tracer gives to an instrumentation. It is a small
+// @opentelemetry/api Tracer on the span pipeline of the SDK. These tests use it
+// as an instrumentation uses it, through a custom instrumentation in the WebSDK.
+// They examine the output in the traces batches.
 
 let client: WebSDK | undefined;
 let batches: OtlpBatch[];
@@ -134,7 +134,8 @@ describe("instrumentation tracer", () => {
     const wire = await spans();
     expect(wire[0].startTimeUnixNano).toBe("1000000000");
     expect(wire[0].endTimeUnixNano).toBe("2000000000");
-    // Date inputs fall back to now: on or after the explicit test times.
+    // For a Date input, the code uses the current time. That time is the same
+    // as the times in this test, or later.
     expect(Number(wire[1].startTimeUnixNano)).toBeGreaterThan(2_000_000_000);
     expect(Number(wire[1].endTimeUnixNano)).toBeGreaterThanOrEqual(
       Number(wire[1].startTimeUnixNano),

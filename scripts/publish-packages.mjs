@@ -3,9 +3,9 @@ import { spawnSync } from "node:child_process";
 import * as fs from "node:fs";
 import * as path from "node:path";
 
-// The public npm packages this monorepo ships, in dependency order:
-// @everr/otel-web consumes @everr/otel-errors/core, so the errors package
-// must be on the registry first.
+// The public npm packages of this monorepo, in the sequence of the
+// dependencies. The @everr/otel-web package uses @everr/otel-errors/core. Thus
+// the errors package must go to the registry first.
 const PACKAGE_DIRS = ["packages/otel-errors", "packages/otel-web"];
 
 const repoRoot = path.resolve(import.meta.dirname, "..");

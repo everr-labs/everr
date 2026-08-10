@@ -3,10 +3,11 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { fetchSend } from "./config.js";
 import { createEmitter } from "./emitter.js";
 
-// Property tests for the emitter's algorithmic core: the exit-flush budget
-// truncation and the OTLP attribute mapping. Generated inputs probe the
-// budget boundaries (giant single records, sizes straddling the limit) that
-// hand-picked examples cannot enumerate.
+// Property tests for the calculations in the emitter: the decrease of the exit
+// flush to the limit, and the mapping of the OTLP attributes. The test makes the
+// inputs, and thus it examines the conditions at the limit. Those conditions are
+// a very large single record and a size near the limit. A person cannot write
+// all these examples.
 
 const EXIT_BUDGET = 64_000;
 const SPAN_BUDGET = EXIT_BUDGET / 4;
@@ -61,8 +62,8 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
-// Batches stay under the 32-record regular-flush trigger, so every record
-// rides the exit path being tested.
+// Each batch has less than 32 records, which is the number that starts a usual
+// flush. Thus each record goes on the exit path that this test examines.
 const sizes = (max: number) =>
   fc.array(fc.integer({ min: 0, max: 30_000 }), {
     minLength: 1,
@@ -88,19 +89,21 @@ describe("exit-flush budget", () => {
         const exits = sent.filter((b) => b.keepalive);
         const spans = exits.find((b) => b.url.endsWith("/v1/traces"));
         const logs = exits.find((b) => b.url.endsWith("/v1/logs"));
-        // Spans: at most a quarter of the budget, unless a single span alone
-        // exceeds it (whole-record truncation never drops the last one).
+        // The spans get a maximum of one quarter of the limit. But one span
+        // alone can be larger than that quarter, because the code removes full
+        // records and it never removes the last one.
         if (spans && spans.spanNames.length > 1) {
           expect(spans.bytes).toBeLessThanOrEqual(SPAN_BUDGET);
         }
-        // Logs fill whatever the spans left of the budget, same lone-record
-        // exemption.
+        // The log records use the part of the limit that the spans did not
+        // use. The rule for one large record is the same.
         if (logs && logs.logNames.length > 1) {
           expect(logs.bytes).toBeLessThanOrEqual(
             EXIT_BUDGET - (spans?.bytes ?? 0),
           );
         }
-        // Survivors are always the oldest prefix, in emit order.
+        // The records that stay are always the oldest records, in the sequence
+        // that the SDK sent them.
         const survivors = (kept: string[], prefix: string, total: number) => {
           expect(kept).toEqual(
             Array.from({ length: kept.length }, (_, i) => `${prefix}-${i}`),

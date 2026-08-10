@@ -1,10 +1,11 @@
-// The runtime-neutral entry: the capture path with no Node and no
-// @opentelemetry/instrumentation dependency, so a browser-targeted tsc
-// program can consume it without pulling @types/node into its globals.
-// @everr/otel-web's server entry is its consumer.
-// `capture` is exported here and not from ./node: it is the surface for SDKs
-// built on this package, which report their own mechanisms. An application
-// wants `captureError`.
+// The entry for all runtimes. It contains the capture path. It does not use
+// Node and it does not use @opentelemetry/instrumentation. Thus a tsc program
+// for a browser can use it, and @types/node does not go into the globals of
+// that program. The server entry of @everr/otel-web uses this entry.
+//
+// This entry exports `capture`, and the ./node entry does not. The `capture`
+// function is for the SDKs that are built on this package, because they report
+// their own mechanisms. An application uses `captureError`.
 export { capture, configure, setLogger } from "./capture.js";
 export type { CaptureInput } from "./client.js";
 export { type NormalizedError, normalizeError } from "./normalize.js";

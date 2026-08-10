@@ -2,39 +2,54 @@
 import type { Tracer } from "@opentelemetry/api";
 import { scriptAttrs } from "./shared.js";
 
-// The page-load window: one `GET <url>` CLIENT span per static
-// resource in the initial load's waterfall (script, css, img, font, link,
-// iframe...) from a buffered Resource Timing observer, plus one
-// `long_animation_frame` span per main-thread stall from a
-// buffered LoAF observer (Chrome 123+), so the waterfall and the jank it
-// caused tell one what-was-slow story on the traces timeline, alongside the
-// network signal's request spans. fetch/XHR entries are excluded: app
-// traffic is the network instrumentation's turf, and emitting both would tell two
-// slightly different stories about every request (this also structurally
-// keeps the SDK's own telemetry POSTs out, since the emitter ships via
-// fetch). Only the loading phase is captured: the observers start at setup
-// (buffered, so pre-init entries replay) and stop at `load` + settleMs (the
-// grace catches async stragglers) or at ceilingMs from setup, whichever
-// comes first. SPA soft navigations never re-open the window.
+// The window of the page load. A Resource Timing observer with the buffered
+// option gives the entries, and the code makes one `GET <url>` CLIENT span for
+// each static resource in the first load: a script, a CSS file, an image, a
+// font, a link, an iframe, and the equivalent resources. A LoAF observer with
+// the buffered option gives the long animation frames, and the code makes one
+// `long_animation_frame` span for each interval when the main thread stops.
+// Chrome 123 and the later versions have that observer. Thus the sequence of
+// the resources and the delays that they caused give one description of the
+// slow operations on the trace timeline, with the request spans of the network
+// signal.
 //
-// Attributes follow semconv where it exists (url.full, query-stripped like
-// the network span's, because query strings carry tokens and values are
-// never captured; http.response.status_code) and live under
-// `everr.browser.asset.` / `everr.browser.long_animation_frame.` otherwise.
-// Span timestamps come from the entry itself (timeOrigin + startTime), so
-// the trace timeline reproduces the waterfall; the entry's duration is the
-// span's, not an attribute. Phase durations are omitted wholesale for
-// cross-origin resources without Timing-Allow-Origin, where the browser
-// zeroes the detailed timestamps: absent beats fake zeros.
+// The code ignores the fetch entries and the XHR entries. The network
+// instrumentation captures the traffic of the app. Two records for one request
+// give two slightly different descriptions. This also keeps the telemetry POST
+// operations of the SDK out of this signal, because the emitter uses fetch.
+//
+// The code captures only the load phase. The observers start at the setup with
+// the buffered option, and thus they also give the entries from before the
+// setup. They stop at the `load` event plus settleMs, which gets the resources
+// that load late, or at ceilingMs from the setup. The first of the two events
+// stops them. An SPA navigation never opens this window again.
+//
+// The attributes agree with the semconv when it gives a name. The url.full
+// attribute has no query string, the same as in a network span, because a query
+// string can contain a token and the SDK never captures a value. The semconv
+// also gives http.response.status_code. The other attributes have the
+// `everr.browser.asset.` prefix or the `everr.browser.long_animation_frame.`
+// prefix.
+//
+// The timestamps of a span come from the entry, as timeOrigin plus startTime.
+// Thus the trace timeline shows the true sequence of the resources. The
+// duration of the entry is the duration of the span, and it is not an
+// attribute.
+//
+// A resource of a different origin without the Timing-Allow-Origin header has
+// no detailed timestamps, because the browser makes them zero. For such a
+// resource the code writes no phase duration, because an absent value is better
+// than an incorrect zero.
 
 export function startPageLoad(
   tracer: Tracer,
   settleMs: number,
   ceilingMs: number,
 ): () => void {
-  // Entry timestamps are relative to the time origin; spans speak epoch ms.
-  // The end is start plus the rounded duration, so the span duration is the
-  // entry's regardless of how the fractional start rounded.
+  // The timestamps of an entry are relative to the time origin, but a span uses
+  // milliseconds from the epoch. The end is the start plus the duration after
+  // the code rounds it. Thus the duration of the span is the duration of the
+  // entry, and the rounding of the start does not change it.
   const span = (
     name: string,
     startTime: number,
@@ -51,24 +66,28 @@ export function startPageLoad(
     const { initiatorType } = entry;
     if (initiatorType === "fetch" || initiatorType === "xmlhttprequest") return;
     let url = entry.name.split("?")[0];
-    // Same-origin assets read as paths: the origin is the page's own and
-    // only adds noise to every span name; cross-origin (CDN, third-party)
-    // keeps the full URL, where the host is the signal.
+    // A resource of the same origin uses its path. The origin is the origin of
+    // the page, and it adds no information to the name of a span. A resource of
+    // a different origin, for example from a CDN or a third party, keeps the
+    // full URL, because the host is the important data.
     if (url.startsWith(`${location.origin}/`))
       url = url.slice(location.origin.length);
-    // Newer Resource Timing fields, absent in older engines and lib.dom.
+    // These Resource Timing fields are new. An old browser does not have them,
+    // and lib.dom does not declare them.
     const { responseStatus, renderBlockingStatus, deliveryType } =
       entry as PerformanceResourceTiming & {
         responseStatus?: number;
         renderBlockingStatus?: string;
         deliveryType?: string;
       };
-    // responseStart is 0 when Timing-Allow-Origin withholds the detailed
-    // timestamps; every phase below would be a fake zero, so all are omitted.
+    // The value of responseStart is 0 when the Timing-Allow-Origin header does
+    // not permit the detailed timestamps. Then each phase below is an incorrect
+    // zero. Thus the code writes none of them.
     const timed = entry.responseStart > 0;
-    // HTTP client-span naming, `{method} {target}`: resource fetches are
-    // always GETs, and the full query-stripped URL names the exact asset
-    // (asset URLs are static, so the name stays queryable).
+    // The name of an HTTP client span is `{method} {target}`. A request for a
+    // resource is always a GET. The full URL without the query string gives the
+    // exact resource. The URL of a resource does not change, and thus a query
+    // can use this name.
     span(`GET ${url}`, entry.startTime, entry.duration, {
       "url.full": url,
       "http.response.status_code": responseStatus || undefined,
@@ -98,12 +117,14 @@ export function startPageLoad(
     });
   };
 
-  // One span per long animation frame: where the frame sat in the load
-  // timeline and how long it ran are the span's own timestamps. Attributes
-  // carry how much of it blocked input, a per-frame category breakdown
-  // (script, style-and-layout, unattributed; forced style/layout inside
-  // scripts counts as style-and-layout, as DevTools does), and the single
-  // longest script (the same script vocabulary slow_interaction spans carry).
+  // One span for each long animation frame. The timestamps of the span give the
+  // position of the frame in the load timeline and its duration. The attributes
+  // give the interval that the frame prevented an input. They also give the
+  // duration of each category in the frame: the script, the style and the
+  // layout, and the part without a category. A forced style operation or a
+  // forced layout operation inside a script counts as style and layout, the
+  // same as in DevTools. The attributes also give the longest script, and they
+  // use the same names as the slow_interaction spans.
   const reportLoaf = (entry: PerformanceLongAnimationFrameTiming) => {
     let longest: PerformanceScriptTiming | undefined;
     let script = 0;
@@ -114,7 +135,8 @@ export function startPageLoad(
       if (!longest || s.duration > longest.duration) longest = s;
     }
     script -= forced;
-    // styleAndLayoutStart is 0 when the frame had no style/layout phase.
+    // The value of styleAndLayoutStart is 0 when the frame had no phase for the
+    // style and the layout.
     const styleAndLayout =
       (entry.styleAndLayoutStart
         ? entry.startTime + entry.duration - entry.styleAndLayoutStart
@@ -152,7 +174,8 @@ export function startPageLoad(
     });
     loafPo.observe({ type: "long-animation-frame", buffered: true });
   } catch {
-    // LoAF is Chrome 123+: elsewhere the waterfall ships alone.
+    // Chrome 123 and the later versions have LoAF. In a different browser, the
+    // SDK sends only the resource spans.
   }
 
   let settle: ReturnType<typeof setTimeout> | undefined;

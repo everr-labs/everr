@@ -1,10 +1,12 @@
-// captureError is the manual error reporting surface; it flows
-// through the SDK's emitter once a WebSDK has been constructed and safely
-// warns before that. identify()/revoke() work the same way, live once a
-// browser WebSDK exists; the `persistence` option decides how long their
-// ids live. WebSDK works in both module graphs of a full-stack framework:
-// the browser gets the full signal set, the server gets logger and
-// captureError on the same pipeline. React-specific exports live in the dedicated
+// The captureError function reports an error manually. After the code
+// constructs a WebSDK, the emitter of the SDK sends the report. Before that,
+// captureError gives a warning and causes no error. The identify() and revoke()
+// functions operate in the same way, and they become active when a browser
+// WebSDK exists. The `persistence` option controls the life of their ids.
+//
+// The WebSDK operates in the two module graphs of a full-stack framework. The
+// browser gets all the signals. The server gets the logger and captureError on
+// the same pipeline. The exports for React are in the separate
 // `@everr/otel-web/react` entry.
 
 export { setAttributes } from "./attributes.js";

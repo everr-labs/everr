@@ -2,9 +2,10 @@ import fc from "fast-check";
 import { describe, expect, it } from "vitest";
 import { normalizeError, safeStringify } from "./normalize.js";
 
-// Property tests for normalization: whatever JavaScript can throw,
-// normalizeError must never throw back and always produce the string-typed
-// wire shape, no matter how hostile the stack, cause chain, or value is.
+// Property tests for the normalization. JavaScript can throw many types of
+// value. For each of them, normalizeError must not throw an error, and it must
+// always make the structure that contains only strings. This is true for each
+// stack, each chain of causes, and each value.
 
 describe("normalizeError", () => {
   it("never throws and always returns string type and message", () => {
@@ -45,7 +46,7 @@ describe("normalizeError", () => {
             error = cause;
           }
           const normalized = normalizeError(root);
-          // Depth 0 is the root, so the cap admits the first 6 messages.
+          // Depth 0 is the root. Thus the limit permits the first 6 messages.
           for (const message of messages.slice(0, 6)) {
             expect(normalized.stacktrace).toContain(message);
           }

@@ -1,18 +1,22 @@
 import type { Instrumentation } from "./runtime.js";
 
 /**
- * Gates an instrumentation's entire setup by session: a hash of the session id and
- * the instrumentation's name decides once, at init, whether the wrapped instrumentation runs
- * at all. A sampled-out session attaches no listeners and pays zero
- * capture cost. The decision rides the session id's own persistence (no
- * storage of its own), so it is stable across tabs and reloads, and mid-page
- * session rotation cannot change a decision already made at setup.
+ * Permits or refuses the full setup of an instrumentation, for each session.
+ * The code makes a hash from the session id and the name of the
+ * instrumentation. At the start it uses that hash one time to decide if the
+ * instrumentation operates. If the decision refuses the session, the
+ * instrumentation adds no listener and captures nothing.
  *
- * Decorrelates by `instrumentation.name`: two different instrumentations wrapped for the same
- * session get independent decisions only if their setup functions are named
- * (every built-in factory names its returned function for this reason). An
- * anonymous instrumentation still samples deterministically, just correlated with
- * any other anonymous instrumentation sampled in the same session.
+ * The decision uses the store of the session id, and it keeps no data of its
+ * own. Thus the decision is the same in all the tabs and after a reload. Also,
+ * a new session during the page cannot change a decision from the setup.
+ *
+ * The code uses `instrumentation.name` to make the decisions different. Two
+ * instrumentations in the same session get different decisions only when their
+ * setup functions have names. Each built-in function gives a name to the
+ * function that it returns, for this reason. An instrumentation without a name
+ * still gets the same decision each time, but that decision is the same as the
+ * decision for each other instrumentation without a name in the same session.
  */
 export function sampled(
   instrumentation: Instrumentation,
@@ -32,8 +36,9 @@ export function sampled(
 }
 
 /**
- * djb2, folded to an unsigned 32-bit int and normalized to [0, 1). Shared
- * with the performance instrumentation's pageLoad sampling.
+ * The djb2 hash. The code changes it to an unsigned 32-bit integer, then to a
+ * value from 0 to less than 1. The pageLoad sampling in the performance
+ * instrumentation uses this function also.
  */
 export function hashUnit(input: string): number {
   let hash = 5381;

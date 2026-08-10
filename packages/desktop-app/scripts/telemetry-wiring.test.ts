@@ -22,20 +22,22 @@ describe("desktop browser telemetry wiring", () => {
   it("forwards every signal through the OTLP proxy with the SDK's host transport", () => {
     const telemetry = readSource("src/lib/telemetry.ts");
 
-    // The SDK builds OTLP/JSON itself and hands the payload to Rust through
-    // `send`, so there is no exporter, no provider, and no serializer here.
+    // The SDK makes the OTLP/JSON payload itself, then it gives that payload to
+    // the Rust code with `send`. Thus this module has no exporter, no provider,
+    // and no code that makes the payload.
     expect(telemetry).toContain('from "@everr/otel-web"');
     expect(telemetry).toContain("send:");
     expect(telemetry).toContain('invoke("proxy_otlp", { signal, body })');
 
-    // Errors are the one capture source, and the instrumentation owns the window
-    // handlers: a hand-rolled listener alongside it would double-capture.
+    // The errors are the only source of the capture, and the instrumentation
+    // owns the handlers on the window. A second listener captures each error two
+    // times.
     expect(telemetry).toContain("errors()");
     expect(telemetry).not.toContain("addEventListener(\"error\"");
     expect(telemetry).not.toContain("onunhandledrejection");
 
-    // No OTel SDK in the renderer at all: that whole layer moved into the
-    // browser SDK, which ships far fewer bytes.
+    // The renderer contains no OTel SDK. That code is now in the browser SDK,
+    // which has many fewer bytes.
     expect(telemetry).not.toContain("@opentelemetry/");
     expect(telemetry).not.toContain("LoggerProvider");
     expect(telemetry).not.toContain("BatchLogRecordProcessor");

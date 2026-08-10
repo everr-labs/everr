@@ -8,10 +8,11 @@ import {
 } from "./capture.js";
 import { setupTestTelemetry } from "./test-utils.js";
 
-// The singleton layer: one client for the whole process, configured through
-// `configure` alone. What each test asserts is the merge contract (an absent
-// key keeps the current value, a present one replaces it wholesale), not the
-// capture path itself, which client.test.ts covers against its own instances.
+// Tests for the singleton layer. The full process has one client, and only
+// `configure` sets it. Each test examines the rules of the merge: a key that is
+// not present keeps the current value, and a key that is present replaces the
+// full field. These tests do not examine the capture path. The tests in
+// client.test.ts examine that path with their own instances.
 
 let otel: ReturnType<typeof setupTestTelemetry>;
 
@@ -27,8 +28,8 @@ afterEach(async () => {
 describe("configure", () => {
   it("leaves untouched keys at their current value", () => {
     configure({ redactPatterns: [/tok_\w+/g], rateLimit: false });
-    // Only redaction is re-stated: the disabled rate limit must survive, so
-    // all twenty reports land.
+    // This call sets only the redaction. The rate limit stays off. Thus the
+    // client sends all the twenty reports.
     configure({ redactPatterns: [/key_\w+/g] });
     for (let i = 0; i < 20; i++) captureError(new Error("same"));
     expect(otel.records()).toHaveLength(20);
@@ -39,7 +40,8 @@ describe("configure", () => {
     configure({ redactPatterns: [/tok_\w+/g] });
     configure({ redactPatterns: [/key_\w+/g] });
     captureError(new Error("tok_abc and key_def"));
-    // The first pattern is gone, not unioned with the second.
+    // The second array replaces the first pattern. The client does not add the
+    // two arrays together.
     expect(otel.records()[0]?.body).toBe("Error: tok_abc and [Filtered]");
   });
 
@@ -49,9 +51,9 @@ describe("configure", () => {
       beforeSend: () => null,
       rateLimit: { count: 2, windowMs: 60_000 },
     });
-    // What forwarding an optional config looks like. Neither field is set, so
-    // neither may take effect: the hook stays installed and the limiter keeps
-    // its windows.
+    // This is an example of a caller that forwards an optional configuration.
+    // The two fields have no value. Thus the client changes neither of them:
+    // the hook stays installed, and the rate limiter keeps its windows.
     configure({ beforeSend: undefined, rateLimit: undefined });
     captureError(error);
     expect(otel.records()).toHaveLength(0);
@@ -59,9 +61,9 @@ describe("configure", () => {
     configure({ beforeSend: null });
     captureError(error);
     captureError(error);
-    // One record, not two: the throttle runs before beforeSend, so the
-    // dropped capture above already spent one of the two. A restarted window
-    // would have let both of these through.
+    // The client sends one record, not two. The rate limit operates before
+    // beforeSend. Thus the capture above that the client discarded used one of
+    // the two allowances. A new window lets the two records through.
     expect(otel.records()).toHaveLength(1);
   });
 
@@ -78,7 +80,7 @@ describe("configure", () => {
     captureError(new Error("dropped"));
     expect(otel.records()).toHaveLength(0);
 
-    // An absent key must not clear the hook.
+    // A key that is not present must not remove the hook.
     configure({ redactKeys: true });
     captureError(new Error("still dropped"));
     expect(otel.records()).toHaveLength(0);
@@ -88,16 +90,18 @@ describe("configure", () => {
     expect(otel.records()).toHaveLength(1);
   });
 
-  // One error object throughout: the limiter fingerprints on type, message,
-  // and top frame, so separately constructed errors would each get their own
-  // budget and never throttle.
+  // All these tests use one error object. The rate limiter makes a fingerprint
+  // from the type, the message, and the top frame. Thus each error object that
+  // the code constructs has its own allowance, and the rate limit does not
+  // operate.
   it("keeps the rate-limit window when the limit itself is not re-stated", () => {
     const error = new Error("same");
     configure({ rateLimit: { count: 2, windowMs: 60_000 } });
     captureError(error);
     captureError(error);
-    // Two are through, the window is full. A configure() that says nothing
-    // about rateLimit must not hand out a fresh budget.
+    // The client sent two records, and the window is full. A call to
+    // configure() that does not contain rateLimit must not give a new
+    // allowance.
     configure({ redactKeys: true });
     captureError(error);
     expect(otel.records()).toHaveLength(2);

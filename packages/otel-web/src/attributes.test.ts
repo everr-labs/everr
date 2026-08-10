@@ -42,7 +42,8 @@ afterEach(async () => {
 describe("setAttributes", () => {
   it("stamps the ambient set on every subsequent record", async () => {
     start();
-    // The initial page_view predates the call and stays untouched.
+    // The first page_view record occurred before this call, and thus it does
+    // not change.
     setAttributes({ "everr.tenant.id": "acme", "everr.flag.beta": true });
     history.pushState(null, "", "/tenant-page");
     const all = await records();

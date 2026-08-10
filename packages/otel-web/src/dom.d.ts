@@ -1,8 +1,8 @@
-// Platform types the SDK reads that lib.dom does not (yet) declare, plus
-// the typed getEntriesByType overload. Declared globally the way the
-// web-vitals library's types.ts did (adapted from GoogleChrome/web-vitals,
-// copyright Google LLC, Apache License 2.0), trimmed to the fields the SDK
-// touches.
+// The platform types that the SDK reads and that lib.dom does not declare now.
+// This file also declares the typed getEntriesByType function. The declarations
+// are global, the same as in the types.ts file of the web-vitals library. This
+// code comes from GoogleChrome/web-vitals, copyright Google LLC, Apache License
+// 2.0. It contains only the fields that the SDK uses.
 declare global {
   // https://wicg.github.io/nav-speculation/prerendering.html
   interface PerformanceNavigationTiming {

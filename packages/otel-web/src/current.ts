@@ -1,11 +1,14 @@
-// The live state of the SDK, in one module: the current pipeline binding
-// and the current identity store. Package-level surfaces (logger,
-// captureError, identify, sessionId) sample this state per call instead of
-// each keeping swap machinery, so WebSDK construction/shutdown() bind and unbind in
-// exactly one place, and the store can be switched mid-session (a consent
-// flow upgrades memory to localStorage without re-initializing). Emit warns
-// before the first bind (miswiring stays visible), silent after unbind, by
-// design.
+// The current data of the SDK, in one module: the connection to the pipeline
+// and the identity store. The package functions logger, captureError, identify,
+// and sessionId read this data at each call. Thus each of them needs no code to
+// change the connection. The WebSDK constructor connects in one place, and
+// shutdown() disconnects in that same place. Also, the code can change the store
+// during a session, and thus a consent procedure changes memory to localStorage
+// without a new construction.
+//
+// Before the first connection, an emit gives a warning. Thus an incorrect setup
+// is visible. After the code disconnects, an emit gives no warning. This is
+// correct.
 
 import type { Emit } from "./emitter.js";
 import type { Persistence } from "./types.js";
@@ -26,16 +29,17 @@ export function bindEmit(next: Emit): () => void {
   };
 }
 
-/** Where identity keys live; picked by the `persistence` option. */
+/** The location of the identity keys. The `persistence` option selects it. */
 export type IdentityStore = {
   read(key: string): string | null;
   write(key: string, value: string): void;
   remove(key: string): void;
 };
 
-// Storage access is best-effort: when localStorage is unavailable (private
-// mode, disabled storage) every read/write fails softly and identity
-// degrades to in-memory state for the page's life, never a throw.
+// The code tries to use the store, but it accepts a failure. The localStorage
+// store is not always available, for example in private mode or when the user
+// stops the store. Then each read and each write fails, but the code throws no
+// error. The identity then stays in memory for the life of the page.
 const localStorageStore: IdentityStore = {
   read: (key) => {
     try {
@@ -48,19 +52,21 @@ const localStorageStore: IdentityStore = {
     try {
       localStorage.setItem(key, value);
     } catch {
-      // Storage unavailable: identity degrades to in-memory for the page life.
+      // The store is not available. The identity then stays in memory for the
+      // life of the page.
     }
   },
   remove: (key) => {
     try {
       localStorage.removeItem(key);
     } catch {
-      // As above.
+      // The same as above.
     }
   },
 };
 
-/** Memory persistence: same identity semantics, ids die with the page. */
+/** The memory store. The identity operates in the same way, but the ids end
+ * with the page. */
 function memoryStore(): IdentityStore {
   const map = new Map<string, string>();
   return {
@@ -78,9 +84,10 @@ export function storeFor(persistence: Persistence | undefined): IdentityStore {
   return persistence === "memory" ? memoryStore() : localStorageStore;
 }
 
-// The pre-construction default keeps identify()/revoke() harmless before a WebSDK exists and
-// after revoke() (which swaps a fresh memory store in so the live client
-// stops re-persisting).
+// This is the default before the code constructs a WebSDK. Thus identify() and
+// revoke() cause no error at that time. It is also the default after revoke(),
+// which installs a new memory store. Thus the current client stops to write the
+// ids to the store.
 let store: IdentityStore = memoryStore();
 
 export const currentStore = (): IdentityStore => store;

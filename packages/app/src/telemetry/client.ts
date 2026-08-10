@@ -9,22 +9,28 @@ import {
 import { readConsent } from "@/telemetry/consent";
 import { parameterizeTelemetryPath } from "@/telemetry/paths";
 
-// Everr-native browser telemetry for the web app (dogfooding): pageviews,
-// frustration clicks, web vitals, and errors flow to Everr as OTel log
-// records under a browser service name distinct from the server's
-// (`node.ts`), so the two sides stay separable in queries. Error capture rides the SDK's own errors() instrumentation
-// (window.onerror, unhandledrejection, and the router's error component via
-// the re-exported `captureReactError`), stamped with the same analytics
-// envelope.
+// The browser telemetry of the web app, and this app uses our own product. The
+// page views, the frustration clicks, the web vitals, and the errors go to Everr
+// as OTel log records. They use a browser service name, and that name is
+// different from the name of the server in `node.ts`. Thus a query can select
+// one of the two.
 //
-// Persistence boots from the stored consent cookie: memory (no storage, ids
-// die with the page) until consent is granted. A consent change flips the
-// live client in place via setPersistence()/revoke() (see
-// telemetry/consent-gate.tsx); this only picks the initial mode. The
-// WebSDK is inert on the server and, without a key outside dev, never issues a
-// network request; dev sends to the local collector. The route pattern is pushed
-// by the TanStack adapter via setRouteResolver; `getRouter()` registers
-// the router with it.
+// The errors() instrumentation of the SDK captures the errors. It uses
+// window.onerror, the unhandledrejection event, and the error component of the
+// router through the `captureReactError` function that this module exports
+// again. Each error record carries the same analytics envelope.
+//
+// The consent cookie in the store gives the initial persistence. Until the user
+// gives consent, the SDK uses the memory store, which writes nothing and whose
+// ids end with the page. A change of the consent changes the current client with
+// setPersistence() or revoke(). Refer to telemetry/consent-gate.tsx. This module
+// only selects the initial mode.
+//
+// The WebSDK does nothing on the server. Without a key, and not in the
+// development mode, it makes no network request. In the development mode it
+// sends the data to the local collector. The TanStack adapter gives the route
+// pattern with setRouteResolver, and `getRouter()` registers the router with
+// that adapter.
 new WebSDK({
   persistence: readConsent() === "granted" ? "localStorage" : "memory",
   serviceName: "everr-dev-app-web",
@@ -32,17 +38,17 @@ new WebSDK({
   ingestKey: import.meta.env.VITE_EVERR_PUBLIC_INGEST_KEY,
   endpoint: import.meta.env.VITE_EVERR_INGEST_ENDPOINT,
   dev: import.meta.env.DEV,
-  // Capture is opt-in only: the full built-in composition. performance()
-  // includes the page-load window (asset waterfall + long-animation-frame
-  // records) by default.
+  // The caller must select the capture. This app uses all the built-in
+  // instrumentations. By default performance() includes the load window of the
+  // page, which gives the resource spans and the long-animation-frame records.
   instrumentations: [
     errors(),
     pageviews(),
     interactions(),
     performance(),
-    // The same parameterization the server stamps on http.route, so a
-    // request's url.template (notably /_serverFn/:id) matches its server
-    // span's route.
+    // This gives the same parameters as the http.route attribute of the server.
+    // Thus the url.template value of a request is the same as the route of its
+    // server span. This is important for /_serverFn/:id.
     network({
       resolveRouteTemplate: (url) => parameterizeTelemetryPath(url.pathname),
     }),

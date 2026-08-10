@@ -5,11 +5,11 @@ import { createTracer } from "../../tracer.js";
 import { startInp } from "./inp.js";
 import { startWebVitals } from "./webvitals.js";
 
-// Property tests for the ported web-vitals math: the INP p98 candidate
-// selection and phase breakdown, and the CLS session windowing. The
-// reference implementations below restate the published specs (the
-// web.dev definitions), so a divergence flags drift in the port, not in
-// the test.
+// Property tests for the calculations from web-vitals in this package. They
+// examine the selection of the p98 candidate for the INP, the durations of its
+// phases, and the session windows of the CLS. The reference code below gives the
+// published specifications, which are the definitions on web.dev. Thus a
+// difference shows an error in this package and not in the test.
 
 let emitted: Array<{ name: string; attrs?: Record<string, unknown> }>;
 const emit: Emit = (name, attrs) => {
@@ -17,7 +17,8 @@ const emit: Emit = (name, attrs) => {
 };
 const vitals = () => emitted.filter((e) => e.name === "browser.web_vital");
 
-// Slow interactions are spans: the real tracer over a capturing sink.
+// A slow interaction is a span. This is the true tracer that sends its spans to
+// a test function.
 let spans: Array<{ attrs: Record<string, unknown> }>;
 const tracer = createTracer((_traceId, _spanId, _name, _start, _end, attrs) => {
   spans.push({ attrs });
@@ -90,8 +91,9 @@ afterEach(() => {
 });
 
 describe("INP", () => {
-  // One entry per unique interaction id: latency is then exactly the entry
-  // duration, so the reference below is the p98 spec, not the stream logic.
+  // There is one entry for each interaction id. Thus the latency is exactly the
+  // duration of the entry. Therefore the reference code below gives the p98
+  // specification, and it does not repeat the code that processes the entries.
   const interactions = fc
     .uniqueArray(fc.integer({ min: 1, max: 80 }), {
       minLength: 1,
@@ -130,8 +132,10 @@ describe("INP", () => {
         hide();
         stop();
 
-        // Reference: interaction count estimated from the id spread, the
-        // candidate list capped at ten, index = min(count / 50, list end).
+        // The reference code. It calculates the number of the interactions
+        // from the range of the ids. The list of the candidates has a maximum of
+        // ten interactions. The index is min(count / 50, the last index of the
+        // list).
         const count = Math.max(...ids) - Math.min(...ids) + 1;
         const sorted = [...durations].sort((a, b) => b - a);
         const index = Math.min(
@@ -190,7 +194,8 @@ describe("INP", () => {
         expect(inputDelay).toBeGreaterThanOrEqual(0);
         expect(processing).toBeGreaterThanOrEqual(0);
         expect(presentation).toBeGreaterThanOrEqual(0);
-        // The phases tile the interaction-to-next-paint window exactly.
+        // The phases fill the full window from the interaction to the next
+        // paint.
         const nextPaint = Math.max(
           entry.startTime + entry.duration,
           entry.processingStart,
@@ -234,8 +239,10 @@ describe("CLS", () => {
         hide();
         stop();
 
-        // Reference fold of the spec: sessions split on a 1s entry gap or a
-        // 5s total span, worst session wins, input-adjacent shifts excluded.
+        // The reference code for the specification. A new session starts after
+        // a gap of 1 s between the entries, or after a total length of 5 s. The
+        // session with the largest value wins. The code does not count a shift
+        // near an input.
         let worst = 0;
         let session = { value: 0, first: 0, last: 0 };
         for (const e of entries) {

@@ -29,24 +29,25 @@ export interface CaptureInput {
   mechanism: Mechanism;
   severity?: ErrorSeverity;
   message?: string;
-  /** Caller-supplied attributes, merged under the `exception.*` set. */
+  /** The attributes from the caller. They go below the `exception.*` set. */
   context?: Attributes;
 }
 
 /**
- * The runtime-neutral capture path: normalize, redact, rate limit, mark the
- * active span, emit one log record. It holds no process or DOM state, so any
- * runtime can drive it.
+ * The capture path for all runtimes. It does these steps: it makes the error
+ * regular, it redacts the data, it applies the rate limit, it marks the active
+ * span, and it sends one log record. It keeps no process data and no DOM data.
+ * Thus each runtime can use it.
  *
- * There is exactly one per process, and the class enforces that rather than
- * leaving it to export discipline: the constructor is private, `shared()` is
- * the only way to reach an instance, and neither package entry exports the
- * class. `capture.ts` wraps it in the free functions callers actually use.
+ * A process has only one client, and this class makes sure of that. The
+ * constructor is private. The `shared()` function is the only way to get an
+ * instance. The two package entries do not export the class. The `capture.ts`
+ * module supplies the functions that callers use.
  */
 export class Client {
   private static instance: Client | null = null;
 
-  /** The process's client, built with defaults on first use. */
+  /** The client for this process. The first call builds it with the defaults. */
   static shared(): Client {
     if (!Client.instance) {
       Client.instance = new Client();
@@ -54,14 +55,13 @@ export class Client {
     return Client.instance;
   }
 
-  /** Test-only, called through `capture.ts`'s `resetSharedClient`. */
+  /** For tests only. Call it with `resetSharedClient` in `capture.ts`. */
   static reset(): void {
     Client.instance = null;
   }
 
-  // Every default is declared here, so the constructor resolves the logger
-  // and nothing else, and configure() is the only path that changes any of
-  // them.
+  // All the defaults are here. Thus the constructor only finds the logger.
+  // The configure() function is the only function that changes a default.
   private options: ClientOptions = {};
   private logger: Logger;
   private rateLimiter: RateLimiter | null = new RateLimiter(5, 5000);
@@ -70,32 +70,36 @@ export class Client {
   private processing = false;
 
   private constructor() {
-    // Falls back to the global API registry, which is a no-op logger until
-    // an SDK registers. setLogger swaps in an SDK-injected one.
+    // This uses the global API registry. That registry gives a logger that
+    // does nothing until an SDK starts. Then setLogger installs the logger
+    // from the SDK.
     this.logger = logs.getLogger(PKG_NAME, PKG_VERSION);
   }
 
   /**
-   * Merges options over the current configuration. An absent key keeps its
-   * current value, so a caller that re-states one field never resets the
-   * others to their defaults. The rate limiter is rebuilt only when
-   * `rateLimit` is present, because rebuilding drops the accumulated
-   * per-fingerprint windows.
+   * Merges the options into the current configuration. A key that is not
+   * present keeps its current value. Thus a caller that sets one field again
+   * does not change the other fields to their defaults.
+   *
+   * A new rate limiter starts only when `rateLimit` is present, because a new
+   * rate limiter loses the recorded windows for each fingerprint.
    */
   configure(options: ClientOptions): void {
-    // `undefined` counts as absent everywhere, including when it is passed
-    // explicitly: a caller forwarding an optional config
-    // (`configure({ beforeSend: cfg.beforeSend })`) must not uninstall a hook
-    // or restart the rate-limit windows just because its own field is unset.
-    // That is what `beforeSend: null` is for. A plain spread would not hold
-    // this line, so the merge is a filtered copy.
+    // A value of `undefined` is always the same as a key that is not present.
+    // This is also true when the caller sends `undefined` on purpose. A caller
+    // can forward an optional configuration, for example
+    // `configure({ beforeSend: cfg.beforeSend })`. Such a caller must not
+    // remove a hook or start the rate-limit windows again because its own
+    // field has no value. To remove a hook, send `beforeSend: null`. A spread
+    // operator cannot do this. Thus the merge copies only the keys that have a
+    // value.
     for (const [key, value] of Object.entries(options)) {
       if (value !== undefined) {
         (this.options as Record<string, unknown>)[key] = value;
       }
     }
-    // Rebuilt only on an explicit rateLimit, because a rebuild drops the
-    // accumulated per-fingerprint windows.
+    // A new rate limiter starts only when `rateLimit` is present, because a
+    // new rate limiter loses the recorded windows for each fingerprint.
     if (options.rateLimit !== undefined) {
       const rateLimit = options.rateLimit;
       this.rateLimiter =
@@ -111,14 +115,14 @@ export class Client {
     }
   }
 
-  /** Binds emission to a specific provider's logger instead of the global. */
+  /** Sends the records to the logger of one provider, not to the global one. */
   setLogger(logger: Logger): void {
     this.logger = logger;
   }
 
   capture(input: CaptureInput): void {
-    // Reentrancy guard: an error thrown inside process() must not recurse
-    // through the global handlers back into capture().
+    // This flag prevents a loop. If process() throws an error, the global
+    // handlers must not call capture() again.
     if (this.processing) {
       return;
     }
@@ -177,16 +181,18 @@ export class Client {
     );
     const attributes = {
       ...redactAttributes(filteredAttributes, this.redactPatterns),
-      // The uid is a library-generated identifier, never user data, so it's set
-      // after redaction: a numeric-heavy UUID would otherwise trip the
-      // credit-card pattern and get partially redacted to "[Filtered]".
+      // The library makes the uid, and it is not user data. Thus it is set
+      // after the redaction. A UUID with many digits can agree with the
+      // pattern for a credit card. Then the redaction changes part of the uid
+      // to "[Filtered]".
       "log.record.uid": errorId,
     };
     const body = redactString(event.message, this.redactPatterns);
     const activeSpan = trace.getActiveSpan();
 
-    // Attach the error to the surrounding span so traces show the failure.
-    // A browser SDK usually has no active span, in which case this is a no-op.
+    // Attach the error to the span that contains it. Then the traces show the
+    // failure. A browser SDK usually has no active span. Then this step does
+    // nothing.
     if (activeSpan) {
       markActiveSpan(activeSpan, normalized, input.error);
     }

@@ -4,54 +4,66 @@ import { elementAttrs, guardOf } from "../../element.js";
 import type { AttrValue, Emit } from "../../emitter.js";
 import { emitVital, scriptAttrs, whenIdleOrHidden } from "./shared.js";
 
-// Interaction latency tracking: one Event Timing observer feeding two
-// outputs.
+// The measurement of the interaction latency. One Event Timing observer gives
+// the data for two outputs.
 //
-// 1. `slow_interaction` spans: one CLIENT span per user interaction whose
-//    latency crosses 200ms (the INP "needs improvement" boundary), finished
-//    at most once per interactionId after a short settle window. The span
-//    runs input to next paint (timeOrigin-anchored timestamps, latency as
-//    the duration) and carries the element payload, the input-delay /
-//    processing / presentation phase breakdown, and Long Animation Frame
-//    script attribution where the browser provides it (Chrome 123+).
-// 2. The INP web vital (`browser.web_vital`, name=inp): the estimated-p98
-//    longest interaction, reported once when the page first goes hidden.
-//    Its attribution is the same `everr.browser.interaction.*` / `everr.element.*`
-//    vocabulary the slow_interaction span carries (not web-vitals' key
-//    names), and `everr.browser.interaction.id` joins it to the slow_interaction
-//    span that is its candidate.
+// 1. The `slow_interaction` spans. The code makes one CLIENT span for each
+//    interaction of the user with a latency of more than 200 ms. That value is
+//    the limit for the INP rating "needs improvement". The code completes a
+//    maximum of one span for each interactionId, after a short wait. The span
+//    starts at the input and ends at the next paint. Its timestamps are
+//    relative to the time origin, and the latency is its duration. It carries
+//    the element data, the durations of the phases (the input delay, the
+//    processing, and the presentation), and the script attribution from a Long
+//    Animation Frame when the browser gives one. Chrome 123 and the later
+//    versions give it.
+// 2. The INP web vital, which is a `browser.web_vital` record with name=inp. It
+//    is the longest interaction at the estimated p98. The SDK sends it one time,
+//    when the page becomes hidden the first time. Its attribution uses the same
+//    `everr.browser.interaction.*` and `everr.element.*` names as the
+//    slow_interaction span, and it does not use the key names from web-vitals.
+//    The `everr.browser.interaction.id` attribute connects it to the
+//    slow_interaction span of the same interaction.
 //
-// The measurement core (interaction grouping by interactionId with latency
-// as the max entry duration, the 10-longest candidate list with the
-// p98 index min(floor(interactionCount / 50), 9), frame grouping by render
-// time, LoAF intersection and longest-script selection, and the
-// next-paint/processing-end clamps) is ported and adapted from the
-// GoogleChrome/web-vitals library (https://github.com/GoogleChrome/web-vitals,
-// copyright Google LLC, Apache License 2.0), replacing its onINP so every
-// slow interaction is attributed, not only the final INP candidate.
+// This code comes from the GoogleChrome/web-vitals library
+// (https://github.com/GoogleChrome/web-vitals, copyright Google LLC, Apache
+// License 2.0). That code groups the entries by interactionId and uses the
+// maximum entry duration as the latency. It keeps a list of the 10 longest
+// interactions and uses the p98 index min(floor(interactionCount / 50), 9). It
+// groups the frames by their render time, it finds the LoAF frames that are in
+// the interaction, it selects the longest script, and it limits the next paint
+// time and the processing end time. This module replaces the onINP function of
+// that library. Thus the SDK gives an attribution for each slow interaction, and
+// not only for the final INP interaction.
 //
-// Deliberate divergences from web-vitals, each traded for bundle size:
-// the interactionCount polyfill estimates from the ids this observer sees
-// instead of running a second threshold-0 observer; navigationType skips
-// the prerender/wasDiscarded refinements; and the INP record is at-most-once
-// per navigation epoch (the previous webvitals.ts dedupe dropped web-vitals'
-// grown-value re-reports anyway, so the wire behavior is unchanged).
+// This module is different from web-vitals in three conditions. Each difference
+// decreases the number of bytes in the build. First, the code calculates
+// interactionCount from the ids that this observer receives, and it does not
+// operate a second observer with a threshold of 0. Second, navigationType
+// ignores the prerender state and the wasDiscarded value. Third, the SDK sends
+// a maximum of one INP record in each navigation period. The previous code in
+// webvitals.ts removed the duplicates, and it also discarded the additional
+// reports of web-vitals. Thus the records on the network do not change.
 
 type Attrs = Record<string, AttrValue | null | undefined>;
 
-// Event Timing durations are rounded to 8ms, so 40 is ~2.5 frames at 60Hz:
-// web-vitals' threshold for an entry to be worth considering for INP.
+// The browser rounds an Event Timing duration to 8 ms. Thus 40 ms is
+// approximately 2.5 frames at 60 Hz. The web-vitals library uses this value as
+// the minimum duration for an entry that can give the INP.
 const OBSERVE_THRESHOLD = 40;
 const SLOW_THRESHOLD = 200;
 const MAX_CANDIDATES = 10;
-// Event and LoAF entries dispatch out of order by a frame or two; keep a
-// small buffer of recent frames so late entries still find their group.
+// The browser can give an event entry and a LoAF entry in an incorrect
+// sequence, with a difference of one frame or two frames. Thus the code keeps a
+// small buffer of the recent frames, and a late entry can find its group.
 const MAX_PENDING_FRAMES = 10;
-// A single interaction's entries (pointerdown, pointerup, click) can span
-// observer batches; hold the record briefly so the max-duration entry wins.
+// The entries of one interaction are pointerdown, pointerup, and click. The
+// observer can give them in different batches. Thus the code keeps the record
+// for a short time, and the entry with the maximum duration wins.
 const SETTLE_MS = 1_000;
 
-/** Entries presented within the same animation frame, merged timings. */
+/** The entries that the browser showed in the same animation frame, with their
+ * times together. */
 type Frame = {
   startTime: number;
   processingStart: number;
@@ -64,18 +76,23 @@ type Interaction = {
   latency: number;
   entry: PerformanceEventTiming;
   frame: Frame;
-  // The element payload, captured eagerly from the first entry that carries
-  // a target (often only pointerdown does): `entry.target` returns null once
-  // the node is disconnected, and both the settle window and the hidden-time
-  // INP report can outlive the clicked node (a dismissed dialog's button).
-  // `elementSeen` (not `attrs`) marks capture: a guarded target captures as
-  // undefined attrs, and must not be re-probed by later entries.
+  // The element data. The code captures it immediately from the first entry
+  // that has a target. Frequently only the pointerdown entry has one. The
+  // `entry.target` value is null after the browser removes the node from the
+  // DOM. The wait for the slow record and the INP record at the hidden time can
+  // both continue after the node goes out of the DOM, for example the button of
+  // a dialog that the user closes.
+  //
+  // The `elementSeen` flag records the capture, and `attrs` does not. A target
+  // that the privacy limits refuse gives attrs with the value undefined, and a
+  // later entry must not examine that target again.
   elementSeen?: boolean;
   attrs?: Attrs;
 };
 
-// `vital` and `slow` gate the two outputs independently (both share this one
-// observer); callers skip startInp entirely when both are off.
+// The `vital` flag and the `slow` flag control the two outputs separately, and
+// the two outputs use this one observer. A caller does not call startInp when
+// the two flags are false.
 export function startInp(
   emit: Emit,
   tracer: Tracer,
@@ -93,29 +110,32 @@ export function startInp(
 
   let stopped = false;
 
-  // --- interactionCount (native, or estimated from ids: Chrome assigns
-  // interaction ids in increments of 7) ---
+  // --- interactionCount. The browser can give this value. If not, the code
+  // calculates it from the ids, because Chrome increases an interaction id by 7
+  // for each interaction. ---
   let minKnownId = Infinity;
   let maxKnownId = 0;
   const interactionCount = () =>
     (performance as { interactionCount?: number }).interactionCount ??
     (maxKnownId ? (maxKnownId - minKnownId) / 7 + 1 : 0);
-  // p98 estimation only considers the current navigation: bfcache restores
-  // snapshot the count and candidates start over.
+  // The p98 calculation uses only the current navigation. When the browser
+  // gives the page from the bfcache, the code records the count and starts a new
+  // list of the candidates.
   let prevInteractionCount = 0;
 
-  // --- the 10-longest candidate list ---
+  // --- The list of the 10 longest interactions. ---
   let candidates: Interaction[] = [];
   const candidateMap = new Map<number, Interaction>();
 
-  // --- frame grouping (for processingEnd across all entries in a frame) ---
+  // --- The groups of the frames. They give processingEnd for all the entries
+  // in one frame. ---
   let frames: Frame[] = [];
   let latestProcessingEnd = 0;
 
-  // --- LoAF buffer ---
+  // --- The buffer of the LoAF entries. ---
   let pendingLoAFs: PerformanceLongAnimationFrameTiming[] = [];
 
-  // --- slow interaction settle state ---
+  // --- The data for the wait before a slow interaction record. ---
   type PendingSlow = {
     interaction: Interaction;
     timer: ReturnType<typeof setTimeout>;
@@ -123,15 +143,17 @@ export function startInp(
   const pendingSlow = new Map<number, PendingSlow>();
   const sentSlow = new Set<number>();
 
-  // --- INP vital epoch (reset on bfcache restore) ---
+  // --- The navigation period of the INP vital. The code starts a new period
+  // when the browser gives the page from the bfcache. ---
   let vitalReported = false;
   let restored = false;
 
   const groupByRenderTime = (entry: PerformanceEventTiming): Frame => {
     const renderTime = entry.startTime + entry.duration;
     latestProcessingEnd = Math.max(latestProcessingEnd, entry.processingEnd);
-    // Reverse order: the most likely match is the most recent frame. Within
-    // 8ms of an existing frame's render time means the same frame.
+    // The loop uses the opposite sequence, because the most recent frame is
+    // usually the correct frame. A difference of less than 8 ms from the render
+    // time of a frame in the list means the same frame.
     for (let i = frames.length - 1; i >= 0; i--) {
       const frame = frames[i];
       if (Math.abs(renderTime - frame.renderTime) <= 8) {
@@ -161,7 +183,8 @@ export function startInp(
     const out: PerformanceLongAnimationFrameTiming[] = [];
     for (const loaf of pendingLoAFs) {
       if (loaf.startTime + loaf.duration < start) continue;
-      // pendingLoAFs is in time order: everything after starts later still.
+      // The pendingLoAFs list is in the sequence of the times. Thus each
+      // subsequent entry starts later.
       if (loaf.startTime > end) break;
       out.push(loaf);
     }
@@ -169,15 +192,17 @@ export function startInp(
   };
 
   const cleanup = () => {
-    // Keep frames that back a current candidate or pending slow record, plus
-    // the most recent MAX_PENDING_FRAMES for out-of-order stragglers.
+    // The code keeps the frames of a current candidate and the frames of a slow
+    // record that waits. It also keeps the most recent MAX_PENDING_FRAMES
+    // frames, for the entries that come late or in an incorrect sequence.
     const live = new Set<Frame>(candidates.map((i) => i.frame));
     for (const { interaction } of pendingSlow.values())
       live.add(interaction.frame);
     const minIndexToKeep = frames.length - MAX_PENDING_FRAMES;
     frames = frames.filter((f, i) => i >= minIndexToKeep || live.has(f));
-    // Keep LoAFs that intersect a kept frame or postdate everything
-    // processed so far (they may match entries still to come).
+    // The code keeps a LoAF entry that is in a frame that it keeps. It also
+    // keeps a LoAF entry that starts after all the entries that it processed,
+    // because that entry can belong to a subsequent interaction.
     const liveLoAFs = new Set<PerformanceLongAnimationFrameTiming>();
     for (const f of frames) {
       for (const loaf of intersectingLoAFs(f.startTime, f.processingEnd)) {
@@ -210,15 +235,18 @@ export function startInp(
     }
     if (!interaction.elementSeen && entry.target instanceof Element) {
       interaction.elementSeen = true;
-      // Privacy: a guarded element (everr-no-capture, password/hidden input)
-      // drops the element payload, never the interaction; the latency is
-      // real and actionable regardless of what was interacted with.
+      // For the privacy, the code removes the element data when the privacy
+      // limits refuse the element. Those limits refuse an element with the
+      // everr-no-capture class, a password input, and a hidden input. But the
+      // code always keeps the interaction, because the latency is correct and
+      // useful for each element.
       const el = guardOf(entry.target);
       if (el) interaction.attrs = elementAttrs(el);
     }
 
-    // Candidate list: only worth tracking if it could be one of the ten
-    // longest (or already is).
+    // The list of the candidates. The code keeps an interaction only when that
+    // interaction can be one of the ten longest, or when it is one of them
+    // already.
     if (
       candidateMap.has(id) ||
       candidates.length < MAX_CANDIDATES ||
@@ -234,7 +262,8 @@ export function startInp(
       }
     }
 
-    // Slow record: settle, then emit at most once per interactionId.
+    // The slow record. The code waits, then it sends a maximum of one record
+    // for each interactionId.
     if (slow && id && !sentSlow.has(id)) {
       const pending = pendingSlow.get(id);
       if (pending) clearTimeout(pending.timer);
@@ -249,8 +278,8 @@ export function startInp(
   };
 
   const handleEntries = (entries: PerformanceEventTiming[]) => {
-    // Next idle task: raises the odds that every entry between the
-    // interaction and its next paint has been dispatched.
+    // The code waits for the next idle period. Thus the browser probably gave
+    // each entry between the interaction and its next paint.
     whenIdleOrHidden(() => {
       if (stopped) return;
       for (const entry of entries) processEntry(entry);
@@ -258,15 +287,17 @@ export function startInp(
     });
   };
 
-  // Callers own liveness: the settle timer clears on every re-set, finalize,
-  // and stop, so a firing timer's pending entry is always the live one.
+  // The callers control this timer. The code clears the timer at each new
+  // start, at each completion, and at the stop. Thus when the timer operates,
+  // its entry is always the current entry.
   const finalizeSlow = (id: number, pending: PendingSlow) => {
     clearTimeout(pending.timer);
     pendingSlow.delete(id);
     sentSlow.add(id);
     const { entry, frame, latency, attrs } = pending.interaction;
-    // Input to next paint as a span: startTime anchors it on the trace
-    // timeline and the latency is the duration, so no duration attribute.
+    // The span goes from the input to the next paint. The startTime value gives
+    // its position on the trace timeline, and the latency is its duration. Thus
+    // the span needs no attribute for the duration.
     const start = Math.round(performance.timeOrigin + entry.startTime);
     tracer
       .startSpan("slow_interaction", {
@@ -293,9 +324,10 @@ export function startInp(
     if (!inp) return;
     vitalReported = true;
     const { entry, frame, latency, id, attrs } = inp;
-    // Attribution is the slow_interaction vocabulary verbatim (element
-    // payload included), not web-vitals' key names: the vital and the slow
-    // record it joins to answer the same question with the same keys.
+    // The attribution uses the same names as the slow_interaction record,
+    // including the element data. It does not use the key names from
+    // web-vitals. Thus the vital and the slow record that it connects to give
+    // the same information with the same keys.
     emitVital(emit, "inp", latency, restored, {
       "everr.browser.interaction.id": id,
       ...attrs,
@@ -314,7 +346,8 @@ export function startInp(
       buffered: true,
       durationThreshold: OBSERVE_THRESHOLD,
     } as PerformanceObserverInit);
-    // Also first-input: catches a first interaction under the threshold.
+    // The observer also receives the first-input entry. Thus it gets a first
+    // interaction with a duration below the limit.
     po.observe({ type: "first-input", buffered: true });
   } catch {
     return () => {};
@@ -327,23 +360,27 @@ export function startInp(
     });
     loafPo.observe({ type: "long-animation-frame", buffered: true });
   } catch {
-    // LoAF is Chrome 123+: without it records simply carry no script attrs.
+    // Chrome 123 and the later versions have LoAF. Without it, the records
+    // carry no script attributes.
   }
 
   const onVisibilityChange = () => {
     if (document.visibilityState !== "hidden") return;
-    // Flush entries the observer has seen but not yet delivered, settle any
-    // pending slow records, then report INP: all before the emitter's own
-    // hidden listener (registered later in init) runs the exit flush.
+    // The code processes the entries that the observer received but did not
+    // give. Then it completes each slow record that waits. Then it sends the
+    // INP record. All these steps occur before the hidden listener of the
+    // emitter does the exit flush, because the SDK registers that listener
+    // later.
     handleEntries(po.takeRecords() as PerformanceEventTiming[]);
     for (const [id, pending] of [...pendingSlow]) finalizeSlow(id, pending);
     reportVital();
   };
   addEventListener("visibilitychange", onVisibilityChange, true);
 
-  // bfcache restore: a fresh navigation epoch. Candidates and the count
-  // baseline reset so the restored page reports its own INP (with its own
-  // metric id); already-sent slow interaction ids stay deduped.
+  // The browser gives the page from the bfcache. This starts a new navigation
+  // period. The code clears the candidates and the initial count. Thus the page
+  // sends its own INP record with its own metric id. The code keeps the ids of
+  // the slow interactions that it sent, and thus it does not send them again.
   const onPageShow = (event: PageTransitionEvent) => {
     if (!event.persisted) return;
     restored = true;
@@ -366,9 +403,10 @@ export function startInp(
 }
 
 /**
- * The shared attribution payload: phase breakdown plus LoAF-derived script
- * attribution, one `everr.browser.interaction.*` vocabulary carried by both the
- * slow_interaction record and the INP vital.
+ * The shared attribution data. It contains the durations of the phases and the
+ * script attribution from the LoAF entries. The slow_interaction record and the
+ * INP vital both carry it, and they use the one set of
+ * `everr.browser.interaction.*` names.
  */
 function phaseAttrs(
   entry: PerformanceEventTiming,
@@ -380,9 +418,11 @@ function phaseAttrs(
 ): Attrs {
   const interactionTime = entry.startTime;
   const processingStart = entry.processingStart;
-  // Durations round down to 8ms: clamp next paint after processing start.
-  // Processing clamps to next paint in turn, so sync work that outlives the
-  // event duration (alert() and friends) never exceeds the latency.
+  // The browser decreases a duration to a multiple of 8 ms. Thus the code makes
+  // the next paint time later than the start of the processing. Then it makes
+  // the end of the processing earlier than the next paint. Thus synchronous
+  // work that continues after the duration of the event, for example a call to
+  // alert(), is never longer than the latency.
   const nextPaintTime = Math.max(
     entry.startTime + entry.duration,
     processingStart,
@@ -401,10 +441,11 @@ function phaseAttrs(
       nextPaintTime - processingEnd,
   };
 
-  // LoAF pass: a duration breakdown by category (script, style-and-layout,
-  // paint, unattributed) across the intersecting frames, plus the single
-  // longest script as the actionable culprit. Scripts that ended before the
-  // interaction began are earlier work in the same frame, not causes.
+  // The LoAF calculation. It gives the duration of each category in the frames
+  // that are in the interaction: the script, the style and the layout, the
+  // paint, and the part without a category. It also gives the longest script,
+  // which is the useful cause. A script that ended before the interaction
+  // started is earlier work in the same frame, and it is not a cause.
   const loafs = intersecting(entry.startTime, processingEnd);
   if (!loafs.length) return attrs;
 
@@ -421,9 +462,10 @@ function phaseAttrs(
       if (scriptEnd < interactionTime) continue;
       const intersectingDuration =
         scriptEnd - Math.max(interactionTime, script.startTime);
-      // forcedStyleAndLayout has no timestamps: apportion it by the
-      // intersecting share of the script, and count it as style-and-layout
-      // (as DevTools does) rather than script time.
+      // The forcedStyleAndLayout value has no timestamps. Thus the code divides
+      // it by the part of the script that is in the interaction. It counts that
+      // duration as style and layout, the same as DevTools, and not as script
+      // time.
       const forced = script.duration
         ? (intersectingDuration / script.duration) *
           script.forcedStyleAndLayoutDuration

@@ -1,9 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { whenIdleOrHidden } from "./shared.js";
 
-// jsdom has no requestIdleCallback, so the setTimeout fallback is what the
-// other performance suites exercise. These tests stub the real idle API to
-// cover the native path and the hidden-interrupt path.
+// The jsdom environment has no requestIdleCallback. Thus the other performance
+// tests examine the code that uses setTimeout. These tests replace the true idle
+// API. Thus they examine the code that uses that API, and the code that operates
+// when the page becomes hidden.
 
 function setVisibility(value: "visible" | "hidden") {
   Object.defineProperty(document, "visibilityState", {
@@ -42,7 +43,8 @@ describe("whenIdleOrHidden", () => {
     document.dispatchEvent(new Event("visibilitychange", { bubbles: true }));
     expect(cb).toHaveBeenCalledTimes(1);
     expect(cancelled).toEqual([42]);
-    // The idle handle was cancelled; another hide never re-runs it.
+    // The code cancelled the idle request. Thus a second hidden event does not
+    // call the function again.
     document.dispatchEvent(new Event("visibilitychange", { bubbles: true }));
     expect(cb).toHaveBeenCalledTimes(1);
   });

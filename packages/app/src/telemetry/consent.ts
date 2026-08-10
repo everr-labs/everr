@@ -1,7 +1,7 @@
-// The stored analytics-consent decision: a first-party cookie (not
-// localStorage) so it's readable during SSR, letting the server render the
-// banner's correct open/closed state up front instead of flashing it after
-// hydration.
+// The consent decision for the analytics. It is in a first-party cookie and not
+// in localStorage. Thus the server can read it during the SSR. Then the server
+// makes the markup with the correct state of the banner, and the banner does not
+// change after the hydration.
 
 export const CONSENT_COOKIE = "everr.consent";
 
@@ -14,8 +14,9 @@ export function isConsentDecision(
 }
 
 /**
- * Reads the stored decision from `document.cookie` (browser only; the SSR
- * path reads the same cookie via the server's `getCookie`).
+ * Reads the decision from `document.cookie`. This operates in the browser only.
+ * The SSR code reads the same cookie with the `getCookie` function of the
+ * server.
  */
 export function readConsent(): ConsentDecision | undefined {
   if (typeof document === "undefined") return undefined;

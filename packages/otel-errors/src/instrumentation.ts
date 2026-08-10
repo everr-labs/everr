@@ -17,22 +17,25 @@ import { PKG_NAME, PKG_VERSION } from "./version.js";
 const FLUSH_TIMEOUT_MS = 2000;
 
 /**
- * Crash-handling only. Redaction, rate limiting, and `beforeSend` belong to
- * the shared client and are set through `configure`, so an app configures
- * capture in one place whether or not it registers this instrumentation.
+ * For crash handling only. The shared client holds the redaction, the rate
+ * limit, and `beforeSend`, and `configure` sets them. Thus an app configures
+ * the capture in one place. This is true if the app registers this
+ * instrumentation, and also if it does not.
  */
 export interface ErrorsInstrumentationConfig extends InstrumentationConfig {
   /**
-   * What to do after a fatal error is flushed. "exit" (the default) restores
-   * the crash Node would have performed had no listener been installed;
-   * "continue" leaves the process running.
+   * The action after the flush of a fatal error. The default value is "exit".
+   * With "exit", the process stops as Node stops it when no listener is
+   * installed. With "continue", the process continues to operate.
    */
   onFatal?: "exit" | "continue";
 }
 
-// Two instrumentations means two sets of crash handlers, so every crash is
-// captured twice and the exits race. Module-level because the collision is
-// between instances, and warn-only because the second one still works.
+// Two instrumentations install two sets of crash handlers. Then the code
+// captures each crash two times, and the two exits occur at the same time.
+// This variable is at module level because the conflict is between the
+// instances. The code only gives a warning, because the second instrumentation
+// continues to operate correctly.
 let installed: object | null = null;
 
 type FatalEventName = "uncaughtException" | "unhandledRejection";
@@ -43,16 +46,17 @@ const FATAL_EVENTS: Array<[FatalEventName, string]> = [
 ];
 
 /**
- * Captures uncaught exceptions and unhandled rejections as OTel exception log
- * records, and backs `captureError` for manual reports. Register it with the
- * SDK like any other instrumentation:
+ * Captures the uncaught exceptions and the unhandled rejections as OTel
+ * exception log records. It also supplies `captureError` for manual reports.
+ * Register it with the SDK as you register the other instrumentations:
  *
  * ```ts
  * new NodeSDK({ instrumentations: [new ErrorsInstrumentation()] })
  * ```
  *
- * It patches no modules, so it implements `Instrumentation` directly instead
- * of extending `InstrumentationBase` (whose whole contract is module patching).
+ * This class does not patch modules. Thus it implements `Instrumentation`
+ * directly. It does not extend `InstrumentationBase`, because the full
+ * function of that class is the patching of modules.
  */
 export class ErrorsInstrumentation
   implements Instrumentation<ErrorsInstrumentationConfig>
@@ -67,8 +71,9 @@ export class ErrorsInstrumentation
   private teardownFns: Array<() => void> = [];
 
   constructor(config: ErrorsInstrumentationConfig = {}) {
-    // Instrumentations enable themselves on construction; registerInstrumentations
-    // only calls enable() for one that opted out with `enabled: false`.
+    // Each instrumentation enables itself when the code constructs it. The
+    // registerInstrumentations function calls enable() only for an
+    // instrumentation that has `enabled: false`.
     this.configure(config);
   }
 
@@ -122,8 +127,9 @@ export class ErrorsInstrumentation
   }
 
   private install(): void {
-    // Idempotent: registerInstrumentations may enable an instrumentation the
-    // constructor already enabled.
+    // You can call this function more than one time. The
+    // registerInstrumentations function can enable an instrumentation that the
+    // constructor enabled before.
     if (this.teardownFns.length > 0) {
       return;
     }
@@ -149,9 +155,9 @@ export class ErrorsInstrumentation
             return;
           }
 
-          // Installing a listener suppresses the crash Node would otherwise
-          // perform, so we perform it. Unless the app installed its own
-          // listener too, in which case the exit decision is the app's.
+          // A listener prevents the crash that Node does. Thus this code does
+          // the crash. But if the app installed a listener also, the app
+          // controls the exit.
           const others = process
             .listeners(eventName)
             .filter((listener) => listener !== (handler as unknown));
@@ -166,9 +172,9 @@ export class ErrorsInstrumentation
     }
   }
 
-  // Detaches only the crash listeners. captureError stays live through the
-  // shared client: disable() is the SDK lifecycle hook, not an off switch for
-  // manual reports.
+  // Removes only the crash listeners. The captureError function continues to
+  // operate through the shared client. The disable() function is the hook for
+  // the SDK lifecycle. It is not a switch that stops the manual reports.
   private remove(): void {
     for (const fn of this.teardownFns) {
       fn();
@@ -180,10 +186,11 @@ export class ErrorsInstrumentation
   }
 
   /**
-   * Flushes logs, spans, and metrics before the process exits. All three
-   * matter on a crash: the log record carries the error, and the span that
-   * was active carries where it happened. They share one timeout budget, so a
-   * stalled exporter cannot hold the process open past it.
+   * Flushes the logs, the spans, and the metrics before the process stops. A
+   * crash needs all three. The log record contains the error. The span that
+   * was active shows the location of the error. The three flush operations
+   * have one time limit together. Thus an exporter that stops cannot keep the
+   * process open after that limit.
    */
   private async flush(): Promise<void> {
     const targets = [

@@ -1,23 +1,29 @@
-// Endpoint and key resolution, mirroring the web app's telemetry client
-// (keep the endpoints in sync with packages/app/src/telemetry/config.ts).
-// Three ordered cases: an explicit endpoint override wins (carrying the key
-// when one is set, e.g. a dev-host collector that still authenticates), a
-// public origin-bound key ships to the hosted ingest with a Bearer header,
-// dev falls back to the local collector. A keyless production build
-// resolves to `null` so the SDK never builds an emitter at all.
+// This module finds the endpoint and the key. It is the same as the telemetry
+// client of the web app. Keep the endpoints the same as the endpoints in
+// packages/app/src/telemetry/config.ts.
 //
-// A caller-supplied `send` short-circuits all of it: the host owns delivery,
-// so there is no URL to resolve, no key to carry, and no keyless no-op.
+// There are three conditions, in this sequence. First, an endpoint from the
+// caller replaces the other values, and it carries the key when the app sets
+// one. For example, a collector on a development host can need
+// authentication. Second, a public key for one origin sends the data to the
+// hosted ingest with a Bearer header. Third, a development build uses the local
+// collector. A production build without a key gives `null`, and thus the SDK
+// makes no emitter.
 //
-// Internal shapes are tuples: property names survive minification (consumers
-// bundle our source), tuple indexes do not.
+// A `send` function from the caller replaces all of this. The host then sends
+// the data. Thus there is no URL to find, no key to carry, and no condition
+// without a key.
+//
+// The internal structures are tuples. Minification keeps the property names,
+// because a consumer builds our source. But minification does not keep the
+// tuple indexes.
 
 export type Signal = "logs" | "traces";
 
 /**
- * One OTLP/JSON payload for one signal. `keepalive` is the browser exit path
- * and is meaningless to a custom sender, which is why the public option
- * never sees it.
+ * One OTLP/JSON payload for one signal. The `keepalive` value is for the exit
+ * path of the browser, and it has no function in a custom sender. Thus the
+ * public option does not contain it.
  */
 export type Send = (
   signal: Signal,
@@ -26,24 +32,26 @@ export type Send = (
 ) => unknown;
 
 /**
- * The public `send` option: the same contract minus `keepalive`, which is a
- * fetch concept the host has no use for.
+ * The public `send` option. It is the same, but it has no `keepalive` value.
+ * That value belongs to fetch, and the host does not need it.
  */
 export type HostSend = (signal: Signal, body: string) => unknown;
 
 type TransportConfig = [send: Send, truncateAtExit: boolean];
 
-/** Posts each batch to the resolved OTLP endpoint. */
+/** Sends each batch with POST to the OTLP endpoint that the code found. */
 export function fetchSend(
   logsUrl: string,
   tracesUrl: string,
   extraHeaders: Record<string, string> | undefined,
 ): Send {
   const headers = { "Content-Type": "application/json", ...extraHeaders };
-  // The fetch reference is captured at WebSDK construction, before the network signal
-  // patches the global: SDK POSTs structurally cannot be seen by the patch,
-  // so no span-of-our-own-batch loop is possible and no URL exclusion is
-  // needed. Tests stub the global before constructing, so they capture the stub.
+  // The code keeps this reference to fetch when it constructs the WebSDK. This
+  // occurs before the network signal changes the global fetch. Thus the changed
+  // fetch cannot see the POST operations of the SDK. Thus the SDK cannot make a
+  // span for its own batch, and the code needs no list of URLs to ignore. A
+  // test replaces the global fetch before it constructs the SDK, and thus the
+  // SDK keeps the replacement.
   const doFetch = fetch;
   return (signal, body, keepalive) =>
     doFetch(signal === "logs" ? logsUrl : tracesUrl, {
@@ -62,10 +70,12 @@ export function resolveTransport(options: {
 }): TransportConfig | null {
   const custom = options.send;
   if (custom) {
-    // Wrapped, not passed through: this drops the third argument so a host
-    // sender can never see `keepalive`. The `false` turns off exit
-    // truncation, because the keepalive byte budget is a fetch constraint and
-    // a host that forwards the payload itself has no such limit.
+    // This function contains the sender of the host, and the code does not use
+    // that sender directly. Thus the code removes the third argument, and the
+    // sender of the host never sees `keepalive`. The value `false` stops the
+    // decrease of the payload at exit. The keepalive limit in bytes is a
+    // constraint of fetch only, and a host that sends the payload itself has no
+    // such limit.
     return [(signal, body) => custom(signal, body), false];
   }
 

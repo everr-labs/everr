@@ -3,10 +3,10 @@ import type { Instrumentation, InstrumentationContext } from "./runtime.js";
 import { sampled } from "./sampled.js";
 
 /**
- * A context stub carrying only what `sampled()` and toy instrumentations under test
- * touch: `ids()` for the sampling decision. Any other member throws if a
- * test's instrumentation reaches for it, which would signal the test needs a fuller
- * fixture rather than this one.
+ * A test context. It contains only the members that `sampled()` and the test
+ * instrumentations use, which is `ids()` for the sampling decision. Each other
+ * member throws an error when an instrumentation of a test reads it. Then that
+ * test needs a more complete context and not this one.
  */
 function fakeCtx(sessionId: string): InstrumentationContext {
   return {
@@ -84,9 +84,10 @@ describe("sampled()", () => {
   });
 
   it("decorrelates differently-named instrumentations: they don't all land on the same side", () => {
-    // Across many sessions, differently-named instrumentations wrapped at the same
-    // rate should disagree at least once. A shared/empty name would hash
-    // identically and make every instrumentation agree on every session.
+    // In a large number of sessions, two instrumentations with different names
+    // and the same rate must get different decisions a minimum of one time. Two
+    // instrumentations with the same name, or with no name, get the same hash.
+    // Then they get the same decision in each session.
     const names = [
       "pageviews",
       "interactions",

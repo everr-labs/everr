@@ -4,9 +4,10 @@ import { createTracer } from "../../tracer.js";
 import type { RouteTemplateResolver } from "./network.js";
 import { startNetwork } from "./network.js";
 
-// Unit tests around the fetch patch: a fake emitSpan behind the real Tracer
-// captures span calls, and a stubbed fetch stands in for the network so
-// header injection and pass-through semantics are observable.
+// Unit tests for the change to fetch. A test emitSpan function below the true
+// Tracer records the calls that make a span. A replacement for fetch operates in
+// place of the network. Thus the test can examine the header that the code adds
+// and the arguments that the code sends to the original fetch.
 
 type SpanCall = {
   traceId: string;
@@ -32,7 +33,7 @@ function start(
   stop = startNetwork(createTracer(emitSpan), targets, resolveTemplate);
 }
 
-/** The headers the patched fetch actually sent, normalized. */
+/** The headers that the changed fetch sent, in a regular form. */
 function sentHeaders(): Headers {
   return new Headers(lastRequest?.init?.headers);
 }
@@ -85,7 +86,7 @@ describe("startNetwork", () => {
   it("does not inject traceparent cross-origin without a matching target", async () => {
     start();
     await fetch("https://api.thirdparty.example/data");
-    // The span is still recorded; only the header is withheld.
+    // The code still records the span. It only does not send the header.
     expect(spans).toHaveLength(1);
     expect(sentHeaders().get("traceparent")).toBeNull();
   });
@@ -109,7 +110,8 @@ describe("startNetwork", () => {
     });
     await fetch(request, { headers: { "X-From-Init": "i" } });
     const h = sentHeaders();
-    // fetch semantics: init.headers replace the Request's, and ours ride on top.
+    // This is the behavior of fetch: the headers in init replace the headers of
+    // the Request, and the code adds its own header to them.
     expect(h.get("X-From-Init")).toBe("i");
     expect(h.get("X-From-Request")).toBeNull();
     expect(h.get("traceparent")).not.toBeNull();
@@ -172,7 +174,7 @@ describe("startNetwork", () => {
       "GET /api/b",
     ]);
     expect(spans[0].attrs["url.template"]).toBe("/api/posts/{id}");
-    // The exact target survives on url.full.
+    // The url.full attribute keeps the exact target.
     expect(spans[0].attrs["url.full"]).toBe(`${location.origin}/api/posts/123`);
     expect(spans[1].attrs["url.template"]).toBeUndefined();
   });
@@ -209,7 +211,8 @@ describe("hardening", () => {
     const invalid = { "bad name\n": "x" } as Record<string, string>;
     await fetch("/api/ping", { headers: invalid });
     expect(spans).toHaveLength(1);
-    // Injection was skipped: the caller's init went through untouched.
+    // The code added no header. Thus the init object of the caller went to
+    // fetch without a change.
     expect(lastRequest?.init?.headers).toBe(invalid);
   });
 });

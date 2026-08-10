@@ -3,11 +3,13 @@ import type { Emit } from "../../emitter.js";
 import { createTracer } from "../../tracer.js";
 import { startInp } from "./inp.js";
 
-// jsdom has neither Event Timing nor PerformanceObserver entries: the tests
-// stub PerformanceEventTiming (for the feature gate) and PerformanceObserver
-// (capturing the per-type callbacks), then drive entries by hand. Timers are
-// faked: entry processing defers via the idle path (setTimeout fallback) and
-// slow records settle on a 1s timer.
+// The jsdom environment has no Event Timing and no PerformanceObserver
+// entries. Thus these tests replace PerformanceEventTiming, which the code uses
+// to find the available functions, and PerformanceObserver, which keeps the
+// function for each entry type. Then the tests send the entries themselves. The
+// tests also replace the timers, because the code processes an entry in the idle
+// period, which uses setTimeout here, and a slow record waits on a timer of
+// 1 s.
 
 let emitted: Array<{ name: string; attrs?: Record<string, unknown> }>;
 let spans: Array<{
@@ -21,8 +23,8 @@ const emit: Emit = (name, attrs) => {
   emitted.push({ name, attrs });
 };
 
-// The real tracer over a capturing span sink: slow interactions are spans,
-// with the latency as the span duration rather than an attribute.
+// The true tracer that sends its spans to a test function. A slow interaction
+// is a span. Its duration is the latency, and the latency is not an attribute.
 const tracer = createTracer((_traceId, _spanId, name, start, end, attrs) => {
   spans.push({ name, duration: end - start, attrs });
 });
@@ -110,13 +112,13 @@ function fire(type: string, entries: unknown[]) {
   observers.get(type)?.({ getEntries: () => entries });
 }
 
-/** Feed event entries and run the deferred idle processing. */
+/** Sends the event entries, then does the processing of the idle period. */
 function feed(entries: Partial<FakeEntry>[]) {
   fire("event", entries.map(entry));
   vi.advanceTimersByTime(0);
 }
 
-/** Settle pending slow interactions. */
+/** Completes the slow interactions that wait. */
 const settle = () => vi.advanceTimersByTime(1_000);
 
 function hide() {
@@ -182,7 +184,8 @@ describe("slow interactions", () => {
     const a = slow()[0].attrs;
     expect(a["everr.browser.interaction.input_delay"]).toBe(100);
     expect(a["everr.browser.interaction.processing_duration"]).toBe(150);
-    // presentation = nextPaint (1000+400) - processingEnd (1250)
+    // The presentation time is nextPaint (1000 + 400) minus processingEnd
+    // (1250).
     expect(a["everr.browser.interaction.presentation_delay"]).toBe(150);
   });
 
@@ -257,8 +260,9 @@ describe("slow interactions", () => {
       "event-listener",
     );
     expect(a["everr.browser.interaction.script.duration"]).toBe(280);
-    // The category breakdown across intersecting frames: 280ms of script,
-    // and the rest of the 400ms interaction unattributed by LoAF data.
+    // The durations of the categories in the frames that are in the
+    // interaction. There are 280 ms of script. The LoAF data gives no category
+    // for the remainder of the interaction of 400 ms.
     expect(a["everr.browser.interaction.total_script_duration"]).toBe(280);
     expect(a["everr.browser.interaction.total_style_and_layout_duration"]).toBe(
       0,
@@ -285,9 +289,9 @@ describe("slow interactions", () => {
     document.body.innerHTML = '<dialog><button id="close">X</button></dialog>';
     const target = document.getElementById("close");
     feed([{ duration: 260, target }]);
-    // The clicked button leaves the DOM (dialog dismissed) before the settle
-    // window ends; entry.target would now read null, but the payload was
-    // captured eagerly at processing time.
+    // The user closes the dialog, and thus the button goes out of the DOM
+    // before the wait ends. The entry.target value is now null. But the code
+    // captured the data immediately, at the time of the processing.
     target?.remove();
     settle();
     const a = slow()[0].attrs;
@@ -320,8 +324,8 @@ describe("INP vital", () => {
     expect(a["browser.web_vital.delta"]).toBe(620);
     expect(a["browser.web_vital.id"]).toMatch(/^\d+-\d{13}$/);
     expect(a["everr.browser.web_vital.rating"]).toBe("poor");
-    // The join key back to the slow_interaction record, and the same
-    // attribution keys that record carries.
+    // The key that connects this record to the slow_interaction record, and
+    // the same attribution keys as that record.
     expect(a["everr.browser.interaction.id"]).toBe(14);
     expect(a["everr.browser.interaction.input_delay"]).toBe(20);
     expect(a["everr.browser.interaction.type"]).toBe("pointer");
@@ -368,8 +372,10 @@ describe("INP vital", () => {
   });
 
   it("estimates p98 beyond 50 interactions instead of taking the worst", () => {
-    // 60 interactions (ids spaced by 7, Chrome's increment, feeding the
-    // interactionCount estimate): index floor(60/50) = 1, the second worst.
+    // There are 60 interactions. The ids increase by 7, which is the increment
+    // of Chrome, and the code uses them to calculate interactionCount. The index
+    // is floor(60/50), which is 1. Thus the result is the second longest
+    // interaction.
     feed(
       Array.from({ length: 60 }, (_, i) => ({
         interactionId: 7 * (i + 1),
@@ -397,8 +403,8 @@ describe("INP vital", () => {
     const first = vitals()[0].attrs ?? {};
     expect(first["browser.web_vital.value"]).toBe(620);
 
-    // Restore from bfcache: the page comes back visible and the restored
-    // navigation measures its own INP from scratch.
+    // The browser gives the page from the bfcache. The page becomes visible
+    // again, and the new navigation measures its own INP from the start.
     Object.defineProperty(document, "visibilityState", {
       value: "visible",
       configurable: true,
@@ -413,7 +419,8 @@ describe("INP vital", () => {
 
     expect(vitals()).toHaveLength(2);
     const second = vitals()[1].attrs ?? {};
-    // The old 620ms candidate is gone; the restored epoch reports its own.
+    // The previous candidate of 620 ms is not in the list. The new navigation
+    // period sends its own value.
     expect(second["browser.web_vital.value"]).toBe(210);
     expect(second["browser.web_vital.id"]).not.toBe(
       first["browser.web_vital.id"],
@@ -480,8 +487,9 @@ describe("frame grouping and LoAF selection", () => {
         processingStart: 1020,
         processingEnd: 1100,
       },
-      // A non-interaction entry rendered in the same frame (within 8ms)
-      // stretches the frame's processing window.
+      // An entry that is not an interaction, in the same frame with a
+      // difference of less than 8 ms, increases the processing window of that
+      // frame.
       {
         interactionId: 0,
         duration: 10,
@@ -506,7 +514,8 @@ describe("frame grouping and LoAF selection", () => {
       invokerType: "event-listener",
     });
     fire("long-animation-frame", [
-      // Ends before the interaction starts: skipped entirely.
+      // This ends before the interaction starts, and thus the code fully
+      // ignores it.
       {
         startTime: 100,
         duration: 200,
@@ -518,16 +527,20 @@ describe("frame grouping and LoAF selection", () => {
         duration: 200,
         styleAndLayoutStart: 1210,
         scripts: [
-          // Ended before the interaction began: same-frame earlier work.
+          // This ended before the interaction started. It is earlier work in
+          // the same frame.
           script(900, 80, "https://app.example/before.js"),
-          // Zero-duration script: no forced-layout apportioning possible.
+          // This script has a duration of zero. Thus the code cannot divide
+          // the forced layout time.
           script(1020, 0, "https://app.example/zero.js"),
           script(1020, 180, "https://app.example/culprit.js"),
-          // Shorter than the current longest: not the culprit.
+          // This is shorter than the current longest script. Thus it is not
+          // the cause.
           script(1030, 50, "https://app.example/minor.js"),
         ],
       },
-      // Starts after the processing window: the scan stops there.
+      // This starts after the processing window, and thus the loop stops
+      // here.
       {
         startTime: 5000,
         duration: 100,
@@ -570,10 +583,12 @@ describe("frame grouping and LoAF selection", () => {
     ]);
     settle();
     const a = slow()[0].attrs;
-    // No scripts intersected: totals exist, the culprit attrs do not.
+    // No script is in the interaction. Thus the record has the total durations,
+    // but it has no attributes for the cause.
     expect(a["everr.browser.interaction.total_script_duration"]).toBe(0);
     expect(a).not.toHaveProperty("everr.browser.interaction.script.source_url");
-    // The frame outlived processing (1320 >= 1250): paint runs to next paint.
+    // The frame continued after the processing, because 1320 is more than
+    // 1250. Thus the paint continues to the next paint.
     expect(a["everr.browser.interaction.total_paint_duration"]).toBe(80);
   });
 });
@@ -588,8 +603,8 @@ describe("candidate list and epochs", () => {
       })),
     );
     hide();
-    // The worst interaction still wins INP after the overflow dropped the
-    // shortest candidates.
+    // The longest interaction still gives the INP, after the code removed the
+    // shortest candidates from the full list.
     expect(vitals()[0].attrs?.["browser.web_vital.value"]).toBe(288);
   });
 
@@ -641,7 +656,8 @@ describe("candidate list and epochs", () => {
     expect(vitals()).toHaveLength(1);
     window.dispatchEvent(new Event("pageshow"));
     hide();
-    // No epoch reset happened: the vital stays at-most-once.
+    // The code started no new navigation period. Thus the SDK sends a maximum
+    // of one vital record.
     expect(vitals()).toHaveLength(1);
   });
 });
@@ -666,7 +682,8 @@ describe("frame merge boundary", () => {
         processingStart: 1020,
         processingEnd: 1100,
       },
-      // A render-time neighbor: merged only within the 8ms window.
+      // An entry with a near render time. The code puts it in the same frame
+      // only when the difference is less than 8 ms.
       {
         interactionId: 0,
         duration: 10,

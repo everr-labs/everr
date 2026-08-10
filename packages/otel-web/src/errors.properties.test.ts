@@ -4,9 +4,10 @@ import type { WebSDK } from "./client.js";
 import { captureError } from "./index.js";
 import { attrs, type OtlpBatch, startClient } from "./test-kit.js";
 
-// Property tests for the error reporter: whatever JavaScript can throw,
-// reporting must never throw back, always normalize to the wire contract,
-// and never exceed the rate limit. All through the public captureError.
+// Property tests for the error reporter. JavaScript can throw many types of
+// value. For each of them, the report must not throw an error, it must always
+// make the structure for the network, and it must not be more than the rate
+// limit. All these tests use the public captureError function.
 
 let client: WebSDK | undefined;
 let batches: OtlpBatch[];
@@ -16,8 +17,8 @@ afterEach(async () => {
   client = undefined;
 });
 
-// Distinct tags across runs and replays keep the module-level rate-limit
-// window of one property run out of the next.
+// Each run and each replay uses a different tag. Thus the rate-limit window at
+// module level from one run has no effect on the next run.
 let tag = 0;
 
 describe("error normalization", () => {

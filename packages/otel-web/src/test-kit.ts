@@ -8,7 +8,7 @@ import { performance as performanceInstrumentation } from "./instrumentations/pe
 import type { Instrumentation } from "./instrumentations/runtime.js";
 import type { WebSDKOptions } from "./types.js";
 
-/** The full built-in composition, the default for test boots. */
+/** All the built-in instrumentations. The tests use this set by default. */
 export const allInstrumentations = (): Instrumentation[] => [
   errors(),
   pageviews(),
@@ -17,9 +17,10 @@ export const allInstrumentations = (): Instrumentation[] => [
   network(),
 ];
 
-// Shared OTLP capture harness for the package's integration tests: stubs
-// the global fetch (which the emitter reads at call time) and decodes each
-// posted batch into plain shapes tests can assert on.
+// The shared tools that capture the OTLP data in the integration tests of this
+// package. They replace the global fetch, which the emitter reads at each call.
+// Then they change each batch into a simple structure, and a test can examine
+// that structure.
 
 export type OtlpRecord = {
   timeUnixNano: string;
@@ -48,7 +49,8 @@ export type OtlpBatch = {
   spans: OtlpSpan[];
 };
 
-/** Stubs the global fetch; returns the live list of captured batches. */
+/** Replaces the global fetch. It returns the list of the captured batches, and
+ * the code adds each new batch to that list. */
 function stubOtlpFetch(): OtlpBatch[] {
   const batches: OtlpBatch[] = [];
   vi.stubGlobal(
@@ -70,7 +72,8 @@ function stubOtlpFetch(): OtlpBatch[] {
   return batches;
 }
 
-/** Flattens a record's or span's OTLP attributes into plain key/value pairs. */
+/** Changes the OTLP attributes of a record or a span into usual key and value
+ * pairs. */
 export function attrs(record: OtlpRecord | OtlpSpan): Record<string, unknown> {
   return Object.fromEntries(
     record.attributes.map(({ key, value }) => [key, Object.values(value)[0]]),
@@ -78,8 +81,9 @@ export function attrs(record: OtlpRecord | OtlpSpan): Record<string, unknown> {
 }
 
 /**
- * The one true test boot: stubs fetch and inits a memory-persistence dev
- * client, so tests leave no storage behind unless they opt in.
+ * The standard start for a test. It replaces fetch and constructs a development
+ * client with the memory store. Thus a test writes nothing to the store, but a
+ * test can select a different store.
  */
 export function startClient(
   options?: Partial<WebSDKOptions>,
@@ -92,9 +96,10 @@ export function startClient(
 }
 
 /**
- * The localStorage-persistence boot, deliberately omitting the flag so it
- * also covers the SDK default. Tests must clear localStorage between runs
- * (durable identity is the whole point of this persistence).
+ * The start with the localStorage store. This function does not set the
+ * persistence option, and this is correct: thus it also examines the default of
+ * the SDK. A test must clear localStorage before the next test, because this
+ * store keeps the identity.
  */
 export function startPersistentClient(
   options?: Partial<WebSDKOptions>,
@@ -111,5 +116,5 @@ const DEFAULTS = {
   },
 };
 
-/** The id shape every minted visitor/session id must match. */
+/** The structure that each visitor id and each session id must have. */
 export const UNIQUE_ID = /^\d+-\d{13}$/;

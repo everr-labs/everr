@@ -1,19 +1,24 @@
-// The SDK's own emit pipeline: an in-memory queue, a batch timer, and one
-// OTLP JSON payload per signal per flush, handed to the transport's `send`
-// (a fetch POST by default). Owning the queue (instead of OTel's
-// BatchLogRecordProcessor) is what lets the exit flush truncate to the
-// keepalive budget. Wire shapes follow the OTLP JSON mapping (intValue is
-// a decimal string); everything else internal is positional, since property
-// names survive minification and tuple indexes do not.
+// The emit pipeline of the SDK. It contains a queue in memory and a batch
+// timer. For each flush it makes one OTLP JSON payload for each signal, then
+// it gives the payload to the `send` function of the transport. The default
+// `send` function does a fetch POST.
+//
+// This pipeline holds its own queue and does not use the OTel
+// BatchLogRecordProcessor. Thus the flush at exit can decrease the payload to
+// the keepalive limit. The payloads agree with the OTLP JSON mapping, and thus
+// an intValue is a decimal string. The other internal structures use tuples,
+// because minification keeps the property names but it does not keep the tuple
+// indexes.
 import type { Send, Signal } from "./config.js";
 
 export type AttrValue = string | number | boolean;
 
-// The full event taxonomy in one typed home: the semconv-registered names
-// stay bare, everything else carries the everr prefix. Type-only (zero
-// runtime bytes), so a missed prefix or stale name is a compile error in the
-// built-ins; the (string & {}) arm lets instrumentation names through uncast while
-// keeping the union in completions.
+// All the event names in one type. The names that semconv registers have no
+// prefix. All the other names have the everr prefix. This is a type only, and
+// thus it adds no bytes to the build. A name without its prefix, or a name that
+// is not current, is a compile error in the built-in instrumentations. The
+// (string & {}) part lets an instrumentation name through without a cast, and
+// an editor can still complete the names in the union.
 export type EventName =
   | "browser.web_vital"
   | "exception"
@@ -52,13 +57,14 @@ type OtlpSpan = {
 };
 
 /**
- * `severityNumber` defaults to INFO (9) and `body` to the event name; the
- * error signal overrides both. `""` emits a plain log record (no event
- * name): the custom logger's shape, where callers always pass a body.
+ * The default `severityNumber` is INFO (9), and the default `body` is the
+ * event name. The error signal replaces the two values. An event name of `""`
+ * makes a log record with no event name. The custom logger uses this
+ * structure, because its callers always send a body.
  */
 export type Emit = (
-  // (string & {}) lets instrumentation event names through uncast, keeping the
-  // EventName union alive in completions.
+  // The (string & {}) part lets an instrumentation event name through without
+  // a cast, and an editor can still complete the EventName union.
   eventName: EventName | "" | (string & {}),
   attributes?: Record<string, AttrValue | null | undefined>,
   severityNumber?: number,
@@ -66,8 +72,9 @@ export type Emit = (
 ) => void;
 
 /**
- * Pushes one finished CLIENT span onto the traces queue, stamped with the
- * envelope like every log record. `error` maps to OTLP status ERROR.
+ * Puts one completed CLIENT span into the traces queue. The span carries the
+ * envelope, the same as each log record. The `error` value becomes the OTLP
+ * status ERROR.
  */
 export type EmitSpan = (
   traceId: string,
@@ -83,21 +90,24 @@ type Emitter = [
   emit: Emit,
   flush: () => Promise<void>,
   /**
-   * Exit-path flush: fetch keepalive, with the payload truncated to the
-   * keepalive budget (newest records dropped first).
+   * The flush on the exit path. It uses fetch with keepalive. It decreases the
+   * payload to the keepalive limit, and it discards the most recent records
+   * first.
    */
   exitFlush: () => void,
   emitSpan: EmitSpan,
 ];
 
-// Same tuning as the web app's browser telemetry client. The queue itself is
-// deliberately unbounded: no record is dropped before sampling exists, and
-// the batch-size flush keeps it small in practice.
+// These values are the same as the values in the browser telemetry client of
+// the web app. The queue has no limit, and this is correct. The SDK discards no
+// record before the sampling. Also, the flush at the batch size keeps the queue
+// small.
 const MAX_BATCH_SIZE = 32;
 const SCHEDULED_DELAY_MS = 5_000;
 
-// The keepalive in-flight quota, measured in actual bytes (multibyte
-// attribute values would make string length undercount).
+// The keepalive limit for the data in transmission, in bytes. The code counts
+// the bytes, because an attribute value with multibyte characters has more
+// bytes than the length of the string.
 const EXIT_BUDGET = 64_000;
 
 export const noop = () => Promise.resolve();
@@ -113,24 +123,25 @@ function toAnyValue(value: AttrValue): AnyValue {
 function toKeyValues(
   attributes: Record<string, AttrValue | null | undefined>,
 ): KeyValue[] {
-  // Skipping nullish lets callers write optional attributes as plain
-  // properties (and pass DOM getters that return null) with no ceremony.
+  // The code ignores a value of null and a value of undefined. Thus a caller
+  // can write an optional attribute as a usual property, and it can send a DOM
+  // getter that returns null.
   return Object.entries(attributes).flatMap(([key, value]) =>
     value == null ? [] : [{ key, value: toAnyValue(value) }],
   );
 }
 
 export function createEmitter(
-  /** Delivers one OTLP/JSON payload per signal; see config.ts. */
+  /** Sends one OTLP/JSON payload for each signal. Refer to config.ts. */
   send: Send,
   /**
-   * Whether the exit batch must fit the fetch keepalive budget. False when
-   * the host owns delivery and no such budget exists.
+   * True if the batch at exit must be less than the fetch keepalive limit. It
+   * is false when the host sends the data, because then there is no such limit.
    */
   truncateAtExit: boolean,
   resourceAttributes: Record<string, AttrValue | null | undefined>,
   scope: { name: string; version: string },
-  /** Called per record; returns the context envelope to stamp. */
+  /** The code calls this for each record. It returns the context envelope. */
   envelope: () => Record<string, AttrValue | null | undefined>,
 ): Emitter {
   const resource = toKeyValues(resourceAttributes);
@@ -139,8 +150,9 @@ export function createEmitter(
   let timer: ReturnType<typeof setTimeout> | undefined;
   let exitScheduled = false;
 
-  // One OTLP envelope builder for both signals; the key triples differ only
-  // by noun (resourceLogs/scopeLogs/logRecords vs resourceSpans/...).
+  // One function makes the OTLP envelope for the two signals. The three keys
+  // are different only in their names: resourceLogs, scopeLogs, and logRecords
+  // for the logs, and resourceSpans and the equivalent names for the spans.
   const build = (kind: string, listKey: string, items: unknown[]) =>
     JSON.stringify({
       [`resource${kind}`]: [
@@ -154,11 +166,14 @@ export function createEmitter(
   const buildSpans = () => build("Spans", "spans", spanQueue);
   const bytes = (body: string) => new Blob([body]).size;
 
-  // Telemetry must never break the page: delivery is best-effort, sync
-  // throws included, and that holds for a caller-supplied send as much as
-  // for fetch. keepalive survives the page teardown; deliberately no
-  // sendBeacon fallback (it cannot carry the Authorization header, so it
-  // could never deliver to the hosted ingest anyway).
+  // The telemetry must never cause a failure of the page. Thus the code tries
+  // to send the data, but it accepts a failure. This includes a synchronous
+  // error. This is true for a `send` function from the caller and for fetch.
+  //
+  // The keepalive option continues after the page closes. There is no
+  // alternative that uses sendBeacon, and this is correct: sendBeacon cannot
+  // carry the Authorization header, and thus it cannot send data to the hosted
+  // ingest.
   const post = (
     signal: Signal,
     body: string,
@@ -187,11 +202,15 @@ export function createEmitter(
   };
 
   const exitFlush = (): void => {
-    // Truncate whole records, newest first, until both keepalive payloads
-    // fit the budget together: spans get at most a quarter, log records the
-    // remainder (page_leave and buffered vitals outrank in-flight fetches).
-    // Skipped entirely when the host owns delivery: the budget is a fetch
-    // constraint, and dropping records for it would lose data for nothing.
+    // Remove full records, the most recent record first, until the two
+    // keepalive payloads together are less than the limit. The spans get a
+    // maximum of one quarter of the limit, and the log records get the
+    // remainder. This sequence is correct, because the page_leave record and
+    // the vitals in the queue are more important than the fetch operations in
+    // transmission.
+    //
+    // The code does not do this when the host sends the data. The limit is a
+    // constraint of fetch only. Thus the code discards no record.
     if (truncateAtExit) {
       let spanBytes = 0;
       if (spanQueue.length) {
@@ -207,13 +226,14 @@ export function createEmitter(
     void flush(true);
   };
 
-  // Shared batching tail for both queues. Records emitted while the page is
-  // hidden (web-vitals reports CLS and INP from its own hidden-state
-  // listeners, in no guaranteed order relative to the client's exit flush)
-  // must not strand in a queue whose timer will never fire: a
-  // microtask-coalesced exit flush ships them on the keepalive path
-  // regardless of listener ordering. The document guard is the server path
-  // (SSR has no document, and no exit either).
+  // The common batch code for the two queues. The SDK can send a record while
+  // the page is hidden. For example, web-vitals reports CLS and INP from its
+  // own listeners for the hidden state, and the sequence of those listeners
+  // and the exit flush of the client is not known. Such a record must not stay
+  // in a queue whose timer never operates. Thus the exit flush collects the
+  // records in one microtask and sends them on the keepalive path, for each
+  // sequence of the listeners. The test of the document is for the server
+  // path, because SSR has no document and no exit.
   const schedule = (): void => {
     if (
       typeof document !== "undefined" &&
@@ -230,8 +250,8 @@ export function createEmitter(
       void flush();
     } else if (timer === undefined) {
       timer = setTimeout(() => void flush(), SCHEDULED_DELAY_MS);
-      // On the server a pending batch must not hold the process open past
-      // its last request; browsers return a number and skip this.
+      // On the server, a batch that waits must not keep the process open after
+      // its last request. A browser returns a number and does not do this.
       (timer as unknown as { unref?: () => void }).unref?.();
     }
   };
@@ -240,7 +260,8 @@ export function createEmitter(
     eventName,
     attributes,
     severityNumber = 9, // INFO
-    // Body defaults to the event name so log browsers show a readable line.
+    // The default body is the event name. Thus a log viewer shows a line that
+    // the user can read.
     body = eventName,
   ) => {
     queue.push({
@@ -270,7 +291,8 @@ export function createEmitter(
       startTimeUnixNano: `${startEpochMs}000000`,
       endTimeUnixNano: `${endEpochMs}000000`,
       attributes: toKeyValues({ ...envelope(), ...attributes }),
-      // STATUS_CODE_ERROR; omitted (Unset) otherwise, JSON drops undefined.
+      // This is STATUS_CODE_ERROR. If not, the field is absent and thus Unset,
+      // because JSON removes a value of undefined.
       status: error ? { code: 2 } : undefined,
     });
     schedule();

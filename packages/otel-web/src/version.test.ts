@@ -1,8 +1,9 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-// The build stamps __PACKAGE_VERSION__ via a bundler define; unbundled
-// consumers (and this test runner) get the dev fallback. Both sides of that
-// contract, driven through fresh module loads.
+// The build writes __PACKAGE_VERSION__ with a define option of the bundler. A
+// consumer that does not bundle the code, and this test runner, get the
+// development value. These tests examine the two conditions, and they load the
+// module again for each of them.
 
 afterEach(() => {
   vi.unstubAllGlobals();

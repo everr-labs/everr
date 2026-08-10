@@ -1,28 +1,33 @@
-// The SDK's OTel Tracer, handed to instrumentations: a minimal implementation of the
-// @opentelemetry/api Tracer interface over the SDK's own span pipeline, so a
-// instrumentation span gets exactly the network signal's treatment: enveloped,
-// batched, and shipped on the traces pipeline. @opentelemetry/api is a
-// type-only import here: no runtime dependency and no registered global
-// provider is involved.
+// The OTel Tracer of the SDK. The SDK gives it to the instrumentations. It is a
+// small implementation of the Tracer interface of @opentelemetry/api on the
+// span pipeline of the SDK. Thus a span from an instrumentation gets the same
+// operations as a span from the network signal: the SDK adds the envelope, it
+// puts the span in a batch, and it sends the span on the traces pipeline. This
+// module imports @opentelemetry/api for the types only. Thus there is no
+// dependency at run time, and the code uses no global provider.
 //
-// Scope of the implementation: every span is its own always-sampled trace
-// (ids minted locally, exposed via spanContext() so an instrumentation can propagate
-// them), kind is CLIENT like every SDK span, and there is no context
-// manager, so startActiveSpan runs its callback without activating the span
-// and spans never parent each other. Events and links are accepted and
-// dropped (the wire shape carries neither).
+// The implementation has these limits. Each span is its own trace, and the SDK
+// always samples it. The code makes the ids locally and gives them with
+// spanContext(), and thus an instrumentation can send them to a server. The
+// kind is CLIENT, the same as each span of the SDK. There is no context
+// manager. Thus startActiveSpan calls its function but does not make the span
+// active, and one span is never the parent of a different span. The tracer
+// accepts the events and the links, but it discards them, because the payload
+// carries neither of them.
 
 import type { Exception, Span, SpanOptions, Tracer } from "@opentelemetry/api";
 import type { AttrValue, EmitSpan } from "./emitter.js";
 import { randomHex } from "./session.js";
 
-// OTel TimeInput narrowed to epoch millis; hrtime and Date fall back to now.
+// Changes an OTel TimeInput to milliseconds from the epoch. For an hrtime value
+// and a Date value, the code uses the current time.
 const toMs = (time: unknown): number | undefined =>
   typeof time === "number" ? time : undefined;
 
 export function createTracer(emitSpan: EmitSpan): Tracer {
   const startSpan = (name: string, options?: SpanOptions): Span => {
-    // One CSPRNG draw covers both ids, same as the network signal.
+    // One read of the CSPRNG gives the two ids, the same as in the network
+    // signal.
     const ids = randomHex(24);
     const spanContext = {
       traceId: ids.slice(0, 32),
@@ -37,8 +42,9 @@ export function createTracer(emitSpan: EmitSpan): Tracer {
 
     const span: Span = {
       spanContext: () => spanContext,
-      // Attributes land verbatim: the emitter's AttrValue types are the
-      // contract, array values are the caller's problem.
+      // The code copies the attributes without a change. The AttrValue types of
+      // the emitter give the rules. The caller is responsible for an array
+      // value.
       setAttribute: (key, value) => {
         attributes[key] = value as AttrValue;
         return span;
@@ -61,8 +67,8 @@ export function createTracer(emitSpan: EmitSpan): Tracer {
       isRecording: () => !ended,
       recordException: (exception: Exception) => {
         const error = exception as { name?: string; message?: string };
-        // Semconv's exception event, flattened to span attributes since the
-        // wire shape carries no events.
+        // The exception event of semconv. The code puts it in the span
+        // attributes, because the payload carries no events.
         span.setAttribute(
           "exception.type",
           (typeof exception === "object" && error.name) || "Error",
@@ -93,8 +99,10 @@ export function createTracer(emitSpan: EmitSpan): Tracer {
 
   return {
     startSpan,
-    // Overload-collapsed: the callback is always the last argument, options
-    // the first when more than one precedes it. No context activation.
+    // This function accepts all the argument sequences. The function to call is
+    // always the last argument. The options are the first argument when more
+    // than one argument comes before the function. The code does not make the
+    // span active.
     startActiveSpan: ((name: string, ...rest: unknown[]) => {
       const fn = rest[rest.length - 1] as (span: Span) => unknown;
       const options =

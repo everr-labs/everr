@@ -3,14 +3,19 @@ import { cn } from "@everr/ui/lib/utils";
 import type * as React from "react";
 
 /**
- * A fixed, bottom-of-viewport analytics consent prompt: presentational only.
- * The host app owns the consent decision (where it's persisted, how it
- * drives telemetry init), this just renders the choice and reports it back.
- * `open` is controlled by the host so it can stay hidden during SSR until
- * the stored decision (or lack of one) is known, avoiding a flash of the
- * banner for returning visitors. Pass `onOpenSettings` to also show a
- * "Consent Settings" action (pair with `ConsentSettingsDialog` for the
- * per-category view); omit it for a plain accept/deny prompt.
+ * A prompt for the analytics consent. It stays at the bottom of the window. This
+ * component only shows the prompt. The app owns the consent decision: it selects
+ * the store for that decision, and it applies the decision to the telemetry.
+ * This component shows the choice and gives the answer of the user to the app.
+ *
+ * The app controls the `open` property. Thus the banner can stay hidden during
+ * the SSR, until the app knows the decision in the store or knows that there is
+ * no decision. Then the banner does not appear and disappear for a visitor who
+ * comes again.
+ *
+ * Give the `onOpenSettings` property to also show a "Consent Settings" button.
+ * Use `ConsentSettingsDialog` with it for the view of each category. Without
+ * that property, the banner shows only the accept button and the deny button.
  */
 function ConsentBanner({
   open,

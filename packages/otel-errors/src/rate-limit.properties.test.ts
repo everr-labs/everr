@@ -2,9 +2,10 @@ import fc from "fast-check";
 import { describe, expect, it } from "vitest";
 import { RateLimiter } from "./rate-limit.js";
 
-// Property tests for the rate limiter: under any interleaving of keys and
-// any (monotonic) clock, a key never gets more than `count` allowances per
-// window, and keys never influence each other.
+// Property tests for the rate limiter. The keys can occur in each possible
+// sequence, and the clock can have each possible set of values that increase.
+// In all these conditions, one key never gets more than `count` allowances in
+// one window, and one key never has an effect on a different key.
 
 const clock = fc
   .array(fc.integer({ min: 0, max: 50 }), { minLength: 1, maxLength: 200 })
@@ -26,7 +27,8 @@ describe("RateLimiter", () => {
           for (const now of times) {
             if (limiter.allow("k", now)) allowed.push(now);
           }
-          // Sliding-window check over the allowed timestamps themselves.
+          // A check of the sliding window on the timestamps that the limiter
+          // permitted.
           for (let i = 0; i < allowed.length; i++) {
             const inWindow = allowed.filter(
               (t) => t > allowed[i]! - windowMs && t <= allowed[i]!,

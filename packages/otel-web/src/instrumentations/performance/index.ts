@@ -8,47 +8,56 @@ export type WebVitalName = "lcp" | "cls" | "ttfb" | "inp";
 
 export type PageLoadOptions = {
   /**
-   * Grace after the `load` event before capture stops, so async stragglers
-   * (late scripts, lazy fonts) still land. Default 3000.
+   * The interval after the `load` event before the capture stops. Thus the SDK
+   * also gets the resources that load late, for example a late script or a
+   * font that loads on demand. The default is 3000.
    */
   settleMs?: number;
   /**
-   * Hard stop, in ms from setup, for pages whose `load` never fires.
-   * Default 10000.
+   * The maximum interval in milliseconds from the setup. It stops the capture
+   * on a page where the `load` event does not occur. The default is 10000.
    */
   ceilingMs?: number;
   /**
-   * Session-sampled rate in [0, 1] for the whole load window (waterfall and
-   * long animation frames together; the vitals are never sampled). Decided
-   * once at setup from the session id, so a session is all-in or all-out
-   * across tabs and reloads. Default 1.
+   * The part of the sessions that the SDK records, from 0 to 1. It applies to
+   * the full load window: the resource spans and the long animation frames
+   * together. The SDK always records the vitals.
+   *
+   * The code decides one time at the setup, from the session id. Thus a session
+   * records all this data or none of it, in all the tabs and after a reload.
+   * The default is 1.
    */
   sample?: number;
 };
 
 export type PerformanceOptions = {
-  /** Which web vitals to record. Default: all of them. */
+  /** The web vitals that the SDK records. The default is all of them. */
   webVitals?: WebVitalName[];
-  /** Record `slow_interaction` spans. Default true. */
+  /** Records the `slow_interaction` spans. The default is true. */
   slowInteractions?: boolean;
   /**
-   * Capture the initial page load: the static-resource waterfall (one
-   * `GET <url>` span per script/css/img/font...) plus one
-   * `long_animation_frame` span per main-thread stall in
-   * the same window. On by default; `false` turns it off, an options
-   * object tunes the window and sampling.
+   * Captures the first load of the page. The SDK makes one `GET <url>` span for
+   * each static resource, for example a script, a CSS file, an image, or a
+   * font. It also makes one `long_animation_frame` span for each interval when
+   * the main thread stops in the same window.
+   *
+   * This option is on by default. A value of `false` stops it. An options object
+   * changes the window and the sampling.
    */
   pageLoad?: boolean | PageLoadOptions;
 };
 
 /**
- * The performance instrumentation: web vitals, all computed in-house (LCP, CLS, TTFB
- * in webvitals.ts, INP in inp.ts) plus `slow_interaction` spans
- * from the same Event Timing observer that computes INP, and the
- * on-by-default page-load capture (pageload.ts). All outputs are configurable:
- * `webVitals` picks the vitals, `slowInteractions` gates the slow spans
- * (the shared observer runs only while at least one of INP or slow
- * interactions wants it), `pageLoad: false` closes the load window.
+ * The performance instrumentation. It calculates all the web vitals in this
+ * package: LCP, CLS, and TTFB in webvitals.ts, and INP in inp.ts. It also makes
+ * the `slow_interaction` spans from the same Event Timing observer that
+ * calculates the INP. It also captures the page load, in pageload.ts, and that
+ * capture is on by default.
+ *
+ * You can configure each output. The `webVitals` option selects the vitals. The
+ * `slowInteractions` option controls the slow spans, and the shared observer
+ * operates only when the INP or the slow interactions need it. The value
+ * `pageLoad: false` stops the capture of the load window.
  */
 export function performance(options?: PerformanceOptions): Instrumentation {
   const vitals = options?.webVitals ?? ["lcp", "cls", "ttfb", "inp"];
@@ -61,16 +70,20 @@ export function performance(options?: PerformanceOptions): Instrumentation {
       : options?.pageLoad === true || options?.pageLoad === undefined
         ? {}
         : options.pageLoad;
-  // Named (not an arrow) so sampled() can hash a real identity from
-  // instrumentation.name instead of decorrelating nothing.
+  // This function has a name and it is not an arrow function. Thus sampled()
+  // can make a hash from instrumentation.name, and the decisions for the
+  // different instrumentations are different.
   return function performance(ctx) {
-    // startWebVitals with an empty list registers nothing; the inp/slow
-    // guard is load-bearing (it keeps the Event Timing observer off).
+    // With an empty list, startWebVitals registers nothing. The test for the
+    // INP and the slow interactions is necessary, because it keeps the Event
+    // Timing observer off.
     const stopVitals = startWebVitals(ctx.emit, classic);
     const stopInp =
       inp || slow ? startInp(ctx.emit, ctx.tracer, inp, slow) : undefined;
-    // The sample decision mirrors sampled(): hashed from the session id at
-    // setup, decorrelated from whole-instrumentation sampling by its own suffix.
+    // This decision uses the same method as sampled(). The code makes a hash
+    // from the session id at the setup. It adds its own text to that hash. Thus
+    // this decision is different from the decision for the full
+    // instrumentation.
     const sample = pageLoad?.sample ?? 1;
     const stopPageLoad =
       pageLoad &&

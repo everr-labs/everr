@@ -4,9 +4,10 @@ import type { InstrumentationContext } from "../runtime.js";
 import { performance as performanceInstrumentation } from "./index.js";
 import { startPageLoad } from "./pageload.js";
 
-// jsdom has no Resource Timing and no LoAF: a stub PerformanceObserver
-// captures the per-type callbacks and the tests drive entries by hand.
-// Timers are faked to walk the load + settle / ceiling stop logic.
+// The jsdom environment has no Resource Timing and no LoAF. Thus a replacement
+// for PerformanceObserver keeps the function for each entry type, and the tests
+// send the entries themselves. The tests also replace the timers, and thus they
+// can examine the stop conditions: the load event plus settleMs, and ceilingMs.
 
 let spans: Array<{
   name: string;
@@ -15,8 +16,9 @@ let spans: Array<{
 }>;
 let stop: () => void;
 
-// The real tracer over a capturing span sink: assets and long animation
-// frames are spans, with the entry's duration as the span duration.
+// The true tracer that sends its spans to a test function. A resource and a
+// long animation frame are spans. The duration of the entry is the duration of
+// the span.
 const tracer = createTracer((_traceId, _spanId, name, start, end, a) => {
   spans.push({ name, duration: end - start, attrs: a });
 });
@@ -89,7 +91,8 @@ function loaf(over?: Partial<FakeLoaf>): FakeLoaf {
     startTime: 800.4,
     duration: 240.6,
     blockingDuration: 190.2,
-    // Frame ends at 1041: 30ms of trailing style-and-layout.
+    // The frame ends at 1041. Thus it has 30 ms of style and layout at the
+    // end.
     styleAndLayoutStart: 1011,
     scripts: [
       {
@@ -179,7 +182,7 @@ describe("asset waterfall", () => {
     feed({}, { name: "https://cdn.example.com/site.css?v=2" });
     expect(spans).toHaveLength(2);
     expect(spans[0].name).toBe("GET https://cdn.example.com/app.js");
-    // The name is query-stripped like url.full.
+    // The name has no query string, the same as url.full.
     expect(spans[1].name).toBe("GET https://cdn.example.com/site.css");
   });
 
@@ -267,8 +270,9 @@ describe("long animation frames", () => {
     expect(spans[0].duration).toBe(241);
     expect(attrs()).toMatchObject({
       "everr.browser.long_animation_frame.blocking_duration": 190,
-      // scripts 60 + 150.4; frame end 1041 - styleAndLayoutStart 1011 = 30;
-      // 240.6 - 210.4 - 30 rounds to 0.
+      // The scripts are 60 and 150.4. The frame end 1041 minus
+      // styleAndLayoutStart 1011 is 30. The value 240.6 minus 210.4 minus 30
+      // rounds to 0.
       "everr.browser.long_animation_frame.script_duration": 210,
       "everr.browser.long_animation_frame.style_and_layout_duration": 30,
       "everr.browser.long_animation_frame.unattributed_duration": 0,
@@ -376,9 +380,8 @@ describe("the load window", () => {
 });
 
 describe("the pageLoad option", () => {
-  // A minimal instrumentation context: only the tracer and ids are consulted
-  // by the pageLoad path; the vitals are disabled so no other observer
-  // registers.
+  // A small instrumentation context. The pageLoad code reads only the tracer
+  // and the ids. The vitals are off, and thus no other observer registers.
   const ctx = (sessionId: string): InstrumentationContext =>
     ({
       tracer,
@@ -418,8 +421,9 @@ describe("the pageLoad option", () => {
   });
 
   it("samples the whole window per session, all-in or all-out", () => {
-    // The decision is a deterministic hash: across many sessions roughly
-    // `sample` of them capture, and a given session always decides the same.
+    // The decision comes from a hash, and thus it is always the same for one
+    // session. In a large number of sessions, approximately the part `sample`
+    // of them captures the data.
     let captured = 0;
     for (let i = 0; i < 100; i++) {
       stubTiming();

@@ -9,12 +9,15 @@ import {
 } from "./session.js";
 import { UNIQUE_ID } from "./test-kit.js";
 
-// Unit tests for identity over the current store: visitor id, 30-minute
-// inactivity sessions, mid-session persistence switching, and the
-// identify()/revoke() user.* keys in the setAttributes ambient set. Time is
-// mocked via Date.now (the only clock the session provider reads). revoke()
-// doubles as the between-test reset: it clears the stored ids, the ambient
-// user.*, the in-memory session continuity, and swaps in a memory store.
+// Unit tests for the identity on the current store. They examine the visitor
+// id, the sessions that end after 30 minutes without activity, a change of the
+// store during a session, and the user.* keys from identify() and revoke() in
+// the ambient set of setAttributes.
+//
+// The tests replace Date.now, which is the only clock that the session code
+// reads. The revoke() function also sets the initial condition before each test:
+// it removes the ids from the store, it removes the ambient user.* keys, it
+// removes the session in memory, and it installs a memory store.
 
 beforeEach(() => {
   localStorage.clear();
@@ -40,7 +43,8 @@ describe("visitor id", () => {
     setPersistence("memory");
     const id = visitorId();
     expect(localStorage.length).toBe(0);
-    // revoke() drops everything; the next resolve knows nothing.
+    // The revoke() function removes all the data. Thus the next call finds
+    // nothing.
     revoke();
     expect(visitorId()).not.toBe(id);
   });
@@ -53,10 +57,12 @@ describe("durable session", () => {
     const id = sessionId();
     expect(id).toMatch(UNIQUE_ID);
 
-    // 20 idle minutes: inside the window, same session.
+    // After 20 minutes without activity, the time is in the window, and thus
+    // the session is the same.
     vi.spyOn(Date, "now").mockReturnValue(1_000_000 + 20 * 60_000);
     expect(sessionId()).toBe(id);
-    // Another 20 idle minutes from the touch: still inside, still the same.
+    // After 20 more minutes without activity from the last activity, the time
+    // is still in the window, and the session is still the same.
     vi.spyOn(Date, "now").mockReturnValue(1_000_000 + 40 * 60_000);
     expect(sessionId()).toBe(id);
   });
@@ -69,7 +75,8 @@ describe("durable session", () => {
     vi.spyOn(Date, "now").mockReturnValue(1_000_000 + 31 * 60_000);
     const rotated = sessionId();
     expect(rotated).not.toBe(id);
-    // The rotated session persisted: a reload inside its window reuses it.
+    // The code wrote the new session to the store. Thus a reload in its window
+    // uses that session again.
     expect(localStorage.getItem("everr.session")).toContain(rotated);
   });
 
@@ -90,7 +97,7 @@ describe("durable session", () => {
       throw new Error("denied");
     });
     const id = sessionId();
-    // Without the in-memory fallback every call would mint a fresh id.
+    // Without the session in memory, each call makes a new id.
     expect(sessionId()).toBe(id);
     expect(visitorId()).toMatch(UNIQUE_ID);
   });
@@ -161,7 +168,8 @@ describe("revoke", () => {
     revoke();
     expect(localStorage.length).toBe(0);
     expect(getAttributes()).not.toHaveProperty("user.id");
-    // Fresh ids, minted into a memory store: nothing re-persists.
+    // The code makes new ids in a memory store. Thus it writes nothing to a
+    // permanent store.
     expect(visitorId()).not.toBe(visitor);
     expect(sessionId()).not.toBe(session);
     expect(localStorage.length).toBe(0);
@@ -176,7 +184,8 @@ describe("identify scoping", () => {
     const set = getAttributes();
     expect(set["everr.team"]).toBe("core");
     expect(set["user.id"]).toBe("u2");
-    // The re-identify cleared the previous user's traits wholesale.
+    // The second call to identify removed all the traits of the previous
+    // user.
     expect(set).not.toHaveProperty("user.plan");
   });
 });

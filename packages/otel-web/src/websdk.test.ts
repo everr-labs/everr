@@ -63,7 +63,8 @@ describe("init (persistence: memory)", () => {
     expect(resource["service.name"]).toBe("everr-docs-test");
     expect(resource["telemetry.distro.name"]).toBe("@everr/otel-web");
     expect(resource["user_agent.original"]).toBeTruthy();
-    // Unset optional attributes are filtered out, not shipped as empty values.
+    // The emitter removes an optional attribute that has no value. It does not
+    // send an empty value.
     expect(resource).not.toHaveProperty("deployment.environment.name");
   });
 
@@ -82,8 +83,9 @@ describe("init (persistence: memory)", () => {
     );
     expect(spaAttrs["session.id"]).toBe(initialAttrs["session.id"]);
 
-    // The outgoing page's leave sits between the two views, linked to the
-    // initial pageview and carrying duration and scroll depth.
+    // The leave record of the previous page is between the two view records. It
+    // refers to the first page view, and it carries the time on the page and the
+    // scroll depth.
     expect(leave.eventName).toBe("everr.browser.page_leave");
     const leaveAttrs = attrs(leave);
     expect(leaveAttrs["everr.page_view.id"]).toBe(
@@ -98,12 +100,14 @@ describe("init (persistence: memory)", () => {
     start();
     dispatchEvent(new Event("pagehide"));
     const all = await records();
-    // Sort the names for a stable assertion; timestamps carry ordering.
+    // The test sorts the names, and thus the result is always the same. The
+    // timestamps give the sequence.
     expect(all.map((r) => r.eventName).sort()).toEqual([
       "everr.browser.page_leave",
       "everr.browser.page_view",
     ]);
-    // A repeated hide (tab restored, hidden again) does not duplicate the leave.
+    // The user can show the tab again and then hide it again. The SDK does not
+    // send a second leave record.
     dispatchEvent(new Event("pagehide"));
     expect(await records()).toHaveLength(2);
   });
@@ -145,14 +149,16 @@ describe("init (persistence: memory)", () => {
     );
     history.pushState(null, "", "/blog/hello");
     const all = await records();
-    // Translated per record from that record's URL: the initial view and the
-    // leave belong to the pre-navigation page (no pattern), the SPA
-    // navigation's view resolves the new URL.
+    // The code calculates the pattern for each record, from the URL of that
+    // record. The first view record and the leave record belong to the page
+    // before the navigation, and that page has no pattern. The view record of
+    // the SPA navigation uses the new URL.
     expect(attrs(all[0])).not.toHaveProperty("everr.route.pattern");
     expect(attrs(all[1])).not.toHaveProperty("everr.route.pattern");
     expect(attrs(all[2])["everr.route.pattern"]).toBe("/blog/$slug");
 
-    // A throwing host callback must never break capture.
+    // A function of the host that throws an error must never stop the
+    // capture.
     setRouteResolver(() => {
       throw new Error("host bug");
     });
@@ -174,8 +180,9 @@ describe("init (persistence: memory)", () => {
     history.pushState(null, "", "/a");
     history.replaceState(null, "", "/b");
     window.dispatchEvent(new PopStateEvent("popstate"));
-    // /a and /b changed the URL (a view and a leave each); the popstate with
-    // an unchanged URL is deduped.
+    // The paths /a and /b changed the URL, and each of them made a view record
+    // and a leave record. The popstate event did not change the URL, and thus
+    // the code ignores it.
     expect(await records()).toHaveLength(5);
   });
 
@@ -236,14 +243,16 @@ describe("init (persistence: memory)", () => {
     expect(ca["everr.element.selector"]).toBe("#e");
     expect(sa["everr.element.tag"]).toBe("button");
     expect(sa["everr.element.selector"]).toBe("#go");
-    // The shared analytics envelope makes autocaptured events join the session.
+    // The shared analytics envelope connects the events of the automatic
+    // capture to the session.
     expect(ca["session.id"]).toMatch(UNIQUE_ID);
     expect(ca["everr.page_view.id"]).toMatch(UNIQUE_ID);
     expect(sa["session.id"]).toMatch(UNIQUE_ID);
-    // Element values are never carried, by construction.
+    // The records never carry the value of an element.
     expect(ca).not.toHaveProperty("everr.element.text");
-    // submit targets the submitter button and carries elementAttrs, which
-    // includes the (non-field) button's visible label.
+    // The submit record uses the button that caused the submit. It carries
+    // elementAttrs, which contains the label text of that button. The button is
+    // not a form field.
     expect(sa["everr.element.text"]).toBe("Sign up");
     document.body.innerHTML = "";
   });
@@ -290,8 +299,9 @@ describe("init (persistence: memory)", () => {
   it("keeps watching navigations with no instrumentations, so the envelope stays fresh", () => {
     const pushState = history.pushState;
     start({ instrumentations: [] });
-    // The navigation watcher is envelope infrastructure, not a signal: it
-    // must patch history even when no pageview listener is registered.
+    // The navigation watcher is part of the envelope, and it is not a signal.
+    // Thus it must change the history object, also when no pageview listener
+    // registers.
     expect(history.pushState).not.toBe(pushState);
   });
 
@@ -312,7 +322,8 @@ describe("structural no-op", () => {
     const pushState = history.pushState;
     const inert = new WebSDK({ serviceName: "everr-docs-test" });
     client = inert;
-    // No emitter built and nothing patched: pushState is untouched.
+    // The SDK made no emitter and changed nothing. Thus pushState does not
+    // change.
     expect(history.pushState).toBe(pushState);
   });
 });
@@ -389,7 +400,8 @@ describe("base composition details", () => {
   it("boots with the instrumentations option absent entirely", async () => {
     start({ instrumentations: undefined });
     expect(await records()).toHaveLength(0);
-    // The pipeline still works: the logger rides it without any instrumentation.
+    // The pipeline continues to operate. The logger uses it without an
+    // instrumentation.
     const { logger } = await import("./logger.js");
     logger.info("bare boot");
     const [record] = await records();

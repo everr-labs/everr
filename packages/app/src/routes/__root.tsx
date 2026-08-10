@@ -1,5 +1,6 @@
-// Side-effect import: starts browser error tracking as early as the client
-// bundle loads (no-op during SSR and when unconfigured). See telemetry/client.
+// This import has an effect at load. It starts the error capture of the browser
+// when the client build loads. It does nothing during the SSR and when the app
+// has no configuration. Refer to telemetry/client.
 import "@/telemetry/client";
 import { Toaster } from "@everr/ui/components/sonner";
 import { TanStackDevtools } from "@tanstack/react-devtools";
@@ -21,9 +22,9 @@ import { CONSENT_COOKIE, isConsentDecision } from "@/telemetry/consent";
 import { ConsentGate } from "@/telemetry/consent-gate";
 import type { RouterContext } from "../router";
 
-// The consent cookie rides the same server round trip as the session so the
-// server-rendered markup already has the banner's correct open/closed state:
-// no post-hydration flash either way.
+// The consent cookie comes from the server in the same request as the session.
+// Thus the markup from the server already has the correct state of the banner,
+// and the banner does not change after the hydration.
 const getRootContext = createServerFn({ method: "GET" }).handler(async () => {
   const session = await auth.api.getSession({
     headers: getRequestHeaders(),

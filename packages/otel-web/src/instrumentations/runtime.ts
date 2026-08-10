@@ -1,54 +1,67 @@
-// The instrumentation contract; the runtime lives inline in the WebSDK
-// constructor, which runs each instrumentation against a deliberately small context (seven members,
-// nothing else: no transport, no batcher, no record internals), and
-// shutdown() runs the returned teardowns in reverse order before the
-// pipeline unbinds. A consent re-construction tears every instrumentation down and sets it
-// up again, so instrumentations inherit the new persistence mode for free. The array
-// is taken verbatim, duplicates included, and setup/teardown run unguarded:
-// a throwing instrumentation is the caller's bug, not the runtime's to paper over.
+// The rules for an instrumentation. The code that operates them is in the
+// WebSDK constructor. That constructor calls each instrumentation with a small
+// context. The context has seven members and nothing more: no transport, no
+// batch code, and no internal parts of a record. The shutdown() function calls
+// the stop functions in the opposite sequence, before the pipeline
+// disconnects.
+//
+// A new construction for the consent stops each instrumentation and starts it
+// again. Thus each instrumentation gets the new persistence mode, and it needs
+// no code for this.
+//
+// The code uses the array without a change, and it keeps a duplicate. The
+// start function and the stop function operate without a try block. If an
+// instrumentation throws an error, that is an error of the caller. This code
+// does not hide it.
 
 import type { Tracer } from "@opentelemetry/api";
 import type { AttrValue } from "../emitter.js";
 import type { PageContext } from "../session.js";
 
 /**
- * What an instrumentation's `setup` receives. Everything a capture source needs, and
- * deliberately nothing more.
+ * The data that the `setup` function of an instrumentation receives. It
+ * contains all the data that a source of the capture needs, and nothing more.
  */
 export interface InstrumentationContext {
   /**
-   * Emits an event record through the standard pipeline: the ambient
-   * envelope (session, page, route, identity, `setAttributes` context) is
-   * stamped and the record is batched with everything else. Nullish
-   * attribute values are skipped, so optional attributes need no ceremony.
+   * Sends an event record on the standard pipeline. The SDK writes the ambient
+   * envelope on the record: the session, the page, the route, the identity, and
+   * the context from `setAttributes`. Then it puts the record in the batch with
+   * the other records. The SDK ignores an attribute value of null and an
+   * attribute value of undefined. Thus an optional attribute needs no
+   * additional code.
    */
   emit(
     name: string,
     attributes?: Record<string, AttrValue | null | undefined>,
   ): void;
-  /** The SDK's OTel tracer; finished spans ride the traces pipeline. */
+  /** The OTel tracer of the SDK. The traces pipeline sends a completed span. */
   tracer: Tracer;
-  /** The current visitor and session ids (sampled per call). */
+  /** The current visitor id and session id. The code reads them at each call. */
   ids(): { visitorId: string; sessionId: string };
-  /** The current page's route pattern, or null when none resolves. */
+  /** The route pattern of the current page. It is null when the code finds
+   * none. */
   route(): string | null;
   /**
-   * The current page context (pageview id, url, path, referrer): the same
-   * snapshot the envelope stamps, rotated per SPA navigation.
+   * The context of the current page: the pageview id, the url, the path, and
+   * the referrer. It is the same data that the envelope writes. The code makes
+   * a new context for each SPA navigation.
    */
   page(): PageContext;
   /**
-   * Subscribes to SPA navigations, after the page context has rotated (so
-   * `page()` already reads the new page). Returns the unsubscribe.
+   * Adds a listener for the SPA navigations. The SDK calls the listener after
+   * it makes the new page context. Thus `page()` gives the new page. This
+   * function returns the function that removes the listener.
    */
   onNavigation(listener: () => void): () => void;
-  /** The WebSDK `dev` option. */
+  /** The `dev` option of the WebSDK. */
   dev: boolean;
 }
 
 /**
- * An instrumentation is its setup function: it runs during WebSDK
- * construction and the return value, if any, is the teardown.
+ * An instrumentation is its setup function. The WebSDK constructor calls that
+ * function. If the function returns a value, that value is the function that
+ * stops the instrumentation.
  */
 export type Instrumentation = (
   ctx: InstrumentationContext,

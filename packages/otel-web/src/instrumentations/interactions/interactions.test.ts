@@ -19,7 +19,7 @@ function click(el: Element, x = 10, y = 20) {
   );
 }
 
-/** Three clicks within the rage radius and gap. */
+/** Three clicks in the area and in the interval for a rage click. */
 function rageBurst(el: Element, x = 10, y = 20) {
   click(el, x, y);
   click(el, x + 3, y + 2);
@@ -53,8 +53,8 @@ describe("startInteractions", () => {
       expect(a["everr.browser.click.x"]).toBe(15);
       expect(a["everr.browser.click.y"]).toBe(25);
       expect(a["everr.viewport.width"]).toBe(innerWidth);
-      // DOM clicks carry no interaction latency: that is the slow_interaction
-      // event's job (Event Timing).
+      // A DOM click has no latency for the interaction. The slow_interaction
+      // event gives that value, from Event Timing.
       expect(a).not.toHaveProperty("everr.browser.interaction.duration");
     });
 
@@ -83,7 +83,8 @@ describe("startInteractions", () => {
       expect(
         names().filter((n) => n === "everr.browser.interaction.rage_click"),
       ).toHaveLength(1);
-      // The fourth click is a fresh window: a plain click, not another rage.
+      // The fourth click starts a new window. Thus it is a usual click, and it
+      // is not a second rage click.
       expect(names()[3]).toBe("everr.browser.interaction.click");
     });
 
@@ -188,12 +189,13 @@ describe("startInteractions", () => {
       const a = emitted[0].attrs ?? {};
       expect(a["everr.element.tag"]).toBe("input");
       expect(a["everr.element.selector"]).toBe("#email");
-      // Fields have no visible text label of their own; textOf skips them.
-      // (The raw attrs object carries the key with an undefined value; the
-      // emitter filters nullish at send time, see init.test.ts.)
+      // A form field has no label text of its own, and thus textOf ignores it.
+      // The attributes object contains the key with the value undefined. The
+      // emitter removes a value of null and a value of undefined when it sends
+      // the record. Refer to init.test.ts.
       expect(a["everr.element.text"]).toBeUndefined();
       expect(a).not.toHaveProperty("everr.browser.click.x");
-      // Values are never read: there is no attr for them by construction.
+      // The code never reads a value. Thus there is no attribute for a value.
       expect(JSON.stringify(a)).not.toContain("@example");
     });
 
@@ -241,8 +243,8 @@ describe("startInteractions", () => {
       const a = emitted[0].attrs ?? {};
       expect(a["everr.element.tag"]).toBe("button");
       expect(a["everr.element.selector"]).toBe("#go");
-      // The submitter is a non-field button: its visible label is captured,
-      // never a form value.
+      // The submitter is a button and it is not a form field. Thus the code
+      // captures its label text, and it never captures a value of the form.
       expect(a["everr.element.text"]).toBe("Sign up");
       expect(a).not.toHaveProperty("everr.browser.click.x");
     });
@@ -341,7 +343,8 @@ describe("sensitive text redaction", () => {
     expect(textOfClick("Card: 4111 1111 1111 1111")).toBeUndefined();
     expect(textOfClick("4111-1111-1111-1111")).toBeUndefined();
     expect(textOfClick("SSN 123-45-6789")).toBeUndefined();
-    // Near misses stay: too few digits, wrong group widths.
+    // These values stay, because they are not card numbers: they have too few
+    // digits, or their groups have an incorrect number of digits.
     expect(textOfClick("Order 4111 1111 111")).toBe("Order 4111 1111 111");
     expect(textOfClick("Ref 123-4-6789")).toBe("Ref 123-4-6789");
     expect(textOfClick("Ref 123-45-678")).toBe("Ref 123-45-678");

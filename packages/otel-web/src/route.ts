@@ -1,31 +1,40 @@
-// The route-pattern resolver: a host-registered URL -> pattern translator,
-// called per record with the URL of the page that record belongs to and
-// stamped as `everr.route.pattern`. Taking the URL as input (instead of
-// sampling the router's live state) keeps records that reference a *past*
-// page correct: page_leave resolves the outgoing page's URL, not whatever
-// the router matches now. It describes the document, not any request the
-// page makes, so the network signal resolves its own request route template
-// instead of borrowing this one.
-// A package-level function like identify/captureError: telemetry
-// WebSDK construction runs before any router exists, and registration deliberately
-// survives shutdown()/re-init (a consent flow re-initializes the SDK long
-// after the router registered).
+// The resolver of the route pattern. The host registers a function that changes
+// a URL into a pattern. The SDK calls it for each record with the URL of the
+// page of that record, then writes the result as `everr.route.pattern`.
+//
+// The function takes the URL as its input, and it does not read the current
+// state of the router. Thus a record that refers to a previous page is correct:
+// page_leave uses the URL of the page that the user leaves, and not the page
+// that the router shows now.
+//
+// The pattern describes the document, and it does not describe a request from
+// the page. Thus the network signal finds its own route template for a request,
+// and it does not use this pattern.
+//
+// This is a package function, the same as identify and captureError. The
+// constructor of the WebSDK operates before a router exists. The registration
+// continues after shutdown() and after a new construction, and this is correct.
+// A consent procedure constructs the SDK again a long time after the router
+// registers.
 
 let provider: ((url: string) => string | null | undefined) | null | undefined;
 
 /**
- * Registers a translator from a page URL to its low-cardinality route
- * pattern (e.g. a TanStack route id like `/blog/$slug`, or a Next.js
- * template like `/blog/[slug]`). Called per record with that record's page
- * URL, so records pinned to an earlier page (like page_leave) resolve
- * correctly. Errors and nullish returns are treated as "no pattern";
- * passing nullish unregisters.
+ * Registers a function that changes the URL of a page into its route pattern.
+ * That pattern has a small number of different values. For example, a TanStack
+ * route id is `/blog/$slug`, and a Next.js template is `/blog/[slug]`.
+ *
+ * The SDK calls the function for each record with the page URL of that record.
+ * Thus a record for a previous page, for example page_leave, gets the correct
+ * pattern. If the function throws an error, or if it returns null or undefined,
+ * the record gets no pattern. To remove the function, send null or undefined.
  */
 export function setRouteResolver(get: typeof provider): void {
   provider = get;
 }
 
-/** The pattern for `url`; the host callback must never break capture. */
+/** Gives the pattern for `url`. The function from the host must never cause a
+ * failure of the capture. */
 export function routePattern(url: string): string | null | undefined {
   try {
     return provider?.(url);

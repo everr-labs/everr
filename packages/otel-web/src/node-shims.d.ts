@@ -1,6 +1,7 @@
-// Minimal ambient shims for the node-environment tests: this browser-lib
-// tsconfig deliberately has no @types/node (it would change global typings
-// for the whole package), and browser-graph.test.ts only needs these calls.
+// Small global declarations for the tests that operate in the Node
+// environment. The tsconfig of this browser library has no @types/node, and
+// this is correct, because @types/node changes the global types of the full
+// package. The browser-graph.test.ts file needs only these functions.
 declare module "node:fs" {
   export function readFileSync(path: string, encoding: "utf8"): string;
 }

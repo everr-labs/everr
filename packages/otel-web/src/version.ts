@@ -1,5 +1,6 @@
-// One spelling of the SDK's identity for both entries (client.ts and
-// server.ts): pure constants, so it is harmless to either module graph.
+// One method to write the identity of the SDK for the two entries, client.ts
+// and server.ts. This module contains only constants. Thus it causes no problem
+// in the two module graphs.
 declare const __PACKAGE_VERSION__: string | undefined;
 
 export const SDK_VERSION =

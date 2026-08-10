@@ -1,10 +1,11 @@
 // @vitest-environment node
 //
-// The server half of new WebSDK(): no window, no document, and no in-house
-// pipeline. new WebSDK() attaches to the app's registered OpenTelemetry SDK via
-// the @opentelemetry/api globals; logger and captureError ride the app's
-// LoggerProvider and join its active trace context. No SDK registered means
-// the API's built-in no-ops: silent, structurally inert.
+// The server part of new WebSDK(). There is no window, no document, and no
+// pipeline in this package. The constructor connects to the OpenTelemetry SDK
+// that the app registered, through the globals of @opentelemetry/api. The logger
+// and captureError use the LoggerProvider of the app, and their records go into
+// its active trace context. If the app registers no SDK, the API supplies
+// functions that do nothing, give no warning, and make no structure.
 import { setLogger } from "@everr/otel-errors/core";
 import { context, SpanStatusCode, trace } from "@opentelemetry/api";
 import { logs } from "@opentelemetry/api-logs";
@@ -45,8 +46,9 @@ function registerSdk(): void {
     processors: [new SimpleLogRecordProcessor(logExporter)],
   });
   logs.setGlobalLoggerProvider(loggerProvider);
-  // otel-errors resolves its logger once, on the shared client's first use,
-  // so a per-test provider swap needs the same rebinding an app gets from
+  // The otel-errors package finds its logger one time, at the first use of the
+  // shared client. Thus a test that installs a different provider must connect
+  // the logger again. An app gets that connection from
   // ErrorsInstrumentation.setLoggerProvider.
   setLogger(loggerProvider.getLogger("test"));
   spanExporter = new InMemorySpanExporter();
@@ -72,14 +74,15 @@ afterEach(async () => {
 });
 
 describe("init (server)", () => {
-  // First in the file by design: the pre-init warning only exists before
-  // the module's first new WebSDK() call.
+  // This test is the first test in the file, and this is correct. The warning
+  // occurs only before the first call to new WebSDK() in this module.
   it("gates logger on init but never gates error capture", async () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     logger.info("before init");
     expect(warn).toHaveBeenCalledTimes(1);
-    // Errors need no WebSDK on the server: the shared otel-errors client is
-    // bound at module load, so this lands.
+    // On the server, an error report needs no WebSDK. The code connects the
+    // shared otel-errors client at module load. Thus this report goes to the
+    // provider.
     captureError(new Error("before init"));
     expect(logExporter.getFinishedLogRecords()).toHaveLength(1);
 
@@ -90,7 +93,8 @@ describe("init (server)", () => {
 
     logger.info("after shutdown");
     expect(warn).not.toHaveBeenCalled();
-    // Still one record: the logger went silent, the error path did not.
+    // There is still one record. The logger stopped, but the error path
+    // continues to operate.
     captureError(new Error("after shutdown"));
     expect(logExporter.getFinishedLogRecords()).toHaveLength(2);
   });
@@ -154,7 +158,8 @@ describe("init (server)", () => {
       serviceName: "everr-docs-test",
       ingestKey: "sk_everr_test",
       endpoint: "https://ingest.example.com",
-      // Accepted and ignored: instrumentations are a browser-pipeline concept.
+      // The server accepts this option and ignores it. The instrumentations
+      // belong to the pipeline of the browser.
       instrumentations: [
         () => {
           throw new Error("must never run on the server");
@@ -167,8 +172,8 @@ describe("init (server)", () => {
     expect(fetchSpy).not.toHaveBeenCalled();
     expect(logExporter.getFinishedLogRecords()).toHaveLength(1);
 
-    // Identity and ambient context are browser concepts; on the server
-    // these never throw and never stamp anything.
+    // The identity and the ambient context belong to the browser. On the server
+    // these functions throw no error, and they write nothing.
     identify("u_123", { plan: "pro" });
     revoke();
     setAttributes({ "everr.tenant.id": "acme" });
@@ -181,8 +186,10 @@ describe("init (server)", () => {
   it("is a structural no-op when no OTel SDK is registered", async () => {
     logs.disable();
     trace.disable();
-    // What an SDK-less process actually holds: the API's no-op logger. The
-    // rebinding undoes registerSdk's, which a real such process never made.
+    // This is the condition of a process with no SDK: the logger of the API
+    // that does nothing. The test connects that logger again, and thus it
+    // removes the connection from registerSdk. A true process with no SDK never
+    // makes that connection.
     setLogger(logs.getLogger("test"));
     const fetchSpy = vi.spyOn(globalThis, "fetch");
     client = new WebSDK({ serviceName: "everr-docs-test" });

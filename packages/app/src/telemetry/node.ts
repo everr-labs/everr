@@ -79,9 +79,10 @@ function startTelemetry(): TelemetryState {
       ),
     ],
     instrumentations: [
-      // Crash handlers: uncaughtException/unhandledRejection captured as
-      // exception log records, flushed with the traces and metrics, then
-      // the process exits 1.
+      // The crash handlers. They capture an uncaughtException event and an
+      // unhandledRejection event as exception log records. Then they send those
+      // records with the traces and the metrics. Then the process stops with the
+      // code 1.
       new ErrorsInstrumentation(),
       getNodeAutoInstrumentations({
         "@opentelemetry/instrumentation-dns": { enabled: false },

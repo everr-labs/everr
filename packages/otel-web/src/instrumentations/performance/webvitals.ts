@@ -4,42 +4,52 @@ import type { AttrValue, Emit } from "../../emitter.js";
 import type { WebVitalName } from "./index.js";
 import { emitVital, whenIdleOrHidden } from "./shared.js";
 
-// The classic web vitals (LCP, CLS, TTFB), computed in-house: one
-// `browser.web_vital` record per metric per navigation epoch, with the
-// attribution the web-vitals attribution build would have derived flattened
-// under `everr.browser.web_vital.<metric>.`. The semconv-defined attributes
-// (name/value/delta/id) keep their bare names. TTFB reports on load and
-// rides normal batches; LCP and CLS report when the page first goes hidden
-// (or, for LCP, on the first keyboard/click input), and any record emitted
-// while hidden rides the emitter's coalesced exit flush. INP lives in
-// inp.ts, sharing the Event Timing observer with slow-interaction records.
+// The usual web vitals: LCP, CLS, and TTFB. This package calculates them. It
+// sends one `browser.web_vital` record for each metric in each navigation
+// period. The record contains the attribution that the attribution build of the
+// web-vitals library gives, with the prefix
+// `everr.browser.web_vital.<metric>.`. The attributes that the semconv defines,
+// which are name, value, delta, and id, keep their names without a prefix.
 //
-// The measurement core (the LCP first-input/hidden finalization, the CLS
-// 1s-gap/5s-cap session windowing, the TTFB navigation-entry subparts, the
-// LCP resource-timing phase breakdown, and the first-hidden gating) is
-// ported and adapted from the GoogleChrome/web-vitals library
+// The SDK sends the TTFB record at the load event, in a usual batch. It sends
+// the LCP record and the CLS record when the page becomes hidden the first
+// time. It can also send the LCP record at the first keyboard input or click
+// input. The flush at exit collects each record that the SDK sends while the
+// page is hidden. The INP is in inp.ts, and it uses the same Event Timing
+// observer as the slow-interaction records.
+//
+// This code comes from the GoogleChrome/web-vitals library
 // (https://github.com/GoogleChrome/web-vitals, copyright Google LLC, Apache
-// License 2.0).
+// License 2.0). That code gives the LCP result at the first input or when the
+// page becomes hidden, it makes the CLS session windows with a gap of 1 s and a
+// maximum of 5 s, it reads the parts of the TTFB from the navigation entry, it
+// divides the LCP into phases from the resource timing, and it uses the first
+// hidden time as a limit.
 //
-// Deliberate divergences from web-vitals, each traded for bundle size:
+// This module is different from web-vitals in four conditions. Each difference
+// decreases the number of bytes in the build:
 //
-// - Reports are at-most-once per metric per navigation epoch (the previous
-//   dedupe-by-metric-id dropped web-vitals' grown-CLS re-reports anyway, so
-//   the wire behavior is unchanged); delta therefore always equals value.
-// - CLS's FCP gate reads the buffered paint entry at report time instead of
-//   running a paint observer (web-vitals gates CLS on FCP to match CrUX).
-// - Prerender refinements are skipped, same as inp.ts: activationStart
-//   still offsets values, but visibility tracking ignores `prerendering`
-//   and navigation_type never reports "prerender"/"restore".
-// - Attribution targets use the shared selectorOf spelling (the same
-//   `everr.element.selector` path vocabulary), not web-vitals' class-based
-//   selectors.
+// - The SDK sends a maximum of one record for each metric in each navigation
+//   period. The previous code removed the duplicates by the metric id, and it
+//   also discarded the additional CLS reports of web-vitals. Thus the records
+//   on the network do not change. Therefore delta is always equal to value.
+// - The FCP test for the CLS reads the paint entry from the buffer when the SDK
+//   sends the record. It does not operate a paint observer. The web-vitals
+//   library uses the FCP as a limit for the CLS, to agree with CrUX.
+// - This module ignores the prerender conditions, the same as inp.ts. The
+//   activationStart value still changes the values. But the code that follows
+//   the visibility ignores the `prerendering` state, and navigation_type is
+//   never "prerender" and never "restore".
+// - The targets of the attribution use the shared selectorOf function, with the
+//   same names as `everr.element.selector`. They do not use the selectors with
+//   the class names from web-vitals.
 
 type Attrs = Record<string, AttrValue | null | undefined>;
 type Classic = Exclude<WebVitalName, "inp">;
 
-/** The navigation entry, when its responseStart is usable (web-vitals'
- * validity check: zero for privacy, negative or future from browser bugs). */
+/** Gives the navigation entry when the code can use its responseStart value.
+ * This is the test from web-vitals. The value is zero for privacy. It is
+ * negative or in the future when the browser has a defect. */
 function navEntry(): PerformanceNavigationTiming | undefined {
   const e = performance.getEntriesByType("navigation")[0];
   return e && e.responseStart > 0 && e.responseStart < performance.now()
@@ -49,7 +59,8 @@ function navEntry(): PerformanceNavigationTiming | undefined {
 
 const activationStart = () => navEntry()?.activationStart || 0;
 
-/** The document phase a timestamp fell in, for the CLS load_state attr. */
+/** The phase of the document at a timestamp. The CLS load_state attribute uses
+ * it. */
 function loadStateAt(time: number): string {
   if (document.readyState === "loading") return "loading";
   const nav = navEntry();
@@ -71,7 +82,7 @@ export function startWebVitals(emit: Emit, vitals: Classic[]): () => void {
   let stopped = false;
   let restored = false;
 
-  // Every caller checks `stopped` before reporting.
+  // Each caller examines `stopped` before it sends a record.
   const report = (name: Classic, value: number, attribution: Attrs) => {
     const extra: Attrs = {};
     for (const [key, v] of Object.entries(attribution)) {
@@ -80,26 +91,29 @@ export function startWebVitals(emit: Emit, vitals: Classic[]): () => void {
     emitVital(emit, name, value, restored, extra);
   };
 
-  // The first time the page was hidden, page-lifetime: entries painted after
-  // it never count (a background-loaded tab reports no LCP at all). Prefer
-  // the buffered visibility-state entry (Chrome) over the load-time check.
+  // The first time in the life of the page when the page was hidden. The code
+  // ignores each entry that the browser painted after that time. Thus a tab
+  // that loads in the background sends no LCP record. The code uses the
+  // visibility-state entry from the buffer, which Chrome gives. If that entry
+  // is absent, it uses the test at the load time.
   let firstHidden = document.visibilityState === "hidden" ? 0 : Infinity;
   const hiddenEntry = performance
     .getEntriesByType("visibility-state")
     .find((e) => e.name === "hidden");
   if (hiddenEntry) firstHidden = hiddenEntry.startTime;
 
-  // --- TTFB: navigation-entry subparts, reported after load so the entry
-  // is fully populated ---
+  // --- TTFB: the parts of the navigation entry. The SDK sends the record after
+  // the load event, because then the entry has all its values. ---
   const reportTtfb = () => {
     if (stopped) return;
     const nav = navEntry();
     if (!nav) return;
     const start = nav.activationStart || 0;
     const value = Math.max(nav.responseStart - start, 0);
-    // Measured from workerStart or fetchStart so service worker startup
-    // lands in cache_duration; the connectEnd..requestStart gap lands in
-    // request_duration so connection_duration stays 0 under service workers.
+    // The code measures from workerStart or from fetchStart. Thus the start
+    // time of a service worker goes into cache_duration. The interval from
+    // connectEnd to requestStart goes into request_duration. Thus
+    // connection_duration stays 0 when a service worker operates.
     const waitEnd = Math.max((nav.workerStart || nav.fetchStart) - start, 0);
     const dnsStart = Math.max(nav.domainLookupStart - start, 0);
     const connectStart = Math.max(nav.connectStart - start, 0);
@@ -118,8 +132,9 @@ export function startWebVitals(emit: Emit, vitals: Classic[]): () => void {
     else addEventListener("load", onLoad, { once: true, capture: true });
   }
 
-  // --- LCP: the latest qualifying largest-contentful-paint entry,
-  // finalized on the first keyboard/click input or on hidden ---
+  // --- LCP: the most recent largest-contentful-paint entry that the code
+  // accepts. The code completes it at the first keyboard input or click input,
+  // or when the page becomes hidden. ---
   type LcpCandidate = { startTime: number; url: string; target?: string };
   let lcp: LcpCandidate | undefined;
   let lcpDone = !vitals.includes("lcp");
@@ -131,9 +146,10 @@ export function startWebVitals(emit: Emit, vitals: Classic[]): () => void {
       lcp = {
         startTime: entry.startTime,
         url: entry.url,
-        // Captured eagerly: the element can leave the DOM (or lose identity)
-        // long before the report finalizes on input or hidden. When it is
-        // already gone but carried an id, the id still names it.
+        // The code captures this immediately. The element can go out of the DOM,
+        // or it can change, a long time before the code completes the record at
+        // an input or at the hidden state. If the element is not in the DOM but
+        // it had an id, that id still gives its name.
         target: entry.element
           ? selectorOf(entry.element)
           : entry.id
@@ -166,8 +182,9 @@ export function startWebVitals(emit: Emit, vitals: Classic[]): () => void {
       const resource = url
         ? performance.getEntriesByType("resource").find((e) => e.name === url)
         : undefined;
-      // Prefer requestStart (when Timing-Allow-Origin is set) over startTime;
-      // cap responseEnd at the LCP time (videos keep downloading past LCP).
+      // The code uses requestStart when the Timing-Allow-Origin header permits
+      // it. If not, it uses startTime. The maximum value of responseEnd is the
+      // LCP time, because a video continues to download after the LCP.
       const requestStart = Math.max(
         ttfb,
         resource ? (resource.requestStart || resource.startTime) - start : 0,
@@ -184,9 +201,9 @@ export function startWebVitals(emit: Emit, vitals: Classic[]): () => void {
     report("lcp", value, attribution);
   };
 
-  // Untrusted (programmatic) inputs must not finalize; scrolls are skipped
-  // entirely (programmatically generatable). The idle wrapper keeps the
-  // finalization off the input's critical path.
+  // An input from the code is not trusted, and it must not complete the record.
+  // The code fully ignores a scroll, because the code can also cause a scroll.
+  // The idle function keeps this work out of the necessary path of the input.
   const onInput = (event: Event) => {
     if (!event.isTrusted) return;
     removeEventListener("keydown", onInput, true);
@@ -207,8 +224,10 @@ export function startWebVitals(emit: Emit, vitals: Classic[]): () => void {
     }
   }
 
-  // --- CLS: session windows (1s entry gap, 5s span), worst window wins,
-  // reported once when the page first goes hidden ---
+  // --- CLS: the session windows. A window ends after a gap of 1 s between the
+  // entries, and its maximum length is 5 s. The window with the largest value
+  // wins. The SDK sends one record when the page becomes hidden the first
+  // time. ---
   type Shift = { time: number; value: number; target?: string };
   let session = {
     value: 0,
@@ -223,7 +242,8 @@ export function startWebVitals(emit: Emit, vitals: Classic[]): () => void {
 
   const handleShifts = (entries: PerformanceEntry[]) => {
     for (const entry of entries as LayoutShift[]) {
-      // Shifts right after user input are expected, and excluded by spec.
+      // A shift immediately after an input from the user is usual, and the
+      // specification does not count it.
       if (entry.hadRecentInput) continue;
       const source =
         entry.sources?.find((s) => s.node?.nodeType === 1) ??
@@ -231,8 +251,9 @@ export function startWebVitals(emit: Emit, vitals: Classic[]): () => void {
       const shift: Shift = {
         time: entry.startTime,
         value: entry.value,
-        // Eager, same reason as LCP: the shifted node rarely outlives the
-        // wait for the hidden-time report.
+        // The code captures this immediately, for the same reason as the LCP.
+        // The node that moved usually goes out of the DOM before the page
+        // becomes hidden and the SDK sends the record.
         target:
           source?.node instanceof Element ? selectorOf(source.node) : undefined,
       };
@@ -263,8 +284,10 @@ export function startWebVitals(emit: Emit, vitals: Classic[]): () => void {
   const reportCls = () => {
     if (clsDone || stopped || !clsPo) return;
     handleShifts(clsPo.takeRecords());
-    // The FCP gate (CrUX parity): a page that never painted before it was
-    // first hidden reports no CLS, read from the buffered paint entry.
+    // The FCP test, which makes this value the same as the CrUX value. The code
+    // reads the paint entry from the buffer. If the browser painted nothing
+    // before the page became hidden the first time, the SDK sends no CLS
+    // record.
     const fcp = performance
       .getEntriesByType("paint")
       .find((e) => e.name === "first-contentful-paint");
@@ -303,11 +326,12 @@ export function startWebVitals(emit: Emit, vitals: Classic[]): () => void {
   };
   addEventListener("visibilitychange", onVisibilityChange, true);
 
-  // bfcache restore: a fresh navigation epoch. TTFB re-reports as 0 (the
-  // restore served no bytes), LCP as the first double-rAF paint after the
-  // restore, and CLS starts accumulating again toward its own hidden-time
-  // report; every record minted here carries navigation_type
-  // back-forward-cache and a fresh metric id.
+  // The browser gives the page from the bfcache. This starts a new navigation
+  // period. The SDK sends the TTFB again with the value 0, because this
+  // operation sent no bytes. It sends the LCP for the first paint after two
+  // animation frames. The CLS starts to add its values again, and the SDK sends
+  // it when the page becomes hidden. Each record from this function has the
+  // navigation_type value back-forward-cache and a new metric id.
   const onPageShow = (event: PageTransitionEvent) => {
     if (!event.persisted || stopped) return;
     restored = true;

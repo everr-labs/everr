@@ -8,9 +8,10 @@ import {
   stripUrlQueryAndFragment,
 } from "./redact.js";
 
-// Property tests for redaction: key filtering preserves the key set and only
-// ever swaps values for the redaction marker, and the default patterns remove
-// constructed secrets wherever they land inside a string.
+// Property tests for the redaction. The filter on the keys keeps the full set
+// of keys, and it only replaces a value with the redaction marker. The default
+// patterns remove each secret that the test makes, at each position in a
+// string.
 
 const word = fc.stringMatching(/^[a-z]{1,8}$/);
 
@@ -96,8 +97,8 @@ describe("redactString with the default patterns", () => {
 
   it("filters sensitive query param values but keeps the param name", () => {
     const param = fc.constantFrom("token", "api_key", "password", "secret");
-    // Uppercase-only so the secret can never collide with a substring of the
-    // lowercase URL scaffolding or the [Filtered] marker.
+    // The secret contains only capital letters. Thus it is never the same as a
+    // part of the URL text in small letters or a part of the [Filtered] marker.
     const value = fc.stringMatching(/^[A-Z0-9]{6,20}$/);
     fc.assert(
       fc.property(param, value, (p, v) => {

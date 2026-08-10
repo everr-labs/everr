@@ -1,15 +1,19 @@
 import type { Instrumentation } from "../runtime.js";
 import { startPageviews } from "./pageview.js";
 
-// The pageviews instrumentation: page views on the initial load and each SPA
-// navigation, plus one page leave per pageview. The leave rides the hide
-// listeners registered here; they run before the client's exit flush
-// (instrumentations set up before the client registers its own listeners), and an
-// emit while hidden schedules the emitter's coalesced keepalive flush, so
-// the final leave always ships.
+// The pageviews instrumentation. It sends a page view for the first load and
+// for each SPA navigation. It also sends one page leave for each page view.
+//
+// The listeners for the hidden state that this module registers send the leave.
+// Those listeners operate before the exit flush of the client, because the SDK
+// starts the instrumentations before the client registers its own listeners. A
+// record that the SDK sends while the page is hidden starts the keepalive flush
+// of the emitter, and that flush collects the records. Thus the SDK always
+// sends the last leave.
 export function pageviews(): Instrumentation {
-  // Named (not an arrow) so sampled() can hash a real identity from
-  // instrumentation.name instead of decorrelating nothing.
+  // This function has a name and it is not an arrow function. Thus sampled()
+  // can make a hash from instrumentation.name, and the decisions for the
+  // different instrumentations are different.
   return function pageviews(ctx) {
     const [onNavigate, onHide, stop] = startPageviews(ctx.emit, ctx.page);
     const offNavigation = ctx.onNavigation(onNavigate);

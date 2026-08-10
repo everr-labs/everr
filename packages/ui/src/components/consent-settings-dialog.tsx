@@ -10,16 +10,15 @@ import {
 import { Switch } from "@everr/ui/components/switch";
 
 /**
- * The expanded, per-category view behind a banner's "Consent Settings"
- * action (see `ConsentBanner`). Presentational only, same split as the
- * banner: the host owns where `analyticsEnabled` is persisted and how it
- * drives telemetry init.
+ * The view of each category. The "Consent Settings" button of the banner shows
+ * it. Refer to `ConsentBanner`. This component only shows the view, the same as
+ * the banner. The app selects the store for `analyticsEnabled`, and it applies
+ * that value to the telemetry.
  *
- * Only two rows: Essential (always on, not a real choice) and Analytics
- * (the one category this product actually gates anything on). More
- * categories can be added here once something besides analytics needs
- * separate consent; a toggle that doesn't control anything is worse than no
- * toggle.
+ * There are two rows only. The Essential row is always on, and thus it is not a
+ * choice. The Analytics row is the only category that controls a function of
+ * this product. You can add more categories here when a different function needs
+ * its own consent. A control that changes nothing is worse than no control.
  */
 function ConsentSettingsDialog({
   open,

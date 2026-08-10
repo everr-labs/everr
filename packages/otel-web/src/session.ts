@@ -1,17 +1,23 @@
-// Session and identity, over the current store (current.ts). Three pieces:
+// The session and the identity, on the current store (current.ts). There are
+// three parts:
 //
-// - The page context (pageview id, url, referrer): JS memory, rotates per
-//   SPA navigation, dies on reload or tab close.
-// - `everr.visitor.id`: a random visitor id (a device id, never
-//   fingerprint-derived), minted when the current store has none and cached
-//   in memory; setPersistence()/revoke() refresh the cache on a switch.
-// - `everr.session`: the session as `{ id, t }` (last activity), rotated
-//   after the standard 30-minute inactivity timeout. Every emitted record
-//   is activity, so the timeout is an idle gap, not a wall clock.
+// - The page context: the pageview id, the url, and the referrer. It stays in
+//   JS memory. It changes for each SPA navigation, and it ends at a reload or
+//   when the user closes the tab.
+// - `everr.visitor.id`: a random visitor id. It is an id for the device, and
+//   the code never calculates it from a fingerprint. The code makes it when
+//   the current store has none, then keeps it in memory. The
+//   setPersistence() and revoke() functions read it again after a change of
+//   the store.
+// - `everr.session`: the session as `{ id, t }`, where `t` is the time of the
+//   last activity. The session changes after the usual timeout of 30 minutes
+//   without activity. Each record that the SDK sends is activity. Thus the
+//   timeout measures an interval without activity, and not an interval of the
+//   clock.
 //
-// The identified user is not stored at all: identify() writes `user.*`
-// keys into the setAttributes ambient set, so it is memory-only and the
-// host re-identifies per page load.
+// The code does not store the identified user. The identify() function writes
+// the `user.*` keys into the ambient set of setAttributes. Thus those keys stay
+// in memory only, and the host identifies the user again at each page load.
 
 import { getAttributes, setAttributes } from "./attributes.js";
 import { currentStore, setStore, storeFor } from "./current.js";
@@ -24,15 +30,17 @@ const SESSION_KEY = "everr.session";
 const SESSION_TIMEOUT_MS = 30 * 60 * 1000;
 
 /**
- * web-vitals' metric id shape minus its version tag: a timestamp plus a
- * 13-digit random integer, cheap to generate, unique enough for ids that
- * only ever need to be distinct, and free of the secure-context requirement
- * crypto.randomUUID carries.
+ * The structure of a web-vitals metric id, without its version part. It
+ * contains a timestamp and a random integer of 13 digits. The code makes it
+ * quickly, and it is sufficiently different for an id that must only be
+ * different from the other ids. Also, it does not need a secure context, but
+ * crypto.randomUUID does.
  */
 export const uniqueId = () =>
   `${Date.now()}-${Math.floor(Math.random() * (9e12 - 1)) + 1e12}`;
 
-/** CSPRNG hex, shared by the trace/span id minters (network, tracer). */
+/** Hexadecimal data from the CSPRNG. The network and the tracer use it to
+ * make the trace ids and the span ids. */
 export function randomHex(bytes: number): string {
   let out = "";
   for (const b of crypto.getRandomValues(new Uint8Array(bytes))) {
@@ -41,12 +49,13 @@ export function randomHex(bytes: number): string {
   return out;
 }
 
-// Cached: the envelope samples the visitor id per record, and a storage
-// read per record would be waste; setPersistence()/revoke() are the only
-// store switches and both refresh the cache.
+// The code keeps the visitor id in memory. The envelope reads that id for each
+// record, and a read of the store for each record is not efficient. Only
+// setPersistence() and revoke() change the store, and the two functions read
+// the id again.
 let visitor: string | undefined;
 
-/** The current visitor id, minted into the current store when absent. */
+/** The current visitor id. If the current store has none, the code makes one. */
 export function visitorId(): string {
   if (!visitor) {
     visitor = currentStore().read(VISITOR_KEY) ?? uniqueId();
@@ -55,14 +64,16 @@ export function visitorId(): string {
   return visitor;
 }
 
-/** The stored session: its id plus the last-activity timestamp. */
+/** The session in the store: its id and the time of the last activity. */
 type SessionState = { id: string; t: number };
 
-// In-memory continuity for when storage is unusable or was just switched:
-// without this fallback every record would mint a fresh session id.
+// This keeps the session in memory when the store does not operate or when the
+// code changed the store. Without it, the code makes a new session id for each
+// record.
 let memory: SessionState | null = null;
 
-/** Resolves the session id for the record being emitted, touching activity. */
+/** Finds the session id for the record that the SDK sends, and records the
+ * activity. */
 export function sessionId(): string {
   const store = currentStore();
   let base = memory;
@@ -73,7 +84,8 @@ export function sessionId(): string {
     if (typeof parsed?.id === "string" && typeof parsed.t === "number")
       base = parsed as SessionState;
   } catch {
-    // Corrupt stored state: fall through to memory or a fresh session.
+    // The data in the store is not correct. Use the session in memory, or make
+    // a new session.
   }
   const now = Date.now();
   const next =
@@ -86,11 +98,13 @@ export function sessionId(): string {
 }
 
 /**
- * Switches the identity store mid-session (the consent flow: boot with
- * `"memory"`, call `setPersistence("localStorage")` once consent lands).
- * The live visitor id carries into the new store unless it already holds
- * one (a returning consented visitor keeps their durable id); the session
- * carries over through its in-memory continuity.
+ * Changes the identity store during a session. The consent procedure uses
+ * this: the app starts with `"memory"`, then it calls
+ * `setPersistence("localStorage")` when the user gives consent.
+ *
+ * The current visitor id goes into the new store. But if the new store already
+ * has a visitor id, that id stays. Thus a visitor who gives consent again keeps
+ * the permanent id. The session continues, because the code keeps it in memory.
  */
 export function setPersistence(persistence: Persistence | undefined): void {
   const id = visitorId();
@@ -107,14 +121,19 @@ const clearUser = (): void => {
 };
 
 /**
- * Identifies the user: subsequent events carry `user.id` and the traits as
- * `user.*` attributes in the setAttributes ambient set. Traits are flat
- * scalars, same as setAttributes (dot the keys yourself: `"company.name"`).
- * Already-emitted events are untouched (stitching is query-time,
- * latest-wins: a re-identify replaces the whole `user.*` namespace). Never
- * persisted: the identification lives in memory for the page, so the host
- * re-identifies per page load. `user.id` is stamped after the traits so a
- * trait named `id` cannot shadow it.
+ * Identifies the user. The subsequent events carry `user.id` and the traits as
+ * `user.*` attributes in the ambient set of setAttributes.
+ *
+ * A trait must be a single value, the same as in setAttributes. Put the dots
+ * in the key yourself, for example `"company.name"`. The code does not change
+ * the events that it sent before. A query connects the events later, and the
+ * most recent data wins. Thus a second call to identify replaces all the
+ * `user.*` keys.
+ *
+ * The code never puts this data in a store. The identification stays in memory
+ * for the page, and thus the host identifies the user again at each page load.
+ * The code writes `user.id` after the traits. Thus a trait with the name `id`
+ * cannot replace it.
  */
 export function identify(userId: string, traits?: UserTraits): void {
   clearUser();
@@ -127,9 +146,10 @@ export function identify(userId: string, traits?: UserTraits): void {
 }
 
 /**
- * Clears the `user.*` ambient attributes and deletes every stored id
- * (visitor, session). The live client keeps its in-memory ids but stops
- * re-persisting them; the next WebSDK starts fresh.
+ * Removes the `user.*` ambient attributes. It also deletes each id in the
+ * store: the visitor id and the session id. The current client keeps its ids in
+ * memory, but it does not write them to the store again. The next WebSDK starts
+ * with new ids.
  */
 export function revoke(): void {
   clearUser();
@@ -148,7 +168,7 @@ export type PageContext = {
   readonly referrer: string | undefined;
 };
 
-/** Rotates the pageview id; the outgoing URL becomes the new referrer. */
+/** Makes a new pageview id. The previous URL becomes the new referrer. */
 export type RotatePageView = (url: string) => void;
 export type CurrentPage = () => PageContext;
 
@@ -176,8 +196,9 @@ export function createSessionContext(
   ];
 }
 
-// Always fed location.href (WebSDK construction and the navigation watcher), so the URL
-// is absolute and parseable by construction.
+// The callers always send location.href. The WebSDK constructor and the
+// navigation watcher are the callers. Thus the URL is always absolute, and the
+// code can always read it.
 function pathOf(url: string): string {
   return new URL(url).pathname;
 }

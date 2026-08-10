@@ -56,8 +56,9 @@ describe("instrumentation runtime", () => {
     });
     expect(order).toEqual(["a", "b"]);
 
-    // Array order is capture order: both toy events precede the initial
-    // page_view emitted by the pageviews() instrumentation composed after them.
+    // The sequence of the array is the sequence of the capture. Thus the two
+    // test events come before the first page_view record. The pageviews()
+    // instrumentation sends that record, and it is after them in the array.
     const names = (await records()).map((r) => r.eventName);
     expect(names).toEqual([
       "everr.test.a",
@@ -78,7 +79,8 @@ describe("instrumentation runtime", () => {
     expect(record.eventName).toBe("everr.test.toy_event");
     const a = attrs(record);
     expect(a["everr.test.count"]).toBe("3");
-    // The standard envelope is stamped like any built-in signal's record.
+    // The record carries the standard envelope, the same as a record of a
+    // built-in signal.
     expect(a["session.id"]).toMatch(UNIQUE_ID);
     expect(a["everr.page_view.id"]).toMatch(UNIQUE_ID);
     expect(a["url.path"]).toBe("/");
@@ -187,7 +189,7 @@ describe("instrumentation runtime", () => {
       (ctx) =>
       () => {
         order.push(name);
-        // A teardown emit still rides the final flush.
+        // The last flush also sends a record from a stop function.
         ctx.emit(`everr.test.bye_${name}`);
       };
     start({ instrumentations: [instrumentation("a"), instrumentation("b")] });

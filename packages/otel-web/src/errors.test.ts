@@ -46,7 +46,8 @@ describe("error capture through the SDK", () => {
     expect(a["exception.message"]).toBe("render boom");
     expect(String(a["exception.stacktrace"])).toContain("TypeError");
     expect(a["everr.error.mechanism"]).toBe("onerror");
-    // The analytics envelope joins the error to the session's other signals.
+    // The analytics envelope connects the error to the other signals of the
+    // session.
     expect(a["session.id"]).toMatch(UNIQUE_ID);
     expect(a["everr.page_view.id"]).toMatch(UNIQUE_ID);
     expect(a["url.path"]).toBe("/");
@@ -94,8 +95,8 @@ describe("error capture through the SDK", () => {
   it("stops capturing after shutdown", async () => {
     start();
     await client?.shutdown();
-    // Swallow the event so vitest's own window listener does not report the
-    // deliberately-uncaptured error as an unhandled exception.
+    // The test stops the event. Thus the window listener of vitest does not
+    // report this error, which the test does not capture on purpose.
     const swallow = (event: Event) => event.preventDefault();
     window.addEventListener("error", swallow);
     try {
@@ -127,9 +128,10 @@ describe("error capture through the SDK", () => {
   });
 
   it("ships message and stack verbatim (no scrubbing, by decision)", async () => {
-    // Decided 2026-07-27 under the bundle budget: error content is not
-    // scrubbed. Scrubbing must return before errors are exposed to external
-    // consented-mode adopters (ticket 09).
+    // The team made this decision on 2026-07-27, because of the limit on the
+    // build size. The SDK does not redact the content of an error. The
+    // redaction must come back before external users in consented mode see the
+    // errors. Refer to ticket 09.
     start();
     const error = new Error("login failed for a@b.com");
     error.stack = "Error: login failed for a@b.com\n    at auth (/cb:1:1)";
@@ -158,8 +160,8 @@ describe("error capture through the SDK", () => {
   it("does not double-report the same error from both onerror and unhandledrejection", async () => {
     start();
     const error = new TypeError("Failed to fetch");
-    // A single unhandled rejection typically fires both events; only the
-    // first should produce a record.
+    // One unhandled rejection usually causes the two events. Only the first
+    // event must make a record.
     const event = new Event("unhandledrejection") as Event & {
       reason?: unknown;
     };
@@ -186,8 +188,9 @@ describe("error capture through the SDK", () => {
   });
 
   it("stays silent after shutdown instead of warning", () => {
-    // Module state here is post-shutdown (earlier tests initialized the SDK):
-    // deliberate teardown means silent no-ops, not misconfiguration warnings.
+    // The module data here is the data after a shutdown, because the earlier
+    // tests constructed the SDK. A shutdown is an intentional operation. Thus
+    // the functions do nothing and give no warning about the configuration.
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     try {
       expect(() => captureReactError(new Error("late"))).not.toThrow();
@@ -199,8 +202,9 @@ describe("error capture through the SDK", () => {
   });
 
   it("warns instead of throwing when captured before init", async () => {
-    // A fresh module instance is the real before-init state; the react entry
-    // shares it through the live report binding.
+    // A new instance of the module gives the true condition before a
+    // construction. The react entry uses that same condition through the
+    // dynamic report binding.
     vi.resetModules();
     const fresh = await import("./errors.js");
     const freshReact = await import("./react.js");
@@ -262,9 +266,11 @@ describe("normalization edge shapes", () => {
       start();
       captureError(new Error("prune-seed"));
       vi.advanceTimersByTime(6_000); // the seed's window goes stale
-      // Crossing 1000 tracked keys triggers the stale sweep on the next hit.
+      // At more than 1000 keys, the code removes the old keys at the next
+      // report.
       for (let i = 0; i < 1_001; i++) captureError(new Error(`prune-${i}`));
-      // The seed was swept: five fresh reports fit its window again.
+      // The code removed the first key. Thus its window accepts five new
+      // reports again.
       for (let i = 0; i < 5; i++) captureError(new Error("prune-seed"));
     } finally {
       vi.useRealTimers();
@@ -315,8 +321,9 @@ describe("rate-limit window boundary", () => {
     vi.useFakeTimers();
     try {
       start();
-      // The limiter keys on type, message, and top frame: pin the stack so
-      // every report lands on one key regardless of the call-site line.
+      // The rate limiter makes its key from the type, the message, and the top
+      // frame. The test sets the stack. Thus each report uses one key, and the
+      // line of the caller does not change that key.
       const edgeError = () => {
         const error = new Error("window-edge");
         error.stack = "Error: window-edge\n    at edge (https://app/x.js:1:1)";

@@ -9,12 +9,13 @@ import {
 } from "../../test-kit.js";
 import { startWebVitals } from "./webvitals.js";
 
-// jsdom produces no PerformanceObserver entries and no navigation/paint/
-// resource timeline: the tests stub PerformanceObserver (capturing the
-// per-type callbacks) and the performance global (serving configured
-// entries per type), then drive entries by hand: the coverage the
-// web-vitals library's e2e suite provided, ported to the in-house
-// implementation.
+// The jsdom environment gives no PerformanceObserver entries. It also has no
+// navigation entries, no paint entries, and no resource entries. Thus the tests
+// replace PerformanceObserver, which keeps the function for each entry type, and
+// the global performance object, which gives the configured entries for each
+// type. Then the tests send the entries themselves. These tests give the same
+// coverage as the end-to-end tests of the web-vitals library, for the
+// implementation in this package.
 
 let emitted: Array<{ name: string; attrs?: Record<string, unknown> }>;
 let stop: () => void;
@@ -30,7 +31,7 @@ const vitals = (name?: string) =>
       (!name || e.attrs?.["browser.web_vital.name"] === name),
   );
 
-// --- the fake performance timeline ---
+// --- The test performance timeline. ---
 
 let perfEntries: Record<string, unknown[]>;
 let nowMs: number;
@@ -55,7 +56,7 @@ const fcp = (startTime = 50) => ({
   startTime,
 });
 
-// --- the fake observer registry ---
+// --- The list of the test observers. ---
 
 let observers: Map<string, (list: { getEntries: () => unknown[] }) => void>;
 let observeThrows: boolean;
@@ -64,9 +65,10 @@ let inputListeners: Map<string, Set<EventListener>>;
 function stubTiming() {
   observers = new Map();
   observeThrows = false;
-  // jsdom-dispatched events are never isTrusted and the property cannot be
-  // faked on an instance: the input listeners are captured through an
-  // addEventListener wrapper and driven with hand-built events instead.
+  // An event from jsdom always has isTrusted false, and a test cannot change
+  // that property on an instance. Thus a function that contains addEventListener
+  // keeps the input listeners, and the tests call those listeners with their own
+  // events.
   inputListeners = new Map();
   const realAdd = window.addEventListener.bind(window);
   const realRemove = window.removeEventListener.bind(window);
@@ -155,7 +157,7 @@ function click(trusted = true) {
   for (const fn of [...(inputListeners.get("click") ?? [])]) {
     fn({ isTrusted: trusted, type: "click" } as Event);
   }
-  // The LCP finalization defers via the idle path (setTimeout fallback).
+  // The code completes the LCP in the idle period, which uses setTimeout here.
   vi.advanceTimersByTime(0);
 }
 
@@ -284,7 +286,8 @@ describe("lcp", () => {
     click();
     expect(vitals("lcp")).toHaveLength(1);
     expect(vitals("lcp")[0].attrs?.["browser.web_vital.value"]).toBe(800);
-    // The observer disconnected: later entries and hides change nothing.
+    // The code disconnected the observer. Thus a subsequent entry and a
+    // subsequent hidden event change nothing.
     expect(observers.has("largest-contentful-paint")).toBe(false);
     hide();
     expect(vitals("lcp")).toHaveLength(1);
@@ -307,7 +310,8 @@ describe("lcp", () => {
     expect(a["everr.browser.web_vital.lcp.time_to_first_byte"]).toBe(120.5);
     expect(a["everr.browser.web_vital.lcp.resource_load_duration"]).toBe(0);
     expect(a["everr.browser.web_vital.lcp.element_render_delay"]).toBe(779.5);
-    // Nullish attrs are dropped by the emitter's OTLP mapping downstream.
+    // The OTLP mapping in the emitter removes an attribute with the value null
+    // or the value undefined.
     expect(a["everr.browser.web_vital.lcp.url"]).toBeUndefined();
   });
 
@@ -362,7 +366,8 @@ describe("cls", () => {
   it("starts a new session after a 1s gap and keeps the worst one", () => {
     fire("layout-shift", [
       shift({ startTime: 1_000, value: 0.3 }),
-      // 1.5s later: a new session that never catches up.
+      // This occurs 1.5 s later. Thus it starts a new session, and that session
+      // stays below the first one.
       shift({ startTime: 2_500, value: 0.1 }),
     ]);
     hide();
@@ -372,7 +377,8 @@ describe("cls", () => {
   });
 
   it("caps a session at 5s from its first shift", () => {
-    // Shifts every 900ms: same session by gap, until the 5s span ends.
+    // A shift occurs each 900 ms. The gap keeps them in the same session, until
+    // the length of 5 s ends that session.
     fire(
       "layout-shift",
       Array.from({ length: 8 }, (_, i) =>
@@ -380,7 +386,8 @@ describe("cls", () => {
       ),
     );
     hide();
-    // 6 shifts fit the 5s window (0..4500ms); the 7th starts a new session.
+    // Six shifts are in the window of 5 s, from 0 ms to 4500 ms. The seventh
+    // shift starts a new session.
     expect(vitals("cls")[0].attrs?.["browser.web_vital.value"]).toBeCloseTo(
       0.6,
     );
@@ -438,10 +445,12 @@ describe("bfcache restore", () => {
     expect(restoredTtfb["browser.web_vital.id"]).not.toBe(
       vitals("ttfb")[0].attrs?.["browser.web_vital.id"],
     );
-    // LCP after restore: time from the pageshow to the next paint.
+    // The LCP after the browser gives the page from the bfcache. It is the time
+    // from the pageshow event to the next paint.
     expect(vitals("lcp")[0].attrs?.["browser.web_vital.value"]).toBe(5_000);
 
-    // The restored epoch accumulates its own CLS and reports it on hidden.
+    // The new navigation period adds its own CLS values, and the SDK sends them
+    // when the page becomes hidden.
     fire("layout-shift", [shift({ startTime: 12_000, value: 0.07 })]);
     hide(13_000);
     expect(vitals("cls")).toHaveLength(2);
@@ -489,9 +498,9 @@ describe("gating and lifecycle", () => {
   });
 });
 
-// The full-pipeline slice the old web-vitals-mock suite covered: records
-// carry the shared envelope, and hidden-time reports ride the keepalive
-// exit flush.
+// These tests examine the full pipeline, the same as the previous tests with
+// the web-vitals mock. The records carry the shared envelope. The keepalive exit
+// flush sends the records from the hidden state.
 describe("through the client pipeline", () => {
   let client: WebSDK | undefined;
 
@@ -502,8 +511,9 @@ describe("through the client pipeline", () => {
   });
 
   it("emits browser.web_vital with the envelope and the prefixed attribution", async () => {
-    // Restoring real timers restores the original performance object (fake
-    // timers patch performance.now), so the timeline stub goes back on after.
+    // The true timers also install the original performance object again,
+    // because the test timers change performance.now. Thus the test installs the
+    // timeline replacement again after this operation.
     vi.useRealTimers();
     stubTiming();
     let batches: OtlpBatch[];
@@ -521,7 +531,8 @@ describe("through the client pipeline", () => {
     expect(a["browser.web_vital.value"]).toBe(120.5);
     expect(a["everr.browser.web_vital.ttfb.request_duration"]).toBe(85.5);
     expect(a["url.path"]).toBe("/pricing");
-    // The landing url pins the vital's page on the resource, not the record.
+    // The landing url gives the page of the vital. It is on the resource, and
+    // it is not on the record.
     const resource = Object.fromEntries(
       batches[0].resource.map((kv) => [kv.key, Object.values(kv.value)[0]]),
     );

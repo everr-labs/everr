@@ -7,32 +7,41 @@ import {
 
 export type NetworkOptions = {
   /**
-   * Cross-origin URLs that also receive the `traceparent` header (string =
-   * substring match on the full URL, or RegExp). Same-origin requests always
-   * propagate; a cross-origin backend must both be listed here and allow the
-   * header in its CORS config (`Access-Control-Allow-Headers: traceparent`),
-   * or its preflights will fail. Spans are recorded for every request
-   * regardless; this gates only the header.
+   * The URLs of a different origin that also receive the `traceparent` header.
+   * A string must occur in the full URL, and a RegExp must agree with the full
+   * URL.
+   *
+   * A request to the same origin always carries the header. A server of a
+   * different origin must be in this list, and it must also permit the header
+   * in its CORS configuration with `Access-Control-Allow-Headers: traceparent`.
+   * If not, its preflight requests fail. The SDK records a span for each
+   * request in all conditions. This option controls only the header.
    */
   tracePropagationTargets?: PropagationTarget[];
   /**
-   * Maps a request URL to the low-cardinality route template of the endpoint
-   * it hits (`/api/posts/123` -> `/api/posts/{id}`), used as the span name
-   * (`GET /api/posts/{id}`) and stamped as semconv `url.template`. This is the
-   * request's own route, unrelated to the page's route pattern from
-   * `setRouteResolver`. Without it, spans are named by the request path.
+   * Changes the URL of a request into the route template of the endpoint, for
+   * example `/api/posts/123` into `/api/posts/{id}`. That template has a small
+   * number of different values. The SDK uses it as the name of the span, for
+   * example `GET /api/posts/{id}`, and it writes it as the semconv attribute
+   * `url.template`.
+   *
+   * This is the route of the request. It has no relation to the route pattern
+   * of the page from `setRouteResolver`. Without this function, the name of a
+   * span is the path of the request.
    */
   resolveRouteTemplate?: RouteTemplateResolver;
 };
 
 /**
- * The network instrumentation: patches window.fetch so every request becomes a CLIENT
- * span on the traces pipeline and carries W3C trace context where
- * propagation is safe. Teardown unpatches (unless a later patcher won).
+ * The network instrumentation. It changes window.fetch. Thus each request
+ * becomes a CLIENT span on the traces pipeline, and it carries the W3C trace
+ * context when that is safe. The teardown restores the original fetch, but not
+ * when a different module changed fetch after this module.
  */
 export function network(options?: NetworkOptions): Instrumentation {
-  // Named (not an arrow) so sampled() can hash a real identity from
-  // instrumentation.name instead of decorrelating nothing.
+  // This function has a name and it is not an arrow function. Thus sampled()
+  // can make a hash from instrumentation.name, and the decisions for the
+  // different instrumentations are different.
   return function network(ctx) {
     return startNetwork(
       ctx.tracer,

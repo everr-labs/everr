@@ -1,8 +1,10 @@
-// Marketing attribution stamped from the landing query string only: the five
-// standard UTM params as `everr.utm.*`, an allowlist so attribute keys stay
-// bounded. Nothing is stamped when absent, so organic traffic carries zero
-// extra attributes. Ad-platform click ids (gclid and friends) are
-// deliberately not captured for now.
+// The marketing attribution. The code reads it only from the query string of
+// the landing page. It writes the five standard UTM parameters as
+// `everr.utm.*`. This is a list of permitted names, and thus the number of
+// attribute keys is limited. When a parameter is absent, the code writes
+// nothing. Thus organic traffic carries no additional attribute. The code does
+// not capture the click ids of the advertisement platforms, for example gclid.
+// This is correct for now.
 
 export function attributionAttributes(
   landingSearch: string,

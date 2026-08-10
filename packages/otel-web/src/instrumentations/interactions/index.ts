@@ -2,13 +2,15 @@ import type { Instrumentation } from "../runtime.js";
 import { startInteractions } from "./interactions.js";
 
 /**
- * The interactions instrumentation: behavioral autocapture only; click, form-field
- * change, submit, and rage click. Slow interactions (Event Timing latency)
- * belong to the performance instrumentation.
+ * The interactions instrumentation. It captures the behavior of the user
+ * automatically: a click, a change of a form field, a submit, and a rage click.
+ * The performance instrumentation captures the slow interactions, which use the
+ * latency from Event Timing.
  */
 export function interactions(): Instrumentation {
-  // Named (not an arrow) so sampled() can hash a real identity from
-  // instrumentation.name instead of decorrelating nothing.
+  // This function has a name and it is not an arrow function. Thus sampled()
+  // can make a hash from instrumentation.name, and the decisions for the
+  // different instrumentations are different.
   return function interactions(ctx) {
     return startInteractions(ctx.emit);
   };

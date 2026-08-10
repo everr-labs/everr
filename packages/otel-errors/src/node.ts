@@ -1,7 +1,9 @@
-// The Node entry: everything that needs `process` or
-// @opentelemetry/instrumentation. Runtime-neutral pieces live in ./core.
-// CaptureInput is deliberately absent: `capture` is a ./core surface, so on
-// this entry the type describes an argument nobody can pass.
+// The Node entry. It contains all the code that needs `process` or
+// @opentelemetry/instrumentation. The code for all runtimes is in ./core.
+//
+// This entry does not export CaptureInput, and this is correct. The ./core
+// entry supplies `capture`. Thus in this entry the type gives an argument that
+// no caller can send.
 export { captureError, configure, setLogger } from "./capture.js";
 export {
   ErrorsInstrumentation,

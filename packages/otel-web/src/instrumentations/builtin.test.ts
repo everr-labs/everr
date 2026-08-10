@@ -15,9 +15,9 @@ import { network } from "./network/index.js";
 import { pageviews } from "./pageviews/index.js";
 import { performance as performanceInstrumentation } from "./performance/index.js";
 
-// The built-in factories, composed explicitly: capture is opt-in only, so
-// everything captured here comes through the instrumentations and the public
-// InstrumentationContext.
+// These tests use the built-in functions directly. The caller must select the
+// capture. Thus all the data here comes through the instrumentations and the
+// public InstrumentationContext.
 
 let client: WebSDK | undefined;
 let batches: OtlpBatch[];
@@ -40,18 +40,21 @@ async function spanNames(): Promise<string[]> {
   return batches.flatMap((b) => b.spans).map((s) => s.name);
 }
 
-// The test-kit fetch stub only understands OTLP posts, so an app request
-// throws inside the patched fetch; the span still records, and swallowing
-// here keeps the test focused on the pipeline.
+// The fetch replacement in the test kit accepts only an OTLP POST. Thus a
+// request of the app throws an error in the changed fetch. The code still
+// records the span. This function ignores that error, and thus the test examines
+// only the pipeline.
 async function appFetch(url: string): Promise<void> {
   try {
     await fetch(url);
   } catch {
-    // Expected: the stub is not an app backend.
+    // This error is correct, because the replacement is not a server of the
+    // app.
   }
 }
 
-/** Dispatches an unhandled window error, swallowed for vitest's listener. */
+/** Causes an unhandled error on the window. The code stops the event for the
+ * listener of vitest. */
 function dispatchError(error: Error, filename?: string): void {
   const swallow = (event: Event) => event.preventDefault();
   window.addEventListener("error", swallow);
@@ -91,7 +94,7 @@ describe("pageviews()", () => {
       "everr.browser.page_leave",
       "everr.browser.page_view",
     ]);
-    // The leave belongs to the page being left.
+    // The leave record belongs to the page that the user leaves.
     const leave = attrs(after[1]);
     expect(leave["everr.page_view.id"]).toBe(firstPageViewId);
     expect(leave["everr.page_view.duration"]).toBeDefined();
@@ -137,8 +140,8 @@ describe("interactions()", () => {
 });
 
 describe("slow interactions ownership", () => {
-  // The minimal Event Timing stub: enough for startInp's feature gate and
-  // for driving one slow entry through the observer callback.
+  // A small replacement for Event Timing. It is sufficient for the test in
+  // startInp, and it can send one slow entry to the function of the observer.
   let fire: ((entries: unknown[]) => void) | undefined;
 
   beforeEach(() => {
@@ -193,7 +196,7 @@ describe("slow interactions ownership", () => {
 
   it("interactions() does not", async () => {
     start({ instrumentations: [interactions()] });
-    // interactions() never registers an Event Timing observer at all.
+    // The interactions() function never registers an Event Timing observer.
     expect(fire).toBeUndefined();
     vi.useRealTimers();
     expect(await spanNames()).not.toContain("slow_interaction");
@@ -255,7 +258,8 @@ describe("performance({ pageLoad })", () => {
       .flatMap((b) => b.spans)
       .filter((s) => s.name === "GET https://cdn.example.com/app.js");
     expect(attrs(span)["url.full"]).toBe("https://cdn.example.com/app.js");
-    // The envelope stamps the shared session context on asset spans too.
+    // The envelope also writes the shared session context on the resource
+    // spans.
     expect(attrs(span)["session.id"]).toBeDefined();
     await client?.shutdown();
     client = undefined;
@@ -266,8 +270,9 @@ describe("performance({ pageLoad })", () => {
 describe("network()", () => {
   it("patches fetch, records request spans, and unpatches on shutdown", async () => {
     start({ instrumentations: [network()] });
-    // startClient stubbed fetch before init, so the patch wrapped the stub;
-    // shutdown must swap the patch back out for it.
+    // The startClient function replaced fetch before the construction. Thus the
+    // instrumentation changed that replacement. The shutdown must install the
+    // replacement again.
     const patched = fetch;
     expect(vi.isMockFunction(patched)).toBe(false);
     await appFetch(`${location.origin}/api/users`);
@@ -317,7 +322,8 @@ describe("errors()", () => {
         errors({ ignore: ["ResizeObserver", /^Script error/] }),
       ],
     });
-    // Manual captureError is gated too, as a silent success.
+    // The filter also applies to a manual captureError. The code then
+    // continues and gives no warning.
     captureError(boom("ResizeObserver loop limit exceeded"));
     captureError(boom("Script error."));
     dispatchError(boom("ResizeObserver loop completed"));
@@ -335,12 +341,12 @@ describe("errors()", () => {
         "Error: widget exploded\n    at render (https://cdn.widget.example/w.js:1:2)",
       ),
     );
-    // Firefox frame shape, no message line.
+    // The frame structure of Firefox. It has no message line.
     captureError(
       boom("gecko widget", "render@https://cdn.widget.example/w.js:1:2"),
     );
-    // A url:line:col inside the MESSAGE line is not a frame: this error
-    // comes from our own bundle and must not be denied.
+    // A url:line:col text in the MESSAGE line is not a frame. This error comes
+    // from our own build, and the filter must not refuse it.
     captureError(
       boom(
         "Failed to load https://cdn.widget.example/chunk.js:1:2",
@@ -366,7 +372,8 @@ describe("errors()", () => {
       boom("from third party", "no frames here"),
       "https://evil.example/inject.js",
     );
-    // No stack url and no filename: denyUrls cannot match, the error ships.
+    // There is no URL in the stack and no filename. Thus denyUrls cannot
+    // agree, and the SDK sends the error.
     captureError(boom("bare", "no frames here"));
     const got = await exceptions();
     expect(got).toHaveLength(1);
@@ -404,7 +411,8 @@ describe("composing all five", () => {
     expect(got.filter((n) => n === "exception")).toHaveLength(1);
     expect(batches.flatMap((b) => b.spans)).toHaveLength(1);
 
-    // Full unpatch: fetch restored, no listener emits anything anymore.
+    // The shutdown removes all the changes: it restores fetch, and no listener
+    // sends a record.
     await client?.shutdown();
     client = undefined;
     const before = batches.flatMap((b) => b.records).length;
@@ -439,10 +447,10 @@ describe("capture guards and page context", () => {
       configurable: true,
     });
     dispatchEvent(new Event("scroll"));
-    // Scrolling back up must not shrink the recorded depth.
+    // A scroll to the top of the page must not decrease the recorded depth.
     Object.defineProperty(window, "scrollY", { value: 0, configurable: true });
     dispatchEvent(new Event("scroll"));
-    // A visibilitychange that stays visible is not a leave.
+    // A visibilitychange event where the page stays visible is not a leave.
     Object.defineProperty(document, "visibilityState", {
       value: "visible",
       configurable: true,
@@ -486,12 +494,14 @@ describe("errors() edge wiring", () => {
     const [second, secondBatches] = (
       await import("../test-kit.js")
     ).startClient({ instrumentations: [errors({ ignore: ["from-second"] })] });
-    // The older client's shutdown must not unregister the newer filter (it
-    // does unbind the shared pipeline, so a fresh init rebinds it).
+    // The shutdown of the older client must not remove the newer filter. That
+    // shutdown does disconnect the shared pipeline, and thus a new construction
+    // connects it again.
     await first?.shutdown();
     void secondBatches;
-    // A fresh init rebinds the pipeline the first shutdown unbound; the
-    // second client's filter must still be the one in the slot.
+    // A new construction connects the pipeline that the first shutdown
+    // disconnected. The filter of the second client must still be the current
+    // filter.
     start({ instrumentations: [] });
     captureError(new Error("from-second: dropped"));
     captureError(new Error("from-first: no longer filtered"));
@@ -506,15 +516,16 @@ describe("errors() edge wiring", () => {
 
 describe("frame-url parsing precision", () => {
   it("passes the exact frame url to RegExp deny rules, line and column stripped", async () => {
-    // An end-anchored RegExp matcher only works if frameUrl strips the
-    // multi-digit :line:column exactly; a sloppier parse leaks digits into
-    // the url and the rule stops matching.
+    // A RegExp that must agree with the end of the text operates only when
+    // frameUrl removes the full :line:column part. If the code removes less,
+    // some digits stay in the url, and the rule does not agree.
     start({ instrumentations: [errors({ denyUrls: [/w\.js$/] })] });
     const denied = new Error("widget exploded");
     denied.stack =
       "Error: widget exploded\n    at render (https://cdn.widget.example/w.js:10:25)";
     captureError(denied);
-    // A frame with no :line:column is not a frame; nothing is denied.
+    // A line with no :line:column part is not a frame. Thus the filter refuses
+    // nothing.
     const kept = new Error("bare frame");
     kept.stack = "Error: bare frame\n    at https://cdn.widget.example/w.js";
     captureError(kept);
@@ -527,20 +538,21 @@ describe("frame-url parsing precision", () => {
 describe("frame-url parsing, remaining shapes", () => {
   it("recognizes bare and anonymous frames, only at line starts, only whole lines", async () => {
     start({ instrumentations: [errors({ denyUrls: ["cdn.widget.example"] })] });
-    // Chrome bare frame: no function name, no parentheses.
+    // A simple frame from Chrome. It has no function name and no parentheses.
     const bare = new Error("bare");
     bare.stack = "Error: bare\n    at https://cdn.widget.example/w.js:1:2";
     captureError(bare);
-    // Firefox anonymous frame: nothing before the @.
+    // A frame from Firefox with no name. There is no text before the @.
     const anon = new Error("anon");
     anon.stack = "@https://cdn.widget.example/w.js:1:2";
     captureError(anon);
-    // " at url:line:col" inside a message line is not a frame.
+    // The text " at url:line:col" in a message line is not a frame.
     const message = new Error("failed at https://cdn.widget.example/w.js:1:2");
     message.stack =
       "Error: failed at https://cdn.widget.example/w.js:1:2\n    at main (https://app.example/bundle.js:1:2)";
     captureError(message);
-    // Trailing junk after the column disqualifies the line as a frame.
+    // Additional text after the column number means that the line is not a
+    // frame.
     const trailing = new Error("trailing");
     trailing.stack =
       "Error: trailing\n    at https://cdn.widget.example/w.js:1:2 [native]";

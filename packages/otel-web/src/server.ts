@@ -1,35 +1,42 @@
-// The server entry, resolved by the package.json "node" condition so the
-// same `@everr/otel-web` import works in both module graphs of a full-stack
-// framework. On the server there is no everr-owned pipeline: the WebSDK attaches
-// to the OpenTelemetry SDK the app has already registered (NodeSDK in
-// instrumentation.ts) via the @opentelemetry/api globals. logger and
-// captureError ride the app's LoggerProvider with the active context
-// attached, so they land inside the app's traces, including traces
-// propagated from the browser's network-request spans. No SDK registered
-// means the API's built-in no-ops: silent and structurally inert, so keyless
-// or SDK-less processes never issue a network request.
+// The server entry. The "node" condition in package.json selects it. Thus the
+// same `@everr/otel-web` import operates in the two module graphs of a
+// full-stack framework.
 //
-// Error capture delegates to @everr/otel-errors (normalization, redaction,
-// rate limiting, and the recordException + setStatus(ERROR) span marking)
-// instead of reimplementing it. That package owns one client per process, so
-// an app that configures redaction for its own crash handlers covers these
-// records too, and the ErrorsInstrumentation with its crash handlers stays
-// the app's to register on its NodeSDK.
+// On the server this package has no pipeline. The WebSDK connects to the
+// OpenTelemetry SDK that the app registered before, which is the NodeSDK in
+// instrumentation.ts. It uses the globals of @opentelemetry/api. The logger and
+// captureError use the LoggerProvider of the app with the active context. Thus
+// their records go into the traces of the app. This includes a trace that comes
+// from a network-request span in the browser. If the app registers no SDK, the
+// API supplies functions that do nothing. They give no warning and make no
+// structure. Thus a process without a key or without an SDK makes no network
+// request.
 //
-// The error path binds at module load, not in the WebSDK constructor: with
-// nothing per-instance left to attach to, gating it would only make
-// captureError silently no-op in a module graph that never constructs a
-// WebSDK. logger keeps the constructor gate, because its emitter genuinely
-// is per-instance, and shutdown() unbinds only that.
+// The error capture uses @everr/otel-errors, and this module does not write
+// that code again. That package makes the error regular, it redacts the data,
+// it applies the rate limit, and it marks the span with recordException and
+// setStatus(ERROR). It has one client for each process. Thus an app that
+// configures the redaction for its own crash handlers also covers these
+// records. The app registers the ErrorsInstrumentation and its crash handlers
+// on its NodeSDK.
 //
-// This is the one module-load side effect in the package, so package.json's
-// `sideEffects: false` is a half-truth for this entry. It stays: the flag
-// lets a bundler drop the module only when nothing is imported from it, and
-// a graph that imports nothing here has no captureError to bind for.
+// The code connects the error path when it loads the module, and not in the
+// WebSDK constructor. There is no data for each instance. Thus a connection in
+// the constructor only makes captureError do nothing in a module graph that
+// constructs no WebSDK. The logger keeps the connection in the constructor,
+// because its emitter belongs to one instance. The shutdown() function
+// disconnects only the logger.
+//
+// This is the only effect at module load in this package. Thus the
+// `sideEffects: false` flag in package.json is not fully correct for this
+// entry. The flag stays. It lets a bundler remove the module only when the
+// graph imports nothing from it, and such a graph has no captureError to
+// connect.
 
-// The /core subpath is that package's runtime-neutral half: it keeps the
-// instrumentation (and its @types/node requirement) out of this package's
-// browser-lib tsc program, which deliberately has no node typings.
+// The /core subpath is the part of that package for all runtimes. It keeps the
+// instrumentation and its @types/node requirement out of the browser tsc
+// program of this package. That program has no Node types, and this is
+// correct.
 import { capture } from "@everr/otel-errors/core";
 import { context } from "@opentelemetry/api";
 import {
@@ -49,9 +56,10 @@ import { logger } from "./logger.js";
 import type { Persistence, UserTraits, WebSDKOptions } from "./types.js";
 import { SDK_NAME, SDK_VERSION } from "./version.js";
 
-// The one binding of the shared report surface to otel-errors, done at module
-// load so server-side captureError works with no setup. Never unbound: the
-// shared client outlives any WebSDK, so there is nothing to restore it to.
+// This is the only connection of the shared report function to otel-errors.
+// The code makes it at module load. Thus captureError operates on the server
+// with no setup. The code never removes it, because the shared client
+// continues after each WebSDK, and thus there is no previous value.
 bindReport((error, mechanism, context) =>
   capture({ error, mechanism, context }),
 );
@@ -66,25 +74,31 @@ export type { Persistence, UserTraits, WebSDKOptions } from "./types.js";
 export { logger };
 
 /**
- * The server WebSDK: attaches to the app's registered OpenTelemetry SDK.
- * All options are accepted for shared-code compatibility but inert on the
- * server: resource, batching, export, and lifecycle belong to the app's SDK,
- * so `ingestKey` and `endpoint` are browser-only concerns and the instance's
- * `flush()` and `shutdown()` resolve immediately (force-flush before a
- * serverless freeze with the NodeSDK handle the app already holds).
+ * The WebSDK for the server. It connects to the OpenTelemetry SDK that the app
+ * registered.
+ *
+ * It accepts all the options, and thus the same code operates in the browser
+ * and on the server. But the options have no function on the server. The SDK of
+ * the app controls the resource, the batches, the export, and the lifecycle.
+ * Thus `ingestKey` and `endpoint` are for the browser only, and the `flush()`
+ * and `shutdown()` functions of the instance complete immediately. To send the
+ * records before a serverless function stops, use the NodeSDK that the app
+ * holds.
  */
 export class WebSDK {
-  /** Resolves immediately; batching belongs to the app's SDK. */
+  /** Completes immediately. The SDK of the app controls the batches. */
   flush: () => Promise<void>;
-  /** Unbinds logger from the app's SDK. Error capture stays live. */
+  /** Disconnects the logger from the SDK of the app. The error capture
+   * continues to operate. */
   shutdown: () => Promise<void>;
 
   constructor(_options: WebSDKOptions) {
-    // Resolved once: before a global provider registers this is a ProxyLogger
-    // that starts delegating the moment the app's SDK lands.
+    // The code finds this one time. Before a global provider registers, this is
+    // a ProxyLogger. That proxy sends the records to the true logger when the
+    // SDK of the app registers.
     const otelLogger = logs.getLogger(SDK_NAME, SDK_VERSION);
-    // The shared current.ts binding: logger samples it per call, here adapted
-    // onto the app's LoggerProvider.
+    // The shared binding in current.ts. The logger reads it at each call. Here
+    // the code connects it to the LoggerProvider of the app.
     const unbindEmit = bindEmit(emitVia(otelLogger));
     this.flush = async () => {};
     this.shutdown = async () => {
@@ -93,33 +107,37 @@ export class WebSDK {
   }
 }
 
-// Identity and route resolution are browser-bound (visitor id, session, and
-// the route pattern all live on the per-tab envelope); per-process identity
-// on server records would leak users across requests, so on the server
-// these are honest no-ops that never throw from shared code.
-/** No-op on the server; identity is a browser concept. */
+// The identity and the route belong to the browser. The visitor id, the
+// session, and the route pattern are all in the envelope of one tab. An
+// identity for each process on the server sends the data of one user into the
+// requests of a different user. Thus on the server these functions do nothing,
+// and they throw no error when the shared code calls them.
+/** Does nothing on the server. The identity belongs to the browser. */
 export function identify(_userId: string, _traits?: UserTraits): void {}
 
-/** No-op on the server; identity is a browser concept. */
+/** Does nothing on the server. The identity belongs to the browser. */
 export function revoke(): void {}
 
-/** No-op on the server; ambient context rides the browser envelope. */
+/** Does nothing on the server. The envelope of the browser carries the ambient
+ * context. */
 export function setAttributes(
   _attributes: Record<string, AttrValue | null>,
 ): void {}
 
-/** No-op on the server; persistence is a browser concept. */
+/** Does nothing on the server. The persistence belongs to the browser. */
 export function setPersistence(_persistence: Persistence | undefined): void {}
 
-/** No-op on the server; route patterns ride the browser envelope. */
+/** Does nothing on the server. The envelope of the browser carries the route
+ * patterns. */
 export function setRouteResolver(
   _get: ((url: string) => string | null | undefined) | null | undefined,
 ): void {}
 
-// The built-in instrumentation factories, so shared code composing
-// `new WebSDK({ instrumentations: [...] })` resolves in the server module
-// graph too. The server WebSDK ignores instrumentations entirely, and these never touch the browser
-// implementations: each returns an inert instrumentation that sets up nothing.
+// The functions that make the built-in instrumentations. Thus shared code that
+// writes `new WebSDK({ instrumentations: [...] })` also operates in the server
+// module graph. The WebSDK for the server ignores all the instrumentations.
+// These functions use none of the browser code: each one returns an
+// instrumentation that does nothing.
 const inert: Instrumentation = () => {};
 
 export type {
@@ -132,32 +150,35 @@ export type {
   PerformanceOptions,
   WebVitalName,
 } from "./instrumentations/performance/index.js";
-// sampled() is a generic wrapper, not a capture source: it works the same
-// against the server's inert instrumentations as it does against browser ones.
+// The sampled() function contains a different instrumentation, and it is not a
+// source of the capture. It operates in the same way with the instrumentations
+// of the server that do nothing and with the instrumentations of the browser.
 export { sampled } from "./instrumentations/sampled.js";
 
-/** Inert on the server; error capture belongs to the app's OTel SDK. */
+/** Does nothing on the server. The OTel SDK of the app captures the errors. */
 export const errors = (_options?: ErrorsOptions): Instrumentation => inert;
-/** Inert on the server; pageviews are a browser concept. */
+/** Does nothing on the server. The pageviews belong to the browser. */
 export const pageviews = (): Instrumentation => inert;
-/** Inert on the server; interactions are a browser concept. */
+/** Does nothing on the server. The interactions belong to the browser. */
 export const interactions = (): Instrumentation => inert;
-/** Inert on the server; performance capture is a browser concept. */
+/** Does nothing on the server. The performance capture belongs to the browser. */
 export const performance = (_options?: PerformanceOptions): Instrumentation =>
   inert;
-/** Inert on the server; the fetch patch is a browser concept. */
+/** Does nothing on the server. The change to fetch belongs to the browser. */
 export const network = (_options?: NetworkOptions): Instrumentation => inert;
 
-// Adapts the shared logger surface to the OTel Logs API: same Emit shape
-// the browser pipeline uses. The severity text falls out of the API's
-// numeric enum (5 DEBUG, 9 INFO, 13 WARN, 17 ERROR).
+// Connects the shared logger functions to the OTel Logs API. It uses the same
+// Emit structure as the pipeline of the browser. The severity text comes from
+// the numeric enum of the API: 5 is DEBUG, 9 is INFO, 13 is WARN, and 17 is
+// ERROR.
 const emitVia =
   (otelLogger: Logger): Emit =>
   (_eventName, attributes, severityNumber, body) => {
     otelLogger.emit({
       severityNumber,
-      // Indexing with the enum: no everr emit path omits the severity, and
-      // an out-of-enum number safely yields undefined.
+      // The code reads the enum with this index. Each emit path in this
+      // package sets the severity. If the number is not in the enum, the
+      // result is undefined, and this causes no error.
       severityText: SeverityNumber[severityNumber as number],
       body,
       attributes: cleanAttributes(attributes),
@@ -165,8 +186,9 @@ const emitVia =
     });
   };
 
-// Same skip-nullish convention as the emitter's toKeyValues, so callers
-// write optional attributes plainly.
+// This function ignores a value of null and a value of undefined, the same as
+// the toKeyValues function of the emitter. Thus a caller can write an optional
+// attribute as a usual property.
 function cleanAttributes(
   attributes?: Record<string, AttrValue | null | undefined>,
 ): LogAttributes | undefined {

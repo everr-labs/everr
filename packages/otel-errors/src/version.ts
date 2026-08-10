@@ -1,6 +1,6 @@
-// The OTel instrumentation scope stamped on every record this package emits.
-// Renamed from @everr/auto-otel-errors in 0.1.0: queries filtering on the old
-// scope name see no rows after upgrading.
+// The OTel instrumentation scope on each record that this package sends. In
+// version 0.1.0 the name changed from @everr/auto-otel-errors. Thus after an
+// upgrade, a query that filters on the old scope name finds no rows.
 export const PKG_NAME = "@everr/otel-errors";
 
 declare const __PACKAGE_VERSION__: string | undefined;

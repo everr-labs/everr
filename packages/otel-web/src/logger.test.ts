@@ -52,8 +52,9 @@ afterEach(() => {
 });
 
 describe("logger", () => {
-  // Must run before any bindEmit in this file: the pre-init warning is
-  // module-level state that the first bind permanently replaces.
+  // This test must operate before each call to bindEmit in this file. The
+  // warning before a construction is data at module level, and the first
+  // connection replaces it permanently.
   it("warns instead of throwing before init", () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     try {
@@ -77,7 +78,8 @@ describe("logger", () => {
       key: "cart.size",
       value: { intValue: "3" },
     });
-    // Custom logs carry the analytics envelope like every other signal.
+    // A custom log carries the analytics envelope, the same as each other
+    // signal.
     expect(record.attributes).toContainEqual({
       key: "session.id",
       value: { stringValue: "s1" },

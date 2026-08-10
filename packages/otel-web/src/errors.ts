@@ -1,22 +1,28 @@
 import { currentEmit } from "./current.js";
 
-// Native error reporting: the explicit `captureError` plus the shared
-// `report` binding every error path rides (`captureReactError` lives in the
-// react entry, the global unhandled handlers in the errors() instrumentation, both
-// sharing the live binding, so index consumers never pay for either),
-// emitted through the SDK pipeline so every error carries the analytics
-// envelope and joins the session's other signals. This deliberately owns the
-// small slice of error handling the browser needs instead of depending on
-// @everr/otel-errors, which is Node-only: the SDK stays a fraction of the
-// bytes and carries no OTel API. The attribute names below are a wire
-// contract shared with it (`exception.*`, `everr.error.*`, `everr.react.*`),
-// so browser and server errors group identically through the
-// errorFingerprint UDF.
+// The error reports of the browser. This module has the `captureError`
+// function and the shared `report` binding. Each error path uses that binding.
+// The `captureReactError` function is in the react entry, and the global
+// handlers for the unhandled errors are in the errors() instrumentation. The
+// two use the same binding. Thus a consumer of the index entry gets neither of
+// them in its build.
 //
-// Deliberately absent (decided 2026-07-27, function per byte): message/stack
-// scrubbing (content ships verbatim; scrubbing must return before errors are
-// exposed to external consented-mode adopters, see ticket 09) and cause-chain
-// rendering (nothing the SDK observes attaches `cause` today).
+// The SDK pipeline sends these records. Thus each error carries the analytics
+// envelope, and it goes with the other signals of the session.
+//
+// This module contains the small part of the error handling that a browser
+// needs. It does not use @everr/otel-errors, which is for Node only. Thus the
+// SDK is much smaller, and it contains no OTel API. The attribute names below
+// are the same as the names in that package: `exception.*`, `everr.error.*`,
+// and `everr.react.*`. Thus the errorFingerprint UDF groups the browser errors
+// and the server errors in the same way.
+//
+// Two functions are absent, and this is correct. The team made this decision on
+// 2026-07-27, because each function increases the number of bytes. The first is
+// the redaction of the message and the stack: the SDK sends the content without
+// a change. The redaction must come back before external users in consented
+// mode see the errors. Refer to ticket 09. The second is the display of the
+// chain of causes, because no error that the SDK sees has a `cause` today.
 
 const safeString = (value: unknown): string => {
   try {
@@ -28,23 +34,27 @@ const safeString = (value: unknown): string => {
   }
 };
 
-/** Caller-supplied attributes attached to one error report. */
+/** The attributes from the caller that are attached to one error report. */
 export type ErrorContext = Record<string, string | number | boolean>;
 
 export type Report = (
   error: unknown,
   mechanism: "onerror" | "unhandledrejection" | "react" | "manual",
   context?: ErrorContext,
-  /** The reporting script URL when the handler knows it (ErrorEvent.filename). */
+  /** The URL of the script that reports, if the handler knows it. It comes
+   * from ErrorEvent.filename. */
   fileName?: string,
 ) => void;
 
 /**
- * The registered error filter: returns true to drop the error. Consulted on
- * every browser error path (global handlers, React boundaries, manual
- * `captureError`); a filtered report is a silent success. One slot, not a
- * registry: only the errors() instrumentation sets it (at most once per WebSDK), so no
- * filtering exists without it.
+ * The error filter that the app registers. It returns true to discard the
+ * error. The code calls it on each browser error path: the global handlers, the
+ * React boundaries, and a manual `captureError`. When the filter discards a
+ * report, the code continues and gives no warning.
+ *
+ * There is one filter and not a list. Only the errors() instrumentation sets
+ * it, and it sets it a maximum of one time for each WebSDK. Thus without that
+ * instrumentation there is no filter.
  */
 export type ErrorFilter = (
   message: string,
@@ -60,10 +70,12 @@ export function setErrorFilter(next: ErrorFilter): () => void {
   };
 }
 
-// The top stack frame's script URL: the first frame-shaped line's
-// `url:line:col`, both Chrome ("at fn (url:1:2)", "at url:1:2") and Firefox
-// ("fn@url:1:2") shapes. Chrome's leading "Error: <message>" line is not
-// frame-shaped, so a url:line:col token inside the message never matches.
+// The script URL of the top stack frame. It is the `url:line:col` part of the
+// first line that has the structure of a frame. The code accepts the Chrome
+// structures, "at fn (url:1:2)" and "at url:1:2", and the Firefox structure,
+// "fn@url:1:2". The first line in Chrome is "Error: <message>", and it does not
+// have the structure of a frame. Thus a `url:line:col` text in the message
+// never agrees with the pattern.
 function frameUrl(stack: string | undefined): string | undefined {
   for (const line of stack?.split("\n") ?? []) {
     const m = /(?:^\s*at (?:.*[(\s])?|.*@)(\S+?):\d+:\d+\)?$/.exec(line);
@@ -72,19 +84,23 @@ function frameUrl(stack: string | undefined): string | undefined {
   return undefined;
 }
 
-// At most 5 reports per identical error (type, message, top frame) per
-// 5s window, so a render or event loop cannot flood the batch queue.
-// Module-level: the window survives a consent re-construction, which is the point.
+// A maximum of 5 reports for the same error in a window of 5 s. Two errors are
+// the same when their type, message, and top frame are the same. Thus a loop in
+// a render or in the event handling cannot fill the batch queue. This variable
+// is at module level, and thus the window continues when the consent procedure
+// constructs a new SDK. That is the intention.
 const hits = new Map<string, number[]>();
 
-// The browser reporter: normalization, filter, rate limit, emit. It samples
-// the current pipeline per call (warn before a WebSDK exists, silent after shutdown
-// come from the shared binding), so no wiring step exists on the browser at
-// all.
+// The reporter of the browser. It does these steps: it makes the error regular,
+// it applies the filter, it applies the rate limit, and it sends the record. It
+// reads the current pipeline at each call. The shared binding gives a warning
+// before a WebSDK exists, and it does nothing after shutdown. Thus the browser
+// needs no setup step.
 const browserReport: Report = (error, mechanism, context, fileName) => {
   const emit = currentEmit();
   if (!emit) return;
-  // Telemetry must never break the page: reporting is best-effort.
+  // The telemetry must never cause a failure of the page. Thus the code tries
+  // to report the error, but it accepts a failure.
   try {
     const isError = error instanceof Error;
     const type = errorTypeOf(error);
@@ -106,7 +122,7 @@ const browserReport: Report = (error, mechanism, context, fileName) => {
         if (!stamps.some((t) => t > now - 5_000)) hits.delete(staleKey);
       });
 
-    // 17 is the OTel ERROR severity.
+    // The value 17 is the OTel severity ERROR.
     emit(
       "exception",
       {
@@ -120,14 +136,15 @@ const browserReport: Report = (error, mechanism, context, fileName) => {
       message ? `${type}: ${message}` : type,
     );
   } catch {
-    // Swallowed by design.
+    // The code ignores this error, and this is correct.
   }
 };
 
-// A live binding: the react entry and the errors() instrumentation import it. The
-// browser reporter is the default and needs no wiring; the server entry
-// swaps in its adapter over @everr/otel-errors/core here, and unbinding
-// restores the default.
+// This is a dynamic binding. The react entry and the errors() instrumentation
+// import it. The default is the reporter of the browser, and it needs no setup.
+// The server entry puts its own adapter here, and that adapter uses
+// @everr/otel-errors/core. When the code removes that adapter, the default
+// comes back.
 export let report: Report = browserReport;
 
 export function bindReport(next: Report): () => void {
@@ -137,14 +154,15 @@ export function bindReport(next: Report): () => void {
   };
 }
 
-/** Reports an error, with optional context attributes. */
+/** Reports an error. The context attributes are optional. */
 export function captureError(error: unknown, context?: ErrorContext): void {
   report(error, "manual", context);
 }
 
 /**
- * The one spelling of an error's type across signals (exception.type here,
- * error.type on network spans): the class name, with the same fallbacks.
+ * The one method to write the type of an error in all the signals. This module
+ * writes it as exception.type, and a network span writes it as error.type. The
+ * value is the name of the class, and the alternative values are the same.
  */
 export function errorTypeOf(error: unknown): string {
   return error instanceof Error ? error.name || "Error" : "NonError";

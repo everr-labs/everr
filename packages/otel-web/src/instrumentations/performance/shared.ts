@@ -2,15 +2,18 @@ import type { AttrValue, Emit } from "../../emitter.js";
 import { uniqueId } from "../../session.js";
 import type { WebVitalName } from "./index.js";
 
-// The one assembly of a `browser.web_vital` record, shared by webvitals.ts
-// (LCP, CLS, TTFB) and inp.ts: the semconv attributes, the rating from the
-// per-metric thresholds, and the navigation type. The metric-specific
-// attribution rides in as pre-named extra attributes. The landing url a
-// late vital slices by is `everr.landing.*` on the resource (client.ts).
+// The one function that makes a `browser.web_vital` record. The webvitals.ts
+// module uses it for LCP, CLS, and TTFB, and inp.ts uses it for INP. The record
+// contains the semconv attributes, the rating from the limits of that metric,
+// and the navigation type. The caller sends the attribution of the metric as
+// additional attributes with their final names. A vital that the SDK sends late
+// uses the landing url, and the resource attributes in client.ts carry that url
+// as `everr.landing.*`.
 
 type Attrs = Record<string, AttrValue | null | undefined>;
 
-// [needs-improvement, poor] boundaries per https://web.dev/articles/vitals.
+// The limits for the ratings "needs-improvement" and "poor". They come from
+// https://web.dev/articles/vitals.
 const THRESHOLDS: Record<WebVitalName, [number, number]> = {
   lcp: [2500, 4000],
   cls: [0.1, 0.25],
@@ -30,8 +33,9 @@ export function emitVital(
     "browser.web_vital.name": name,
     "browser.web_vital.value": value,
     "browser.web_vital.delta": value,
-    // At-most-once per metric per navigation epoch, so minting the id at
-    // report time is equivalent to minting it at epoch start.
+    // The SDK sends a maximum of one record for each metric in each navigation
+    // period. Thus the code can make the id when it sends the record, and the
+    // result is the same as an id that it makes at the start of the period.
     "browser.web_vital.id": uniqueId(),
     "everr.browser.web_vital.rating":
       value > poor ? "poor" : value > ni ? "needs-improvement" : "good",
@@ -41,10 +45,11 @@ export function emitVital(
 }
 
 /**
- * The one `<prefix>.script.*` spelling of a LoAF longest-script culprit,
- * shared by the interaction attribution (inp.ts) and the page-load LoAF
- * spans (pageload.ts). The caller picks the duration (intersecting share
- * for interactions, raw script duration for LoAF spans).
+ * The one method to write the `<prefix>.script.*` attributes for the longest
+ * script in a LoAF. The attribution of an interaction in inp.ts uses it, and the
+ * LoAF spans of the page load in pageload.ts use it also. The caller selects the
+ * duration: for an interaction it is the part that is in the interaction, and
+ * for a LoAF span it is the full duration of the script.
  */
 export function scriptAttrs(
   prefix: string,
@@ -59,7 +64,7 @@ export function scriptAttrs(
   };
 }
 
-/** The one navigation_type spelling per vital. */
+/** The one method to write the navigation_type value for each vital. */
 function navigationType(restored: boolean): string {
   return restored
     ? "back-forward-cache"
@@ -68,9 +73,10 @@ function navigationType(restored: boolean): string {
 }
 
 /**
- * Runs the callback in the next idle period, or immediately if the page is
- * (or becomes) hidden, so pending work never outlives the page. Shared by
- * INP's entry processing and LCP's input-listener finalization.
+ * Calls the function in the next idle period. If the page is hidden, or if it
+ * becomes hidden, the code calls the function immediately. Thus the work always
+ * ends before the page ends. The processing of the INP entries uses this
+ * function, and the input listener of the LCP uses it also.
  */
 export function whenIdleOrHidden(cb: () => void): void {
   if (document.visibilityState === "hidden") {

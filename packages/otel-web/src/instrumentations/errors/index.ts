@@ -1,22 +1,27 @@
 import { type ErrorFilter, report, setErrorFilter } from "../../errors.js";
 import type { Instrumentation } from "../runtime.js";
 
-// The errors instrumentation: the global unhandled-error and unhandled-rejection
-// handlers (reported as unhandled through the shared `report` binding, the
-// same path manual `captureError` and React boundaries ride), plus the
-// declarative `ignore` / `denyUrls` filters, registered on that shared error
-// path at setup so they gate every error path, and unregistered at teardown.
-// Filters gate errors only; no other signal consults them.
+// The errors instrumentation. It contains the global handlers for an unhandled
+// error and an unhandled rejection. Those handlers report through the shared
+// `report` binding with the mechanism "unhandled". A manual `captureError` and
+// a React boundary use the same path.
+//
+// This module also contains the `ignore` filter and the `denyUrls` filter. The
+// setup registers them on that shared error path, and thus they apply to each
+// error path. The teardown removes them. The filters apply to the errors only,
+// and no other signal uses them.
 
-/** String means substring match, RegExp means test. */
+/** A string must occur in the text. A RegExp must agree with the text. */
 export type ErrorMatcher = string | RegExp;
 
 export type ErrorsOptions = {
-  /** Drops errors whose normalized message matches. */
+  /** Discards an error when its regular message agrees with this value. */
   ignore?: ErrorMatcher[];
   /**
-   * Drops errors whose reporting script URL matches (the top stack frame,
-   * falling back to the handler's filename; no match when neither exists).
+   * Discards an error when the URL of its script agrees with this value. That
+   * URL comes from the top stack frame. If there is no stack frame, it comes
+   * from the filename in the handler. If the error has neither of them, this
+   * filter does not agree.
    */
   denyUrls?: ErrorMatcher[];
 };
@@ -31,8 +36,9 @@ const matches = (
   );
 
 export function errors(options?: ErrorsOptions): Instrumentation {
-  // Named (not an arrow) so sampled() can hash a real identity from
-  // instrumentation.name instead of decorrelating nothing.
+  // This function has a name and it is not an arrow function. Thus sampled()
+  // can make a hash from instrumentation.name, and the decisions for the
+  // different instrumentations are different.
   return function errors() {
     const stopHandlers = startErrors();
     const filter: ErrorFilter = (message, scriptUrl) =>
@@ -47,12 +53,14 @@ export function errors(options?: ErrorsOptions): Instrumentation {
   };
 }
 
-// Cross-handler deduplication: a single unhandled TypeError (e.g.
-// "Failed to fetch") can fire both `unhandledrejection` and `error` on the
-// window, each carrying the same error object. Track which objects each
-// handler has seen so only the first handler to fire reports the error;
-// the rate limiter in the reporter still throttles volume within a single
-// handler. Module-level: the sets survive a consent re-init.
+// This code prevents two reports from the two handlers. One unhandled
+// TypeError, for example "Failed to fetch", can cause the `unhandledrejection`
+// event and the `error` event on the window. The two events carry the same
+// error object. The code records the objects that each handler received. Thus
+// only the first handler reports the error. The rate limiter in the reporter
+// still limits the number of reports from one handler. These sets are at module
+// level, and thus they continue when the consent procedure constructs the SDK
+// again.
 const seenByOnerror = new WeakSet<object>();
 const seenByRejection = new WeakSet<object>();
 

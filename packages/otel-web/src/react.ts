@@ -1,7 +1,9 @@
-// The React-facing surface of the SDK, a dedicated entry so the core stays
-// framework-free and index consumers never carry these bytes (react is an
-// optional peer, needed only by this entry). It imports the errors module's
-// live `report` binding, so reporting works whenever a WebSDK exists.
+// The functions of the SDK for React. They are in a separate entry. Thus the
+// core code uses no framework, and a consumer of the index entry does not get
+// these bytes in its build. The react package is an optional peer dependency,
+// and only this entry needs it. This module imports the dynamic `report`
+// binding from the errors module. Thus the reports operate when a WebSDK
+// exists.
 import { Component, type ErrorInfo, type ReactNode } from "react";
 import { report } from "./errors.js";
 
@@ -9,9 +11,10 @@ export function captureReactError(
   error: unknown,
   errorInfo?: { componentStack?: string | null },
 ): void {
-  // Before a WebSDK exists this warns (never throws) so miswiring is visible; after
-  // shutdown it is silent by design. Works on the server too once the
-  // server-side WebSDK exists.
+  // Before a WebSDK exists, this gives a warning and throws no error. Thus an
+  // incorrect setup is visible. After shutdown it gives no warning, and this is
+  // correct. It also operates on the server when the WebSDK for the server
+  // exists.
   report(
     error,
     "react",
@@ -24,8 +27,8 @@ export function captureReactError(
 type ErrorBoundaryProps = {
   children?: ReactNode;
   /**
-   * Rendered in place of the children after an error: a node, or a function
-   * of the thrown value. Defaults to rendering nothing.
+   * React shows this in place of the children after an error. It is a node, or
+   * a function that receives the value of the error. The default shows nothing.
    */
   fallback?: ReactNode | ((error: unknown) => ReactNode);
 };
@@ -33,9 +36,9 @@ type ErrorBoundaryProps = {
 type ErrorBoundaryState = { errored: boolean; error?: unknown };
 
 /**
- * Reports render errors through the SDK (as `captureReactError`) and swaps
- * the subtree for the fallback. No JSX and no runtime beyond react itself,
- * so the entry stays framework-thin.
+ * Reports the render errors through the SDK with `captureReactError`, then
+ * shows the fallback in place of the components below it. This module uses no
+ * JSX, and at run time it uses only react. Thus the entry stays small.
  */
 export class ErrorBoundary extends Component<
   ErrorBoundaryProps,

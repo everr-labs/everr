@@ -4,16 +4,17 @@ import { NodeSDK } from "@opentelemetry/sdk-node";
 import { BatchSpanProcessor } from "@opentelemetry/sdk-trace-base";
 import { ErrorsInstrumentation } from "../../dist/node.js";
 
-// Batch processors with a delay far longer than the fixture's life: nothing
-// reaches stdout unless the fatal path's forceFlush delivers it. A simple
-// processor would pass these tests without a flush at all.
+// The batch processors have a delay that is much longer than the life of this
+// fixture. Thus no data goes to stdout if the forceFlush of the fatal path
+// does not send it. A simple processor makes these tests correct without a
+// flush.
 const NEVER_ON_A_TIMER = { scheduledDelayMillis: 300_000 };
 
 function writeLine(payload) {
   process.stdout.write(`${JSON.stringify(payload)}\n`);
 }
 
-/** An exporter that writes one JSON line per payload produced by `toPayloads`. */
+/** An exporter that writes one JSON line for each payload from `toPayloads`. */
 function stdoutExporter(toPayloads) {
   return {
     export(batch, resultCallback) {
@@ -55,7 +56,7 @@ const stdoutMetricExporter = () =>
 const stdoutSpanExporter = () =>
   stdoutExporter((spans) => spans.map((span) => ({ kind: "span", name: span.name })));
 
-/** Registers the SDK exactly as an application does, and returns it. */
+/** Registers the SDK as an application registers it, then returns the SDK. */
 export function startSdk(config = {}) {
   const sdk = new NodeSDK({
     logRecordProcessors: [

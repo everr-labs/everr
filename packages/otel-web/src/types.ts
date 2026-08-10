@@ -2,87 +2,102 @@ import type { HostSend } from "./config.js";
 import type { Instrumentation } from "./instrumentations/runtime.js";
 
 /**
- * Where identity (the visitor id, the session, the identified user) lives.
+ * The location of the identity: the visitor id, the session, and the
+ * identified user.
  *
- * - `"localStorage"` (the default): a random persistent visitor id
- *   (`everr.visitor.id`, a device id, never fingerprint-derived) and durable
- *   30-minute-inactivity sessions survive reloads and are shared across
- *   tabs; `identify()` persists until `revoke()`.
- * - `"memory"`: zero cookies, zero storage. The same ids exist only in JS
- *   memory, survive SPA navigations, and die on reload or tab close;
- *   `identify()` works for the life of the page.
+ * - `"localStorage"` is the default. It keeps a random visitor id
+ *   (`everr.visitor.id`), which is an id for the device. The code never
+ *   calculates it from a fingerprint. The sessions end after 30 minutes
+ *   without activity. The ids and the sessions continue after a reload, and
+ *   all the tabs use them. The data from `identify()` stays until a call to
+ *   `revoke()`.
+ * - `"memory"` uses no cookies and no store. The same ids stay in JS memory
+ *   only. They continue during an SPA navigation. They end at a reload or when
+ *   the user closes the tab. The data from `identify()` stays for the life of
+ *   the page.
  *
- * Consent is the host's call, not the SDK's: a CMP-gated deployment boots
- * with `"memory"` until consent is granted, then calls
- * `setPersistence("localStorage")` on the live client; `revoke()` drops back.
- * The event schema is identical either way; persistence only changes how
- * long the ids live.
+ * The host controls the consent, and the SDK does not. An app with a CMP starts
+ * with `"memory"` until the user gives consent. Then it calls
+ * `setPersistence("localStorage")` on the current client. The `revoke()`
+ * function goes back to `"memory"`. The event schema is the same for the two
+ * values. The persistence only changes the life of the ids.
  */
 export type Persistence = "localStorage" | "memory";
 
 export type WebSDKOptions = {
-  /** The `service.name` resource attribute events are reported under. */
+  /** The `service.name` resource attribute on the events. */
   serviceName: string;
-  /** Overrides the `service.version` resource attribute (defaults to the SDK build version). */
+  /** Replaces the `service.version` resource attribute. The default is the
+   * build version of the SDK. */
   serviceVersion?: string;
   /**
-   * The `service.instance.id` resource attribute: which install or process
-   * of `serviceName` this is. Omitted from the resource when unset, which is
-   * the right default for a web page (one instance per load is not useful);
-   * a desktop or kiosk host that has a durable install id should set it.
+   * The `service.instance.id` resource attribute. It gives the installation or
+   * the process of `serviceName`. When the app does not set it, the resource
+   * does not contain it. This is the correct default for a web page, because a
+   * different instance for each page load has no value. A desktop host or a
+   * kiosk host that has a permanent installation id must set it.
    */
   serviceInstanceId?: string;
-  /** The `deployment.environment.name` resource attribute, e.g. `import.meta.env.MODE`. */
+  /** The `deployment.environment.name` resource attribute, for example
+   * `import.meta.env.MODE`. */
   deploymentEnvironment?: string;
   /**
-   * Ingest key. When set (and no explicit `endpoint` is given) events ship
-   * to the hosted Everr ingest. In the browser this is the public
-   * origin-bound key; in server code (an SSR-constructed WebSDK) it must be a secret key,
-   * since the hosted ingest denies public keys on origin-less requests.
+   * The ingest key. When the app sets it, and the app gives no `endpoint`, the
+   * SDK sends the events to the hosted Everr ingest. In the browser, use the
+   * public key for one origin. In server code, that is a WebSDK that SSR
+   * constructs, you must use a secret key. The hosted ingest refuses a public
+   * key on a request that has no origin.
    */
   ingestKey?: string;
-  /** Explicit OTLP base endpoint override (carries the ingest key's header when one is set). */
+  /** An OTLP base endpoint that replaces the default. It carries the header of
+   * the ingest key when the app sets a key. */
   endpoint?: string;
   /**
-   * Takes over delivery. Called with one OTLP/JSON payload per signal, in
-   * place of the SDK's fetch POST; `ingestKey`, `endpoint`, and `dev` are
-   * then unused, and the SDK never issues a request of its own. For hosts
-   * that proxy telemetry themselves, e.g. a Tauri or Electron renderer
-   * handing the bytes to its native side:
+   * Sends the data in place of the SDK. The SDK calls it with one OTLP/JSON
+   * payload for each signal, and it does not do a fetch POST. Then the SDK does
+   * not use `ingestKey`, `endpoint`, and `dev`, and it makes no request. Use
+   * this in a host that sends the telemetry itself, for example a Tauri
+   * renderer or an Electron renderer that gives the bytes to its native part:
    *
    * ```ts
    * new WebSDK({ send: (signal, body) => invoke("proxy_otlp", { signal, body }) })
    * ```
    *
-   * Delivery stays best-effort: a throwing or rejecting `send` is swallowed,
-   * exactly as a failed fetch is. Returning a promise makes `flush()` await
-   * it. Because the host owns transport, the browser keepalive byte budget
-   * does not apply and the exit flush ships the whole batch.
+   * The SDK tries to send the data, but it accepts a failure. If `send` throws
+   * an error or rejects, the SDK ignores that error. A failure of fetch is the
+   * same. If `send` returns a promise, `flush()` waits for it. The host
+   * controls the transport. Thus the keepalive limit in bytes of the browser
+   * does not apply, and the flush at exit sends the full batch.
    */
   send?: HostSend;
   /**
-   * Development mode, e.g. `import.meta.env.DEV`. Without a key or endpoint,
-   * dev falls back to the local collector; production becomes a structural
-   * no-op that never issues a network request.
+   * The development mode, for example `import.meta.env.DEV`. Without a key and
+   * without an endpoint, a development build uses the local collector. A
+   * production build then makes no structure and no network request.
    */
   dev?: boolean;
-  /** How long identity ids live; see {@link Persistence}. Switchable later via `setPersistence()`. */
+  /** The life of the identity ids. Refer to {@link Persistence}. You can change
+   * it later with `setPersistence()`. */
   persistence?: Persistence;
   /**
-   * The capture sources, set up during construction (in order, after
-   * identity resolution) and torn down by `shutdown()` (in reverse order).
-   * Capture is opt-in only: a bare WebSDK wires pipeline, transport, and identity and
-   * captures nothing; compose the built-in factories (`errors()`,
-   * `pageviews()`, `interactions()`, `performance()`, `network()`) alongside
-   * any custom instrumentations. Accepted and ignored on the server.
+   * The sources of the capture. The constructor starts them in the sequence of
+   * the array, after it finds the identity. The `shutdown()` function stops
+   * them in the opposite sequence.
+   *
+   * You must select the capture. A WebSDK without this option connects the
+   * pipeline, the transport, and the identity, but it captures nothing. Use the
+   * built-in functions `errors()`, `pageviews()`, `interactions()`,
+   * `performance()`, and `network()`, and add your own instrumentations. The
+   * server accepts this option but ignores it.
    */
   instrumentations?: Instrumentation[];
 };
 
 /**
- * identify() traits: stamped onto subsequent events as `user.*` attributes.
- * Flat scalars only, same contract as setAttributes; dot the keys yourself
- * for structure (`"company.name"`). A `null` clears nothing (the whole
- * namespace is replaced per identify anyway).
+ * The traits for identify(). The SDK writes them on the subsequent events as
+ * `user.*` attributes. Use single values only, the same as in setAttributes.
+ * Put the dots in the key yourself to make a structure, for example
+ * `"company.name"`. A value of `null` removes nothing, because each call to
+ * identify replaces all the `user.*` keys.
  */
 export type UserTraits = Record<string, string | number | boolean | null>;
