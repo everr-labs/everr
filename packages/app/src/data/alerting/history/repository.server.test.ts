@@ -148,21 +148,41 @@ describe("queryClickHouseAlertEventLog", () => {
 });
 
 describe("observed label suggestions", () => {
-  it("ranks keys and values from ClickHouse transition labels", async () => {
-    mocks.query.mockResolvedValue([
-      { labelsJson: '{"service":"api","region":"eu"}' },
-      { labelsJson: '{"service":"api"}' },
-      { labelsJson: '{"service":"web"}' },
-    ]);
+  // The rank is computed in ClickHouse (GROUP BY + count()), not in Node, so
+  // these assert the pushed-down shape and the row-to-result mapping, not a
+  // ranking algorithm that no longer lives here.
+
+  it("ranks keys in ClickHouse via arrayJoin(mapKeys(...))", async () => {
+    mocks.query.mockResolvedValue([{ key: "service" }, { key: "region" }]);
 
     await expect(
       queryClickHouseObservedLabelKeys("org-1", { ...range, limit: 2 }),
     ).resolves.toEqual(["service", "region"]);
+
+    const [sql, organizationId, params] = mocks.query.mock.calls[0];
+    expect(sql).toContain("arrayJoin(mapKeys(instance_labels)) AS key");
+    expect(sql).toContain("GROUP BY key");
+    expect(sql).toContain("ORDER BY count() DESC, key ASC");
+    expect(sql).toContain("LIMIT {limit:UInt32}");
+    expect(organizationId).toBe("org-1");
+    expect(params).toMatchObject({ organizationId: "org-1", limit: 2 });
+  });
+
+  it("ranks values for one key via Map access, excluding rows missing it", async () => {
+    mocks.query.mockResolvedValue([{ value: "api" }, { value: "web" }]);
+
     await expect(
       queryClickHouseObservedLabelValues("org-1", "service", {
         ...range,
         limit: 2,
       }),
     ).resolves.toEqual(["api", "web"]);
+
+    const [sql, , params] = mocks.query.mock.calls[0];
+    expect(sql).toContain("instance_labels[{key:String}] AS value");
+    expect(sql).toContain("has(instance_labels, {key:String})");
+    expect(sql).toContain("GROUP BY value");
+    expect(sql).toContain("ORDER BY count() DESC, value ASC");
+    expect(params).toMatchObject({ key: "service", limit: 2 });
   });
 });

@@ -64,14 +64,6 @@ function parseJsonObject(json: string): Record<string, JsonValue> {
   return {};
 }
 
-function parseLabels(json: string): Record<string, string> {
-  return Object.fromEntries(
-    Object.entries(parseJsonObject(json)).flatMap(([key, value]) =>
-      typeof value === "string" ? [[key, value]] : [],
-    ),
-  );
-}
-
 type NotificationOutcome = {
   silenced: boolean;
   inhibited: boolean;
@@ -233,48 +225,43 @@ export async function queryClickHouseAlertEventLog(
   });
 }
 
-async function recentClickHouseLabels(
-  organizationId: string,
-  opts: { from: Date; to: Date },
-) {
-  return query<{ labelsJson: string }>(
-    `
-      SELECT toJSONString(instance_labels) AS labelsJson
-      FROM app.alert_events
-      WHERE tenant_id = {organizationId:String}
+// Shared by both label-suggestion queries: recent, unmuted instance labels,
+// the population the suggestion ranks over.
+const OBSERVED_LABEL_FILTERS = `
+        tenant_id = {organizationId:String}
         AND event_type IN ('instance_fired', 'instance_resolved')
         AND rule_muted = false
         AND event_time >= {from:DateTime64(3)}
-        AND event_time <= {to:DateTime64(3)}
-      ORDER BY event_time DESC
-      LIMIT 10000
+        AND event_time <= {to:DateTime64(3)}`;
+
+/**
+ * Rank observed label keys (or, given `key`, values for that key) by
+ * frequency in ClickHouse rather than pulling up to 10,000 label blobs into
+ * Node to count there. `arrayJoin` explodes each row's keys before the
+ * `GROUP BY`, so `count()` ranks over rows, not blobs.
+ */
+export async function queryClickHouseObservedLabelKeys(
+  organizationId: string,
+  opts: { limit: number; from: Date; to: Date },
+): Promise<string[]> {
+  const rows = await query<{ key: string }>(
+    `
+      SELECT arrayJoin(mapKeys(instance_labels)) AS key
+      FROM app.alert_events
+      WHERE ${OBSERVED_LABEL_FILTERS}
+      GROUP BY key
+      ORDER BY count() DESC, key ASC
+      LIMIT {limit:UInt32}
     `,
     organizationId,
     {
       organizationId,
       from: toClickHouseDateTime(opts.from),
       to: toClickHouseDateTime(opts.to),
+      limit: opts.limit,
     },
   );
-}
-
-export async function queryClickHouseObservedLabelKeys(
-  organizationId: string,
-  opts: { limit: number; from: Date; to: Date },
-): Promise<string[]> {
-  const counts = new Map<string, number>();
-  for (const row of await recentClickHouseLabels(organizationId, opts)) {
-    for (const key of Object.keys(parseLabels(row.labelsJson))) {
-      counts.set(key, (counts.get(key) ?? 0) + 1);
-    }
-  }
-  return [...counts]
-    .sort(
-      ([keyA, countA], [keyB, countB]) =>
-        countB - countA || keyA.localeCompare(keyB),
-    )
-    .slice(0, opts.limit)
-    .map(([key]) => key);
+  return rows.map((row) => row.key);
 }
 
 export async function queryClickHouseObservedLabelValues(
@@ -282,16 +269,24 @@ export async function queryClickHouseObservedLabelValues(
   key: string,
   opts: { limit: number; from: Date; to: Date },
 ): Promise<string[]> {
-  const counts = new Map<string, number>();
-  for (const row of await recentClickHouseLabels(organizationId, opts)) {
-    const value = parseLabels(row.labelsJson)[key];
-    if (value) counts.set(value, (counts.get(value) ?? 0) + 1);
-  }
-  return [...counts]
-    .sort(
-      ([valueA, countA], [valueB, countB]) =>
-        countB - countA || valueA.localeCompare(valueB),
-    )
-    .slice(0, opts.limit)
-    .map(([value]) => value);
+  const rows = await query<{ value: string }>(
+    `
+      SELECT instance_labels[{key:String}] AS value
+      FROM app.alert_events
+      WHERE ${OBSERVED_LABEL_FILTERS}
+        AND has(instance_labels, {key:String})
+      GROUP BY value
+      ORDER BY count() DESC, value ASC
+      LIMIT {limit:UInt32}
+    `,
+    organizationId,
+    {
+      organizationId,
+      key,
+      from: toClickHouseDateTime(opts.from),
+      to: toClickHouseDateTime(opts.to),
+      limit: opts.limit,
+    },
+  );
+  return rows.map((row) => row.value);
 }
