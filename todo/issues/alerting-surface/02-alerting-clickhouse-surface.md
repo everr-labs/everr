@@ -174,7 +174,10 @@ Second, hold decisions stop mutating the work item. Today, processing freezes
 `silenced`, `inhibited` and `silence_id` onto the event row, then clears them
 before dispatch. That destroys the only durable copy of the hold. Instead,
 each change to that triple journals its own decision row that references the
-event. Queue state and decision history stop sharing columns. The deferral
+event. The journal type for those rows is `hold_changed` (state kind, born
+processed); at projection time one `hold_changed` row becomes a
+`notification_deferred` or `notification_suppressed` ClickHouse row,
+depending on the decision it records. Queue state and decision history stop sharing columns. The deferral
 record becomes repairable. The freeze-then-clear sequence disappears. The
 frozen comment and matchers on the ClickHouse row are written at projection
 time. A repaired row recovers them with a join to `alert_silences`, which

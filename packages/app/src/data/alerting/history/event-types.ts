@@ -6,6 +6,7 @@ export type AlertEventType = (typeof ALERTING_EVENT_TYPES)[number];
 const ALERT_TRANSITION_EVENT_TYPES = [
   "instance_fired",
   "instance_resolved",
+  "instance_closed",
 ] as const;
 
 /**
@@ -30,12 +31,20 @@ export const ALERT_OUTCOME_EVENT_TYPES_SQL = sqlStringList(
   ALERT_OUTCOME_EVENT_TYPES,
 );
 
+// `instance_closed` gets its own neutral status: it ends the instance without
+// notifying, so rendering it as "resolved" would claim a recovery that nobody
+// observed.
 export function alertingEventStatus(
   eventType: string,
-): "firing" | "resolved" | null {
-  return eventType === "instance_fired"
-    ? "firing"
-    : eventType === "instance_resolved"
-      ? "resolved"
-      : null;
+): "firing" | "resolved" | "closed" | null {
+  switch (eventType) {
+    case "instance_fired":
+      return "firing";
+    case "instance_resolved":
+      return "resolved";
+    case "instance_closed":
+      return "closed";
+    default:
+      return null;
+  }
 }
