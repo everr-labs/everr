@@ -68,50 +68,7 @@ export async function processAlertEvent(rawPayload: unknown): Promise<void> {
         a.groupKey.localeCompare(b.groupKey),
       );
       for (const target of ordered) {
-        const [existing] = await tx
-          .select()
-          .from(alertNotificationGroups)
-          .where(
-            and(
-              eq(alertNotificationGroups.organizationId, event.organizationId),
-              eq(alertNotificationGroups.groupKey, target.groupKey),
-            ),
-          )
-          .for("update")
-          .limit(1);
-        const nextFlushAt = nextGroupFlushAt(
-          existing
-            ? {
-                nextFlushAt: existing.nextFlushAt,
-                lastFlushedAt: existing.lastFlushedAt,
-              }
-            : null,
-          now,
-          target.groupWaitSeconds,
-          target.groupIntervalSeconds,
-        );
-        const [group] = existing
-          ? await tx
-              .update(alertNotificationGroups)
-              .set({
-                nextFlushAt,
-                repeatIntervalSeconds: target.repeatIntervalSeconds,
-                updatedAt: now,
-              })
-              .where(eq(alertNotificationGroups.id, existing.id))
-              .returning()
-          : await tx
-              .insert(alertNotificationGroups)
-              .values({
-                organizationId: event.organizationId,
-                groupKey: target.groupKey,
-                receiverId: target.receiverId,
-                directAlertDefinitionId: target.directAlertDefinitionId,
-                labels: target.groupLabels,
-                nextFlushAt,
-                repeatIntervalSeconds: target.repeatIntervalSeconds,
-              })
-              .returning();
+        const group = await claimNotificationGroup(tx, event, target, now);
         await tx
           .insert(alertNotificationGroupEvents)
           .values({
@@ -125,11 +82,11 @@ export async function processAlertEvent(rawPayload: unknown): Promise<void> {
           ALERT_FLUSH_GROUP_TASK,
           { groupId: group.id },
           {
-            jobKey: `${ALERT_FLUSH_GROUP_TASK}:${group.id}:${nextFlushAt.toISOString()}:${event.id}`,
+            jobKey: `${ALERT_FLUSH_GROUP_TASK}:${group.id}:${group.nextFlushAt.toISOString()}:${event.id}`,
             jobKeyMode: "replace",
             maxAttempts: 5,
             queueName: alertingPartitionQueue("group", group.id),
-            runAt: nextFlushAt,
+            runAt: group.nextFlushAt,
           },
         );
       }
@@ -154,4 +111,85 @@ export async function processAlertEvent(rawPayload: unknown): Promise<void> {
  */
 export function processedStampGuard(eventId: string) {
   return and(eq(alertEvents.id, eventId), isNull(alertEvents.processedAt));
+}
+
+/**
+ * Lock the target group, or create it. `FOR UPDATE` only serializes on rows
+ * that exist, so two events creating the same group key race the insert; the
+ * loser's `ON CONFLICT DO NOTHING` returns no row, and the second pass locks
+ * the winner's now-committed row and folds into it, as if the group had
+ * existed all along. Without the fallback, the loser's whole membership
+ * transaction rolled back onto a Graphile retry, burning an attempt exactly
+ * during a burst of simultaneous first-fires.
+ */
+export async function claimNotificationGroup(
+  tx: Parameters<Parameters<typeof db.transaction>[0]>[0],
+  event: { organizationId: string },
+  target: Awaited<ReturnType<typeof dispatchTargetsForEvent>>[number],
+  now: Date,
+) {
+  const attempt = async () => {
+    const [existing] = await tx
+      .select()
+      .from(alertNotificationGroups)
+      .where(
+        and(
+          eq(alertNotificationGroups.organizationId, event.organizationId),
+          eq(alertNotificationGroups.groupKey, target.groupKey),
+        ),
+      )
+      .for("update")
+      .limit(1);
+    if (existing) {
+      const [updated] = await tx
+        .update(alertNotificationGroups)
+        .set({
+          nextFlushAt: nextGroupFlushAt(
+            {
+              nextFlushAt: existing.nextFlushAt,
+              lastFlushedAt: existing.lastFlushedAt,
+            },
+            now,
+            target.groupWaitSeconds,
+            target.groupIntervalSeconds,
+          ),
+          repeatIntervalSeconds: target.repeatIntervalSeconds,
+          updatedAt: now,
+        })
+        .where(eq(alertNotificationGroups.id, existing.id))
+        .returning();
+      return updated;
+    }
+    const [created] = await tx
+      .insert(alertNotificationGroups)
+      .values({
+        organizationId: event.organizationId,
+        groupKey: target.groupKey,
+        receiverId: target.receiverId,
+        directAlertDefinitionId: target.directAlertDefinitionId,
+        labels: target.groupLabels,
+        nextFlushAt: nextGroupFlushAt(
+          null,
+          now,
+          target.groupWaitSeconds,
+          target.groupIntervalSeconds,
+        ),
+        repeatIntervalSeconds: target.repeatIntervalSeconds,
+      })
+      .onConflictDoNothing({
+        target: [
+          alertNotificationGroups.organizationId,
+          alertNotificationGroups.groupKey,
+        ],
+      })
+      .returning();
+    return created;
+  };
+  const group = (await attempt()) ?? (await attempt());
+  if (!group) {
+    // Interference on both passes inside one transaction; fail to the task
+    // retry, which is what every loss cost before the fallback existed.
+    throw new Error(`Notification group claim failed: ${target.groupKey}`);
+  }
+  return group;
 }

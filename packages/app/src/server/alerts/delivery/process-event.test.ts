@@ -22,8 +22,13 @@ vi.mock("@/db/client", () => ({
 }));
 
 import { QueryBuilder } from "drizzle-orm/pg-core";
+import type { Transaction } from "@/db/client";
 import { alertEvents } from "@/db/schema";
-import { processAlertEvent, processedStampGuard } from "./process-event";
+import {
+  claimNotificationGroup,
+  processAlertEvent,
+  processedStampGuard,
+} from "./process-event";
 import { selectDispatchTargets } from "./targeting";
 
 describe("notification destination precedence", () => {
@@ -84,6 +89,66 @@ describe("processAlertEvent retention lifecycle", () => {
     });
 
     expect(mocks.update).not.toHaveBeenCalled();
+  });
+});
+
+// FOR UPDATE cannot lock a row that does not exist yet, so two events
+// creating the same group key race the insert. The loser must fold into the
+// winner's row instead of failing its whole membership transaction onto a
+// Graphile retry.
+describe("claimNotificationGroup", () => {
+  it("falls back to the winner's row when it loses the creation race", async () => {
+    const now = new Date("2026-08-10T10:00:00Z");
+    const winnerRow = {
+      id: "5cbb1c68-5cc9-4444-8000-000000000001",
+      nextFlushAt: new Date("2026-08-10T10:00:30Z"),
+      lastFlushedAt: null,
+    };
+    // First pass: no row, insert conflicts. Second pass: the winner's row.
+    const selects = [[], [winnerRow]];
+    const updates: Record<string, unknown>[] = [];
+    const tx = {
+      select: () => ({
+        from: () => ({
+          where: () => ({
+            for: () => ({ limit: () => Promise.resolve(selects.shift()) }),
+          }),
+        }),
+      }),
+      insert: () => ({
+        values: () => ({
+          onConflictDoNothing: () => ({ returning: () => Promise.resolve([]) }),
+        }),
+      }),
+      update: () => ({
+        set: (values: Record<string, unknown>) => {
+          updates.push(values);
+          return {
+            where: () => ({
+              returning: () => Promise.resolve([{ ...winnerRow, ...values }]),
+            }),
+          };
+        },
+      }),
+    } as unknown as Transaction;
+
+    const group = await claimNotificationGroup(
+      tx,
+      { organizationId: "org-1" },
+      {
+        groupKey: "direct:def-1",
+        receiverId: null,
+        directAlertDefinitionId: "def-1",
+        groupLabels: {},
+        groupWaitSeconds: 30,
+        groupIntervalSeconds: 300,
+        repeatIntervalSeconds: null,
+      },
+      now,
+    );
+
+    expect(group.id).toBe(winnerRow.id);
+    expect(updates).toHaveLength(1);
   });
 });
 
