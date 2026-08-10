@@ -58,6 +58,18 @@ describe("sanitizeAlertError", () => {
     expect(sanitized).toContain("failed, retrying");
   });
 
+  // An SMTP rejection routinely echoes the recipient; the append-only error
+  // column cannot withdraw it later.
+  it("strips email addresses", () => {
+    const sanitized = sanitizeAlertError(
+      "550 mailbox unavailable for alice.smith+alerts@corp.example.com, not retrying",
+    );
+    expect(sanitized).not.toContain("alice");
+    expect(sanitized).not.toContain("corp.example.com");
+    expect(sanitized).toContain("550 mailbox unavailable");
+    expect(sanitized).toContain("not retrying");
+  });
+
   it("strips scheme-less webhook hosts", () => {
     const sanitized = sanitizeAlertError(
       "POST hooks.slack.com/services/T000/B000/secret returned 404",

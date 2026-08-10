@@ -45,18 +45,24 @@ const URL_RE = /\b(?:https?|wss?):\/\/[^\s"'<>)\]]+/gi;
 const BARE_WEBHOOK_HOST_RE =
   /\b(?:hooks\.slack\.com|discord\.com\/api\/webhooks|api\.telegram\.org)\/[^\s"'<>)\]]*/gi;
 const BOT_TOKEN_RE = /\b\d{6,12}:[A-Za-z0-9_-]{20,}\b/g;
+// Deliberately broad: over-redacting an email-shaped non-email costs nothing,
+// under-redacting is permanent.
+const EMAIL_RE = /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b/g;
 
 /**
  * Provider error text can embed the webhook URL, which for Slack, Discord and
- * Telegram IS the secret, and the table is append-only: a secret written to
- * the `error` column cannot be withdrawn. Strip anything URL- or token-shaped
- * before it reaches an insert.
+ * Telegram IS the secret, and an SMTP rejection routinely echoes the recipient
+ * address; the table is append-only, so a secret written to the `error` column
+ * cannot be withdrawn. Strip anything URL-, token- or email-shaped before it
+ * reaches an insert. Emails go last, after the URL passes, so an address
+ * inside a redacted URL leaves no half-redacted seam.
  */
 export function sanitizeAlertError(text: string): string {
   return text
     .replace(URL_RE, "[redacted-url]")
     .replace(BARE_WEBHOOK_HOST_RE, "[redacted-url]")
-    .replace(BOT_TOKEN_RE, "[redacted-token]");
+    .replace(BOT_TOKEN_RE, "[redacted-token]")
+    .replace(EMAIL_RE, "[redacted-email]");
 }
 
 /**
