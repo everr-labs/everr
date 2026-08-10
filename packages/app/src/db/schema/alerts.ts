@@ -314,6 +314,13 @@ export const alertEvents = pgTable(
       .where(
         sql`${table.processedAt} IS NULL AND ${table.silenceId} IS NOT NULL`,
       ),
+    // Backs cancelableNotifyingEventsFilter: every pause, delete and label
+    // change scans a rule's own unprocessed events inside the mutation's
+    // transaction. Same shape as alert_events_held_silence_idx: the
+    // unprocessed set is tiny next to the full journal.
+    index("alert_events_cancelable_idx")
+      .on(table.organizationId, table.sourceDefinitionId)
+      .where(sql`${table.processedAt} IS NULL`),
     uniqueIndex("alert_events_org_id_uq").on(table.organizationId, table.id),
   ],
 );
@@ -561,6 +568,13 @@ export const alertNotificationGroups = pgTable(
     index("alert_notification_groups_cleanup_idx").on(
       table.updatedAt,
       table.id,
+    ),
+    // Backs orphanedDirectChainsFilter: a rule delete scans its own direct
+    // groups inside the mutation's transaction, with no index on the FK
+    // column otherwise.
+    index("alert_notification_groups_direct_definition_idx").on(
+      table.organizationId,
+      table.directAlertDefinitionId,
     ),
   ],
 );
