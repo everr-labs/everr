@@ -181,30 +181,35 @@ describe("alert rule evaluation states", () => {
     ).toBe(true);
   });
 
-  it("reconstructs incident state backwards from current instances", () => {
-    const event = (
-      timestamp: string,
-      eventType: "instance_fired" | "instance_resolved",
-    ) => ({
-      timestamp,
-      eventType,
-      slug: "default/api",
-      instanceFingerprint: "api",
-      labels: {},
-      severity: "critical",
-      suppressed: false,
-      silenced: false,
-      inhibited: false,
-      reason: "",
-      deliveryTargets: [],
-      evidence: null,
-      evidenceTruncated: false,
-    });
+  const railEvent = (
+    timestamp: string,
+    eventType:
+      | "instance_pending"
+      | "instance_fired"
+      | "instance_resolved"
+      | "instance_closed",
+    reason = "",
+  ) => ({
+    timestamp,
+    eventType,
+    slug: "default/api",
+    instanceFingerprint: "api",
+    labels: {},
+    severity: "critical",
+    suppressed: false,
+    silenced: false,
+    inhibited: false,
+    reason,
+    deliveryTargets: [],
+    evidence: null,
+    evidenceTruncated: false,
+  });
 
+  it("reconstructs incident state backwards from current instances", () => {
     const rail = buildAlertRuleIncidentRail(
       [
-        event("2026-08-06T12:01:00Z", "instance_fired"),
-        event("2026-08-06T12:03:00Z", "instance_resolved"),
+        railEvent("2026-08-06T12:01:00Z", "instance_fired"),
+        railEvent("2026-08-06T12:03:00Z", "instance_resolved"),
       ],
       [],
       domain,
@@ -212,5 +217,38 @@ describe("alert rule evaluation states", () => {
     );
 
     expect(rail.map((bucket) => bucket.activeInstances)).toEqual([0, 1, 1, 0]);
+  });
+
+  // A pause mid-incident ends the instance with instance_closed, not
+  // instance_resolved. Skipping the close erased the whole incident from the
+  // rail: nothing re-added the instance on the backwards walk.
+  it("keeps a fired-then-paused incident visible in the rail", () => {
+    const rail = buildAlertRuleIncidentRail(
+      [
+        railEvent("2026-08-06T12:01:00Z", "instance_fired"),
+        railEvent("2026-08-06T12:03:00Z", "instance_closed", "rule_paused"),
+      ],
+      [],
+      domain,
+      4,
+    );
+
+    expect(rail.map((bucket) => bucket.activeInstances)).toEqual([0, 1, 1, 0]);
+  });
+
+  // A pending_cleared close ended an instance that never fired; re-adding it
+  // would paint it firing back to the domain edge.
+  it("does not count a cleared pending instance as ever firing", () => {
+    const rail = buildAlertRuleIncidentRail(
+      [
+        railEvent("2026-08-06T12:01:00Z", "instance_pending"),
+        railEvent("2026-08-06T12:03:00Z", "instance_closed", "pending_cleared"),
+      ],
+      [],
+      domain,
+      4,
+    );
+
+    expect(rail.map((bucket) => bucket.activeInstances)).toEqual([0, 0, 0, 0]);
   });
 });

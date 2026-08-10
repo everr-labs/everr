@@ -210,6 +210,29 @@ export function buildAlertRuleEvaluationRail(
   return buckets;
 }
 
+// Walking backwards from the current firing set, each event inverts what it
+// did forward: before a fire or a pending entry the instance was not live, so
+// they remove; before a resolve or a lifecycle close it was firing, so they
+// re-add. Two refinements keep closes honest: a pending_cleared close ended an
+// instance that never fired, so it must not re-add, and pending entries must
+// remove, or a pause that caught a pending instance would read as firing all
+// the way back to the domain edge.
+function backwardsRailEffect(
+  event: Pick<AlertEventLogRow, "eventType" | "reason">,
+): "add" | "remove" | null {
+  switch (event.eventType) {
+    case "instance_fired":
+    case "instance_pending":
+      return "remove";
+    case "instance_resolved":
+      return "add";
+    case "instance_closed":
+      return event.reason === "pending_cleared" ? null : "add";
+    default:
+      return null;
+  }
+}
+
 export function buildAlertRuleIncidentRail(
   events: readonly AlertEventLogRow[],
   currentFiringFingerprints: readonly string[],
@@ -219,15 +242,11 @@ export function buildAlertRuleIncidentRail(
   const count = Math.max(1, bucketCount);
   const transitions = events
     .flatMap((event) => {
-      if (
-        event.eventType !== "instance_fired" &&
-        event.eventType !== "instance_resolved"
-      ) {
-        return [];
-      }
+      const effect = backwardsRailEffect(event);
+      if (effect === null) return [];
       const timestamp = Date.parse(event.timestamp);
       if (timestamp < domain[0] || timestamp > domain[1]) return [];
-      return [{ ...event, timestamp }];
+      return [{ fingerprint: event.instanceFingerprint, effect, timestamp }];
     })
     .sort((a, b) => b.timestamp - a.timestamp);
   const active = new Set(currentFiringFingerprints);
@@ -241,10 +260,10 @@ export function buildAlertRuleIncidentRail(
       transitions[transitionIndex].timestamp > midpoint
     ) {
       const event = transitions[transitionIndex];
-      if (event.eventType === "instance_fired") {
-        active.delete(event.instanceFingerprint);
+      if (event.effect === "remove") {
+        active.delete(event.fingerprint);
       } else {
-        active.add(event.instanceFingerprint);
+        active.add(event.fingerprint);
       }
       transitionIndex += 1;
     }
