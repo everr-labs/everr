@@ -59,6 +59,7 @@ vi.mock("../history/clickhouse", () => ({
     return Promise.resolve();
   },
   suppressionHistoryRow: (opts: unknown) => opts,
+  historyDefFromJournalRow: (row: unknown) => row,
 }));
 
 import type { alertEvents } from "@/db/schema";

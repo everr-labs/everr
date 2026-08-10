@@ -2,7 +2,7 @@ import { inArray } from "drizzle-orm";
 import { db } from "@/db/client";
 import { alertEvents } from "@/db/schema";
 import {
-  type AlertHistoryDefinition,
+  historyDefFromJournalRow,
   instanceHistoryRow,
   recordAlertHistoryStrict,
   suppressionHistoryRow,
@@ -13,7 +13,7 @@ import { AlertLifecycleProjectionPayloadSchema } from "./tasks";
 /**
  * Project the lifecycle terminals a pause or delete journaled. Runs after the
  * mutation's commit; the journal rows are self-sufficient, so a definition
- * that is already gone (delete) only costs the service-name fallback.
+ * that is already gone (delete) needs no lookup.
  */
 export async function projectAlertLifecycle(
   rawPayload: unknown,
@@ -30,25 +30,13 @@ export async function projectAlertLifecycle(
   if (rows.length === 0) return;
   const rowById = new Map(rows.map((row) => [row.id, row]));
 
-  const historyDef = (
-    row: typeof alertEvents.$inferSelect,
-  ): AlertHistoryDefinition => ({
-    id: row.sourceDefinitionId,
-    organizationId: row.organizationId,
-    repoid: row.repoid,
-    slug: row.slug,
-    previewId: row.previewId,
-    severity: row.severity,
-    ruleMuted: row.suppressed,
-  });
-
   const historyRows = [
     ...payload.closedEventIds.flatMap((id) => {
       const row = rowById.get(id);
       if (!row) return [];
       return [
         instanceHistoryRow({
-          def: historyDef(row),
+          def: historyDefFromJournalRow(row),
           eventId: row.id,
           eventType: "instance_closed" as const,
           occurredAt: row.occurredAt,
@@ -67,7 +55,7 @@ export async function projectAlertLifecycle(
       if (!row) return [];
       return [
         suppressionHistoryRow({
-          def: historyDef(row),
+          def: historyDefFromJournalRow(row),
           notificationEventId: row.id,
           occurredAt: row.processedAt ?? new Date(),
           fingerprint: row.instanceFingerprint,

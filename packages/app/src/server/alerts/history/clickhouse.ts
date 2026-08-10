@@ -52,8 +52,32 @@ export type AlertHistoryDefinition = {
   severity: string;
   /** The rule never notifies at all: `spec.suppressed` or a preview copy. */
   ruleMuted: boolean;
-  /** Rule-level service fallback when no instance label names one. */
 };
+
+/**
+ * The owning rule's identity as a journal row carries it. Journal rows are
+ * self-sufficient on purpose: history rows for a paused, deleted, or raced
+ * rule must never need the definition row.
+ */
+export function historyDefFromJournalRow(row: {
+  sourceDefinitionId: string;
+  organizationId: string;
+  repoid: string;
+  slug: string;
+  previewId: string | null;
+  severity: string;
+  suppressed: boolean;
+}): AlertHistoryDefinition {
+  return {
+    id: row.sourceDefinitionId,
+    organizationId: row.organizationId,
+    repoid: row.repoid,
+    slug: row.slug,
+    previewId: row.previewId,
+    severity: row.severity,
+    ruleMuted: row.suppressed,
+  };
+}
 
 export type AlertHistoryRow = {
   event_id: string;

@@ -11,8 +11,8 @@ import {
  * The delivery pipeline's only reads of the journal. Every query here
  * hard-codes `kind = 'notifying'`, so a state-only row (pending, closed, hold
  * decisions) can never be selected for delivery, whatever its event type
- * says. Nothing outside this module may query `alert_events` for deliverable
- * work.
+ * says. Nothing outside this module may read `alert_events` for delivery
+ * work, the history trail included.
  */
 export function deliverableEventQuery(executor: DbExecutor, eventId: string) {
   return executor
@@ -63,6 +63,35 @@ export function deliverableGroupMemberQuery(
       ),
     )
     .where(eq(alertNotificationGroupEvents.groupId, groupId));
+}
+
+/**
+ * The notifying events a delivery was built from, for its history trail. One
+ * delivery can cover several events once grouping has merged them, and each
+ * gets its own trail row so a per-instance history stays complete.
+ */
+export function linkedEventsForDeliveryQuery(
+  executor: DbExecutor,
+  organizationId: string,
+  dedupKey: string,
+) {
+  return executor
+    .select({ event: alertEvents })
+    .from(alertDeliveryEvents)
+    .innerJoin(
+      alertEvents,
+      and(
+        eq(alertDeliveryEvents.organizationId, alertEvents.organizationId),
+        eq(alertDeliveryEvents.eventId, alertEvents.id),
+        eq(alertEvents.kind, "notifying"),
+      ),
+    )
+    .where(
+      and(
+        eq(alertDeliveryEvents.organizationId, organizationId),
+        eq(alertDeliveryEvents.deliveryDedupKey, dedupKey),
+      ),
+    );
 }
 
 /**

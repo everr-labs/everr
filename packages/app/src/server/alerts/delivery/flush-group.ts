@@ -14,6 +14,7 @@ import {
 import { CHANNEL_TEXT_MAX } from "@/lib/channel-text-limits";
 import { addWorkerJobInTransaction } from "@/server/worker/jobs";
 import {
+  historyDefFromJournalRow,
   recordAlertHistory,
   suppressionHistoryRow,
 } from "../history/clickhouse";
@@ -123,14 +124,18 @@ export async function flushAlertGroup(rawPayload: unknown): Promise<void> {
   // not notify. Its membership stays in the claimed set, so the committing
   // delete below removes it; a member that never made a notification also
   // gets its terminal suppression row so its chain does not dangle.
-  const droppedRows = rows.filter(
-    ({ event, flushedAt, ruleActive }) =>
-      memberLiveness(ruleActive, flushedAt) === "dropped_unnotified" &&
-      !event.suppressed,
-  );
-  for (const { event, flushedAt, ruleActive } of rows) {
-    if (memberLiveness(ruleActive, flushedAt) !== "deliverable") continue;
+  const droppedRows: typeof rows = [];
+  for (const row of rows) {
+    const { event, flushedAt, ruleActive } = row;
+    // Muted chains sit outside the terminal surface: history consumers filter
+    // `rule_muted = false`, so a muted member is neither notified nor closed.
     if (event.suppressed) continue;
+    const liveness = memberLiveness(ruleActive, flushedAt);
+    if (liveness === "dropped_unnotified") {
+      droppedRows.push(row);
+      continue;
+    }
+    if (liveness !== "deliverable") continue;
     const now = new Date();
     const silence = await matchingSilence(event, now);
     const inhibited = silence ? false : await isInhibited(event);
@@ -328,15 +333,7 @@ export async function flushAlertGroup(rawPayload: unknown): Promise<void> {
       null,
       droppedRows.map(({ event, ruleActive }) =>
         suppressionHistoryRow({
-          def: {
-            id: event.sourceDefinitionId,
-            organizationId: event.organizationId,
-            repoid: event.repoid,
-            slug: event.slug,
-            previewId: event.previewId,
-            severity: event.severity,
-            ruleMuted: event.suppressed,
-          },
+          def: historyDefFromJournalRow(event),
           notificationEventId: event.id,
           occurredAt: decidedAt,
           fingerprint: event.instanceFingerprint,

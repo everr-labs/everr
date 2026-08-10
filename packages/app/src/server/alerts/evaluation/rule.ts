@@ -103,11 +103,36 @@ type TransitionEvent = {
   episodeUpdate: string | null;
 };
 
-const TRANSITION_EVENT_TYPES = {
-  pending: "instance_pending",
-  firing: "instance_fired",
-  resolved: "instance_resolved",
-  pending_cleared: "instance_closed",
+// One row per instance transition: the journal event it writes, the stream it
+// belongs to, whether it closes the chain, and the close reason a terminal
+// carries. `state` rows are born processed and never delivered. Keyed over
+// the closed transition vocabulary, so a new transition cannot ship without
+// declaring its full shape here.
+const TRANSITION_SHAPE = {
+  pending: {
+    eventType: "instance_pending",
+    kind: "state",
+    terminal: false,
+    reason: undefined,
+  },
+  firing: {
+    eventType: "instance_fired",
+    kind: "notifying",
+    terminal: false,
+    reason: undefined,
+  },
+  resolved: {
+    eventType: "instance_resolved",
+    kind: "notifying",
+    terminal: true,
+    reason: "condition_cleared",
+  },
+  pending_cleared: {
+    eventType: "instance_closed",
+    kind: "state",
+    terminal: true,
+    reason: "pending_cleared",
+  },
 } as const;
 
 /**
@@ -141,7 +166,8 @@ export function transitionEventRows(opts: {
   // The journal row and its projection share this id, and the surface
   // promises a time-decodable id, so it must be v7.
   const id = uuidv7(evaluatedAt);
-  const eventType = TRANSITION_EVENT_TYPES[transition.event];
+  const { eventType, kind, terminal, reason } =
+    TRANSITION_SHAPE[transition.event];
   // The event that leaves inactive opens the episode with its own id: the
   // pending row when a for-duration exists, else the fired row. A fire that
   // follows a pending phase inherits the open episode, and the terminals
@@ -150,17 +176,6 @@ export function transitionEventRows(opts: {
     eventType === "instance_pending" ||
     (eventType === "instance_fired" && opts.storedEpisodeId === null);
   const episodeId = opens ? id : opts.storedEpisodeId;
-  const terminal =
-    eventType === "instance_resolved" || eventType === "instance_closed";
-  // Pending and closed rows are state-only: born processed, never delivered.
-  const stateOnly =
-    eventType === "instance_pending" || eventType === "instance_closed";
-  const reason =
-    eventType === "instance_resolved"
-      ? ("condition_cleared" as const)
-      : eventType === "instance_closed"
-        ? ("pending_cleared" as const)
-        : undefined;
   const notificationTitle = renderMessage(def.spec.annotations.summary ?? "", {
     firstRow,
   });
@@ -178,7 +193,7 @@ export function transitionEventRows(opts: {
         sourceDefinitionId: def.id,
         slug: historyDef.slug,
         eventType,
-        kind: stateOnly ? ("state" as const) : ("notifying" as const),
+        kind,
         episodeId,
         reason,
         instanceFingerprint: next.fingerprint,
@@ -188,7 +203,7 @@ export function transitionEventRows(opts: {
         notificationDescription,
         suppressed: historyDef.ruleMuted,
         occurredAt: evaluatedAt,
-        ...(stateOnly ? { processedAt: evaluatedAt } : {}),
+        ...(kind === "state" ? { processedAt: evaluatedAt } : {}),
       } satisfies typeof alertEvents.$inferInsert,
       history: instanceHistoryRow({
         def: historyDef,

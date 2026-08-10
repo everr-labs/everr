@@ -1,5 +1,9 @@
 import { toClickHouseDateTime } from "@everr/ui/lib/time-range";
 import { query } from "@/lib/clickhouse";
+import {
+  type AlertingLifecycleReason,
+  isAlertingLifecycleReason,
+} from "../vocabulary";
 import { clickhouseIsoMillis } from "./clickhouse";
 import {
   ALERT_OUTCOME_EVENT_TYPES_SQL,
@@ -28,7 +32,7 @@ export type AlertEventLogRow = {
   silenced: boolean;
   inhibited: boolean;
   /** Why a terminal row ended its instance; empty off terminals. */
-  reason: string;
+  reason: AlertingLifecycleReason | "";
   deliveryTargets: string[];
   evidence: AlertEvidence | null;
   evidenceTruncated: boolean;
@@ -226,7 +230,7 @@ export async function queryClickHouseAlertEventLog(
       suppressed: Boolean(row.suppressed),
       silenced: outcome?.silenced ?? false,
       inhibited: outcome?.inhibited ?? false,
-      reason: row.reason,
+      reason: isAlertingLifecycleReason(row.reason) ? row.reason : "",
       deliveryTargets: outcome?.deliveryTargets ?? [],
       evidence: parseJsonObject(row.evidenceJson),
       evidenceTruncated: Boolean(row.evidenceTruncated),

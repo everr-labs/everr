@@ -34,20 +34,30 @@ export const ALERT_OUTCOME_EVENT_TYPES_SQL = sqlStringList(
 
 // `instance_closed` gets its own neutral status: it ends the instance without
 // notifying, so rendering it as "resolved" would claim a recovery that nobody
-// observed.
+// observed. Keyed over the closed transition list, so a new transition type
+// cannot ship without a status.
+const ALERT_TRANSITION_STATUS: Record<
+  (typeof ALERT_TRANSITION_EVENT_TYPES)[number],
+  "pending" | "firing" | "resolved" | "closed"
+> = {
+  instance_pending: "pending",
+  instance_fired: "firing",
+  instance_resolved: "resolved",
+  instance_closed: "closed",
+};
+
 export function alertingEventStatus(
   eventType: string,
 ): "pending" | "firing" | "resolved" | "closed" | null {
-  switch (eventType) {
-    case "instance_pending":
-      return "pending";
-    case "instance_fired":
-      return "firing";
-    case "instance_resolved":
-      return "resolved";
-    case "instance_closed":
-      return "closed";
-    default:
-      return null;
-  }
+  return isAlertTransitionEventType(eventType)
+    ? ALERT_TRANSITION_STATUS[eventType]
+    : null;
+}
+
+function isAlertTransitionEventType(
+  eventType: string,
+): eventType is (typeof ALERT_TRANSITION_EVENT_TYPES)[number] {
+  return (ALERT_TRANSITION_EVENT_TYPES as readonly string[]).includes(
+    eventType,
+  );
 }

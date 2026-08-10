@@ -1,12 +1,10 @@
-import { and, eq, lt, ne } from "drizzle-orm";
+import { and, eq, lt } from "drizzle-orm";
 import { type DbExecutor, db } from "@/db/client";
-import { alertDefinitions, alertInstances, previews } from "@/db/schema";
+import { previews } from "@/db/schema";
 import {
-  instanceHistoryRow,
-  recordAlertHistory,
-  ZERO_UUID,
-} from "@/server/alerts/history/clickhouse";
-import { uuidv7 } from "@/server/alerts/history/ids";
+  openPreviewAlertInstances,
+  recordPreviewTeardownClosures,
+} from "@/server/alerts/history/preview-teardown";
 
 /**
  * Record that a preview was applied for (org, repoid) and return its id: the
@@ -74,27 +72,11 @@ export async function deleteStalePreviews(
 ): Promise<number> {
   const cutoff = new Date(Date.now() - retentionDays * 24 * 60 * 60 * 1000);
   const now = new Date();
-  // Preview alert terminals are projections only, declared ephemeral: the
-  // cascade removes the preview's journal rows in this same transaction, so
-  // journaling them would leave nothing to repair from. The open set is read
-  // under the delete's own transaction and filtered to the previews the
-  // predicated delete actually removed, so a concurrent re-apply that rescues
-  // a preview never gets a closed row.
+  // The open set is read under the delete's own transaction and filtered to
+  // the previews the predicated delete actually removed, so a concurrent
+  // re-apply that rescues a preview never gets a closed row.
   const { deletedIds, closures } = await db.transaction(async (tx) => {
-    const open = await tx
-      .select({ instance: alertInstances, def: alertDefinitions })
-      .from(alertInstances)
-      .innerJoin(
-        alertDefinitions,
-        eq(alertInstances.alertDefinitionId, alertDefinitions.id),
-      )
-      .innerJoin(previews, eq(alertDefinitions.previewId, previews.id))
-      .where(
-        and(
-          lt(previews.lastAppliedAt, cutoff),
-          ne(alertInstances.status, "inactive"),
-        ),
-      );
+    const open = await openPreviewAlertInstances(tx, cutoff);
     const deleted = await tx
       .delete(previews)
       .where(lt(previews.lastAppliedAt, cutoff))
@@ -107,33 +89,6 @@ export async function deleteStalePreviews(
       ),
     };
   });
-  if (closures.length > 0) {
-    await recordAlertHistory(
-      null,
-      closures.map(({ instance, def }) =>
-        instanceHistoryRow({
-          def: {
-            id: def.id,
-            organizationId: def.organizationId,
-            repoid: def.repoid,
-            slug: `${def.project}/${def.slug}`,
-            previewId: def.previewId,
-            severity: def.spec.severity,
-            ruleMuted: true,
-          },
-          eventId: uuidv7(now),
-          eventType: "instance_closed",
-          occurredAt: now,
-          episodeId: instance.episodeId ?? ZERO_UUID,
-          fingerprint: instance.fingerprint,
-          labels: instance.labels,
-          evidence: {},
-          evidenceTruncated: false,
-          contextJson: "{}",
-          reason: "preview_deleted",
-        }),
-      ),
-    );
-  }
+  await recordPreviewTeardownClosures(closures, now);
   return deletedIds.length;
 }

@@ -1,8 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
-  // First select resolves the journal rows, second the surviving definitions.
-  selects: [] as unknown[][],
+  rows: [] as unknown[],
   history: vi.fn(),
 }));
 
@@ -10,7 +9,7 @@ vi.mock("@/db/client", () => ({
   db: {
     select: () => ({
       from: () => ({
-        where: () => Promise.resolve(mocks.selects.shift() ?? []),
+        where: () => Promise.resolve(mocks.rows),
       }),
     }),
   },
@@ -47,27 +46,23 @@ const journalRow = (overrides: Record<string, unknown>) => ({
 
 describe("projectAlertLifecycle", () => {
   beforeEach(() => {
-    mocks.selects = [];
+    mocks.rows = [];
     mocks.history.mockReset().mockResolvedValue(undefined);
   });
 
   it("projects closed terminals and canceled-notification suppressions from the journal", async () => {
-    mocks.selects = [
-      [
-        journalRow({
-          id: CLOSED_ID,
-          eventType: "instance_closed",
-          kind: "state",
-          reason: "rule_paused",
-        }),
-        journalRow({
-          id: CANCELED_ID,
-          eventType: "instance_fired",
-          kind: "notifying",
-        }),
-      ],
-      // The definition is already gone, as it is after a delete.
-      [],
+    mocks.rows = [
+      journalRow({
+        id: CLOSED_ID,
+        eventType: "instance_closed",
+        kind: "state",
+        reason: "rule_paused",
+      }),
+      journalRow({
+        id: CANCELED_ID,
+        eventType: "instance_fired",
+        kind: "notifying",
+      }),
     ];
 
     await projectAlertLifecycle({
@@ -98,9 +93,7 @@ describe("projectAlertLifecycle", () => {
   // success to Graphile while the chain's terminals are lost. Failing loudly
   // is what makes the task's retries real.
   it("propagates an insert failure so Graphile retries", async () => {
-    mocks.selects = [
-      [journalRow({ id: CLOSED_ID, eventType: "instance_closed" })],
-    ];
+    mocks.rows = [journalRow({ id: CLOSED_ID, eventType: "instance_closed" })];
     mocks.history.mockRejectedValueOnce(new Error("clickhouse unavailable"));
 
     await expect(
@@ -113,7 +106,7 @@ describe("projectAlertLifecycle", () => {
   });
 
   it("writes nothing for ids the journal no longer has", async () => {
-    mocks.selects = [[], []];
+    mocks.rows = [];
 
     await projectAlertLifecycle({
       closedEventIds: [CLOSED_ID],

@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import type { AlertEventLogRow } from "@/data/alerting/history/repository.server";
 import type { AlertingRuleEvaluationPoint } from "@/data/alerting/types";
 import {
   ALERT_RULE_CHART_SERIES_LIMIT,
@@ -188,7 +189,7 @@ describe("alert rule evaluation states", () => {
       | "instance_fired"
       | "instance_resolved"
       | "instance_closed",
-    reason = "",
+    reason: AlertEventLogRow["reason"] = "",
   ) => ({
     timestamp,
     eventType,

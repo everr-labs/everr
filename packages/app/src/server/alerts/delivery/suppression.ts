@@ -13,6 +13,7 @@ import {
   alertSilences,
 } from "@/db/schema";
 import {
+  historyDefFromJournalRow,
   recordAlertHistory,
   suppressionHistoryRow,
 } from "../history/clickhouse";
@@ -115,15 +116,7 @@ export async function deferSuppressedEvent(
   if (shouldRetry) return;
   await recordAlertHistory(event.sourceDefinitionId, [
     suppressionHistoryRow({
-      def: {
-        id: event.sourceDefinitionId,
-        organizationId: event.organizationId,
-        repoid: event.repoid,
-        slug: event.slug,
-        previewId: event.previewId,
-        severity: event.severity,
-        ruleMuted: event.suppressed,
-      },
+      def: historyDefFromJournalRow(event),
       notificationEventId: event.id,
       occurredAt: now,
       fingerprint: event.instanceFingerprint,

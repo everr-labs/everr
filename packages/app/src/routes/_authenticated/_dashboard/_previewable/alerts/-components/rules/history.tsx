@@ -18,10 +18,7 @@ import type {
   AlertingRuleCondition,
   AlertingRuleEvaluationSeries,
 } from "@/data/alerting/types";
-import {
-  type AlertingLifecycleReason,
-  isAlertingLifecycleReason,
-} from "@/data/alerting/vocabulary";
+import type { AlertingLifecycleReason } from "@/data/alerting/vocabulary";
 import {
   AlertingTableSkeleton,
   alertingErrorMessage,
@@ -65,8 +62,8 @@ const CLOSE_REASON_LABELS: Record<
   preview_deleted: "Preview deleted",
 };
 
-function closeReasonLabel(reason: string): string | null {
-  if (!isAlertingLifecycleReason(reason) || reason === "condition_cleared") {
+function closeReasonLabel(reason: AlertingLifecycleReason | ""): string | null {
+  if (reason === "" || reason === "condition_cleared") {
     return null;
   }
   return CLOSE_REASON_LABELS[reason];

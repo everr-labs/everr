@@ -1,13 +1,13 @@
-import { and, eq } from "drizzle-orm";
 import { db } from "@/db/client";
-import { alertDeliveryEvents, alertEvents } from "@/db/schema";
 import { exceptionAttributes, serverLogger } from "@/telemetry/logger";
 import {
   type AlertDeliveryTargets,
   type AlertHistoryDefinition,
   deliveryHistoryRow,
+  historyDefFromJournalRow,
   recordAlertHistory,
 } from "../history/clickhouse";
+import { linkedEventsForDeliveryQuery } from "./journal-reader";
 
 /**
  * Channel type to the channel names it reached, for `delivery_targets`.
@@ -29,48 +29,18 @@ type LinkedEvent = {
   definition: AlertHistoryDefinition;
   fingerprint: string;
   labels: Record<string, string>;
-  occurredAt: Date;
 };
 
-/**
- * The alert events a delivery was built from. One delivery can cover several
- * events once grouping has merged them, and each gets its own trail row so a
- * per-instance history stays complete.
- */
 async function deliveryLinkedEvents(
   organizationId: string,
   dedupKey: string,
 ): Promise<LinkedEvent[]> {
-  const rows = await db
-    .select({ event: alertEvents })
-    .from(alertDeliveryEvents)
-    .innerJoin(
-      alertEvents,
-      and(
-        eq(alertDeliveryEvents.organizationId, alertEvents.organizationId),
-        eq(alertDeliveryEvents.eventId, alertEvents.id),
-      ),
-    )
-    .where(
-      and(
-        eq(alertDeliveryEvents.organizationId, organizationId),
-        eq(alertDeliveryEvents.deliveryDedupKey, dedupKey),
-      ),
-    );
+  const rows = await linkedEventsForDeliveryQuery(db, organizationId, dedupKey);
   return rows.map(({ event }) => ({
     id: event.id,
-    definition: {
-      id: event.sourceDefinitionId,
-      organizationId: event.organizationId,
-      repoid: event.repoid,
-      slug: event.slug,
-      previewId: event.previewId,
-      severity: event.severity,
-      ruleMuted: event.suppressed,
-    },
+    definition: historyDefFromJournalRow(event),
     fingerprint: event.instanceFingerprint,
     labels: event.instanceLabels,
-    occurredAt: event.occurredAt,
   }));
 }
 

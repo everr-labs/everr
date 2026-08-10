@@ -23,13 +23,7 @@ export async function sendAlertDelivery(rawPayload: unknown): Promise<void> {
     .where(eq(alertDeliveries.dedupKey, dedupKey))
     .limit(1);
   if (!row || row.delivery.status === "sent") return;
-  const [liveRule] = await liveRuleForDeliveryQuery(db, dedupKey);
-  if (!liveRule) {
-    // A pause or delete that committed after the flush wrote this delivery.
-    // Fail the delivery permanently instead of throwing: a retry can never
-    // make a rule active again, and the trail must say why nothing arrived.
-    const error =
-      "Withheld: every rule behind this notification was paused or deleted before the send ran";
+  const failDelivery = async (channelType: string, error: string) => {
     await db
       .update(alertDeliveries)
       .set({
@@ -39,6 +33,21 @@ export async function sendAlertDelivery(rawPayload: unknown): Promise<void> {
         updatedAt: new Date(),
       })
       .where(eq(alertDeliveries.dedupKey, dedupKey));
+    await recordDeliveryOutcome({
+      organizationId: row.delivery.organizationId,
+      dedupKey,
+      channelType,
+      channelName: row.delivery.channelName,
+      occurredAt: new Date(),
+      outcome: "failed",
+      error,
+    });
+  };
+  const [liveRule] = await liveRuleForDeliveryQuery(db, dedupKey);
+  if (!liveRule) {
+    // A pause or delete that committed after the flush wrote this delivery.
+    // Fail the delivery permanently instead of throwing: a retry can never
+    // make a rule active again, and the trail must say why nothing arrived.
     // Decrypted only to label the trail: without it the row files its
     // delivery_targets under the literal type "unknown", and a reader cannot
     // tell "type unresolvable" from "a channel of type unknown". The
@@ -53,15 +62,10 @@ export async function sendAlertDelivery(rawPayload: unknown): Promise<void> {
     } catch {
       // Config unreadable; the placeholder stays.
     }
-    await recordDeliveryOutcome({
-      organizationId: row.delivery.organizationId,
-      dedupKey,
-      channelType: withheldChannelType,
-      channelName: row.delivery.channelName,
-      occurredAt: new Date(),
-      outcome: "failed",
-      error,
-    });
+    await failDelivery(
+      withheldChannelType,
+      "Withheld: every rule behind this notification was paused or deleted before the send ran",
+    );
     return;
   }
   // Unresolvable until the config decrypts, and the failure path still needs a
@@ -85,25 +89,7 @@ export async function sendAlertDelivery(rawPayload: unknown): Promise<void> {
       })
       .where(eq(alertDeliveries.dedupKey, dedupKey));
   } catch (cause) {
-    const error = errorMessage(cause).slice(0, 8_000);
-    await db
-      .update(alertDeliveries)
-      .set({
-        status: "failed",
-        attempts: row.delivery.attempts + 1,
-        lastError: error,
-        updatedAt: new Date(),
-      })
-      .where(eq(alertDeliveries.dedupKey, dedupKey));
-    await recordDeliveryOutcome({
-      organizationId: row.delivery.organizationId,
-      dedupKey,
-      channelType,
-      channelName: row.delivery.channelName,
-      occurredAt: new Date(),
-      outcome: "failed",
-      error,
-    });
+    await failDelivery(channelType, errorMessage(cause).slice(0, 8_000));
     throw cause;
   }
   // Outside the try on purpose. Recording history must never be able to send
