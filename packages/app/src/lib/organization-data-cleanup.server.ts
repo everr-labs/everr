@@ -14,7 +14,10 @@ import {
   alertRoutes,
   alertSilences,
   apikey,
+  dashboards,
   githubInstallationOrganizations,
+  previews,
+  runbooks,
   workflowJobs,
   workflowRuns,
 } from "@/db/schema";
@@ -65,6 +68,20 @@ export async function deletePostgresOrganizationData(
     await tx
       .delete(alertDefinitions)
       .where(eq(alertDefinitions.organizationId, organizationId));
+    // Nothing cascades into these three from any organization table, so
+    // skipping them leaves orphans no retention path ever revisits: the
+    // preview sweeper works per organization, and these rows' organization no
+    // longer exists. Children before `previews`, so nothing relies on the
+    // cascade.
+    await tx
+      .delete(dashboards)
+      .where(eq(dashboards.organizationId, organizationId));
+    await tx
+      .delete(runbooks)
+      .where(eq(runbooks.organizationId, organizationId));
+    await tx
+      .delete(previews)
+      .where(eq(previews.organizationId, organizationId));
     await tx
       .delete(workflowJobs)
       .where(eq(workflowJobs.organizationId, organizationId));
