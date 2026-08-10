@@ -19,7 +19,7 @@ vi.mock("@/db/client", () => ({
 
 vi.mock("./clickhouse", async (importOriginal) => ({
   ...(await importOriginal<object>()),
-  recordAlertHistory: mocks.history,
+  recordAlertHistoryStrict: mocks.history,
 }));
 
 import { projectAlertLifecycle } from "./project-lifecycle";
@@ -76,7 +76,7 @@ describe("projectAlertLifecycle", () => {
       reason: "rule_paused",
     });
 
-    const rows = mocks.history.mock.calls[0][1];
+    const rows = mocks.history.mock.calls[0][0];
     expect(rows).toHaveLength(2);
     expect(rows[0]).toMatchObject({
       event_id: CLOSED_ID,
@@ -92,6 +92,24 @@ describe("projectAlertLifecycle", () => {
       silenced: false,
       inhibited: false,
     });
+  });
+
+  // The task's only job is the insert; a swallowed failure would report
+  // success to Graphile while the chain's terminals are lost. Failing loudly
+  // is what makes the task's retries real.
+  it("propagates an insert failure so Graphile retries", async () => {
+    mocks.selects = [
+      [journalRow({ id: CLOSED_ID, eventType: "instance_closed" })],
+    ];
+    mocks.history.mockRejectedValueOnce(new Error("clickhouse unavailable"));
+
+    await expect(
+      projectAlertLifecycle({
+        closedEventIds: [CLOSED_ID],
+        suppressedEventIds: [],
+        reason: "rule_paused",
+      }),
+    ).rejects.toThrow("clickhouse unavailable");
   });
 
   it("writes nothing for ids the journal no longer has", async () => {

@@ -749,7 +749,7 @@ queries must not add a `tenant_id` predicate.
 
 | Column | Type | Notes |
 |---|---|---|
-| `event_id` | `UUID` | Unique per row. UUIDv7 on non-delivery rows: `UUIDv7ToDateTime(event_id)` recovers its creation time, and the value equals the PostgreSQL journal row it projects (the `alert_events` id on transition rows, the hold decision row's id on `notification_deferred` rows). Delivery rows are the exception: their id is deterministic, derived from the journal event and `delivery_dedup_key` so repair is idempotent; it carries no embedded time, and nothing needs it there, because a chain's time bound derives from `notification_event_id` and delivery rows carry `event_time`. Failed attempts additionally hash their attempt time, so each retry keeps its own row, while the succeeded id stays stable for repair convergence |
+| `event_id` | `UUID` | Unique per row. UUIDv7 on transition, evaluation and hold rows: `UUIDv7ToDateTime(event_id)` recovers its creation time, and the value equals the PostgreSQL journal row it projects (the `alert_events` id on transition rows, the hold decision row's id on `notification_deferred` rows). Delivery rows and terminal `notification_suppressed` rows are the exceptions: their ids are deterministic so a retry or repair converges instead of duplicating, and they carry no embedded time, which nothing needs there, because a chain's time bound derives from `notification_event_id` and both carry `event_time`. Delivery ids hash the journal event and `delivery_dedup_key` (failed attempts additionally hash their attempt time, so each retry keeps its own row while the succeeded id stays stable); suppression ids hash the notification event alone, because a chain gets exactly one terminal suppression |
 | `notification_event_id` | `UUID` | Links a transition to the suppression and delivery rows that follow it. Zero on evaluation rows. UUIDv7, so its embedded time is the chain start; see Worked queries |
 | `tenant_id` | `LowCardinality(String)` | Enforced by row policy; a `cloud query` caller must never filter on it |
 | `alert_definition_id` | `UUID` | Bloom skip index |
@@ -1161,9 +1161,11 @@ lands as one recreation. Settled:
   builders or the column default. Without both changes here,
   `UUIDv7ToDateTime(event_id)` on an evaluation row decodes random bytes
   into a nonsense time instead of erroring. Node has no v7 generator, so
-  this needs one small helper. Delivery rows are the exception: their ids
-  are deterministic, derived from the journal event and
-  `delivery_dedup_key`, so repair inserts are idempotent; see
+  this needs one small helper. Delivery rows and terminal
+  `notification_suppressed` rows are the exceptions: their ids are
+  deterministic (delivery ids from the journal event and
+  `delivery_dedup_key`, suppression ids from the notification event alone),
+  so retries and repair inserts converge instead of duplicating; see
   Reconciliation and the `event_id` row in Reference. The scheme is decided
   here, at write time, so id semantics never flip mid-history.
 - The conditional TTL splitting evaluation retention from the rest; see

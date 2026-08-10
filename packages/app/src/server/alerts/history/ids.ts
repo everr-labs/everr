@@ -25,6 +25,23 @@ export function uuidv7Time(id: string): Date {
   return new Date(Number.parseInt(id.replaceAll("-", "").slice(0, 12), 16));
 }
 
+// A chain gets exactly one terminal suppression row, so its id derives from
+// the notification event alone. Deterministic for the same reason as delivery
+// ids: the lifecycle projection runs under Graphile retry, and a retry (or a
+// racing second writer) must converge on one id instead of minting a phantom
+// second terminal.
+export function deterministicSuppressionEventId(
+  notificationEventId: string,
+): string {
+  const digest = createHash("sha256")
+    .update(`everr.alert_suppression_event.v1\0${notificationEventId}`)
+    .digest();
+  const bytes = digest.subarray(0, 16);
+  bytes[6] = (bytes[6] & 0x0f) | 0x80;
+  bytes[8] = (bytes[8] & 0x3f) | 0x80;
+  return formatUuid(bytes);
+}
+
 // Delivery outcome rows must not mint random ids: the reconciler re-inserts a
 // lost `delivery_succeeded` row, and only a deterministic id lets that repair
 // converge instead of duplicating. The id hashes the journal event, the

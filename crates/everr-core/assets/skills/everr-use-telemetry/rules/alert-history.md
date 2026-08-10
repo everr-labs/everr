@@ -59,7 +59,7 @@ so queries about pending instances or held notifications return nothing.
 
 | Column | Type | Notes |
 | --- | --- | --- |
-| `event_id` | `UUID` | Unique per row. UUIDv7 on non-delivery rows, so `UUIDv7ToDateTime(event_id)` recovers its creation time. Delivery rows are the exception: their id is deterministic so repair stays idempotent, and it carries no embedded time |
+| `event_id` | `UUID` | Unique per row. UUIDv7 on transition, evaluation and hold rows, so `UUIDv7ToDateTime(event_id)` recovers its creation time. Delivery rows and terminal `notification_suppressed` rows are the exceptions: their ids are deterministic so retries and repair converge, and they carry no embedded time |
 | `notification_event_id` | `UUID` | Links a transition to the suppression and delivery rows that follow it. A transition sets it to its own `event_id`. Zero on evaluation rows. UUIDv7, so its embedded time is the chain start |
 | `episode_id` | `UUID` | The opening event's id: one continuous breach, from leaving inactive to resolved or closed. Set on `instance_pending`, `instance_fired`, `instance_resolved` and `instance_closed`; zero elsewhere. `GROUP BY episode_id` reads an incident whole |
 | `tenant_id` | `LowCardinality(String)` | Enforced by row policy. Never filter on it |

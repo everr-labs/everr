@@ -4,7 +4,7 @@ import { alertEvents } from "@/db/schema";
 import {
   type AlertHistoryDefinition,
   instanceHistoryRow,
-  recordAlertHistory,
+  recordAlertHistoryStrict,
   suppressionHistoryRow,
   ZERO_UUID,
 } from "./clickhouse";
@@ -80,5 +80,8 @@ export async function projectAlertLifecycle(
       ];
     }),
   ];
-  await recordAlertHistory(null, historyRows);
+  // Strict on purpose: this task's only job is the insert, and Graphile's
+  // retries are the recovery mechanism. Swallowing here would report success
+  // while the chain's terminals are lost.
+  await recordAlertHistoryStrict(historyRows);
 }

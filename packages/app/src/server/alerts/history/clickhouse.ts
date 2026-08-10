@@ -7,7 +7,11 @@ import {
   resolveAlertServiceName,
   sanitizeAlertError,
 } from "./content";
-import { deterministicDeliveryEventId, uuidv7 } from "./ids";
+import {
+  deterministicDeliveryEventId,
+  deterministicSuppressionEventId,
+  uuidv7,
+} from "./ids";
 
 export const ZERO_UUID = "00000000-0000-0000-0000-000000000000";
 
@@ -252,6 +256,10 @@ export function suppressionHistoryRow(opts: {
   return {
     ...baseHistoryRow({
       def: opts.def,
+      // One terminal suppression per chain, so the id derives from the chain:
+      // a projection retry or a racing second writer converges on one row id
+      // instead of minting a phantom second terminal.
+      eventId: deterministicSuppressionEventId(opts.notificationEventId),
       notificationEventId: opts.notificationEventId,
       eventType: "notification_suppressed",
       occurredAt: opts.occurredAt,
@@ -307,6 +315,27 @@ export function deliveryHistoryRow(opts: {
   };
 }
 
+function insertAlertHistoryRows(rows: AlertHistoryRow[]): Promise<void> {
+  return insertAdminRows("app.alert_events", rows, {
+    async_insert: 1,
+    wait_for_async_insert: 1,
+    date_time_input_format: "best_effort",
+  });
+}
+
+/**
+ * The throwing form, for callers whose only job is the insert: the lifecycle
+ * projection runs as a Graphile task with retries, and a swallowed failure
+ * there would report success while the chain's terminals are lost. Deterministic
+ * row ids make the retry convergent.
+ */
+export async function recordAlertHistoryStrict(
+  rows: AlertHistoryRow[],
+): Promise<void> {
+  if (rows.length === 0) return;
+  await insertAlertHistoryRows(rows);
+}
+
 export async function recordAlertHistory(
   // Null when one batch spans many definitions; a single arbitrary id would
   // misattribute the whole failure to one rule.
@@ -315,11 +344,7 @@ export async function recordAlertHistory(
 ): Promise<void> {
   if (rows.length === 0) return;
   try {
-    await insertAdminRows("app.alert_events", rows, {
-      async_insert: 1,
-      wait_for_async_insert: 1,
-      date_time_input_format: "best_effort",
-    });
+    await insertAlertHistoryRows(rows);
   } catch (error) {
     serverLogger.error("alerts.history.insert_failed", {
       ...exceptionAttributes(error),

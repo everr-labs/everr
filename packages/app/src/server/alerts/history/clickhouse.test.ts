@@ -199,6 +199,30 @@ describe("ClickHouse alert history", () => {
     expect(closed.reason).toBe("rule_paused");
   });
 
+  // A projection retry or a racing second writer must land on the same row
+  // id: one terminal suppression per chain, never a phantom second one.
+  it("converges suppression rows for one chain on one id", () => {
+    const opts = {
+      def,
+      notificationEventId: "019c3aba-29f8-7d6e-9e55-301cf47fa80d",
+      occurredAt,
+      fingerprint: "api",
+      labels: { service: "api" },
+      silenced: false,
+      inhibited: false,
+      silenceId: null,
+    };
+    expect(suppressionHistoryRow(opts).event_id).toBe(
+      suppressionHistoryRow(opts).event_id,
+    );
+    expect(suppressionHistoryRow(opts).event_id).not.toBe(
+      suppressionHistoryRow({
+        ...opts,
+        notificationEventId: "019c3abf-0000-7000-8000-000000000002",
+      }).event_id,
+    );
+  });
+
   it("carries a lifecycle reason on a terminal suppression", () => {
     const row = suppressionHistoryRow({
       def,
