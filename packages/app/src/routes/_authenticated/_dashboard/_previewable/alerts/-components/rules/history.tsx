@@ -60,6 +60,7 @@ const CLOSE_REASON_LABELS: Record<
   rule_paused: "Rule paused",
   rule_deleted: "Rule deleted",
   preview_deleted: "Preview deleted",
+  no_longer_firing: "No longer firing",
 };
 
 function closeReasonLabel(reason: AlertingLifecycleReason | ""): string | null {

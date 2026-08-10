@@ -34,6 +34,10 @@ const ALERTING_LIFECYCLE_REASONS = [
   "rule_paused",
   "rule_deleted",
   "preview_deleted",
+  // A firing event reached delivery processing after its instance had
+  // already stopped firing (a worker outage and recovery, most often): the
+  // notification is withheld, not dropped silently.
+  "no_longer_firing",
 ] as const;
 
 export type AlertingLifecycleReason =

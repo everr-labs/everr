@@ -7,6 +7,11 @@ import {
   alertNotificationGroups,
 } from "@/db/schema";
 import { addWorkerJobInTransaction } from "@/server/worker/jobs";
+import {
+  historyDefFromJournalRow,
+  recordAlertHistory,
+  suppressionHistoryRow,
+} from "../history/clickhouse";
 import { nextGroupFlushAt } from "./grouping";
 import { claimDeliverableEvent } from "./journal-reader";
 import {
@@ -28,20 +33,45 @@ export async function processAlertEvent(rawPayload: unknown): Promise<void> {
   if (!event || event.processedAt) return;
   const now = new Date();
   if (event.suppressed) {
+    // Guarded the same as the dispatch stamp below: a concurrent lifecycle
+    // cancel may have already claimed this event and projected its own
+    // terminal. Muted chains carry no terminal of their own either way, so a
+    // lost claim needs nothing further here.
     await db
       .update(alertEvents)
       .set({ processedAt: now })
-      .where(eq(alertEvents.id, event.id));
+      .where(processedStampGuard(event.id));
     return;
   }
   if (
     event.eventType !== "instance_resolved" &&
     !(await eventStillFiring(event))
   ) {
-    await db
+    const stamped = await db
       .update(alertEvents)
       .set({ processedAt: now })
-      .where(eq(alertEvents.id, event.id));
+      .where(processedStampGuard(event.id))
+      .returning({ id: alertEvents.id });
+    // Lost to a concurrent cancel: its projection owns the terminal.
+    if (stamped.length === 0) return;
+    // A fire reached here after its instance had already stopped firing (a
+    // worker outage and recovery, most often). Nobody was ever told it
+    // fired, so notifying a resolve later would announce an alert that was
+    // never announced as firing; the chain still needs a terminal so it does
+    // not read as forever in flight.
+    await recordAlertHistory(event.sourceDefinitionId, [
+      suppressionHistoryRow({
+        def: historyDefFromJournalRow(event),
+        notificationEventId: event.id,
+        occurredAt: now,
+        fingerprint: event.instanceFingerprint,
+        labels: event.instanceLabels,
+        silenced: false,
+        inhibited: false,
+        silenceId: null,
+        reason: "no_longer_firing",
+      }),
+    ]);
     return;
   }
   const silence = await matchingSilence(event, now);
