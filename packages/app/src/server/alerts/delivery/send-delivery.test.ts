@@ -36,6 +36,7 @@ vi.mock("@/data/alerting/delivery/channel-sender.server", () => ({
 }));
 vi.mock("./history", () => ({ recordDeliveryOutcome: mocks.outcome }));
 
+import { ALERT_DELIVERY_MAX_ATTEMPTS } from "./config";
 import { sendAlertDelivery } from "./send-delivery";
 
 const deliveryRow = {
@@ -71,6 +72,13 @@ describe("sendAlertDelivery rule liveness", () => {
     // Failed permanently, not thrown: a retry can never revive the rule.
     expect(mocks.set).toHaveBeenCalledWith(
       expect.objectContaining({ status: "failed" }),
+    );
+    // Attempts pinned at the max, not incremented from the current count: the
+    // retention sweep and the terminal-cleanup index only treat a failed row
+    // as done once attempts >= ALERT_DELIVERY_MAX_ATTEMPTS, or this row (and
+    // the journal events it links) would never become eligible for cleanup.
+    expect(mocks.set).toHaveBeenCalledWith(
+      expect.objectContaining({ attempts: ALERT_DELIVERY_MAX_ATTEMPTS }),
     );
     expect(mocks.outcome).toHaveBeenCalledWith(
       expect.objectContaining({

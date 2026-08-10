@@ -4,6 +4,7 @@ import { sendChannelNotification } from "@/data/alerting/delivery/channel-sender
 import { db } from "@/db/client";
 import { alertChannels, alertDeliveries } from "@/db/schema";
 import { errorMessage } from "@/telemetry/logger";
+import { ALERT_DELIVERY_MAX_ATTEMPTS } from "./config";
 import { recordDeliveryOutcome } from "./history";
 import { liveRuleForDeliveryQuery } from "./journal-reader";
 import { AlertDeliveryTaskPayloadSchema } from "./tasks";
@@ -23,12 +24,16 @@ export async function sendAlertDelivery(rawPayload: unknown): Promise<void> {
     .where(eq(alertDeliveries.dedupKey, dedupKey))
     .limit(1);
   if (!row || row.delivery.status === "sent") return;
-  const failDelivery = async (channelType: string, error: string) => {
+  const failDelivery = async (
+    channelType: string,
+    error: string,
+    attempts: number,
+  ) => {
     await db
       .update(alertDeliveries)
       .set({
         status: "failed",
-        attempts: row.delivery.attempts + 1,
+        attempts,
         lastError: error,
         updatedAt: new Date(),
       })
@@ -62,9 +67,15 @@ export async function sendAlertDelivery(rawPayload: unknown): Promise<void> {
     } catch {
       // Config unreadable; the placeholder stays.
     }
+    // The max, not row.delivery.attempts + 1: this is a terminal decision
+    // independent of how many sends were already tried, and both the
+    // retention sweep and the terminal-cleanup index key "failed and done"
+    // on attempts >= ALERT_DELIVERY_MAX_ATTEMPTS. A lower count would leave
+    // this row, and the journal events it links, undeletable forever.
     await failDelivery(
       withheldChannelType,
       "Withheld: every rule behind this notification was paused or deleted before the send ran",
+      ALERT_DELIVERY_MAX_ATTEMPTS,
     );
     return;
   }
@@ -89,7 +100,11 @@ export async function sendAlertDelivery(rawPayload: unknown): Promise<void> {
       })
       .where(eq(alertDeliveries.dedupKey, dedupKey));
   } catch (cause) {
-    await failDelivery(channelType, errorMessage(cause).slice(0, 8_000));
+    await failDelivery(
+      channelType,
+      errorMessage(cause).slice(0, 8_000),
+      row.delivery.attempts + 1,
+    );
     throw cause;
   }
   // Outside the try on purpose. Recording history must never be able to send
