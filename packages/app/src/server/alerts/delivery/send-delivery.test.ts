@@ -75,6 +75,9 @@ describe("sendAlertDelivery rule liveness", () => {
     expect(mocks.outcome).toHaveBeenCalledWith(
       expect.objectContaining({
         outcome: "failed",
+        // The real channel type, not the "unknown" placeholder: the trail's
+        // delivery_targets keys on it.
+        channelType: "webhook",
         error: expect.stringContaining("paused"),
       }),
     );

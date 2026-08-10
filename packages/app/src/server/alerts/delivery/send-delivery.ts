@@ -39,10 +39,24 @@ export async function sendAlertDelivery(rawPayload: unknown): Promise<void> {
         updatedAt: new Date(),
       })
       .where(eq(alertDeliveries.dedupKey, dedupKey));
+    // Decrypted only to label the trail: without it the row files its
+    // delivery_targets under the literal type "unknown", and a reader cannot
+    // tell "type unresolvable" from "a channel of type unknown". The
+    // placeholder keeps its one honest use: a config that cannot be read.
+    let withheldChannelType = "unknown";
+    try {
+      withheldChannelType = decryptChannelConfig(
+        row.delivery.organizationId,
+        row.channel.id,
+        row.channel.encryptedConfig,
+      ).type;
+    } catch {
+      // Config unreadable; the placeholder stays.
+    }
     await recordDeliveryOutcome({
       organizationId: row.delivery.organizationId,
       dedupKey,
-      channelType: "unknown",
+      channelType: withheldChannelType,
       channelName: row.delivery.channelName,
       occurredAt: new Date(),
       outcome: "failed",
