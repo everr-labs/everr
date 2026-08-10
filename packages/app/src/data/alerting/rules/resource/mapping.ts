@@ -83,7 +83,13 @@ export function toRuleInput(
     sql: rule.spec.query,
     interval_secs: parseEvaluationInterval(rule.spec.evaluationInterval),
     for_secs: parseForDuration(rule.spec.for),
-    label_columns: rule.spec.instanceLabels ?? opts.instanceLabels ?? [],
+    // Sorted, not authored order: identity is fingerprinted over sorted
+    // label keys, so the stored spec must not churn (and reorder-only
+    // updates must not close every open instance) when a user or an
+    // inference pass merely reorders the same columns.
+    label_columns: [
+      ...(rule.spec.instanceLabels ?? opts.instanceLabels ?? []),
+    ].sort(),
     condition: rule.spec.condition,
     severity: rule.spec.severity,
     annotations,

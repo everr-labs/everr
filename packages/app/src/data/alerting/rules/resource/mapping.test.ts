@@ -81,6 +81,26 @@ describe("toRuleInput", () => {
     expect(noDescription.annotations.description).toBeUndefined();
   });
 
+  // instanceFingerprint sorts label keys before hashing, so authored order
+  // carries no identity meaning; storing it as-authored would make a
+  // reorder-only edit look like a membership change to the spec diff.
+  it("sorts label_columns regardless of authored or inferred order", () => {
+    const explicit = toRuleInput(
+      parseRule({ instanceLabels: ["zone", "route"] }),
+      "repo-1",
+    );
+    expect(explicit.label_columns).toEqual(["route", "zone"]);
+
+    const inferred = toRuleInput(
+      parseRule({ instanceLabels: undefined }),
+      "repo-1",
+      {
+        instanceLabels: ["zone", "route"],
+      },
+    );
+    expect(inferred.label_columns).toEqual(["route", "zone"]);
+  });
+
   it("carries a linked runbook via everr.runbook, and link.runbook when appBaseUrl is set", () => {
     const scoped = toRuleInput(
       parseRule({ runbook: "payments/triage-5xx" }),

@@ -530,9 +530,11 @@ describe("applyAlertSpecs", () => {
         },
       ],
     });
+    // Sorted, not query order: label_columns carries no authored order once
+    // an inference pass produces it either.
     expect(mockedCreateRule.mock.calls[0][1].label_columns).toEqual([
-      "service",
       "region",
+      "service",
     ]);
 
     // Same query result, but the spec names its own identity: the inferred

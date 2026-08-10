@@ -344,6 +344,19 @@ export async function getRuleEvaluationSeries(
   );
 }
 
+// instanceFingerprint sorts label keys before hashing, so a reorder of
+// label_columns with the same membership is a no-op for every open
+// instance. Comparing the raw arrays would close and re-fire them on a
+// reorder alone.
+function labelColumnsChanged(
+  previous: readonly string[],
+  next: readonly string[],
+): boolean {
+  return (
+    JSON.stringify([...previous].sort()) !== JSON.stringify([...next].sort())
+  );
+}
+
 function definitionValues(
   id: string,
   organizationId: string,
@@ -435,9 +448,10 @@ export async function updateRule(
       `Rule version changed: ${id}`,
     );
   }
-  const labelsChanged =
-    JSON.stringify(previous.spec.label_columns) !==
-    JSON.stringify(spec.label_columns);
+  const labelsChanged = labelColumnsChanged(
+    previous.spec.label_columns,
+    spec.label_columns,
+  );
   const nextEvaluationAt = nextAlertEvaluationAt(
     organizationId,
     id,
@@ -524,8 +538,7 @@ export async function adoptRule(
     : null;
   const labelsChanged =
     spec !== null &&
-    JSON.stringify(previous.spec.label_columns) !==
-      JSON.stringify(spec.label_columns);
+    labelColumnsChanged(previous.spec.label_columns, spec.label_columns);
   const row = await translateAlertingConflict(() =>
     runInTransaction(executor, async (tx) => {
       const [updated] = await tx

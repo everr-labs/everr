@@ -74,12 +74,14 @@ const previous = {
   nextEvaluationAt: null,
 };
 
-function fakeExecutor() {
+function fakeExecutor(storedSpec: typeof spec = spec) {
+  const stored = { ...previous, spec: storedSpec };
   const tx = {
     update: () => ({
       set: () => ({
         where: () => ({
-          returning: () => Promise.resolve([{ ...previous, version: 2, spec }]),
+          returning: () =>
+            Promise.resolve([{ ...stored, version: 2, spec: storedSpec }]),
         }),
       }),
     }),
@@ -94,7 +96,7 @@ function fakeExecutor() {
   return {
     select: () => ({
       from: () => ({
-        where: () => ({ limit: () => Promise.resolve([previous]) }),
+        where: () => ({ limit: () => Promise.resolve([stored]) }),
       }),
     }),
     transaction: (fn: (tx: unknown) => Promise<unknown>) => fn(tx),
@@ -128,6 +130,25 @@ describe("updateRule", () => {
       { ...spec, notification_channels: [] },
       1,
       fakeExecutor(),
+    );
+
+    expect(mocks.steps).toEqual([]);
+  });
+
+  it("leaves instances alone when the label columns are only reordered", async () => {
+    mocks.steps = [];
+    const storedSpec = { ...spec, label_columns: ["host", "region"] };
+
+    await updateRule(
+      "org-1",
+      previous.id,
+      {
+        ...storedSpec,
+        label_columns: ["region", "host"],
+        notification_channels: [],
+      },
+      1,
+      fakeExecutor(storedSpec),
     );
 
     expect(mocks.steps).toEqual([]);
