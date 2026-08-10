@@ -17,3 +17,4 @@ settled list.
 - [ ] Channel, receiver, and rule-apply mutations journal audit rows through the same enforcement boundary as ticket 17
 - [ ] Snapshots go through the same typed per-channel-type redaction
 - [ ] The application trail displays the widened set
+- [ ] `expireSilence` takes no executor today; the audit wrap adds the executor parameter

@@ -1,6 +1,11 @@
 import { and, desc, eq, gt, sql } from "drizzle-orm";
+import { alertingPartitionQueue } from "@/data/alerting/scheduling/evaluation-jobs.server";
 import { db } from "@/db/client";
-import { alertSilences } from "@/db/schema";
+import { alertEvents, alertSilences } from "@/db/schema";
+import {
+  ALERT_PROCESS_EVENT_TASK,
+  PROCESS_EVENT_MAX_ATTEMPTS,
+} from "@/server/alerts/delivery/tasks";
 import { throwAlertingPersistenceError } from "../persistence";
 import { AlertingSilenceInputSchema } from "../schema";
 import type { AlertingSilenceInput } from "../types";
@@ -70,21 +75,48 @@ export async function createSilence(
  * the window ends up empty instead of inverted.
  */
 export async function expireSilence(organizationId: string, id: string) {
-  const rows = await db
-    .update(alertSilences)
-    .set({
-      endsAt: sql`LEAST(${alertSilences.endsAt}, GREATEST(${alertSilences.startsAt}, now()))`,
-      canceledAt: sql`now()`,
-    })
-    .where(
-      and(
-        eq(alertSilences.organizationId, organizationId),
-        eq(alertSilences.id, id),
-        // An already-closed window was not cancelled by anyone, and stamping
-        // canceled_at on it would misattribute a natural expiry.
-        gt(alertSilences.endsAt, sql`now()`),
-      ),
-    )
-    .returning({ id: alertSilences.id });
-  return { expired: rows.length > 0 };
+  return db.transaction(async (tx) => {
+    const rows = await tx
+      .update(alertSilences)
+      .set({
+        endsAt: sql`LEAST(${alertSilences.endsAt}, GREATEST(${alertSilences.startsAt}, now()))`,
+        canceledAt: sql`now()`,
+      })
+      .where(
+        and(
+          eq(alertSilences.organizationId, organizationId),
+          eq(alertSilences.id, id),
+          // An already-closed window was not cancelled by anyone, and stamping
+          // canceled_at on it would misattribute a natural expiry.
+          gt(alertSilences.endsAt, sql`now()`),
+        ),
+      )
+      .returning({ id: alertSilences.id });
+    if (rows.length === 0) return { expired: false };
+    // A deferred event wakes at the silence's original ends_at, which the
+    // cancel just collapsed; without a release it stays held for the full
+    // window. One set-based statement enqueues every held event in the same
+    // transaction, and one queue per canceled silence serializes the
+    // released re-checks instead of running them all at once. The re-run
+    // re-checks every hold, so another matching silence re-defers instead of
+    // paging; the stale wake at the old ends_at then either finds the event
+    // processed and no-ops, or harmlessly re-runs the idempotent decision.
+    const releaseQueue = alertingPartitionQueue("alert", id);
+    await tx.execute(sql`
+      SELECT graphile_worker.add_job(
+        ${ALERT_PROCESS_EVENT_TASK},
+        json_build_object('eventId', ${alertEvents.id}),
+        queue_name := ${releaseQueue},
+        run_at := now(),
+        max_attempts := ${PROCESS_EVENT_MAX_ATTEMPTS},
+        job_key := ${ALERT_PROCESS_EVENT_TASK} || ':' || ${alertEvents.id}::text || ':release',
+        job_key_mode := 'replace'
+      )
+      FROM ${alertEvents}
+      WHERE ${alertEvents.organizationId} = ${organizationId}
+        AND ${alertEvents.silenceId} = ${id}
+        AND ${alertEvents.processedAt} IS NULL
+    `);
+    return { expired: true };
+  });
 }

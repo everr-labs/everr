@@ -1095,6 +1095,22 @@
           "method": "btree",
           "with": {}
         },
+        "alert_events_held_silence_idx": {
+          "name": "alert_events_held_silence_idx",
+          "columns": [
+            {
+              "expression": "silence_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "where": "\"alert_events\".\"processed_at\" IS NULL AND \"alert_events\".\"silence_id\" IS NOT NULL",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
         "alert_events_org_id_uq": {
           "name": "alert_events_org_id_uq",
           "columns": [

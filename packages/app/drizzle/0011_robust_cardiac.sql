@@ -235,6 +235,7 @@ CREATE INDEX "alert_events_org_occurred_idx" ON "alert_events" USING btree ("org
 CREATE INDEX "alert_events_org_fingerprint_idx" ON "alert_events" USING btree ("organization_id","instance_fingerprint",occurred_at DESC);--> statement-breakpoint
 CREATE INDEX "alert_events_org_slug_idx" ON "alert_events" USING btree ("organization_id","slug",occurred_at DESC);--> statement-breakpoint
 CREATE INDEX "alert_events_processed_idx" ON "alert_events" USING btree ("processed_at","id") WHERE "alert_events"."processed_at" IS NOT NULL;--> statement-breakpoint
+CREATE INDEX "alert_events_held_silence_idx" ON "alert_events" USING btree ("silence_id") WHERE "alert_events"."processed_at" IS NULL AND "alert_events"."silence_id" IS NOT NULL;--> statement-breakpoint
 CREATE INDEX "alert_inhibitions_org_idx" ON "alert_inhibitions" USING btree ("organization_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "alert_instances_definition_fingerprint_uq" ON "alert_instances" USING btree ("alert_definition_id","fingerprint");--> statement-breakpoint
 CREATE INDEX "alert_instances_org_updated_idx" ON "alert_instances" USING btree ("organization_id",updated_at DESC);--> statement-breakpoint

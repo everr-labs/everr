@@ -252,6 +252,14 @@ export const alertEvents = pgTable(
     index("alert_events_processed_idx")
       .on(table.processedAt, table.id)
       .where(sql`${table.processedAt} IS NOT NULL`),
+    // Cancelling a silence releases the events it holds; held rows are the
+    // tiny unprocessed set, so the complement of the processed_idx predicate
+    // keeps that lookup off the full journal.
+    index("alert_events_held_silence_idx")
+      .on(table.silenceId)
+      .where(
+        sql`${table.processedAt} IS NULL AND ${table.silenceId} IS NOT NULL`,
+      ),
     uniqueIndex("alert_events_org_id_uq").on(table.organizationId, table.id),
   ],
 );

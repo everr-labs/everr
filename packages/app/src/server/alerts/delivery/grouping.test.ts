@@ -1,4 +1,9 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+
+// The tasks module reaches the worker enqueue plumbing; the mock only keeps
+// the import from reaching the real database client.
+vi.mock("@/db/client", () => ({ db: {}, pool: {} }));
+
 import {
   type GroupMember,
   groupNotificationPlan,

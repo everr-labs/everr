@@ -29,7 +29,7 @@ import {
   exceptionAttributes,
   serverLogger,
 } from "@/telemetry/logger";
-import { ALERT_PROCESS_EVENT_TASK } from "../delivery/tasks";
+import { enqueueProcessAlertEvent } from "../delivery/tasks";
 import {
   type AlertHistoryDefinition,
   evaluationFailureHistoryRow,
@@ -406,16 +406,7 @@ async function evaluateAlertRule(
         .values(eventRows)
         .returning({ id: alertEvents.id });
       for (const event of events) {
-        await addWorkerJobInTransaction(
-          tx,
-          ALERT_PROCESS_EVENT_TASK,
-          { eventId: event.id },
-          {
-            jobKey: `${ALERT_PROCESS_EVENT_TASK}:${event.id}`,
-            jobKeyMode: "replace",
-            maxAttempts: 5,
-          },
-        );
+        await enqueueProcessAlertEvent(tx, event.id);
       }
     }
     await scheduleAlertAtInTransaction(

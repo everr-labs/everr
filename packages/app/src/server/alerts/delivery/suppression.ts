@@ -12,13 +12,12 @@ import {
   alertInstances,
   alertSilences,
 } from "@/db/schema";
-import { addWorkerJobInTransaction } from "@/server/worker/jobs";
 import {
   recordAlertHistory,
   suppressionHistoryRow,
 } from "../history/clickhouse";
 import { alertEventDispatchLabels } from "./targeting";
-import { ALERT_PROCESS_EVENT_TASK } from "./tasks";
+import { enqueueProcessAlertEvent } from "./tasks";
 
 export async function matchingSilence(
   event: typeof alertEvents.$inferSelect,
@@ -84,17 +83,10 @@ export async function deferSuppressedEvent(
     const runAt = silence
       ? new Date(silence.ends_at)
       : new Date(now.getTime() + 60_000);
-    await addWorkerJobInTransaction(
-      tx,
-      ALERT_PROCESS_EVENT_TASK,
-      { eventId: event.id },
-      {
-        jobKey: `${ALERT_PROCESS_EVENT_TASK}:${event.id}:${runAt.toISOString()}`,
-        jobKeyMode: "replace",
-        maxAttempts: 5,
-        runAt,
-      },
-    );
+    await enqueueProcessAlertEvent(tx, event.id, {
+      keySuffix: runAt.toISOString(),
+      runAt,
+    });
   });
   // Only a terminal suppression is a fact. A deferred event will be
   // reconsidered when the silence lapses, so recording it now would claim a
