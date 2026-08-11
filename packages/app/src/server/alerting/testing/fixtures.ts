@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { and, eq } from "drizzle-orm";
 import type { PgliteDatabase } from "drizzle-orm/pglite";
 import { encryptChannelConfig } from "@/data/alerting/delivery/channel-secrets.server";
@@ -178,6 +179,10 @@ export async function insertChannel(
     organizationId?: string;
     name?: string;
     type?: "slack" | "discord" | "webhook" | "telegram";
+    // Telegram only: several chat ids exercise the fan-out, and a chosen
+    // token is what a leak test looks for in an error trail.
+    botToken?: string;
+    chatIds?: string[];
   } = {},
 ) {
   const organizationId = overrides.organizationId ?? TEST_ORG;
@@ -185,7 +190,11 @@ export async function insertChannel(
   const type = overrides.type ?? "slack";
   const config =
     type === "telegram"
-      ? { type, bot_token: "bot-token", chat_ids: ["1"] }
+      ? {
+          type,
+          bot_token: overrides.botToken ?? "bot-token",
+          chat_ids: overrides.chatIds ?? ["1"],
+        }
       : // An IP literal, not a hostname: the real sender validates the
         // outbound URL with a live DNS lookup before it ever reaches the
         // stubbed `fetch` (SSRF guard), and "example.test" does not resolve.
@@ -193,23 +202,16 @@ export async function insertChannel(
         // never routed, and not on the guard's blocked-range list, so the
         // lookup is skipped and the send reaches the stub.
         { type, url: `https://203.0.113.10/${type}` };
-  const [created] = await db
-    .insert(alertChannels)
-    .values({ organizationId, name, encryptedConfig: "" })
-    .returning({ id: alertChannels.id });
-  // The config is sealed against the channel id, so it can only be written
-  // once the row exists.
-  await db
-    .update(alertChannels)
-    .set({
-      encryptedConfig: encryptChannelConfig(
-        organizationId,
-        created.id,
-        config as never,
-      ),
-    })
-    .where(eq(alertChannels.id, created.id));
-  return { id: created.id, name };
+  // The id is generated here and the sealed config goes in with it, the way
+  // `createChannel` (delivery/repository.ts) does it.
+  const id = randomUUID();
+  await db.insert(alertChannels).values({
+    id,
+    organizationId,
+    name,
+    encryptedConfig: encryptChannelConfig(organizationId, id, config as never),
+  });
+  return { id, name };
 }
 
 /**
