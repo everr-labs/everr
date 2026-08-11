@@ -204,16 +204,16 @@ describe("the alerting pipeline's delivery", () => {
     expect(body).toContain("svc-d");
   });
 
-  // `nextGroupFlushState` (grouping.ts) folds `repeatAt` into its candidate
-  // list unconditionally and takes the earliest of every candidate; the
-  // group-interval floor is applied only to the separate
-  // "hasUnflushedMembers" candidate (a genuinely new dispatch), never to
-  // `repeatAt`. `repeatAt` itself (flush-group.ts, computed as
-  // `flushedAt + group.repeatIntervalSeconds`) carries no comparison against
-  // `groupIntervalSeconds` either. So a route's repeat interval, once shorter
-  // than its group interval, drives the schedule on its own with nothing in
-  // the current code holding it to the slower cadence this case expects.
-  it.fails("never repeats faster than the group interval, even when the route's repeat interval is shorter", async () => {
+  // Ticket 39 (todo/issues/alerting-surface/tickets/39-repeat-shorter-than-interval.md)
+  // leaves open, on purpose, what a repeat interval below the group interval
+  // should mean: "legitimate", "usually a mistake", and "always a mistake"
+  // are all still live answers, and the dev route's own
+  // `repeat_interval_secs: 60` against the 300s default group interval is
+  // the example the ticket cites. This case does not take a side: it pins
+  // what `nextGroupFlushState` (grouping.ts) actually does today, so that
+  // whoever resolves ticket 39 changes this test deliberately instead of
+  // discovering by accident that something depended on the current shape.
+  it("today, a repeat interval shorter than the group interval does repeat faster (ticket 39, undecided)", async () => {
     const channel = await insertChannel(harness.db, { type: "slack" });
     const receiver = await insertReceiver(harness.db, {
       channelIds: [channel.id],
@@ -230,14 +230,12 @@ describe("the alerting pipeline's delivery", () => {
     await harness.runDueJobs();
     expect(harness.fetchCalls()).toHaveLength(1);
 
-    // The route's repeat interval (60s) is shorter than the group interval
-    // (ALERTING_DEFAULT_GROUP_INTERVAL_SECS, 300s by default): on its own
-    // it must not drive a second notification.
+    // The route's repeat interval (60s) is well short of the group interval
+    // (ALERTING_DEFAULT_GROUP_INTERVAL_SECS, 300s by default). Nothing floors
+    // the repeat against the group interval today, so the second
+    // notification lands at the repeat interval, long before a group
+    // interval's worth of time has passed.
     harness.advance(60_000);
-    await harness.runDueJobs();
-    expect(harness.fetchCalls()).toHaveLength(1);
-
-    harness.advance(ALERTING_DEFAULT_GROUP_INTERVAL_SECS * 1000 - 60_000);
     await harness.runDueJobs();
     expect(harness.fetchCalls()).toHaveLength(2);
   });
