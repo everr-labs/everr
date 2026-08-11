@@ -17,13 +17,16 @@ export function setTestDatabase(db: TestDb | undefined): void {
 // beforeAll can build a database. A proxy defers every property read to the
 // moment the query runs, by which time the hook has set one.
 export const testDb = new Proxy({} as TestDb, {
-  get(_target, property, receiver) {
+  get(_target, property) {
     if (!current) {
       throw new Error(
         "test database not set: call setTestDatabase in beforeAll",
       );
     }
-    const value = Reflect.get(current, property, receiver);
+    // The receiver defaults to the target, which is the real database. Passing
+    // the proxy instead would run any accessor drizzle adds later with `this`
+    // bound to the proxy, and the wrong value would read as a pipeline bug.
+    const value = Reflect.get(current, property);
     return typeof value === "function" ? value.bind(current) : value;
   },
 }) as TestDb;
