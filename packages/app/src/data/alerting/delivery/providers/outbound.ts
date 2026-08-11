@@ -19,7 +19,13 @@ export class ChannelSendError extends Error {
   }
 }
 
-function isPermanentStatus(status: number): boolean {
+/**
+ * Whether repeating the identical request could ever produce a different
+ * answer. Every provider classifies with this, including the ones that build
+ * their own request instead of going through `postJson`, so a dead endpoint
+ * costs one attempt rather than the whole retry budget.
+ */
+export function isPermanentStatus(status: number): boolean {
   return (
     status >= 400 &&
     status < 500 &&

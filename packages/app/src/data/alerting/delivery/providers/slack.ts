@@ -1,20 +1,20 @@
 import type { AlertingChannelConfig } from "@/data/alerting/types";
 import { CHANNEL_TEXT_MAX } from "../channel-text-limits";
 import { type ChannelNotification, composeText } from "./message";
-import { SEND_TIMEOUT_MS, validateOutboundUrl } from "./outbound";
+import {
+  ChannelSendError,
+  isPermanentStatus,
+  SEND_TIMEOUT_MS,
+  validateOutboundUrl,
+} from "./outbound";
 
 /**
  * Posts a Block Kit attachment to a Slack Incoming Webhook.
  *
  * Slack does not accept the plain JSON body `postJson` sends, so this builds
- * its own request; the outbound URL still passes the same guard first.
- *
- * Note that the throw is a plain Error, not a `ChannelSendError`. Slack and
- * Telegram are the two channels whose failures therefore always read as
- * transient to the send job (`send-delivery.ts` classifies on the error type),
- * so a revoked Slack webhook is retried to the attempt limit instead of
- * failing on the first 4xx. That is the behavior as it stands, kept here
- * deliberately rather than changed inside a move.
+ * its own request; the outbound URL still passes the same guard first, and the
+ * failure is classified the same way, so a revoked webhook stops on its first
+ * 4xx instead of spending the delivery's whole retry budget.
  */
 export async function sendSlackNotification(
   config: Extract<AlertingChannelConfig, { type: "slack" }>,
@@ -48,6 +48,9 @@ export async function sendSlackNotification(
   // "invalid_payload", so any non-2xx is the failure signal.
   if (!response.ok) {
     const body = await response.text().catch(() => "");
-    throw new Error(`slack webhook failed: ${response.status} ${body}`);
+    throw new ChannelSendError(
+      `slack webhook failed: ${response.status} ${body}`,
+      { permanent: isPermanentStatus(response.status) },
+    );
   }
 }

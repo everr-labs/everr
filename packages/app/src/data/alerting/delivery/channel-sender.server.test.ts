@@ -98,3 +98,94 @@ it.each([
 
   expect((error as ChannelSendError).permanent).toBe(false);
 });
+
+// Every channel feeds the same retry decision in send-delivery.ts, which reads
+// `cause instanceof ChannelSendError && cause.permanent`. A channel that
+// classifies nothing spends the whole attempt budget on an endpoint that has
+// already refused it.
+it.each([
+  ["slack" as const, 403, true],
+  ["slack" as const, 500, false],
+  ["discord" as const, 403, true],
+  ["discord" as const, 500, false],
+  ["webhook" as const, 403, true],
+  ["webhook" as const, 500, false],
+])("classifies a %s %d failure", async (type, status, permanent) => {
+  fetchMock.mockResolvedValueOnce(new Response("", { status }));
+
+  const error = await sendChannelNotification(
+    { type, url: HOOK_URL },
+    { title: "t", body: "b" },
+  ).catch((caught: unknown) => caught);
+
+  expect(error).toBeInstanceOf(ChannelSendError);
+  expect((error as ChannelSendError).permanent).toBe(permanent);
+});
+
+const BOT_TOKEN = "8123456789:AAH-secret-bot-token";
+
+const telegram = {
+  type: "telegram" as const,
+  bot_token: BOT_TOKEN,
+  chat_ids: ["1", "2"],
+};
+
+it("fails a telegram send permanently when every chat refuses permanently", async () => {
+  fetchMock
+    .mockResolvedValueOnce(new Response("", { status: 403 }))
+    .mockResolvedValueOnce(new Response("", { status: 403 }));
+
+  const error = await sendChannelNotification(telegram, {
+    title: "t",
+    body: "b",
+  }).catch((caught: unknown) => caught);
+
+  expect((error as ChannelSendError).permanent).toBe(true);
+});
+
+// The regression Promise.all would cause: the permanent chat rejects first and
+// its verdict would end the delivery, so the chat behind a 5xx never gets the
+// message a retry would have delivered.
+it("keeps a telegram send retryable when one chat could still accept it", async () => {
+  fetchMock
+    .mockResolvedValueOnce(new Response("", { status: 403 }))
+    .mockResolvedValueOnce(new Response("", { status: 500 }));
+
+  const error = await sendChannelNotification(telegram, {
+    title: "t",
+    body: "b",
+  }).catch((caught: unknown) => caught);
+
+  expect(error).toBeInstanceOf(ChannelSendError);
+  expect((error as ChannelSendError).permanent).toBe(false);
+});
+
+// The error text is appended to the append-only history row, which cannot be
+// rewritten, so an address or a token that reaches it cannot be withdrawn.
+it("names no chat id and no bot token in the error it hands the history row", async () => {
+  fetchMock
+    .mockResolvedValueOnce(new Response("", { status: 403 }))
+    .mockResolvedValueOnce(new Response("", { status: 403 }));
+
+  const error = await sendChannelNotification(
+    { ...telegram, chat_ids: ["-1001234567890", "-1009876543210"] },
+    { title: "t", body: "b" },
+  ).catch((caught: unknown) => caught);
+
+  const message = (error as Error).message;
+  expect(message).not.toContain("-1001234567890");
+  expect(message).not.toContain("-1009876543210");
+  expect(message).not.toContain(BOT_TOKEN);
+  // It still says how much failed, which is the part an investigator needs.
+  expect(message).toContain("2 of 2 chats");
+});
+
+it("fails permanently and sends nothing when the bot token is missing", async () => {
+  const error = await sendChannelNotification(
+    { ...telegram, bot_token: "  " },
+    { title: "t", body: "b" },
+  ).catch((caught: unknown) => caught);
+
+  expect((error as ChannelSendError).permanent).toBe(true);
+  expect(fetchMock).not.toHaveBeenCalled();
+});
