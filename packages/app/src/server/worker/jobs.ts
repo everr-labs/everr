@@ -1,39 +1,17 @@
 import { sql } from "drizzle-orm";
-import {
-  makeWorkerUtils,
-  type TaskSpec,
-  type WorkerUtils,
-} from "graphile-worker";
-import type { Transaction } from "@/db/client";
-import { pool } from "@/db/client";
+import type { TaskSpec } from "graphile-worker";
+import { type DbExecutor, db, type Transaction } from "@/db/client";
 
-// One long-lived WorkerUtils, memoized like the pool it attaches to. It is a
-// stateless enqueue client with no logic worth hot-reloading, so plain
-// module-level memoization is enough. Callers enqueue through graphile-worker's
-// public API rather than hand-written `graphile_worker.add_job` SQL.
-let workerUtils: Promise<WorkerUtils> | undefined;
-
-function getWorkerUtils(): Promise<WorkerUtils> {
-  workerUtils ??= makeWorkerUtils({ pgPool: pool });
-  return workerUtils;
-}
-
-export async function addWorkerJob(
+// One statement for both paths. graphile's `add_job` is the public enqueue
+// API and is transaction-safe, so a job committed with the mutation that
+// scheduled it and a job enqueued on its own take the identical route.
+function addJob(
+  executor: DbExecutor,
   identifier: string,
   payload: unknown,
-  spec?: TaskSpec,
-): Promise<void> {
-  const utils = await getWorkerUtils();
-  await utils.addJob(identifier, payload, spec);
-}
-
-export async function addWorkerJobInTransaction(
-  tx: Transaction,
-  identifier: string,
-  payload: unknown,
-  spec: TaskSpec = {},
-): Promise<void> {
-  await tx.execute(sql`
+  spec: TaskSpec,
+): Promise<unknown> {
+  return executor.execute(sql`
     SELECT graphile_worker.add_job(
       ${identifier},
       ${JSON.stringify(payload)}::json,
@@ -46,4 +24,21 @@ export async function addWorkerJobInTransaction(
       job_key_mode := ${spec.jobKeyMode ?? "replace"}
     )
   `);
+}
+
+export async function addWorkerJob(
+  identifier: string,
+  payload: unknown,
+  spec: TaskSpec = {},
+): Promise<void> {
+  await addJob(db, identifier, payload, spec);
+}
+
+export async function addWorkerJobInTransaction(
+  tx: Transaction,
+  identifier: string,
+  payload: unknown,
+  spec: TaskSpec = {},
+): Promise<void> {
+  await addJob(tx, identifier, payload, spec);
 }

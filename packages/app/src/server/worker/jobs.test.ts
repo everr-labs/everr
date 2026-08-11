@@ -1,53 +1,56 @@
 // @vitest-environment node
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
-  addJob: vi.fn(),
-  makeWorkerUtils: vi.fn(),
-  pool: {},
-}));
-
-vi.mock("graphile-worker", () => ({
-  makeWorkerUtils: mocks.makeWorkerUtils,
+  execute: vi.fn(),
 }));
 
 vi.mock("@/db/client", () => ({
-  pool: mocks.pool,
+  db: { execute: mocks.execute },
 }));
-
-async function loadJobs() {
-  // resetModules drops the module-level WorkerUtils handle so each import starts
-  // from an uninitialized slate.
-  vi.resetModules();
-  return import("./jobs");
-}
 
 beforeEach(() => {
   vi.clearAllMocks();
-  mocks.addJob.mockResolvedValue(undefined);
-  mocks.makeWorkerUtils.mockResolvedValue({ addJob: mocks.addJob });
+  mocks.execute.mockResolvedValue({ rows: [] });
+  // Both paths default `run_at` to `new Date()`. Freeze the clock so two
+  // separate calls in one test see the same instant instead of racing a
+  // millisecond boundary.
+  vi.useFakeTimers();
+});
+
+afterEach(() => {
+  vi.useRealTimers();
 });
 
 describe("addWorkerJob", () => {
-  it("reuses one WorkerUtils across calls and forwards the job", async () => {
-    const { addWorkerJob } = await loadJobs();
+  it("enqueues through the same statement the transactional path uses", async () => {
+    const { addWorkerJob, addWorkerJobInTransaction } = await import("./jobs");
+    const tx = { execute: vi.fn().mockResolvedValue({ rows: [] }) };
 
-    await addWorkerJob("task", { a: 1 });
-    await addWorkerJob("task", { a: 2 }, { jobKey: "k" });
-
-    expect(mocks.makeWorkerUtils).toHaveBeenCalledOnce();
-    expect(mocks.makeWorkerUtils).toHaveBeenCalledWith({ pgPool: mocks.pool });
-    expect(mocks.addJob).toHaveBeenNthCalledWith(
-      1,
+    await addWorkerJob("task", { a: 1 }, { jobKey: "k" });
+    await addWorkerJobInTransaction(
+      tx as never,
       "task",
       { a: 1 },
-      undefined,
+      {
+        jobKey: "k",
+      },
     );
-    expect(mocks.addJob).toHaveBeenNthCalledWith(
-      2,
-      "task",
-      { a: 2 },
-      { jobKey: "k" },
-    );
+
+    const viaPool = mocks.execute.mock.calls[0][0];
+    const viaTx = tx.execute.mock.calls[0][0];
+    expect(viaPool.queryChunks).toEqual(viaTx.queryChunks);
+  });
+
+  it("defaults the spec the same way on both paths", async () => {
+    const { addWorkerJob, addWorkerJobInTransaction } = await import("./jobs");
+    const tx = { execute: vi.fn().mockResolvedValue({ rows: [] }) };
+
+    await addWorkerJob("task", { a: 1 });
+    await addWorkerJobInTransaction(tx as never, "task", { a: 1 });
+
+    const viaPool = mocks.execute.mock.calls[0][0];
+    const viaTx = tx.execute.mock.calls[0][0];
+    expect(viaPool.queryChunks).toEqual(viaTx.queryChunks);
   });
 });
