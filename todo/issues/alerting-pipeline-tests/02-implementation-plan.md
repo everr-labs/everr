@@ -1282,6 +1282,11 @@ it("holds a breach in pending until `for` elapses, and never notifies while pend
 
   const [firing] = await harness.db.select().from(alertInstances);
   expect(firing.status).toBe("firing");
+
+  // The tick that fires only enqueues the notification. Nothing is sent until
+  // the group wait elapses and the flush claims it.
+  harness.advance(ALERTING_DEFAULT_GROUP_WAIT_SECS * 1_000);
+  await harness.runDueJobs();
   expect(harness.fetchCalls()).toHaveLength(1);
 });
 ```
