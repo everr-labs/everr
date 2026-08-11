@@ -84,11 +84,12 @@ export function startPageLoad(
     // not permit the detailed timestamps. Then each phase below is an incorrect
     // zero. Thus the code writes none of them.
     const timed = entry.responseStart > 0;
-    // The name of an HTTP client span is `{method} {target}`. A request for a
-    // resource is always a GET. The full URL without the query string gives the
-    // exact resource. The URL of a resource does not change, and thus a query
-    // can use this name.
-    span(`GET ${url}`, entry.startTime, entry.duration, {
+    // A request for a resource is always a GET, and the full URL without the
+    // query string gives the exact resource. The initiator type between the
+    // method and the target separates the asset waterfall from the fetch spans
+    // at a glance, for example `GET asset:script /app.js`. The URL of a
+    // resource does not change, and thus a query can use this name.
+    span(`GET asset:${initiatorType} ${url}`, entry.startTime, entry.duration, {
       "url.full": url,
       "http.response.status_code": responseStatus || undefined,
       "everr.browser.asset.initiator_type": initiatorType,

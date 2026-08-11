@@ -182,9 +182,13 @@ describe("asset waterfall", () => {
     expect(buffered).toBe(true);
     feed({}, { name: "https://cdn.example.com/site.css?v=2" });
     expect(spans).toHaveLength(2);
-    expect(spans[0].name).toBe("GET https://cdn.example.com/app.js");
+    expect(spans[0].name).toBe(
+      "GET asset:script https://cdn.example.com/app.js",
+    );
     // The name has no query string, the same as url.full.
-    expect(spans[1].name).toBe("GET https://cdn.example.com/site.css");
+    expect(spans[1].name).toBe(
+      "GET asset:script https://cdn.example.com/site.css",
+    );
   });
 
   it("maps timing, sizes, and semconv attributes", () => {
@@ -218,9 +222,11 @@ describe("asset waterfall", () => {
       { name: `${location.origin}/assets/main.js` },
       { name: "https://cdn.example.com/app.js" },
     );
-    expect(spans[0].name).toBe("GET /assets/main.js");
+    expect(spans[0].name).toBe("GET asset:script /assets/main.js");
     expect(attrs(0)["url.full"]).toBe("/assets/main.js");
-    expect(spans[1].name).toBe("GET https://cdn.example.com/app.js");
+    expect(spans[1].name).toBe(
+      "GET asset:script https://cdn.example.com/app.js",
+    );
   });
 
   it("excludes fetch and xhr entries", () => {
@@ -335,7 +341,9 @@ describe("long animation frames", () => {
     start();
     feed({});
     expect(spans).toHaveLength(1);
-    expect(spans[0].name).toBe("GET https://cdn.example.com/app.js");
+    expect(spans[0].name).toBe(
+      "GET asset:script https://cdn.example.com/app.js",
+    );
   });
 
   it("stops with the same window as the waterfall", () => {
