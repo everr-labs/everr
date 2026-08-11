@@ -23,13 +23,15 @@ import { ALERT_DELIVERY_MAX_ATTEMPTS } from "./config";
 import {
   type GroupMember,
   groupNotificationPlan,
-  memberLiveness,
+  instanceKey,
+  memberVerdict,
   nextGroupFlushState,
 } from "./grouping";
 import { deliverableGroupMemberQuery } from "./journal-reader";
 import {
   deferSuppressedEvent,
   loadActiveSilences,
+  loadFiringInstanceKeys,
   loadInhibitionContext,
   matchInhibition,
   matchSilence,
@@ -147,20 +149,42 @@ export async function flushAlertGroup(rawPayload: unknown): Promise<void> {
   // suppression is evaluated below belongs to the next flush.
   const claimedEventIds = new Set(rows.map(({ event }) => event.id));
   const members: GroupMember<(typeof rows)[number]["event"]>[] = [];
-  // A member whose rule was paused or deleted after it joined the group must
-  // not notify. Its membership stays in the claimed set, so the committing
-  // delete below removes it; a member that never made a notification also
-  // gets its terminal suppression row so its chain does not dangle.
-  const droppedRows: typeof rows = [];
+  // A member whose rule was paused or deleted, or whose instance has stopped
+  // firing, must not notify. Its membership stays in the claimed set, so the
+  // committing delete below removes it; a member that never made a
+  // notification also gets its terminal suppression row so its chain does not
+  // dangle. See `memberVerdict` for why live instance state, not the
+  // membership row, is what decides.
+  const droppedRows: {
+    row: (typeof rows)[number];
+    reason: NonNullable<ReturnType<typeof memberVerdict>["terminal"]>;
+  }[] = [];
   const candidateRows: typeof rows = [];
+  const firingKeys = await loadFiringInstanceKeys(
+    group.organizationId,
+    rows
+      .filter(({ event }) => event.eventType !== "instance_resolved")
+      .map(({ event }) => event),
+  );
+  const resolvedKeys = new Set(
+    rows
+      .filter(({ event }) => event.eventType === "instance_resolved")
+      .map(({ event }) => instanceKey(event)),
+  );
   for (const row of rows) {
-    const liveness = memberLiveness(row.ruleActive, row.flushedAt);
-    if (liveness === "dropped_unnotified") {
-      droppedRows.push(row);
+    const key = instanceKey(row.event);
+    const verdict = memberVerdict({
+      ruleActive: row.ruleActive,
+      eventType: row.event.eventType,
+      flushedAt: row.flushedAt,
+      instanceFiring: firingKeys.has(key),
+      resolveInBatch: resolvedKeys.has(key),
+    });
+    if (verdict.deliverable) {
+      candidateRows.push(row);
       continue;
     }
-    if (liveness !== "deliverable") continue;
-    candidateRows.push(row);
+    if (verdict.terminal) droppedRows.push({ row, reason: verdict.terminal });
   }
   // Loaded once for the whole flush, not once per member: matchingSilence
   // and isInhibited each ran an org-wide scan, so a flush with hundreds of
@@ -389,7 +413,7 @@ export async function flushAlertGroup(rawPayload: unknown): Promise<void> {
     noChannelDrops.length > 0
   ) {
     await recordAlertHistory(null, [
-      ...droppedRows.map(({ event, ruleActive }) =>
+      ...droppedRows.map(({ row: { event }, reason }) =>
         suppressionHistoryRow({
           def: historyDefFromJournalRow(event),
           notificationEventId: event.id,
@@ -398,7 +422,7 @@ export async function flushAlertGroup(rawPayload: unknown): Promise<void> {
           silenced: false,
           inhibited: false,
           silenceId: null,
-          reason: ruleActive === null ? "rule_deleted" : "rule_paused",
+          reason,
         }),
       ),
       // A resolve whose fire never went out: nobody was ever told this

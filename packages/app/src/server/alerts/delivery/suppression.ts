@@ -1,4 +1,4 @@
-import { and, eq, gt, isNull, lte } from "drizzle-orm";
+import { and, eq, gt, inArray, isNull, lte } from "drizzle-orm";
 import {
   alertingMatchingSilence,
   alertingRouteMatches,
@@ -17,6 +17,7 @@ import {
   recordAlertHistory,
   suppressionHistoryRow,
 } from "../history/clickhouse";
+import { instanceKey } from "./grouping";
 import { alertEventDispatchLabels } from "./targeting";
 import { enqueueProcessAlertEvent } from "./tasks";
 
@@ -86,6 +87,53 @@ export async function eventStillFiring(event: typeof alertEvents.$inferSelect) {
     )
     .limit(1);
   return Boolean(row);
+}
+
+/**
+ * Which of `events` have an instance that is firing right now, as a set of
+ * `instanceKey`s. Load once per batch rather than calling `eventStillFiring`
+ * per member: a flush weighing hundreds of members must not issue hundreds of
+ * single-row lookups.
+ *
+ * The two `IN` lists are a cross product, so a firing instance that no caller
+ * asked about can enter the set. That is harmless: the set is keyed on the
+ * pair, so an unasked key never matches a member, and a member matches only
+ * when its own definition and fingerprint really are firing.
+ */
+export async function loadFiringInstanceKeys(
+  organizationId: string,
+  events: Pick<
+    typeof alertEvents.$inferSelect,
+    "sourceDefinitionId" | "instanceFingerprint"
+  >[],
+): Promise<Set<string>> {
+  if (events.length === 0) return new Set();
+  const rows = await db
+    .select({
+      alertDefinitionId: alertInstances.alertDefinitionId,
+      fingerprint: alertInstances.fingerprint,
+    })
+    .from(alertInstances)
+    .where(
+      and(
+        eq(alertInstances.organizationId, organizationId),
+        eq(alertInstances.status, "firing"),
+        inArray(alertInstances.alertDefinitionId, [
+          ...new Set(events.map((event) => event.sourceDefinitionId)),
+        ]),
+        inArray(alertInstances.fingerprint, [
+          ...new Set(events.map((event) => event.instanceFingerprint)),
+        ]),
+      ),
+    );
+  return new Set(
+    rows.map((row) =>
+      instanceKey({
+        sourceDefinitionId: row.alertDefinitionId,
+        instanceFingerprint: row.fingerprint,
+      }),
+    ),
+  );
 }
 
 export async function deferSuppressedEvent(

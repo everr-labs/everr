@@ -7,7 +7,7 @@ vi.mock("@/db/client", () => ({ db: {}, pool: {} }));
 import {
   type GroupMember,
   groupNotificationPlan,
-  memberLiveness,
+  memberVerdict,
   nextGroupFlushAt,
   nextGroupFlushState,
 } from "./grouping";
@@ -302,21 +302,74 @@ describe("nextGroupFlushState", () => {
   });
 });
 
-describe("memberLiveness", () => {
+describe("memberVerdict", () => {
   const flushed = new Date("2026-08-06T09:55:00Z");
+  const live = {
+    ruleActive: true,
+    eventType: "instance_fired",
+    flushedAt: null,
+    instanceFiring: true,
+    resolveInBatch: false,
+  };
 
-  it("delivers only for a live rule", () => {
-    expect(memberLiveness(true, null)).toBe("deliverable");
-    expect(memberLiveness(true, flushed)).toBe("deliverable");
+  it("delivers a firing instance of a live rule", () => {
+    expect(memberVerdict(live)).toEqual({ deliverable: true, terminal: null });
+    expect(memberVerdict({ ...live, flushedAt: flushed })).toEqual({
+      deliverable: true,
+      terminal: null,
+    });
   });
 
   it("drops paused and deleted rules, recording never-notified chains", () => {
     // false = paused, null = the definition row is gone (deleted).
-    expect(memberLiveness(false, null)).toBe("dropped_unnotified");
-    expect(memberLiveness(null, null)).toBe("dropped_unnotified");
+    expect(memberVerdict({ ...live, ruleActive: false })).toEqual({
+      deliverable: false,
+      terminal: "rule_paused",
+    });
+    expect(memberVerdict({ ...live, ruleActive: null })).toEqual({
+      deliverable: false,
+      terminal: "rule_deleted",
+    });
     // Already carried into a notification once: drop without a terminal row,
     // the withheld thing is only the repeat.
-    expect(memberLiveness(false, flushed)).toBe("dropped");
-    expect(memberLiveness(null, flushed)).toBe("dropped");
+    expect(
+      memberVerdict({ ...live, ruleActive: false, flushedAt: flushed }),
+    ).toEqual({ deliverable: false, terminal: null });
+  });
+
+  it("drops a fire whose instance has stopped firing", () => {
+    // The resolve that should have removed this member never arrived: the
+    // labels changed, a silence swallowed it, or the preview was deleted.
+    expect(memberVerdict({ ...live, instanceFiring: false })).toEqual({
+      deliverable: false,
+      terminal: "no_longer_firing",
+    });
+    // Already announced, so its chain has an outcome and owes no terminal.
+    expect(
+      memberVerdict({ ...live, instanceFiring: false, flushedAt: flushed }),
+    ).toEqual({ deliverable: false, terminal: null });
+  });
+
+  it("leaves a fire alone when its resolve is in the same batch", () => {
+    // The instance is correctly not firing here. The plan supersedes the fire
+    // with the resolve and announces the recovery; dropping the fire would
+    // take the flap bookkeeping with it.
+    expect(
+      memberVerdict({
+        ...live,
+        instanceFiring: false,
+        resolveInBatch: true,
+      }),
+    ).toEqual({ deliverable: true, terminal: null });
+  });
+
+  it("always delivers a resolve", () => {
+    expect(
+      memberVerdict({
+        ...live,
+        eventType: "instance_resolved",
+        instanceFiring: false,
+      }),
+    ).toEqual({ deliverable: true, terminal: null });
   });
 });

@@ -1,4 +1,16 @@
+import type { AlertingLifecycleReason } from "@/data/alerting/vocabulary";
 import { IDLE_GROUP_FLUSH_AT } from "./tasks";
+
+/**
+ * What identifies an instance across the events that describe it. A fire and
+ * the resolve that ends it share this key, and so does the row in
+ * `alert_instances` the two of them move.
+ */
+export function instanceKey(
+  event: Pick<GroupedEvent, "sourceDefinitionId" | "instanceFingerprint">,
+): string {
+  return `${event.sourceDefinitionId}:${event.instanceFingerprint}`;
+}
 
 export interface GroupSchedule {
   nextFlushAt: Date;
@@ -56,7 +68,7 @@ export function groupNotificationPlan<E extends GroupedEvent>(
   // membership row is already gone), not a flap, and this must not touch it.
   const fireMemberSeen = new Map<string, boolean>();
   for (const { event, flushedAt } of sorted) {
-    const key = `${event.sourceDefinitionId}:${event.instanceFingerprint}`;
+    const key = instanceKey(event);
     latestByInstance.set(key, event);
     if (event.eventType !== "instance_resolved") {
       fireMemberSeen.set(
@@ -74,7 +86,7 @@ export function groupNotificationPlan<E extends GroupedEvent>(
   const notify: E[] = [];
   const droppedUnannounced: E[] = [];
   for (const event of announced) {
-    const key = `${event.sourceDefinitionId}:${event.instanceFingerprint}`;
+    const key = instanceKey(event);
     const flap =
       event.eventType === "instance_resolved" &&
       fireMemberSeen.get(key) === false;
@@ -83,22 +95,79 @@ export function groupNotificationPlan<E extends GroupedEvent>(
   return { active, notify, droppedUnannounced };
 }
 
-type MemberLiveness = "deliverable" | "dropped" | "dropped_unnotified";
+export interface MemberVerdict {
+  deliverable: boolean;
+  /**
+   * The terminal this drop owes the member's chain, or null when it owes
+   * none. A member already carried into a notification has an outcome
+   * recorded, so dropping it later adds nothing; one that never notified
+   * would read as still in flight forever without a terminal here.
+   */
+  terminal: Extract<
+    AlertingLifecycleReason,
+    "rule_paused" | "rule_deleted" | "no_longer_firing"
+  > | null;
+}
 
 /**
- * What a flush does with a claimed membership, given the owning rule's
- * liveness. A paused (`ruleActive` false) or deleted (`ruleActive` null) rule
- * must not notify, so its members are dropped at claim time. A dropped member
- * that was never carried into a notification also gets a terminal
- * `notification_suppressed` row; without it, its chain would read as still in
- * flight forever.
+ * What a flush does with a claimed membership.
+ *
+ * The membership list only proposes. `alert_instances` decides, and this is
+ * where the two meet. A membership means "a fire arrived and no resolve has
+ * come since", which is a copy of the truth kept correct by one message: the
+ * resolve. Several ordinary actions destroy that message. Changing a rule's
+ * label columns deletes the instances, so the resolve can never be produced.
+ * A silence built from an instance's labels matches the resolve as well as
+ * the fire, and consumes it. A pause resets the instances, so a condition
+ * that clears before the rule resumes produces no resolve either. A resolve
+ * whose process job runs out of attempts never reaches the group at all.
+ * Each one leaves a fire in the group that no resolve will ever remove, and
+ * it is announced with every later notification of that group, forever.
+ *
+ * So the fix is not to guard those actions one at a time, which only holds
+ * until the next way to lose a resolve appears. A fire is deliverable only
+ * while its instance is firing right now, and `instanceFiring` carries that
+ * live state. This is the same test `processAlertEvent` applies at dispatch;
+ * the flush must apply it too, because a member can go stale long after it
+ * was dispatched.
+ *
+ * `resolveInBatch` is the one case the check must keep its hands off: when
+ * the instance's resolve is in this same claimed batch, the instance is
+ * correctly not firing, and `groupNotificationPlan` already supersedes the
+ * fire with the resolve and announces the recovery. Dropping the fire here
+ * would take the flap bookkeeping with it.
  */
-export function memberLiveness(
-  ruleActive: boolean | null,
-  flushedAt: Date | null,
-): MemberLiveness {
-  if (ruleActive) return "deliverable";
-  return flushedAt === null ? "dropped_unnotified" : "dropped";
+export function memberVerdict(opts: {
+  /** False when the rule is paused, null when the definition row is gone. */
+  ruleActive: boolean | null;
+  eventType: string;
+  flushedAt: Date | null;
+  /** Whether this member's instance is firing right now. */
+  instanceFiring: boolean;
+  /** Whether this instance's resolve is in the same claimed batch. */
+  resolveInBatch: boolean;
+}): MemberVerdict {
+  if (!opts.ruleActive) {
+    return {
+      deliverable: false,
+      terminal:
+        opts.flushedAt !== null
+          ? null
+          : opts.ruleActive === null
+            ? "rule_deleted"
+            : "rule_paused",
+    };
+  }
+  if (opts.eventType === "instance_resolved" || opts.resolveInBatch) {
+    return { deliverable: true, terminal: null };
+  }
+  if (!opts.instanceFiring) {
+    return {
+      deliverable: false,
+      terminal: opts.flushedAt === null ? "no_longer_firing" : null,
+    };
+  }
+  return { deliverable: true, terminal: null };
 }
 
 /**
