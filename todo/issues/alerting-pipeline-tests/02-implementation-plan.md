@@ -1340,7 +1340,7 @@ it("holds a breach in pending until `for` elapses, and never notifies while pend
 
 1. Group wait: three instances of one rule firing inside the wait window leave in one fetch call whose body names all three.
 2. Group interval: after the first flush, a fourth instance waits the group interval, not the group wait, before its flush runs.
-3. A repeat interval shorter than the group interval still repeats at the group interval, never faster.
+3. A repeat interval shorter than the group interval. Ticket 39 records this as an OPEN product decision ("do not treat the combination as a bug without settling this first"), so the case must not assert a floor. Pin the current behavior instead: a short repeat does fire faster than the group interval. Cite ticket 39 in a comment so that when the decision is made, changing this test is deliberate.
 4. A group parked on the idle sentinel with `last_flushed_at` null takes `now + group_wait` when the next event is dispatched to it, not the year 9999. This is ticket 41's case and is expected to fail before the one line fix.
 5. A permanent failure stops after one attempt: `setFetchResponse({ status: 403 })`, and the delivery row has `attempts` equal to `ALERT_DELIVERY_MAX_ATTEMPTS`, status `failed`, exactly one `delivery_failed` history row, and one fetch call.
 6. A transient failure retries: `setFetchResponse({ status: 503 })`, drained repeatedly with `advance` between drains, produces exactly five fetch calls and then stops.

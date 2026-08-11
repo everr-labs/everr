@@ -166,7 +166,7 @@ already written.
 
 - Group wait: several instances inside the wait leave in one message.
 - Group interval: the second flush waits the interval, not the wait.
-- A repeat interval shorter than the group interval (ticket 39).
+- A repeat interval shorter than the group interval (ticket 39). Pinned as current behavior, not as a rule: ticket 39 leaves the intended semantics undecided.
 - A group parked on the idle sentinel with `last_flushed_at` still null wakes
   on the next dispatch and takes `now + group_wait` (ticket 41, which records
   that no test reaches this case today).
