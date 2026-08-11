@@ -18,9 +18,6 @@ import {
 
 type Db = PgliteDatabase<typeof schema>;
 
-// Tasks 6-12 build the test files that import this alongside insertDirectRule;
-// only the smoke test consumes this module so far.
-// fallow-ignore-next-line unused-export
 export const TEST_ORG = "org_test";
 
 export interface RuleFixture {
@@ -61,7 +58,6 @@ function ruleSpec(overrides: RuleOverrides): AlertingRuleSpec {
   };
 }
 
-// fallow-ignore-next-line unused-export
 export async function insertRule(
   db: Db,
   overrides: RuleOverrides = {},

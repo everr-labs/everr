@@ -4,10 +4,15 @@ export interface SqlApiResult<T> {
   columnTypes: string[];
 }
 
+export interface ClickHouseWriteSettings {
+  insert_deduplication_token?: string;
+}
+
 export class ClickHouseDouble {
   private rows: Record<string, unknown>[] = [];
   private failure: Error | null = null;
   private history: Record<string, unknown>[] = [];
+  private seenDeduplicationTokens = new Set<string>();
 
   /** What the next rule evaluation sees as its query result. */
   // Called only through the harness's `clickhouse` property, which fallow
@@ -34,6 +39,7 @@ export class ClickHouseDouble {
     this.rows = [];
     this.failure = null;
     this.history = [];
+    this.seenDeduplicationTokens.clear();
   }
 
   read<T>(): SqlApiResult<T> {
@@ -46,7 +52,18 @@ export class ClickHouseDouble {
     };
   }
 
-  write(rows: object[]): void {
+  // Real app.alert_events dedups on insert_deduplication_token
+  // (non_replicated_deduplication_window, clickhouse/init/12-create-alert-events.sql):
+  // a second insert carrying a token already accepted in the window is
+  // dropped whole. Every history write already sets this token
+  // (alertHistoryDedupToken), so a faithful double has to drop the repeat
+  // too, the same way setFailure faithfully simulates the row-cap error.
+  write(rows: object[], settings?: ClickHouseWriteSettings): void {
+    const token = settings?.insert_deduplication_token;
+    if (token !== undefined) {
+      if (this.seenDeduplicationTokens.has(token)) return;
+      this.seenDeduplicationTokens.add(token);
+    }
     this.history.push(...(rows as Record<string, unknown>[]));
   }
 }
@@ -68,8 +85,9 @@ export async function query<T>(): Promise<T[]> {
 export async function insertAdminRows(
   _table: string,
   rows: object[],
+  clickhouse_settings?: ClickHouseWriteSettings,
 ): Promise<void> {
-  activeClickHouse.write(rows);
+  activeClickHouse.write(rows, clickhouse_settings);
 }
 
 export function createClickhouseQuery() {

@@ -99,7 +99,11 @@ export async function pendingJobs(db: Db) {
   return result.rows.map((row) => ({
     identifier: row.identifier,
     payload: row.payload,
-    runAt: row.run_at,
+    // pglite's raw execute() hands back a timestamp column as the text wire
+    // value, not a parsed Date, unlike the typed select() builder path. The
+    // return type above promises Date; make good on it here rather than at
+    // every call site.
+    runAt: new Date(row.run_at),
     attempts: row.attempts,
   }));
 }
