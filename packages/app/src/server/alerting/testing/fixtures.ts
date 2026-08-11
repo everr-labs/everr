@@ -118,7 +118,6 @@ export async function insertRule(
   };
 }
 
-// fallow-ignore-next-line unused-export
 export async function insertChannel(
   db: Db,
   overrides: {
@@ -178,7 +177,6 @@ export async function insertPreview(
   return preview;
 }
 
-// fallow-ignore-next-line unused-export
 export async function insertReceiver(
   db: Db,
   overrides: {
@@ -207,7 +205,6 @@ export async function insertReceiver(
   return { id: receiver.id, name };
 }
 
-// fallow-ignore-next-line unused-export
 export async function insertRoute(
   db: Db,
   overrides: {
