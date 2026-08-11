@@ -7,7 +7,7 @@
 // - `everr.visitor.id`: a random visitor id. It is an id for the device, and
 //   the code never calculates it from a fingerprint. The code makes it when
 //   the current store has none, then keeps it in memory. The
-//   setPersistence() and revoke() functions read it again after a change of
+//   setPersistence() and clearIdentity() functions change it when they change
 //   the store.
 // - `everr.session`: the session as `{ id, t }`, where `t` is the time of the
 //   last activity. The session changes after the usual timeout of 30 minutes
@@ -53,8 +53,8 @@ export function randomHex(bytes: number): string {
 
 // The code keeps the visitor id in memory. The envelope reads that id for each
 // record, and a read of the store for each record is not efficient. Only
-// setPersistence() and revoke() change the store, and the two functions read
-// the id again.
+// setPersistence() and clearIdentity() change the id, and the two functions
+// keep this variable correct.
 let visitor: string | undefined;
 
 /** The current visitor id. If the current store has none, the code makes one. */
@@ -130,11 +130,15 @@ export function persistSession(): void {
  * The current visitor id goes into the new store. But if the new store already
  * has a visitor id, that id stays. Thus a visitor who gives consent again keeps
  * the permanent id. The session continues, because the code keeps it in memory.
+ *
+ * The code reads the id of the previous store, but it writes nothing there.
+ * Thus the call after clearIdentity() puts no new id into the store that the
+ * user refused.
  */
 export function setPersistence(persistence: Persistence | undefined): void {
-  const id = visitorId();
+  const id = visitor ?? currentStore().readVisitor();
   setStore(storeFor(persistence));
-  visitor = currentStore().readVisitor() ?? id;
+  visitor = currentStore().readVisitor() ?? id ?? uniqueId();
   currentStore().writeVisitor(visitor);
   // The new store has no session. The write of the activity is on a delay, and
   // thus the code writes the session now. Without this step a reload in the
@@ -176,15 +180,21 @@ export function identify(userId: string, traits?: UserTraits): void {
 
 /**
  * Removes the `user.*` ambient attributes. It also deletes each id in the
- * store: the visitor id and the session id. The current client keeps its ids in
- * memory, but it does not write them to the store again. The next WebSDK starts
- * with new ids.
+ * store: the visitor id and the session id. The store itself does not change.
+ * The consent procedure calls this on a refusal, then
+ * `setPersistence("memory")`. Thus the subsequent records carry new ids that
+ * end with the page.
  */
-export function revoke(): void {
+export function clearIdentity(): void {
   clearUser();
   currentStore().clear();
   visitor = undefined;
   session = null;
+}
+
+/** @deprecated Call `clearIdentity()` and then `setPersistence("memory")`. */
+export function revoke(): void {
+  clearIdentity();
   setStore(storeFor("memory"));
 }
 

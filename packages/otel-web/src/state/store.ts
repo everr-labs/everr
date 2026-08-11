@@ -96,9 +96,9 @@ export function storeFor(persistence: Persistence | undefined): IdentityStore {
 }
 
 // This is the default before the code constructs a WebSDK. Thus identify() and
-// revoke() cause no error at that time. It is also the default after revoke(),
-// which installs a new memory store. Thus the current client stops to write the
-// ids to the store.
+// clearIdentity() cause no error at that time. It is also the store after
+// setPersistence("memory"), which the consent procedure calls on a refusal.
+// Thus the current client stops to write the ids to a permanent store.
 let store: IdentityStore = memoryStore();
 
 export const currentStore = (): IdentityStore => store;

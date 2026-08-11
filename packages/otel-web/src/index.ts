@@ -51,5 +51,10 @@ export {
   type RouteTemplateResolver,
   setRouteResolver,
 } from "./state/route.js";
-export { identify, revoke, setPersistence } from "./state/session.js";
+export {
+  clearIdentity,
+  identify,
+  revoke,
+  setPersistence,
+} from "./state/session.js";
 export type { Persistence, UserTraits, WebSDKOptions } from "./types.js";

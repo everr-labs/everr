@@ -1,4 +1,4 @@
-import { revoke, setPersistence } from "@everr/otel-web";
+import { clearIdentity, setPersistence } from "@everr/otel-web";
 import { ConsentBanner } from "@everr/ui/components/consent-banner";
 import { ConsentSettingsDialog } from "@everr/ui/components/consent-settings-dialog";
 import { createContext, type ReactNode, useContext, useState } from "react";
@@ -39,10 +39,11 @@ function storeConsent(decision: ConsentDecision): void {
  * A decision changes the current WebSDK, and the page does not reload. When the
  * user gives consent, the code calls `setPersistence("localStorage")` of the
  * SDK. Then the current client uses permanent ids, and the current session
- * continues. When the user removes the consent, the code calls `revoke()`. That
- * function deletes the visitor id, the session id, and the user id from the
- * store, and the client uses the memory store again. The code in
- * `telemetry/client.ts` only selects the initial store from the cookie.
+ * continues. When the user removes the consent, the code calls
+ * `clearIdentity()`, which deletes the visitor id, the session id, and the user
+ * id from the store, and then `setPersistence("memory")`, so the client uses
+ * the memory store again. The code in `telemetry/client.ts` only selects the
+ * initial store from the cookie.
  */
 export function ConsentGate({
   initialConsent,
@@ -75,7 +76,11 @@ export function ConsentGate({
     if (next === "granted") {
       setPersistence("localStorage");
     } else {
-      revoke();
+      // The order matters: clearIdentity() deletes the stored ids while the
+      // localStorage store is still current, then setPersistence("memory")
+      // switches without a write to the refused store.
+      clearIdentity();
+      setPersistence("memory");
     }
   };
 
