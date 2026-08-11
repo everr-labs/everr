@@ -3,6 +3,7 @@ import type { PgliteDatabase } from "drizzle-orm/pglite";
 import { encryptChannelConfig } from "@/data/alerting/delivery/channel-secrets.server";
 import { enqueueAlertEvaluationInTransaction } from "@/data/alerting/scheduling/evaluation-jobs.server";
 import type { AlertingMatcher, AlertingRuleSpec } from "@/data/alerting/types";
+import type { DbExecutor } from "@/db/client";
 import type * as schema from "@/db/schema";
 import {
   alertChannels,
@@ -19,6 +20,17 @@ import {
 type Db = PgliteDatabase<typeof schema>;
 
 export const TEST_ORG = "org_test";
+
+/**
+ * Repository functions take a `DbExecutor`, typed against node-postgres's
+ * `NodePgDatabase`. The harness's `PgliteDatabase` has the same
+ * transaction/select/insert/update/delete shape, so it works at runtime, but
+ * the two are nominally distinct types drizzle will not assign between. Cast
+ * once here rather than re-declaring the same `as never` at every call site.
+ */
+export function asDbExecutor(db: Db): DbExecutor {
+  return db as never;
+}
 
 export interface RuleFixture {
   id: string;

@@ -36,7 +36,12 @@ import {
 import { evaluateAlert } from "@/server/alerting/evaluation/rule";
 import { scanDueAlerts } from "@/server/alerting/scheduling/scanner";
 import { projectAlertLifecycle } from "./history/project-lifecycle";
-import { insertDirectRule, insertRule, TEST_ORG } from "./testing/fixtures";
+import {
+  asDbExecutor,
+  insertDirectRule,
+  insertRule,
+  TEST_ORG,
+} from "./testing/fixtures";
 import { type AlertingHarness, createAlertingHarness } from "./testing/harness";
 
 vi.mock("@/db/client", async () => {
@@ -278,13 +283,10 @@ describe("the alerting pipeline's instance lifecycle", () => {
     const [firing] = await harness.db.select().from(alertInstances);
     expect(firing.status).toBe("firing");
 
-    // The test database's PgliteDatabase type is structurally distinct from
-    // the DbExecutor the repository declares, the same mismatch fixtures.ts
-    // already casts through for its own transaction handles.
     const { deleted } = await deleteRule(
       TEST_ORG,
       rule.id,
-      harness.db as never,
+      asDbExecutor(harness.db),
     );
     expect(deleted).toBe(true);
     // Drains the lifecycle projection job the delete enqueued.
@@ -359,18 +361,7 @@ describe("the alerting pipeline's instance lifecycle", () => {
     ).toHaveLength(2);
   });
 
-  // Suspected production defect: scanDueAlerts crashes on every call driven
-  // through this harness. server/alerting/scheduling/scanner.ts:94 does
-  // `row.scheduledFor.toISOString()` on a column selected as
-  // `sql<Date>\`${alertDefinitions.nextEvaluationAt}\`` (scanner.ts:67); pglite
-  // hands that raw cast expression back as the wire-format string, not a
-  // Date, so the call throws `row.scheduledFor.toISOString is not a
-  // function`. Referencing the typed column directly instead of wrapping it
-  // in a raw sql fragment would very likely fix this (drizzle's own
-  // mapFromDriverValue applies to a recognized column, not to an opaque sql
-  // fragment), but that is production code, so it is left alone and reported
-  // instead. See task-6-report.md for the full write-up.
-  it.fails("the scanner replaces rather than duplicates a due evaluation, and evaluating advances the schedule one interval", async () => {
+  it("the scanner replaces rather than duplicates a due evaluation, and evaluating advances the schedule one interval", async () => {
     const rule = await insertRule(harness.db, { intervalSecs: 60, forSecs: 0 });
     harness.clickhouse.setRows([{ service: "checkout", value: 42 }]);
 
@@ -429,8 +420,7 @@ describe("the alerting pipeline's instance lifecycle", () => {
         notification_channels: [],
       },
       undefined,
-      // Same DbExecutor/PgliteDatabase mismatch as deleteRule above.
-      harness.db as never,
+      asDbExecutor(harness.db),
     );
     // Drains the lifecycle projection job the label change enqueued.
     await harness.runDueJobs();
