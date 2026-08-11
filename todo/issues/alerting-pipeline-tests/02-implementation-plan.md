@@ -845,6 +845,11 @@ describe("the alerting pipeline", () => {
     expect(instances).toHaveLength(1);
     expect(instances[0].status).toBe("firing");
 
+    // A direct-channel rule groups like any other, so its notification waits
+    // the default group wait before the flush claims it.
+    harness.advance(ALERTING_DEFAULT_GROUP_WAIT_SECS * 1_000);
+    await harness.runDueJobs();
+
     const deliveries = await harness.db.select().from(alertDeliveries);
     expect(deliveries).toHaveLength(1);
     expect(deliveries[0].status).toBe("sent");
@@ -1192,6 +1197,13 @@ git commit -m "test(alerts): one rule goes from evaluation to a delivered messag
 ### Tasks 6 to 11: the test files
 
 Every one of these tasks has the same shape, so the shape is stated once here and each task below lists only its cases.
+
+**Facts established while building the harness. Every test file depends on these.**
+
+- **A notification is never immediate.** Every dispatch target, including a rule wired straight to a channel, carries `ALERTING_DEFAULT_GROUP_WAIT_SECS` (10s). So the shape of an end-to-end case is: drain, then `harness.advance(10_000)`, then drain again, and only then assert on deliveries or `fetchCalls()`. Asserting on a delivery after a single drain will always find none.
+- **A rule is enqueued when it is created, not when the scanner next runs.** Production's `createRule` enqueues the first evaluation transactionally, and the scanner cron is a backstop for rules that fall behind, never the first trigger. `insertRule` does the same, which is what makes one `runDueJobs()` reach evaluation.
+- **`alert_routes` and `alert_inhibitions` do not have a column per field.** Both pack their non-identity fields into a single `config` jsonb column, in snake_case. `insertRoute` also resolves a receiver name to a receiver id. Read `fixtures.ts` before writing a routing case, not the domain types.
+- **Channel URLs must be IP literals.** The production SSRF guard resolves the host before sending, so a `.test` hostname fails a real DNS lookup and the request never reaches the stubbed `fetch`. The fixtures default to `203.0.113.10` (RFC 5737 documentation range), which the guard passes without a DNS call.
 
 **Per-task steps**
 
