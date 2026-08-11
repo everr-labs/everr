@@ -222,7 +222,9 @@ statement, so it stays fast.
   shared a group now split.
 - Synthetic labels win on collision. A user label named `severity` cannot
   override the system value.
-- Bounded fan-out (ticket 29) holds when a rule matches many routes.
+- A rule matched by many routes reaches every one of them. Route fan-out has
+  no cap today, and this case pins that: ticket 29's bound is on the
+  recipients inside one channel, not on how many routes an event fans into.
 
 ### 6. `pipeline-invariants.integration.test.ts`
 

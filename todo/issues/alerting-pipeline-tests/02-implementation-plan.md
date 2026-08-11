@@ -1390,7 +1390,12 @@ Each case sits on one documented bound. Insert bulk fixtures with one multi-row 
 6. A route row persisted with a retired regex op never matches.
 7. `group_by: ["service"]` splits two instances with different `service` labels into two groups, where the default grouping would have joined them.
 8. A user label named `severity` does not override the system value in the dispatch labels.
-9. A rule matching many routes stays inside the fan-out bound.
+9. A rule matched by 12 routes, every one of them `continue: true`, reaches
+   all 12 receivers: 12 groups, 12 deliveries, none dropped. Route fan-out has
+   no cap in the runtime, and this case pins that fact rather than asserting a
+   bound. Ticket 29's bound is on the recipients inside one channel (email and
+   Telegram), not on how many routes one event fans into. Do not invent a
+   constant, and do not assert a truncation that the code does not do.
 
 **Commit:** `test(alerts): routing decides who is told, and in what group`
 
