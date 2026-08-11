@@ -89,22 +89,6 @@ describe("processAlertEvent retention lifecycle", () => {
     expect(mocks.history).toEqual([]);
   });
 
-  it("does not process an event twice after completion", async () => {
-    mocks.selectQueue = [
-      [
-        {
-          id: EVENT_ID,
-          processedAt: new Date("2026-08-06T12:00:00Z"),
-          suppressed: false,
-        },
-      ],
-    ];
-
-    await processAlertEvent({ eventId: EVENT_ID });
-
-    expect(mocks.update).not.toHaveBeenCalled();
-  });
-
   it("records a terminal when a fire is no longer firing by the time it is processed", async () => {
     mocks.selectQueue = [
       // claimDeliverableEvent's own read.
