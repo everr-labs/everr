@@ -53,7 +53,7 @@ One capture is one record. The package applies no throttle and no deduplication,
 
 ## Sensitive data
 
-This package removes nothing. The message, the stack, and the attributes you pass reach the exporter unchanged. `beforeSend` is the one lever: rewrite the record, or return `null` to drop it.
+This package removes nothing. The message, the stack, and the attributes you pass reach the exporter unchanged. `beforeSend` is the one lever: rewrite the record, or return `null` to drop it. Every emitted field is on the event: `event.message` is the record body, `event.context` holds your attributes, and `event.exception` holds the `type`, `message`, and `stacktrace` that become the `exception.*` attributes. Rewrite them in place (set `stacktrace` to `undefined` to remove the attribute); the original Error is never read again after the hook returns.
 
 It does not reach the active span. When a span is active it gets `recordException` and `setStatus` built from the error itself, not from what your hook returned, so a hook that scrubs the message leaves a dirty span in the same trace. Returning `null` skips both. For the span, use a span processor on your own `NodeSDK`, or redact at the collector, which covers every signal at once.
 

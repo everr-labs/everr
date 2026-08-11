@@ -167,6 +167,29 @@ describe("the capture path", () => {
     expect(exception?.attributes?.["exception.message"]).toBe("boom");
   });
 
+  it("beforeSend redacts the body and the exception attributes, not the span", () => {
+    configure({
+      beforeSend: (event) => {
+        event.message = "[redacted]";
+        event.exception.message = "[redacted]";
+        event.exception.stacktrace = undefined;
+        return event;
+      },
+    });
+    trace.getTracer("test").startActiveSpan("request", (requestSpan) => {
+      capture({ error: new Error("secret token"), mechanism: "manual" });
+      requestSpan.end();
+    });
+
+    const [record] = otel.records();
+    expect(record.body).toBe("[redacted]");
+    expect(record.attributes["exception.message"]).toBe("[redacted]");
+    expect(record.attributes["exception.stacktrace"]).toBeUndefined();
+    // The span keeps the values of the error: the documented policy.
+    const requestSpan = otel.spans().find((s) => s.name === "request");
+    expect(requestSpan?.status.message).toBe("Error: secret token");
+  });
+
   it("discards the record and the span marking together on a null beforeSend", () => {
     configure({ beforeSend: () => null });
     trace.getTracer("test").startActiveSpan("request", (requestSpan) => {
