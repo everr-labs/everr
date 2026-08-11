@@ -12,6 +12,7 @@ const mocks = vi.hoisted(() => ({
     Promise.resolve({ inhibitions: [], sources: [] }),
   ),
   recordHistory: vi.fn(() => Promise.resolve()),
+  addWorkerJob: vi.fn(() => Promise.resolve(undefined)),
   transactionCalls: 0,
   // The channels attached to a group's receiver or direct rule.
   channelRows: [] as unknown[],
@@ -85,6 +86,10 @@ vi.mock("@/db/client", () => {
 
 vi.mock("./journal-reader", () => ({
   deliverableGroupMemberQuery: () => Promise.resolve(mocks.memberRows),
+}));
+
+vi.mock("@/server/worker/jobs", () => ({
+  addWorkerJobInTransaction: mocks.addWorkerJob,
 }));
 
 vi.mock("./suppression", () => ({
@@ -268,6 +273,33 @@ describe("flushAlertGroup suppression batching", () => {
 
     expect(mocks.loadSilences).toHaveBeenCalledTimes(1);
     expect(mocks.loadInhibition).toHaveBeenCalledTimes(1);
+  });
+
+  // A group above the claim cap leaves members unflushed on every pass. The
+  // reschedule used to hand back the schedule this flush had just consumed,
+  // which is in the past, so the job re-armed itself with no delay and the
+  // group flushed in a tight loop for as long as it stayed oversized.
+  it("does not re-arm itself in the past when the cap leaves members behind", async () => {
+    const consumed = new Date(Date.now() - 60_000);
+    const group = {
+      id: GROUP_ID,
+      organizationId: "org-1",
+      nextFlushAt: consumed,
+      directAlertDefinitionId: null,
+      receiverId: null,
+      groupIntervalSeconds: 300,
+      repeatIntervalSeconds: null,
+      lastNotifiedAt: null,
+    };
+    mocks.groupRow = group;
+    mocks.memberRows = [member(0)];
+    mocks.commitSelectQueue = [[group], [{ unflushed: 100 }]];
+
+    await flushAlertGroup({ groupId: GROUP_ID });
+
+    const scheduled = mocks.updates.at(-1)?.nextFlushAt as Date;
+    expect(scheduled.getTime()).toBeGreaterThan(Date.now());
+    expect(scheduled.getTime()).toBeGreaterThan(consumed.getTime() + 300_000);
   });
 
   it("does not load either when nothing survives to the suppression check", async () => {

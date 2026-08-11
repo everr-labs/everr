@@ -1621,6 +1621,12 @@
           "primaryKey": false,
           "notNull": false
         },
+        "group_interval_seconds": {
+          "name": "group_interval_seconds",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
         "repeat_interval_seconds": {
           "name": "repeat_interval_seconds",
           "type": "integer",

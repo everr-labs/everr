@@ -108,6 +108,15 @@ export function memberLiveness(
  * Such a membership is not in the claimed set, so it survives the delete, but
  * it would be stranded if the flush parked `nextFlushAt` on the idle sentinel.
  * Taking the earliest candidate never postpones work another writer scheduled.
+ *
+ * A schedule that is still ahead is taken as it stands. One that is not, which
+ * means the schedule this flush just consumed, is floored at one group
+ * interval past this flush. Taking a consumed schedule verbatim re-arms the
+ * job with no delay at all, so a group that cannot drain its backlog in one
+ * pass flushes in a tight loop. The interval is also what a member dispatched
+ * just after this flush would wait (see `nextGroupFlushAt`), so the leftovers
+ * of a capped claim and the news arriving a moment later land in one
+ * notification instead of two.
  */
 export function nextGroupFlushState(opts: {
   repeatAt: Date | null;
@@ -115,14 +124,21 @@ export function nextGroupFlushState(opts: {
   pendingFlushAt: Date;
   hasUnflushedMembers: boolean;
   now: Date;
+  /** The group's own configured interval, never a constant: a route that asked
+   * for a slower cadence must not be flushed faster than it asked. */
+  groupIntervalSeconds: number;
 }): { nextFlushAt: Date; enqueue: boolean } {
   const times: number[] = [];
   if (opts.repeatAt) times.push(opts.repeatAt.getTime());
   if (opts.hasUnflushedMembers) {
-    times.push(
+    const candidate =
       opts.pendingFlushAt < IDLE_GROUP_FLUSH_AT
         ? opts.pendingFlushAt.getTime()
-        : opts.now.getTime(),
+        : opts.now.getTime();
+    times.push(
+      candidate > opts.now.getTime()
+        ? candidate
+        : opts.now.getTime() + opts.groupIntervalSeconds * 1_000,
     );
   }
   if (times.length === 0) {

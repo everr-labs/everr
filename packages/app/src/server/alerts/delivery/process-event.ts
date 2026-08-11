@@ -186,6 +186,7 @@ export async function claimNotificationGroup(
             target.groupWaitSeconds,
             target.groupIntervalSeconds,
           ),
+          groupIntervalSeconds: target.groupIntervalSeconds,
           repeatIntervalSeconds: target.repeatIntervalSeconds,
           updatedAt: now,
         })
@@ -207,6 +208,7 @@ export async function claimNotificationGroup(
           target.groupWaitSeconds,
           target.groupIntervalSeconds,
         ),
+        groupIntervalSeconds: target.groupIntervalSeconds,
         repeatIntervalSeconds: target.repeatIntervalSeconds,
       })
       .onConflictDoNothing({

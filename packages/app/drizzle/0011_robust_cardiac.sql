@@ -175,6 +175,7 @@ CREATE TABLE "alert_notification_groups" (
 	"next_flush_at" timestamp with time zone NOT NULL,
 	"last_flushed_at" timestamp with time zone,
 	"last_notified_at" timestamp with time zone,
+	"group_interval_seconds" integer,
 	"repeat_interval_seconds" integer,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,

@@ -1,4 +1,5 @@
 import { and, asc, count, eq, inArray, isNull } from "drizzle-orm";
+import { ALERTING_DEFAULT_GROUP_INTERVAL_SECS } from "@/data/alerting/routing/defaults";
 import { alertingPartitionQueue } from "@/data/alerting/scheduling/evaluation-jobs.server";
 import { db } from "@/db/client";
 import {
@@ -353,6 +354,9 @@ export async function flushAlertGroup(rawPayload: unknown): Promise<void> {
       pendingFlushAt: fresh.nextFlushAt,
       hasUnflushedMembers: (pending?.unflushed ?? 0) > 0,
       now: flushedAt,
+      // Null on groups written before the column existed.
+      groupIntervalSeconds:
+        group.groupIntervalSeconds ?? ALERTING_DEFAULT_GROUP_INTERVAL_SECS,
     });
     await tx
       .update(alertNotificationGroups)

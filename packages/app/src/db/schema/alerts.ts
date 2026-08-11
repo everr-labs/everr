@@ -550,6 +550,11 @@ export const alertNotificationGroups = pgTable(
     nextFlushAt: timestamp("next_flush_at", { withTimezone: true }).notNull(),
     lastFlushedAt: timestamp("last_flushed_at", { withTimezone: true }),
     lastNotifiedAt: timestamp("last_notified_at", { withTimezone: true }),
+    // Persisted from the dispatch target for the same reason as the repeat
+    // interval: the flush needs it to pace itself and cannot re-derive the
+    // route it came from. Null on rows written before this column existed;
+    // readers fall back to the default.
+    groupIntervalSeconds: integer("group_interval_seconds"),
     repeatIntervalSeconds: integer("repeat_interval_seconds"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()

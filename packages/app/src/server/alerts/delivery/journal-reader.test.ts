@@ -59,6 +59,20 @@ describe("the delivery pipeline's journal boundary", () => {
     expect(params).toContain(500);
   });
 
+  // Ordering on the event id alone let a group above the cap keep re-claiming
+  // the same oldest members, so anything newer was never delivered.
+  it("claims unflushed members before flushed ones", () => {
+    const { sql } = deliverableGroupMemberQuery(
+      builder(),
+      "1af52a7c-c9d7-4bca-9c67-a21db2096acf",
+      500,
+    ).toSQL();
+
+    const order = sql.slice(sql.indexOf("order by")).toLowerCase();
+    expect(order).toContain('"flushed_at" is not null');
+    expect(order.indexOf("flushed_at")).toBeLessThan(order.indexOf('"id"'));
+  });
+
   it("counts a delivery's rules as live only when notifying and active", () => {
     const { sql, params } = liveRuleForDeliveryQuery(builder(), "dk-1").toSQL();
 

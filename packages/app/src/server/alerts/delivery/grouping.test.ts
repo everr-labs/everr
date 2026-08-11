@@ -206,22 +206,60 @@ describe("nextGroupFlushState", () => {
         pendingFlushAt: IDLE_GROUP_FLUSH_AT,
         hasUnflushedMembers: false,
         now,
+        groupIntervalSeconds: 300,
       }),
     ).toEqual({ nextFlushAt: IDLE_GROUP_FLUSH_AT, enqueue: false });
   });
 
-  it("flushes immediately for a member added while this flush was running", () => {
-    // The concurrent insert leaves an unflushed membership. Parking on the
-    // sentinel would strand it, because the job its writer enqueued returns
-    // early once nextFlushAt is in the far future.
+  // The concurrent insert leaves an unflushed membership. Parking on the
+  // sentinel would strand it, because the job its writer enqueued returns
+  // early once nextFlushAt is in the far future. Scheduling it at `now`
+  // stranded nothing but re-armed the job with no delay, which is a tight
+  // flush loop whenever the backlog cannot drain in one pass.
+  it("schedules an unflushed member one interval out, never at now", () => {
     expect(
       nextGroupFlushState({
         repeatAt: null,
         pendingFlushAt: IDLE_GROUP_FLUSH_AT,
         hasUnflushedMembers: true,
         now,
+        groupIntervalSeconds: 300,
       }),
-    ).toEqual({ nextFlushAt: now, enqueue: true });
+    ).toEqual({
+      nextFlushAt: new Date(now.getTime() + 300_000),
+      enqueue: true,
+    });
+  });
+
+  // The cap leaves members behind and writes the group's own schedule back.
+  // That schedule is in the past by then, so it must not be taken verbatim.
+  it("floors a consumed schedule instead of re-arming immediately", () => {
+    const consumed = new Date(now.getTime() - 60_000);
+    expect(
+      nextGroupFlushState({
+        repeatAt: null,
+        pendingFlushAt: consumed,
+        hasUnflushedMembers: true,
+        now,
+        groupIntervalSeconds: 300,
+      }),
+    ).toEqual({
+      nextFlushAt: new Date(now.getTime() + 300_000),
+      enqueue: true,
+    });
+  });
+
+  // A route that asked for a slower cadence must not be flushed faster.
+  it("paces on the group's own interval, not a constant", () => {
+    expect(
+      nextGroupFlushState({
+        repeatAt: null,
+        pendingFlushAt: new Date(now.getTime() - 60_000),
+        hasUnflushedMembers: true,
+        now,
+        groupIntervalSeconds: 900,
+      }).nextFlushAt,
+    ).toEqual(new Date(now.getTime() + 900_000));
   });
 
   it("keeps a schedule another writer set rather than postponing it", () => {
@@ -232,6 +270,7 @@ describe("nextGroupFlushState", () => {
         pendingFlushAt: pending,
         hasUnflushedMembers: true,
         now,
+        groupIntervalSeconds: 300,
       }),
     ).toEqual({ nextFlushAt: pending, enqueue: true });
   });
@@ -244,6 +283,7 @@ describe("nextGroupFlushState", () => {
         pendingFlushAt: new Date("2026-08-06T10:04:00Z"),
         hasUnflushedMembers: true,
         now,
+        groupIntervalSeconds: 300,
       }),
     ).toEqual({ nextFlushAt: repeatAt, enqueue: true });
   });
@@ -256,6 +296,7 @@ describe("nextGroupFlushState", () => {
         pendingFlushAt: new Date("2026-08-06T10:00:30Z"),
         hasUnflushedMembers: false,
         now,
+        groupIntervalSeconds: 300,
       }),
     ).toEqual({ nextFlushAt: repeatAt, enqueue: true });
   });
