@@ -1319,7 +1319,7 @@ it("holds a breach in pending until `for` elapses, and never notifies while pend
 
 **Cases**
 
-1. A silence matching the instance's labels defers the notification: no fetch call, a `notification_deferred` history row, and the instance still reaches `firing`.
+1. A silence matching the instance's labels defers the notification: no fetch call, the `alert_events` row stamped silenced with `processed_at` back to null, and the instance still reaches `firing`. There is no `notification_deferred` history type: per ticket 40 a deferred fire is bookkept in Postgres and re-queued, and only a terminated event journals `notification_suppressed`.
 2. The silence expires. Advance past `ends_at`, drain, and the notification goes out with a history row that marks it late.
 3. Canceling the silence releases every held event in one statement: two held events both notify after one drain, and the cancel wrote both release jobs inside its own transaction.
 4. An inhibition holds the target while the source fires. No fetch call for the target, and a hold decision row is written.

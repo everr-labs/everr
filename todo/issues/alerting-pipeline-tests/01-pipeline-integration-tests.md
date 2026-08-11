@@ -147,7 +147,7 @@ already written.
 ### 2. `pipeline-suppression.integration.test.ts`
 
 - A matching silence defers the event (ticket 40). The message is muted, the
-  bookkeeping is not: `notification_deferred` is journaled and the instance
+  bookkeeping is not: the `alert_events` row is stamped silenced and re-queued, and the instance
   still reaches firing.
 - The silence expires. The deferred event wakes, notifies late, and the row
   explains the lateness (ticket 38).
