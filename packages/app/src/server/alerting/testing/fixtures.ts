@@ -1,7 +1,7 @@
 import { and, eq } from "drizzle-orm";
 import type { PgliteDatabase } from "drizzle-orm/pglite";
 import { encryptChannelConfig } from "@/data/alerting/delivery/channel-secrets.server";
-import { enqueueAlertEvaluation } from "@/data/alerting/scheduling/evaluation-jobs.server";
+import { enqueueAlertEvaluationInTransaction } from "@/data/alerting/scheduling/evaluation-jobs.server";
 import type { AlertingMatcher, AlertingRuleSpec } from "@/data/alerting/types";
 import type * as schema from "@/db/schema";
 import {
@@ -66,36 +66,41 @@ export async function insertRule(
   db: Db,
   overrides: RuleOverrides = {},
 ): Promise<RuleFixture> {
-  const [row] = await db
-    .insert(alertDefinitions)
-    .values({
-      organizationId: overrides.organizationId ?? TEST_ORG,
-      repoid: "repo_test",
-      project: overrides.project ?? "default",
-      slug: overrides.slug ?? "checkout-latency",
-      spec: ruleSpec(overrides),
-      previewId: overrides.previewId ?? null,
-      active: overrides.active ?? true,
-      // Due now, so the scanner picks it up on the first drain.
-      nextEvaluationAt: overrides.nextEvaluationAt ?? new Date(),
-    })
-    .returning({
-      id: alertDefinitions.id,
-      organizationId: alertDefinitions.organizationId,
-      project: alertDefinitions.project,
-      slug: alertDefinitions.slug,
-      version: alertDefinitions.version,
-      nextEvaluationAt: alertDefinitions.nextEvaluationAt,
+  // One transaction, mirroring createRule's own scheduleEvaluation
+  // (repository.ts): the API enqueues the first evaluation in the same
+  // transaction as the insert, so the job cannot outlive a rolled-back rule
+  // and a mutated rule is never left unscheduled by a crash. The scanner
+  // cron is only a backstop for a job that went missing after that, not
+  // what starts a rule off, so a bare row insert here would sit in the
+  // table forever with nothing to evaluate it.
+  const row = await db.transaction(async (tx) => {
+    const [inserted] = await tx
+      .insert(alertDefinitions)
+      .values({
+        organizationId: overrides.organizationId ?? TEST_ORG,
+        repoid: "repo_test",
+        project: overrides.project ?? "default",
+        slug: overrides.slug ?? "checkout-latency",
+        spec: ruleSpec(overrides),
+        previewId: overrides.previewId ?? null,
+        active: overrides.active ?? true,
+        // Due now, so the scanner picks it up on the first drain.
+        nextEvaluationAt: overrides.nextEvaluationAt ?? new Date(),
+      })
+      .returning({
+        id: alertDefinitions.id,
+        organizationId: alertDefinitions.organizationId,
+        project: alertDefinitions.project,
+        slug: alertDefinitions.slug,
+        version: alertDefinitions.version,
+        nextEvaluationAt: alertDefinitions.nextEvaluationAt,
+      });
+    await enqueueAlertEvaluationInTransaction(tx as never, {
+      alertDefinitionId: inserted.id,
+      scheduledFor: (inserted.nextEvaluationAt ?? new Date()).toISOString(),
+      ruleVersion: inserted.version,
     });
-  // Mirrors createRule's own scheduleEvaluation (repository.ts): the API
-  // enqueues the first evaluation in the same transaction as the insert.
-  // The scanner cron is only a backstop for a job that went missing after
-  // that, not what starts a rule off, so a bare row insert here would sit
-  // in the table forever with nothing to evaluate it.
-  await enqueueAlertEvaluation({
-    alertDefinitionId: row.id,
-    scheduledFor: (row.nextEvaluationAt ?? new Date()).toISOString(),
-    ruleVersion: row.version,
+    return inserted;
   });
   return {
     id: row.id,
