@@ -24,8 +24,12 @@ CREATE TABLE IF NOT EXISTS app.alert_events
   -- and nobody should have to type the zero-UUID sentinel to filter previews.
   is_live Bool DEFAULT preview_id = toUUID('00000000-0000-0000-0000-000000000000'),
   event_type LowCardinality(String),
-  -- 'live' or 'reconciled'. The app.logs projection copies live rows only,
-  -- which is what lets the reconciler re-drive rows without duplicating logs.
+  -- 'live' or 'reconciled', so a reader can always separate the engine's own
+  -- writes from the reconciler's repairs. A repaired row is near full fidelity
+  -- but not identical to the row it replaces (empty evidence_json,
+  -- evaluation_scheduled_at approximated by occurred_at), and this is the flag
+  -- that says which one is in hand. Only 'live' is written today; the
+  -- reconciler has no writer yet.
   write_source LowCardinality(String) DEFAULT 'live',
   -- Zero (epoch) off evaluation rows; never dateDiff against it there. Every
   -- writer sends this explicitly; the DEFAULT documents the sentinel in
@@ -77,8 +81,8 @@ CREATE TABLE IF NOT EXISTS app.alert_events
   inhibition_comment String DEFAULT '',
   inhibition_source_json String DEFAULT '',
   -- Channel type to the channel names it reached. Denormalized so a delivery
-  -- trail never needs a join back to PostgreSQL. Never carries a URL, token,
-  -- or address: see deliveryTargets in delivery/history.ts.
+  -- trail never needs a join back to PostgreSQL. Never carries a URL, a token,
+  -- or a chat id: see deliveryTargets in delivery/history.ts.
   delivery_targets Map(String, Array(String)) DEFAULT map(),
   -- The PostgreSQL delivery key; the reconciliation diff joins on it. Empty
   -- off delivery rows.
