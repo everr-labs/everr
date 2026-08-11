@@ -1,4 +1,5 @@
 import { and, eq, gt, inArray, isNull, lte } from "drizzle-orm";
+import { enqueueProcessAlertEvent } from "@/data/alerting/delivery/tasks";
 import {
   alertingMatchingSilence,
   alertingRouteMatches,
@@ -19,7 +20,6 @@ import {
 } from "../history/clickhouse";
 import { instanceKey } from "./grouping";
 import { alertEventDispatchLabels } from "./targeting";
-import { enqueueProcessAlertEvent } from "./tasks";
 
 export type ActiveSilence = Awaited<
   ReturnType<typeof loadActiveSilences>

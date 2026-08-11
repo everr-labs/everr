@@ -1,4 +1,5 @@
 import { and, eq, lt, ne } from "drizzle-orm";
+import { uuidv7 } from "@/data/alerting/history/ids";
 import type { DbExecutor } from "@/db/client";
 import { alertDefinitions, alertInstances, previews } from "@/db/schema";
 import {
@@ -6,7 +7,6 @@ import {
   recordAlertHistory,
   ZERO_UUID,
 } from "./clickhouse";
-import { uuidv7 } from "./ids";
 
 export type PreviewInstanceClosure = {
   instance: typeof alertInstances.$inferSelect;

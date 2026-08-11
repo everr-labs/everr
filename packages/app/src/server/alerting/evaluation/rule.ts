@@ -1,6 +1,8 @@
 import { eq, sql } from "drizzle-orm";
 import { z } from "zod";
+import { enqueueProcessAlertEvent } from "@/data/alerting/delivery/tasks";
 import { renderMessage } from "@/data/alerting/delivery/template";
+import { uuidv7 } from "@/data/alerting/history/ids";
 import {
   alertingConditionMatches,
   alertingConditionValue,
@@ -23,14 +25,13 @@ import {
 } from "@/db/schema";
 import { env } from "@/env";
 import { querySqlApiWithMeta } from "@/lib/clickhouse";
-import { previewDefinitionsEnqueueable } from "@/server/alerts/scheduling/scanner";
+import { previewDefinitionsEnqueueable } from "@/server/alerting/scheduling/scanner";
 import { addWorkerJobInTransaction } from "@/server/worker/jobs";
 import {
   errorMessage,
   exceptionAttributes,
   serverLogger,
 } from "@/telemetry/logger";
-import { enqueueProcessAlertEvent } from "../delivery/tasks";
 import {
   type AlertHistoryDefinition,
   type AlertHistoryRow,
@@ -41,7 +42,6 @@ import {
   ZERO_UUID,
 } from "../history/clickhouse";
 import { buildAlertContextJson } from "../history/content";
-import { uuidv7 } from "../history/ids";
 import { boundEventEvidence, boundEvidence } from "./evidence";
 import { rowsToInstances } from "./instances";
 import { captureAlertEvaluationSamples } from "./samples";

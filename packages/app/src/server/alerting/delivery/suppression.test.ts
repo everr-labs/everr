@@ -42,7 +42,7 @@ vi.mock("@/db/client", () => {
   };
 });
 
-vi.mock("./tasks", () => ({
+vi.mock("@/data/alerting/delivery/tasks", () => ({
   enqueueProcessAlertEvent: (
     _tx: unknown,
     eventId: string,

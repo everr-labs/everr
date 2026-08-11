@@ -1,4 +1,9 @@
 import { and, eq, isNull, TransactionRollbackError } from "drizzle-orm";
+import {
+  ALERT_FLUSH_GROUP_TASK,
+  AlertEventTaskPayloadSchema,
+  flushGroupJobKey,
+} from "@/data/alerting/delivery/tasks";
 import { alertingPartitionQueue } from "@/data/alerting/scheduling/evaluation-jobs.server";
 import { db } from "@/db/client";
 import {
@@ -21,11 +26,6 @@ import {
   matchingSilence,
 } from "./suppression";
 import { dispatchTargetsForEvent } from "./targeting";
-import {
-  ALERT_FLUSH_GROUP_TASK,
-  AlertEventTaskPayloadSchema,
-  flushGroupJobKey,
-} from "./tasks";
 
 export async function processAlertEvent(rawPayload: unknown): Promise<void> {
   const { eventId } = AlertEventTaskPayloadSchema.parse(rawPayload);

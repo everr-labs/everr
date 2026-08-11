@@ -1,6 +1,6 @@
 import { sql } from "drizzle-orm";
+import { ALERT_DELIVERY_MAX_ATTEMPTS } from "@/data/alerting/delivery/config";
 import { db } from "@/db/client";
-import { ALERT_DELIVERY_MAX_ATTEMPTS } from "../delivery/config";
 
 const DAY_MS = 24 * 60 * 60 * 1_000;
 const EVALUATION_RETENTION_DAYS = 7;

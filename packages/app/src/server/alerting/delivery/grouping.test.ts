@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 // the import from reaching the real database client.
 vi.mock("@/db/client", () => ({ db: {}, pool: {} }));
 
+import { IDLE_GROUP_FLUSH_AT } from "@/data/alerting/delivery/tasks";
 import {
   type GroupMember,
   groupNotificationPlan,
@@ -11,7 +12,6 @@ import {
   nextGroupFlushAt,
   nextGroupFlushState,
 } from "./grouping";
-import { IDLE_GROUP_FLUSH_AT } from "./tasks";
 
 const now = new Date("2026-08-06T10:00:00Z");
 

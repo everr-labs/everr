@@ -4,14 +4,14 @@ import {
   ChannelSendError,
   sendChannelNotification,
 } from "@/data/alerting/delivery/channel-sender.server";
+import { ALERT_DELIVERY_MAX_ATTEMPTS } from "@/data/alerting/delivery/config";
+import { AlertDeliveryTaskPayloadSchema } from "@/data/alerting/delivery/tasks";
 import { db } from "@/db/client";
 import { alertChannels, alertDeliveries } from "@/db/schema";
 import { errorMessage } from "@/telemetry/logger";
 import { sanitizeAlertError } from "../history/content";
-import { ALERT_DELIVERY_MAX_ATTEMPTS } from "./config";
 import { recordDeliveryOutcome } from "./history";
 import { liveRuleForDeliveryQuery } from "./journal-reader";
-import { AlertDeliveryTaskPayloadSchema } from "./tasks";
 
 export async function sendAlertDelivery(rawPayload: unknown): Promise<void> {
   const { dedupKey } = AlertDeliveryTaskPayloadSchema.parse(rawPayload);

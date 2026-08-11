@@ -1,11 +1,11 @@
 import { and, desc, eq, gt, sql } from "drizzle-orm";
-import { alertingPartitionQueue } from "@/data/alerting/scheduling/evaluation-jobs.server";
-import { db } from "@/db/client";
-import { alertEvents, alertSilences } from "@/db/schema";
 import {
   ALERT_PROCESS_EVENT_TASK,
   PROCESS_EVENT_MAX_ATTEMPTS,
-} from "@/server/alerts/delivery/tasks";
+} from "@/data/alerting/delivery/tasks";
+import { alertingPartitionQueue } from "@/data/alerting/scheduling/evaluation-jobs.server";
+import { db } from "@/db/client";
+import { alertEvents, alertSilences } from "@/db/schema";
 import { throwAlertingPersistenceError } from "../persistence";
 import { AlertingSilenceInputSchema } from "../schema";
 import { type AlertingMutationScope, alertingActorPrincipal } from "../session";

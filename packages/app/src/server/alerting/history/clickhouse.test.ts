@@ -14,6 +14,7 @@ vi.mock("@/telemetry/logger", () => ({
   serverLogger: { error: mocks.error },
 }));
 
+import { uuidv7Time } from "@/data/alerting/history/ids";
 import {
   deliveryHistoryRow,
   evaluationHistoryRow,
@@ -23,7 +24,6 @@ import {
   suppressionHistoryRow,
   ZERO_UUID,
 } from "./clickhouse";
-import { uuidv7Time } from "./ids";
 
 const def = {
   id: "019c3ab6-54d6-7e26-bc76-8cadd67542fb",

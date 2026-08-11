@@ -1,3 +1,10 @@
+import type { AlertHistoryEventType } from "@/data/alerting/history/event-types";
+import {
+  deterministicDeliveryEventId,
+  deterministicSuppressionEventId,
+  uuidv7,
+  uuidv7Time,
+} from "@/data/alerting/history/ids";
 import type { AlertingEvaluationSample } from "@/data/alerting/types";
 import type { AlertingLifecycleReason } from "@/data/alerting/vocabulary";
 import { insertAdminRows } from "@/lib/clickhouse";
@@ -7,33 +14,12 @@ import {
   resolveAlertServiceName,
   sanitizeAlertError,
 } from "./content";
-import {
-  deterministicDeliveryEventId,
-  deterministicSuppressionEventId,
-  uuidv7,
-  uuidv7Time,
-} from "./ids";
 
 export const ZERO_UUID = "00000000-0000-0000-0000-000000000000";
 
 // `evaluation_scheduled_at` means one thing: when the evaluation was due. Off
 // evaluation rows it is the epoch sentinel, never a smuggled second timestamp.
 const EPOCH_ISO = "1970-01-01T00:00:00.000Z";
-
-// The single source of truth for what `event_type` can hold in ClickHouse.
-// Readers (data/alerting/history/event-types.ts) type-only import this so a
-// renamed or removed event type is a compile error everywhere it is
-// consumed, not a silently empty query result.
-export type AlertHistoryEventType =
-  | "evaluation_succeeded"
-  | "evaluation_failed"
-  | "instance_pending"
-  | "instance_fired"
-  | "instance_resolved"
-  | "instance_closed"
-  | "notification_suppressed"
-  | "delivery_succeeded"
-  | "delivery_failed";
 
 type AlertInstanceEventType =
   | "instance_pending"

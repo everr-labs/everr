@@ -8,7 +8,7 @@ carries a URL-shaped literal, then read `last_error` and the
 
 **Details:** found 2026-08-11 during the branch review.
 
-`recordEvaluationFailure` (`server/alerts/evaluation/rule.ts`) builds one
+`recordEvaluationFailure` (`server/alerting/evaluation/rule.ts`) builds one
 message and writes it to two stores. The ClickHouse copy is sanitized inside
 `evaluationFailureHistoryRow`. The PostgreSQL copy is stored raw, and the
 rule detail page renders it (`alerts/rules_.$project.$slug.tsx`).

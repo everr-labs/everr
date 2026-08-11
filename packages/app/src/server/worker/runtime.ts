@@ -3,7 +3,7 @@ import { performance } from "node:perf_hooks";
 import { metrics } from "@opentelemetry/api";
 import { type Runner, run, type WorkerEvents } from "graphile-worker";
 import { pool } from "@/db/client";
-import { alertCronItems, alertTaskList } from "@/server/alerts/runtime";
+import { alertCronItems, alertTaskList } from "@/server/alerting/runtime";
 import { githubEventsTaskList } from "@/server/github-events/tasks";
 import {
   previewsCronItems,

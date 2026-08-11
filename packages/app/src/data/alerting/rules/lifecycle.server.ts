@@ -9,6 +9,8 @@ import {
   sql,
 } from "drizzle-orm";
 import { alias, QueryBuilder } from "drizzle-orm/pg-core";
+import { uuidv7 } from "@/data/alerting/history/ids";
+import { ALERT_PROJECT_LIFECYCLE_TASK } from "@/data/alerting/history/tasks";
 import type { AlertingLifecycleReason } from "@/data/alerting/vocabulary";
 import type { Transaction } from "@/db/client";
 import {
@@ -18,8 +20,6 @@ import {
   alertNotificationGroupEvents,
   alertNotificationGroups,
 } from "@/db/schema";
-import { uuidv7 } from "@/server/alerts/history/ids";
-import { ALERT_PROJECT_LIFECYCLE_TASK } from "@/server/alerts/history/tasks";
 import { addWorkerJobInTransaction } from "@/server/worker/jobs";
 
 type RuleRow = typeof alertDefinitions.$inferSelect;

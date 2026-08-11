@@ -30,8 +30,8 @@ Global evaluation concurrency and tenant fairness remain planned work in
 Files:
 
 - `packages/app/src/data/alerting/rules/repository.ts:519`
-- `packages/app/src/server/alerts/delivery/suppression.ts:50`
-- `packages/app/src/server/alerts/delivery/flush-group.ts:99`
+- `packages/app/src/server/alerting/delivery/suppression.ts:50`
+- `packages/app/src/server/alerting/delivery/flush-group.ts:99`
 
 Pausing changes the definition flag but leaves firing instances, pending group
 flushes, and repeat notifications active. Existing notification groups can
@@ -154,7 +154,7 @@ Original required outcome, superseded by the removal:
 
 Files:
 
-- `packages/app/src/server/alerts/evaluation/rule.ts:288`
+- `packages/app/src/server/alerting/evaluation/rule.ts:288`
 - `packages/app/src/data/alerting/rules/repository.ts:60`
 - `packages/app/src/routes/_authenticated/_dashboard/_previewable/alerts/rules_.$project.$slug.tsx:63`
 
@@ -178,7 +178,7 @@ Required outcome:
 
 Files:
 
-- `packages/app/src/server/alerts/delivery/send-delivery.ts:24`
+- `packages/app/src/server/alerting/delivery/send-delivery.ts:24`
 - `packages/app/src/data/alerting/delivery/channel-sender.server.ts:133`
 
 A provider can accept a request before the worker fails to mark the delivery as
@@ -235,7 +235,7 @@ Required outcome:
 Files:
 
 - `packages/app/src/env/index.ts:27`
-- `packages/app/src/server/alerts/scheduling/scanner.ts:23`
+- `packages/app/src/server/alerting/scheduling/scanner.ts:23`
 
 The environment variable is parsed but never used by scheduling or evaluation.
 The documented operational kill switch cannot reduce preview evaluation load.
@@ -250,8 +250,8 @@ Required outcome:
 Files:
 
 - `packages/app/src/data/alerting/rules/resource/mapping.ts:62`
-- `packages/app/src/server/alerts/evaluation/rule.ts:319`
-- `packages/app/src/server/alerts/delivery/flush-group.ts:29`
+- `packages/app/src/server/alerting/evaluation/rule.ts:319`
+- `packages/app/src/server/alerting/delivery/flush-group.ts:29`
 
 Apply generates alert and runbook link annotations, and channel senders support
 a notification URL, but event creation and notification formatting never
@@ -301,8 +301,8 @@ ticket 16.
 
 Files:
 
-- `packages/app/src/server/alerts/maintenance/cleanup.ts:95`
-- `packages/app/src/server/alerts/delivery/process-event.ts:114`
+- `packages/app/src/server/alerting/maintenance/cleanup.ts:95`
+- `packages/app/src/server/alerting/delivery/process-event.ts:114`
 
 Cleanup only selects events with `processed_at < cutoff`. A processing job that
 exhausts every retry leaves `processed_at` null, so its event and evidence can

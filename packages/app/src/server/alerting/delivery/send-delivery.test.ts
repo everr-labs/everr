@@ -49,7 +49,7 @@ vi.mock("@/data/alerting/delivery/channel-sender.server", () => ({
 }));
 vi.mock("./history", () => ({ recordDeliveryOutcome: mocks.outcome }));
 
-import { ALERT_DELIVERY_MAX_ATTEMPTS } from "./config";
+import { ALERT_DELIVERY_MAX_ATTEMPTS } from "@/data/alerting/delivery/config";
 import { sendAlertDelivery } from "./send-delivery";
 
 const deliveryRow = {

@@ -58,9 +58,9 @@ vi.mock("../history/clickhouse", async (importOriginal) => ({
   recordAlertHistory: mocks.history,
 }));
 
+import { ALERT_PROCESS_EVENT_TASK } from "@/data/alerting/delivery/tasks";
 import { ALERT_EVALUATE_TASK } from "@/data/alerting/scheduling/evaluation-jobs.server";
 import { alertEvaluations, alertEvents, alertInstances } from "@/db/schema";
-import { ALERT_PROCESS_EVENT_TASK } from "../delivery/tasks";
 import {
   evaluateAlert,
   isNoopInactiveTransition,

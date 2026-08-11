@@ -4,7 +4,7 @@ import { previews } from "@/db/schema";
 import {
   openPreviewAlertInstances,
   recordPreviewTeardownClosures,
-} from "@/server/alerts/history/preview-teardown";
+} from "@/server/alerting/history/preview-teardown";
 
 /**
  * Record that a preview was applied for (org, repoid) and return its id: the

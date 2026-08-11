@@ -1,9 +1,23 @@
-// Type-only: the writer module (server/alerts/history/clickhouse.ts) pulls in
-// server-only dependencies (ClickHouse admin credentials, node:crypto), but
-// this file is imported by client-bundled route components. A type-only
-// import is erased at build time, so the real ClickHouse event-type union can
-// anchor these arrays without shipping the writer into the browser.
-import type { AlertHistoryEventType } from "@/server/alerts/history/clickhouse";
+/**
+ * The single source of truth for what `event_type` can hold in ClickHouse.
+ *
+ * It lives here, in the domain, rather than beside the writer: this module is
+ * imported by client-bundled route components, and the writer pulls in
+ * server-only dependencies (ClickHouse admin credentials, node:crypto). The
+ * writer imports the union from here, so a renamed or removed event type is a
+ * compile error at every reader and writer alike, not a silently empty query
+ * result.
+ */
+export type AlertHistoryEventType =
+  | "evaluation_succeeded"
+  | "evaluation_failed"
+  | "instance_pending"
+  | "instance_fired"
+  | "instance_resolved"
+  | "instance_closed"
+  | "notification_suppressed"
+  | "delivery_succeeded"
+  | "delivery_failed";
 
 /** `app.alert_events` types that are instance state changes. */
 const ALERT_TRANSITION_EVENT_TYPES = [

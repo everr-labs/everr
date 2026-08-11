@@ -8,7 +8,7 @@ leak is ticket 07.
 **Details:** finding 21 in `../04-alerting-branch-review.md`.
 
 Cleanup selects events on `processed_at < cutoff`
-(`server/alerts/maintenance/cleanup.ts`), so anything left at null is
+(`server/alerting/maintenance/cleanup.ts`), so anything left at null is
 uncollectable, whatever put it there. Finding 21 named one cause: a
 processing job that exhausts every retry. A second cause reaches the same
 state and is not a failure at all, so a fix aimed only at failures misses it:

@@ -1,4 +1,12 @@
 import { and, asc, count, eq, inArray, isNull } from "drizzle-orm";
+import { ALERT_DELIVERY_MAX_ATTEMPTS } from "@/data/alerting/delivery/config";
+import {
+  ALERT_FLUSH_GROUP_TASK,
+  ALERT_SEND_DELIVERY_TASK,
+  AlertGroupTaskPayloadSchema,
+  flushGroupJobKey,
+  IDLE_GROUP_FLUSH_AT,
+} from "@/data/alerting/delivery/tasks";
 import { ALERTING_DEFAULT_GROUP_INTERVAL_SECS } from "@/data/alerting/routing/defaults";
 import { alertingPartitionQueue } from "@/data/alerting/scheduling/evaluation-jobs.server";
 import { db } from "@/db/client";
@@ -19,7 +27,6 @@ import {
   recordAlertHistory,
   suppressionHistoryRow,
 } from "../history/clickhouse";
-import { ALERT_DELIVERY_MAX_ATTEMPTS } from "./config";
 import {
   type GroupMember,
   groupNotificationPlan,
@@ -37,13 +44,6 @@ import {
   matchSilence,
 } from "./suppression";
 import { alertDeliveryHash } from "./targeting";
-import {
-  ALERT_FLUSH_GROUP_TASK,
-  ALERT_SEND_DELIVERY_TASK,
-  AlertGroupTaskPayloadSchema,
-  flushGroupJobKey,
-  IDLE_GROUP_FLUSH_AT,
-} from "./tasks";
 
 // The body budgets against the tightest channel limit, keeping a margin for
 // the title and url framing; the sender cuts the body further when a long

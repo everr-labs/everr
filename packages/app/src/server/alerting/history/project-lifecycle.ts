@@ -1,4 +1,5 @@
 import { inArray } from "drizzle-orm";
+import { AlertLifecycleProjectionPayloadSchema } from "@/data/alerting/history/tasks";
 import { db } from "@/db/client";
 import { alertEvents } from "@/db/schema";
 import {
@@ -8,7 +9,6 @@ import {
   suppressionHistoryRow,
   ZERO_UUID,
 } from "./clickhouse";
-import { AlertLifecycleProjectionPayloadSchema } from "./tasks";
 
 /**
  * Project the lifecycle terminals a pause or delete journaled. Runs after the

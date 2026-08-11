@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { and, asc, countDistinct, desc, eq, inArray } from "drizzle-orm";
+import { deliveryIsInFlight } from "@/data/alerting/delivery/config";
 import { type DbExecutor, db } from "@/db/client";
 import {
   alertChannels,
@@ -11,7 +12,6 @@ import {
   alertReceivers,
   alertRoutes,
 } from "@/db/schema";
-import { deliveryIsInFlight } from "@/server/alerts/delivery/config";
 import {
   throwAlertingPersistenceError,
   translateAlertingConflict,

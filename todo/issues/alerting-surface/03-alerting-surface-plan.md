@@ -61,7 +61,7 @@ Doc step 1. Node has no v7 generator, and the builders emit v4 today, so
 
 Files:
 
-- `packages/app/src/server/alerts/history/clickhouse.ts`
+- `packages/app/src/server/alerting/history/clickhouse.ts`
 
 Required outcome: a small v7 helper with a unit test; every non-delivery
 row builder mints v7; delivery rows instead take deterministic ids derived
@@ -108,9 +108,9 @@ the builders fill them.
 
 Files:
 
-- `packages/app/src/server/alerts/history/clickhouse.ts`
-- `packages/app/src/server/alerts/evaluation/rule.ts`
-- `packages/app/src/server/alerts/delivery/send-delivery.ts`
+- `packages/app/src/server/alerting/history/clickhouse.ts`
+- `packages/app/src/server/alerting/evaluation/rule.ts`
+- `packages/app/src/server/alerting/delivery/send-delivery.ts`
 
 Required outcome: `service_name` resolved at write time (instance labels
 matching `/^service([_-]?name)?$/i`, then `'alert'`);
@@ -202,7 +202,7 @@ Required outcome:
   plus the delivery retry span plus the longest journal-writing
   transaction, narrower than min(tenant `logs_days`, the
   90-day journal retention in
-  `server/alerts/maintenance/cleanup.ts`).
+  `server/alerting/maintenance/cleanup.ts`).
 - Reconciled rows carry `write_source = 'reconciled'` and the journal
   timestamp as `event_time`.
 
@@ -235,8 +235,8 @@ journals a decision row referencing the event.
 
 Files:
 
-- `packages/app/src/server/alerts/delivery/suppression.ts`
-- `packages/app/src/server/alerts/delivery/process-event.ts`
+- `packages/app/src/server/alerting/delivery/suppression.ts`
+- `packages/app/src/server/alerting/delivery/process-event.ts`
 
 Required outcome: the compare-and-insert runs in one transaction holding
 the event row lock, and the previous triple is read from the journal,
@@ -249,7 +249,7 @@ Doc step 6. Needs issues 3 and 12.
 
 Files:
 
-- `packages/app/src/server/alerts/delivery/suppression.ts`
+- `packages/app/src/server/alerting/delivery/suppression.ts`
 
 Required outcome: the new event type projects from the decision rows; the
 silence comment and matchers freeze onto it and onto

@@ -13,9 +13,9 @@ vi.mock("@/server/worker/jobs", () => ({
   },
 }));
 
+import { ALERT_PROJECT_LIFECYCLE_TASK } from "@/data/alerting/history/tasks";
 import type { Transaction } from "@/db/client";
 import { alertEvents } from "@/db/schema";
-import { ALERT_PROJECT_LIFECYCLE_TASK } from "@/server/alerts/history/tasks";
 import {
   cancelableNotifyingEventsFilter,
   closeRuleLifecycle,

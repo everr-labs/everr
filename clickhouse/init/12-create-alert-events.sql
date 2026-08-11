@@ -116,7 +116,7 @@ ORDER BY (tenant_id, repoid, slug, event_type, event_time, event_id)
 TTL toDateTime(event_time) + INTERVAL least(toUInt32(30), dictGetOrDefault('app.tenant_retention', 'logs_days', tenant_id, toUInt32(3650))) DAY DELETE WHERE event_type IN ('evaluation_succeeded', 'evaluation_failed'),
     toDateTime(event_time) + INTERVAL dictGetOrDefault('app.tenant_retention', 'logs_days', tenant_id, toUInt32(3650)) DAY DELETE WHERE event_type NOT IN ('evaluation_succeeded', 'evaluation_failed')
 -- The deduplication window is sized now, at recreation time. Both writers in
--- server/alerts/history/clickhouse.ts set insert_deduplication_token from the
+-- server/alerting/history/clickhouse.ts set insert_deduplication_token from the
 -- sorted row ids, which dedups under async_insert as well as a synchronous
 -- insert. The window is bounded, so it backs up row-level determinism rather
 -- than replacing it: a row with a derived event_id derives its event_time too,

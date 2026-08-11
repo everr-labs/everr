@@ -1,5 +1,5 @@
+import { IDLE_GROUP_FLUSH_AT } from "@/data/alerting/delivery/tasks";
 import type { AlertingLifecycleReason } from "@/data/alerting/vocabulary";
-import { IDLE_GROUP_FLUSH_AT } from "./tasks";
 
 /**
  * What identifies an instance across the events that describe it. A fire and

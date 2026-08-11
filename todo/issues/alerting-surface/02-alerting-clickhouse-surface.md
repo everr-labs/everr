@@ -631,7 +631,7 @@ Repairs for rows that were never dropped mean the diff window is wrong.
 One dependency must be explicit in the implementation:
 
 - **PostgreSQL must still hold the row.** `cleanupAlertingHistory` in
-  `server/alerts/maintenance/cleanup.ts` deletes delivery and event rows at
+  `server/alerting/maintenance/cleanup.ts` deletes delivery and event rows at
   `HISTORY_RETENTION_DAYS`, currently 90. Every diff reads those rows. That is
   sufficient for any reasonable cadence, but correctness then depends on a
   constant in an unrelated file. A lower value loses deliveries and
@@ -709,7 +709,7 @@ Best-effort covers losing rows, not writing wrong ones.
   no-personal-data rule is not.
 
 Settled for delivery targets: `deliveryTargets` in
-`server/alerts/delivery/history.ts` records the channel name, not its
+`server/alerting/delivery/history.ts` records the channel name, not its
 address; email rows record no recipient count and no address. Settled for
 the rendered notification body (2026-08-09): it never lands in ClickHouse.
 It stays in PostgreSQL (`alert_deliveries.notification`), where erasure is
@@ -1079,7 +1079,7 @@ and inhibition columns, the split TTL, the deduplication window, and the
 codecs. Nine of the ten event types have writers: all but
 `notification_deferred`.
 
-The row builders mint UUIDv7 (`history/ids.ts`), matching the
+The row builders mint UUIDv7 (`data/alerting/history/ids.ts`), matching the
 `generateUUIDv7()` column default, so `UUIDv7ToDateTime(event_id)`
 recovers the creation time on every non-delivery row. Delivery rows carry
 the deterministic id derived from the journal event and
@@ -1433,16 +1433,16 @@ request open. It sits on top of a `wip` commit that predates it.
 | Concern | File |
 |---|---|
 | Table DDL | `clickhouse/init/12-create-alert-events.sql` |
-| ClickHouse row builders and the insert | `server/alerts/history/clickhouse.ts` |
+| ClickHouse row builders and the insert | `server/alerting/history/clickhouse.ts` |
 | PostgreSQL schema | `db/schema/alerts.ts` |
-| Scheduler scan and the stale-enqueue net | `server/alerts/scheduling/scanner.ts` |
-| Evaluation, transitions, failure handling | `server/alerts/evaluation/rule.ts` |
-| Silence and inhibition checks, deferral | `server/alerts/delivery/suppression.ts` |
-| Group membership and dispatch | `server/alerts/delivery/process-event.ts` |
-| Flush, claim and commit | `server/alerts/delivery/flush-group.ts` |
-| Flush decision logic, pure and tested | `server/alerts/delivery/grouping.ts` |
-| Send, and the delivery trail write | `server/alerts/delivery/send-delivery.ts`, `delivery/history.ts` |
-| Retention deletes for both stores | `server/alerts/maintenance/cleanup.ts` |
+| Scheduler scan and the stale-enqueue net | `server/alerting/scheduling/scanner.ts` |
+| Evaluation, transitions, failure handling | `server/alerting/evaluation/rule.ts` |
+| Silence and inhibition checks, deferral | `server/alerting/delivery/suppression.ts` |
+| Group membership and dispatch | `server/alerting/delivery/process-event.ts` |
+| Flush, claim and commit | `server/alerting/delivery/flush-group.ts` |
+| Flush decision logic, pure and tested | `server/alerting/delivery/grouping.ts` |
+| Send, and the delivery trail write | `server/alerting/delivery/send-delivery.ts`, `delivery/history.ts` |
+| Retention deletes for both stores | `server/alerting/maintenance/cleanup.ts` |
 | History read, ClickHouse only | `data/alerting/history/repository.server.ts` |
 | Which event types the UI lists versus folds in | `data/alerting/history/event-types.ts` |
 | Silence lifecycle | `data/alerting/silences/repository.ts` |
