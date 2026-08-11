@@ -4,7 +4,7 @@ import { db } from "@/db/client";
 import { alertDefinitions } from "@/db/schema";
 import { env } from "@/env";
 
-const SCANNER_BATCH_SIZE = 5_000;
+export const SCANNER_BATCH_SIZE = 5_000;
 const ENQUEUE_CONCURRENCY = 8;
 
 /**

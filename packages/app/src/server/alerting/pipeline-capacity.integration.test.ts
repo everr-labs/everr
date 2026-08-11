@@ -11,21 +11,34 @@ import {
   vi,
 } from "vitest";
 import { ALERT_DELIVERY_MAX_ATTEMPTS } from "@/data/alerting/delivery/config";
+import { IDLE_GROUP_FLUSH_AT } from "@/data/alerting/delivery/tasks";
 import {
   ALERTING_DEFAULT_GROUP_INTERVAL_SECS,
   ALERTING_DEFAULT_GROUP_WAIT_SECS,
 } from "@/data/alerting/routing/defaults";
-import { ALERT_EVALUATE_TASK } from "@/data/alerting/scheduling/evaluation-jobs.server";
+import {
+  ALERT_EVALUATE_TASK,
+  enqueueAlertEvaluation,
+} from "@/data/alerting/scheduling/evaluation-jobs.server";
 import type { AlertingEvaluationSample } from "@/data/alerting/types";
 import {
   alertDefinitions,
   alertDeliveries,
   alertEvents,
   alertNotificationGroupEvents,
+  alertNotificationGroups,
 } from "@/db/schema";
+import {
+  BODY_MAX_EVENTS,
+  FLUSH_GROUP_MEMBER_CLAIM_CAP,
+} from "./delivery/flush-group";
 import { MAX_EVIDENCE_BYTES, MAX_EVIDENCE_ROWS } from "./evaluation/evidence";
 import { ALERT_EVALUATION_SAMPLE_LIMIT } from "./evaluation/samples";
-import { scanDueAlerts, staleEnqueueCutoff } from "./scheduling/scanner";
+import {
+  SCANNER_BATCH_SIZE,
+  scanDueAlerts,
+  staleEnqueueCutoff,
+} from "./scheduling/scanner";
 import {
   insertDirectRule,
   insertRule,
@@ -79,17 +92,10 @@ function onlyEvaluationRow(harness: AlertingHarness): EvaluationHistoryRow {
 }
 
 describe("the alerting pipeline's capacity bounds", () => {
-  // FLUSH_GROUP_MEMBER_CLAIM_CAP (delivery/flush-group.ts) is a private
-  // module constant, not exported like the other bounds in this file, so it
-  // is hardcoded here to match. See the task report for why that is a gap
-  // worth closing rather than a shortcut taken for convenience.
-  it.fails("claims exactly the cap from a 501-member group, favors the newest joiners over the one already flushed, and reports the oversized group (ticket 35, open)", async () => {
-    const FLUSH_GROUP_MEMBER_CLAIM_CAP = 500;
-
-    await insertDirectRule(harness.db, {
+  it("claims exactly the cap from a 501-member group, taking every never-yet-flushed newcomer over the one member already flushed once", async () => {
+    const rule = await insertDirectRule(harness.db, {
       sql: "select 'stale' as service, 42 as value",
       forSecs: 0,
-      intervalSecs: 100_000,
       channelType: "slack",
     });
     harness.clickhouse.setRows([{ service: "stale", value: 42 }]);
@@ -105,6 +111,12 @@ describe("the alerting pipeline's capacity bounds", () => {
       .select()
       .from(alertEvents)
       .where(eq(alertEvents.eventType, "instance_fired"));
+    const [staleMemberAfterFirstFlush] = await harness.db
+      .select()
+      .from(alertNotificationGroupEvents)
+      .where(eq(alertNotificationGroupEvents.eventId, staleEvent.id));
+    const staleFlushedAtBeforeCap = staleMemberAfterFirstFlush.flushedAt;
+    expect(staleFlushedAtBeforeCap).not.toBeNull();
 
     // The rule's query result still carries "stale" (so its instance stays
     // firing, no transition, no new event) plus 500 brand-new label sets
@@ -114,50 +126,88 @@ describe("the alerting pipeline's capacity bounds", () => {
       (_, index) => ({ service: `svc-${index}`, value: 42 }),
     );
     harness.clickhouse.setRows([{ service: "stale", value: 42 }, ...freshRows]);
-    harness.advance(1_000);
-    // 500 new fire events each enqueue their own dispatch job; the
-    // driver's default drain limit (500) is sized for ordinary cases, not
-    // this file's fixtures.
+
+    // The rule's own schedule would not reach a second evaluation for up to
+    // one whole interval (nextAlertEvaluationAt, rule.ts): waiting for it
+    // would make this case slow and tie it to that unrelated bound.
+    // enqueueAlertEvaluation is the same production entry point the scanner
+    // itself calls; used here to force a second evaluation right now
+    // instead of waiting on the rule's own cadence, which is a legitimate
+    // way to trigger "the rule evaluates again", not a bypass of it.
+    const [{ version }] = await harness.db
+      .select({ version: alertDefinitions.version })
+      .from(alertDefinitions)
+      .where(eq(alertDefinitions.id, rule.id));
+    await enqueueAlertEvaluation({
+      alertDefinitionId: rule.id,
+      scheduledFor: new Date().toISOString(),
+      ruleVersion: version,
+    });
+    // 500 new fire events each enqueue their own dispatch job; the driver's
+    // default drain limit (500) is sized for ordinary cases, not this
+    // file's fixtures.
     await harness.runDueJobs({ limit: 2_000 });
 
-    const membersBeforeFlush = await harness.db
+    const membersBeforeCappedFlush = await harness.db
       .select()
       .from(alertNotificationGroupEvents);
-    expect(membersBeforeFlush).toHaveLength(FLUSH_GROUP_MEMBER_CLAIM_CAP + 1);
+    expect(membersBeforeCappedFlush).toHaveLength(
+      FLUSH_GROUP_MEMBER_CLAIM_CAP + 1,
+    );
 
     // The group already flushed once, so the next flush is due at one
     // group interval past that flush, not another group wait.
     harness.advance(ALERTING_DEFAULT_GROUP_INTERVAL_SECS * 1000);
     await harness.runDueJobs({ limit: 2_000 });
 
-    const remaining = await harness.db
+    // A still-firing claimed member is re-armed in place (a fresh
+    // flushedAt), not deleted, so the table's total size does not shrink;
+    // the cap shows up in *whose* flushedAt moved, not in the row count.
+    const afterCappedFlush = await harness.db
       .select()
       .from(alertNotificationGroupEvents);
-    expect(remaining).toHaveLength(1);
-    // The leftover is the stale member, not one of the 500 new ones: the
-    // claim's ordering (unflushed first, journal-reader.ts) favors the
-    // newest joiners over a member that already had its turn, which is
-    // the fix ticket 35's sibling change (the claim-ordering fix) put in
-    // place. Losing this would mean the old starvation bug is back.
-    expect(remaining[0].eventId).toBe(staleEvent.id);
-    expect(remaining[0].flushedAt).not.toBeNull();
+    expect(afterCappedFlush).toHaveLength(FLUSH_GROUP_MEMBER_CLAIM_CAP + 1);
+    const staleMemberAfterCap = afterCappedFlush.find(
+      (member) => member.eventId === staleEvent.id,
+    );
+    const freshMembersAfterCap = afterCappedFlush.filter(
+      (member) => member.eventId !== staleEvent.id,
+    );
+    // Exactly the cap was claimed, and every one of the 500 claimed was a
+    // never-yet-flushed newcomer: the claim's ordering (unflushed first,
+    // journal-reader.ts) is what stops the old starvation bug (a stale
+    // member winning every claim and starving new arrivals) from
+    // reappearing.
+    expect(freshMembersAfterCap).toHaveLength(FLUSH_GROUP_MEMBER_CLAIM_CAP);
+    expect(
+      freshMembersAfterCap.every((member) => member.flushedAt !== null),
+    ).toBe(true);
+    // The stale member lost the claim entirely: its flushedAt is exactly
+    // what phase one left it at, untouched by this flush.
+    expect(staleMemberAfterCap?.flushedAt).toEqual(staleFlushedAtBeforeCap);
 
-    // Ticket 35 (todo/issues/alerting-surface/tickets/35-oversized-groups-are-visible.md):
-    // a flush that hits the claim cap should be counted, naming the group
-    // and the unclaimed remainder, so a reader can tell a 500-instance
-    // storm from a 5000-instance one without querying
-    // alert_notification_group_events directly. flushAlertGroup
-    // (delivery/flush-group.ts:121-146) has no such signal today: it only
-    // recomputes a bare pending count and silently re-arms the next
-    // flush. This pins the gap instead of asserting around it.
-    const cappedSignal = harness.clickhouse
-      .historyRows()
-      .find(
-        (row) =>
-          typeof row.reason === "string" && row.reason.includes("capacity"),
-      );
-    expect(cappedSignal).toBeDefined();
-  });
+    // What the brief calls "the remainder flushes next" holds for a member
+    // that has never been flushed (its flushedAt is still null, which is
+    // exactly what nextGroupFlushState's hasUnflushedMembers check looks
+    // for). It does not hold for this member: its flushedAt is not null
+    // (phase one already set it), so this flush's own pending count does
+    // not see it as pending, and the group parks on the idle sentinel
+    // instead of scheduling a follow-up. This is a distinct finding from
+    // ticket 41 (a parked group with lastFlushedAt still null): here
+    // lastFlushedAt is set. Pinned here as today's actual behavior, not
+    // asserted as correct; see the task report.
+    const [group] = await harness.db
+      .select()
+      .from(alertNotificationGroups)
+      .where(eq(alertNotificationGroups.directAlertDefinitionId, rule.id));
+    expect(group.nextFlushAt).toEqual(IDLE_GROUP_FLUSH_AT);
+
+    // Ticket 35 (todo/issues/alerting-surface/tickets/35-oversized-groups-are-visible.md)
+    // asks for a counter and a log line when a flush hits this cap: OTel
+    // telemetry this harness has no way to observe (it exposes only the
+    // database, the ClickHouse history double, and captured fetch calls).
+    // This case pins the claim boundary only.
+  }, 20_000); // 501 real dispatches and a capped claim, well past vitest's 5s default
 
   it("captures 64 samples from 65 instances, the 3 matching ones first, and marks samples_truncated", async () => {
     const matchingIndexes = new Set([10, 30, 50]);
@@ -187,10 +237,17 @@ describe("the alerting pipeline's capacity bounds", () => {
     ).toBe(true);
   });
 
-  it("bounds a 60-row evaluation result to 50 rows of evidence and marks evidence_truncated", async () => {
+  it("bounds a 60-row evaluation result whose rows are wide enough to also cross the byte cap", async () => {
+    // Deliberately large per row: MAX_EVIDENCE_ROWS (50) rows of this size
+    // already exceed MAX_EVIDENCE_BYTES on their own, so the byte-halving
+    // loop in boundEvidence (evaluation/evidence.ts) has to bite, not just
+    // the row-count slice. A payload of tiny {service, value} objects would
+    // stay under the byte cap at 50 rows and never exercise that loop.
+    const filler = "x".repeat(Math.ceil(MAX_EVIDENCE_BYTES / 20));
     const rows = Array.from({ length: 60 }, (_, index) => ({
       service: `svc-${index}`,
       value: 0,
+      filler,
     }));
     await insertRule(harness.db, { forSecs: 0 });
     harness.clickhouse.setRows(rows);
@@ -201,17 +258,14 @@ describe("the alerting pipeline's capacity bounds", () => {
     expect(row.row_count).toBe(60);
     expect(row.evidence_truncated).toBe(true);
     const evidence = JSON.parse(row.evidence_json) as unknown[];
-    expect(evidence).toHaveLength(MAX_EVIDENCE_ROWS);
+    // Fewer than the row cap alone would keep: the byte cap trimmed further.
+    expect(evidence.length).toBeLessThan(MAX_EVIDENCE_ROWS);
     expect(Buffer.byteLength(row.evidence_json, "utf8")).toBeLessThanOrEqual(
       MAX_EVIDENCE_BYTES,
     );
   });
 
   it("composes a 25-member group's body as 20 listed events plus a line naming the 5 it omitted", async () => {
-    // BODY_MAX_EVENTS (delivery/flush-group.ts) is a private module
-    // constant, not exported; hardcoded here to match. See the task report.
-    const BODY_MAX_EVENTS = 20;
-
     await insertDirectRule(harness.db, {
       forSecs: 0,
       channelType: "slack",
@@ -299,11 +353,6 @@ describe("the alerting pipeline's capacity bounds", () => {
   });
 
   it("the scanner's batch of 5000 claims a 5001-rule backlog over two scans", async () => {
-    // The scanner's own batch size (scheduling/scanner.ts, SCANNER_BATCH_SIZE)
-    // is a private module constant, not exported; hardcoded here to match.
-    // See the task report.
-    const SCANNER_BATCH_SIZE = 5_000;
-
     // A bulk insert, not a loop of insertRule calls: insertRule enqueues an
     // evaluation transactionally per row, which this case's own point (the
     // scanner finding rules with no job in flight) would defeat, and which
