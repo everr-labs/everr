@@ -8,10 +8,8 @@ import {
   it,
   vi,
 } from "vitest";
+import { ALERTING_DEFAULT_GROUP_WAIT_SECS } from "@/data/alerting/routing/defaults";
 import { alertDeliveries, alertInstances } from "@/db/schema";
-// Task 5 creates ./testing/fixtures; until then this import, and the test
-// below, fail on purpose.
-// fallow-ignore-next-line unresolved-import
 import { insertDirectRule } from "./testing/fixtures";
 import { type AlertingHarness, createAlertingHarness } from "./testing/harness";
 
@@ -51,6 +49,11 @@ describe("the alerting pipeline", () => {
     const instances = await harness.db.select().from(alertInstances);
     expect(instances).toHaveLength(1);
     expect(instances[0].status).toBe("firing");
+
+    // A direct-channel rule groups like any other, so its notification waits
+    // the default group wait before the flush claims it.
+    harness.advance(ALERTING_DEFAULT_GROUP_WAIT_SECS * 1_000);
+    await harness.runDueJobs();
 
     const deliveries = await harness.db.select().from(alertDeliveries);
     expect(deliveries).toHaveLength(1);
