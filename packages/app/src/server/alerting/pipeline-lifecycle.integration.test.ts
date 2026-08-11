@@ -35,7 +35,10 @@ import {
   alertNotificationGroupEvents,
   alertNotificationGroups,
 } from "@/db/schema";
-import { evaluateAlert } from "@/server/alerting/evaluation/rule";
+import {
+  ALERT_RETRY_MAX_INTERVAL_FACTOR,
+  evaluateAlert,
+} from "@/server/alerting/evaluation/rule";
 import { scanDueAlerts } from "@/server/alerting/scheduling/scanner";
 import { projectAlertLifecycle } from "./history/project-lifecycle";
 import {
@@ -332,7 +335,11 @@ describe("the alerting pipeline's instance lifecycle", () => {
       .where(eq(alertDefinitions.id, rule.id));
     expect(afterFirstFailure.healthStatus).toBe("degraded");
     expect(afterFirstFailure.degradedSince).not.toBeNull();
-    const firstBackoffSecs = alertingRetryDelaySeconds(60, 1, 60 * 16);
+    const firstBackoffSecs = alertingRetryDelaySeconds(
+      60,
+      1,
+      60 * ALERT_RETRY_MAX_INTERVAL_FACTOR,
+    );
     const [firstRetryJob] = (await harness.pendingJobs()).filter(
       (job) => job.identifier === ALERT_EVALUATE_TASK,
     );
@@ -352,7 +359,11 @@ describe("the alerting pipeline's instance lifecycle", () => {
       afterFirstFailure.degradedSince,
     );
 
-    const secondBackoffSecs = alertingRetryDelaySeconds(60, 2, 60 * 16);
+    const secondBackoffSecs = alertingRetryDelaySeconds(
+      60,
+      2,
+      60 * ALERT_RETRY_MAX_INTERVAL_FACTOR,
+    );
     expect(secondBackoffSecs).toBeGreaterThan(firstBackoffSecs);
     const [secondRetryJob] = (await harness.pendingJobs()).filter(
       (job) => job.identifier === ALERT_EVALUATE_TASK,
