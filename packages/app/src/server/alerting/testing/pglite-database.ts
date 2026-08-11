@@ -33,6 +33,12 @@ function sqlFilesIn(dir: string): string[] {
     .map((name) => join(dir, name));
 }
 
+// Applies graphile-worker's schema objects only, not its migration bookkeeping
+// (graphile_worker.migrations is populated by the library's own JS migrate(),
+// not by these raw SQL files). Because of that, never point graphile-worker's
+// own API (run, makeWorkerUtils, quickAddJob) at this database: each of those
+// calls migrate() on connect, and it would try to reapply migrations over
+// objects that already exist. The harness dispatches jobs itself instead.
 async function applyGraphileWorkerSchema(client: PGlite): Promise<void> {
   await client.exec(`CREATE SCHEMA ${GRAPHILE_WORKER_SCHEMA};`);
   for (const file of sqlFilesIn(graphileWorkerSqlDir())) {
@@ -71,6 +77,11 @@ export async function createTestDatabase(): Promise<TestDatabase> {
     WHERE (schemaname = 'public' AND tablename LIKE 'alert%')
        OR schemaname = ${GRAPHILE_WORKER_SCHEMA}
   `);
+  if (targets.rows.length === 0) {
+    throw new Error(
+      "createTestDatabase: schema application produced no tables to truncate",
+    );
+  }
   const truncateList = targets.rows.map((row) => row.target).join(", ");
 
   return {
