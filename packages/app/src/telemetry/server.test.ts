@@ -12,6 +12,7 @@ const telemetryMocks = vi.hoisted(() => {
       async (
         _name: string,
         _options: unknown,
+        _context: unknown,
         run: (span: {
           end: () => void;
           setAttribute: () => void;
@@ -79,6 +80,7 @@ describe("instrumentServerFetch", () => {
         },
         kind: 1,
       },
+      expect.anything(),
       expect.any(Function),
     );
   });
