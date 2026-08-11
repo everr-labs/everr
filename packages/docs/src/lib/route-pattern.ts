@@ -17,8 +17,10 @@ type RouterLike = {
 
 /** Call this from `getRouter()` immediately after you make the router. */
 export function registerRouter(router: RouterLike): void {
-  setRouteResolver((url) => {
-    const matches = router.matchRoutes(new URL(url).pathname);
-    return matches[matches.length - 1]?.routeId;
+  setRouteResolver({
+    page: (url) => {
+      const matches = router.matchRoutes(new URL(url).pathname);
+      return matches[matches.length - 1]?.routeId;
+    },
   });
 }

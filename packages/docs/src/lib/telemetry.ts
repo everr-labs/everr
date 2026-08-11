@@ -2,6 +2,7 @@ import {
   errors,
   interactions,
   network,
+  pageLoad,
   pageviews,
   performance,
   WebSDK,
@@ -33,6 +34,7 @@ new WebSDK({
     pageviews(),
     interactions(),
     performance(),
+    pageLoad(),
     network(),
   ],
 });
