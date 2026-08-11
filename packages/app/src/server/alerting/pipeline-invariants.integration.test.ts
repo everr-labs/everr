@@ -11,7 +11,6 @@ import {
   it,
   vi,
 } from "vitest";
-import { deleteChannel } from "@/data/alerting/delivery/repository";
 import { ALERT_FLUSH_GROUP_TASK } from "@/data/alerting/delivery/tasks";
 import { ALERTING_DEFAULT_GROUP_WAIT_SECS } from "@/data/alerting/routing/defaults";
 import { deleteRule } from "@/data/alerting/rules/repository";
@@ -20,7 +19,6 @@ import {
   type EvaluatePayload,
   enqueueAlertEvaluation,
 } from "@/data/alerting/scheduling/evaluation-jobs.server";
-import { SYSTEM_ACTOR } from "@/data/alerting/session";
 import {
   alertDeliveries,
   alertEvents,
@@ -221,35 +219,10 @@ describe("the alerting pipeline's PostgreSQL invariants", () => {
     expect(deliveryAfter.status).toBe("sent");
   });
 
-  it("keeps a settled delivery's channel_name after the channel it names is deleted", async () => {
-    const rule = await insertDirectRule(harness.db, {
-      forSecs: 0,
-      channelType: "webhook",
-      channelName: "delete-me",
-    });
-    harness.clickhouse.setRows([{ service: "checkout", value: 42 }]);
-    await harness.runDueJobs();
-    harness.advance(ALERTING_DEFAULT_GROUP_WAIT_SECS * 1000);
-    await harness.runDueJobs();
-
-    const [sent] = await harness.db.select().from(alertDeliveries);
-    expect(sent.status).toBe("sent");
-
-    // deleteChannel refuses while a live rule still wires the channel in
-    // directly; deleting the rule first clears that reference without
-    // touching the delivery row, which has no foreign key to the rule.
-    await deleteRule(TEST_ORG, rule.id, asDbExecutor(harness.db));
-    const { deleted } = await deleteChannel(
-      { organizationId: TEST_ORG, actor: SYSTEM_ACTOR },
-      "delete-me",
-    );
-    expect(deleted).toBe(true);
-
-    const [afterDelete] = await harness.db.select().from(alertDeliveries);
-    expect(afterDelete.channelId).toBeNull();
-    expect(afterDelete.channelName).toBe("delete-me");
-    expect(afterDelete.status).toBe("sent");
-  });
+  // Deleting a channel that has delivery history belongs to this file by
+  // subject, but pipeline-delivery.integration.test.ts already pins it, and
+  // pins more: it also asserts the channel row itself is gone. A second copy
+  // here would cost maintenance and add no coverage.
 
   it("allows one live rule and one preview rule to share a slug, and rejects a second live rule with it", async () => {
     await insertRule(harness.db, { slug: "checkout-latency" });

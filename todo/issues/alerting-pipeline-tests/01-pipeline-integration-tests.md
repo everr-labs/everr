@@ -236,10 +236,9 @@ express any of it.
   reason added without a CHECK update fails here.
 - `alert_instances_definition_fingerprint_uq` makes a repeated instance write
   converge on one row.
-- Deleting a rule cascades to instances, deliveries and memberships, and
-  claims the chains the cascade orphans.
-- Deleting a channel that has delivery history does not violate a foreign
-  key.
+- Deleting a rule cascades to instances, direct notification groups and
+  memberships. Its deliveries survive ungrouped, because a delivery row is the
+  record of a notification and carries no foreign key to the rule.
 - The live and preview slug unique indexes coexist: one slug is legal once
   live and once per preview.
 - A failed mutation rolls back the job it enqueued. The transaction writes to

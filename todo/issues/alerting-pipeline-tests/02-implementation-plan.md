@@ -1409,8 +1409,19 @@ These cases assert against PostgreSQL itself. Several use raw inserts rather tha
 
 1. Inserting an `alert_events` row whose `event_type` is `instance_pending` with `kind` set to `notifying` is rejected by `alert_events_kind_matches_type`, and the reverse case (`instance_fired` with `kind` `state`) is rejected too.
 2. Writing the same instance twice for one definition and fingerprint converges on one row, because of `alert_instances_definition_fingerprint_uq`.
-3. Deleting a rule removes its instances, its deliveries and its group memberships, and leaves no row referencing it.
-4. Deleting a channel that has delivery history succeeds and leaves the delivery rows in place.
+3. Deleting a rule removes its instances, its direct notification groups and
+   its group memberships. It does NOT remove its deliveries:
+   `alert_deliveries` carries no foreign key to `alert_definitions`, and its
+   foreign key to the notification group is `ON DELETE SET NULL`, so a settled
+   delivery survives ungrouped. That is the design, not a leak, and the same
+   reasoning ticket 32 applies to channel deletion: the delivery row is the
+   record of a notification, not a reference to live config. Assert the
+   survival, do not assert a cascade that the schema does not declare.
+4. (Removed.) Deleting a channel that has delivery history belongs to this
+   file by subject, but Task 8 case 9 already pins it in the delivery file and
+   pins more, because it also asserts the channel row itself is gone. A second
+   copy here costs maintenance and adds no coverage. Leave a comment in the
+   invariants file naming where the case lives.
 5. One slug is legal once as a live rule and once per preview: both inserts succeed, and a second live rule with the same slug is rejected.
 6. A transaction that enqueues a job and then throws leaves no job. Open a transaction, call `addWorkerJobInTransaction`, throw, and assert `pendingJobs()` is empty.
 7. Two evaluation enqueues for one `scheduledFor` collapse to one job, and the surviving job carries the newer payload.
