@@ -1,6 +1,6 @@
 // @vitest-environment node
 
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import {
   afterAll,
   afterEach,
@@ -28,10 +28,13 @@ import {
 } from "@/data/alerting/scheduling/evaluation-jobs.server";
 import { SYSTEM_ACTOR } from "@/data/alerting/session";
 import {
+  alertChannels,
   alertDefinitions,
   alertDeliveries,
   alertEvents,
   alertInstances,
+  alertNotificationGroupEvents,
+  alertNotificationGroups,
 } from "@/db/schema";
 import { evaluateAlert } from "@/server/alerting/evaluation/rule";
 import { scanDueAlerts } from "@/server/alerting/scheduling/scanner";
@@ -39,7 +42,9 @@ import { projectAlertLifecycle } from "./history/project-lifecycle";
 import {
   asDbExecutor,
   insertDirectRule,
+  insertInhibition,
   insertRule,
+  insertSilence,
   TEST_ORG,
 } from "./testing/fixtures";
 import { type AlertingHarness, createAlertingHarness } from "./testing/harness";
@@ -513,5 +518,269 @@ describe("the alerting pipeline's instance lifecycle", () => {
         .historyRows()
         .filter((row) => row.event_type === "instance_closed"),
     ).toHaveLength(1);
+  });
+});
+
+// A second organization, deliberately built to collide with TEST_ORG on
+// everything but its own id: the same rule slug, the same instance labels,
+// the same receiver and channel names. Only the organization id tells the
+// two apart, so any lookup that forgets to filter by it has real, matching
+// data on the other side ready to leak through.
+const ORG_B = "org_test_b";
+
+describe("the alerting pipeline's organization isolation", () => {
+  it("evaluating org A's rule creates instances only for org A", async () => {
+    // Same default slug and SQL in both organizations, unset on purpose:
+    // insertRule's own defaults already collide across organizationId.
+    const ruleA = await insertRule(harness.db, { forSecs: 0 });
+    const ruleB = await insertRule(harness.db, {
+      organizationId: ORG_B,
+      forSecs: 0,
+    });
+    harness.clickhouse.setRows([{ service: "checkout", value: 42 }]);
+
+    await harness.runDueJobs();
+
+    const instancesA = await harness.db
+      .select()
+      .from(alertInstances)
+      .where(eq(alertInstances.organizationId, TEST_ORG));
+    expect(instancesA).toHaveLength(1);
+    expect(instancesA[0].alertDefinitionId).toBe(ruleA.id);
+
+    const instancesB = await harness.db
+      .select()
+      .from(alertInstances)
+      .where(eq(alertInstances.organizationId, ORG_B));
+    expect(instancesB).toHaveLength(1);
+    expect(instancesB[0].alertDefinitionId).toBe(ruleB.id);
+  });
+
+  it("a silence in org A does not defer org B's notification", async () => {
+    const CHANNEL_NAME = "shared-channel";
+    await insertDirectRule(harness.db, {
+      channelName: CHANNEL_NAME,
+      forSecs: 0,
+      channelType: "slack",
+    });
+    await insertDirectRule(harness.db, {
+      organizationId: ORG_B,
+      channelName: CHANNEL_NAME,
+      forSecs: 0,
+      channelType: "slack",
+    });
+    // insertSilence's default matcher, service = checkout, is the label both
+    // organizations' instances carry: the only thing standing between org B
+    // and this silence is the organization scope on the lookup itself.
+    await insertSilence(harness.db);
+    harness.clickhouse.setRows([{ service: "checkout", value: 42 }]);
+
+    await harness.runDueJobs();
+    harness.advance(ALERTING_DEFAULT_GROUP_WAIT_SECS * 1_000);
+    await harness.runDueJobs();
+
+    // Only org B notifies. Org A's identically-labeled instance stays held.
+    expect(harness.fetchCalls()).toHaveLength(1);
+
+    const deliveriesB = await harness.db
+      .select()
+      .from(alertDeliveries)
+      .where(eq(alertDeliveries.organizationId, ORG_B));
+    expect(deliveriesB).toHaveLength(1);
+    expect(deliveriesB[0].status).toBe("sent");
+
+    const deliveriesA = await harness.db
+      .select()
+      .from(alertDeliveries)
+      .where(eq(alertDeliveries.organizationId, TEST_ORG));
+    expect(deliveriesA).toHaveLength(0);
+
+    // Proof the hold is real, not merely a group wait not yet elapsed: the
+    // journal row for org A's own fired event still carries the defer.
+    const [heldEventA] = await harness.db
+      .select()
+      .from(alertEvents)
+      .where(
+        and(
+          eq(alertEvents.organizationId, TEST_ORG),
+          eq(alertEvents.eventType, "instance_fired"),
+        ),
+      );
+    expect(heldEventA.silenced).toBe(true);
+    expect(heldEventA.processedAt).toBeNull();
+  });
+
+  it("org A's group holds only org A's members", async () => {
+    const CHANNEL_NAME = "shared-channel";
+    const ruleA = await insertDirectRule(harness.db, {
+      channelName: CHANNEL_NAME,
+      forSecs: 0,
+      channelType: "slack",
+    });
+    const ruleB = await insertDirectRule(harness.db, {
+      organizationId: ORG_B,
+      channelName: CHANNEL_NAME,
+      forSecs: 0,
+      channelType: "slack",
+    });
+    harness.clickhouse.setRows([{ service: "checkout", value: 42 }]);
+
+    // Dispatches both organizations' events into their own group; still
+    // inside the group wait, so neither has flushed yet.
+    await harness.runDueJobs();
+
+    const [groupA] = await harness.db
+      .select()
+      .from(alertNotificationGroups)
+      .where(eq(alertNotificationGroups.organizationId, TEST_ORG));
+    expect(groupA).toBeDefined();
+
+    // Reads the real membership rows, joined to the events they carry, rather
+    // than trusting a count: proves which organization and which rule each
+    // member actually belongs to.
+    const membersA = await harness.db
+      .select({
+        eventOrg: alertEvents.organizationId,
+        ruleId: alertEvents.sourceDefinitionId,
+      })
+      .from(alertNotificationGroupEvents)
+      .innerJoin(
+        alertEvents,
+        eq(alertNotificationGroupEvents.eventId, alertEvents.id),
+      )
+      .where(eq(alertNotificationGroupEvents.groupId, groupA.id));
+
+    expect(membersA).toHaveLength(1);
+    expect(membersA[0].eventOrg).toBe(TEST_ORG);
+    expect(membersA[0].ruleId).toBe(ruleA.id);
+    expect(membersA.some((member) => member.ruleId === ruleB.id)).toBe(false);
+  });
+
+  it("listing deliveries for org A returns none of org B's", async () => {
+    const CHANNEL_NAME = "shared-channel";
+    await insertDirectRule(harness.db, {
+      channelName: CHANNEL_NAME,
+      forSecs: 0,
+      channelType: "slack",
+    });
+    await insertDirectRule(harness.db, {
+      organizationId: ORG_B,
+      channelName: CHANNEL_NAME,
+      forSecs: 0,
+      channelType: "slack",
+    });
+    harness.clickhouse.setRows([{ service: "checkout", value: 42 }]);
+
+    await harness.runDueJobs();
+    harness.advance(ALERTING_DEFAULT_GROUP_WAIT_SECS * 1_000);
+    await harness.runDueJobs();
+
+    expect(harness.fetchCalls()).toHaveLength(2);
+
+    const deliveriesA = await harness.db
+      .select()
+      .from(alertDeliveries)
+      .where(eq(alertDeliveries.organizationId, TEST_ORG));
+    expect(deliveriesA).toHaveLength(1);
+
+    // The channel name alone cannot tell the two organizations' deliveries
+    // apart, since both share it; the delivery's channel id must resolve to
+    // org A's own channel row, not org B's row of the same name.
+    const [channelA] = await harness.db
+      .select()
+      .from(alertChannels)
+      .where(
+        and(
+          eq(alertChannels.organizationId, TEST_ORG),
+          eq(alertChannels.name, CHANNEL_NAME),
+        ),
+      );
+    const [channelB] = await harness.db
+      .select()
+      .from(alertChannels)
+      .where(
+        and(
+          eq(alertChannels.organizationId, ORG_B),
+          eq(alertChannels.name, CHANNEL_NAME),
+        ),
+      );
+    expect(deliveriesA[0].channelId).toBe(channelA.id);
+    expect(deliveriesA[0].channelId).not.toBe(channelB.id);
+  });
+
+  it("an inhibition in org A does not hold org B's target", async () => {
+    const CHANNEL_NAME = "shared-channel";
+    // No channel on the source rule: only that it counts as firing for the
+    // inhibition context, the same way the single-organization suppression
+    // case builds its source.
+    await insertRule(harness.db, { slug: "inhibition-source", forSecs: 0 });
+    const targetRuleA = await insertDirectRule(harness.db, {
+      slug: "inhibition-target",
+      channelName: CHANNEL_NAME,
+      forSecs: 0,
+      channelType: "slack",
+    });
+    await insertRule(harness.db, {
+      organizationId: ORG_B,
+      slug: "inhibition-source",
+      forSecs: 0,
+    });
+    await insertDirectRule(harness.db, {
+      organizationId: ORG_B,
+      slug: "inhibition-target",
+      channelName: CHANNEL_NAME,
+      forSecs: 0,
+      channelType: "slack",
+    });
+
+    // Matched on the shared "service" label, carried by both organizations'
+    // instances, rather than a rule id: a rule id is unique per row on its
+    // own and would never collide across organizations even if the lookup
+    // forgot to scope by organization. This is the matcher shape that
+    // actually exercises the scope.
+    await insertInhibition(harness.db, {
+      sourceMatchers: [{ label: "service", op: "eq", value: "checkout" }],
+      targetMatchers: [{ label: "service", op: "eq", value: "checkout" }],
+      equalLabels: [],
+    });
+    harness.clickhouse.setRows([{ service: "checkout", value: 42 }]);
+
+    await harness.runDueJobs();
+    harness.advance(ALERTING_DEFAULT_GROUP_WAIT_SECS * 1_000);
+    await harness.runDueJobs();
+
+    // Org A's target is held by its own inhibition; org B's target, with no
+    // inhibition of its own, notifies normally.
+    expect(harness.fetchCalls()).toHaveLength(1);
+
+    const deliveriesB = await harness.db
+      .select()
+      .from(alertDeliveries)
+      .where(eq(alertDeliveries.organizationId, ORG_B));
+    expect(deliveriesB).toHaveLength(1);
+    expect(deliveriesB[0].status).toBe("sent");
+
+    const deliveriesA = await harness.db
+      .select()
+      .from(alertDeliveries)
+      .where(eq(alertDeliveries.organizationId, TEST_ORG));
+    expect(deliveriesA).toHaveLength(0);
+
+    // Org A's own source event also matches this inhibition's target
+    // matcher (it carries the same "service" label), so it is filtered out
+    // here by its rule id: only the target rule's own event is the one this
+    // case makes a claim about.
+    const [heldTargetA] = await harness.db
+      .select()
+      .from(alertEvents)
+      .where(
+        and(
+          eq(alertEvents.organizationId, TEST_ORG),
+          eq(alertEvents.eventType, "instance_fired"),
+          eq(alertEvents.sourceDefinitionId, targetRuleA.id),
+        ),
+      );
+    expect(heldTargetA.inhibited).toBe(true);
+    expect(heldTargetA.processedAt).toBeNull();
   });
 });
