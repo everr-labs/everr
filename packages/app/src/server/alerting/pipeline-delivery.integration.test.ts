@@ -10,7 +10,6 @@ import {
   it,
   vi,
 } from "vitest";
-import { encryptChannelConfig } from "@/data/alerting/delivery/channel-secrets.server";
 import { sendChannelNotification } from "@/data/alerting/delivery/channel-sender.server";
 import { CHANNEL_TEXT_MAX } from "@/data/alerting/delivery/channel-text-limits";
 import { ALERT_DELIVERY_MAX_ATTEMPTS } from "@/data/alerting/delivery/config";
@@ -92,38 +91,6 @@ async function linkChannelToRule(
     channelId,
     position: 0,
   });
-}
-
-/**
- * A telegram channel with a caller-chosen bot token and chat id set.
- * `insertChannel` (fixtures.ts) always writes a single fixed chat id, which
- * cannot exercise fan-out or a caller-chosen token; this is the smallest
- * variant that can.
- */
-async function insertTelegramChannel(
-  db: AlertingHarness["db"],
-  organizationId: string,
-  opts: { chatIds: string[]; botToken?: string; name?: string },
-) {
-  const [created] = await db
-    .insert(alertChannels)
-    .values({
-      organizationId,
-      name: opts.name ?? "telegram-fanout",
-      encryptedConfig: "",
-    })
-    .returning({ id: alertChannels.id });
-  await db
-    .update(alertChannels)
-    .set({
-      encryptedConfig: encryptChannelConfig(organizationId, created.id, {
-        type: "telegram",
-        bot_token: opts.botToken ?? "bot-token",
-        chat_ids: opts.chatIds,
-      } as never),
-    })
-    .where(eq(alertChannels.id, created.id));
-  return created;
 }
 
 describe("the alerting pipeline's delivery", () => {
@@ -245,9 +212,9 @@ describe("the alerting pipeline's delivery", () => {
   // keeps the sentinel forever, because `nextGroupFlushAt` (grouping.ts)
   // treats "lastFlushedAt is null" as "a first flush is already booked" and
   // does not tell that apart from "this group parked on the sentinel and
-  // never flushed at all". See the fails-as-expected note at the bottom of
-  // this case for how it is reached and what fails.
-  it.fails("wakes a group parked on the idle sentinel when the next event reaches it, instead of keeping the sentinel forever", async () => {
+  // never flushed at all". This case pins today's behaviour, it does not
+  // assert it is right.
+  it("today, a group parked on the idle sentinel keeps the sentinel when the next event reaches it (ticket 41)", async () => {
     await insertDirectRule(harness.db, {
       sql: "select 'svc-a' as service, 42 as value",
       forSecs: 0,
@@ -298,19 +265,19 @@ describe("the alerting pipeline's delivery", () => {
       { service: "svc-b", value: 42 },
     ]);
     harness.advance(FAST_TICK_SECS * 1000);
-    const dispatchTime = new Date();
     await harness.runDueJobs();
 
-    const [woken] = await harness.db
+    const [afterNextEvent] = await harness.db
       .select()
       .from(alertNotificationGroups)
       .where(eq(alertNotificationGroups.id, group.id));
-    // Desired: a fresh group wait, the same answer a group that has never
-    // been seen gets. Actual (the bug): `nextGroupFlushAt` returns the
-    // sentinel unchanged, so this is off by roughly 7973 years.
-    expect(woken.nextFlushAt.getTime()).toBe(
-      dispatchTime.getTime() + ALERTING_DEFAULT_GROUP_WAIT_SECS * 1000,
-    );
+    // What ticket 41 asks for is a fresh group wait here, the same answer a
+    // group that has never been seen gets. Today the sentinel survives the
+    // dispatch untouched, roughly 7973 years out, so the group never flushes
+    // again. Pinned as today's actual behaviour; this expectation becomes
+    // `dispatch time + ALERTING_DEFAULT_GROUP_WAIT_SECS` when ticket 41's
+    // one-line fix in `nextGroupFlushAt` (grouping.ts) lands.
+    expect(afterNextEvent.nextFlushAt).toEqual(IDLE_GROUP_FLUSH_AT);
   });
 
   it("stops a permanently failing delivery after one attempt, at the max attempts", async () => {
@@ -332,7 +299,7 @@ describe("the alerting pipeline's delivery", () => {
     expect(failedRows).toHaveLength(1);
   });
 
-  it("retries a transient failure with graphile's own backoff, and stops exactly at the max attempts", async () => {
+  it("retries a transient failure and stops exactly at the max attempts", async () => {
     await insertDirectRule(harness.db, { forSecs: 0, channelType: "webhook" });
     harness.clickhouse.setRows([{ service: "checkout", value: 42 }]);
     harness.setFetchResponse({ status: 503 });
@@ -341,9 +308,10 @@ describe("the alerting pipeline's delivery", () => {
     harness.advance(ALERTING_DEFAULT_GROUP_WAIT_SECS * 1000);
     await harness.runDueJobs(); // flush, then the first send attempt
 
-    // graphile's own backoff (job-driver.ts) is exp(attempts) seconds, which
-    // never exceeds exp(ALERT_DELIVERY_MAX_ATTEMPTS) here; this headroom
-    // clears it regardless of which attempt we are on.
+    // The harness re-implements graphile's backoff (job-driver.ts) as
+    // exp(attempts) seconds, which never exceeds
+    // exp(ALERT_DELIVERY_MAX_ATTEMPTS) here; this headroom clears it
+    // regardless of which attempt we are on.
     const BACKOFF_HEADROOM_MS = 200_000;
     for (let attempt = 1; attempt < ALERT_DELIVERY_MAX_ATTEMPTS; attempt += 1) {
       harness.advance(BACKOFF_HEADROOM_MS);
@@ -368,13 +336,11 @@ describe("the alerting pipeline's delivery", () => {
 
   it("keeps retrying a telegram fan-out when one recipient is permanent and another is transient", async () => {
     const rule = await insertRule(harness.db, { forSecs: 0 });
-    const channel = await insertTelegramChannel(
-      harness.db,
-      rule.organizationId,
-      {
-        chatIds: ["chat-a", "chat-b"],
-      },
-    );
+    const channel = await insertChannel(harness.db, {
+      organizationId: rule.organizationId,
+      type: "telegram",
+      chatIds: ["chat-a", "chat-b"],
+    });
     await linkChannelToRule(harness.db, rule, channel.id);
     harness.clickhouse.setRows([{ service: "checkout", value: 42 }]);
 
@@ -683,11 +649,12 @@ describe("the alerting pipeline's delivery", () => {
       slug: "telegram-rule",
       forSecs: 0,
     });
-    const telegramChannel = await insertTelegramChannel(
-      harness.db,
-      telegramRule.organizationId,
-      { chatIds: [leakedChatId], botToken: leakedToken },
-    );
+    const telegramChannel = await insertChannel(harness.db, {
+      organizationId: telegramRule.organizationId,
+      type: "telegram",
+      chatIds: [leakedChatId],
+      botToken: leakedToken,
+    });
     await linkChannelToRule(harness.db, telegramRule, telegramChannel.id);
 
     harness.clickhouse.setRows([{ service: "checkout", value: 42 }]);
