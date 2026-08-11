@@ -26,6 +26,7 @@ new WebSDK({
   deploymentEnvironment: import.meta.env.MODE,
   ingestKey: env.VITE_EVERR_PUBLIC_INGEST_KEY,
   endpoint: env.VITE_EVERR_INGEST_ENDPOINT,
+  dev: import.meta.env.DEV,
   // The caller must select the capture. This site uses all the built-in
   // instrumentations.
   instrumentations: [

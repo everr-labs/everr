@@ -174,11 +174,7 @@ describe("init (persistence: localStorage)", () => {
   });
 
   it("keeps identify()/revoke() safely inert in a keyless production build", () => {
-    // A production build has no local collector. Thus a client with no key
-    // finds no transport, and it writes no identity to the store.
-    vi.stubEnv("NODE_ENV", "production");
     new WebSDK({ serviceName: "everr-docs-test" });
-    vi.unstubAllEnvs();
     expect(localStorage.length).toBe(0);
     expect(() => {
       identify("u_123", { plan: "pro" });

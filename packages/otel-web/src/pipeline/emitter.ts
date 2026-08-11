@@ -132,9 +132,8 @@ export type SendEvent = LogEvent | SpanEvent;
  * If the hook throws an error, the SDK discards the item and continues. This is
  * the same behavior that the other browser SDKs have. A hook operates in a
  * click listener or a fetch listener of the page, and thus an error from the
- * hook must not go to the page. A development build gives one warning on the
- * console for each instance, and not one warning for each item. A production
- * build discards the item without a warning.
+ * hook must not go to the page. The SDK gives one warning on the console for
+ * each instance, and not one warning for each item.
  */
 export type BeforeSend = (item: SendEvent) => SendEvent | null;
 
@@ -158,7 +157,7 @@ export function createBeforeSendGuard(
     try {
       return beforeSend(item);
     } catch {
-      if (process.env.NODE_ENV !== "production" && !warned) {
+      if (!warned) {
         warned = true;
         console.warn("[everr] beforeSend threw; the SDK discards these items");
       }

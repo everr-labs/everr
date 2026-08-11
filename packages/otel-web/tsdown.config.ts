@@ -17,11 +17,5 @@ export default defineConfig({
   platform: "browser",
   define: {
     __PACKAGE_VERSION__: JSON.stringify(packageVersion),
-    // Keep this expression in the output. The build platform of this package
-    // is the browser, and thus rolldown resolves it to a development value and
-    // it folds the branches. Then the bundle of the consumer carries the
-    // development code, and a production build of that consumer cannot remove
-    // it. This identity replacement stops that, and thus the consumer decides.
-    "process.env.NODE_ENV": "process.env.NODE_ENV",
   },
 });

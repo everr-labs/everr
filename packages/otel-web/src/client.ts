@@ -122,6 +122,7 @@ export class WebSDK {
           navigationListeners.delete(listener);
         };
       },
+      dev: options.dev === true,
     };
 
     const teardowns = (options.instrumentations ?? []).map((instrumentation) =>

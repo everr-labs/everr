@@ -64,25 +64,21 @@ describe("resolveTransport: endpoint resolution", () => {
 
   it("falls back to the local collector in dev with no key", () => {
     const posted = stubFetch();
-    resolveTransport({})?.[0]("logs", "{}");
+    resolveTransport({ dev: true })?.[0]("logs", "{}");
 
     expect(posted[0].url).toBe("http://127.0.0.1:54318/v1/logs");
   });
 
   it("forwards keepalive on the exit path", () => {
     const posted = stubFetch();
-    resolveTransport({})?.[0]("logs", "{}", true);
+    resolveTransport({ dev: true })?.[0]("logs", "{}", true);
 
     expect(posted[0].init?.keepalive).toBe(true);
   });
 
   it("resolves to null (structural no-op) for a keyless production build", () => {
-    // A production build removes the local collector, and thus a build with no
-    // key and no endpoint has no address to send to.
-    vi.stubEnv("NODE_ENV", "production");
     expect(resolveTransport({})).toBeNull();
     expect(resolveTransport({ ingestKey: "   " })).toBeNull();
-    vi.unstubAllEnvs();
   });
 });
 
@@ -102,10 +98,8 @@ describe("resolveTransport: caller-supplied send", () => {
     expect(posted).toHaveLength(0);
   });
 
-  it("never resolves to null, even with no key or endpoint", () => {
-    vi.stubEnv("NODE_ENV", "production");
+  it("never resolves to null, even with no key, endpoint, or dev flag", () => {
     expect(resolveTransport({ send: vi.fn() })).not.toBeNull();
-    vi.unstubAllEnvs();
   });
 
   it("wins over a key and an endpoint", () => {

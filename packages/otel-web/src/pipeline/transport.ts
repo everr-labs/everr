@@ -7,9 +7,8 @@
 // one. For example, a collector on a development host can need
 // authentication. Second, a public key for one origin sends the data to the
 // hosted ingest with a Bearer header. Third, a development build uses the local
-// collector, which the NODE_ENV of the build selects. A production build
-// without a key gives `null`, and thus the SDK makes no emitter, and the
-// address of that collector is not in the bundle.
+// collector. A production build without a key gives `null`, and thus the SDK
+// makes no emitter.
 //
 // A `send` function from the caller replaces all of this. The host then sends
 // the data. Thus there is no URL to find, no key to carry, and no condition
@@ -66,6 +65,7 @@ export function fetchSend(
 export function resolveTransport(options: {
   ingestKey?: string;
   endpoint?: string;
+  dev?: boolean;
   send?: HostSend;
 }): TransportConfig | null {
   const custom = options.send;
@@ -85,7 +85,7 @@ export function resolveTransport(options: {
     endpoint ||
     (key
       ? "https://ingest.everr.dev"
-      : process.env.NODE_ENV !== "production"
+      : options.dev
         ? "http://127.0.0.1:54318"
         : null);
   if (!base) return null;

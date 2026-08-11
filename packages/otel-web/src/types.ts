@@ -56,7 +56,7 @@ export type WebSDKOptions = {
   /**
    * Sends the data in place of the SDK. The SDK calls it with one OTLP/JSON
    * payload for each signal, and it does not do a fetch POST. Then the SDK does
-   * not use `ingestKey` and `endpoint`, and it makes no request. Use
+   * not use `ingestKey`, `endpoint`, and `dev`, and it makes no request. Use
    * this in a host that sends the telemetry itself, for example a Tauri
    * renderer or an Electron renderer that gives the bytes to its native part:
    *
@@ -71,6 +71,12 @@ export type WebSDKOptions = {
    * does not apply, and the flush at exit sends the full batch.
    */
   send?: HostSend;
+  /**
+   * The development mode, for example `import.meta.env.DEV`. Without a key and
+   * without an endpoint, a development build uses the local collector. A
+   * production build then makes no structure and no network request.
+   */
+  dev?: boolean;
   /** The life of the identity ids. Refer to {@link Persistence}. You can change
    * it later with `setPersistence()`. */
   persistence?: Persistence;

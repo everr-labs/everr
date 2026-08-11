@@ -81,9 +81,8 @@ export function attrs(record: OtlpRecord | OtlpSpan): Record<string, unknown> {
 }
 
 /**
- * The standard start for a test. It replaces fetch and constructs a client with
- * the memory store. The tests operate with a NODE_ENV that is not "production",
- * and thus the transport uses the local collector. Thus a test writes nothing to the store, but a
+ * The standard start for a test. It replaces fetch and constructs a development
+ * client with the memory store. Thus a test writes nothing to the store, but a
  * test can select a different store.
  */
 export function startClient(
@@ -111,6 +110,7 @@ export function startPersistentClient(
 
 const DEFAULTS = {
   serviceName: "everr-docs-test",
+  dev: true,
   get instrumentations() {
     return allInstrumentations();
   },
