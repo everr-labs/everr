@@ -450,6 +450,15 @@ describe("exit budget and transport hardening", () => {
     expect(names.at(-1)).toBe("span-29");
   });
 
+  it("sends nothing when the one record in the queue is above the budget", () => {
+    // The record alone is larger than the keepalive limit. A payload that
+    // carries it makes fetch refuse the request, and thus the batch is lost
+    // without a record of the loss. The code discards it and sends no payload.
+    emit("everr.browser.interaction.click", { filler: "x".repeat(70_000) });
+    exitFlush();
+    expect(sent.find((b) => b.url.endsWith("/v1/logs"))).toBeUndefined();
+  });
+
   it("shares the exit budget: queued spans shrink what log records may fill", () => {
     const filler = "x".repeat(3000);
     for (let i = 0; i < 4; i++) {
