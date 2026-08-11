@@ -23,30 +23,15 @@
 // on the server does not go through the emitter of this package. The two hooks
 // have the same name and they are in two packages. Refer to the README.
 //
-// The code connects the error path at the first use and not at module load.
-// This is necessary because package.json declares `sideEffects: false`. That
-// flag tells a bundler that no statement at the top level of a module does
-// something that the code can see. Thus a bundler can remove a call at the top
-// level whose result no code uses, and a connection there can disappear from a
-// production build with no message. Then captureError finds no reporter and it
-// discards each error.
-//
-// The connection is thus in ensureReportBound(), which the exported
-// captureError and the WebSDK constructor call. A bundler cannot remove it,
-// because the code reaches it from an export that the graph uses. The
-// connection stays for the life of the process: there is no data for each
-// instance, the shared client of otel-errors continues after each WebSDK, and
-// thus there is no previous value to put back.
+// The error path needs no connection step. The report.server module contains
+// the report function for this runtime, and the "#report" subpath of
+// package.json gives it to the react entry. The resolver selects the module,
+// and thus no code changes a binding at run time.
 //
 // The logger keeps its connection in the constructor, because its emitter
 // belongs to one instance. The shutdown() function disconnects only the
 // logger.
 
-// The /core subpath is the part of that package for all runtimes. It keeps the
-// instrumentation and its @types/node requirement out of the browser tsc
-// program of this package. That program has no Node types, and this is
-// correct.
-import { capture } from "@everr/otel-errors/core";
 import { context } from "@opentelemetry/api";
 import {
   type LogAttributes,
@@ -61,30 +46,15 @@ import {
   createBeforeSendGuard,
   type Emit,
 } from "./emitter.js";
-import {
-  bindReport,
-  type ErrorContext,
-  captureError as reportError,
-} from "./errors.js";
+import type { ErrorContext } from "./errors.js";
 import type { ErrorsOptions } from "./instrumentations/errors/index.js";
 import type { NetworkOptions } from "./instrumentations/network/index.js";
 import type { PerformanceOptions } from "./instrumentations/performance/index.js";
 import type { Instrumentation } from "./instrumentations/runtime.js";
 import { logger } from "./logger.js";
+import { report } from "./report.server.js";
 import type { Persistence, UserTraits, WebSDKOptions } from "./types.js";
 import { SDK_NAME, SDK_VERSION } from "./version.js";
-
-// The one connection of the shared report function to otel-errors. Refer to
-// the note at the top of this module for the reason that it is not at module
-// load.
-let bound = false;
-function ensureReportBound(): void {
-  if (bound) return;
-  bound = true;
-  bindReport((error, mechanism, context) =>
-    capture({ error, mechanism, context }),
-  );
-}
 
 export type { AttrValue } from "./emitter.js";
 export type { ErrorContext } from "./errors.js";
@@ -92,13 +62,11 @@ export type { ErrorContext } from "./errors.js";
 /**
  * Reports an error. The context attributes are optional.
  *
- * This needs no WebSDK on the server. The first call connects the error path
- * to @everr/otel-errors, and thus the record goes to the LoggerProvider of the
- * app with the active context.
+ * This needs no WebSDK on the server. The record goes through
+ * @everr/otel-errors to the LoggerProvider of the app with the active context.
  */
 export function captureError(error: unknown, context?: ErrorContext): void {
-  ensureReportBound();
-  reportError(error, context);
+  report(error, "manual", context);
 }
 export type {
   Instrumentation,
@@ -127,10 +95,6 @@ export class WebSDK {
   shutdown: () => Promise<void>;
 
   constructor(options: WebSDKOptions) {
-    // A graph that constructs a WebSDK can report an error through a path that
-    // is not captureError, for example a React error boundary. Thus the
-    // constructor connects the error path also.
-    ensureReportBound();
     // The code finds this one time. Before a global provider registers, this is
     // a ProxyLogger. That proxy sends the records to the true logger when the
     // SDK of the app registers.

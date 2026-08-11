@@ -1,20 +1,22 @@
 // The functions of the SDK for React. They are in a separate entry. Thus the
 // core code uses no framework, and a consumer of the index entry does not get
 // these bytes in its build. The react package is an optional peer dependency,
-// and only this entry needs it. This module imports the dynamic `report`
-// binding from the errors module. Thus the reports operate when a WebSDK
-// exists.
+// and only this entry needs it. This module imports `report` through the
+// "#report" subpath of package.json. The resolver of the consumer selects the
+// module for the runtime: the errors module in the browser, and the
+// report.server module in Node. Thus one react entry operates in the two
+// module graphs, and no code changes a binding at run time.
 import { Component, type ErrorInfo, type ReactNode } from "react";
-import { report } from "./errors.js";
+import { report } from "#report";
 
 export function captureReactError(
   error: unknown,
   errorInfo?: { componentStack?: string | null },
 ): void {
-  // Before a WebSDK exists, this gives a warning and throws no error. Thus an
-  // incorrect setup is visible. After shutdown it gives no warning, and this is
-  // correct. It also operates on the server when the WebSDK for the server
-  // exists.
+  // In the browser this gives a warning before a WebSDK exists, and it does
+  // nothing after shutdown. Thus an incorrect setup is visible. On the server
+  // it operates without a WebSDK, because the report.server module needs no
+  // setup.
   report(
     error,
     "react",

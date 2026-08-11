@@ -37,6 +37,11 @@ function walk(
   for (const spec of specifiers) {
     if (spec.startsWith(".")) {
       walk(resolve(dirname(file), spec.replace(/\.js$/, ".ts")), graph);
+    } else if (spec === "#report") {
+      // The "#report" subpath of package.json. The browser resolver selects
+      // the "default" condition. The walker follows that branch, and thus the
+      // guarantee covers the module behind the subpath.
+      walk("src/report.browser.ts", graph);
     }
   }
   return graph;

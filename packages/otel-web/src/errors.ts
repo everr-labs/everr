@@ -1,11 +1,14 @@
 import { currentEmit } from "./current.js";
 
 // The error reports of the browser. This module has the `captureError`
-// function and the shared `report` binding. Each error path uses that binding.
-// The `captureReactError` function is in the react entry, and the global
-// handlers for the unhandled errors are in the errors() instrumentation. The
-// two use the same binding. Thus a consumer of the index entry gets neither of
-// them in its build.
+// function and the `report` function. Each browser error path uses that
+// function. The `captureReactError` function is in the react entry, and it
+// imports `report` through the "#report" subpath. The package.json selects
+// this module for the browser and the report.server module for Node. The
+// global handlers for the unhandled errors are in the errors()
+// instrumentation, and they import this module directly, because that
+// instrumentation exists only in the browser. Thus a consumer of the index
+// entry gets neither the react code nor the server code in its build.
 //
 // The SDK pipeline sends these records. Thus each error carries the analytics
 // envelope, and it goes with the other signals of the session.
@@ -95,10 +98,10 @@ const hits = new Map<string, number[]>();
 
 // The reporter of the browser. It does these steps: it makes the error regular,
 // it applies the filter, it applies the rate limit, and it sends the record. It
-// reads the current pipeline at each call. The shared binding gives a warning
-// before a WebSDK exists, and it does nothing after shutdown. Thus the browser
-// needs no setup step.
-const browserReport: Report = (error, mechanism, context, fileName) => {
+// reads the current pipeline at each call. It gives a warning before a WebSDK
+// exists, and it does nothing after shutdown. Thus the browser needs no setup
+// step.
+export const report: Report = (error, mechanism, context, fileName) => {
   const emit = currentEmit();
   if (!emit) return;
   // The telemetry must never cause a failure of the page. Thus the code tries
@@ -141,20 +144,6 @@ const browserReport: Report = (error, mechanism, context, fileName) => {
     // The code ignores this error, and this is correct.
   }
 };
-
-// This is a dynamic binding. The react entry and the errors() instrumentation
-// import it. The default is the reporter of the browser, and it needs no setup.
-// The server entry puts its own adapter here, and that adapter uses
-// @everr/otel-errors/core. When the code removes that adapter, the default
-// comes back.
-export let report: Report = browserReport;
-
-export function bindReport(next: Report): () => void {
-  report = next;
-  return () => {
-    report = browserReport;
-  };
-}
 
 /** Reports an error. The context attributes are optional. */
 export function captureError(error: unknown, context?: ErrorContext): void {
