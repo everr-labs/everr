@@ -1,4 +1,5 @@
 // @vitest-environment node
+import { StringChunk } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
@@ -42,15 +43,26 @@ describe("addWorkerJob", () => {
     expect(viaPool.queryChunks).toEqual(viaTx.queryChunks);
   });
 
-  it("defaults the spec the same way on both paths", async () => {
-    const { addWorkerJob, addWorkerJobInTransaction } = await import("./jobs");
-    const tx = { execute: vi.fn().mockResolvedValue({ rows: [] }) };
+  it("fills an unset spec with graphile's own add_job defaults", async () => {
+    const { addWorkerJob } = await import("./jobs");
 
     await addWorkerJob("task", { a: 1 });
-    await addWorkerJobInTransaction(tx as never, "task", { a: 1 });
 
-    const viaPool = mocks.execute.mock.calls[0][0];
-    const viaTx = tx.execute.mock.calls[0][0];
-    expect(viaPool.queryChunks).toEqual(viaTx.queryChunks);
+    // The statement's bound values, in the order add_job takes them: every
+    // chunk that is not a literal fragment of SQL text.
+    const bound = (
+      mocks.execute.mock.calls[0][0].queryChunks as unknown[]
+    ).filter((chunk) => !(chunk instanceof StringChunk));
+    expect(bound).toEqual([
+      "task",
+      JSON.stringify({ a: 1 }),
+      null, // queue_name
+      new Date(), // run_at, the frozen now
+      25, // max_attempts
+      null, // job_key
+      0, // priority
+      null, // flags
+      "replace", // job_key_mode
+    ]);
   });
 });

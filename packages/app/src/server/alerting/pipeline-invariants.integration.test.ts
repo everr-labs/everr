@@ -72,18 +72,24 @@ afterAll(async () => {
 // error's own `cause`, the raw node-postgres error, as its `constraint`
 // field. Asserting there is what pins the case to the specific constraint
 // PostgreSQL refused on, not merely "some insert failed".
+//
+// A drizzle insert builder is a thenable that runs its statement on every
+// await, so this awaits exactly once and reads that one rejection.
 async function expectConstraintViolation(
   promise: Promise<unknown>,
   constraintName: string,
 ): Promise<void> {
-  await expect(promise).rejects.toThrow();
+  let rejection: unknown;
+  let rejected = false;
   try {
     await promise;
-    throw new Error(`expected a rejection naming ${constraintName}`);
   } catch (err) {
-    const cause = (err as { cause?: { constraint?: string } }).cause;
-    expect(cause?.constraint).toBe(constraintName);
+    rejection = err;
+    rejected = true;
   }
+  expect(rejected, `expected a rejection naming ${constraintName}`).toBe(true);
+  const cause = (rejection as { cause?: { constraint?: string } }).cause;
+  expect(cause?.constraint).toBe(constraintName);
 }
 
 // graphile-worker keeps queue_name on the job row itself, and neither
