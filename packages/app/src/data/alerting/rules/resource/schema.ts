@@ -43,7 +43,9 @@ export const AlertRuleYamlSchema = z
         notification: notificationDestinationSchema.optional(),
         notificationMessage: notificationMessageSchema,
         query: alertingNonEmptyStringSchema,
-        instanceLabels: z.array(alertingNonEmptyStringSchema).min(1).optional(),
+        // An empty list is explicit: the whole result is one instance. Omitting
+        // the field instead infers the identity from the query's string columns.
+        instanceLabels: z.array(alertingNonEmptyStringSchema).optional(),
         // Apply the condition to the numeric `value` in each result row.
         condition: AlertingRuleConditionSchema,
         // The rule is degraded when its last evaluation is older than this value.

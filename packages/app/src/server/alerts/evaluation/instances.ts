@@ -12,25 +12,24 @@ export interface AlertInstance {
 // since there is no SQL value there to distinguish.
 export const NULL_LABEL_VALUE = "<null>";
 
+// The stored columns are the identity, and no empty list is re-derived here.
+// Apply resolves the identity once against ClickHouse column types, which the
+// row values alone cannot recover: a DateTime arrives as a JSON string, so
+// inferring "every string cell" would make a new instance every evaluation. An
+// empty list means the whole result is one instance.
 export function extractInstanceLabels(
   row: Record<string, unknown>,
   instanceLabelColumns: readonly string[],
 ): Record<string, string> {
   const labels: Record<string, string> = {};
-  if (instanceLabelColumns.length > 0) {
-    for (const column of instanceLabelColumns) {
-      const value = row[column];
-      labels[column] =
-        value === undefined
-          ? ""
-          : value === null
-            ? NULL_LABEL_VALUE
-            : String(value);
-    }
-    return labels;
-  }
-  for (const [key, value] of Object.entries(row)) {
-    if (typeof value === "string") labels[key] = value;
+  for (const column of instanceLabelColumns) {
+    const value = row[column];
+    labels[column] =
+      value === undefined
+        ? ""
+        : value === null
+          ? NULL_LABEL_VALUE
+          : String(value);
   }
   return labels;
 }

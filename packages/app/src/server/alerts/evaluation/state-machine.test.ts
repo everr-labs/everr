@@ -1,8 +1,11 @@
 import { describe, expect, it } from "vitest";
+import { rowsToInstances } from "./instances";
 import {
+  type AlertInstanceTransition,
   advanceAlertInstance,
   newInactiveInstance,
   type PresentAlertInstance,
+  type StoredAlertInstance,
 } from "./state-machine";
 
 const present: PresentAlertInstance = {
@@ -13,6 +16,21 @@ const present: PresentAlertInstance = {
 };
 
 const at = (seconds: number) => new Date(seconds * 1000);
+
+// The `SELECT count() AS value, max(timestamp) AS last_event` shape: one
+// instance, applied with no label columns, and evidence that moves every tick.
+function instanceAt(seconds: number): PresentAlertInstance {
+  const [instance] = rowsToInstances(
+    [{ value: 1, last_event: at(seconds).toISOString() }],
+    [],
+  );
+  return {
+    fingerprint: instance.fingerprint,
+    labels: instance.labels,
+    evidence: instance.row,
+    value: 1,
+  };
+}
 
 describe("advanceAlertInstance", () => {
   it("fires immediately when for is zero", () => {
@@ -244,5 +262,32 @@ describe("advanceAlertInstance", () => {
     });
     expect(reappeared.next.status).toBe("pending");
     expect(reappeared.event).toBeNull();
+  });
+
+  // A rule with no label columns used to get a new fingerprint on every
+  // evaluation, because its DateTime column arrives as a string. Each tick
+  // looked like a first sighting, so the pending clock never ran out and the
+  // rule stayed silent for good.
+  it("fires a rule with no label columns whose evidence changes each tick", () => {
+    // Stored instances join to the query result on the fingerprint, as the
+    // evaluator does: an identity that moves reads as a new instance every
+    // tick, and the pending clock never runs out.
+    const stored = new Map<string, StoredAlertInstance>();
+    let last: AlertInstanceTransition | undefined;
+    for (const seconds of [0, 60, 120]) {
+      const present = instanceAt(seconds);
+      last = advanceAlertInstance({
+        previous:
+          stored.get(present.fingerprint) ?? newInactiveInstance(present),
+        present,
+        evaluatedAt: at(seconds),
+        forSeconds: 120,
+        resolveAfter: 1,
+        intervalSeconds: 60,
+      });
+      stored.set(present.fingerprint, last.next);
+    }
+    expect(last?.next.status).toBe("firing");
+    expect(last?.event).toBe("firing");
   });
 });

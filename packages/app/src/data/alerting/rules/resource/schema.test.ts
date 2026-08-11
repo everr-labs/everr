@@ -35,7 +35,6 @@ describe("AlertRuleYamlSchema", () => {
       }).success,
     ).toBe(false);
     for (const spec of [
-      { instanceLabels: [] },
       { instanceLabels: [""] },
       { runbook: "a/b/c" },
       { runbook: "Bad_Slug" },
@@ -46,6 +45,10 @@ describe("AlertRuleYamlSchema", () => {
     ]) {
       expect(parseSpec(spec).success).toBe(false);
     }
+  });
+
+  it("accepts an empty instanceLabels as one instance for the whole result", () => {
+    expect(parseSpec({ instanceLabels: [] }).success).toBe(true);
   });
 
   it("rejects a maxInterval shorter than evaluationInterval", () => {

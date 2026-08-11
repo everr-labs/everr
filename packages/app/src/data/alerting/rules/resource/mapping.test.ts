@@ -270,6 +270,26 @@ describe("toAlertRuleDocument", () => {
     expect(scoped.metadata.name).toBe("high-5xx");
   });
 
+  // An exported rule whose whole result is one instance used to omit
+  // instanceLabels, so re-applying it inferred an identity from the query
+  // instead of keeping the one the rule evaluates on.
+  it("exports an empty identity so re-apply cannot re-infer one", () => {
+    const ruleInput = toRuleInput(
+      parseRule({ instanceLabels: [], query: "SELECT count() AS value" }),
+      "repo-1",
+    );
+    expect(ruleInput.label_columns).toEqual([]);
+
+    const doc = toAlertRuleDocument(asRule(ruleInput));
+    expect(doc.spec.instanceLabels).toEqual([]);
+
+    const reparsed = AlertRuleYamlSchema.parse(JSON.parse(JSON.stringify(doc)));
+    expect(
+      toRuleInput(reparsed, "repo-1", { instanceLabels: ["last_event"] })
+        .label_columns,
+    ).toEqual([]);
+  });
+
   // A runbook in the "default" project, linked from an alert in a
   // different project, used to lose its project on export (formatRunbookRef
   // dropped "default"), so the exported document re-resolved the bare slug

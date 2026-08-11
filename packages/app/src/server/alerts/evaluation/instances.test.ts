@@ -7,11 +7,11 @@ import {
 } from "./instances";
 
 describe("extractInstanceLabels", () => {
-  it("uses string columns implicitly", () => {
+  it("uses only the stored columns, ignoring the other string cells", () => {
     expect(
       extractInstanceLabels(
-        { route: "/x", error_count: 7, ok: true, n: null },
-        [],
+        { route: "/x", zone: "eu", error_count: 7, ok: true, n: null },
+        ["route"],
       ),
     ).toEqual({ route: "/x" });
   });
@@ -42,8 +42,25 @@ describe("extractInstanceLabels", () => {
     );
   });
 
-  it("returns empty labels for rows with no string columns", () => {
-    expect(extractInstanceLabels({ error_count: 7 }, [])).toEqual({});
+  // ClickHouse renders a DateTime as a JSON string, so re-deriving identity
+  // from the row values made a fresh instance on every evaluation: a rule with
+  // `for` never fired, and one without it fired and resolved on every tick.
+  it("treats no stored columns as one instance, whatever the row holds", () => {
+    expect(
+      extractInstanceLabels(
+        { value: 3, last_event: "2026-08-11 08:45:00" },
+        [],
+      ),
+    ).toEqual({});
+    expect(
+      instanceFingerprint(
+        extractInstanceLabels({ value: 3, last_event: "08:45" }, []),
+      ),
+    ).toBe(
+      instanceFingerprint(
+        extractInstanceLabels({ value: 4, last_event: "08:46" }, []),
+      ),
+    );
   });
 });
 
@@ -71,10 +88,22 @@ describe("rowsToInstances", () => {
         { route: "/x", error_count: 3 },
         { route: "/y", error_count: 1 },
       ],
-      [],
+      ["route"],
     );
     expect(instances).toHaveLength(2);
     expect(instances[0].labels).toEqual({ route: "/x" });
     expect(instances[0].row).toEqual({ route: "/x", error_count: 9 });
+  });
+
+  it("collapses every row into one instance when no columns are stored", () => {
+    const instances = rowsToInstances(
+      [
+        { value: 9, last_event: "08:45" },
+        { value: 3, last_event: "08:46" },
+      ],
+      [],
+    );
+    expect(instances).toHaveLength(1);
+    expect(instances[0].row).toEqual({ value: 9, last_event: "08:45" });
   });
 });

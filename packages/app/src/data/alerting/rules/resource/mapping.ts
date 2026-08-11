@@ -227,10 +227,10 @@ export function toAlertRuleDocument(
           : {}),
       },
       query: rule.spec.sql,
-      instanceLabels:
-        rule.spec.label_columns && rule.spec.label_columns.length > 0
-          ? rule.spec.label_columns
-          : undefined,
+      // Always emitted, empty list included: the stored columns are the
+      // identity the rule evaluates on, and omitting the field here would
+      // re-infer a different one on the next apply.
+      instanceLabels: rule.spec.label_columns ?? [],
       condition: rule.spec.condition,
       ...(rule.spec.max_interval_secs !== undefined &&
       rule.spec.max_interval_secs !== null
