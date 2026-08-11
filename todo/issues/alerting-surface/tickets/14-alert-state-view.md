@@ -7,7 +7,8 @@ without the reader knowing the fold trick, with staleness visible.
 **Details:** issue 17 in `../03-alerting-surface-plan.md`, and step 8's
 decision list in `../02-alerting-clickhouse-surface.md`.
 
-**Blocked by:** 12, 13.
+**Blocked by:** 12, 13. Also 34: the fold reports an instance whose
+terminal was lost as firing forever, and preview teardown can lose one.
 
 **Status:** ready-for-agent
 
