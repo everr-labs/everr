@@ -1,5 +1,4 @@
 import type { Attributes } from "@opentelemetry/api";
-import type { CollectBehavior } from "./redact.js";
 
 /**
  * The method that sent the error to this package. The union contains the three
@@ -30,19 +29,31 @@ export interface ErrorEvent {
  * The configuration of the shared client. The `configure` function applies it.
  * All the fields are optional, and each call merges them. A key that is not
  * present keeps its current value. A key that is present replaces the full
- * field. The merge is not deep. Thus a `redactPatterns` array is the full set,
- * and the client does not add it to the previous array.
+ * field. The merge is not deep.
  *
- * Each field has its own value that stops the function: `rateLimit: false`,
- * `redactPatterns: []`, and `redactKeys: false`. The `beforeSend` field is
- * different. In a merge, a value of `undefined` is the same as a key that is
- * not present. Thus a caller sends `null` to remove a hook that it installed.
+ * In a merge, a value of `undefined` is the same as a key that is not present.
+ * Thus a caller sends `null` to remove a hook that it installed.
+ *
+ * This package removes no data and it discards no record. It sends the
+ * message, the stack, and the attributes from the caller without a change, and
+ * it sends one record for each call. The hook is the one place to remove data
+ * or to discard a record, and it is the responsibility of the application. This
+ * is the same division as in the other browser SDKs and Node SDKs: the SDK
+ * carries the data, and a hook, the collector, or the ingest applies the policy
+ * of the application.
  */
 export interface ClientOptions {
-  /** Discards the event if it returns null. If not, it can change the event. */
+  /**
+   * Runs on each log record, before the client sends it. It discards the event
+   * if it returns null. If not, it can change the message and the attributes.
+   *
+   * The hook does not change the active span. When a span is active, the
+   * client marks it with `recordException` and `setStatus`, and it takes the
+   * values from the error itself and not from the result of this hook. Thus a
+   * hook that removes data from the record does not remove it from the span.
+   * Use a span processor of the app, the collector, or the ingest for the span.
+   * A hook that returns null discards the record and the marking together,
+   * because the client stops before both of them.
+   */
   beforeSend?: ((event: ErrorEvent) => ErrorEvent | null) | null;
-  redactPatterns?: RegExp[];
-  redactKeys?: CollectBehavior;
-  /** The limit for each fingerprint. `false` stops it. The default is 5 in 5 s. */
-  rateLimit?: { count: number; windowMs: number } | false;
 }

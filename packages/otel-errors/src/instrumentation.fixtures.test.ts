@@ -62,4 +62,30 @@ describe("node fatal exit semantics (fixtures)", () => {
     expect(status).toBe(0);
     expect(logs.at(-1)).toMatchObject({ mechanism: "uncaughtException" });
   });
+
+  it("writes the error to stderr, as Node does with no listener", () => {
+    // A listener prevents the report that Node writes. Thus the
+    // instrumentation writes it. Without this line the crash of a container is
+    // visible only in the telemetry.
+    const { stderr } = runFixture("uncaught-exit.mjs");
+    expect(stderr).toContain("fixture-crash");
+    expect(stderr).toContain("uncaught-exit.mjs");
+  });
+
+  it("leaves the exit to the app when the app has its own listener", () => {
+    const { status, logs, stderr } = runFixture("other-handler-no-exit.mjs");
+    expect(status).toBe(0);
+    // The instrumentation captured the error and wrote it, but the listener of
+    // the app keeps the exit decision.
+    expect(logs.at(-1)).toMatchObject({ mechanism: "uncaughtException" });
+    expect(stderr).toContain("fixture-other-handler");
+  });
+
+  it("exitEvenIfOtherHandlersAreRegistered stops the process anyway", () => {
+    const { status, logs } = runFixture("other-handler-force-exit.mjs");
+    // A status of 7 is the fallback in the fixture. It shows that the
+    // instrumentation did not stop the process.
+    expect(status).toBe(1);
+    expect(logs.at(-1)).toMatchObject({ mechanism: "uncaughtException" });
+  });
 });

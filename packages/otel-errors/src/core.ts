@@ -9,14 +9,6 @@
 export { capture, configure, setLogger } from "./capture.js";
 export type { CaptureInput } from "./client.js";
 export { type NormalizedError, normalizeError } from "./normalize.js";
-export { RateLimiter } from "./rate-limit.js";
-export {
-  type CollectBehavior,
-  DEFAULT_REDACT_PATTERNS,
-  redactAttributes,
-  redactString,
-  stripUrlQueryAndFragment,
-} from "./redact.js";
 export type {
   ClientOptions,
   ErrorEvent,

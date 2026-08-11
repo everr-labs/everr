@@ -14,13 +14,13 @@ import { capture, setLogger } from "./capture.js";
 import { resolveFlushable } from "./providers.js";
 import { PKG_NAME, PKG_VERSION } from "./version.js";
 
-const FLUSH_TIMEOUT_MS = 2000;
+const DEFAULT_SHUTDOWN_TIMEOUT_MS = 2000;
 
 /**
- * For crash handling only. The shared client holds the redaction, the rate
- * limit, and `beforeSend`, and `configure` sets them. Thus an app configures
- * the capture in one place. This is true if the app registers this
- * instrumentation, and also if it does not.
+ * For crash handling only. The shared client holds `beforeSend`, and
+ * `configure` sets it. Thus an app configures the capture in one place. This
+ * is true if the app registers this instrumentation, and also if it does
+ * not.
  */
 export interface ErrorsInstrumentationConfig extends InstrumentationConfig {
   /**
@@ -29,6 +29,28 @@ export interface ErrorsInstrumentationConfig extends InstrumentationConfig {
    * installed. With "continue", the process continues to operate.
    */
   onFatal?: "exit" | "continue";
+  /**
+   * The time limit in milliseconds for the flush of the providers before the
+   * process stops. The default value is 2000. The three signals share this one
+   * budget. Thus an exporter that stops cannot keep the process open after the
+   * limit. Use a small value in a function that pays for the time, and a large
+   * value with an exporter that has a large queue.
+   */
+  shutdownTimeout?: number;
+  /**
+   * Controls the exit when the app registered its own listener for the same
+   * event. The default value is false.
+   *
+   * - `false`: the instrumentation stops the process only when its handler is
+   *   the one handler. If the app installed a listener also, the app owns the
+   *   exit. This is the same behavior that Node has: a listener stops the crash
+   *   that Node does, and thus the app that installed the listener decides.
+   * - `true`: the instrumentation always stops the process, and the listener of
+   *   the app cannot prevent it.
+   *
+   * `onFatal: "continue"` stops the exit in the two conditions.
+   */
+  exitEvenIfOtherHandlersAreRegistered?: boolean;
 }
 
 // Two instrumentations install two sets of crash handlers. Then the code
@@ -144,11 +166,26 @@ export class ErrorsInstrumentation
     for (const [eventName, mechanism] of FATAL_EVENTS) {
       const handler = (...args: unknown[]) => {
         const [reason] = args;
+
+        // Write the error to stderr first, before the capture and before the
+        // flush. A listener prevents the report that Node writes. Thus without
+        // this line a container that stops writes nothing to its own log, and
+        // the error is visible only if the flush to the collector was a
+        // success. This line comes first because it must not have a dependency
+        // on the capture, on the flush, or on the exit decision below.
+        console.error(reason);
+
         capture({
           error: reason,
           mechanism,
           severity: "fatal",
         });
+
+        // Read the count now and not after the flush. The list can change
+        // while the flush operates, and the decision belongs to the condition
+        // at the time of the crash. This handler is in the list at this time.
+        // Thus a count of more than one shows a listener of the app.
+        const otherHandlers = process.listenerCount(eventName) > 1;
 
         void this.flush().finally(() => {
           if (this._config.onFatal === "continue") {
@@ -157,11 +194,12 @@ export class ErrorsInstrumentation
 
           // A listener prevents the crash that Node does. Thus this code does
           // the crash. But if the app installed a listener also, the app
-          // controls the exit.
-          const others = process
-            .listeners(eventName)
-            .filter((listener) => listener !== (handler as unknown));
-          if (others.length === 0) {
+          // controls the exit. Refer to
+          // exitEvenIfOtherHandlersAreRegistered.
+          if (
+            this._config.exitEvenIfOtherHandlersAreRegistered ||
+            !otherHandlers
+          ) {
             process.exit(1);
           }
         });
@@ -189,8 +227,13 @@ export class ErrorsInstrumentation
    * Flushes the logs, the spans, and the metrics before the process stops. A
    * crash needs all three. The log record contains the error. The span that
    * was active shows the location of the error. The three flush operations
-   * have one time limit together. Thus an exporter that stops cannot keep the
-   * process open after that limit.
+   * have one time limit together, which is `shutdownTimeout`. Thus an exporter
+   * that stops cannot keep the process open after that limit.
+   *
+   * Promise.race gives the first result, but it does not stop the loser. Thus
+   * the code stops the timer when the flush is a success, and it also removes
+   * the reference. Each step alone keeps the event loop free after a crash
+   * that the process survives; together they also keep no timer in the heap.
    */
   private async flush(): Promise<void> {
     const targets = [
@@ -202,17 +245,28 @@ export class ErrorsInstrumentation
         resolveFlushable(metrics.getMeterProvider()),
     ];
 
-    await Promise.race([
-      Promise.all(
-        targets.map((target) =>
-          target
-            ?.forceFlush()
-            .catch((err) =>
-              diag.error(`${PKG_NAME}: flush on fatal failed`, err),
-            ),
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try {
+      await Promise.race([
+        Promise.all(
+          targets.map((target) =>
+            target
+              ?.forceFlush()
+              .catch((err) =>
+                diag.error(`${PKG_NAME}: flush on fatal failed`, err),
+              ),
+          ),
         ),
-      ),
-      new Promise<void>((resolve) => setTimeout(resolve, FLUSH_TIMEOUT_MS)),
-    ]);
+        new Promise<void>((resolve) => {
+          timer = setTimeout(
+            resolve,
+            this._config.shutdownTimeout ?? DEFAULT_SHUTDOWN_TIMEOUT_MS,
+          );
+          timer.unref?.();
+        }),
+      ]);
+    } finally {
+      clearTimeout(timer);
+    }
   }
 }

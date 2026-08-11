@@ -2,19 +2,16 @@ export interface NormalizedError {
   type: string;
   message: string;
   stacktrace?: string;
-  topFrame?: string;
 }
 
 const MAX_CAUSE_DEPTH = 5;
 
 export function normalizeError(error: unknown): NormalizedError {
   if (error instanceof Error) {
-    const stacktrace = renderStack(error, 0);
     return {
       type: error.name || "Error",
       message: error.message,
-      stacktrace,
-      topFrame: extractTopFrame(stacktrace),
+      stacktrace: renderStack(error, 0),
     };
   }
 
@@ -44,17 +41,6 @@ function renderStack(error: Error, depth: number): string {
   }
 
   return text;
-}
-
-function extractTopFrame(stacktrace: string): string | undefined {
-  for (const line of stacktrace.split("\n")) {
-    const trimmed = line.trim();
-    if (trimmed.startsWith("at ") || /\S+@\S+:\d+/.test(trimmed)) {
-      return trimmed;
-    }
-  }
-
-  return undefined;
 }
 
 export function safeStringify(value: unknown): string {

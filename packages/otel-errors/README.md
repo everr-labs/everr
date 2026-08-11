@@ -42,21 +42,32 @@ One log record per error, with `eventName: "exception"`:
 | Attribute | Value |
 | --- | --- |
 | `exception.type` | The error's constructor name, or `NonError` |
-| `exception.message` | The message, redacted |
+| `exception.message` | The message |
 | `exception.stacktrace` | The stack, when there is one |
 | `everr.error.mechanism` | `uncaughtException`, `unhandledrejection`, or `manual` |
-| `log.record.uid` | A generated id, never redacted |
+| `log.record.uid` | A generated id |
 
-The record body is `"{type}: {message}"`, redacted. Severity is `FATAL` for the two fatal handlers and `ERROR` for `captureError`. When a span is active, the record joins its trace and the span gets `recordException` plus `setStatus(ERROR)`.
+The record body is `"{type}: {message}"`. Severity is `FATAL` for the two fatal handlers and `ERROR` for `captureError`. When a span is active, the record joins its trace and the span gets `recordException` plus `setStatus(ERROR)`.
+
+One capture is one record. The package applies no throttle and no deduplication, so a hot loop that reports the same error 10,000 times emits 10,000 records. Cap volume where it can be seen across processes: `beforeSend`, the collector, or the ingest.
+
+## Sensitive data
+
+This package removes nothing. The message, the stack, and the attributes you pass reach the exporter unchanged. `beforeSend` is the one lever: rewrite the record, or return `null` to drop it.
+
+It does not reach the active span. When a span is active it gets `recordException` and `setStatus` built from the error itself, not from what your hook returned, so a hook that scrubs the message leaves a dirty span in the same trace. Returning `null` skips both. For the span, use a span processor on your own `NodeSDK`, or redact at the collector, which covers every signal at once.
 
 ## On a fatal error
 
-The instrumentation captures the error, flushes the logger, tracer, and meter providers (2 seconds for all three), then calls `process.exit(1)`.
+The instrumentation writes the error to stderr, captures it, flushes the logger, tracer, and meter providers (`shutdownTimeout`, 2 seconds by default, for all three), then calls `process.exit(1)`.
 
-The exit is deliberate. Installing an `uncaughtException` listener stops the crash Node would otherwise perform, so the instrumentation performs it. Two ways to keep the process alive:
+The stderr line comes first and is unconditional. Installing an `uncaughtException` listener stops the report Node writes, so without it a crashing container logs nothing locally and the error survives only if the flush reached the collector. It is `console.error(reason)`, so you get the same stack Node would have printed. Expect one duplicate line if your own handler also logs.
 
-- `new ErrorsInstrumentation({ onFatal: "continue" })`.
+The exit is deliberate, for the same reason: a listener stops the crash Node would otherwise perform, so the instrumentation performs it. Three ways to change that:
+
+- `onFatal: "continue"` keeps the process alive.
 - Register your own listener for the same event. The instrumentation then leaves the decision to you.
+- `exitEvenIfOtherHandlersAreRegistered: true` overrides the previous one and exits regardless.
 
 ## Config
 
@@ -66,19 +77,13 @@ The process has one error client. `configure` sets it up, merging over whatever 
 import { configure } from "@everr/otel-errors";
 
 configure({
-  rateLimit: { count: 5, windowMs: 5000 },
-  redactPatterns: [/\bsk_live_\w+/g],
-  redactKeys: { deny: ["session"] },
   beforeSend: (event) => (event.message.includes("ECONNRESET") ? null : event),
 });
 ```
 
 | Option | Default | Effect |
 | --- | --- | --- |
-| `rateLimit` | 5 per 5s | Per-fingerprint throttle. `false` disables it. Re-stating it restarts the windows |
-| `redactPatterns` | emails, tokens, cards | Patterns replaced with `[Filtered]` in the body and string attributes |
-| `redactKeys` | `true` | Drops attributes whose key looks sensitive. Also accepts `{ allow }` or `{ deny }` |
-| `beforeSend` | none | Rewrites the event, or returns `null` to drop it. `null` removes an installed hook |
+| `beforeSend` | none | Rewrites the log record, or returns `null` to drop it. `null` removes an installed hook |
 
 Call it whenever you like: capture works before the first call, and a later call applies to every error path from then on.
 
@@ -88,10 +93,12 @@ The instrumentation itself takes only what belongs to crash handling:
 | --- | --- | --- |
 | `enabled` | `true` | `false` defers installation until the SDK registers the instrumentation |
 | `onFatal` | `"exit"` | `"continue"` keeps the process alive after a fatal error |
+| `shutdownTimeout` | `2000` | Milliseconds the three flushes share before the process stops |
+| `exitEvenIfOtherHandlersAreRegistered` | `false` | `true` exits even when your own listener is attached |
 
 ## `@everr/otel-errors/core`
 
-The capture path with no Node and no `@opentelemetry/instrumentation` dependency: `capture`, `configure`, `setLogger`, `normalizeError`, `RateLimiter`, and the redaction helpers. It exists so a browser-targeted SDK can reuse the normalization, redaction, and attribute contract without pulling `@types/node` into its globals. [`@everr/otel-web`](https://github.com/everr-labs/everr/tree/main/packages/otel-web)'s server entry is its consumer.
+The capture path with no Node and no `@opentelemetry/instrumentation` dependency: `capture`, `configure`, `setLogger`, and `normalizeError`. It exists so a browser-targeted SDK can reuse the normalization and the attribute contract without pulling `@types/node` into its globals. [`@everr/otel-web`](https://github.com/everr-labs/everr/tree/main/packages/otel-web)'s server entry is its consumer.
 
 `capture` is the surface for SDKs that report their own mechanisms, where an application wants `captureError`:
 

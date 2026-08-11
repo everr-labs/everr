@@ -41,26 +41,6 @@ describe("the capture path", () => {
     expect(record.attributes["log.record.uid"]).toMatch(/^[0-9a-f-]{32,36}$/);
   });
 
-  it("never redacts the uid, even when it matches the credit-card pattern", () => {
-    // A UUID with many digits, and the first groups contain only digits. If
-    // the uid goes through the redaction, the default pattern for a credit
-    // card changes the uid to "[Filtered]".
-    const uid = "40000000-0000-4000-8000-000000000002";
-    const spy = vi
-      .spyOn(globalThis.crypto, "randomUUID")
-      .mockReturnValue(uid as ReturnType<typeof crypto.randomUUID>);
-    try {
-      capture({
-        error: new Error("boom"),
-        mechanism: "manual",
-      });
-      const [record] = otel.records();
-      expect(record.attributes["log.record.uid"]).toBe(uid);
-    } finally {
-      spy.mockRestore();
-    }
-  });
-
   it("maps fatal severity", () => {
     capture({
       error: new Error("dead"),
@@ -72,13 +52,15 @@ describe("the capture path", () => {
     expect(record.severityText).toBe("FATAL");
   });
 
-  it("rate-limits identical errors", () => {
-    configure({ rateLimit: { count: 5, windowMs: 60_000 } });
+  it("sends every report of the same error, with no throttle", () => {
+    // The package discards no record. A loop that reports the same error keeps
+    // one record for each call. A volume limit belongs to the collector or to
+    // the ingest, which see all the processes.
     const error = new Error("same");
-    for (let i = 0; i < 10; i++) {
+    for (let i = 0; i < 50; i++) {
       capture({ error, mechanism: "manual" });
     }
-    expect(otel.records()).toHaveLength(5);
+    expect(otel.records()).toHaveLength(50);
   });
 
   it("beforeSend can mutate and drop events", () => {
@@ -102,31 +84,19 @@ describe("the capture path", () => {
     expect(records[0].attributes.app).toBe("test");
   });
 
-  it("redacts message and string attributes", () => {
+  it("removes nothing from the message and the attributes", () => {
+    // The package applies no pattern and no key list. The message, the query
+    // string, and an attribute whose key looks sensitive all go out without a
+    // change. The application removes what it must remove, in beforeSend.
     capture({
       error: new Error("login failed for a@b.com"),
       mechanism: "manual",
-      context: { "url.full": "/cb?token=s3cret" },
+      context: { "url.full": "/cb?token=s3cret", "x-api-key": "k123" },
     });
     const [record] = otel.records();
-    expect(record.body).toBe("Error: login failed for [Filtered]");
-    expect(record.attributes["url.full"]).toBe("/cb");
-  });
-
-  it("honors custom redaction options", () => {
-    configure({
-      redactKeys: false,
-      redactPatterns: [/secret/g],
-    });
-    capture({
-      error: new Error("secret"),
-      mechanism: "manual",
-      context: { "x-api-key": "keep" },
-    });
-
-    const [record] = otel.records();
-    expect(record.body).toBe("Error: [Filtered]");
-    expect(record.attributes["x-api-key"]).toBe("keep");
+    expect(record.body).toBe("Error: login failed for a@b.com");
+    expect(record.attributes["url.full"]).toBe("/cb?token=s3cret");
+    expect(record.attributes["x-api-key"]).toBe("k123");
   });
 
   it("ignores re-entrant captures", () => {
@@ -176,6 +146,38 @@ describe("the capture path", () => {
     expect(requestSpan?.status.code).toBe(SpanStatusCode.ERROR);
     expect(requestSpan?.status.message).toBe("Error: boom");
     expect(requestSpan?.events.map((e) => e.name)).toContain("exception");
+  });
+
+  it("marks the span from the error, not from the beforeSend result", () => {
+    configure({
+      beforeSend: (event) => ({ ...event, message: "record only" }),
+    });
+    trace.getTracer("test").startActiveSpan("request", (requestSpan) => {
+      capture({ error: new Error("boom"), mechanism: "manual" });
+      requestSpan.end();
+    });
+
+    const requestSpan = otel.spans().find((s) => s.name === "request");
+    expect(otel.records()[0]?.body).toBe("record only");
+    // The span carries the values of the error. A hook that changes the record
+    // does not reach it. The app uses a span processor or the collector for
+    // the span.
+    expect(requestSpan?.status.message).toBe("Error: boom");
+    const exception = requestSpan?.events.find((e) => e.name === "exception");
+    expect(exception?.attributes?.["exception.message"]).toBe("boom");
+  });
+
+  it("discards the record and the span marking together on a null beforeSend", () => {
+    configure({ beforeSend: () => null });
+    trace.getTracer("test").startActiveSpan("request", (requestSpan) => {
+      capture({ error: new Error("boom"), mechanism: "manual" });
+      requestSpan.end();
+    });
+
+    const requestSpan = otel.spans().find((s) => s.name === "request");
+    expect(otel.records()).toHaveLength(0);
+    expect(requestSpan?.status.code).toBe(SpanStatusCode.UNSET);
+    expect(requestSpan?.events).toHaveLength(0);
   });
 
   it("setLogger redirects emission to a provider's logger", () => {

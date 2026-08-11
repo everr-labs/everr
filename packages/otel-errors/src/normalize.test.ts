@@ -2,12 +2,11 @@ import { describe, expect, it } from "vitest";
 import { normalizeError } from "./normalize.js";
 
 describe("normalizeError", () => {
-  it("extracts type, message, stacktrace, and top frame from an Error", () => {
+  it("extracts type, message, and stacktrace from an Error", () => {
     const result = normalizeError(new TypeError("boom"));
     expect(result.type).toBe("TypeError");
     expect(result.message).toBe("boom");
     expect(result.stacktrace).toContain("normalize.test.ts");
-    expect(result.topFrame).toMatch(/^at /);
   });
 
   it("appends cause chains to the stacktrace", () => {

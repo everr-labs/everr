@@ -8,14 +8,6 @@ import {
 } from "@opentelemetry/api";
 import { type Logger, logs, SeverityNumber } from "@opentelemetry/api-logs";
 import { type NormalizedError, normalizeError } from "./normalize.js";
-import { RateLimiter } from "./rate-limit.js";
-import {
-  type CollectBehavior,
-  DEFAULT_REDACT_PATTERNS,
-  redactAttributeKeys,
-  redactAttributes,
-  redactString,
-} from "./redact.js";
 import type {
   ClientOptions,
   ErrorEvent,
@@ -35,9 +27,15 @@ export interface CaptureInput {
 
 /**
  * The capture path for all runtimes. It does these steps: it makes the error
- * regular, it redacts the data, it applies the rate limit, it marks the active
- * span, and it sends one log record. It keeps no process data and no DOM data.
- * Thus each runtime can use it.
+ * regular, it applies `beforeSend`, it marks the active span, and it sends one
+ * log record. It keeps no process data and no DOM data. Thus each runtime can
+ * use it.
+ *
+ * The path removes no data and it discards no record. The message, the stack,
+ * and the attributes from the caller go out without a change, and each call
+ * sends one record. An application that must remove a record or change it
+ * installs `beforeSend`. A volume limit belongs to the collector or to the
+ * ingest, which see all the processes and not only this one.
  *
  * A process has only one client, and this class makes sure of that. The
  * constructor is private. The `shared()` function is the only way to get an
@@ -64,9 +62,6 @@ export class Client {
   // The configure() function is the only function that changes a default.
   private options: ClientOptions = {};
   private logger: Logger;
-  private rateLimiter: RateLimiter | null = new RateLimiter(5, 5000);
-  private redactPatterns: RegExp[] = DEFAULT_REDACT_PATTERNS;
-  private redactKeys: CollectBehavior = true;
   private processing = false;
 
   private constructor() {
@@ -78,40 +73,17 @@ export class Client {
 
   /**
    * Merges the options into the current configuration. A key that is not
-   * present keeps its current value. Thus a caller that sets one field again
-   * does not change the other fields to their defaults.
-   *
-   * A new rate limiter starts only when `rateLimit` is present, because a new
-   * rate limiter loses the recorded windows for each fingerprint.
+   * present keeps its current value.
    */
   configure(options: ClientOptions): void {
-    // A value of `undefined` is always the same as a key that is not present.
-    // This is also true when the caller sends `undefined` on purpose. A caller
+    // A value of `undefined` is the same as a key that is not present, and this
+    // is also true when the caller sends `undefined` on purpose. Thus a caller
     // can forward an optional configuration, for example
-    // `configure({ beforeSend: cfg.beforeSend })`. Such a caller must not
-    // remove a hook or start the rate-limit windows again because its own
-    // field has no value. To remove a hook, send `beforeSend: null`. A spread
-    // operator cannot do this. Thus the merge copies only the keys that have a
-    // value.
-    for (const [key, value] of Object.entries(options)) {
-      if (value !== undefined) {
-        (this.options as Record<string, unknown>)[key] = value;
-      }
-    }
-    // A new rate limiter starts only when `rateLimit` is present, because a
-    // new rate limiter loses the recorded windows for each fingerprint.
-    if (options.rateLimit !== undefined) {
-      const rateLimit = options.rateLimit;
-      this.rateLimiter =
-        rateLimit === false
-          ? null
-          : new RateLimiter(rateLimit.count, rateLimit.windowMs);
-    }
-    if (options.redactPatterns !== undefined) {
-      this.redactPatterns = options.redactPatterns;
-    }
-    if (options.redactKeys !== undefined) {
-      this.redactKeys = options.redactKeys;
+    // `configure({ beforeSend: cfg.beforeSend })`, and it does not remove a
+    // hook because its own field has no value. To remove a hook, send
+    // `beforeSend: null`.
+    if (options.beforeSend !== undefined) {
+      this.options.beforeSend = options.beforeSend;
     }
   }
 
@@ -138,13 +110,7 @@ export class Client {
   }
 
   private process(input: CaptureInput): void {
-    const errorTime = Date.now();
     const normalized = normalizeError(input.error);
-    const dedupKey = `${normalized.type}|${normalized.message}|${normalized.topFrame ?? ""}`;
-
-    if (this.rateLimiter && !this.rateLimiter.allow(dedupKey, errorTime)) {
-      return;
-    }
 
     let event: ErrorEvent | null = {
       error: input.error,
@@ -165,8 +131,7 @@ export class Client {
       }
     }
 
-    const errorId = generateErrorId();
-    const rawAttributes: Attributes = {
+    const attributes: Attributes = {
       ...event.context,
       "exception.type": normalized.type,
       "exception.message": normalized.message,
@@ -174,34 +139,27 @@ export class Client {
         ? { "exception.stacktrace": normalized.stacktrace }
         : {}),
       "everr.error.mechanism": event.mechanism,
+      "log.record.uid": generateErrorId(),
     };
-    const filteredAttributes = redactAttributeKeys(
-      rawAttributes,
-      this.redactKeys,
-    );
-    const attributes = {
-      ...redactAttributes(filteredAttributes, this.redactPatterns),
-      // The library makes the uid, and it is not user data. Thus it is set
-      // after the redaction. A UUID with many digits can agree with the
-      // pattern for a credit card. Then the redaction changes part of the uid
-      // to "[Filtered]".
-      "log.record.uid": errorId,
-    };
-    const body = redactString(event.message, this.redactPatterns);
     const activeSpan = trace.getActiveSpan();
 
     // Attach the error to the span that contains it. Then the traces show the
     // failure. A browser SDK usually has no active span. Then this step does
     // nothing.
+    //
+    // The span takes the values from the error and not from the result of
+    // beforeSend. Thus a hook that changes the record does not change the span.
+    // A hook that returns null stops the code before this point, and thus it
+    // discards the record and the marking together.
     if (activeSpan) {
-      markActiveSpan(activeSpan, normalized, input.error);
+      markActiveSpan(activeSpan, normalized);
     }
 
     this.logger.emit({
       eventName: "exception",
       severityNumber: severityNumber(event.severity),
       severityText: event.severity.toUpperCase(),
-      body,
+      body: event.message,
       attributes,
       exception: input.error,
       context: context.active(),
@@ -209,21 +167,19 @@ export class Client {
   }
 }
 
-function markActiveSpan(
-  span: Span,
-  normalized: NormalizedError,
-  error: unknown,
-): void {
-  span.recordException(
-    error instanceof Error
-      ? error
-      : { name: normalized.type, message: normalized.message },
-  );
+function markActiveSpan(span: Span, error: NormalizedError): void {
+  // The code builds the exception structure from the regular error and it does
+  // not send the original Error. Thus the span and the log record carry the
+  // same three values. An original Error has its own `stack`, and that value
+  // has no cause chain.
+  span.recordException({
+    name: error.type,
+    message: error.message,
+    stack: error.stacktrace,
+  });
   span.setStatus({
     code: SpanStatusCode.ERROR,
-    message: normalized.message
-      ? `${normalized.type}: ${normalized.message}`
-      : normalized.type,
+    message: error.message ? `${error.type}: ${error.message}` : error.type,
   });
 }
 

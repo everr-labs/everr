@@ -14,9 +14,9 @@ import { PKG_NAME } from "./version.js";
 // capture operates before the configuration, and no caller must do a setup
 // step first.
 //
-// One client has one configuration, and this is the intention. An app sets the
-// redaction for its crash handlers. That redaction then applies to all the
-// other error paths also.
+// One client has one configuration, and this is the intention. An app that
+// installs `beforeSend` for its crash handlers gets that hook on all the other
+// error paths also.
 //
 // This module keeps only the two flags below. They control the one warning
 // from captureError. That warning is part of the captureError function, and it

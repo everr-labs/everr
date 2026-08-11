@@ -27,50 +27,38 @@ afterEach(async () => {
 
 describe("configure", () => {
   it("leaves untouched keys at their current value", () => {
-    configure({ redactPatterns: [/tok_\w+/g], rateLimit: false });
-    // This call sets only the redaction. The rate limit stays off. Thus the
-    // client sends all the twenty reports.
-    configure({ redactPatterns: [/key_\w+/g] });
-    for (let i = 0; i < 20; i++) captureError(new Error("same"));
-    expect(otel.records()).toHaveLength(20);
-    expect(otel.records()[0]?.body).toBe("Error: same");
+    configure({
+      beforeSend: (event) => ({ ...event, message: "from the first call" }),
+    });
+    // This call sets no key at all. Thus beforeSend stays installed.
+    configure({});
+    captureError(new Error("same"));
+    expect(otel.records()[0]?.body).toBe("from the first call");
   });
 
   it("replaces a present key wholesale rather than merging into it", () => {
-    configure({ redactPatterns: [/tok_\w+/g] });
-    configure({ redactPatterns: [/key_\w+/g] });
-    captureError(new Error("tok_abc and key_def"));
-    // The second array replaces the first pattern. The client does not add the
-    // two arrays together.
-    expect(otel.records()[0]?.body).toBe("Error: tok_abc and [Filtered]");
+    configure({ beforeSend: (event) => ({ ...event, message: "first" }) });
+    configure({ beforeSend: (event) => ({ ...event, message: "second" }) });
+    captureError(new Error("same"));
+    // The second hook replaces the first one. The client does not call the two
+    // hooks in sequence.
+    expect(otel.records()).toHaveLength(1);
+    expect(otel.records()[0]?.body).toBe("second");
   });
 
   it("treats an explicitly passed undefined as absent", () => {
-    const error = new Error("same");
-    configure({
-      beforeSend: () => null,
-      rateLimit: { count: 2, windowMs: 60_000 },
-    });
+    configure({ beforeSend: () => null });
     // This is an example of a caller that forwards an optional configuration.
-    // The two fields have no value. Thus the client changes neither of them:
-    // the hook stays installed, and the rate limiter keeps its windows.
-    configure({ beforeSend: undefined, rateLimit: undefined });
-    captureError(error);
+    // The field has no value. Thus the client does not remove the hook.
+    configure({ beforeSend: undefined });
+    captureError(new Error("same"));
     expect(otel.records()).toHaveLength(0);
-
-    configure({ beforeSend: null });
-    captureError(error);
-    captureError(error);
-    // The client sends one record, not two. The rate limit operates before
-    // beforeSend. Thus the capture above that the client discarded used one of
-    // the two allowances. A new window lets the two records through.
-    expect(otel.records()).toHaveLength(1);
   });
 
   it("takes the last writer without warning", () => {
     const warn = vi.spyOn(diag, "warn").mockImplementation(() => {});
-    configure({ redactKeys: false });
-    configure({ redactKeys: true });
+    configure({ beforeSend: () => null });
+    configure({ beforeSend: (event) => event });
     expect(warn).not.toHaveBeenCalled();
     warn.mockRestore();
   });
@@ -80,8 +68,8 @@ describe("configure", () => {
     captureError(new Error("dropped"));
     expect(otel.records()).toHaveLength(0);
 
-    // A key that is not present must not remove the hook.
-    configure({ redactKeys: true });
+    // A call with no key must not remove the hook.
+    configure({});
     captureError(new Error("still dropped"));
     expect(otel.records()).toHaveLength(0);
 
@@ -89,42 +77,17 @@ describe("configure", () => {
     captureError(new Error("kept"));
     expect(otel.records()).toHaveLength(1);
   });
-
-  // All these tests use one error object. The rate limiter makes a fingerprint
-  // from the type, the message, and the top frame. Thus each error object that
-  // the code constructs has its own allowance, and the rate limit does not
-  // operate.
-  it("keeps the rate-limit window when the limit itself is not re-stated", () => {
-    const error = new Error("same");
-    configure({ rateLimit: { count: 2, windowMs: 60_000 } });
-    captureError(error);
-    captureError(error);
-    // The client sent two records, and the window is full. A call to
-    // configure() that does not contain rateLimit must not give a new
-    // allowance.
-    configure({ redactKeys: true });
-    captureError(error);
-    expect(otel.records()).toHaveLength(2);
-  });
-
-  it("restarts the rate-limit window when the limit is re-stated", () => {
-    const error = new Error("same");
-    configure({ rateLimit: { count: 2, windowMs: 60_000 } });
-    captureError(error);
-    captureError(error);
-    configure({ rateLimit: { count: 2, windowMs: 60_000 } });
-    captureError(error);
-    expect(otel.records()).toHaveLength(3);
-  });
 });
 
 describe("capture", () => {
   it("reports through the same configured client as captureError", () => {
-    configure({ redactPatterns: [/tok_\w+/g] });
+    configure({
+      beforeSend: (event) => ({ ...event, message: "changed by the hook" }),
+    });
     capture({ error: new Error("tok_abc"), mechanism: "react" });
     const [record] = otel.records();
     expect(record?.attributes["everr.error.mechanism"]).toBe("react");
-    expect(record?.body).toBe("Error: [Filtered]");
+    expect(record?.body).toBe("changed by the hook");
   });
 });
 

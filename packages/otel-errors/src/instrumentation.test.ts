@@ -18,13 +18,20 @@ function enable(
   return instrumentation;
 }
 
+// The fatal path writes the error to stderr. Each test in this file makes a
+// crash. Thus the spy keeps the output of the test run clean, and the tests
+// below examine the calls.
+let consoleError: ReturnType<typeof vi.spyOn>;
+
 beforeEach(() => {
   otel = setupTestTelemetry();
+  consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
 });
 
 afterEach(async () => {
   instrumentation?.disable();
   instrumentation = null;
+  consoleError.mockRestore();
   resetSharedClient();
   await otel.dispose();
 });
@@ -192,5 +199,42 @@ describe("ErrorsInstrumentation capture", () => {
     process.emit("uncaughtException", new Error("routed"));
     expect(otel.records()).toHaveLength(0);
     expect(emit).toHaveBeenCalledOnce();
+  });
+});
+
+describe("the fatal path", () => {
+  it("writes the reason to stderr before it captures", () => {
+    enable();
+    const error = new Error("crash");
+    process.emit("uncaughtException", error);
+    // The value is the reason itself and not a string. Thus the console shows
+    // the stack, the same as Node shows it.
+    expect(consoleError).toHaveBeenCalledWith(error);
+    expect(otel.records()).toHaveLength(1);
+  });
+
+  it("writes a rejection reason that is not an Error", () => {
+    enable();
+    process.emit("unhandledRejection", "string reason", Promise.resolve());
+    expect(consoleError).toHaveBeenCalledWith("string reason");
+  });
+
+  it("keeps no timer after the flush, and thus holds the process open for no time", async () => {
+    vi.useFakeTimers();
+    try {
+      enable({ shutdownTimeout: 30_000 });
+      const before = vi.getTimerCount();
+      process.emit("uncaughtException", new Error("crash"));
+      // The timer of the time limit exists while the flush operates.
+      expect(vi.getTimerCount()).toBeGreaterThan(before);
+
+      // The flush is a success. Thus the code stops the timer of the time
+      // limit. Without that step the timer keeps the event loop open for the
+      // full 30 seconds after each crash that the process survives.
+      await vi.advanceTimersByTimeAsync(0);
+      expect(vi.getTimerCount()).toBe(before);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
