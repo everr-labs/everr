@@ -384,13 +384,11 @@ export async function flushAlertGroup(rawPayload: unknown): Promise<void> {
     droppedUnannounced.length > 0 ||
     noChannelDrops.length > 0
   ) {
-    const decidedAt = new Date();
     await recordAlertHistory(null, [
       ...droppedRows.map(({ event, ruleActive }) =>
         suppressionHistoryRow({
           def: historyDefFromJournalRow(event),
           notificationEventId: event.id,
-          occurredAt: decidedAt,
           fingerprint: event.instanceFingerprint,
           labels: event.instanceLabels,
           silenced: false,
@@ -407,7 +405,6 @@ export async function flushAlertGroup(rawPayload: unknown): Promise<void> {
         suppressionHistoryRow({
           def: historyDefFromJournalRow(event),
           notificationEventId: event.id,
-          occurredAt: decidedAt,
           fingerprint: event.instanceFingerprint,
           labels: event.instanceLabels,
           silenced: false,
@@ -421,7 +418,6 @@ export async function flushAlertGroup(rawPayload: unknown): Promise<void> {
         suppressionHistoryRow({
           def: historyDefFromJournalRow(event),
           notificationEventId: event.id,
-          occurredAt: decidedAt,
           fingerprint: event.instanceFingerprint,
           labels: event.instanceLabels,
           silenced: false,

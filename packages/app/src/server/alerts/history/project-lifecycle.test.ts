@@ -105,28 +105,28 @@ describe("projectAlertLifecycle", () => {
     ).rejects.toThrow("clickhouse unavailable");
   });
 
-  // processedAt is always stamped by the claiming update before this task
-  // runs (closeRuleLifecycle's own transaction, or an earlier group claim).
-  // A null here means that invariant broke; minting `new Date()` would give
-  // a retry a different event_time on the same deterministic event_id.
-  it("throws rather than minting an event_time for an unprocessed suppression row", async () => {
-    mocks.rows = [
-      journalRow({
-        id: CANCELED_ID,
-        eventType: "instance_fired",
-        kind: "notifying",
-        processedAt: null,
-      }),
-    ];
-
-    await expect(
-      projectAlertLifecycle({
+  // The suppression row's event_time comes from the chain it terminates, not
+  // from any clock this task reads, so a retry writes the same bytes even when
+  // the journal row carries no processedAt at all.
+  it("gives a retry the same event_time whatever the journal row's stamps say", async () => {
+    const row = journalRow({
+      id: CANCELED_ID,
+      eventType: "instance_fired",
+      kind: "notifying",
+      processedAt: null,
+    });
+    const project = async () => {
+      mocks.rows = [row];
+      mocks.history.mockClear();
+      await projectAlertLifecycle({
         closedEventIds: [],
         suppressedEventIds: [CANCELED_ID],
         reason: "rule_paused",
-      }),
-    ).rejects.toThrow(/processedAt/);
-    expect(mocks.history).not.toHaveBeenCalled();
+      });
+      return mocks.history.mock.calls[0][0][0];
+    };
+
+    expect(await project()).toEqual(await project());
   });
 
   it("writes nothing for ids the journal no longer has", async () => {

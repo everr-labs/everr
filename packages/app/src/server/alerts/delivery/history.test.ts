@@ -72,7 +72,8 @@ const outcome = {
   dedupKey: "dedup-1",
   channelType: "slack",
   channelName: "on-call",
-  occurredAt: new Date("2026-06-10T00:00:05Z"),
+  deliveryCreatedAt: new Date("2026-06-10T00:00:00Z"),
+  attemptAt: new Date("2026-06-10T00:00:05Z"),
   outcome: "succeeded",
 } as const;
 

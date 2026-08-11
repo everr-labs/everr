@@ -63,7 +63,8 @@ export async function sendAlertDelivery(rawPayload: unknown): Promise<void> {
       dedupKey,
       channelType,
       channelName: row.delivery.channelName,
-      occurredAt: new Date(),
+      deliveryCreatedAt: row.delivery.createdAt,
+      attemptAt: new Date(),
       outcome: "failed",
       error,
     });
@@ -198,7 +199,8 @@ export async function sendAlertDelivery(rawPayload: unknown): Promise<void> {
     dedupKey,
     channelType,
     channelName: row.delivery.channelName,
-    occurredAt: new Date(),
+    deliveryCreatedAt: row.delivery.createdAt,
+    attemptAt: new Date(),
     outcome: "succeeded",
   });
 }

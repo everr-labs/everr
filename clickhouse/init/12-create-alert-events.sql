@@ -98,18 +98,22 @@ PARTITION BY (toYYYYMM(event_time), event_type IN ('evaluation_succeeded', 'eval
 -- date-only scans. event_type is low-cardinality and filtered in every query,
 -- so it sits before the time column. alert_definition_id and
 -- notification_event_id are high-cardinality and covered by bloom skip
--- indexes instead.
+-- indexes instead. event_time before event_id also rules out ever collapsing
+-- rows by id: a ReplacingMergeTree matches on the whole sorting key, so two
+-- writes of one row that disagree on event_time stay two rows. Convergence is
+-- a write-side property here; see Idempotence in the surface design doc.
 ORDER BY (tenant_id, repoid, slug, event_type, event_time, event_id)
 -- Evaluation rows expire at min(30, tenant retention) days: they exist for
 -- staleness and rule-health reads, and their partitions drop whole. Everything
 -- else lives at the tenant retention.
 TTL toDateTime(event_time) + INTERVAL least(toUInt32(30), dictGetOrDefault('app.tenant_retention', 'logs_days', tenant_id, toUInt32(3650))) DAY DELETE WHERE event_type IN ('evaluation_succeeded', 'evaluation_failed'),
     toDateTime(event_time) + INTERVAL dictGetOrDefault('app.tenant_retention', 'logs_days', tenant_id, toUInt32(3650)) DAY DELETE WHERE event_type NOT IN ('evaluation_succeeded', 'evaluation_failed')
--- The deduplication window is sized now, at recreation time. recordAlertHistoryStrict
--- (server/alerts/history/clickhouse.ts) sets insert_deduplication_token today,
--- synchronously, for the lifecycle projection's Graphile retries; the live
--- best-effort path and the reconciler (when it lands) still need their own
--- token scheme.
+-- The deduplication window is sized now, at recreation time. Both writers in
+-- server/alerts/history/clickhouse.ts set insert_deduplication_token from the
+-- sorted row ids, which dedups under async_insert as well as a synchronous
+-- insert. The window is bounded, so it backs up row-level determinism rather
+-- than replacing it: a row with a derived event_id derives its event_time too,
+-- and the reconciler (when it lands) reads before it writes.
 -- allow_suspicious_ttl_expressions rides the statement, not the session, so
 -- SHOW CREATE matches migrated deployments.
 SETTINGS index_granularity = 8192, non_replicated_deduplication_window = 10000, allow_suspicious_ttl_expressions = 1;

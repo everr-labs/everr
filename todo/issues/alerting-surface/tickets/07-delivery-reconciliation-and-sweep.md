@@ -16,5 +16,6 @@ the design doc's findings; finding 21 in
 
 - [x] Delivery rows get deterministic ids derived from the journal
 - [ ] The diff compares outcomes: a succeeded journal status with no succeeded row is repaired
+- [ ] The repair reads by `event_id` before it writes, and rebuilds `event_time` from the delivery's `created_at`: the insert token's window is bounded, so a late repair cannot rely on it (see ticket 23)
 - [ ] A sweep moves abandoned deliveries past the retry horizon to terminal failed, with a stuck-delivery counter
 - [ ] The "Excluded from ClickHouse" row on dedup keys is narrowed in the design doc

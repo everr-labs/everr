@@ -551,15 +551,35 @@ cycle, and the partition dimension keeps it off the evaluation stream; see
 Reference.
 
 A duplicate in an append-only table is permanent and double-counts in every
-aggregate. The defense is idempotence, not exclusion. Every history insert,
-live and repair alike, carries an `insert_deduplication_token` derived from
-the stream and the row id, the table sets
-`non_replicated_deduplication_window`, and both writers use the same pinned
-synchronous insert mode. An overlapping run, a retried job, and an in-doubt
-insert that the server completes after the client gave up then all converge
-on one row instead of duplicating. The live path must share the token
-scheme: without it, a live insert that flushes late meets its reconciled
-copy and the duplicate is permanent. The reconciler still runs as one
+aggregate. The defense is idempotence, not exclusion, and it has two halves.
+
+The first half is the row itself. A row whose `event_id` is derived must have
+every other column derived too, `event_time` included. A wall clock read at
+write time makes two attempts differ in one column, and one differing column
+is two permanent rows: the sort key cannot collapse them and no engine here
+will (see Rejected alternatives). Suppression rows therefore take their
+`event_time` from the notification event's UUIDv7, and delivery success rows
+from the delivery's `created_at`, both fixed for the life of the chain. Only
+failed delivery rows carry an attempt clock, because their ids hash the
+attempt and each attempt is meant to keep its own row. Nothing that varies
+per attempt may appear anywhere on a converging row, `context_json`
+included; how long a send took belongs in PostgreSQL.
+
+The second half is the insert. Every history insert, live and repair alike,
+carries an `insert_deduplication_token` derived from the stream and the row
+id, and the table sets `non_replicated_deduplication_window`. The token
+deduplicates under `async_insert` as well as a synchronous insert (measured
+on 26.2), so the live path keeps its async batching and the rare lifecycle
+projection keeps its synchronous write. An overlapping run, a retried job,
+and an in-doubt insert that the server completes after the client gave up
+then all converge on one row instead of duplicating. The live path must
+share the token scheme: without it, a live insert that flushes late meets
+its reconciled copy and the duplicate is permanent.
+
+The token is a bounded window, not a guarantee: a repair that runs after the
+window has rolled past the original insert will not be deduplicated by it.
+That is why a repair reads before it writes rather than re-inserting blind,
+and why the first half above is the load-bearing one. The reconciler still runs as one
 Graphile job in a named queue, so runs are serial, but that is scheduling
 hygiene, not the correctness mechanism: a serial queue cannot exclude an
 expired job lock's revived run or a crashed run's retry.
@@ -584,9 +604,11 @@ every cycle, forever.
 
 Reconciled rows are marked `write_source = 'reconciled'`, so a reader can
 always separate the live stream from repairs. They carry the PostgreSQL timestamp
-(`occurred_at` for transitions, `updated_at` for deliveries) as `event_time`,
+(`occurred_at` for transitions, `created_at` for deliveries) as `event_time`,
 never the insert time, so duration queries read real event time, not
-reconciliation lag.
+reconciliation lag. `created_at`, not `updated_at`: the repair has to
+reproduce the live row byte for byte, and `updated_at` moves with every send
+attempt.
 
 A repaired row is near full fidelity, not skeletal. The journal carries the
 fingerprint, labels, severity and suppression flags. Four degradations are
@@ -623,13 +645,23 @@ No transaction spans "the provider accepted it" and "the row landed". A write
 before the call records deliveries that did not happen. A write after loses
 ones that did. Reconciling from PostgreSQL state avoids the problem.
 
-**`ReplacingMergeTree` with blind re-insert.** The sort key ends in
-`event_id`, so an engine switch would make re-insert idempotent and remove
-the need to track what was already written. The engine deduplicates on
-merge, not on insert, so every re-drain exposes pre-merge duplicates to
-`SELECT *` and `count()` until the merge runs. `ReplacingMergeTree` stays
-available if the diff query proves expensive. Diff reconciliation is still
-preferred: no engine change, and no pre-merge duplicates.
+**`ReplacingMergeTree` with blind re-insert.** Not available under this sort
+key, and the reason is worth stating plainly because an earlier version of
+this entry got it wrong. The engine collapses rows that match on the whole
+sorting key, not on its last column, and `event_time` sits before `event_id`
+here. Two writes of one logical row that disagree on `event_time` are two
+distinct keys, so a merge keeps both. Measured on 26.2: with this key, two
+such rows survive `OPTIMIZE FINAL`; with `ORDER BY (tenant_id, event_id)`
+they collapse to one.
+
+Making the engine available would mean taking `event_time` out of the sort
+key, which is immutable after the table ships and costs the dominant
+per-alert read its time dimension. It would also only mask the problem: the
+two rows should never have differed. The engine deduplicates on merge, not
+on insert, so `SELECT *` and `count()` would still see duplicates until the
+merge runs. Convergence is therefore a write-side property here, kept by
+deterministic ids and deterministic `event_time` (see Idempotence) rather
+than by the engine.
 
 **A table PROJECTION ordered by `notification_event_id`.** It would serve the
 chain point read exactly, at the cost of a second copy of the projected
@@ -763,7 +795,7 @@ queries must not add a `tenant_id` predicate.
 | `is_live` | `Bool` | Computed by `DEFAULT` from `preview_id`, so it stays visible to `SELECT *` and filtering to live alerts never types a zero sentinel |
 | `event_type` | `LowCardinality(String)` | See the event-type table above. Second partition dimension: evaluation rows sit in their own partitions, so every non-evaluation query skips them whole |
 | `write_source` | `LowCardinality(String)` | `'live'` or `'reconciled'` |
-| `evaluation_scheduled_at`, `event_time` | `DateTime64(3)` | The partition key's time dimension is `toYYYYMM(event_time)`, so a plain `event_time` bound prunes with no second predicate. `evaluation_scheduled_at` is zero (epoch 1970) off evaluation rows; never `dateDiff` against it there. Delivery `event_time` is send time, not evaluation time |
+| `evaluation_scheduled_at`, `event_time` | `DateTime64(3)` | The partition key's time dimension is `toYYYYMM(event_time)`, so a plain `event_time` bound prunes with no second predicate. `evaluation_scheduled_at` is zero (epoch 1970) off evaluation rows; never `dateDiff` against it there. On rows with a derived `event_id` the time is derived too, so a retry writes the same bytes: a suppression row takes the notification event's UUIDv7 time, a `delivery_succeeded` row the delivery's `created_at`. A `delivery_failed` row keeps its own attempt time, which its id already hashes |
 | `row_count` | `UInt64` | Rows returned by the rule query, which is arbitrary user SQL |
 | `evidence_json`, `samples_json` | `String` | Opaque JSON |
 | `evidence_truncated`, `samples_truncated` | `Bool` | Set when the JSON beside them was truncated |

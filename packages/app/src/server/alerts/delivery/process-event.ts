@@ -63,7 +63,6 @@ export async function processAlertEvent(rawPayload: unknown): Promise<void> {
       suppressionHistoryRow({
         def: historyDefFromJournalRow(event),
         notificationEventId: event.id,
-        occurredAt: now,
         fingerprint: event.instanceFingerprint,
         labels: event.instanceLabels,
         silenced: false,

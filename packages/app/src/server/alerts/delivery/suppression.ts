@@ -144,7 +144,6 @@ export async function deferSuppressedEvent(
     suppressionHistoryRow({
       def: historyDefFromJournalRow(event),
       notificationEventId: event.id,
-      occurredAt: now,
       fingerprint: event.instanceFingerprint,
       labels: event.instanceLabels,
       silenced: Boolean(silence),

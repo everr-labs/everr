@@ -11,6 +11,7 @@ import {
   deterministicDeliveryEventId,
   deterministicSuppressionEventId,
   uuidv7,
+  uuidv7Time,
 } from "./ids";
 
 export const ZERO_UUID = "00000000-0000-0000-0000-000000000000";
@@ -270,11 +271,15 @@ export function instanceHistoryRow(opts: {
  * A notification that was decided against. Written when a silence or an
  * inhibition rule stops an event from reaching any channel, so "why was I not
  * paged" is answerable from the same table as the transition itself.
+ *
+ * There is no `occurredAt`: the row is one per chain, so `event_time` is the
+ * chain's own time, read back out of the notification event's UUIDv7. A
+ * decision clock would put a different time on each attempt, and two rows that
+ * differ in any byte are two permanent rows on a MergeTree.
  */
 export function suppressionHistoryRow(opts: {
   def: AlertHistoryDefinition;
   notificationEventId: string;
-  occurredAt: Date;
   fingerprint: string;
   labels: Record<string, string>;
   silenced: boolean;
@@ -293,7 +298,7 @@ export function suppressionHistoryRow(opts: {
       eventId: deterministicSuppressionEventId(opts.notificationEventId),
       notificationEventId: opts.notificationEventId,
       eventType: "notification_suppressed",
-      occurredAt: opts.occurredAt,
+      occurredAt: uuidv7Time(opts.notificationEventId),
     }),
     ...instanceRowFields(opts.fingerprint, opts.labels),
     silenced: opts.silenced,
@@ -312,7 +317,14 @@ export function deliveryHistoryRow(opts: {
   def: AlertHistoryDefinition;
   notificationEventId: string;
   dedupKey: string;
-  occurredAt: Date;
+  /** When the delivery was queued. Attempt-independent, and the success row's
+   * time for that reason: one success row stands for the whole delivery, so
+   * nothing on it may move between attempts. How long the send itself took
+   * lives in PostgreSQL, on the delivery row's own timestamps. */
+  deliveryCreatedAt: Date;
+  /** The attempt this row records. It reaches the row, and the id, on a
+   * failure only: failures keep one row per attempt. */
+  attemptAt: Date;
   fingerprint: string;
   labels: Record<string, string>;
   deliveryTargets: AlertDeliveryTargets;
@@ -332,11 +344,11 @@ export function deliveryHistoryRow(opts: {
         notificationEventId: opts.notificationEventId,
         dedupKey: opts.dedupKey,
         outcome: opts.outcome,
-        attemptAt: opts.occurredAt,
+        attemptAt: opts.attemptAt,
       }),
       notificationEventId: opts.notificationEventId,
       eventType: failed ? "delivery_failed" : "delivery_succeeded",
-      occurredAt: opts.occurredAt,
+      occurredAt: failed ? opts.attemptAt : opts.deliveryCreatedAt,
     }),
     ...instanceRowFields(opts.fingerprint, opts.labels),
     delivery_targets: opts.deliveryTargets,
@@ -351,6 +363,7 @@ function insertAlertHistoryRowsAsync(rows: AlertHistoryRow[]): Promise<void> {
     async_insert: 1,
     wait_for_async_insert: 1,
     date_time_input_format: "best_effort",
+    insert_deduplication_token: alertHistoryDedupToken(rows),
   });
 }
 
@@ -362,13 +375,10 @@ function alertHistoryDedupToken(rows: readonly AlertHistoryRow[]): string {
   return `app.alert_events:${ids.join(",")}`;
 }
 
-// Retry convergence needs insert_deduplication_token to actually dedup, and
-// that requires a synchronous insert: non_replicated_deduplication_window
-// (set on the table) documents token dedup for regular inserts on a
-// non-replicated MergeTree, but token handling under async_insert has been
-// inconsistent across ClickHouse versions. This path is a rare lifecycle
-// projection, not the hot path, so paying for a synchronous insert here is
-// cheap.
+// Synchronous because this path is a rare lifecycle projection rather than the
+// hot path, so the stronger write is cheap here. The token, not the insert
+// mode, is what makes a retry converge: it dedups under async_insert too,
+// which is why the live path carries the same one.
 function insertAlertHistoryRowsSync(rows: AlertHistoryRow[]): Promise<void> {
   return insertAdminRows("app.alert_events", rows, {
     async_insert: 0,

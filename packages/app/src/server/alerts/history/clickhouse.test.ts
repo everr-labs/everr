@@ -36,6 +36,8 @@ const def = {
 };
 const scheduledFor = new Date("2026-08-07T12:00:00Z");
 const occurredAt = new Date("2026-08-07T12:00:01Z");
+// The delivery was queued before the attempt that this row records.
+const deliveryCreatedAt = new Date("2026-08-07T11:59:30Z");
 const EPOCH_ISO = "1970-01-01T00:00:00.000Z";
 
 describe("ClickHouse alert history", () => {
@@ -83,6 +85,7 @@ describe("ClickHouse alert history", () => {
         async_insert: 1,
         wait_for_async_insert: 1,
         date_time_input_format: "best_effort",
+        insert_deduplication_token: `app.alert_events:${[evaluation.event_id, transition.event_id].sort().join(",")}`,
       },
     );
     expect(evaluation).toMatchObject({
@@ -208,15 +211,17 @@ describe("ClickHouse alert history", () => {
     const opts = {
       def,
       notificationEventId: "019c3aba-29f8-7d6e-9e55-301cf47fa80d",
-      occurredAt,
       fingerprint: "api",
       labels: { service: "api" },
       silenced: false,
       inhibited: false,
       silenceId: null,
     };
-    expect(suppressionHistoryRow(opts).event_id).toBe(
-      suppressionHistoryRow(opts).event_id,
+    // The whole row, not only the id: an event_time from a decision clock
+    // would differ between two writes, and a MergeTree keeps both of them.
+    expect(suppressionHistoryRow(opts)).toEqual(suppressionHistoryRow(opts));
+    expect(suppressionHistoryRow(opts).event_time).toBe(
+      uuidv7Time(opts.notificationEventId).toISOString(),
     );
     expect(suppressionHistoryRow(opts).event_id).not.toBe(
       suppressionHistoryRow({
@@ -230,7 +235,6 @@ describe("ClickHouse alert history", () => {
     const row = suppressionHistoryRow({
       def,
       notificationEventId: "019c3aba-29f8-7d6e-9e55-301cf47fa80d",
-      occurredAt,
       fingerprint: "api",
       labels: { service: "api" },
       silenced: false,
@@ -246,7 +250,6 @@ describe("ClickHouse alert history", () => {
     const row = suppressionHistoryRow({
       def,
       notificationEventId: "019c3aba-29f8-7d6e-9e55-301cf47fa80d",
-      occurredAt,
       fingerprint: "api",
       labels: { service: "api" },
       silenced: true,
@@ -270,7 +273,6 @@ describe("ClickHouse alert history", () => {
       suppressionHistoryRow({
         def,
         notificationEventId: "019c3aba-29f8-7d6e-9e55-301cf47fa80d",
-        occurredAt,
         fingerprint: "api",
         labels: {},
         silenced: false,
@@ -285,14 +287,19 @@ describe("ClickHouse alert history", () => {
       def,
       notificationEventId: "019c3aba-29f8-7d6e-9e55-301cf47fa80d",
       dedupKey: "group-1:slack:on-call",
-      occurredAt,
+      deliveryCreatedAt,
+      attemptAt: occurredAt,
       fingerprint: "api",
       labels: { service: "api" },
       deliveryTargets: { slack: ["on-call"] },
       outcome: "succeeded" as const,
     };
     const sent = deliveryHistoryRow(opts);
-    const sentAgain = deliveryHistoryRow(opts);
+    // The retry after a failed status write: same delivery, later attempt.
+    const sentAgain = deliveryHistoryRow({
+      ...opts,
+      attemptAt: new Date(occurredAt.getTime() + 30_000),
+    });
     const failed = deliveryHistoryRow({
       ...opts,
       outcome: "failed",
@@ -307,8 +314,12 @@ describe("ClickHouse alert history", () => {
       error: "",
       evidence_json: "{}",
     });
-    // A retry that re-records the same outcome converges on the same row id.
-    expect(sentAgain.event_id).toBe(sent.event_id);
+    // A retry that re-records the same outcome converges on the same row,
+    // every byte of it: one differing column is a second permanent row.
+    expect(sentAgain).toEqual(sent);
+    expect(sent.event_time).toBe(deliveryCreatedAt.toISOString());
+    // A failure keeps its own row per attempt, so it keeps the attempt time.
+    expect(failed.event_time).toBe(occurredAt.toISOString());
     expect(failed.event_type).toBe("delivery_failed");
     expect(failed.event_id).not.toBe(sent.event_id);
     expect(failed.error).not.toContain("hooks.slack.com");
@@ -323,7 +334,8 @@ describe("ClickHouse alert history", () => {
       def,
       notificationEventId: "019c3aba-29f8-7d6e-9e55-301cf47fa80d",
       dedupKey: "group-1:slack:on-call",
-      occurredAt,
+      deliveryCreatedAt,
+      attemptAt: occurredAt,
       fingerprint: "api",
       labels: { service: "api" },
       deliveryTargets: { slack: ["on-call"] },
@@ -374,7 +386,6 @@ describe("ClickHouse alert history", () => {
       const first = suppressionHistoryRow({
         def,
         notificationEventId: "019c3aba-29f8-7d6e-9e55-301cf47fa80d",
-        occurredAt,
         fingerprint: "api",
         labels: { service: "api" },
         silenced: false,
