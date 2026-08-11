@@ -15,7 +15,7 @@
 - All work lands on branch `gio/alerting-integration-tests`, already created from `gio/better-alerting`.
 - Never write `Co-Authored-By: Claude`, "Generated with Claude Code", or any mention of Claude, Anthropic or AI assistance in a commit message, a PR body, or a code comment.
 - Never use em dashes or en dashes in documentation or comments. Use commas, colons, parentheses, or separate sentences.
-- Run tests with `pnpm -r --filter @everr/app test:ci -- <path>`. Do not use `tsx`.
+- Run a scoped test from `packages/app` with `pnpm exec vitest run <path>`. `pnpm -r --filter @everr/app test:ci -- <path>` does NOT scope: it runs the whole 196-file suite. Use `pnpm -r --filter @everr/app test:ci` (no path) only for the full-suite check. Do not use `tsx`.
 - Do not run docker suites. Everything in this plan runs in process.
 - Do not regenerate drizzle migrations. The schema does not change.
 - New integration test files start with `// @vitest-environment node`, which several server tests already use (`src/server/worker/jobs.test.ts`).
@@ -114,7 +114,7 @@ describe("addWorkerJob", () => {
 
 - [ ] **Step 2: Run the test to verify it fails**
 
-Run: `pnpm -r --filter @everr/app test:ci -- src/server/worker/jobs.test.ts`
+Run, from `packages/app`: `pnpm exec vitest run src/server/worker/jobs.test.ts`
 Expected: FAIL. The current `addWorkerJob` calls `makeWorkerUtils`, so `mocks.execute` is never called and `mock.calls[0]` is undefined.
 
 - [ ] **Step 3: Rewrite the implementation**
@@ -170,7 +170,7 @@ export async function addWorkerJobInTransaction(
 
 - [ ] **Step 4: Run the test to verify it passes**
 
-Run: `pnpm -r --filter @everr/app test:ci -- src/server/worker/jobs.test.ts`
+Run, from `packages/app`: `pnpm exec vitest run src/server/worker/jobs.test.ts`
 Expected: PASS, both tests.
 
 - [ ] **Step 5: Check the other caller still type-checks**
@@ -180,7 +180,7 @@ Expected: no errors. `src/server/github-events/enqueue.ts` calls `addWorkerJob(i
 
 - [ ] **Step 6: Run the tests that mock this module**
 
-Run: `pnpm -r --filter @everr/app test:ci -- src/server/github-events src/server/alerting`
+Run, from `packages/app`: `pnpm exec vitest run src/server/github-events src/server/alerting`
 Expected: PASS. These files mock `@/server/worker/jobs`, so the change is invisible to them.
 
 - [ ] **Step 7: Commit**
@@ -289,7 +289,7 @@ import { createTestDatabase, type TestDatabase } from "./pglite-database";
 
 - [ ] **Step 3: Run the test to verify it fails**
 
-Run: `pnpm -r --filter @everr/app test:ci -- src/server/alerting/testing/pglite-database.test.ts`
+Run, from `packages/app`: `pnpm exec vitest run src/server/alerting/testing/pglite-database.test.ts`
 Expected: FAIL, cannot resolve `./pglite-database`.
 
 - [ ] **Step 4: Write the implementation**
@@ -389,7 +389,7 @@ export async function createTestDatabase(): Promise<TestDatabase> {
 
 - [ ] **Step 5: Run the test to verify it passes**
 
-Run: `pnpm -r --filter @everr/app test:ci -- src/server/alerting/testing/pglite-database.test.ts`
+Run, from `packages/app`: `pnpm exec vitest run src/server/alerting/testing/pglite-database.test.ts`
 Expected: PASS, all three tests.
 
 If the graphile-worker files fail to apply, print the failing file and statement before changing anything: the spike applied all 18 cleanly, so a failure here is new information.
@@ -857,7 +857,7 @@ describe("the alerting pipeline", () => {
 
 - [ ] **Step 4: Run it to verify it fails**
 
-Run: `pnpm -r --filter @everr/app test:ci -- src/server/alerting/pipeline-smoke.integration.test.ts`
+Run, from `packages/app`: `pnpm exec vitest run src/server/alerting/pipeline-smoke.integration.test.ts`
 Expected: FAIL, cannot resolve `./testing/fixtures`. Task 5 creates it.
 
 - [ ] **Step 5: Commit the driver and harness**
@@ -1172,7 +1172,7 @@ Expected: no errors. A mismatch shows up as a type error on the insert.
 
 - [ ] **Step 3: Run the smoke test**
 
-Run: `pnpm -r --filter @everr/app test:ci -- src/server/alerting/pipeline-smoke.integration.test.ts`
+Run, from `packages/app`: `pnpm exec vitest run src/server/alerting/pipeline-smoke.integration.test.ts`
 Expected: PASS.
 
 This is the moment the whole design is proved. If it fails, work outward in this order: does the scanner enqueue (`pendingJobs()` after one drain), does evaluation write an instance, does an event row appear, is a delivery created, is fetch called. Report which stage stops rather than adjusting the test.
@@ -1194,7 +1194,7 @@ Every one of these tasks has the same shape, so the shape is stated once here an
 
 - [ ] **Step 1:** Create the file with the header block below.
 - [ ] **Step 2:** Write the file's cases, one `it` each, in the order listed.
-- [ ] **Step 3:** Run `pnpm -r --filter @everr/app test:ci -- <file>`.
+- [ ] **Step 3:** Run, from `packages/app`: `pnpm exec vitest run <file>`.
 - [ ] **Step 4:** For each failure, decide whether the test is wrong or the code is. Report any case where the code looks wrong, with the observed rows, and do not weaken the assertion.
 - [ ] **Step 5:** Commit with the message given in the task.
 
@@ -1408,7 +1408,7 @@ Set up two organizations with identical rule slugs, identical instance labels, i
 5. An inhibition in org A does not hold org B's target.
 
 - [ ] **Step 1:** Write the `describe` with the five cases.
-- [ ] **Step 2:** Run `pnpm -r --filter @everr/app test:ci -- src/server/alerting/pipeline-lifecycle.integration.test.ts`.
+- [ ] **Step 2:** Run, from `packages/app`: `pnpm exec vitest run src/server/alerting/pipeline-lifecycle.integration.test.ts`.
 - [ ] **Step 3:** Report any leak as a defect, with the query that leaked.
 - [ ] **Step 4:** Commit with `test(alerts): one organization never sees another's alerts`.
 
