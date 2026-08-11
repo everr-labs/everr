@@ -1,7 +1,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { AttrValue, EmitSpan } from "../../pipeline/emitter.js";
 import { createTracer } from "../../pipeline/tracer.js";
-import type { RouteTemplateResolver } from "./network.js";
+import {
+  type RouteTemplateResolver,
+  setRouteResolver,
+} from "../../state/route.js";
 import { startNetwork } from "./network.js";
 
 // Unit tests for the change to fetch. A test emitSpan function below the true
@@ -30,7 +33,8 @@ function start(
   targets?: Array<string | RegExp>,
   resolveTemplate?: RouteTemplateResolver,
 ) {
-  stop = startNetwork(createTracer(emitSpan), targets, resolveTemplate);
+  if (resolveTemplate) setRouteResolver({ request: resolveTemplate });
+  stop = startNetwork(createTracer(emitSpan), targets);
 }
 
 /** The headers that the changed fetch sent, in a regular form. */
@@ -53,6 +57,7 @@ beforeEach(() => {
 
 afterEach(() => {
   stop();
+  setRouteResolver(null);
   vi.unstubAllGlobals();
 });
 

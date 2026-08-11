@@ -4,8 +4,8 @@ import {
   createEmitter,
   type Emit,
   type EmitSpan,
-} from "./pipeline/emitter.js";
-import { fetchSend } from "./pipeline/transport.js";
+} from "./emitter.js";
+import { fetchSend } from "./transport.js";
 
 type SentBatch = {
   url: string;

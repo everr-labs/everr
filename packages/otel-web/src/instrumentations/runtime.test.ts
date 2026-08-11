@@ -121,7 +121,7 @@ describe("instrumentation runtime", () => {
   });
 
   it("serves ids() and route() from the live client state", async () => {
-    setRouteResolver(() => "/blog/$slug");
+    setRouteResolver({ page: () => "/blog/$slug" });
     let ids: { visitorId: string; sessionId: string } | undefined;
     let route: string | null | undefined;
     start({

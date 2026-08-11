@@ -2,12 +2,12 @@ import {
   errors,
   interactions,
   network,
+  pageLoad,
   pageviews,
   performance,
   WebSDK,
 } from "@everr/otel-web";
 import { readConsent } from "@/telemetry/consent";
-import { parameterizeTelemetryPath } from "@/telemetry/paths";
 
 // The browser telemetry of the web app, and this app uses our own product. The
 // page views, the frustration clicks, the web vitals, and the errors go to Everr
@@ -46,11 +46,9 @@ new WebSDK({
     pageviews(),
     interactions(),
     performance(),
-    // This gives the same parameters as the http.route attribute of the server.
-    // Thus the url.template value of a request is the same as the route of its
-    // server span. This is important for /_serverFn/:id.
-    network({
-      resolveRouteTemplate: (url) => parameterizeTelemetryPath(url.pathname),
-    }),
+    pageLoad(),
+    // The request route template comes from the `request` route resolver in
+    // route-pattern.ts.
+    network(),
   ],
 });

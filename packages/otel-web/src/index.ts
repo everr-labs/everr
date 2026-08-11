@@ -21,9 +21,12 @@ export {
   type NetworkOptions,
   network,
 } from "./instrumentations/network/index.js";
-export { pageviews } from "./instrumentations/pageviews/index.js";
 export {
   type PageLoadOptions,
+  pageLoad,
+} from "./instrumentations/pageload/index.js";
+export { pageviews } from "./instrumentations/pageviews/index.js";
+export {
   type PerformanceOptions,
   performance,
   type WebVitalName,
@@ -43,6 +46,10 @@ export type {
   SpanEvent,
 } from "./pipeline/emitter.js";
 export { setAttributes } from "./state/attributes.js";
-export { setRouteResolver } from "./state/route.js";
+export {
+  type RouteResolvers,
+  type RouteTemplateResolver,
+  setRouteResolver,
+} from "./state/route.js";
 export { identify, revoke, setPersistence } from "./state/session.js";
 export type { Persistence, UserTraits, WebSDKOptions } from "./types.js";

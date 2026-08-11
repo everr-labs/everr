@@ -179,7 +179,7 @@ describe("init (server)", () => {
     identify("u_123", { plan: "pro" });
     revoke();
     setAttributes({ "everr.tenant.id": "acme" });
-    setRouteResolver(() => "/blog/$slug");
+    setRouteResolver({ page: () => "/blog/$slug" });
     logger.info("after identify");
     const [, record] = logExporter.getFinishedLogRecords();
     expect(Object.keys(record.attributes)).toHaveLength(0);
@@ -209,6 +209,7 @@ describe("inert shared-code surface", () => {
       errors,
       interactions,
       network,
+      pageLoad: pageLoadInstrumentation,
       pageviews,
       performance: performanceInstrumentation,
       setPersistence,
@@ -219,7 +220,8 @@ describe("inert shared-code surface", () => {
       errors({ ignore: ["x"] }),
       pageviews(),
       interactions(),
-      performanceInstrumentation({ pageLoad: true }),
+      performanceInstrumentation(),
+      pageLoadInstrumentation(),
       network({ propagateTo: [] } as never),
     ]) {
       expect(instrumentation(noopContext)).toBeUndefined();

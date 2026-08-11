@@ -36,14 +36,22 @@ module.exports = [
     limit: "4 KB",
   },
   {
-    // The heaviest instrumentation: the in-house web vitals (LCP/CLS/TTFB/INP),
-    // slow-interaction records with their LoAF attribution, and the on-by-default
-    // pageLoad capture (asset waterfall + long-animation-frame records).
+    // The heaviest instrumentation: the in-house web vitals (LCP/CLS/TTFB/INP)
+    // and slow-interaction records with their LoAF attribution. The pageLoad
+    // capture is its own instrumentation with its own line below.
     name: "core + performance",
     path: "dist/index.js",
     import: "{ WebSDK, performance }",
     gzip: true,
-    limit: "7.75 KB",
+    limit: "7.25 KB",
+  },
+  {
+    // The load window: the asset waterfall + long-animation-frame spans.
+    name: "core + pageLoad",
+    path: "dist/index.js",
+    import: "{ WebSDK, pageLoad }",
+    gzip: true,
+    limit: "4.3 KB",
   },
   {
     name: "core + network",
@@ -59,7 +67,7 @@ module.exports = [
     name: "core + all instrumentations",
     path: "dist/index.js",
     import:
-      "{ WebSDK, errors, pageviews, interactions, performance, network, sampled }",
+      "{ WebSDK, errors, pageviews, interactions, performance, pageLoad, network, sampled }",
     gzip: true,
     limit: "9.5 KB",
   },

@@ -12,6 +12,7 @@ import type { WebSDKOptions } from "../types.js";
 import { errors } from "./errors/index.js";
 import { interactions } from "./interactions/index.js";
 import { network } from "./network/index.js";
+import { pageLoad } from "./pageload/index.js";
 import { pageviews } from "./pageviews/index.js";
 import { performance as performanceInstrumentation } from "./performance/index.js";
 
@@ -225,13 +226,7 @@ describe("performance({ pageLoad })", () => {
     }
     vi.stubGlobal("PerformanceObserver", PO);
     start({
-      instrumentations: [
-        performanceInstrumentation({
-          webVitals: [],
-          slowInteractions: false,
-          pageLoad: true,
-        }),
-      ],
+      instrumentations: [pageLoad()],
     });
     fire?.([
       {

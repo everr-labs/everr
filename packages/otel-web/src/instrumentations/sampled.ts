@@ -37,8 +37,7 @@ export function sampled(
 
 /**
  * The djb2 hash. The code changes it to an unsigned 32-bit integer, then to a
- * value from 0 to less than 1. The pageLoad sampling in the performance
- * instrumentation uses this function also.
+ * value from 0 to less than 1.
  */
 export function hashUnit(input: string): number {
   let hash = 5381;

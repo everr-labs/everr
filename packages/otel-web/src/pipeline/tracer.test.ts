@@ -1,12 +1,12 @@
 import type { Tracer } from "@opentelemetry/api";
 import { afterEach, describe, expect, it } from "vitest";
-import type { WebSDK } from "./client.js";
+import type { WebSDK } from "../client.js";
 import {
   attrs,
   type OtlpBatch,
   type OtlpSpan,
   startClient,
-} from "./test-kit.js";
+} from "../test-kit.js";
 
 // The tracer that ctx.tracer gives to an instrumentation. It is a small
 // @opentelemetry/api Tracer on the span pipeline of the SDK. These tests use it

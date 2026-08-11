@@ -1,14 +1,14 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import type { WebSDK } from "./client.js";
-import { setAttributes } from "./state/attributes.js";
+import type { WebSDK } from "../client.js";
 import {
   attrs,
   type OtlpBatch,
   type OtlpRecord,
   startClient,
   UNIQUE_ID,
-} from "./test-kit.js";
-import type { WebSDKOptions } from "./types.js";
+} from "../test-kit.js";
+import type { WebSDKOptions } from "../types.js";
+import { setAttributes } from "./attributes.js";
 
 let client: WebSDK | undefined;
 let batches: OtlpBatch[];

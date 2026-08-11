@@ -1,7 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createTracer } from "../../pipeline/tracer.js";
 import type { InstrumentationContext } from "../runtime.js";
-import { performance as performanceInstrumentation } from "./index.js";
+import { sampled } from "../sampled.js";
+import { pageLoad } from "./index.js";
 import { startPageLoad } from "./pageload.js";
 
 // The jsdom environment has no Resource Timing and no LoAF. Thus a replacement
@@ -388,33 +389,17 @@ describe("the pageLoad option", () => {
       ids: () => ({ visitorId: "v", sessionId }),
     }) as unknown as InstrumentationContext;
 
-  const boot = (pageLoad: boolean | { sample?: number }, sessionId = "s-1") => {
-    stop = performanceInstrumentation({
-      webVitals: [],
-      slowInteractions: false,
-      pageLoad,
-    })(ctx(sessionId)) as () => void;
+  const boot = (sample?: number, sessionId = "s-1") => {
+    const instrumentation =
+      sample === undefined ? pageLoad() : sampled(pageLoad(), sample);
+    // A refused session gets no teardown: sampled() returns undefined.
+    stop =
+      (instrumentation(ctx(sessionId)) as (() => void) | undefined) ??
+      (() => {});
   };
 
-  it("is on by default: performance() opens the load window", () => {
-    stop = performanceInstrumentation({
-      webVitals: [],
-      slowInteractions: false,
-    })(ctx("s-1")) as () => void;
-    expect(observers.has("resource")).toBe(true);
-  });
-
-  it("pageLoad: false opens no load window", () => {
-    stop = performanceInstrumentation({
-      webVitals: [],
-      slowInteractions: false,
-      pageLoad: false,
-    })(ctx("s-1")) as () => void;
-    expect(observers.has("resource")).toBe(false);
-  });
-
-  it("pageLoad: true opens the window with the defaults", () => {
-    boot(true);
+  it("pageLoad() opens the window with the defaults", () => {
+    boot();
     expect(observers.has("resource")).toBe(true);
     feed({});
     expect(spans).toHaveLength(1);
@@ -427,7 +412,7 @@ describe("the pageLoad option", () => {
     let captured = 0;
     for (let i = 0; i < 100; i++) {
       stubTiming();
-      boot({ sample: 0.3 }, `session-${i}`);
+      boot(0.3, `session-${i}`);
       if (observers.has("resource")) captured++;
       stop();
     }
@@ -435,16 +420,16 @@ describe("the pageLoad option", () => {
     expect(captured).toBeLessThan(50);
 
     stubTiming();
-    boot({ sample: 0.3 }, "session-0");
+    boot(0.3, "session-0");
     const first = observers.has("resource");
     stop();
     stubTiming();
-    boot({ sample: 0.3 }, "session-0");
+    boot(0.3, "session-0");
     expect(observers.has("resource")).toBe(first);
   });
 
   it("sample 0 never opens the window", () => {
-    boot({ sample: 0 });
+    boot(0);
     expect(observers.has("resource")).toBe(false);
     stop = () => {};
   });

@@ -1,9 +1,5 @@
 import type { Instrumentation } from "../runtime.js";
-import {
-  type PropagationTarget,
-  type RouteTemplateResolver,
-  startNetwork,
-} from "./network.js";
+import { type PropagationTarget, startNetwork } from "./network.js";
 
 export type NetworkOptions = {
   /**
@@ -18,18 +14,6 @@ export type NetworkOptions = {
    * request in all conditions. This option controls only the header.
    */
   tracePropagationTargets?: PropagationTarget[];
-  /**
-   * Changes the URL of a request into the route template of the endpoint, for
-   * example `/api/posts/123` into `/api/posts/{id}`. That template has a small
-   * number of different values. The SDK uses it as the name of the span, for
-   * example `GET /api/posts/{id}`, and it writes it as the semconv attribute
-   * `url.template`.
-   *
-   * This is the route of the request. It has no relation to the route pattern
-   * of the page from `setRouteResolver`. Without this function, the name of a
-   * span is the path of the request.
-   */
-  resolveRouteTemplate?: RouteTemplateResolver;
 };
 
 /**
@@ -43,10 +27,6 @@ export function network(options?: NetworkOptions): Instrumentation {
   // can make a hash from instrumentation.name, and the decisions for the
   // different instrumentations are different.
   return function network(ctx) {
-    return startNetwork(
-      ctx.tracer,
-      options?.tracePropagationTargets,
-      options?.resolveRouteTemplate,
-    );
+    return startNetwork(ctx.tracer, options?.tracePropagationTargets);
   };
 }

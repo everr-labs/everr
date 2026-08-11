@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { resolveTransport } from "./pipeline/transport.js";
+import { resolveTransport } from "./transport.js";
 
 type Posted = { url: string; init: RequestInit | undefined };
 

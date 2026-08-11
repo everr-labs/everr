@@ -1,6 +1,6 @@
 /// <reference path="../../dom.d.ts" />
 import type { Tracer } from "@opentelemetry/api";
-import { scriptAttrs } from "./shared.js";
+import { scriptAttrs } from "../performance/shared.js";
 
 // The window of the page load. A Resource Timing observer with the buffered
 // option gives the entries, and the code makes one `GET <url>` CLIENT span for

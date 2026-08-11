@@ -47,6 +47,7 @@ import {
 import type { ErrorContext } from "./errors.js";
 import type { ErrorsOptions } from "./instrumentations/errors/index.js";
 import type { NetworkOptions } from "./instrumentations/network/index.js";
+import type { PageLoadOptions } from "./instrumentations/pageload/index.js";
 import type { PerformanceOptions } from "./instrumentations/performance/index.js";
 import type { Instrumentation } from "./instrumentations/runtime.js";
 import { logger } from "./logger.js";
@@ -58,6 +59,7 @@ import {
 } from "./pipeline/emitter.js";
 import { SDK_NAME, SDK_VERSION } from "./pipeline/version.js";
 import { bindEmit } from "./state/emit.js";
+import type { RouteResolvers } from "./state/route.js";
 import type { Persistence, UserTraits, WebSDKOptions } from "./types.js";
 
 export type { ErrorContext } from "./errors.js";
@@ -140,7 +142,7 @@ export function setPersistence(_persistence: Persistence | undefined): void {}
 /** Does nothing on the server. The envelope of the browser carries the route
  * patterns. */
 export function setRouteResolver(
-  _get: ((url: string) => string | null | undefined) | null | undefined,
+  _resolvers: RouteResolvers | null | undefined,
 ): void {}
 
 // The functions that make the built-in instrumentations. Thus shared code that
@@ -155,8 +157,8 @@ export type {
   ErrorsOptions,
 } from "./instrumentations/errors/index.js";
 export type { NetworkOptions } from "./instrumentations/network/index.js";
+export type { PageLoadOptions } from "./instrumentations/pageload/index.js";
 export type {
-  PageLoadOptions,
   PerformanceOptions,
   WebVitalName,
 } from "./instrumentations/performance/index.js";
@@ -174,6 +176,8 @@ export const interactions = (): Instrumentation => inert;
 /** Does nothing on the server. The performance capture belongs to the browser. */
 export const performance = (_options?: PerformanceOptions): Instrumentation =>
   inert;
+/** Does nothing on the server. The load window belongs to the browser. */
+export const pageLoad = (_options?: PageLoadOptions): Instrumentation => inert;
 /** Does nothing on the server. The change to fetch belongs to the browser. */
 export const network = (_options?: NetworkOptions): Instrumentation => inert;
 

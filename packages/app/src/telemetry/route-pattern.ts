@@ -1,4 +1,5 @@
 import { setRouteResolver } from "@everr/otel-web";
+import { parameterizeTelemetryPath } from "@/telemetry/paths";
 
 // The connection from the TanStack router to the setRouteResolver function of
 // the SDK. This app owns this module. The telemetry setup operates before the
@@ -17,8 +18,14 @@ type RouterLike = {
 
 /** Call this from `getRouter()` immediately after you make the router. */
 export function registerRouter(router: RouterLike): void {
-  setRouteResolver((url) => {
-    const matches = router.matchRoutes(new URL(url).pathname);
-    return matches[matches.length - 1]?.routeId;
+  setRouteResolver({
+    page: (url) => {
+      const matches = router.matchRoutes(new URL(url).pathname);
+      return matches[matches.length - 1]?.routeId;
+    },
+    // This gives the same parameters as the http.route attribute of the
+    // server. Thus the url.template value of a request is the same as the
+    // route of its server span. This is important for /_serverFn/:id.
+    request: (url) => parameterizeTelemetryPath(url.pathname),
   });
 }

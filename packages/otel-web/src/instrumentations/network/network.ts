@@ -1,5 +1,6 @@
 import type { Tracer } from "@opentelemetry/api";
 import { errorTypeOf } from "../../errors.js";
+import { requestTemplate } from "../../state/route.js";
 
 // The network signal. This module changes window.fetch. Thus each request does
 // two things. First, it becomes an OTel CLIENT span on the traces pipeline.
@@ -41,17 +42,9 @@ import { errorTypeOf } from "../../errors.js";
 
 export type PropagationTarget = string | RegExp;
 
-/**
- * Changes the URL of a request into its route template, which is the semconv
- * attribute `url.template`. That template has a small number of different
- * values. For example, it changes `/api/posts/123` into `/api/posts/{id}`.
- */
-export type RouteTemplateResolver = (url: URL) => string | null | undefined;
-
 export function startNetwork(
   tracer: Tracer,
   targets: PropagationTarget[] | undefined,
-  resolveTemplate: RouteTemplateResolver | undefined,
 ): () => void {
   const original = fetch;
 
@@ -75,22 +68,15 @@ export function startNetwork(
     // The code reads the parts of the URL one time. Thus the function at the
     // end keeps only strings, and it does not keep the URL object.
     const path = url.pathname;
-    // The route template of the request. The host calculates it from the URL of
-    // the request. The route pattern of the page describes the document, and it
-    // does not describe the endpoint of this request. Thus the network signal
-    // never uses that pattern.
+    // The route template of the request, from the `request` route resolver.
+    // The route pattern of the page describes the document, and it does not
+    // describe the endpoint of this request. Thus the network signal never
+    // uses that pattern.
     //
     // With this function, the name of the span has a small number of different
     // values, also when the path contains an id. Without it, the name is the
-    // path. In the two conditions, url.full contains the exact target. The code
-    // uses a try block, because the code of the host must never cause a failure
-    // of fetch.
-    let template: string | null | undefined;
-    try {
-      template = resolveTemplate?.(url);
-    } catch {
-      template = undefined;
-    }
+    // path. In the two conditions, url.full contains the exact target.
+    const template = requestTemplate(url);
     const name = `${method} ${template ?? path}`;
     const urlFull = url.origin + path;
     const hostname = url.hostname;

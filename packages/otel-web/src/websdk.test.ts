@@ -144,9 +144,10 @@ describe("init (persistence: memory)", () => {
 
   it("resolves each record's own page URL to a pattern and survives a throwing resolver", async () => {
     start();
-    setRouteResolver((url) =>
-      new URL(url).pathname.startsWith("/blog/") ? "/blog/$slug" : undefined,
-    );
+    setRouteResolver({
+      page: (url) =>
+        new URL(url).pathname.startsWith("/blog/") ? "/blog/$slug" : undefined,
+    });
     history.pushState(null, "", "/blog/hello");
     const all = await records();
     // The code calculates the pattern for each record, from the URL of that
@@ -159,8 +160,10 @@ describe("init (persistence: memory)", () => {
 
     // A function of the host that throws an error must never stop the
     // capture.
-    setRouteResolver(() => {
-      throw new Error("host bug");
+    setRouteResolver({
+      page: () => {
+        throw new Error("host bug");
+      },
     });
     history.pushState(null, "", "/pricing");
     const after = await records();
