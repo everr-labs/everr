@@ -13,25 +13,34 @@
 // request.
 //
 // The error capture uses @everr/otel-errors, and this module does not write
-// that code again. That package makes the error regular, it redacts the data,
-// it applies the rate limit, and it marks the span with recordException and
-// setStatus(ERROR). It has one client for each process. Thus an app that
-// configures the redaction for its own crash handlers also covers these
-// records. The app registers the ErrorsInstrumentation and its crash handlers
-// on its NodeSDK.
+// that code again. That package makes the error regular and it marks the span
+// with recordException and setStatus(ERROR). It has one client for each
+// process. Thus an app that installs the beforeSend of that package for its own
+// crash handlers also covers these records. The app registers the
+// ErrorsInstrumentation and its crash handlers on its NodeSDK.
 //
-// The code connects the error path when it loads the module, and not in the
-// WebSDK constructor. There is no data for each instance. Thus a connection in
-// the constructor only makes captureError do nothing in a module graph that
-// constructs no WebSDK. The logger keeps the connection in the constructor,
-// because its emitter belongs to one instance. The shutdown() function
-// disconnects only the logger.
+// The beforeSend of the WebSDK does not operate on this path, because an error
+// on the server does not go through the emitter of this package. The two hooks
+// have the same name and they are in two packages. Refer to the README.
 //
-// This is the only effect at module load in this package. Thus the
-// `sideEffects: false` flag in package.json is not fully correct for this
-// entry. The flag stays. It lets a bundler remove the module only when the
-// graph imports nothing from it, and such a graph has no captureError to
-// connect.
+// The code connects the error path at the first use and not at module load.
+// This is necessary because package.json declares `sideEffects: false`. That
+// flag tells a bundler that no statement at the top level of a module does
+// something that the code can see. Thus a bundler can remove a call at the top
+// level whose result no code uses, and a connection there can disappear from a
+// production build with no message. Then captureError finds no reporter and it
+// discards each error.
+//
+// The connection is thus in ensureReportBound(), which the exported
+// captureError and the WebSDK constructor call. A bundler cannot remove it,
+// because the code reaches it from an export that the graph uses. The
+// connection stays for the life of the process: there is no data for each
+// instance, the shared client of otel-errors continues after each WebSDK, and
+// thus there is no previous value to put back.
+//
+// The logger keeps its connection in the constructor, because its emitter
+// belongs to one instance. The shutdown() function disconnects only the
+// logger.
 
 // The /core subpath is the part of that package for all runtimes. It keeps the
 // instrumentation and its @types/node requirement out of the browser tsc
@@ -46,8 +55,17 @@ import {
   SeverityNumber,
 } from "@opentelemetry/api-logs";
 import { bindEmit } from "./current.js";
-import type { AttrValue, Emit } from "./emitter.js";
-import { bindReport } from "./errors.js";
+import {
+  type AttrValue,
+  type BeforeSend,
+  createBeforeSendGuard,
+  type Emit,
+} from "./emitter.js";
+import {
+  bindReport,
+  type ErrorContext,
+  captureError as reportError,
+} from "./errors.js";
 import type { ErrorsOptions } from "./instrumentations/errors/index.js";
 import type { NetworkOptions } from "./instrumentations/network/index.js";
 import type { PerformanceOptions } from "./instrumentations/performance/index.js";
@@ -56,16 +74,32 @@ import { logger } from "./logger.js";
 import type { Persistence, UserTraits, WebSDKOptions } from "./types.js";
 import { SDK_NAME, SDK_VERSION } from "./version.js";
 
-// This is the only connection of the shared report function to otel-errors.
-// The code makes it at module load. Thus captureError operates on the server
-// with no setup. The code never removes it, because the shared client
-// continues after each WebSDK, and thus there is no previous value.
-bindReport((error, mechanism, context) =>
-  capture({ error, mechanism, context }),
-);
+// The one connection of the shared report function to otel-errors. Refer to
+// the note at the top of this module for the reason that it is not at module
+// load.
+let bound = false;
+function ensureReportBound(): void {
+  if (bound) return;
+  bound = true;
+  bindReport((error, mechanism, context) =>
+    capture({ error, mechanism, context }),
+  );
+}
 
 export type { AttrValue } from "./emitter.js";
-export { captureError } from "./errors.js";
+export type { ErrorContext } from "./errors.js";
+
+/**
+ * Reports an error. The context attributes are optional.
+ *
+ * This needs no WebSDK on the server. The first call connects the error path
+ * to @everr/otel-errors, and thus the record goes to the LoggerProvider of the
+ * app with the active context.
+ */
+export function captureError(error: unknown, context?: ErrorContext): void {
+  ensureReportBound();
+  reportError(error, context);
+}
 export type {
   Instrumentation,
   InstrumentationContext,
@@ -92,14 +126,18 @@ export class WebSDK {
    * continues to operate. */
   shutdown: () => Promise<void>;
 
-  constructor(_options: WebSDKOptions) {
+  constructor(options: WebSDKOptions) {
+    // A graph that constructs a WebSDK can report an error through a path that
+    // is not captureError, for example a React error boundary. Thus the
+    // constructor connects the error path also.
+    ensureReportBound();
     // The code finds this one time. Before a global provider registers, this is
     // a ProxyLogger. That proxy sends the records to the true logger when the
     // SDK of the app registers.
     const otelLogger = logs.getLogger(SDK_NAME, SDK_VERSION);
     // The shared binding in current.ts. The logger reads it at each call. Here
     // the code connects it to the LoggerProvider of the app.
-    const unbindEmit = bindEmit(emitVia(otelLogger));
+    const unbindEmit = bindEmit(emitVia(otelLogger, options.beforeSend));
     this.flush = async () => {};
     this.shutdown = async () => {
       unbindEmit();
@@ -171,20 +209,52 @@ export const network = (_options?: NetworkOptions): Instrumentation => inert;
 // Emit structure as the pipeline of the browser. The severity text comes from
 // the numeric enum of the API: 5 is DEBUG, 9 is INFO, 13 is WARN, and 17 is
 // ERROR.
-const emitVia =
-  (otelLogger: Logger): Emit =>
-  (_eventName, attributes, severityNumber, body) => {
+// The hook of the host operates here also. A record from an isomorphic
+// `logger` call goes through the same hook in the two module graphs, and the
+// rule on an error comes from the same guard as the browser. Only the log
+// condition can occur: the server entry has no span pipeline. The eventName
+// goes to the hook, but this entry does not send it, and thus a hook that
+// changes it has no result on the server.
+const emitVia = (
+  otelLogger: Logger,
+  beforeSend: BeforeSend | undefined,
+): Emit => {
+  const applyBeforeSend = createBeforeSendGuard(beforeSend);
+  const write = (
+    severityNumber: number,
+    body: string,
+    attributes: Record<string, AttrValue | null | undefined> | undefined,
+  ): void =>
     otelLogger.emit({
       severityNumber,
       // The code reads the enum with this index. Each emit path in this
       // package sets the severity. If the number is not in the enum, the
       // result is undefined, and this causes no error.
-      severityText: SeverityNumber[severityNumber as number],
+      severityText: SeverityNumber[severityNumber],
       body,
       attributes: cleanAttributes(attributes),
       context: context.active(),
     });
+
+  return (eventName, attributes, severityNumber = 9, body = eventName) => {
+    // Without a hook the code sends the attributes of the caller directly. The
+    // copy below exists only to keep a hook that changes the item away from
+    // the object of the caller.
+    if (!beforeSend) {
+      write(severityNumber, body, attributes);
+      return;
+    }
+    const item = applyBeforeSend({
+      kind: "log",
+      eventName,
+      attributes: { ...attributes },
+      severityNumber,
+      body,
+    });
+    if (item?.kind !== "log") return;
+    write(item.severityNumber, item.body, item.attributes);
   };
+};
 
 // This function ignores a value of null and a value of undefined, the same as
 // the toKeyValues function of the emitter. Thus a caller can write an optional

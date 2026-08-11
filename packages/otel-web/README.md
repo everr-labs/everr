@@ -71,6 +71,41 @@ import { ErrorBoundary } from "@everr/otel-web/react";
 
 The event schema is identical either way. A consent-gated app boots with `"memory"` and constructs a new WebSDK with `"localStorage"` once consent is granted.
 
+## Sensitive data
+
+The SDK removes nothing. `url.full` carries the full `location.href`, query string included, and an error message ships verbatim.
+
+It does refuse to look in places: it reads no content of the DOM at all, so no field value and no element text ever reach a record. An element is identified by its tag, a stable selector, and the href of the link containing it. It also skips password and hidden inputs and ignores everything under a `.everr-no-capture` element.
+
+That matches the other browser SDKs: OpenTelemetry sends an XPath, Sentry sends a selector tree, Faro sends a `data-` attribute the developer wrote. None of them reads rendered text either.
+
+`beforeSend` runs on every log record and every span, with the SDK envelope already merged in, so one policy covers all signals. Return `null` to drop the item.
+
+```ts
+new WebSDK({
+  serviceName: "acme-web",
+  instrumentations: [pageviews(), network()],
+  beforeSend: (item) => {
+    const url = item.attributes["url.full"];
+    if (typeof url === "string") item.attributes["url.full"] = url.split("?")[0];
+    return item;
+  },
+});
+```
+
+`item.kind` is `"log"` or `"span"`. Narrow on it when you only care about one:
+
+```ts
+beforeSend: (item) =>
+  item.kind === "span" && item.name === "GET /healthz" ? null : item,
+```
+
+It covers pageviews, `page_leave`, interactions, web vitals, exceptions, `logger.*` calls and every span, and it runs on the server entry too, so an isomorphic `logger` call behaves the same in both graphs. It runs last, after `sampled()` and any instrumentation filter, so it cannot bring back what those dropped. Ids and timestamps are not exposed: a hook rewrites what an item says, not which trace it belongs to.
+
+A hook that throws drops that item and warns once, matching Faro and Sentry, which both fail closed. Your hook never throws into the page.
+
+> `@everr/otel-errors` also has a `beforeSend`. It is a different hook on a different client: it takes an error event, not a `SendEvent`, and it covers Node crashes and server `captureError`. Wiring both packages means configuring both.
+
 ## Host-owned transport
 
 An app that proxies its own telemetry (a Tauri or Electron renderer, a service worker, a test harness) takes over delivery with `send`. It receives one OTLP/JSON payload per signal, and the SDK issues no request of its own:
@@ -91,7 +126,7 @@ new WebSDK({
 
 The `node` export condition resolves a server entry, so isomorphic code can import `logger` and `captureError` from the same specifier. On the server the SDK owns no pipeline: it attaches to the OpenTelemetry SDK your app already registered, and records join the request trace. WebSDK options are accepted and inert there, and lifecycle belongs to your `NodeSDK` handle.
 
-`captureError` needs no `WebSDK` on the server. It reports through [`@everr/otel-errors`](https://github.com/everr-labs/everr/tree/main/packages/otel-errors)' shared client, so whatever redaction and rate limits you `configure` there cover these records too, and `shutdown()` leaves error capture running. `logger` keeps the gate: it needs a constructed `WebSDK`, and goes silent after `shutdown()`.
+`captureError` needs no `WebSDK` on the server. The first call wires it to [`@everr/otel-errors`](https://github.com/everr-labs/everr/tree/main/packages/otel-errors)' shared client, so whatever hooks you `configure` there cover these records too, and `shutdown()` leaves error capture running. `logger` keeps the gate: it needs a constructed `WebSDK`, and goes silent after `shutdown()`.
 
 For Node process crashes, register that package's `ErrorsInstrumentation` on your `NodeSDK`.
 

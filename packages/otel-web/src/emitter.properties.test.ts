@@ -102,11 +102,15 @@ describe("exit-flush budget", () => {
             EXIT_BUDGET - (spans?.bytes ?? 0),
           );
         }
-        // The records that stay are always the oldest records, in the sequence
-        // that the SDK sent them.
+        // The records that stay are always the most recent records, in the
+        // sequence that the SDK sent them. The records of the exit path go into
+        // the queue last, and thus they must be the records that stay.
         const survivors = (kept: string[], prefix: string, total: number) => {
           expect(kept).toEqual(
-            Array.from({ length: kept.length }, (_, i) => `${prefix}-${i}`),
+            Array.from(
+              { length: kept.length },
+              (_, i) => `${prefix}-${total - kept.length + i}`,
+            ),
           );
           expect(kept.length).toBeGreaterThanOrEqual(1);
           expect(kept.length).toBeLessThanOrEqual(total);

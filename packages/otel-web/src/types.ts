@@ -1,4 +1,5 @@
 import type { HostSend } from "./config.js";
+import type { BeforeSend } from "./emitter.js";
 import type { Instrumentation } from "./instrumentations/runtime.js";
 
 /**
@@ -91,6 +92,33 @@ export type WebSDKOptions = {
    * server accepts this option but ignores it.
    */
   instrumentations?: Instrumentation[];
+  /**
+   * Runs on each log record and on each span, immediately before the SDK puts
+   * the item in its queue. It discards the item if it returns null. If not, it
+   * can change the item. The `kind` field selects the type: `"log"` or
+   * `"span"`.
+   *
+   * The attributes contain the envelope of the SDK. Thus the hook sees
+   * `url.full`, the route, and the identity keys on all the signals, and a
+   * policy on an attribute has one place:
+   *
+   * ```ts
+   * new WebSDK({
+   *   beforeSend: (item) => {
+   *     const url = item.attributes["url.full"];
+   *     if (typeof url === "string")
+   *       item.attributes["url.full"] = url.split("?")[0];
+   *     return item;
+   *   },
+   * })
+   * ```
+   *
+   * The SDK removes no data on its own, and thus this hook is the one place to
+   * apply the policy of your application. It also operates on the server entry,
+   * and thus an isomorphic `logger` call has the same result in the two module
+   * graphs.
+   */
+  beforeSend?: BeforeSend;
 };
 
 /**

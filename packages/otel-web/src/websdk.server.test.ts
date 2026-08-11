@@ -80,9 +80,9 @@ describe("init (server)", () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     logger.info("before init");
     expect(warn).toHaveBeenCalledTimes(1);
-    // On the server, an error report needs no WebSDK. The code connects the
-    // shared otel-errors client at module load. Thus this report goes to the
-    // provider.
+    // On the server, an error report needs no WebSDK. The first call to
+    // captureError connects the shared otel-errors client. Thus this report
+    // goes to the provider.
     captureError(new Error("before init"));
     expect(logExporter.getFinishedLogRecords()).toHaveLength(1);
 
@@ -222,6 +222,42 @@ describe("inert shared-code surface", () => {
     ]) {
       expect(instrumentation(noopContext)).toBeUndefined();
     }
+  });
+
+  it("runs beforeSend on the server too, so isomorphic logger calls match", async () => {
+    client = new WebSDK({
+      serviceName: "everr-docs-test",
+      beforeSend: (item) => ({
+        ...item,
+        attributes: { ...item.attributes, "user.email": "[redacted]" },
+      }),
+    });
+    logger.info("checkout", { "user.email": "a@b.com" });
+    await client.flush();
+    const [record] = logExporter.getFinishedLogRecords();
+    expect(record.attributes["user.email"]).toBe("[redacted]");
+  });
+
+  it("beforeSend can drop a server record", async () => {
+    client = new WebSDK({
+      serviceName: "everr-docs-test",
+      beforeSend: () => null,
+    });
+    logger.info("dropped");
+    await client.flush();
+    expect(logExporter.getFinishedLogRecords()).toHaveLength(0);
+  });
+
+  it("drops a server record when beforeSend throws, without reaching the caller", async () => {
+    client = new WebSDK({
+      serviceName: "everr-docs-test",
+      beforeSend: () => {
+        throw new Error("bad hook");
+      },
+    });
+    expect(() => logger.info("dropped")).not.toThrow();
+    await client.flush();
+    expect(logExporter.getFinishedLogRecords()).toHaveLength(0);
   });
 
   it("drops nullish log attributes, same as the browser emitter", async () => {

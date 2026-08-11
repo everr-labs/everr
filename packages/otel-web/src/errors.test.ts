@@ -128,10 +128,8 @@ describe("error capture through the SDK", () => {
   });
 
   it("ships message and stack verbatim (no scrubbing, by decision)", async () => {
-    // The team made this decision on 2026-07-27, because of the limit on the
-    // build size. The SDK does not redact the content of an error. The
-    // redaction must come back before external users in consented mode see the
-    // errors. Refer to ticket 09.
+    // The SDK removes nothing from the content of an error. The application
+    // owns that policy, in the beforeSend hook of the WebSDK.
     start();
     const error = new Error("login failed for a@b.com");
     error.stack = "Error: login failed for a@b.com\n    at auth (/cb:1:1)";

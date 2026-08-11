@@ -17,12 +17,14 @@ import { currentEmit } from "./current.js";
 // and `everr.react.*`. Thus the errorFingerprint UDF groups the browser errors
 // and the server errors in the same way.
 //
-// Two functions are absent, and this is correct. The team made this decision on
-// 2026-07-27, because each function increases the number of bytes. The first is
-// the redaction of the message and the stack: the SDK sends the content without
-// a change. The redaction must come back before external users in consented
-// mode see the errors. Refer to ticket 09. The second is the display of the
-// chain of causes, because no error that the SDK sees has a `cause` today.
+// The SDK sends the message and the stack without a change, and this is
+// correct. The application owns the policy on the data, the same as in the
+// other browser SDKs. The beforeSend option of the WebSDK is the place for
+// that policy: an exception record goes through the emitter, and thus the hook
+// operates on it with all the other records.
+//
+// The display of the chain of causes is absent, because no error that the SDK
+// sees has a `cause` today.
 
 const safeString = (value: unknown): string => {
   try {

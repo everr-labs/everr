@@ -47,8 +47,10 @@ describe("startInteractions", () => {
       expect(names()).toEqual(["everr.browser.interaction.click"]);
       const a = emitted[0].attrs ?? {};
       expect(a["everr.element.tag"]).toBe("a");
-      expect(a["everr.element.text"]).toBe("Sign up");
       expect(a["everr.element.selector"]).toBe("#cta");
+      // The code reads no content of the DOM. Thus the label of the link is
+      // not on the record.
+      expect(a).not.toHaveProperty("everr.element.text");
       expect(a["everr.element.href"]).toBe("/signup");
       expect(a["everr.browser.click.x"]).toBe(15);
       expect(a["everr.browser.click.y"]).toBe(25);
@@ -115,7 +117,6 @@ describe("startInteractions", () => {
       );
       const a = rage?.attrs ?? {};
       expect(a["everr.element.tag"]).toBe("a");
-      expect(a["everr.element.text"]).toBe("Read the docs");
       expect(a["everr.element.selector"]).toBe("#docs-link");
       expect(a["everr.element.href"]).toBe("/docs");
       expect(a["everr.browser.click.x"]).toBe(20);
@@ -157,16 +158,14 @@ describe("startInteractions", () => {
       );
     });
 
-    it("drops a card number even when the cap would truncate it", () => {
-      document.body.innerHTML = `<p>${"a".repeat(250)} 4242 4242 4242 4242</p>`;
-      click(document.querySelector("p") as Element);
-      expect(emitted[0].attrs?.["everr.element.text"]).toBeUndefined();
-    });
-
-    it("drops text that looks like a card number or SSN", () => {
+    it("puts no content of the DOM on the record", () => {
+      // A card number in the text of an element cannot go out, because the
+      // code never reads that text.
       document.body.innerHTML = "<button>4242 4242 4242 4242</button>";
       click(document.querySelector("button") as Element);
-      expect(emitted[0].attrs?.["everr.element.text"]).toBeUndefined();
+      const a = emitted[0].attrs ?? {};
+      expect(a).not.toHaveProperty("everr.element.text");
+      expect(JSON.stringify(a)).not.toContain("4242");
     });
 
     it("stops capturing after cleanup", () => {
@@ -189,29 +188,30 @@ describe("startInteractions", () => {
       const a = emitted[0].attrs ?? {};
       expect(a["everr.element.tag"]).toBe("input");
       expect(a["everr.element.selector"]).toBe("#email");
-      // A form field has no label text of its own, and thus textOf ignores it.
-      // The attributes object contains the key with the value undefined. The
-      // emitter removes a value of null and a value of undefined when it sends
-      // the record. Refer to init.test.ts.
-      expect(a["everr.element.text"]).toBeUndefined();
       expect(a).not.toHaveProperty("everr.browser.click.x");
       // The code never reads a value. Thus there is no attribute for a value.
       expect(JSON.stringify(a)).not.toContain("@example");
     });
 
-    it("restricts change to form fields (skips contenteditable divs)", () => {
+    it("captures a change from any element, not only a form field", () => {
+      // A `change` event goes up the tree. The code applies no test on the type
+      // of the element, and thus a div with contenteditable and a select both
+      // make a record. The record carries the tag and the selector only.
       document.body.innerHTML =
         '<div id="ce" contenteditable>text</div>' +
         '<select id="s"><option>a</option></select>';
       document
         .getElementById("ce")
         ?.dispatchEvent(new Event("change", { bubbles: true }));
-      expect(emitted).toHaveLength(0);
       document
         .getElementById("s")
         ?.dispatchEvent(new Event("change", { bubbles: true }));
-      expect(names()).toEqual(["everr.browser.interaction.change"]);
-      expect(emitted[0].attrs?.["everr.element.tag"]).toBe("select");
+      expect(names()).toEqual([
+        "everr.browser.interaction.change",
+        "everr.browser.interaction.change",
+      ]);
+      expect(emitted[0].attrs?.["everr.element.tag"]).toBe("div");
+      expect(emitted[1].attrs?.["everr.element.tag"]).toBe("select");
     });
 
     it("skips change on password, hidden inputs, and everr-no-capture", () => {
@@ -243,9 +243,6 @@ describe("startInteractions", () => {
       const a = emitted[0].attrs ?? {};
       expect(a["everr.element.tag"]).toBe("button");
       expect(a["everr.element.selector"]).toBe("#go");
-      // The submitter is a button and it is not a form field. Thus the code
-      // captures its label text, and it never captures a value of the form.
-      expect(a["everr.element.text"]).toBe("Sign up");
       expect(a).not.toHaveProperty("everr.browser.click.x");
     });
 
@@ -326,28 +323,6 @@ describe("threshold boundaries", () => {
     click(button, 131, 0);
     click(button, 131, 0);
     expect(rageClicks()).toHaveLength(0);
-  });
-});
-
-describe("sensitive text redaction", () => {
-  const textOfClick = (label: string) => {
-    document.body.innerHTML = "<button>x</button>";
-    const button = document.querySelector("button") as Element;
-    button.textContent = label;
-    emitted = [];
-    click(button);
-    return emitted[0]?.attrs?.["everr.element.text"];
-  };
-
-  it("redacts credit-card and SSN shaped text, keeping near misses", () => {
-    expect(textOfClick("Card: 4111 1111 1111 1111")).toBeUndefined();
-    expect(textOfClick("4111-1111-1111-1111")).toBeUndefined();
-    expect(textOfClick("SSN 123-45-6789")).toBeUndefined();
-    // These values stay, because they are not card numbers: they have too few
-    // digits, or their groups have an incorrect number of digits.
-    expect(textOfClick("Order 4111 1111 111")).toBe("Order 4111 1111 111");
-    expect(textOfClick("Ref 123-4-6789")).toBe("Ref 123-4-6789");
-    expect(textOfClick("Ref 123-45-678")).toBe("Ref 123-45-678");
   });
 });
 

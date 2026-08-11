@@ -72,8 +72,29 @@ type SessionState = { id: string; t: number };
 // record.
 let memory: SessionState | null = null;
 
-/** Finds the session id for the record that the SDK sends, and records the
- * activity. */
+// The time between two writes of the activity to the store. localStorage
+// operates in sequence with the page, and thus each write stops the main
+// thread. The activity value only decides a limit of 30 minutes, and thus a
+// write for each record gives much more accuracy than the limit needs. A page
+// with the interactions, the network, and the performance instrumentations
+// sends many records in each minute, and without this delay each one is a
+// read-modify-write on the main thread.
+//
+// The effect of the delay is a value in the store that is a maximum of
+// STORAGE_WRITE_DELAY_MS behind the true activity. Thus a session limit can
+// occur a maximum of 30 seconds early, in a window of 30 minutes.
+const STORAGE_WRITE_DELAY_MS = 30_000;
+let lastWrite = 0;
+
+/**
+ * Finds the session id for the record that the SDK sends, and records the
+ * activity.
+ *
+ * The code reads the store for each record, because a different tab can move
+ * the session. But it writes the store on a delay. Two conditions write
+ * immediately: a new session id, which no other tab can find in memory, and the
+ * exit path through persistSession().
+ */
 export function sessionId(): string {
   const store = currentStore();
   let base = memory;
@@ -92,9 +113,24 @@ export function sessionId(): string {
     base && now - base.t <= SESSION_TIMEOUT_MS
       ? { id: base.id, t: now }
       : { id: uniqueId(), t: now };
-  store.write(SESSION_KEY, JSON.stringify(next));
   memory = next;
+  if (next.id !== base?.id || now - lastWrite >= STORAGE_WRITE_DELAY_MS) {
+    lastWrite = now;
+    store.write(SESSION_KEY, JSON.stringify(next));
+  }
   return next.id;
+}
+
+/**
+ * Writes the session in memory to the store immediately. The client calls this
+ * on the exit path, before the flush at exit. Thus the last activity of the
+ * page goes to the store, and the delay above cannot make the session end too
+ * early after the user comes back.
+ */
+export function persistSession(): void {
+  if (!memory) return;
+  lastWrite = Date.now();
+  currentStore().write(SESSION_KEY, JSON.stringify(memory));
 }
 
 /**
@@ -111,6 +147,10 @@ export function setPersistence(persistence: Persistence | undefined): void {
   setStore(storeFor(persistence));
   visitor = currentStore().read(VISITOR_KEY) ?? id;
   currentStore().write(VISITOR_KEY, visitor);
+  // The new store has no session. The write of the activity is on a delay, and
+  // thus the code writes the session now. Without this step a reload in the
+  // period of the delay finds no session and makes a new one.
+  persistSession();
 }
 
 const clearUser = (): void => {

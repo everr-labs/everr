@@ -168,7 +168,6 @@ describe("slow interactions", () => {
     expect(a["everr.browser.interaction.type"]).toBe("pointer");
     expect(a["everr.element.tag"]).toBe("button");
     expect(a["everr.element.selector"]).toBe("#b");
-    expect(a["everr.element.text"]).toBe("Go");
   });
 
   it("carries the phase breakdown from the entry timings", () => {

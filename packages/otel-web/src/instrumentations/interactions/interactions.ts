@@ -1,4 +1,4 @@
-import { elementAttrs, FORM_FIELDS, guardOf, targetOf } from "../../element.js";
+import { elementAttrs, guardOf, targetOf } from "../../element.js";
 import type { Emit } from "../../emitter.js";
 
 // The interactions signal. It captures the data for the product analytics
@@ -64,12 +64,13 @@ export function startInteractions(emit: Emit): () => void {
 
   const onChange = (event: Event) => {
     // The targetOf function applies the tests for the no-capture class, a
-    // password input, and a hidden input. The closest(FORM_FIELDS) test permits
-    // only the elements that the privacy limits know. Thus the code never
-    // captures a `change` event of a different element automatically, for
-    // example a div with contenteditable.
+    // password input, and a hidden input. There is no test on the type of the
+    // element: a `change` event goes up the tree, and thus this code captures
+    // one from a form field and also one from a different element, for example
+    // a div with contenteditable or a custom element that sends its own event.
+    // The record carries no content of the DOM in the two conditions.
     const el = targetOf(event);
-    if (!el?.closest(FORM_FIELDS)) return;
+    if (!el) return;
     emit("everr.browser.interaction.change", elementAttrs(el));
   };
 

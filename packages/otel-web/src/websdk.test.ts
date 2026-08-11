@@ -248,12 +248,12 @@ describe("init (persistence: memory)", () => {
     expect(ca["session.id"]).toMatch(UNIQUE_ID);
     expect(ca["everr.page_view.id"]).toMatch(UNIQUE_ID);
     expect(sa["session.id"]).toMatch(UNIQUE_ID);
-    // The records never carry the value of an element.
+    // The records carry no content of the DOM: no value of a field and no text
+    // of an element. The submit record identifies the button that caused the
+    // submit by its selector.
     expect(ca).not.toHaveProperty("everr.element.text");
-    // The submit record uses the button that caused the submit. It carries
-    // elementAttrs, which contains the label text of that button. The button is
-    // not a form field.
-    expect(sa["everr.element.text"]).toBe("Sign up");
+    expect(sa).not.toHaveProperty("everr.element.text");
+    expect(sa["everr.element.selector"]).toBeTypeOf("string");
     document.body.innerHTML = "";
   });
 
@@ -271,7 +271,8 @@ describe("init (persistence: memory)", () => {
     );
     expect(rageRecord).toBeDefined();
     const a = attrs(rageRecord as OtlpRecord);
-    expect(a["everr.element.text"]).toBe("Try Everr");
+    expect(a).not.toHaveProperty("everr.element.text");
+    expect(a["everr.element.selector"]).toBeTypeOf("string");
     expect(a["session.id"]).toMatch(UNIQUE_ID);
     document.body.innerHTML = "";
   });

@@ -1,6 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { fetchSend } from "./config.js";
-import { createEmitter, type Emit, type EmitSpan } from "./emitter.js";
+import {
+  type BeforeSend,
+  createEmitter,
+  type Emit,
+  type EmitSpan,
+} from "./emitter.js";
 
 type SentBatch = {
   url: string;
@@ -16,6 +21,7 @@ type SentBatch = {
           timeUnixNano: string;
           severityNumber: number;
           eventName: string;
+          body: object;
           attributes: Array<{ key: string; value: object }>;
         }>;
       }>;
@@ -29,7 +35,10 @@ let flush: () => Promise<void>;
 let exitFlush: () => void;
 let emitSpan: EmitSpan;
 
-function makeEmitter(envelope: () => Record<string, string> = () => ({})) {
+function makeEmitter(
+  envelope: () => Record<string, string> = () => ({}),
+  beforeSend?: BeforeSend,
+) {
   sent = [];
   vi.stubGlobal(
     "fetch",
@@ -54,6 +63,7 @@ function makeEmitter(envelope: () => Record<string, string> = () => ({})) {
     { "service.name": "svc", "everr.screen.width": 1920 },
     { name: "@everr/otel-web", version: "test" },
     envelope,
+    beforeSend,
   );
 }
 
@@ -159,19 +169,27 @@ describe("createEmitter", () => {
     expect(sent).toHaveLength(1);
   });
 
-  it("truncates the exit payload to the keepalive budget, newest records first", () => {
+  it("truncates the exit payload to the keepalive budget, oldest records first", () => {
     const filler = "x".repeat(3000);
-    emit("exception", { filler });
-    for (let i = 0; i < 30; i++)
+    // The sequence of a true exit: the interactions of the page, then the
+    // records that the hide handlers make immediately before the truncation.
+    // The total stays below the batch size, and thus no usual flush operates
+    // and all the records are on the exit path.
+    for (let i = 0; i < 29; i++)
       emit("everr.browser.interaction.click", { filler });
+    emit("browser.web_vital", { filler });
+    emit("everr.browser.page_leave", { filler });
     exitFlush();
 
     const names = sentRecords().map((r) => r.eventName);
+    expect(sent).toHaveLength(1);
     expect(sent[0].bodyLength).toBeLessThanOrEqual(64_000);
     expect(names.length).toBeLessThan(31);
-    // The oldest records stay. Thus the SDK sends the first exception record,
-    // and it removes the most recent interaction records.
-    expect(names[0]).toBe("exception");
+    // The records of the exit are the most recent records, and thus they stay.
+    // The code removes the interactions at the front of the queue, which had
+    // the full delay of the batch to go out on a usual flush.
+    expect(names.at(-1)).toBe("everr.browser.page_leave");
+    expect(names.at(-2)).toBe("browser.web_vital");
   });
 
   it("never throws from exitFlush, even when fetch throws synchronously", () => {
@@ -251,6 +269,60 @@ describe("span pipeline", () => {
     });
   });
 
+  it("beforeSend can change the name and the attributes of a span", async () => {
+    [emit, flush, exitFlush, emitSpan] = makeEmitter(
+      () => ({ "url.full": "https://app.example/reset?token=s3cret" }),
+      (item) => ({
+        ...item,
+        ...(item.kind === "span" ? { name: "redacted" } : {}),
+        attributes: {
+          ...item.attributes,
+          "url.full": String(item.attributes["url.full"]).split("?")[0],
+        },
+      }),
+    );
+    emitSpan("a".repeat(32), "b".repeat(16), "GET /api", 1, 2, {
+      "http.request.method": "GET",
+    });
+    await flush();
+
+    const span = (
+      sent[0].payload as unknown as {
+        resourceSpans: Array<{
+          scopeSpans: Array<{
+            spans: Array<{
+              name: string;
+              attributes: Array<{
+                key: string;
+                value: { stringValue: string };
+              }>;
+            }>;
+          }>;
+        }>;
+      }
+    ).resourceSpans[0].scopeSpans[0].spans[0];
+    expect(span.name).toBe("redacted");
+    // The hook sees the envelope, and thus it can reach url.full.
+    expect(
+      span.attributes.find((a) => a.key === "url.full")?.value.stringValue,
+    ).toBe("https://app.example/reset");
+    expect(span.attributes.map((a) => a.key)).toContain("http.request.method");
+  });
+
+  it("beforeSend drops the span when it returns null", async () => {
+    [emit, flush, exitFlush, emitSpan] = makeEmitter(
+      () => ({}),
+      (item) => (item.kind === "span" ? null : item),
+    );
+    emitSpan("a".repeat(32), "b".repeat(16), "GET /api", 1, 2, {});
+    emit("everr.browser.page_view");
+    await flush();
+
+    // The traces post is absent, and the log record still goes out. Thus the
+    // hook can select one signal.
+    expect(sent.map((b) => b.url)).toEqual(["https://ingest.example/v1/logs"]);
+  });
+
   it("flushes logs and spans as two posts on one timer", async () => {
     emit("everr.browser.page_view");
     emitSpan("a".repeat(32), "b".repeat(16), "GET /api", 1, 2, {});
@@ -262,13 +334,100 @@ describe("span pipeline", () => {
   });
 });
 
+describe("beforeSend on the log path", () => {
+  it("changes the body, the attributes, the event name and the severity", async () => {
+    [emit, flush, exitFlush, emitSpan] = makeEmitter(
+      () => ({ "url.full": "https://app.example/reset?token=s3cret" }),
+      (item) => {
+        if (item.kind !== "log") return item;
+        return {
+          ...item,
+          eventName: "everr.browser.page_view",
+          severityNumber: 13,
+          body: item.body.replace(/tok_\w+/g, "[redacted]"),
+          attributes: {
+            ...item.attributes,
+            "url.full": String(item.attributes["url.full"]).split("?")[0],
+          },
+        };
+      },
+    );
+    emit("exception", { "exception.type": "Error" }, 17, "Error: tok_abc");
+    await flush();
+
+    const record = sentRecords()[0];
+    expect(record.eventName).toBe("everr.browser.page_view");
+    expect(record.severityNumber).toBe(13);
+    expect(record.body).toEqual({ stringValue: "Error: [redacted]" });
+    expect(record.attributes).toContainEqual({
+      key: "url.full",
+      value: { stringValue: "https://app.example/reset" },
+    });
+    expect(record.attributes.map((a) => a.key)).toContain("exception.type");
+  });
+
+  it("drops the record when it returns null", async () => {
+    [emit, flush, exitFlush, emitSpan] = makeEmitter(
+      () => ({}),
+      (item) =>
+        item.kind === "log" && item.eventName === "exception" ? null : item,
+    );
+    emit("exception", {}, 17, "boom");
+    emit("everr.browser.page_view");
+    await flush();
+
+    expect(sentRecords().map((r) => r.eventName)).toEqual([
+      "everr.browser.page_view",
+    ]);
+  });
+
+  it("sees a logger.* record, whose event name is empty", async () => {
+    const seen: string[] = [];
+    [emit, flush, exitFlush, emitSpan] = makeEmitter(
+      () => ({}),
+      (item) => {
+        if (item.kind === "log") seen.push(item.eventName);
+        return item;
+      },
+    );
+    // This is the shape that logger.info() sends.
+    emit("", { feature: "billing" }, 9, "checkout started");
+    await flush();
+    expect(seen).toEqual([""]);
+    expect(sentRecords()[0].body).toEqual({ stringValue: "checkout started" });
+  });
+
+  it("drops the item and warns one time when the hook throws", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    [emit, flush, exitFlush, emitSpan] = makeEmitter(
+      () => ({}),
+      () => {
+        throw new Error("bad hook");
+      },
+    );
+    // The hook operates in a listener of the page. Thus its error must not go
+    // to the page.
+    expect(() => emit("everr.browser.page_view")).not.toThrow();
+    emit("everr.browser.page_view");
+    emitSpan("a".repeat(32), "b".repeat(16), "GET /api", 1, 2, {});
+    await flush();
+
+    // The SDK sent nothing: an item that did not go through the hook must not
+    // go on the wire.
+    expect(sent).toHaveLength(0);
+    // Three items, one warning.
+    expect(warn).toHaveBeenCalledTimes(1);
+    warn.mockRestore();
+  });
+});
+
 describe("exit budget and transport hardening", () => {
   beforeEach(() => {
     vi.useFakeTimers();
     [emit, flush, exitFlush, emitSpan] = makeEmitter();
   });
 
-  it("truncates exit spans to a quarter of the keepalive budget, newest first", () => {
+  it("truncates exit spans to a quarter of the keepalive budget, oldest first", () => {
     const filler = "x".repeat(3000);
     for (let i = 0; i < 30; i++) {
       emitSpan("a".repeat(32), "b".repeat(16), `span-${i}`, 1, 2, { filler });
@@ -286,9 +445,9 @@ describe("exit budget and transport hardening", () => {
       (s) => s.name,
     );
     expect(names.length).toBeLessThan(30);
-    // The oldest spans stay, because the code removes the most recent spans
-    // first.
-    expect(names[0]).toBe("span-0");
+    // The most recent spans stay, because the code removes the spans at the
+    // front of the queue first.
+    expect(names.at(-1)).toBe("span-29");
   });
 
   it("shares the exit budget: queued spans shrink what log records may fill", () => {

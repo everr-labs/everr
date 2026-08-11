@@ -86,6 +86,86 @@ export type EmitSpan = (
   error?: boolean,
 ) => void;
 
+/**
+ * One log record, immediately before the SDK puts it in the batch. A custom log
+ * from `logger.*` has an eventName of `""`.
+ */
+export type LogEvent = {
+  kind: "log";
+  eventName: string;
+  attributes: Record<string, AttrValue | null | undefined>;
+  severityNumber: number;
+  body: string;
+};
+
+/** One completed span, immediately before the SDK puts it in the batch. */
+export type SpanEvent = {
+  kind: "span";
+  name: string;
+  attributes: Record<string, AttrValue | null | undefined>;
+  error?: boolean;
+};
+
+/**
+ * One item that the SDK is going to send. The `kind` field selects the type.
+ *
+ * The attributes are the full set that goes on the wire in the two conditions:
+ * the envelope of the SDK (the session, the visitor, `url.full`, the route)
+ * below the attributes of the signal. Thus one hook can apply a policy on an
+ * attribute to all the signals.
+ *
+ * The ids and the times are absent, because a hook does not change the identity
+ * of a record or the time of a record.
+ */
+export type SendEvent = LogEvent | SpanEvent;
+
+/**
+ * Runs on each log record and on each span, immediately before the SDK puts the
+ * item in its queue. It discards the item if it returns null. If not, it can
+ * change the item.
+ *
+ * The SDK removes no data on its own. It sends the full URL in `url.full`, the
+ * text of an element, and the message of an error without a change. This hook
+ * is the one place to apply the policy of the application, and the application
+ * is responsible for it.
+ *
+ * If the hook throws an error, the SDK discards the item and continues. This is
+ * the same behavior that the other browser SDKs have. A hook operates in a
+ * click listener or a fetch listener of the page, and thus an error from the
+ * hook must not go to the page. The SDK gives one warning on the console for
+ * each instance, and not one warning for each item.
+ */
+export type BeforeSend = (item: SendEvent) => SendEvent | null;
+
+/**
+ * Makes the function that applies the hook of the host. The browser entry and
+ * the server entry use it, and thus the rule on an error and the rule on a
+ * discard have one place.
+ *
+ * It gives null when the SDK must discard the item. An error from the hook also
+ * discards the item: the hook exists to remove data, and thus an item that did
+ * not go through it must not go on the wire. The warning operates one time for
+ * each guard, because a hook that throws an error for each item would fill the
+ * console.
+ */
+export function createBeforeSendGuard(
+  beforeSend: BeforeSend | undefined,
+): (item: SendEvent) => SendEvent | null {
+  let warned = false;
+  return (item) => {
+    if (!beforeSend) return item;
+    try {
+      return beforeSend(item);
+    } catch {
+      if (!warned) {
+        warned = true;
+        console.warn("[everr] beforeSend threw; the SDK discards these items");
+      }
+      return null;
+    }
+  };
+}
+
 type Emitter = [
   emit: Emit,
   flush: () => Promise<void>,
@@ -143,12 +223,15 @@ export function createEmitter(
   scope: { name: string; version: string },
   /** The code calls this for each record. It returns the context envelope. */
   envelope: () => Record<string, AttrValue | null | undefined>,
+  /** The hook of the host on each item. Refer to {@link BeforeSend}. */
+  beforeSend?: BeforeSend,
 ): Emitter {
   const resource = toKeyValues(resourceAttributes);
   let queue: OtlpLogRecord[] = [];
   let spanQueue: OtlpSpan[] = [];
   let timer: ReturnType<typeof setTimeout> | undefined;
   let exitScheduled = false;
+  const applyBeforeSend = createBeforeSendGuard(beforeSend);
 
   // One function makes the OTLP envelope for the two signals. The three keys
   // are different only in their names: resourceLogs, scopeLogs, and logRecords
@@ -202,12 +285,17 @@ export function createEmitter(
   };
 
   const exitFlush = (): void => {
-    // Remove full records, the most recent record first, until the two
-    // keepalive payloads together are less than the limit. The spans get a
-    // maximum of one quarter of the limit, and the log records get the
-    // remainder. This sequence is correct, because the page_leave record and
-    // the vitals in the queue are more important than the fetch operations in
-    // transmission.
+    // Remove full records, the oldest record first, until the two keepalive
+    // payloads together are less than the limit. The spans get a maximum of one
+    // quarter of the limit, and the log records get the remainder.
+    //
+    // The sequence is from the front, because the records of the exit are the
+    // most recent records in the queue. The hide handler of an instrumentation
+    // operates before this function: those listeners registered first, and thus
+    // the page_leave record and the vitals of the exit go into the queue
+    // immediately before this truncation. A sequence from the back removes
+    // them first, which is the opposite of the intention. A record that is
+    // older had the full delay of the batch to go out on a usual flush.
     //
     // The code does not do this when the host sends the data. The limit is a
     // constraint of fetch only. Thus the code discards no record.
@@ -216,12 +304,12 @@ export function createEmitter(
       if (spanQueue.length) {
         spanBytes = bytes(buildSpans());
         while (spanQueue.length > 1 && spanBytes > EXIT_BUDGET / 4) {
-          spanQueue.pop();
+          spanQueue.shift();
           spanBytes = bytes(buildSpans());
         }
       }
       while (queue.length > 1 && bytes(buildLogs()) > EXIT_BUDGET - spanBytes)
-        queue.pop();
+        queue.shift();
     }
     void flush(true);
   };
@@ -264,12 +352,23 @@ export function createEmitter(
     // the user can read.
     body = eventName,
   ) => {
+    const item = applyBeforeSend({
+      kind: "log",
+      eventName,
+      attributes: { ...envelope(), ...attributes },
+      severityNumber,
+      body,
+    });
+    // The type of the hook permits a return of the other kind. Thus this test
+    // is the narrowing that the union needs, and it is not a check on the type
+    // at run time.
+    if (item?.kind !== "log") return;
     queue.push({
       timeUnixNano: `${Date.now()}000000`,
-      severityNumber,
-      eventName,
-      body: toAnyValue(body),
-      attributes: toKeyValues({ ...envelope(), ...attributes }),
+      severityNumber: item.severityNumber,
+      eventName: item.eventName,
+      body: toAnyValue(item.body),
+      attributes: toKeyValues(item.attributes),
     });
     schedule();
   };
@@ -283,17 +382,29 @@ export function createEmitter(
     attributes,
     error,
   ) => {
+    // The hook sees the envelope also, and not only the attributes of the
+    // instrumentation. The envelope carries `url.full`. Thus a host that
+    // removes a query parameter has one place to do it, for the log records,
+    // for the spans of the network instrumentation, and for the spans of its
+    // own instrumentations.
+    const item = applyBeforeSend({
+      kind: "span",
+      name,
+      attributes: { ...envelope(), ...attributes },
+      error,
+    });
+    if (item?.kind !== "span") return;
     spanQueue.push({
       traceId,
       spanId,
-      name,
+      name: item.name,
       kind: 3, // SPAN_KIND_CLIENT
       startTimeUnixNano: `${startEpochMs}000000`,
       endTimeUnixNano: `${endEpochMs}000000`,
-      attributes: toKeyValues({ ...envelope(), ...attributes }),
+      attributes: toKeyValues(item.attributes),
       // This is STATUS_CODE_ERROR. If not, the field is absent and thus Unset,
       // because JSON removes a value of undefined.
-      status: error ? { code: 2 } : undefined,
+      status: item.error ? { code: 2 } : undefined,
     });
     schedule();
   };

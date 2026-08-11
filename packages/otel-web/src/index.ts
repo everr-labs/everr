@@ -11,7 +11,13 @@
 
 export { setAttributes } from "./attributes.js";
 export { WebSDK } from "./client.js";
-export type { AttrValue } from "./emitter.js";
+export type {
+  AttrValue,
+  BeforeSend,
+  LogEvent,
+  SendEvent,
+  SpanEvent,
+} from "./emitter.js";
 export { captureError } from "./errors.js";
 export {
   type ErrorMatcher,

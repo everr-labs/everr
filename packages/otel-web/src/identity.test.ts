@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { getAttributes, setAttributes } from "./attributes.js";
 import {
   identify,
+  persistSession,
   revoke,
   sessionId,
   setPersistence,
@@ -187,6 +188,59 @@ describe("identify scoping", () => {
     // The second call to identify removed all the traits of the previous
     // user.
     expect(set).not.toHaveProperty("user.plan");
+  });
+});
+
+describe("session write throttle", () => {
+  it("writes the activity on a delay, not for each record", () => {
+    vi.spyOn(Date, "now").mockReturnValue(1_000_000);
+    setPersistence("localStorage");
+    const setItem = vi.spyOn(Storage.prototype, "setItem");
+
+    // The first call makes the session. A new id always writes immediately,
+    // because no other tab can find it in memory.
+    const id = sessionId();
+    expect(setItem).toHaveBeenCalledTimes(1);
+
+    // The next 50 records are inside the delay. Thus they change the activity
+    // in memory only, and the main thread does no write.
+    for (let i = 0; i < 50; i++) sessionId();
+    expect(setItem).toHaveBeenCalledTimes(1);
+
+    // After the delay, one record writes the activity again.
+    vi.spyOn(Date, "now").mockReturnValue(1_000_000 + 30_000);
+    expect(sessionId()).toBe(id);
+    expect(setItem).toHaveBeenCalledTimes(2);
+    expect(localStorage.getItem("everr.session")).toContain(id);
+  });
+
+  it("keeps the timeout correct when the store is behind the activity", () => {
+    vi.spyOn(Date, "now").mockReturnValue(1_000_000);
+    setPersistence("localStorage");
+    const id = sessionId();
+
+    // Activity in each minute for 40 minutes. The store keeps a value that is
+    // a maximum of 30 seconds old, but the session in memory is current. Thus
+    // the session does not end.
+    for (let minute = 1; minute <= 40; minute++) {
+      vi.spyOn(Date, "now").mockReturnValue(1_000_000 + minute * 60_000);
+      expect(sessionId()).toBe(id);
+    }
+  });
+
+  it("persistSession writes the activity immediately on the exit path", () => {
+    vi.spyOn(Date, "now").mockReturnValue(1_000_000);
+    setPersistence("localStorage");
+    const id = sessionId();
+
+    vi.spyOn(Date, "now").mockReturnValue(1_000_000 + 5_000);
+    sessionId(); // inside the delay: memory only
+    const setItem = vi.spyOn(Storage.prototype, "setItem");
+    persistSession();
+    expect(setItem).toHaveBeenCalledTimes(1);
+    expect(localStorage.getItem("everr.session")).toBe(
+      JSON.stringify({ id, t: 1_000_000 + 5_000 }),
+    );
   });
 });
 

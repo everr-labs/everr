@@ -8,6 +8,7 @@ import { type NavigationListener, watchNavigation } from "./navigation.js";
 import { routePattern } from "./route.js";
 import {
   createSessionContext,
+  persistSession,
   sessionId,
   setPersistence,
   visitorId,
@@ -91,6 +92,7 @@ export class WebSDK {
       },
       { name: SDK_NAME, version: SDK_VERSION },
       createEnvelope(current),
+      options.beforeSend,
     );
     // This is the only connection of the package functions, logger and
     // captureError, to this pipeline. Each call reads the pipeline from
@@ -142,6 +144,9 @@ export class WebSDK {
     // hidden state. It does not use beforeunload, because beforeunload does not
     // occur on a mobile device and it prevents the bfcache.
     const onHide = () => {
+      // The write of the activity of the session is on a delay. Thus the code
+      // writes it now, while the page can still use the store.
+      persistSession();
       exitFlush();
     };
     const onVisibilityChange = () => {
