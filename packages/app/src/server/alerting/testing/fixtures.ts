@@ -43,7 +43,6 @@ export interface RuleFixture {
 interface RuleOverrides {
   organizationId?: string;
   slug?: string;
-  project?: string;
   sql?: string;
   forSecs?: number;
   intervalSecs?: number;
@@ -52,7 +51,6 @@ interface RuleOverrides {
   resolveAfter?: number;
   nextEvaluationAt?: Date;
   previewId?: string | null;
-  active?: boolean;
 }
 
 function ruleSpec(overrides: RuleOverrides): AlertingRuleSpec {
@@ -88,11 +86,11 @@ export async function insertRule(
       .values({
         organizationId: overrides.organizationId ?? TEST_ORG,
         repoid: "repo_test",
-        project: overrides.project ?? "default",
+        project: "default",
         slug: overrides.slug ?? "checkout-latency",
         spec: ruleSpec(overrides),
         previewId: overrides.previewId ?? null,
-        active: overrides.active ?? true,
+        active: true,
         // Due now, so the scanner picks it up on the first drain.
         nextEvaluationAt: overrides.nextEvaluationAt ?? new Date(),
       })
@@ -143,16 +141,8 @@ const BULK_INSERT_CHUNK_SIZE = 2_000;
 export async function insertRulesInBulk(
   db: Db,
   count: number,
-  overrides: {
-    organizationId?: string;
-    project?: string;
-    slugPrefix?: string;
-    nextEvaluationAt?: Date;
-  } = {},
+  overrides: { nextEvaluationAt?: Date } = {},
 ): Promise<void> {
-  const organizationId = overrides.organizationId ?? TEST_ORG;
-  const project = overrides.project ?? "default";
-  const slugPrefix = overrides.slugPrefix ?? "bulk-rule";
   const nextEvaluationAt = overrides.nextEvaluationAt ?? new Date();
   for (let start = 0; start < count; start += BULK_INSERT_CHUNK_SIZE) {
     const end = Math.min(start + BULK_INSERT_CHUNK_SIZE, count);
@@ -160,10 +150,10 @@ export async function insertRulesInBulk(
       Array.from({ length: end - start }, (_, offset) => {
         const index = start + offset;
         return {
-          organizationId,
+          organizationId: TEST_ORG,
           repoid: "repo_test",
-          project,
-          slug: `${slugPrefix}-${index}`,
+          project: "default",
+          slug: `bulk-rule-${index}`,
           spec: ruleSpec({}),
           active: true,
           nextEvaluationAt,
@@ -218,16 +208,13 @@ export async function insertChannel(
  * A preview row, needed before any rule may carry a `previewId`: the rule's
  * foreign key is composite over (preview_id, organization_id, repoid).
  */
-export async function insertPreview(
-  db: Db,
-  overrides: { organizationId?: string; name?: string } = {},
-) {
+export async function insertPreview(db: Db) {
   const [preview] = await db
     .insert(previews)
     .values({
-      organizationId: overrides.organizationId ?? TEST_ORG,
+      organizationId: TEST_ORG,
       repoid: "repo_test",
-      name: overrides.name ?? "gio/branch",
+      name: "gio/branch",
     })
     .returning({ id: previews.id });
   return preview;
@@ -270,8 +257,6 @@ export async function insertRoute(
     matchers?: AlertingMatcher[];
     continue?: boolean;
     groupBy?: string[] | null;
-    groupWaitSecs?: number | null;
-    groupIntervalSecs?: number | null;
     repeatIntervalSecs?: number | null;
   } = {},
 ) {
@@ -307,8 +292,8 @@ export async function insertRoute(
         matchers: overrides.matchers ?? [],
         continue: overrides.continue ?? false,
         group_by: overrides.groupBy ?? null,
-        group_wait_secs: overrides.groupWaitSecs ?? null,
-        group_interval_secs: overrides.groupIntervalSecs ?? null,
+        group_wait_secs: null,
+        group_interval_secs: null,
         repeat_interval_secs: overrides.repeatIntervalSecs ?? null,
       },
     })
@@ -324,12 +309,16 @@ export async function insertDirectRule(
     // Only needed to pin a specific name; the default below already can't
     // collide.
     channelName?: string;
+    botToken?: string;
+    chatIds?: string[];
   } = {},
 ): Promise<RuleFixture> {
   const rule = await insertRule(db, overrides);
   const channel = await insertChannel(db, {
     organizationId: rule.organizationId,
     type: overrides.channelType ?? "slack",
+    botToken: overrides.botToken,
+    chatIds: overrides.chatIds,
     // Slug alone is not unique enough to derive from: a live rule and a
     // preview of it legitimately share (project, slug), since
     // alert_definitions' own uniqueness on that pair is scoped to preview_id
@@ -353,7 +342,6 @@ export async function insertSilence(
   overrides: {
     organizationId?: string;
     matchers?: AlertingMatcher[];
-    startsAt?: Date;
     endsAt?: Date;
   } = {},
 ) {
@@ -365,7 +353,7 @@ export async function insertSilence(
       matchers: overrides.matchers ?? [
         { label: "service", op: "eq", value: "checkout" },
       ],
-      startsAt: overrides.startsAt ?? now,
+      startsAt: now,
       endsAt: overrides.endsAt ?? new Date(now.getTime() + 3_600_000),
     })
     .returning({ id: alertSilences.id });

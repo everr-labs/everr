@@ -11,7 +11,6 @@ import {
   vi,
 } from "vitest";
 import { ALERT_PROCESS_EVENT_TASK } from "@/data/alerting/delivery/tasks";
-import { ALERTING_DEFAULT_GROUP_WAIT_SECS } from "@/data/alerting/routing/defaults";
 import { pauseRule } from "@/data/alerting/rules/repository";
 import { SYSTEM_ACTOR } from "@/data/alerting/session";
 import {
@@ -113,9 +112,7 @@ describe("the alerting pipeline's suppression", () => {
     // The held event's own retry job wakes exactly at the silence's ends_at,
     // not on the rule's own evaluation interval.
     harness.advance(silenceWindowMs);
-    await harness.runDueJobs();
-    harness.advance(ALERTING_DEFAULT_GROUP_WAIT_SECS * 1_000);
-    await harness.runDueJobs();
+    await harness.fireAndFlush();
 
     expect(harness.fetchCalls()).toHaveLength(1);
     // The chain that was held now carries a delivery outcome: it escaped the
@@ -179,9 +176,7 @@ describe("the alerting pipeline's suppression", () => {
     );
     expect(releaseJobs).toHaveLength(2);
 
-    await harness.runDueJobs();
-    harness.advance(ALERTING_DEFAULT_GROUP_WAIT_SECS * 1_000);
-    await harness.runDueJobs();
+    await harness.fireAndFlush();
 
     // Two distinct rules, so two distinct notification groups: both notify.
     expect(harness.fetchCalls()).toHaveLength(2);
@@ -261,9 +256,7 @@ describe("the alerting pipeline's suppression", () => {
     await harness.runDueJobs();
 
     harness.advance(INHIBITION_RECHECK_SECONDS * 1_000);
-    await harness.runDueJobs();
-    harness.advance(ALERTING_DEFAULT_GROUP_WAIT_SECS * 1_000);
-    await harness.runDueJobs();
+    await harness.fireAndFlush();
 
     expect(harness.fetchCalls()).toHaveLength(1);
   });
@@ -277,9 +270,7 @@ describe("the alerting pipeline's suppression", () => {
     });
     harness.clickhouse.setRows([{ service: "checkout", value: 42 }]);
 
-    await harness.runDueJobs();
-    harness.advance(ALERTING_DEFAULT_GROUP_WAIT_SECS * 1_000);
-    await harness.runDueJobs();
+    await harness.fireAndFlush();
 
     expect(harness.fetchCalls()).toHaveLength(0);
     expect(await harness.db.select().from(alertDeliveries)).toHaveLength(0);
@@ -307,9 +298,7 @@ describe("the alerting pipeline's suppression", () => {
     });
     harness.clickhouse.setRows([{ service: "checkout", value: 42 }]);
 
-    await harness.runDueJobs();
-    harness.advance(ALERTING_DEFAULT_GROUP_WAIT_SECS * 1_000);
-    await harness.runDueJobs();
+    await harness.fireAndFlush();
 
     // Both rules breach at the same severity; only the one that is not a
     // preview may ever notify.
@@ -382,9 +371,7 @@ describe("the alerting pipeline's suppression", () => {
       { service: "shipping", value: 42 },
     ]);
 
-    await harness.runDueJobs();
-    harness.advance(ALERTING_DEFAULT_GROUP_WAIT_SECS * 1_000);
-    await harness.runDueJobs();
+    await harness.fireAndFlush();
 
     expect(harness.fetchCalls()).toHaveLength(1);
     const body = JSON.stringify(harness.fetchCalls()[0].body);

@@ -99,9 +99,7 @@ describe("the alerting pipeline's capacity bounds", () => {
       channelType: "slack",
     });
     harness.clickhouse.setRows([{ service: "stale", value: 42 }]);
-    await harness.runDueJobs();
-    harness.advance(ALERTING_DEFAULT_GROUP_WAIT_SECS * 1000);
-    await harness.runDueJobs();
+    await harness.fireAndFlush();
     // The stale member's first notification already went out: it is now
     // `active` (still firing, membership kept with flushedAt set) rather
     // than gone, which is what lets it compete for the claim below.
@@ -277,9 +275,7 @@ describe("the alerting pipeline's capacity bounds", () => {
       value: 42,
     }));
     harness.clickhouse.setRows(rows);
-    await harness.runDueJobs();
-    harness.advance(ALERTING_DEFAULT_GROUP_WAIT_SECS * 1000);
-    await harness.runDueJobs();
+    await harness.fireAndFlush();
 
     expect(harness.fetchCalls()).toHaveLength(1);
     const body = harness.fetchCalls()[0].body as {
@@ -309,9 +305,7 @@ describe("the alerting pipeline's capacity bounds", () => {
     });
     harness.clickhouse.setRows([{ service: "checkout", value: 42 }]);
     harness.setFetchResponse({ status: 403 });
-    await harness.runDueJobs();
-    harness.advance(ALERTING_DEFAULT_GROUP_WAIT_SECS * 1000);
-    await harness.runDueJobs();
+    await harness.fireAndFlush();
 
     const [permanentDelivery] = await harness.db
       .select()
@@ -335,9 +329,9 @@ describe("the alerting pipeline's capacity bounds", () => {
     harness.advance(ALERTING_DEFAULT_GROUP_WAIT_SECS * 1000);
     await harness.runDueJobs(); // flush, then the first send attempt
 
-    // graphile's own backoff (job-driver.ts) is exp(attempts) seconds, never
-    // exceeding exp(ALERT_DELIVERY_MAX_ATTEMPTS) here; this headroom clears
-    // it regardless of which attempt we are on.
+    // The harness re-implements graphile's backoff (job-driver.ts) as
+    // exp(attempts) seconds, never exceeding exp(ALERT_DELIVERY_MAX_ATTEMPTS)
+    // here; this headroom clears it regardless of which attempt we are on.
     const BACKOFF_HEADROOM_MS = 200_000;
     for (let attempt = 1; attempt < ALERT_DELIVERY_MAX_ATTEMPTS; attempt += 1) {
       harness.advance(BACKOFF_HEADROOM_MS);

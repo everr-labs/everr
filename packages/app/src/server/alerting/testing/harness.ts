@@ -1,4 +1,5 @@
 import { vi } from "vitest";
+import { ALERTING_DEFAULT_GROUP_WAIT_SECS } from "@/data/alerting/routing/defaults";
 import { activeClickHouse, type ClickHouseDouble } from "./clickhouse-double";
 import { setTestDatabase } from "./db-proxy";
 import { failedJobs, pendingJobs, runDueJobs } from "./job-driver";
@@ -17,6 +18,14 @@ export interface AlertingHarness {
   failedJobs(): ReturnType<typeof failedJobs>;
   setNow(when: Date): void;
   advance(ms: number): void;
+  /**
+   * The two drains a notification always needs, with the group wait between
+   * them. No dispatch is immediate: even a rule wired straight to a channel
+   * waits `ALERTING_DEFAULT_GROUP_WAIT_SECS`, so the first drain only fires
+   * and enqueues, and nothing is sent until the wait elapses and the flush
+   * claims the group.
+   */
+  fireAndFlush(): Promise<void>;
   reset(): Promise<void>;
   close(): Promise<void>;
 }
@@ -67,6 +76,13 @@ export async function createAlertingHarness(): Promise<AlertingHarness> {
     },
     advance(ms) {
       vi.setSystemTime(new Date(Date.now() + ms));
+    },
+    async fireAndFlush() {
+      await runDueJobs(database.db);
+      vi.setSystemTime(
+        new Date(Date.now() + ALERTING_DEFAULT_GROUP_WAIT_SECS * 1_000),
+      );
+      await runDueJobs(database.db);
     },
     async reset() {
       await database.truncate();

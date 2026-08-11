@@ -149,9 +149,7 @@ describe("the alerting pipeline's instance lifecycle", () => {
       channelType: "slack",
     });
     harness.clickhouse.setRows([{ service: "checkout", value: 42 }]);
-    await harness.runDueJobs();
-    harness.advance(ALERTING_DEFAULT_GROUP_WAIT_SECS * 1_000);
-    await harness.runDueJobs();
+    await harness.fireAndFlush();
     expect(harness.fetchCalls()).toHaveLength(1);
 
     harness.clickhouse.setRows([]);
@@ -656,9 +654,7 @@ describe("the alerting pipeline's organization isolation", () => {
     await insertSilence(harness.db);
     harness.clickhouse.setRows([{ service: "checkout", value: 42 }]);
 
-    await harness.runDueJobs();
-    harness.advance(ALERTING_DEFAULT_GROUP_WAIT_SECS * 1_000);
-    await harness.runDueJobs();
+    await harness.fireAndFlush();
 
     // Only org B notifies. Org A's identically-labeled instance stays held.
     expect(harness.fetchCalls()).toHaveLength(1);
@@ -736,9 +732,7 @@ describe("the alerting pipeline's organization isolation", () => {
     const { ruleA, channelA } = await insertTwinRoutedRules();
     harness.clickhouse.setRows([{ service: "checkout", value: 42 }]);
 
-    await harness.runDueJobs();
-    harness.advance(ALERTING_DEFAULT_GROUP_WAIT_SECS * 1_000);
-    await harness.runDueJobs();
+    await harness.fireAndFlush();
 
     expect(harness.fetchCalls()).toHaveLength(2);
 
@@ -810,9 +804,7 @@ describe("the alerting pipeline's organization isolation", () => {
     });
     harness.clickhouse.setRows([{ service: "checkout", value: 42 }]);
 
-    await harness.runDueJobs();
-    harness.advance(ALERTING_DEFAULT_GROUP_WAIT_SECS * 1_000);
-    await harness.runDueJobs();
+    await harness.fireAndFlush();
 
     // Org A's target is held by its own inhibition; org B's target, with no
     // inhibition of its own, notifies normally.

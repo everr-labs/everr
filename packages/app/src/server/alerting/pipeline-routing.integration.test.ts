@@ -10,7 +10,6 @@ import {
   it,
   vi,
 } from "vitest";
-import { ALERTING_DEFAULT_GROUP_WAIT_SECS } from "@/data/alerting/routing/defaults";
 import {
   alertDeliveries,
   alertNotificationGroups,
@@ -59,9 +58,7 @@ async function fireDefaultRuleAndFlush(
 ) {
   await insertRule(harness.db, { forSecs: 0, ...overrides });
   harness.clickhouse.setRows([{ service: "checkout", value: 42 }]);
-  await harness.runDueJobs();
-  harness.advance(ALERTING_DEFAULT_GROUP_WAIT_SECS * 1000);
-  await harness.runDueJobs();
+  await harness.fireAndFlush();
 }
 
 describe("the alerting pipeline's routing", () => {
@@ -85,9 +82,7 @@ describe("the alerting pipeline's routing", () => {
     await insertRoute(harness.db, { receiver: receiver.name });
 
     harness.clickhouse.setRows([{ service: "checkout", value: 42 }]);
-    await harness.runDueJobs();
-    harness.advance(ALERTING_DEFAULT_GROUP_WAIT_SECS * 1000);
-    await harness.runDueJobs();
+    await harness.fireAndFlush();
 
     expect(harness.fetchCalls()).toHaveLength(1);
     const deliveries = await harness.db.select().from(alertDeliveries);
@@ -393,9 +388,7 @@ describe("the alerting pipeline's routing", () => {
       { service: "svc-a", value: 42 },
       { service: "svc-b", value: 42 },
     ]);
-    await harness.runDueJobs();
-    harness.advance(ALERTING_DEFAULT_GROUP_WAIT_SECS * 1000);
-    await harness.runDueJobs();
+    await harness.fireAndFlush();
 
     expect(harness.fetchCalls()).toHaveLength(2);
     const groups = await harness.db.select().from(alertNotificationGroups);
@@ -443,9 +436,7 @@ describe("the alerting pipeline's routing", () => {
     harness.clickhouse.setRows([
       { service: "checkout", severity: "critical", value: 42 },
     ]);
-    await harness.runDueJobs();
-    harness.advance(ALERTING_DEFAULT_GROUP_WAIT_SECS * 1000);
-    await harness.runDueJobs();
+    await harness.fireAndFlush();
 
     expect(harness.fetchCalls()).toHaveLength(1);
     const [delivery] = await harness.db.select().from(alertDeliveries);

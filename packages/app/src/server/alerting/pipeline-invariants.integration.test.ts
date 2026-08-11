@@ -190,9 +190,7 @@ describe("the alerting pipeline's PostgreSQL invariants", () => {
       channelType: "webhook",
     });
     harness.clickhouse.setRows([{ service: "checkout", value: 42 }]);
-    await harness.runDueJobs();
-    harness.advance(ALERTING_DEFAULT_GROUP_WAIT_SECS * 1000);
-    await harness.runDueJobs();
+    await harness.fireAndFlush();
 
     const [groupBefore] = await harness.db
       .select()
@@ -241,6 +239,15 @@ describe("the alerting pipeline's PostgreSQL invariants", () => {
       previewId: preview.id,
     });
 
+    // Both halves, or the case only pins one of the two indexes and a
+    // regression in the other reads as green.
+    await expectConstraintViolation(
+      insertRule(harness.db, {
+        slug: "checkout-latency",
+        previewId: preview.id,
+      }),
+      "alert_definitions_preview_project_slug_uq",
+    );
     await expectConstraintViolation(
       insertRule(harness.db, { slug: "checkout-latency" }),
       "alert_definitions_live_project_slug_uq",

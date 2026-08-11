@@ -26,7 +26,6 @@ import { deleteRule, pauseRule } from "@/data/alerting/rules/repository";
 import { SYSTEM_ACTOR } from "@/data/alerting/session";
 import {
   alertChannels,
-  alertDefinitionChannels,
   alertDeliveries,
   alertEvents,
   alertNotificationGroupEvents,
@@ -42,7 +41,6 @@ import {
   insertReceiver,
   insertRoute,
   insertRule,
-  type RuleFixture,
   TEST_ORG,
 } from "./testing/fixtures";
 import { type AlertingHarness, createAlertingHarness } from "./testing/harness";
@@ -79,19 +77,6 @@ afterAll(async () => {
 // the default 10s group wait, so several cases can drive two dispatches into
 // one group without the flush job running in between.
 const FAST_TICK_SECS = 3;
-
-async function linkChannelToRule(
-  db: AlertingHarness["db"],
-  rule: RuleFixture,
-  channelId: string,
-): Promise<void> {
-  await db.insert(alertDefinitionChannels).values({
-    organizationId: rule.organizationId,
-    alertDefinitionId: rule.id,
-    channelId,
-    position: 0,
-  });
-}
 
 describe("the alerting pipeline's delivery", () => {
   it("holds three instances of one rule inside the group wait, then sends one message naming all three", async () => {
@@ -143,9 +128,7 @@ describe("the alerting pipeline's delivery", () => {
       channelType: "slack",
     });
     harness.clickhouse.setRows([{ service: "svc-a", value: 42 }]);
-    await harness.runDueJobs();
-    harness.advance(ALERTING_DEFAULT_GROUP_WAIT_SECS * 1000);
-    await harness.runDueJobs();
+    await harness.fireAndFlush();
     expect(harness.fetchCalls()).toHaveLength(1);
 
     harness.clickhouse.setRows([
@@ -192,9 +175,7 @@ describe("the alerting pipeline's delivery", () => {
     await insertRule(harness.db, { forSecs: 0 });
     harness.clickhouse.setRows([{ service: "checkout", value: 42 }]);
 
-    await harness.runDueJobs();
-    harness.advance(ALERTING_DEFAULT_GROUP_WAIT_SECS * 1000);
-    await harness.runDueJobs();
+    await harness.fireAndFlush();
     expect(harness.fetchCalls()).toHaveLength(1);
 
     // The route's repeat interval (60s) is well short of the group interval
@@ -285,9 +266,7 @@ describe("the alerting pipeline's delivery", () => {
     harness.clickhouse.setRows([{ service: "checkout", value: 42 }]);
     harness.setFetchResponse({ status: 403 });
 
-    await harness.runDueJobs();
-    harness.advance(ALERTING_DEFAULT_GROUP_WAIT_SECS * 1000);
-    await harness.runDueJobs();
+    await harness.fireAndFlush();
 
     expect(harness.fetchCalls()).toHaveLength(1);
     const [delivery] = await harness.db.select().from(alertDeliveries);
@@ -335,13 +314,11 @@ describe("the alerting pipeline's delivery", () => {
   });
 
   it("keeps retrying a telegram fan-out when one recipient is permanent and another is transient", async () => {
-    const rule = await insertRule(harness.db, { forSecs: 0 });
-    const channel = await insertChannel(harness.db, {
-      organizationId: rule.organizationId,
-      type: "telegram",
+    await insertDirectRule(harness.db, {
+      forSecs: 0,
+      channelType: "telegram",
       chatIds: ["chat-a", "chat-b"],
     });
-    await linkChannelToRule(harness.db, rule, channel.id);
     harness.clickhouse.setRows([{ service: "checkout", value: 42 }]);
 
     // chat-a always answers permanent (403), chat-b always answers transient
@@ -381,9 +358,7 @@ describe("the alerting pipeline's delivery", () => {
     await insertDirectRule(harness.db, { forSecs: 0, channelType: "webhook" });
     harness.clickhouse.setRows([{ service: "checkout", value: 42 }]);
 
-    await harness.runDueJobs();
-    harness.advance(ALERTING_DEFAULT_GROUP_WAIT_SECS * 1000);
-    await harness.runDueJobs();
+    await harness.fireAndFlush();
 
     expect(harness.fetchCalls()).toHaveLength(1);
     const [delivery] = await harness.db.select().from(alertDeliveries);
@@ -411,9 +386,7 @@ describe("the alerting pipeline's delivery", () => {
       channelName: "delete-me",
     });
     harness.clickhouse.setRows([{ service: "checkout", value: 42 }]);
-    await harness.runDueJobs();
-    harness.advance(ALERTING_DEFAULT_GROUP_WAIT_SECS * 1000);
-    await harness.runDueJobs();
+    await harness.fireAndFlush();
 
     const [sent] = await harness.db.select().from(alertDeliveries);
     expect(sent.status).toBe("sent");
@@ -644,18 +617,16 @@ describe("the alerting pipeline's delivery", () => {
       slug: "webhook-rule",
       forSecs: 0,
       channelType: "webhook",
+      channelName: "webhook-channel",
     });
-    const telegramRule = await insertRule(harness.db, {
+    await insertDirectRule(harness.db, {
       slug: "telegram-rule",
       forSecs: 0,
-    });
-    const telegramChannel = await insertChannel(harness.db, {
-      organizationId: telegramRule.organizationId,
-      type: "telegram",
+      channelType: "telegram",
+      channelName: "telegram-channel",
       chatIds: [leakedChatId],
       botToken: leakedToken,
     });
-    await linkChannelToRule(harness.db, telegramRule, telegramChannel.id);
 
     harness.clickhouse.setRows([{ service: "checkout", value: 42 }]);
     // Both a webhook and a telegram provider can echo request details back in
@@ -667,12 +638,17 @@ describe("the alerting pipeline's delivery", () => {
         : { status: 403, body: `forbidden, retry at ${leakedUrl}` },
     );
 
-    await harness.runDueJobs();
-    harness.advance(ALERTING_DEFAULT_GROUP_WAIT_SECS * 1000);
-    await harness.runDueJobs();
+    await harness.fireAndFlush();
 
     const deliveries = await harness.db.select().from(alertDeliveries);
-    expect(deliveries.length).toBeGreaterThan(0);
+    // Both channels must have tried and failed. A count of "more than zero"
+    // would still pass if the telegram send never happened, and then the
+    // token and chat-id assertions below would be checking the webhook row
+    // only: the leak path this case exists for would go unread.
+    expect(deliveries.map((row) => row.channelName).sort()).toEqual([
+      "telegram-channel",
+      "webhook-channel",
+    ]);
     for (const delivery of deliveries) {
       expect(delivery.lastError).not.toContain("https://");
       expect(delivery.lastError).not.toContain(leakedToken);
@@ -685,7 +661,13 @@ describe("the alerting pipeline's delivery", () => {
     const failedRows = harness.clickhouse
       .historyRows()
       .filter((row) => row.event_type === "delivery_failed");
-    expect(failedRows.length).toBeGreaterThan(0);
+    expect(
+      failedRows
+        .flatMap((row) =>
+          Object.keys(row.delivery_targets as Record<string, unknown>),
+        )
+        .sort(),
+    ).toEqual(["telegram", "webhook"]);
     for (const row of failedRows) {
       const error = row.error as string;
       expect(error).not.toContain("https://");
