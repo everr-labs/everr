@@ -816,7 +816,7 @@ vi.mock("@/lib/clickhouse", async () => import("./testing/clickhouse-double"));
 let harness: AlertingHarness;
 
 beforeAll(async () => {
-  vi.useFakeTimers({ shouldAdvanceTime: false });
+  vi.useFakeTimers({ toFake: ["Date"] });
   harness = await createAlertingHarness();
 }, 60_000);
 
@@ -1230,7 +1230,7 @@ vi.mock("@/lib/clickhouse", async () => import("./testing/clickhouse-double"));
 let harness: AlertingHarness;
 
 beforeAll(async () => {
-  vi.useFakeTimers({ shouldAdvanceTime: false });
+  vi.useFakeTimers({ toFake: ["Date"] });
   harness = await createAlertingHarness();
 }, 60_000);
 
