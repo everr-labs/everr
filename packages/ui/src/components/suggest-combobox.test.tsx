@@ -11,6 +11,11 @@ function renderCombobox({
   value = "",
   displayValue,
   onChange = vi.fn(),
+}: {
+  items?: SuggestItem[];
+  value?: string;
+  displayValue?: string;
+  onChange?: (next: string) => void;
 } = {}) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
