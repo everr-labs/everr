@@ -74,7 +74,7 @@ export async function createTestDatabase(): Promise<TestDatabase> {
   const targets = await db.execute<{ target: string }>(sql`
     SELECT format('%I.%I', schemaname, tablename) AS target
     FROM pg_tables
-    WHERE (schemaname = 'public' AND tablename LIKE 'alert%')
+    WHERE (schemaname = 'public' AND (tablename LIKE 'alert%' OR tablename = 'previews'))
        OR schemaname = ${GRAPHILE_WORKER_SCHEMA}
   `);
   if (targets.rows.length === 0) {

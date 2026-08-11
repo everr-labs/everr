@@ -163,7 +163,6 @@ export async function insertChannel(
  * A preview row, needed before any rule may carry a `previewId`: the rule's
  * foreign key is composite over (preview_id, organization_id, repoid).
  */
-// fallow-ignore-next-line unused-export
 export async function insertPreview(
   db: Db,
   overrides: { organizationId?: string; name?: string } = {},
@@ -269,12 +268,18 @@ export async function insertDirectRule(
   db: Db,
   overrides: RuleOverrides & {
     channelType?: "slack" | "discord" | "webhook" | "telegram";
+    // insertChannel's own default name collides across the second
+    // insertDirectRule call in one org, since alert_channels is unique on
+    // (organization_id, name). Only needed once a test wires up more than
+    // one direct rule in the same org.
+    channelName?: string;
   } = {},
 ): Promise<RuleFixture> {
   const rule = await insertRule(db, overrides);
   const channel = await insertChannel(db, {
     organizationId: rule.organizationId,
     type: overrides.channelType ?? "slack",
+    name: overrides.channelName,
   });
   await db.insert(alertDefinitionChannels).values({
     organizationId: rule.organizationId,
@@ -285,7 +290,6 @@ export async function insertDirectRule(
   return rule;
 }
 
-// fallow-ignore-next-line unused-export
 export async function insertSilence(
   db: Db,
   overrides: {
@@ -310,7 +314,6 @@ export async function insertSilence(
   return silence;
 }
 
-// fallow-ignore-next-line unused-export
 export async function insertInhibition(
   db: Db,
   overrides: {
