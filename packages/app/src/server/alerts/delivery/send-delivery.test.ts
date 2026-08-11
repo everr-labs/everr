@@ -26,7 +26,7 @@ vi.mock("@/db/client", () => ({
   db: {
     select: () => ({
       from: () => ({
-        innerJoin: () => ({
+        leftJoin: () => ({
           where: () => ({
             limit: () => Promise.resolve(mocks.deliveryRows),
           }),
@@ -100,6 +100,30 @@ describe("sendAlertDelivery rule liveness", () => {
         // delivery_targets keys on it.
         channelType: "webhook",
         error: expect.stringContaining("paused"),
+      }),
+    );
+  });
+
+  it("records a terminal failure when the channel was deleted before the send", async () => {
+    // The left join keeps the delivery and drops the channel.
+    mocks.deliveryRows = [{ ...deliveryRow, channel: null }];
+
+    await sendAlertDelivery({ dedupKey: "dk-1" });
+
+    expect(mocks.send).not.toHaveBeenCalled();
+    expect(mocks.set).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: "failed",
+        attempts: ALERT_DELIVERY_MAX_ATTEMPTS,
+      }),
+    );
+    // The journal entry is the point: returning silently here would leave a
+    // notification that never arrived and never said why.
+    expect(mocks.outcome).toHaveBeenCalledWith(
+      expect.objectContaining({
+        outcome: "failed",
+        channelName: deliveryRow.delivery.channelName,
+        error: expect.stringContaining("deleted"),
       }),
     );
   });

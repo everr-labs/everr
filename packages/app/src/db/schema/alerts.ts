@@ -636,7 +636,15 @@ export const alertDeliveries = pgTable(
       () => alertNotificationGroups.id,
       { onDelete: "set null" },
     ),
-    channelId: uuid("channel_id").notNull(),
+    // Nullable, and cleared by deleteChannel before it removes the channel:
+    // the row is the record of a notification, not a reference to live config.
+    // `channel_name` carries the channel's identity for a reader, and the
+    // ClickHouse history carries it again, so a delete costs the trail
+    // nothing. Only the send path needs the channel itself, and only until the
+    // delivery reaches a terminal state. The clearing is explicit rather than
+    // ON DELETE SET NULL because this foreign key is composite: Postgres would
+    // null organization_id along with it, and that column is NOT NULL.
+    channelId: uuid("channel_id"),
     channelName: text("channel_name").notNull(),
     notification: jsonb("notification")
       .notNull()
@@ -666,11 +674,15 @@ export const alertDeliveries = pgTable(
     }),
     check("alert_deliveries_attempts_nonnegative", sql`${table.attempts} >= 0`),
     index("alert_deliveries_org_idx").on(table.organizationId),
-    // Backs deleteChannel's reference check, filtered on both columns.
-    index("alert_deliveries_org_channel_idx").on(
-      table.organizationId,
-      table.channelId,
-    ),
+    // Backs deleteChannel's reference check. Partial on the in-flight rows,
+    // the only ones that block a delete: the terminal rows for a busy channel
+    // outnumber them by the whole retention window, and scanning those to
+    // answer "is anything still sending" is the cost this predicate removes.
+    index("alert_deliveries_org_channel_inflight_idx")
+      .on(table.organizationId, table.channelId)
+      .where(
+        sql`${table.status} = 'pending' OR (${table.status} = 'failed' AND ${table.attempts} < 5)`,
+      ),
     index("alert_deliveries_terminal_cleanup_idx")
       .on(table.updatedAt, table.dedupKey)
       .where(

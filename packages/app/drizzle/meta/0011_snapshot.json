@@ -565,7 +565,7 @@
           "name": "channel_id",
           "type": "uuid",
           "primaryKey": false,
-          "notNull": true
+          "notNull": false
         },
         "channel_name": {
           "name": "channel_name",
@@ -634,6 +634,28 @@
             }
           ],
           "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "alert_deliveries_org_channel_inflight_idx": {
+          "name": "alert_deliveries_org_channel_inflight_idx",
+          "columns": [
+            {
+              "expression": "organization_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "channel_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "where": "\"alert_deliveries\".\"status\" = 'pending' OR (\"alert_deliveries\".\"status\" = 'failed' AND \"alert_deliveries\".\"attempts\" < 5)",
           "concurrently": false,
           "method": "btree",
           "with": {}

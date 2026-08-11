@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { and, asc, desc, eq, inArray } from "drizzle-orm";
+import { and, asc, countDistinct, desc, eq, inArray } from "drizzle-orm";
 import { type DbExecutor, db } from "@/db/client";
 import {
   alertChannels,
@@ -11,6 +11,7 @@ import {
   alertReceivers,
   alertRoutes,
 } from "@/db/schema";
+import { deliveryIsInFlight } from "@/server/alerts/delivery/config";
 import {
   throwAlertingPersistenceError,
   translateAlertingConflict,
@@ -170,24 +171,45 @@ export async function deleteChannel(
       `Channel is used directly by alerts: ${definitionRefs.map((r) => `${r.project}/${r.slug}`).join(", ")}`,
     );
   }
-  const [delivery] = await db
-    .select({ dedupKey: alertDeliveries.dedupKey })
-    .from(alertDeliveries)
-    .where(
-      and(
-        eq(alertDeliveries.organizationId, organizationId),
-        eq(alertDeliveries.channelId, channel.id),
-      ),
-    )
-    .limit(1);
-  if (delivery) {
-    throwAlertingPersistenceError(
-      409,
-      "conflict",
-      "Channel is referenced by notification history",
-    );
-  }
-  await db.delete(alertChannels).where(eq(alertChannels.id, channel.id));
+  // One transaction: a flush that inserts a delivery for this channel between
+  // the count and the delete would otherwise slip past the guard. It can still
+  // land between the update and the delete, and then the foreign key rejects
+  // the delete and the whole thing rolls back, which is the safe direction.
+  await db.transaction(async (tx) => {
+    // Settled deliveries keep the channel's name, not the channel, so they do
+    // not block. Only a delivery that still has a send to make needs the
+    // config, and those drain in minutes, so this refusal is worth waiting
+    // out rather than permanent.
+    const [inFlight] = await tx
+      .select({ count: countDistinct(alertDeliveries.dedupKey) })
+      .from(alertDeliveries)
+      .where(
+        and(
+          eq(alertDeliveries.organizationId, organizationId),
+          eq(alertDeliveries.channelId, channel.id),
+          deliveryIsInFlight,
+        ),
+      );
+    if (inFlight && inFlight.count > 0) {
+      throwAlertingPersistenceError(
+        409,
+        "conflict",
+        `Channel has ${inFlight.count} notification${inFlight.count === 1 ? "" : "s"} still sending; retry once they settle`,
+      );
+    }
+    // Release the settled rows before the delete. `channel_name` already
+    // carries what a reader needs, so the trail keeps its meaning.
+    await tx
+      .update(alertDeliveries)
+      .set({ channelId: null })
+      .where(
+        and(
+          eq(alertDeliveries.organizationId, organizationId),
+          eq(alertDeliveries.channelId, channel.id),
+        ),
+      );
+    await tx.delete(alertChannels).where(eq(alertChannels.id, channel.id));
+  });
   return { deleted: true };
 }
 

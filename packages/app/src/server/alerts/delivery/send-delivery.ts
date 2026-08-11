@@ -18,7 +18,10 @@ export async function sendAlertDelivery(rawPayload: unknown): Promise<void> {
   const [row] = await db
     .select({ delivery: alertDeliveries, channel: alertChannels })
     .from(alertDeliveries)
-    .innerJoin(
+    // Left, not inner: a channel deleted after the flush wrote this row
+    // clears `channel_id`, and an inner join would drop the delivery here.
+    // The row must still reach a terminal state with a reason.
+    .leftJoin(
       alertChannels,
       and(
         eq(alertDeliveries.organizationId, alertChannels.organizationId),
@@ -65,6 +68,19 @@ export async function sendAlertDelivery(rawPayload: unknown): Promise<void> {
       error,
     });
   };
+  const channel = row.channel;
+  if (!channel) {
+    // No config left to send with, and no retry can bring it back, so this
+    // is terminal at the max attempts for the same reason the withheld path
+    // below is. Silence here would read as "nothing was sent" with no record
+    // of why, which is the one thing the trail must never do.
+    await failDelivery(
+      "unknown",
+      `Withheld: channel ${row.delivery.channelName} was deleted before the send ran`,
+      ALERT_DELIVERY_MAX_ATTEMPTS,
+    );
+    return;
+  }
   const [liveRule] = await liveRuleForDeliveryQuery(db, dedupKey);
   if (!liveRule) {
     // A pause or delete that committed after the flush wrote this delivery.
@@ -78,8 +94,8 @@ export async function sendAlertDelivery(rawPayload: unknown): Promise<void> {
     try {
       withheldChannelType = decryptChannelConfig(
         row.delivery.organizationId,
-        row.channel.id,
-        row.channel.encryptedConfig,
+        channel.id,
+        channel.encryptedConfig,
       ).type;
     } catch {
       // Config unreadable; the placeholder stays.
@@ -102,8 +118,8 @@ export async function sendAlertDelivery(rawPayload: unknown): Promise<void> {
   try {
     const config = decryptChannelConfig(
       row.delivery.organizationId,
-      row.channel.id,
-      row.channel.encryptedConfig,
+      channel.id,
+      channel.encryptedConfig,
     );
     channelType = config.type;
     await sendChannelNotification(config, row.delivery.notification);

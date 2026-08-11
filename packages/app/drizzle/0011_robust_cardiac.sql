@@ -79,7 +79,7 @@ CREATE TABLE "alert_deliveries" (
 	"dedup_key" text PRIMARY KEY NOT NULL,
 	"organization_id" text NOT NULL,
 	"notification_group_id" uuid,
-	"channel_id" uuid NOT NULL,
+	"channel_id" uuid,
 	"channel_name" text NOT NULL,
 	"notification" jsonb NOT NULL,
 	"status" "alert_delivery_state" DEFAULT 'pending' NOT NULL,
@@ -238,6 +238,7 @@ CREATE UNIQUE INDEX "alert_channels_org_name_uq" ON "alert_channels" USING btree
 CREATE UNIQUE INDEX "alert_definition_channels_definition_position_uq" ON "alert_definition_channels" USING btree ("alert_definition_id","position");--> statement-breakpoint
 CREATE INDEX "alert_definition_channels_channel_idx" ON "alert_definition_channels" USING btree ("channel_id");--> statement-breakpoint
 CREATE INDEX "alert_deliveries_org_idx" ON "alert_deliveries" USING btree ("organization_id");--> statement-breakpoint
+CREATE INDEX "alert_deliveries_org_channel_inflight_idx" ON "alert_deliveries" USING btree ("organization_id","channel_id") WHERE "alert_deliveries"."status" = 'pending' OR ("alert_deliveries"."status" = 'failed' AND "alert_deliveries"."attempts" < 5);--> statement-breakpoint
 CREATE INDEX "alert_deliveries_terminal_cleanup_idx" ON "alert_deliveries" USING btree ("updated_at","dedup_key") WHERE "alert_deliveries"."status" = 'sent' OR ("alert_deliveries"."status" = 'failed' AND "alert_deliveries"."attempts" >= 5);--> statement-breakpoint
 CREATE INDEX "alert_delivery_events_event_idx" ON "alert_delivery_events" USING btree ("event_id");--> statement-breakpoint
 CREATE INDEX "alert_evaluations_scheduled_idx" ON "alert_evaluations" USING btree ("scheduled_for");--> statement-breakpoint

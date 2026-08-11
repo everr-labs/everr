@@ -1444,7 +1444,7 @@ function ChannelsSection({
                       blockingReceivers.length > 0
                         ? `This channel is the only destination for ${blockingReceivers.length} ${blockingReceivers.length === 1 ? "receiver" : "receivers"}, so it cannot be removed automatically yet.`
                         : referencingReceivers.length === 0
-                          ? "This channel is not used by any receiver. This cannot be undone."
+                          ? "No receiver uses this channel. Past notifications keep its name in their record. This cannot be undone."
                           : `This will update ${referencingReceivers.length} ${referencingReceivers.length === 1 ? "receiver" : "receivers"} before deleting the channel. This cannot be undone.`
                     }
                     confirmLabel="Delete channel"
