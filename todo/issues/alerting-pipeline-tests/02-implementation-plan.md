@@ -1414,7 +1414,13 @@ These cases assert against PostgreSQL itself. Several use raw inserts rather tha
 5. One slug is legal once as a live rule and once per preview: both inserts succeed, and a second live rule with the same slug is rejected.
 6. A transaction that enqueues a job and then throws leaves no job. Open a transaction, call `addWorkerJobInTransaction`, throw, and assert `pendingJobs()` is empty.
 7. Two evaluation enqueues for one `scheduledFor` collapse to one job, and the surviving job carries the newer payload.
-8. `alertingPartitionQueue` gives the same queue for the same id every time, and 200 distinct ids spread over more than one queue.
+8. Queue partitioning holds in the queue itself, not only in the helper. Read
+   `queue_name` off the rows graphile-worker actually wrote: every job enqueued
+   for one group carries the same queue name, which is what serializes that
+   group's flushes, and jobs for many different rules land on more than one
+   queue. Do not test `alertingPartitionQueue` as a pure function:
+   `scheduling/scanner.test.ts` already pins its 64-partition bound and its
+   stability, and repeating that here proves nothing new.
 
 **Commit:** `test(alerts): the constraints the database enforces`
 
