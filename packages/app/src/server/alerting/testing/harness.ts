@@ -1,0 +1,78 @@
+import { vi } from "vitest";
+import { activeClickHouse, type ClickHouseDouble } from "./clickhouse-double";
+import { setTestDatabase } from "./db-proxy";
+import { failedJobs, pendingJobs, runDueJobs } from "./job-driver";
+import { createTestDatabase, type TestDatabase } from "./pglite-database";
+
+type FetchResponse = { status: number; body?: string };
+type FetchResponder = FetchResponse | ((url: string) => FetchResponse);
+
+export interface AlertingHarness {
+  db: TestDatabase["db"];
+  clickhouse: ClickHouseDouble;
+  fetchCalls(): { url: string; body: unknown }[];
+  setFetchResponse(responder: FetchResponder): void;
+  runDueJobs(opts?: { limit?: number }): Promise<number>;
+  pendingJobs(): ReturnType<typeof pendingJobs>;
+  failedJobs(): ReturnType<typeof failedJobs>;
+  setNow(when: Date): void;
+  advance(ms: number): void;
+  reset(): Promise<void>;
+  close(): Promise<void>;
+}
+
+export async function createAlertingHarness(): Promise<AlertingHarness> {
+  const database = await createTestDatabase();
+  setTestDatabase(database.db);
+
+  let responder: FetchResponder = { status: 200, body: "ok" };
+  const calls: { url: string; body: unknown }[] = [];
+
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+      const url = typeof input === "string" ? input : input.toString();
+      let body: unknown = init?.body;
+      if (typeof init?.body === "string") {
+        try {
+          body = JSON.parse(init.body);
+        } catch {
+          // A provider that posts form-encoded text keeps its raw string.
+        }
+      }
+      calls.push({ url, body });
+      const response =
+        typeof responder === "function" ? responder(url) : responder;
+      return new Response(response.body ?? "", { status: response.status });
+    }),
+  );
+
+  return {
+    db: database.db,
+    clickhouse: activeClickHouse,
+    fetchCalls: () => calls,
+    setFetchResponse(next) {
+      responder = next;
+    },
+    runDueJobs: (opts) => runDueJobs(database.db, opts),
+    pendingJobs: () => pendingJobs(database.db),
+    failedJobs: () => failedJobs(database.db),
+    setNow(when) {
+      vi.setSystemTime(when);
+    },
+    advance(ms) {
+      vi.setSystemTime(new Date(Date.now() + ms));
+    },
+    async reset() {
+      await database.truncate();
+      activeClickHouse.reset();
+      calls.length = 0;
+      responder = { status: 200, body: "ok" };
+    },
+    async close() {
+      setTestDatabase(undefined);
+      vi.unstubAllGlobals();
+      await database.close();
+    },
+  };
+}

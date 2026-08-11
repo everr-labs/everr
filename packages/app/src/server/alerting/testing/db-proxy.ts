@@ -1,6 +1,3 @@
-// fallow-ignore-file unused-file
-// Not imported yet: the smoke test that mocks @/db/client with this module
-// lands in a later task, in the same pipeline-test-harness plan.
 import { PgTransaction } from "drizzle-orm/pg-core";
 import type { PgliteDatabase } from "drizzle-orm/pglite";
 import type * as schema from "@/db/schema";

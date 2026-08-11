@@ -1,6 +1,3 @@
-// fallow-ignore-file unused-file
-// Not imported yet: the smoke test that mocks @/lib/clickhouse with this
-// module lands in a later task, in the same pipeline-test-harness plan.
 export interface SqlApiResult<T> {
   rows: T[];
   columns: string[];
@@ -13,17 +10,22 @@ export class ClickHouseDouble {
   private history: Record<string, unknown>[] = [];
 
   /** What the next rule evaluation sees as its query result. */
+  // Called only through the harness's `clickhouse` property, which fallow
+  // does not trace back to this class through the AlertingHarness interface.
+  // fallow-ignore-next-line unused-class-member
   setRows(rows: Record<string, unknown>[]): void {
     this.rows = rows;
     this.failure = null;
   }
 
   /** What the next rule evaluation throws instead of returning rows. */
+  // fallow-ignore-next-line unused-class-member
   setFailure(error: Error | null): void {
     this.failure = error;
   }
 
   /** Every row written to app.alert_events, in write order. */
+  // fallow-ignore-next-line unused-class-member
   historyRows(): Record<string, unknown>[] {
     return this.history;
   }
