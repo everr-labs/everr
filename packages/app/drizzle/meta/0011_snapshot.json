@@ -483,6 +483,33 @@
           "concurrently": false,
           "method": "btree",
           "with": {}
+        },
+        "alert_definitions_org_updated_idx": {
+          "name": "alert_definitions_org_updated_idx",
+          "columns": [
+            {
+              "expression": "organization_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "updated_at DESC",
+              "asc": true,
+              "isExpression": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "id DESC",
+              "asc": true,
+              "isExpression": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
         }
       },
       "foreignKeys": {
@@ -1168,6 +1195,28 @@
           "method": "btree",
           "with": {}
         },
+        "alert_events_cancelable_idx": {
+          "name": "alert_events_cancelable_idx",
+          "columns": [
+            {
+              "expression": "organization_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "source_definition_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "where": "\"alert_events\".\"processed_at\" IS NULL",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
         "alert_events_org_id_uq": {
           "name": "alert_events_org_id_uq",
           "columns": [
@@ -1220,6 +1269,10 @@
         "alert_events_kind_matches_type": {
           "name": "alert_events_kind_matches_type",
           "value": "(\"alert_events\".\"event_type\" NOT IN ('instance_pending', 'instance_closed', 'evaluation_failed', 'hold_changed') OR \"alert_events\".\"kind\" = 'state') AND (\"alert_events\".\"event_type\" NOT IN ('instance_fired', 'instance_resolved') OR \"alert_events\".\"kind\" = 'notifying')"
+        },
+        "alert_events_reason_in_vocabulary": {
+          "name": "alert_events_reason_in_vocabulary",
+          "value": "\"alert_events\".\"reason\" IN ('', 'condition_cleared', 'pending_cleared', 'labels_changed', 'rule_paused', 'rule_deleted', 'preview_deleted', 'no_longer_firing', 'no_channels')"
         }
       },
       "isRLSEnabled": false
@@ -1436,6 +1489,28 @@
           ],
           "isUnique": false,
           "where": "\"alert_instances\".\"status\" = 'firing'",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "alert_instances_inactive_updated_idx": {
+          "name": "alert_instances_inactive_updated_idx",
+          "columns": [
+            {
+              "expression": "updated_at",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "where": "\"alert_instances\".\"status\" = 'inactive'",
           "concurrently": false,
           "method": "btree",
           "with": {}
@@ -1702,6 +1777,27 @@
             },
             {
               "expression": "id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "alert_notification_groups_direct_definition_idx": {
+          "name": "alert_notification_groups_direct_definition_idx",
+          "columns": [
+            {
+              "expression": "organization_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "direct_alert_definition_id",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -4934,9 +5030,6 @@
         "instance_fired",
         "instance_resolved",
         "instance_closed",
-        "delivery",
-        "rule_health",
-        "silenced",
         "hold_changed",
         "evaluation_failed"
       ]

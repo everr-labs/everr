@@ -4,7 +4,7 @@ DROP TABLE "alert_settings";--> statement-breakpoint
 ALTER TYPE "public"."alert_state" ADD VALUE 'pending' BEFORE 'firing';--> statement-breakpoint
 CREATE TYPE "public"."alert_delivery_state" AS ENUM('pending', 'sent', 'failed');--> statement-breakpoint
 CREATE TYPE "public"."alert_event_kind" AS ENUM('notifying', 'state');--> statement-breakpoint
-CREATE TYPE "public"."alert_event_type" AS ENUM('instance_pending', 'instance_fired', 'instance_resolved', 'instance_closed', 'delivery', 'rule_health', 'silenced', 'hold_changed', 'evaluation_failed');--> statement-breakpoint
+CREATE TYPE "public"."alert_event_type" AS ENUM('instance_pending', 'instance_fired', 'instance_resolved', 'instance_closed', 'hold_changed', 'evaluation_failed');--> statement-breakpoint
 CREATE TYPE "public"."alert_health" AS ENUM('healthy', 'degraded');--> statement-breakpoint
 CREATE TYPE "public"."alert_instance_state" AS ENUM('inactive', 'pending', 'firing');--> statement-breakpoint
 CREATE TYPE "public"."alert_severity" AS ENUM('info', 'warning', 'critical');--> statement-breakpoint
@@ -129,7 +129,8 @@ CREATE TABLE "alert_events" (
 	"journaled_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"processed_at" timestamp with time zone,
 	CONSTRAINT "alert_events_repoid_nonempty" CHECK (length("alert_events"."repoid") > 0),
-	CONSTRAINT "alert_events_kind_matches_type" CHECK (("alert_events"."event_type" NOT IN ('instance_pending', 'instance_closed', 'evaluation_failed', 'hold_changed') OR "alert_events"."kind" = 'state') AND ("alert_events"."event_type" NOT IN ('instance_fired', 'instance_resolved') OR "alert_events"."kind" = 'notifying'))
+	CONSTRAINT "alert_events_kind_matches_type" CHECK (("alert_events"."event_type" NOT IN ('instance_pending', 'instance_closed', 'evaluation_failed', 'hold_changed') OR "alert_events"."kind" = 'state') AND ("alert_events"."event_type" NOT IN ('instance_fired', 'instance_resolved') OR "alert_events"."kind" = 'notifying')),
+	CONSTRAINT "alert_events_reason_in_vocabulary" CHECK ("alert_events"."reason" IN ('', 'condition_cleared', 'pending_cleared', 'labels_changed', 'rule_paused', 'rule_deleted', 'preview_deleted', 'no_longer_firing', 'no_channels'))
 );
 --> statement-breakpoint
 CREATE TABLE "alert_inhibitions" (
@@ -253,6 +254,10 @@ CREATE UNIQUE INDEX "alert_instances_definition_fingerprint_uq" ON "alert_instan
 CREATE INDEX "alert_instances_org_updated_idx" ON "alert_instances" USING btree ("organization_id",updated_at DESC);--> statement-breakpoint
 CREATE INDEX "alert_instances_org_firing_idx" ON "alert_instances" USING btree ("organization_id",updated_at DESC) WHERE "alert_instances"."status" = 'firing';--> statement-breakpoint
 CREATE INDEX "alert_notification_group_events_event_idx" ON "alert_notification_group_events" USING btree ("event_id");--> statement-breakpoint
+CREATE INDEX "alert_definitions_org_updated_idx" ON "alert_definitions" USING btree ("organization_id",updated_at DESC,id DESC);--> statement-breakpoint
+CREATE INDEX "alert_events_cancelable_idx" ON "alert_events" USING btree ("organization_id","source_definition_id") WHERE "alert_events"."processed_at" IS NULL;--> statement-breakpoint
+CREATE INDEX "alert_instances_inactive_updated_idx" ON "alert_instances" USING btree ("updated_at","id") WHERE "alert_instances"."status" = 'inactive';--> statement-breakpoint
+CREATE INDEX "alert_notification_groups_direct_definition_idx" ON "alert_notification_groups" USING btree ("organization_id","direct_alert_definition_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "alert_notification_groups_org_key_uq" ON "alert_notification_groups" USING btree ("organization_id","group_key");--> statement-breakpoint
 CREATE INDEX "alert_notification_groups_cleanup_idx" ON "alert_notification_groups" USING btree ("updated_at","id");--> statement-breakpoint
 CREATE UNIQUE INDEX "alert_receiver_channels_receiver_position_uq" ON "alert_receiver_channels" USING btree ("receiver_id","position");--> statement-breakpoint
