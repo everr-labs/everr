@@ -18,7 +18,6 @@ import type {
   AlertingChannel,
   AlertingChannelConfig,
 } from "@/data/alerting/types";
-import { authClient } from "@/lib/auth-client";
 import {
   AlertingConceptNote,
   alertingErrorMessage,
@@ -36,7 +35,6 @@ import {
 type ConfigDraft = {
   type: ChannelType;
   url: string;
-  to: string[];
   botToken: string;
   chatIds: string[];
 };
@@ -44,7 +42,6 @@ type ConfigDraft = {
 const EMPTY_DRAFT: ConfigDraft = {
   type: "webhook",
   url: "",
-  to: [],
   botToken: "",
   chatIds: [],
 };
@@ -57,8 +54,6 @@ function draftFromConfig(config: AlertingChannelConfig): ConfigDraft {
     case "slack":
     case "discord":
       return { ...EMPTY_DRAFT, type: config.type };
-    case "email":
-      return { ...EMPTY_DRAFT, type: config.type, to: config.to };
     case "telegram":
       return { ...EMPTY_DRAFT, type: config.type, chatIds: config.chat_ids };
   }
@@ -70,8 +65,6 @@ function draftToConfig(d: ConfigDraft): AlertingChannelConfig | null {
     case "slack":
     case "discord":
       return d.url ? { type: d.type, url: d.url } : null;
-    case "email":
-      return d.to.length > 0 ? { type: d.type, to: d.to } : null;
     case "telegram":
       return d.botToken && d.chatIds.length > 0
         ? { type: d.type, bot_token: d.botToken, chat_ids: d.chatIds }
@@ -92,7 +85,6 @@ export function ChannelBuilder({
   channel?: AlertingChannel | null;
 }) {
   const qc = useQueryClient();
-  const { data: session } = authClient.useSession();
   const [name, setName] = useState(editing?.name ?? "");
   const [draft, setDraft] = useState<ConfigDraft>(() =>
     editing ? draftFromConfig(editing.config) : EMPTY_DRAFT,
@@ -229,22 +221,6 @@ export function ChannelBuilder({
               enter here.
             </p>
           )}
-        </div>
-      )}
-      {draft.type === "email" && (
-        <div className="space-y-1.5">
-          <Label>Recipients</Label>
-          <TagsInput
-            aria-label="Recipient addresses"
-            placeholder="oncall@example.com"
-            value={draft.to}
-            onValueChange={(to) => patch({ to })}
-          />
-          <p className="text-xs text-muted-foreground">
-            {session?.user?.email
-              ? `A test sends to ${session.user.email}, not the recipients above, so it proves delivery works without mailing the list.`
-              : "A test sends to your own address, not the recipients above, so it proves delivery works without mailing the list."}
-          </p>
         </div>
       )}
       {draft.type === "telegram" && (

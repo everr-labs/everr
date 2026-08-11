@@ -1,5 +1,4 @@
 // Channel metadata shared by delivery configuration surfaces.
-import { Mail } from "lucide-react";
 import type { ComponentType, SVGProps } from "react";
 // Brand marks; Slack's and Telegram's colors are intentional and ignore
 // currentColor, the webhook glyph keeps its red accent but follows the text
@@ -19,7 +18,6 @@ export const CHANNEL_LABEL: Record<ChannelType, string> = {
   webhook: "Webhook",
   slack: "Slack",
   discord: "Discord",
-  email: "Email",
   telegram: "Telegram",
 };
 
@@ -27,7 +25,6 @@ export const CHANNEL_ICON: Record<ChannelType, ChannelIcon> = {
   slack: SlackIcon,
   discord: DiscordIcon,
   webhook: WebhookIcon,
-  email: Mail,
   telegram: TelegramIcon,
 };
 
@@ -50,15 +47,13 @@ export const CHANNEL_URL_FIELD: Partial<
   },
 };
 
-/** The endpoint a channel config points at (URL, routing key, recipients). */
+/** The endpoint a channel config points at (URL, or Telegram chat ids). */
 export function channelTarget(c: AlertingChannelConfig): string {
   switch (c.type) {
     case "slack":
     case "discord":
     case "webhook":
       return c.url ?? "";
-    case "email":
-      return (c.to ?? []).join(", ");
     case "telegram":
       return (c.chat_ids ?? []).join(", ");
   }

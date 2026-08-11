@@ -767,7 +767,7 @@ function SetupChecklist({
         index={1}
         done={channelCount > 0}
         title="Add a channel"
-        detail="The endpoint notifications are sent to: a webhook, Slack, email, or Telegram."
+        detail="The endpoint notifications are sent to: a webhook, Slack, Discord, or Telegram."
         action="Add channel"
         onAction={onAddChannel}
       />

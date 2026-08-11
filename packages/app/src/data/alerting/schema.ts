@@ -136,7 +136,6 @@ export const AlertingChannelConfigSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("webhook"), url: z.string() }),
   z.object({ type: z.literal("slack"), url: z.string() }),
   z.object({ type: z.literal("discord"), url: z.string() }),
-  z.object({ type: z.literal("email"), to: z.array(z.string()) }),
   z.object({
     type: z.literal("telegram"),
     bot_token: z.string(),

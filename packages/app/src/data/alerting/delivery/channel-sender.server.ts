@@ -195,20 +195,6 @@ export async function sendChannelNotification(
         ),
       );
       return;
-    case "email": {
-      const { mailer } = await import("@/lib/mailer.server");
-      await Promise.all(
-        config.to.map((to) =>
-          mailer.send({
-            to,
-            subject: notification.title,
-            text: [notification.title, notification.body, notification.url]
-              .filter(Boolean)
-              .join("\n\n"),
-          }),
-        ),
-      );
-    }
   }
 }
 

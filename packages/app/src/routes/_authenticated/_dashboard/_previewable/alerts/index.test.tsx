@@ -354,8 +354,12 @@ describe("/alerts triage board", () => {
     ]);
     mocks.listAlertingReceivers.mockResolvedValue([
       alertingReceiver(),
-      alertingReceiver({ id: "recv-2", name: "backup", channels: ["mail"] }),
-      alertingReceiver({ id: "recv-3", name: "mgmt", channels: ["mail"] }),
+      alertingReceiver({
+        id: "recv-2",
+        name: "backup",
+        channels: ["ops-hook"],
+      }),
+      alertingReceiver({ id: "recv-3", name: "mgmt", channels: ["ops-hook"] }),
     ]);
     renderTriagePage();
 

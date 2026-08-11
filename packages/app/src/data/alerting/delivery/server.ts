@@ -6,7 +6,6 @@ import {
   AlertingRouteInputSchema,
 } from "../schema";
 import { alertingMutationScope, alertingOrganizationId } from "../session";
-import { emailTestConfigFor } from "./email-test-config";
 import * as delivery from "./repository";
 
 export const listAlertingChannels = createAuthenticatedServerFn({
@@ -77,7 +76,7 @@ export const testAlertingChannel = createAuthenticatedServerFn({
   .inputValidator(z.object({ config: AlertingChannelConfigSchema }))
   .handler(({ data, context: { session } }) =>
     delivery.testChannel(alertingOrganizationId(session), {
-      config: emailTestConfigFor(data.config, session.user.email),
+      config: data.config,
     }),
   );
 

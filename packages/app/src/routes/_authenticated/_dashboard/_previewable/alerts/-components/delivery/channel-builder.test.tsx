@@ -1,7 +1,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { ChannelBuilder } from "./channel-builder";
 
 // Keep the alerting query mock at the module boundary used by the component.
@@ -13,13 +13,6 @@ vi.mock("@/data/alerting/delivery/server", () => ({
 
 vi.mock("@/data/alerting/rules/server", () => ({
   listAlertingRules: vi.fn().mockResolvedValue([]),
-}));
-// Mirror the mock shape used by -account.test.tsx.
-const useSession = vi.fn();
-vi.mock("@/lib/auth-client", () => ({
-  authClient: {
-    useSession: (...args: unknown[]) => useSession(...args),
-  },
 }));
 
 // ChannelBuilder reads useQueryClient() for its create-mutation cache
@@ -43,10 +36,6 @@ async function renderBuilder() {
 }
 
 describe("ChannelBuilder test button", () => {
-  beforeEach(() => {
-    useSession.mockReturnValue({ data: null });
-  });
-
   it("is disabled until the config is complete", async () => {
     await renderBuilder();
     expect(screen.getByRole("button", { name: /send test/i })).toBeDisabled();
@@ -101,29 +90,5 @@ describe("ChannelBuilder test button", () => {
       ).toBeInTheDocument(),
     );
     expect(screen.queryByText(/delivered/i)).not.toBeInTheDocument();
-  });
-});
-
-describe("ChannelBuilder email test note", () => {
-  it("names the signed-in address the test actually goes to", async () => {
-    useSession.mockReturnValue({ data: { user: { email: "gio@everr.dev" } } });
-    const user = userEvent.setup();
-    await renderBuilder();
-
-    await user.click(screen.getByRole("combobox", { name: /type/i }));
-    await user.click(await screen.findByRole("option", { name: /email/i }));
-
-    expect(screen.getByText(/gio@everr\.dev/)).toBeInTheDocument();
-  });
-
-  it("falls back to generic wording when the session hasn't loaded", async () => {
-    useSession.mockReturnValue({ data: null });
-    const user = userEvent.setup();
-    await renderBuilder();
-
-    await user.click(screen.getByRole("combobox", { name: /type/i }));
-    await user.click(await screen.findByRole("option", { name: /email/i }));
-
-    expect(screen.getByText(/your own address/i)).toBeInTheDocument();
   });
 });

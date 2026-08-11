@@ -78,8 +78,6 @@ export function redactChannelConfig(
   config: AlertingChannelConfig,
 ): AlertingChannelConfig {
   switch (config.type) {
-    case "email":
-      return config;
     case "telegram":
       return { ...config, bot_token: REDACTED };
     case "discord":
@@ -95,8 +93,6 @@ export function retainRedactedChannelSecrets(
 ): AlertingChannelConfig {
   if (next.type !== previous.type) return next;
   switch (next.type) {
-    case "email":
-      return next;
     case "telegram":
       return {
         ...next,

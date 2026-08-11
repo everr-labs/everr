@@ -765,15 +765,15 @@ describe("/alerts/delivery receivers section", () => {
     mocks.listAlertingChannels.mockResolvedValue([
       channel({ name: "team-slack", config: { type: "slack", url: "***" } }),
       channel({
-        name: "ops-mail",
-        config: { type: "email", to: ["ops@example.com"] },
+        name: "ops-discord",
+        config: { type: "discord", url: "***" },
       }),
     ]);
     mocks.listAlertingReceivers.mockResolvedValue([
       receiver({ name: "oncall" }),
     ]);
     mocks.createAlertingReceiver.mockResolvedValue(
-      receiver({ name: "multi", channels: ["team-slack", "ops-mail"] }),
+      receiver({ name: "multi", channels: ["team-slack", "ops-discord"] }),
     );
     const user = userEvent.setup();
 
@@ -806,13 +806,13 @@ describe("/alerts/delivery receivers section", () => {
 
     await user.click(teamSlack);
     await user.click(
-      within(dialog).getByRole("checkbox", { name: "Channel ops-mail" }),
+      within(dialog).getByRole("checkbox", { name: "Channel ops-discord" }),
     );
     await user.click(create);
 
     await waitFor(() =>
       expect(mocks.createAlertingReceiver).toHaveBeenCalledWith({
-        data: { name: "multi", channels: ["team-slack", "ops-mail"] },
+        data: { name: "multi", channels: ["team-slack", "ops-discord"] },
       }),
     );
     await waitFor(() =>
@@ -950,8 +950,8 @@ describe("/alerts/delivery edit flows", () => {
     mocks.listAlertingChannels.mockResolvedValue([
       channel(),
       channel({
-        name: "backup-mail",
-        config: { type: "email", to: ["a@b.c"] },
+        name: "backup-discord",
+        config: { type: "discord", url: "***" },
       }),
     ]);
     mocks.updateAlertingReceiver.mockResolvedValue(receiver());
@@ -968,7 +968,7 @@ describe("/alerts/delivery edit flows", () => {
     expect(within(drawer).getByLabelText("Name")).toHaveValue("oncall");
     expect(within(drawer).getByLabelText("Channel oncall-hook")).toBeChecked();
 
-    await user.click(within(drawer).getByLabelText("Channel backup-mail"));
+    await user.click(within(drawer).getByLabelText("Channel backup-discord"));
     await user.click(
       within(drawer).getByRole("button", { name: "Save receiver" }),
     );
@@ -978,7 +978,7 @@ describe("/alerts/delivery edit flows", () => {
         data: {
           name: "oncall",
           newName: "oncall",
-          channels: ["oncall-hook", "backup-mail"],
+          channels: ["oncall-hook", "backup-discord"],
         },
       }),
     );

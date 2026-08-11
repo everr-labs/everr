@@ -13,9 +13,9 @@ import { linkedEventsForDeliveryQuery } from "./journal-reader";
  * Channel type to the channel names it reached, for `delivery_targets`.
  *
  * Deliberately not the address. `app.alert_events` is append-only with a
- * retention TTL, so a webhook URL, a bot token, a Telegram chat id, or an email
- * recipient written here could not be withdrawn afterwards. The channel's
- * user-chosen name identifies it just as well and carries nothing sensitive.
+ * retention TTL, so a webhook URL, a bot token, or a Telegram chat id written
+ * here could not be withdrawn afterwards. The channel's user-chosen name
+ * identifies it just as well and carries nothing sensitive.
  */
 export function deliveryTargets(
   channelType: string,
