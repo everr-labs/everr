@@ -508,7 +508,16 @@ describe("the alerting pipeline's delivery", () => {
     ).toEqual(["slack"]);
   });
 
-  it("folds the dispatch that would have created a group into the one that already won", async () => {
+  // PGlite is a single connection: the two dispatches below run strictly
+  // sequentially, so the second's opening `SELECT ... FOR UPDATE` always
+  // finds the first's already-committed group row and takes the ordinary
+  // "existing group, add a member" branch (claimNotificationGroup's
+  // `if (existing)` path). The `INSERT ... onConflictDoNothing()` plus retry
+  // fallback that actually loses a race (process-event.ts:197-223) is never
+  // reached and cannot be exercised under this harness. This case pins only
+  // the serialized outcome: two dispatches under one rule converge on one
+  // group id, not two.
+  it("a second dispatch under the same rule joins the existing group instead of creating a second one", async () => {
     await insertDirectRule(harness.db, {
       sql: "select 'svc-a' as service, 42 as value",
       forSecs: 0,
@@ -516,32 +525,32 @@ describe("the alerting pipeline's delivery", () => {
       channelType: "slack",
     });
     harness.clickhouse.setRows([{ service: "svc-a", value: 42 }]);
-    await harness.runDueJobs(); // the winner: creates the group and its first membership
+    await harness.runDueJobs(); // the first dispatch: creates the group and its first membership
 
-    const groupsAfterWinner = await harness.db
+    const groupsAfterFirst = await harness.db
       .select()
       .from(alertNotificationGroups);
-    expect(groupsAfterWinner).toHaveLength(1);
+    expect(groupsAfterFirst).toHaveLength(1);
 
     harness.clickhouse.setRows([
       { service: "svc-a", value: 42 },
       { service: "svc-b", value: 42 },
     ]);
     harness.advance(FAST_TICK_SECS * 1000);
-    // The dispatch that, absent the group above, would have created its own:
-    // it instead finds and folds into the winner's.
+    // A second, distinct instance under the same rule: same groupKey, so it
+    // must join the group above rather than create its own.
     await harness.runDueJobs();
 
-    const groupsAfterLoser = await harness.db
+    const groupsAfterSecond = await harness.db
       .select()
       .from(alertNotificationGroups);
-    expect(groupsAfterLoser).toHaveLength(1);
-    expect(groupsAfterLoser[0].id).toBe(groupsAfterWinner[0].id);
+    expect(groupsAfterSecond).toHaveLength(1);
+    expect(groupsAfterSecond[0].id).toBe(groupsAfterFirst[0].id);
 
     const members = await harness.db
       .select()
       .from(alertNotificationGroupEvents)
-      .where(eq(alertNotificationGroupEvents.groupId, groupsAfterLoser[0].id));
+      .where(eq(alertNotificationGroupEvents.groupId, groupsAfterSecond[0].id));
     expect(members).toHaveLength(2);
   });
 
