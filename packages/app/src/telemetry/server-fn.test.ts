@@ -30,6 +30,17 @@ vi.mock("./node", () => ({
   SpanKind: { INTERNAL: 0 },
 }));
 
+// The real matcher pulls the whole generated route tree (and the server env
+// with it) into the test environment; server function paths only exercise the
+// /_serverFn prefix rule, which needs no tree.
+vi.mock("./server-router", async () => {
+  const { routeTemplate } = await import("./route-template");
+  const matcher = { matchRoutes: () => [{ routeId: "__root__" }] };
+  return {
+    serverRouteTemplate: (pathname: string) => routeTemplate(matcher, pathname),
+  };
+});
+
 import { instrumentServerFunction } from "./server-fn-runtime";
 
 describe("instrumentServerFunction", () => {
