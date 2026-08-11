@@ -195,7 +195,9 @@ describe("the alerting pipeline's capacity bounds", () => {
     // instead of scheduling a follow-up. This is a distinct finding from
     // ticket 41 (a parked group with lastFlushedAt still null): here
     // lastFlushedAt is set. Pinned here as today's actual behavior, not
-    // asserted as correct; see the task report.
+    // asserted as correct. Ticket 46 changes it, and this expectation
+    // flips to a real follow-up time when it lands:
+    // todo/issues/alerting-surface/tickets/46-a-capped-claim-leaves-no-one-behind.md
     const [group] = await harness.db
       .select()
       .from(alertNotificationGroups)
