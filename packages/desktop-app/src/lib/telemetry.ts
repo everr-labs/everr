@@ -1,4 +1,4 @@
-import { errors, WebSDK } from "@everr/otel-web";
+import { errors, interactions, performance, WebSDK } from "@everr/otel-web";
 import { invoke } from "@tauri-apps/api/core";
 
 // The telemetry of the renderer uses @everr/otel-web, and the host sends the
@@ -31,11 +31,17 @@ async function initBrowserTelemetry() {
     serviceInstanceId: telemetryContext.serviceInstanceId,
     deploymentEnvironment: telemetryContext.deploymentEnvironment,
     send: (signal, body) => invoke("proxy_otlp", { signal, body }),
-    // This app captures only the errors, because the desktop application has no
-    // page views. The instrumentation owns the handlers for the window error
-    // event and the unhandledrejection event. Thus this module registers no
-    // handler of its own, because two handlers capture each error two times.
-    instrumentations: [errors()],
+    // The errors instrumentation owns the handlers for the window error event
+    // and the unhandledrejection event. Thus this module registers no handler
+    // of its own, because two handlers capture each error two times. The
+    // performance instrumentation records only the INP and the slow
+    // interactions: LCP, CLS, and TTFB describe a page load, and the desktop
+    // application has no page views.
+    instrumentations: [
+      errors(),
+      interactions(),
+      performance({ webVitals: ["inp"], slowInteractions: true }),
+    ],
   });
 }
 
