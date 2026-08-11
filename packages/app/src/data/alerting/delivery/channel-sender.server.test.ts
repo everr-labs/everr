@@ -1,11 +1,5 @@
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
-import { CHANNEL_TEXT_MAX } from "@/lib/channel-text-limits";
-
-const mocks = vi.hoisted(() => ({ sendSlackMessage: vi.fn() }));
-
-vi.mock("@/lib/slack.server", () => ({
-  sendSlackMessage: mocks.sendSlackMessage,
-}));
+import { CHANNEL_TEXT_MAX } from "@/data/alerting/delivery/channel-text-limits";
 
 import {
   ChannelSendError,
@@ -27,7 +21,6 @@ const fetchMock = vi.fn(
 );
 
 beforeEach(() => {
-  mocks.sendSlackMessage.mockReset().mockResolvedValue(undefined);
   fetchMock.mockClear();
   vi.stubGlobal("fetch", fetchMock);
 });
@@ -53,7 +46,8 @@ it("fits discord's limit by cutting the body, never the url", async () => {
 it("fits slack's section limit the same way", async () => {
   await sendChannelNotification({ type: "slack", url: HOOK_URL }, oversized);
 
-  const message = mocks.sendSlackMessage.mock.calls[0]?.[1] as {
+  const body = fetchMock.mock.calls[0]?.[1]?.body;
+  const message = JSON.parse(String(body)) as {
     attachments: { blocks: { text: { text: string } }[] }[];
   };
   const text = message.attachments[0].blocks[0].text.text;

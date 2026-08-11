@@ -140,8 +140,8 @@ vi.mock("../history/clickhouse", () => ({
   suppressionHistoryRow: (opts: unknown) => opts,
 }));
 
+import { CHANNEL_TEXT_MAX } from "@/data/alerting/delivery/channel-text-limits";
 import { IDLE_GROUP_FLUSH_AT } from "@/data/alerting/delivery/tasks";
-import { CHANNEL_TEXT_MAX } from "@/lib/channel-text-limits";
 import {
   flushAlertGroup,
   formatNotification,

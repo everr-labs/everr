@@ -1,4 +1,5 @@
 import { and, asc, count, eq, inArray, isNull } from "drizzle-orm";
+import { CHANNEL_TEXT_MAX } from "@/data/alerting/delivery/channel-text-limits";
 import { ALERT_DELIVERY_MAX_ATTEMPTS } from "@/data/alerting/delivery/config";
 import {
   ALERT_FLUSH_GROUP_TASK,
@@ -20,7 +21,6 @@ import {
   alertNotificationGroups,
   alertReceiverChannels,
 } from "@/db/schema";
-import { CHANNEL_TEXT_MAX } from "@/lib/channel-text-limits";
 import { addWorkerJobInTransaction } from "@/server/worker/jobs";
 import {
   historyDefFromJournalRow,

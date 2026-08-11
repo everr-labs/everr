@@ -269,7 +269,7 @@ Files:
 
 - `packages/app/src/data/alerting/schema.ts:115`
 - `packages/app/src/data/alerting/delivery/channel-sender.server.ts:86`
-- `packages/app/src/lib/slack.server.ts:9`
+- `packages/app/src/data/alerting/delivery/providers/slack.ts`
 
 Email and Telegram channels accept unbounded recipient arrays and start every
 send concurrently. Failed webhooks buffer the complete response body before
