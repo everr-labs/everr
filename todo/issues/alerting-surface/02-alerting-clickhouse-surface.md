@@ -334,7 +334,7 @@ value. Evaluation rows leave it zero.
 | `notification_suppressed` | `delivery/suppression.ts` |
 | `delivery_succeeded` | `delivery/history.ts` |
 | `delivery_failed` | `delivery/history.ts` |
-| `instance_closed` | `evaluation/rule.ts` (pending cleared); the config mutation sites (pause, delete, preview delete) |
+| `instance_closed` | `evaluation/rule.ts` (pending cleared); the config mutation sites (label change, pause, delete, preview delete) |
 
 Audit events reach no ClickHouse table; see Auditability stays in
 PostgreSQL.
@@ -1076,8 +1076,8 @@ indexes, `instance_labels` as a Map, `is_live` through `DEFAULT`,
 `write_source`, `service_name`, `rule_muted`, `reason`,
 `delivery_dedup_key`, `episode_id`, `context_json`, the frozen silence
 and inhibition columns, the split TTL, the deduplication window, and the
-codecs. Seven of the ten event types have writers: all but
-`instance_pending`, `notification_deferred` and `instance_closed`.
+codecs. Nine of the ten event types have writers: all but
+`notification_deferred`.
 
 The row builders mint UUIDv7 (`history/ids.ts`), matching the
 `generateUUIDv7()` column default, so `UUIDv7ToDateTime(event_id)`
