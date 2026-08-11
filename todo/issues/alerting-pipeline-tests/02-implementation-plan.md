@@ -21,6 +21,7 @@
 - New integration test files start with `// @vitest-environment node`, which several server tests already use (`src/server/worker/jobs.test.ts`).
 - **When a new test fails, it may be a real defect, not a wrong test.** Ticket 41 records one latent bug that no test reaches today, and this suite is expected to reach it. Do not weaken an assertion to make it pass. Stop, report the failure with the evidence, and propose the fix before changing anything.
 - Comments explain constraints, not narration. Do not add file-describing banner headers.
+- **`it.fails` must wrap only the assertion under suspicion, never a whole case body.** `it.fails` passes when the case throws anywhere, so wrapping setup too means a broken fixture is indistinguishable from the defect being characterized. This has already happened once: a capacity case asserted on 501 group members, actually built 1, and reported as an expected failure. Where a case has working setup and one suspect assertion, keep the setup in a normal `it` and isolate the suspect part.
 
 ## File Structure
 
