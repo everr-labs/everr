@@ -56,7 +56,6 @@ it("parses a complete RuleView", () => {
   expect(parsed.health.status).toBe("healthy");
   expect(parsed.rollup.alert_state).toBe("firing");
   expect(parsed.rollup.firing_instance_count).toBe(2);
-  expect(parsed.spec.suppressed).toBe(false);
   expect(AlertingRuleViewSchema.safeParse(ruleView).success).toBe(false);
   expect(
     AlertingRuleViewSchema.safeParse({

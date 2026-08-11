@@ -54,7 +54,7 @@ export function instanceClosedJournalRow(
     instanceFingerprint: instance.fingerprint,
     instanceLabels: instance.labels,
     severity: def.spec.severity,
-    suppressed: def.spec.suppressed || def.previewId !== null,
+    suppressed: def.previewId !== null,
     occurredAt: at,
     processedAt: at,
   };

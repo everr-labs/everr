@@ -56,7 +56,6 @@ const spec = {
   label_columns: ["host"],
   condition: { operator: "gt" as const, threshold: 1 },
   severity: "critical" as const,
-  suppressed: false,
   annotations: {},
   resolve_after: 1,
 };

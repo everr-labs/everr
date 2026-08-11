@@ -55,7 +55,12 @@ export type AlertHistoryDefinition = {
   slug: string;
   previewId: string | null;
   severity: string;
-  /** The rule never notifies at all: `spec.suppressed` or a preview copy. */
+  /**
+   * The rule never notifies at all. A preview copy is the only cause today,
+   * so this equals `preview_id IS NOT NULL` on every row. It stays a column
+   * of its own because the fact it states is "nothing was sent for this
+   * rule", which a future reason would join rather than replace.
+   */
   ruleMuted: boolean;
 };
 

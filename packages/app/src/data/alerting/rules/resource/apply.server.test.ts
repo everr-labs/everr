@@ -97,13 +97,12 @@ function managedRule(name: string, over: Record<string, unknown> = {}) {
         "link.alert": `https://app.example.com/alerts/rules/default/${name}`,
       },
       resolve_after: 1,
-      suppressed: false,
       ...specOver,
     },
   };
 }
 
-// A suppressed preview copy of the alert fixture.
+// A preview copy of the alert fixture.
 function previewRule(
   name: string,
   previewId: string,
@@ -116,7 +115,6 @@ function previewRule(
     previewId,
     spec: {
       ...base.spec,
-      suppressed: true,
       ...over,
     },
   };
@@ -141,7 +139,6 @@ describe("applyAlertSpecs", () => {
     expect(input).toEqual(
       expect.objectContaining({ name: "default/high-errors", previewId: null }),
     );
-    expect(input.suppressed).toBe(false);
     expect(input.repoid).toBe("repo-1");
     expect(input.annotations.summary).toBe(`\${value} errors in \${service}`);
     expect(input.annotations["link.alert"]).toBe(
@@ -301,7 +298,7 @@ describe("applyAlertSpecs", () => {
     expect(mockedDeleteRule).not.toHaveBeenCalled();
   });
 
-  it("preview apply creates a suppressed rule in the preview namespace", async () => {
+  it("preview apply creates a rule that evaluates but never notifies", async () => {
     const res = await applyAlertSpecs({
       namespace: preview("p1"),
       db,
@@ -310,20 +307,19 @@ describe("applyAlertSpecs", () => {
 
     // Full validation ran (the query was checked against ClickHouse)...
     expect(ch).toHaveBeenCalledTimes(1);
-    // ...and the rule was REALLY registered, exactly like a live create but
-    // suppressed (evaluated, never notifying) and namespaced to the preview.
+    // ...and the rule was REALLY registered, exactly like a live create,
+    // namespaced to the preview so it evaluates without ever notifying.
     expect(mockedCreateRule).toHaveBeenCalledTimes(1);
     const [, input] = mockedCreateRule.mock.calls[0];
     expect(input.previewId).toBe("p1");
     expect(input.name).toBe("default/high-errors");
-    expect(input.suppressed).toBe(true);
     expect(input.repoid).toBe("repo-1");
     // Single-call create, same as the live path.
     expect(mockedUpdateRule).not.toHaveBeenCalled();
 
     expect(res.created).toEqual(["default/high-errors"]);
     expect(res.deleted).toEqual([]);
-    expect(res.note).toMatch(/suppressed/);
+    expect(res.note).toMatch(/no notifications are sent/);
   });
 
   it("scopes a preview reconcile to rules tagged with ITS preview namespace", async () => {
@@ -406,7 +402,6 @@ describe("applyAlertSpecs", () => {
     const [, id, spec, version] = mockedUpdateRule.mock.calls[0];
     expect(id).toBe("prev-rule-high-errors");
     expect(version).toBe(3);
-    expect(spec.suppressed).toBe(true);
     expect(spec.annotations).not.toHaveProperty("everr.repoid");
   });
 
@@ -427,7 +422,6 @@ describe("applyAlertSpecs", () => {
     });
     expect(res.created).toEqual(["default/high-errors"]);
     const [, input] = mockedCreateRule.mock.calls[0];
-    expect(input.suppressed).toBe(false);
     expect(input.previewId).toBeNull();
   });
 

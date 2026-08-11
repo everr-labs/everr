@@ -85,7 +85,7 @@ function historyDefinition(
     slug: `${def.project}/${def.slug}`,
     previewId: def.previewId,
     severity: def.spec.severity,
-    ruleMuted: def.spec.suppressed || def.previewId !== null,
+    ruleMuted: def.previewId !== null,
   };
 }
 

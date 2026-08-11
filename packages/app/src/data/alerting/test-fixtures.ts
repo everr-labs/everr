@@ -28,7 +28,6 @@ export function alertingRuleViewFixture(
       severity: "critical",
       annotations: {},
       resolve_after: 1,
-      suppressed: false,
       ...spec,
     },
     version: 1,

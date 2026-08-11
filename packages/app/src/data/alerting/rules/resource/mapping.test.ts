@@ -170,15 +170,13 @@ describe("toRuleInput", () => {
     expect(view.slug).toBe("checkout");
   });
 
-  it("builds a suppressed rule in the preview namespace", () => {
+  it("builds a rule in the preview namespace", () => {
     const input = toRuleInput(rule, "repo-1", { previewId: "prev-1" });
     // Preview rules evaluate but cannot notify.
     expect(input.previewId).toBe("prev-1");
-    expect(input.suppressed).toBe(true);
     expect(input.repoid).toBe("repo-1");
     const view = fromAlertingRule(asRule(input));
     expect(view.previewId).toBe("prev-1");
-    expect(view.suppressed).toBe(true);
   });
 
   it("sets max_interval_secs when maxInterval is set, else omits it", () => {

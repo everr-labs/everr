@@ -162,7 +162,6 @@ function foreignRule(opts: { name: string; repoid: string; runbook: string }) {
       resolve_after: 1,
       label_columns: [],
       condition: { operator: "gt", threshold: 0 },
-      suppressed: false,
       annotations: {
         "everr.runbook": opts.runbook,
       },

@@ -71,10 +71,11 @@ function RuleStateLabel({ rule }: { rule: AlertingRuleView }) {
       </AlertingStatusLabel>
     );
   }
-  if (rule.spec.suppressed) {
+  // A preview rule evaluates and records history, but never notifies.
+  if (rule.previewId !== null) {
     return (
       <AlertingStatusLabel tone="muted" muted>
-        Suppressed
+        Preview
       </AlertingStatusLabel>
     );
   }
@@ -390,7 +391,7 @@ function AlertingRuleDetailPage() {
                 Runbook
               </Link>
             )}
-            {!r.spec.suppressed && (
+            {r.previewId === null && (
               <Button
                 variant="outline"
                 onClick={() =>

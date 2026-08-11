@@ -93,8 +93,9 @@ function ruleStatus(rule: AlertingRuleView): {
   muted?: boolean;
 } {
   if (rule.paused) return { label: "Paused", tone: "muted" };
-  if (rule.spec.suppressed) {
-    return { label: "Suppressed", tone: "muted" };
+  // A preview rule evaluates and records history, but never notifies.
+  if (rule.previewId !== null) {
+    return { label: "Preview", tone: "muted" };
   }
   if (rule.health.status === "degraded") {
     return { label: "Degraded", tone: "warning" };

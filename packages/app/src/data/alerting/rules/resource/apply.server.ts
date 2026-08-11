@@ -29,9 +29,9 @@ interface ApplyAlertsResult {
   note?: string;
 }
 
-// Preview evaluations are real, but notification delivery is suppressed.
+// Preview evaluations are real; only the notification is withheld.
 const PREVIEW_NOTE =
-  "preview alert rules are fully evaluated by the alert worker (suppressed): " +
+  "preview alert rules are fully evaluated by the alert worker: " +
   "instances and history are real, but no notifications are sent.";
 
 function validationError(path: string, error: unknown): ApplyValidationError {

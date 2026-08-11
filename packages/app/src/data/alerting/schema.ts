@@ -68,8 +68,6 @@ export const AlertingRuleSpecSchema = z.object({
   annotations: z.record(z.string(), z.string()).default({}),
   resolve_after: z.number().int().positive().default(1),
   max_interval_secs: z.number().int().positive().optional(),
-  // Preview rules run evaluations but do not send notifications.
-  suppressed: z.boolean().default(false),
 });
 
 export const AlertingRuleHealthStatusSchema = z.enum(ALERTING_HEALTH_STATUSES);

@@ -98,14 +98,14 @@ export function toRuleInput(
     ...(rule.spec.maxInterval !== undefined
       ? { max_interval_secs: parseWindow(rule.spec.maxInterval) }
       : {}),
-    // Preview rules are a full dress rehearsal: evaluated, stateful, and
-    // visible in history, but the dispatcher never notifies on them.
-    suppressed: opts.previewId !== undefined,
   };
 
   return {
     name: formatResourceName(project, slug),
     repoid,
+    // A preview rule is a full dress rehearsal: evaluated, stateful, and
+    // visible in history, but the dispatcher never notifies on it. This
+    // column is the whole record of that; nothing copies it into the spec.
     previewId: opts.previewId ?? null,
     notification_channels: rule.spec.notification?.channels ?? [],
     ...spec,
@@ -128,9 +128,9 @@ export type SimpleAlertView = {
   condition: AlertingRule["spec"]["condition"];
   runbookProject: string | null;
   runbookSlug: string | null;
-  // The owning preview registry id, or null for a live rule.
+  // The owning preview registry id, or null for a live rule. A preview rule
+  // never notifies, so this is also the answer to "does this rule page".
   previewId: string | null;
-  suppressed: boolean;
 };
 
 /** Reads the resource identity and display fields from a stored rule. */
@@ -166,8 +166,6 @@ export function fromAlertingRule(
     runbookProject: runbook?.project ?? null,
     runbookSlug: runbook?.slug ?? null,
     previewId: rule.previewId,
-    // Inputs that bypass schema parsing may omit this default.
-    suppressed: rule.spec.suppressed ?? false,
   };
 }
 

@@ -208,7 +208,6 @@ const definition = {
   spec: {
     sql: "SELECT 1",
     severity: "critical",
-    suppressed: false,
     interval_secs: 60,
     for_secs: 0,
     resolve_after: 1,

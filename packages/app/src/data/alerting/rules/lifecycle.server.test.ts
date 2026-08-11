@@ -32,7 +32,6 @@ const def = {
   slug: "high-5xx",
   spec: {
     severity: "critical",
-    suppressed: false,
     annotations: {},
   },
 } as unknown as Parameters<typeof instanceClosedJournalRow>[0];

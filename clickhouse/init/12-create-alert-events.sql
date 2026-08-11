@@ -55,8 +55,11 @@ CREATE TABLE IF NOT EXISTS app.alert_events
   -- Validated at the spec boundary, not here: an Enum would make the
   -- non-throwing writer drop rows when a severity is added.
   severity LowCardinality(String) DEFAULT 'info',
-  -- The rule never notifies at all (spec.suppressed or a preview copy). Set
-  -- on every row; unrelated to `silenced`, which is per notification.
+  -- The rule never notifies at all. A preview copy is the only cause today,
+  -- so this equals NOT is_live on every row; it stays its own column because
+  -- the fact it states is "nothing was sent for this rule", which a future
+  -- reason would join rather than replace. Set on every row; unrelated to
+  -- `silenced`, which is per notification.
   rule_muted Bool DEFAULT false,
   -- On terminal instance rows: condition_cleared on instance_resolved;
   -- pending_cleared, labels_changed, rule_paused, rule_deleted or
