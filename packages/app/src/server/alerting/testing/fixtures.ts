@@ -268,10 +268,8 @@ export async function insertDirectRule(
   db: Db,
   overrides: RuleOverrides & {
     channelType?: "slack" | "discord" | "webhook" | "telegram";
-    // insertChannel's own default name collides across the second
-    // insertDirectRule call in one org, since alert_channels is unique on
-    // (organization_id, name). Only needed once a test wires up more than
-    // one direct rule in the same org.
+    // Only needed to pin a specific name; the default below already can't
+    // collide.
     channelName?: string;
   } = {},
 ): Promise<RuleFixture> {
@@ -279,7 +277,14 @@ export async function insertDirectRule(
   const channel = await insertChannel(db, {
     organizationId: rule.organizationId,
     type: overrides.channelType ?? "slack",
-    name: overrides.channelName,
+    // Slug alone is not unique enough to derive from: a live rule and a
+    // preview of it legitimately share (project, slug), since
+    // alert_definitions' own uniqueness on that pair is scoped to preview_id
+    // IS NULL vs IS NOT NULL separately. rule.id is the row's own primary
+    // key, so keying off it makes a channel-name collision structurally
+    // impossible rather than merely unlikely, whatever two rules a test
+    // wires up in one org.
+    name: overrides.channelName ?? `${rule.slug}-${rule.id}-channel`,
   });
   await db.insert(alertDefinitionChannels).values({
     organizationId: rule.organizationId,

@@ -136,13 +136,11 @@ describe("the alerting pipeline's suppression", () => {
   it("canceling the silence releases every held event in one statement", async () => {
     const ruleA = await insertDirectRule(harness.db, {
       slug: "held-a",
-      channelName: "held-a-channel",
       forSecs: 0,
       channelType: "slack",
     });
     const ruleB = await insertDirectRule(harness.db, {
       slug: "held-b",
-      channelName: "held-b-channel",
       forSecs: 0,
       channelType: "slack",
     });
@@ -296,7 +294,6 @@ describe("the alerting pipeline's suppression", () => {
     const preview = await insertPreview(harness.db);
     await insertDirectRule(harness.db, {
       slug: "preview-rule",
-      channelName: "preview-channel",
       previewId: preview.id,
       severity: "critical",
       forSecs: 0,
@@ -304,7 +301,6 @@ describe("the alerting pipeline's suppression", () => {
     });
     await insertDirectRule(harness.db, {
       slug: "paging-rule",
-      channelName: "paging-channel",
       severity: "critical",
       forSecs: 0,
       channelType: "slack",
