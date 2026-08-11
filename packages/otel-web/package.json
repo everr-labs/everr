@@ -20,12 +20,6 @@
     },
     "./react": "./src/react.ts"
   },
-  "imports": {
-    "#report": {
-      "node": "./src/report.server.ts",
-      "default": "./src/report.browser.ts"
-    }
-  },
   "publishConfig": {
     "access": "public",
     "exports": {
@@ -42,12 +36,6 @@
       "./react": {
         "types": "./dist/react.d.ts",
         "default": "./dist/react.js"
-      }
-    },
-    "imports": {
-      "#report": {
-        "node": "./dist/report.server.js",
-        "default": "./dist/report.browser.js"
       }
     }
   },

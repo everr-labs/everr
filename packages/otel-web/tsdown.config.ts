@@ -7,16 +7,11 @@ export default defineConfig({
     index: "src/index.ts",
     react: "src/react.ts",
     server: "src/server.ts",
-    // The two targets of the "#report" subpath. The react bundle keeps the
-    // "#report" import, and the resolver of the consumer selects one of these
-    // files for the runtime. Thus the build must emit them as entries.
-    "report.browser": "src/report.browser.ts",
-    "report.server": "src/report.server.ts",
   },
-  // The bundle must keep the "#report" import. If the build resolves it, the
-  // react bundle contains the module of one runtime, and the selection by the
-  // consumer is lost.
-  external: ["#report"],
+  // The react bundle must keep its import of the package name. If the build
+  // resolves it, the react bundle contains the entry of one runtime, and the
+  // selection by the "." export conditions of the consumer is lost.
+  external: ["@everr/otel-web"],
   format: ["esm"],
   dts: true,
   platform: "browser",

@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { fetchSend } from "./config.js";
-import { bindEmit } from "./current.js";
+import { bindEmit } from "./emit.js";
 import { createEmitter } from "./emitter.js";
 import { logger } from "./logger.js";
 

@@ -108,7 +108,9 @@ describe("standalone captureError", () => {
     captureError(new Error("standalone"), { feature: "billing" });
     const [record] = otel.records();
     expect(record.eventName).toBe("exception");
-    expect(record.attributes["everr.error.mechanism"]).toBe("manual");
+    // A manual capture carries no mechanism attribute. Its absence means
+    // manual.
+    expect(record.attributes["everr.error.mechanism"]).toBeUndefined();
     expect(record.attributes.feature).toBe("billing");
   });
 
@@ -181,11 +183,11 @@ describe("ErrorsInstrumentation capture", () => {
     expect(record.attributes["exception.type"]).toBe("NonError");
   });
 
-  it("backs captureError with mechanism manual", () => {
+  it("backs captureError with no mechanism attribute", () => {
     enable();
     captureError(new Error("manual boom"), { feature: "billing" });
     const [record] = otel.records();
-    expect(record.attributes["everr.error.mechanism"]).toBe("manual");
+    expect(record.attributes["everr.error.mechanism"]).toBeUndefined();
     expect(record.attributes.feature).toBe("billing");
   });
 

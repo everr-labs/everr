@@ -1,17 +1,18 @@
 import type { Attributes } from "@opentelemetry/api";
 
 /**
- * The method that sent the error to this package. The union contains the three
- * names that this package makes, and thus an editor can complete them. The
- * `(string & {})` part lets the other SDKs that use the core client send their
- * own names without a cast. For example, @everr/otel-web reports `onerror` and
- * `react`. Thus a closed type in a Node package does not contain the
- * mechanisms of a browser SDK.
+ * The method that sent the error to this package. A manual capture has no
+ * mechanism: the record then carries no "everr.error.mechanism" attribute,
+ * and its absence means manual. The union contains the names that this
+ * package makes, and thus an editor can complete them. The `(string & {})`
+ * part lets the other SDKs that use the core client send their own names
+ * without a cast. For example, @everr/otel-web reports `onerror` and `react`.
+ * Thus a closed type in a Node package does not contain the mechanisms of a
+ * browser SDK.
  */
 export type Mechanism =
   | "uncaughtException"
   | "unhandledrejection"
-  | "manual"
   | (string & {});
 
 export type ErrorSeverity = "error" | "fatal";
@@ -20,7 +21,9 @@ export interface ErrorEvent {
   error: unknown;
   message: string;
   severity: ErrorSeverity;
-  mechanism: Mechanism;
+  /** Absent for a manual capture. The record then carries no
+   * "everr.error.mechanism" attribute. */
+  mechanism?: Mechanism;
   /** The attributes from the caller that are attached to this error. */
   context: Attributes;
 }

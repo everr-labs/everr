@@ -95,7 +95,9 @@ describe("captureError", () => {
   it("works with no configure() call at all", () => {
     captureError(new Error("boom"), { "order.id": "o_1" });
     const [record] = otel.records();
-    expect(record?.attributes["everr.error.mechanism"]).toBe("manual");
+    // A manual capture carries no mechanism attribute. Its absence means
+    // manual.
+    expect(record?.attributes["everr.error.mechanism"]).toBeUndefined();
     expect(record?.attributes["order.id"]).toBe("o_1");
   });
 });

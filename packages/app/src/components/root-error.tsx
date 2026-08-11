@@ -1,4 +1,4 @@
-import { captureReactError } from "@everr/otel-web/react";
+import { captureError } from "@everr/otel-web";
 import { RetryError } from "@everr/ui/components/retry-error";
 import type { ErrorComponentProps } from "@tanstack/react-router";
 import { useEffect } from "react";
@@ -9,7 +9,7 @@ import { useEffect } from "react";
 // instead of the router's bare stock fallback.
 export function RootErrorComponent({ error }: ErrorComponentProps) {
   useEffect(() => {
-    captureReactError(error);
+    captureError(error);
   }, [error]);
 
   return (

@@ -135,7 +135,9 @@ describe("init (server)", () => {
     expect(a["exception.type"]).toBe("Error");
     expect(a["exception.message"]).toBe("ssr boom");
     expect(String(a["exception.stacktrace"])).toContain("ssr boom");
-    expect(a["everr.error.mechanism"]).toBe("manual");
+    // A manual capture carries no mechanism attribute. Its absence means
+    // manual.
+    expect(a["everr.error.mechanism"]).toBeUndefined();
     expect(a["everr.loader.route"]).toBe("/x");
   });
 

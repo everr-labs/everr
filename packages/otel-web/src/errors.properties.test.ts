@@ -36,7 +36,7 @@ describe("error normalization", () => {
       const a = attrs(record);
       expect(typeof a["exception.type"]).toBe("string");
       expect(typeof a["exception.message"]).toBe("string");
-      expect(a["everr.error.mechanism"]).toBe("manual");
+      expect(a["everr.error.mechanism"]).toBeUndefined();
       expect(record.severityNumber).toBe(17);
     }
   });

@@ -20,12 +20,14 @@
 // in memory only, and the host identifies the user again at each page load.
 
 import { getAttributes, setAttributes } from "./attributes.js";
-import { currentStore, setStore, storeFor } from "./current.js";
 import type { AttrValue } from "./emitter.js";
+import {
+  currentStore,
+  type SessionState,
+  setStore,
+  storeFor,
+} from "./store.js";
 import type { Persistence, UserTraits } from "./types.js";
-
-const VISITOR_KEY = "everr.visitor.id";
-const SESSION_KEY = "everr.session";
 
 const SESSION_TIMEOUT_MS = 30 * 60 * 1000;
 
@@ -58,19 +60,16 @@ let visitor: string | undefined;
 /** The current visitor id. If the current store has none, the code makes one. */
 export function visitorId(): string {
   if (!visitor) {
-    visitor = currentStore().read(VISITOR_KEY) ?? uniqueId();
-    currentStore().write(VISITOR_KEY, visitor);
+    visitor = currentStore().readVisitor() ?? uniqueId();
+    currentStore().writeVisitor(visitor);
   }
   return visitor;
 }
 
-/** The session in the store: its id and the time of the last activity. */
-type SessionState = { id: string; t: number };
-
 // This keeps the session in memory when the store does not operate or when the
 // code changed the store. Without it, the code makes a new session id for each
 // record.
-let memory: SessionState | null = null;
+let session: SessionState | null = null;
 
 // The time between two writes of the activity to the store. localStorage
 // operates in sequence with the page, and thus each write stops the main
@@ -97,26 +96,16 @@ let lastWrite = 0;
  */
 export function sessionId(): string {
   const store = currentStore();
-  let base = memory;
-  try {
-    const parsed: { id?: unknown; t?: unknown } = JSON.parse(
-      store.read(SESSION_KEY) ?? "null",
-    );
-    if (typeof parsed?.id === "string" && typeof parsed.t === "number")
-      base = parsed as SessionState;
-  } catch {
-    // The data in the store is not correct. Use the session in memory, or make
-    // a new session.
-  }
+  const base = store.readSession() ?? session;
   const now = Date.now();
   const next =
     base && now - base.t <= SESSION_TIMEOUT_MS
       ? { id: base.id, t: now }
       : { id: uniqueId(), t: now };
-  memory = next;
+  session = next;
   if (next.id !== base?.id || now - lastWrite >= STORAGE_WRITE_DELAY_MS) {
     lastWrite = now;
-    store.write(SESSION_KEY, JSON.stringify(next));
+    store.writeSession(next);
   }
   return next.id;
 }
@@ -128,9 +117,9 @@ export function sessionId(): string {
  * early after the user comes back.
  */
 export function persistSession(): void {
-  if (!memory) return;
+  if (!session) return;
   lastWrite = Date.now();
-  currentStore().write(SESSION_KEY, JSON.stringify(memory));
+  currentStore().writeSession(session);
 }
 
 /**
@@ -145,8 +134,8 @@ export function persistSession(): void {
 export function setPersistence(persistence: Persistence | undefined): void {
   const id = visitorId();
   setStore(storeFor(persistence));
-  visitor = currentStore().read(VISITOR_KEY) ?? id;
-  currentStore().write(VISITOR_KEY, visitor);
+  visitor = currentStore().readVisitor() ?? id;
+  currentStore().writeVisitor(visitor);
   // The new store has no session. The write of the activity is on a delay, and
   // thus the code writes the session now. Without this step a reload in the
   // period of the delay finds no session and makes a new one.
@@ -193,11 +182,9 @@ export function identify(userId: string, traits?: UserTraits): void {
  */
 export function revoke(): void {
   clearUser();
-  const store = currentStore();
-  store.remove(VISITOR_KEY);
-  store.remove(SESSION_KEY);
+  currentStore().clear();
   visitor = undefined;
-  memory = null;
+  session = null;
   setStore(storeFor("memory"));
 }
 

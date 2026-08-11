@@ -83,9 +83,5 @@ export function captureError(error: unknown, context?: Attributes): void {
     }
   }
 
-  Client.shared().capture({
-    error,
-    mechanism: "manual",
-    context,
-  });
+  Client.shared().capture({ error, context });
 }

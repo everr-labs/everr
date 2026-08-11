@@ -23,15 +23,20 @@
 // on the server does not go through the emitter of this package. The two hooks
 // have the same name and they are in two packages. Refer to the README.
 //
-// The error path needs no connection step. The report.server module contains
-// the report function for this runtime, and the "#report" subpath of
-// package.json gives it to the react entry. The resolver selects the module,
-// and thus no code changes a binding at run time.
+// The error path needs no connection step. This entry exports its own
+// captureError, and the react entry imports it through the package name. The
+// "." export in package.json gives this entry to the react module graph of
+// the server, and thus no code changes a binding at run time.
 //
 // The logger keeps its connection in the constructor, because its emitter
 // belongs to one instance. The shutdown() function disconnects only the
 // logger.
 
+// The /core subpath is the part of that package for all runtimes. It keeps the
+// instrumentation and its @types/node requirement out of the browser tsc
+// program of this package. That program has no Node types, and this is
+// correct.
+import { capture } from "@everr/otel-errors/core";
 import { context } from "@opentelemetry/api";
 import {
   type LogAttributes,
@@ -39,7 +44,7 @@ import {
   logs,
   SeverityNumber,
 } from "@opentelemetry/api-logs";
-import { bindEmit } from "./current.js";
+import { bindEmit } from "./emit.js";
 import {
   type AttrValue,
   type BeforeSend,
@@ -52,7 +57,6 @@ import type { NetworkOptions } from "./instrumentations/network/index.js";
 import type { PerformanceOptions } from "./instrumentations/performance/index.js";
 import type { Instrumentation } from "./instrumentations/runtime.js";
 import { logger } from "./logger.js";
-import { report } from "./report.server.js";
 import type { Persistence, UserTraits, WebSDKOptions } from "./types.js";
 import { SDK_NAME, SDK_VERSION } from "./version.js";
 
@@ -60,13 +64,17 @@ export type { AttrValue } from "./emitter.js";
 export type { ErrorContext } from "./errors.js";
 
 /**
- * Reports an error. The context attributes are optional.
- *
- * This needs no WebSDK on the server. The record goes through
- * @everr/otel-errors to the LoggerProvider of the app with the active context.
+ * Reports an error. The context attributes are optional. A caller that is not
+ * manual puts "everr.error.mechanism" in the context; without that attribute
+ * the report is manual. This needs no WebSDK on the server. The record goes
+ * through @everr/otel-errors to the LoggerProvider of the app with the active
+ * context.
  */
 export function captureError(error: unknown, context?: ErrorContext): void {
-  report(error, "manual", context);
+  capture({
+    error,
+    context,
+  });
 }
 export type {
   Instrumentation,

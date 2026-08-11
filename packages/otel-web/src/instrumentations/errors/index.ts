@@ -1,10 +1,14 @@
-import { type ErrorFilter, report, setErrorFilter } from "../../errors.js";
+import {
+  captureError,
+  type ErrorFilter,
+  setErrorFilter,
+} from "../../errors.js";
 import type { Instrumentation } from "../runtime.js";
 
 // The errors instrumentation. It contains the global handlers for an unhandled
-// error and an unhandled rejection. Those handlers report through the shared
-// `report` binding with the mechanism "unhandled". A manual `captureError` and
-// a React boundary use the same path.
+// error and an unhandled rejection. Those handlers report through
+// `captureError`, and they put their mechanism in the context. A manual
+// `captureError` and a React boundary use the same path.
 //
 // This module also contains the `ignore` filter and the `denyUrls` filter. The
 // setup registers them on that shared error path, and thus they apply to each
@@ -69,7 +73,11 @@ function startErrors(): () => void {
     if (event.error != null) {
       if (seenByRejection.has(event.error)) return;
       seenByOnerror.add(event.error);
-      report(event.error, "onerror", undefined, event.filename);
+      captureError(
+        event.error,
+        { "everr.error.mechanism": "onerror" },
+        event.filename,
+      );
     }
   };
   const onRejection = (event: Event) => {
@@ -78,7 +86,7 @@ function startErrors(): () => void {
       if (seenByOnerror.has(reason)) return;
       seenByRejection.add(reason);
     }
-    report(reason, "unhandledrejection");
+    captureError(reason, { "everr.error.mechanism": "unhandledrejection" });
   };
   addEventListener("error", onError);
   addEventListener("unhandledrejection", onRejection);

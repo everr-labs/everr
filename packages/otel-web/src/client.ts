@@ -1,6 +1,6 @@
 import { attributionAttributes } from "./attribution.js";
 import { resolveTransport } from "./config.js";
-import { bindEmit } from "./current.js";
+import { bindEmit } from "./emit.js";
 import { createEmitter, noop } from "./emitter.js";
 import { createEnvelope } from "./envelope.js";
 import type { InstrumentationContext } from "./instrumentations/runtime.js";

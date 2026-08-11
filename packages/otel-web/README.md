@@ -40,7 +40,7 @@ Without a key or an endpoint, a production build resolves to an inert client tha
 | --- | --- |
 | `errors()` | `window` errors and unhandled rejections, with `ignore` and `denyUrls` filters |
 | `pageviews()` | Page views and page leaves, across SPA navigations |
-| `interactions()` | Clicks, changes, submits, and rage clicks |
+| `interactions()` | Clicks, changes, submits, and rage clicks (3 clicks, 30px, 1s) |
 | `performance()` | Web vitals; `{ pageLoad: true }` adds the asset waterfall and long animation frames |
 | `network()` | `fetch` and XHR as client spans |
 

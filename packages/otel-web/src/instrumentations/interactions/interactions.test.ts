@@ -13,6 +13,14 @@ function names() {
   return emitted.map((e) => e.name);
 }
 
+/** The number of records that have this event name. */
+function countOf(name: string) {
+  return emitted.filter((e) => e.name === name).length;
+}
+
+const rageClicks = () => countOf("everr.browser.interaction.rage_click");
+const clicks = () => countOf("everr.browser.interaction.click");
+
 function click(el: Element, x = 10, y = 20) {
   el.dispatchEvent(
     new MouseEvent("click", { bubbles: true, clientX: x, clientY: y }),
@@ -60,34 +68,77 @@ describe("startInteractions", () => {
       expect(a).not.toHaveProperty("everr.browser.interaction.duration");
     });
 
-    it("a rage burst emits click, click, then rage_click on the third", () => {
+    it("a rage burst adds a rage_click, and it keeps the click of that third click", () => {
       document.body.innerHTML = "<button>broken</button>";
       const button = document.querySelector("button") as Element;
       rageBurst(button);
 
+      // The rage record does not replace the click record. Thus a count of the
+      // clicks on the button is correct, and it is 3.
       expect(names()).toEqual([
         "everr.browser.interaction.click",
         "everr.browser.interaction.click",
         "everr.browser.interaction.rage_click",
+        "everr.browser.interaction.click",
       ]);
       const rage = emitted[2].attrs ?? {};
       expect(rage["everr.browser.click.x"]).toBe(15);
       expect(rage["everr.browser.click.y"]).toBe(24);
       expect(rage["everr.element.tag"]).toBe("button");
+      // The two records of the third click carry the same data.
+      expect(emitted[3].attrs).toEqual(rage);
     });
 
-    it("fires rage once per burst; a fourth click starts a fresh window", () => {
+    it("makes one rage_click for one continuous burst, whatever its length", () => {
+      document.body.innerHTML = "<button>broken</button>";
+      const button = document.querySelector("button") as Element;
+      // Ten clicks in the area and in the interval. This is one condition of
+      // frustration and thus it makes one record. The count continues above 3
+      // and it agrees with 3 no more.
+      for (let i = 0; i < 10; i++) click(button, 10 + (i % 3), 20);
+
+      expect(rageClicks()).toBe(1);
+      expect(clicks()).toBe(10);
+    });
+
+    it("rages again when a late click starts a second window", () => {
+      // The window is not removed after the record. Thus a second rage click
+      // needs a new window, and only a click that is late or far makes one.
+      vi.useFakeTimers();
       document.body.innerHTML = "<button>broken</button>";
       const button = document.querySelector("button") as Element;
       rageBurst(button);
-      click(button, 11, 11);
+      vi.advanceTimersByTime(1_001);
+      rageBurst(button);
 
-      expect(
-        names().filter((n) => n === "everr.browser.interaction.rage_click"),
-      ).toHaveLength(1);
-      // The fourth click starts a new window. Thus it is a usual click, and it
-      // is not a second rage click.
-      expect(names()[3]).toBe("everr.browser.interaction.click");
+      expect(rageClicks()).toBe(2);
+    });
+
+    // Three fast clicks on a surface where the user edits text select a word
+    // or select a line. This is the usual operation of the browser and it is
+    // not frustration. Each case is its own test: beforeEach makes a new
+    // instrumentation, and thus the window of the case before it cannot
+    // continue into this one.
+    const EDIT_SURFACES = `<textarea id="t"></textarea><input id="i" type="text">
+      <div id="ce" contenteditable><span id="inner">text</span></div>
+      <div id="ro" contenteditable="false">read only</div>`;
+
+    it.each([
+      ["a textarea", "t"],
+      ["a text input", "i"],
+      ["an element in a contenteditable region", "inner"],
+    ])("makes no rage_click on %s", (_label, id) => {
+      document.body.innerHTML = EDIT_SURFACES;
+      rageBurst(document.getElementById(id) as Element);
+      expect(rageClicks()).toBe(0);
+      // The clicks are still on the record.
+      expect(clicks()).toBe(3);
+    });
+
+    it("rages on contenteditable=false, which is not such a surface", () => {
+      document.body.innerHTML = EDIT_SURFACES;
+      rageBurst(document.getElementById("ro") as Element);
+      expect(rageClicks()).toBe(1);
     });
 
     it("does not rage on spread-out clicks", () => {
@@ -102,9 +153,7 @@ describe("startInteractions", () => {
         "everr.browser.interaction.click",
         "everr.browser.interaction.click",
       ]);
-      expect(
-        names().filter((n) => n === "everr.browser.interaction.rage_click"),
-      ).toHaveLength(0);
+      expect(rageClicks()).toBe(0);
     });
 
     it("rage clicks carry the full element payload (id, href)", () => {
@@ -283,9 +332,6 @@ describe("startInteractions", () => {
 });
 
 describe("threshold boundaries", () => {
-  const rageClicks = () =>
-    emitted.filter((e) => e.name === "everr.browser.interaction.rage_click");
-
   it("counts a click gap of exactly one second toward the burst", () => {
     vi.useFakeTimers();
     document.body.innerHTML = "<button>Go</button>";
@@ -295,7 +341,7 @@ describe("threshold boundaries", () => {
     click(button);
     vi.advanceTimersByTime(1_000);
     click(button);
-    expect(rageClicks()).toHaveLength(1);
+    expect(rageClicks()).toBe(1);
   });
 
   it("resets the burst when a gap exceeds one second by any amount", () => {
@@ -307,7 +353,7 @@ describe("threshold boundaries", () => {
     click(button);
     vi.advanceTimersByTime(1_000);
     click(button);
-    expect(rageClicks()).toHaveLength(0);
+    expect(rageClicks()).toBe(0);
   });
 
   it("counts a click exactly 30px away toward the burst, 31px resets it", () => {
@@ -316,13 +362,13 @@ describe("threshold boundaries", () => {
     click(button, 0, 0);
     click(button, 30, 0);
     click(button, 30, 0);
-    expect(rageClicks()).toHaveLength(1);
+    expect(rageClicks()).toBe(1);
 
     emitted = [];
     click(button, 100, 0);
     click(button, 131, 0);
     click(button, 131, 0);
-    expect(rageClicks()).toHaveLength(0);
+    expect(rageClicks()).toBe(0);
   });
 });
 

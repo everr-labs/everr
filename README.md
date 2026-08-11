@@ -53,3 +53,11 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup instructions.
 ## License
 
 This project is licensed under the [Functional Source License, Version 1.1, ALv2 Future License](LICENSE). Some components are subject to different license terms, see [NOTICE](NOTICE) for details.
+
+## TODO
+
+- Self review
+- Overview / Home page
+- Template with handoff adoption
+- everr-setup-resources con refining (brainstorming)
+- cambio licenza

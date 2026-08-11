@@ -16,9 +16,9 @@ import { parameterizeTelemetryPath } from "@/telemetry/paths";
 // one of the two.
 //
 // The errors() instrumentation of the SDK captures the errors. It uses
-// window.onerror, the unhandledrejection event, and the error component of the
-// router through the `captureReactError` function that this module exports
-// again. Each error record carries the same analytics envelope.
+// window.onerror and the unhandledrejection event. The error component of the
+// router reports through `captureError`. Each error record carries the same
+// analytics envelope.
 //
 // The consent cookie in the store gives the initial persistence. Until the user
 // gives consent, the SDK uses the memory store, which writes nothing and whose

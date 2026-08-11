@@ -1,7 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { WebSDK } from "./client.js";
 import { captureError } from "./index.js";
-import { captureReactError } from "./react.js";
 import {
   attrs,
   type OtlpBatch,
@@ -66,10 +65,11 @@ describe("error capture through the SDK", () => {
     expect(a["exception.message"]).toBe("rejected");
   });
 
-  it("captures React render errors via the re-exported captureReactError", async () => {
+  it("captures React render errors with the react mechanism and stack", async () => {
     start();
-    captureReactError(new Error("component boom"), {
-      componentStack: "\n    at Broken\n    at App",
+    captureError(new Error("component boom"), {
+      "everr.error.mechanism": "react",
+      "everr.react.component_stack": "\n    at Broken\n    at App",
     });
     const record = (await records()).find((r) => r.eventName === "exception");
     const a = attrs(record as OtlpRecord);
@@ -122,7 +122,9 @@ describe("error capture through the SDK", () => {
     });
     const record = (await records()).find((r) => r.eventName === "exception");
     const a = attrs(record as OtlpRecord);
-    expect(a["everr.error.mechanism"]).toBe("manual");
+    // A manual report carries no mechanism attribute. Its absence means
+    // manual.
+    expect(a["everr.error.mechanism"]).toBeUndefined();
     expect(a["everr.feature"]).toBe("billing");
     expect(a["everr.attempt"]).toBe("2");
   });
@@ -191,7 +193,6 @@ describe("error capture through the SDK", () => {
     // the functions do nothing and give no warning about the configuration.
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     try {
-      expect(() => captureReactError(new Error("late"))).not.toThrow();
       expect(() => captureError(new Error("late"))).not.toThrow();
       expect(warn).not.toHaveBeenCalled();
     } finally {
@@ -201,17 +202,13 @@ describe("error capture through the SDK", () => {
 
   it("warns instead of throwing when captured before init", async () => {
     // A new instance of the module gives the true condition before a
-    // construction. The react entry uses that same condition through the
-    // dynamic report binding.
+    // construction. The react entry uses this same function through the
+    // "#report" subpath.
     vi.resetModules();
     const fresh = await import("./errors.js");
-    const freshReact = await import("./react.js");
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     try {
       expect(() => fresh.captureError(new Error("early"))).not.toThrow();
-      expect(() =>
-        freshReact.captureReactError(new Error("early")),
-      ).not.toThrow();
       expect(warn).toHaveBeenCalledWith("[everr] SDK not initialized");
     } finally {
       warn.mockRestore();

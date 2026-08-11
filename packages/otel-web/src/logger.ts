@@ -8,7 +8,7 @@
 // reads the current pipeline from the shared binding at each call. Thus this
 // module keeps no data.
 
-import { currentEmit } from "./current.js";
+import { currentEmit } from "./emit.js";
 import type { AttrValue } from "./emitter.js";
 
 const level =

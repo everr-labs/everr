@@ -378,7 +378,7 @@ describe("host-owned transport (send)", () => {
 
     const bodies = delivered.map((d) => d.body).join("");
     expect(bodies).toContain("host boom");
-    expect(bodies).toContain("everr.error.mechanism");
+    expect(bodies).toContain("exception.type");
   });
 
   it("keeps working when the host transport throws", async () => {

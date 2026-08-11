@@ -20,8 +20,8 @@ function ErrorFallback() {
   );
 }
 
-// The library's ErrorBoundary calls captureReactError in componentDidCatch,
-// emitting a "react" mechanism error log with the component stack attached.
+// The library's ErrorBoundary reports in componentDidCatch, emitting a
+// "react" mechanism error log with the component stack attached.
 export function ReactTelemetryErrorBoundary({
   children,
 }: {

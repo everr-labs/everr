@@ -144,12 +144,5 @@
       "file": "packages/app/src/data/dashboards/testdata/spec.ts",
       "exports": ["*"]
     },
-    {
-      // The "#report" conditional subpath: this module and errors.ts export
-      // `report` on purpose, one implementation per runtime. The resolver
-      // picks one; a barrel never sees both.
-      "file": "packages/otel-web/src/report.server.ts",
-      "exports": ["report"]
-    },
   ]
 }

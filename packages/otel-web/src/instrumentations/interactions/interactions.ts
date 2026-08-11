@@ -4,16 +4,15 @@ import type { Emit } from "../../emitter.js";
 // The interactions signal. It captures the data for the product analytics
 // automatically, and it finds the frustration of the user. The automatic
 // capture covers a `change` event of a form field and a `submit` event. The
-// frustration part covers a rage click and a dead click.
+// frustration part covers a rage click.
 //
 // The slow interactions are in the performance instrumentation, and they use
 // the same observer that calculates the INP. But they use the event names, the
 // element data, and the privacy limits of this module, through the shared
 // functions in element.ts. Thus each event carries the tag, the selector, and
 // the chain. The privacy limits in the structure control the events of the
-// automatic capture. The rage click and the dead click are the only signals
-// that carry the coordinates of the pointer, because Event Timing gives no
-// coordinates.
+// automatic capture. The click records are the only records that carry the
+// coordinates of the pointer, because Event Timing gives no coordinates.
 //
 // This emitter sends each interaction immediately on the batch pipeline, and
 // this condition is temporary. The next model uses breadcrumbs. Then an
@@ -21,10 +20,20 @@ import type { Emit } from "../../emitter.js";
 // slow click, a dead click, or a rage click. That model uses the same functions
 // for the element and the privacy limits, and only the control changes.
 
+// A surface where the user edits text. Two fast clicks and three fast clicks on
+// such a surface select a word and select a line. They are the usual operation
+// of the browser and they are not frustration. Thus they make no rage click.
+// The selector uses closest(), because a click in a region with contenteditable
+// has a child of that region as its target. A password input is not in the
+// list, because guardOf refuses it before this code.
+const TEXT_SELECTION_TARGET =
+  "textarea,[contenteditable]:not([contenteditable=false])," +
+  "input:not([type]),input[type=text],input[type=search],input[type=email]," +
+  "input[type=url],input[type=tel],input[type=number]";
+
 export function startInteractions(emit: Emit): () => void {
   // The limits for a rage click. Three clicks in an area of 30 px, with an
-  // interval of a maximum of 1 s between them, make a rage click. An interval
-  // of 3 s with no change of the page makes a dead click.
+  // interval of a maximum of 1 s between them, make a rage click.
   let rage: [x: number, y: number, at: number, count: number] | undefined;
 
   const onClick = (event: MouseEvent) => {
@@ -32,30 +41,35 @@ export function startInteractions(emit: Emit): () => void {
     if (!el) return;
     const x = event.clientX + scrollX;
     const y = event.clientY + scrollY;
+    const attributes = {
+      ...elementAttrs(el),
+      "everr.browser.click.x": x,
+      "everr.browser.click.y": y,
+    };
 
+    // The position and the time are always the values of this click: the
+    // window follows the pointer. Only the count carries the history.
     const now = Date.now();
-    rage =
+    rage = [
+      x,
+      y,
+      now,
       rage &&
       now - rage[2] <= 1_000 &&
       Math.hypot(x - rage[0], y - rage[1]) <= 30
-        ? [x, y, now, rage[3] + 1]
-        : [x, y, now, 1];
-    const isRageClick = rage[3] === 3;
-    if (isRageClick) {
-      rage = undefined;
-
-      emit("everr.browser.interaction.rage_click", {
-        ...elementAttrs(el),
-        "everr.browser.click.x": x,
-        "everr.browser.click.y": y,
-      });
-    } else {
-      emit("everr.browser.interaction.click", {
-        ...elementAttrs(el),
-        "everr.browser.click.x": x,
-        "everr.browser.click.y": y,
-      });
+        ? rage[3] + 1
+        : 1,
+    ];
+    // The test is on the count of exactly 3, and the code does not remove the
+    // window after it sends the record. Thus one continuous burst makes one
+    // rage click and not one for each three clicks: the count continues to 4,
+    // to 5, and more, and it agrees with 3 no more.
+    if (rage[3] === 3 && !el.closest(TEXT_SELECTION_TARGET)) {
+      emit("everr.browser.interaction.rage_click", attributes);
     }
+    // The rage click does not replace the click. Each click makes its own
+    // record, and thus a count of the clicks on an element is correct.
+    emit("everr.browser.interaction.click", attributes);
   };
 
   // The listener uses the capture phase. Thus it receives a click also when a

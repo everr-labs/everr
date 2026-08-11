@@ -1,9 +1,9 @@
-import { currentEmit } from "./current.js";
+import { currentEmit } from "./emit.js";
 
 // The error reports of the browser. This module has the `captureError`
-// function and the `report` function. Each browser error path uses that
-// function. The `captureReactError` function is in the react entry, and it
-// imports `report` through the "#report" subpath. The package.json selects
+// function, and each browser error path uses it. The ErrorBoundary is in the
+// react entry, and it imports `captureError` through the "#report" subpath.
+// The package.json selects
 // this module for the browser and the report.server module for Node. The
 // global handlers for the unhandled errors are in the errors()
 // instrumentation, and they import this module directly, because that
@@ -39,17 +39,16 @@ const safeString = (value: unknown): string => {
   }
 };
 
-/** The attributes from the caller that are attached to one error report. */
-export type ErrorContext = Record<string, string | number | boolean>;
-
-export type Report = (
-  error: unknown,
-  mechanism: "onerror" | "unhandledrejection" | "react" | "manual",
-  context?: ErrorContext,
-  /** The URL of the script that reports, if the handler knows it. It comes
-   * from ErrorEvent.filename. */
-  fileName?: string,
-) => void;
+/**
+ * The attributes from the caller that are attached to one error report. A
+ * path that is not manual, for example a global handler or a React boundary,
+ * puts "everr.error.mechanism" here. A record without that attribute is a
+ * manual report.
+ */
+export type ErrorContext = Record<
+  string,
+  string | number | boolean | undefined
+>;
 
 /**
  * The error filter that the app registers. It returns true to discard the
@@ -96,12 +95,22 @@ function frameUrl(stack: string | undefined): string | undefined {
 // constructs a new SDK. That is the intention.
 const hits = new Map<string, number[]>();
 
-// The reporter of the browser. It does these steps: it makes the error regular,
-// it applies the filter, it applies the rate limit, and it sends the record. It
-// reads the current pipeline at each call. It gives a warning before a WebSDK
-// exists, and it does nothing after shutdown. Thus the browser needs no setup
-// step.
-export const report: Report = (error, mechanism, context, fileName) => {
+/**
+ * Reports an error. The context attributes are optional. It does these steps:
+ * it makes the error regular, it applies the filter, it applies the rate
+ * limit, and it sends the record. It reads the current pipeline at each call.
+ * It gives a warning before a WebSDK exists, and it does nothing after
+ * shutdown. Thus the browser needs no setup step.
+ *
+ * @param fileName The URL of the script that reports, if the handler knows
+ * it. It comes from ErrorEvent.filename, and only the denyUrls filter reads
+ * it.
+ */
+export const captureError = (
+  error: unknown,
+  context?: ErrorContext,
+  fileName?: string,
+): void => {
   const emit = currentEmit();
   if (!emit) return;
   // The telemetry must never cause a failure of the page. Thus the code tries
@@ -135,7 +144,6 @@ export const report: Report = (error, mechanism, context, fileName) => {
         "exception.type": type,
         "exception.message": message,
         "exception.stacktrace": stack,
-        "everr.error.mechanism": mechanism,
       },
       17,
       message ? `${type}: ${message}` : type,
@@ -144,11 +152,6 @@ export const report: Report = (error, mechanism, context, fileName) => {
     // The code ignores this error, and this is correct.
   }
 };
-
-/** Reports an error. The context attributes are optional. */
-export function captureError(error: unknown, context?: ErrorContext): void {
-  report(error, "manual", context);
-}
 
 /**
  * The one method to write the type of an error in all the signals. This module

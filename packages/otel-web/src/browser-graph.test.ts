@@ -37,11 +37,12 @@ function walk(
   for (const spec of specifiers) {
     if (spec.startsWith(".")) {
       walk(resolve(dirname(file), spec.replace(/\.js$/, ".ts")), graph);
-    } else if (spec === "#report") {
-      // The "#report" subpath of package.json. The browser resolver selects
-      // the "default" condition. The walker follows that branch, and thus the
-      // guarantee covers the module behind the subpath.
-      walk("src/report.browser.ts", graph);
+    } else if (spec === "@everr/otel-web") {
+      // The self-import of the react entry. The browser resolver selects the
+      // "default" condition of the "." export, which is the index entry. The
+      // walker follows that branch, and thus the guarantee covers the entry
+      // behind the package name.
+      walk("src/index.ts", graph);
     }
   }
   return graph;

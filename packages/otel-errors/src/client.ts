@@ -18,7 +18,9 @@ import { PKG_NAME, PKG_VERSION } from "./version.js";
 
 export interface CaptureInput {
   error: unknown;
-  mechanism: Mechanism;
+  /** Absent for a manual capture. The record then carries no
+   * "everr.error.mechanism" attribute, and its absence means manual. */
+  mechanism?: Mechanism;
   severity?: ErrorSeverity;
   message?: string;
   /** The attributes from the caller. They go below the `exception.*` set. */
@@ -138,7 +140,9 @@ export class Client {
       ...(normalized.stacktrace
         ? { "exception.stacktrace": normalized.stacktrace }
         : {}),
-      "everr.error.mechanism": event.mechanism,
+      ...(event.mechanism != null
+        ? { "everr.error.mechanism": event.mechanism }
+        : {}),
       "log.record.uid": generateErrorId(),
     };
     const activeSpan = trace.getActiveSpan();

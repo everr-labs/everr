@@ -1,7 +1,7 @@
 import { act, createElement } from "react";
 import { createRoot } from "react-dom/client";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { bindEmit } from "./current.js";
+import { bindEmit } from "./emit.js";
 import type { Emit } from "./emitter.js";
 import { ErrorBoundary } from "./react.js";
 
