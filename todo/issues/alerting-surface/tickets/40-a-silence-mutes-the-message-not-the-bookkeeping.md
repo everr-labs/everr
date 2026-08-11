@@ -44,18 +44,40 @@ What is left is not urgent, and this ticket should be read as hygiene:
   reads group membership inherits the same trap.
 
 **Shape:** the decision to suppress belongs to the notification, so the state
-change should reach the group either way. Two candidate routes, and the
-choice is the work:
+change reaches the group either way. The resolve joins its group as any other
+event does, and the flush declines to announce it. Five edits over four
+files:
 
-- The resolve joins the group as it normally would, and the flush declines to
-  announce it. The membership bookkeeping then runs unchanged, which is the
-  smaller behavioural change.
-- Suppression keeps consuming the resolve, but removes the instance's
-  membership as it does so. This is narrower but leaves the two concerns
-  entangled.
+- `processAlertEvent` defers only fires. A silenced resolve falls through to
+  the normal dispatch path. Inhibition needs no thought here, because
+  `matchInhibition` already returns false for a resolve.
+- The same function clears `silenced` and `silence_id` before dispatch. It
+  must keep them on a resolve: that flag is how the flush knows not to
+  announce it.
+- `flushAlertGroup` runs its own silence check over every claimed member, and
+  a silenced resolve matches there too (the triage silence carries no
+  `status` matcher, so `status=resolved` does not save it). That check must
+  skip resolves, or it defers the event straight back out of the group and
+  undoes the fix. The rule lives in two places and both must agree.
+- `groupNotificationPlan` sends a silenced resolve to `droppedUnannounced`
+  rather than `notify`. That branch was built for this idea already: end the
+  chain, announce nothing. The resolve still supersedes the fire in
+  `latestByInstance`, so the membership is dropped with no extra work.
+- The terminal carries the event's own `silenced` and `silence_id`, so the
+  chain says the resolve was silenced instead of `no_longer_firing`.
 
-Whichever wins, the terminal on the resolve's own chain must stay exactly
-one row.
+The care is not in the code, it is in the invariant. Exactly one writer owns
+a chain's terminal, guarded through `processed_at`. Today a silenced
+resolve's terminal is owned by `deferSuppressedEvent`; after this it is owned
+by the flush. A wrong handover writes two terminals or none, and neither
+shows up without a test that looks for it.
+
+**Rejected: letting suppression delete the membership as it consumes the
+resolve.** It is the smaller change and it does not work. The flush claims
+membership rows, then re-inserts the still-active ones when it commits, so a
+delete that lands between those two points is undone and the fire comes
+straight back. Removal has to happen inside the flush's own locked
+transaction, which is where every other member already leaves the group.
 
 **Blocked by:** None.
 
