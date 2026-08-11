@@ -360,6 +360,81 @@ describe("flushAlertGroup suppression batching", () => {
   });
 });
 
+describe("flushAlertGroup flap handling", () => {
+  const GROUP_ID = "5cbb1c68-5cc9-4444-8000-000000000003";
+
+  // The row count is the claim. The integration suite drives this same branch
+  // and finds the resolve's terminal, but never counts the rows, so only this
+  // case says the fire does not get a terminal of its own: a later widening of
+  // the dropped-member classification would append a second row unnoticed.
+  it("records a terminal for a flap instead of notifying an unannounced resolve", async () => {
+    const group = {
+      id: GROUP_ID,
+      organizationId: "org-1",
+      nextFlushAt: new Date("2026-08-10T09:00:00Z"),
+      directAlertDefinitionId: null,
+      receiverId: null,
+      repeatIntervalSeconds: null,
+      lastNotifiedAt: null,
+    };
+    mocks.groupRow = group;
+    // Fire at T, resolve at T+15, both still unflushed at the flush: the
+    // fire never went out.
+    mocks.memberRows = [
+      {
+        event: {
+          id: "fire-event",
+          organizationId: "org-1",
+          sourceDefinitionId: "def-1",
+          instanceFingerprint: "fp-1",
+          occurredAt: new Date("2026-08-10T08:59:00Z"),
+          eventType: "instance_fired",
+          instanceLabels: {},
+          silenced: false,
+          inhibited: false,
+          silenceId: null,
+        },
+        flushedAt: null,
+        ruleActive: true,
+      },
+      {
+        event: {
+          id: "resolve-event",
+          organizationId: "org-1",
+          sourceDefinitionId: "def-1",
+          instanceFingerprint: "fp-1",
+          occurredAt: new Date("2026-08-10T08:59:15Z"),
+          eventType: "instance_resolved",
+          instanceLabels: {},
+          silenced: false,
+          inhibited: false,
+          silenceId: null,
+        },
+        flushedAt: null,
+        ruleActive: true,
+      },
+    ];
+    mocks.commitSelectQueue = [
+      [group], // re-read under lock
+      [{ unflushed: 0 }], // pending count
+    ];
+
+    await flushAlertGroup({ groupId: GROUP_ID });
+
+    expect(mocks.recordHistory).toHaveBeenCalledWith(
+      null,
+      expect.arrayContaining([
+        expect.objectContaining({ notificationEventId: "resolve-event" }),
+      ]),
+    );
+    const [, rows] = mocks.recordHistory.mock.calls[0] as unknown as [
+      unknown,
+      { notificationEventId: string }[],
+    ];
+    expect(rows).toHaveLength(1);
+  });
+});
+
 describe("flushAlertGroup stale members", () => {
   const GROUP_ID = "5cbb1c68-5cc9-4444-8000-000000000005";
 

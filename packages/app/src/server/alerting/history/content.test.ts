@@ -48,6 +48,9 @@ describe("resolveAlertServiceName", () => {
   });
 });
 
+// A placeholder, never a silent cut: `last_error` is what an operator reads
+// when a notification did not arrive, and "the URL was removed here" and "no
+// URL was ever in this message" are different answers to why it failed.
 describe("sanitizeAlertError", () => {
   it("strips webhook URLs", () => {
     const sanitized = sanitizeAlertError(
@@ -55,6 +58,7 @@ describe("sanitizeAlertError", () => {
     );
     expect(sanitized).not.toContain("hooks.slack.com");
     expect(sanitized).not.toContain("secret");
+    expect(sanitized).toContain("[redacted-url]");
     expect(sanitized).toContain("failed, retrying");
   });
 
@@ -63,6 +67,7 @@ describe("sanitizeAlertError", () => {
       "POST hooks.slack.com/services/T000/B000/secret returned 404",
     );
     expect(sanitized).not.toContain("secret");
+    expect(sanitized).toContain("[redacted-url]");
     expect(sanitized).toContain("returned 404");
   });
 
@@ -71,6 +76,7 @@ describe("sanitizeAlertError", () => {
       "telegram: 401 for bot 1234567890:AAHrx3xkeNiG5FakeTokenValue-abc123 unauthorized",
     );
     expect(sanitized).not.toContain("AAHrx3xkeNiG5FakeTokenValue-abc123");
+    expect(sanitized).toContain("[redacted-token]");
     expect(sanitized).toContain("unauthorized");
   });
 
