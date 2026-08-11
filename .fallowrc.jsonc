@@ -118,13 +118,20 @@
       // so its exports are consumed by name-matching module substitution, not
       // by any import fallow can see. Same export names on purpose.
       "file": "packages/app/src/server/alerting/testing/clickhouse-double.ts",
-      "exports": ["*"]
+      "exports": [
+        "querySqlApiWithMeta",
+        "querySqlApi",
+        "query",
+        "insertAdminRows",
+        "createClickhouseQuery",
+        "SqlApiResult"
+      ]
     },
     {
       // Test double for @/db/client, same reasoning: vi.mock substitutes the
       // module, fallow cannot trace the consumer.
       "file": "packages/app/src/server/alerting/testing/db-proxy.ts",
-      "exports": ["*"]
+      "exports": ["runInTransaction"]
     },
   ]
 }

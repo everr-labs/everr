@@ -25,11 +25,6 @@ vi.mock("@/lib/clickhouse", async () => import("./testing/clickhouse-double"));
 let harness: AlertingHarness;
 
 beforeAll(async () => {
-  // Faking only Date, not setTimeout/setInterval/queueMicrotask: PGlite boots
-  // a WebAssembly runtime and awaits real timers while doing so, so a fully
-  // faked clock hangs it forever. All the harness needs from fake time is a
-  // controllable Date, since that is what both JS and PGlite's now() read.
-  vi.useFakeTimers({ toFake: ["Date"] });
   harness = await createAlertingHarness();
 }, 60_000);
 
@@ -39,7 +34,6 @@ afterEach(async () => {
 
 afterAll(async () => {
   await harness.close();
-  vi.useRealTimers();
 });
 
 describe("the alerting pipeline", () => {

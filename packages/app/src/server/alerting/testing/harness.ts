@@ -22,6 +22,11 @@ export interface AlertingHarness {
 }
 
 export async function createAlertingHarness(): Promise<AlertingHarness> {
+  // Fake Date only, not the whole timer set: PGlite boots a WebAssembly
+  // runtime and awaits real timers while doing so, so a fully faked clock
+  // (setTimeout, setInterval, queueMicrotask, ...) stops that boot from ever
+  // completing. Date is all setNow/advance below need.
+  vi.useFakeTimers({ toFake: ["Date"] });
   const database = await createTestDatabase();
   setTestDatabase(database.db);
 
@@ -72,6 +77,7 @@ export async function createAlertingHarness(): Promise<AlertingHarness> {
     async close() {
       setTestDatabase(undefined);
       vi.unstubAllGlobals();
+      vi.useRealTimers();
       await database.close();
     },
   };
