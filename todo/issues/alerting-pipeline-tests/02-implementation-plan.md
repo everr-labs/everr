@@ -1229,8 +1229,10 @@ vi.mock("@/lib/clickhouse", async () => import("./testing/clickhouse-double"));
 
 let harness: AlertingHarness;
 
+// The harness owns the fake clock: it installs a Date-only fake timer on
+// create and restores real timers on close. Faking the whole timer set would
+// hang PGlite's WebAssembly boot, so no test file installs its own.
 beforeAll(async () => {
-  vi.useFakeTimers({ toFake: ["Date"] });
   harness = await createAlertingHarness();
 }, 60_000);
 
@@ -1244,7 +1246,6 @@ afterEach(async () => {
 
 afterAll(async () => {
   await harness.close();
-  vi.useRealTimers();
 });
 ```
 
