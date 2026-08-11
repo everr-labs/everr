@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { createTracer } from "../../tracer.js";
+import { createTracer } from "../../pipeline/tracer.js";
 import type { InstrumentationContext } from "../runtime.js";
 import { performance as performanceInstrumentation } from "./index.js";
 import { startPageLoad } from "./pageload.js";

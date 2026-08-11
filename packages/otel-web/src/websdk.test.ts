@@ -7,7 +7,7 @@ import { network } from "./instrumentations/network/index.js";
 import { pageviews } from "./instrumentations/pageviews/index.js";
 import { performance as performanceInstrumentation } from "./instrumentations/performance/index.js";
 import { logger } from "./logger.js";
-import { setRouteResolver } from "./route.js";
+import { setRouteResolver } from "./state/route.js";
 import {
   attrs,
   type OtlpBatch,

@@ -44,24 +44,24 @@ import {
   logs,
   SeverityNumber,
 } from "@opentelemetry/api-logs";
-import { bindEmit } from "./emit.js";
-import {
-  type AttrValue,
-  type BeforeSend,
-  createBeforeSendGuard,
-  type Emit,
-} from "./emitter.js";
 import type { ErrorContext } from "./errors.js";
 import type { ErrorsOptions } from "./instrumentations/errors/index.js";
 import type { NetworkOptions } from "./instrumentations/network/index.js";
 import type { PerformanceOptions } from "./instrumentations/performance/index.js";
 import type { Instrumentation } from "./instrumentations/runtime.js";
 import { logger } from "./logger.js";
+import {
+  type AttrValue,
+  type BeforeSend,
+  createBeforeSendGuard,
+  type Emit,
+} from "./pipeline/emitter.js";
+import { SDK_NAME, SDK_VERSION } from "./pipeline/version.js";
+import { bindEmit } from "./state/emit.js";
 import type { Persistence, UserTraits, WebSDKOptions } from "./types.js";
-import { SDK_NAME, SDK_VERSION } from "./version.js";
 
-export type { AttrValue } from "./emitter.js";
 export type { ErrorContext } from "./errors.js";
+export type { AttrValue } from "./pipeline/emitter.js";
 
 /**
  * Reports an error. The context attributes are optional. A caller that is not

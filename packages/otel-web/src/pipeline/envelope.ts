@@ -1,12 +1,12 @@
-import { getAttributes } from "./attributes.js";
-import type { AttrValue } from "./emitter.js";
-import { routePattern } from "./route.js";
+import { getAttributes } from "../state/attributes.js";
+import { routePattern } from "../state/route.js";
 import {
   type CurrentPage,
   type PageContext,
   sessionId,
   visitorId,
-} from "./session.js";
+} from "../state/session.js";
+import type { AttrValue } from "./emitter.js";
 
 // The context envelope. The SDK writes it on EACH record that it sends, the
 // analytics records and the error records. Thus a query can divide each signal

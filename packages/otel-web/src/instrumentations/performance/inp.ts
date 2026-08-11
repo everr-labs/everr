@@ -1,7 +1,7 @@
 /// <reference path="../../dom.d.ts" />
 import type { Tracer } from "@opentelemetry/api";
-import { elementAttrs, guardOf } from "../../element.js";
-import type { AttrValue, Emit } from "../../emitter.js";
+import type { AttrValue, Emit } from "../../pipeline/emitter.js";
+import { elementAttrs, guardOf } from "../element.js";
 import { emitVital, scriptAttrs, whenIdleOrHidden } from "./shared.js";
 
 // The measurement of the interaction latency. One Event Timing observer gives

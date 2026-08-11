@@ -9,7 +9,7 @@
 // an intValue is a decimal string. The other internal structures use tuples,
 // because minification keeps the property names but it does not keep the tuple
 // indexes.
-import type { Send, Signal } from "./config.js";
+import type { Send, Signal } from "./transport.js";
 
 export type AttrValue = string | number | boolean;
 

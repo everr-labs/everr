@@ -1,4 +1,4 @@
-import type { AttrValue } from "./emitter.js";
+import type { AttrValue } from "../pipeline/emitter.js";
 
 // The shared data for a DOM element. Each signal that names a DOM element uses
 // this module: the automatic capture of the interactions, the slow

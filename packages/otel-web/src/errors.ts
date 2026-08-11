@@ -1,4 +1,5 @@
-import { currentEmit } from "./emit.js";
+import { currentEmit } from "./state/emit.js";
+import { currentErrorFilter } from "./state/error-filter.js";
 
 // The error reports of the browser. This module has the `captureError`
 // function, and each browser error path uses it. The ErrorBoundary is in the
@@ -50,30 +51,6 @@ export type ErrorContext = Record<
   string | number | boolean | undefined
 >;
 
-/**
- * The error filter that the app registers. It returns true to discard the
- * error. The code calls it on each browser error path: the global handlers, the
- * React boundaries, and a manual `captureError`. When the filter discards a
- * report, the code continues and gives no warning.
- *
- * There is one filter and not a list. Only the errors() instrumentation sets
- * it, and it sets it a maximum of one time for each WebSDK. Thus without that
- * instrumentation there is no filter.
- */
-export type ErrorFilter = (
-  message: string,
-  scriptUrl: string | undefined,
-) => boolean;
-
-let filter: ErrorFilter | undefined;
-
-export function setErrorFilter(next: ErrorFilter): () => void {
-  filter = next;
-  return () => {
-    if (filter === next) filter = undefined;
-  };
-}
-
 // The script URL of the top stack frame. It is the `url:line:col` part of the
 // first line that has the structure of a frame. The code accepts the Chrome
 // structures, "at fn (url:1:2)" and "at url:1:2", and the Firefox structure,
@@ -123,7 +100,7 @@ export const captureError = (
       ? (error.stack ?? `${error.name}: ${error.message}`)
       : undefined;
 
-    if (filter?.(message, frameUrl(stack) ?? fileName)) return;
+    if (currentErrorFilter()?.(message, frameUrl(stack) ?? fileName)) return;
 
     const key = `${type}|${message}|${stack?.split("\n", 2)[1] ?? ""}`;
     const now = Date.now();

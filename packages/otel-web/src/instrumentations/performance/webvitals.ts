@@ -1,6 +1,7 @@
 /// <reference path="../../dom.d.ts" />
-import { selectorOf } from "../../element.js";
-import type { AttrValue, Emit } from "../../emitter.js";
+
+import type { AttrValue, Emit } from "../../pipeline/emitter.js";
+import { selectorOf } from "../element.js";
 import type { WebVitalName } from "./index.js";
 import { emitVital, whenIdleOrHidden } from "./shared.js";
 

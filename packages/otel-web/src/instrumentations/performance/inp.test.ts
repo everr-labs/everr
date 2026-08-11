@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { Emit } from "../../emitter.js";
-import { createTracer } from "../../tracer.js";
+import type { Emit } from "../../pipeline/emitter.js";
+import { createTracer } from "../../pipeline/tracer.js";
 import { startInp } from "./inp.js";
 
 // The jsdom environment has no Event Timing and no PerformanceObserver

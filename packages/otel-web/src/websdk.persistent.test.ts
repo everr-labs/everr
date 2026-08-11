@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { WebSDK } from "./client.js";
-import { identify, revoke } from "./session.js";
+import { identify, revoke } from "./state/session.js";
 import {
   attrs,
   type OtlpBatch,

@@ -9,15 +9,7 @@
 // the same pipeline. The exports for React are in the separate
 // `@everr/otel-web/react` entry.
 
-export { setAttributes } from "./attributes.js";
 export { WebSDK } from "./client.js";
-export type {
-  AttrValue,
-  BeforeSend,
-  LogEvent,
-  SendEvent,
-  SpanEvent,
-} from "./emitter.js";
 export { captureError } from "./errors.js";
 export {
   type ErrorMatcher,
@@ -43,6 +35,14 @@ export type {
 } from "./instrumentations/runtime.js";
 export { sampled } from "./instrumentations/sampled.js";
 export { logger } from "./logger.js";
-export { setRouteResolver } from "./route.js";
-export { identify, revoke, setPersistence } from "./session.js";
+export type {
+  AttrValue,
+  BeforeSend,
+  LogEvent,
+  SendEvent,
+  SpanEvent,
+} from "./pipeline/emitter.js";
+export { setAttributes } from "./state/attributes.js";
+export { setRouteResolver } from "./state/route.js";
+export { identify, revoke, setPersistence } from "./state/session.js";
 export type { Persistence, UserTraits, WebSDKOptions } from "./types.js";

@@ -1,6 +1,6 @@
-import type { HostSend } from "./config.js";
-import type { BeforeSend } from "./emitter.js";
 import type { Instrumentation } from "./instrumentations/runtime.js";
+import type { BeforeSend } from "./pipeline/emitter.js";
+import type { HostSend } from "./pipeline/transport.js";
 
 /**
  * The location of the identity: the visitor id, the session, and the

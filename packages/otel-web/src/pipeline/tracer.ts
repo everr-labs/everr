@@ -16,8 +16,8 @@
 // carries neither of them.
 
 import type { Exception, Span, SpanOptions, Tracer } from "@opentelemetry/api";
+import { randomHex } from "../state/session.js";
 import type { AttrValue, EmitSpan } from "./emitter.js";
-import { randomHex } from "./session.js";
 
 // Changes an OTel TimeInput to milliseconds from the epoch. For an hrtime value
 // and a Date value, the code uses the current time.

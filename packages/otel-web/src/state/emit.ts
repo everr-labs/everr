@@ -7,7 +7,7 @@
 // is visible. After the code disconnects, an emit gives no warning. This is
 // correct.
 
-import type { Emit } from "./emitter.js";
+import type { Emit } from "../pipeline/emitter.js";
 
 let emit: Emit | undefined;
 let started = false;

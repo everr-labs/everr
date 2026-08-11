@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { WebSDK } from "../client.js";
-import { setRouteResolver } from "../route.js";
+import { setRouteResolver } from "../state/route.js";
 import {
   attrs,
   type OtlpBatch,

@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { setAttributes } from "./attributes.js";
 import type { WebSDK } from "./client.js";
+import { setAttributes } from "./state/attributes.js";
 import {
   attrs,
   type OtlpBatch,

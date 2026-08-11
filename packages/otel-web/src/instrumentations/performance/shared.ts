@@ -1,5 +1,5 @@
-import type { AttrValue, Emit } from "../../emitter.js";
-import { uniqueId } from "../../session.js";
+import type { AttrValue, Emit } from "../../pipeline/emitter.js";
+import { uniqueId } from "../../state/session.js";
 import type { WebVitalName } from "./index.js";
 
 // The one function that makes a `browser.web_vital` record. The webvitals.ts

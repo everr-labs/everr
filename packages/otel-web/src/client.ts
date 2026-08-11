@@ -1,21 +1,21 @@
 import { attributionAttributes } from "./attribution.js";
-import { resolveTransport } from "./config.js";
-import { bindEmit } from "./emit.js";
-import { createEmitter, noop } from "./emitter.js";
-import { createEnvelope } from "./envelope.js";
 import type { InstrumentationContext } from "./instrumentations/runtime.js";
 import { type NavigationListener, watchNavigation } from "./navigation.js";
-import { routePattern } from "./route.js";
+import { createEmitter, noop } from "./pipeline/emitter.js";
+import { createEnvelope } from "./pipeline/envelope.js";
+import { createTracer } from "./pipeline/tracer.js";
+import { resolveTransport } from "./pipeline/transport.js";
+import { SDK_NAME, SDK_VERSION } from "./pipeline/version.js";
+import { bindEmit } from "./state/emit.js";
+import { routePattern } from "./state/route.js";
 import {
   createSessionContext,
   persistSession,
   sessionId,
   setPersistence,
   visitorId,
-} from "./session.js";
-import { createTracer } from "./tracer.js";
+} from "./state/session.js";
 import type { WebSDKOptions } from "./types.js";
-import { SDK_NAME, SDK_VERSION } from "./version.js";
 
 /**
  * The browser SDK. The constructor connects the transport, the identity, and

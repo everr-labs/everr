@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import type { AttrValue, EmitSpan } from "../../emitter.js";
-import { createTracer } from "../../tracer.js";
+import type { AttrValue, EmitSpan } from "../../pipeline/emitter.js";
+import { createTracer } from "../../pipeline/tracer.js";
 import type { RouteTemplateResolver } from "./network.js";
 import { startNetwork } from "./network.js";
 

@@ -1,11 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { fetchSend } from "./config.js";
 import {
   type BeforeSend,
   createEmitter,
   type Emit,
   type EmitSpan,
-} from "./emitter.js";
+} from "./pipeline/emitter.js";
+import { fetchSend } from "./pipeline/transport.js";
 
 type SentBatch = {
   url: string;

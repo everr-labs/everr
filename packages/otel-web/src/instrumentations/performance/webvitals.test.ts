@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { WebSDK } from "../../client.js";
-import type { Emit } from "../../emitter.js";
+import type { Emit } from "../../pipeline/emitter.js";
 import {
   attrs,
   type OtlpBatch,

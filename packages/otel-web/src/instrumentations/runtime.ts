@@ -15,8 +15,8 @@
 // does not hide it.
 
 import type { Tracer } from "@opentelemetry/api";
-import type { AttrValue } from "../emitter.js";
-import type { PageContext } from "../session.js";
+import type { AttrValue } from "../pipeline/emitter.js";
+import type { PageContext } from "../state/session.js";
 
 /**
  * The data that the `setup` function of an instrumentation receives. It
@@ -67,4 +67,4 @@ export type Instrumentation = (
   ctx: InstrumentationContext,
 ) => (() => void) | void;
 
-export type { PageContext } from "../session.js";
+export type { PageContext } from "../state/session.js";

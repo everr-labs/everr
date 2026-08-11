@@ -1,5 +1,5 @@
-import { elementAttrs, guardOf, targetOf } from "../../element.js";
-import type { Emit } from "../../emitter.js";
+import type { Emit } from "../../pipeline/emitter.js";
+import { elementAttrs, guardOf, targetOf } from "../element.js";
 
 // The interactions signal. It captures the data for the product analytics
 // automatically, and it finds the frustration of the user. The automatic

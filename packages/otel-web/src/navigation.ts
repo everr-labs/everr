@@ -1,4 +1,4 @@
-import type { RotatePageView } from "./session.js";
+import type { RotatePageView } from "./state/session.js";
 
 // The navigation watcher is part of the envelope, and it is not a signal. It
 // always operates, with instrumentations and without them. Thus the page

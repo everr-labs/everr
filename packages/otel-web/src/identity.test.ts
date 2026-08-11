@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { getAttributes, setAttributes } from "./attributes.js";
+import { getAttributes, setAttributes } from "./state/attributes.js";
 import {
   identify,
   persistSession,
@@ -7,7 +7,7 @@ import {
   sessionId,
   setPersistence,
   visitorId,
-} from "./session.js";
+} from "./state/session.js";
 import { UNIQUE_ID } from "./test-kit.js";
 
 // Unit tests for the identity on the current store. They examine the visitor

@@ -1,8 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { fetchSend } from "./config.js";
-import { bindEmit } from "./emit.js";
-import { createEmitter } from "./emitter.js";
 import { logger } from "./logger.js";
+import { createEmitter } from "./pipeline/emitter.js";
+import { fetchSend } from "./pipeline/transport.js";
+import { bindEmit } from "./state/emit.js";
 
 type SentRecord = {
   timeUnixNano: string;

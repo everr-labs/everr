@@ -1,8 +1,5 @@
-import {
-  captureError,
-  type ErrorFilter,
-  setErrorFilter,
-} from "../../errors.js";
+import { captureError } from "../../errors.js";
+import { type ErrorFilter, setErrorFilter } from "../../state/error-filter.js";
 import type { Instrumentation } from "../runtime.js";
 
 // The errors instrumentation. It contains the global handlers for an unhandled

@@ -19,15 +19,15 @@
 // the `user.*` keys into the ambient set of setAttributes. Thus those keys stay
 // in memory only, and the host identifies the user again at each page load.
 
+import type { AttrValue } from "../pipeline/emitter.js";
+import type { Persistence, UserTraits } from "../types.js";
 import { getAttributes, setAttributes } from "./attributes.js";
-import type { AttrValue } from "./emitter.js";
 import {
   currentStore,
   type SessionState,
   setStore,
   storeFor,
 } from "./store.js";
-import type { Persistence, UserTraits } from "./types.js";
 
 const SESSION_TIMEOUT_MS = 30 * 60 * 1000;
 

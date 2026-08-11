@@ -1,7 +1,7 @@
 import fc from "fast-check";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { fetchSend } from "./config.js";
-import { createEmitter } from "./emitter.js";
+import { createEmitter } from "./pipeline/emitter.js";
+import { fetchSend } from "./pipeline/transport.js";
 
 // Property tests for the calculations in the emitter: the decrease of the exit
 // flush to the limit, and the mapping of the OTLP attributes. The test makes the

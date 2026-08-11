@@ -12,7 +12,7 @@ afterEach(() => {
 
 describe("SDK version", () => {
   it("falls back to the dev version without a build define", async () => {
-    const { SDK_VERSION, SDK_NAME } = await import("./version.js");
+    const { SDK_VERSION, SDK_NAME } = await import("./pipeline/version.js");
     expect(SDK_VERSION).toBe("0.0.0-dev");
     expect(SDK_NAME).toBe("@everr/otel-web");
   });
@@ -20,7 +20,7 @@ describe("SDK version", () => {
   it("carries the build-time version when the define is present", async () => {
     vi.stubGlobal("__PACKAGE_VERSION__", "9.9.9");
     vi.resetModules();
-    const { SDK_VERSION } = await import("./version.js");
+    const { SDK_VERSION } = await import("./pipeline/version.js");
     expect(SDK_VERSION).toBe("9.9.9");
   });
 });

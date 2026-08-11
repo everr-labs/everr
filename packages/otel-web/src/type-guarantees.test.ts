@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { identify, revoke } from "./session.js";
+import { identify, revoke } from "./state/session.js";
 import type { WebSDKOptions } from "./types.js";
 
 // The rules of the public API that the compiler applies. The important tests

@@ -10,7 +10,7 @@
 // each record. Thus each subsequent record carries it. If a record has an
 // attribute with the same key, the attribute of the record wins.
 
-import type { AttrValue } from "./emitter.js";
+import type { AttrValue } from "../pipeline/emitter.js";
 
 const set: Record<string, AttrValue> = {};
 

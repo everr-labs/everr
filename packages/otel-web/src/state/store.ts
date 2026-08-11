@@ -3,7 +3,7 @@
 // value, and thus the serialization is a detail of the localStorage store. The
 // memory store holds the values directly and serializes nothing.
 
-import type { Persistence } from "./types.js";
+import type { Persistence } from "../types.js";
 
 /** The session in the store: its id and the time of the last activity. */
 export type SessionState = { id: string; t: number };
