@@ -251,7 +251,9 @@ describe("performance({ pageLoad })", () => {
     await client?.flush();
     const [span] = batches
       .flatMap((b) => b.spans)
-      .filter((s) => s.name === "GET https://cdn.example.com/app.js");
+      .filter(
+        (s) => s.name === "GET asset:script https://cdn.example.com/app.js",
+      );
     expect(attrs(span)["url.full"]).toBe("https://cdn.example.com/app.js");
     // The envelope also writes the shared session context on the resource
     // spans.

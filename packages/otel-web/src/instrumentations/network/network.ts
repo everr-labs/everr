@@ -69,6 +69,8 @@ export function startNetwork(
     // end keeps only strings, and it does not keep the URL object.
     const path = url.pathname;
     // The route template of the request, from the `request` route resolver.
+    // A server of a different origin must list x-everr-route in its
+    // Access-Control-Expose-Headers for the echo below to be readable.
     // The route pattern of the page describes the document, and it does not
     // describe the endpoint of this request. Thus the network signal never
     // uses that pattern.
@@ -105,11 +107,21 @@ export function startNetwork(
       }
     }
 
-    const end = (status: number | undefined, errorType?: string) => {
+    const end = (
+      status: number | undefined,
+      errorType?: string,
+      echoed?: string | null,
+    ) => {
+      // A server that stamps its own route on the x-everr-route response
+      // header is the exact source: the value is the http.route of the server
+      // span, so the two sides of the trace cannot disagree. The header wins
+      // over the resolver, and the span takes its final name here, before the
+      // end call exports it.
+      if (echoed) span.updateName(`${method} ${echoed}`);
       span.setAttributes({
         "http.request.method": method,
         "url.full": urlFull,
-        "url.template": template ?? undefined,
+        "url.template": echoed ?? template ?? undefined,
         "server.address": hostname,
         "http.response.status_code": status,
         "error.type": errorType,
@@ -133,7 +145,11 @@ export function startNetwork(
     }
     return result.then(
       (res) => {
-        end(res.status, res.status >= 400 ? String(res.status) : undefined);
+        end(
+          res.status,
+          res.status >= 400 ? String(res.status) : undefined,
+          res.headers.get("x-everr-route"),
+        );
         return res;
       },
       (e: unknown) => {

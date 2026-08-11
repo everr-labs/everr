@@ -184,6 +184,23 @@ describe("startNetwork", () => {
     expect(spans[1].attrs["url.template"]).toBeUndefined();
   });
 
+  it("takes the template from the x-everr-route response header over the resolver", async () => {
+    start(undefined, () => "/from/resolver");
+    respondWith = () =>
+      Promise.resolve(
+        new Response("ok", {
+          status: 200,
+          headers: { "x-everr-route": "/api/cli/runs/$traceId" },
+        }),
+      );
+    await fetch("/api/cli/runs/abc123");
+    expect(spans[0].name).toBe("GET /api/cli/runs/$traceId");
+    expect(spans[0].attrs["url.template"]).toBe("/api/cli/runs/$traceId");
+    expect(spans[0].attrs["url.full"]).toBe(
+      `${location.origin}/api/cli/runs/abc123`,
+    );
+  });
+
   it("uppercases the method and reads it from init or the Request", async () => {
     start();
     await fetch("/api", { method: "post" });
