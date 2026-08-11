@@ -26,6 +26,19 @@ export type ActiveSilence = Awaited<
 >[number];
 
 /**
+ * How long a deferred event waits before an inhibition is reconsidered.
+ *
+ * A silence carries its own end time, so a silenced event is scheduled for
+ * exactly that moment and wakes once. An inhibition has no end time: it ends
+ * when the source instance stops firing, and nothing notifies this job of that
+ * state change, so the only way to notice is to look again. This is that poll
+ * period, and it is unrelated to any rule's `evaluationInterval`: it bounds how
+ * late a released notification goes out, not how often the condition is
+ * measured.
+ */
+const INHIBITION_RECHECK_SECONDS = 60;
+
+/**
  * Every silence active for the org right now. Load once per batch of events
  * being evaluated and pass the result to `matchSilence`, rather than
  * re-querying per event: a flush evaluating hundreds of members must not
@@ -173,7 +186,7 @@ export async function deferSuppressedEvent(
     if (shouldRetry) {
       const runAt = silence
         ? new Date(silence.ends_at)
-        : new Date(now.getTime() + 60_000);
+        : new Date(now.getTime() + INHIBITION_RECHECK_SECONDS * 1_000);
       await enqueueProcessAlertEvent(tx, event.id, {
         keySuffix: runAt.toISOString(),
         runAt,
