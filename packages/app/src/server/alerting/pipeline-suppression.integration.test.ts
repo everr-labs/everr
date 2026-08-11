@@ -40,7 +40,7 @@ vi.mock("@/db/client", async () => {
   return { db: testDb, runInTransaction };
 });
 
-vi.mock("@/lib/clickhouse", async () => import("./testing/clickhouse-double"));
+vi.mock("@/lib/clickhouse", async () => import("./testing/test-clickhouse"));
 
 let harness: AlertingHarness;
 
@@ -67,7 +67,7 @@ describe("the alerting pipeline's suppression", () => {
   it("a silence matching the instance's labels defers the notification, and the instance still reaches firing", async () => {
     await insertDirectRule(harness.db, { forSecs: 0, channelType: "slack" });
     await insertSilence(harness.db);
-    harness.clickhouse.setRows([{ service: "checkout", value: 42 }]);
+    harness.clickhouse.setSignal([{ service: "checkout", value: 42 }]);
 
     await harness.runDueJobs();
 
@@ -95,7 +95,7 @@ describe("the alerting pipeline's suppression", () => {
     await insertSilence(harness.db, {
       endsAt: new Date(Date.now() + silenceWindowMs),
     });
-    harness.clickhouse.setRows([{ service: "checkout", value: 42 }]);
+    harness.clickhouse.setSignal([{ service: "checkout", value: 42 }]);
 
     await harness.runDueJobs();
     expect(harness.fetchCalls()).toHaveLength(0);
@@ -144,7 +144,7 @@ describe("the alerting pipeline's suppression", () => {
     const silence = await insertSilence(harness.db, {
       matchers: [{ label: "severity", op: "eq", value: "warning" }],
     });
-    harness.clickhouse.setRows([{ service: "checkout", value: 42 }]);
+    harness.clickhouse.setSignal([{ service: "checkout", value: 42 }]);
 
     await harness.runDueJobs();
     expect(harness.fetchCalls()).toHaveLength(0);
@@ -200,7 +200,7 @@ describe("the alerting pipeline's suppression", () => {
       targetMatchers: [{ label: "rule", op: "eq", value: targetRule.id }],
       equalLabels: [],
     });
-    harness.clickhouse.setRows([{ service: "checkout", value: 42 }]);
+    harness.clickhouse.setSignal([{ service: "checkout", value: 42 }]);
 
     await harness.runDueJobs();
 
@@ -232,7 +232,7 @@ describe("the alerting pipeline's suppression", () => {
       targetMatchers: [{ label: "rule", op: "eq", value: targetRule.id }],
       equalLabels: [],
     });
-    harness.clickhouse.setRows([{ service: "checkout", value: 42 }]);
+    harness.clickhouse.setSignal([{ service: "checkout", value: 42 }]);
     await harness.runDueJobs();
     expect(harness.fetchCalls()).toHaveLength(0);
     // Proof the hold actually happened, not just that the group wait had not
@@ -245,10 +245,10 @@ describe("the alerting pipeline's suppression", () => {
     expect(heldTargetEvent.inhibited).toBe(true);
     expect(heldTargetEvent.processedAt).toBeNull();
 
-    // Close the source's own instance rather than starving it of rows: the
-    // ClickHouse double is a single shared fixture, and clearing rows would
-    // also resolve the target's own instance, hiding the mechanism under
-    // test (the held target event's periodic recheck).
+    // Close the source's own instance rather than starving it of rows: both
+    // rules read the one signal table, so clearing it would also resolve the
+    // target's own instance, hiding the mechanism under test (the held target
+    // event's periodic recheck).
     await pauseRule(
       { organizationId: TEST_ORG, actor: SYSTEM_ACTOR },
       sourceRule.id,
@@ -268,7 +268,7 @@ describe("the alerting pipeline's suppression", () => {
       forSecs: 0,
       channelType: "slack",
     });
-    harness.clickhouse.setRows([{ service: "checkout", value: 42 }]);
+    harness.clickhouse.setSignal([{ service: "checkout", value: 42 }]);
 
     await harness.fireAndFlush();
 
@@ -296,7 +296,7 @@ describe("the alerting pipeline's suppression", () => {
       forSecs: 0,
       channelType: "slack",
     });
-    harness.clickhouse.setRows([{ service: "checkout", value: 42 }]);
+    harness.clickhouse.setSignal([{ service: "checkout", value: 42 }]);
 
     await harness.fireAndFlush();
 
@@ -365,7 +365,7 @@ describe("the alerting pipeline's suppression", () => {
     await insertSilence(harness.db, {
       matchers: [{ label: "service", op: "eq", value: "checkout" }],
     });
-    harness.clickhouse.setRows([
+    harness.clickhouse.setSignal([
       { service: "checkout", value: 42 },
       { service: "payments", value: 42 },
       { service: "shipping", value: 42 },

@@ -44,7 +44,7 @@ vi.mock("@/db/client", async () => {
   return { db: testDb, runInTransaction };
 });
 
-vi.mock("@/lib/clickhouse", async () => import("./testing/clickhouse-double"));
+vi.mock("@/lib/clickhouse", async () => import("./testing/test-clickhouse"));
 
 let harness: AlertingHarness;
 
@@ -189,7 +189,7 @@ describe("the alerting pipeline's PostgreSQL invariants", () => {
       forSecs: 0,
       channelType: "webhook",
     });
-    harness.clickhouse.setRows([{ service: "checkout", value: 42 }]);
+    harness.clickhouse.setSignal([{ service: "checkout", value: 42 }]);
     await harness.fireAndFlush();
 
     const [groupBefore] = await harness.db
@@ -308,7 +308,7 @@ describe("the alerting pipeline's PostgreSQL invariants", () => {
       repeatIntervalSecs: 60,
     });
     await insertRule(harness.db, { slug: "repeat-rule", forSecs: 0 });
-    harness.clickhouse.setRows([{ service: "checkout", value: 42 }]);
+    harness.clickhouse.setSignal([{ service: "checkout", value: 42 }]);
 
     await harness.runDueJobs(); // evaluates, fires, routes: enqueues the first flush job
     const [firstFlush] = await queueNamesFor(ALERT_FLUSH_GROUP_TASK);

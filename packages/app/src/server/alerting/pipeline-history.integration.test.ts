@@ -13,6 +13,7 @@ import {
   insertDirectRule,
   insertPreview,
   insertRule,
+  TEST_ORG,
 } from "./testing/fixtures";
 import { type AlertingHarness, createAlertingHarness } from "./testing/harness";
 
@@ -21,7 +22,7 @@ vi.mock("@/db/client", async () => {
   return { db: testDb, runInTransaction };
 });
 
-vi.mock("@/lib/clickhouse", async () => import("./testing/clickhouse-double"));
+vi.mock("@/lib/clickhouse", async () => import("./testing/test-clickhouse"));
 
 let harness: AlertingHarness;
 
@@ -47,12 +48,16 @@ afterAll(async () => {
 const BREACHING = [{ service: "checkout", value: 42 }];
 
 /**
- * This file is about the projection itself: what `app.alert_events` holds
- * after the pipeline has written to it, judged by the engine that holds it
- * rather than by a double that stored whatever it was handed. Every case here
- * would pass against any object that remembers rows; what makes them worth
- * writing is that they now run against the shipped DDL, so a column that
- * changes type, loses a default, or stops being written fails here.
+ * This file is about what ClickHouse really does for alerting, on both sides:
+ * the metadata a rule's query hands back, and what `app.alert_events` holds
+ * after the pipeline has written to it.
+ *
+ * Both halves used to be a double that answered whatever it was handed: it
+ * reported every column as a String, and it kept rows without caring what the
+ * shipped DDL said they were. Every case below would pass against such an
+ * object. What makes them worth writing is that they now run against the real
+ * engine, so a column that changes type, loses a default, or stops being
+ * written fails here.
  *
  * Not in scope, and not claimable from this file: tenant isolation. Embedded
  * chdb has no access control, so the row policy the shipped file ends with is
@@ -60,9 +65,44 @@ const BREACHING = [{ service: "checkout", value: 42 }];
  * run unrestricted.
  */
 describe("the alerting pipeline's ClickHouse projection", () => {
+  it("reports the engine's own column types back from a rule's query", async () => {
+    harness.clickhouse.setSignal([{ service: "checkout", value: 42 }]);
+
+    // The seam production reads for its own checks. `apply.server.ts` uses
+    // `columnTypes` to decide whether a label column is string-typed and
+    // whether the value column is numeric, so a stub that answered "String"
+    // for every column, as this suite's did, would have let a rule that
+    // labels on a number look valid. These are the engine's answers.
+    const { querySqlApiWithMeta } = await import("./testing/test-clickhouse");
+    const result = await querySqlApiWithMeta<Record<string, unknown>>(
+      "SELECT * FROM app.test_signal",
+      TEST_ORG,
+    );
+
+    expect(result.columns).toEqual(["service", "value"]);
+    expect(result.columnTypes).toEqual(["String", "Float64"]);
+    expect(result.rows).toEqual([{ service: "checkout", value: 42 }]);
+  });
+
+  it("hands a rule's query an empty result with its columns intact", async () => {
+    harness.clickhouse.setSignal([]);
+
+    // Production asks for FORMAT JSON precisely so metadata survives an empty
+    // result (lib/clickhouse.ts). A rule that currently matches nothing still
+    // has to describe its own shape, or every read of a quiet rule loses it.
+    const { querySqlApiWithMeta } = await import("./testing/test-clickhouse");
+    const result = await querySqlApiWithMeta<Record<string, unknown>>(
+      "SELECT * FROM app.test_signal",
+      TEST_ORG,
+    );
+
+    expect(result.rows).toEqual([]);
+    expect(result.columns).toEqual(["service", "value"]);
+  });
+
   it("lands every written column in the type the shipped DDL declares", async () => {
     await insertRule(harness.db, { forSecs: 0 });
-    harness.clickhouse.setRows(BREACHING);
+    harness.clickhouse.setSignal(BREACHING);
     await harness.runDueJobs();
 
     const written = harness.clickhouse.historyRows();
@@ -99,7 +139,7 @@ describe("the alerting pipeline's ClickHouse projection", () => {
       forSecs: 0,
       previewId: preview.id,
     });
-    harness.clickhouse.setRows(BREACHING);
+    harness.clickhouse.setSignal(BREACHING);
     await harness.runDueJobs();
 
     // `is_live` is a DEFAULT expression on the column (preview_id equals the
@@ -119,7 +159,7 @@ describe("the alerting pipeline's ClickHouse projection", () => {
 
   it("writes an event_id whose embedded UUIDv7 time is the row's own event time", async () => {
     await insertRule(harness.db, { forSecs: 0 });
-    harness.clickhouse.setRows(BREACHING);
+    harness.clickhouse.setSignal(BREACHING);
     await harness.runDueJobs();
 
     // The id is not opaque: `uuidv7(occurredAt)` (history/clickhouse.ts) puts
@@ -137,10 +177,10 @@ describe("the alerting pipeline's ClickHouse projection", () => {
 
   it("carries one episode_id across the fired and resolved rows of a single breach", async () => {
     await insertRule(harness.db, { forSecs: 0, intervalSecs: 60 });
-    harness.clickhouse.setRows(BREACHING);
+    harness.clickhouse.setSignal(BREACHING);
     await harness.runDueJobs();
 
-    harness.clickhouse.setRows([]);
+    harness.clickhouse.setSignal([]);
     harness.advance(60_000);
     await harness.runDueJobs();
     harness.advance(60_000);
@@ -164,7 +204,7 @@ describe("the alerting pipeline's ClickHouse projection", () => {
 
   it("leaves the correlation ids on the zero sentinel for a row that correlates nothing", async () => {
     await insertRule(harness.db, { forSecs: 0 });
-    harness.clickhouse.setRows([{ service: "checkout", value: 0 }]);
+    harness.clickhouse.setSignal([{ service: "checkout", value: 0 }]);
     await harness.runDueJobs();
 
     // An evaluation that breached nothing has no notification and no episode.
@@ -184,7 +224,7 @@ describe("the alerting pipeline's ClickHouse projection", () => {
 
   it("drops a repeated write in the engine's own deduplication window", async () => {
     await insertRule(harness.db, { forSecs: 0 });
-    harness.clickhouse.setRows(BREACHING);
+    harness.clickhouse.setSignal(BREACHING);
     await harness.runDueJobs();
 
     const written = harness.clickhouse.historyRows();
@@ -209,7 +249,7 @@ describe("the alerting pipeline's ClickHouse projection", () => {
 
   it("keeps a delivery's row alongside the notification it came from", async () => {
     await insertDirectRule(harness.db, { forSecs: 0, channelType: "webhook" });
-    harness.clickhouse.setRows(BREACHING);
+    harness.clickhouse.setSignal(BREACHING);
     await harness.fireAndFlush();
 
     const rows = harness.clickhouse.queryRows(`

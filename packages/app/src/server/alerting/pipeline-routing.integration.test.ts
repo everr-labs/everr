@@ -30,7 +30,7 @@ vi.mock("@/db/client", async () => {
   return { db: testDb, runInTransaction };
 });
 
-vi.mock("@/lib/clickhouse", async () => import("./testing/clickhouse-double"));
+vi.mock("@/lib/clickhouse", async () => import("./testing/test-clickhouse"));
 
 let harness: AlertingHarness;
 
@@ -57,7 +57,7 @@ async function fireDefaultRuleAndFlush(
   overrides: Parameters<typeof insertRule>[1] = {},
 ) {
   await insertRule(harness.db, { forSecs: 0, ...overrides });
-  harness.clickhouse.setRows([{ service: "checkout", value: 42 }]);
+  harness.clickhouse.setSignal([{ service: "checkout", value: 42 }]);
   await harness.fireAndFlush();
 }
 
@@ -81,7 +81,7 @@ describe("the alerting pipeline's routing", () => {
     // routes, this one would fire too.
     await insertRoute(harness.db, { receiver: receiver.name });
 
-    harness.clickhouse.setRows([{ service: "checkout", value: 42 }]);
+    harness.clickhouse.setSignal([{ service: "checkout", value: 42 }]);
     await harness.fireAndFlush();
 
     expect(harness.fetchCalls()).toHaveLength(1);
@@ -384,7 +384,7 @@ describe("the alerting pipeline's routing", () => {
       sql: "select 'svc-a' as service, 42 as value union all select 'svc-b' as service, 42 as value",
       forSecs: 0,
     });
-    harness.clickhouse.setRows([
+    harness.clickhouse.setSignal([
       { service: "svc-a", value: 42 },
       { service: "svc-b", value: 42 },
     ]);
@@ -433,7 +433,7 @@ describe("the alerting pipeline's routing", () => {
       severity: "warning",
       forSecs: 0,
     });
-    harness.clickhouse.setRows([
+    harness.clickhouse.setSignal([
       { service: "checkout", severity: "critical", value: 42 },
     ]);
     await harness.fireAndFlush();

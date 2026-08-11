@@ -50,7 +50,7 @@ vi.mock("@/db/client", async () => {
   return { db: testDb, runInTransaction };
 });
 
-vi.mock("@/lib/clickhouse", async () => import("./testing/clickhouse-double"));
+vi.mock("@/lib/clickhouse", async () => import("./testing/test-clickhouse"));
 
 let harness: AlertingHarness;
 
@@ -81,22 +81,21 @@ const FAST_TICK_SECS = 3;
 describe("the alerting pipeline's delivery", () => {
   it("holds three instances of one rule inside the group wait, then sends one message naming all three", async () => {
     await insertDirectRule(harness.db, {
-      sql: "select 'svc-a' as service, 42 as value",
       forSecs: 0,
       intervalSecs: FAST_TICK_SECS,
       channelType: "slack",
     });
-    harness.clickhouse.setRows([{ service: "svc-a", value: 42 }]);
+    harness.clickhouse.setSignal([{ service: "svc-a", value: 42 }]);
     await harness.runDueJobs();
 
-    harness.clickhouse.setRows([
+    harness.clickhouse.setSignal([
       { service: "svc-a", value: 42 },
       { service: "svc-b", value: 42 },
     ]);
     harness.advance(FAST_TICK_SECS * 1000);
     await harness.runDueJobs();
 
-    harness.clickhouse.setRows([
+    harness.clickhouse.setSignal([
       { service: "svc-a", value: 42 },
       { service: "svc-b", value: 42 },
       { service: "svc-c", value: 42 },
@@ -122,16 +121,15 @@ describe("the alerting pipeline's delivery", () => {
 
   it("makes a fourth instance wait the group interval after the first flush, not another group wait", async () => {
     await insertDirectRule(harness.db, {
-      sql: "select 'svc-a' as service, 42 as value",
       forSecs: 0,
       intervalSecs: FAST_TICK_SECS,
       channelType: "slack",
     });
-    harness.clickhouse.setRows([{ service: "svc-a", value: 42 }]);
+    harness.clickhouse.setSignal([{ service: "svc-a", value: 42 }]);
     await harness.fireAndFlush();
     expect(harness.fetchCalls()).toHaveLength(1);
 
-    harness.clickhouse.setRows([
+    harness.clickhouse.setSignal([
       { service: "svc-a", value: 42 },
       { service: "svc-d", value: 42 },
     ]);
@@ -173,7 +171,7 @@ describe("the alerting pipeline's delivery", () => {
       repeatIntervalSecs: 60,
     });
     await insertRule(harness.db, { forSecs: 0 });
-    harness.clickhouse.setRows([{ service: "checkout", value: 42 }]);
+    harness.clickhouse.setSignal([{ service: "checkout", value: 42 }]);
 
     await harness.fireAndFlush();
     expect(harness.fetchCalls()).toHaveLength(1);
@@ -197,12 +195,11 @@ describe("the alerting pipeline's delivery", () => {
   // assert it is right.
   it("today, a group parked on the idle sentinel keeps the sentinel when the next event reaches it (ticket 41)", async () => {
     await insertDirectRule(harness.db, {
-      sql: "select 'svc-a' as service, 42 as value",
       forSecs: 0,
       intervalSecs: FAST_TICK_SECS,
       channelType: "slack",
     });
-    harness.clickhouse.setRows([{ service: "svc-a", value: 42 }]);
+    harness.clickhouse.setSignal([{ service: "svc-a", value: 42 }]);
     await harness.runDueJobs();
 
     const [group] = await harness.db.select().from(alertNotificationGroups);
@@ -241,7 +238,7 @@ describe("the alerting pipeline's delivery", () => {
     // group (group_by is [rule, severity], unchanged by a new service
     // label): this is "the next event dispatched to it" ticket 41
     // describes.
-    harness.clickhouse.setRows([
+    harness.clickhouse.setSignal([
       { service: "svc-a", value: 42 },
       { service: "svc-b", value: 42 },
     ]);
@@ -263,7 +260,7 @@ describe("the alerting pipeline's delivery", () => {
 
   it("stops a permanently failing delivery after one attempt, at the max attempts", async () => {
     await insertDirectRule(harness.db, { forSecs: 0, channelType: "webhook" });
-    harness.clickhouse.setRows([{ service: "checkout", value: 42 }]);
+    harness.clickhouse.setSignal([{ service: "checkout", value: 42 }]);
     harness.setFetchResponse({ status: 403 });
 
     await harness.fireAndFlush();
@@ -280,7 +277,7 @@ describe("the alerting pipeline's delivery", () => {
 
   it("retries a transient failure and stops exactly at the max attempts", async () => {
     await insertDirectRule(harness.db, { forSecs: 0, channelType: "webhook" });
-    harness.clickhouse.setRows([{ service: "checkout", value: 42 }]);
+    harness.clickhouse.setSignal([{ service: "checkout", value: 42 }]);
     harness.setFetchResponse({ status: 503 });
 
     await harness.runDueJobs();
@@ -319,7 +316,7 @@ describe("the alerting pipeline's delivery", () => {
       channelType: "telegram",
       chatIds: ["chat-a", "chat-b"],
     });
-    harness.clickhouse.setRows([{ service: "checkout", value: 42 }]);
+    harness.clickhouse.setSignal([{ service: "checkout", value: 42 }]);
 
     // chat-a always answers permanent (403), chat-b always answers transient
     // (503): fetch is called once per chat id, in chat_ids order, each round.
@@ -356,7 +353,7 @@ describe("the alerting pipeline's delivery", () => {
 
   it("converges two runs of the same delivery on one history row", async () => {
     await insertDirectRule(harness.db, { forSecs: 0, channelType: "webhook" });
-    harness.clickhouse.setRows([{ service: "checkout", value: 42 }]);
+    harness.clickhouse.setSignal([{ service: "checkout", value: 42 }]);
 
     await harness.fireAndFlush();
 
@@ -385,7 +382,7 @@ describe("the alerting pipeline's delivery", () => {
       channelType: "webhook",
       channelName: "delete-me",
     });
-    harness.clickhouse.setRows([{ service: "checkout", value: 42 }]);
+    harness.clickhouse.setSignal([{ service: "checkout", value: 42 }]);
     await harness.fireAndFlush();
 
     const [sent] = await harness.db.select().from(alertDeliveries);
@@ -415,7 +412,7 @@ describe("the alerting pipeline's delivery", () => {
       forSecs: 0,
       channelType: "slack",
     });
-    harness.clickhouse.setRows([{ service: "checkout", value: 42 }]);
+    harness.clickhouse.setSignal([{ service: "checkout", value: 42 }]);
 
     await harness.runDueJobs(); // fires and dispatches; the flush is not due yet
     const [group] = await harness.db.select().from(alertNotificationGroups);
@@ -458,12 +455,11 @@ describe("the alerting pipeline's delivery", () => {
   // group id, not two.
   it("a second dispatch under the same rule joins the existing group instead of creating a second one", async () => {
     await insertDirectRule(harness.db, {
-      sql: "select 'svc-a' as service, 42 as value",
       forSecs: 0,
       intervalSecs: FAST_TICK_SECS,
       channelType: "slack",
     });
-    harness.clickhouse.setRows([{ service: "svc-a", value: 42 }]);
+    harness.clickhouse.setSignal([{ service: "svc-a", value: 42 }]);
     await harness.runDueJobs(); // the first dispatch: creates the group and its first membership
 
     const groupsAfterFirst = await harness.db
@@ -471,7 +467,7 @@ describe("the alerting pipeline's delivery", () => {
       .from(alertNotificationGroups);
     expect(groupsAfterFirst).toHaveLength(1);
 
-    harness.clickhouse.setRows([
+    harness.clickhouse.setSignal([
       { service: "svc-a", value: 42 },
       { service: "svc-b", value: 42 },
     ]);
@@ -495,7 +491,7 @@ describe("the alerting pipeline's delivery", () => {
 
   it("does nothing on a second dispatch of an already-stamped event", async () => {
     await insertDirectRule(harness.db, { forSecs: 0, channelType: "slack" });
-    harness.clickhouse.setRows([{ service: "checkout", value: 42 }]);
+    harness.clickhouse.setSignal([{ service: "checkout", value: 42 }]);
     await harness.runDueJobs();
 
     const [fired] = await harness.db
@@ -528,19 +524,18 @@ describe("the alerting pipeline's delivery", () => {
 
   it("leaves an instance that resolved between dispatch and flush out of the flushed message", async () => {
     await insertDirectRule(harness.db, {
-      sql: "select 'svc-a' as service, 42 as value union all select 'svc-b' as service, 42 as value",
       forSecs: 0,
       resolveAfter: 1,
       intervalSecs: FAST_TICK_SECS,
       channelType: "slack",
     });
-    harness.clickhouse.setRows([
+    harness.clickhouse.setSignal([
       { service: "svc-a", value: 42 },
       { service: "svc-b", value: 42 },
     ]);
     await harness.runDueJobs();
 
-    harness.clickhouse.setRows([{ service: "svc-b", value: 42 }]);
+    harness.clickhouse.setSignal([{ service: "svc-b", value: 42 }]);
     harness.advance(FAST_TICK_SECS * 1000);
     await harness.runDueJobs(); // svc-a resolves and dispatches into the same group
 
@@ -628,7 +623,7 @@ describe("the alerting pipeline's delivery", () => {
       botToken: leakedToken,
     });
 
-    harness.clickhouse.setRows([{ service: "checkout", value: 42 }]);
+    harness.clickhouse.setSignal([{ service: "checkout", value: 42 }]);
     // Both a webhook and a telegram provider can echo request details back in
     // an error body (the reason `sanitizeAlertError` exists at all); this
     // simulates that for each.

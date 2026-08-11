@@ -1,16 +1,16 @@
 import { vi } from "vitest";
 import { ALERTING_DEFAULT_GROUP_WAIT_SECS } from "@/data/alerting/routing/defaults";
-import { activeClickHouse, type ClickHouseDouble } from "./clickhouse-double";
 import { setTestDatabase } from "./db-proxy";
 import { failedJobs, pendingJobs, runDueJobs } from "./job-driver";
 import { createTestDatabase, type TestDatabase } from "./pglite-database";
+import { activeClickHouse, type TestClickHouse } from "./test-clickhouse";
 
 type FetchResponse = { status: number; body?: string };
 type FetchResponder = FetchResponse | ((url: string) => FetchResponse);
 
 export interface AlertingHarness {
   db: TestDatabase["db"];
-  clickhouse: ClickHouseDouble;
+  clickhouse: TestClickHouse;
   fetchCalls(): { url: string; body: unknown }[];
   setFetchResponse(responder: FetchResponder): void;
   runDueJobs(opts?: { limit?: number }): Promise<number>;

@@ -51,7 +51,7 @@ vi.mock("@/db/client", async () => {
   return { db: testDb, runInTransaction };
 });
 
-vi.mock("@/lib/clickhouse", async () => import("./testing/clickhouse-double"));
+vi.mock("@/lib/clickhouse", async () => import("./testing/test-clickhouse"));
 
 let harness: AlertingHarness;
 
@@ -94,11 +94,10 @@ function onlyEvaluationRow(harness: AlertingHarness): EvaluationHistoryRow {
 describe("the alerting pipeline's capacity bounds", () => {
   it("claims exactly the cap from a 501-member group, taking every never-yet-flushed newcomer over the one member already flushed once", async () => {
     const rule = await insertDirectRule(harness.db, {
-      sql: "select 'stale' as service, 42 as value",
       forSecs: 0,
       channelType: "slack",
     });
-    harness.clickhouse.setRows([{ service: "stale", value: 42 }]);
+    harness.clickhouse.setSignal([{ service: "stale", value: 42 }]);
     await harness.fireAndFlush();
     // The stale member's first notification already went out: it is now
     // `active` (still firing, membership kept with flushedAt set) rather
@@ -123,7 +122,10 @@ describe("the alerting pipeline's capacity bounds", () => {
       { length: FLUSH_GROUP_MEMBER_CLAIM_CAP },
       (_, index) => ({ service: `svc-${index}`, value: 42 }),
     );
-    harness.clickhouse.setRows([{ service: "stale", value: 42 }, ...freshRows]);
+    harness.clickhouse.setSignal([
+      { service: "stale", value: 42 },
+      ...freshRows,
+    ]);
 
     // The rule's own schedule would not reach a second evaluation for up to
     // one whole interval (nextAlertEvaluationAt, rule.ts): waiting for it
@@ -205,7 +207,7 @@ describe("the alerting pipeline's capacity bounds", () => {
     // Ticket 35 (todo/issues/alerting-surface/tickets/35-oversized-groups-are-visible.md)
     // asks for a counter and a log line when a flush hits this cap: OTel
     // telemetry this harness has no way to observe (it exposes only the
-    // database, the ClickHouse history double, and captured fetch calls).
+    // database, ClickHouse itself, and captured fetch calls).
     // This case pins the claim boundary only.
   }, 20_000); // 501 real dispatches and a capped claim, well past vitest's 5s default
 
@@ -217,7 +219,7 @@ describe("the alerting pipeline's capacity bounds", () => {
         : { service: `healthy-${index}`, value: 0 },
     );
     await insertRule(harness.db, { forSecs: 0 });
-    harness.clickhouse.setRows(rows);
+    harness.clickhouse.setSignal(rows);
 
     await harness.runDueJobs();
 
@@ -250,7 +252,7 @@ describe("the alerting pipeline's capacity bounds", () => {
       filler,
     }));
     await insertRule(harness.db, { forSecs: 0 });
-    harness.clickhouse.setRows(rows);
+    harness.clickhouse.setSignal(rows);
 
     await harness.runDueJobs();
 
@@ -274,7 +276,7 @@ describe("the alerting pipeline's capacity bounds", () => {
       service: `svc-${index}`,
       value: 42,
     }));
-    harness.clickhouse.setRows(rows);
+    harness.clickhouse.setSignal(rows);
     await harness.fireAndFlush();
 
     expect(harness.fetchCalls()).toHaveLength(1);
@@ -303,7 +305,7 @@ describe("the alerting pipeline's capacity bounds", () => {
       channelType: "webhook",
       channelName: "permanent-channel",
     });
-    harness.clickhouse.setRows([{ service: "checkout", value: 42 }]);
+    harness.clickhouse.setSignal([{ service: "checkout", value: 42 }]);
     harness.setFetchResponse({ status: 403 });
     await harness.fireAndFlush();
 
@@ -323,7 +325,7 @@ describe("the alerting pipeline's capacity bounds", () => {
       channelType: "webhook",
       channelName: "transient-channel",
     });
-    harness.clickhouse.setRows([{ service: "billing", value: 42 }]);
+    harness.clickhouse.setSignal([{ service: "billing", value: 42 }]);
     harness.setFetchResponse({ status: 503 });
     await harness.runDueJobs();
     harness.advance(ALERTING_DEFAULT_GROUP_WAIT_SECS * 1000);

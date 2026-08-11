@@ -89,11 +89,21 @@ function readJsonEachRow(out: unknown): Record<string, unknown>[] {
   return text.split("\n").map((line) => JSON.parse(line));
 }
 
+export interface SqlApiLikeResult {
+  rows: Record<string, unknown>[];
+  columns: string[];
+  columnTypes: string[];
+}
+
 export interface ChdbDatabase {
   insert(rows: object[], deduplicationToken?: string): void;
   historyRows(): Record<string, unknown>[];
   /** Arbitrary SQL, for cases whose subject is what the engine itself says. */
   queryRows(statement: string): Record<string, unknown>[];
+  /** A rule's own SQL, run for real, with the engine's column metadata. */
+  runQuery(statement: string): SqlApiLikeResult;
+  /** Replace what `app.test_signal` holds, which is what a rule selects. */
+  setSignal(rows: Record<string, unknown>[]): void;
   truncate(): void;
   close(): void;
 }
@@ -153,7 +163,67 @@ export function createChdbDatabase(): ChdbDatabase {
     run(withoutTtl(statement));
   }
 
+  // The table a rule's query reads. Cases used to declare the query's result
+  // directly; now they put rows here and the rule's own SQL selects them, so
+  // the engine decides the column types, and a cleared signal is an empty
+  // result set rather than a hand-made empty array.
+  let signalColumns: string[] = [];
+  const createSignalTable = (columns: [string, string][]) => {
+    run("DROP TABLE IF EXISTS app.test_signal");
+    run(
+      `CREATE TABLE app.test_signal (${columns
+        .map(([name, type]) => `${name} ${type}`)
+        .join(", ")}) ENGINE = MergeTree ORDER BY tuple()`,
+    );
+    signalColumns = columns.map(([name]) => name);
+  };
+  createSignalTable([
+    ["service", "String"],
+    ["value", "Float64"],
+  ]);
+
   const database: ChdbDatabase = {
+    runQuery(statement) {
+      // FORMAT JSON, not JSONEachRow, for the reason production gives in
+      // lib/clickhouse.ts: the metadata block is there even when the result
+      // is empty, so a rule that matches nothing still has columns.
+      const parsed = JSON.parse(
+        String(session.query(`${statement} FORMAT JSON`, "JSON") ?? "{}"),
+      ) as {
+        meta?: { name: string; type: string }[];
+        data?: Record<string, unknown>[];
+      };
+      return {
+        rows: parsed.data ?? [],
+        columns: (parsed.meta ?? []).map((column) => column.name),
+        columnTypes: (parsed.meta ?? []).map((column) => column.type),
+      };
+    },
+    setSignal(rows) {
+      if (rows.length === 0) {
+        // Keep the shape: a case clearing the signal is saying "the same
+        // query now matches nothing", not "the columns changed".
+        run("TRUNCATE TABLE app.test_signal");
+        return;
+      }
+      // The shape follows the rows the case wrote, so a case needing an extra
+      // label column just sends one, the way it used to just declare one.
+      createSignalTable(
+        Object.entries(rows[0]).map(([name, value]) => [
+          name,
+          typeof value === "number"
+            ? "Float64"
+            : typeof value === "boolean"
+              ? "Bool"
+              : "String",
+        ]),
+      );
+      run(
+        `INSERT INTO app.test_signal (${signalColumns.join(", ")}) FORMAT JSONEachRow\n${rows
+          .map((row) => JSON.stringify(row))
+          .join("\n")}`,
+      );
+    },
     insert(rows, deduplicationToken) {
       if (rows.length === 0) return;
       // JSONEachRow payload, not a SQL literal: the JSON goes in raw. Quoting

@@ -55,7 +55,10 @@ interface RuleOverrides {
 
 function ruleSpec(overrides: RuleOverrides): AlertingRuleSpec {
   return {
-    sql: overrides.sql ?? "select 'checkout' as service, 42 as value",
+    // Selects the table the case fills with `setSignal`, so the rule's query
+    // runs for real and its result changes when the signal does. A case that
+    // wants a fixed result still passes its own constant SQL.
+    sql: overrides.sql ?? "SELECT * FROM app.test_signal",
     interval_secs: overrides.intervalSecs ?? 60,
     for_secs: overrides.forSecs ?? 0,
     label_columns: overrides.labelColumns ?? ["service"],
