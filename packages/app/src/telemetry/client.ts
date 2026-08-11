@@ -37,7 +37,6 @@ new WebSDK({
   deploymentEnvironment: import.meta.env.MODE,
   ingestKey: import.meta.env.VITE_EVERR_PUBLIC_INGEST_KEY,
   endpoint: import.meta.env.VITE_EVERR_INGEST_ENDPOINT,
-  dev: import.meta.env.DEV,
   // The caller must select the capture. This app uses all the built-in
   // instrumentations. By default performance() includes the load window of the
   // page, which gives the resource spans and the long-animation-frame records.

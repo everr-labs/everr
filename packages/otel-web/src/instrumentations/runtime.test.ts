@@ -99,7 +99,7 @@ describe("instrumentation runtime", () => {
     expect(a["url.path"]).toBe("/overridden");
   });
 
-  it("exposes exactly the seven context members", () => {
+  it("exposes exactly the six context members", () => {
     let ctx: InstrumentationContext | undefined;
     start({
       instrumentations: [
@@ -109,7 +109,6 @@ describe("instrumentation runtime", () => {
       ],
     });
     expect(Object.keys(ctx as object).sort()).toEqual([
-      "dev",
       "emit",
       "ids",
       "onNavigation",
@@ -117,7 +116,6 @@ describe("instrumentation runtime", () => {
       "route",
       "tracer",
     ]);
-    expect(ctx?.dev).toBe(true);
   });
 
   it("serves ids() and route() from the live client state", async () => {

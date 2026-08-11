@@ -323,8 +323,12 @@ describe("init (persistence: memory)", () => {
 
 describe("structural no-op", () => {
   it("returns an inert client with no key, no endpoint, outside dev", () => {
+    // A production build has no local collector. Thus this client finds no
+    // transport and it makes no emitter.
+    vi.stubEnv("NODE_ENV", "production");
     const pushState = history.pushState;
     const inert = new WebSDK({ serviceName: "everr-docs-test" });
+    vi.unstubAllEnvs();
     client = inert;
     // The SDK made no emitter and changed nothing. Thus pushState does not
     // change.

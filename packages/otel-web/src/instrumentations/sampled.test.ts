@@ -18,7 +18,6 @@ function fakeCtx(sessionId: string): InstrumentationContext {
     route: () => null,
     page: undefined as never,
     onNavigation: () => () => {},
-    dev: false,
   };
 }
 

@@ -21,7 +21,6 @@ new WebSDK({
   serviceName: "acme-web",
   deploymentEnvironment: import.meta.env.MODE,
   ingestKey: import.meta.env.VITE_EVERR_PUBLIC_INGEST_KEY,
-  dev: import.meta.env.DEV,
   instrumentations: [
     errors(),
     pageviews(),
@@ -34,6 +33,8 @@ new WebSDK({
 ```
 
 Without a key or an endpoint, a production build resolves to an inert client that never issues a request. In dev it falls back to the local collector on `127.0.0.1:54318`.
+
+Dev and production are read from `process.env.NODE_ENV`, which every bundler replaces at build time, so a production build drops the local-collector address and the setup warnings instead of shipping them behind a runtime flag. Bundle your app in production mode and there is nothing to configure.
 
 ## Instrumentations
 
@@ -122,7 +123,7 @@ new WebSDK({
 });
 ```
 
-`ingestKey`, `endpoint`, and `dev` are unused in this mode. Delivery stays best-effort: a throwing or rejecting `send` is swallowed exactly as a failed fetch is. Returning a promise makes `flush()` await it. The browser keepalive byte budget does not apply, so the exit flush ships the whole batch instead of truncating it.
+`ingestKey` and `endpoint` are unused in this mode. Delivery stays best-effort: a throwing or rejecting `send` is swallowed exactly as a failed fetch is. Returning a promise makes `flush()` await it. The browser keepalive byte budget does not apply, so the exit flush ships the whole batch instead of truncating it.
 
 ## Server rendering
 

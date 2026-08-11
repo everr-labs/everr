@@ -54,8 +54,6 @@ export interface InstrumentationContext {
    * function returns the function that removes the listener.
    */
   onNavigation(listener: () => void): () => void;
-  /** The `dev` option of the WebSDK. */
-  dev: boolean;
 }
 
 /**

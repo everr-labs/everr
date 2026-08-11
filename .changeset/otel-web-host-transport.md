@@ -4,6 +4,10 @@
 
 First public release, plus a host-owned transport.
 
+The `dev` option is gone. The SDK reads `process.env.NODE_ENV` in its place, which every bundler replaces at build time. Thus a production build removes the local-collector address and the setup warnings from the bundle, and a development build keeps them. Delete `dev` from your options; there is nothing to put in its place.
+
+The `dev` member of the instrumentation context is gone for the same reason. An instrumentation that needs the mode reads `process.env.NODE_ENV` itself.
+
 `init({ send })` hands each OTLP/JSON payload to the host instead of posting it, for apps that proxy their own telemetry (a Tauri or Electron renderer, a service worker, a test harness):
 
 ```ts

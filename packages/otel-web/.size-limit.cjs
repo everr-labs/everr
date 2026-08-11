@@ -22,12 +22,11 @@ module.exports = [
     limit: "4 KB",
   },
   {
-    // Raised for the exit-flush budget code. Refer to pipeline/emitter.ts.
     name: "core + pageviews",
     path: "dist/index.js",
     import: "{ WebSDK, pageviews }",
     gzip: true,
-    limit: "3.6 KB",
+    limit: "3.5 KB",
   },
   {
     name: "core + interactions",
