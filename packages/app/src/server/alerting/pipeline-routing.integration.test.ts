@@ -162,7 +162,7 @@ describe("the alerting pipeline's routing", () => {
     expect(groups).toHaveLength(2);
   });
 
-  it("skips a route naming a receiver that does not exist, and still delivers through a later matching route", async () => {
+  it("drops a route at the join when its receiver row is gone, and a later matching route still delivers", async () => {
     const ghostReceiver = await insertReceiver(harness.db, {
       name: "ghost-receiver",
     });
@@ -182,21 +182,41 @@ describe("the alerting pipeline's routing", () => {
     });
     await insertRoute(harness.db, { receiver: liveReceiver.name, priority: 1 });
 
-    // The ghost receiver is removed the only way production data could end
-    // up in this state: `deleteReceiver` (repository.ts) refuses while a
-    // route still references it, and the foreign key enforces the same rule
-    // at the database level. Disabling the constraint's own trigger for one
-    // delete reproduces a row an out-of-band operation left behind, without
-    // leaving the constraint off for the rest of the suite.
+    // No path through the application can leave a route pointing at a
+    // receiver that no longer exists. `deleteReceiver` (repository.ts)
+    // refuses while a route still references the receiver, and the
+    // organization wipe (organization-data-cleanup.server.ts) deletes routes
+    // before receivers. The foreign key on alert_routes.receiver_id enforces
+    // the same rule at the database level, so no insert or delete this test
+    // could otherwise issue reaches the row state this case needs. The
+    // trigger below is disabled only long enough to build the row that an
+    // out-of-band write could leave behind, then restored in a `finally`, so
+    // the constraint stays live for every later case in this file even if
+    // the delete throws.
+    //
+    // With the receiver gone, `loadRoutes` (targeting.ts) drops the route at
+    // its inner join before route selection ever sees it: that join is the
+    // only place this drop can happen. The later per-route receiver lookup
+    // in the same file (`if (!receiver) continue`) can never run for this
+    // row, or for any row: a route's receiver name always comes from a row
+    // the join already matched, the foreign key is composite on
+    // organization_id so that row is always in the route's own organization,
+    // and receiver names are unique per organization. This case does not
+    // exercise that lookup; it is unreachable, and ticket 47
+    // (todo/issues/alerting-surface/tickets/47-routing-asks-twice-for-what-it-has.md)
+    // tracks removing it.
     await harness.db.execute(
       sql.raw("ALTER TABLE alert_receivers DISABLE TRIGGER ALL"),
     );
-    await harness.db
-      .delete(alertReceivers)
-      .where(eq(alertReceivers.id, ghostReceiver.id));
-    await harness.db.execute(
-      sql.raw("ALTER TABLE alert_receivers ENABLE TRIGGER ALL"),
-    );
+    try {
+      await harness.db
+        .delete(alertReceivers)
+        .where(eq(alertReceivers.id, ghostReceiver.id));
+    } finally {
+      await harness.db.execute(
+        sql.raw("ALTER TABLE alert_receivers ENABLE TRIGGER ALL"),
+      );
+    }
 
     await fireDefaultRuleAndFlush();
 
