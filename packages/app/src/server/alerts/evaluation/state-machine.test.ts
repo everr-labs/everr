@@ -22,6 +22,7 @@ describe("advanceAlertInstance", () => {
       evaluatedAt: at(0),
       forSeconds: 0,
       resolveAfter: 1,
+      intervalSeconds: 60,
     });
     expect(result.next.status).toBe("firing");
     expect(result.event).toBe("firing");
@@ -34,6 +35,7 @@ describe("advanceAlertInstance", () => {
       evaluatedAt: at(0),
       forSeconds: 60,
       resolveAfter: 1,
+      intervalSeconds: 60,
     });
     const second = advanceAlertInstance({
       previous: first.next,
@@ -41,6 +43,7 @@ describe("advanceAlertInstance", () => {
       evaluatedAt: at(60),
       forSeconds: 60,
       resolveAfter: 1,
+      intervalSeconds: 60,
     });
     expect(first.next.status).toBe("pending");
     expect(second.next.status).toBe("firing");
@@ -54,6 +57,7 @@ describe("advanceAlertInstance", () => {
       evaluatedAt: at(0),
       forSeconds: 60,
       resolveAfter: 2,
+      intervalSeconds: 60,
     });
     const absent = advanceAlertInstance({
       previous: first.next,
@@ -61,6 +65,7 @@ describe("advanceAlertInstance", () => {
       evaluatedAt: at(30),
       forSeconds: 60,
       resolveAfter: 2,
+      intervalSeconds: 60,
     });
     const reappeared = advanceAlertInstance({
       previous: absent.next,
@@ -68,9 +73,63 @@ describe("advanceAlertInstance", () => {
       evaluatedAt: at(60),
       forSeconds: 60,
       resolveAfter: 2,
+      intervalSeconds: 60,
     });
     expect(reappeared.next.status).toBe("pending");
     expect(reappeared.next.pendingSince).toEqual(at(60));
+  });
+
+  it("does not fire on the first evaluation after an outage", () => {
+    // The engine stopped for five hours with the instance pending. Nothing
+    // observed the condition in that window, so `for` has not been satisfied:
+    // an absence during the outage would have looked exactly the same.
+    const pending = advanceAlertInstance({
+      previous: newInactiveInstance(present),
+      present,
+      evaluatedAt: at(0),
+      forSeconds: 600,
+      resolveAfter: 3,
+      intervalSeconds: 60,
+    });
+    const afterOutage = advanceAlertInstance({
+      previous: pending.next,
+      present,
+      evaluatedAt: at(18_000),
+      forSeconds: 600,
+      resolveAfter: 3,
+      intervalSeconds: 60,
+    });
+
+    expect(pending.next.status).toBe("pending");
+    expect(afterOutage.next.status).toBe("pending");
+    expect(afterOutage.event).toBeNull();
+    // The clock restarts, so firing needs a fresh `for` of observed holding.
+    expect(afterOutage.next.pendingSince).toEqual(at(18_000));
+  });
+
+  it("still fires when evaluations arrive on cadence", () => {
+    let current = advanceAlertInstance({
+      previous: newInactiveInstance(present),
+      present,
+      evaluatedAt: at(0),
+      forSeconds: 180,
+      resolveAfter: 3,
+      intervalSeconds: 60,
+    });
+    // A little jitter each tick, the way the scheduler really lands.
+    for (const second of [61, 121, 184]) {
+      current = advanceAlertInstance({
+        previous: current.next,
+        present,
+        evaluatedAt: at(second),
+        forSeconds: 180,
+        resolveAfter: 3,
+        intervalSeconds: 60,
+      });
+    }
+
+    expect(current.next.status).toBe("firing");
+    expect(current.event).toBe("firing");
   });
 
   it("resolves only after the configured absence count", () => {
@@ -80,6 +139,7 @@ describe("advanceAlertInstance", () => {
       evaluatedAt: at(0),
       forSeconds: 0,
       resolveAfter: 2,
+      intervalSeconds: 60,
     });
     const one = advanceAlertInstance({
       previous: fired.next,
@@ -87,6 +147,7 @@ describe("advanceAlertInstance", () => {
       evaluatedAt: at(10),
       forSeconds: 0,
       resolveAfter: 2,
+      intervalSeconds: 60,
     });
     const two = advanceAlertInstance({
       previous: one.next,
@@ -94,6 +155,7 @@ describe("advanceAlertInstance", () => {
       evaluatedAt: at(20),
       forSeconds: 0,
       resolveAfter: 2,
+      intervalSeconds: 60,
     });
     expect(one.next.status).toBe("firing");
     expect(one.event).toBeNull();
@@ -108,6 +170,7 @@ describe("advanceAlertInstance", () => {
       evaluatedAt: at(0),
       forSeconds: 60,
       resolveAfter: 1,
+      intervalSeconds: 60,
     });
     const stillPending = advanceAlertInstance({
       previous: entered.next,
@@ -115,6 +178,7 @@ describe("advanceAlertInstance", () => {
       evaluatedAt: at(30),
       forSeconds: 60,
       resolveAfter: 1,
+      intervalSeconds: 60,
     });
     expect(entered.event).toBe("pending");
     expect(stillPending.event).toBeNull();
@@ -127,6 +191,7 @@ describe("advanceAlertInstance", () => {
       evaluatedAt: at(0),
       forSeconds: 0,
       resolveAfter: 1,
+      intervalSeconds: 60,
     });
     expect(result.event).toBe("firing");
   });
@@ -138,6 +203,7 @@ describe("advanceAlertInstance", () => {
       evaluatedAt: at(0),
       forSeconds: 60,
       resolveAfter: 1,
+      intervalSeconds: 60,
     });
     const cleared = advanceAlertInstance({
       previous: entered.next,
@@ -145,6 +211,7 @@ describe("advanceAlertInstance", () => {
       evaluatedAt: at(30),
       forSeconds: 60,
       resolveAfter: 1,
+      intervalSeconds: 60,
     });
     expect(cleared.next.status).toBe("inactive");
     expect(cleared.event).toBe("pending_cleared");
@@ -157,6 +224,7 @@ describe("advanceAlertInstance", () => {
       evaluatedAt: at(0),
       forSeconds: 120,
       resolveAfter: 2,
+      intervalSeconds: 60,
     });
     const absent = advanceAlertInstance({
       previous: entered.next,
@@ -164,6 +232,7 @@ describe("advanceAlertInstance", () => {
       evaluatedAt: at(30),
       forSeconds: 120,
       resolveAfter: 2,
+      intervalSeconds: 60,
     });
     const reappeared = advanceAlertInstance({
       previous: absent.next,
@@ -171,6 +240,7 @@ describe("advanceAlertInstance", () => {
       evaluatedAt: at(60),
       forSeconds: 120,
       resolveAfter: 2,
+      intervalSeconds: 60,
     });
     expect(reappeared.next.status).toBe("pending");
     expect(reappeared.event).toBeNull();

@@ -459,6 +459,7 @@ async function evaluateAlertRule(
       evaluatedAt,
       forSeconds: def.spec.for_secs,
       resolveAfter: def.spec.resolve_after,
+      intervalSeconds: def.spec.interval_secs,
     });
   });
 

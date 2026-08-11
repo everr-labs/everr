@@ -39,18 +39,45 @@ function inactive(previous: StoredAlertInstance): StoredAlertInstance {
   };
 }
 
+/**
+ * How many evaluation intervals may pass between two sightings before the gap
+ * counts as unobserved. Schedulers jitter and a single late tick is not
+ * evidence that the condition lapsed; two or more means the engine stopped
+ * watching and cannot vouch for the stretch.
+ */
+const MISSED_EVALUATION_TOLERANCE = 2;
+
 export function advanceAlertInstance(input: {
   previous: StoredAlertInstance;
   present: PresentAlertInstance | undefined;
   evaluatedAt: Date;
   forSeconds: number;
   resolveAfter: number;
+  intervalSeconds: number;
 }): AlertInstanceTransition {
-  const { previous, present, evaluatedAt, forSeconds, resolveAfter } = input;
+  const {
+    previous,
+    present,
+    evaluatedAt,
+    forSeconds,
+    resolveAfter,
+    intervalSeconds,
+  } = input;
   if (present) {
     const reappeared = previous.absentCount > 0;
+    // An evaluation landing far later than the cadence promises means nothing
+    // watched the condition in between, and an absence in that window would
+    // have left exactly this state: absentCount stays 0 and lastSeenAt stays
+    // put, because only a real evaluation records an absence. `for` claims the
+    // condition held continuously, so an unobserved stretch restarts the
+    // clock instead of counting as holding. Without this an outage longer
+    // than `for` fires the rule on the first evaluation after it.
+    const unobserved =
+      previous.lastSeenAt !== null &&
+      evaluatedAt.getTime() - previous.lastSeenAt.getTime() >
+        intervalSeconds * MISSED_EVALUATION_TOLERANCE * 1000;
     const pendingSince =
-      previous.status === "inactive" || reappeared
+      previous.status === "inactive" || reappeared || unobserved
         ? evaluatedAt
         : (previous.pendingSince ?? evaluatedAt);
     const next: StoredAlertInstance = {
