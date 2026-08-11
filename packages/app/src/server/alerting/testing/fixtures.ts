@@ -118,6 +118,60 @@ export async function insertRule(
   };
 }
 
+// Postgres's wire protocol counts bind parameters in a signed 16-bit field
+// (max 32767); pglite does not surface that as an error, it just drops the
+// statement, so a single INSERT with more rows than this allows silently
+// inserts nothing. Each row below binds 7 columns, so one statement tops out
+// at floor(32767 / 7) = 4681 rows; this stays well under that so the case's
+// own row count (whatever it is) never has to know about the ceiling.
+const BULK_INSERT_CHUNK_SIZE = 2_000;
+
+/**
+ * Many rule rows in as few statements as the parameter ceiling above allows:
+ * no per-row transaction, no evaluation-job enqueue. `insertRule` mirrors
+ * production's `createRule`, which enqueues the first evaluation in the same
+ * transaction as the row insert; calling it hundreds or thousands of times to
+ * build a scanner fixture would open that many transactions and enqueue that
+ * many jobs the case does not want, and would also defeat the point of the
+ * case, which is the scanner *finding* rules that have no job in flight yet.
+ * `lastEnqueuedAt` is left at its column default (null) for exactly that
+ * reason: it is what makes the scanner's `isNull(lastEnqueuedAt)` branch
+ * select these rows. Fixture-only; production never inserts a rule without
+ * enqueuing its evaluation.
+ */
+export async function insertRulesInBulk(
+  db: Db,
+  count: number,
+  overrides: {
+    organizationId?: string;
+    project?: string;
+    slugPrefix?: string;
+    nextEvaluationAt?: Date;
+  } = {},
+): Promise<void> {
+  const organizationId = overrides.organizationId ?? TEST_ORG;
+  const project = overrides.project ?? "default";
+  const slugPrefix = overrides.slugPrefix ?? "bulk-rule";
+  const nextEvaluationAt = overrides.nextEvaluationAt ?? new Date();
+  for (let start = 0; start < count; start += BULK_INSERT_CHUNK_SIZE) {
+    const end = Math.min(start + BULK_INSERT_CHUNK_SIZE, count);
+    await db.insert(alertDefinitions).values(
+      Array.from({ length: end - start }, (_, offset) => {
+        const index = start + offset;
+        return {
+          organizationId,
+          repoid: "repo_test",
+          project,
+          slug: `${slugPrefix}-${index}`,
+          spec: ruleSpec({}),
+          active: true,
+          nextEvaluationAt,
+        };
+      }),
+    );
+  }
+}
+
 export async function insertChannel(
   db: Db,
   overrides: {
