@@ -2,6 +2,7 @@
 import { sql } from "drizzle-orm";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { alertDefinitions } from "@/db/schema";
+import { BACKOFF_EXPRESSION_TEST } from "./job-driver";
 import { createTestDatabase, type TestDatabase } from "./pglite-database";
 
 let database: TestDatabase;
@@ -56,5 +57,28 @@ describe("createTestDatabase", () => {
     );
     expect(rules).toHaveLength(0);
     expect(jobs.rows[0]).toEqual({ count: 0 });
+  });
+});
+
+describe("the job driver's copy of graphile's backoff", () => {
+  it("still matches the expression the installed graphile-worker ships", async () => {
+    const { createRequire } = await import("node:module");
+    const { readFileSync } = await import("node:fs");
+    const { dirname, join } = await import("node:path");
+    const require = createRequire(import.meta.url);
+    const failJobSource = readFileSync(
+      join(
+        dirname(require.resolve("graphile-worker/package.json")),
+        "dist/sql/failJob.js",
+      ),
+      "utf8",
+    );
+
+    // job-driver.ts copies this expression rather than calling graphile,
+    // because graphile dates every statement with the database's now() and
+    // the harness fakes Date in JavaScript only. A copy cannot notice a
+    // version bump on its own, so this reads the shipped file and fails when
+    // the curve moves.
+    expect(failJobSource).toContain(BACKOFF_EXPRESSION_TEST);
   });
 });
