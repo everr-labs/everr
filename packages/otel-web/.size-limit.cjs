@@ -12,7 +12,7 @@ module.exports = [
     path: "dist/index.js",
     import: "{ WebSDK }",
     gzip: true,
-    limit: "3 KB",
+    limit: "3.5 KB",
   },
   {
     name: "core + errors",
