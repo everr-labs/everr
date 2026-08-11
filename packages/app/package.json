@@ -91,6 +91,7 @@
     "@types/react-dom": "catalog:",
     "@types/topojson-client": "^3.1.5",
     "@vitejs/plugin-react": "catalog:",
+    "chdb": "^3.2.0",
     "dotenv": "^17.4.2",
     "drizzle-kit": "^0.31.10",
     "jsdom": "^29.1.1",

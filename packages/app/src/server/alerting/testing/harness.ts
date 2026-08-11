@@ -91,6 +91,7 @@ export async function createAlertingHarness(): Promise<AlertingHarness> {
       responder = { status: 200, body: "ok" };
     },
     async close() {
+      activeClickHouse.close();
       setTestDatabase(undefined);
       vi.unstubAllGlobals();
       vi.useRealTimers();

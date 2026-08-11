@@ -331,6 +331,9 @@ importers:
       '@vitejs/plugin-react':
         specifier: 'catalog:'
         version: 6.0.1(vite@8.0.11(@types/node@25.6.2)(esbuild@0.28.0)(jiti@2.7.0)(tsx@4.21.0)(yaml@2.9.0))
+      chdb:
+        specifier: ^3.2.0
+        version: 3.2.0(@clickhouse/client@1.18.4)(zod@4.4.3)
       dotenv:
         specifier: ^17.4.2
         version: 17.4.2
@@ -1223,8 +1226,34 @@ packages:
   '@changesets/write@0.4.0':
     resolution: {integrity: sha512-CdTLvIOPiCNuH71pyDu3rA+Q0n65cmAbXnwWH84rKGiFumFzkmHNT8KHTMEchcxN+Kl8I54xGUhJ7l3E7X396Q==}
 
+  '@chdb/lib-darwin-arm64@26.5.3':
+    resolution: {integrity: sha512-p1nyJKVdoMJbx5vsUpILzynrLtyRuDJUFocLiPk06KpgZpMpDgwbq3/4S9OnKB0hcjAkzDBPDnfnihQGNkJz9g==}
+    cpu: [arm64]
+    os: [darwin]
+
+  '@chdb/lib-darwin-x64@26.5.3':
+    resolution: {integrity: sha512-vOMfgSt7a648lCKqk5oq7n/M4KFcsFO+SrN38WAaWclC20IUsdcm10zcwmNcgXuCbbK7IC5YkVQtvx8pYRnfUA==}
+    cpu: [x64]
+    os: [darwin]
+
+  '@chdb/lib-linux-arm64-gnu@26.5.3':
+    resolution: {integrity: sha512-RCog2w95rOchUnS+OzPLpK3zt1lSjnGCWT35oPgyRb0MUCHP4TeoFC3e4Ji/HEZwChAglRgfWkMt8xJwXiD9xw==}
+    cpu: [arm64]
+    os: [linux]
+    libc: [glibc]
+
+  '@chdb/lib-linux-x64-gnu@26.5.3':
+    resolution: {integrity: sha512-fPrLmRt5Moor9yGz4mazbrNje4t7X9KB2mTGkXFWRxRBs2iKy8yh6jx11xsa0Qr3iDFMU/yHqd+bVdYJXu3QaQ==}
+    cpu: [x64]
+    os: [linux]
+    libc: [glibc]
+
   '@clickhouse/client-common@1.18.4':
     resolution: {integrity: sha512-kPPtv8yQmplNAxfrAJvwBJq5dd+IWRewEbXSpUvtyEJXlrB8lt/ZH63jUS81Nmd+lK5MRvpOFXPoN3iogkvg+A==}
+
+  '@clickhouse/client-common@1.23.0':
+    resolution: {integrity: sha512-OkuxPkQ+ph8CCrt/4DYBvlJ9D9Q9q7FwvP8FdwER+7UDNO3jN4Ee6SZl9iLupKJIvKeuS68+x86ZyqFuHdPK3g==}
+    deprecated: 'Deprecated: import from @clickhouse/client or @clickhouse/client-web instead.'
 
   '@clickhouse/client@1.18.4':
     resolution: {integrity: sha512-jjCrddI+e2OVXGh/MQY92K9r8Z/iwqaZtUXNI/MfZ/y9VGYwfbQsXRzp4Jv6w4Hgxvr4sLcz9YwIvkCBQ6X/mw==}
@@ -4756,6 +4785,31 @@ packages:
   chardet@2.1.1:
     resolution: {integrity: sha512-PsezH1rqdV9VvyNhxxOW32/d75r01NY7TQCmOqomRo15ZSOKbpTFVsfjghxo6JloQUCGnH4k1LGu0R4yCLlWQQ==}
 
+  chdb@3.2.0:
+    resolution: {integrity: sha512-tetwf4QQmAaIxcOFEp6CJ7/xxzlJyjMTV8gWFPq8AfJv8I9kcoO1aMdPzDWheUB7n0J5AcI01vnTiUyQ/oO29A==}
+    engines: {node: '>=18.0.0'}
+    hasBin: true
+    peerDependencies:
+      '@clickhouse/client': '>=1.23.0'
+      '@hypequery/clickhouse': '>=2.1.2'
+      '@mastra/core': '>=0.10'
+      ai: '>=5'
+      apache-arrow: '>=14'
+      zod: '>=3'
+    peerDependenciesMeta:
+      '@clickhouse/client':
+        optional: true
+      '@hypequery/clickhouse':
+        optional: true
+      '@mastra/core':
+        optional: true
+      ai:
+        optional: true
+      apache-arrow:
+        optional: true
+      zod:
+        optional: true
+
   cheerio-select@2.1.0:
     resolution: {integrity: sha512-9v9kG0LvzrlcungtnJtpGNxY+fzECQKhK4EGJX2vByejiMX84MFNQw4UxPJl3bFbTMw+Dfs37XaIkCwTZfLh4g==}
 
@@ -6568,6 +6622,9 @@ packages:
   no-case@3.0.4:
     resolution: {integrity: sha512-fgAN3jGAh+RoxUGZHTSOLJIqUc2wmoBwGR4tbpNAKmmovFoWq0OdRkb0VkldReO2a2iBT/OEulG9XSUc10r3zg==}
 
+  node-addon-api@6.1.0:
+    resolution: {integrity: sha512-+eawOlIgy680F0kBzPUNFhMZGtJ1YmqM6l4+Crf4IkImjYrO/mqPwRMh352g23uIaQKFItcQ64I7KMaJxHgAVA==}
+
   node-domexception@1.0.0:
     resolution: {integrity: sha512-/jKZoMpw0F8GRwl4/eLROPA3cfcXtLApP0QzLmUT/HuPCZWyB7IY9ZrMeKw2O/nFIqPQB3PVM9aYm0F312AXDQ==}
     engines: {node: '>=10.5.0'}
@@ -6585,6 +6642,10 @@ packages:
   node-fetch@3.3.2:
     resolution: {integrity: sha512-dRB78srN/l6gqWulah9SrxeYnxeddIG30+GOqK/9OlLVyLg3HPnr6SqOWTWOXKRwC2eGYCkZ59NNuSgvSrpgOA==}
     engines: {node: ^12.20.0 || ^14.13.1 || >=16.0.0}
+
+  node-gyp-build@4.8.4:
+    resolution: {integrity: sha512-LA4ZjwlnUblHVgq0oBF3Jl/6h/Nvs5fzBLwdEF4nuxnFdsfajde4WfxtJr3CaiH+F6ewcIB/q4jQ4UzPyid+CQ==}
+    hasBin: true
 
   node-releases@2.0.19:
     resolution: {integrity: sha512-xxOWJsBKtzAq7DY0J+DTzuz58K8e7sJbdgwkbMWQe8UYB6ekmsQ45q0M/tJDsGaZmbC+l7n57UV8Hl5tHxO9uw==}
@@ -8689,7 +8750,21 @@ snapshots:
       human-id: 4.1.3
       prettier: 2.8.8
 
+  '@chdb/lib-darwin-arm64@26.5.3':
+    optional: true
+
+  '@chdb/lib-darwin-x64@26.5.3':
+    optional: true
+
+  '@chdb/lib-linux-arm64-gnu@26.5.3':
+    optional: true
+
+  '@chdb/lib-linux-x64-gnu@26.5.3':
+    optional: true
+
   '@clickhouse/client-common@1.18.4': {}
+
+  '@clickhouse/client-common@1.23.0': {}
 
   '@clickhouse/client@1.18.4':
     dependencies:
@@ -12185,6 +12260,19 @@ snapshots:
 
   chardet@2.1.1: {}
 
+  chdb@3.2.0(@clickhouse/client@1.18.4)(zod@4.4.3):
+    dependencies:
+      '@clickhouse/client-common': 1.23.0
+      node-addon-api: 6.1.0
+      node-gyp-build: 4.8.4
+    optionalDependencies:
+      '@chdb/lib-darwin-arm64': 26.5.3
+      '@chdb/lib-darwin-x64': 26.5.3
+      '@chdb/lib-linux-arm64-gnu': 26.5.3
+      '@chdb/lib-linux-x64-gnu': 26.5.3
+      '@clickhouse/client': 1.18.4
+      zod: 4.4.3
+
   cheerio-select@2.1.0:
     dependencies:
       boolbase: 1.0.0
@@ -14300,6 +14388,8 @@ snapshots:
       lower-case: 2.0.2
       tslib: 2.8.1
 
+  node-addon-api@6.1.0: {}
+
   node-domexception@1.0.0: {}
 
   node-fetch@2.7.0:
@@ -14311,6 +14401,8 @@ snapshots:
       data-uri-to-buffer: 4.0.1
       fetch-blob: 3.2.0
       formdata-polyfill: 4.0.10
+
+  node-gyp-build@4.8.4: {}
 
   node-releases@2.0.19: {}
 
