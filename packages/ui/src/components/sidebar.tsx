@@ -11,12 +11,6 @@ import {
   SheetTitle,
 } from "@everr/ui/components/sheet";
 import { Skeleton } from "@everr/ui/components/skeleton";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@everr/ui/components/tooltip";
 import { useIsMobile } from "@everr/ui/hooks/use-mobile";
 import { cn } from "@everr/ui/lib/utils";
 import { cva, type VariantProps } from "class-variance-authority";
@@ -28,8 +22,10 @@ import {
   useEffect,
   useLayoutEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
+import { createPortal } from "react-dom";
 
 const SIDEBAR_WIDTH = "16rem";
 const SIDEBAR_WIDTH_MOBILE = "18rem";
@@ -187,6 +183,99 @@ function SidebarProvider({
   );
 }
 
+const RAIL_TOOLTIP_OPEN_DELAY_MS = 300;
+const RAIL_TOOLTIP_CLOSE_GRACE_MS = 100;
+const RAIL_TOOLTIP_WARM_MS = 400;
+const RAIL_TOOLTIP_OFFSET_PX = 6;
+
+type RailTooltipContextValue = {
+  show: (anchor: HTMLElement, label: string) => void;
+  hide: () => void;
+};
+
+const RailTooltipContext = createContext<RailTooltipContextValue | null>(null);
+
+/**
+ * One shared tooltip for the collapsed icon rail, Chrome-vertical-tabs style:
+ * the first hover opens it after a short delay, moving between items slides
+ * the same bubble to the new anchor, and leaving the rail closes it.
+ */
+function RailTooltipProvider({ children }: { children: React.ReactNode }) {
+  const [tip, setTip] = useState<{
+    label: string;
+    top: number;
+    left: number;
+  } | null>(null);
+  const [visible, setVisible] = useState(false);
+  const [slide, setSlide] = useState(false);
+  const openTimer = useRef<number>(undefined);
+  const closeTimer = useRef<number>(undefined);
+  const warmUntil = useRef(0);
+  const visibleRef = useRef(false);
+  visibleRef.current = visible;
+
+  const show = useCallback((anchor: HTMLElement, label: string) => {
+    window.clearTimeout(openTimer.current);
+    window.clearTimeout(closeTimer.current);
+    const rect = anchor.getBoundingClientRect();
+    const next = {
+      label,
+      top: rect.top + rect.height / 2,
+      left: rect.right + RAIL_TOOLTIP_OFFSET_PX,
+    };
+    if (visibleRef.current || Date.now() < warmUntil.current) {
+      setSlide(visibleRef.current);
+      setTip(next);
+      setVisible(true);
+      return;
+    }
+    openTimer.current = window.setTimeout(() => {
+      setSlide(false);
+      setTip(next);
+      setVisible(true);
+    }, RAIL_TOOLTIP_OPEN_DELAY_MS);
+  }, []);
+
+  const hide = useCallback(() => {
+    window.clearTimeout(openTimer.current);
+    closeTimer.current = window.setTimeout(() => {
+      warmUntil.current = Date.now() + RAIL_TOOLTIP_WARM_MS;
+      setVisible(false);
+    }, RAIL_TOOLTIP_CLOSE_GRACE_MS);
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      window.clearTimeout(openTimer.current);
+      window.clearTimeout(closeTimer.current);
+    };
+  }, []);
+
+  const context = useMemo(() => ({ show, hide }), [show, hide]);
+
+  return (
+    <RailTooltipContext.Provider value={context}>
+      {children}
+      {tip &&
+        createPortal(
+          <div
+            role="tooltip"
+            data-slot="sidebar-rail-tooltip"
+            className={cn(
+              "bg-sidebar text-sidebar-foreground border-sidebar-border pointer-events-none fixed z-50 -translate-y-1/2 rounded-md border px-3 py-1.5 text-xs whitespace-nowrap shadow-md duration-150 ease-out",
+              slide ? "transition-[top,opacity]" : "transition-opacity",
+              visible ? "opacity-100" : "opacity-0",
+            )}
+            style={{ top: tip.top, left: tip.left }}
+          >
+            {tip.label}
+          </div>,
+          document.body,
+        )}
+    </RailTooltipContext.Provider>
+  );
+}
+
 function Sidebar({
   side = "left",
   variant = "sidebar",
@@ -202,11 +291,7 @@ function Sidebar({
 }) {
   const { isMobile, state, openMobile, setOpenMobile } = useSidebar();
 
-  children = (
-    <TooltipProvider delay={300} closeDelay={0}>
-      {children}
-    </TooltipProvider>
-  );
+  children = <RailTooltipProvider>{children}</RailTooltipProvider>;
 
   if (collapsible === "none") {
     return (
@@ -555,18 +640,33 @@ function SidebarMenuButton({
 }: useRender.ComponentProps<"button"> &
   React.ComponentProps<"button"> & {
     isActive?: boolean;
-    tooltip?: string | React.ComponentProps<typeof TooltipContent>;
+    tooltip?: string;
   } & VariantProps<typeof sidebarMenuButtonVariants>) {
   const { isMobile, state } = useSidebar();
-  const comp = useRender({
+  const railTooltip = useContext(RailTooltipContext);
+  const tooltipActive =
+    tooltip !== undefined &&
+    railTooltip !== null &&
+    state === "collapsed" &&
+    !isMobile;
+
+  return useRender({
     defaultTagName: "button",
     props: mergeProps<"button">(
       {
         className: cn(sidebarMenuButtonVariants({ variant, size }), className),
+        onMouseEnter: tooltipActive
+          ? (event) => railTooltip.show(event.currentTarget, tooltip)
+          : undefined,
+        onMouseLeave: tooltipActive ? railTooltip.hide : undefined,
+        onFocus: tooltipActive
+          ? (event) => railTooltip.show(event.currentTarget, tooltip)
+          : undefined,
+        onBlur: tooltipActive ? railTooltip.hide : undefined,
       },
       props,
     ),
-    render: !tooltip ? render : <TooltipTrigger render={render} />,
+    render,
     state: {
       slot: "sidebar-menu-button",
       sidebar: "menu-button",
@@ -574,28 +674,6 @@ function SidebarMenuButton({
       active: isActive,
     },
   });
-
-  if (!tooltip) {
-    return comp;
-  }
-
-  if (typeof tooltip === "string") {
-    tooltip = {
-      children: tooltip,
-    };
-  }
-
-  return (
-    <Tooltip>
-      {comp}
-      <TooltipContent
-        side="right"
-        align="center"
-        hidden={state !== "collapsed" || isMobile}
-        {...tooltip}
-      />
-    </Tooltip>
-  );
 }
 
 function SidebarMenuAction({
