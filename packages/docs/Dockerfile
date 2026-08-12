@@ -6,6 +6,7 @@ WORKDIR /app
 FROM base AS deps
 COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
 COPY packages/docs/package.json ./packages/docs/
+COPY packages/otel-web/package.json ./packages/otel-web/
 COPY packages/ui/package.json ./packages/ui/
 RUN --mount=type=cache,id=pnpm,target=/root/.local/share/pnpm/store \
     pnpm install --frozen-lockfile --ignore-scripts
@@ -14,6 +15,7 @@ RUN --mount=type=cache,id=pnpm,target=/root/.local/share/pnpm/store \
 FROM deps AS build
 ARG VITE_POSTHOG_PROJECT_TOKEN
 ARG VITE_PUBLIC_POSTHOG_HOST
+COPY packages/otel-web ./packages/otel-web
 COPY packages/ui ./packages/ui
 COPY packages/docs ./packages/docs
 RUN pnpm --filter docs build
