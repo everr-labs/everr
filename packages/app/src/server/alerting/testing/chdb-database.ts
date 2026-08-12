@@ -83,11 +83,34 @@ function withoutTtl(statement: string): string {
   return statement.replace(/\nTTL [\s\S]*?(?=\nSETTINGS )/, "\n");
 }
 
-function readJsonEachRow(out: unknown): Record<string, unknown>[] {
-  const text = String(out ?? "").trim();
-  if (text.length === 0) return [];
-  return text.split("\n").map((line) => JSON.parse(line));
+/** One value as the text ClickHouse parses against the placeholder's type. */
+function paramText(name: string, value: unknown): string {
+  if (typeof value === "string") return value;
+  if (typeof value === "number" || typeof value === "bigint") {
+    return String(value);
+  }
+  if (typeof value === "boolean") return value ? "1" : "0";
+  if (Array.isArray(value)) {
+    return `[${value.map((item) => quoteArrayItem(name, item)).join(",")}]`;
+  }
+  throw new Error(
+    `query parameter ${name} is a ${typeof value}, which has no ClickHouse text form. Convert it at the call site, the way production converts a Date with toClickHouseDateTime.`,
+  );
 }
+
+function quoteArrayItem(name: string, item: unknown): string {
+  if (typeof item === "number" || typeof item === "bigint") return String(item);
+  if (typeof item !== "string") {
+    throw new Error(`query parameter ${name} holds a non-scalar array item`);
+  }
+  return `'${item.replace(/\\/g, "\\\\").replace(/'/g, "\\'")}'`;
+}
+
+function quoteSqlString(value: string): string {
+  return `'${value.replace(/\\/g, "\\\\").replace(/'/g, "\\'")}'`;
+}
+
+const PLACEHOLDER = /\{(\w+):/g;
 
 export interface SqlApiLikeResult {
   rows: Record<string, unknown>[];
@@ -95,13 +118,21 @@ export interface SqlApiLikeResult {
   columnTypes: string[];
 }
 
+function readJsonEachRow(out: unknown): Record<string, unknown>[] {
+  const text = String(out ?? "").trim();
+  if (text.length === 0) return [];
+  return text.split("\n").map((line) => JSON.parse(line));
+}
+
+export type QueryParams = Record<string, unknown>;
+
 export interface ChdbDatabase {
   insert(rows: object[], deduplicationToken?: string): void;
   historyRows(): Record<string, unknown>[];
   /** Arbitrary SQL, for cases whose subject is what the engine itself says. */
-  queryRows(statement: string): Record<string, unknown>[];
+  queryRows(statement: string, params?: QueryParams): Record<string, unknown>[];
   /** A rule's own SQL, run for real, with the engine's column metadata. */
-  runQuery(statement: string): SqlApiLikeResult;
+  runQuery(statement: string, params?: QueryParams): SqlApiLikeResult;
   /** Replace what `app.test_signal` holds, which is what a rule selects. */
   setSignal(rows: Record<string, unknown>[]): void;
   truncate(): void;
@@ -146,6 +177,28 @@ export function createChdbDatabase(): ChdbDatabase {
     session.query(statement, "CSV");
   };
 
+  /**
+   * Bind `{name:Type}` placeholders the way production's `query_params` does.
+   *
+   * ClickHouse takes parameters as session settings (`SET param_<name>`), and
+   * a session keeps them until it ends. That is the trap: a statement that
+   * forgets a parameter would silently answer with whatever an earlier
+   * statement left under that name, and every alerting query names its
+   * parameter `organizationId`. So every placeholder in the statement is
+   * checked against what the caller supplied, before anything is set. An
+   * unbound one is the error ClickHouse itself raises for it.
+   */
+  const bindParams = (statement: string, params: QueryParams = {}) => {
+    for (const [, name] of statement.matchAll(PLACEHOLDER)) {
+      if (!(name in params)) {
+        throw new Error(`Substitution \`${name}\` is not set`);
+      }
+    }
+    for (const [name, value] of Object.entries(params)) {
+      run(`SET param_${name} = ${quoteSqlString(paramText(name, value))}`);
+    }
+  };
+
   run("CREATE DATABASE IF NOT EXISTS app");
   for (const statement of statementsIn("10-create-mvs.sql")) {
     // Only the retention pair, not the telemetry tables and materialized
@@ -183,7 +236,8 @@ export function createChdbDatabase(): ChdbDatabase {
   ]);
 
   const database: ChdbDatabase = {
-    runQuery(statement) {
+    runQuery(statement, params) {
+      bindParams(statement, params);
       // FORMAT JSON, not JSONEachRow, for the reason production gives in
       // lib/clickhouse.ts: the metadata block is there even when the result
       // is empty, so a rule that matches nothing still has columns.
@@ -238,7 +292,8 @@ export function createChdbDatabase(): ChdbDatabase {
         `INSERT INTO ${HISTORY_TABLE}${settings} FORMAT JSONEachRow\n${values}`,
       );
     },
-    queryRows(statement) {
+    queryRows(statement, params) {
+      bindParams(statement, params);
       return readJsonEachRow(
         session.query(`${statement} FORMAT JSONEachRow`, "JSONEachRow"),
       );

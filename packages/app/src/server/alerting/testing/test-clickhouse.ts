@@ -1,4 +1,8 @@
-import { type ChdbDatabase, createChdbDatabase } from "./chdb-database";
+import {
+  type ChdbDatabase,
+  createChdbDatabase,
+  type QueryParams,
+} from "./chdb-database";
 
 export interface SqlApiResult<T> {
   rows: T[];
@@ -22,8 +26,9 @@ export interface ClickHouseWriteSettings {
  *
  * The one thing this cannot speak to is tenant isolation. Embedded chdb has
  * no access control, so the grants and the row policy in the shipped DDL are
- * skipped and every read here runs unrestricted. `organizationId` is accepted
- * and ignored, exactly as a reader would expect it not to be.
+ * skipped and every read here runs unrestricted. The org id is required, the
+ * way production requires it, and then it scopes nothing: a query that reads
+ * another tenant's rows is not caught here.
  */
 export class TestClickHouse {
   private chdb: ChdbDatabase | undefined;
@@ -44,8 +49,11 @@ export class TestClickHouse {
 
   /** Ask the engine directly, for cases about the schema's own behaviour. */
   // fallow-ignore-next-line unused-class-member
-  queryRows(statement: string): Record<string, unknown>[] {
-    return this.database().queryRows(statement);
+  queryRows(
+    statement: string,
+    params?: QueryParams,
+  ): Record<string, unknown>[] {
+    return this.database().queryRows(statement, params);
   }
 
   /**
@@ -68,8 +76,8 @@ export class TestClickHouse {
     this.chdb = undefined;
   }
 
-  read<T>(statement: string): SqlApiResult<T> {
-    const result = this.database().runQuery(statement);
+  read<T>(statement: string, params?: QueryParams): SqlApiResult<T> {
+    const result = this.database().runQuery(statement, params);
     return {
       rows: result.rows as T[],
       columns: result.columns,
@@ -86,22 +94,46 @@ export class TestClickHouse {
 
 export const activeClickHouse = new TestClickHouse();
 
+/**
+ * The tenant check production makes before it reaches ClickHouse at all.
+ *
+ * It cannot enforce isolation here (that is a row policy, and there is none),
+ * but the check itself is not about isolation: it is production refusing to
+ * run a query whose caller never established a tenant context. A stand-in
+ * that accepted `undefined` would let such a call site pass in tests and
+ * throw in production, which is the one failure a stand-in must not hide.
+ */
+function requireTenant(organizationId: string): void {
+  if (typeof organizationId !== "string" || !organizationId) {
+    throw new Error("Missing ClickHouse tenant context");
+  }
+}
+
 export async function querySqlApiWithMeta<T>(
   statement: string,
-  // Mirrors the production signature. Accepted and ignored: scoping is a row
-  // policy, and embedded chdb has none, which is why nothing here may claim
-  // anything about tenant isolation.
-  _organizationId?: string,
+  organizationId: string,
+  query_params?: QueryParams,
 ): Promise<SqlApiResult<T>> {
-  return activeClickHouse.read<T>(statement);
+  requireTenant(organizationId);
+  return activeClickHouse.read<T>(statement, query_params);
 }
 
-export async function querySqlApi<T>(statement: string): Promise<T[]> {
-  return activeClickHouse.read<T>(statement).rows;
+export async function querySqlApi<T>(
+  statement: string,
+  organizationId: string,
+  query_params?: QueryParams,
+): Promise<T[]> {
+  requireTenant(organizationId);
+  return activeClickHouse.read<T>(statement, query_params).rows;
 }
 
-export async function query<T>(statement: string): Promise<T[]> {
-  return activeClickHouse.read<T>(statement).rows;
+export async function query<T>(
+  statement: string,
+  organizationId: string,
+  query_params?: QueryParams,
+): Promise<T[]> {
+  requireTenant(organizationId);
+  return activeClickHouse.read<T>(statement, query_params).rows;
 }
 
 export async function insertAdminRows(
@@ -112,7 +144,10 @@ export async function insertAdminRows(
   activeClickHouse.write(rows, clickhouse_settings);
 }
 
-export function createClickhouseQuery() {
-  return async <T>(statement: string): Promise<T[]> =>
-    activeClickHouse.read<T>(statement).rows;
+export function createClickhouseQuery(organizationId: string) {
+  requireTenant(organizationId);
+  return async <T>(
+    statement: string,
+    query_params?: QueryParams,
+  ): Promise<T[]> => activeClickHouse.read<T>(statement, query_params).rows;
 }
