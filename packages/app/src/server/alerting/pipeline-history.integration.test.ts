@@ -175,6 +175,25 @@ describe("the alerting pipeline's ClickHouse projection", () => {
     expect(Number(row.from_id)).toBe(Number(row.from_column));
   });
 
+  it("recovers the exact instant a row happened, to the millisecond", async () => {
+    await insertRule(harness.db, { forSecs: 0 });
+    harness.clickhouse.setSignal(BREACHING);
+    const firedAt = Date.now();
+    await harness.runDueJobs();
+
+    // The writer hands the engine an ISO string and the column is a naive
+    // DateTime64(3), so the instant only survives if the engine parses that
+    // text the way the writer meant it and keeps all three decimal places.
+    // A second-precision column, or a writer that sent a local reading,
+    // would still produce a plausible row and be wrong by a whole offset.
+    const [row] = harness.clickhouse.queryRows(`
+      SELECT toUnixTimestamp64Milli(event_time) AS millis
+      FROM app.alert_events
+      WHERE event_type = 'instance_fired'
+    `);
+    expect(Number(row.millis)).toBe(firedAt);
+  });
+
   it("carries one episode_id across the fired and resolved rows of a single breach", async () => {
     await insertRule(harness.db, { forSecs: 0, intervalSecs: 60 });
     harness.clickhouse.setSignal(BREACHING);
