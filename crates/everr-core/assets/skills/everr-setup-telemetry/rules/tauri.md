@@ -136,7 +136,7 @@ Resolve the release version from the Tauri app/package metadata or build system.
 
 ## OTLP Passthrough Proxy
 
-The Rust command is transport, not an application telemetry API. It receives an already-encoded OTLP request from the WebSDK and forwards the bytes to the collector. It validates the signal and size, attaches the configured headers, and POSTs — it never deserializes, maps, or rebuilds telemetry. The proxy only forwards to the Rust-resolved endpoint, never a URL from the renderer, and the ingest key stays server-side.
+The Rust command is transport, not an application telemetry API. It receives an already-encoded OTLP request from the WebSDK and forwards the bytes to the collector. It validates the signal and size, attaches the configured headers, and POSTs. It never deserializes, maps, or rebuilds telemetry. The proxy only forwards to the Rust-resolved endpoint, never a URL from the renderer, and the ingest key stays server-side.
 
 ```rust
 use reqwest::Client;
@@ -376,7 +376,7 @@ WHERE Timestamp > now() - INTERVAL 10 MINUTE
 LIMIT 20
 ```
 
-A Rust-side change (the proxy command, headers, endpoint, backend setup) needs a full app rebuild — a JS reload is not enough.
+A Rust-side change (the proxy command, headers, endpoint, backend setup) needs a full app rebuild: a JS reload is not enough.
 
 ## Troubleshooting
 
