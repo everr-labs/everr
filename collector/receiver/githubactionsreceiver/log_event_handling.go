@@ -10,6 +10,7 @@ import (
 	"archive/zip"
 	"bufio"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -254,6 +255,36 @@ type parsedLine struct {
 	body string
 }
 
+// A single step-output line can be arbitrarily long (a minified bundle, a
+// one-line JSON dump); lines are truncated at this cap instead of aborting
+// the scan, which would silently drop every remaining line of the run.
+const maxLogLineBytes = 1024 * 1024 // 1 MiB
+
+// readLogLine reads one line, truncated at maxLogLineBytes. The rest of an
+// over-long line is consumed and discarded. A non-nil error means no line
+// was read.
+func readLogLine(r *bufio.Reader) (string, error) {
+	var buf []byte
+	for {
+		frag, isPrefix, err := r.ReadLine()
+		if err != nil {
+			if len(buf) > 0 {
+				return string(buf), nil
+			}
+			return "", err
+		}
+		if remaining := maxLogLineBytes - len(buf); remaining > 0 {
+			if len(frag) > remaining {
+				frag = frag[:remaining]
+			}
+			buf = append(buf, frag...)
+		}
+		if !isPrefix {
+			return string(buf), nil
+		}
+	}
+}
+
 // scanLogFile reads a zip log file and calls emit for each parsed line.
 func scanLogFile(f *zip.File, logger *zap.Logger, emit func(parsedLine)) {
 	ff, err := f.Open()
@@ -263,11 +294,17 @@ func scanLogFile(f *zip.File, logger *zap.Logger, emit func(parsedLine)) {
 	}
 	defer ff.Close()
 
-	scanner := bufio.NewScanner(ff)
+	reader := bufio.NewReader(ff)
 	firstLine := true
 	var lastTime time.Time
-	for scanner.Scan() {
-		lineText := scanner.Text()
+	for {
+		lineText, err := readLogLine(reader)
+		if err != nil {
+			if !errors.Is(err, io.EOF) {
+				logger.Error("Error reading file", zap.Error(err))
+			}
+			break
+		}
 		if firstLine {
 			lineText = strings.TrimPrefix(lineText, "\xEF\xBB\xBF")
 			firstLine = false
@@ -288,10 +325,6 @@ func scanLogFile(f *zip.File, logger *zap.Logger, emit func(parsedLine)) {
 		// output, not an error. Keep the full text and attribute it to the
 		// previous line's timestamp (zero if it's the very first line).
 		emit(parsedLine{time: lastTime, body: lineText})
-	}
-
-	if err := scanner.Err(); err != nil {
-		logger.Error("Error reading file", zap.Error(err))
 	}
 }
 

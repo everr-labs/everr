@@ -15,12 +15,17 @@ export function FilterSearchBar({
   value,
   onChange,
   placeholder,
+  showLabel = false,
 }: {
   id: string;
   label: string;
   value: string;
   onChange: (next: string) => void;
   placeholder: string;
+  // In the filter rail the label is the heading of the section. It is then
+  // visible, and it has the style of every other section label. There is one
+  // <label> element in both cases, so the accessible name keeps its shape.
+  showLabel?: boolean;
 }) {
   const [draft, setDraft] = useState(value);
 
@@ -36,13 +41,16 @@ export function FilterSearchBar({
 
   return (
     <form
-      className="w-full"
+      className={cn("w-full", showLabel && "flex flex-col gap-1")}
       onSubmit={(event) => {
         event.preventDefault();
         onChange(draft.trim());
       }}
     >
-      <label htmlFor={id} className="sr-only">
+      <label
+        htmlFor={id}
+        className={cn(showLabel ? "text-muted-foreground text-xs" : "sr-only")}
+      >
         {label}
       </label>
       <InputGroup className="h-9">

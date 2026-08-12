@@ -42,6 +42,8 @@ export interface ExploreFilterPillProps<TData> {
   searchPlaceholder?: string;
   /** Plural noun for the multi-select count, e.g. "services". Defaults to `${label}s`. */
   countNoun?: string;
+  /** Classes for the trigger. The Explore rail sends `w-full max-w-none`. */
+  className?: string;
 }
 
 /**
@@ -60,6 +62,7 @@ export function ExploreFilterPill<TData>({
   placeholder,
   searchPlaceholder,
   countNoun,
+  className,
 }: ExploreFilterPillProps<TData>) {
   const id = useId();
   const [open, setOpen] = useState(false);
@@ -105,6 +108,7 @@ export function ExploreFilterPill<TData>({
                   className={cn(
                     "max-w-52 gap-1.5",
                     isActive && "border-primary/35",
+                    className,
                   )}
                 />
               }
@@ -119,8 +123,15 @@ export function ExploreFilterPill<TData>({
             )}
             aria-hidden="true"
           />
+          {/* flex-1 puts the chevron and the clear control at the right edge
+              when the trigger fills its column, as it does in the Explore rail.
+              At the width of the top bar there is no free space, so nothing
+              moves. */}
           <span
-            className={cn("truncate", !isActive && "text-muted-foreground")}
+            className={cn(
+              "flex-1 truncate text-left",
+              !isActive && "text-muted-foreground",
+            )}
           >
             {display}
           </span>

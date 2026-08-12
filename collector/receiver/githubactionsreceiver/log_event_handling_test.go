@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -617,6 +618,31 @@ func TestScanLogFileContinuationLines(t *testing.T) {
 		require.Equal(t, "line one", lines[1].body)
 
 		require.Equal(t, 0, observed.Len(), "lines without timestamps must not log at error level")
+	})
+
+	t.Run("over-long line is truncated, not fatal", func(t *testing.T) {
+		huge := strings.Repeat("x", maxLogLineBytes+512)
+		lines, observed := scan(t, ""+
+			"2023-10-13T10:11:33Z line one\n"+
+			"2023-10-13T10:11:34Z "+huge+"\n"+
+			"2023-10-13T10:11:35Z line after\n")
+
+		require.Len(t, lines, 3, "lines after the over-long one must still be emitted")
+		require.Equal(t, "line one", lines[0].body)
+		require.Len(t, lines[1].body, maxLogLineBytes-len("2023-10-13T10:11:34Z "))
+		require.Equal(t, "line after", lines[2].body)
+
+		require.Equal(t, 0, observed.Len(), "an over-long line must not log at error level")
+	})
+
+	t.Run("final line without trailing newline", func(t *testing.T) {
+		lines, observed := scan(t, ""+
+			"2023-10-13T10:11:33Z line one\n"+
+			"2023-10-13T10:11:34Z last line no newline")
+
+		require.Len(t, lines, 2)
+		require.Equal(t, "last line no newline", lines[1].body)
+		require.Equal(t, 0, observed.Len())
 	})
 }
 

@@ -28,6 +28,7 @@ The ONLY query command is `everr cloud query "<SQL>"` or `everr local query "<SQ
 | Production, deployed services, customer reports, cloud CI history | `everr cloud query "<SQL>"` |
 | Local app, dev server, local tests, wrapped command output | `everr local query "<SQL>"` |
 | Current CI run, branch status, failed jobs, workflow logs | Use the `everr-working-with-ci` skill |
+| Browser or web-app behavior: page views, clicks, web vitals, frontend errors | Read `rules/browser-events.md` for the event and attribute catalog, then query as usual |
 | Missing or stale local telemetry | Use the `everr-setup-telemetry` skill |
 
 If an Everr command fails, investigate why: collector stopped, stale app, wrong repo, missing auth, missing import, bad query, or CLI bug. **Follow the error message literally** — if it says run `everr local start`, run that. Do not invent alternative explanations for the error or silently replace real telemetry with guesses.

@@ -9,113 +9,123 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as OnboardingRouteImport } from './routes/onboarding'
-import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
 import { Route as AuthRouteImport } from './routes/_auth'
-import { Route as WebhookGithubRouteImport } from './routes/webhook/github'
-import { Route as McpConsentRouteImport } from './routes/mcp/consent'
-import { Route as McpSplatRouteImport } from './routes/mcp/$'
-import { Route as ApiHealthRouteImport } from './routes/api/health'
-import { Route as ApiCliRouteImport } from './routes/api/cli'
-import { Route as ApiApplyRouteImport } from './routes/api/apply'
-import { Route as AuthenticatedDeviceRouteImport } from './routes/_authenticated/device'
-import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/_dashboard'
-import { Route as AuthGuestRouteImport } from './routes/_auth/_guest'
-import { Route as DotwellKnownOauthProtectedResourceRouteImport } from './routes/[.]well-known/oauth-protected-resource'
+import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
+import { Route as OnboardingRouteImport } from './routes/onboarding'
 import { Route as DotwellKnownOauthAuthorizationServerRouteImport } from './routes/[.]well-known/oauth-authorization-server'
-import { Route as ApiInternalVerifyKeyRouteImport } from './routes/api/internal/verify-key'
-import { Route as ApiEventsStreamRouteImport } from './routes/api/events/stream'
-import { Route as ApiCliSqlRouteImport } from './routes/api/cli/sql'
-import { Route as ApiCliRunsRouteImport } from './routes/api/cli/runs'
-import { Route as ApiCliResourcesRouteImport } from './routes/api/cli/resources'
-import { Route as ApiCliReposRouteImport } from './routes/api/cli/repos'
-import { Route as ApiCliOrgRouteImport } from './routes/api/cli/org'
-import { Route as ApiCliNotificationRouteImport } from './routes/api/cli/notification'
-import { Route as ApiCliMeRouteImport } from './routes/api/cli/me'
-import { Route as ApiCliImportRouteImport } from './routes/api/cli/import'
-import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
-import { Route as AuthenticatedDashboardRunsRouteImport } from './routes/_authenticated/_dashboard/runs'
-import { Route as AuthenticatedDashboardPreviewableRouteImport } from './routes/_authenticated/_dashboard/_previewable'
-import { Route as AuthenticatedDashboardPaddedRouteImport } from './routes/_authenticated/_dashboard/_padded'
-import { Route as AuthenticatedDashboardExploreRouteImport } from './routes/_authenticated/_dashboard/_explore'
-import { Route as AuthInviteInvitationIdRouteImport } from './routes/_auth/invite.$invitationId'
+import { Route as DotwellKnownOauthProtectedResourceRouteImport } from './routes/[.]well-known/oauth-protected-resource'
+import { Route as AuthGuestRouteImport } from './routes/_auth/_guest'
+import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/_dashboard'
+import { Route as AuthenticatedDeviceRouteImport } from './routes/_authenticated/device'
+import { Route as ApiApplyRouteImport } from './routes/api/apply'
+import { Route as ApiCliRouteImport } from './routes/api/cli'
+import { Route as ApiHealthRouteImport } from './routes/api/health'
+import { Route as McpSplatRouteImport } from './routes/mcp/$'
+import { Route as McpConsentRouteImport } from './routes/mcp/consent'
+import { Route as WebhookGithubRouteImport } from './routes/webhook/github'
 import { Route as AuthAuthErrorRouteImport } from './routes/_auth/auth/error'
-import { Route as AuthenticatedDashboardRunsIndexRouteImport } from './routes/_authenticated/_dashboard/runs/index'
-import { Route as AuthenticatedDashboardPaddedIndexRouteImport } from './routes/_authenticated/_dashboard/_padded/index'
-import { Route as ApiGithubInstallStartRouteImport } from './routes/api/github/install/start'
-import { Route as ApiGithubInstallCallbackRouteImport } from './routes/api/github/install/callback'
-import { Route as ApiCliRunsStatusRouteImport } from './routes/api/cli/runs/status'
-import { Route as ApiCliRunsHistogramRouteImport } from './routes/api/cli/runs/histogram'
-import { Route as ApiCliRunsFilterOptionsRouteImport } from './routes/api/cli/runs/filter-options'
-import { Route as ApiCliRunsTraceIdRouteImport } from './routes/api/cli/runs/$traceId'
-import { Route as ApiCliOrgNameRouteImport } from './routes/api/cli/org/name'
-import { Route as AuthenticatedDashboardPreviewableAlertsRouteImport } from './routes/_authenticated/_dashboard/_previewable/alerts'
-import { Route as AuthenticatedDashboardPaddedUsersManagementRouteImport } from './routes/_authenticated/_dashboard/_padded/users-management'
-import { Route as AuthenticatedDashboardPaddedReposRouteImport } from './routes/_authenticated/_dashboard/_padded/repos'
-import { Route as AuthenticatedDashboardPaddedCostAnalysisRouteImport } from './routes/_authenticated/_dashboard/_padded/cost-analysis'
-import { Route as AuthenticatedDashboardPaddedBillingRouteImport } from './routes/_authenticated/_dashboard/_padded/billing'
-import { Route as AuthenticatedDashboardPaddedApiKeysRouteImport } from './routes/_authenticated/_dashboard/_padded/api-keys'
-import { Route as AuthenticatedDashboardPaddedAccountRouteImport } from './routes/_authenticated/_dashboard/_padded/account'
-import { Route as AuthenticatedDashboardExploreTracesRouteImport } from './routes/_authenticated/_dashboard/_explore/traces'
-import { Route as AuthenticatedDashboardExploreLogsRouteImport } from './routes/_authenticated/_dashboard/_explore/logs'
-import { Route as AuthenticatedDashboardExploreErrorsRouteImport } from './routes/_authenticated/_dashboard/_explore/errors'
-import { Route as AuthGuestAuthSignUpRouteImport } from './routes/_auth/_guest/auth/sign-up'
-import { Route as AuthGuestAuthSignInRouteImport } from './routes/_auth/_guest/auth/sign-in'
-import { Route as AuthGuestAuthResetPasswordRouteImport } from './routes/_auth/_guest/auth/reset-password'
-import { Route as AuthGuestAuthForgotPasswordRouteImport } from './routes/_auth/_guest/auth/forgot-password'
+import { Route as AuthInviteInvitationIdRouteImport } from './routes/_auth/invite.$invitationId'
+import { Route as AuthenticatedDashboardExploreRouteImport } from './routes/_authenticated/_dashboard/_explore'
+import { Route as AuthenticatedDashboardPaddedRouteImport } from './routes/_authenticated/_dashboard/_padded'
+import { Route as AuthenticatedDashboardPreviewableRouteImport } from './routes/_authenticated/_dashboard/_previewable'
+import { Route as AuthenticatedDashboardRunsRouteImport } from './routes/_authenticated/_dashboard/runs'
+import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
+import { Route as ApiCliImportRouteImport } from './routes/api/cli/import'
+import { Route as ApiCliMeRouteImport } from './routes/api/cli/me'
+import { Route as ApiCliNotificationRouteImport } from './routes/api/cli/notification'
+import { Route as ApiCliOrgRouteImport } from './routes/api/cli/org'
+import { Route as ApiCliReposRouteImport } from './routes/api/cli/repos'
+import { Route as ApiCliResourcesRouteImport } from './routes/api/cli/resources'
+import { Route as ApiCliRunsRouteImport } from './routes/api/cli/runs'
+import { Route as ApiCliSqlRouteImport } from './routes/api/cli/sql'
+import { Route as ApiEventsStreamRouteImport } from './routes/api/events/stream'
+import { Route as ApiInternalVerifyKeyRouteImport } from './routes/api/internal/verify-key'
 import { Route as DotwellKnownOauthAuthorizationServerApiAuthRouteImport } from './routes/[.]well-known/oauth-authorization-server/api/auth'
+import { Route as AuthGuestAuthForgotPasswordRouteImport } from './routes/_auth/_guest/auth/forgot-password'
+import { Route as AuthGuestAuthResetPasswordRouteImport } from './routes/_auth/_guest/auth/reset-password'
+import { Route as AuthGuestAuthSignInRouteImport } from './routes/_auth/_guest/auth/sign-in'
+import { Route as AuthGuestAuthSignUpRouteImport } from './routes/_auth/_guest/auth/sign-up'
+import { Route as AuthenticatedDashboardExploreErrorsRouteImport } from './routes/_authenticated/_dashboard/_explore/errors'
+import { Route as AuthenticatedDashboardExploreLogsRouteImport } from './routes/_authenticated/_dashboard/_explore/logs'
+import { Route as AuthenticatedDashboardExploreTracesRouteImport } from './routes/_authenticated/_dashboard/_explore/traces'
+import { Route as AuthenticatedDashboardPaddedIndexRouteImport } from './routes/_authenticated/_dashboard/_padded/index'
+import { Route as AuthenticatedDashboardPaddedAccountRouteImport } from './routes/_authenticated/_dashboard/_padded/account'
+import { Route as AuthenticatedDashboardPaddedApiKeysRouteImport } from './routes/_authenticated/_dashboard/_padded/api-keys'
+import { Route as AuthenticatedDashboardPaddedBillingRouteImport } from './routes/_authenticated/_dashboard/_padded/billing'
+import { Route as AuthenticatedDashboardPaddedCostAnalysisRouteImport } from './routes/_authenticated/_dashboard/_padded/cost-analysis'
+import { Route as AuthenticatedDashboardPaddedReposRouteImport } from './routes/_authenticated/_dashboard/_padded/repos'
+import { Route as AuthenticatedDashboardPaddedUsersManagementRouteImport } from './routes/_authenticated/_dashboard/_padded/users-management'
+import { Route as AuthenticatedDashboardPreviewableAlertsRouteImport } from './routes/_authenticated/_dashboard/_previewable/alerts'
+import { Route as AuthenticatedDashboardRunsIndexRouteImport } from './routes/_authenticated/_dashboard/runs/index'
 import { Route as AuthenticatedDashboardRunsTraceIdRouteRouteImport } from './routes/_authenticated/_dashboard/runs/$traceId/route'
-import { Route as AuthenticatedDashboardRunsTraceIdIndexRouteImport } from './routes/_authenticated/_dashboard/runs/$traceId/index'
-import { Route as AuthenticatedDashboardPreviewableRunbooksIndexRouteImport } from './routes/_authenticated/_dashboard/_previewable/runbooks/index'
-import { Route as AuthenticatedDashboardPreviewableDashboardsIndexRouteImport } from './routes/_authenticated/_dashboard/_previewable/dashboards/index'
-import { Route as ApiCliRunsTraceIdLogsRouteImport } from './routes/api/cli/runs/$traceId/logs'
-import { Route as AuthenticatedDashboardRunsTraceIdTraceRouteImport } from './routes/_authenticated/_dashboard/runs/$traceId/trace'
-import { Route as AuthenticatedDashboardPreviewableAlertsAlertIdRouteImport } from './routes/_authenticated/_dashboard/_previewable/alerts_.$alertId'
-import { Route as AuthenticatedDashboardPaddedCheckoutSuccessRouteImport } from './routes/_authenticated/_dashboard/_padded/checkout.success'
-import { Route as AuthenticatedDashboardExploreTracesTraceIdRouteImport } from './routes/_authenticated/_dashboard/_explore/traces_.$traceId'
+import { Route as ApiCliOrgNameRouteImport } from './routes/api/cli/org/name'
+import { Route as ApiCliRunsTraceIdRouteImport } from './routes/api/cli/runs/$traceId'
+import { Route as ApiCliRunsFilterOptionsRouteImport } from './routes/api/cli/runs/filter-options'
+import { Route as ApiCliRunsHistogramRouteImport } from './routes/api/cli/runs/histogram'
+import { Route as ApiCliRunsStatusRouteImport } from './routes/api/cli/runs/status'
+import { Route as ApiGithubInstallCallbackRouteImport } from './routes/api/github/install/callback'
+import { Route as ApiGithubInstallStartRouteImport } from './routes/api/github/install/start'
 import { Route as AuthenticatedDashboardExploreErrorsFingerprintRouteImport } from './routes/_authenticated/_dashboard/_explore/errors_.$fingerprint'
-import { Route as ApiCliResourcesKindProjectSlugRouteImport } from './routes/api/cli/resources/$kind/$project/$slug'
-import { Route as AuthenticatedDashboardPreviewableDashboardsProjectSlugRouteImport } from './routes/_authenticated/_dashboard/_previewable/dashboards/$project.$slug'
-import { Route as AuthenticatedDashboardPaddedWorkflowsRepoWorkflowNameRouteImport } from './routes/_authenticated/_dashboard/_padded/workflows/$repo/$workflowName'
-import { Route as AuthenticatedDashboardExploreTracesTraceIdModalRouteImport } from './routes/_authenticated/_dashboard/_explore/traces/$traceId/modal'
+import { Route as AuthenticatedDashboardExploreTracesTraceIdRouteImport } from './routes/_authenticated/_dashboard/_explore/traces_.$traceId'
+import { Route as AuthenticatedDashboardPaddedCheckoutSuccessRouteImport } from './routes/_authenticated/_dashboard/_padded/checkout.success'
+import { Route as AuthenticatedDashboardPreviewableAlertsAlertIdRouteImport } from './routes/_authenticated/_dashboard/_previewable/alerts_.$alertId'
+import { Route as AuthenticatedDashboardPreviewableDashboardsIndexRouteImport } from './routes/_authenticated/_dashboard/_previewable/dashboards/index'
+import { Route as AuthenticatedDashboardPreviewableRunbooksIndexRouteImport } from './routes/_authenticated/_dashboard/_previewable/runbooks/index'
+import { Route as AuthenticatedDashboardRunsTraceIdIndexRouteImport } from './routes/_authenticated/_dashboard/runs/$traceId/index'
+import { Route as AuthenticatedDashboardRunsTraceIdTraceRouteImport } from './routes/_authenticated/_dashboard/runs/$traceId/trace'
+import { Route as ApiCliRunsTraceIdLogsRouteImport } from './routes/api/cli/runs/$traceId/logs'
 import { Route as AuthenticatedDashboardExploreErrorsFingerprintModalRouteImport } from './routes/_authenticated/_dashboard/_explore/errors/$fingerprint/modal'
-import { Route as AuthenticatedDashboardRunsTraceIdJobsJobIdIndexRouteImport } from './routes/_authenticated/_dashboard/runs/$traceId/jobs/$jobId/index'
+import { Route as AuthenticatedDashboardExploreTracesTraceIdModalRouteImport } from './routes/_authenticated/_dashboard/_explore/traces/$traceId/modal'
+import { Route as AuthenticatedDashboardPaddedWorkflowsRepoWorkflowNameRouteImport } from './routes/_authenticated/_dashboard/_padded/workflows/$repo/$workflowName'
+import { Route as AuthenticatedDashboardPreviewableDashboardsProjectSlugRouteImport } from './routes/_authenticated/_dashboard/_previewable/dashboards/$project.$slug'
+import { Route as ApiCliResourcesKindProjectSlugRouteImport } from './routes/api/cli/resources/$kind/$project/$slug'
 import { Route as AuthenticatedDashboardPreviewableRunbooksProjectSlugIndexRouteImport } from './routes/_authenticated/_dashboard/_previewable/runbooks/$project.$slug.index'
-import { Route as ApiCliResourcesKindProjectSlugAdoptRouteImport } from './routes/api/cli/resources/$kind/$project/$slug/adopt'
 import { Route as AuthenticatedDashboardPreviewableRunbooksProjectSlugSplatRouteImport } from './routes/_authenticated/_dashboard/_previewable/runbooks/$project.$slug.$'
+import { Route as AuthenticatedDashboardRunsTraceIdJobsJobIdIndexRouteImport } from './routes/_authenticated/_dashboard/runs/$traceId/jobs/$jobId/index'
+import { Route as ApiCliResourcesKindProjectSlugAdoptRouteImport } from './routes/api/cli/resources/$kind/$project/$slug/adopt'
 import { Route as AuthenticatedDashboardRunsTraceIdJobsJobIdStepsStepNumberRouteImport } from './routes/_authenticated/_dashboard/runs/$traceId/jobs/$jobId/steps/$stepNumber'
 
-const OnboardingRoute = OnboardingRouteImport.update({
-  id: '/onboarding',
-  path: '/onboarding',
+const AuthRoute = AuthRouteImport.update({
+  id: '/_auth',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthenticatedRoute = AuthenticatedRouteImport.update({
   id: '/_authenticated',
   getParentRoute: () => rootRouteImport,
 } as any)
-const AuthRoute = AuthRouteImport.update({
-  id: '/_auth',
+const OnboardingRoute = OnboardingRouteImport.update({
+  id: '/onboarding',
+  path: '/onboarding',
   getParentRoute: () => rootRouteImport,
 } as any)
-const WebhookGithubRoute = WebhookGithubRouteImport.update({
-  id: '/webhook/github',
-  path: '/webhook/github',
-  getParentRoute: () => rootRouteImport,
+const DotwellKnownOauthAuthorizationServerRoute =
+  DotwellKnownOauthAuthorizationServerRouteImport.update({
+    id: '/.well-known/oauth-authorization-server',
+    path: '/.well-known/oauth-authorization-server',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const DotwellKnownOauthProtectedResourceRoute =
+  DotwellKnownOauthProtectedResourceRouteImport.update({
+    id: '/.well-known/oauth-protected-resource',
+    path: '/.well-known/oauth-protected-resource',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const AuthGuestRoute = AuthGuestRouteImport.update({
+  id: '/_guest',
+  getParentRoute: () => AuthRoute,
 } as any)
-const McpConsentRoute = McpConsentRouteImport.update({
-  id: '/mcp/consent',
-  path: '/mcp/consent',
-  getParentRoute: () => rootRouteImport,
+const AuthenticatedDashboardRoute = AuthenticatedDashboardRouteImport.update({
+  id: '/_dashboard',
+  getParentRoute: () => AuthenticatedRoute,
 } as any)
-const McpSplatRoute = McpSplatRouteImport.update({
-  id: '/mcp/$',
-  path: '/mcp/$',
-  getParentRoute: () => rootRouteImport,
+const AuthenticatedDeviceRoute = AuthenticatedDeviceRouteImport.update({
+  id: '/device',
+  path: '/device',
+  getParentRoute: () => AuthenticatedRoute,
 } as any)
-const ApiHealthRoute = ApiHealthRouteImport.update({
-  id: '/api/health',
-  path: '/api/health',
+const ApiApplyRoute = ApiApplyRouteImport.update({
+  id: '/api/apply',
+  path: '/api/apply',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiCliRoute = ApiCliRouteImport.update({
@@ -123,100 +133,39 @@ const ApiCliRoute = ApiCliRouteImport.update({
   path: '/api/cli',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiApplyRoute = ApiApplyRouteImport.update({
-  id: '/api/apply',
-  path: '/api/apply',
+const ApiHealthRoute = ApiHealthRouteImport.update({
+  id: '/api/health',
+  path: '/api/health',
   getParentRoute: () => rootRouteImport,
 } as any)
-const AuthenticatedDeviceRoute = AuthenticatedDeviceRouteImport.update({
-  id: '/device',
-  path: '/device',
-  getParentRoute: () => AuthenticatedRoute,
+const McpSplatRoute = McpSplatRouteImport.update({
+  id: '/mcp/$',
+  path: '/mcp/$',
+  getParentRoute: () => rootRouteImport,
 } as any)
-const AuthenticatedDashboardRoute = AuthenticatedDashboardRouteImport.update({
-  id: '/_dashboard',
-  getParentRoute: () => AuthenticatedRoute,
+const McpConsentRoute = McpConsentRouteImport.update({
+  id: '/mcp/consent',
+  path: '/mcp/consent',
+  getParentRoute: () => rootRouteImport,
 } as any)
-const AuthGuestRoute = AuthGuestRouteImport.update({
-  id: '/_guest',
+const WebhookGithubRoute = WebhookGithubRouteImport.update({
+  id: '/webhook/github',
+  path: '/webhook/github',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthAuthErrorRoute = AuthAuthErrorRouteImport.update({
+  id: '/auth/error',
+  path: '/auth/error',
   getParentRoute: () => AuthRoute,
 } as any)
-const DotwellKnownOauthProtectedResourceRoute =
-  DotwellKnownOauthProtectedResourceRouteImport.update({
-    id: '/.well-known/oauth-protected-resource',
-    path: '/.well-known/oauth-protected-resource',
-    getParentRoute: () => rootRouteImport,
-  } as any)
-const DotwellKnownOauthAuthorizationServerRoute =
-  DotwellKnownOauthAuthorizationServerRouteImport.update({
-    id: '/.well-known/oauth-authorization-server',
-    path: '/.well-known/oauth-authorization-server',
-    getParentRoute: () => rootRouteImport,
-  } as any)
-const ApiInternalVerifyKeyRoute = ApiInternalVerifyKeyRouteImport.update({
-  id: '/api/internal/verify-key',
-  path: '/api/internal/verify-key',
-  getParentRoute: () => rootRouteImport,
+const AuthInviteInvitationIdRoute = AuthInviteInvitationIdRouteImport.update({
+  id: '/invite/$invitationId',
+  path: '/invite/$invitationId',
+  getParentRoute: () => AuthRoute,
 } as any)
-const ApiEventsStreamRoute = ApiEventsStreamRouteImport.update({
-  id: '/api/events/stream',
-  path: '/api/events/stream',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ApiCliSqlRoute = ApiCliSqlRouteImport.update({
-  id: '/sql',
-  path: '/sql',
-  getParentRoute: () => ApiCliRoute,
-} as any)
-const ApiCliRunsRoute = ApiCliRunsRouteImport.update({
-  id: '/runs',
-  path: '/runs',
-  getParentRoute: () => ApiCliRoute,
-} as any)
-const ApiCliResourcesRoute = ApiCliResourcesRouteImport.update({
-  id: '/resources',
-  path: '/resources',
-  getParentRoute: () => ApiCliRoute,
-} as any)
-const ApiCliReposRoute = ApiCliReposRouteImport.update({
-  id: '/repos',
-  path: '/repos',
-  getParentRoute: () => ApiCliRoute,
-} as any)
-const ApiCliOrgRoute = ApiCliOrgRouteImport.update({
-  id: '/org',
-  path: '/org',
-  getParentRoute: () => ApiCliRoute,
-} as any)
-const ApiCliNotificationRoute = ApiCliNotificationRouteImport.update({
-  id: '/notification',
-  path: '/notification',
-  getParentRoute: () => ApiCliRoute,
-} as any)
-const ApiCliMeRoute = ApiCliMeRouteImport.update({
-  id: '/me',
-  path: '/me',
-  getParentRoute: () => ApiCliRoute,
-} as any)
-const ApiCliImportRoute = ApiCliImportRouteImport.update({
-  id: '/import',
-  path: '/import',
-  getParentRoute: () => ApiCliRoute,
-} as any)
-const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
-  id: '/api/auth/$',
-  path: '/api/auth/$',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const AuthenticatedDashboardRunsRoute =
-  AuthenticatedDashboardRunsRouteImport.update({
-    id: '/runs',
-    path: '/runs',
-    getParentRoute: () => AuthenticatedDashboardRoute,
-  } as any)
-const AuthenticatedDashboardPreviewableRoute =
-  AuthenticatedDashboardPreviewableRouteImport.update({
-    id: '/_previewable',
+const AuthenticatedDashboardExploreRoute =
+  AuthenticatedDashboardExploreRouteImport.update({
+    id: '/_explore',
     getParentRoute: () => AuthenticatedDashboardRoute,
   } as any)
 const AuthenticatedDashboardPaddedRoute =
@@ -224,115 +173,104 @@ const AuthenticatedDashboardPaddedRoute =
     id: '/_padded',
     getParentRoute: () => AuthenticatedDashboardRoute,
   } as any)
-const AuthenticatedDashboardExploreRoute =
-  AuthenticatedDashboardExploreRouteImport.update({
-    id: '/_explore',
+const AuthenticatedDashboardPreviewableRoute =
+  AuthenticatedDashboardPreviewableRouteImport.update({
+    id: '/_previewable',
     getParentRoute: () => AuthenticatedDashboardRoute,
   } as any)
-const AuthInviteInvitationIdRoute = AuthInviteInvitationIdRouteImport.update({
-  id: '/invite/$invitationId',
-  path: '/invite/$invitationId',
-  getParentRoute: () => AuthRoute,
-} as any)
-const AuthAuthErrorRoute = AuthAuthErrorRouteImport.update({
-  id: '/auth/error',
-  path: '/auth/error',
-  getParentRoute: () => AuthRoute,
-} as any)
-const AuthenticatedDashboardRunsIndexRoute =
-  AuthenticatedDashboardRunsIndexRouteImport.update({
-    id: '/',
-    path: '/',
-    getParentRoute: () => AuthenticatedDashboardRunsRoute,
+const AuthenticatedDashboardRunsRoute =
+  AuthenticatedDashboardRunsRouteImport.update({
+    id: '/runs',
+    path: '/runs',
+    getParentRoute: () => AuthenticatedDashboardRoute,
   } as any)
-const AuthenticatedDashboardPaddedIndexRoute =
-  AuthenticatedDashboardPaddedIndexRouteImport.update({
-    id: '/',
-    path: '/',
-    getParentRoute: () => AuthenticatedDashboardPaddedRoute,
-  } as any)
-const ApiGithubInstallStartRoute = ApiGithubInstallStartRouteImport.update({
-  id: '/api/github/install/start',
-  path: '/api/github/install/start',
+const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
+  id: '/api/auth/$',
+  path: '/api/auth/$',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiGithubInstallCallbackRoute =
-  ApiGithubInstallCallbackRouteImport.update({
-    id: '/api/github/install/callback',
-    path: '/api/github/install/callback',
-    getParentRoute: () => rootRouteImport,
-  } as any)
-const ApiCliRunsStatusRoute = ApiCliRunsStatusRouteImport.update({
-  id: '/status',
-  path: '/status',
-  getParentRoute: () => ApiCliRunsRoute,
+const ApiCliImportRoute = ApiCliImportRouteImport.update({
+  id: '/import',
+  path: '/import',
+  getParentRoute: () => ApiCliRoute,
 } as any)
-const ApiCliRunsHistogramRoute = ApiCliRunsHistogramRouteImport.update({
-  id: '/histogram',
-  path: '/histogram',
-  getParentRoute: () => ApiCliRunsRoute,
+const ApiCliMeRoute = ApiCliMeRouteImport.update({
+  id: '/me',
+  path: '/me',
+  getParentRoute: () => ApiCliRoute,
 } as any)
-const ApiCliRunsFilterOptionsRoute = ApiCliRunsFilterOptionsRouteImport.update({
-  id: '/filter-options',
-  path: '/filter-options',
-  getParentRoute: () => ApiCliRunsRoute,
+const ApiCliNotificationRoute = ApiCliNotificationRouteImport.update({
+  id: '/notification',
+  path: '/notification',
+  getParentRoute: () => ApiCliRoute,
 } as any)
-const ApiCliRunsTraceIdRoute = ApiCliRunsTraceIdRouteImport.update({
-  id: '/$traceId',
-  path: '/$traceId',
-  getParentRoute: () => ApiCliRunsRoute,
+const ApiCliOrgRoute = ApiCliOrgRouteImport.update({
+  id: '/org',
+  path: '/org',
+  getParentRoute: () => ApiCliRoute,
 } as any)
-const ApiCliOrgNameRoute = ApiCliOrgNameRouteImport.update({
-  id: '/name',
-  path: '/name',
-  getParentRoute: () => ApiCliOrgRoute,
+const ApiCliReposRoute = ApiCliReposRouteImport.update({
+  id: '/repos',
+  path: '/repos',
+  getParentRoute: () => ApiCliRoute,
 } as any)
-const AuthenticatedDashboardPreviewableAlertsRoute =
-  AuthenticatedDashboardPreviewableAlertsRouteImport.update({
-    id: '/alerts',
-    path: '/alerts',
-    getParentRoute: () => AuthenticatedDashboardPreviewableRoute,
+const ApiCliResourcesRoute = ApiCliResourcesRouteImport.update({
+  id: '/resources',
+  path: '/resources',
+  getParentRoute: () => ApiCliRoute,
+} as any)
+const ApiCliRunsRoute = ApiCliRunsRouteImport.update({
+  id: '/runs',
+  path: '/runs',
+  getParentRoute: () => ApiCliRoute,
+} as any)
+const ApiCliSqlRoute = ApiCliSqlRouteImport.update({
+  id: '/sql',
+  path: '/sql',
+  getParentRoute: () => ApiCliRoute,
+} as any)
+const ApiEventsStreamRoute = ApiEventsStreamRouteImport.update({
+  id: '/api/events/stream',
+  path: '/api/events/stream',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiInternalVerifyKeyRoute = ApiInternalVerifyKeyRouteImport.update({
+  id: '/api/internal/verify-key',
+  path: '/api/internal/verify-key',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DotwellKnownOauthAuthorizationServerApiAuthRoute =
+  DotwellKnownOauthAuthorizationServerApiAuthRouteImport.update({
+    id: '/api/auth',
+    path: '/api/auth',
+    getParentRoute: () => DotwellKnownOauthAuthorizationServerRoute,
   } as any)
-const AuthenticatedDashboardPaddedUsersManagementRoute =
-  AuthenticatedDashboardPaddedUsersManagementRouteImport.update({
-    id: '/users-management',
-    path: '/users-management',
-    getParentRoute: () => AuthenticatedDashboardPaddedRoute,
+const AuthGuestAuthForgotPasswordRoute =
+  AuthGuestAuthForgotPasswordRouteImport.update({
+    id: '/auth/forgot-password',
+    path: '/auth/forgot-password',
+    getParentRoute: () => AuthGuestRoute,
   } as any)
-const AuthenticatedDashboardPaddedReposRoute =
-  AuthenticatedDashboardPaddedReposRouteImport.update({
-    id: '/repos',
-    path: '/repos',
-    getParentRoute: () => AuthenticatedDashboardPaddedRoute,
+const AuthGuestAuthResetPasswordRoute =
+  AuthGuestAuthResetPasswordRouteImport.update({
+    id: '/auth/reset-password',
+    path: '/auth/reset-password',
+    getParentRoute: () => AuthGuestRoute,
   } as any)
-const AuthenticatedDashboardPaddedCostAnalysisRoute =
-  AuthenticatedDashboardPaddedCostAnalysisRouteImport.update({
-    id: '/cost-analysis',
-    path: '/cost-analysis',
-    getParentRoute: () => AuthenticatedDashboardPaddedRoute,
-  } as any)
-const AuthenticatedDashboardPaddedBillingRoute =
-  AuthenticatedDashboardPaddedBillingRouteImport.update({
-    id: '/billing',
-    path: '/billing',
-    getParentRoute: () => AuthenticatedDashboardPaddedRoute,
-  } as any)
-const AuthenticatedDashboardPaddedApiKeysRoute =
-  AuthenticatedDashboardPaddedApiKeysRouteImport.update({
-    id: '/api-keys',
-    path: '/api-keys',
-    getParentRoute: () => AuthenticatedDashboardPaddedRoute,
-  } as any)
-const AuthenticatedDashboardPaddedAccountRoute =
-  AuthenticatedDashboardPaddedAccountRouteImport.update({
-    id: '/account',
-    path: '/account',
-    getParentRoute: () => AuthenticatedDashboardPaddedRoute,
-  } as any)
-const AuthenticatedDashboardExploreTracesRoute =
-  AuthenticatedDashboardExploreTracesRouteImport.update({
-    id: '/traces',
-    path: '/traces',
+const AuthGuestAuthSignInRoute = AuthGuestAuthSignInRouteImport.update({
+  id: '/auth/sign-in',
+  path: '/auth/sign-in',
+  getParentRoute: () => AuthGuestRoute,
+} as any)
+const AuthGuestAuthSignUpRoute = AuthGuestAuthSignUpRouteImport.update({
+  id: '/auth/sign-up',
+  path: '/auth/sign-up',
+  getParentRoute: () => AuthGuestRoute,
+} as any)
+const AuthenticatedDashboardExploreErrorsRoute =
+  AuthenticatedDashboardExploreErrorsRouteImport.update({
+    id: '/errors',
+    path: '/errors',
     getParentRoute: () => AuthenticatedDashboardExploreRoute,
   } as any)
 const AuthenticatedDashboardExploreLogsRoute =
@@ -341,39 +279,65 @@ const AuthenticatedDashboardExploreLogsRoute =
     path: '/logs',
     getParentRoute: () => AuthenticatedDashboardExploreRoute,
   } as any)
-const AuthenticatedDashboardExploreErrorsRoute =
-  AuthenticatedDashboardExploreErrorsRouteImport.update({
-    id: '/errors',
-    path: '/errors',
+const AuthenticatedDashboardExploreTracesRoute =
+  AuthenticatedDashboardExploreTracesRouteImport.update({
+    id: '/traces',
+    path: '/traces',
     getParentRoute: () => AuthenticatedDashboardExploreRoute,
   } as any)
-const AuthGuestAuthSignUpRoute = AuthGuestAuthSignUpRouteImport.update({
-  id: '/auth/sign-up',
-  path: '/auth/sign-up',
-  getParentRoute: () => AuthGuestRoute,
-} as any)
-const AuthGuestAuthSignInRoute = AuthGuestAuthSignInRouteImport.update({
-  id: '/auth/sign-in',
-  path: '/auth/sign-in',
-  getParentRoute: () => AuthGuestRoute,
-} as any)
-const AuthGuestAuthResetPasswordRoute =
-  AuthGuestAuthResetPasswordRouteImport.update({
-    id: '/auth/reset-password',
-    path: '/auth/reset-password',
-    getParentRoute: () => AuthGuestRoute,
+const AuthenticatedDashboardPaddedIndexRoute =
+  AuthenticatedDashboardPaddedIndexRouteImport.update({
+    id: '/',
+    path: '/',
+    getParentRoute: () => AuthenticatedDashboardPaddedRoute,
   } as any)
-const AuthGuestAuthForgotPasswordRoute =
-  AuthGuestAuthForgotPasswordRouteImport.update({
-    id: '/auth/forgot-password',
-    path: '/auth/forgot-password',
-    getParentRoute: () => AuthGuestRoute,
+const AuthenticatedDashboardPaddedAccountRoute =
+  AuthenticatedDashboardPaddedAccountRouteImport.update({
+    id: '/account',
+    path: '/account',
+    getParentRoute: () => AuthenticatedDashboardPaddedRoute,
   } as any)
-const DotwellKnownOauthAuthorizationServerApiAuthRoute =
-  DotwellKnownOauthAuthorizationServerApiAuthRouteImport.update({
-    id: '/api/auth',
-    path: '/api/auth',
-    getParentRoute: () => DotwellKnownOauthAuthorizationServerRoute,
+const AuthenticatedDashboardPaddedApiKeysRoute =
+  AuthenticatedDashboardPaddedApiKeysRouteImport.update({
+    id: '/api-keys',
+    path: '/api-keys',
+    getParentRoute: () => AuthenticatedDashboardPaddedRoute,
+  } as any)
+const AuthenticatedDashboardPaddedBillingRoute =
+  AuthenticatedDashboardPaddedBillingRouteImport.update({
+    id: '/billing',
+    path: '/billing',
+    getParentRoute: () => AuthenticatedDashboardPaddedRoute,
+  } as any)
+const AuthenticatedDashboardPaddedCostAnalysisRoute =
+  AuthenticatedDashboardPaddedCostAnalysisRouteImport.update({
+    id: '/cost-analysis',
+    path: '/cost-analysis',
+    getParentRoute: () => AuthenticatedDashboardPaddedRoute,
+  } as any)
+const AuthenticatedDashboardPaddedReposRoute =
+  AuthenticatedDashboardPaddedReposRouteImport.update({
+    id: '/repos',
+    path: '/repos',
+    getParentRoute: () => AuthenticatedDashboardPaddedRoute,
+  } as any)
+const AuthenticatedDashboardPaddedUsersManagementRoute =
+  AuthenticatedDashboardPaddedUsersManagementRouteImport.update({
+    id: '/users-management',
+    path: '/users-management',
+    getParentRoute: () => AuthenticatedDashboardPaddedRoute,
+  } as any)
+const AuthenticatedDashboardPreviewableAlertsRoute =
+  AuthenticatedDashboardPreviewableAlertsRouteImport.update({
+    id: '/alerts',
+    path: '/alerts',
+    getParentRoute: () => AuthenticatedDashboardPreviewableRoute,
+  } as any)
+const AuthenticatedDashboardRunsIndexRoute =
+  AuthenticatedDashboardRunsIndexRouteImport.update({
+    id: '/',
+    path: '/',
+    getParentRoute: () => AuthenticatedDashboardRunsRoute,
   } as any)
 const AuthenticatedDashboardRunsTraceIdRouteRoute =
   AuthenticatedDashboardRunsTraceIdRouteRouteImport.update({
@@ -381,16 +345,64 @@ const AuthenticatedDashboardRunsTraceIdRouteRoute =
     path: '/$traceId',
     getParentRoute: () => AuthenticatedDashboardRunsRoute,
   } as any)
-const AuthenticatedDashboardRunsTraceIdIndexRoute =
-  AuthenticatedDashboardRunsTraceIdIndexRouteImport.update({
-    id: '/',
-    path: '/',
-    getParentRoute: () => AuthenticatedDashboardRunsTraceIdRouteRoute,
+const ApiCliOrgNameRoute = ApiCliOrgNameRouteImport.update({
+  id: '/name',
+  path: '/name',
+  getParentRoute: () => ApiCliOrgRoute,
+} as any)
+const ApiCliRunsTraceIdRoute = ApiCliRunsTraceIdRouteImport.update({
+  id: '/$traceId',
+  path: '/$traceId',
+  getParentRoute: () => ApiCliRunsRoute,
+} as any)
+const ApiCliRunsFilterOptionsRoute = ApiCliRunsFilterOptionsRouteImport.update({
+  id: '/filter-options',
+  path: '/filter-options',
+  getParentRoute: () => ApiCliRunsRoute,
+} as any)
+const ApiCliRunsHistogramRoute = ApiCliRunsHistogramRouteImport.update({
+  id: '/histogram',
+  path: '/histogram',
+  getParentRoute: () => ApiCliRunsRoute,
+} as any)
+const ApiCliRunsStatusRoute = ApiCliRunsStatusRouteImport.update({
+  id: '/status',
+  path: '/status',
+  getParentRoute: () => ApiCliRunsRoute,
+} as any)
+const ApiGithubInstallCallbackRoute =
+  ApiGithubInstallCallbackRouteImport.update({
+    id: '/api/github/install/callback',
+    path: '/api/github/install/callback',
+    getParentRoute: () => rootRouteImport,
   } as any)
-const AuthenticatedDashboardPreviewableRunbooksIndexRoute =
-  AuthenticatedDashboardPreviewableRunbooksIndexRouteImport.update({
-    id: '/runbooks/',
-    path: '/runbooks/',
+const ApiGithubInstallStartRoute = ApiGithubInstallStartRouteImport.update({
+  id: '/api/github/install/start',
+  path: '/api/github/install/start',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AuthenticatedDashboardExploreErrorsFingerprintRoute =
+  AuthenticatedDashboardExploreErrorsFingerprintRouteImport.update({
+    id: '/errors_/$fingerprint',
+    path: '/errors/$fingerprint',
+    getParentRoute: () => AuthenticatedDashboardExploreRoute,
+  } as any)
+const AuthenticatedDashboardExploreTracesTraceIdRoute =
+  AuthenticatedDashboardExploreTracesTraceIdRouteImport.update({
+    id: '/traces_/$traceId',
+    path: '/traces/$traceId',
+    getParentRoute: () => AuthenticatedDashboardExploreRoute,
+  } as any)
+const AuthenticatedDashboardPaddedCheckoutSuccessRoute =
+  AuthenticatedDashboardPaddedCheckoutSuccessRouteImport.update({
+    id: '/checkout/success',
+    path: '/checkout/success',
+    getParentRoute: () => AuthenticatedDashboardPaddedRoute,
+  } as any)
+const AuthenticatedDashboardPreviewableAlertsAlertIdRoute =
+  AuthenticatedDashboardPreviewableAlertsAlertIdRouteImport.update({
+    id: '/alerts_/$alertId',
+    path: '/alerts/$alertId',
     getParentRoute: () => AuthenticatedDashboardPreviewableRoute,
   } as any)
 const AuthenticatedDashboardPreviewableDashboardsIndexRoute =
@@ -399,58 +411,34 @@ const AuthenticatedDashboardPreviewableDashboardsIndexRoute =
     path: '/dashboards/',
     getParentRoute: () => AuthenticatedDashboardPreviewableRoute,
   } as any)
-const ApiCliRunsTraceIdLogsRoute = ApiCliRunsTraceIdLogsRouteImport.update({
-  id: '/logs',
-  path: '/logs',
-  getParentRoute: () => ApiCliRunsTraceIdRoute,
-} as any)
+const AuthenticatedDashboardPreviewableRunbooksIndexRoute =
+  AuthenticatedDashboardPreviewableRunbooksIndexRouteImport.update({
+    id: '/runbooks/',
+    path: '/runbooks/',
+    getParentRoute: () => AuthenticatedDashboardPreviewableRoute,
+  } as any)
+const AuthenticatedDashboardRunsTraceIdIndexRoute =
+  AuthenticatedDashboardRunsTraceIdIndexRouteImport.update({
+    id: '/',
+    path: '/',
+    getParentRoute: () => AuthenticatedDashboardRunsTraceIdRouteRoute,
+  } as any)
 const AuthenticatedDashboardRunsTraceIdTraceRoute =
   AuthenticatedDashboardRunsTraceIdTraceRouteImport.update({
     id: '/trace',
     path: '/trace',
     getParentRoute: () => AuthenticatedDashboardRunsTraceIdRouteRoute,
   } as any)
-const AuthenticatedDashboardPreviewableAlertsAlertIdRoute =
-  AuthenticatedDashboardPreviewableAlertsAlertIdRouteImport.update({
-    id: '/alerts_/$alertId',
-    path: '/alerts/$alertId',
-    getParentRoute: () => AuthenticatedDashboardPreviewableRoute,
-  } as any)
-const AuthenticatedDashboardPaddedCheckoutSuccessRoute =
-  AuthenticatedDashboardPaddedCheckoutSuccessRouteImport.update({
-    id: '/checkout/success',
-    path: '/checkout/success',
-    getParentRoute: () => AuthenticatedDashboardPaddedRoute,
-  } as any)
-const AuthenticatedDashboardExploreTracesTraceIdRoute =
-  AuthenticatedDashboardExploreTracesTraceIdRouteImport.update({
-    id: '/traces_/$traceId',
-    path: '/traces/$traceId',
-    getParentRoute: () => AuthenticatedDashboardExploreRoute,
-  } as any)
-const AuthenticatedDashboardExploreErrorsFingerprintRoute =
-  AuthenticatedDashboardExploreErrorsFingerprintRouteImport.update({
-    id: '/errors_/$fingerprint',
-    path: '/errors/$fingerprint',
-    getParentRoute: () => AuthenticatedDashboardExploreRoute,
-  } as any)
-const ApiCliResourcesKindProjectSlugRoute =
-  ApiCliResourcesKindProjectSlugRouteImport.update({
-    id: '/$kind/$project/$slug',
-    path: '/$kind/$project/$slug',
-    getParentRoute: () => ApiCliResourcesRoute,
-  } as any)
-const AuthenticatedDashboardPreviewableDashboardsProjectSlugRoute =
-  AuthenticatedDashboardPreviewableDashboardsProjectSlugRouteImport.update({
-    id: '/dashboards/$project/$slug',
-    path: '/dashboards/$project/$slug',
-    getParentRoute: () => AuthenticatedDashboardPreviewableRoute,
-  } as any)
-const AuthenticatedDashboardPaddedWorkflowsRepoWorkflowNameRoute =
-  AuthenticatedDashboardPaddedWorkflowsRepoWorkflowNameRouteImport.update({
-    id: '/workflows/$repo/$workflowName',
-    path: '/workflows/$repo/$workflowName',
-    getParentRoute: () => AuthenticatedDashboardPaddedRoute,
+const ApiCliRunsTraceIdLogsRoute = ApiCliRunsTraceIdLogsRouteImport.update({
+  id: '/logs',
+  path: '/logs',
+  getParentRoute: () => ApiCliRunsTraceIdRoute,
+} as any)
+const AuthenticatedDashboardExploreErrorsFingerprintModalRoute =
+  AuthenticatedDashboardExploreErrorsFingerprintModalRouteImport.update({
+    id: '/$fingerprint/modal',
+    path: '/$fingerprint/modal',
+    getParentRoute: () => AuthenticatedDashboardExploreErrorsRoute,
   } as any)
 const AuthenticatedDashboardExploreTracesTraceIdModalRoute =
   AuthenticatedDashboardExploreTracesTraceIdModalRouteImport.update({
@@ -458,17 +446,23 @@ const AuthenticatedDashboardExploreTracesTraceIdModalRoute =
     path: '/$traceId/modal',
     getParentRoute: () => AuthenticatedDashboardExploreTracesRoute,
   } as any)
-const AuthenticatedDashboardExploreErrorsFingerprintModalRoute =
-  AuthenticatedDashboardExploreErrorsFingerprintModalRouteImport.update({
-    id: '/$fingerprint/modal',
-    path: '/$fingerprint/modal',
-    getParentRoute: () => AuthenticatedDashboardExploreErrorsRoute,
+const AuthenticatedDashboardPaddedWorkflowsRepoWorkflowNameRoute =
+  AuthenticatedDashboardPaddedWorkflowsRepoWorkflowNameRouteImport.update({
+    id: '/workflows/$repo/$workflowName',
+    path: '/workflows/$repo/$workflowName',
+    getParentRoute: () => AuthenticatedDashboardPaddedRoute,
   } as any)
-const AuthenticatedDashboardRunsTraceIdJobsJobIdIndexRoute =
-  AuthenticatedDashboardRunsTraceIdJobsJobIdIndexRouteImport.update({
-    id: '/jobs/$jobId/',
-    path: '/jobs/$jobId/',
-    getParentRoute: () => AuthenticatedDashboardRunsTraceIdRouteRoute,
+const AuthenticatedDashboardPreviewableDashboardsProjectSlugRoute =
+  AuthenticatedDashboardPreviewableDashboardsProjectSlugRouteImport.update({
+    id: '/dashboards/$project/$slug',
+    path: '/dashboards/$project/$slug',
+    getParentRoute: () => AuthenticatedDashboardPreviewableRoute,
+  } as any)
+const ApiCliResourcesKindProjectSlugRoute =
+  ApiCliResourcesKindProjectSlugRouteImport.update({
+    id: '/$kind/$project/$slug',
+    path: '/$kind/$project/$slug',
+    getParentRoute: () => ApiCliResourcesRoute,
   } as any)
 const AuthenticatedDashboardPreviewableRunbooksProjectSlugIndexRoute =
   AuthenticatedDashboardPreviewableRunbooksProjectSlugIndexRouteImport.update({
@@ -476,17 +470,23 @@ const AuthenticatedDashboardPreviewableRunbooksProjectSlugIndexRoute =
     path: '/runbooks/$project/$slug/',
     getParentRoute: () => AuthenticatedDashboardPreviewableRoute,
   } as any)
-const ApiCliResourcesKindProjectSlugAdoptRoute =
-  ApiCliResourcesKindProjectSlugAdoptRouteImport.update({
-    id: '/adopt',
-    path: '/adopt',
-    getParentRoute: () => ApiCliResourcesKindProjectSlugRoute,
-  } as any)
 const AuthenticatedDashboardPreviewableRunbooksProjectSlugSplatRoute =
   AuthenticatedDashboardPreviewableRunbooksProjectSlugSplatRouteImport.update({
     id: '/runbooks/$project/$slug/$',
     path: '/runbooks/$project/$slug/$',
     getParentRoute: () => AuthenticatedDashboardPreviewableRoute,
+  } as any)
+const AuthenticatedDashboardRunsTraceIdJobsJobIdIndexRoute =
+  AuthenticatedDashboardRunsTraceIdJobsJobIdIndexRouteImport.update({
+    id: '/jobs/$jobId/',
+    path: '/jobs/$jobId/',
+    getParentRoute: () => AuthenticatedDashboardRunsTraceIdRouteRoute,
+  } as any)
+const ApiCliResourcesKindProjectSlugAdoptRoute =
+  ApiCliResourcesKindProjectSlugAdoptRouteImport.update({
+    id: '/adopt',
+    path: '/adopt',
+    getParentRoute: () => ApiCliResourcesKindProjectSlugRoute,
   } as any)
 const AuthenticatedDashboardRunsTraceIdJobsJobIdStepsStepNumberRoute =
   AuthenticatedDashboardRunsTraceIdJobsJobIdStepsStepNumberRouteImport.update({
@@ -950,11 +950,11 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/onboarding': {
-      id: '/onboarding'
-      path: '/onboarding'
-      fullPath: '/onboarding'
-      preLoaderRoute: typeof OnboardingRouteImport
+    '/_auth': {
+      id: '/_auth'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof AuthRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_authenticated': {
@@ -964,81 +964,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/_auth': {
-      id: '/_auth'
-      path: ''
-      fullPath: '/'
-      preLoaderRoute: typeof AuthRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/webhook/github': {
-      id: '/webhook/github'
-      path: '/webhook/github'
-      fullPath: '/webhook/github'
-      preLoaderRoute: typeof WebhookGithubRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/mcp/consent': {
-      id: '/mcp/consent'
-      path: '/mcp/consent'
-      fullPath: '/mcp/consent'
-      preLoaderRoute: typeof McpConsentRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/mcp/$': {
-      id: '/mcp/$'
-      path: '/mcp/$'
-      fullPath: '/mcp/$'
-      preLoaderRoute: typeof McpSplatRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/health': {
-      id: '/api/health'
-      path: '/api/health'
-      fullPath: '/api/health'
-      preLoaderRoute: typeof ApiHealthRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/cli': {
-      id: '/api/cli'
-      path: '/api/cli'
-      fullPath: '/api/cli'
-      preLoaderRoute: typeof ApiCliRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/apply': {
-      id: '/api/apply'
-      path: '/api/apply'
-      fullPath: '/api/apply'
-      preLoaderRoute: typeof ApiApplyRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/_authenticated/device': {
-      id: '/_authenticated/device'
-      path: '/device'
-      fullPath: '/device'
-      preLoaderRoute: typeof AuthenticatedDeviceRouteImport
-      parentRoute: typeof AuthenticatedRoute
-    }
-    '/_authenticated/_dashboard': {
-      id: '/_authenticated/_dashboard'
-      path: ''
-      fullPath: '/'
-      preLoaderRoute: typeof AuthenticatedDashboardRouteImport
-      parentRoute: typeof AuthenticatedRoute
-    }
-    '/_auth/_guest': {
-      id: '/_auth/_guest'
-      path: ''
-      fullPath: '/'
-      preLoaderRoute: typeof AuthGuestRouteImport
-      parentRoute: typeof AuthRoute
-    }
-    '/.well-known/oauth-protected-resource': {
-      id: '/.well-known/oauth-protected-resource'
-      path: '/.well-known/oauth-protected-resource'
-      fullPath: '/.well-known/oauth-protected-resource'
-      preLoaderRoute: typeof DotwellKnownOauthProtectedResourceRouteImport
+    '/onboarding': {
+      id: '/onboarding'
+      path: '/onboarding'
+      fullPath: '/onboarding'
+      preLoaderRoute: typeof OnboardingRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/.well-known/oauth-authorization-server': {
@@ -1048,95 +978,95 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DotwellKnownOauthAuthorizationServerRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/internal/verify-key': {
-      id: '/api/internal/verify-key'
-      path: '/api/internal/verify-key'
-      fullPath: '/api/internal/verify-key'
-      preLoaderRoute: typeof ApiInternalVerifyKeyRouteImport
+    '/.well-known/oauth-protected-resource': {
+      id: '/.well-known/oauth-protected-resource'
+      path: '/.well-known/oauth-protected-resource'
+      fullPath: '/.well-known/oauth-protected-resource'
+      preLoaderRoute: typeof DotwellKnownOauthProtectedResourceRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/events/stream': {
-      id: '/api/events/stream'
-      path: '/api/events/stream'
-      fullPath: '/api/events/stream'
-      preLoaderRoute: typeof ApiEventsStreamRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/api/cli/sql': {
-      id: '/api/cli/sql'
-      path: '/sql'
-      fullPath: '/api/cli/sql'
-      preLoaderRoute: typeof ApiCliSqlRouteImport
-      parentRoute: typeof ApiCliRoute
-    }
-    '/api/cli/runs': {
-      id: '/api/cli/runs'
-      path: '/runs'
-      fullPath: '/api/cli/runs'
-      preLoaderRoute: typeof ApiCliRunsRouteImport
-      parentRoute: typeof ApiCliRoute
-    }
-    '/api/cli/resources': {
-      id: '/api/cli/resources'
-      path: '/resources'
-      fullPath: '/api/cli/resources'
-      preLoaderRoute: typeof ApiCliResourcesRouteImport
-      parentRoute: typeof ApiCliRoute
-    }
-    '/api/cli/repos': {
-      id: '/api/cli/repos'
-      path: '/repos'
-      fullPath: '/api/cli/repos'
-      preLoaderRoute: typeof ApiCliReposRouteImport
-      parentRoute: typeof ApiCliRoute
-    }
-    '/api/cli/org': {
-      id: '/api/cli/org'
-      path: '/org'
-      fullPath: '/api/cli/org'
-      preLoaderRoute: typeof ApiCliOrgRouteImport
-      parentRoute: typeof ApiCliRoute
-    }
-    '/api/cli/notification': {
-      id: '/api/cli/notification'
-      path: '/notification'
-      fullPath: '/api/cli/notification'
-      preLoaderRoute: typeof ApiCliNotificationRouteImport
-      parentRoute: typeof ApiCliRoute
-    }
-    '/api/cli/me': {
-      id: '/api/cli/me'
-      path: '/me'
-      fullPath: '/api/cli/me'
-      preLoaderRoute: typeof ApiCliMeRouteImport
-      parentRoute: typeof ApiCliRoute
-    }
-    '/api/cli/import': {
-      id: '/api/cli/import'
-      path: '/import'
-      fullPath: '/api/cli/import'
-      preLoaderRoute: typeof ApiCliImportRouteImport
-      parentRoute: typeof ApiCliRoute
-    }
-    '/api/auth/$': {
-      id: '/api/auth/$'
-      path: '/api/auth/$'
-      fullPath: '/api/auth/$'
-      preLoaderRoute: typeof ApiAuthSplatRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/_authenticated/_dashboard/runs': {
-      id: '/_authenticated/_dashboard/runs'
-      path: '/runs'
-      fullPath: '/runs'
-      preLoaderRoute: typeof AuthenticatedDashboardRunsRouteImport
-      parentRoute: typeof AuthenticatedDashboardRoute
-    }
-    '/_authenticated/_dashboard/_previewable': {
-      id: '/_authenticated/_dashboard/_previewable'
+    '/_auth/_guest': {
+      id: '/_auth/_guest'
       path: ''
       fullPath: '/'
-      preLoaderRoute: typeof AuthenticatedDashboardPreviewableRouteImport
+      preLoaderRoute: typeof AuthGuestRouteImport
+      parentRoute: typeof AuthRoute
+    }
+    '/_authenticated/_dashboard': {
+      id: '/_authenticated/_dashboard'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof AuthenticatedDashboardRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/device': {
+      id: '/_authenticated/device'
+      path: '/device'
+      fullPath: '/device'
+      preLoaderRoute: typeof AuthenticatedDeviceRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/api/apply': {
+      id: '/api/apply'
+      path: '/api/apply'
+      fullPath: '/api/apply'
+      preLoaderRoute: typeof ApiApplyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/cli': {
+      id: '/api/cli'
+      path: '/api/cli'
+      fullPath: '/api/cli'
+      preLoaderRoute: typeof ApiCliRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/health': {
+      id: '/api/health'
+      path: '/api/health'
+      fullPath: '/api/health'
+      preLoaderRoute: typeof ApiHealthRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/mcp/$': {
+      id: '/mcp/$'
+      path: '/mcp/$'
+      fullPath: '/mcp/$'
+      preLoaderRoute: typeof McpSplatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/mcp/consent': {
+      id: '/mcp/consent'
+      path: '/mcp/consent'
+      fullPath: '/mcp/consent'
+      preLoaderRoute: typeof McpConsentRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/webhook/github': {
+      id: '/webhook/github'
+      path: '/webhook/github'
+      fullPath: '/webhook/github'
+      preLoaderRoute: typeof WebhookGithubRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/_auth/auth/error': {
+      id: '/_auth/auth/error'
+      path: '/auth/error'
+      fullPath: '/auth/error'
+      preLoaderRoute: typeof AuthAuthErrorRouteImport
+      parentRoute: typeof AuthRoute
+    }
+    '/_auth/invite/$invitationId': {
+      id: '/_auth/invite/$invitationId'
+      path: '/invite/$invitationId'
+      fullPath: '/invite/$invitationId'
+      preLoaderRoute: typeof AuthInviteInvitationIdRouteImport
+      parentRoute: typeof AuthRoute
+    }
+    '/_authenticated/_dashboard/_explore': {
+      id: '/_authenticated/_dashboard/_explore'
+      path: ''
+      fullPath: '/'
+      preLoaderRoute: typeof AuthenticatedDashboardExploreRouteImport
       parentRoute: typeof AuthenticatedDashboardRoute
     }
     '/_authenticated/_dashboard/_padded': {
@@ -1146,172 +1076,109 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedDashboardPaddedRouteImport
       parentRoute: typeof AuthenticatedDashboardRoute
     }
-    '/_authenticated/_dashboard/_explore': {
-      id: '/_authenticated/_dashboard/_explore'
+    '/_authenticated/_dashboard/_previewable': {
+      id: '/_authenticated/_dashboard/_previewable'
       path: ''
       fullPath: '/'
-      preLoaderRoute: typeof AuthenticatedDashboardExploreRouteImport
+      preLoaderRoute: typeof AuthenticatedDashboardPreviewableRouteImport
       parentRoute: typeof AuthenticatedDashboardRoute
     }
-    '/_auth/invite/$invitationId': {
-      id: '/_auth/invite/$invitationId'
-      path: '/invite/$invitationId'
-      fullPath: '/invite/$invitationId'
-      preLoaderRoute: typeof AuthInviteInvitationIdRouteImport
-      parentRoute: typeof AuthRoute
+    '/_authenticated/_dashboard/runs': {
+      id: '/_authenticated/_dashboard/runs'
+      path: '/runs'
+      fullPath: '/runs'
+      preLoaderRoute: typeof AuthenticatedDashboardRunsRouteImport
+      parentRoute: typeof AuthenticatedDashboardRoute
     }
-    '/_auth/auth/error': {
-      id: '/_auth/auth/error'
-      path: '/auth/error'
-      fullPath: '/auth/error'
-      preLoaderRoute: typeof AuthAuthErrorRouteImport
-      parentRoute: typeof AuthRoute
-    }
-    '/_authenticated/_dashboard/runs/': {
-      id: '/_authenticated/_dashboard/runs/'
-      path: '/'
-      fullPath: '/runs/'
-      preLoaderRoute: typeof AuthenticatedDashboardRunsIndexRouteImport
-      parentRoute: typeof AuthenticatedDashboardRunsRoute
-    }
-    '/_authenticated/_dashboard/_padded/': {
-      id: '/_authenticated/_dashboard/_padded/'
-      path: '/'
-      fullPath: '/'
-      preLoaderRoute: typeof AuthenticatedDashboardPaddedIndexRouteImport
-      parentRoute: typeof AuthenticatedDashboardPaddedRoute
-    }
-    '/api/github/install/start': {
-      id: '/api/github/install/start'
-      path: '/api/github/install/start'
-      fullPath: '/api/github/install/start'
-      preLoaderRoute: typeof ApiGithubInstallStartRouteImport
+    '/api/auth/$': {
+      id: '/api/auth/$'
+      path: '/api/auth/$'
+      fullPath: '/api/auth/$'
+      preLoaderRoute: typeof ApiAuthSplatRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/github/install/callback': {
-      id: '/api/github/install/callback'
-      path: '/api/github/install/callback'
-      fullPath: '/api/github/install/callback'
-      preLoaderRoute: typeof ApiGithubInstallCallbackRouteImport
-      parentRoute: typeof rootRouteImport
+    '/api/cli/import': {
+      id: '/api/cli/import'
+      path: '/import'
+      fullPath: '/api/cli/import'
+      preLoaderRoute: typeof ApiCliImportRouteImport
+      parentRoute: typeof ApiCliRoute
     }
-    '/api/cli/runs/status': {
-      id: '/api/cli/runs/status'
-      path: '/status'
-      fullPath: '/api/cli/runs/status'
-      preLoaderRoute: typeof ApiCliRunsStatusRouteImport
-      parentRoute: typeof ApiCliRunsRoute
+    '/api/cli/me': {
+      id: '/api/cli/me'
+      path: '/me'
+      fullPath: '/api/cli/me'
+      preLoaderRoute: typeof ApiCliMeRouteImport
+      parentRoute: typeof ApiCliRoute
     }
-    '/api/cli/runs/histogram': {
-      id: '/api/cli/runs/histogram'
-      path: '/histogram'
-      fullPath: '/api/cli/runs/histogram'
-      preLoaderRoute: typeof ApiCliRunsHistogramRouteImport
-      parentRoute: typeof ApiCliRunsRoute
+    '/api/cli/notification': {
+      id: '/api/cli/notification'
+      path: '/notification'
+      fullPath: '/api/cli/notification'
+      preLoaderRoute: typeof ApiCliNotificationRouteImport
+      parentRoute: typeof ApiCliRoute
     }
-    '/api/cli/runs/filter-options': {
-      id: '/api/cli/runs/filter-options'
-      path: '/filter-options'
-      fullPath: '/api/cli/runs/filter-options'
-      preLoaderRoute: typeof ApiCliRunsFilterOptionsRouteImport
-      parentRoute: typeof ApiCliRunsRoute
+    '/api/cli/org': {
+      id: '/api/cli/org'
+      path: '/org'
+      fullPath: '/api/cli/org'
+      preLoaderRoute: typeof ApiCliOrgRouteImport
+      parentRoute: typeof ApiCliRoute
     }
-    '/api/cli/runs/$traceId': {
-      id: '/api/cli/runs/$traceId'
-      path: '/$traceId'
-      fullPath: '/api/cli/runs/$traceId'
-      preLoaderRoute: typeof ApiCliRunsTraceIdRouteImport
-      parentRoute: typeof ApiCliRunsRoute
-    }
-    '/api/cli/org/name': {
-      id: '/api/cli/org/name'
-      path: '/name'
-      fullPath: '/api/cli/org/name'
-      preLoaderRoute: typeof ApiCliOrgNameRouteImport
-      parentRoute: typeof ApiCliOrgRoute
-    }
-    '/_authenticated/_dashboard/_previewable/alerts': {
-      id: '/_authenticated/_dashboard/_previewable/alerts'
-      path: '/alerts'
-      fullPath: '/alerts'
-      preLoaderRoute: typeof AuthenticatedDashboardPreviewableAlertsRouteImport
-      parentRoute: typeof AuthenticatedDashboardPreviewableRoute
-    }
-    '/_authenticated/_dashboard/_padded/users-management': {
-      id: '/_authenticated/_dashboard/_padded/users-management'
-      path: '/users-management'
-      fullPath: '/users-management'
-      preLoaderRoute: typeof AuthenticatedDashboardPaddedUsersManagementRouteImport
-      parentRoute: typeof AuthenticatedDashboardPaddedRoute
-    }
-    '/_authenticated/_dashboard/_padded/repos': {
-      id: '/_authenticated/_dashboard/_padded/repos'
+    '/api/cli/repos': {
+      id: '/api/cli/repos'
       path: '/repos'
-      fullPath: '/repos'
-      preLoaderRoute: typeof AuthenticatedDashboardPaddedReposRouteImport
-      parentRoute: typeof AuthenticatedDashboardPaddedRoute
+      fullPath: '/api/cli/repos'
+      preLoaderRoute: typeof ApiCliReposRouteImport
+      parentRoute: typeof ApiCliRoute
     }
-    '/_authenticated/_dashboard/_padded/cost-analysis': {
-      id: '/_authenticated/_dashboard/_padded/cost-analysis'
-      path: '/cost-analysis'
-      fullPath: '/cost-analysis'
-      preLoaderRoute: typeof AuthenticatedDashboardPaddedCostAnalysisRouteImport
-      parentRoute: typeof AuthenticatedDashboardPaddedRoute
+    '/api/cli/resources': {
+      id: '/api/cli/resources'
+      path: '/resources'
+      fullPath: '/api/cli/resources'
+      preLoaderRoute: typeof ApiCliResourcesRouteImport
+      parentRoute: typeof ApiCliRoute
     }
-    '/_authenticated/_dashboard/_padded/billing': {
-      id: '/_authenticated/_dashboard/_padded/billing'
-      path: '/billing'
-      fullPath: '/billing'
-      preLoaderRoute: typeof AuthenticatedDashboardPaddedBillingRouteImport
-      parentRoute: typeof AuthenticatedDashboardPaddedRoute
+    '/api/cli/runs': {
+      id: '/api/cli/runs'
+      path: '/runs'
+      fullPath: '/api/cli/runs'
+      preLoaderRoute: typeof ApiCliRunsRouteImport
+      parentRoute: typeof ApiCliRoute
     }
-    '/_authenticated/_dashboard/_padded/api-keys': {
-      id: '/_authenticated/_dashboard/_padded/api-keys'
-      path: '/api-keys'
-      fullPath: '/api-keys'
-      preLoaderRoute: typeof AuthenticatedDashboardPaddedApiKeysRouteImport
-      parentRoute: typeof AuthenticatedDashboardPaddedRoute
+    '/api/cli/sql': {
+      id: '/api/cli/sql'
+      path: '/sql'
+      fullPath: '/api/cli/sql'
+      preLoaderRoute: typeof ApiCliSqlRouteImport
+      parentRoute: typeof ApiCliRoute
     }
-    '/_authenticated/_dashboard/_padded/account': {
-      id: '/_authenticated/_dashboard/_padded/account'
-      path: '/account'
-      fullPath: '/account'
-      preLoaderRoute: typeof AuthenticatedDashboardPaddedAccountRouteImport
-      parentRoute: typeof AuthenticatedDashboardPaddedRoute
+    '/api/events/stream': {
+      id: '/api/events/stream'
+      path: '/api/events/stream'
+      fullPath: '/api/events/stream'
+      preLoaderRoute: typeof ApiEventsStreamRouteImport
+      parentRoute: typeof rootRouteImport
     }
-    '/_authenticated/_dashboard/_explore/traces': {
-      id: '/_authenticated/_dashboard/_explore/traces'
-      path: '/traces'
-      fullPath: '/traces'
-      preLoaderRoute: typeof AuthenticatedDashboardExploreTracesRouteImport
-      parentRoute: typeof AuthenticatedDashboardExploreRoute
+    '/api/internal/verify-key': {
+      id: '/api/internal/verify-key'
+      path: '/api/internal/verify-key'
+      fullPath: '/api/internal/verify-key'
+      preLoaderRoute: typeof ApiInternalVerifyKeyRouteImport
+      parentRoute: typeof rootRouteImport
     }
-    '/_authenticated/_dashboard/_explore/logs': {
-      id: '/_authenticated/_dashboard/_explore/logs'
-      path: '/logs'
-      fullPath: '/logs'
-      preLoaderRoute: typeof AuthenticatedDashboardExploreLogsRouteImport
-      parentRoute: typeof AuthenticatedDashboardExploreRoute
+    '/.well-known/oauth-authorization-server/api/auth': {
+      id: '/.well-known/oauth-authorization-server/api/auth'
+      path: '/api/auth'
+      fullPath: '/.well-known/oauth-authorization-server/api/auth'
+      preLoaderRoute: typeof DotwellKnownOauthAuthorizationServerApiAuthRouteImport
+      parentRoute: typeof DotwellKnownOauthAuthorizationServerRoute
     }
-    '/_authenticated/_dashboard/_explore/errors': {
-      id: '/_authenticated/_dashboard/_explore/errors'
-      path: '/errors'
-      fullPath: '/errors'
-      preLoaderRoute: typeof AuthenticatedDashboardExploreErrorsRouteImport
-      parentRoute: typeof AuthenticatedDashboardExploreRoute
-    }
-    '/_auth/_guest/auth/sign-up': {
-      id: '/_auth/_guest/auth/sign-up'
-      path: '/auth/sign-up'
-      fullPath: '/auth/sign-up'
-      preLoaderRoute: typeof AuthGuestAuthSignUpRouteImport
-      parentRoute: typeof AuthGuestRoute
-    }
-    '/_auth/_guest/auth/sign-in': {
-      id: '/_auth/_guest/auth/sign-in'
-      path: '/auth/sign-in'
-      fullPath: '/auth/sign-in'
-      preLoaderRoute: typeof AuthGuestAuthSignInRouteImport
+    '/_auth/_guest/auth/forgot-password': {
+      id: '/_auth/_guest/auth/forgot-password'
+      path: '/auth/forgot-password'
+      fullPath: '/auth/forgot-password'
+      preLoaderRoute: typeof AuthGuestAuthForgotPasswordRouteImport
       parentRoute: typeof AuthGuestRoute
     }
     '/_auth/_guest/auth/reset-password': {
@@ -1321,19 +1188,103 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthGuestAuthResetPasswordRouteImport
       parentRoute: typeof AuthGuestRoute
     }
-    '/_auth/_guest/auth/forgot-password': {
-      id: '/_auth/_guest/auth/forgot-password'
-      path: '/auth/forgot-password'
-      fullPath: '/auth/forgot-password'
-      preLoaderRoute: typeof AuthGuestAuthForgotPasswordRouteImport
+    '/_auth/_guest/auth/sign-in': {
+      id: '/_auth/_guest/auth/sign-in'
+      path: '/auth/sign-in'
+      fullPath: '/auth/sign-in'
+      preLoaderRoute: typeof AuthGuestAuthSignInRouteImport
       parentRoute: typeof AuthGuestRoute
     }
-    '/.well-known/oauth-authorization-server/api/auth': {
-      id: '/.well-known/oauth-authorization-server/api/auth'
-      path: '/api/auth'
-      fullPath: '/.well-known/oauth-authorization-server/api/auth'
-      preLoaderRoute: typeof DotwellKnownOauthAuthorizationServerApiAuthRouteImport
-      parentRoute: typeof DotwellKnownOauthAuthorizationServerRoute
+    '/_auth/_guest/auth/sign-up': {
+      id: '/_auth/_guest/auth/sign-up'
+      path: '/auth/sign-up'
+      fullPath: '/auth/sign-up'
+      preLoaderRoute: typeof AuthGuestAuthSignUpRouteImport
+      parentRoute: typeof AuthGuestRoute
+    }
+    '/_authenticated/_dashboard/_explore/errors': {
+      id: '/_authenticated/_dashboard/_explore/errors'
+      path: '/errors'
+      fullPath: '/errors'
+      preLoaderRoute: typeof AuthenticatedDashboardExploreErrorsRouteImport
+      parentRoute: typeof AuthenticatedDashboardExploreRoute
+    }
+    '/_authenticated/_dashboard/_explore/logs': {
+      id: '/_authenticated/_dashboard/_explore/logs'
+      path: '/logs'
+      fullPath: '/logs'
+      preLoaderRoute: typeof AuthenticatedDashboardExploreLogsRouteImport
+      parentRoute: typeof AuthenticatedDashboardExploreRoute
+    }
+    '/_authenticated/_dashboard/_explore/traces': {
+      id: '/_authenticated/_dashboard/_explore/traces'
+      path: '/traces'
+      fullPath: '/traces'
+      preLoaderRoute: typeof AuthenticatedDashboardExploreTracesRouteImport
+      parentRoute: typeof AuthenticatedDashboardExploreRoute
+    }
+    '/_authenticated/_dashboard/_padded/': {
+      id: '/_authenticated/_dashboard/_padded/'
+      path: '/'
+      fullPath: '/'
+      preLoaderRoute: typeof AuthenticatedDashboardPaddedIndexRouteImport
+      parentRoute: typeof AuthenticatedDashboardPaddedRoute
+    }
+    '/_authenticated/_dashboard/_padded/account': {
+      id: '/_authenticated/_dashboard/_padded/account'
+      path: '/account'
+      fullPath: '/account'
+      preLoaderRoute: typeof AuthenticatedDashboardPaddedAccountRouteImport
+      parentRoute: typeof AuthenticatedDashboardPaddedRoute
+    }
+    '/_authenticated/_dashboard/_padded/api-keys': {
+      id: '/_authenticated/_dashboard/_padded/api-keys'
+      path: '/api-keys'
+      fullPath: '/api-keys'
+      preLoaderRoute: typeof AuthenticatedDashboardPaddedApiKeysRouteImport
+      parentRoute: typeof AuthenticatedDashboardPaddedRoute
+    }
+    '/_authenticated/_dashboard/_padded/billing': {
+      id: '/_authenticated/_dashboard/_padded/billing'
+      path: '/billing'
+      fullPath: '/billing'
+      preLoaderRoute: typeof AuthenticatedDashboardPaddedBillingRouteImport
+      parentRoute: typeof AuthenticatedDashboardPaddedRoute
+    }
+    '/_authenticated/_dashboard/_padded/cost-analysis': {
+      id: '/_authenticated/_dashboard/_padded/cost-analysis'
+      path: '/cost-analysis'
+      fullPath: '/cost-analysis'
+      preLoaderRoute: typeof AuthenticatedDashboardPaddedCostAnalysisRouteImport
+      parentRoute: typeof AuthenticatedDashboardPaddedRoute
+    }
+    '/_authenticated/_dashboard/_padded/repos': {
+      id: '/_authenticated/_dashboard/_padded/repos'
+      path: '/repos'
+      fullPath: '/repos'
+      preLoaderRoute: typeof AuthenticatedDashboardPaddedReposRouteImport
+      parentRoute: typeof AuthenticatedDashboardPaddedRoute
+    }
+    '/_authenticated/_dashboard/_padded/users-management': {
+      id: '/_authenticated/_dashboard/_padded/users-management'
+      path: '/users-management'
+      fullPath: '/users-management'
+      preLoaderRoute: typeof AuthenticatedDashboardPaddedUsersManagementRouteImport
+      parentRoute: typeof AuthenticatedDashboardPaddedRoute
+    }
+    '/_authenticated/_dashboard/_previewable/alerts': {
+      id: '/_authenticated/_dashboard/_previewable/alerts'
+      path: '/alerts'
+      fullPath: '/alerts'
+      preLoaderRoute: typeof AuthenticatedDashboardPreviewableAlertsRouteImport
+      parentRoute: typeof AuthenticatedDashboardPreviewableRoute
+    }
+    '/_authenticated/_dashboard/runs/': {
+      id: '/_authenticated/_dashboard/runs/'
+      path: '/'
+      fullPath: '/runs/'
+      preLoaderRoute: typeof AuthenticatedDashboardRunsIndexRouteImport
+      parentRoute: typeof AuthenticatedDashboardRunsRoute
     }
     '/_authenticated/_dashboard/runs/$traceId': {
       id: '/_authenticated/_dashboard/runs/$traceId'
@@ -1342,18 +1293,81 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedDashboardRunsTraceIdRouteRouteImport
       parentRoute: typeof AuthenticatedDashboardRunsRoute
     }
-    '/_authenticated/_dashboard/runs/$traceId/': {
-      id: '/_authenticated/_dashboard/runs/$traceId/'
-      path: '/'
-      fullPath: '/runs/$traceId/'
-      preLoaderRoute: typeof AuthenticatedDashboardRunsTraceIdIndexRouteImport
-      parentRoute: typeof AuthenticatedDashboardRunsTraceIdRouteRoute
+    '/api/cli/org/name': {
+      id: '/api/cli/org/name'
+      path: '/name'
+      fullPath: '/api/cli/org/name'
+      preLoaderRoute: typeof ApiCliOrgNameRouteImport
+      parentRoute: typeof ApiCliOrgRoute
     }
-    '/_authenticated/_dashboard/_previewable/runbooks/': {
-      id: '/_authenticated/_dashboard/_previewable/runbooks/'
-      path: '/runbooks'
-      fullPath: '/runbooks/'
-      preLoaderRoute: typeof AuthenticatedDashboardPreviewableRunbooksIndexRouteImport
+    '/api/cli/runs/$traceId': {
+      id: '/api/cli/runs/$traceId'
+      path: '/$traceId'
+      fullPath: '/api/cli/runs/$traceId'
+      preLoaderRoute: typeof ApiCliRunsTraceIdRouteImport
+      parentRoute: typeof ApiCliRunsRoute
+    }
+    '/api/cli/runs/filter-options': {
+      id: '/api/cli/runs/filter-options'
+      path: '/filter-options'
+      fullPath: '/api/cli/runs/filter-options'
+      preLoaderRoute: typeof ApiCliRunsFilterOptionsRouteImport
+      parentRoute: typeof ApiCliRunsRoute
+    }
+    '/api/cli/runs/histogram': {
+      id: '/api/cli/runs/histogram'
+      path: '/histogram'
+      fullPath: '/api/cli/runs/histogram'
+      preLoaderRoute: typeof ApiCliRunsHistogramRouteImport
+      parentRoute: typeof ApiCliRunsRoute
+    }
+    '/api/cli/runs/status': {
+      id: '/api/cli/runs/status'
+      path: '/status'
+      fullPath: '/api/cli/runs/status'
+      preLoaderRoute: typeof ApiCliRunsStatusRouteImport
+      parentRoute: typeof ApiCliRunsRoute
+    }
+    '/api/github/install/callback': {
+      id: '/api/github/install/callback'
+      path: '/api/github/install/callback'
+      fullPath: '/api/github/install/callback'
+      preLoaderRoute: typeof ApiGithubInstallCallbackRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/github/install/start': {
+      id: '/api/github/install/start'
+      path: '/api/github/install/start'
+      fullPath: '/api/github/install/start'
+      preLoaderRoute: typeof ApiGithubInstallStartRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/_authenticated/_dashboard/_explore/errors_/$fingerprint': {
+      id: '/_authenticated/_dashboard/_explore/errors_/$fingerprint'
+      path: '/errors/$fingerprint'
+      fullPath: '/errors/$fingerprint'
+      preLoaderRoute: typeof AuthenticatedDashboardExploreErrorsFingerprintRouteImport
+      parentRoute: typeof AuthenticatedDashboardExploreRoute
+    }
+    '/_authenticated/_dashboard/_explore/traces_/$traceId': {
+      id: '/_authenticated/_dashboard/_explore/traces_/$traceId'
+      path: '/traces/$traceId'
+      fullPath: '/traces/$traceId'
+      preLoaderRoute: typeof AuthenticatedDashboardExploreTracesTraceIdRouteImport
+      parentRoute: typeof AuthenticatedDashboardExploreRoute
+    }
+    '/_authenticated/_dashboard/_padded/checkout/success': {
+      id: '/_authenticated/_dashboard/_padded/checkout/success'
+      path: '/checkout/success'
+      fullPath: '/checkout/success'
+      preLoaderRoute: typeof AuthenticatedDashboardPaddedCheckoutSuccessRouteImport
+      parentRoute: typeof AuthenticatedDashboardPaddedRoute
+    }
+    '/_authenticated/_dashboard/_previewable/alerts_/$alertId': {
+      id: '/_authenticated/_dashboard/_previewable/alerts_/$alertId'
+      path: '/alerts/$alertId'
+      fullPath: '/alerts/$alertId'
+      preLoaderRoute: typeof AuthenticatedDashboardPreviewableAlertsAlertIdRouteImport
       parentRoute: typeof AuthenticatedDashboardPreviewableRoute
     }
     '/_authenticated/_dashboard/_previewable/dashboards/': {
@@ -1363,12 +1377,19 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedDashboardPreviewableDashboardsIndexRouteImport
       parentRoute: typeof AuthenticatedDashboardPreviewableRoute
     }
-    '/api/cli/runs/$traceId/logs': {
-      id: '/api/cli/runs/$traceId/logs'
-      path: '/logs'
-      fullPath: '/api/cli/runs/$traceId/logs'
-      preLoaderRoute: typeof ApiCliRunsTraceIdLogsRouteImport
-      parentRoute: typeof ApiCliRunsTraceIdRoute
+    '/_authenticated/_dashboard/_previewable/runbooks/': {
+      id: '/_authenticated/_dashboard/_previewable/runbooks/'
+      path: '/runbooks'
+      fullPath: '/runbooks/'
+      preLoaderRoute: typeof AuthenticatedDashboardPreviewableRunbooksIndexRouteImport
+      parentRoute: typeof AuthenticatedDashboardPreviewableRoute
+    }
+    '/_authenticated/_dashboard/runs/$traceId/': {
+      id: '/_authenticated/_dashboard/runs/$traceId/'
+      path: '/'
+      fullPath: '/runs/$traceId/'
+      preLoaderRoute: typeof AuthenticatedDashboardRunsTraceIdIndexRouteImport
+      parentRoute: typeof AuthenticatedDashboardRunsTraceIdRouteRoute
     }
     '/_authenticated/_dashboard/runs/$traceId/trace': {
       id: '/_authenticated/_dashboard/runs/$traceId/trace'
@@ -1377,61 +1398,12 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedDashboardRunsTraceIdTraceRouteImport
       parentRoute: typeof AuthenticatedDashboardRunsTraceIdRouteRoute
     }
-    '/_authenticated/_dashboard/_previewable/alerts_/$alertId': {
-      id: '/_authenticated/_dashboard/_previewable/alerts_/$alertId'
-      path: '/alerts/$alertId'
-      fullPath: '/alerts/$alertId'
-      preLoaderRoute: typeof AuthenticatedDashboardPreviewableAlertsAlertIdRouteImport
-      parentRoute: typeof AuthenticatedDashboardPreviewableRoute
-    }
-    '/_authenticated/_dashboard/_padded/checkout/success': {
-      id: '/_authenticated/_dashboard/_padded/checkout/success'
-      path: '/checkout/success'
-      fullPath: '/checkout/success'
-      preLoaderRoute: typeof AuthenticatedDashboardPaddedCheckoutSuccessRouteImport
-      parentRoute: typeof AuthenticatedDashboardPaddedRoute
-    }
-    '/_authenticated/_dashboard/_explore/traces_/$traceId': {
-      id: '/_authenticated/_dashboard/_explore/traces_/$traceId'
-      path: '/traces/$traceId'
-      fullPath: '/traces/$traceId'
-      preLoaderRoute: typeof AuthenticatedDashboardExploreTracesTraceIdRouteImport
-      parentRoute: typeof AuthenticatedDashboardExploreRoute
-    }
-    '/_authenticated/_dashboard/_explore/errors_/$fingerprint': {
-      id: '/_authenticated/_dashboard/_explore/errors_/$fingerprint'
-      path: '/errors/$fingerprint'
-      fullPath: '/errors/$fingerprint'
-      preLoaderRoute: typeof AuthenticatedDashboardExploreErrorsFingerprintRouteImport
-      parentRoute: typeof AuthenticatedDashboardExploreRoute
-    }
-    '/api/cli/resources/$kind/$project/$slug': {
-      id: '/api/cli/resources/$kind/$project/$slug'
-      path: '/$kind/$project/$slug'
-      fullPath: '/api/cli/resources/$kind/$project/$slug'
-      preLoaderRoute: typeof ApiCliResourcesKindProjectSlugRouteImport
-      parentRoute: typeof ApiCliResourcesRoute
-    }
-    '/_authenticated/_dashboard/_previewable/dashboards/$project/$slug': {
-      id: '/_authenticated/_dashboard/_previewable/dashboards/$project/$slug'
-      path: '/dashboards/$project/$slug'
-      fullPath: '/dashboards/$project/$slug'
-      preLoaderRoute: typeof AuthenticatedDashboardPreviewableDashboardsProjectSlugRouteImport
-      parentRoute: typeof AuthenticatedDashboardPreviewableRoute
-    }
-    '/_authenticated/_dashboard/_padded/workflows/$repo/$workflowName': {
-      id: '/_authenticated/_dashboard/_padded/workflows/$repo/$workflowName'
-      path: '/workflows/$repo/$workflowName'
-      fullPath: '/workflows/$repo/$workflowName'
-      preLoaderRoute: typeof AuthenticatedDashboardPaddedWorkflowsRepoWorkflowNameRouteImport
-      parentRoute: typeof AuthenticatedDashboardPaddedRoute
-    }
-    '/_authenticated/_dashboard/_explore/traces/$traceId/modal': {
-      id: '/_authenticated/_dashboard/_explore/traces/$traceId/modal'
-      path: '/$traceId/modal'
-      fullPath: '/traces/$traceId/modal'
-      preLoaderRoute: typeof AuthenticatedDashboardExploreTracesTraceIdModalRouteImport
-      parentRoute: typeof AuthenticatedDashboardExploreTracesRoute
+    '/api/cli/runs/$traceId/logs': {
+      id: '/api/cli/runs/$traceId/logs'
+      path: '/logs'
+      fullPath: '/api/cli/runs/$traceId/logs'
+      preLoaderRoute: typeof ApiCliRunsTraceIdLogsRouteImport
+      parentRoute: typeof ApiCliRunsTraceIdRoute
     }
     '/_authenticated/_dashboard/_explore/errors/$fingerprint/modal': {
       id: '/_authenticated/_dashboard/_explore/errors/$fingerprint/modal'
@@ -1440,12 +1412,33 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedDashboardExploreErrorsFingerprintModalRouteImport
       parentRoute: typeof AuthenticatedDashboardExploreErrorsRoute
     }
-    '/_authenticated/_dashboard/runs/$traceId/jobs/$jobId/': {
-      id: '/_authenticated/_dashboard/runs/$traceId/jobs/$jobId/'
-      path: '/jobs/$jobId'
-      fullPath: '/runs/$traceId/jobs/$jobId/'
-      preLoaderRoute: typeof AuthenticatedDashboardRunsTraceIdJobsJobIdIndexRouteImport
-      parentRoute: typeof AuthenticatedDashboardRunsTraceIdRouteRoute
+    '/_authenticated/_dashboard/_explore/traces/$traceId/modal': {
+      id: '/_authenticated/_dashboard/_explore/traces/$traceId/modal'
+      path: '/$traceId/modal'
+      fullPath: '/traces/$traceId/modal'
+      preLoaderRoute: typeof AuthenticatedDashboardExploreTracesTraceIdModalRouteImport
+      parentRoute: typeof AuthenticatedDashboardExploreTracesRoute
+    }
+    '/_authenticated/_dashboard/_padded/workflows/$repo/$workflowName': {
+      id: '/_authenticated/_dashboard/_padded/workflows/$repo/$workflowName'
+      path: '/workflows/$repo/$workflowName'
+      fullPath: '/workflows/$repo/$workflowName'
+      preLoaderRoute: typeof AuthenticatedDashboardPaddedWorkflowsRepoWorkflowNameRouteImport
+      parentRoute: typeof AuthenticatedDashboardPaddedRoute
+    }
+    '/_authenticated/_dashboard/_previewable/dashboards/$project/$slug': {
+      id: '/_authenticated/_dashboard/_previewable/dashboards/$project/$slug'
+      path: '/dashboards/$project/$slug'
+      fullPath: '/dashboards/$project/$slug'
+      preLoaderRoute: typeof AuthenticatedDashboardPreviewableDashboardsProjectSlugRouteImport
+      parentRoute: typeof AuthenticatedDashboardPreviewableRoute
+    }
+    '/api/cli/resources/$kind/$project/$slug': {
+      id: '/api/cli/resources/$kind/$project/$slug'
+      path: '/$kind/$project/$slug'
+      fullPath: '/api/cli/resources/$kind/$project/$slug'
+      preLoaderRoute: typeof ApiCliResourcesKindProjectSlugRouteImport
+      parentRoute: typeof ApiCliResourcesRoute
     }
     '/_authenticated/_dashboard/_previewable/runbooks/$project/$slug/': {
       id: '/_authenticated/_dashboard/_previewable/runbooks/$project/$slug/'
@@ -1454,19 +1447,26 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedDashboardPreviewableRunbooksProjectSlugIndexRouteImport
       parentRoute: typeof AuthenticatedDashboardPreviewableRoute
     }
-    '/api/cli/resources/$kind/$project/$slug/adopt': {
-      id: '/api/cli/resources/$kind/$project/$slug/adopt'
-      path: '/adopt'
-      fullPath: '/api/cli/resources/$kind/$project/$slug/adopt'
-      preLoaderRoute: typeof ApiCliResourcesKindProjectSlugAdoptRouteImport
-      parentRoute: typeof ApiCliResourcesKindProjectSlugRoute
-    }
     '/_authenticated/_dashboard/_previewable/runbooks/$project/$slug/$': {
       id: '/_authenticated/_dashboard/_previewable/runbooks/$project/$slug/$'
       path: '/runbooks/$project/$slug/$'
       fullPath: '/runbooks/$project/$slug/$'
       preLoaderRoute: typeof AuthenticatedDashboardPreviewableRunbooksProjectSlugSplatRouteImport
       parentRoute: typeof AuthenticatedDashboardPreviewableRoute
+    }
+    '/_authenticated/_dashboard/runs/$traceId/jobs/$jobId/': {
+      id: '/_authenticated/_dashboard/runs/$traceId/jobs/$jobId/'
+      path: '/jobs/$jobId'
+      fullPath: '/runs/$traceId/jobs/$jobId/'
+      preLoaderRoute: typeof AuthenticatedDashboardRunsTraceIdJobsJobIdIndexRouteImport
+      parentRoute: typeof AuthenticatedDashboardRunsTraceIdRouteRoute
+    }
+    '/api/cli/resources/$kind/$project/$slug/adopt': {
+      id: '/api/cli/resources/$kind/$project/$slug/adopt'
+      path: '/adopt'
+      fullPath: '/api/cli/resources/$kind/$project/$slug/adopt'
+      preLoaderRoute: typeof ApiCliResourcesKindProjectSlugAdoptRouteImport
+      parentRoute: typeof ApiCliResourcesKindProjectSlugRoute
     }
     '/_authenticated/_dashboard/runs/$traceId/jobs/$jobId/steps/$stepNumber': {
       id: '/_authenticated/_dashboard/runs/$traceId/jobs/$jobId/steps/$stepNumber'

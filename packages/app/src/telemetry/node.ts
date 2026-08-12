@@ -1,8 +1,5 @@
 import { randomUUID } from "node:crypto";
-import {
-  captureError,
-  init as initErrorTracking,
-} from "@everr/auto-otel-errors/node";
+import { captureError, ErrorsInstrumentation } from "@everr/otel-errors";
 import { SpanKind, trace } from "@opentelemetry/api";
 import { getNodeAutoInstrumentations } from "@opentelemetry/auto-instrumentations-node";
 import { OTLPLogExporter } from "@opentelemetry/exporter-logs-otlp-http";
@@ -82,6 +79,11 @@ function startTelemetry(): TelemetryState {
       ),
     ],
     instrumentations: [
+      // The crash handlers. They capture an uncaughtException event and an
+      // unhandledRejection event as exception log records. Then they send those
+      // records with the traces and the metrics. Then the process stops with the
+      // code 1.
+      new ErrorsInstrumentation(),
       getNodeAutoInstrumentations({
         "@opentelemetry/instrumentation-dns": { enabled: false },
         "@opentelemetry/instrumentation-fs": { enabled: false },
@@ -94,10 +96,6 @@ function startTelemetry(): TelemetryState {
   });
 
   sdk.start();
-
-  // Full node defaults: console + network breadcrumbs plus the global fatal
-  // handlers (uncaughtException/unhandledRejection), which flush logs and exit.
-  initErrorTracking();
 
   const state = { sdk, shuttingDown: false };
   installShutdownHandlers(state);

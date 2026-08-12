@@ -1,23 +1,16 @@
-import { init as initErrorTracking } from "@everr/auto-otel-errors/browser";
-import { trace } from "@opentelemetry/api";
-import { logs } from "@opentelemetry/api-logs";
-import { resourceFromAttributes } from "@opentelemetry/resources";
-import {
-  BatchLogRecordProcessor,
-  LoggerProvider,
-} from "@opentelemetry/sdk-logs";
-import {
-  BasicTracerProvider,
-  BatchSpanProcessor,
-} from "@opentelemetry/sdk-trace-base";
-import { ATTR_SERVICE_NAME } from "@opentelemetry/semantic-conventions";
+import { errors, interactions, performance, WebSDK } from "@everr/otel-web";
 import { invoke } from "@tauri-apps/api/core";
 
-import {
-  OtlpProxyLogExporter,
-  OtlpProxySpanExporter,
-} from "./otlp-proxy-exporter";
-
+// The telemetry of the renderer uses @everr/otel-web, and the host sends the
+// data. The webview cannot connect to the collector directly. Thus the SDK gives
+// each OTLP/JSON payload to the Rust code. That code sends the bytes without a
+// change to `{endpoint}/v1/{signal}` with the configured headers. Refer to
+// proxy_otlp. The Rust code never reads the content of the telemetry. Thus the
+// resource, the scope, the severity, and the trace context do not change.
+//
+// Only the Rust code reads the configuration of the exporter. Thus this module
+// does not use `ingestKey`, `endpoint`, and `dev`. The `send` option makes the
+// SDK send no request of its own.
 type TelemetryContext = {
   serviceName: string;
   serviceVersion: string;
@@ -25,56 +18,40 @@ type TelemetryContext = {
   deploymentEnvironment: string;
 };
 
-const BATCH_OPTIONS = {
-  maxQueueSize: 100,
-  maxExportBatchSize: 32,
-  scheduledDelayMillis: 5_000,
-  exportTimeoutMillis: 30_000,
-};
-
-let loggerProvider: LoggerProvider | null = null;
-let tracerProvider: BasicTracerProvider | null = null;
+let client: WebSDK | null = null;
 
 async function initBrowserTelemetry() {
   const telemetryContext = await invoke<TelemetryContext>(
     "get_telemetry_context",
   );
 
-  const resource = resourceFromAttributes({
-    [ATTR_SERVICE_NAME]: telemetryContext.serviceName,
-    "service.version": telemetryContext.serviceVersion,
-    "service.instance.id": telemetryContext.serviceInstanceId,
-    "deployment.environment.name": telemetryContext.deploymentEnvironment,
-  });
-
-  loggerProvider = new LoggerProvider({
-    resource,
-    processors: [
-      new BatchLogRecordProcessor(new OtlpProxyLogExporter(), BATCH_OPTIONS),
+  client = new WebSDK({
+    serviceName: telemetryContext.serviceName,
+    serviceVersion: telemetryContext.serviceVersion,
+    serviceInstanceId: telemetryContext.serviceInstanceId,
+    deploymentEnvironment: telemetryContext.deploymentEnvironment,
+    send: (signal, body) => invoke("proxy_otlp", { signal, body }),
+    // The errors instrumentation owns the handlers for the window error event
+    // and the unhandledrejection event. Thus this module registers no handler
+    // of its own, because two handlers capture each error two times. The
+    // performance instrumentation records only the INP and the slow
+    // interactions: LCP, CLS, and TTFB describe a page load, and the desktop
+    // application has no page views.
+    instrumentations: [
+      errors(),
+      interactions(),
+      performance({ webVitals: ["inp"], slowInteractions: true }),
     ],
   });
-  logs.setGlobalLoggerProvider(loggerProvider);
-
-  // The library builds an "error.context" span (breadcrumb trail) for each
-  // capture; this provider forwards it through the OTLP proxy so errors get a
-  // correlated trace alongside their log. It must be set before initErrorTracking.
-  tracerProvider = new BasicTracerProvider({
-    resource,
-    spanProcessors: [
-      new BatchSpanProcessor(new OtlpProxySpanExporter(), BATCH_OPTIONS),
-    ],
-  });
-  trace.setGlobalTracerProvider(tracerProvider);
-
-  // The library owns browser error capture: window error/unhandledrejection
-  // handlers and manual captureError. Captures emit OTel logs that the proxy
-  // exporters forward to Rust as encoded OTLP/JSON.
-  initErrorTracking();
 }
 
 void initBrowserTelemetry();
 
+// The SDK sends its records at the pagehide event and at the visibilitychange
+// event with the hidden state. When Tauri closes a window, the two events do not
+// always occur. Thus this code also sends the last batch. It calls flush and not
+// shutdown. Thus the capture continues if the application cancels the close
+// operation.
 window.addEventListener("beforeunload", () => {
-  void loggerProvider?.shutdown();
-  void tracerProvider?.shutdown();
+  void client?.flush();
 });

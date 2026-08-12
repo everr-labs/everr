@@ -1,7 +1,7 @@
 import type { Attributes, TextMapGetter } from "@opentelemetry/api";
 import { context, propagation } from "@opentelemetry/api";
 import { captureError, getTelemetryTracer, SpanKind } from "./node";
-import { parameterizeTelemetryPath } from "./paths";
+import { serverRouteTemplate } from "./server-router";
 
 const tracer = getTelemetryTracer();
 
@@ -15,7 +15,8 @@ export async function instrumentServerFetch(
   request: Request,
   run: () => Response | Promise<Response>,
 ) {
-  const route = parameterizeTelemetryPath(new URL(request.url).pathname);
+  const pathname = new URL(request.url).pathname;
+  const route = serverRouteTemplate(pathname);
   const method = request.method.toUpperCase();
 
   // Continue a trace started by a first-party client (e.g. the CLI, which
@@ -28,9 +29,9 @@ export async function instrumentServerFetch(
   );
 
   return tracer.startActiveSpan(
-    `${method} ${route}`,
+    route === undefined ? method : `${method} ${route}`,
     {
-      attributes: requestAttributes(request, route, method),
+      attributes: requestAttributes(request, pathname, route, method),
       kind: SpanKind.SERVER,
     },
     parentContext,
@@ -38,26 +39,36 @@ export async function instrumentServerFetch(
       try {
         const response = await run();
 
+        // Echo the derived route so the browser SDK can stamp url.template on
+        // its client span: the client route tree has no server-only routes, so
+        // this header is the browser's only exact source for API templates.
+        if (route !== undefined) {
+          try {
+            response.headers.set("x-everr-route", route);
+          } catch {
+            // A response with immutable headers keeps them; the span is
+            // unaffected.
+          }
+        }
+
         span.setAttribute("http.response.status_code", response.status);
         if (response.status >= 500) {
           captureError(new Error(`HTTP ${response.status}`), {
-            "error.handled": false,
-            "error.source": "server.response",
+            "everr.error.source": "server.response",
             "http.request.method": method,
             "http.response.status_code": response.status,
-            "http.route": route,
-            "url.path": route,
+            ...(route === undefined ? {} : { "http.route": route }),
+            "url.path": pathname,
           });
         }
 
         return response;
       } catch (error) {
         captureError(error, {
-          "error.handled": false,
-          "error.source": "server.fetch",
+          "everr.error.source": "server.fetch",
           "http.request.method": method,
-          "http.route": route,
-          "url.path": route,
+          ...(route === undefined ? {} : { "http.route": route }),
+          "url.path": pathname,
         });
         throw error;
       } finally {
@@ -69,13 +80,14 @@ export async function instrumentServerFetch(
 
 function requestAttributes(
   request: Request,
-  route: string,
+  pathname: string,
+  route: string | undefined,
   method: string,
 ): Attributes {
   return {
     "http.request.method": method,
-    "http.route": route,
-    "url.path": route,
+    ...(route === undefined ? {} : { "http.route": route }),
+    "url.path": pathname,
     "url.scheme": new URL(request.url).protocol.replace(/:$/, ""),
   };
 }

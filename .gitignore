@@ -67,3 +67,6 @@ docs/superpowers/
 .pnpm-store
 
 .impeccable/critique
+.scratch/
+reports
+.stryker-tmp

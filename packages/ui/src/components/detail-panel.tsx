@@ -31,14 +31,14 @@ export function DetailItem({
   mono?: boolean;
 }) {
   return (
-    <div className="group relative grid min-w-0 grid-cols-[96px_minmax(0,1fr)] gap-3 rounded-md border bg-background/70 px-2.5 py-2 text-xs">
+    <div className="group relative min-w-0 gap-2 rounded-md border bg-background/70 px-2.5 py-2 text-xs flex flex-col overflow-x-hidden">
       <span className="text-muted-foreground flex min-w-0 items-center gap-1">
         {icon ? <span className="[&>svg]:size-3">{icon}</span> : null}
         <span className="truncate">{label}</span>
       </span>
       <span
         className={cn(
-          "min-w-0 truncate text-right",
+          "min-w-0",
           mono && "font-mono",
           !value && "text-muted-foreground",
         )}
@@ -48,7 +48,7 @@ export function DetailItem({
       {value ? (
         <CopyValueButton
           value={value}
-          className="absolute right-1.5 top-1/2 -translate-y-1/2 bg-background shadow-sm"
+          className="absolute right-1.5 top-2 bg-background shadow-sm"
         />
       ) : null}
     </div>

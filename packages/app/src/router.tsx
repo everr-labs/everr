@@ -1,6 +1,7 @@
 import { QueryClient } from "@tanstack/react-query";
 import { createRouteMask, createRouter } from "@tanstack/react-router";
 import { Loader2 } from "lucide-react";
+import { registerRouter } from "@/telemetry/route-pattern";
 import { RootErrorComponent } from "./components/root-error";
 import { routeTree } from "./routeTree.gen";
 
@@ -36,7 +37,7 @@ export const getRouter = () => {
     unmaskOnReload: true,
   });
 
-  return createRouter({
+  const router = createRouter({
     routeTree,
     routeMasks: [traceDetailModalMask, errorDetailModalMask],
     context: { queryClient },
@@ -53,4 +54,6 @@ export const getRouter = () => {
       </div>
     ),
   });
+  registerRouter(router);
+  return router;
 };

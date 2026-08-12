@@ -13,7 +13,7 @@
     "check:fix": "biome check --fix",
     "changeset": "changeset",
     "changeset:version": "changeset version && node scripts/sync-desktop-app-version.mjs",
-    "changeset:publish": "node scripts/publish-auto-otel-errors.mjs",
+    "changeset:publish": "node scripts/publish-packages.mjs",
     "changeset:tag": "changeset tag",
     "postinstall": "lefthook install",
     "test": "vitest",

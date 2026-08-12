@@ -1,5 +1,7 @@
 # Error Tracking
 
+Use this rule when the stack has no `@everr` SDK owning error capture: languages beyond JS (Python, Go, Java, Ruby, ...) and any runtime without a dedicated rule file. The JS runtimes carry their own compact hints (`@everr/otel-errors` on Node, `errors()` in the browser), and `rust.md` has "Errors And Panics"; this rule is the generic contract those hints compress.
+
 Error tracking is the combination of:
 - Span status on the failed operation.
 - Structured exception logs with trace correlation.
@@ -45,10 +47,7 @@ Keep stack traces as one structured field. Do not emit multiline stack traces as
 
 ## Handled vs Unhandled
 
-Use a low-cardinality handled flag when useful:
-
-- `error.handled=true` for exceptions caught and converted into a controlled failure response.
-- `error.handled=false` for unhandled exceptions, fatal crashes, and process-level failures.
+Do not add a handled flag. How the error reached you is already on the record: `@everr/otel-errors` and `@everr/otel-web` stamp `everr.error.mechanism` (`uncaughtException`, `unhandledrejection`, `onerror`, `react`, `manual`), and a crash carries `FATAL` severity where a caught failure carries `ERROR`. A boolean beside those is a second, weaker spelling of the same fact.
 
 If the codebase already has a project-specific error namespace, follow it. Otherwise keep custom error attributes sparse and documented.
 
@@ -68,46 +67,4 @@ Redact at the source when possible and use collector-side redaction only as a se
 
 ## Validation
 
-Especially when instrumenting errors, it is a MUST to try to throw a syntetic error and see if it is reported correctly.
-
-Use a browser or an API call to trigger the error using a public path.
-
-VALIDATION IS IMPORTANT, don't skip it.
-
-Validate error tracking from multiple sourcers:
-- API handlers
-- UI components in SSR
-- Server functions
-- Middlewares
-- Cron or background tasks
-
-## Validation queries
-
-Recent error spans:
-
-```sql
-SELECT Timestamp, ServiceName, SpanName, StatusMessage, TraceId
-FROM traces
-WHERE Timestamp > now() - INTERVAL 10 MINUTE
-  AND ServiceName = '<service-name>'
-  AND StatusCode = 'Error'
-ORDER BY Timestamp DESC
-LIMIT 20
-```
-
-Recent exception logs:
-
-```sql
-SELECT Timestamp, ServiceName, SeverityText, Body, LogAttributes, TraceId
-FROM logs
-WHERE Timestamp > now() - INTERVAL 10 MINUTE
-  AND ServiceName = '<service-name>'
-  AND SeverityNumber >= 17
-  AND mapContains(ResourceAttributes, 'service.name')
-  AND (
-    mapContains(LogAttributes, 'exception.type')
-    OR mapContains(LogAttributes, 'exception.message')
-  )
-ORDER BY Timestamp DESC
-LIMIT 20
-```
+Throwing a synthetic error and proving it lands exactly once is mandatory: follow the Error Path Gate in `validation.md`, which also holds the queries.

@@ -19,33 +19,48 @@ describe("desktop browser telemetry wiring", () => {
     expect(telemetryImport).toBeLessThan(render);
   });
 
-  it("forwards logs and spans through the OTLP proxy without web auto-instrumentation", () => {
+  it("forwards every signal through the OTLP proxy with the SDK's host transport", () => {
     const telemetry = readSource("src/lib/telemetry.ts");
-    const proxyExporter = readSource("src/lib/otlp-proxy-exporter.ts");
 
-    expect(telemetry).toContain("LoggerProvider");
-    expect(telemetry).toContain("BatchLogRecordProcessor");
-    expect(telemetry).toContain("@everr/auto-otel-errors/browser");
-    expect(telemetry).toContain("initErrorTracking");
-    expect(telemetry).toContain("OtlpProxyLogExporter");
+    // The SDK makes the OTLP/JSON payload itself, then it gives that payload to
+    // the Rust code with `send`. Thus this module has no exporter, no provider,
+    // and no code that makes the payload.
+    expect(telemetry).toContain('from "@everr/otel-web"');
+    expect(telemetry).toContain("send:");
+    expect(telemetry).toContain('invoke("proxy_otlp", { signal, body })');
 
-    // Spans go through the same passthrough proxy — no full web tracing.
-    expect(telemetry).toContain("BasicTracerProvider");
-    expect(telemetry).toContain("BatchSpanProcessor");
-    expect(telemetry).toContain("OtlpProxySpanExporter");
+    // The errors are the only source of the capture, and the instrumentation
+    // owns the handlers on the window. A second listener captures each error two
+    // times.
+    expect(telemetry).toContain("errors()");
+    expect(telemetry).not.toContain("addEventListener(\"error\"");
+    expect(telemetry).not.toContain("onunhandledrejection");
 
-    // The proxy serializes real OTLP/JSON and hands it to Rust untouched; Rust
-    // does not reconstruct records, so trace context survives.
-    expect(proxyExporter).toContain("JsonLogsSerializer");
-    expect(proxyExporter).toContain("JsonTraceSerializer");
-    expect(proxyExporter).toContain('invoke("proxy_otlp"');
-    expect(proxyExporter).not.toContain("everr.browser.error");
-
+    // The renderer contains no OTel SDK. That code is now in the browser SDK,
+    // which has many fewer bytes.
+    expect(telemetry).not.toContain("@opentelemetry/");
+    expect(telemetry).not.toContain("LoggerProvider");
+    expect(telemetry).not.toContain("BatchLogRecordProcessor");
+    expect(telemetry).not.toContain("BasicTracerProvider");
     expect(telemetry).not.toContain("WebTracerProvider");
     expect(telemetry).not.toContain("getWebAutoInstrumentations");
     expect(telemetry).not.toContain("registerInstrumentations");
     expect(telemetry).not.toContain("W3CTraceContextPropagator");
     expect(telemetry).not.toContain("instrumentation-user-interaction");
+  });
+
+  it("keeps the resource identity Rust reports", () => {
+    const telemetry = readSource("src/lib/telemetry.ts");
+
+    expect(telemetry).toContain('"get_telemetry_context"');
+    for (const field of [
+      "serviceName",
+      "serviceVersion",
+      "serviceInstanceId",
+      "deploymentEnvironment",
+    ]) {
+      expect(telemetry).toContain(`${field}: telemetryContext.${field}`);
+    }
   });
 
   it("does not wrap application commands in Tauri IPC spans", () => {

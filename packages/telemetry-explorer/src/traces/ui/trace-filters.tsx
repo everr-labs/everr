@@ -1,17 +1,15 @@
 import { FilterCombobox } from "@everr/ui/components/filter-combobox";
 import { Input } from "@everr/ui/components/input";
 import { Label } from "@everr/ui/components/label";
-import { Separator } from "@everr/ui/components/separator";
 import {
   ToggleGroup,
   ToggleGroupItem,
 } from "@everr/ui/components/toggle-group";
 import type { TimeRange } from "@everr/ui/lib/time-range";
-import { useId, useRef, useState } from "react";
-import { DedicatedAttributeSection } from "../../filters/ui/dedicated-attribute-section";
-import { ENVIRONMENT_ATTRIBUTE } from "../../filters/ui/dedicated-attributes";
-import { EnvironmentFilter } from "../../filters/ui/environment-filter";
-import { FilterSidebar } from "../../filters/ui/filter-sidebar";
+import { type ReactNode, useId, useRef, useState } from "react";
+import { AttributeFilterSection } from "../../attribute-filter/ui/attribute-filter-section";
+import { ExploreFilterRail } from "../../filters/ui/explore-filter-rail";
+import { FilterSearchBar } from "../../filters/ui/filter-search-bar";
 import type { TracesRepositoryLike } from "../data/repository";
 import type { AttributeFilter } from "../data/schemas";
 import type { ServiceIdentity } from "../data/types";
@@ -25,7 +23,7 @@ type StatusValue = "ok" | "error" | "all";
 
 type FilterValue = {
   namespace: string[];
-  service: string[];
+  name: string;
   minMs?: number;
   maxMs?: number;
   status: StatusValue;
@@ -37,70 +35,24 @@ type TraceFiltersProps = {
   timeRange: TimeRange;
   value: FilterValue;
   identities: ServiceIdentity[];
-  hideSharedFilters?: boolean;
+  // The top zone of the rail: Service and Environment. The host app supplies it,
+  // because the two values are search params that are shared between pages.
+  persistentFilters?: ReactNode;
+  persistentFilterCount?: number;
   onChange: (patch: Partial<FilterValue>) => void;
 };
-
-function ServiceAndEnvironment({
-  serviceList,
-  value,
-  repo,
-  timeRange,
-  onChange,
-}: {
-  serviceList: string[];
-  value: FilterValue;
-  repo: TracesRepositoryLike;
-  timeRange: TimeRange;
-  onChange: (patch: Partial<FilterValue>) => void;
-}) {
-  const serviceOptions = staticListOptions(
-    ["traces", "filter", "services", serviceList] as const,
-    serviceList,
-  );
-
-  return (
-    <>
-      <FilterCombobox
-        label="Service"
-        values={value.service}
-        onChange={(next) => onChange({ service: next })}
-        options={serviceOptions}
-        placeholder="All"
-        searchPlaceholder="Search services..."
-        className="w-full"
-      />
-
-      <EnvironmentFilter
-        repo={repo}
-        domain="traces"
-        timeRange={timeRange}
-        attributes={value.attributes}
-        onChange={(attributes) => onChange({ attributes })}
-      />
-    </>
-  );
-}
 
 export function TraceFilters({
   repo,
   timeRange,
   value,
   identities,
-  hideSharedFilters = false,
+  persistentFilters,
+  persistentFilterCount = 0,
   onChange,
 }: TraceFiltersProps) {
   const namespaces = dedupe(
     identities.map((i) => i.serviceNamespace).filter((n) => n.length > 0),
-  );
-  const serviceList = dedupe(
-    identities
-      .filter(
-        (i) =>
-          value.namespace.length === 0 ||
-          value.namespace.includes(i.serviceNamespace),
-      )
-      .map((i) => i.serviceName),
   );
 
   const namespaceOptions = staticListOptions(
@@ -108,27 +60,24 @@ export function TraceFilters({
     namespaces,
   );
 
-  // "Clear all" resets the sidebar filters only. The span-name search lives in
-  // the header search bar (with its own clear control), so it is not part of
-  // hasActiveFilters nor reset by onClear. When the service filter is shared
-  // (rendered in the topbar instead — hideSharedFilters), it is likewise owned
-  // there: it must not count toward hasActiveFilters nor be reset by onClear.
-  const hasActiveFilters =
-    value.namespace.length > 0 ||
-    (!hideSharedFilters && value.service.length > 0) ||
-    value.minMs !== undefined ||
-    value.maxMs !== undefined ||
-    value.status !== "all" ||
-    value.attributes.length > 0;
+  // The count for the bottom zone of the rail, which includes the search text.
+  const pageFilterCount =
+    (value.namespace.length > 0 ? 1 : 0) +
+    (value.name.length > 0 ? 1 : 0) +
+    (value.minMs !== undefined || value.maxMs !== undefined ? 1 : 0) +
+    (value.status !== "all" ? 1 : 0) +
+    value.attributes.length;
 
   return (
-    <FilterSidebar
+    <ExploreFilterRail
       label="Trace filters"
-      hasActiveFilters={hasActiveFilters}
+      persistentFilters={persistentFilters}
+      persistentFilterCount={persistentFilterCount}
+      pageFilterCount={pageFilterCount}
       onClear={() =>
         onChange({
           namespace: [],
-          ...(hideSharedFilters ? {} : { service: [] }),
+          name: "",
           minMs: undefined,
           maxMs: undefined,
           status: "all",
@@ -136,6 +85,15 @@ export function TraceFilters({
         })
       }
     >
+      <FilterSearchBar
+        id="traces-search"
+        label="Search"
+        showLabel
+        value={value.name}
+        onChange={(name) => onChange({ name })}
+        placeholder="Filter by span name"
+      />
+
       <div className="flex flex-col gap-1">
         <Label className="text-muted-foreground text-xs">Status</Label>
         <ToggleGroup
@@ -168,8 +126,6 @@ export function TraceFilters({
         </ToggleGroup>
       </div>
 
-      <Separator />
-
       <FilterCombobox
         label="Namespace"
         values={value.namespace}
@@ -179,19 +135,6 @@ export function TraceFilters({
         searchPlaceholder="Search namespaces..."
         className="w-full"
       />
-
-      {!hideSharedFilters && (
-        <>
-          <ServiceAndEnvironment
-            serviceList={serviceList}
-            value={value}
-            repo={repo}
-            timeRange={timeRange}
-            onChange={onChange}
-          />
-          <Separator />
-        </>
-      )}
 
       <div className="flex gap-2">
         <DurationInput
@@ -206,20 +149,17 @@ export function TraceFilters({
         />
       </div>
 
-      <Separator />
-
-      <DedicatedAttributeSection
+      <AttributeFilterSection
         repo={repo}
         domain="traces"
         timeRange={timeRange}
         attributes={value.attributes}
-        dedicated={[ENVIRONMENT_ATTRIBUTE]}
         promotedAttributes={TRACES_PROMOTED_ATTRIBUTES}
         excludedKeys={TRACES_EXCLUDED_KEYS}
         sources={TRACES_ATTRIBUTE_SOURCES_UI}
         onChange={(attributes) => onChange({ attributes })}
       />
-    </FilterSidebar>
+    </ExploreFilterRail>
   );
 }
 
@@ -257,7 +197,7 @@ function DurationInput({
   };
 
   return (
-    <div className="flex flex-col gap-1">
+    <div className="flex min-w-0 flex-1 flex-col gap-1">
       <Label htmlFor={id} className="text-muted-foreground text-xs">
         {label}
       </Label>
@@ -278,7 +218,7 @@ function DurationInput({
           }
         }}
         onBlur={commit}
-        className="w-24"
+        className="w-full"
       />
     </div>
   );

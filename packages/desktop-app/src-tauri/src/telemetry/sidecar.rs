@@ -263,7 +263,6 @@ fn log_collector_status_change(previous: Option<&TelemetryState>, next: &Telemet
                 exception.type = exception.exception_type,
                 exception.message = exception.exception_message,
                 everr.collector.failure_reason = exception.reason.as_str(),
-                error.handled = false,
             },
             "{}",
             event_name

@@ -151,7 +151,9 @@ function ListVariableField({
         ? "All"
         : selected.length === 0
           ? "Select…"
-          : selected.join(", ");
+          : selected.length === 1
+            ? selected[0]
+            : `${selected[0]} +${selected.length - 1}`;
 
   // Toggling an individual option clears All; selecting All clears individuals.
   const handleToggle = (option: string, checked: boolean) => {
@@ -172,7 +174,9 @@ function ListVariableField({
               variant="outline"
               size="sm"
               disabled={isPending}
-              title={error}
+              title={
+                error ?? (selected.length > 0 ? selected.join(", ") : undefined)
+              }
               className={cn(
                 "h-8 max-w-56 justify-between font-normal",
                 error && "border-destructive text-destructive",
@@ -189,7 +193,10 @@ function ListVariableField({
             <ChevronDown className="size-3.5 text-muted-foreground" />
           )}
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="start" className="max-h-80 overflow-y-auto">
+        <DropdownMenuContent
+          align="start"
+          className="max-h-80 w-auto min-w-(--anchor-width) max-w-80 overflow-y-auto"
+        >
           {allowAll && (
             <>
               {multi ? (
@@ -217,11 +224,15 @@ function ListVariableField({
                 closeOnClick={false}
                 onCheckedChange={(checked) => handleToggle(option, checked)}
               >
-                {option}
+                <span className="truncate" title={option}>
+                  {option}
+                </span>
               </DropdownMenuCheckboxItem>
             ) : (
               <DropdownMenuItem key={option} onClick={() => onChange(option)}>
-                {option}
+                <span className="truncate" title={option}>
+                  {option}
+                </span>
               </DropdownMenuItem>
             ),
           )}
