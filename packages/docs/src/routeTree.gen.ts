@@ -9,30 +9,30 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as PricingRouteImport } from './routes/pricing'
 import { Route as IndexRouteImport } from './routes/index'
-import { Route as DevlogIndexRouteImport } from './routes/devlog/index'
-import { Route as BlogIndexRouteImport } from './routes/blog/index'
-import { Route as EverrAppSplatRouteImport } from './routes/everr-app/$'
-import { Route as DocsSplatRouteImport } from './routes/docs/$'
-import { Route as DevlogSlugRouteImport } from './routes/devlog/$slug'
-import { Route as BlogSlugRouteImport } from './routes/blog/$slug'
+import { Route as PricingRouteImport } from './routes/pricing'
 import { Route as ApiSearchRouteImport } from './routes/api/search'
+import { Route as BlogIndexRouteImport } from './routes/blog/index'
+import { Route as BlogSlugRouteImport } from './routes/blog/$slug'
+import { Route as DevlogIndexRouteImport } from './routes/devlog/index'
+import { Route as DevlogSlugRouteImport } from './routes/devlog/$slug'
+import { Route as DocsSplatRouteImport } from './routes/docs/$'
+import { Route as EverrAppSplatRouteImport } from './routes/everr-app/$'
 import { Route as ApiOgDevlogSlugRouteImport } from './routes/api/og/devlog.$slug'
 
-const PricingRoute = PricingRouteImport.update({
-  id: '/pricing',
-  path: '/pricing',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
-const DevlogIndexRoute = DevlogIndexRouteImport.update({
-  id: '/devlog/',
-  path: '/devlog/',
+const PricingRoute = PricingRouteImport.update({
+  id: '/pricing',
+  path: '/pricing',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiSearchRoute = ApiSearchRouteImport.update({
+  id: '/api/search',
+  path: '/api/search',
   getParentRoute: () => rootRouteImport,
 } as any)
 const BlogIndexRoute = BlogIndexRouteImport.update({
@@ -40,14 +40,14 @@ const BlogIndexRoute = BlogIndexRouteImport.update({
   path: '/blog/',
   getParentRoute: () => rootRouteImport,
 } as any)
-const EverrAppSplatRoute = EverrAppSplatRouteImport.update({
-  id: '/everr-app/$',
-  path: '/everr-app/$',
+const BlogSlugRoute = BlogSlugRouteImport.update({
+  id: '/blog/$slug',
+  path: '/blog/$slug',
   getParentRoute: () => rootRouteImport,
 } as any)
-const DocsSplatRoute = DocsSplatRouteImport.update({
-  id: '/docs/$',
-  path: '/docs/$',
+const DevlogIndexRoute = DevlogIndexRouteImport.update({
+  id: '/devlog/',
+  path: '/devlog/',
   getParentRoute: () => rootRouteImport,
 } as any)
 const DevlogSlugRoute = DevlogSlugRouteImport.update({
@@ -55,14 +55,14 @@ const DevlogSlugRoute = DevlogSlugRouteImport.update({
   path: '/devlog/$slug',
   getParentRoute: () => rootRouteImport,
 } as any)
-const BlogSlugRoute = BlogSlugRouteImport.update({
-  id: '/blog/$slug',
-  path: '/blog/$slug',
+const DocsSplatRoute = DocsSplatRouteImport.update({
+  id: '/docs/$',
+  path: '/docs/$',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ApiSearchRoute = ApiSearchRouteImport.update({
-  id: '/api/search',
-  path: '/api/search',
+const EverrAppSplatRoute = EverrAppSplatRouteImport.update({
+  id: '/everr-app/$',
+  path: '/everr-app/$',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiOgDevlogSlugRoute = ApiOgDevlogSlugRouteImport.update({
@@ -162,13 +162,6 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/pricing': {
-      id: '/pricing'
-      path: '/pricing'
-      fullPath: '/pricing'
-      preLoaderRoute: typeof PricingRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/': {
       id: '/'
       path: '/'
@@ -176,11 +169,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/devlog/': {
-      id: '/devlog/'
-      path: '/devlog'
-      fullPath: '/devlog/'
-      preLoaderRoute: typeof DevlogIndexRouteImport
+    '/pricing': {
+      id: '/pricing'
+      path: '/pricing'
+      fullPath: '/pricing'
+      preLoaderRoute: typeof PricingRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/search': {
+      id: '/api/search'
+      path: '/api/search'
+      fullPath: '/api/search'
+      preLoaderRoute: typeof ApiSearchRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/blog/': {
@@ -190,18 +190,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof BlogIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/everr-app/$': {
-      id: '/everr-app/$'
-      path: '/everr-app/$'
-      fullPath: '/everr-app/$'
-      preLoaderRoute: typeof EverrAppSplatRouteImport
+    '/blog/$slug': {
+      id: '/blog/$slug'
+      path: '/blog/$slug'
+      fullPath: '/blog/$slug'
+      preLoaderRoute: typeof BlogSlugRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/docs/$': {
-      id: '/docs/$'
-      path: '/docs/$'
-      fullPath: '/docs/$'
-      preLoaderRoute: typeof DocsSplatRouteImport
+    '/devlog/': {
+      id: '/devlog/'
+      path: '/devlog'
+      fullPath: '/devlog/'
+      preLoaderRoute: typeof DevlogIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/devlog/$slug': {
@@ -211,18 +211,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DevlogSlugRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/blog/$slug': {
-      id: '/blog/$slug'
-      path: '/blog/$slug'
-      fullPath: '/blog/$slug'
-      preLoaderRoute: typeof BlogSlugRouteImport
+    '/docs/$': {
+      id: '/docs/$'
+      path: '/docs/$'
+      fullPath: '/docs/$'
+      preLoaderRoute: typeof DocsSplatRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/api/search': {
-      id: '/api/search'
-      path: '/api/search'
-      fullPath: '/api/search'
-      preLoaderRoute: typeof ApiSearchRouteImport
+    '/everr-app/$': {
+      id: '/everr-app/$'
+      path: '/everr-app/$'
+      fullPath: '/everr-app/$'
+      preLoaderRoute: typeof EverrAppSplatRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/og/devlog/$slug': {

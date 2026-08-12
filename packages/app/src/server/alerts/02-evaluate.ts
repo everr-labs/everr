@@ -310,7 +310,6 @@ async function recordEvaluationFailure(opts: {
   serverLogger.error(logEvent, {
     ...exceptionAttributes(error),
     "alert.definition_id": def.id,
-    "error.handled": true,
   });
   await recordAlertEvents(
     def,

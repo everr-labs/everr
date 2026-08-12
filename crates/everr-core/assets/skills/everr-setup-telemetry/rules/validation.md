@@ -10,6 +10,48 @@ Before querying the backend, verify:
 
 For local Everr runs, use `everr local status` and the returned `otlp:` URL.
 
+## Error Path Gate
+
+When error capture is part of the setup, throwing a synthetic error is a MUST, not optional. Trigger it through a public path (a browser interaction or an API call), then confirm in the collector:
+
+- Exactly one exception record per error, not two (framework hook plus custom capture is the usual double).
+- The error log carries `exception.type`, `exception.message`, `exception.stacktrace`, and `TraceId`/`SpanId` when thrown inside an active span.
+- Span status `ERROR` appears only on the failed operation's span.
+
+Cover each error source the app actually has: API handlers, SSR components, server functions, middlewares, and background tasks.
+
+Recent error spans:
+
+```sql
+SELECT Timestamp, ServiceName, SpanName, StatusMessage, TraceId
+FROM traces
+WHERE Timestamp > now() - INTERVAL 10 MINUTE
+  AND ServiceName = '<service-name>'
+  AND StatusCode = 'Error'
+ORDER BY Timestamp DESC
+LIMIT 20
+```
+
+Recent exception logs:
+
+```sql
+SELECT Timestamp, ServiceName, SeverityText, Body, LogAttributes, TraceId, SpanId
+FROM logs
+WHERE Timestamp > now() - INTERVAL 10 MINUTE
+  AND ServiceName = '<service-name>'
+  AND SeverityNumber >= 17
+  AND (
+    mapContains(LogAttributes, 'exception.type')
+    OR mapContains(LogAttributes, 'exception.message')
+  )
+ORDER BY Timestamp DESC
+LIMIT 20
+```
+
+## Build Gate
+
+Telemetry setup usually touches build-sensitive files (setup modules, framework entrypoints, TypeScript config edges). Run the project's production build (or at least its typecheck) after the changes and before claiming setup works. Dev servers skip strict type checking, so telemetry that flows in dev can still break the build.
+
 ## Local Validation Gate
 
 1. Pick the expected `service.name`.

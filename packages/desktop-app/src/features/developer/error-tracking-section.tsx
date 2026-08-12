@@ -1,4 +1,4 @@
-import { captureError } from "@everr/auto-otel-errors/browser";
+import { captureError } from "@everr/otel-web";
 import { Button } from "@everr/ui/components/button";
 import { toast } from "sonner";
 
@@ -28,8 +28,7 @@ function triggerConsoleError() {
 
 function triggerHandledCapture() {
   captureError(new Error(`Handled capture test (${marker()})`), {
-    "error.handled": true,
-    "error.source": "desktop.developer",
+    "everr.error.source": "desktop.developer",
   });
 }
 

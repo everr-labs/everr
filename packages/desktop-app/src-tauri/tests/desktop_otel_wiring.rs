@@ -141,7 +141,7 @@ fn rust_errors_emit_exception_logs() {
     assert!(crash_log.contains("exception.type"));
     assert!(crash_log.contains("exception.message"));
     assert!(crash_log.contains("exception.stacktrace"));
-    assert!(crash_log.contains("error.handled"));
+    assert!(!crash_log.contains("error.handled"));
     assert!(notifications.contains("log_notifier_sse_reconnect"));
     assert!(notifications.contains("everr.notifier.sse.reconnect"));
     assert!(!notifications.contains("log_error(\"notifier SSE\""));

@@ -12,6 +12,7 @@ import { RootProvider } from "fumadocs-ui/provider/tanstack";
 import type * as React from "react";
 import { baseOptions } from "@/lib/layout.shared";
 import { posthog } from "@/lib/posthog";
+import "@/lib/telemetry";
 import docsCss from "@/styles/docs.css?url";
 
 export const Route = createRootRoute({

@@ -260,7 +260,6 @@ export async function runDeliverySend(
       "alert.slug": send.def.slug,
       "alert.delivery_target": send.target,
       "graphile_worker.job.attempts": job.attempts,
-      "error.handled": finalAttempt,
     });
     if (finalAttempt) {
       await recordAlertEvents(
