@@ -1,8 +1,6 @@
 # Browser Events From @everr/otel-web
 
-Use this rule when investigating web-app behavior: page views, clicks, web vitals, frontend errors, or browser-issued requests. It catalogs what the `@everr/otel-web` SDK emits so you can filter by real names instead of guessing.
-
-Names below are curated, not exhaustive, and were verified against the SDK source as of this commit. If a filter returns nothing, sample rows before concluding the data is missing: `SELECT EventName, LogAttributes FROM logs WHERE ... LIMIT 5`.
+Use this rule when investigating web-app behavior: page views, clicks, web vitals, frontend errors, or browser-issued requests. It catalogs everything the `@everr/otel-web` SDK emits so you can filter by real names instead of guessing.
 
 ## Where Browser Data Lands
 
@@ -23,7 +21,9 @@ Names below are curated, not exhaustive, and were verified against the SDK sourc
 | `user.id`, `user.*` | Set by `identify()`; flat traits like `user.plan` |
 | ambient `everr.*` keys | Set by the host app via `setAttributes()` |
 
-Resource attributes (in `ResourceAttributes`): `service.name`, `service.version`, `deployment.environment.name`, `everr.landing.url`, `everr.landing.path`, `everr.utm.*` (campaign attribution), `everr.screen.width`/`height`, `everr.timezone`, and `telemetry.distro.name` = `@everr/otel-web` (the reliable "this came from a browser" filter).
+## Resource Attributes (in `ResourceAttributes`)
+
+`service.name`, `service.version`, `service.namespace` (= `everr`), `service.instance.id`, `deployment.environment.name`, `telemetry.distro.name` (= `@everr/otel-web`, the reliable "this came from a browser" filter), `telemetry.distro.version`, `user_agent.original`, `browser.language`, `everr.screen.width`/`height`, `everr.timezone`, `everr.landing.url`, `everr.landing.path`, and `everr.utm.source`/`medium`/`campaign`/`term`/`content` (only the params present on the landing query string; organic traffic carries none).
 
 ## Log Events (`EventName` column)
 
@@ -38,24 +38,34 @@ Resource attributes (in `ResourceAttributes`): `service.name`, `service.version`
 | `browser.web_vital` | One per metric (lcp, cls, ttfb, inp) per navigation | see below |
 | `exception` | Frontend error (unhandled, unhandled rejection, React boundary, or manual capture) | see below |
 
-Element attributes, shared by everything that names a DOM element: `everr.element.selector` (stable CSS path, the one spelling across all signals), `everr.element.tag`, `everr.element.text`, `everr.element.href`, `everr.viewport.width`/`height`.
+Element attributes, shared by everything that names a DOM element: `everr.element.selector` (stable CSS path, the one spelling across all signals), `everr.element.tag`, `everr.element.href`, `everr.viewport.width`/`height`. The SDK never captures element text or input values.
 
 ### Web vitals
 
-Semconv names stay bare: `browser.web_vital.name` (`lcp`, `cls`, `ttfb`, `inp`), `browser.web_vital.value` (ms, except cls which is unitless), `browser.web_vital.id`. Everr additions: `everr.browser.web_vital.rating` (`good`, `needs-improvement`, `poor`) and `everr.browser.web_vital.navigation_type`. Per-metric attribution rides under `everr.browser.web_vital.<metric>.*` (for example `lcp.target`, `cls.largest_shift_target`, `ttfb.request_duration`, `inp.*` mirroring the interaction attrs); sample a row to see what a given metric carries.
+Semconv names stay bare: `browser.web_vital.name` (`lcp`, `cls`, `ttfb`, `inp`), `browser.web_vital.value` (ms, except cls which is unitless), `browser.web_vital.delta` (always equal to value: one record per metric per navigation), `browser.web_vital.id`. Everr additions on every vital: `everr.browser.web_vital.rating` (`good`, `needs-improvement`, `poor`) and `everr.browser.web_vital.navigation_type`.
+
+Attribution for LCP, CLS, and TTFB rides under `everr.browser.web_vital.<metric>.*`:
+
+| Metric | Attribution attributes (`everr.browser.web_vital.<metric>.` prefix) |
+| --- | --- |
+| `lcp` | `target` (element selector), `url` (resource url), `time_to_first_byte`, `resource_load_delay`, `resource_load_duration`, `element_render_delay` |
+| `cls` | `largest_shift_target` (element selector), `largest_shift_time`, `largest_shift_value`, `load_state` (`loading`, `dom-interactive`, `dom-content-loaded`, `complete`) |
+| `ttfb` | `waiting_duration`, `cache_duration`, `dns_duration`, `connection_duration`, `request_duration` |
+
+The INP vital does not use that prefix. It carries the same attribution as the `slow_interaction` span, under the same names: `everr.browser.interaction.*` (phases, `total_*` breakdown, `script.*`) plus element attrs. `everr.browser.interaction.id` joins the vital to the `slow_interaction` span of the same interaction.
 
 ### Exceptions
 
-`exception.type`, `exception.message`, `exception.stacktrace`, `everr.error.mechanism` (`onerror`, `unhandledrejection`, `react`, `manual`), `everr.react.component_stack` (React boundaries only). These are error logs (`SeverityNumber >= 17`), so the fingerprint grouping in SKILL.md applies to them unchanged.
+`exception.type`, `exception.message`, `exception.stacktrace`, `everr.error.mechanism` (`onerror`, `unhandledrejection`, `react`; a manual `captureError` record carries no mechanism), `everr.react.component_stack` (React boundaries only). These are error logs (`SeverityNumber >= 17`), so the fingerprint grouping in SKILL.md applies to them unchanged.
 
 ## Spans (in `traces`)
 
 | SpanName | Meaning | Key attributes |
 | --- | --- | --- |
 | `<METHOD> <route>` (e.g. `GET /api/posts/{id}`) | One per browser `fetch`; the browser is the trace root the server spans parent to, so `TraceId` joins frontend to backend | HTTP client semconv: `http.request.method`, `http.response.status_code`, `url.full` (query-stripped request URL), `url.template`, `server.address`; 4xx/5xx set `StatusCode = 'Error'` with `error.type` |
-| `slow_interaction` | Event Timing entry over threshold, from the same observer as INP | `everr.browser.interaction.*` (`id`, `type`, `input_delay`, `processing_duration`, `presentation_delay`, `script.*`) plus element attrs; `everr.browser.interaction.id` joins it to the INP vital |
-| `GET asset:<initiator_type> <url>` | Static-resource waterfall during the first load, from `pageLoad()` (often wrapped in `sampled()`, so expect a per-session fraction) | `everr.browser.asset.*` (`initiator_type`, `transfer_size`, `render_blocking`, per-phase durations) |
-| `long_animation_frame` | Main-thread stall during the first load, from `pageLoad()` | `everr.browser.long_animation_frame.*` (`blocking_duration`, `script_duration`, `script.source_url`) |
+| `slow_interaction` | Event Timing entry over threshold, from the same observer as INP | `everr.browser.interaction.*`: `id`, `name` (event name, e.g. `click`), `type` (`pointer` or `keyboard`), `input_delay`, `processing_duration`, `presentation_delay`, `total_script_duration`, `total_style_and_layout_duration`, `total_paint_duration`, `total_unattributed_duration`, `script.source_url`, `script.function_name`, `script.invoker_type`, `script.duration` (the longest script; script and total attrs need Chrome 123+ LoAF); plus element attrs |
+| `GET asset:<initiator_type> <url>` | Static-resource waterfall during the first load, from `pageLoad()` (often wrapped in `sampled()`, so expect a per-session fraction) | `everr.browser.asset.*`: `initiator_type`, `transfer_size`, `encoded_body_size`, `decoded_body_size`, `delivery_type` (`cache` when served from cache), `render_blocking`, `dns_duration`, `connection_duration`, `tls_duration`, `request_duration`, `download_duration` |
+| `long_animation_frame` | Main-thread stall during the first load, from `pageLoad()` | `everr.browser.long_animation_frame.*`: `blocking_duration`, `script_duration`, `style_and_layout_duration`, `unattributed_duration`, and the longest script as `script.source_url`, `script.function_name`, `script.invoker_type`, `script.duration` |
 
 ## Example Queries
 
@@ -79,12 +89,11 @@ Rage clicks by element, to find broken UI:
 ```sql
 SELECT LogAttributes['everr.route.pattern'] AS route,
   LogAttributes['everr.element.selector'] AS selector,
-  LogAttributes['everr.element.text'] AS text,
   count() AS rage_clicks
 FROM logs
 WHERE Timestamp > now() - INTERVAL 24 HOUR
   AND EventName = 'everr.browser.interaction.rage_click'
-GROUP BY route, selector, text
+GROUP BY route, selector
 ORDER BY rage_clicks DESC
 LIMIT 20
 ```

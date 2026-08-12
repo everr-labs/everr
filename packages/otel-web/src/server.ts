@@ -128,6 +128,9 @@ export class WebSDK {
 export function identify(_userId: string, _traits?: UserTraits): void {}
 
 /** Does nothing on the server. The identity belongs to the browser. */
+export function clearIdentity(): void {}
+
+/** @deprecated Call `clearIdentity()` and then `setPersistence("memory")`. */
 export function revoke(): void {}
 
 /** Does nothing on the server. The envelope of the browser carries the ambient

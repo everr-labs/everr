@@ -249,6 +249,39 @@ export function createEmitter(
   const buildSpans = () => build("Spans", "spans", spanQueue);
   const bytes = (body: string) => new Blob([body]).size;
 
+  // The bytes of the items that the last firstFitting call kept, with their
+  // envelope. The exit path reads it for the budget that the spans left to the
+  // log records. Thus the code does not make that payload again only to
+  // measure it. The count gives one comma for each item, and a list joins with
+  // one comma less. Thus the value is never below the true size.
+  let fittedBytes = 0;
+
+  // The index of the first item that goes in `budget`, with the most recent
+  // items kept. Each item adds its own bytes and its comma. The function
+  // measures each item one time. The loop before it made the full payload again
+  // for each item that it discarded, on the exit path, where the page closes.
+  //
+  // The result is the length of the list when even the most recent item is
+  // above the budget. The signal then sends nothing, and this is correct: such
+  // a payload is above the keepalive limit, fetch refuses it, and thus the
+  // batch is lost without a record of the loss.
+  const firstFitting = (
+    items: unknown[],
+    envelopeBytes: number,
+    budget: number,
+  ): number => {
+    let used = envelopeBytes;
+    let i = items.length;
+    while (i > 0) {
+      const next = used + bytes(JSON.stringify(items[i - 1])) + 1;
+      if (next > budget) break;
+      used = next;
+      i--;
+    }
+    fittedBytes = i === items.length ? 0 : used;
+    return i;
+  };
+
   // The telemetry must never cause a failure of the page. Thus the code tries
   // to send the data, but it accepts a failure. This includes a synchronous
   // error. This is true for a `send` function from the caller and for fetch.
@@ -300,16 +333,21 @@ export function createEmitter(
     // The code does not do this when the host sends the data. The limit is a
     // constraint of fetch only. Thus the code discards no record.
     if (truncateAtExit) {
-      let spanBytes = 0;
-      if (spanQueue.length) {
-        spanBytes = bytes(buildSpans());
-        while (spanQueue.length > 1 && spanBytes > EXIT_BUDGET / 4) {
-          spanQueue.shift();
-          spanBytes = bytes(buildSpans());
-        }
-      }
-      while (queue.length > 1 && bytes(buildLogs()) > EXIT_BUDGET - spanBytes)
-        queue.shift();
+      spanQueue = spanQueue.slice(
+        firstFitting(
+          spanQueue,
+          bytes(build("Spans", "spans", [])),
+          EXIT_BUDGET / 4,
+        ),
+      );
+      const spanBytes = fittedBytes;
+      queue = queue.slice(
+        firstFitting(
+          queue,
+          bytes(build("Logs", "logRecords", [])),
+          EXIT_BUDGET - spanBytes,
+        ),
+      );
     }
     void flush(true);
   };

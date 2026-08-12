@@ -20,6 +20,17 @@ export type ErrorSeverity = "error" | "fatal";
 export interface ErrorEvent {
   error: unknown;
   message: string;
+  /**
+   * The normalized error that becomes the `exception.*` attributes of the
+   * record. A `beforeSend` hook rewrites these fields to redact the record,
+   * with no need to mutate the original Error. A `stacktrace` set to
+   * `undefined` removes the attribute from the record.
+   */
+  exception: {
+    type: string;
+    message: string;
+    stacktrace?: string;
+  };
   severity: ErrorSeverity;
   /** Absent for a manual capture. The record then carries no
    * "everr.error.mechanism" attribute. */
@@ -48,7 +59,9 @@ export interface ErrorEvent {
 export interface ClientOptions {
   /**
    * Runs on each log record, before the client sends it. It discards the event
-   * if it returns null. If not, it can change the message and the attributes.
+   * if it returns null. If not, it can change the message, the attributes, and
+   * the `exception` fields that become the `exception.*` attributes of the
+   * record.
    *
    * The hook does not change the active span. When a span is active, the
    * client marks it with `recordException` and `setStatus`, and it takes the

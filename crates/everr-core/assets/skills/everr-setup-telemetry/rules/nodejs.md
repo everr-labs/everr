@@ -134,7 +134,7 @@ function startTelemetry() {
       }),
     ],
     logRecordProcessors: [
-      // Options-object form: since sdk-logs 0.221 the constructor takes
+      // Options-object form: since sdk-logs 0.220 the constructor takes
       // `{ exporter }`; the older positional form silently drops logs.
       new BatchLogRecordProcessor({
         exporter: new OTLPLogExporter({
@@ -258,7 +258,7 @@ await tracer.startActiveSpan('invoice.send', async (span) => {
     span.setStatus({ code: SpanStatusCode.OK });
   } catch (error) {
     captureError(error, {
-      'error.source': 'invoice.send',
+      'everr.error.source': 'invoice.send',
     });
     throw error;
   } finally {

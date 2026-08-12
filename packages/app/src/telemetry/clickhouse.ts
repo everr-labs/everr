@@ -40,7 +40,7 @@ export async function instrumentClickhouseOperation<T>(
         } else {
           captureError(error, {
             ...spanAttributes,
-            "error.source": "clickhouse",
+            "everr.error.source": "clickhouse",
           });
         }
         throw error;

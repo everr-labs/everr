@@ -19,8 +19,10 @@ type RouterLike = {
 export function registerRouter(router: RouterLike): void {
   setRouteResolver({
     page: (url) => {
-      const matches = router.matchRoutes(new URL(url).pathname);
-      return matches[matches.length - 1]?.routeId;
+      const id = router.matchRoutes(new URL(url).pathname).at(-1)?.routeId;
+      // matchRoutes falls through to the root match on unknown paths; an
+      // unmatched page has no pattern rather than a fake one.
+      return id === "__root__" ? undefined : id;
     },
   });
 }

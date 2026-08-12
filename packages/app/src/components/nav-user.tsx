@@ -189,7 +189,7 @@ export function NavUser() {
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={openConsentSettings}>
               <CookieIcon />
-              Cookie preferences
+              Privacy preferences
             </DropdownMenuItem>
             <DropdownMenuSeparator />
             <DropdownMenuItem

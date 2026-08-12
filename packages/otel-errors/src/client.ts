@@ -124,6 +124,7 @@ export class Client {
       severity: input.severity ?? "error",
       mechanism: input.mechanism,
       context: input.context ?? {},
+      exception: { ...normalized },
     };
 
     if (this.options.beforeSend) {
@@ -135,10 +136,10 @@ export class Client {
 
     const attributes: Attributes = {
       ...event.context,
-      "exception.type": normalized.type,
-      "exception.message": normalized.message,
-      ...(normalized.stacktrace
-        ? { "exception.stacktrace": normalized.stacktrace }
+      "exception.type": event.exception.type,
+      "exception.message": event.exception.message,
+      ...(event.exception.stacktrace
+        ? { "exception.stacktrace": event.exception.stacktrace }
         : {}),
       ...(event.mechanism != null
         ? { "everr.error.mechanism": event.mechanism }
@@ -165,7 +166,15 @@ export class Client {
       severityText: event.severity.toUpperCase(),
       body: event.message,
       attributes,
-      exception: input.error,
+      // The values that the hook accepted, and not the original Error. The SDK
+      // fills the `exception.*` attributes from this object only where the
+      // explicit set above left a gap, and thus a redacted stack cannot come
+      // back from the Error's own `stack`.
+      exception: {
+        name: event.exception.type,
+        message: event.exception.message,
+        stack: event.exception.stacktrace,
+      },
       context: context.active(),
     });
   }

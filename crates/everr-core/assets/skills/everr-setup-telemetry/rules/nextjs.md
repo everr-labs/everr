@@ -18,7 +18,8 @@ browser and server traces into one trace follows the seam section of
 Use the project package manager. Typical server packages:
 
 ```bash
-npm install @opentelemetry/api \
+npm install @everr/otel-errors \
+  @opentelemetry/api \
   @opentelemetry/api-logs \
   @opentelemetry/sdk-node \
   @opentelemetry/sdk-logs \
@@ -106,6 +107,7 @@ export const onRequestError: Instrumentation.onRequestError = async (
 Create `src/instrumentation.node.ts` for the actual OpenTelemetry setup:
 
 ```typescript
+import { ErrorsInstrumentation } from '@everr/otel-errors';
 import { trace, SpanStatusCode } from '@opentelemetry/api';
 import { logs, SeverityNumber } from '@opentelemetry/api-logs';
 import { getNodeAutoInstrumentations } from '@opentelemetry/auto-instrumentations-node';
@@ -174,28 +176,11 @@ async function shutdown(exitCode?: number) {
   if (exitCode !== undefined) process.exit(exitCode);
 }
 
-function emitProcessException(message: string, error: Error) {
-  logs.getLogger('nextjs.process').emit({
-    severityNumber: SeverityNumber.ERROR,
-    severityText: 'ERROR',
-    body: message,
-    attributes: {
-      'exception.type': error.name,
-      'exception.message': error.message,
-      'exception.stacktrace': error.stack,
-    },
-  });
-}
-
-function normalizeError(reason: unknown) {
-  return reason instanceof Error ? reason : new Error(String(reason));
-}
-
 if (!globalThis.__otelSdk) {
   const resource = serviceResource();
   const headers = otlpHeaders();
 
-  // Options-object form: since sdk-logs 0.221 the constructor takes
+  // Options-object form: since sdk-logs 0.220 the constructor takes
   // `{ exporter }`; the older positional-exporter form compiles on some
   // versions but leaves the exporter undefined and silently drops logs.
   const loggerProvider = new LoggerProvider({
@@ -225,6 +210,10 @@ if (!globalThis.__otelSdk) {
       exportIntervalMillis: 10000,
     }),
     instrumentations: [
+      // Error capture, per nodejs.md: it owns the uncaughtException and
+      // unhandledRejection handlers. Do not also register your own, that
+      // double-captures.
+      new ErrorsInstrumentation(),
       getNodeAutoInstrumentations({
         '@opentelemetry/instrumentation-fs': { enabled: false },
         '@opentelemetry/instrumentation-dns': { enabled: false },
@@ -238,14 +227,6 @@ if (!globalThis.__otelSdk) {
 
   process.once('SIGTERM', () => void shutdown(0));
   process.once('SIGINT', () => void shutdown(0));
-  process.once('uncaughtException', (error) => {
-    emitProcessException('uncaught.exception', error);
-    void shutdown(1);
-  });
-  process.once('unhandledRejection', (reason) => {
-    emitProcessException('unhandled.rejection', normalizeError(reason));
-    void shutdown(1);
-  });
 }
 
 export const onRequestError: Instrumentation.onRequestError = async (
@@ -320,11 +301,12 @@ Use optional chaining because `trace.getActiveSpan()` can return `undefined`.
 
 ## Error Handling
 
-Use both process-level handlers and Next.js `onRequestError`:
+Rely on `ErrorsInstrumentation` for process failures and Next.js `onRequestError` for request failures:
 
-- `uncaughtException` and `unhandledRejection` capture process failures.
+- `ErrorsInstrumentation` owns `uncaughtException` and `unhandledRejection`; do
+  not register your own process handlers.
 - `onRequestError` captures server request failures that Next.js handles before
-  they reach process-level handlers.
+  they crash the process.
 - Route handlers and server actions that catch errors must emit an exception log
   before returning an error response.
 

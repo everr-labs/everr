@@ -2,7 +2,7 @@
 
 Use this rule for Electron apps that need error telemetry from both the Node main process and the Chromium renderer.
 
-The renderer should not hold the ingest key or reach the collector directly, so the main process is an **OTLP passthrough proxy**: the renderer runs a normal OTel provider + exporter, serializes each log batch to encoded OTLP, and sends the bytes to the main process over IPC, which forwards them to the collector unchanged.
+The renderer should not hold the ingest key or reach the collector directly, so the main process is an **OTLP passthrough proxy**: the renderer runs `@everr/otel-web`, which builds each OTLP/JSON batch itself (no OpenTelemetry packages, no provider, no exporter) and hands the bytes to the main process over IPC, which forwards them to the collector unchanged.
 
 The main process is itself a Node process: set up its own telemetry and error capture per `nodejs.md` (`@everr/otel-errors`), and reuse that exporter config to drive the proxy.
 
@@ -16,9 +16,9 @@ Required resource attributes on both main and renderer telemetry:
 - `service.version`
 - `service.instance.id`
 - `deployment.environment.name`
-- `process.type`
+- a process mark: `process.type` on the main side, per below on the renderer side
 
-Hardcode one stable `service.name` for the app (`<service-name>`) and use `process.type` (`main` or `renderer`) to distinguish where telemetry came from. The `nodejs.md` base setup does not add `process.type`, so the main SDK must add it to its resource explicitly (`process.type = main`); the renderer adds `process.type = renderer` to its own resource. Use `service.instance.id` as an opaque app/session UUID generated at app startup. Do not use an auth session, user id, machine id, tenant id, or token.
+Hardcode one stable `service.name` for the app (`<service-name>`) and mark which side each record came from. The `nodejs.md` base setup does not add `process.type`, so the main SDK must add it to its resource explicitly (`process.type = main`). The WebSDK exposes no resource attribute for it, so mark renderer telemetry with a renderer-specific `serviceName` per `resources.md`, or stamp each record with `setAttributes({ 'everr.process.type': 'renderer' })`; the Validation section queries these marks. Use `service.instance.id` as an opaque app/session UUID generated at app startup. Do not use an auth session, user id, machine id, tenant id, or token.
 
 ## Package Setup
 
@@ -98,8 +98,11 @@ function registerTelemetryIpc(config: TelemetryConfig, context: TelemetryContext
     'everr:proxy-otlp',
     async (_event, signal: 'logs' | 'traces', body: string) => {
       if (!config) return; // telemetry disabled
-      if (body.length > MAX_OTLP_BODY_BYTES) {
-        throw new Error(`otlp payload too large: ${body.length} bytes`);
+      // String length counts UTF-16 code units, not bytes; measure the UTF-8
+      // payload the proxy actually forwards.
+      const bytes = Buffer.byteLength(body, 'utf8');
+      if (bytes > MAX_OTLP_BODY_BYTES) {
+        throw new Error(`otlp payload too large: ${bytes} bytes`);
       }
 
       // net.fetch respects the app's proxy/cert configuration. OTLP/JSON is UTF-8
@@ -183,18 +186,18 @@ Add `pageviews()`, `interactions()`, `performance()`, or `network()` when the re
 
 ## Validation
 
-A main-process change (proxy handler, headers, endpoint) needs an app restart. Trigger each error mechanism — add a dev-only menu item or button that throws an uncaught error, rejects a promise, and calls `captureError` — then query.
+A main-process change (proxy handler, headers, endpoint) needs an app restart. Trigger each error mechanism (add a dev-only menu item or button that throws an uncaught error, rejects a promise, and calls `captureError`), then query.
 
-Renderer telemetry carries `process.type = renderer`; main-process telemetry carries `process.type = main`. Recent logs:
+Renderer records carry the mark you chose above: `everr.process.type = renderer`, or a renderer-specific `ServiceName`. Recent logs from both sides:
 
 ```sql
 SELECT Timestamp, ServiceName, SeverityText, Body,
-       LogAttributes['process.type'] AS process_type,
+       LogAttributes['everr.process.type'] AS process_type,
        LogAttributes['exception.mechanism'] AS mechanism,
        TraceId
 FROM logs
 WHERE Timestamp > now() - INTERVAL 10 MINUTE
-  AND ServiceName = '<service-name>'
+  AND ServiceName IN ('<main-service-name>', '<renderer-service-name>')
 ORDER BY Timestamp DESC
 LIMIT 50
 ```

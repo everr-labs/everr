@@ -35,10 +35,13 @@ import { requestTemplate } from "../../state/route.js";
 //
 // The changed fetch must never cause a failure of the page. If the code cannot
 // read the URL, it calls the original fetch with the same arguments. If it
-// cannot copy the headers, it sends no traceparent header. The shutdown
-// restores the original fetch only when the global fetch is still the function
-// of this module. Thus a module that changed fetch after this module wins, and
-// this module wins in the opposite condition.
+// cannot copy the headers, it sends no traceparent header. When the caller
+// sends a Request object and no headers in init, the code writes the header on
+// that Request. Thus the body goes to fetch without a change. The caller can
+// see this header on its object, and a fetch of one Request occurs one time.
+// The shutdown restores the original fetch only when the global fetch is still
+// the function of this module. Thus a module that changed fetch after this
+// module wins, and this module wins in the opposite condition.
 
 export type PropagationTarget = string | RegExp;
 
@@ -86,6 +89,10 @@ export function startNetwork(
     const span = tracer.startSpan(name);
     const { traceId, spanId } = span.spanContext();
 
+    // A value here makes an init object for the call below. It stays undefined
+    // when the code writes the header on the Request of the caller, and also
+    // when the code can set no header. The two conditions send the arguments of
+    // the caller without a change, and thus one value serves them.
     let headers: Headers | undefined;
     if (
       url.origin === location.origin ||
@@ -94,14 +101,24 @@ export function startNetwork(
       )
     ) {
       try {
+        const traceparent = `00-${traceId}-${spanId}-01`;
         // The sequence is the same as in fetch: the headers in init replace the
-        // headers of a Request object. The code starts from the headers that
-        // win, then it adds its own header.
-        headers = new Headers(
-          init?.headers ??
-            (input instanceof Request ? input.headers : undefined),
-        );
-        headers.set("traceparent", `00-${traceId}-${spanId}-01`);
+        // headers of a Request object. Thus a Request whose headers the init
+        // replaces takes the second path, because those headers win and they
+        // would remove our header.
+        //
+        // The first path writes the header on the Request of the caller. Thus
+        // the code makes no init object. An init object makes fetch build the
+        // request again, and a request that has a stream body then needs the
+        // `duplex` option. The headers of a Request from a service worker
+        // permit no change, and then this throws. The catch below then sends
+        // no header.
+        if (input instanceof Request && !init?.headers) {
+          input.headers.set("traceparent", traceparent);
+        } else {
+          headers = new Headers(init?.headers);
+          headers.set("traceparent", traceparent);
+        }
       } catch {
         headers = undefined;
       }

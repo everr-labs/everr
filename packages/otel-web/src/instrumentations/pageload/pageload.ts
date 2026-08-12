@@ -136,12 +136,12 @@ export function startPageLoad(
       if (!longest || s.duration > longest.duration) longest = s;
     }
     script -= forced;
-    // The value of styleAndLayoutStart is 0 when the frame had no phase for the
-    // style and the layout.
+    // The same calculation as the web-vitals attribution: the style and the
+    // layout go from styleAndLayoutStart to the end of the frame. Thus the
+    // spans and the INP attribution in inp.ts give the same numbers for the
+    // same frame.
     const styleAndLayout =
-      (entry.styleAndLayoutStart
-        ? entry.startTime + entry.duration - entry.styleAndLayoutStart
-        : 0) + forced;
+      entry.startTime + entry.duration - entry.styleAndLayoutStart + forced;
     span("long_animation_frame", entry.startTime, entry.duration, {
       "everr.browser.long_animation_frame.blocking_duration": Math.round(
         entry.blockingDuration,

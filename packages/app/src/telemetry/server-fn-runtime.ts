@@ -1,7 +1,7 @@
 import type { Attributes } from "@opentelemetry/api";
 import { isExpectedServerFunctionError } from "./expected-errors";
 import { captureError, getTelemetryTracer, SpanKind } from "./node";
-import { parameterizeTelemetryPath } from "./paths";
+import { serverRouteTemplate } from "./server-router";
 
 const tracer = getTelemetryTracer("everr-app.server_fn");
 
@@ -31,7 +31,7 @@ export async function instrumentServerFunction<T>(
         if (!isExpectedServerFunctionError(error)) {
           captureError(error, {
             ...attributes,
-            "error.source": "server_fn",
+            "everr.error.source": "server_fn",
           });
         }
         throw error;
@@ -55,5 +55,6 @@ function serverFunctionAttributes(
 }
 
 function parameterizeServerFunctionPath(request: Request) {
-  return parameterizeTelemetryPath(new URL(request.url).pathname);
+  const pathname = new URL(request.url).pathname;
+  return serverRouteTemplate(pathname) ?? pathname;
 }

@@ -71,7 +71,7 @@ const sizes = (max: number) =>
   });
 
 describe("exit-flush budget", () => {
-  it("keeps every keepalive payload within its budget share, or one lone record", () => {
+  it("keeps every keepalive payload within its budget share", () => {
     vi.useFakeTimers();
     fc.assert(
       fc.property(sizes(15), sizes(15), (logSizes, spanSizes) => {
@@ -89,22 +89,26 @@ describe("exit-flush budget", () => {
         const exits = sent.filter((b) => b.keepalive);
         const spans = exits.find((b) => b.url.endsWith("/v1/traces"));
         const logs = exits.find((b) => b.url.endsWith("/v1/logs"));
-        // The spans get a maximum of one quarter of the limit. But one span
-        // alone can be larger than that quarter, because the code removes full
-        // records and it never removes the last one.
-        if (spans && spans.spanNames.length > 1) {
+        // The spans get a maximum of one quarter of the limit. This has no
+        // exception for one record: a span that is alone above that quarter
+        // goes out of the payload also, and then the code sends no payload for
+        // that signal. Such a payload alone is above the keepalive limit, and
+        // thus fetch refuses it and the full batch is lost.
+        if (spans) {
           expect(spans.bytes).toBeLessThanOrEqual(SPAN_BUDGET);
         }
         // The log records use the part of the limit that the spans did not
-        // use. The rule for one large record is the same.
-        if (logs && logs.logNames.length > 1) {
+        // use. The same rule applies: one record that is alone above that part
+        // also goes out of the payload.
+        if (logs) {
           expect(logs.bytes).toBeLessThanOrEqual(
             EXIT_BUDGET - (spans?.bytes ?? 0),
           );
         }
         // The records that stay are always the most recent records, in the
         // sequence that the SDK sent them. The records of the exit path go into
-        // the queue last, and thus they must be the records that stay.
+        // the queue last, and thus they must be the records that stay. A signal
+        // whose records all went out of the payload sends nothing.
         const survivors = (kept: string[], prefix: string, total: number) => {
           expect(kept).toEqual(
             Array.from(
@@ -112,7 +116,6 @@ describe("exit-flush budget", () => {
               (_, i) => `${prefix}-${total - kept.length + i}`,
             ),
           );
-          expect(kept.length).toBeGreaterThanOrEqual(1);
           expect(kept.length).toBeLessThanOrEqual(total);
         };
         survivors(logs?.logNames ?? [], "log", logSizes.length);

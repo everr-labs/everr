@@ -19,7 +19,7 @@
 // user would once they are published.
 
 import { execSync, spawn } from "node:child_process";
-import { mkdtempSync, cpSync, rmSync, writeFileSync } from "node:fs";
+import { mkdtempSync, cpSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -97,8 +97,8 @@ async function registryUp() {
   }
 }
 
-// Idempotent and safe under parallel runs: reuses a live registry, treats
-// version-conflict publishes as success.
+// Idempotent: reuses a live registry and replaces each package's version so
+// the scaffold always installs the current build, never a stale artifact.
 async function ensureLocalRegistry() {
   if (!(await registryUp())) {
     const configDir = mkdtempSync(join(tmpdir(), "everr-eval-registry-"));
@@ -139,19 +139,24 @@ async function ensureLocalRegistry() {
   for (const pkg of LOCAL_PACKAGES) {
     const dir = join(REPO_ROOT, pkg);
     run("pnpm build", dir, { capture: true });
+    // The registry persists across runs, so the version can hold a stale
+    // artifact from an earlier build. Drop it first; the unpublish fails
+    // harmlessly when the version is not there yet.
+    const { name, version } = JSON.parse(
+      readFileSync(join(dir, "package.json"), "utf8"),
+    );
     try {
-      // pnpm, not npm: it rewrites workspace: dependency ranges to real
-      // versions at pack time.
-      run(`pnpm publish --registry ${REGISTRY} --no-git-checks`, dir, {
+      run(`npm unpublish ${name}@${version} --force --registry ${REGISTRY}`, dir, {
         capture: true,
         env,
       });
-    } catch (error) {
-      const message = [error.stdout, error.stderr, error.message].join("\n");
-      if (!/conflict|409|already present|previously published/i.test(message)) {
-        throw error;
-      }
-    }
+    } catch {}
+    // pnpm, not npm: it rewrites workspace: dependency ranges to real
+    // versions at pack time.
+    run(`pnpm publish --registry ${REGISTRY} --no-git-checks`, dir, {
+      capture: true,
+      env,
+    });
   }
 }
 

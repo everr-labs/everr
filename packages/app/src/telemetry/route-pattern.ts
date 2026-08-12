@@ -1,5 +1,5 @@
 import { setRouteResolver } from "@everr/otel-web";
-import { parameterizeTelemetryPath } from "@/telemetry/paths";
+import { type RouterLike, routeTemplate } from "@/telemetry/route-template";
 
 // The connection from the TanStack router to the setRouteResolver function of
 // the SDK. This app owns this module. The telemetry setup operates before the
@@ -12,20 +12,11 @@ import { parameterizeTelemetryPath } from "@/telemetry/paths";
 // route of that page. The types here give only the structure. Thus this module
 // imports nothing from the router.
 
-type RouterLike = {
-  matchRoutes(pathname: string): ReadonlyArray<{ routeId: string }>;
-};
-
 /** Call this from `getRouter()` immediately after you make the router. */
 export function registerRouter(router: RouterLike): void {
   setRouteResolver({
-    page: (url) => {
-      const matches = router.matchRoutes(new URL(url).pathname);
-      return matches[matches.length - 1]?.routeId;
-    },
-    // This gives the same parameters as the http.route attribute of the
-    // server. Thus the url.template value of a request is the same as the
-    // route of its server span. This is important for /_serverFn/:id.
-    request: (url) => parameterizeTelemetryPath(url.pathname),
+    page: (url) => routeTemplate(router, new URL(url).pathname),
+    // No request resolver: the client route tree has no server-only routes,
+    // so url.template comes from the x-everr-route header the server echoes.
   });
 }

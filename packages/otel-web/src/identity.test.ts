@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { getAttributes, setAttributes } from "./state/attributes.js";
 import {
+  clearIdentity,
   identify,
   persistSession,
   revoke,
@@ -173,6 +174,25 @@ describe("revoke", () => {
     // permanent store.
     expect(visitorId()).not.toBe(visitor);
     expect(sessionId()).not.toBe(session);
+    expect(localStorage.length).toBe(0);
+  });
+});
+
+describe("clearIdentity", () => {
+  it("with setPersistence('memory') goes ephemeral without a localStorage write", () => {
+    setPersistence("localStorage");
+    identify("u_123", { plan: "pro" });
+    const visitor = visitorId();
+    const session = sessionId();
+    expect(localStorage.length).toBe(2);
+
+    clearIdentity();
+    setPersistence("memory");
+    expect(localStorage.length).toBe(0);
+    expect(getAttributes()).not.toHaveProperty("user.id");
+    expect(visitorId()).not.toBe(visitor);
+    expect(sessionId()).not.toBe(session);
+    // The new ids live in the memory store only. The refused store stays empty.
     expect(localStorage.length).toBe(0);
   });
 });

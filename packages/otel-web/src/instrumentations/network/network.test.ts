@@ -37,9 +37,15 @@ function start(
   stop = startNetwork(createTracer(emitSpan), targets);
 }
 
-/** The headers that the changed fetch sent, in a regular form. */
+/**
+ * The headers that the changed fetch sent, in a regular form. The code writes
+ * its header on the Request object of the caller when that caller sends no
+ * headers in init. Thus this function reads the two places, the same as fetch.
+ */
 function sentHeaders(): Headers {
-  return new Headers(lastRequest?.init?.headers);
+  const { input, init } = lastRequest ?? {};
+  if (init?.headers) return new Headers(init.headers);
+  return new Headers(input instanceof Request ? input.headers : undefined);
 }
 
 beforeEach(() => {
@@ -131,6 +137,22 @@ describe("startNetwork", () => {
     expect(h.get("X-App")).toBe("a");
     expect(h.get("traceparent")).not.toBeNull();
     expect(spans[0].attrs["http.request.method"]).toBe("GET");
+  });
+
+  it("sends the Request of the caller without an init object", async () => {
+    // The header goes on the Request itself. Thus fetch does not build the
+    // request again, and a body that is a stream stays as it is. A rebuild
+    // needs the `duplex` option for such a body, and thus it can throw.
+    start();
+    const request = new Request(`${location.origin}/api`, {
+      method: "POST",
+      body: "payload",
+    });
+    await fetch(request);
+    expect(lastRequest?.input).toBe(request);
+    expect(lastRequest?.init).toBeUndefined();
+    expect(request.headers.get("traceparent")).not.toBeNull();
+    expect(request.bodyUsed).toBe(false);
   });
 
   it("marks 4xx and 5xx responses as error spans with error.type", async () => {
