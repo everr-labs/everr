@@ -23,6 +23,8 @@ import { env } from "@/env";
 new WebSDK({
   persistence: "memory",
   serviceName: "everr-docs",
+  // Without the commit, the SDK falls back to its own package version.
+  serviceVersion: env.VITE_COMMIT_SHA,
   deploymentEnvironment: import.meta.env.MODE,
   ingestKey: env.VITE_EVERR_PUBLIC_INGEST_KEY,
   endpoint: env.VITE_EVERR_INGEST_ENDPOINT,
