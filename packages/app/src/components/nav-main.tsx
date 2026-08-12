@@ -14,9 +14,6 @@ export function NavMain({ groups }: { groups: NavGroup[] }) {
       {groups.map((group) => (
         <SidebarGroup key={group.label ?? "pinned"}>
           {group.label && (
-            // When icon-collapsed the label stays in the DOM at opacity 0,
-            // pulled up over the previous group's last item; without
-            // pointer-events-none it swallows that item's clicks and hovers.
             <SidebarGroupLabel className="text-sidebar-foreground/50 text-[10px] font-medium uppercase tracking-[0.12em] group-data-[collapsible=icon]:pointer-events-none">
               {group.label}
             </SidebarGroupLabel>

@@ -202,9 +202,6 @@ function Sidebar({
 }) {
   const { isMobile, state, openMobile, setOpenMobile } = useSidebar();
 
-  // Chrome-vertical-tabs tooltip feel for the icon rail: a short delay for the
-  // first tooltip, then instant hand-off while moving between adjacent
-  // triggers, and immediate close on leave.
   children = (
     <TooltipProvider delay={300} closeDelay={0}>
       {children}

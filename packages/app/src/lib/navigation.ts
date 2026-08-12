@@ -19,7 +19,6 @@ export type NavItem = {
 };
 
 export type NavGroup = {
-  /** Omitted for the ungrouped items pinned above the labeled groups. */
   label?: string;
   items: NavItem[];
 };
