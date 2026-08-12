@@ -56,7 +56,8 @@ SELECT TraceId, groupUniqArray(ServiceName) AS services
 FROM traces
 WHERE Timestamp > now() - INTERVAL 5 MINUTE
 GROUP BY TraceId
-HAVING length(services) > 1
+HAVING has(services, '<browser-service-name>')
+  AND has(services, '<server-service-name>')
 LIMIT 5
 ```
 

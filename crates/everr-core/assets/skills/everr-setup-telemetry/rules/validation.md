@@ -35,7 +35,7 @@ LIMIT 20
 Recent exception logs:
 
 ```sql
-SELECT Timestamp, ServiceName, SeverityText, Body, LogAttributes, TraceId
+SELECT Timestamp, ServiceName, SeverityText, Body, LogAttributes, TraceId, SpanId
 FROM logs
 WHERE Timestamp > now() - INTERVAL 10 MINUTE
   AND ServiceName = '<service-name>'

@@ -21,6 +21,8 @@ export function bindEmit(next: Emit): () => void {
   started = true;
   emit = next;
   return () => {
-    emit = undefined;
+    // Only the current binding disconnects. A stale disposer, for example from
+    // a client that a new client replaced, must not silence the new one.
+    if (emit === next) emit = undefined;
   };
 }
