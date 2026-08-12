@@ -77,7 +77,7 @@ export function CommandBar() {
     <>
       <Button
         type="button"
-        variant="outline"
+        variant="ghost"
         onClick={() => toggleCommandBar(true)}
         className={cn(
           // Pointless without a keyboard and eats the narrow header on phones.

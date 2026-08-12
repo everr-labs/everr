@@ -25,6 +25,7 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useState,
 } from "react";
@@ -33,6 +34,29 @@ const SIDEBAR_WIDTH = "16rem";
 const SIDEBAR_WIDTH_MOBILE = "18rem";
 const SIDEBAR_WIDTH_ICON = "3rem";
 const SIDEBAR_KEYBOARD_SHORTCUT = "b";
+const SIDEBAR_STORAGE_KEY = "sidebar:state";
+
+const useIsomorphicLayoutEffect =
+  typeof window === "undefined" ? useEffect : useLayoutEffect;
+
+function readStoredOpen(): boolean | null {
+  try {
+    const stored = window.localStorage.getItem(SIDEBAR_STORAGE_KEY);
+    if (stored === "true") return true;
+    if (stored === "false") return false;
+  } catch {
+    // Private mode or a blocked storage partition: fall back to the default.
+  }
+  return null;
+}
+
+function writeStoredOpen(open: boolean) {
+  try {
+    window.localStorage.setItem(SIDEBAR_STORAGE_KEY, String(open));
+  } catch {
+    // Persistence is best effort.
+  }
+}
 
 type SidebarContextProps = {
   state: "expanded" | "collapsed";
@@ -81,11 +105,25 @@ function SidebarProvider({
       if (setOpenProp) {
         setOpenProp(openState);
       } else {
+        // Only uncontrolled providers read the stored value back.
+        writeStoredOpen(openState);
         _setOpen(openState);
       }
     },
     [setOpenProp, open],
   );
+
+  // Restore the last collapsed/expanded choice. This runs once, before paint,
+  // so there is no flash and the server markup still hydrates against
+  // `defaultOpen`.
+  const isControlled = openProp !== undefined;
+  useIsomorphicLayoutEffect(() => {
+    if (isControlled) return;
+    const stored = readStoredOpen();
+    if (stored !== null) {
+      _setOpen(stored);
+    }
+  }, [isControlled]);
 
   // Helper to toggle the sidebar.
   const toggleSidebar = useCallback(() => {
