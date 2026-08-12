@@ -2,7 +2,7 @@
   "name": "@everr/otel-errors",
   "version": "0.0.0",
   "description": "OpenTelemetry instrumentation for uncaught Node.js errors",
-  "license": "MIT",
+  "license": "Apache-2.0",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/everr-labs/everr.git",

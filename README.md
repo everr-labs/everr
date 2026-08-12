@@ -9,7 +9,7 @@
 </p>
 
 <p align="center">
-  <a href="LICENSE"><img src="https://img.shields.io/badge/license-FSL--1.1--ALv2-blue" alt="License" /></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-AGPL--3.0-blue" alt="License" /></a>
 </p>
 
 ---
@@ -52,7 +52,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup instructions.
 
 ## License
 
-This project is licensed under the [Functional Source License, Version 1.1, ALv2 Future License](LICENSE). Some components are subject to different license terms, see [NOTICE](NOTICE) for details.
+This project is licensed under the [GNU Affero General Public License, Version 3](LICENSE). Some components are subject to different license terms, see [NOTICE](NOTICE) for details.
 
 ## TODO
 
