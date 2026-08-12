@@ -7,7 +7,12 @@ import {
 } from "@/data/run-query-helpers";
 import { calculateCost } from "@/lib/runner-pricing";
 import { createAuthenticatedServerFn } from "@/lib/serverFn";
-import { type BucketGranularity, getBucketGranularity } from "@/lib/time-range";
+import {
+  type BucketGranularity,
+  bucketGrid,
+  getBucketGranularity,
+  bucketExpr as sharedBucketExpr,
+} from "@/lib/time-range";
 import {
   BREAKDOWN_OTHER_KEY,
   type CostByWorkflow,
@@ -16,28 +21,7 @@ import {
 } from "./schemas";
 
 function bucketExpr(granularity: BucketGranularity): string {
-  return granularity === "hour"
-    ? "formatDateTime(toStartOfHour(Timestamp), '%Y-%m-%dT%H:00:00Z')"
-    : "formatDateTime(toStartOfDay(Timestamp), '%Y-%m-%dT00:00:00Z')";
-}
-
-function floorToBucket(date: Date, granularity: BucketGranularity): Date {
-  const d = new Date(date);
-  d.setUTCMinutes(0, 0, 0);
-  if (granularity === "day") d.setUTCHours(0);
-  return d;
-}
-
-function advanceBucket(date: Date, granularity: BucketGranularity): void {
-  if (granularity === "hour") {
-    date.setUTCHours(date.getUTCHours() + 1);
-  } else {
-    date.setUTCDate(date.getUTCDate() + 1);
-  }
-}
-
-function bucketIso(date: Date): string {
-  return `${date.toISOString().slice(0, 13)}:00:00Z`;
+  return sharedBucketExpr("Timestamp", granularity);
 }
 
 const RESOURCE_ATTRIBUTE_KEYS = {
@@ -289,12 +273,8 @@ export const getCostOverTimeBreakdown = createAuthenticatedServerFn({
       const otherKeys = new Set(sortedKeys.slice(BREAKDOWN_TOP_N));
 
       const buckets = new Set(byDateKey.keys());
-      for (
-        const d = floorToBucket(fromDate, granularity);
-        d <= toDate;
-        advanceBucket(d, granularity)
-      ) {
-        buckets.add(bucketIso(d));
+      for (const bucket of bucketGrid(fromDate, toDate, granularity)) {
+        buckets.add(bucket);
       }
 
       const points: CostOverTimeBreakdown["points"] = Array.from(buckets)

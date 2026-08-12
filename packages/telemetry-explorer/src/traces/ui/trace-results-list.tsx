@@ -194,7 +194,7 @@ function TraceRow({
         <span
           className="size-2 shrink-0 rounded-full"
           style={{
-            backgroundColor: serviceColor(row.rootNamespace, row.rootService),
+            backgroundColor: serviceColor(row.rootService),
           }}
         />
         <span className="min-w-0 truncate" title={row.rootService}>

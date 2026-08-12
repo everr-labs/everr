@@ -62,3 +62,40 @@ export function getBucketGranularity(
   const hours = (toDate.getTime() - fromDate.getTime()) / 3_600_000;
   return hours <= 36 ? "hour" : "day";
 }
+
+/**
+ * ClickHouse expression bucketing a timestamp column to the granularity,
+ * formatted to match `bucketGrid` keys.
+ */
+export function bucketExpr(
+  column: string,
+  granularity: BucketGranularity,
+): string {
+  return granularity === "hour"
+    ? `formatDateTime(toStartOfHour(${column}), '%Y-%m-%dT%H:00:00Z')`
+    : `formatDateTime(toStartOfDay(${column}), '%Y-%m-%dT00:00:00Z')`;
+}
+
+/**
+ * All bucket keys covering [fromDate, toDate], for zero-filling sparse
+ * per-bucket query results. Keys match `bucketExpr` output.
+ */
+export function bucketGrid(
+  fromDate: Date,
+  toDate: Date,
+  granularity: BucketGranularity,
+): string[] {
+  const cursor = new Date(fromDate);
+  cursor.setUTCMinutes(0, 0, 0);
+  if (granularity === "day") cursor.setUTCHours(0);
+  const buckets: string[] = [];
+  while (cursor.getTime() <= toDate.getTime()) {
+    buckets.push(`${cursor.toISOString().slice(0, 13)}:00:00Z`);
+    if (granularity === "hour") {
+      cursor.setUTCHours(cursor.getUTCHours() + 1);
+    } else {
+      cursor.setUTCDate(cursor.getUTCDate() + 1);
+    }
+  }
+  return buckets;
+}
