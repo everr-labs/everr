@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -7,15 +7,25 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 // use-dashboard-panel-data.test.ts.
 vi.mock("@/db/client", () => ({ db: {} }));
 
+const mocks = vi.hoisted(() => ({
+  useSearch: vi.fn(),
+  navigate: vi.fn(),
+}));
+
+vi.mock("@tanstack/react-router", () => ({
+  useSearch: mocks.useSearch,
+  useNavigate: () => mocks.navigate,
+}));
+
 import { TelemetrySourceProvider, useTelemetrySource } from "./context";
-import { TELEMETRY_SOURCE_STORAGE_KEY } from "./storage";
 
 const fetchMock = vi.fn();
 
 beforeEach(() => {
+  vi.clearAllMocks();
   fetchMock.mockReset();
   vi.stubGlobal("fetch", fetchMock);
-  window.localStorage.clear();
+  mocks.useSearch.mockReturnValue({ source: undefined });
 });
 
 afterEach(() => {
@@ -58,8 +68,15 @@ function renderProvider() {
   );
 }
 
+/** The search updater the toggle handed to navigate, applied to a given URL. */
+function navigatedSearch(prev: Record<string, unknown>) {
+  const [call] = mocks.navigate.mock.calls;
+  const updater = (call?.[0] as { search: (p: unknown) => unknown }).search;
+  return updater(prev) as Record<string, unknown>;
+}
+
 describe("TelemetrySourceProvider", () => {
-  it("defaults to cloud when nothing is stored", async () => {
+  it("defaults to cloud when the URL carries no source", async () => {
     collectorReachable();
     renderProvider();
 
@@ -84,8 +101,8 @@ describe("TelemetrySourceProvider", () => {
     );
   });
 
-  it("restores a stored local choice", async () => {
-    window.localStorage.setItem(TELEMETRY_SOURCE_STORAGE_KEY, "local");
+  it("reads local from the source param", async () => {
+    mocks.useSearch.mockReturnValue({ source: "local" });
     collectorReachable();
     renderProvider();
 
@@ -94,33 +111,47 @@ describe("TelemetrySourceProvider", () => {
     );
   });
 
-  it("switches source and persists the choice", async () => {
+  it("writes the source param when switching to local", async () => {
     collectorReachable();
     renderProvider();
     await waitFor(() =>
       expect(screen.getByTestId("available")).toHaveTextContent("true"),
     );
 
-    await act(async () => {
-      await userEvent.click(screen.getByRole("button", { name: "use local" }));
-    });
+    await userEvent.click(screen.getByRole("button", { name: "use local" }));
 
-    expect(screen.getByTestId("kind")).toHaveTextContent("local");
-    expect(window.localStorage.getItem(TELEMETRY_SOURCE_STORAGE_KEY)).toBe(
-      "local",
-    );
+    expect(mocks.navigate).toHaveBeenCalledTimes(1);
+    expect(navigatedSearch({ from: "now-1h" })).toEqual({
+      from: "now-1h",
+      source: "local",
+    });
   });
 
-  it("falls back to cloud, and reports it, when a stored local source is unreachable", async () => {
-    window.localStorage.setItem(TELEMETRY_SOURCE_STORAGE_KEY, "local");
+  it("clears the source param when switching back to cloud, keeping the URL clean", async () => {
+    mocks.useSearch.mockReturnValue({ source: "local" });
+    collectorReachable();
+    renderProvider();
+
+    await userEvent.click(screen.getByRole("button", { name: "use cloud" }));
+
+    expect(navigatedSearch({ from: "now-1h", source: "local" })).toEqual({
+      from: "now-1h",
+      source: undefined,
+    });
+  });
+
+  it("falls back to cloud, and reports it, when the source param is unreachable", async () => {
+    mocks.useSearch.mockReturnValue({ source: "local" });
     collectorUnreachable();
     renderProvider();
 
     await waitFor(() =>
       expect(screen.getByTestId("unreachable")).toHaveTextContent("true"),
     );
-    // Panels keep rendering cloud data rather than failing one by one.
+    // Panels keep rendering cloud data rather than failing one by one, and the
+    // param is left alone so the selection returns once the collector is back.
     expect(screen.getByTestId("kind")).toHaveTextContent("cloud");
+    expect(mocks.navigate).not.toHaveBeenCalled();
   });
 
   it("does not report unreachable while cloud is selected", async () => {

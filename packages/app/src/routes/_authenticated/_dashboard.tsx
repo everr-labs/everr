@@ -45,6 +45,11 @@ const DashboardSearchSchema = TimeRangeSearchSchema.extend({
   // so retainSearchParams can't carry a junk value around; control-character
   // rejection stays authoritative on the server at apply time.
   preview: z.string().max(200).optional().catch(undefined),
+  // Which backend dashboard and runbook panels read from. App-wide context like
+  // `preview`: retained across navigation below, absent means cloud. In the URL
+  // rather than storage so it survives a reload, stays shareable, and lets two
+  // tabs sit on different sources.
+  source: z.enum(["cloud", "local"]).optional().catch(undefined),
   // Dashboard variable values, e.g. ?vars={"env":"prod","svc":["a","b"]}.
   // Deliberately NOT retained across navigation — different dashboards have
   // different variables. Malformed values fall back to spec defaults.
@@ -81,6 +86,7 @@ export const Route = createFileRoute("/_authenticated/_dashboard")({
         "service",
         "environment",
         "preview",
+        "source",
       ]),
     ],
   },

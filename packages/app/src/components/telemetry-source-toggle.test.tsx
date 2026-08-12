@@ -4,17 +4,27 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("@/db/client", () => ({ db: {} }));
 
+const mocks = vi.hoisted(() => ({
+  useSearch: vi.fn(),
+  navigate: vi.fn(),
+}));
+
+vi.mock("@tanstack/react-router", () => ({
+  useSearch: mocks.useSearch,
+  useNavigate: () => mocks.navigate,
+}));
+
 import { TelemetrySourceProvider } from "@/lib/telemetry-source/context";
-import { TELEMETRY_SOURCE_STORAGE_KEY } from "@/lib/telemetry-source/storage";
 import { TelemetrySourceBanner } from "./telemetry-source-banner";
 import { TelemetrySourceToggle } from "./telemetry-source-toggle";
 
 const fetchMock = vi.fn();
 
 beforeEach(() => {
+  vi.clearAllMocks();
   fetchMock.mockReset();
   vi.stubGlobal("fetch", fetchMock);
-  window.localStorage.clear();
+  mocks.useSearch.mockReturnValue({ source: undefined });
 });
 
 afterEach(() => {
@@ -66,7 +76,7 @@ describe("TelemetrySourceToggle", () => {
     ).toBeInTheDocument();
   });
 
-  it("switches to local and reflects it in the trigger", async () => {
+  it("puts the selection in the URL when switching to local", async () => {
     collectorReachable();
     renderShell();
 
@@ -74,6 +84,19 @@ describe("TelemetrySourceToggle", () => {
     await userEvent.click(
       await screen.findByRole("button", { name: /The collector running/i }),
     );
+
+    await waitFor(() => expect(mocks.navigate).toHaveBeenCalled());
+    const [call] = mocks.navigate.mock.calls;
+    const updater = (call?.[0] as { search: (p: unknown) => unknown }).search;
+    expect(updater({})).toEqual({ source: "local" });
+  });
+
+  it("marks the active source as pressed", async () => {
+    mocks.useSearch.mockReturnValue({ source: "local" });
+    collectorReachable();
+    renderShell();
+
+    await userEvent.click(await screen.findByText("Local"));
 
     await waitFor(() =>
       expect(
@@ -95,8 +118,8 @@ describe("TelemetrySourceBanner", () => {
     expect(screen.queryByRole("status")).not.toBeInTheDocument();
   });
 
-  it("explains the fallback when a stored local source is unreachable", async () => {
-    window.localStorage.setItem(TELEMETRY_SOURCE_STORAGE_KEY, "local");
+  it("explains the fallback when the source param is unreachable", async () => {
+    mocks.useSearch.mockReturnValue({ source: "local" });
     collectorUnreachable();
     renderShell();
 

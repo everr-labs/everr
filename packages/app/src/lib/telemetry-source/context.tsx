@@ -3,18 +3,14 @@ import {
   type ReactNode,
   useContext,
   useEffect,
-  useLayoutEffect,
   useMemo,
   useState,
 } from "react";
+import { useTelemetrySourceParam } from "@/hooks/use-telemetry-source-param";
 import { createCloudSqlClient } from "./cloud";
 import { createLocalSqlClient } from "./local";
 import { probeLocalCollector } from "./probe";
-import { readStoredSource, writeStoredSource } from "./storage";
 import type { SqlClient, TelemetrySourceKind } from "./types";
-
-const useIsomorphicLayoutEffect =
-  typeof window === "undefined" ? useEffect : useLayoutEffect;
 
 /**
  * How often the collector is re-probed. Loopback with a short timeout, so this
@@ -42,16 +38,11 @@ const TelemetrySourceContext =
   createContext<TelemetrySourceContextValue | null>(null);
 
 export function TelemetrySourceProvider({ children }: { children: ReactNode }) {
-  // Cloud on the server and on first paint, so server-rendered markup always
-  // hydrates against the same value.
-  const [kind, setKindState] = useState<TelemetrySourceKind>("cloud");
+  // The URL is the store, so the selection is already correct during SSR and
+  // there is no first-paint default to hydrate against.
+  const { kind, setKind } = useTelemetrySourceParam();
   const [localOrigin, setLocalOrigin] = useState<string | null>(null);
   const [probed, setProbed] = useState(false);
-
-  useIsomorphicLayoutEffect(() => {
-    const stored = readStoredSource();
-    if (stored) setKindState(stored);
-  }, []);
 
   // Re-probed on an interval, not just at mount: a collector can be started
   // after the page loads, or stopped while it is open, and both directions have
@@ -81,21 +72,19 @@ export function TelemetrySourceProvider({ children }: { children: ReactNode }) {
   );
 
   const value = useMemo<TelemetrySourceContextValue>(() => {
-    // A stored preference for Local must not strand the app on a backend that
-    // is not answering: fall back to cloud and let the banner explain.
+    // A `?source=local` URL must not strand the app on a backend that is not
+    // answering: fall back to cloud and let the banner explain. The param is
+    // left alone, so the selection returns by itself once the collector is back.
     const effective = kind === "local" && localClient ? "local" : "cloud";
     return {
       kind: effective,
       sqlClient:
         effective === "local" && localClient ? localClient : cloudClient,
-      setKind: (next) => {
-        setKindState(next);
-        writeStoredSource(next);
-      },
+      setKind,
       localAvailable: localClient !== null,
       localUnreachable: kind === "local" && probed && localClient === null,
     };
-  }, [kind, localClient, cloudClient, probed]);
+  }, [kind, setKind, localClient, cloudClient, probed]);
 
   return (
     <TelemetrySourceContext.Provider value={value}>
