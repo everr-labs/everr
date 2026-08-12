@@ -35,12 +35,15 @@ export interface PanelQueryInput {
   to?: string;
   variables?: VariableValues;
   variableMeta?: VariableMeta;
+  /** Cancels the in-flight read when the panel's query is superseded. */
+  signal?: AbortSignal;
 }
 
 export interface VariableOptionsInput {
   query: string;
   from?: string;
   to?: string;
+  signal?: AbortSignal;
 }
 
 /**
@@ -88,7 +91,7 @@ export class PanelRepository {
   constructor(private readonly client: SqlClient) {}
 
   async runPanel(input: PanelQueryInput): Promise<{ rows: QueryRow[] }> {
-    const { source, from, to, variables, variableMeta } = input;
+    const { source, from, to, variables, variableMeta, signal } = input;
     const params = dashboardQueryParams({ from, to });
 
     // Synthetic data for the gallery / dev dashboards: deterministic, no
@@ -105,20 +108,21 @@ export class PanelRepository {
       ? interpolateVariables(source.sql, variables, variableMeta ?? {})
       : source.sql;
 
-    const rows = await this.client.execute<QueryRow>(sql, params);
+    const rows = await this.client.execute<QueryRow>(sql, params, signal);
     return { rows };
   }
 
   async runVariableOptions(
     input: VariableOptionsInput,
   ): Promise<{ options: string[]; truncated: boolean }> {
-    const { query, from, to } = input;
+    const { query, from, to, signal } = input;
 
     // Bind the same parameters as a panel query (including `{step}`) so an
     // options query can reference any of them without erroring.
     const rows = await this.client.execute<Record<string, unknown>>(
       withRowLimit(query, VARIABLE_OPTIONS_LIMIT),
       dashboardQueryParams({ from, to }),
+      signal,
     );
 
     // A full result set means the backend cut rows off at the limit, so there

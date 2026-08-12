@@ -42,19 +42,20 @@ func isAllowedOrigin(origin string) bool {
 // Access-Control-Allow-Credentials is deliberately never set: the endpoint has
 // no notion of a credential, and enabling it would widen what a matched origin
 // can do.
-func writeCORSHeaders(w http.ResponseWriter, r *http.Request) (origin string, allowed bool) {
-	origin = r.Header.Get("Origin")
-	if origin == "" {
-		return "", false
-	}
-
+func writeCORSHeaders(w http.ResponseWriter, r *http.Request) (allowed bool) {
+	// Unconditional, including when no Origin was sent: the response still
+	// varies by Origin, and a shared cache that stored an originless response
+	// without this would replay it to an allowed origin, which would then be
+	// missing its Access-Control-Allow-Origin.
 	w.Header().Add("Vary", "Origin")
-	if !isAllowedOrigin(origin) {
-		return origin, false
+
+	origin := r.Header.Get("Origin")
+	if origin == "" || !isAllowedOrigin(origin) {
+		return false
 	}
 
 	w.Header().Set("Access-Control-Allow-Origin", origin)
-	return origin, true
+	return true
 }
 
 // handlePreflight answers the CORS preflight. It returns true when the request
@@ -64,8 +65,7 @@ func handlePreflight(w http.ResponseWriter, r *http.Request) bool {
 		return false
 	}
 
-	_, allowed := writeCORSHeaders(w, r)
-	if allowed {
+	if writeCORSHeaders(w, r) {
 		w.Header().Set("Access-Control-Allow-Methods", "POST, OPTIONS")
 		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
 		w.Header().Add("Vary", "Access-Control-Request-Headers")

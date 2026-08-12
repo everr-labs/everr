@@ -58,7 +58,11 @@ function parseNdjson<Row>(text: string): Row[] {
  */
 export function createLocalSqlClient(origin: string): SqlClient {
   return {
-    async execute<Row>(sql: string, params: Record<string, unknown>) {
+    async execute<Row>(
+      sql: string,
+      params: Record<string, unknown>,
+      signal?: AbortSignal,
+    ) {
       const url = `${origin}/sql${paramsToQueryString(params)}`;
 
       let response: Response;
@@ -70,8 +74,12 @@ export function createLocalSqlClient(origin: string): SqlClient {
           // page reaching a private address always does.
           headers: { "Content-Type": "text/plain;charset=UTF-8" },
           body: sql,
+          signal,
         });
       } catch (cause) {
+        // A panel scrolled out of view or a range change superseded this query:
+        // react-query aborts, and that is not a collector failure.
+        if (signal?.aborted) throw cause;
         throw new Error(
           `Could not reach the local collector at ${origin}. Is it running?`,
           { cause },

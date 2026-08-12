@@ -16,6 +16,13 @@ import type { SqlClient, TelemetrySourceKind } from "./types";
 const useIsomorphicLayoutEffect =
   typeof window === "undefined" ? useEffect : useLayoutEffect;
 
+/**
+ * How often the collector is re-probed. Loopback with a short timeout, so this
+ * is cheap; the interval only has to be quick enough that starting or stopping
+ * the collector is noticed without the user reloading.
+ */
+const PROBE_INTERVAL_MS = 15_000;
+
 interface TelemetrySourceContextValue {
   /** Which backend panels currently read from. */
   kind: TelemetrySourceKind;
@@ -46,14 +53,25 @@ export function TelemetrySourceProvider({ children }: { children: ReactNode }) {
     if (stored) setKindState(stored);
   }, []);
 
+  // Re-probed on an interval, not just at mount: a collector can be started
+  // after the page loads, or stopped while it is open, and both directions have
+  // to be noticed without a reload.
   useEffect(() => {
     const controller = new AbortController();
-    probeLocalCollector(controller.signal).then((origin) => {
+
+    async function check() {
+      const origin = await probeLocalCollector(controller.signal);
       if (controller.signal.aborted) return;
       setLocalOrigin(origin);
       setProbed(true);
-    });
-    return () => controller.abort();
+    }
+
+    void check();
+    const timer = setInterval(() => void check(), PROBE_INTERVAL_MS);
+    return () => {
+      controller.abort();
+      clearInterval(timer);
+    };
   }, []);
 
   const cloudClient = useMemo(() => createCloudSqlClient(), []);
