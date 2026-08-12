@@ -195,54 +195,60 @@ type RailTooltipContextValue = {
 
 const RailTooltipContext = createContext<RailTooltipContextValue | null>(null);
 
-/**
- * One shared tooltip for the collapsed icon rail, Chrome-vertical-tabs style:
- * the first hover opens it after a short delay, moving between items slides
- * the same bubble to the new anchor, and leaving the rail closes it.
- */
+type RailTooltipState = {
+  label: string;
+  top: number;
+  left: number;
+  visible: boolean;
+  slide: boolean;
+};
+
 function RailTooltipProvider({ children }: { children: React.ReactNode }) {
-  const [tip, setTip] = useState<{
-    label: string;
-    top: number;
-    left: number;
-  } | null>(null);
-  const [visible, setVisible] = useState(false);
-  const [slide, setSlide] = useState(false);
+  const [tip, setTip] = useState<RailTooltipState | null>(null);
+  const tipRef = useRef<RailTooltipState | null>(null);
   const openTimer = useRef<number>(undefined);
   const closeTimer = useRef<number>(undefined);
   const warmUntil = useRef(0);
-  const visibleRef = useRef(false);
-  visibleRef.current = visible;
 
-  const show = useCallback((anchor: HTMLElement, label: string) => {
-    window.clearTimeout(openTimer.current);
-    window.clearTimeout(closeTimer.current);
-    const rect = anchor.getBoundingClientRect();
-    const next = {
-      label,
-      top: rect.top + rect.height / 2,
-      left: rect.right + RAIL_TOOLTIP_OFFSET_PX,
-    };
-    if (visibleRef.current || Date.now() < warmUntil.current) {
-      setSlide(visibleRef.current);
-      setTip(next);
-      setVisible(true);
-      return;
-    }
-    openTimer.current = window.setTimeout(() => {
-      setSlide(false);
-      setTip(next);
-      setVisible(true);
-    }, RAIL_TOOLTIP_OPEN_DELAY_MS);
+  const apply = useCallback((next: RailTooltipState | null) => {
+    tipRef.current = next;
+    setTip(next);
   }, []);
+
+  const show = useCallback(
+    (anchor: HTMLElement, label: string) => {
+      window.clearTimeout(openTimer.current);
+      window.clearTimeout(closeTimer.current);
+      const rect = anchor.getBoundingClientRect();
+      const wasVisible = tipRef.current?.visible ?? false;
+      const next = {
+        label,
+        top: rect.top + rect.height / 2,
+        left: rect.right + RAIL_TOOLTIP_OFFSET_PX,
+        visible: true,
+        slide: wasVisible,
+      };
+      if (wasVisible || Date.now() < warmUntil.current) {
+        apply(next);
+        return;
+      }
+      openTimer.current = window.setTimeout(() => {
+        apply(next);
+      }, RAIL_TOOLTIP_OPEN_DELAY_MS);
+    },
+    [apply],
+  );
 
   const hide = useCallback(() => {
     window.clearTimeout(openTimer.current);
     closeTimer.current = window.setTimeout(() => {
       warmUntil.current = Date.now() + RAIL_TOOLTIP_WARM_MS;
-      setVisible(false);
+      const current = tipRef.current;
+      if (current?.visible) {
+        apply({ ...current, visible: false });
+      }
     }, RAIL_TOOLTIP_CLOSE_GRACE_MS);
-  }, []);
+  }, [apply]);
 
   useEffect(() => {
     return () => {
@@ -263,8 +269,8 @@ function RailTooltipProvider({ children }: { children: React.ReactNode }) {
             data-slot="sidebar-rail-tooltip"
             className={cn(
               "bg-sidebar text-sidebar-foreground border-sidebar-border pointer-events-none fixed z-50 -translate-y-1/2 rounded-md border px-3 py-1.5 text-xs whitespace-nowrap shadow-md duration-150 ease-out",
-              slide ? "transition-[top,opacity]" : "transition-opacity",
-              visible ? "opacity-100" : "opacity-0",
+              tip.slide ? "transition-[top,opacity]" : "transition-opacity",
+              tip.visible ? "opacity-100" : "opacity-0",
             )}
             style={{ top: tip.top, left: tip.left }}
           >
@@ -291,7 +297,7 @@ function Sidebar({
 }) {
   const { isMobile, state, openMobile, setOpenMobile } = useSidebar();
 
-  children = <RailTooltipProvider>{children}</RailTooltipProvider>;
+  const content = <RailTooltipProvider>{children}</RailTooltipProvider>;
 
   if (collapsible === "none") {
     return (
@@ -303,7 +309,7 @@ function Sidebar({
         )}
         {...props}
       >
-        {children}
+        {content}
       </div>
     );
   }
@@ -329,7 +335,7 @@ function Sidebar({
             <SheetTitle>Sidebar</SheetTitle>
             <SheetDescription>Displays the mobile sidebar.</SheetDescription>
           </SheetHeader>
-          <div className="flex h-full w-full flex-col">{children}</div>
+          <div className="flex h-full w-full flex-col">{content}</div>
         </SheetContent>
       </Sheet>
     );
@@ -374,7 +380,7 @@ function Sidebar({
           data-slot="sidebar-inner"
           className="bg-sidebar group-data-[variant=floating]:ring-sidebar-border group-data-[variant=floating]:rounded-lg group-data-[variant=floating]:shadow-sm group-data-[variant=floating]:ring-1 flex size-full flex-col"
         >
-          {children}
+          {content}
         </div>
       </div>
     </div>
