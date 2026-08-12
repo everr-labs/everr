@@ -114,10 +114,11 @@
       "exports": ["*"]
     },
     {
-      // Test double for @/lib/clickhouse: vi.mock swaps the whole module in,
-      // so its exports are consumed by name-matching module substitution, not
-      // by any import fallow can see. Same export names on purpose.
-      "file": "packages/app/src/server/alerting/testing/clickhouse-double.ts",
+      // Test stand-in for @/lib/clickhouse (an embedded ClickHouse, not a
+      // double): vi.mock swaps the whole module in, so its exports are
+      // consumed by name-matching module substitution, not by any import
+      // fallow can see. Same export names on purpose.
+      "file": "packages/app/src/server/alerting/testing/test-clickhouse.ts",
       "exports": [
         "querySqlApiWithMeta",
         "querySqlApi",

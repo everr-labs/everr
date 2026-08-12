@@ -18,7 +18,7 @@ vi.mock("@/db/client", async () => {
   return { db: testDb, runInTransaction };
 });
 
-vi.mock("@/lib/clickhouse", async () => import("./testing/clickhouse-double"));
+vi.mock("@/lib/clickhouse", async () => import("./testing/test-clickhouse"));
 
 let harness: AlertingHarness;
 
@@ -42,7 +42,7 @@ describe("the alerting pipeline", () => {
       forSecs: 0,
       channelType: "slack",
     });
-    harness.clickhouse.setRows([{ service: "checkout", value: 42 }]);
+    harness.clickhouse.setSignal([{ service: "checkout", value: 42 }]);
 
     await harness.runDueJobs();
 

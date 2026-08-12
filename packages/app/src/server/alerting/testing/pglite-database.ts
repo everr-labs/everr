@@ -61,8 +61,51 @@ async function applyAppSchema(client: PGlite): Promise<void> {
   }
 }
 
+/**
+ * Report a write's row count the way node-postgres does.
+ *
+ * PGlite answers a DELETE or UPDATE with `affectedRows`; node-postgres, which
+ * production runs on, answers with `rowCount`. Code that counts what it
+ * deleted reads `rowCount` (maintenance/cleanup.ts), and against the raw
+ * PGlite result that is `undefined`, so every batch would report zero rows and
+ * a loop that repeats while a batch was full would stop after one pass. The
+ * count is the same number under both names: this fills in the name the
+ * production driver uses rather than changing what the database did.
+ */
+type Counted = { affectedRows?: number; rowCount?: number };
+
+function countRows<T>(result: T): T {
+  const counted = result as Counted;
+  if (counted.rowCount === undefined && counted.affectedRows !== undefined) {
+    counted.rowCount = counted.affectedRows;
+  }
+  return result;
+}
+
+function withRowCount(client: PGlite): PGlite {
+  // Wrapped on the client rather than on the drizzle instance, and on the
+  // transaction handle as well as the connection: a transaction gets its own
+  // executor, and the deletes that read the count all run inside one, so
+  // patching `db.execute` alone would never reach them.
+  const query = client.query.bind(client);
+  client.query = (async (...args: Parameters<typeof query>) =>
+    countRows(await query(...args))) as typeof client.query;
+
+  const transaction = client.transaction.bind(client);
+  client.transaction = (async (
+    callback: (tx: { query: PGlite["query"] }) => Promise<unknown>,
+  ) =>
+    transaction(async (tx) => {
+      const txQuery = tx.query.bind(tx);
+      tx.query = (async (...args: Parameters<typeof txQuery>) =>
+        countRows(await txQuery(...args))) as typeof tx.query;
+      return callback(tx);
+    })) as typeof client.transaction;
+  return client;
+}
+
 export async function createTestDatabase(): Promise<TestDatabase> {
-  const client = await PGlite.create();
+  const client = withRowCount(await PGlite.create());
   await applyGraphileWorkerSchema(client);
   await applyAppSchema(client);
   const db = drizzle(client, { schema });

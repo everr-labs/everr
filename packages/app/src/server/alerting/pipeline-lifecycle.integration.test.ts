@@ -59,7 +59,7 @@ vi.mock("@/db/client", async () => {
   return { db: testDb, runInTransaction };
 });
 
-vi.mock("@/lib/clickhouse", async () => import("./testing/clickhouse-double"));
+vi.mock("@/lib/clickhouse", async () => import("./testing/test-clickhouse"));
 
 let harness: AlertingHarness;
 
@@ -89,7 +89,7 @@ describe("the alerting pipeline's instance lifecycle", () => {
       forSecs: 0,
       channelType: "slack",
     });
-    harness.clickhouse.setRows([{ service: "checkout", value: 42 }]);
+    harness.clickhouse.setSignal([{ service: "checkout", value: 42 }]);
 
     await harness.runDueJobs();
 
@@ -118,7 +118,7 @@ describe("the alerting pipeline's instance lifecycle", () => {
 
   it("holds a breach in pending until `for` elapses, and never notifies while pending", async () => {
     await insertDirectRule(harness.db, { forSecs: 300, intervalSecs: 60 });
-    harness.clickhouse.setRows([{ service: "checkout", value: 42 }]);
+    harness.clickhouse.setSignal([{ service: "checkout", value: 42 }]);
 
     await harness.runDueJobs();
     const [pending] = await harness.db.select().from(alertInstances);
@@ -148,11 +148,11 @@ describe("the alerting pipeline's instance lifecycle", () => {
       intervalSecs: 60,
       channelType: "slack",
     });
-    harness.clickhouse.setRows([{ service: "checkout", value: 42 }]);
+    harness.clickhouse.setSignal([{ service: "checkout", value: 42 }]);
     await harness.fireAndFlush();
     expect(harness.fetchCalls()).toHaveLength(1);
 
-    harness.clickhouse.setRows([]);
+    harness.clickhouse.setSignal([]);
     harness.advance(60_000);
     await harness.runDueJobs();
 
@@ -186,14 +186,14 @@ describe("the alerting pipeline's instance lifecycle", () => {
       resolveAfter: 1,
       intervalSecs: 60,
     });
-    harness.clickhouse.setRows([{ service: "checkout", value: 42 }]);
+    harness.clickhouse.setSignal([{ service: "checkout", value: 42 }]);
     await harness.runDueJobs();
 
-    harness.clickhouse.setRows([]);
+    harness.clickhouse.setSignal([]);
     harness.advance(60_000);
     await harness.runDueJobs();
 
-    harness.clickhouse.setRows([{ service: "checkout", value: 42 }]);
+    harness.clickhouse.setSignal([{ service: "checkout", value: 42 }]);
     harness.advance(60_000);
     await harness.runDueJobs();
 
@@ -224,7 +224,7 @@ describe("the alerting pipeline's instance lifecycle", () => {
 
   it("an evaluation gap longer than the missed-evaluation tolerance restarts the for clock", async () => {
     await insertRule(harness.db, { forSecs: 300, intervalSecs: 60 });
-    harness.clickhouse.setRows([{ service: "checkout", value: 42 }]);
+    harness.clickhouse.setSignal([{ service: "checkout", value: 42 }]);
 
     await harness.runDueJobs();
     const [firstTick] = await harness.db.select().from(alertInstances);
@@ -245,7 +245,7 @@ describe("the alerting pipeline's instance lifecycle", () => {
 
   it("pausing the rule closes the open instance and the next evaluation job is a no-op", async () => {
     const rule = await insertRule(harness.db, { forSecs: 0, intervalSecs: 60 });
-    harness.clickhouse.setRows([{ service: "checkout", value: 42 }]);
+    harness.clickhouse.setSignal([{ service: "checkout", value: 42 }]);
     await harness.runDueJobs();
 
     const [firing] = await harness.db.select().from(alertInstances);
@@ -285,7 +285,7 @@ describe("the alerting pipeline's instance lifecycle", () => {
 
   it("deleting the rule closes the open instance and leaves no orphaned instance rows", async () => {
     const rule = await insertRule(harness.db, { forSecs: 0, intervalSecs: 60 });
-    harness.clickhouse.setRows([{ service: "checkout", value: 42 }]);
+    harness.clickhouse.setSignal([{ service: "checkout", value: 42 }]);
     await harness.runDueJobs();
 
     const [firing] = await harness.db.select().from(alertInstances);
@@ -321,10 +321,13 @@ describe("the alerting pipeline's instance lifecycle", () => {
   });
 
   it("a query failure degrades the rule's health once and pushes the retry further out each time", async () => {
-    const rule = await insertRule(harness.db, { intervalSecs: 60 });
-    harness.clickhouse.setFailure(
-      new Error("Limit for result exceeded, max rows: 1000"),
-    );
+    // A rule whose SQL the engine itself refuses, rather than an error handed
+    // to a stub: ClickHouse raises this, with its own code and message, on
+    // the same path a real bad rule would take.
+    const rule = await insertRule(harness.db, {
+      intervalSecs: 60,
+      sql: "SELECT throwIf(1, 'Limit for result exceeded, max rows: 1000')",
+    });
 
     await harness.runDueJobs();
     const [afterFirstFailure] = await harness.db
@@ -379,7 +382,7 @@ describe("the alerting pipeline's instance lifecycle", () => {
 
   it("the scanner replaces rather than duplicates a due evaluation, and evaluating advances the schedule one interval", async () => {
     const rule = await insertRule(harness.db, { intervalSecs: 60, forSecs: 0 });
-    harness.clickhouse.setRows([{ service: "checkout", value: 42 }]);
+    harness.clickhouse.setSignal([{ service: "checkout", value: 42 }]);
 
     // insertRule already enqueued the first evaluation job at this same
     // scheduledFor; the scanner must not stack a second one on top of it.
@@ -413,7 +416,7 @@ describe("the alerting pipeline's instance lifecycle", () => {
       forSecs: 0,
       intervalSecs: 60,
     });
-    harness.clickhouse.setRows([
+    harness.clickhouse.setSignal([
       { service: "checkout", region: "us", value: 42 },
     ]);
     await harness.runDueJobs();
@@ -462,7 +465,7 @@ describe("the alerting pipeline's instance lifecycle", () => {
 
   it("a stale ruleVersion in the job payload is a no-op, and does not overwrite the newer state", async () => {
     const rule = await insertRule(harness.db, { forSecs: 0, intervalSecs: 60 });
-    harness.clickhouse.setRows([{ service: "checkout", value: 42 }]);
+    harness.clickhouse.setSignal([{ service: "checkout", value: 42 }]);
     await harness.runDueJobs();
 
     const beforeInstances = await harness.db.select().from(alertInstances);
@@ -494,7 +497,7 @@ describe("the alerting pipeline's instance lifecycle", () => {
       forSecs: 0,
       intervalSecs: 60,
     });
-    harness.clickhouse.setRows([
+    harness.clickhouse.setSignal([
       { service: "checkout", value: 42 },
       { service: "payments", value: 42 },
     ]);
@@ -511,7 +514,7 @@ describe("the alerting pipeline's instance lifecycle", () => {
 
   it("running the lifecycle projection twice over the same event leaves one history row", async () => {
     const rule = await insertRule(harness.db, { forSecs: 0, intervalSecs: 60 });
-    harness.clickhouse.setRows([{ service: "checkout", value: 42 }]);
+    harness.clickhouse.setSignal([{ service: "checkout", value: 42 }]);
     await harness.runDueJobs();
 
     await pauseRule({ organizationId: TEST_ORG, actor: SYSTEM_ACTOR }, rule.id);
@@ -616,7 +619,7 @@ describe("the alerting pipeline's organization isolation", () => {
       organizationId: ORG_B,
       forSecs: 0,
     });
-    harness.clickhouse.setRows([{ service: "checkout", value: 42 }]);
+    harness.clickhouse.setSignal([{ service: "checkout", value: 42 }]);
 
     await harness.runDueJobs();
 
@@ -652,7 +655,7 @@ describe("the alerting pipeline's organization isolation", () => {
     // organizations' instances carry: the only thing standing between org B
     // and this silence is the organization scope on the lookup itself.
     await insertSilence(harness.db);
-    harness.clickhouse.setRows([{ service: "checkout", value: 42 }]);
+    harness.clickhouse.setSignal([{ service: "checkout", value: 42 }]);
 
     await harness.fireAndFlush();
 
@@ -689,7 +692,7 @@ describe("the alerting pipeline's organization isolation", () => {
 
   it("org A's group holds only org A's members", async () => {
     const { ruleA } = await insertTwinRoutedRules();
-    harness.clickhouse.setRows([{ service: "checkout", value: 42 }]);
+    harness.clickhouse.setSignal([{ service: "checkout", value: 42 }]);
 
     // Dispatches both organizations' events into their own group; still
     // inside the group wait, so neither has flushed yet.
@@ -730,7 +733,7 @@ describe("the alerting pipeline's organization isolation", () => {
 
   it("listing deliveries for org A returns none of org B's", async () => {
     const { ruleA, channelA } = await insertTwinRoutedRules();
-    harness.clickhouse.setRows([{ service: "checkout", value: 42 }]);
+    harness.clickhouse.setSignal([{ service: "checkout", value: 42 }]);
 
     await harness.fireAndFlush();
 
@@ -802,7 +805,7 @@ describe("the alerting pipeline's organization isolation", () => {
       targetMatchers: [{ label: "service", op: "eq", value: "checkout" }],
       equalLabels: [],
     });
-    harness.clickhouse.setRows([{ service: "checkout", value: 42 }]);
+    harness.clickhouse.setSignal([{ service: "checkout", value: 42 }]);
 
     await harness.fireAndFlush();
 
