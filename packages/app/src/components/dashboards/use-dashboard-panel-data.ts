@@ -10,6 +10,7 @@ import { panelQueryOptions } from "@/data/dashboards/options";
 import type { Panel } from "@/data/dashboards/schema";
 import { pickByNames } from "@/data/dashboards/variable-values";
 import { useTimeRange } from "@/hooks/use-time-range";
+import { useTelemetrySource } from "@/lib/telemetry-source/context";
 import { getPanelQuerySources, type PanelQuerySource } from "./query-array";
 import { useDashboardVariables } from "./use-dashboard-variables";
 import type { QueryResultRow, ResolvedTimeRange } from "./visualizations";
@@ -147,6 +148,7 @@ export function useDashboardPanelData(
   options?: { enabled?: boolean },
 ): DashboardPanelData {
   const active = options?.enabled ?? true;
+  const telemetrySource = useTelemetrySource();
   // Effective range: explicit URL params, else the dashboard's route defaults,
   // else the global default — resolved before first render (no flash). The
   // variable-options queries read the same range internally.
@@ -174,6 +176,7 @@ export function useDashboardPanelData(
   const results = useQueries({
     queries: requests.map((r) => ({
       ...panelQueryOptions(
+        telemetrySource,
         r.source,
         timeRange.from,
         timeRange.to,

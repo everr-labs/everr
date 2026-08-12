@@ -2,13 +2,13 @@ import { queryOptions } from "@tanstack/react-query";
 import type { PanelQuerySource } from "@/components/dashboards/query-array";
 import type { QueryResultRow } from "@/components/dashboards/visualizations";
 import { createLimiter } from "@/lib/limiter";
+import type {
+  SqlClient,
+  TelemetrySourceKind,
+} from "@/lib/telemetry-source/types";
 import type { VariableMeta, VariableValues } from "./interpolate";
-import {
-  getDashboard,
-  listDashboards,
-  runPanelQuery,
-  runVariableOptionsQuery,
-} from "./server";
+import { PanelRepository } from "./repository";
+import { getDashboard, listDashboards } from "./server";
 
 const dashboardsQueryKey = ["dashboards"] as const;
 
@@ -38,7 +38,18 @@ export const dashboardListOptions = (preview?: string) =>
     queryFn: () => listDashboards({ data: { preview } }),
   });
 
+/**
+ * The active telemetry source, threaded in from the provider. It is part of
+ * every panel query key so switching source refetches rather than serving the
+ * other backend's cached rows.
+ */
+export interface PanelQueryClient {
+  kind: TelemetrySourceKind;
+  sqlClient: SqlClient;
+}
+
 export const panelQueryOptions = (
+  client: PanelQueryClient,
   source: PanelQuerySource,
   from?: string,
   to?: string,
@@ -48,6 +59,7 @@ export const panelQueryOptions = (
   queryOptions({
     queryKey: [
       "panel-query",
+      client.kind,
       source,
       from,
       to,
@@ -57,10 +69,9 @@ export const panelQueryOptions = (
     queryFn: async ({ signal }): Promise<{ rows: QueryResultRow[] }> => {
       // `none` is never enabled, but the queryFn must still type-check.
       if (source.kind === "none") return { rows: [] };
+      const repository = new PanelRepository(client.sqlClient);
       return panelLimiter(signal, () =>
-        runPanelQuery({
-          data: { source, from, to, variables, variableMeta },
-        }),
+        repository.runPanel({ source, from, to, variables, variableMeta }),
       );
     },
     enabled:
@@ -75,12 +86,16 @@ export const panelQueryOptions = (
   });
 
 export const variableOptionsQueryOptions = (
+  client: PanelQueryClient,
   query: string,
   from?: string,
   to?: string,
 ) =>
   queryOptions({
-    queryKey: ["variable-options", query, from, to],
-    queryFn: () => runVariableOptionsQuery({ data: { query, from, to } }),
+    queryKey: ["variable-options", client.kind, query, from, to],
+    queryFn: () => {
+      const repository = new PanelRepository(client.sqlClient);
+      return repository.runVariableOptions({ query, from, to });
+    },
     enabled: query.trim().length > 0,
   });

@@ -42,6 +42,14 @@ type handler struct {
 }
 
 func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if handlePreflight(w, r) {
+		return
+	}
+
+	// Set on the real response too, not just the preflight: without it the
+	// browser blocks the page from reading the body it just fetched.
+	writeCORSHeaders(w, r)
+
 	if r.Method != http.MethodPost {
 		w.Header().Set("Allow", http.MethodPost)
 		httpError(w, http.StatusMethodNotAllowed, "only POST allowed")

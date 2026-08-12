@@ -21,8 +21,11 @@ import { AppSidebar } from "@/components/app-sidebar";
 import { CommandBar } from "@/components/command-bar";
 import { DashboardBreadcrumb } from "@/components/dashboard-breadcrumb";
 import { PreviewIndicator } from "@/components/preview-indicator";
+import { TelemetrySourceBanner } from "@/components/telemetry-source-banner";
+import { TelemetrySourceToggle } from "@/components/telemetry-source-toggle";
 import { ExploreSearchRetainShape } from "@/lib/explore-search";
 import { SIDEBAR_TRACKED_LEFT } from "@/lib/sidebar-tracked-left";
+import { TelemetrySourceProvider } from "@/lib/telemetry-source/context";
 import {
   ResolvedTimeRangeSearchSchema,
   TimeRangeSearchSchema,
@@ -107,53 +110,57 @@ function RouteComponent() {
   }
 
   return (
-    <SidebarProvider>
-      <AppSidebar />
-      <SidebarInset className="h-screen min-w-0 pt-12">
-        {/* `fixed` (not sticky): the macOS rubber-band translates in-flow
+    <TelemetrySourceProvider>
+      <SidebarProvider>
+        <AppSidebar />
+        <SidebarInset className="h-screen min-w-0 pt-12">
+          {/* `fixed` (not sticky): the macOS rubber-band translates in-flow
             content but leaves fixed elements pinned, so the topnav stays put.
             SidebarInset compensates with pt-12. */}
-        <header
-          className={cn(
-            "fixed top-0 right-0 z-50 flex h-12 border-b border-sidebar-border bg-sidebar px-3",
-            SIDEBAR_TRACKED_LEFT,
-          )}
-        >
-          <div className="flex items-center justify-between flex-1">
-            <div className="flex items-center gap-2">
-              <SidebarTrigger className="-ml-1" />
-              <Separator orientation="vertical" className="mr-2" />
-              <DashboardBreadcrumb />
-            </div>
-            <div className="flex items-center gap-1.5">
-              <PreviewIndicator />
-              <CommandBar />
+          <header
+            className={cn(
+              "fixed top-0 right-0 z-50 flex h-12 border-b border-sidebar-border bg-sidebar px-3",
+              SIDEBAR_TRACKED_LEFT,
+            )}
+          >
+            <div className="flex items-center justify-between flex-1">
+              <div className="flex items-center gap-2">
+                <SidebarTrigger className="-ml-1" />
+                <Separator orientation="vertical" className="mr-2" />
+                <DashboardBreadcrumb />
+              </div>
+              <div className="flex items-center gap-1.5">
+                <PreviewIndicator />
+                <TelemetrySourceToggle />
+                <CommandBar />
 
-              {!hideTimeRangePicker && (
-                <>
-                  <TimeRangePicker />
-                  <RefreshPicker />
-                </>
-              )}
+                {!hideTimeRangePicker && (
+                  <>
+                    <TimeRangePicker />
+                    <RefreshPicker />
+                  </>
+                )}
+              </div>
             </div>
+          </header>
+          <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+            <TelemetrySourceBanner />
+            {search.github_install === "linked" && (
+              <div className="mx-3 mt-3 rounded-md border border-emerald-300 bg-emerald-50 px-3 py-2 text-sm text-emerald-900">
+                GitHub installation linked successfully.
+              </div>
+            )}
+
+            {search.github_install === "error" && (
+              <div className="mx-3 mt-3 rounded-md border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-900">
+                Failed to link GitHub installation
+                {search.reason ? ` (${search.reason})` : ""}.
+              </div>
+            )}
+            <Outlet />
           </div>
-        </header>
-        <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-          {search.github_install === "linked" && (
-            <div className="mx-3 mt-3 rounded-md border border-emerald-300 bg-emerald-50 px-3 py-2 text-sm text-emerald-900">
-              GitHub installation linked successfully.
-            </div>
-          )}
-
-          {search.github_install === "error" && (
-            <div className="mx-3 mt-3 rounded-md border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-900">
-              Failed to link GitHub installation
-              {search.reason ? ` (${search.reason})` : ""}.
-            </div>
-          )}
-          <Outlet />
-        </div>
-      </SidebarInset>
-    </SidebarProvider>
+        </SidebarInset>
+      </SidebarProvider>
+    </TelemetrySourceProvider>
   );
 }

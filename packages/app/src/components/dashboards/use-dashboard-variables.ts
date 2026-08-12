@@ -13,6 +13,7 @@ import {
   sortVariableOptions,
 } from "@/data/dashboards/variable-values";
 import { useTimeRange } from "@/hooks/use-time-range";
+import { useTelemetrySource } from "@/lib/telemetry-source/context";
 import { useDashboard } from "./use-dashboard";
 
 export interface VariableOptionsState {
@@ -45,6 +46,7 @@ export function useDashboardVariables(): DashboardVariablesState {
     timeRange: { from, to },
   } = useTimeRange();
   const variables = useDashboard().spec.variables ?? EMPTY_VARIABLES;
+  const telemetrySource = useTelemetrySource();
 
   // Pair each query-backed variable with its SQL once; results are keyed by
   // variable name below so the lookup never depends on array identity.
@@ -58,7 +60,7 @@ export function useDashboardVariables(): DashboardVariablesState {
   }
   const optionQueries = useQueries({
     queries: queryBacked.map(({ query }) =>
-      variableOptionsQueryOptions(query, from, to),
+      variableOptionsQueryOptions(telemetrySource, query, from, to),
     ),
   });
   const queryStateByName = new Map(
