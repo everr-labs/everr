@@ -115,14 +115,26 @@ function SidebarProvider({
 
   // Restore the last collapsed/expanded choice. This runs once, before paint,
   // so there is no flash and the server markup still hydrates against
-  // `defaultOpen`.
+  // `defaultOpen`. Width transitions stay disabled until the restored state has
+  // been painted, otherwise restoring a collapsed sidebar animates it shut.
+  const [restoring, setRestoring] = useState(true);
   const isControlled = openProp !== undefined;
   useIsomorphicLayoutEffect(() => {
-    if (isControlled) return;
-    const stored = readStoredOpen();
-    if (stored !== null) {
-      _setOpen(stored);
+    if (!isControlled) {
+      const stored = readStoredOpen();
+      if (stored !== null) {
+        _setOpen(stored);
+      }
     }
+    // Two frames: the first still precedes the paint of the restored state.
+    let inner = 0;
+    const outer = requestAnimationFrame(() => {
+      inner = requestAnimationFrame(() => setRestoring(false));
+    });
+    return () => {
+      cancelAnimationFrame(outer);
+      cancelAnimationFrame(inner);
+    };
   }, [isControlled]);
 
   // Helper to toggle the sidebar.
@@ -167,6 +179,7 @@ function SidebarProvider({
     <SidebarContext.Provider value={contextValue}>
       <div
         data-slot="sidebar-wrapper"
+        data-restoring={restoring ? "true" : undefined}
         style={
           {
             "--sidebar-width": SIDEBAR_WIDTH,
@@ -176,6 +189,10 @@ function SidebarProvider({
         }
         className={cn(
           "group/sidebar-wrapper has-data-[variant=inset]:bg-sidebar flex min-h-svh w-full",
+          // Restoring the stored state must not animate: kill every transition
+          // under the provider (sidebar rail plus any chrome that tracks it)
+          // until that state has been painted.
+          "data-[restoring=true]:[&_*]:transition-none",
           className,
         )}
         {...props}
