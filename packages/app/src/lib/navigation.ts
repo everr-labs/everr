@@ -1,68 +1,55 @@
 import {
+  Activity,
   Bell,
-  GitBranch,
+  Bug,
+  ChartLine,
+  FlaskConical,
+  House,
   LayoutDashboard,
   type LucideIcon,
   NotebookText,
-  Telescope,
+  ScrollText,
+  Waypoints,
 } from "lucide-react";
 
 export type NavItem = {
   title: string;
   url: string;
-  icon?: LucideIcon;
-  isActive?: boolean;
-  items?: {
-    title: string;
-    url: string;
-  }[];
+  icon: LucideIcon;
 };
 
-export const navMain: NavItem[] = [
+export type NavGroup = {
+  /** Omitted for the ungrouped items pinned above the labeled groups. */
+  label?: string;
+  items: NavItem[];
+};
+
+export const navGroups: NavGroup[] = [
   {
-    title: "Dashboards",
-    url: "/dashboards",
-    icon: LayoutDashboard,
+    items: [{ title: "Home", url: "/", icon: House }],
   },
   {
-    title: "Runbooks",
-    url: "/runbooks",
-    icon: NotebookText,
-  },
-  {
-    title: "Alerts",
-    url: "/alerts",
-    icon: Bell,
-  },
-  {
-    title: "Explore",
-    url: "/logs",
-    icon: Telescope,
-    isActive: true,
+    label: "Monitor",
     items: [
-      { title: "Logs", url: "/logs" },
-      { title: "Errors", url: "/errors" },
-      { title: "Traces", url: "/traces" },
+      { title: "Dashboards", url: "/dashboards", icon: LayoutDashboard },
+      { title: "Runbooks", url: "/runbooks", icon: NotebookText },
+      { title: "Alerts", url: "/alerts", icon: Bell },
     ],
   },
   {
-    title: "CI/CD",
-    url: "/runs",
-    icon: GitBranch,
-    isActive: true,
+    label: "Explore",
     items: [
-      {
-        title: "Runs",
-        url: "/runs",
-      },
-      {
-        title: "Cost Analysis",
-        url: "/cost-analysis",
-      },
-      {
-        title: "Tests Overview",
-        url: "/tests-overview",
-      },
+      { title: "Logs", url: "/logs", icon: ScrollText },
+      { title: "Errors", url: "/errors", icon: Bug },
+      { title: "Traces", url: "/traces", icon: Waypoints },
+    ],
+  },
+  {
+    label: "CI/CD",
+    items: [
+      { title: "Runs", url: "/runs", icon: Activity },
+      { title: "Cost Analysis", url: "/cost-analysis", icon: ChartLine },
+      { title: "Tests Overview", url: "/tests-overview", icon: FlaskConical },
     ],
   },
 ];
