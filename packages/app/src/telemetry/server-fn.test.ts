@@ -35,7 +35,9 @@ vi.mock("./node", () => ({
 // /_serverFn prefix rule, which needs no tree.
 vi.mock("./server-router", async () => {
   const { routeTemplate } = await import("./route-template");
-  const matcher = { matchRoutes: () => [{ routeId: "__root__" }] };
+  const matcher = {
+    matchRoutes: () => [{ routeId: "__root__", fullPath: "/" }],
+  };
   return {
     serverRouteTemplate: (pathname: string) => routeTemplate(matcher, pathname),
   };
@@ -69,7 +71,7 @@ describe("instrumentServerFunction", () => {
     ).rejects.toThrow("database unavailable");
 
     expect(telemetryMocks.captureError).toHaveBeenCalledWith(error, {
-      "error.source": "server_fn",
+      "everr.error.source": "server_fn",
       "rpc.method": "getActiveOrganization",
       "rpc.service": "server_function",
       "rpc.system": "tanstack-start",

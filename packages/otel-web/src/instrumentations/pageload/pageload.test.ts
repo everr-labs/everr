@@ -328,12 +328,16 @@ describe("long animation frames", () => {
     ).toBe(40);
   });
 
-  it("reports no style-and-layout when the frame had no such phase", () => {
+  it("computes style-and-layout the same as web-vitals when the start is 0", () => {
     start();
     feedLoaf(loaf({ styleAndLayoutStart: 0, scripts: [] }));
+    // A frame without a style-and-layout phase reports styleAndLayoutStart 0,
+    // and the subtraction then spans from the time origin to the end of the
+    // frame: 800.4 + 240.6 - 0 = 1041. The web-vitals attribution computes the
+    // same value, and this module matches it on purpose.
     expect(
       attrs()["everr.browser.long_animation_frame.style_and_layout_duration"],
-    ).toBe(0);
+    ).toBe(1041);
   });
 
   it("still captures the waterfall when LoAF observation is unsupported", () => {

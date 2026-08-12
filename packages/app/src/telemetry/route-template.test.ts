@@ -5,18 +5,19 @@ const matcher = {
   matchRoutes: (pathname: string) =>
     pathname === "/repos/abc123"
       ? [
-          { routeId: "__root__" },
-          { routeId: "/_authenticated" },
-          { routeId: "/_authenticated/repos/$repoId" },
+          { routeId: "__root__", fullPath: "/" },
+          { routeId: "/_authenticated", fullPath: "/" },
+          {
+            routeId: "/_authenticated/repos/$repoId",
+            fullPath: "/repos/$repoId",
+          },
         ]
-      : [{ routeId: "__root__" }],
+      : [{ routeId: "__root__", fullPath: "/" }],
 };
 
 describe("routeTemplate", () => {
-  it("returns the deepest matched route id", () => {
-    expect(routeTemplate(matcher, "/repos/abc123")).toBe(
-      "/_authenticated/repos/$repoId",
-    );
+  it("returns the full path of the deepest match, without pathless segments", () => {
+    expect(routeTemplate(matcher, "/repos/abc123")).toBe("/repos/$repoId");
   });
 
   it("parameterizes server function paths without consulting the tree", () => {

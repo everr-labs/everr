@@ -54,7 +54,7 @@ export async function instrumentServerFetch(
         span.setAttribute("http.response.status_code", response.status);
         if (response.status >= 500) {
           captureError(new Error(`HTTP ${response.status}`), {
-            "error.source": "server.response",
+            "everr.error.source": "server.response",
             "http.request.method": method,
             "http.response.status_code": response.status,
             ...(route === undefined ? {} : { "http.route": route }),
@@ -65,7 +65,7 @@ export async function instrumentServerFetch(
         return response;
       } catch (error) {
         captureError(error, {
-          "error.source": "server.fetch",
+          "everr.error.source": "server.fetch",
           "http.request.method": method,
           ...(route === undefined ? {} : { "http.route": route }),
           "url.path": pathname,

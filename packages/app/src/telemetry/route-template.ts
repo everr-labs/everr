@@ -5,7 +5,9 @@
 // response header that instrumentServerFetch echoes, not from this function.
 
 export type RouterLike = {
-  matchRoutes(pathname: string): ReadonlyArray<{ routeId: string }>;
+  matchRoutes(
+    pathname: string,
+  ): ReadonlyArray<{ routeId: string; fullPath: string }>;
 };
 
 export function routeTemplate(
@@ -16,8 +18,11 @@ export function routeTemplate(
   if (pathname.startsWith("/_serverFn/")) {
     return pathname.replace(/^\/_serverFn\/[^/]+/, "/_serverFn/:id");
   }
-  const id = router.matchRoutes(pathname).at(-1)?.routeId;
+  const match = router.matchRoutes(pathname).at(-1);
   // matchRoutes falls through to the root match on unknown paths; an
   // unmatched path has no template rather than a fake one.
-  return id === undefined || id === "__root__" ? undefined : id;
+  if (match === undefined || match.routeId === "__root__") return undefined;
+  // The route id keeps pathless segments such as /_authenticated; the public
+  // path template is the match's fullPath.
+  return match.fullPath;
 }

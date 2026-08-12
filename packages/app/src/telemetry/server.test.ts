@@ -39,8 +39,11 @@ vi.mock("./server-router", async () => {
   const matcher = {
     matchRoutes: (pathname: string) =>
       pathname === "/api/cli/sql"
-        ? [{ routeId: "__root__" }, { routeId: "/api/cli/sql" }]
-        : [{ routeId: "__root__" }],
+        ? [
+            { routeId: "__root__", fullPath: "/" },
+            { routeId: "/api/cli/sql", fullPath: "/api/cli/sql" },
+          ]
+        : [{ routeId: "__root__", fullPath: "/" }],
   };
   return {
     serverRouteTemplate: (pathname: string) => routeTemplate(matcher, pathname),
@@ -68,7 +71,7 @@ describe("instrumentServerFetch", () => {
     expect(telemetryMocks.captureError).toHaveBeenCalledWith(
       expect.any(Error),
       {
-        "error.source": "server.response",
+        "everr.error.source": "server.response",
         "http.request.method": "POST",
         "http.response.status_code": 500,
         "http.route": "/api/cli/sql",

@@ -22,8 +22,8 @@ function ConsentBanner({
   onAcceptAll,
   onDeny,
   onOpenSettings,
-  title = "We use analytics cookies",
-  description = "We'd like to use cookies to understand how the product is used and improve it. You can change your mind at any time.",
+  title = "We use analytics",
+  description = "We'd like to store analytics data in your browser to understand how the product is used and improve it. You can change your mind at any time.",
   className,
   ...props
 }: {

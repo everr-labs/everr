@@ -28,7 +28,7 @@ function triggerConsoleError() {
 
 function triggerHandledCapture() {
   captureError(new Error(`Handled capture test (${marker()})`), {
-    "error.source": "desktop.developer",
+    "everr.error.source": "desktop.developer",
   });
 }
 

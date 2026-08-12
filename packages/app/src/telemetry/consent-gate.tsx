@@ -7,7 +7,7 @@ import { CONSENT_COOKIE, type ConsentDecision } from "@/telemetry/consent";
 const ONE_YEAR_SECONDS = 60 * 60 * 24 * 365;
 
 // This lets a component below `ConsentGate` show the settings dialog again. An
-// example is the "Cookie preferences" item in the user menu. Thus the app does
+// example is the "Privacy preferences" item in the user menu. Thus the app does
 // not send a property through all the routes.
 const OpenConsentSettingsContext = createContext<(() => void) | undefined>(
   undefined,
@@ -95,7 +95,12 @@ export function ConsentGate({
       />
       <ConsentSettingsDialog
         open={settingsOpen}
-        onOpenChange={setSettingsOpen}
+        onOpenChange={(open) => {
+          setSettingsOpen(open);
+          // A close without a decision, for example with Escape, discards the
+          // draft. Thus the switch shows the active consent at the next open.
+          if (!open) setAnalyticsEnabled(consent === "granted");
+        }}
         analyticsEnabled={analyticsEnabled}
         onAnalyticsChange={setAnalyticsEnabled}
         onDeny={() => decide("denied")}

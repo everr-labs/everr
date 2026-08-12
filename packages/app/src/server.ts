@@ -19,7 +19,7 @@ await startupTracer.startActiveSpan(
       await migrate(db, { migrationsFolder: "./drizzle" });
     } catch (error) {
       captureError(error, {
-        "error.source": "startup.database_migration",
+        "everr.error.source": "startup.database_migration",
       });
       throw error;
     } finally {
@@ -30,7 +30,7 @@ await startupTracer.startActiveSpan(
 
 void startWorkerRuntime().catch((error) => {
   captureError(error, {
-    "error.source": "startup.worker_runtime",
+    "everr.error.source": "startup.worker_runtime",
   });
 });
 

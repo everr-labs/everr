@@ -258,7 +258,7 @@ await tracer.startActiveSpan('invoice.send', async (span) => {
     span.setStatus({ code: SpanStatusCode.OK });
   } catch (error) {
     captureError(error, {
-      'error.source': 'invoice.send',
+      'everr.error.source': 'invoice.send',
     });
     throw error;
   } finally {
