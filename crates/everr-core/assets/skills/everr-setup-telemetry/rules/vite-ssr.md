@@ -55,6 +55,7 @@ Validate the seam, not just each half:
 SELECT TraceId, groupUniqArray(ServiceName) AS services
 FROM traces
 WHERE Timestamp > now() - INTERVAL 5 MINUTE
+  AND ServiceName IN ('<browser-service-name>', '<server-service-name>')
 GROUP BY TraceId
 HAVING has(services, '<browser-service-name>')
   AND has(services, '<server-service-name>')

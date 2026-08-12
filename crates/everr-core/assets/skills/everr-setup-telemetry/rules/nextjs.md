@@ -210,11 +210,9 @@ if (!globalThis.__otelSdk) {
       exportIntervalMillis: 10000,
     }),
     instrumentations: [
-      // Error capture, per nodejs.md. It owns the uncaughtException and
-      // unhandledRejection handlers (flush logs, spans, and metrics, then
-      // exit), active-span ERROR marking, rate limiting, and redaction, and
-      // it stamps `everr.error.mechanism`. Do not also register your own
-      // process handlers: that double-captures.
+      // Error capture, per nodejs.md: it owns the uncaughtException and
+      // unhandledRejection handlers. Do not also register your own, that
+      // double-captures.
       new ErrorsInstrumentation(),
       getNodeAutoInstrumentations({
         '@opentelemetry/instrumentation-fs': { enabled: false },
@@ -303,11 +301,12 @@ Use optional chaining because `trace.getActiveSpan()` can return `undefined`.
 
 ## Error Handling
 
-Use both process-level handlers and Next.js `onRequestError`:
+Rely on `ErrorsInstrumentation` for process failures and Next.js `onRequestError` for request failures:
 
-- `uncaughtException` and `unhandledRejection` capture process failures.
+- `ErrorsInstrumentation` owns `uncaughtException` and `unhandledRejection`; do
+  not register your own process handlers.
 - `onRequestError` captures server request failures that Next.js handles before
-  they reach process-level handlers.
+  they crash the process.
 - Route handlers and server actions that catch errors must emit an exception log
   before returning an error response.
 

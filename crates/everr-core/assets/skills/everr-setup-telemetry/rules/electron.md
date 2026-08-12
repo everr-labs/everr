@@ -16,9 +16,9 @@ Required resource attributes on both main and renderer telemetry:
 - `service.version`
 - `service.instance.id`
 - `deployment.environment.name`
-- `process.type`
+- a process mark: `process.type` on the main side, per below on the renderer side
 
-Hardcode one stable `service.name` for the app (`<service-name>`) and use `process.type` (`main` or `renderer`) to distinguish where telemetry came from. The `nodejs.md` base setup does not add `process.type`, so the main SDK must add it to its resource explicitly (`process.type = main`); the renderer adds `process.type = renderer` to its own resource. Use `service.instance.id` as an opaque app/session UUID generated at app startup. Do not use an auth session, user id, machine id, tenant id, or token.
+Hardcode one stable `service.name` for the app (`<service-name>`) and mark which side each record came from. The `nodejs.md` base setup does not add `process.type`, so the main SDK must add it to its resource explicitly (`process.type = main`). The WebSDK exposes no resource attribute for it, so mark renderer telemetry with a renderer-specific `serviceName` per `resources.md`, or stamp each record with `setAttributes({ 'everr.process.type': 'renderer' })`; the Validation section queries these marks. Use `service.instance.id` as an opaque app/session UUID generated at app startup. Do not use an auth session, user id, machine id, tenant id, or token.
 
 ## Package Setup
 

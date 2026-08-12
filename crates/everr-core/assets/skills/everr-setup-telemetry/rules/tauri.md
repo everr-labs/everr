@@ -136,7 +136,7 @@ Resolve the release version from the Tauri app/package metadata or build system.
 
 ## OTLP Passthrough Proxy
 
-The Rust command is transport, not an application telemetry API. It receives an already-encoded OTLP request from a browser exporter and forwards the bytes to the collector. It validates the signal and size, attaches the configured headers, and POSTs — it never deserializes, maps, or rebuilds telemetry. The proxy only forwards to the Rust-resolved endpoint, never a URL from the renderer, and the ingest key stays server-side.
+The Rust command is transport, not an application telemetry API. It receives an already-encoded OTLP request from the WebSDK and forwards the bytes to the collector. It validates the signal and size, attaches the configured headers, and POSTs — it never deserializes, maps, or rebuilds telemetry. The proxy only forwards to the Rust-resolved endpoint, never a URL from the renderer, and the ingest key stays server-side.
 
 ```rust
 use reqwest::Client;
@@ -381,10 +381,10 @@ A Rust-side change (the proxy command, headers, endpoint, backend setup) needs a
 ## Troubleshooting
 
 - No browser telemetry: verify `initBrowserTelemetry()` runs before capture, `get_telemetry_context` is registered, and `proxy_otlp` accepts the `signal`. A WebSDK with neither `send` nor a key is inert by design, so a dropped `send` looks identical to disabled telemetry.
-- Proxy failures: verify the browser exporter serializes OTLP/JSON and passes it as `body`, and that `proxy_otlp` POSTs to `{endpoint}/v1/{signal}` with `content-type: application/json` (confirm the collector accepts OTLP/JSON).
+- Proxy failures: verify the WebSDK's `send` passes the encoded payload as `body`, and that `proxy_otlp` POSTs to `{endpoint}/v1/{signal}` with `content-type: application/json` (confirm the collector accepts OTLP/JSON).
 - Each error captured twice: the library's handlers are running alongside leftover hand-rolled `window` error handlers. Remove the hand-rolled ones.
 - Missing release version or session id: verify Rust creates one telemetry context at process startup, passes `context.resource()` into the backend setup, and the browser uses `get_telemetry_context`.
-- `unknown_service` rows: verify the backend resource and the browser providers all initialize with `service.name`.
+- `unknown_service` rows: verify the backend resource and the `WebSDK` options both set the service name.
 
 ## Safety Rules
 

@@ -9,32 +9,17 @@ Follow `browser.md` for the `@everr/otel-web` setup. TanStack Start specifics:
 - Put the `WebSDK` construction in a side-effect module and import it at the top of `src/routes/__root.tsx`, so it runs once when the client bundle loads. The WebSDK is inert during SSR, so no environment guard is needed.
 - Register the router with the SDK's `page` route resolver so pageviews and errors carry the route template (`/blog/$slug`) instead of raw paths. Telemetry setup runs before the router exists, so bridge through an app-owned module. Register no `request` resolver: per the seam section of `vite-ssr.md`, request templates come from exact sources only, and here the exact source is the server's `x-everr-route` echo, never a guess from the shape of a path segment.
 
-The route tree is the exact source, with one asymmetry: Start prunes server-only routes (files whose `createFileRoute` options hold only `server`) from the client route tree, so the browser cannot derive a template for the requests it makes. It does not try: the browser registers only the `page` resolver, and request templates arrive on the server's `x-everr-route` response header, which `@everr/otel-web`'s `network()` reads into `url.template` (see the server half below). An unmatched path has no template: `matchRoutes` falls through to the root/not-found match on unknown paths, so filter it, do not let it leak as a pattern:
+The route tree is the exact source, with one asymmetry: Start prunes server-only routes (files whose `createFileRoute` options hold only `server`) from the client route tree, so the browser cannot derive a template for the requests it makes. It does not try: the browser registers only the `page` resolver, and request templates arrive on the server's `x-everr-route` response header, which `@everr/otel-web`'s `network()` reads into `url.template` (see the server half below). An unmatched path has no template: `matchRoutes` falls through to the root/not-found match on unknown paths, and the shared `routeTemplate` helper (defined in the server half below, used by both sides) filters it rather than letting it leak as a pattern:
 
 ```ts
 // src/telemetry/route-pattern.ts
 import { setRouteResolver } from "@everr/otel-web";
-
-type RouterLike = {
-  matchRoutes(
-    pathname: string,
-  ): ReadonlyArray<{ routeId: string; fullPath: string }>;
-};
+import { type RouterLike, routeTemplate } from "./route-template";
 
 /** Call from `getRouter()` right after creating the router. */
 export function registerRouter(router: RouterLike): void {
   setRouteResolver({
-    page: (url) => {
-      const match = router.matchRoutes(new URL(url).pathname).at(-1);
-      // Filter the root fallthrough and the generated not-found route, the
-      // same as the server's routeTemplate. The fullPath drops pathless
-      // segments such as /_authenticated from the template.
-      return match === undefined ||
-        match.routeId === "__root__" ||
-        match.routeId.includes("404")
-        ? undefined
-        : match.fullPath;
-    },
+    page: (url) => routeTemplate(router, new URL(url).pathname),
   });
 }
 ```
@@ -66,10 +51,11 @@ export default {
 ```
 
 ```ts
-// src/telemetry/route-template.ts: the server's http.route derivation, over
-// the same generated tree the pages render from. Server function calls go over
-// POST /_serverFn/<id>, a deterministic prefix outside the tree.
-type RouterLike = {
+// src/telemetry/route-template.ts: one route-template derivation, shared by
+// the server's http.route stamping and the browser's page resolver above.
+// Server function calls go over POST /_serverFn/<id>, a deterministic prefix
+// outside the tree.
+export type RouterLike = {
   matchRoutes(
     pathname: string,
   ): ReadonlyArray<{ routeId: string; fullPath: string }>;
@@ -83,6 +69,9 @@ export function routeTemplate(
     return pathname.replace(/^\/_serverFn\/[^/]+/, "/_serverFn/:id");
   }
   const match = router.matchRoutes(pathname).at(-1);
+  // Filter the root fallthrough and the generated not-found route: an
+  // unmatched path has no template rather than a fake one. The fullPath drops
+  // pathless segments such as /_authenticated from the template.
   return match === undefined ||
     match.routeId === "__root__" ||
     match.routeId.includes("404")
