@@ -81,7 +81,7 @@ function HomePage() {
     <div className="space-y-6">
       <InstallEverrCard />
 
-      <StatSection label="Telemetry" columns={3}>
+      <StatSection label="Telemetry">
         <StatTile
           label="Logs"
           to="/logs"
@@ -107,7 +107,7 @@ function HomePage() {
 
       <ServicesSection services={overview?.services} />
 
-      <StatSection label="CI/CD" columns={3}>
+      <StatSection label="CI/CD">
         {githubInstalled ? (
           <>
             <StatTile
@@ -143,11 +143,9 @@ function HomePage() {
 
 function StatSection({
   label,
-  columns,
   children,
 }: {
   label: string;
-  columns: 3 | 4;
   children: ReactNode;
 }) {
   return (
@@ -155,13 +153,7 @@ function StatSection({
       <h2 className="text-muted-foreground text-xs font-medium uppercase tracking-wider">
         {label}
       </h2>
-      <div
-        className={`grid gap-3 sm:grid-cols-2 ${
-          columns === 3 ? "lg:grid-cols-3" : "lg:grid-cols-4"
-        }`}
-      >
-        {children}
-      </div>
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{children}</div>
     </section>
   );
 }

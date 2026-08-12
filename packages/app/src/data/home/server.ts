@@ -58,11 +58,14 @@ export const getHomeOverview = createAuthenticatedServerFn({ method: "GET" })
     // it (not Timestamp) keeps primary-index and partition pruning engaged.
     const logsTimeFilter = `TimestampTime >= parseDateTimeBestEffort({fromTime:String}) AND TimestampTime <= parseDateTimeBestEffort({toTime:String})`;
 
-    const logsSeriesSql = `
-      SELECT ${bucketExpr("TimestampTime", granularity)} AS bucket, count() AS logCount
+    const logsSql = `
+      SELECT
+        ${bucketExpr("TimestampTime", granularity)} AS bucket,
+        count() AS logCount,
+        uniqIf(${ERROR_FINGERPRINT_SQL}, ${EXCEPTION_LOG_FILTER_SQL}) AS issueCount
       FROM logs
       WHERE ${logsTimeFilter}
-      GROUP BY bucket
+      GROUP BY bucket WITH ROLLUP
     `;
 
     const tracesSql = `
@@ -91,16 +94,6 @@ export const getHomeOverview = createAuthenticatedServerFn({ method: "GET" })
       FROM logs
       WHERE ${logsTimeFilter} AND ServiceName != ''
       GROUP BY service
-    `;
-
-    const errorsSql = `
-      SELECT
-        ${bucketExpr("TimestampTime", granularity)} AS bucket,
-        uniq(${ERROR_FINGERPRINT_SQL}) AS issueCount
-      FROM logs
-      WHERE ${logsTimeFilter}
-        AND ${EXCEPTION_LOG_FILTER_SQL}
-      GROUP BY bucket WITH ROLLUP
     `;
 
     const ciSql = `
@@ -147,14 +140,14 @@ export const getHomeOverview = createAuthenticatedServerFn({ method: "GET" })
       tracesRows,
       traceServiceRows,
       logServiceRows,
-      errorsRows,
       ciRows,
       prTimeRows,
     ] = await Promise.all([
-      clickhouse.query<{ bucket: string; logCount: string }>(
-        logsSeriesSql,
-        params,
-      ),
+      clickhouse.query<{
+        bucket: string;
+        logCount: string;
+        issueCount: string;
+      }>(logsSql, params),
       clickhouse.query<{ bucket: string; traceCount: string }>(
         tracesSql,
         params,
@@ -168,10 +161,6 @@ export const getHomeOverview = createAuthenticatedServerFn({ method: "GET" })
         logCount: string;
         errorCount: string;
       }>(logServicesSql, params),
-      clickhouse.query<{ bucket: string; issueCount: string }>(
-        errorsSql,
-        params,
-      ),
       clickhouse.query<{ bucket: string; runCount: string }>(ciSql, params),
       clickhouse.query<{ prMedianTotalTimeMs: string }>(prTimeSql, params),
     ]);
@@ -204,13 +193,13 @@ export const getHomeOverview = createAuthenticatedServerFn({ method: "GET" })
       .sort((a, b) => b.logCount + b.traceCount - (a.logCount + a.traceCount))
       .slice(0, MAX_SERVICES);
 
-    const logsSeries = fillSeries(grid, logsRows, (r) => r.logCount);
+    const logsTotal = rollupTotal(logsRows);
     const totalRuns = Number(rollupTotal(ciRows)?.runCount ?? 0);
 
     return {
       logs: {
-        total: logsSeries.reduce((sum, v) => sum + v, 0),
-        series: logsSeries,
+        total: Number(logsTotal?.logCount ?? 0),
+        series: fillSeries(grid, logsRows, (r) => r.logCount),
       },
       traces: {
         total: Number(rollupTotal(tracesRows)?.traceCount ?? 0),
@@ -218,8 +207,8 @@ export const getHomeOverview = createAuthenticatedServerFn({ method: "GET" })
       },
       services: serviceList,
       errors: {
-        issues: Number(rollupTotal(errorsRows)?.issueCount ?? 0),
-        series: fillSeries(grid, errorsRows, (r) => r.issueCount),
+        issues: Number(logsTotal?.issueCount ?? 0),
+        series: fillSeries(grid, logsRows, (r) => r.issueCount),
       },
       ci: {
         totalRuns,

@@ -57,9 +57,12 @@ describe("getHomeOverview", () => {
         ];
       }
       if (sql.includes("AS logCount")) {
+        // WITH ROLLUP: the empty-bucket row carries range-wide totals.
         return [
-          { bucket: bucket(0), logCount: "10" },
-          { bucket: bucket(5), logCount: "7" },
+          { bucket: bucket(0), logCount: "10", issueCount: "0" },
+          { bucket: bucket(2), logCount: "3", issueCount: "5" },
+          { bucket: bucket(5), logCount: "7", issueCount: "0" },
+          { bucket: "", logCount: "20", issueCount: "6" },
         ];
       }
       // Checked before the series query: both select traceCount.
@@ -71,12 +74,6 @@ describe("getHomeOverview", () => {
         return [
           { bucket: bucket(1), traceCount: "3" },
           { bucket: "", traceCount: "42" },
-        ];
-      }
-      if (sql.includes("AS issueCount")) {
-        return [
-          { bucket: bucket(2), issueCount: "5" },
-          { bucket: "", issueCount: "6" },
         ];
       }
       if (sql.includes("AS runCount")) {
@@ -94,7 +91,7 @@ describe("getHomeOverview", () => {
 
     const result = await getHomeOverview({ data: { timeRange } });
 
-    expect(result.logs.total).toBe(17);
+    expect(result.logs.total).toBe(20);
     expect(result.logs.series[0]).toBe(10);
     expect(result.logs.series[5]).toBe(7);
     expect(result.traces.total).toBe(42);
