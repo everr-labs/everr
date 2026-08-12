@@ -63,10 +63,6 @@ export function getBucketGranularity(
   return hours <= 36 ? "hour" : "day";
 }
 
-/**
- * ClickHouse expression bucketing a timestamp column to the granularity,
- * formatted to match `bucketGrid` keys.
- */
 export function bucketExpr(
   column: string,
   granularity: BucketGranularity,
@@ -76,10 +72,6 @@ export function bucketExpr(
     : `formatDateTime(toStartOfDay(${column}), '%Y-%m-%dT00:00:00Z')`;
 }
 
-/**
- * All bucket keys covering [fromDate, toDate], for zero-filling sparse
- * per-bucket query results. Keys match `bucketExpr` output.
- */
 export function bucketGrid(
   fromDate: Date,
   toDate: Date,

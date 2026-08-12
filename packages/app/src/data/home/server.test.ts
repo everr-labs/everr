@@ -44,12 +44,10 @@ describe("getHomeOverview", () => {
   });
 
   it("fills bucketed series across the whole range and sums totals", async () => {
-    // 24h range at hour granularity: 25 bucket slots (inclusive bounds).
     const bucket = (h: number) =>
       `2026-08-11T${String(h).padStart(2, "0")}:00:00Z`;
 
     mockedQuery.mockImplementation(async (sql: string) => {
-      // Checked before logCount: the per-service logs query also selects logCount.
       if (sql.includes("AS errorCount")) {
         return [
           { service: "web", logCount: "200", errorCount: "4" },
@@ -57,7 +55,6 @@ describe("getHomeOverview", () => {
         ];
       }
       if (sql.includes("AS logCount")) {
-        // WITH ROLLUP: the empty-bucket row carries range-wide totals.
         return [
           { bucket: bucket(0), logCount: "10", issueCount: "0" },
           { bucket: bucket(2), logCount: "3", issueCount: "5" },
@@ -65,12 +62,10 @@ describe("getHomeOverview", () => {
           { bucket: "", logCount: "20", issueCount: "6" },
         ];
       }
-      // Checked before the series query: both select traceCount.
       if (sql.includes("GROUP BY service")) {
         return [{ service: "web", traceCount: "12" }];
       }
       if (sql.includes("AS traceCount")) {
-        // WITH ROLLUP: the empty-bucket row carries the range-wide uniq.
         return [
           { bucket: bucket(1), traceCount: "3" },
           { bucket: "", traceCount: "42" },

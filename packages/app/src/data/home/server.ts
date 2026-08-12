@@ -14,9 +14,7 @@ import { bucketExpr, bucketGrid, getBucketGranularity } from "@/lib/time-range";
 export interface HomeService {
   name: string;
   logCount: number;
-  /** Distinct traces the service participated in. */
   traceCount: number;
-  /** Distinct error issues among the service's logs. */
   errorCount: number;
 }
 
@@ -39,11 +37,6 @@ function fillSeries<Row extends { bucket: string }>(
   return grid.map((bucket) => byBucket.get(bucket) ?? 0);
 }
 
-/**
- * WITH ROLLUP appends a summary row with an empty bucket whose aggregates run
- * over the whole range; distinct counts and quantiles can't be combined from
- * per-bucket rows, so that row is the only exact source for range-wide values.
- */
 const ROLLUP_TOTAL_BUCKET = "";
 
 export const getHomeOverview = createAuthenticatedServerFn({ method: "GET" })
@@ -54,8 +47,6 @@ export const getHomeOverview = createAuthenticatedServerFn({ method: "GET" })
     const grid = bucketGrid(fromDate, toDate, granularity);
     const params = { fromTime: fromISO, toTime: toISO };
     const timeFilter = `Timestamp >= {fromTime:String} AND Timestamp <= {toTime:String}`;
-    // The logs table is ordered and partitioned on TimestampTime; filtering on
-    // it (not Timestamp) keeps primary-index and partition pruning engaged.
     const logsTimeFilter = `TimestampTime >= parseDateTimeBestEffort({fromTime:String}) AND TimestampTime <= parseDateTimeBestEffort({toTime:String})`;
 
     const logsSql = `
@@ -113,9 +104,6 @@ export const getHomeOverview = createAuthenticatedServerFn({ method: "GET" })
       GROUP BY bucket WITH ROLLUP
     `;
 
-    // The PR url and the task result live on different spans of a run, so this
-    // groups whole runs first (no result filter) and lets max() surface the PR
-    // url from whichever span carries it. Total CI time per PR, median across PRs.
     const prTimeSql = `
       SELECT quantile(0.5)(prTotalMs) AS prMedianTotalTimeMs
       FROM (

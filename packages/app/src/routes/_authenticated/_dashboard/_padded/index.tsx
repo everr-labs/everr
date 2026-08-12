@@ -26,7 +26,6 @@ import { TimeRangeSearchSchema } from "@/lib/time-range";
 const githubInstallStatusOptions = queryOptions({
   queryKey: ["github", "install-status"],
   queryFn: () => getGithubAppInstallStatus(),
-  // Installations change rarely; don't refetch on every homepage visit.
   staleTime: 5 * 60_000,
 });
 

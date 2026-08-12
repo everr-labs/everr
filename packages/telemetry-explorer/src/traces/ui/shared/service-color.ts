@@ -18,10 +18,6 @@ function fnv1a(str: string): number {
   return h;
 }
 
-/**
- * Keyed on the service name alone so every surface (traces, home) shows the
- * same color for a service regardless of whether it knows the namespace.
- */
 export function serviceColor(name: string): string {
   const idx = fnv1a(name) % PALETTE.length;
   return `var(${PALETTE[idx]})`;
