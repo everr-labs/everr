@@ -27,23 +27,15 @@ import { emitVital, scriptAttrs, whenIdleOrHidden } from "./shared.js";
 //
 // This code comes from the GoogleChrome/web-vitals library
 // (https://github.com/GoogleChrome/web-vitals, copyright Google LLC, Apache
-// License 2.0). That code groups the entries by interactionId and uses the
-// maximum entry duration as the latency. It keeps a list of the 10 longest
-// interactions and uses the p98 index min(floor(interactionCount / 50), 9). It
-// groups the frames by their render time, it finds the LoAF frames that are in
-// the interaction, it selects the longest script, and it limits the next paint
-// time and the processing end time. This module replaces the onINP function of
-// that library. Thus the SDK gives an attribution for each slow interaction, and
-// not only for the final INP interaction.
-//
-// This module is different from web-vitals in three conditions. Each difference
-// decreases the number of bytes in the build. First, the code calculates
-// interactionCount from the ids that this observer receives, and it does not
-// operate a second observer with a threshold of 0. Second, navigationType
-// ignores the prerender state and the wasDiscarded value. Third, the SDK sends
-// a maximum of one INP record in each navigation period. The previous code in
-// webvitals.ts removed the duplicates, and it also discarded the additional
-// reports of web-vitals. Thus the records on the network do not change.
+// License 2.0), and it replaces the onINP function of that library. Thus the
+// SDK gives an attribution for each slow interaction, and not only for the
+// final INP interaction. The differences from web-vitals, each of which
+// decreases the number of bytes in the build: the code calculates
+// interactionCount from the ids that this observer receives and does not
+// operate a second observer with a threshold of 0; navigationType ignores the
+// prerender state and the wasDiscarded value; and the SDK sends a maximum of
+// one INP record in each navigation period, which gives the same records on
+// the network as the previous duplicate removal in webvitals.ts.
 
 type Attrs = Record<string, AttrValue | null | undefined>;
 
@@ -123,30 +115,14 @@ export function startInp(
   // list of the candidates.
   let prevInteractionCount = 0;
 
-  // --- The list of the 10 longest interactions. ---
-  let candidates: Interaction[] = [];
-  const candidateMap = new Map<number, Interaction>();
-
-  // --- The groups of the frames. They give processingEnd for all the entries
-  // in one frame. ---
+  // --- The store of the frames and the LoAF entries. The frames give
+  // processingEnd for all the entries in one frame, and the LoAF entries give
+  // the script attribution. The two live together because pruneFrames couples
+  // them: a LoAF entry stays alive only when a frame that the store keeps
+  // contains it. ---
   let frames: Frame[] = [];
   let latestProcessingEnd = 0;
-
-  // --- The buffer of the LoAF entries. ---
   let pendingLoAFs: PerformanceLongAnimationFrameTiming[] = [];
-
-  // --- The data for the wait before a slow interaction record. ---
-  type PendingSlow = {
-    interaction: Interaction;
-    timer: ReturnType<typeof setTimeout>;
-  };
-  const pendingSlow = new Map<number, PendingSlow>();
-  const sentSlow = new Set<number>();
-
-  // --- The navigation period of the INP vital. The code starts a new period
-  // when the browser gives the page from the bfcache. ---
-  let vitalReported = false;
-  let restored = false;
 
   const groupByRenderTime = (entry: PerformanceEventTiming): Frame => {
     const renderTime = entry.startTime + entry.duration;
@@ -191,16 +167,16 @@ export function startInp(
     return out;
   };
 
-  const cleanup = () => {
-    // The code keeps the frames of a current candidate and the frames of a slow
-    // record that waits. It also keeps the most recent MAX_PENDING_FRAMES
+  const pruneFrames = () => {
+    // The store keeps the frames of the current candidates and of the slow
+    // records that wait. It also keeps the most recent MAX_PENDING_FRAMES
     // frames, for the entries that come late or in an incorrect sequence.
-    const live = new Set<Frame>(candidates.map((i) => i.frame));
+    const live = new Set(candidates.map((i) => i.frame));
     for (const { interaction } of pendingSlow.values())
       live.add(interaction.frame);
     const minIndexToKeep = frames.length - MAX_PENDING_FRAMES;
     frames = frames.filter((f, i) => i >= minIndexToKeep || live.has(f));
-    // The code keeps a LoAF entry that is in a frame that it keeps. It also
+    // The store keeps a LoAF entry that is in a frame that it keeps. It also
     // keeps a LoAF entry that starts after all the entries that it processed,
     // because that entry can belong to a subsequent interaction.
     const liveLoAFs = new Set<PerformanceLongAnimationFrameTiming>();
@@ -214,16 +190,99 @@ export function startInp(
     );
   };
 
+  // --- The list of the 10 longest interactions. The p98 pick uses the index
+  // min(floor(count / 50), 9), the same as web-vitals. ---
+  const candidates: Interaction[] = [];
+  const candidateById = new Map<number, Interaction>();
+
+  // The list keeps an interaction only when that interaction can be one of the
+  // ten longest, or when it is one of them already.
+  const upsertCandidate = (interaction: Interaction) => {
+    const id = interaction.id;
+    if (
+      candidateById.has(id) ||
+      candidates.length < MAX_CANDIDATES ||
+      interaction.latency > candidates[candidates.length - 1].latency
+    ) {
+      if (!candidateById.has(id)) {
+        candidateById.set(id, interaction);
+        candidates.push(interaction);
+      }
+      candidates.sort((a, b) => b.latency - a.latency);
+      for (const dropped of candidates.splice(MAX_CANDIDATES)) {
+        candidateById.delete(dropped.id);
+      }
+    }
+  };
+
+  const pickInp = (count: number) =>
+    candidates[Math.min(candidates.length - 1, Math.floor(count / 50))];
+
+  // --- The data for the wait before a slow interaction record. ---
+  type PendingSlow = {
+    interaction: Interaction;
+    timer: ReturnType<typeof setTimeout>;
+  };
+  const pendingSlow = new Map<number, PendingSlow>();
+  const sentSlow = new Set<number>();
+
+  // --- The navigation period of the INP vital. The code starts a new period
+  // when the browser gives the page from the bfcache. ---
+  let vitalReported = false;
+  let restored = false;
+
+  // The slow record. The code waits, then it sends a maximum of one record for
+  // each interactionId. Each new entry of the interaction starts the wait
+  // again.
+  const scheduleSlow = (interaction: Interaction) => {
+    const id = interaction.id;
+    if (!slow || !id || sentSlow.has(id)) return;
+    const pending = pendingSlow.get(id);
+    if (pending) clearTimeout(pending.timer);
+    if (pending || interaction.latency >= SLOW_THRESHOLD) {
+      const next: PendingSlow = {
+        interaction,
+        timer: setTimeout(() => finalizeSlow(next), SETTLE_MS),
+      };
+      pendingSlow.set(id, next);
+    }
+  };
+
+  // The callers control this timer. The code clears the timer at each new
+  // start, at each completion, and at the stop. Thus when the timer operates,
+  // its entry is always the current entry.
+  const finalizeSlow = (pending: PendingSlow) => {
+    const { entry, frame, latency, attrs, id } = pending.interaction;
+    clearTimeout(pending.timer);
+    pendingSlow.delete(id);
+    sentSlow.add(id);
+    // The span goes from the input to the next paint. The startTime value gives
+    // its position on the trace timeline, and the latency is its duration. Thus
+    // the span needs no attribute for the duration.
+    const start = Math.round(performance.timeOrigin + entry.startTime);
+    tracer
+      .startSpan("slow_interaction", {
+        startTime: start,
+        attributes: {
+          ...attrs,
+          "everr.browser.interaction.id": id,
+          "everr.browser.interaction.name": entry.name,
+          ...phaseAttrs(entry, frame, intersectingLoAFs),
+        },
+      })
+      .end(start + Math.round(latency));
+  };
+
   const processEntry = (entry: PerformanceEventTiming) => {
-    if (entry.interactionId) {
-      minKnownId = Math.min(minKnownId, entry.interactionId);
-      maxKnownId = Math.max(maxKnownId, entry.interactionId);
+    const id = entry.interactionId || 0;
+    if (id) {
+      minKnownId = Math.min(minKnownId, id);
+      maxKnownId = Math.max(maxKnownId, id);
     }
     const frame = groupByRenderTime(entry);
-    if (!(entry.interactionId || entry.entryType === "first-input")) return;
+    if (!(id || entry.entryType === "first-input")) return;
 
-    const id = entry.interactionId || 0;
-    let interaction = candidateMap.get(id) ?? pendingSlow.get(id)?.interaction;
+    let interaction = candidateById.get(id) ?? pendingSlow.get(id)?.interaction;
     if (interaction) {
       if (entry.duration > interaction.latency) {
         interaction.latency = entry.duration;
@@ -244,37 +303,8 @@ export function startInp(
       if (el) interaction.attrs = elementAttrs(el);
     }
 
-    // The list of the candidates. The code keeps an interaction only when that
-    // interaction can be one of the ten longest, or when it is one of them
-    // already.
-    if (
-      candidateMap.has(id) ||
-      candidates.length < MAX_CANDIDATES ||
-      interaction.latency > candidates[candidates.length - 1].latency
-    ) {
-      if (!candidateMap.has(id)) {
-        candidateMap.set(id, interaction);
-        candidates.push(interaction);
-      }
-      candidates.sort((a, b) => b.latency - a.latency);
-      for (const dropped of candidates.splice(MAX_CANDIDATES)) {
-        candidateMap.delete(dropped.id);
-      }
-    }
-
-    // The slow record. The code waits, then it sends a maximum of one record
-    // for each interactionId.
-    if (slow && id && !sentSlow.has(id)) {
-      const pending = pendingSlow.get(id);
-      if (pending) clearTimeout(pending.timer);
-      if (pending || interaction.latency >= SLOW_THRESHOLD) {
-        const next: PendingSlow = {
-          interaction,
-          timer: setTimeout(() => finalizeSlow(id, next), SETTLE_MS),
-        };
-        pendingSlow.set(id, next);
-      }
-    }
+    upsertCandidate(interaction);
+    scheduleSlow(interaction);
   };
 
   const handleEntries = (entries: PerformanceEventTiming[]) => {
@@ -283,44 +313,13 @@ export function startInp(
     whenIdleOrHidden(() => {
       if (stopped) return;
       for (const entry of entries) processEntry(entry);
-      cleanup();
+      pruneFrames();
     });
-  };
-
-  // The callers control this timer. The code clears the timer at each new
-  // start, at each completion, and at the stop. Thus when the timer operates,
-  // its entry is always the current entry.
-  const finalizeSlow = (id: number, pending: PendingSlow) => {
-    clearTimeout(pending.timer);
-    pendingSlow.delete(id);
-    sentSlow.add(id);
-    const { entry, frame, latency, attrs } = pending.interaction;
-    // The span goes from the input to the next paint. The startTime value gives
-    // its position on the trace timeline, and the latency is its duration. Thus
-    // the span needs no attribute for the duration.
-    const start = Math.round(performance.timeOrigin + entry.startTime);
-    tracer
-      .startSpan("slow_interaction", {
-        startTime: start,
-        attributes: {
-          ...attrs,
-          "everr.browser.interaction.id": id,
-          "everr.browser.interaction.name": entry.name,
-          ...phaseAttrs(entry, frame, intersectingLoAFs),
-        },
-      })
-      .end(start + Math.round(latency));
   };
 
   const reportVital = () => {
     if (!vital || vitalReported) return;
-    const inp =
-      candidates[
-        Math.min(
-          candidates.length - 1,
-          Math.floor((interactionCount() - prevInteractionCount) / 50),
-        )
-      ];
+    const inp = pickInp(interactionCount() - prevInteractionCount);
     if (!inp) return;
     vitalReported = true;
     const { entry, frame, latency, id, attrs } = inp;
@@ -372,7 +371,7 @@ export function startInp(
     // emitter does the exit flush, because the SDK registers that listener
     // later.
     handleEntries(po.takeRecords() as PerformanceEventTiming[]);
-    for (const [id, pending] of [...pendingSlow]) finalizeSlow(id, pending);
+    for (const pending of [...pendingSlow.values()]) finalizeSlow(pending);
     reportVital();
   };
   addEventListener("visibilitychange", onVisibilityChange, true);
@@ -385,8 +384,8 @@ export function startInp(
     if (!event.persisted) return;
     restored = true;
     prevInteractionCount = interactionCount();
-    candidates = [];
-    candidateMap.clear();
+    candidates.length = 0;
+    candidateById.clear();
     vitalReported = false;
   };
   addEventListener("pageshow", onPageShow, true);
@@ -424,31 +423,45 @@ function phaseAttrs(
   // work that continues after the duration of the event, for example a call to
   // alert(), is never longer than the latency.
   const nextPaintTime = Math.max(
-    entry.startTime + entry.duration,
+    interactionTime + entry.duration,
     processingStart,
   );
   const processingEnd = Math.min(frame.processingEnd, nextPaintTime);
-  const inputDelay = processingStart - interactionTime;
-  const processingDuration = processingEnd - processingStart;
 
   const attrs: Attrs = {
     "everr.browser.interaction.type": entry.name.startsWith("key")
       ? "keyboard"
       : "pointer",
-    "everr.browser.interaction.input_delay": inputDelay,
-    "everr.browser.interaction.processing_duration": processingDuration,
+    "everr.browser.interaction.input_delay": processingStart - interactionTime,
+    "everr.browser.interaction.processing_duration":
+      processingEnd - processingStart,
     "everr.browser.interaction.presentation_delay":
       nextPaintTime - processingEnd,
   };
 
-  // The LoAF calculation. It gives the duration of each category in the frames
-  // that are in the interaction: the script, the style and the layout, the
-  // paint, and the part without a category. It also gives the longest script,
-  // which is the useful cause. A script that ended before the interaction
-  // started is earlier work in the same frame, and it is not a cause.
-  const loafs = intersecting(entry.startTime, processingEnd);
-  if (!loafs.length) return attrs;
+  const loafs = intersecting(interactionTime, processingEnd);
+  if (loafs.length) {
+    Object.assign(
+      attrs,
+      loafAttrs(loafs, interactionTime, processingEnd, nextPaintTime),
+    );
+  }
+  return attrs;
+}
 
+/**
+ * The LoAF calculation. It gives the duration of each category in the frames
+ * that are in the interaction: the script, the style and the layout, the
+ * paint, and the part without a category. It also gives the longest script,
+ * which is the useful cause. A script that ended before the interaction
+ * started is earlier work in the same frame, and it is not a cause.
+ */
+function loafAttrs(
+  loafs: PerformanceLongAnimationFrameTiming[],
+  interactionTime: number,
+  processingEnd: number,
+  nextPaintTime: number,
+): Attrs {
   let totalScript = 0;
   let totalStyleAndLayout = 0;
   let totalPaint = 0;
@@ -480,20 +493,24 @@ function phaseAttrs(
   }
   const lastLoaf = loafs[loafs.length - 1];
   const lastLoafEnd = lastLoaf.startTime + lastLoaf.duration;
-  if (lastLoafEnd >= interactionTime + inputDelay + processingDuration) {
+  // A LoAF that ends after the end of the processing covers the presentation,
+  // and the paint is the remainder of that LoAF.
+  if (lastLoafEnd >= processingEnd) {
     totalPaint = nextPaintTime - lastLoafEnd;
   }
 
-  attrs["everr.browser.interaction.total_script_duration"] = totalScript;
-  attrs["everr.browser.interaction.total_style_and_layout_duration"] =
-    totalStyleAndLayout;
-  attrs["everr.browser.interaction.total_paint_duration"] = totalPaint;
-  attrs["everr.browser.interaction.total_unattributed_duration"] =
-    nextPaintTime -
-    interactionTime -
-    totalScript -
-    totalStyleAndLayout -
-    totalPaint;
+  const attrs: Attrs = {
+    "everr.browser.interaction.total_script_duration": totalScript,
+    "everr.browser.interaction.total_style_and_layout_duration":
+      totalStyleAndLayout,
+    "everr.browser.interaction.total_paint_duration": totalPaint,
+    "everr.browser.interaction.total_unattributed_duration":
+      nextPaintTime -
+      interactionTime -
+      totalScript -
+      totalStyleAndLayout -
+      totalPaint,
+  };
   if (longest) {
     Object.assign(
       attrs,
