@@ -1,7 +1,13 @@
+import { Button } from "@everr/ui/components/button";
 import { Input } from "@everr/ui/components/input";
 import { useQuery } from "@tanstack/react-query";
-import { createFileRoute, useSearch } from "@tanstack/react-router";
-import { AlertCircle, LayoutDashboard, SearchIcon } from "lucide-react";
+import { createFileRoute, Link, useSearch } from "@tanstack/react-router";
+import {
+  AlertCircle,
+  LayoutDashboard,
+  LayoutTemplate,
+  SearchIcon,
+} from "lucide-react";
 import { useState } from "react";
 import { DashboardTree } from "@/components/dashboards/dashboard-tree";
 import { ResourceEmptyState } from "@/components/resource-empty-state";
@@ -31,9 +37,19 @@ function DashboardsIndexPage() {
 
   return (
     <div>
-      <div className="mb-6 flex items-center gap-2">
-        <LayoutDashboard className="size-5 text-muted-foreground" />
-        <h1 className="text-lg font-semibold">Dashboards</h1>
+      <div className="mb-6 flex items-center justify-between gap-4">
+        <div className="flex items-center gap-2">
+          <LayoutDashboard className="size-5 text-muted-foreground" />
+          <h1 className="text-lg font-semibold">Dashboards</h1>
+        </div>
+        <Button
+          variant="outline"
+          size="sm"
+          render={<Link to="/dashboards/templates" />}
+        >
+          <LayoutTemplate className="size-3.5" />
+          Create a new dashboard
+        </Button>
       </div>
 
       {!isEmpty && (
@@ -64,7 +80,14 @@ function DashboardsIndexPage() {
       {isEmpty && (
         <ResourceEmptyState
           title="No dashboards yet"
-          description="Paste this into your coding assistant. It writes the YAML, applies it, and the dashboard shows up here."
+          description="Pick a template and see it drawn with your own telemetry before you keep it."
+          primaryAction={
+            <Button render={<Link to="/dashboards/templates" />}>
+              <LayoutTemplate className="size-3.5" />
+              Browse templates
+            </Button>
+          }
+          promptLabel="Or describe what you want, and let your coding assistant write the YAML:"
           assistantPrompt={ASSISTANT_DASHBOARD_PROMPT}
           docsHref="https://everr.dev/docs/learn/first-dashboard"
         />

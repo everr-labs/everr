@@ -7,7 +7,7 @@ import {
   EmptyTitle,
 } from "@everr/ui/components/empty";
 import { cn } from "@everr/ui/lib/utils";
-import { useEffect, useRef, useState } from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 
 type CopyState = "idle" | "copied" | "failed";
 
@@ -21,11 +21,17 @@ export function ResourceEmptyState({
   description,
   assistantPrompt,
   docsHref,
+  primaryAction,
+  promptLabel,
 }: {
   title: string;
   description: string;
   assistantPrompt: string;
   docsHref?: string;
+  /** Shown above the prompt when a one-click path exists (e.g. templates). */
+  primaryAction?: ReactNode;
+  /** Overrides the line introducing the prompt when a primary action is set. */
+  promptLabel?: string;
 }) {
   const promptRef = useRef<HTMLElement>(null);
   const [copyState, setCopyState] = useState<CopyState>("idle");
@@ -68,6 +74,14 @@ export function ResourceEmptyState({
         </EmptyDescription>
       </EmptyHeader>
       <EmptyContent className="mt-4 w-full max-w-2xl">
+        {primaryAction && (
+          <>
+            {primaryAction}
+            <EmptyDescription className="mt-2">
+              {promptLabel ?? "Or describe what you want:"}
+            </EmptyDescription>
+          </>
+        )}
         <div className="flex w-full items-center gap-4 rounded-xl border bg-muted/30 py-3 pr-3 pl-5 text-left">
           <span
             aria-hidden

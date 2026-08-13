@@ -17,8 +17,15 @@ import { createAuthenticatedServerFn } from "@/lib/serverFn";
 import { interpolateVariables } from "./interpolate";
 import type { Dashboard } from "./schema";
 import { dashboardSpecSchema } from "./schema";
+import {
+  buildCapabilitiesQuery,
+  type CapabilityRow,
+  decodeCapabilityRows,
+} from "./templates/capabilities";
+import { getTemplate } from "./templates/catalog";
 import { generateTestData } from "./testdata/generate";
 import { testDataSpec } from "./testdata/spec";
+import { isUiOwned, plannedSlug, UI_REPOID } from "./ui-owned";
 
 /** A time-series panel targets ~this many points; `step` is sized to hit it. */
 const PANEL_TARGET_POINTS = 500;
@@ -64,7 +71,7 @@ export const getDashboard = createAuthenticatedServerFn({ method: "GET" })
 
     if (preview === null) {
       const [row] = await db
-        .select({ document: dashboards.document })
+        .select({ document: dashboards.document, repoid: dashboards.repoid })
         .from(dashboards)
         .where(and(identity, isNull(dashboards.previewId)))
         .limit(1);
@@ -73,7 +80,11 @@ export const getDashboard = createAuthenticatedServerFn({ method: "GET" })
       // Typed binding (not an assertion) so the live and preview branches share
       // one return shape without widening `undefined` via a cast.
       const previewStatus: PreviewStatus | undefined = undefined;
-      return { document: row.document satisfies Dashboard, previewStatus };
+      return {
+        document: row.document satisfies Dashboard,
+        uiOwned: isUiOwned(row.repoid),
+        previewStatus,
+      };
     }
 
     // Live rows (previewId NULL) plus this preview's rows; `previewId` is the
@@ -103,6 +114,7 @@ export const getDashboard = createAuthenticatedServerFn({ method: "GET" })
     dashboardSpecSchema.parse(row.document.spec);
     return {
       document: row.document satisfies Dashboard,
+      uiOwned: isUiOwned(row.repoid),
       previewStatus: row.previewStatus,
     };
   });
@@ -118,6 +130,7 @@ export const listDashboards = createAuthenticatedServerFn({ method: "GET" })
     // preview path feeds `overlayPreview`, which diffs `document` and keys off
     // `repoid`/`previewId`, so it keeps those.
     const liveSelect = {
+      repoid: dashboards.repoid,
       slug: dashboards.slug,
       project: dashboards.project,
       folderPath: dashboards.folderPath,
@@ -135,6 +148,7 @@ export const listDashboards = createAuthenticatedServerFn({ method: "GET" })
     };
 
     const toItem = (row: {
+      repoid?: string | null;
       slug: string;
       project: string;
       folderPath: string;
@@ -145,6 +159,9 @@ export const listDashboards = createAuthenticatedServerFn({ method: "GET" })
       project: row.project,
       name: row.displayName ?? row.slug,
       folderPath: row.folderPath,
+      // Surfaced so the list can mark the ones made in the app: those are
+      // editable in place, where an as-code Dashboard is owned by a repository.
+      uiOwned: isUiOwned(row.repoid),
       previewStatus: row.previewStatus,
     });
 
@@ -175,6 +192,82 @@ export const listDashboards = createAuthenticatedServerFn({ method: "GET" })
         ),
     ]);
     return overlayPreview({ rows, coveredRepoids: covered }).map(toItem);
+  });
+
+/**
+ * What the Organization is sending right now, in the same window the previews
+ * render. The gallery grades templates against this, so a template marked ready
+ * and a preview that draws nothing can never disagree.
+ */
+export const getTelemetryCapabilities = createAuthenticatedServerFn({
+  method: "GET",
+})
+  .inputValidator(z.object({ from: z.string(), to: z.string() }))
+  .handler(async ({ data: { from, to }, context }) => {
+    const { fromISO, toISO } = resolveTimeRange({ from, to });
+    const rows = await querySqlApi<CapabilityRow>(
+      buildCapabilitiesQuery(),
+      context.session.session.activeOrganizationId,
+      { from: fromISO, to: toISO },
+    );
+    return decodeCapabilityRows(rows);
+  });
+
+/**
+ * Create a Dashboard the Organization owns from a catalog template.
+ *
+ * The document is copied, not referenced: the new Dashboard has no link back to
+ * the template, and later catalog changes never touch it. It is filed under
+ * `UI_REPOID`, a boundary `everr apply` never reconciles, so a repository apply
+ * cannot prune a Dashboard it has never seen. From here on, editing is the
+ * normal flow — a prompt handoff to an Agent that applies the YAML.
+ */
+export const createDashboardFromTemplate = createAuthenticatedServerFn({
+  method: "POST",
+})
+  .inputValidator(z.object({ templateId: z.string() }))
+  .handler(async ({ data: { templateId }, context }) => {
+    const orgId = context.session.session.activeOrganizationId;
+    const template = getTemplate(templateId);
+    if (!template) throw new Error(`Unknown template: ${templateId}`);
+
+    const project = template.document.metadata.project ?? "default";
+
+    // Live identity is (org, project, slug) across every Repoid, so a second
+    // copy — or a collision with an as-code Dashboard — needs its own slug.
+    // Read the taken ones once and pick, rather than retrying on the unique
+    // index and guessing which constraint fired.
+    const taken = (
+      await db
+        .select({ slug: dashboards.slug })
+        .from(dashboards)
+        .where(
+          and(
+            eq(dashboards.organizationId, orgId),
+            eq(dashboards.project, project),
+            isNull(dashboards.previewId),
+          ),
+        )
+    ).map((row) => row.slug);
+
+    const slug = plannedSlug(template.id, taken);
+
+    const document: Dashboard = {
+      ...template.document,
+      metadata: { ...template.document.metadata, name: slug, project },
+    };
+
+    await db.insert(dashboards).values({
+      organizationId: orgId,
+      repoid: UI_REPOID,
+      previewId: null,
+      project,
+      slug,
+      folderPath: "",
+      document,
+    });
+
+    return { project, slug };
   });
 
 type QueryRow = Record<string, string | number | boolean | null>;

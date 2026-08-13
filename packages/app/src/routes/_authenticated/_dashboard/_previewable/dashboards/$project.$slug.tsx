@@ -4,6 +4,7 @@ import gridLayoutCSS from "react-grid-layout/css/styles.css?url";
 import { DashboardGrid } from "@/components/dashboards/dashboard-grid";
 import gridLayoutOverridesCSS from "@/components/dashboards/dashboard-grid.css?url";
 import { DashboardNotFound } from "@/components/dashboards/dashboard-not-found";
+import { EditWithAssistant } from "@/components/dashboards/edit-with-assistant";
 import { DashboardProvider } from "@/components/dashboards/use-dashboard";
 import { dashboardOptions } from "@/data/dashboards/options";
 import { dashboardTimeDefaults } from "@/data/dashboards/time-defaults";
@@ -67,11 +68,20 @@ function DashboardPage() {
   // The dashboard is immutable (gitops, read-only), so the query cache is the
   // single source of truth; the loader has already ensured the data.
   const {
-    data: { document },
+    data: { document, uiOwned },
   } = useSuspenseQuery(dashboardOptions(project, slug, preview));
   return (
     <DashboardProvider document={document}>
-      <DashboardGrid />
+      <DashboardGrid
+        actions={
+          <EditWithAssistant
+            project={project}
+            slug={slug}
+            name={document.spec.display?.name ?? slug}
+            uiOwned={uiOwned}
+          />
+        }
+      />
     </DashboardProvider>
   );
 }

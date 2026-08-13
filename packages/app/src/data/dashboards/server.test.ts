@@ -280,7 +280,11 @@ describe("getDashboard (project/slug)", () => {
     const result = await getDashboard({
       data: { project: "team", slug: "cpu" },
     });
-    expect(result).toEqual({ document, previewStatus: undefined });
+    expect(result).toEqual({
+      document,
+      uiOwned: false,
+      previewStatus: undefined,
+    });
   });
 
   it("throws a notFound when the dashboard is missing", async () => {
@@ -399,7 +403,13 @@ describe("listDashboards (with project + folderPath)", () => {
     );
     const rows = await listDashboards();
     expect(rows).toEqual([
-      { slug: "cpu", project: "team", name: "CPU", folderPath: "Infra" },
+      {
+        slug: "cpu",
+        project: "team",
+        name: "CPU",
+        folderPath: "Infra",
+        uiOwned: false,
+      },
     ]);
   });
 
