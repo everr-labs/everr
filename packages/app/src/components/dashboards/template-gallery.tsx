@@ -119,7 +119,7 @@ export function TemplateGallery({
   return (
     <div>
       <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,22rem)_minmax(0,1fr)]">
-        <aside className="flex min-w-0 flex-col gap-4 lg:sticky lg:top-4">
+        <aside className="flex min-w-0 flex-col gap-4 lg:sticky lg:top-4 lg:-mt-1">
           <div className="relative">
             <SearchIcon className="absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
             <Input
@@ -304,7 +304,7 @@ function TemplateList({
           {section.label && (
             <header className="mb-1.5 flex items-baseline justify-between gap-3 px-1">
               <h2
-                className="font-medium text-[0.6875rem] text-muted-foreground uppercase tracking-wider"
+                className="font-semibold text-[0.6875rem] text-foreground/75 uppercase tracking-wider"
                 // One phrase, so a screen reader never says
                 // "ready for your data twelve".
                 aria-label={`${section.label}, ${section.count} templates`}
@@ -326,7 +326,7 @@ function TemplateList({
           {section.groups.map((group) => (
             <div key={group.category ?? "all"}>
               {group.category && (
-                <h3 className="mt-2.5 mb-0.5 px-2 font-medium text-[0.6875rem] text-muted-foreground first:mt-0">
+                <h3 className="mt-2.5 mb-0.5 px-2 font-medium text-[0.6875rem] text-muted-foreground/80 first:mt-0">
                   {group.category}
                 </h3>
               )}
@@ -384,7 +384,7 @@ function TemplateRow({
       }}
       className={cn(
         "flex w-full cursor-pointer items-center gap-2.5 rounded-md px-2 py-1.5 text-left transition-colors",
-        "focus-visible:outline-2 focus-visible:outline-primary focus-visible:-outline-offset-1",
+        "focus-visible:outline-2 focus-visible:outline-primary focus-visible:outline-offset-0",
         selected
           ? "bg-muted text-foreground"
           : "text-muted-foreground hover:bg-muted/50 hover:text-foreground",
@@ -504,7 +504,12 @@ function TemplatePreview({
         </DashboardProvider>
       </section>
 
-      <div className="sticky bottom-0 -mx-1 flex flex-wrap items-center gap-x-4 gap-y-2 border-t bg-background/85 px-1 py-3 backdrop-blur">
+      {/*
+        Opaque, not translucent: this bar sits over a scrolling grid, and a
+        blurred half-transparent strip reads as the panels being clipped rather
+        than as a bar covering them.
+      */}
+      <div className="sticky bottom-0 -mx-1 flex flex-wrap items-center gap-x-4 gap-y-2 border-t bg-background px-1 py-3">
         <Button
           type="button"
           onClick={() => create.mutate()}

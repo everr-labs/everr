@@ -40,9 +40,12 @@ function DashboardTemplatesPage() {
       selectedId={template}
       onSelect={(id) =>
         // `replace` so walking the list doesn't bury the page the reader came
-        // from under one history entry per template.
+        // from under one history entry per template. `vars` is dropped because
+        // each template declares its own: carrying a previous template's
+        // variable values forward leaves them stranded in the URL, and a name
+        // collision would silently apply one template's selection to another.
         void navigate({
-          search: (prev) => ({ ...prev, template: id }),
+          search: (prev) => ({ ...prev, template: id, vars: undefined }),
           replace: true,
         })
       }
