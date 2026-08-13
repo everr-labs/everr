@@ -33,11 +33,6 @@ export function getTemplate(id: string): DashboardTemplate | undefined {
   return BY_ID.get(id);
 }
 
-/** Panel count, shown on every row. Derived so it can never fall out of date. */
-export function panelCount(template: DashboardTemplate): number {
-  return Object.keys(template.document.spec.panels).length;
-}
-
 /**
  * Validates the whole catalog against the same strict schema `everr apply`
  * uses, so a template that would be rejected as a file is rejected here too.

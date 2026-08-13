@@ -33,10 +33,7 @@ import {
   evaluateTemplate,
   type TemplateReadiness,
 } from "@/data/dashboards/templates/capabilities";
-import {
-  DASHBOARD_TEMPLATES,
-  panelCount,
-} from "@/data/dashboards/templates/catalog";
+import { DASHBOARD_TEMPLATES } from "@/data/dashboards/templates/catalog";
 import type {
   DashboardTemplate,
   TemplateCategory,
@@ -412,16 +409,12 @@ function TemplateRow({
         )}
       />
       <span className="min-w-0 flex-1 truncate text-sm">{template.name}</span>
-      {reason ? (
+      {reason && (
         <span
           title={reason}
           className="max-w-36 shrink-0 truncate font-mono text-muted-foreground text-xs"
         >
           {reason}
-        </span>
-      ) : (
-        <span className="shrink-0 text-muted-foreground text-xs tabular-nums">
-          {panelCount(template)} panels
         </span>
       )}
     </div>
