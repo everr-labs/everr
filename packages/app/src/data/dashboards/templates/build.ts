@@ -60,43 +60,39 @@ export const table = (name: string, query: string, description?: string) =>
   panel("Table", name, { stickyHeader: true }, query, description);
 
 /**
- * A row of panels: keys plus their widths in grid columns, and one shared
- * height. Laying rows out this way (rather than hand-written x/y) keeps every
- * template's grid arithmetic correct by construction — the read-only grid uses
- * no compactor, so a wrong y leaves a visible hole.
+ * A row of panels sharing one height. Laying rows out this way (rather than
+ * hand-written x/y) keeps every template's grid arithmetic correct by
+ * construction — the read-only grid uses no compactor, so a wrong y leaves a
+ * visible hole.
  */
-export interface Row {
+interface Row {
   height: number;
-  cells: Array<{ panel: string; width: number }>;
+  panels: string[];
 }
 
-/** Evenly split a row across its panels, absorbing the remainder on the left. */
-export const split = (height: number, ...panels: string[]): Row => {
-  const base = Math.floor(GRID_COLS / panels.length);
-  const extra = GRID_COLS - base * panels.length;
-  return {
-    height,
-    cells: panels.map((p, i) => ({
-      panel: p,
-      width: base + (i < extra ? 1 : 0),
-    })),
-  };
-};
+/** A row whose panels divide the grid evenly, remainder absorbed on the left. */
+export const split = (height: number, ...panels: string[]): Row => ({
+  height,
+  panels,
+});
 
 export function layout(rows: Row[]): GridLayout[] {
   const items: GridItem[] = [];
   let y = 0;
-  for (const { height, cells } of rows) {
+  for (const { height, panels } of rows) {
+    const base = Math.floor(GRID_COLS / panels.length);
+    const extra = GRID_COLS - base * panels.length;
     let x = 0;
-    for (const cell of cells) {
+    for (const [index, panel] of panels.entries()) {
+      const width = base + (index < extra ? 1 : 0);
       items.push({
         x,
         y,
-        width: cell.width,
+        width,
         height,
-        content: { $ref: `${PANEL_REF_PREFIX}${cell.panel}` },
+        content: { $ref: `${PANEL_REF_PREFIX}${panel}` },
       });
-      x += cell.width;
+      x += width;
     }
     y += height;
   }

@@ -64,14 +64,12 @@ describe("decodeCapabilityRows", () => {
         { kind: "metric", name: "redis.memory.used" },
         { kind: "span-attribute", name: "http.route" },
         { kind: "log-attribute", name: "session.id" },
-        { kind: "resource-attribute", name: "service.name" },
       ]),
     ).toEqual({
-      signals: ["traces"],
-      metricNames: ["redis.memory.used"],
-      spanAttributeKeys: ["http.route"],
-      logAttributeKeys: ["session.id"],
-      resourceAttributeKeys: ["service.name"],
+      signal: ["traces"],
+      metric: ["redis.memory.used"],
+      "span-attribute": ["http.route"],
+      "log-attribute": ["session.id"],
     });
   });
 
@@ -87,7 +85,7 @@ describe("evaluateTemplate", () => {
     expect(
       evaluateTemplate(
         template([{ kind: "signal", match: "traces", label: "no traces" }]),
-        capabilities({ signals: ["traces"] }),
+        capabilities({ signal: ["traces"] }),
       ),
     ).toEqual({ status: "ready" });
   });
@@ -108,7 +106,7 @@ describe("evaluateTemplate", () => {
     expect(
       evaluateTemplate(
         template([{ kind: "metric", match: "redis", label: "no redis.*" }]),
-        capabilities({ metricNames: ["redis.memory.used"] }),
+        capabilities({ metric: ["redis.memory.used"] }),
       ),
     ).toEqual({ status: "ready" });
   });
@@ -117,7 +115,7 @@ describe("evaluateTemplate", () => {
     expect(
       evaluateTemplate(
         template([{ kind: "metric", match: "redis", label: "no redis.*" }]),
-        capabilities({ metricNames: ["myredis.memory.used"] }),
+        capabilities({ metric: ["myredis.memory.used"] }),
       ),
     ).toEqual({ status: "needs-setup", missing: ["no redis.*"] });
   });
@@ -132,7 +130,7 @@ describe("evaluateTemplate", () => {
             label: "no http.request.method*",
           },
         ]),
-        capabilities({ spanAttributeKeys: ["http.request.method"] }),
+        capabilities({ "span-attribute": ["http.request.method"] }),
       ),
     ).toEqual({ status: "ready" });
   });
@@ -144,7 +142,7 @@ describe("evaluateTemplate", () => {
         template([
           { kind: "span-attribute", match: "http.route", label: "no http.*" },
         ]),
-        capabilities({ metricNames: ["http.route"] }),
+        capabilities({ metric: ["http.route"] }),
       ),
     ).toEqual({ status: "needs-setup", missing: ["no http.*"] });
   });
@@ -173,9 +171,10 @@ describe("catalog", () => {
     expect(() => validateCatalog()).not.toThrow();
   });
 
-  it("gives every template a slug-shaped id matching its document name", () => {
+  it("names each document after its id", () => {
+    // The id's slug shape is asserted by validateCatalog above, which parses it
+    // with the same schema the as-code write path uses.
     for (const t of DASHBOARD_TEMPLATES) {
-      expect(t.id).toMatch(/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/);
       expect(t.document.metadata.name).toBe(t.id);
     }
   });

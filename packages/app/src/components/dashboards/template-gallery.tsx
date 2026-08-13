@@ -15,7 +15,13 @@ import {
   SearchIcon,
   TriangleAlert,
 } from "lucide-react";
-import { type KeyboardEvent, useMemo, useRef, useState } from "react";
+import {
+  type KeyboardEvent,
+  useDeferredValue,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { toast } from "sonner";
 import {
   dashboardListOptions,
@@ -36,7 +42,6 @@ import type {
   TemplateCategory,
 } from "@/data/dashboards/templates/types";
 import { TEMPLATE_CATEGORIES } from "@/data/dashboards/templates/types";
-import { plannedSlug } from "@/data/dashboards/ui-owned";
 import { useTimeRange } from "@/hooks/use-time-range";
 import { DashboardGrid } from "./dashboard-grid";
 import { DashboardProvider } from "./use-dashboard";
@@ -116,6 +121,16 @@ export function TemplateGallery({
     graded.find((g) => g.template.id === selectedId) ??
     matching[0];
 
+  /*
+   * The list highlights immediately; the preview lags one commit behind.
+   * Mounting a preview runs a grid of ClickHouse queries, and React Query does
+   * not abort them on unmount — so holding an arrow key down would queue every
+   * template's panels behind the four the reader actually stopped on. Deferring
+   * means a traversal mounts one grid, not nineteen.
+   */
+  const previewId = useDeferredValue(selected?.template.id);
+  const previewed = graded.find((g) => g.template.id === previewId) ?? selected;
+
   return (
     <div>
       <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,22rem)_minmax(0,1fr)]">
@@ -168,11 +183,11 @@ export function TemplateGallery({
           />
         </aside>
 
-        {selected ? (
+        {previewed ? (
           <TemplatePreview
-            key={selected.template.id}
-            template={selected.template}
-            readiness={selected.readiness}
+            key={previewed.template.id}
+            template={previewed.template}
+            readiness={previewed.readiness}
             probe={probe}
           />
         ) : (
@@ -426,16 +441,18 @@ function TemplatePreview({
   const queryClient = useQueryClient();
   const Icon = CATEGORY_ICON[template.category];
 
-  // Live dashboards, so the destination can be named before the click rather
-  // than discovered after it. `plannedSlug` is the same rule the write uses, so
-  // the promise and the insert cannot name different slugs.
-  const { data: existing } = useQuery(dashboardListOptions());
+  /*
+   * A Dashboard this template already made, if it is still the app's to offer.
+   * Matched on the slug the template creates under, and only while the app
+   * still owns it: once a repository adopts it, it is that repository's
+   * Dashboard rather than this template's copy, and the template is free to be
+   * used again.
+   */
+  const { data: dashboards } = useQuery(dashboardListOptions());
   const project = template.document.metadata.project ?? "default";
-  const slug = plannedSlug(
-    template.id,
-    (existing ?? []).filter((d) => d.project === project).map((d) => d.slug),
+  const alreadyCreated = (dashboards ?? []).find(
+    (d) => d.uiOwned && d.project === project && d.slug === template.id,
   );
-  const isSecondCopy = slug !== template.id;
 
   const create = useMutation({
     mutationFn: () =>
@@ -497,28 +514,42 @@ function TemplatePreview({
           destination has to be legible at the moment of deciding, not after
           scrolling a grid of panels.
         */}
-        <div className="flex shrink-0 flex-col items-end gap-1.5">
-          <Button
-            type="button"
-            onClick={() => create.mutate()}
-            disabled={create.isPending}
-          >
-            {create.isPending ? (
-              <Loader2 className="size-3.5 animate-spin" />
-            ) : (
+        {/*
+          Creating a second identical copy is almost never what the reader
+          wants, so once this template has one the action becomes the way back
+          to it rather than a second create.
+        */}
+        <div className="shrink-0">
+          {alreadyCreated ? (
+            <Button
+              type="button"
+              onClick={() =>
+                void navigate({
+                  to: "/dashboards/$project/$slug",
+                  params: {
+                    project: alreadyCreated.project,
+                    slug: alreadyCreated.slug,
+                  },
+                })
+              }
+            >
               <ArrowRight className="size-3.5" />
-            )}
-            Create dashboard
-          </Button>
-          <p className="max-w-64 text-right text-muted-foreground text-xs">
-            Creates{" "}
-            <span className="font-mono text-foreground/90">
-              {project} / {slug}
-            </span>
-            {isSecondCopy
-              ? ` — ${template.id} already exists, so this is a second copy.`
-              : ", a copy you own."}
-          </p>
+              Open dashboard
+            </Button>
+          ) : (
+            <Button
+              type="button"
+              onClick={() => create.mutate()}
+              disabled={create.isPending}
+            >
+              {create.isPending ? (
+                <Loader2 className="size-3.5 animate-spin" />
+              ) : (
+                <ArrowRight className="size-3.5" />
+              )}
+              Create dashboard
+            </Button>
+          )}
         </div>
       </header>
 

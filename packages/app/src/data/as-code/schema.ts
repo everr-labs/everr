@@ -1,4 +1,5 @@
 import * as z from "zod";
+import { isReservedRepoid } from "@/data/dashboards/ui-owned";
 
 /** One resource in the apply state: its repo-relative path and raw contents. */
 const resourceEntrySchema = z.object({
@@ -38,7 +39,18 @@ export const applyInput = z
   .object({
     // Stable repository identifier from everr.yaml — the apply ownership and
     // prune boundary. Resources from other repoids are never touched.
-    repoid: z.string().min(1),
+    //
+    // `everr:`-scheme repoids are reserved for boundaries the app owns (see
+    // `isReservedRepoid`). Git inference cannot produce one, but a Manifest can
+    // name any string, and an apply under a reserved repoid would prune the
+    // Dashboards the app created there.
+    repoid: z
+      .string()
+      .min(1)
+      .refine((value) => !isReservedRepoid(value), {
+        message:
+          "repoid values starting with `everr:` are reserved for Everr itself",
+      }),
     state: z
       .object({
         dashboards: z.array(resourceEntrySchema),

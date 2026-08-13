@@ -16,7 +16,12 @@ import { querySqlApi } from "@/lib/clickhouse";
 import { createAuthenticatedServerFn } from "@/lib/serverFn";
 import { interpolateVariables } from "./interpolate";
 import type { Dashboard } from "./schema";
-import { dashboardSpecSchema } from "./schema";
+import {
+  dashboardProjectSchema,
+  dashboardSlugSchema,
+  dashboardSpecSchema,
+  dashboardSpecSchemaStrict,
+} from "./schema";
 import {
   buildCapabilitiesQuery,
   type CapabilityRow,
@@ -257,6 +262,14 @@ export const createDashboardFromTemplate = createAuthenticatedServerFn({
       metadata: { ...template.document.metadata, name: slug, project },
     };
 
+    // The same gate `everr apply` puts in front of a Dashboard document. The
+    // catalog is checked by `validateCatalog` in tests, but tests do not guard
+    // the write: this is the one place a template becomes a stored row, so it
+    // validates here rather than trusting where the document came from.
+    dashboardProjectSchema.parse(project);
+    dashboardSlugSchema.parse(slug);
+    dashboardSpecSchemaStrict.parse(document.spec);
+
     await db.insert(dashboards).values({
       organizationId: orgId,
       repoid: UI_REPOID,
@@ -268,6 +281,42 @@ export const createDashboardFromTemplate = createAuthenticatedServerFn({
     });
 
     return { project, slug };
+  });
+
+/**
+ * Delete a Dashboard the app created.
+ *
+ * Scoped to `UI_REPOID` in the WHERE clause, not checked and then deleted: an
+ * as-code Dashboard is owned by a repository and its removal belongs to
+ * `everr apply`, so this statement must be unable to touch one even if the
+ * caller names it. A Dashboard adopted into a repository has left that boundary
+ * and stops being deletable here, which is the intended one-way door.
+ */
+export const deleteUiDashboard = createAuthenticatedServerFn({ method: "POST" })
+  .inputValidator(z.object({ project: z.string(), slug: z.string() }))
+  .handler(async ({ data: { project, slug }, context }) => {
+    const deleted = await db
+      .delete(dashboards)
+      .where(
+        and(
+          eq(
+            dashboards.organizationId,
+            context.session.session.activeOrganizationId,
+          ),
+          eq(dashboards.repoid, UI_REPOID),
+          isNull(dashboards.previewId),
+          eq(dashboards.project, project),
+          eq(dashboards.slug, slug),
+        ),
+      )
+      .returning({ slug: dashboards.slug });
+
+    if (deleted.length === 0) {
+      throw new Error(
+        "That dashboard is owned by a repository. Remove it from its files and run everr apply.",
+      );
+    }
+    return { deleted: deleted.length };
   });
 
 type QueryRow = Record<string, string | number | boolean | null>;

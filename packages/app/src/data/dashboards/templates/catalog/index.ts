@@ -1,4 +1,4 @@
-import { dashboardSpecSchemaStrict } from "../../schema";
+import { dashboardSlugSchema, dashboardSpecSchemaStrict } from "../../schema";
 import type { DashboardTemplate } from "../types";
 import { TEMPLATE_CATEGORIES } from "../types";
 import { applicationTemplates } from "./application";
@@ -51,6 +51,9 @@ export function validateCatalog(): void {
       throw new Error(`Duplicate template id: ${template.id}`);
     }
     ids.add(template.id);
+    // The id becomes the created Dashboard's slug, so it answers to the same
+    // rule every as-code slug does rather than to a regex copied into a test.
+    dashboardSlugSchema.parse(template.id);
     dashboardSpecSchemaStrict.parse(template.document.spec);
   }
 }

@@ -12,15 +12,20 @@ export const TEMPLATE_CATEGORIES = [
 export type TemplateCategory = (typeof TEMPLATE_CATEGORIES)[number];
 
 /**
- * The kind of telemetry a requirement looks for. Each maps to one bucket of
- * `TelemetryCapabilities`, which is what the probe fills in.
+ * The kinds of telemetry a requirement can look for. Each is one bucket of
+ * `TelemetryCapabilities` and one scan in the probe, so adding a kind here is
+ * the single place that has to change — and a kind no template states still
+ * costs a ClickHouse scan on every gallery load, so none are declared
+ * speculatively.
  */
-export type RequirementKind =
-  | "signal"
-  | "span-attribute"
-  | "resource-attribute"
-  | "log-attribute"
-  | "metric";
+export const REQUIREMENT_KINDS = [
+  "signal",
+  "span-attribute",
+  "log-attribute",
+  "metric",
+] as const;
+
+export type RequirementKind = (typeof REQUIREMENT_KINDS)[number];
 
 /**
  * One thing the Organization must already be sending for a template to render

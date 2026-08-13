@@ -1,46 +1,5 @@
-import type { Panel } from "../../schema";
-import { layout, split } from "../build";
-import type { DashboardTemplate, TemplateCategory } from "../types";
-import { metricLine, needsMetricNamespace, needsMetrics } from "./shared";
-
-/**
- * Receiver-backed templates are all the same board: a handful of that
- * receiver's own metrics, two to a row. Only the metric names differ, so the
- * shape is written once and every receiver fills in its own list.
- */
-export function receiverTemplate(input: {
-  id: string;
-  name: string;
-  description: string;
-  category: TemplateCategory;
-  namespace: string;
-  duration?: string;
-  panels: Record<string, Panel>;
-}): DashboardTemplate {
-  const keys = Object.keys(input.panels);
-  const rows = [];
-  for (let i = 0; i < keys.length; i += 2) {
-    rows.push(split(8, ...keys.slice(i, i + 2)));
-  }
-  return {
-    id: input.id,
-    name: input.name,
-    description: input.description,
-    category: input.category,
-    requires: [needsMetrics, needsMetricNamespace(input.namespace)],
-    document: {
-      kind: "Dashboard",
-      metadata: { name: input.id },
-      spec: {
-        display: { name: input.name },
-        duration: input.duration ?? "6h",
-        refreshInterval: "1m",
-        panels: input.panels,
-        layouts: layout(rows),
-      },
-    },
-  };
-}
+import type { DashboardTemplate } from "../types";
+import { metricLine, receiverTemplate } from "./shared";
 
 export const databaseTemplates: DashboardTemplate[] = [
   receiverTemplate({

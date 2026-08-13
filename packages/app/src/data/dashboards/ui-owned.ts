@@ -4,10 +4,13 @@
  * A Repoid is normally a repository slug (`host/owner/repo`), and `everr apply`
  * reconciles exactly one Repoid at a time, pruning anything inside it that the
  * applied tree does not contain. A Dashboard made from a template has no
- * repository behind it, so it needs a boundary no apply ever targets. The
- * `everr:` scheme prefix cannot be produced by slug inference or by a Manifest
- * value that is a valid slug, so this boundary is unreachable from apply by
- * construction — not by a rule someone has to remember.
+ * repository behind it, so it needs a boundary no apply ever targets.
+ *
+ * The `everr:` scheme prefix cannot come from slug inference, which always
+ * yields `host/owner/repo` — but a Manifest can name any non-empty string, so
+ * the boundary is only unreachable because `isReservedRepoid` rejects it at the
+ * apply edge. Take that check away and an `everr.yaml` claiming this Repoid
+ * would prune every Dashboard the app has created.
  *
  * The cross-Repoid collision check still applies in the other direction: an
  * apply that creates the same (project, slug) reports an ownership conflict and
@@ -15,6 +18,15 @@
  * the documented path for promoting a UI-made Dashboard into as-code.
  */
 export const UI_REPOID = "everr:ui";
+
+/**
+ * Repoids the app owns and apply must never claim. Reserved by scheme prefix
+ * rather than by listing values, so a future UI-owned boundary inherits the
+ * protection without another edit here.
+ */
+export function isReservedRepoid(repoid: string): boolean {
+  return repoid.startsWith("everr:");
+}
 
 export function isUiOwned(repoid: string | null | undefined): boolean {
   return repoid === UI_REPOID;

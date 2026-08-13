@@ -4,12 +4,11 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@everr/ui/components/popover";
+import { useCopyToClipboard } from "@everr/ui/hooks/use-copy-to-clipboard";
 import { cn } from "@everr/ui/lib/utils";
 import { Sparkles } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { useRef } from "react";
 import { editDashboardPrompt } from "@/data/dashboards/ui-owned";
-
-type CopyState = "idle" | "copied" | "failed";
 
 /**
  * The edit path for a Dashboard: hand the Agent a prompt that names this
@@ -33,31 +32,9 @@ export function EditWithAssistant({
 }) {
   const prompt = editDashboardPrompt({ project, slug, name, uiOwned });
   const promptRef = useRef<HTMLElement>(null);
-  const [copyState, setCopyState] = useState<CopyState>("idle");
-  const resetTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
-  useEffect(() => () => clearTimeout(resetTimer.current), []);
-
-  const copy = () => {
-    clearTimeout(resetTimer.current);
-    navigator.clipboard.writeText(prompt).then(
-      () => {
-        setCopyState("copied");
-        resetTimer.current = setTimeout(() => setCopyState("idle"), 2000);
-      },
-      () => {
-        // Clipboard access can be denied (permissions policy, unfocused
-        // document). Select the prompt so a manual copy is one keystroke away.
-        const node = promptRef.current;
-        if (!node) return setCopyState("failed");
-        const range = document.createRange();
-        range.selectNodeContents(node);
-        const selection = window.getSelection();
-        selection?.removeAllRanges();
-        selection?.addRange(range);
-        setCopyState("failed");
-      },
-    );
-  };
+  const { state: copyState, copy } = useCopyToClipboard(prompt, {
+    selectOnFailure: promptRef,
+  });
 
   return (
     <Popover>

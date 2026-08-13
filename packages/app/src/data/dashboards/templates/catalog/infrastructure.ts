@@ -1,6 +1,5 @@
 import type { DashboardTemplate } from "../types";
-import { receiverTemplate } from "./databases";
-import { metricLine } from "./shared";
+import { metricLine, receiverTemplate } from "./shared";
 
 export const infrastructureTemplates: DashboardTemplate[] = [
   receiverTemplate({

@@ -2,9 +2,11 @@ import { layout, split, stat, table, thresholds, timeSeries } from "../build";
 import type { DashboardTemplate } from "../types";
 import {
   BUCKET,
+  errorRateStat,
   needsSpanAttribute,
   needsTraces,
   OF_SERVICE,
+  p95LatencyStat,
   SERIES_BUCKET,
   serviceVariable,
   topSeries,
@@ -38,18 +40,7 @@ GROUP BY ts
 ORDER BY ts`,
             "Root spans, so one request counts once.",
           ),
-          "error-rate": stat(
-            "Error rate",
-            {
-              calculation: "last",
-              unit: "%",
-              decimals: 2,
-              thresholds: thresholds(1, 5),
-            },
-            `SELECT countIf(StatusCode = 'Error') / count() * 100 AS error_pct
-FROM traces
-WHERE ${WITHIN} AND ${OF_SERVICE}`,
-          ),
+          "error-rate": errorRateStat(),
           "p50-latency": stat(
             "P50 latency",
             { calculation: "last", unit: "ms", decimals: 1 },
@@ -57,12 +48,9 @@ WHERE ${WITHIN} AND ${OF_SERVICE}`,
 FROM traces
 WHERE ${WITHIN} AND ${OF_SERVICE} AND ParentSpanId = ''`,
           ),
-          "p95-latency": stat(
+          "p95-latency": p95LatencyStat(
             "P95 latency",
-            { calculation: "last", unit: "ms", decimals: 1 },
-            `SELECT round(quantile(0.95)(Duration) / 1000000, 1) AS p95
-FROM traces
-WHERE ${WITHIN} AND ${OF_SERVICE} AND ParentSpanId = ''`,
+            " AND ParentSpanId = ''",
           ),
           "throughput-over-time": timeSeries(
             "Throughput over time",
@@ -144,18 +132,7 @@ FROM traces ARRAY JOIN arrayZip(Events.Name, Events.Attributes) AS ev
 WHERE ${WITHIN} AND ${OF_SERVICE} AND ev.1 = 'exception'`,
             "Unique exception type plus normalized message.",
           ),
-          "error-rate": stat(
-            "Error rate",
-            {
-              calculation: "last",
-              unit: "%",
-              decimals: 2,
-              thresholds: thresholds(1, 5),
-            },
-            `SELECT countIf(StatusCode = 'Error') / count() * 100 AS error_pct
-FROM traces
-WHERE ${WITHIN} AND ${OF_SERVICE}`,
-          ),
+          "error-rate": errorRateStat(),
           "errors-over-time": timeSeries(
             "Error spans by service",
             { showLegend: true, stacked: true },
@@ -332,24 +309,12 @@ WHERE ${WITHIN} AND ${OF_SERVICE} AND SpanAttributes['rpc.system'] != ''
 GROUP BY ts
 ORDER BY ts`,
           ),
-          "error-rate": stat(
-            "Error rate",
-            {
-              calculation: "last",
-              unit: "%",
-              decimals: 2,
-              thresholds: thresholds(1, 5),
-            },
-            `SELECT countIf(StatusCode = 'Error') / count() * 100 AS error_pct
-FROM traces
-WHERE ${WITHIN} AND ${OF_SERVICE} AND SpanAttributes['rpc.system'] != ''`,
+          "error-rate": errorRateStat(
+            " AND SpanAttributes['rpc.system'] != ''",
           ),
-          "p95-latency": stat(
+          "p95-latency": p95LatencyStat(
             "P95 latency",
-            { calculation: "last", unit: "ms", decimals: 1 },
-            `SELECT round(quantile(0.95)(Duration) / 1000000, 1) AS p95
-FROM traces
-WHERE ${WITHIN} AND ${OF_SERVICE} AND SpanAttributes['rpc.system'] != ''`,
+            " AND SpanAttributes['rpc.system'] != ''",
           ),
           "calls-by-method": timeSeries(
             "Calls by method",
@@ -415,12 +380,9 @@ WHERE ${WITHIN} AND ${OF_SERVICE} AND SpanAttributes['db.system'] != ''
 GROUP BY ts
 ORDER BY ts`,
           ),
-          "p95-latency": stat(
+          "p95-latency": p95LatencyStat(
             "P95 query time",
-            { calculation: "last", unit: "ms", decimals: 1 },
-            `SELECT round(quantile(0.95)(Duration) / 1000000, 1) AS p95
-FROM traces
-WHERE ${WITHIN} AND ${OF_SERVICE} AND SpanAttributes['db.system'] != ''`,
+            " AND SpanAttributes['db.system'] != ''",
           ),
           "failed-queries": stat(
             "Failed queries",

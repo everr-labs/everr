@@ -1,7 +1,11 @@
 import { ALL_VALUE } from "../../interpolate";
-import type { Variable } from "../../schema";
-import { timeSeries } from "../build";
-import type { TemplateRequirement } from "../types";
+import type { Panel, Variable } from "../../schema";
+import { layout, split, stat, thresholds, timeSeries } from "../build";
+import type {
+  DashboardTemplate,
+  TemplateCategory,
+  TemplateRequirement,
+} from "../types";
 
 /**
  * The service picker every trace-backed template opens with. It defaults to
@@ -100,7 +104,7 @@ export const SERIES_BUCKET = (column = "Timestamp") =>
 export const topSeries = (
   dimension: string,
   from: string,
-  where: string,
+  where = "1",
 ): string =>
   `${dimension} IN (
   SELECT ${dimension} FROM ${from} WHERE ${where}
@@ -150,6 +154,7 @@ export const metricLine = (
     description,
   } = options;
   const value = scale ? `${aggregate}(Value) ${scale}` : `${aggregate}(Value)`;
+
   if (!seriesBy) {
     return timeSeries(
       name,
@@ -162,16 +167,85 @@ ORDER BY ts`,
       description,
     );
   }
+
+  // The two-table union is named once and referenced twice: inlining it in both
+  // the scan and the top-series filter emitted the same UNION ALL three times
+  // in every metric panel's SQL.
   return timeSeries(
     name,
     { unit, showLegend: true },
-    `SELECT ${SERIES_BUCKET("TimeUnix")} AS ts,
+    `WITH points AS (${metricRows(metric, seriesBy)})
+SELECT ${SERIES_BUCKET("TimeUnix")} AS ts,
        series,
        ${value} AS value
-FROM (${metricRows(metric, seriesBy)})
-WHERE ${topSeries("series", `(${metricRows(metric, seriesBy)})`, "1")}
+FROM points
+WHERE ${topSeries("series", "points")}
 GROUP BY ts, series
 ORDER BY ts`,
     description,
   );
 };
+
+/**
+ * Receiver-backed templates are all the same board: a handful of that
+ * receiver's own metrics, two to a row. Only the metric names differ, so the
+ * shape is written once and every receiver fills in its own list.
+ */
+export function receiverTemplate(input: {
+  id: string;
+  name: string;
+  description: string;
+  category: TemplateCategory;
+  namespace: string;
+  duration?: string;
+  panels: Record<string, Panel>;
+}): DashboardTemplate {
+  const keys = Object.keys(input.panels);
+  const rows = [];
+  for (let i = 0; i < keys.length; i += 2) {
+    rows.push(split(8, ...keys.slice(i, i + 2)));
+  }
+  return {
+    id: input.id,
+    name: input.name,
+    description: input.description,
+    category: input.category,
+    requires: [needsMetrics, needsMetricNamespace(input.namespace)],
+    document: {
+      kind: "Dashboard",
+      metadata: { name: input.id },
+      spec: {
+        display: { name: input.name },
+        duration: input.duration ?? "6h",
+        refreshInterval: "1m",
+        panels: input.panels,
+        layouts: layout(rows),
+      },
+    },
+  };
+}
+
+/** The error-rate tile five templates share, optionally scoped further. */
+export const errorRateStat = (extraWhere = "") =>
+  stat(
+    "Error rate",
+    {
+      calculation: "last",
+      unit: "%",
+      decimals: 2,
+      thresholds: thresholds(1, 5),
+    },
+    `SELECT countIf(StatusCode = 'Error') / count() * 100 AS error_pct
+FROM traces
+WHERE ${WITHIN} AND ${OF_SERVICE}${extraWhere}`,
+  );
+
+/** The P95 tile four templates share, in milliseconds. */
+export const p95LatencyStat = (name = "P95 latency", extraWhere = "") =>
+  stat(
+    name,
+    { calculation: "last", unit: "ms", decimals: 1 },
+    `SELECT round(quantile(0.95)(Duration) / 1000000, 1) AS p95
+FROM traces
+WHERE ${WITHIN} AND ${OF_SERVICE}${extraWhere}`,
+  );

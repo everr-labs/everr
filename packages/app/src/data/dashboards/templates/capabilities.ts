@@ -1,4 +1,5 @@
 import type { DashboardTemplate, RequirementKind } from "./types";
+import { REQUIREMENT_KINDS } from "./types";
 
 /**
  * Per-bucket cap on the discovery scan. Attribute and metric names are
@@ -7,22 +8,20 @@ import type { DashboardTemplate, RequirementKind } from "./types";
  */
 const CAPABILITY_NAMES_LIMIT = 500;
 
-/** What the Organization is actually sending in the probed time range. */
-export interface TelemetryCapabilities {
-  signals: string[];
-  spanAttributeKeys: string[];
-  resourceAttributeKeys: string[];
-  logAttributeKeys: string[];
-  metricNames: string[];
-}
+/**
+ * What the Organization is actually sending in the probed time range, one list
+ * per requirement kind. Keyed by the kind a requirement states rather than by
+ * hand-named fields, so a new kind is one entry in `REQUIREMENT_KINDS` and
+ * nothing else.
+ */
+export type TelemetryCapabilities = Record<RequirementKind, string[]>;
 
-export const EMPTY_CAPABILITIES: TelemetryCapabilities = {
-  signals: [],
-  spanAttributeKeys: [],
-  resourceAttributeKeys: [],
-  logAttributeKeys: [],
-  metricNames: [],
-};
+const emptyByKind = (): TelemetryCapabilities =>
+  Object.fromEntries(
+    REQUIREMENT_KINDS.map((kind) => [kind, [] as string[]]),
+  ) as unknown as TelemetryCapabilities;
+
+export const EMPTY_CAPABILITIES: TelemetryCapabilities = emptyByKind();
 
 export interface CapabilityRow {
   kind: string;
@@ -34,9 +33,9 @@ export interface CapabilityRow {
  *
  * Signals are probed with `LIMIT 1` rather than a count: existence is the whole
  * question, and the limit lets ClickHouse stop at the first matching granule
- * instead of reading the range. The name scans mirror the explorer's attribute
- * discovery (`buildAttributeKeysQuery`) so the two never disagree about what an
- * Organization has.
+ * instead of reading the range. The name scans follow the shape of the
+ * explorer's attribute discovery (`buildAttributeKeysQuery`), including its
+ * per-source cap and its per-column time-bound parsing.
  *
  * `{from}`/`{to}` are the same bound parameters every panel query gets, so the
  * probe and the previews it grades always look at one identical window.
@@ -70,8 +69,14 @@ export function buildCapabilitiesQuery(): string {
     SELECT 'signal' AS kind, '${name}' AS name
     FROM ${source} WHERE ${within} LIMIT 1`;
 
+  // `DISTINCT` inside each branch, not only on the union: `MetricName` is
+  // LowCardinality over a handful of values, so deduplicating per table merges
+  // three small sets instead of piping every metric row through the union.
   const metricSources = ["metrics_gauge", "metrics_sum", "metrics_histogram"]
-    .map((table) => `SELECT MetricName FROM ${table} WHERE ${withinMetrics}`)
+    .map(
+      (table) =>
+        `SELECT DISTINCT MetricName FROM ${table} WHERE ${withinMetrics}`,
+    )
     .join(" UNION ALL ");
 
   return `SELECT kind, name FROM (${[
@@ -86,11 +91,6 @@ export function buildCapabilitiesQuery(): string {
       `(SELECT SpanAttributes FROM traces WHERE ${withinTraces})`,
     ),
     names(
-      "resource-attribute",
-      "arrayJoin(mapKeys(ResourceAttributes))",
-      `(SELECT ResourceAttributes FROM traces WHERE ${withinTraces})`,
-    ),
-    names(
       "log-attribute",
       "arrayJoin(mapKeys(LogAttributes))",
       `(SELECT LogAttributes FROM logs WHERE ${withinLogs})`,
@@ -102,40 +102,15 @@ export function buildCapabilitiesQuery(): string {
 export function decodeCapabilityRows(
   rows: CapabilityRow[],
 ): TelemetryCapabilities {
-  const bucket: Record<string, Set<string>> = {
-    signal: new Set(),
-    "span-attribute": new Set(),
-    "resource-attribute": new Set(),
-    "log-attribute": new Set(),
-    metric: new Set(),
-  };
-  for (const row of rows) bucket[row.kind]?.add(row.name);
-  const list = (kind: string) => [...(bucket[kind] ?? [])].sort();
-  return {
-    signals: list("signal"),
-    spanAttributeKeys: list("span-attribute"),
-    resourceAttributeKeys: list("resource-attribute"),
-    logAttributeKeys: list("log-attribute"),
-    metricNames: list("metric"),
-  };
-}
-
-function namesFor(
-  capabilities: TelemetryCapabilities,
-  kind: RequirementKind,
-): string[] {
-  switch (kind) {
-    case "signal":
-      return capabilities.signals;
-    case "span-attribute":
-      return capabilities.spanAttributeKeys;
-    case "resource-attribute":
-      return capabilities.resourceAttributeKeys;
-    case "log-attribute":
-      return capabilities.logAttributeKeys;
-    case "metric":
-      return capabilities.metricNames;
+  const bucket = new Map<string, Set<string>>(
+    REQUIREMENT_KINDS.map((kind) => [kind, new Set<string>()]),
+  );
+  for (const row of rows) bucket.get(row.kind)?.add(row.name);
+  const capabilities = emptyByKind();
+  for (const kind of REQUIREMENT_KINDS) {
+    capabilities[kind] = [...(bucket.get(kind) ?? [])].sort();
   }
+  return capabilities;
 }
 
 /**
@@ -166,7 +141,7 @@ export function evaluateTemplate(
 ): TemplateReadiness {
   const missing: string[] = [];
   for (const requirement of template.requires) {
-    const available = namesFor(capabilities, requirement.kind);
+    const available = capabilities[requirement.kind] ?? [];
     if (!available.some((name) => matches(name, requirement.match))) {
       missing.push(requirement.label);
     }

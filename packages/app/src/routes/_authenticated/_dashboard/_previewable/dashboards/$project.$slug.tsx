@@ -4,6 +4,7 @@ import gridLayoutCSS from "react-grid-layout/css/styles.css?url";
 import { DashboardGrid } from "@/components/dashboards/dashboard-grid";
 import gridLayoutOverridesCSS from "@/components/dashboards/dashboard-grid.css?url";
 import { DashboardNotFound } from "@/components/dashboards/dashboard-not-found";
+import { DeleteUiDashboard } from "@/components/dashboards/delete-ui-dashboard";
 import { EditWithAssistant } from "@/components/dashboards/edit-with-assistant";
 import { DashboardProvider } from "@/components/dashboards/use-dashboard";
 import { dashboardOptions } from "@/data/dashboards/options";
@@ -74,12 +75,21 @@ function DashboardPage() {
     <DashboardProvider document={document}>
       <DashboardGrid
         actions={
-          <EditWithAssistant
-            project={project}
-            slug={slug}
-            name={document.spec.display?.name ?? slug}
-            uiOwned={uiOwned}
-          />
+          <>
+            {uiOwned && (
+              <DeleteUiDashboard
+                project={project}
+                slug={slug}
+                name={document.spec.display?.name ?? slug}
+              />
+            )}
+            <EditWithAssistant
+              project={project}
+              slug={slug}
+              name={document.spec.display?.name ?? slug}
+              uiOwned={uiOwned}
+            />
+          </>
         }
       />
     </DashboardProvider>
