@@ -5,10 +5,7 @@ import type {
   PanelQuery,
   PluginSpecValue,
 } from "../schema";
-import { PANEL_REF_PREFIX } from "../schema";
-
-/** Grid width every layout is measured in, matching DashboardGrid's GRID_COLS. */
-const GRID_COLS = 24;
+import { GRID_COLS, PANEL_REF_PREFIX } from "../schema";
 
 type Options = Record<string, PluginSpecValue>;
 

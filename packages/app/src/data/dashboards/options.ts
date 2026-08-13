@@ -11,7 +11,7 @@ import {
   runVariableOptionsQuery,
 } from "./server";
 
-const dashboardsQueryKey = ["dashboards"] as const;
+export const dashboardsQueryKey = ["dashboards"] as const;
 
 // Cap how many panel queries run at once so a dashboard (or a grid of card
 // previews) doesn't fire every panel's query simultaneously. Shared across all

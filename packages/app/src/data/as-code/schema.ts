@@ -1,5 +1,5 @@
 import * as z from "zod";
-import { isReservedRepoid } from "@/data/dashboards/ui-owned";
+import { isReservedRepoid } from "./repoid";
 
 /** One resource in the apply state: its repo-relative path and raw contents. */
 const resourceEntrySchema = z.object({
@@ -25,7 +25,7 @@ export type ApplySource = z.infer<typeof applySourceSchema>;
  * state, so the wire field must be non-empty when present. Control characters
  * are rejected because the name round-trips into URLs and UI labels.
  */
-export const previewNameSchema = z
+const previewNameSchema = z
   .string()
   .trim()
   .min(1)

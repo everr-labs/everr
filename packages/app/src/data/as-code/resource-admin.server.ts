@@ -65,19 +65,30 @@ function liveScope(kind: ResourceKind, orgId: string) {
   return conds;
 }
 
-/** The full `(org, live, project, slug)` identity match for one live row. */
+/**
+ * The full `(org, live, project, slug)` identity match for one live row,
+ * optionally narrowed to a single owning Repoid.
+ *
+ * `requireRepoid` is a condition rather than a check the caller performs first:
+ * a statement that cannot name a row outside the boundary is safe by
+ * construction, where a read-then-write leaves a window and a policy to
+ * remember.
+ */
 function scopedRow(
   kind: ResourceKind,
   orgId: string,
   project: string,
   slug: string,
+  requireRepoid?: string,
 ) {
   const table = tableFor(kind);
-  return and(
+  const conds = [
     ...liveScope(kind, orgId),
     eq(table.project, project),
     eq(table.slug, slug),
-  );
+  ];
+  if (requireRepoid !== undefined) conds.push(eq(table.repoid, requireRepoid));
+  return and(...conds);
 }
 
 async function listOneKind(
@@ -133,16 +144,21 @@ export async function getResource(
   return row?.document ?? null;
 }
 
-/** True when a row was deleted, false when none matched. */
+/**
+ * True when a row was deleted, false when none matched. Pass `requireRepoid` to
+ * refuse rows outside one ownership boundary — the app deleting what it created
+ * without being able to reach what a repository owns.
+ */
 export async function deleteResource(
   orgId: string,
   kind: ResourceKind,
   project: string,
   slug: string,
+  requireRepoid?: string,
 ): Promise<boolean> {
   const result = await db
     .delete(tableFor(kind))
-    .where(scopedRow(kind, orgId, project, slug));
+    .where(scopedRow(kind, orgId, project, slug, requireRepoid));
   return (result.rowCount ?? 0) > 0;
 }
 

@@ -5,10 +5,10 @@ import type { DashboardTemplate } from "../types";
 import {
   BUCKET,
   metricLine,
+  metricUnion,
   needsMetricNamespace,
   needsMetrics,
   SERIES_BUCKET,
-  WITHIN_METRICS,
 } from "./shared";
 
 /** Picker over whatever metric names the Organization actually sends. */
@@ -24,11 +24,7 @@ const metricVariable: Variable = {
     plugin: {
       kind: "ClickHouseSQLVariable",
       spec: {
-        query: `SELECT DISTINCT MetricName FROM (
-  SELECT MetricName FROM metrics_gauge WHERE ${WITHIN_METRICS}
-  UNION ALL
-  SELECT MetricName FROM metrics_sum WHERE ${WITHIN_METRICS}
-)
+        query: `SELECT DISTINCT MetricName FROM (${metricUnion("MetricName")})
 ORDER BY MetricName`,
       },
     },
@@ -55,31 +51,19 @@ export const runtimeTemplates: DashboardTemplate[] = [
           "metric-count": stat(
             "Distinct metrics",
             { calculation: "last" },
-            `SELECT uniqExact(MetricName) AS metrics FROM (
-  SELECT MetricName FROM metrics_gauge WHERE ${WITHIN_METRICS}
-  UNION ALL
-  SELECT MetricName FROM metrics_sum WHERE ${WITHIN_METRICS}
-)`,
+            `SELECT uniqExact(MetricName) AS metrics FROM (${metricUnion("MetricName")})`,
           ),
           "series-count": stat(
             "Data points",
             { calculation: "sum", sparkline: true },
-            `SELECT ${BUCKET("TimeUnix")} AS ts, count() AS points FROM (
-  SELECT TimeUnix FROM metrics_gauge WHERE ${WITHIN_METRICS}
-  UNION ALL
-  SELECT TimeUnix FROM metrics_sum WHERE ${WITHIN_METRICS}
-)
+            `SELECT ${BUCKET("TimeUnix")} AS ts, count() AS points FROM (${metricUnion("TimeUnix")})
 GROUP BY ts
 ORDER BY ts`,
           ),
           "service-count": stat(
             "Reporting services",
             { calculation: "last" },
-            `SELECT uniqExact(ServiceName) AS services FROM (
-  SELECT ServiceName FROM metrics_gauge WHERE ${WITHIN_METRICS}
-  UNION ALL
-  SELECT ServiceName FROM metrics_sum WHERE ${WITHIN_METRICS}
-)`,
+            `SELECT uniqExact(ServiceName) AS services FROM (${metricUnion("ServiceName")})`,
           ),
           selected: timeSeries(
             "Selected metrics",
@@ -87,11 +71,7 @@ ORDER BY ts`,
             `SELECT ${SERIES_BUCKET("TimeUnix")} AS ts,
        MetricName,
        avg(Value) AS value
-FROM (
-  SELECT TimeUnix, MetricName, Value FROM metrics_gauge WHERE ${WITHIN_METRICS} AND MetricName IN $metric
-  UNION ALL
-  SELECT TimeUnix, MetricName, Value FROM metrics_sum WHERE ${WITHIN_METRICS} AND MetricName IN $metric
-)
+FROM (${metricUnion("TimeUnix, MetricName, Value", " AND MetricName IN $metric")})
 GROUP BY ts, MetricName
 ORDER BY ts`,
             "Averaged across every series. Narrow the Metric picker before reading absolute values.",
@@ -103,11 +83,7 @@ ORDER BY ts`,
        any(MetricDescription) AS description,
        uniqExact(ServiceName) AS services,
        count() AS points
-FROM (
-  SELECT MetricName, MetricUnit, MetricDescription, ServiceName FROM metrics_gauge WHERE ${WITHIN_METRICS}
-  UNION ALL
-  SELECT MetricName, MetricUnit, MetricDescription, ServiceName FROM metrics_sum WHERE ${WITHIN_METRICS}
-)
+FROM (${metricUnion("MetricName, MetricUnit, MetricDescription, ServiceName")})
 GROUP BY metric
 ORDER BY points DESC
 LIMIT 100`,

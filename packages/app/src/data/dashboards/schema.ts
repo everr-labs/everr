@@ -55,6 +55,9 @@ export const panel = z.object({
   }),
 });
 
+/** Columns every dashboard grid is measured in, layout and renderer alike. */
+export const GRID_COLS = 24;
+
 /** Prefix every layout `content.$ref` must use to point at a panel key. */
 export const PANEL_REF_PREFIX = "#/spec/panels/";
 
@@ -259,6 +262,14 @@ export interface DashboardMetadata {
   name: string;
   /** Perses project namespace. Optional in files; defaults to "default". */
   project?: string;
+  /**
+   * The catalog template this Dashboard was created from, when it was. Recorded
+   * so "does this template already have a Dashboard" is a fact the document
+   * carries rather than a guess from the slug — which stops being true the
+   * moment a collision renames the copy. Travels into YAML on adoption, where
+   * it stays honest about where the file came from.
+   */
+  template?: string;
 }
 
 export interface Dashboard {

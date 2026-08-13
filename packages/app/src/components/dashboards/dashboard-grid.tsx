@@ -2,11 +2,11 @@ import { type ReactNode, useMemo } from "react";
 import type { LayoutItem } from "react-grid-layout";
 import { GridLayout, noCompactor, useContainerWidth } from "react-grid-layout";
 import { persesToRGL } from "@/data/dashboards/convert";
+import { GRID_COLS } from "@/data/dashboards/schema";
 import { DashboardPanel } from "./dashboard-panel";
 import { useDashboard } from "./use-dashboard";
 import { useHasVisibleVariables, VariableBar } from "./variable-bar";
 
-const GRID_COLS = 24;
 const ROW_HEIGHT = 30;
 
 /**

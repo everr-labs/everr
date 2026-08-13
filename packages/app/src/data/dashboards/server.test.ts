@@ -409,6 +409,7 @@ describe("listDashboards (with project + folderPath)", () => {
         name: "CPU",
         folderPath: "Infra",
         uiOwned: false,
+        template: null,
       },
     ]);
   });

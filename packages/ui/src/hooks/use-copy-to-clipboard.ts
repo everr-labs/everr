@@ -27,23 +27,29 @@ export function useCopyToClipboard(
 
   const copy = () => {
     clearTimeout(resetTimer.current);
-    navigator.clipboard.writeText(text).then(
-      () => {
-        setState("copied");
-        resetTimer.current = setTimeout(() => setState("idle"), resetMs);
-      },
-      () => {
-        const node = selectOnFailure?.current;
-        if (node) {
-          const range = document.createRange();
-          range.selectNodeContents(node);
-          const selection = window.getSelection();
-          selection?.removeAllRanges();
-          selection?.addRange(range);
-        }
-        setState("failed");
-      },
-    );
+    // `writeText` can be missing entirely (insecure context) or throw
+    // synchronously rather than rejecting, so the call is wrapped: every way it
+    // can fail has to reach the same recovery, or the selection fallback never
+    // runs where it is needed most.
+    Promise.resolve()
+      .then(() => navigator.clipboard.writeText(text))
+      .then(
+        () => {
+          setState("copied");
+          resetTimer.current = setTimeout(() => setState("idle"), resetMs);
+        },
+        () => {
+          const node = selectOnFailure?.current;
+          if (node) {
+            const range = document.createRange();
+            range.selectNodeContents(node);
+            const selection = window.getSelection();
+            selection?.removeAllRanges();
+            selection?.addRange(range);
+          }
+          setState("failed");
+        },
+      );
   };
 
   return { state, copy };

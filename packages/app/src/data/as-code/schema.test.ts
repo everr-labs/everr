@@ -1,14 +1,31 @@
 import { describe, expect, it } from "vitest";
-import { previewNameSchema } from "./schema";
+import { applyInput } from "./schema";
 
-describe("previewNameSchema", () => {
-  it("rejects empty, oversized, and control-character names", () => {
-    expect(previewNameSchema.safeParse("").success).toBe(false);
-    expect(previewNameSchema.safeParse("   ").success).toBe(false);
-    expect(previewNameSchema.safeParse("x".repeat(201)).success).toBe(false);
-    expect(previewNameSchema.safeParse("a\u0000b").success).toBe(false);
-    expect(previewNameSchema.safeParse("a\nb").success).toBe(false);
-    // C1 control (NEL) — outside the C0/DEL range but still unsafe.
-    expect(previewNameSchema.safeParse("a\u0085b").success).toBe(false);
+const validState = { dashboards: [], runbooks: [], alerts: [] };
+
+describe("applyInput repoid", () => {
+  it("accepts a repository slug", () => {
+    expect(
+      applyInput.safeParse({ repoid: "github.com/acme/web", state: validState })
+        .success,
+    ).toBe(true);
+  });
+
+  // The whole `everr:ui` boundary rests on this: an apply naming a reserved
+  // repoid would reconcile it, and delete-by-default would prune every
+  // resource the app created there.
+  it("rejects a repoid in the reserved everr: scheme", () => {
+    const result = applyInput.safeParse({
+      repoid: "everr:ui",
+      state: validState,
+    });
+    expect(result.success).toBe(false);
+    expect(result.error?.issues[0]?.message).toContain("reserved");
+  });
+
+  it("rejects an empty repoid", () => {
+    expect(
+      applyInput.safeParse({ repoid: "", state: validState }).success,
+    ).toBe(false);
   });
 });

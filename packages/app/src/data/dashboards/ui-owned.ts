@@ -1,32 +1,6 @@
-/**
- * The Repoid every Dashboard created in the app is filed under.
- *
- * A Repoid is normally a repository slug (`host/owner/repo`), and `everr apply`
- * reconciles exactly one Repoid at a time, pruning anything inside it that the
- * applied tree does not contain. A Dashboard made from a template has no
- * repository behind it, so it needs a boundary no apply ever targets.
- *
- * The `everr:` scheme prefix cannot come from slug inference, which always
- * yields `host/owner/repo` — but a Manifest can name any non-empty string, so
- * the boundary is only unreachable because `isReservedRepoid` rejects it at the
- * apply edge. Take that check away and an `everr.yaml` claiming this Repoid
- * would prune every Dashboard the app has created.
- *
- * The cross-Repoid collision check still applies in the other direction: an
- * apply that creates the same (project, slug) reports an ownership conflict and
- * fails, or transfers it with `--adopt`. That is the correct outcome, and it is
- * the documented path for promoting a UI-made Dashboard into as-code.
- */
-export const UI_REPOID = "everr:ui";
+import { UI_REPOID } from "@/data/as-code/repoid";
 
-/**
- * Repoids the app owns and apply must never claim. Reserved by scheme prefix
- * rather than by listing values, so a future UI-owned boundary inherits the
- * protection without another edit here.
- */
-export function isReservedRepoid(repoid: string): boolean {
-  return repoid.startsWith("everr:");
-}
+export { UI_REPOID };
 
 export function isUiOwned(repoid: string | null | undefined): boolean {
   return repoid === UI_REPOID;
@@ -37,9 +11,10 @@ export function isUiOwned(repoid: string | null | undefined): boolean {
  * holds. Live identity is (org, project, slug) across every Repoid, so a second
  * copy — or a collision with an as-code Dashboard — has to land on its own slug.
  *
- * Shared by the server that performs the insert and the gallery that promises
- * the destination before the click: two implementations of this rule would let
- * the UI name one slug and the write produce another.
+ * The write is the only caller: what the gallery needs is whether a template
+ * already made a Dashboard, which the document records as `metadata.template`
+ * rather than re-deriving from the slug — a rule that stops being true the
+ * moment a collision renames the copy.
  */
 export function plannedSlug(
   templateId: string,

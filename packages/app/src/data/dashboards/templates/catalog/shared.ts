@@ -70,8 +70,7 @@ export const needsLogAttribute = (match: string): TemplateRequirement => ({
 
 /** Window bound shared by every trace/log panel below. */
 export const WITHIN = "Timestamp >= {from:String} AND Timestamp <= {to:String}";
-export const WITHIN_METRICS =
-  "TimeUnix >= {from:String} AND TimeUnix <= {to:String}";
+const WITHIN_METRICS = "TimeUnix >= {from:String} AND TimeUnix <= {to:String}";
 export const OF_SERVICE = "ServiceName IN $service";
 
 /** Bucketed timestamp expression, sized by the panel's adaptive `{step}`. */
@@ -112,22 +111,23 @@ export const topSeries = (
 )`;
 
 /**
- * Rows for one metric, from whichever table the receiver wrote it to.
- *
- * Gauges land in `metrics_gauge` and monotonic counters in `metrics_sum`, and
- * which one a given receiver picks is its business, not the template's. Reading
- * the union means a template never silently renders empty because the metric
- * turned out to be a sum.
+ * The tables a metric can land in, read as one. Gauges go to `metrics_gauge`
+ * and monotonic counters to `metrics_sum`, and which one a receiver picks is
+ * its business, not the template's.
  */
-const metricRows = (metric: string, seriesBy?: string) => {
-  const series = seriesBy ? `, Attributes['${seriesBy}'] AS series` : "";
-  return ["metrics_gauge", "metrics_sum"]
+export const metricUnion = (columns: string, extraWhere = "") =>
+  ["metrics_gauge", "metrics_sum"]
     .map(
       (table) =>
-        `SELECT TimeUnix, Value${series} FROM ${table} WHERE ${WITHIN_METRICS} AND MetricName = '${metric}'`,
+        `SELECT ${columns} FROM ${table} WHERE ${WITHIN_METRICS}${extraWhere}`,
     )
     .join(" UNION ALL ");
-};
+
+const metricRows = (metric: string, seriesBy?: string) =>
+  metricUnion(
+    `TimeUnix, Value${seriesBy ? `, Attributes['${seriesBy}'] AS series` : ""}`,
+    ` AND MetricName = '${metric}'`,
+  );
 
 /**
  * A metric line chart. Metric-backed templates repeat this shape for every

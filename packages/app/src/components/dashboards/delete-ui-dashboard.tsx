@@ -14,6 +14,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 import { Trash2 } from "lucide-react";
 import { toast } from "sonner";
+import { dashboardsQueryKey } from "@/data/dashboards/options";
 import { deleteUiDashboard } from "@/data/dashboards/server";
 
 /**
@@ -41,7 +42,7 @@ export function DeleteUiDashboard({
   const remove = useMutation({
     mutationFn: () => deleteUiDashboard({ data: { project, slug } }),
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ["dashboards"] });
+      void queryClient.invalidateQueries({ queryKey: dashboardsQueryKey });
       toast.success(`Deleted ${name}`);
       void navigate({ to: "/dashboards" });
     },

@@ -25,11 +25,11 @@ import {
 import { toast } from "sonner";
 import {
   dashboardListOptions,
+  dashboardsQueryKey,
   telemetryCapabilitiesOptions,
 } from "@/data/dashboards/options";
 import { createDashboardFromTemplate } from "@/data/dashboards/server";
 import {
-  EMPTY_CAPABILITIES,
   evaluateTemplate,
   type TemplateReadiness,
 } from "@/data/dashboards/templates/capabilities";
@@ -54,20 +54,18 @@ const CATEGORY_ICON: Record<
   Browser: Globe,
 };
 
+/**
+ * A template plus what the probe can say about it. `readiness` is null until the
+ * probe answers: grading against an empty result would label every template
+ * unready for a reason nothing has established, and the page would then paint a
+ * grouping it is about to rearrange under the reader's cursor. Null says "not
+ * known yet" once, rather than every reader of a grade having to check whether
+ * the grade means anything.
+ */
 interface Graded {
   template: DashboardTemplate;
-  readiness: TemplateReadiness;
+  readiness: TemplateReadiness | null;
 }
-
-/**
- * What the probe has told us so far. Grading against an empty probe is only
- * correct once the probe has come back empty: while it is in flight, or when it
- * failed, every template would be labelled unready for a reason nothing has
- * established. Those two states render an ungraded list instead, so the page
- * never asserts something it cannot support — and never paints a grouping it is
- * about to rearrange under the reader's cursor.
- */
-type ProbeState = "probing" | "failed" | "resolved";
 
 export function TemplateGallery({
   selectedId,
@@ -84,19 +82,21 @@ export function TemplateGallery({
   const capabilitiesQuery = useQuery(
     telemetryCapabilitiesOptions(timeRange.from, timeRange.to),
   );
-  const probe: ProbeState = capabilitiesQuery.isPending
-    ? "probing"
-    : capabilitiesQuery.isError
-      ? "failed"
-      : "resolved";
+  const capabilities = capabilitiesQuery.data;
+  const graded = useMemo<Graded[]>(
+    () =>
+      DASHBOARD_TEMPLATES.map((template) => ({
+        template,
+        readiness: capabilities
+          ? evaluateTemplate(template, capabilities)
+          : null,
+      })),
+    [capabilities],
+  );
 
-  const graded = useMemo<Graded[]>(() => {
-    const capabilities = capabilitiesQuery.data ?? EMPTY_CAPABILITIES;
-    return DASHBOARD_TEMPLATES.map((template) => ({
-      template,
-      readiness: evaluateTemplate(template, capabilities),
-    }));
-  }, [capabilitiesQuery.data]);
+  // Hoisted out of the preview, which remounts on every selection: the set of
+  // Dashboards is the same whichever template is showing.
+  const { data: dashboards } = useQuery(dashboardListOptions());
 
   const matching = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -120,13 +120,12 @@ export function TemplateGallery({
 
   /*
    * The list highlights immediately; the preview lags one commit behind.
-   * Mounting a preview runs a grid of ClickHouse queries, and React Query does
-   * not abort them on unmount — so holding an arrow key down would queue every
-   * template's panels behind the four the reader actually stopped on. Deferring
-   * means a traversal mounts one grid, not nineteen.
+   * Mounting a preview runs a grid of ClickHouse queries, and an abandoned
+   * concurrent render never commits, so its effects never run and no query is
+   * issued for a template the reader only passed over. Holding an arrow key down
+   * mounts one grid rather than nineteen.
    */
-  const previewId = useDeferredValue(selected?.template.id);
-  const previewed = graded.find((g) => g.template.id === previewId) ?? selected;
+  const previewed = useDeferredValue(selected);
 
   return (
     <div>
@@ -148,13 +147,13 @@ export function TemplateGallery({
             header: they describe the list, and this is the only place left that
             can say so once the section headings carry the counts.
           */}
-          {probe === "probing" && (
+          {capabilitiesQuery.isPending && (
             <p className="inline-flex items-center gap-1.5 px-1 text-muted-foreground text-xs">
               <Loader2 className="size-3.5 animate-spin" />
               Checking what you send in this time range
             </p>
           )}
-          {probe === "failed" && (
+          {capabilitiesQuery.isError && (
             <div className="flex flex-wrap items-center gap-x-2 gap-y-1 px-1 text-xs">
               <span className="inline-flex items-center gap-1.5 text-amber-400">
                 <TriangleAlert className="size-3.5" />
@@ -176,7 +175,6 @@ export function TemplateGallery({
             entries={matching}
             selectedId={selected?.template.id}
             onSelect={onSelect}
-            probe={probe}
           />
         </aside>
 
@@ -185,7 +183,9 @@ export function TemplateGallery({
             key={previewed.template.id}
             template={previewed.template}
             readiness={previewed.readiness}
-            probe={probe}
+            alreadyCreated={dashboards?.find(
+              (d) => d.uiOwned && d.template === previewed.template.id,
+            )}
           />
         ) : (
           <p className="py-24 text-center text-muted-foreground text-sm">
@@ -215,17 +215,15 @@ function TemplateList({
   entries,
   selectedId,
   onSelect,
-  probe,
 }: {
   entries: Graded[];
   selectedId?: string;
   onSelect: (id: string) => void;
-  probe: ProbeState;
 }) {
   const listRef = useRef<HTMLDivElement>(null);
 
   const sections = useMemo<ListSection[]>(() => {
-    if (probe !== "resolved") {
+    if (entries.some((e) => e.readiness === null)) {
       return [
         {
           key: "all",
@@ -242,8 +240,8 @@ function TemplateList({
         items: group.filter((e) => e.template.category === category),
       })).filter((g) => g.items.length > 0);
 
-    const ready = entries.filter((e) => e.readiness.status === "ready");
-    const rest = entries.filter((e) => e.readiness.status !== "ready");
+    const ready = entries.filter((e) => e.readiness?.status === "ready");
+    const rest = entries.filter((e) => e.readiness?.status !== "ready");
     const sections: ListSection[] = [];
     if (ready.length > 0) {
       sections.push({
@@ -265,7 +263,7 @@ function TemplateList({
       });
     }
     return sections;
-  }, [entries, probe]);
+  }, [entries]);
 
   // Roving tabindex over the flat order: one tab stop for the whole list, then
   // arrows move within it. Without this the reader tabs through every template
@@ -347,7 +345,6 @@ function TemplateList({
                   key={entry.template.id}
                   template={entry.template}
                   readiness={entry.readiness}
-                  probe={probe}
                   selected={entry.template.id === selectedId}
                   tabbable={entry.template.id === order[activeIndex]}
                   onSelect={() => onSelect(entry.template.id)}
@@ -364,23 +361,19 @@ function TemplateList({
 function TemplateRow({
   template,
   readiness,
-  probe,
   selected,
   tabbable,
   onSelect,
 }: {
   template: DashboardTemplate;
-  readiness: TemplateReadiness;
-  probe: ProbeState;
+  readiness: TemplateReadiness | null;
   selected: boolean;
   tabbable: boolean;
   onSelect: () => void;
 }) {
   const Icon = CATEGORY_ICON[template.category];
   const reason =
-    probe === "resolved" && readiness.status === "needs-setup"
-      ? readiness.missing.join(", ")
-      : null;
+    readiness?.status === "needs-setup" ? readiness.missing.join(", ") : null;
 
   return (
     <div
@@ -424,34 +417,22 @@ function TemplateRow({
 function TemplatePreview({
   template,
   readiness,
-  probe,
+  alreadyCreated,
 }: {
   template: DashboardTemplate;
-  readiness: TemplateReadiness;
-  probe: ProbeState;
+  readiness: TemplateReadiness | null;
+  /** The Dashboard this template already made, while the app still owns it. */
+  alreadyCreated?: { project: string; slug: string };
 }) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const Icon = CATEGORY_ICON[template.category];
 
-  /*
-   * A Dashboard this template already made, if it is still the app's to offer.
-   * Matched on the slug the template creates under, and only while the app
-   * still owns it: once a repository adopts it, it is that repository's
-   * Dashboard rather than this template's copy, and the template is free to be
-   * used again.
-   */
-  const { data: dashboards } = useQuery(dashboardListOptions());
-  const project = template.document.metadata.project ?? "default";
-  const alreadyCreated = (dashboards ?? []).find(
-    (d) => d.uiOwned && d.project === project && d.slug === template.id,
-  );
-
   const create = useMutation({
     mutationFn: () =>
       createDashboardFromTemplate({ data: { templateId: template.id } }),
     onSuccess: (created) => {
-      void queryClient.invalidateQueries({ queryKey: ["dashboards"] });
+      void queryClient.invalidateQueries({ queryKey: dashboardsQueryKey });
       toast.success(`Created ${template.name}`, {
         description: `${created.project} / ${created.slug}`,
       });
@@ -488,7 +469,7 @@ function TemplatePreview({
             <p className="mt-2 max-w-prose text-foreground/80 text-sm/relaxed">
               {template.description}
             </p>
-            {probe === "resolved" && readiness.status === "needs-setup" && (
+            {readiness?.status === "needs-setup" && (
               <p role="status" className="mt-2 text-muted-foreground text-xs">
                 Nothing to draw yet: this needs{" "}
                 <span className="font-mono text-foreground/90">
@@ -513,36 +494,25 @@ function TemplatePreview({
           to it rather than a second create.
         */}
         <div className="shrink-0">
-          {alreadyCreated ? (
-            <Button
-              type="button"
-              onClick={() =>
-                void navigate({
-                  to: "/dashboards/$project/$slug",
-                  params: {
-                    project: alreadyCreated.project,
-                    slug: alreadyCreated.slug,
-                  },
-                })
-              }
-            >
+          <Button
+            type="button"
+            disabled={create.isPending}
+            onClick={() =>
+              alreadyCreated
+                ? void navigate({
+                    to: "/dashboards/$project/$slug",
+                    params: alreadyCreated,
+                  })
+                : create.mutate()
+            }
+          >
+            {create.isPending ? (
+              <Loader2 className="size-3.5 animate-spin" />
+            ) : (
               <ArrowRight className="size-3.5" />
-              Open dashboard
-            </Button>
-          ) : (
-            <Button
-              type="button"
-              onClick={() => create.mutate()}
-              disabled={create.isPending}
-            >
-              {create.isPending ? (
-                <Loader2 className="size-3.5 animate-spin" />
-              ) : (
-                <ArrowRight className="size-3.5" />
-              )}
-              Create dashboard
-            </Button>
-          )}
+            )}
+            {alreadyCreated ? "Open dashboard" : "Create dashboard"}
+          </Button>
         </div>
       </header>
 

@@ -3,6 +3,7 @@ import { DEFAULT_TIME_RANGE, resolveTimeRange } from "@everr/ui/lib/time-range";
 import { notFound } from "@tanstack/react-router";
 import { and, eq, isNull, sql } from "drizzle-orm";
 import * as z from "zod";
+import { deleteResource } from "@/data/as-code/resource-admin.server";
 import { overlayPreview, type PreviewStatus } from "@/data/previews/overlay";
 import { getCoveredRepoids } from "@/data/previews/repoids";
 import {
@@ -140,6 +141,7 @@ export const listDashboards = createAuthenticatedServerFn({ method: "GET" })
       project: dashboards.project,
       folderPath: dashboards.folderPath,
       displayName: sql<string>`document->'spec'->'display'->>'name'`,
+      template: sql<string | null>`document->'metadata'->>'template'`,
     };
 
     const previewSelect = {
@@ -150,6 +152,7 @@ export const listDashboards = createAuthenticatedServerFn({ method: "GET" })
       folderPath: dashboards.folderPath,
       document: dashboards.document,
       displayName: sql<string>`document->'spec'->'display'->>'name'`,
+      template: sql<string | null>`document->'metadata'->>'template'`,
     };
 
     const toItem = (row: {
@@ -158,6 +161,7 @@ export const listDashboards = createAuthenticatedServerFn({ method: "GET" })
       project: string;
       folderPath: string;
       displayName: string | null;
+      template?: string | null;
       previewStatus?: PreviewStatus;
     }) => ({
       slug: row.slug,
@@ -167,6 +171,7 @@ export const listDashboards = createAuthenticatedServerFn({ method: "GET" })
       // Surfaced so the list can mark the ones made in the app: those are
       // editable in place, where an as-code Dashboard is owned by a repository.
       uiOwned: isUiOwned(row.repoid),
+      template: row.template ?? null,
       previewStatus: row.previewStatus,
     });
 
@@ -259,7 +264,12 @@ export const createDashboardFromTemplate = createAuthenticatedServerFn({
 
     const document: Dashboard = {
       ...template.document,
-      metadata: { ...template.document.metadata, name: slug, project },
+      metadata: {
+        ...template.document.metadata,
+        name: slug,
+        project,
+        template: template.id,
+      },
     };
 
     // The same gate `everr apply` puts in front of a Dashboard document. The
@@ -286,37 +296,27 @@ export const createDashboardFromTemplate = createAuthenticatedServerFn({
 /**
  * Delete a Dashboard the app created.
  *
- * Scoped to `UI_REPOID` in the WHERE clause, not checked and then deleted: an
- * as-code Dashboard is owned by a repository and its removal belongs to
- * `everr apply`, so this statement must be unable to touch one even if the
- * caller names it. A Dashboard adopted into a repository has left that boundary
- * and stops being deletable here, which is the intended one-way door.
+ * Scoped to `UI_REPOID` through the shared resource seam, so the statement is
+ * unable to name a row a repository owns — an as-code Dashboard is defined by
+ * files, and its removal belongs to `everr apply`. A Dashboard adopted into a
+ * repository has left the boundary and stops being deletable here, which is the
+ * intended one-way door.
  */
 export const deleteUiDashboard = createAuthenticatedServerFn({ method: "POST" })
   .inputValidator(z.object({ project: z.string(), slug: z.string() }))
   .handler(async ({ data: { project, slug }, context }) => {
-    const deleted = await db
-      .delete(dashboards)
-      .where(
-        and(
-          eq(
-            dashboards.organizationId,
-            context.session.session.activeOrganizationId,
-          ),
-          eq(dashboards.repoid, UI_REPOID),
-          isNull(dashboards.previewId),
-          eq(dashboards.project, project),
-          eq(dashboards.slug, slug),
-        ),
-      )
-      .returning({ slug: dashboards.slug });
-
-    if (deleted.length === 0) {
+    const deleted = await deleteResource(
+      context.session.session.activeOrganizationId,
+      "dashboard",
+      project,
+      slug,
+      UI_REPOID,
+    );
+    if (!deleted) {
       throw new Error(
         "That dashboard is owned by a repository. Remove it from its files and run everr apply.",
       );
     }
-    return { deleted: deleted.length };
   });
 
 type QueryRow = Record<string, string | number | boolean | null>;

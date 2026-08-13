@@ -16,12 +16,14 @@ const CAPABILITY_NAMES_LIMIT = 500;
  */
 export type TelemetryCapabilities = Record<RequirementKind, string[]>;
 
-const emptyByKind = (): TelemetryCapabilities =>
+const byKind = (
+  names: (kind: RequirementKind) => string[],
+): TelemetryCapabilities =>
   Object.fromEntries(
-    REQUIREMENT_KINDS.map((kind) => [kind, [] as string[]]),
-  ) as unknown as TelemetryCapabilities;
+    REQUIREMENT_KINDS.map((kind) => [kind, names(kind)]),
+  ) as TelemetryCapabilities;
 
-export const EMPTY_CAPABILITIES: TelemetryCapabilities = emptyByKind();
+export const EMPTY_CAPABILITIES: TelemetryCapabilities = byKind(() => []);
 
 export interface CapabilityRow {
   kind: string;
@@ -102,15 +104,9 @@ export function buildCapabilitiesQuery(): string {
 export function decodeCapabilityRows(
   rows: CapabilityRow[],
 ): TelemetryCapabilities {
-  const bucket = new Map<string, Set<string>>(
-    REQUIREMENT_KINDS.map((kind) => [kind, new Set<string>()]),
+  return byKind((kind) =>
+    [...new Set(rows.filter((r) => r.kind === kind).map((r) => r.name))].sort(),
   );
-  for (const row of rows) bucket.get(row.kind)?.add(row.name);
-  const capabilities = emptyByKind();
-  for (const kind of REQUIREMENT_KINDS) {
-    capabilities[kind] = [...(bucket.get(kind) ?? [])].sort();
-  }
-  return capabilities;
 }
 
 /**
