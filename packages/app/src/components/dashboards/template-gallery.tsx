@@ -463,30 +463,62 @@ function TemplatePreview({
         Previewing {template.name}
       </p>
 
-      <header className="flex items-start gap-3">
-        <span className="mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-lg bg-muted/60">
-          <Icon className="size-4 text-primary" />
-        </span>
-        <div className="min-w-0">
-          <h2 className="font-semibold text-xl tracking-tight">
-            {template.name}
-          </h2>
-          <p className="mt-0.5 text-muted-foreground text-xs">
-            {template.category}
-          </p>
-          <p className="mt-2 max-w-prose text-foreground/80 text-sm/relaxed">
-            {template.description}
-          </p>
-          {probe === "resolved" && readiness.status === "needs-setup" && (
-            <p role="status" className="mt-2 text-muted-foreground text-xs">
-              Nothing to draw yet: this needs{" "}
-              <span className="font-mono text-foreground/90">
-                {readiness.missing.join(", ")}
-              </span>{" "}
-              in the selected time range. You can still create it and send the
-              data later.
+      <header className="flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
+        <div className="flex min-w-0 flex-1 items-start gap-3">
+          <span className="mt-0.5 flex size-9 shrink-0 items-center justify-center rounded-lg bg-muted/60">
+            <Icon className="size-4 text-primary" />
+          </span>
+          <div className="min-w-0">
+            <h2 className="font-semibold text-xl tracking-tight">
+              {template.name}
+            </h2>
+            <p className="mt-0.5 text-muted-foreground text-xs">
+              {template.category}
             </p>
-          )}
+            <p className="mt-2 max-w-prose text-foreground/80 text-sm/relaxed">
+              {template.description}
+            </p>
+            {probe === "resolved" && readiness.status === "needs-setup" && (
+              <p role="status" className="mt-2 text-muted-foreground text-xs">
+                Nothing to draw yet: this needs{" "}
+                <span className="font-mono text-foreground/90">
+                  {readiness.missing.join(", ")}
+                </span>{" "}
+                in the selected time range. You can still create it and send the
+                data later.
+              </p>
+            )}
+          </div>
+        </div>
+
+        {/*
+          The commit sits with the thing it names rather than in a bar under the
+          preview: the reader decides from the title and description, and the
+          destination has to be legible at the moment of deciding, not after
+          scrolling a grid of panels.
+        */}
+        <div className="flex shrink-0 flex-col items-end gap-1.5">
+          <Button
+            type="button"
+            onClick={() => create.mutate()}
+            disabled={create.isPending}
+          >
+            {create.isPending ? (
+              <Loader2 className="size-3.5 animate-spin" />
+            ) : (
+              <ArrowRight className="size-3.5" />
+            )}
+            Create dashboard
+          </Button>
+          <p className="max-w-64 text-right text-muted-foreground text-xs">
+            Creates{" "}
+            <span className="font-mono text-foreground/90">
+              {project} / {slug}
+            </span>
+            {isSecondCopy
+              ? ` — ${template.id} already exists, so this is a second copy.`
+              : ", a copy you own."}
+          </p>
         </div>
       </header>
 
@@ -503,35 +535,6 @@ function TemplatePreview({
           <DashboardGrid />
         </DashboardProvider>
       </section>
-
-      {/*
-        Opaque, not translucent: this bar sits over a scrolling grid, and a
-        blurred half-transparent strip reads as the panels being clipped rather
-        than as a bar covering them.
-      */}
-      <div className="sticky bottom-0 -mx-1 flex flex-wrap items-center gap-x-4 gap-y-2 border-t bg-background px-1 py-3">
-        <Button
-          type="button"
-          onClick={() => create.mutate()}
-          disabled={create.isPending}
-        >
-          {create.isPending ? (
-            <Loader2 className="size-3.5 animate-spin" />
-          ) : (
-            <ArrowRight className="size-3.5" />
-          )}
-          Create dashboard
-        </Button>
-        <p className="text-muted-foreground text-xs">
-          Creates{" "}
-          <span className="font-mono text-foreground/90">
-            {project} / {slug}
-          </span>
-          {isSecondCopy
-            ? ` — ${template.id} already exists, so this is a second copy.`
-            : ", a copy you own."}
-        </p>
-      </div>
     </section>
   );
 }
