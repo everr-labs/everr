@@ -1,16 +1,15 @@
 kind: Dashboard
 metadata:
-  name: rpc-services
+  name: server-functions
   project: default
   template: rpc-services
 spec:
   display:
-    name: RPC Services
-    description: Adapted from the RPC Services template. The inbound half also
-      accepts Internal spans, because our TanStack server functions nest inside
-      the framework's own POST /_serverFn/:id SERVER span and stay Internal to
-      avoid counting one request twice. The outbound half is empty until
-      something here makes an RPC client call.
+    name: Server Functions
+    description: 'TanStack server functions, described with the RPC semantic conventions. Inbound work
+      only: these spans stay Internal so they do not double-count against the framework''s own POST /_serverFn/:id
+      SERVER span, so the panels accept Internal as well as Server. There is no outbound half because
+      nothing here makes an RPC client call.'
   duration: 6h
   layouts:
   - kind: Grid
@@ -82,42 +81,6 @@ spec:
         width: 24
         x: 0
         y: 30
-      - content:
-          $ref: '#/spec/panels/outbound-calls'
-        height: 5
-        width: 8
-        x: 0
-        y: 39
-      - content:
-          $ref: '#/spec/panels/outbound-errors'
-        height: 5
-        width: 8
-        x: 8
-        y: 39
-      - content:
-          $ref: '#/spec/panels/outbound-p95'
-        height: 5
-        width: 8
-        x: 16
-        y: 39
-      - content:
-          $ref: '#/spec/panels/outbound-by-peer'
-        height: 8
-        width: 12
-        x: 0
-        y: 44
-      - content:
-          $ref: '#/spec/panels/outbound-by-status'
-        height: 8
-        width: 12
-        x: 12
-        y: 44
-      - content:
-          $ref: '#/spec/panels/dependencies'
-        height: 9
-        width: 24
-        x: 0
-        y: 52
   panels:
     by-method:
       kind: Panel
@@ -152,7 +115,9 @@ spec:
       kind: Panel
       spec:
         display:
-          description: 'Protocol status, not span status: a gRPC call that returns NOT_FOUND is a completed call.'
+          description: Empty until server functions set rpc.response.status_code. This is protocol
+            status rather than span status, so a call that returns a handled error still counts
+            as completed.
           name: Calls by status code
         plugin:
           kind: TimeSeriesChart
@@ -181,7 +146,8 @@ spec:
       kind: Panel
       spec:
         display:
-          description: One line per protocol. A single-protocol service draws one line, which is the expected shape.
+          description: One line per protocol. A single-protocol service draws one line, which is the expected
+            shape.
           name: Calls by RPC system
         plugin:
           kind: TimeSeriesChart
@@ -228,34 +194,6 @@ spec:
                   WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND SpanAttributes['rpc.system.name'] != '' AND SpanKind IN ('Server', 'Internal')
                   GROUP BY ts
                   ORDER BY ts
-    dependencies:
-      kind: Panel
-      spec:
-        display:
-          description: Every RPC server this service called, ranked by call volume.
-          name: Dependencies
-        plugin:
-          kind: Table
-          spec:
-            stickyHeader: true
-        queries:
-        - kind: ClickHouseSQL
-          spec:
-            plugin:
-              kind: ClickHouseSQL
-              spec:
-                query: |-
-                  SELECT coalesce(nullIf(SpanAttributes['server.address'], ''), SpanName) AS peer,
-                         coalesce(nullIf(SpanAttributes['rpc.method'], ''), SpanName) AS method,
-                         count() AS calls,
-                         countIf(StatusCode = 'Error') AS errors,
-                         round(avg(Duration) / 1000000, 1) AS avg_ms,
-                         round(quantile(0.95)(Duration) / 1000000, 1) AS p95_ms
-                  FROM traces
-                  WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND SpanAttributes['rpc.system.name'] != '' AND SpanKind = 'Client'
-                  GROUP BY peer, method
-                  ORDER BY calls DESC
-                  LIMIT 30
     error-rate:
       kind: Panel
       spec:
@@ -289,7 +227,8 @@ spec:
       kind: Panel
       spec:
         display:
-          description: error.type is what semconv asks an instrumentation to set on a failed call, so an empty column means it does not set one.
+          description: error.type is what semconv asks an instrumentation to set on a failed call, so
+            an empty column means it does not set one.
           name: Failing methods
         plugin:
           kind: Table
@@ -341,134 +280,6 @@ spec:
                   )
                   GROUP BY ts, method
                   ORDER BY ts
-    outbound-by-peer:
-      kind: Panel
-      spec:
-        display:
-          name: Outbound calls by server
-        plugin:
-          kind: TimeSeriesChart
-          spec:
-            showLegend: true
-            stacked: true
-        queries:
-        - kind: ClickHouseSQL
-          spec:
-            plugin:
-              kind: ClickHouseSQL
-              spec:
-                query: |-
-                  SELECT toStartOfInterval(Timestamp, INTERVAL {step:UInt32} * 6 SECOND) AS ts,
-                         coalesce(nullIf(SpanAttributes['server.address'], ''), SpanName) AS peer,
-                         count() AS calls
-                  FROM traces
-                  WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND SpanAttributes['rpc.system.name'] != '' AND SpanKind = 'Client'
-                    AND coalesce(nullIf(SpanAttributes['server.address'], ''), SpanName) IN (
-                    SELECT coalesce(nullIf(SpanAttributes['server.address'], ''), SpanName) FROM traces WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND SpanAttributes['rpc.system.name'] != '' AND SpanKind = 'Client'
-                    GROUP BY coalesce(nullIf(SpanAttributes['server.address'], ''), SpanName) ORDER BY count() DESC LIMIT 8
-                  )
-                  GROUP BY ts, peer
-                  ORDER BY ts
-    outbound-by-status:
-      kind: Panel
-      spec:
-        display:
-          name: Outbound calls by status code
-        plugin:
-          kind: TimeSeriesChart
-          spec:
-            showLegend: true
-            stacked: true
-        queries:
-        - kind: ClickHouseSQL
-          spec:
-            plugin:
-              kind: ClickHouseSQL
-              spec:
-                query: |-
-                  SELECT toStartOfInterval(Timestamp, INTERVAL {step:UInt32} * 6 SECOND) AS ts,
-                         SpanAttributes['rpc.response.status_code'] AS status_code,
-                         count() AS calls
-                  FROM traces
-                  WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND SpanAttributes['rpc.system.name'] != '' AND SpanKind = 'Client' AND SpanAttributes['rpc.response.status_code'] != ''
-                    AND SpanAttributes['rpc.response.status_code'] IN (
-                    SELECT SpanAttributes['rpc.response.status_code'] FROM traces WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND SpanAttributes['rpc.system.name'] != '' AND SpanKind = 'Client' AND SpanAttributes['rpc.response.status_code'] != ''
-                    GROUP BY SpanAttributes['rpc.response.status_code'] ORDER BY count() DESC LIMIT 8
-                  )
-                  GROUP BY ts, status_code
-                  ORDER BY ts
-    outbound-calls:
-      kind: Panel
-      spec:
-        display:
-          name: Outbound calls
-        plugin:
-          kind: StatChart
-          spec:
-            calculation: sum
-            sparkline: true
-        queries:
-        - kind: ClickHouseSQL
-          spec:
-            plugin:
-              kind: ClickHouseSQL
-              spec:
-                query: |-
-                  SELECT toStartOfInterval(Timestamp, INTERVAL {step:UInt32} SECOND) AS ts, count() AS calls
-                  FROM traces
-                  WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND SpanAttributes['rpc.system.name'] != '' AND SpanKind = 'Client'
-                  GROUP BY ts
-                  ORDER BY ts
-    outbound-errors:
-      kind: Panel
-      spec:
-        display:
-          name: Error rate
-        plugin:
-          kind: StatChart
-          spec:
-            calculation: last
-            decimals: 2
-            thresholds:
-              defaultColor: '#22c55e'
-              mode: absolute
-              steps:
-              - color: '#f59e0b'
-                value: 1
-              - color: '#ef4444'
-                value: 5
-            unit: '%'
-        queries:
-        - kind: ClickHouseSQL
-          spec:
-            plugin:
-              kind: ClickHouseSQL
-              spec:
-                query: |-
-                  SELECT countIf(StatusCode = 'Error') / count() * 100 AS error_pct
-                  FROM traces
-                  WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND SpanAttributes['rpc.system.name'] != '' AND SpanKind = 'Client'
-    outbound-p95:
-      kind: Panel
-      spec:
-        display:
-          name: Outbound P95 latency
-        plugin:
-          kind: StatChart
-          spec:
-            calculation: last
-            decimals: 1
-            unit: ms
-        queries:
-        - kind: ClickHouseSQL
-          spec:
-            plugin:
-              kind: ClickHouseSQL
-              spec:
-                query: |-
-                  SELECT round(quantile(0.95)(Duration) / 1000000, 1) AS p95
-                  FROM traces
-                  WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND SpanAttributes['rpc.system.name'] != '' AND SpanKind = 'Client'
     p95-latency:
       kind: Panel
       spec:
@@ -579,5 +390,6 @@ spec:
       plugin:
         kind: ClickHouseSQLVariable
         spec:
-          query: SELECT DISTINCT ServiceName FROM traces WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} ORDER BY ServiceName
+          query: SELECT DISTINCT ServiceName FROM traces WHERE Timestamp >= {from:String} AND Timestamp
+            <= {to:String} ORDER BY ServiceName
       sort: alphabetical-asc
