@@ -4,7 +4,9 @@ import { layout, split, stat, table, thresholds, timeSeries } from "../build";
 import type { DashboardTemplate } from "../types";
 import {
   BUCKET,
+  metricCounterUnion,
   metricLine,
+  metricLineUnion,
   metricUnion,
   needsMetricNamespace,
   needsMetrics,
@@ -59,6 +61,72 @@ const heapSpacePanel = (name: string, metric: string) =>
     scale: "/ 1048576",
     seriesBy: "v8js.heap.space.name",
   });
+
+/**
+ * Every `jvm.memory.*` datapoint is reported per memory pool, so one area is
+ * the sum of its pools at a single scrape. Averaging the raw metric would
+ * report the size of an average pool rather than the heap, which is the trap
+ * the Node.js rebuild hit on `v8js.memory.heap.used`.
+ *
+ * `used`, `committed` and `limit` are three metric names for one picture, so
+ * the name becomes the series label. The pair-of-names union helpers cannot be
+ * used here, because the area itself is an attribute filter.
+ */
+const JVM_MEMORY = [
+  "jvm.memory.used",
+  "jvm.memory.committed",
+  "jvm.memory.limit",
+];
+
+const jvmMemoryArea = (name: string, type: string, description: string) =>
+  timeSeries(
+    name,
+    { unit: "MB", showLegend: true },
+    `SELECT ts, series, avg(bytes) / 1048576 AS mb
+FROM (
+  SELECT ${SERIES_BUCKET("TimeUnix")} AS ts, TimeUnix, ${INSTANCE},
+         sumIf(Value, MetricName = 'jvm.memory.used') AS used,
+         sumIf(Value, MetricName = 'jvm.memory.committed') AS committed,
+         sumIf(Value, MetricName = 'jvm.memory.limit') AS lim
+  FROM (${metricUnion("TimeUnix, ResourceAttributes, MetricName, Value", ` AND MetricName IN (${JVM_MEMORY.map((m) => `'${m}'`).join(", ")}) AND Attributes['jvm.memory.type'] = '${type}'`)})
+  GROUP BY ts, TimeUnix, instance
+)
+ARRAY JOIN [used, committed, lim] AS bytes, ['used', 'committed', 'limit'] AS series
+WHERE bytes > 0
+GROUP BY ts, series
+ORDER BY ts`,
+    description,
+  );
+
+/**
+ * `jvm.memory.used` summed over the pools of one area, per scrape and per
+ * process, as a single number for the window.
+ */
+const jvmAreaTotal = (type: string) => `SELECT avg(total) AS bytes
+FROM (
+  SELECT TimeUnix, ${INSTANCE}, sum(Value) AS total
+  FROM (${metricUnion("TimeUnix, ResourceAttributes, Value", ` AND MetricName = 'jvm.memory.used' AND Attributes['jvm.memory.type'] = '${type}'`)})
+  GROUP BY TimeUnix, instance
+)`;
+
+/**
+ * `jvm.gc.duration` is a histogram, not a value column, and the Java agent
+ * exports it cumulatively. Collections and total pause time are therefore the
+ * per-bucket increase of `Count` and `Sum`, taken per unique series before
+ * they are summed, exactly as `metricCounter` does for a cumulative sum.
+ *
+ * The garbage collector names are a fixed, tiny set, so there is no top-N cap
+ * to apply; the coarser `SERIES_BUCKET` still applies, because the chart is
+ * multi-series and the 1000-row cap counts rows.
+ */
+const GC_DELTAS = (bucket: string) => `SELECT ${bucket} AS ts,
+         Attributes['jvm.gc.name'] AS series,
+         ResourceAttributes AS resource, Attributes AS attrs,
+         max(Count) - min(Count) AS collections,
+         max(Sum) - min(Sum) AS seconds
+  FROM metrics_histogram
+  WHERE ${WITHIN_METRICS_LOCAL} AND MetricName = 'jvm.gc.duration'
+  GROUP BY ts, series, resource, attrs`;
 
 export const runtimeTemplates: DashboardTemplate[] = [
   {
@@ -131,7 +199,7 @@ LIMIT 100`,
     id: "jvm-runtime",
     name: "JVM Runtime",
     description:
-      "Heap, garbage collection, threads and CPU for JVM services instrumented with the OpenTelemetry Java agent.",
+      "Heap and non-heap memory against their limits, the pools behind them, garbage collection, threads, classes and CPU, for services instrumented with the OpenTelemetry Java agent.",
     category: "Runtime",
     requires: [needsMetrics, needsMetricNamespace("jvm")],
     document: {
@@ -142,27 +210,198 @@ LIMIT 100`,
         duration: "6h",
         refreshInterval: "1m",
         panels: {
-          "heap-used": metricLine("Heap used", "jvm.memory.used", {
+          "heap-used": stat(
+            "Heap used",
+            { calculation: "last", unit: "MB", decimals: 0 },
+            `SELECT bytes / 1048576 AS mb FROM (${jvmAreaTotal("heap")})`,
+          ),
+          "heap-of-limit": stat(
+            "Heap of limit",
+            {
+              calculation: "last",
+              unit: "%",
+              decimals: 1,
+              thresholds: thresholds(75, 90),
+            },
+            `SELECT avg(pct) AS pct
+FROM (
+  SELECT TimeUnix, ${INSTANCE},
+         sumIf(Value, MetricName = 'jvm.memory.used') AS used,
+         sumIf(Value, MetricName = 'jvm.memory.limit') AS lim,
+         used / nullIf(lim, 0) * 100 AS pct
+  FROM (${metricUnion("TimeUnix, ResourceAttributes, MetricName, Value", " AND MetricName IN ('jvm.memory.used', 'jvm.memory.limit') AND Attributes['jvm.memory.type'] = 'heap'")})
+  GROUP BY TimeUnix, instance
+  HAVING lim > 0
+)`,
+          ),
+          "non-heap-used": stat(
+            "Non-heap used",
+            { calculation: "last", unit: "MB", decimals: 0 },
+            `SELECT bytes / 1048576 AS mb FROM (${jvmAreaTotal("non_heap")})`,
+          ),
+          threads: stat(
+            "Live threads",
+            { calculation: "last", decimals: 0 },
+            // Reported per state and per daemon flag, so the total is the sum
+            // of a scrape's datapoints, not the average of them.
+            `SELECT avg(total) AS threads
+FROM (
+  SELECT TimeUnix, ${INSTANCE}, sum(Value) AS total
+  FROM (${metricUnion("TimeUnix, ResourceAttributes, Value", " AND MetricName = 'jvm.thread.count'")})
+  GROUP BY TimeUnix, instance
+)`,
+          ),
+          cpu: stat(
+            "CPU used",
+            {
+              calculation: "last",
+              unit: "%",
+              decimals: 1,
+              thresholds: thresholds(75, 90),
+            },
+            `SELECT avg(Value) * 100 AS pct
+FROM (${metricUnion("Value", " AND MetricName = 'jvm.cpu.recent_utilization'")})`,
+          ),
+          "heap-memory": jvmMemoryArea(
+            "Heap memory",
+            "heap",
+            "Used against committed and the maximum obtainable heap. Pools that report no maximum are left out of the limit line.",
+          ),
+          "non-heap-memory": jvmMemoryArea(
+            "Non-heap memory",
+            "non_heap",
+            "Metaspace, code cache and the rest. A limit line appears only for the pools that declare one.",
+          ),
+          "pool-used": metricLine("Memory used by pool", "jvm.memory.used", {
             unit: "MB",
             scale: "/ 1048576",
             seriesBy: "jvm.memory.pool.name",
           }),
-          "gc-duration": metricLine("GC duration", "jvm.gc.duration", {
-            unit: "s",
-            aggregate: "max",
-            seriesBy: "jvm.gc.name",
+          "pool-after-gc": metricLine(
+            "Memory after last collection, by pool",
+            "jvm.memory.used_after_last_gc",
+            {
+              unit: "MB",
+              scale: "/ 1048576",
+              seriesBy: "jvm.memory.pool.name",
+              description:
+                "The live set: what a collection could not reclaim. An old-generation line that climbs across collections is the shape of a leak.",
+            },
+          ),
+          "gc-collections": timeSeries(
+            "Collections",
+            { unit: "", showLegend: true },
+            `SELECT ts, series, sum(collections) AS value
+FROM (
+  ${GC_DELTAS(SERIES_BUCKET("TimeUnix"))}
+)
+GROUP BY ts, series
+ORDER BY ts`,
+            "Garbage collections per bucket, by collector.",
+          ),
+          "gc-pause": timeSeries(
+            "Mean pause",
+            { unit: "ms", showLegend: true },
+            `SELECT ts, series, sum(seconds) / nullIf(sum(collections), 0) * 1000 AS ms
+FROM (
+  ${GC_DELTAS(SERIES_BUCKET("TimeUnix"))}
+)
+GROUP BY ts, series
+ORDER BY ts`,
+            "Total pause time over the collections that produced it.",
+          ),
+          "gc-pressure": timeSeries(
+            "Time spent collecting",
+            { unit: "%", showLegend: false },
+            `SELECT ts, sum(seconds) / nullIf({step:UInt32}, 0) * 100 AS pct
+FROM (
+  ${GC_DELTAS(BUCKET("TimeUnix"))}
+)
+GROUP BY ts
+ORDER BY ts`,
+            "Pause time as a share of elapsed time, summed across every reporting process. One collector thread saturated reads as 100%.",
+          ),
+          "thread-states": metricLine("Threads by state", "jvm.thread.count", {
+            seriesBy: "jvm.thread.state",
+            description:
+              "A rising blocked count with a flat runnable count is lock contention, not load.",
           }),
-          threads: metricLine("Live threads", "jvm.thread.count"),
-          cpu: metricLine("CPU utilization", "jvm.cpu.recent_utilization", {
-            unit: "%",
-            scale: "* 100",
+          "cpu-usage": metricLineUnion(
+            "CPU usage",
+            {
+              process: "jvm.cpu.recent_utilization",
+              system: "jvm.system.cpu.utilization",
+            },
+            {
+              unit: "%",
+              scale: "* 100",
+              description:
+                "The system line needs the agent's experimental JVM metrics enabled.",
+            },
+          ),
+          load: metricLineUnion(
+            "System load",
+            {
+              "load 1m": "jvm.system.cpu.load_1m",
+              processors: "jvm.cpu.count",
+            },
+            {
+              description:
+                "Load above the processor count means work is queueing. The load line needs the agent's experimental JVM metrics enabled.",
+            },
+          ),
+          classes: metricLine("Classes loaded", "jvm.class.count", {
+            description: "Currently loaded, not loaded since start.",
           }),
-          "classes-loaded": metricLine("Classes loaded", "jvm.class.count"),
+          "class-activity": metricCounterUnion(
+            "Class loading activity",
+            { loaded: "jvm.class.loaded", unloaded: "jvm.class.unloaded" },
+            {
+              description:
+                "Classes loaded and unloaded per bucket. Sustained loading long after startup points at a class-generating framework.",
+            },
+          ),
+          buffers: metricLineUnion(
+            "Buffer memory",
+            {
+              used: "jvm.buffer.memory.used",
+              capacity: "jvm.buffer.memory.limit",
+            },
+            {
+              unit: "MB",
+              scale: "/ 1048576",
+              description:
+                "Direct and mapped byte buffers, which live outside the heap. Needs the agent's experimental JVM metrics enabled.",
+            },
+          ),
+          "file-descriptors": metricLineUnion(
+            "File descriptors",
+            {
+              open: "jvm.file_descriptor.count",
+              limit: "jvm.file_descriptor.limit",
+            },
+            {
+              description:
+                "Needs the agent's experimental JVM metrics enabled.",
+            },
+          ),
         },
         layouts: layout([
-          split(8, "heap-used", "gc-duration"),
-          split(8, "cpu", "threads"),
-          split(7, "classes-loaded"),
+          split(
+            5,
+            "heap-used",
+            "heap-of-limit",
+            "non-heap-used",
+            "threads",
+            "cpu",
+          ),
+          split(8, "heap-memory", "non-heap-memory"),
+          split(8, "pool-used", "pool-after-gc"),
+          split(8, "gc-collections", "gc-pause"),
+          split(8, "gc-pressure", "thread-states"),
+          split(8, "cpu-usage", "load"),
+          split(8, "classes", "class-activity"),
+          split(8, "buffers", "file-descriptors"),
         ]),
       },
     },
