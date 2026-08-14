@@ -43,9 +43,21 @@ describe("buildCapabilitiesQuery", () => {
     expect(sql).not.toContain("count()");
   });
 
-  it("reads metric names from the gauge and sum tables", () => {
-    expect(sql).toContain("FROM metrics_gauge");
-    expect(sql).toContain("FROM metrics_sum");
+  // Both, not one: widening the existence probe alone would report metrics and
+  // still hold back every metric template, because no name reached the scan.
+  it("probes and scans every metric table the tenant can read", () => {
+    // Written out rather than filtered from `SQL_API_TENANT_TABLES`: the suite
+    // setup mocks `@/lib/clickhouse`, so the real list is not importable here.
+    for (const table of [
+      "metrics_gauge",
+      "metrics_sum",
+      "metrics_histogram",
+      "metrics_exponential_histogram",
+      "metrics_summary",
+    ]) {
+      expect(sql).toContain(`FROM ${table} WHERE TimeUnix >=`);
+      expect(sql).toContain(`SELECT DISTINCT MetricName FROM ${table}`);
+    }
   });
 
   it("uses each table's own time column", () => {

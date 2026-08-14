@@ -9,6 +9,36 @@ import { REQUIREMENT_KINDS } from "./types";
 const CAPABILITY_NAMES_LIMIT = 500;
 
 /**
+ * Every metric table the tenant can read, not the three the probe used to scan.
+ * An Organization whose metrics are Summary- or ExponentialHistogram-typed was
+ * told it had no metrics at all while its previews drew fine, which inverts the
+ * one promise the probe makes. The `awscloudwatch` receiver emits Summary by
+ * default, so this was reachable, not hypothetical.
+ *
+ * Both the existence probes and the metric-name scan read this list. Widening
+ * only one would move the contradiction rather than close it: an Organization
+ * would be told it has metrics and still see every metric template held back,
+ * because no template's metric name reached the scan.
+ *
+ * All five share `MetricName` and `TimeUnix`, so the two added branches cost one
+ * `LIMIT 1` granule read and one `DISTINCT` over a LowCardinality column each,
+ * and both are empty tables for every Organization that is not sending those
+ * types.
+ *
+ * Written out rather than filtered from `SQL_API_TENANT_TABLES`: this module is
+ * imported by the gallery component, and `lib/clickhouse` would drag the server
+ * env and `node:crypto` into the client bundle. `capabilities.test.ts` asserts
+ * the two lists agree instead.
+ */
+const METRIC_TABLES = [
+  "metrics_gauge",
+  "metrics_sum",
+  "metrics_histogram",
+  "metrics_exponential_histogram",
+  "metrics_summary",
+] as const;
+
+/**
  * What the Organization is actually sending in the probed time range, one list
  * per requirement kind. Keyed by the kind a requirement states rather than by
  * hand-named fields, so a new kind is one entry in `REQUIREMENT_KINDS` and
@@ -73,20 +103,16 @@ export function buildCapabilitiesQuery(): string {
 
   // `DISTINCT` inside each branch, not only on the union: `MetricName` is
   // LowCardinality over a handful of values, so deduplicating per table merges
-  // three small sets instead of piping every metric row through the union.
-  const metricSources = ["metrics_gauge", "metrics_sum", "metrics_histogram"]
-    .map(
-      (table) =>
-        `SELECT DISTINCT MetricName FROM ${table} WHERE ${withinMetrics}`,
-    )
-    .join(" UNION ALL ");
+  // small sets instead of piping every metric row through the union.
+  const metricSources = METRIC_TABLES.map(
+    (table) =>
+      `SELECT DISTINCT MetricName FROM ${table} WHERE ${withinMetrics}`,
+  ).join(" UNION ALL ");
 
   return `SELECT kind, name FROM (${[
     signal("traces", "traces", withinTraces),
     signal("logs", "logs", withinLogs),
-    signal("metrics", "metrics_gauge", withinMetrics),
-    signal("metrics", "metrics_sum", withinMetrics),
-    signal("metrics", "metrics_histogram", withinMetrics),
+    ...METRIC_TABLES.map((table) => signal("metrics", table, withinMetrics)),
     names(
       "span-attribute",
       "arrayJoin(mapKeys(SpanAttributes))",
