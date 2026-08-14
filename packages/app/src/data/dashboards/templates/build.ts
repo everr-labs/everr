@@ -53,6 +53,18 @@ export const timeSeries = (
   description?: string,
 ) => panel("TimeSeriesChart", name, options, query, description);
 
+/**
+ * A single number read against a fixed axis. Reach for it over `stat` only
+ * when the bounds are published rather than chosen — a gauge claims the reader
+ * knows what "full" means, and an invented `max` makes that claim falsely.
+ */
+export const gauge = (
+  name: string,
+  options: Options,
+  query: string,
+  description?: string,
+) => panel("GaugeChart", name, options, query, description);
+
 export const table = (name: string, query: string, description?: string) =>
   panel("Table", name, { stickyHeader: true }, query, description);
 

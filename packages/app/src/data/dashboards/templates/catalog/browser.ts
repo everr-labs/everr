@@ -1,4 +1,12 @@
-import { layout, split, stat, table, thresholds, timeSeries } from "../build";
+import {
+  gauge,
+  layout,
+  split,
+  stat,
+  table,
+  thresholds,
+  timeSeries,
+} from "../build";
 import type { DashboardTemplate } from "../types";
 import {
   BUCKET,
@@ -34,12 +42,89 @@ const UA = `ResourceAttributes['user_agent.original']`;
 const BROWSER_NAME = `multiIf(position(${UA}, 'Headless') > 0, 'Headless Chrome', position(${UA}, 'Edg/') > 0, 'Edge', position(${UA}, 'Firefox/') > 0, 'Firefox', position(${UA}, 'Chrome/') > 0, 'Chrome', position(${UA}, 'Safari/') > 0, 'Safari', 'Other')`;
 const BROWSER_VERSION = `extract(${UA}, '(?:Edg|Firefox|Chrome|Version)/([0-9]+)')`;
 
+/** The vital's numeric value, and the name that selects which vital it is. */
+const VITAL_VALUE = `toFloat64OrZero(${attr("browser.web_vital.value")})`;
+const VITAL_NAME = attr("browser.web_vital.name");
+const RATING = attr("everr.browser.web_vital.rating");
+
+/**
+ * Millisecond vitals above a minute are instrumentation artifacts, not
+ * experiences: a backgrounded or suspended tab keeps the timer running, so the
+ * value reported on restore is how long the tab was closed. This window holds
+ * an 857,360,376 ms INP -- nine days -- and six such samples in total, enough
+ * to put the Y axis of every millisecond panel in the millions.
+ *
+ * The ceiling therefore guards every panel that *averages* a value. The rating
+ * panels deliberately go without it: they count samples rather than combine
+ * them, so an outlier cannot distort them, and it is worth seeing that the SDK
+ * rated it poor. CLS is exempt because it is unitless -- 60000 is not a
+ * quantity it can have.
+ */
+const SANE_VITAL = `(${VITAL_NAME} = 'cls' OR ${VITAL_VALUE} <= 60000)`;
+
+/**
+ * The published Core Web Vitals bands, as a gauge's thresholds. Unlike the
+ * shared `thresholds` helper the steps carry their qualitative name, because
+ * on a vital the band *is* the reading: 2.6s means nothing to a reader who
+ * does not already know that good ends at 2.5s. The axis runs a third past the
+ * poor bound so the poor band is a visible stretch of track rather than the
+ * right-hand edge.
+ */
+const vitalBands = (needsImprovement: number, poor: number) => ({
+  mode: "absolute" as const,
+  defaultColor: "#22c55e",
+  defaultName: "Good",
+  steps: [
+    { value: needsImprovement, color: "#f59e0b", name: "Needs improvement" },
+    { value: poor, color: "#ef4444", name: "Poor" },
+  ],
+});
+
+/** P75 of one vital over the whole window — the statistic the bands are defined on. */
+const vitalP75 = (vital: string, decimals: number) =>
+  `SELECT round(quantile(0.75)(${VITAL_VALUE}), ${decimals}) AS p75
+FROM logs
+WHERE ${WITHIN} AND ${SANE_VITAL} AND EventName = 'browser.web_vital'
+  AND ${VITAL_NAME} = '${vital}'`;
+
+/**
+ * A vital's attribution phases as one stacked chart. Each phase is a separate
+ * attribute on the same record, so they are read as columns and unpivoted --
+ * a fixed, small series count that never approaches the row cap.
+ */
+const phaseBreakdown = (
+  vital: string,
+  phases: ReadonlyArray<[label: string, attribute: string]>,
+) => {
+  const alias = (index: number) => `phase_${index}`;
+  const columns = phases
+    .map(
+      ([, attribute], index) =>
+        `       round(quantile(0.75)(toFloat64OrZero(${attr(`everr.browser.web_vital.${vital}.${attribute}`)}))) AS ${alias(index)}`,
+    )
+    .join(",\n");
+  const pairs = phases
+    .map(([label], index) => `('${label}', ${alias(index)})`)
+    .join(", ");
+  return `SELECT ts, phase.1 AS series, phase.2 AS value
+FROM (
+  SELECT ${SERIES_BUCKET()} AS ts,
+${columns}
+  FROM logs
+  WHERE ${WITHIN} AND ${SANE_VITAL} AND EventName = 'browser.web_vital'
+    AND ${VITAL_NAME} = '${vital}'
+  GROUP BY ts
+)
+ARRAY JOIN [${pairs}] AS phase
+ORDER BY ts`;
+};
+
 export const browserTemplates: DashboardTemplate[] = [
   {
     id: "web-vitals",
     name: "Web Vitals",
     description:
-      "LCP, CLS, INP and TTFB at P75, split by route, with the pages that fail the good/poor thresholds most often.",
+      "The four Core Web Vitals at P75 against their published good/poor bands, the page loads and errors behind them, what each slow vital was waiting on, and the routes and elements responsible.",
     category: "Browser",
     requires: [needsLogs, needsLogAttribute("browser.web_vital")],
     document: {
@@ -50,76 +135,162 @@ export const browserTemplates: DashboardTemplate[] = [
         duration: "24h",
         refreshInterval: "5m",
         panels: {
-          lcp: stat(
+          lcp: gauge(
             "LCP P75",
             {
-              calculation: "last",
               unit: "ms",
               decimals: 0,
-              thresholds: thresholds(2500, 4000),
+              min: 0,
+              max: 5300,
+              thresholds: vitalBands(2500, 4000),
             },
-            `SELECT round(quantile(0.75)(toFloat64OrZero(${attr("browser.web_vital.value")}))) AS lcp
-FROM logs
-WHERE ${WITHIN} AND EventName = 'browser.web_vital'
-  AND ${attr("browser.web_vital.name")} = 'lcp'`,
+            vitalP75("lcp", 0),
+            "Largest Contentful Paint.",
           ),
-          inp: stat(
+          inp: gauge(
             "INP P75",
             {
-              calculation: "last",
               unit: "ms",
               decimals: 0,
-              thresholds: thresholds(200, 500),
+              min: 0,
+              max: 700,
+              thresholds: vitalBands(200, 500),
             },
-            `SELECT round(quantile(0.75)(toFloat64OrZero(${attr("browser.web_vital.value")}))) AS inp
-FROM logs
-WHERE ${WITHIN} AND EventName = 'browser.web_vital'
-  AND ${attr("browser.web_vital.name")} = 'inp'`,
+            vitalP75("inp", 0),
+            "Interaction to Next Paint.",
           ),
-          cls: stat(
+          cls: gauge(
             "CLS P75",
             {
-              calculation: "last",
               decimals: 3,
-              thresholds: thresholds(0.1, 0.25),
+              min: 0,
+              max: 0.35,
+              thresholds: vitalBands(0.1, 0.25),
             },
-            `SELECT quantile(0.75)(toFloat64OrZero(${attr("browser.web_vital.value")})) AS cls
-FROM logs
-WHERE ${WITHIN} AND EventName = 'browser.web_vital'
-  AND ${attr("browser.web_vital.name")} = 'cls'`,
+            vitalP75("cls", 3),
+            "Cumulative Layout Shift, unitless.",
           ),
-          ttfb: stat(
+          ttfb: gauge(
             "TTFB P75",
             {
-              calculation: "last",
               unit: "ms",
               decimals: 0,
-              thresholds: thresholds(800, 1800),
+              min: 0,
+              max: 2400,
+              thresholds: vitalBands(800, 1800),
             },
-            `SELECT round(quantile(0.75)(toFloat64OrZero(${attr("browser.web_vital.value")}))) AS ttfb
+            vitalP75("ttfb", 0),
+            "Time to First Byte.",
+          ),
+          "page-loads": stat(
+            "Page loads",
+            { calculation: "last" },
+            `SELECT count() AS loads
 FROM logs
-WHERE ${WITHIN} AND EventName = 'browser.web_vital'
-  AND ${attr("browser.web_vital.name")} = 'ttfb'`,
+WHERE ${WITHIN} AND ${FROM_BROWSER} AND EventName = 'everr.browser.page_view'`,
+            "SPA route changes included.",
+          ),
+          "js-errors": stat(
+            "JS errors",
+            { calculation: "last" },
+            `SELECT count() AS errors
+FROM logs
+WHERE ${WITHIN} AND ${FROM_BROWSER} AND EventName = 'exception'`,
+            "Every mechanism, including React boundaries.",
+          ),
+          "error-rate": stat(
+            "Errors per 100 loads",
+            { calculation: "last", decimals: 1, thresholds: thresholds(5, 20) },
+            `SELECT round(countIf(EventName = 'exception') / greatest(countIf(EventName = 'everr.browser.page_view'), 1) * 100, 1) AS per_hundred
+FROM logs
+WHERE ${WITHIN} AND ${FROM_BROWSER}`,
+            "Can exceed 100: one load may throw repeatedly.",
+          ),
+          "loads-and-errors": timeSeries(
+            "Page loads and errors",
+            { showLegend: true },
+            `SELECT ts, counted.1 AS series, counted.2 AS value
+FROM (
+  SELECT ${SERIES_BUCKET()} AS ts,
+         countIf(EventName = 'everr.browser.page_view') AS loads,
+         countIf(EventName = 'exception') AS errors
+  FROM logs
+  WHERE ${WITHIN} AND ${FROM_BROWSER}
+  GROUP BY ts
+)
+ARRAY JOIN [('Page loads', loads), ('JS errors', errors)] AS counted
+ORDER BY ts`,
+            "On one axis on purpose: the question is whether errors track traffic or spike against it.",
           ),
           "rating-over-time": timeSeries(
             "Samples by rating",
             { showLegend: true, stacked: true },
-            `SELECT ${SERIES_BUCKET()} AS ts,
-       ${attr("everr.browser.web_vital.rating")} AS rating,
-       count() AS samples
+            `SELECT ${SERIES_BUCKET()} AS ts, ${RATING} AS rating, count() AS samples
 FROM logs
 WHERE ${WITHIN} AND EventName = 'browser.web_vital'
 GROUP BY ts, rating
 ORDER BY ts`,
+            "All four vitals together, as the SDK rated each sample.",
+          ),
+          "ms-over-time": timeSeries(
+            "LCP, INP and TTFB P75 over time",
+            { showLegend: true, unit: "ms" },
+            `SELECT ts, vital.1 AS series, vital.2 AS value
+FROM (
+  SELECT ${SERIES_BUCKET()} AS ts,
+         round(quantileIf(0.75)(${VITAL_VALUE}, ${VITAL_NAME} = 'lcp')) AS lcp,
+         round(quantileIf(0.75)(${VITAL_VALUE}, ${VITAL_NAME} = 'inp')) AS inp,
+         round(quantileIf(0.75)(${VITAL_VALUE}, ${VITAL_NAME} = 'ttfb')) AS ttfb
+  FROM logs
+  WHERE ${WITHIN} AND ${SANE_VITAL} AND EventName = 'browser.web_vital'
+  GROUP BY ts
+)
+ARRAY JOIN [('LCP', lcp), ('INP', inp), ('TTFB', ttfb)] AS vital
+ORDER BY ts`,
+            "Samples over a minute are dropped here and on every panel that averages a value: a suspended tab keeps the timer running.",
+          ),
+          "cls-over-time": timeSeries(
+            "CLS P75 over time",
+            {},
+            `SELECT ${BUCKET()} AS ts, round(quantile(0.75)(${VITAL_VALUE}), 3) AS cls
+FROM logs
+WHERE ${WITHIN} AND EventName = 'browser.web_vital'
+  AND ${VITAL_NAME} = 'cls'
+GROUP BY ts
+ORDER BY ts`,
+            "Its own panel: CLS is unitless and would be a flat zero beside three millisecond series.",
+          ),
+          "lcp-phases": timeSeries(
+            "What LCP was waiting on",
+            { showLegend: true, stacked: true, unit: "ms" },
+            phaseBreakdown("lcp", [
+              ["Time to first byte", "time_to_first_byte"],
+              ["Resource load delay", "resource_load_delay"],
+              ["Resource load duration", "resource_load_duration"],
+              ["Element render delay", "element_render_delay"],
+            ]),
+            "Each phase is its own P75, so the stack runs taller than LCP P75: read which phase dominates, not the total. A text element loads no resource, so its two middle phases are zero.",
+          ),
+          "ttfb-phases": timeSeries(
+            "What TTFB was waiting on",
+            { showLegend: true, stacked: true, unit: "ms" },
+            phaseBreakdown("ttfb", [
+              ["Waiting", "waiting_duration"],
+              ["Cache", "cache_duration"],
+              ["DNS", "dns_duration"],
+              ["Connection", "connection_duration"],
+              ["Request", "request_duration"],
+            ]),
+            "Each phase is its own P75, so read which phase dominates rather than the total. Waiting covers redirects and service-worker startup, before the network is touched.",
           ),
           "by-route": table(
             "P75 by route",
             `SELECT ${ROUTE} AS route,
-       ${attr("browser.web_vital.name")} AS vital,
-       round(quantile(0.75)(toFloat64OrZero(${attr("browser.web_vital.value")})), 3) AS p75,
+       ${VITAL_NAME} AS vital,
+       round(quantile(0.75)(${VITAL_VALUE}), 3) AS p75,
        count() AS samples
 FROM logs
-WHERE ${WITHIN} AND EventName = 'browser.web_vital'
+WHERE ${WITHIN} AND ${SANE_VITAL} AND EventName = 'browser.web_vital'
 GROUP BY route, vital
 HAVING samples >= 5
 ORDER BY route, vital
@@ -129,10 +300,10 @@ LIMIT 100`,
           "poor-pages": table(
             "Pages rated poor",
             `SELECT ${ROUTE} AS route,
-       ${attr("browser.web_vital.name")} AS vital,
-       countIf(${attr("everr.browser.web_vital.rating")} = 'poor') AS poor,
+       ${VITAL_NAME} AS vital,
+       countIf(${RATING} = 'poor') AS poor,
        count() AS samples,
-       round(countIf(${attr("everr.browser.web_vital.rating")} = 'poor') / count() * 100, 1) AS poor_pct
+       round(countIf(${RATING} = 'poor') / count() * 100, 1) AS poor_pct
 FROM logs
 WHERE ${WITHIN} AND EventName = 'browser.web_vital'
 GROUP BY route, vital
@@ -140,11 +311,45 @@ HAVING poor > 0
 ORDER BY poor DESC
 LIMIT 50`,
           ),
+          "lcp-elements": table(
+            "Slowest LCP elements",
+            `SELECT ${attr("everr.browser.web_vital.lcp.target")} AS element,
+       round(quantile(0.75)(${VITAL_VALUE})) AS lcp_p75_ms,
+       count() AS samples
+FROM logs
+WHERE ${WITHIN} AND ${SANE_VITAL} AND EventName = 'browser.web_vital'
+  AND ${VITAL_NAME} = 'lcp'
+  AND ${attr("everr.browser.web_vital.lcp.target")} != ''
+GROUP BY element
+HAVING samples >= 5
+ORDER BY lcp_p75_ms DESC
+LIMIT 25`,
+            "The element that actually painted last, as a CSS path.",
+          ),
+          "cls-elements": table(
+            "Biggest layout shifts",
+            `SELECT ${attr("everr.browser.web_vital.cls.largest_shift_target")} AS element,
+       round(quantile(0.75)(toFloat64OrZero(${attr("everr.browser.web_vital.cls.largest_shift_value")})), 3) AS shift_p75,
+       ${attr("everr.browser.web_vital.cls.load_state")} AS load_state,
+       count() AS samples
+FROM logs
+WHERE ${WITHIN} AND EventName = 'browser.web_vital'
+  AND ${VITAL_NAME} = 'cls'
+  AND ${attr("everr.browser.web_vital.cls.largest_shift_target")} != ''
+GROUP BY element, load_state
+ORDER BY shift_p75 DESC
+LIMIT 25`,
+            "The single largest shift of each sample, and how far the page had loaded when it moved.",
+          ),
         },
         layouts: layout([
-          split(5, "lcp", "inp", "cls", "ttfb"),
-          split(8, "rating-over-time"),
+          split(6, "lcp", "inp", "cls", "ttfb"),
+          split(4, "page-loads", "js-errors", "error-rate"),
+          split(9, "loads-and-errors", "rating-over-time"),
+          split(9, "ms-over-time", "cls-over-time"),
+          split(9, "lcp-phases", "ttfb-phases"),
           split(10, "by-route", "poor-pages"),
+          split(9, "lcp-elements", "cls-elements"),
         ]),
       },
     },
