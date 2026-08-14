@@ -123,11 +123,39 @@ export const metricUnion = (columns: string, extraWhere = "") =>
     )
     .join(" UNION ALL ");
 
-const metricRows = (metric: string, seriesSelect?: string) =>
+const metricRows = (metric: string, seriesSelect?: string, seriesWhere = "") =>
   metricUnion(
     `TimeUnix, Value${seriesSelect ? `, ${seriesSelect} AS series` : ""}`,
-    ` AND MetricName = '${metric}'`,
+    ` AND MetricName = '${metric}'${seriesWhere}`,
   );
+
+const quoted = (values: string[]) =>
+  values.map((value) => `'${value}'`).join(", ");
+
+/**
+ * Restrict which values of the series dimension a panel draws, before anything
+ * else touches the rows. Some receivers put a whole family on one metric name —
+ * `mysql.handlers` covers both the read handlers and the transaction ones — and
+ * the two halves belong on separate charts, because the read handlers are
+ * orders of magnitude busier and would flatten the transaction lines to zero.
+ *
+ * Filtering here rather than after the fact also keeps the top-N series cap
+ * honest: a chart showing four transaction handlers should pick its top eight
+ * from those four, not spend the budget on the reads it never draws.
+ */
+const seriesWhereOf = (
+  seriesSelect: string | undefined,
+  options: { seriesIn?: string[]; seriesNotIn?: string[] },
+): string => {
+  if (!seriesSelect) return "";
+  const { seriesIn, seriesNotIn } = options;
+  return [
+    seriesIn?.length ? ` AND ${seriesSelect} IN (${quoted(seriesIn)})` : "",
+    seriesNotIn?.length
+      ? ` AND ${seriesSelect} NOT IN (${quoted(seriesNotIn)})`
+      : "",
+  ].join("");
+};
 
 /**
  * How a panel names its series. `seriesBy` reads one datapoint attribute, which
@@ -158,12 +186,15 @@ export const metricLine = (
     unit?: string;
     seriesBy?: string;
     seriesExpr?: string;
+    seriesIn?: string[];
+    seriesNotIn?: string[];
     scale?: string;
     description?: string;
   } = {},
 ) => {
   const { aggregate = "avg", unit = "", scale, description } = options;
   const seriesSelect = seriesSelectOf(options);
+  const seriesWhere = seriesWhereOf(seriesSelect, options);
   const value = scale ? `${aggregate}(Value) ${scale}` : `${aggregate}(Value)`;
 
   if (!seriesSelect) {
@@ -185,7 +216,7 @@ ORDER BY ts`,
   return timeSeries(
     name,
     { unit, showLegend: true },
-    `WITH points AS (${metricRows(metric, seriesSelect)})
+    `WITH points AS (${metricRows(metric, seriesSelect, seriesWhere)})
 SELECT ${SERIES_BUCKET("TimeUnix")} AS ts,
        series,
        ${value} AS value
@@ -208,6 +239,12 @@ ORDER BY ts`,
  * full attribute and resource maps: the postgresql receiver reports one counter
  * per table and one resource per database, so a delta taken across the merged
  * stream would read every table's counter as one sawtooth.
+ *
+ * Only for a **monotonic** sum. A receiver's documentation carries that in its
+ * own column, and it does not follow from the OTLP type: the mysql receiver
+ * reports `mysql.threads` and `mysql.buffer_pool.usage` as non-monotonic sums,
+ * which are levels that fall as well as rise. Differencing a level charts noise.
+ * Those take `metricLine`.
  */
 export const metricCounter = (
   name: string,
@@ -216,6 +253,8 @@ export const metricCounter = (
     unit?: string;
     seriesBy?: string;
     seriesExpr?: string;
+    seriesIn?: string[];
+    seriesNotIn?: string[];
     scale?: string;
     stacked?: boolean;
     description?: string;
@@ -226,7 +265,7 @@ export const metricCounter = (
   const total = scale ? `sum(delta) ${scale}` : `sum(delta)`;
   const perSeries = `ResourceAttributes AS resource, Attributes AS attrs,
          max(Value) - min(Value) AS delta`;
-  const onlyThisMetric = ` AND MetricName = '${metric}'`;
+  const onlyThisMetric = ` AND MetricName = '${metric}'${seriesWhereOf(seriesSelect, options)}`;
 
   if (!seriesSelect) {
     return timeSeries(

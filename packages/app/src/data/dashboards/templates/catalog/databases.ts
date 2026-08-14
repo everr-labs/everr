@@ -40,6 +40,19 @@ FROM (
 )${bucket ? "\nGROUP BY ts\nORDER BY ts" : ""}`;
 };
 
+/**
+ * The `mysql.handlers` kinds that describe transaction control rather than row
+ * access. The receiver puts the whole family on one metric name; the reference
+ * splits it in two, and the split is what makes either half readable.
+ */
+const TRANSACTION_HANDLERS = [
+  "commit",
+  "rollback",
+  "prepare",
+  "savepoint",
+  "savepoint_rollback",
+];
+
 export const databaseTemplates: DashboardTemplate[] = [
   {
     id: "postgres-overview",
@@ -173,27 +186,142 @@ ORDER BY ts`,
     },
   },
 
-  receiverTemplate({
+  {
     id: "mysql-overview",
     name: "MySQL Overview",
     description:
-      "Threads, operation mix, buffer-pool usage and lock pressure, from the OpenTelemetry mysql receiver.",
+      "Uptime and buffer pool size, thread and connection activity, the command and handler mix behind the query load, and client network traffic, from the OpenTelemetry mysql receiver.",
     category: "Databases",
-    namespace: "mysql",
-    panels: {
-      threads: metricLine("Threads", "mysql.threads", { seriesBy: "kind" }),
-      operations: metricLine("Operations", "mysql.operations", {
-        aggregate: "max",
-        seriesBy: "operation",
-      }),
-      "buffer-pool": metricLine(
-        "Buffer pool usage",
-        "mysql.buffer_pool.usage",
-        { unit: "MB", scale: "/ 1048576", seriesBy: "status" },
-      ),
-      locks: metricLine("Row locks", "mysql.locks", { aggregate: "max" }),
+    requires: [needsMetrics, needsMetricNamespace("mysql")],
+    document: {
+      kind: "Dashboard",
+      metadata: { name: "mysql-overview" },
+      spec: {
+        display: { name: "MySQL Overview" },
+        duration: "6h",
+        refreshInterval: "1m",
+        panels: {
+          uptime: stat(
+            "Uptime",
+            { calculation: "last", unit: "d", decimals: 1 },
+            `SELECT nullIf(max(Value), 0) / 86400 AS days
+FROM (${metricUnion("Value", " AND MetricName = 'mysql.uptime'")})`,
+            "A reset here explains a discontinuity in every counter below.",
+          ),
+          "buffer-pool-size": stat(
+            "Buffer pool size",
+            { calculation: "last", unit: "MB", decimals: 0 },
+            `SELECT nullIf(max(Value), 0) / 1048576 AS mb
+FROM (${metricUnion("Value", " AND MetricName = 'mysql.buffer_pool.limit'")})`,
+            "Read Buffer pool usage against it.",
+          ),
+          connections: stat(
+            "Connections",
+            { calculation: "last", decimals: 0, sparkline: true },
+            `SELECT ${BUCKET("TimeUnix")} AS ts, avg(Value) AS connected
+FROM (${metricUnion("TimeUnix, Attributes, Value", " AND MetricName = 'mysql.threads' AND Attributes['kind'] = 'connected'")})
+GROUP BY ts
+ORDER BY ts`,
+          ),
+          "queries-per-second": stat(
+            "Queries per second",
+            { calculation: "last", decimals: 1, sparkline: true },
+            // The receiver reports no query counter by default, and no default
+            // metric stands in for one: handlers and commands count different
+            // things. This is the one tile that needs mysql.query.count turned
+            // on, and the reference's headline gauge is worth that.
+            `SELECT ts, sum(delta) / {step:UInt32} AS qps
+FROM (
+  SELECT ${BUCKET("TimeUnix")} AS ts,
+         ResourceAttributes AS resource, Attributes AS attrs,
+         max(Value) - min(Value) AS delta
+  FROM (${metricUnion("TimeUnix, ResourceAttributes, Attributes, Value", " AND MetricName = 'mysql.query.count'")})
+  GROUP BY ts, resource, attrs
+)
+GROUP BY ts
+ORDER BY ts`,
+            "Needs mysql.query.count, which the receiver leaves off.",
+          ),
+          "thread-activity": metricLine("Thread activity", "mysql.threads", {
+            seriesBy: "kind",
+            description:
+              "Connected is who is attached; running is who is actually working. Running climbing toward connected is the server falling behind.",
+          }),
+          commands: metricCounter("Top commands", "mysql.commands", {
+            seriesBy: "command",
+            description:
+              "Optional in the receiver, so this stays empty unless mysql.commands is enabled in its metrics config.",
+          }),
+          handlers: metricCounter("Handlers", "mysql.handlers", {
+            seriesBy: "kind",
+            seriesNotIn: TRANSACTION_HANDLERS,
+            description:
+              "How rows were reached. A large read_rnd_next share means table scans rather than index lookups.",
+          }),
+          "transaction-handlers": metricCounter(
+            "Transaction handlers",
+            "mysql.handlers",
+            {
+              seriesBy: "kind",
+              seriesIn: TRANSACTION_HANDLERS,
+              description:
+                "Split from the other handlers because the read handlers are orders of magnitude busier and would flatten these to zero on a shared chart.",
+            },
+          ),
+          "row-operations": metricCounter(
+            "Row operations",
+            "mysql.row_operations",
+            { seriesBy: "operation", stacked: true },
+          ),
+          "network-io": metricCounter(
+            "Client network traffic",
+            "mysql.client.network.io",
+            {
+              unit: "MB",
+              scale: "/ 1048576",
+              seriesBy: "kind",
+              description:
+                "Optional in the receiver, so this stays empty unless mysql.client.network.io is enabled in its metrics config.",
+            },
+          ),
+          "buffer-pool-usage": metricLine(
+            "Buffer pool usage",
+            "mysql.buffer_pool.usage",
+            { unit: "MB", scale: "/ 1048576", seriesBy: "status" },
+          ),
+          "buffer-pool-pages": metricLine(
+            "Buffer pool pages",
+            "mysql.buffer_pool.pages",
+            {
+              seriesBy: "kind",
+              seriesNotIn: ["total"],
+              description:
+                "Data, free and misc. Total is left out: it is the sum of the other three and would dwarf them.",
+            },
+          ),
+          "table-locks": metricCounter("Table locks", "mysql.locks", {
+            seriesBy: "kind",
+            description:
+              "Immediate locks were granted at once; waited ones queued. A rising waited line is contention.",
+          }),
+        },
+        layouts: layout([
+          split(
+            5,
+            "uptime",
+            "buffer-pool-size",
+            "connections",
+            "queries-per-second",
+          ),
+          split(8, "thread-activity", "commands"),
+          split(8, "handlers", "transaction-handlers"),
+          split(8, "row-operations", "network-io"),
+          split(8, "buffer-pool-usage", "buffer-pool-pages"),
+          split(7, "table-locks"),
+        ]),
+      },
     },
-  }),
+  },
 
   receiverTemplate({
     id: "redis-overview",
