@@ -45,6 +45,46 @@ const OUTBOUND = `${WITHIN} AND ${OF_SERVICE} AND SpanKind = 'Client' AND ${METH
 const STATUS_CLASS = `concat(toString(intDiv(${STATUS}, 100)), 'xx')`;
 
 /**
+ * The current RPC semantic conventions, and only those. `rpc.system`,
+ * `rpc.service` and `rpc.grpc.status_code` are all deprecated: `rpc.system`
+ * became `rpc.system.name`, `rpc.service` was absorbed into `rpc.method`, which
+ * now carries the fully-qualified name, and the gRPC status code became a
+ * protocol-agnostic string, so the integer `0` is now `"OK"`.
+ *
+ * The retired spellings are still what every instrumentation emits by default —
+ * the stable set is opt-in behind `OTEL_SEMCONV_STABILITY_OPT_IN=rpc` — so this
+ * board draws nothing until an Organization opts in. Reading both anyway would
+ * make every number here depend on which SDK version emitted the span, which is
+ * the one thing a template must never do.
+ * https://opentelemetry.io/docs/specs/semconv/rpc/rpc-spans/
+ * https://opentelemetry.io/docs/specs/semconv/non-normative/rpc-migration/
+ */
+const RPC_SYSTEM = `SpanAttributes['rpc.system.name']`;
+const RPC_STATUS = `SpanAttributes['rpc.response.status_code']`;
+const ERROR_TYPE = `SpanAttributes['error.type']`;
+
+/**
+ * The method, already fully qualified by the current conventions — there is no
+ * `rpc.service` left to concatenate. It is Conditionally Required rather than
+ * Required, and semconv folds an unrecognized method into the literal `_OTHER`
+ * to hold the cardinality down, so the span name is the fallback.
+ */
+const RPC_METHOD = `coalesce(nullIf(SpanAttributes['rpc.method'], ''), SpanName)`;
+
+/** Which server an outbound call went to. */
+const RPC_PEER = `coalesce(nullIf(SpanAttributes['server.address'], ''), SpanName)`;
+
+/**
+ * Span kind is the inbound/outbound split here exactly as it is on the HTTP
+ * board, and semconv is stricter about it: an RPC client span MUST be `Client`
+ * and a server span MUST be `Server`. A span that is neither is not an RPC call
+ * this template can place, so both sections exclude it rather than guess.
+ */
+const IS_RPC = `${RPC_SYSTEM} != ''`;
+const RPC_INBOUND = `${WITHIN} AND ${OF_SERVICE} AND ${IS_RPC} AND SpanKind = 'Server'`;
+const RPC_OUTBOUND = `${WITHIN} AND ${OF_SERVICE} AND ${IS_RPC} AND SpanKind = 'Client'`;
+
+/**
  * The FaaS attributes are split across the span and the resource, and semconv
  * decides which is which: `faas.trigger`, `faas.invocation_id` and
  * `faas.coldstart` describe *this* invocation and ride on the span, while
@@ -301,17 +341,17 @@ LIMIT 30`,
   },
 
   {
-    id: "grpc-service",
-    name: "gRPC Service",
+    id: "rpc-services",
+    name: "RPC Services",
     description:
-      "RPC call volume, status codes and latency per method, for services instrumented with the gRPC semantic conventions.",
+      "RPC traffic by method, split into inbound calls this service handled and outbound calls it made: volume, status codes, latency, and the methods that are slowest or failing most.",
     category: "Application",
-    requires: [needsTraces, needsSpanAttribute("rpc.system")],
+    requires: [needsTraces, needsSpanAttribute("rpc.system.name")],
     document: {
       kind: "Dashboard",
-      metadata: { name: "grpc-service" },
+      metadata: { name: "rpc-services" },
       spec: {
-        display: { name: "gRPC Service" },
+        display: { name: "RPC Services" },
         duration: "6h",
         refreshInterval: "1m",
         variables: [serviceVariable()],
@@ -321,51 +361,182 @@ LIMIT 30`,
             { calculation: "sum", sparkline: true },
             `SELECT ${BUCKET()} AS ts, count() AS calls
 FROM traces
-WHERE ${WITHIN} AND ${OF_SERVICE} AND SpanAttributes['rpc.system'] != ''
+WHERE ${RPC_INBOUND}
 GROUP BY ts
 ORDER BY ts`,
           ),
-          "error-rate": errorRateStat(
-            " AND SpanAttributes['rpc.system'] != ''",
-          ),
+          "error-rate": errorRateStat(` AND ${IS_RPC} AND SpanKind = 'Server'`),
           "p95-latency": p95LatencyStat(
             "P95 latency",
-            " AND SpanAttributes['rpc.system'] != ''",
+            ` AND ${IS_RPC} AND SpanKind = 'Server'`,
           ),
-          "calls-by-method": timeSeries(
+          "p99-latency": stat(
+            "P99 latency",
+            { calculation: "last", unit: "ms", decimals: 1 },
+            `SELECT round(quantile(0.99)(Duration) / 1000000, 1) AS p99
+FROM traces
+WHERE ${RPC_INBOUND}`,
+          ),
+          "by-status": timeSeries(
+            "Calls by status code",
+            { showLegend: true, stacked: true },
+            `SELECT ${SERIES_BUCKET()} AS ts,
+       ${RPC_STATUS} AS status_code,
+       count() AS calls
+FROM traces
+WHERE ${RPC_INBOUND} AND ${RPC_STATUS} != ''
+  AND ${topSeries(RPC_STATUS, "traces", `${RPC_INBOUND} AND ${RPC_STATUS} != ''`)}
+GROUP BY ts, status_code
+ORDER BY ts`,
+            "Protocol status, not span status: a gRPC call that returns NOT_FOUND is a completed call.",
+          ),
+          "by-method": timeSeries(
             "Calls by method",
             { showLegend: true, stacked: true },
             `SELECT ${SERIES_BUCKET()} AS ts,
-       concat(SpanAttributes['rpc.service'], '/', SpanAttributes['rpc.method']) AS method,
+       ${RPC_METHOD} AS method,
        count() AS calls
 FROM traces
-WHERE ${WITHIN} AND ${OF_SERVICE} AND SpanAttributes['rpc.system'] != ''
-  AND ${topSeries(
-    "concat(SpanAttributes['rpc.service'], '/', SpanAttributes['rpc.method'])",
-    "traces",
-    `${WITHIN} AND ${OF_SERVICE} AND SpanAttributes['rpc.system'] != ''`,
-  )}
+WHERE ${RPC_INBOUND}
+  AND ${topSeries(RPC_METHOD, "traces", RPC_INBOUND)}
+GROUP BY ts, method
+ORDER BY ts`,
+            "The eight busiest methods over the range. Quieter methods are in the tables below.",
+          ),
+          "latency-by-method": timeSeries(
+            "P95 latency by method",
+            { showLegend: true, unit: "ms" },
+            `SELECT ${SERIES_BUCKET()} AS ts,
+       ${RPC_METHOD} AS method,
+       round(quantile(0.95)(Duration) / 1000000, 1) AS p95_ms
+FROM traces
+WHERE ${RPC_INBOUND}
+  AND ${topSeries(RPC_METHOD, "traces", RPC_INBOUND)}
 GROUP BY ts, method
 ORDER BY ts`,
           ),
-          methods: table(
-            "Methods",
-            `SELECT concat(SpanAttributes['rpc.service'], '/', SpanAttributes['rpc.method']) AS method,
+          "by-system": timeSeries(
+            "Calls by RPC system",
+            { showLegend: true, stacked: true },
+            `SELECT ${SERIES_BUCKET()} AS ts,
+       ${RPC_SYSTEM} AS rpc_system,
+       count() AS calls
+FROM traces
+WHERE ${RPC_INBOUND}
+  AND ${topSeries(RPC_SYSTEM, "traces", RPC_INBOUND)}
+GROUP BY ts, rpc_system
+ORDER BY ts`,
+            "One line per protocol. A single-protocol service draws one line, which is the expected shape.",
+          ),
+          "slowest-methods": table(
+            "Slowest methods",
+            `SELECT ${RPC_METHOD} AS method,
+       ${RPC_SYSTEM} AS rpc_system,
+       count() AS calls,
+       round(avg(Duration) / 1000000, 1) AS avg_ms,
+       round(quantile(0.95)(Duration) / 1000000, 1) AS p95_ms,
+       round(quantile(0.99)(Duration) / 1000000, 1) AS p99_ms
+FROM traces
+WHERE ${RPC_INBOUND}
+GROUP BY method, rpc_system
+ORDER BY p95_ms DESC
+LIMIT 30`,
+            "Ranked by P95. Low-traffic methods can top this list.",
+          ),
+          "time-by-method": table(
+            "Time spent by method",
+            `SELECT ${RPC_METHOD} AS method,
+       ${RPC_SYSTEM} AS rpc_system,
+       count() AS calls,
+       round(sum(Duration) / 1000000000, 2) AS total_seconds,
+       round(sum(Duration) / (SELECT sum(Duration) FROM traces WHERE ${RPC_INBOUND}) * 100, 1) AS share_pct
+FROM traces
+WHERE ${RPC_INBOUND}
+GROUP BY method, rpc_system
+ORDER BY total_seconds DESC
+LIMIT 30`,
+            "Total handler time, not per-call time. Where the service actually spends its day.",
+          ),
+          "failing-methods": table(
+            "Failing methods",
+            `SELECT ${RPC_METHOD} AS method,
        count() AS calls,
        countIf(StatusCode = 'Error') AS errors,
-       round(quantile(0.95)(Duration) / 1000000, 1) AS p95_ms,
-       anyIf(SpanAttributes['rpc.grpc.status_code'], StatusCode = 'Error') AS sample_status
+       anyIf(${RPC_STATUS}, StatusCode = 'Error' AND ${RPC_STATUS} != '') AS sample_status,
+       anyIf(${ERROR_TYPE}, ${ERROR_TYPE} != '') AS sample_error
 FROM traces
-WHERE ${WITHIN} AND ${OF_SERVICE} AND SpanAttributes['rpc.system'] != ''
+WHERE ${RPC_INBOUND}
 GROUP BY method
+HAVING errors > 0
+ORDER BY errors DESC
+LIMIT 30`,
+            "error.type is what semconv asks an instrumentation to set on a failed call, so an empty column means it does not set one.",
+          ),
+          "outbound-calls": stat(
+            "Outbound calls",
+            { calculation: "sum", sparkline: true },
+            `SELECT ${BUCKET()} AS ts, count() AS calls
+FROM traces
+WHERE ${RPC_OUTBOUND}
+GROUP BY ts
+ORDER BY ts`,
+          ),
+          "outbound-errors": errorRateStat(
+            ` AND ${IS_RPC} AND SpanKind = 'Client'`,
+          ),
+          "outbound-p95": p95LatencyStat(
+            "Outbound P95 latency",
+            ` AND ${IS_RPC} AND SpanKind = 'Client'`,
+          ),
+          "outbound-by-peer": timeSeries(
+            "Outbound calls by server",
+            { showLegend: true, stacked: true },
+            `SELECT ${SERIES_BUCKET()} AS ts,
+       ${RPC_PEER} AS peer,
+       count() AS calls
+FROM traces
+WHERE ${RPC_OUTBOUND}
+  AND ${topSeries(RPC_PEER, "traces", RPC_OUTBOUND)}
+GROUP BY ts, peer
+ORDER BY ts`,
+          ),
+          "outbound-by-status": timeSeries(
+            "Outbound calls by status code",
+            { showLegend: true, stacked: true },
+            `SELECT ${SERIES_BUCKET()} AS ts,
+       ${RPC_STATUS} AS status_code,
+       count() AS calls
+FROM traces
+WHERE ${RPC_OUTBOUND} AND ${RPC_STATUS} != ''
+  AND ${topSeries(RPC_STATUS, "traces", `${RPC_OUTBOUND} AND ${RPC_STATUS} != ''`)}
+GROUP BY ts, status_code
+ORDER BY ts`,
+          ),
+          dependencies: table(
+            "Dependencies",
+            `SELECT ${RPC_PEER} AS peer,
+       ${RPC_METHOD} AS method,
+       count() AS calls,
+       countIf(StatusCode = 'Error') AS errors,
+       round(avg(Duration) / 1000000, 1) AS avg_ms,
+       round(quantile(0.95)(Duration) / 1000000, 1) AS p95_ms
+FROM traces
+WHERE ${RPC_OUTBOUND}
+GROUP BY peer, method
 ORDER BY calls DESC
-LIMIT 40`,
+LIMIT 30`,
+            "Every RPC server this service called, ranked by call volume.",
           ),
         },
         layouts: layout([
-          split(5, "calls", "error-rate", "p95-latency"),
-          split(8, "calls-by-method"),
-          split(9, "methods"),
+          split(5, "calls", "error-rate", "p95-latency", "p99-latency"),
+          split(8, "by-status", "by-method"),
+          split(8, "latency-by-method", "by-system"),
+          split(9, "slowest-methods", "time-by-method"),
+          split(9, "failing-methods"),
+          split(5, "outbound-calls", "outbound-errors", "outbound-p95"),
+          split(8, "outbound-by-peer", "outbound-by-status"),
+          split(9, "dependencies"),
         ]),
       },
     },
