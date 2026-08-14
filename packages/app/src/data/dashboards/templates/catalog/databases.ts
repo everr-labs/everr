@@ -9,7 +9,6 @@ import {
   metricUnion,
   needsMetricNamespace,
   needsMetrics,
-  receiverTemplate,
 } from "./shared";
 
 /**
@@ -19,6 +18,15 @@ import {
  * `db.namespace`. Reading both means the board works either side of that gate.
  */
 const DB_NAME = `coalesce(nullIf(Attributes['db.namespace'], ''), nullIf(ResourceAttributes['postgresql.database.name'], ''), 'unknown')`;
+
+/**
+ * Where the mongodb receiver keeps the database name. It is a *datapoint*
+ * attribute here, unlike the postgresql receiver, but its spelling changed: the
+ * `receiver.mongodb.removeDatabaseAttr` gate replaced the old `database` with
+ * `db.namespace`. The gate is stable now, so `db.namespace` is what a current
+ * collector sends and `database` only appears from an old one.
+ */
+const MONGO_DB_NAME = `coalesce(nullIf(Attributes['db.namespace'], ''), nullIf(Attributes['database'], ''), 'unknown')`;
 
 /**
  * Cache hit ratio, from the one metric the receiver enables by default. Its
@@ -477,30 +485,194 @@ FROM (
     },
   },
 
-  receiverTemplate({
+  {
     id: "mongodb-overview",
     name: "MongoDB Overview",
     description:
-      "Operation counts, connections, cache behavior and memory, from the OpenTelemetry mongodb receiver.",
+      "Operation and document throughput, connections, WiredTiger cache behavior, lock wait, memory and network traffic, and stored size per database, from the OpenTelemetry mongodb receiver.",
     category: "Databases",
-    namespace: "mongodb",
-    panels: {
-      operations: metricLine("Operations", "mongodb.operation.count", {
-        aggregate: "max",
-        seriesBy: "operation",
-      }),
-      connections: metricLine("Connections", "mongodb.connection.count", {
-        seriesBy: "type",
-      }),
-      cache: metricLine("Cache operations", "mongodb.cache.operations", {
-        aggregate: "max",
-        seriesBy: "type",
-      }),
-      memory: metricLine("Memory usage", "mongodb.memory.usage", {
-        unit: "MB",
-        scale: "/ 1048576",
-        seriesBy: "type",
-      }),
+    requires: [needsMetrics, needsMetricNamespace("mongodb")],
+    document: {
+      kind: "Dashboard",
+      metadata: { name: "mongodb-overview" },
+      spec: {
+        display: { name: "MongoDB Overview" },
+        duration: "6h",
+        refreshInterval: "1m",
+        panels: {
+          uptime: stat(
+            "Uptime",
+            { calculation: "last", unit: "d", decimals: 1 },
+            `SELECT nullIf(max(Value), 0) / 86400000 AS days
+FROM (${metricUnion("Value", " AND MetricName = 'mongodb.uptime'")})`,
+            "Needs mongodb.uptime, off by default.",
+          ),
+          databases: stat(
+            "Databases",
+            { calculation: "last", decimals: 0 },
+            `SELECT nullIf(max(Value), 0) AS databases
+FROM (${metricUnion("Value", " AND MetricName = 'mongodb.database.count'")})`,
+          ),
+          collections: stat(
+            "Collections",
+            { calculation: "last", decimals: 0 },
+            // Reported once per database, so the server total is the sum across
+            // databases at a scrape, not the largest database's count.
+            `SELECT avg(total) AS collections
+FROM (
+  SELECT TimeUnix, sum(Value) AS total
+  FROM (${metricUnion("TimeUnix, Value", " AND MetricName = 'mongodb.collection.count'")})
+  GROUP BY TimeUnix
+)`,
+          ),
+          connections: stat(
+            "Open connections",
+            { calculation: "last", decimals: 0, sparkline: true },
+            `SELECT ${BUCKET("TimeUnix")} AS ts, avg(Value) AS current
+FROM (${metricUnion("TimeUnix, Attributes, Value", " AND MetricName = 'mongodb.connection.count' AND Attributes['type'] = 'current'")})
+GROUP BY ts
+ORDER BY ts`,
+          ),
+          "cache-hit": stat(
+            "Cache hit rate",
+            { calculation: "last", unit: "%", decimals: 1 },
+            `SELECT sum(hits) / nullIf(sum(hits) + sum(misses), 0) * 100 AS pct
+FROM (
+  SELECT Attributes['type'] AS type,
+         ResourceAttributes AS resource, Attributes AS attrs,
+         max(Value) - min(Value) AS delta,
+         if(type = 'hit', delta, 0) AS hits,
+         if(type = 'miss', delta, 0) AS misses
+  FROM (${metricUnion("ResourceAttributes, Attributes, Value", " AND MetricName = 'mongodb.cache.operations'")})
+  GROUP BY type, resource, attrs
+)`,
+            "WiredTiger pages served from cache.",
+          ),
+          operations: metricCounter("Operations", "mongodb.operation.count", {
+            seriesBy: "operation",
+            description:
+              "The opcounters: what clients asked for. Read against Document operations, which is what those requests touched.",
+          }),
+          "document-operations": metricCounter(
+            "Document operations",
+            "mongodb.document.operation.count",
+            {
+              seriesBy: "operation",
+              stacked: true,
+              description:
+                "Documents actually inserted, updated, deleted and returned. One query here can move a great many documents.",
+            },
+          ),
+          "operation-time": metricCounter(
+            "Time in operations",
+            "mongodb.operation.time",
+            {
+              unit: "s",
+              scale: "/ 1000",
+              seriesBy: "operation",
+              description:
+                "Server time spent per bucket, by operation. Divide by the matching Operations line for a mean latency.",
+            },
+          ),
+          "connection-types": metricLine(
+            "Connections",
+            "mongodb.connection.count",
+            {
+              seriesBy: "type",
+              description:
+                "Current is what is open, active is what is doing work, available is what is left before the server refuses more.",
+            },
+          ),
+          "cache-operations": metricCounter(
+            "Cache operations",
+            "mongodb.cache.operations",
+            {
+              seriesBy: "type",
+              description:
+                "A miss is a page read from disk into the WiredTiger cache.",
+            },
+          ),
+          "global-lock-time": metricCounter(
+            "Global lock wait",
+            "mongodb.global_lock.time",
+            {
+              unit: "s",
+              scale: "/ 1000",
+              description:
+                "Time spent queued on the global lock. Rising here caps throughput no matter what the hardware does.",
+            },
+          ),
+          memory: metricLine("Memory", "mongodb.memory.usage", {
+            unit: "MB",
+            scale: "/ 1048576",
+            seriesBy: "type",
+            description:
+              "Resident is physical memory held; virtual includes what is mapped but not resident.",
+          }),
+          "network-io": metricCounterUnion(
+            "Network I/O",
+            {
+              received: "mongodb.network.io.receive",
+              sent: "mongodb.network.io.transmit",
+            },
+            { unit: "MB", scale: "/ 1048576" },
+          ),
+          "data-size": metricLine(
+            "Data size by database",
+            "mongodb.data.size",
+            {
+              unit: "MB",
+              scale: "/ 1048576",
+              seriesExpr: MONGO_DB_NAME,
+            },
+          ),
+          "index-size": metricLine(
+            "Index size by database",
+            "mongodb.index.size",
+            {
+              unit: "MB",
+              scale: "/ 1048576",
+              seriesExpr: MONGO_DB_NAME,
+              description:
+                "Indexes live in the same cache as the data. An index total approaching the data total is worth a look.",
+            },
+          ),
+          "index-access": metricCounter(
+            "Index accesses by collection",
+            "mongodb.index.access.count",
+            {
+              seriesBy: "collection",
+              description:
+                "Which collections are served by their indexes. A busy collection missing from this chart is being scanned.",
+            },
+          ),
+          "replica-operations": metricCounter(
+            "Replicated operations",
+            "mongodb.operation.repl.count",
+            {
+              seriesBy: "operation",
+              description:
+                "Needs mongodb.operation.repl.count, which the receiver leaves off. Empty on a standalone server.",
+            },
+          ),
+        },
+        layouts: layout([
+          split(
+            5,
+            "uptime",
+            "databases",
+            "collections",
+            "connections",
+            "cache-hit",
+          ),
+          split(8, "operations", "document-operations"),
+          split(8, "operation-time", "connection-types"),
+          split(8, "cache-operations", "global-lock-time"),
+          split(8, "memory", "network-io"),
+          split(8, "data-size", "index-size"),
+          split(8, "index-access", "replica-operations"),
+        ]),
+      },
     },
-  }),
+  },
 ];
