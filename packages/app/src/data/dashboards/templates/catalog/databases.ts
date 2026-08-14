@@ -3,12 +3,13 @@ import type { DashboardTemplate } from "../types";
 import {
   BUCKET,
   metricCounter,
+  metricCounterUnion,
   metricLine,
+  metricLineUnion,
   metricUnion,
   needsMetricNamespace,
   needsMetrics,
   receiverTemplate,
-  SERIES_BUCKET,
 } from "./shared";
 
 /**
@@ -112,24 +113,19 @@ FROM (${metricUnion("Value", " AND MetricName = 'postgresql.database.count'")})`
             "postgresql.backends",
             { seriesExpr: DB_NAME },
           ),
-          transactions: timeSeries(
+          // Two metric names rather than one metric with a result attribute, so
+          // the metric name itself labels the series and they share a chart the
+          // way the reference puts commit and rollback rate side by side.
+          transactions: metricCounterUnion(
             "Transactions",
-            { unit: "", showLegend: true },
-            // Two metric names rather than one metric with a result attribute,
-            // so they are unioned into a labelled series to share a chart the
-            // way the reference puts commit and rollback rate side by side.
-            `SELECT ts, series, sum(delta) AS value
-FROM (
-  SELECT ${SERIES_BUCKET("TimeUnix")} AS ts,
-         if(MetricName = 'postgresql.commits', 'commits', 'rollbacks') AS series,
-         ResourceAttributes AS resource, Attributes AS attrs,
-         max(Value) - min(Value) AS delta
-  FROM (${metricUnion("TimeUnix, ResourceAttributes, Attributes, MetricName, Value", " AND MetricName IN ('postgresql.commits', 'postgresql.rollbacks')")})
-  GROUP BY ts, series, resource, attrs
-)
-GROUP BY ts, series
-ORDER BY ts`,
-            "Committed and rolled back per bucket. A rollback line tracking commits is usually an application error path, not a database fault.",
+            {
+              commits: "postgresql.commits",
+              rollbacks: "postgresql.rollbacks",
+            },
+            {
+              description:
+                "Committed and rolled back per bucket. A rollback line tracking commits is usually an application error path, not a database fault.",
+            },
           ),
           operations: metricCounter("Row operations", "postgresql.operations", {
             seriesBy: "operation",
@@ -323,33 +319,163 @@ ORDER BY ts`,
     },
   },
 
-  receiverTemplate({
+  {
     id: "redis-overview",
     name: "Redis Overview",
     description:
-      "Command throughput, memory, connected clients and keyspace hit rate, from the OpenTelemetry redis receiver.",
+      "Command rate and keyspace hit rate, memory against its limit, client and connection activity, key expiry and eviction, from the OpenTelemetry redis receiver.",
     category: "Databases",
-    namespace: "redis",
-    panels: {
-      commands: metricLine("Commands processed", "redis.commands.processed", {
-        aggregate: "max",
-      }),
-      memory: metricLine("Memory used", "redis.memory.used", {
-        unit: "MB",
-        scale: "/ 1048576",
-      }),
-      clients: metricLine("Connected clients", "redis.clients.connected"),
-      hits: metricLine("Keyspace hits", "redis.keyspace.hits", {
-        aggregate: "max",
-      }),
-      misses: metricLine("Keyspace misses", "redis.keyspace.misses", {
-        aggregate: "max",
-      }),
-      evictions: metricLine("Evicted keys", "redis.keys.evicted", {
-        aggregate: "max",
-      }),
+    requires: [needsMetrics, needsMetricNamespace("redis")],
+    document: {
+      kind: "Dashboard",
+      metadata: { name: "redis-overview" },
+      spec: {
+        display: { name: "Redis Overview" },
+        duration: "6h",
+        refreshInterval: "1m",
+        panels: {
+          uptime: stat(
+            "Uptime",
+            { calculation: "last", unit: "d", decimals: 1 },
+            `SELECT nullIf(max(Value), 0) / 86400 AS days
+FROM (${metricUnion("Value", " AND MetricName = 'redis.uptime'")})`,
+            "A reset here explains a discontinuity in every counter below.",
+          ),
+          "memory-used": stat(
+            "Memory used",
+            { calculation: "last", unit: "MB", decimals: 1, sparkline: true },
+            `SELECT ${BUCKET("TimeUnix")} AS ts, avg(Value) / 1048576 AS mb
+FROM (${metricUnion("TimeUnix, Value", " AND MetricName = 'redis.memory.used'")})
+GROUP BY ts
+ORDER BY ts`,
+          ),
+          "max-memory": stat(
+            "Max memory",
+            { calculation: "last", unit: "MB", decimals: 0 },
+            // nullIf twice: max() over no rows returns 0 for a non-nullable
+            // column, and a Redis with no limit set reports maxmemory as 0.
+            // Neither is a limit, and both should read as nothing rather than
+            // as a ceiling of zero.
+            `SELECT nullIf(max(Value), 0) / 1048576 AS mb
+FROM (${metricUnion("Value", " AND MetricName = 'redis.maxmemory'")})`,
+            "Needs redis.maxmemory, which the receiver leaves off.",
+          ),
+          clients: stat(
+            "Connected clients",
+            { calculation: "last", decimals: 0, sparkline: true },
+            `SELECT ${BUCKET("TimeUnix")} AS ts, avg(Value) AS clients
+FROM (${metricUnion("TimeUnix, Value", " AND MetricName = 'redis.clients.connected'")})
+GROUP BY ts
+ORDER BY ts`,
+          ),
+          "hit-rate": stat(
+            "Keyspace hit rate",
+            { calculation: "last", unit: "%", decimals: 1 },
+            // Both halves are cumulative counters, so the window's ratio comes
+            // from their increases, taken per series before they are summed.
+            `SELECT sum(hits) / nullIf(sum(hits) + sum(misses), 0) * 100 AS pct
+FROM (
+  SELECT MetricName, ResourceAttributes AS resource, Attributes AS attrs,
+         max(Value) - min(Value) AS delta,
+         if(MetricName = 'redis.keyspace.hits', delta, 0) AS hits,
+         if(MetricName = 'redis.keyspace.misses', delta, 0) AS misses
+  FROM (${metricUnion("MetricName, ResourceAttributes, Attributes, Value", " AND MetricName IN ('redis.keyspace.hits', 'redis.keyspace.misses')")})
+  GROUP BY MetricName, resource, attrs
+)`,
+            "Key lookups that found the key, over the window.",
+          ),
+          "command-rate": metricLine("Command rate", "redis.commands", {
+            description:
+              "Operations per second, as the server itself reports it. Not derived from the commands counter.",
+          }),
+          keyspace: metricCounterUnion(
+            "Keyspace hits and misses",
+            {
+              hits: "redis.keyspace.hits",
+              misses: "redis.keyspace.misses",
+            },
+            {
+              description:
+                "Lookups that found a key against those that did not. A miss line tracking hits is a cache that is not holding the working set.",
+            },
+          ),
+          memory: metricLineUnion(
+            "Memory",
+            {
+              used: "redis.memory.used",
+              rss: "redis.memory.rss",
+              peak: "redis.memory.peak",
+            },
+            {
+              unit: "MB",
+              scale: "/ 1048576",
+              description:
+                "Allocated, resident as the OS sees it, and the peak so far. Read used against the Max memory tile.",
+            },
+          ),
+          "network-io": metricCounterUnion(
+            "Network I/O",
+            { received: "redis.net.input", sent: "redis.net.output" },
+            { unit: "MB", scale: "/ 1048576" },
+          ),
+          "client-activity": metricLineUnion("Client activity", {
+            connected: "redis.clients.connected",
+            blocked: "redis.clients.blocked",
+          }),
+          connections: metricCounterUnion(
+            "Connections",
+            {
+              accepted: "redis.connections.received",
+              rejected: "redis.connections.rejected",
+            },
+            {
+              description:
+                "Any rejected connection is the maxclients limit, not the network.",
+            },
+          ),
+          "keys-by-database": metricLine("Keys by database", "redis.db.keys", {
+            seriesBy: "db",
+          }),
+          "keys-expiring": metricLineUnion(
+            "Keys with a TTL",
+            { keys: "redis.db.keys", expiring: "redis.db.expires" },
+            {
+              description:
+                "Summed across databases. The gap between the two lines is the keys that never expire on their own, which are the ones eviction has to reclaim.",
+            },
+          ),
+          "expired-evicted": metricCounterUnion(
+            "Expired and evicted keys",
+            { expired: "redis.keys.expired", evicted: "redis.keys.evicted" },
+            {
+              description:
+                "Expiry is a key reaching its own TTL. Eviction is Redis dropping a key it was still asked to keep, so any eviction at all is memory pressure.",
+            },
+          ),
+          "command-calls": metricCounter("Command calls", "redis.cmd.calls", {
+            seriesBy: "cmd",
+            description:
+              "Needs redis.cmd.calls, which the receiver leaves off. No default metric splits the load by command.",
+          }),
+        },
+        layouts: layout([
+          split(
+            5,
+            "uptime",
+            "memory-used",
+            "max-memory",
+            "clients",
+            "hit-rate",
+          ),
+          split(8, "command-rate", "keyspace"),
+          split(8, "memory", "network-io"),
+          split(8, "client-activity", "connections"),
+          split(8, "keys-by-database", "keys-expiring"),
+          split(8, "expired-evicted", "command-calls"),
+        ]),
+      },
     },
-  }),
+  },
 
   receiverTemplate({
     id: "mongodb-overview",

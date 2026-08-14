@@ -303,6 +303,72 @@ ORDER BY ts`,
 };
 
 /**
+ * Some receivers spend a whole metric name on what another would carry as one
+ * attribute value: hits and misses, bytes in and bytes out, connected and
+ * blocked clients. The pair belongs on one chart, so the metric name itself
+ * becomes the series label.
+ *
+ * The series set is fixed and tiny, so there is no top-N cap to apply — but the
+ * bucket is still the coarser `SERIES_BUCKET`, because the chart is multi-series
+ * and the 1000-row cap counts rows, not lines.
+ */
+const seriesFromMetricName = (series: Record<string, string>) =>
+  `transform(MetricName, [${quoted(Object.values(series))}], [${quoted(Object.keys(series))}], 'other')`;
+
+const ofTheseMetrics = (series: Record<string, string>) =>
+  ` AND MetricName IN (${quoted(Object.values(series))})`;
+
+/** Levels from several metric names, drawn as one labelled chart. */
+export const metricLineUnion = (
+  name: string,
+  series: Record<string, string>,
+  options: { unit?: string; scale?: string; description?: string } = {},
+) => {
+  const { unit = "", scale, description } = options;
+  return timeSeries(
+    name,
+    { unit, showLegend: true },
+    `SELECT ${SERIES_BUCKET("TimeUnix")} AS ts,
+       ${seriesFromMetricName(series)} AS series,
+       avg(Value)${scale ? ` ${scale}` : ""} AS value
+FROM (${metricUnion("TimeUnix, MetricName, Value", ofTheseMetrics(series))})
+GROUP BY ts, series
+ORDER BY ts`,
+    description,
+  );
+};
+
+/** Monotonic counters from several metric names, as per-bucket increases. */
+export const metricCounterUnion = (
+  name: string,
+  series: Record<string, string>,
+  options: {
+    unit?: string;
+    scale?: string;
+    stacked?: boolean;
+    description?: string;
+  } = {},
+) => {
+  const { unit = "", scale, stacked, description } = options;
+  return timeSeries(
+    name,
+    { unit, showLegend: true, stacked: stacked ?? false },
+    `SELECT ts, series, sum(delta)${scale ? ` ${scale}` : ""} AS value
+FROM (
+  SELECT ${SERIES_BUCKET("TimeUnix")} AS ts,
+         ${seriesFromMetricName(series)} AS series,
+         ResourceAttributes AS resource, Attributes AS attrs,
+         max(Value) - min(Value) AS delta
+  FROM (${metricUnion("TimeUnix, MetricName, ResourceAttributes, Attributes, Value", ofTheseMetrics(series))})
+  GROUP BY ts, series, resource, attrs
+)
+GROUP BY ts, series
+ORDER BY ts`,
+    description,
+  );
+};
+
+/**
  * Receiver-backed templates are all the same board: a handful of that
  * receiver's own metrics, two to a row. Only the metric names differ, so the
  * shape is written once and every receiver fills in its own list.
