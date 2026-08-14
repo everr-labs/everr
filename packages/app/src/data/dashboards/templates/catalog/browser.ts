@@ -13,6 +13,27 @@ import {
 const attr = (key: string) => `LogAttributes['${key}']`;
 const ROUTE = `coalesce(nullIf(${attr("everr.route.pattern")}, ''), ${attr("url.path")})`;
 
+/**
+ * "This record came from a browser". The SDK stamps its own distro name on
+ * every resource it exports, which is the only filter that catches all of it:
+ * an `exception` or a `browser.web_vital` is not identifiable from `EventName`
+ * alone, and session-level panels have to count every record in the session,
+ * not just the page views.
+ */
+const FROM_BROWSER = `ResourceAttributes['telemetry.distro.name'] = '@everr/otel-web'`;
+
+/**
+ * PostHog's autocapture, in this SDK's spelling: clicks, rage clicks, form
+ * changes and submits all share the `everr.browser.interaction.` prefix. Used
+ * by the bounce-rate definition, which requires a session to have none.
+ */
+const IS_AUTOCAPTURE = `startsWith(EventName, 'everr.browser.interaction.')`;
+
+/** Browser name and major version, read out of the resource's user agent. */
+const UA = `ResourceAttributes['user_agent.original']`;
+const BROWSER_NAME = `multiIf(position(${UA}, 'Headless') > 0, 'Headless Chrome', position(${UA}, 'Edg/') > 0, 'Edge', position(${UA}, 'Firefox/') > 0, 'Firefox', position(${UA}, 'Chrome/') > 0, 'Chrome', position(${UA}, 'Safari/') > 0, 'Safari', 'Other')`;
+const BROWSER_VERSION = `extract(${UA}, '(?:Edg|Firefox|Chrome|Version)/([0-9]+)')`;
+
 export const browserTemplates: DashboardTemplate[] = [
   {
     id: "web-vitals",
@@ -133,7 +154,7 @@ LIMIT 50`,
     id: "product-analytics",
     name: "Product Analytics",
     description:
-      "Sessions, page views and the routes people actually land on, plus rage clicks as a standing signal of broken UI.",
+      "PostHog's five web-analytics numbers over browser events: visitors, sessions, views, session length and bounce rate, then the paths, referrers and browsers behind them.",
     category: "Browser",
     requires: [needsLogs, needsLogAttribute("everr.page_view.id")],
     document: {
@@ -144,12 +165,21 @@ LIMIT 50`,
         duration: "24h",
         refreshInterval: "5m",
         panels: {
+          visitors: stat(
+            "Visitors",
+            { calculation: "last" },
+            `SELECT uniqExact(${attr("everr.visitor.id")}) AS visitors
+FROM logs
+WHERE ${WITHIN} AND ${FROM_BROWSER} AND EventName = 'everr.browser.page_view'`,
+            "Distinct visitor ids.",
+          ),
           sessions: stat(
             "Sessions",
             { calculation: "last" },
             `SELECT uniqExact(${attr("session.id")}) AS sessions
 FROM logs
-WHERE ${WITHIN} AND EventName = 'everr.browser.page_view'`,
+WHERE ${WITHIN} AND ${FROM_BROWSER} AND EventName = 'everr.browser.page_view'`,
+            "30-minute idle timeout.",
           ),
           "page-views": stat(
             "Page views",
@@ -159,20 +189,56 @@ FROM logs
 WHERE ${WITHIN} AND EventName = 'everr.browser.page_view'
 GROUP BY ts
 ORDER BY ts`,
+            "SPA route changes included.",
           ),
-          "rage-clicks": stat(
-            "Rage clicks",
+          "session-duration": stat(
+            "Avg session",
+            { calculation: "last", unit: "s", decimals: 1 },
+            `SELECT round(avg(seconds), 1) AS avg_seconds
+FROM (
+  SELECT dateDiff('second', min(Timestamp), max(Timestamp)) AS seconds
+  FROM logs
+  WHERE ${WITHIN} AND ${FROM_BROWSER} AND ${attr("session.id")} != ''
+  GROUP BY ${attr("session.id")}
+)`,
+            "First record to last.",
+          ),
+          "bounce-rate": stat(
+            "Bounce rate",
             {
-              calculation: "sum",
-              sparkline: true,
-              thresholds: thresholds(1, 25),
+              calculation: "last",
+              unit: "%",
+              decimals: 1,
+              thresholds: thresholds(40, 70),
             },
-            `SELECT ${BUCKET()} AS ts, count() AS rage_clicks
-FROM logs
-WHERE ${WITHIN} AND EventName = 'everr.browser.interaction.rage_click'
-GROUP BY ts
+            `SELECT round(countIf(views = 1 AND autocaptures = 0 AND seconds < 10) / count() * 100, 1) AS bounce_pct
+FROM (
+  SELECT ${attr("session.id")} AS session,
+         countIf(EventName = 'everr.browser.page_view') AS views,
+         countIf(${IS_AUTOCAPTURE}) AS autocaptures,
+         maxIf(toFloat64OrZero(${attr("everr.page_view.duration")}), EventName = 'everr.browser.page_leave') / 1000 AS seconds
+  FROM logs
+  WHERE ${WITHIN} AND ${FROM_BROWSER} AND ${attr("session.id")} != ''
+  GROUP BY session
+  HAVING views > 0
+)`,
+            "One view, no interaction, under 10s.",
+          ),
+          "visits-over-time": timeSeries(
+            "Visitors, sessions and views",
+            { showLegend: true },
+            `SELECT ts, counted.1 AS series, counted.2 AS value
+FROM (
+  SELECT ${SERIES_BUCKET()} AS ts,
+         uniqExact(${attr("everr.visitor.id")}) AS visitors,
+         uniqExact(${attr("session.id")}) AS sessions,
+         count() AS views
+  FROM logs
+  WHERE ${WITHIN} AND EventName = 'everr.browser.page_view'
+  GROUP BY ts
+)
+ARRAY JOIN [('Visitors', visitors), ('Sessions', sessions), ('Page views', views)] AS counted
 ORDER BY ts`,
-            "Three clicks inside 30px in under a second each.",
           ),
           "views-over-time": timeSeries(
             "Page views by route",
@@ -185,34 +251,97 @@ GROUP BY ts, route
 ORDER BY ts`,
           ),
           "top-routes": table(
-            "Top routes",
-            `SELECT ${ROUTE} AS route,
+            "Top paths",
+            `SELECT route,
        count() AS views,
-       uniqExact(${attr("session.id")}) AS sessions,
-       round(avgIf(toFloat64OrZero(${attr("everr.page_view.duration")}), EventName = 'everr.browser.page_leave') / 1000, 1) AS avg_seconds
-FROM logs
-WHERE ${WITHIN}
-  AND EventName IN ('everr.browser.page_view', 'everr.browser.page_leave')
+       uniqExact(visitor) AS visitors,
+       round(countIf(autocaptures = 0 AND seconds < 10) / count() * 100, 1) AS bounce_pct,
+       round(avgIf(seconds, left), 1) AS avg_seconds,
+       round(avgIf(scroll, left) * 100) AS avg_scroll_pct
+FROM (
+  SELECT ${ROUTE} AS route,
+         ${attr("everr.visitor.id")} AS visitor,
+         countIf(EventName = 'everr.browser.page_leave') > 0 AS left,
+         countIf(${IS_AUTOCAPTURE}) AS autocaptures,
+         maxIf(toFloat64OrZero(${attr("everr.page_view.duration")}), EventName = 'everr.browser.page_leave') / 1000 AS seconds,
+         maxIf(toFloat64OrZero(${attr("everr.scroll.depth")}), EventName = 'everr.browser.page_leave') AS scroll
+  FROM logs
+  WHERE ${WITHIN} AND ${FROM_BROWSER} AND ${attr("everr.page_view.id")} != ''
+  GROUP BY ${attr("everr.page_view.id")}, route, visitor
+)
 GROUP BY route
 ORDER BY views DESC
 LIMIT 30`,
+            "Bounce here is per page view, not per session: a view with no interaction that ended inside 10 seconds. Duration and scroll depth only count views that reported a page_leave.",
+          ),
+          "top-referrers": table(
+            "Top referrers",
+            `SELECT multiIf(${attr("everr.referrer.url")} = '', 'direct', domain(${attr("everr.referrer.url")}) = '', 'other', domain(${attr("everr.referrer.url")})) AS referrer,
+       uniqExact(${attr("session.id")}) AS sessions,
+       uniqExact(${attr("everr.visitor.id")}) AS visitors,
+       count() AS views
+FROM logs
+WHERE ${WITHIN} AND EventName = 'everr.browser.page_view'
+  AND ${attr("everr.navigation.type")} = 'initial'
+  AND domain(${attr("everr.referrer.url")}) != domain(${attr("url.full")})
+GROUP BY referrer
+ORDER BY sessions DESC
+LIMIT 20`,
+            "Hard navigations only, with the site's own pages excluded, so an SPA route change is not counted as a referral from itself.",
+          ),
+          "top-browsers": table(
+            "Popular browsers",
+            `SELECT ${BROWSER_NAME} AS browser,
+       ${BROWSER_VERSION} AS version,
+       uniqExact(${attr("session.id")}) AS sessions,
+       uniqExact(${attr("everr.visitor.id")}) AS visitors,
+       count() AS views
+FROM logs
+WHERE ${WITHIN} AND ${FROM_BROWSER} AND EventName = 'everr.browser.page_view'
+GROUP BY browser, version
+ORDER BY sessions DESC
+LIMIT 20`,
+            "Read off the resource's user agent. Headless Chrome is broken out on its own, because it is almost never a person.",
+          ),
+          "top-events": table(
+            "Top events",
+            `SELECT EventName AS event,
+       count() AS occurrences,
+       uniqExact(${attr("session.id")}) AS sessions
+FROM logs
+WHERE ${WITHIN} AND ${FROM_BROWSER} AND EventName != ''
+GROUP BY event
+ORDER BY occurrences DESC
+LIMIT 20`,
           ),
           "rage-targets": table(
             "Rage-click targets",
             `SELECT ${ROUTE} AS route,
-       ${attr("everr.element.selector")} AS selector,
-       count() AS rage_clicks
+       ${attr("everr.element.tag")} AS tag,
+       count() AS rage_clicks,
+       substring(${attr("everr.element.selector")}, -40) AS selector_tail
 FROM logs
 WHERE ${WITHIN} AND EventName = 'everr.browser.interaction.rage_click'
-GROUP BY route, selector
+GROUP BY route, tag, selector_tail
 ORDER BY rage_clicks DESC
 LIMIT 30`,
+            "Three clicks inside 30px in under a second each. The selector is shown tail-first, because the stable part of a DOM path is its end.",
           ),
         },
         layouts: layout([
-          split(5, "sessions", "page-views", "rage-clicks"),
-          split(8, "views-over-time"),
-          split(9, "top-routes", "rage-targets"),
+          split(
+            5,
+            "visitors",
+            "sessions",
+            "page-views",
+            "session-duration",
+            "bounce-rate",
+          ),
+          split(8, "visits-over-time", "views-over-time"),
+          split(9, "top-routes"),
+          split(9, "top-referrers", "top-events"),
+          split(9, "top-browsers"),
+          split(9, "rage-targets"),
         ]),
       },
     },
