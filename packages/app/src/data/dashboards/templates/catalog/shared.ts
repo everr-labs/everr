@@ -123,11 +123,26 @@ export const metricUnion = (columns: string, extraWhere = "") =>
     )
     .join(" UNION ALL ");
 
-const metricRows = (metric: string, seriesBy?: string) =>
+const metricRows = (metric: string, seriesSelect?: string) =>
   metricUnion(
-    `TimeUnix, Value${seriesBy ? `, Attributes['${seriesBy}'] AS series` : ""}`,
+    `TimeUnix, Value${seriesSelect ? `, ${seriesSelect} AS series` : ""}`,
     ` AND MetricName = '${metric}'`,
   );
+
+/**
+ * How a panel names its series. `seriesBy` reads one datapoint attribute, which
+ * covers most receivers; `seriesExpr` takes a whole SQL expression, for the
+ * receivers that put the dimension somewhere else — the postgresql receiver
+ * carries the database name as a *resource* attribute in its legacy model and
+ * as a datapoint attribute under `useOTelSemconv`, so its panels have to read
+ * both spellings.
+ */
+const seriesSelectOf = (options: {
+  seriesBy?: string;
+  seriesExpr?: string;
+}): string | undefined =>
+  options.seriesExpr ??
+  (options.seriesBy ? `Attributes['${options.seriesBy}']` : undefined);
 
 /**
  * A metric line chart. Metric-backed templates repeat this shape for every
@@ -142,20 +157,16 @@ export const metricLine = (
     aggregate?: string;
     unit?: string;
     seriesBy?: string;
+    seriesExpr?: string;
     scale?: string;
     description?: string;
   } = {},
 ) => {
-  const {
-    aggregate = "avg",
-    unit = "",
-    seriesBy,
-    scale,
-    description,
-  } = options;
+  const { aggregate = "avg", unit = "", scale, description } = options;
+  const seriesSelect = seriesSelectOf(options);
   const value = scale ? `${aggregate}(Value) ${scale}` : `${aggregate}(Value)`;
 
-  if (!seriesBy) {
+  if (!seriesSelect) {
     return timeSeries(
       name,
       { unit, showLegend: false },
@@ -174,12 +185,78 @@ ORDER BY ts`,
   return timeSeries(
     name,
     { unit, showLegend: true },
-    `WITH points AS (${metricRows(metric, seriesBy)})
+    `WITH points AS (${metricRows(metric, seriesSelect)})
 SELECT ${SERIES_BUCKET("TimeUnix")} AS ts,
        series,
        ${value} AS value
 FROM points
 WHERE ${topSeries("series", "points")}
+GROUP BY ts, series
+ORDER BY ts`,
+    description,
+  );
+};
+
+/**
+ * A cumulative counter, charted as the work done *during* each bucket rather
+ * than as the ever-rising total. Most of what a database receiver reports is a
+ * monotonic sum — commits, row operations, block reads, buffers written — and
+ * drawing the raw value produces a line that only ever slopes up, which says
+ * nothing about when the database was busy.
+ *
+ * The increase is taken per unique series before it is summed, keyed by the
+ * full attribute and resource maps: the postgresql receiver reports one counter
+ * per table and one resource per database, so a delta taken across the merged
+ * stream would read every table's counter as one sawtooth.
+ */
+export const metricCounter = (
+  name: string,
+  metric: string,
+  options: {
+    unit?: string;
+    seriesBy?: string;
+    seriesExpr?: string;
+    scale?: string;
+    stacked?: boolean;
+    description?: string;
+  } = {},
+) => {
+  const { unit = "", scale, stacked, description } = options;
+  const seriesSelect = seriesSelectOf(options);
+  const total = scale ? `sum(delta) ${scale}` : `sum(delta)`;
+  const perSeries = `ResourceAttributes AS resource, Attributes AS attrs,
+         max(Value) - min(Value) AS delta`;
+  const onlyThisMetric = ` AND MetricName = '${metric}'`;
+
+  if (!seriesSelect) {
+    return timeSeries(
+      name,
+      { unit, showLegend: false, stacked: stacked ?? false },
+      `SELECT ts, ${total} AS value
+FROM (
+  SELECT ${BUCKET("TimeUnix")} AS ts,
+         ${perSeries}
+  FROM (${metricUnion("TimeUnix, ResourceAttributes, Attributes, Value", onlyThisMetric)})
+  GROUP BY ts, resource, attrs
+)
+GROUP BY ts
+ORDER BY ts`,
+      description,
+    );
+  }
+
+  return timeSeries(
+    name,
+    { unit, showLegend: true, stacked: stacked ?? false },
+    `WITH points AS (${metricUnion(`TimeUnix, ResourceAttributes, Attributes, Value, ${seriesSelect} AS series`, onlyThisMetric)})
+SELECT ts, series, ${total} AS value
+FROM (
+  SELECT ${SERIES_BUCKET("TimeUnix")} AS ts, series,
+         ${perSeries}
+  FROM points
+  WHERE ${topSeries("series", "points")}
+  GROUP BY ts, series, resource, attrs
+)
 GROUP BY ts, series
 ORDER BY ts`,
     description,
