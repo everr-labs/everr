@@ -44,6 +44,44 @@ const OUTBOUND = `${WITHIN} AND ${OF_SERVICE} AND SpanKind = 'Client' AND ${METH
 /** Status class, as 19419 splits its request counts: 2xx / 3xx / 4xx / 5xx. */
 const STATUS_CLASS = `concat(toString(intDiv(${STATUS}, 100)), 'xx')`;
 
+/**
+ * The FaaS attributes are split across the span and the resource, and semconv
+ * decides which is which: `faas.trigger`, `faas.invocation_id` and
+ * `faas.coldstart` describe *this* invocation and ride on the span, while
+ * `faas.name`, `faas.version` and `faas.instance` describe the deployed
+ * function and its execution environment, so they ride on the resource.
+ * Reading a resource attribute out of `SpanAttributes` returns empty for every
+ * row without erroring, which is the trap the Postgres and Kubernetes rebuilds
+ * both hit.
+ * https://opentelemetry.io/docs/specs/semconv/faas/faas-spans/
+ */
+const TRIGGER = `SpanAttributes['faas.trigger']`;
+
+/**
+ * Which function ran. `faas.name` is the deployed name; `ServiceName` is what
+ * the layer defaults it to anyway, and is the only thing present if the
+ * function sets `OTEL_SERVICE_NAME` and nothing else.
+ */
+const FUNCTION = `coalesce(nullIf(ResourceAttributes['faas.name'], ''), ServiceName)`;
+
+/**
+ * An OTLP boolean reaches the map as the string the exporter wrote, which is
+ * `true` lowercased. A warm invocation may carry `false` or carry nothing at
+ * all, so cold is tested for and warm is everything else.
+ */
+const IS_COLD = `SpanAttributes['faas.coldstart'] = 'true'`;
+
+/**
+ * One invocation. `faas.trigger` is Required on the invocation span and appears
+ * nowhere else, so unlike the HTTP board this template does not need `SpanKind`
+ * to separate work served from work requested — the attribute is already unique
+ * to the span that means "the handler ran". It also excludes the per-message
+ * Consumer spans an SQS batch produces, which would otherwise multiply the
+ * invocation count by the batch size.
+ */
+const IS_INVOCATION = `${TRIGGER} != ''`;
+const INVOCATION = `${WITHIN} AND ${OF_SERVICE} AND ${IS_INVOCATION}`;
+
 export const applicationTemplates: DashboardTemplate[] = [
   {
     id: "http-endpoints",
@@ -328,6 +366,188 @@ LIMIT 40`,
           split(5, "calls", "error-rate", "p95-latency"),
           split(8, "calls-by-method"),
           split(9, "methods"),
+        ]),
+      },
+    },
+  },
+
+  {
+    id: "aws-lambda",
+    name: "AWS Lambda",
+    description:
+      "Serverless invocations from the OpenTelemetry Lambda layer: rate, duration percentiles and errors per function, what triggered each invocation, and what a cold start costs.",
+    category: "Application",
+    requires: [needsTraces, needsSpanAttribute("faas")],
+    document: {
+      kind: "Dashboard",
+      metadata: { name: "aws-lambda" },
+      spec: {
+        display: { name: "AWS Lambda" },
+        duration: "6h",
+        refreshInterval: "1m",
+        variables: [serviceVariable()],
+        panels: {
+          invocations: stat(
+            "Invocations",
+            { calculation: "sum", sparkline: true },
+            `SELECT ${BUCKET()} AS ts, count() AS invocations
+FROM traces
+WHERE ${INVOCATION}
+GROUP BY ts
+ORDER BY ts`,
+          ),
+          "error-rate": errorRateStat(` AND ${IS_INVOCATION}`),
+          "p95-duration": p95LatencyStat(
+            "P95 duration",
+            ` AND ${IS_INVOCATION}`,
+          ),
+          "cold-start-rate": stat(
+            "Cold starts",
+            {
+              calculation: "last",
+              unit: "%",
+              decimals: 1,
+              thresholds: thresholds(5, 20),
+            },
+            `SELECT countIf(${IS_COLD}) / count() * 100 AS pct
+FROM traces
+WHERE ${INVOCATION}`,
+          ),
+          "invocations-by-function": timeSeries(
+            "Invocations by function",
+            { showLegend: true, stacked: true },
+            `SELECT ${SERIES_BUCKET()} AS ts, ${FUNCTION} AS function, count() AS invocations
+FROM traces
+WHERE ${INVOCATION}
+  AND ${topSeries(FUNCTION, "traces", INVOCATION)}
+GROUP BY ts, function
+ORDER BY ts`,
+          ),
+          "errors-by-function": timeSeries(
+            "Failed invocations by function",
+            { showLegend: true, stacked: true },
+            `SELECT ${SERIES_BUCKET()} AS ts, ${FUNCTION} AS function, count() AS errors
+FROM traces
+WHERE ${INVOCATION} AND StatusCode = 'Error'
+  AND ${topSeries(FUNCTION, "traces", `${INVOCATION} AND StatusCode = 'Error'`)}
+GROUP BY ts, function
+ORDER BY ts`,
+            "A failure here is the invocation itself: a handler that threw, or one the platform stopped.",
+          ),
+          "duration-percentiles": timeSeries(
+            "Duration percentiles",
+            { showLegend: true, unit: "ms" },
+            `SELECT ts, q.1 AS series, q.2 AS value
+FROM (
+  SELECT ${SERIES_BUCKET()} AS ts,
+         round(quantile(0.50)(Duration) / 1000000, 1) AS p50,
+         round(quantile(0.95)(Duration) / 1000000, 1) AS p95,
+         round(quantile(0.99)(Duration) / 1000000, 1) AS p99
+  FROM traces
+  WHERE ${INVOCATION}
+  GROUP BY ts
+)
+ARRAY JOIN [('P50', p50), ('P95', p95), ('P99', p99)] AS q
+ORDER BY ts`,
+            "The reference charts the average and the maximum. The average hides the tail that bills, and the maximum is one bad invocation.",
+          ),
+          "duration-by-function": timeSeries(
+            "P95 duration by function",
+            { showLegend: true, unit: "ms" },
+            `SELECT ${SERIES_BUCKET()} AS ts,
+       ${FUNCTION} AS function,
+       round(quantile(0.95)(Duration) / 1000000, 1) AS p95_ms
+FROM traces
+WHERE ${INVOCATION}
+  AND ${topSeries(FUNCTION, "traces", INVOCATION)}
+GROUP BY ts, function
+ORDER BY ts`,
+          ),
+          "cold-vs-warm": timeSeries(
+            "Cold and warm invocations",
+            { showLegend: true, stacked: true },
+            `SELECT ts, counted.1 AS series, counted.2 AS value
+FROM (
+  SELECT ${SERIES_BUCKET()} AS ts,
+         countIf(${IS_COLD}) AS cold,
+         countIf(NOT ${IS_COLD}) AS warm
+  FROM traces
+  WHERE ${INVOCATION}
+  GROUP BY ts
+)
+ARRAY JOIN [('Cold', cold), ('Warm', warm)] AS counted
+ORDER BY ts`,
+            "Cold starts cluster after a deploy and after idle. A steady trickle means the function never stays warm.",
+          ),
+          "cold-start-penalty": timeSeries(
+            "P95 duration, cold against warm",
+            { showLegend: true, unit: "ms" },
+            `SELECT ts, q.1 AS series, q.2 AS value
+FROM (
+  SELECT ${SERIES_BUCKET()} AS ts,
+         round(quantileIf(0.95)(Duration, ${IS_COLD}) / 1000000, 1) AS cold,
+         round(quantileIf(0.95)(Duration, NOT ${IS_COLD}) / 1000000, 1) AS warm
+  FROM traces
+  WHERE ${INVOCATION}
+  GROUP BY ts
+)
+ARRAY JOIN [('Cold', cold), ('Warm', warm)] AS q
+ORDER BY ts`,
+            "The gap is what initialization costs. CloudWatch cannot ask this: it has no per-invocation cold-start flag.",
+          ),
+          "by-trigger": timeSeries(
+            "Invocations by trigger",
+            { showLegend: true, stacked: true },
+            `SELECT ${SERIES_BUCKET()} AS ts, ${TRIGGER} AS trigger, count() AS invocations
+FROM traces
+WHERE ${INVOCATION}
+  AND ${topSeries(TRIGGER, "traces", INVOCATION)}
+GROUP BY ts, trigger
+ORDER BY ts`,
+            "Semconv names five: http, pubsub, datasource, timer, other. It is an open enum, so the cap stands.",
+          ),
+          functions: table(
+            "Functions",
+            `SELECT ${FUNCTION} AS function,
+       count() AS invocations,
+       round(quantile(0.50)(Duration) / 1000000, 1) AS p50_ms,
+       round(quantile(0.95)(Duration) / 1000000, 1) AS p95_ms,
+       round(countIf(StatusCode = 'Error') / count() * 100, 2) AS error_pct,
+       round(countIf(${IS_COLD}) / count() * 100, 1) AS cold_pct
+FROM traces
+WHERE ${INVOCATION}
+GROUP BY function
+ORDER BY invocations DESC
+LIMIT 40`,
+          ),
+          "recent-failures": table(
+            "Recent failed invocations",
+            `SELECT Timestamp AS ts,
+       ${FUNCTION} AS function,
+       ${TRIGGER} AS trigger,
+       SpanAttributes['faas.invocation_id'] AS invocation_id,
+       round(Duration / 1000000, 1) AS duration_ms,
+       StatusMessage AS status
+FROM traces
+WHERE ${INVOCATION} AND StatusCode = 'Error'
+ORDER BY ts DESC
+LIMIT 50`,
+            "The invocation id is the AWS request id, so a row here can be looked up in the function's own logs.",
+          ),
+        },
+        layouts: layout([
+          split(
+            5,
+            "invocations",
+            "error-rate",
+            "p95-duration",
+            "cold-start-rate",
+          ),
+          split(9, "invocations-by-function", "errors-by-function"),
+          split(9, "duration-percentiles", "duration-by-function"),
+          split(9, "cold-vs-warm", "cold-start-penalty"),
+          split(9, "by-trigger", "functions"),
+          split(9, "recent-failures"),
         ]),
       },
     },
