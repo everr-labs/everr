@@ -372,17 +372,17 @@ LIMIT 40`,
   },
 
   {
-    id: "aws-lambda",
-    name: "AWS Lambda",
+    id: "serverless-functions",
+    name: "Serverless Functions",
     description:
-      "Serverless invocations from the OpenTelemetry Lambda layer: rate, duration percentiles and errors per function, what triggered each invocation, and what a cold start costs.",
+      "Function invocations from the FaaS semantic conventions: rate, duration percentiles and errors per function, what triggered each invocation, and what a cold start costs.",
     category: "Application",
     requires: [needsTraces, needsSpanAttribute("faas")],
     document: {
       kind: "Dashboard",
-      metadata: { name: "aws-lambda" },
+      metadata: { name: "serverless-functions" },
       spec: {
-        display: { name: "AWS Lambda" },
+        display: { name: "Serverless Functions" },
         duration: "6h",
         refreshInterval: "1m",
         variables: [serviceVariable()],
@@ -493,7 +493,7 @@ FROM (
 )
 ARRAY JOIN [('Cold', cold), ('Warm', warm)] AS q
 ORDER BY ts`,
-            "The gap is what initialization costs. CloudWatch cannot ask this: it has no per-invocation cold-start flag.",
+            "The gap is what initialization costs. A platform's own metrics cannot ask this: they carry no per-invocation cold-start flag.",
           ),
           "by-trigger": timeSeries(
             "Invocations by trigger",
@@ -532,7 +532,7 @@ FROM traces
 WHERE ${INVOCATION} AND StatusCode = 'Error'
 ORDER BY ts DESC
 LIMIT 50`,
-            "The invocation id is the AWS request id, so a row here can be looked up in the function's own logs.",
+            "The invocation id is the platform's own request id, so a row here can be looked up in the function's logs.",
           ),
         },
         layouts: layout([
