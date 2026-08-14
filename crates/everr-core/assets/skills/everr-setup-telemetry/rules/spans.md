@@ -18,7 +18,7 @@ Common formats:
 - HTTP server: `{method} {http.route}`
 - HTTP client: `{method} {url.template}` or `{method}` when no safe template exists
 - Database: `{db.operation.name} {db.collection.name}`
-- RPC: `{rpc.service}/{rpc.method}`
+- RPC: `{rpc.method}`, which is already the fully-qualified `{service}/{method}`
 - Messaging: `{operation} {destination}`
 - Domain work: `{verb} {object}`, such as `process order`
 
@@ -62,6 +62,21 @@ Avoid attributes containing request bodies, raw URLs with query params, serializ
 
 Add business attributes to auto-instrumented spans by retrieving the active span; do not create a redundant child span solely to add attributes.
 
+## RPC Attributes
+
+The RPC conventions moved. Emit the current spelling, not the retired one.
+
+| Retired | Current | Note |
+| --- | --- | --- |
+| `rpc.system` | `rpc.system.name` | Well-known values: `grpc`, `dubbo`, `connectrpc`, `jsonrpc`. Other systems may use their own value. |
+| `rpc.service` | (none) | Absorbed into `rpc.method`. |
+| `rpc.method` | `rpc.method` | Now the fully-qualified `{service}/{method}`, such as `com.example.ExampleService/exampleMethod`. |
+| `rpc.grpc.status_code` | `rpc.response.status_code` | Also changed type: the integer `0` is now the string `OK`. |
+| `rpc.grpc.request.metadata.<key>` | `rpc.request.metadata.<key>` | Same for the response side. |
+| `rpc.message.*` | (none) | Deprecated with no replacement. |
+
+Set `error.type` on a failed call. Auto-instrumentation still emits the retired spelling by default; `OTEL_SEMCONV_STABILITY_OPT_IN=rpc` switches it to the current one, and `rpc/dup` emits both during a migration. Do not read both spellings in a query: the two are not interchangeable, because the old method key needs `rpc.service` concatenated onto it and the two status codes do not even share a type.
+
 ## Headless Work
 
 Cron jobs, background workers, CLI commands, startup tasks, and batch jobs often have no inbound request span. Wrap the unit of work in a manual root span so outbound database or HTTP spans do not become root `CLIENT` spans.
@@ -82,6 +97,7 @@ await tracer.startActiveSpan('process daily orders', async (span) => {
 - `CLIENT` and `PRODUCER` spans should have a parent that explains why the outbound work happened.
 - Every child span should have a parent span in the same trace.
 - Keep `INTERNAL` spans sparse; avoid tracing tight loops.
+- A span that carries RPC attributes but nests inside a `SERVER` span that already covers the same request stays `INTERNAL`. The conventions ask an RPC server span to be `SERVER`, but promoting a nested one makes a single inbound request count twice on every panel that splits traffic by span kind.
 - Replace per-item spans with one batch span plus `batch.size`.
 - Use logs for lightweight annotations.
 - Keep application SDK sampling at the default unless the project has an explicit collector-side sampling plan. Application-side head sampling drops evidence before outcome is known.
