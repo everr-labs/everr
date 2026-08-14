@@ -34,12 +34,17 @@ export function calculate(
   }
 }
 
-export function resolveThresholdColor(
+export interface ThresholdBand {
+  color: string | undefined;
+  name: string | undefined;
+}
+
+export function resolveThresholdBand(
   value: number,
   thresholds: ThresholdsSpec | undefined,
   seriesMax: number,
-): string | undefined {
-  if (!thresholds) return undefined;
+): ThresholdBand {
+  if (!thresholds) return { color: undefined, name: undefined };
   const steps = [...(thresholds.steps ?? [])].sort((a, b) => a.value - b.value);
   // Percent mode divides by the configured max, else the series' own max. A
   // non-positive divisor would invert the comparison (e.g. an all-negative
@@ -48,10 +53,24 @@ export function resolveThresholdColor(
   const compare =
     thresholds.mode === "percent" ? (max > 0 ? (value / max) * 100 : 0) : value;
   let color = thresholds.defaultColor;
+  // Unlike colors, names don't carry across an unnamed step: the crossed band
+  // simply has no qualitative label.
+  let name = thresholds.defaultName;
   for (const step of steps) {
-    if (compare >= step.value) color = step.color ?? color;
+    if (compare >= step.value) {
+      color = step.color ?? color;
+      name = step.name;
+    }
   }
-  return color;
+  return { color, name };
+}
+
+export function resolveThresholdColor(
+  value: number,
+  thresholds: ThresholdsSpec | undefined,
+  seriesMax: number,
+): string | undefined {
+  return resolveThresholdBand(value, thresholds, seriesMax).color;
 }
 
 const ABBREVIATIONS: ReadonlyArray<[number, string]> = [

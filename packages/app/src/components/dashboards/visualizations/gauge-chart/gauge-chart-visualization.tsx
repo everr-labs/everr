@@ -5,36 +5,16 @@ import { queryLabel, SERIES_COLORS } from "../data-utils";
 import type { VisualizationProps } from "../index";
 import {
   formatStatValue,
-  resolveThresholdColor,
+  resolveThresholdBand,
   type ThresholdsSpec,
 } from "../stat-chart/stat-calculations";
 import { computeStatTiles } from "../stat-chart/stat-series";
 import type { GaugeChartSpec } from "./spec";
 
-// Semicircle geometry in viewBox units. The round caps and the threshold
-// ticks extend past the arc radius, hence the margins in the viewBox.
-const VIEWBOX = "0 0 100 64";
-const CX = 50;
-const CY = 50;
-const R = 38;
-const STROKE = 9;
-
-function polar(r: number, angleDeg: number): { x: number; y: number } {
-  const rad = (angleDeg * Math.PI) / 180;
-  return { x: CX + r * Math.cos(rad), y: CY - r * Math.sin(rad) };
-}
-
-/** Arc along the semicircle: 180° is the left end, 0° the right end. */
-function arcPath(startAngle: number, endAngle: number): string {
-  const s = polar(R, startAngle);
-  const e = polar(R, endAngle);
-  return `M ${s.x} ${s.y} A ${R} ${R} 0 0 1 ${e.x} ${e.y}`;
-}
-
 /**
  * 0..1 position of `value` along the gauge axis, measured from the `min` end.
  * Inverted bounds (`min > max`) are supported: the signed span flips the
- * direction so the arc fills toward the `max` end as the value approaches it.
+ * direction so the bar fills toward the `max` end as the value approaches it.
  * Returns 0 only for a truly degenerate axis (`min === max`).
  */
 function axisFraction(value: number, min: number, max: number): number {
@@ -42,42 +22,68 @@ function axisFraction(value: number, min: number, max: number): number {
   return Math.min(1, Math.max(0, (value - min) / (max - min)));
 }
 
-interface ThresholdTick {
+interface ThresholdMark {
   fraction: number;
+  /** Step value in axis units, for the tick label. */
+  value: number;
+}
+
+interface FillSegment {
+  from: number;
+  to: number;
   color: string;
 }
 
 /**
- * Step positions projected onto the gauge axis. Percent steps resolve against
- * the same reference `resolveThresholdColor` uses (thresholds.max, falling
- * back to the gauge max), so a tick always sits where the color changes.
+ * Step positions projected onto the gauge axis, in axis units. Percent steps
+ * resolve against the same reference `resolveThresholdBand` uses
+ * (thresholds.max, falling back to the gauge max), so a mark always sits where
+ * the band changes. Only steps strictly inside the axis span are kept — works
+ * for inverted bounds too.
  */
-function thresholdTicks(
+function thresholdMarks(
   thresholds: ThresholdsSpec | undefined,
   min: number,
   max: number,
-): ThresholdTick[] {
+): ThresholdMark[] {
   if (!thresholds?.steps) return [];
   const ref = thresholds.max ?? max;
-  return (
-    thresholds.steps
-      .map((step) => ({
-        value:
-          thresholds.mode === "percent" ? (step.value / 100) * ref : step.value,
-        color: step.color,
-      }))
-      .filter(
-        (t): t is { value: number; color: string } => t.color !== undefined,
-      )
-      // Keep ticks strictly inside the axis span — works for inverted bounds too.
-      .filter(
-        (t) => t.value > Math.min(min, max) && t.value < Math.max(min, max),
-      )
-      .map((t) => ({
-        fraction: axisFraction(t.value, min, max),
-        color: t.color,
-      }))
-  );
+  return thresholds.steps
+    .map((step) => ({
+      value:
+        thresholds.mode === "percent" ? (step.value / 100) * ref : step.value,
+    }))
+    .filter((t) => t.value > Math.min(min, max) && t.value < Math.max(min, max))
+    .map((t) => ({ fraction: axisFraction(t.value, min, max), value: t.value }))
+    .sort((a, b) => a.fraction - b.fraction);
+}
+
+/**
+ * The filled part of the track, split at each threshold the value has crossed,
+ * each piece painted with its band's color. Each segment resolves its color
+ * from the axis value at its midpoint, so inverted bounds (`min > max`) paint
+ * the bands on the correct side without any ascending-axis assumption.
+ */
+function fillSegments(
+  fraction: number,
+  marks: ThresholdMark[],
+  thresholds: ThresholdsSpec | undefined,
+  min: number,
+  max: number,
+  fallback: string,
+): FillSegment[] {
+  const bounds = [0, ...marks.map((m) => m.fraction), 1];
+  const segments: FillSegment[] = [];
+  for (let i = 0; i < bounds.length - 1; i++) {
+    const from = bounds[i] ?? 0;
+    const to = Math.min(fraction, bounds[i + 1] ?? 1);
+    if (to <= from) continue;
+    const midValue = min + ((from + to) / 2) * (max - min);
+    const color =
+      resolveThresholdBand(midValue, thresholds, max).color ?? fallback;
+    segments.push({ from, to, color });
+  }
+  return segments;
 }
 
 export function GaugeChartVisualization({
@@ -100,8 +106,8 @@ export function GaugeChartVisualization({
     [data, calculation],
   );
   const hasAnyValue = tiles.some((t) => t.value !== undefined);
-  const ticks = useMemo(
-    () => thresholdTicks(thresholds, min, max),
+  const marks = useMemo(
+    () => thresholdMarks(thresholds, min, max),
     [thresholds, min, max],
   );
 
@@ -117,115 +123,99 @@ export function GaugeChartVisualization({
   }
 
   const multi = tiles.length > 1;
+  const fallbackColor = SERIES_COLORS[0] ?? "currentColor";
 
   return (
-    <div className="flex h-full flex-wrap items-stretch justify-center gap-4">
+    <div className="flex h-full flex-wrap content-center justify-center gap-x-6 gap-y-4 px-1">
       {tiles.map((tile) => {
         const value = tile.value;
         const label = tile.label || queryLabel(tile.frame);
-        const color =
-          (value !== undefined
-            ? resolveThresholdColor(value, thresholds, max)
-            : undefined) ??
-          SERIES_COLORS[0] ??
-          "currentColor";
+        const band =
+          value !== undefined
+            ? resolveThresholdBand(value, thresholds, max)
+            : { color: undefined, name: undefined };
+        const color = band.color ?? fallbackColor;
         const fraction =
           value !== undefined ? axisFraction(value, min, max) : 0;
+        const segments =
+          value !== undefined
+            ? fillSegments(fraction, marks, thresholds, min, max, fallbackColor)
+            : [];
         const valueText =
           value === undefined ? noValue : formatStatValue(value, decimals);
         return (
           <div
             key={`${tile.frame}-${tile.label}`}
-            className="flex min-w-28 flex-1 flex-col items-center"
+            className="min-w-40 flex-1"
+            role="img"
+            aria-label={`${label}: ${valueText}${unit ? ` ${unit}` : ""}${
+              band.name ? ` (${band.name})` : ""
+            }`}
           >
             {(multi || showLabel) && (
-              <p className="text-xs text-muted-foreground">{label}</p>
+              <p className="mb-1 truncate text-xs text-muted-foreground">
+                {label}
+              </p>
             )}
-            {/* The SVG is absolutely positioned: inside a wrapped flex line a
-                percentage height can't resolve and the SVG would fall back to
-                width-driven sizing and overflow the panel. */}
-            <div className="relative min-h-0 w-full flex-1">
-              <svg
-                viewBox={VIEWBOX}
-                preserveAspectRatio="xMidYMid meet"
-                className="absolute inset-0 h-full w-full"
-                role="img"
-                aria-label={`${label}: ${valueText}${unit ? ` ${unit}` : ""}`}
-              >
-                <path
-                  d={arcPath(180, 0)}
-                  className="stroke-muted"
-                  strokeWidth={STROKE}
-                  strokeLinecap="round"
-                  fill="none"
-                />
-                {fraction > 0 && (
-                  <path
-                    d={arcPath(180, 180 - fraction * 180)}
-                    stroke={color}
-                    strokeWidth={STROKE}
-                    strokeLinecap="round"
-                    fill="none"
-                  />
+            <p className="mb-2 leading-none">
+              <span
+                className={cn(
+                  "text-2xl font-semibold tabular-nums",
+                  value === undefined && "text-muted-foreground",
                 )}
-                {ticks.map((tick) => {
-                  const angle = 180 - tick.fraction * 180;
-                  const inner = polar(R - STROKE / 2 - 2, angle);
-                  const outer = polar(R + STROKE / 2 + 2, angle);
-                  return (
-                    <line
-                      key={`${tick.fraction}-${tick.color}`}
-                      x1={inner.x}
-                      y1={inner.y}
-                      x2={outer.x}
-                      y2={outer.y}
-                      stroke={tick.color}
-                      strokeWidth={1.25}
-                    />
-                  );
-                })}
-                <text
-                  x={CX}
-                  y={46}
-                  textAnchor="middle"
-                  fontSize={13}
-                  className={cn(
-                    "font-semibold tabular-nums",
-                    value === undefined
-                      ? "fill-muted-foreground"
-                      : "fill-foreground",
-                  )}
-                >
-                  {valueText}
-                  {value !== undefined && unit && (
-                    <tspan
-                      dx={1.5}
-                      fontSize={7}
-                      className="fill-muted-foreground font-normal"
+                style={value !== undefined ? { color } : undefined}
+              >
+                {valueText}
+              </span>
+              {value !== undefined && unit && (
+                <span className="ml-1 text-xs text-muted-foreground">
+                  {unit}
+                </span>
+              )}
+              {value !== undefined && band.name && (
+                <span className="ml-1.5 text-xs text-muted-foreground">
+                  ({band.name})
+                </span>
+              )}
+            </p>
+            <div className="relative pt-2">
+              {/* Triangle marker pointing down at the value position. */}
+              {value !== undefined && (
+                <div
+                  className="absolute top-0 -translate-x-1/2 border-x-[5px] border-t-[6px] border-x-transparent border-t-foreground"
+                  style={{ left: `${fraction * 100}%` }}
+                />
+              )}
+              <div className="relative h-2.5 overflow-hidden rounded-sm bg-muted">
+                {segments.map((s) => (
+                  <div
+                    key={s.from}
+                    className="absolute inset-y-0"
+                    style={{
+                      left: `${s.from * 100}%`,
+                      width: `${(s.to - s.from) * 100}%`,
+                      backgroundColor: s.color,
+                    }}
+                  />
+                ))}
+              </div>
+              {marks.length > 0 && (
+                <div className="relative h-6">
+                  {marks.map((mark) => (
+                    <div
+                      key={mark.fraction}
+                      className="absolute top-0 -translate-x-1/2"
+                      style={{ left: `${mark.fraction * 100}%` }}
                     >
-                      {unit}
-                    </tspan>
-                  )}
-                </text>
-                <text
-                  x={CX - R}
-                  y={62}
-                  textAnchor="middle"
-                  fontSize={5.5}
-                  className="fill-muted-foreground tabular-nums"
-                >
-                  {formatStatValue(min, undefined)}
-                </text>
-                <text
-                  x={CX + R}
-                  y={62}
-                  textAnchor="middle"
-                  fontSize={5.5}
-                  className="fill-muted-foreground tabular-nums"
-                >
-                  {formatStatValue(max, undefined)}
-                </text>
-              </svg>
+                      <div className="mx-auto h-1.5 w-px bg-muted-foreground" />
+                      <p className="whitespace-nowrap text-[10px] tabular-nums text-muted-foreground">
+                        {formatStatValue(mark.value, undefined)}
+                        {unit}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         );

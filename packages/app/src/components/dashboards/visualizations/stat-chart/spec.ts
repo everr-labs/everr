@@ -3,11 +3,15 @@ import * as z from "zod";
 const thresholdStep = z.looseObject({
   value: z.number(),
   color: z.string().optional(),
+  /** Qualitative label for the band this step starts (e.g. "Poor"). */
+  name: z.string().optional(),
 });
 
 export const thresholdsSpec = z.looseObject({
   mode: z.enum(["absolute", "percent"]).default("absolute"),
   defaultColor: z.string().optional(),
+  /** Qualitative label for the band below the first step (e.g. "Good"). */
+  defaultName: z.string().optional(),
   steps: z.array(thresholdStep).optional(),
   /**
    * Reference value for `percent` mode: steps compare against value/max*100.
