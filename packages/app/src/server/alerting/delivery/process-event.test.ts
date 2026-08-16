@@ -30,8 +30,10 @@ vi.mock("../history/clickhouse", () => ({
     mocks.history.push(rows);
     return Promise.resolve();
   },
-  suppressionHistoryRow: (opts: unknown) => opts,
-  historyDefFromJournalRow: (row: unknown) => row,
+  journalTerminalRow: (
+    event: { id: string },
+    opts: Record<string, unknown> = {},
+  ) => ({ notificationEventId: event.id, ...opts }),
 }));
 
 import { QueryBuilder } from "drizzle-orm/pg-core";

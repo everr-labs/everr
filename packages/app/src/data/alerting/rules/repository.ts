@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { toClickHouseDateTime } from "@everr/ui/lib/time-range";
 import { and, asc, desc, eq, inArray, isNull, ne } from "drizzle-orm";
-import { parseResourceName } from "@/data/as-code/identity";
+import { formatResourceName, parseResourceName } from "@/data/as-code/identity";
 import {
   type DbExecutor,
   db,
@@ -42,7 +42,7 @@ import { closeRuleLifecycle } from "./lifecycle.server";
 type RuleRow = typeof alertDefinitions.$inferSelect;
 
 function ruleName(row: RuleRow): string {
-  return `${row.project}/${row.slug}`;
+  return formatResourceName(row.project, row.slug);
 }
 
 function ruleBase(row: RuleRow, notificationChannels: string[]) {

@@ -13,11 +13,7 @@ import {
   alertInstances,
   alertSilences,
 } from "@/db/schema";
-import {
-  historyDefFromJournalRow,
-  recordAlertHistory,
-  suppressionHistoryRow,
-} from "../history/clickhouse";
+import { journalTerminalRow, recordAlertHistory } from "../history/clickhouse";
 import { instanceKey } from "./grouping";
 import { alertEventDispatchLabels } from "./targeting";
 
@@ -202,11 +198,7 @@ export async function deferSuppressedEvent(
   // notification was withheld that may still go out.
   if (shouldRetry) return;
   await recordAlertHistory(event.sourceDefinitionId, [
-    suppressionHistoryRow({
-      def: historyDefFromJournalRow(event),
-      notificationEventId: event.id,
-      fingerprint: event.instanceFingerprint,
-      labels: event.instanceLabels,
+    journalTerminalRow(event, {
       silenced: Boolean(silence),
       inhibited,
       silenceId: silence?.id ?? null,
@@ -232,6 +224,10 @@ export async function loadInhibitionContext(organizationId: string): Promise<{
     .select()
     .from(alertInhibitions)
     .where(eq(alertInhibitions.organizationId, organizationId));
+  // `matchInhibition` answers false with no rules configured, which is the
+  // default state, so the org-wide firing-instance scan below would be pure
+  // waste. It is also widest exactly when it hurts most: during a storm.
+  if (inhibitions.length === 0) return { inhibitions, sources: [] };
   const ruleSources = await db
     .select({ instance: alertInstances, def: alertDefinitions })
     .from(alertInstances)

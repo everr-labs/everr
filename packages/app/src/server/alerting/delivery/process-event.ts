@@ -12,11 +12,7 @@ import {
   alertNotificationGroups,
 } from "@/db/schema";
 import { addWorkerJobInTransaction } from "@/server/worker/jobs";
-import {
-  historyDefFromJournalRow,
-  recordAlertHistory,
-  suppressionHistoryRow,
-} from "../history/clickhouse";
+import { journalTerminalRow, recordAlertHistory } from "../history/clickhouse";
 import { nextGroupFlushAt } from "./grouping";
 import { claimDeliverableEvent } from "./journal-reader";
 import {
@@ -60,16 +56,7 @@ export async function processAlertEvent(rawPayload: unknown): Promise<void> {
     // never announced as firing; the chain still needs a terminal so it does
     // not read as forever in flight.
     await recordAlertHistory(event.sourceDefinitionId, [
-      suppressionHistoryRow({
-        def: historyDefFromJournalRow(event),
-        notificationEventId: event.id,
-        fingerprint: event.instanceFingerprint,
-        labels: event.instanceLabels,
-        silenced: false,
-        inhibited: false,
-        silenceId: null,
-        reason: "no_longer_firing",
-      }),
+      journalTerminalRow(event, { reason: "no_longer_firing" }),
     ]);
     return;
   }

@@ -1,3 +1,4 @@
+import { truncateWithEllipsis } from "@/lib/truncate";
 import type {
   AlertingEvaluationSample,
   AlertingRuleCondition,
@@ -49,7 +50,7 @@ export function parseAlertEvaluationSamples(
 function evaluationErrorSummary(error: string | null): string | null {
   if (error === null) return null;
   const summary = error.replace(/\s+/g, " ").trim();
-  return summary.length > 500 ? `${summary.slice(0, 497)}...` : summary;
+  return truncateWithEllipsis(summary, 500);
 }
 
 function evaluationPoint(

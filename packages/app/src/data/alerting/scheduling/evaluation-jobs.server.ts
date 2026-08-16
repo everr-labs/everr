@@ -24,7 +24,7 @@ export function alertingPartitionQueue(
   return `alerts-${kind}-${partition}`;
 }
 
-function nextAlertingEvaluationAt(
+export function nextAlertEvaluationAt(
   organizationId: string,
   definitionId: string,
   intervalSeconds: number,
@@ -45,20 +45,6 @@ function nextAlertingEvaluationAt(
     (((after.getTime() - phaseMs) % intervalMs) + intervalMs) % intervalMs;
   const delayMs = remainder === 0 ? intervalMs : intervalMs - remainder;
   return new Date(after.getTime() + delayMs);
-}
-
-export function nextAlertEvaluationAt(
-  organizationId: string,
-  definitionId: string,
-  intervalSeconds: number,
-  after?: Date,
-): Date {
-  return nextAlertingEvaluationAt(
-    organizationId,
-    definitionId,
-    intervalSeconds,
-    after,
-  );
 }
 
 export function alertingRetryAt(

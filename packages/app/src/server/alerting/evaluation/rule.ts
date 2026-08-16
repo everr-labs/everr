@@ -37,6 +37,7 @@ import {
   type AlertHistoryRow,
   evaluationFailureHistoryRow,
   evaluationHistoryRow,
+  historyDefFromDefinitionRow,
   instanceHistoryRow,
   recordAlertHistory,
   ZERO_UUID,
@@ -76,20 +77,6 @@ function storedInstance(
     activeSince: row.activeSince,
     lastSeenAt: row.lastSeenAt,
     absentCount: row.absentCount,
-  };
-}
-
-function historyDefinition(
-  def: typeof alertDefinitions.$inferSelect,
-): AlertHistoryDefinition {
-  return {
-    id: def.id,
-    organizationId: def.organizationId,
-    repoid: def.repoid,
-    slug: `${def.project}/${def.slug}`,
-    previewId: def.previewId,
-    severity: def.spec.severity,
-    ruleMuted: def.previewId !== null,
   };
 }
 
@@ -340,7 +327,7 @@ async function recordEvaluationFailure(
   if (applied) {
     await recordAlertHistory(def.id, [
       evaluationFailureHistoryRow({
-        def: historyDefinition(def),
+        def: historyDefFromDefinitionRow(def),
         scheduledFor,
         occurredAt,
         error: message,
@@ -401,12 +388,19 @@ async function evaluateAlertRule(
   payload: z.infer<typeof EvaluatePayloadSchema>,
   scheduledFor: Date,
 ): Promise<void> {
-  const rows = (
-    await querySqlApiWithMeta<Record<string, unknown>>(
+  // The rule's own query is the slow step, and the previous instances depend
+  // only on the rule id, so the read does not have to wait behind it.
+  const [result, previousRows] = await Promise.all([
+    querySqlApiWithMeta<Record<string, unknown>>(
       def.spec.sql,
       def.organizationId,
-    )
-  ).rows;
+    ),
+    db
+      .select()
+      .from(alertInstances)
+      .where(eq(alertInstances.alertDefinitionId, def.id)),
+  ]);
+  const rows = result.rows;
 
   const evaluatedAt = new Date();
   const evidence = boundEvidence(rows);
@@ -432,10 +426,6 @@ async function evaluateAlertRule(
     def.spec.label_columns,
     new Set(presentByFingerprint.keys()),
   );
-  const previousRows = await db
-    .select()
-    .from(alertInstances)
-    .where(eq(alertInstances.alertDefinitionId, def.id));
   const previousByFingerprint = new Map(
     previousRows.map((row) => [row.fingerprint, storedInstance(row)]),
   );
@@ -470,7 +460,7 @@ async function evaluateAlertRule(
   const storedEpisodeByFingerprint = new Map(
     previousRows.map((row) => [row.fingerprint, row.episodeId]),
   );
-  const historyDef = historyDefinition(def);
+  const historyDef = historyDefFromDefinitionRow(def);
   // Computed once per transition and reused for both the journal row below
   // and the instance upsert further down, instead of recomputing the same
   // bound evidence twice from the same inputs.

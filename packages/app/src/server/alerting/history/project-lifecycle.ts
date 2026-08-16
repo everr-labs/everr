@@ -5,8 +5,8 @@ import { alertEvents } from "@/db/schema";
 import {
   historyDefFromJournalRow,
   instanceHistoryRow,
+  journalTerminalRow,
   recordAlertHistoryStrict,
-  suppressionHistoryRow,
   ZERO_UUID,
 } from "./clickhouse";
 
@@ -53,18 +53,7 @@ export async function projectAlertLifecycle(
     ...payload.suppressedEventIds.flatMap((id) => {
       const row = rowById.get(id);
       if (!row) return [];
-      return [
-        suppressionHistoryRow({
-          def: historyDefFromJournalRow(row),
-          notificationEventId: row.id,
-          fingerprint: row.instanceFingerprint,
-          labels: row.instanceLabels,
-          silenced: false,
-          inhibited: false,
-          silenceId: null,
-          reason: payload.reason,
-        }),
-      ];
+      return [journalTerminalRow(row, { reason: payload.reason })];
     }),
   ];
   // Strict on purpose: this task's only job is the insert, and Graphile's

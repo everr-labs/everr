@@ -36,7 +36,7 @@ export function flushGroupJobKey(groupId: string, flushAt: Date): string {
 export async function enqueueProcessAlertEvent(
   tx: Transaction,
   eventId: string,
-  opts: { keySuffix?: string; runAt?: Date; queueName?: string } = {},
+  opts: { keySuffix?: string; runAt?: Date } = {},
 ): Promise<void> {
   await addWorkerJobInTransaction(
     tx,
@@ -49,7 +49,6 @@ export async function enqueueProcessAlertEvent(
       jobKeyMode: "replace",
       maxAttempts: PROCESS_EVENT_MAX_ATTEMPTS,
       ...(opts.runAt ? { runAt: opts.runAt } : {}),
-      ...(opts.queueName ? { queueName: opts.queueName } : {}),
     },
   );
 }

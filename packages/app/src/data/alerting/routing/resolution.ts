@@ -95,6 +95,17 @@ export function alertingSelectRoutes(
   return out;
 }
 
+/** Half-open: a silence covers its start instant and not its end instant. */
+export function alertingSilenceIsActive(
+  silence: { starts_at: string; ends_at: string },
+  now: number,
+): boolean {
+  return (
+    new Date(silence.starts_at).getTime() <= now &&
+    now < new Date(silence.ends_at).getTime()
+  );
+}
+
 /** First active silence whose matchers all match `labels`. */
 export function alertingMatchingSilence<
   S extends { matchers: AlertingMatcher[]; starts_at: string; ends_at: string },
@@ -102,8 +113,7 @@ export function alertingMatchingSilence<
   return (
     silences.find(
       (s) =>
-        new Date(s.starts_at).getTime() <= now &&
-        now < new Date(s.ends_at).getTime() &&
+        alertingSilenceIsActive(s, now) &&
         alertingRouteMatches(s.matchers, labels),
     ) ?? null
   );

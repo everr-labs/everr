@@ -12,6 +12,7 @@ import { alias, QueryBuilder } from "drizzle-orm/pg-core";
 import { uuidv7 } from "@/data/alerting/history/ids";
 import { ALERT_PROJECT_LIFECYCLE_TASK } from "@/data/alerting/history/tasks";
 import type { AlertingLifecycleReason } from "@/data/alerting/vocabulary";
+import { formatResourceName } from "@/data/as-code/identity";
 import type { Transaction } from "@/db/client";
 import {
   type alertDefinitions,
@@ -46,7 +47,7 @@ export function instanceClosedJournalRow(
     repoid: def.repoid,
     previewId: def.previewId,
     sourceDefinitionId: def.id,
-    slug: `${def.project}/${def.slug}`,
+    slug: formatResourceName(def.project, def.slug),
     eventType: "instance_closed",
     kind: "state",
     episodeId: instance.episodeId,

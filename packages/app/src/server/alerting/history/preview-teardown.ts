@@ -3,6 +3,7 @@ import { uuidv7 } from "@/data/alerting/history/ids";
 import type { DbExecutor } from "@/db/client";
 import { alertDefinitions, alertInstances, previews } from "@/db/schema";
 import {
+  historyDefFromDefinitionRow,
   instanceHistoryRow,
   recordAlertHistory,
   ZERO_UUID,
@@ -53,15 +54,7 @@ export async function recordPreviewTeardownClosures(
     null,
     closures.map(({ instance, def }) =>
       instanceHistoryRow({
-        def: {
-          id: def.id,
-          organizationId: def.organizationId,
-          repoid: def.repoid,
-          slug: `${def.project}/${def.slug}`,
-          previewId: def.previewId,
-          severity: def.spec.severity,
-          ruleMuted: true,
-        },
+        def: historyDefFromDefinitionRow(def),
         eventId: uuidv7(now),
         eventType: "instance_closed",
         occurredAt: now,

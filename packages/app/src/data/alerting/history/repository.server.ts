@@ -161,13 +161,12 @@ export async function queryClickHouseAlertEventLog(
     "event_time >= {from:DateTime64(3)}",
     "event_time <= {to:DateTime64(3)}",
   ];
-  if (opts.previewIds === null) {
-    filters.push("is_live");
-  } else if (opts.previewIds.length === 0) {
-    filters.push("is_live");
-  } else {
-    filters.push("(is_live OR preview_id IN {previewIds:Array(UUID)})");
-  }
+  // No previews asked for, and an empty list, mean the same thing: live only.
+  filters.push(
+    opts.previewIds?.length
+      ? "(is_live OR preview_id IN {previewIds:Array(UUID)})"
+      : "is_live",
+  );
   if (opts.repoid !== undefined) {
     filters.push("repoid = {repoid:String}");
   }

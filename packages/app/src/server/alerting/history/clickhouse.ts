@@ -7,6 +7,7 @@ import {
 } from "@/data/alerting/history/ids";
 import type { AlertingEvaluationSample } from "@/data/alerting/types";
 import type { AlertingLifecycleReason } from "@/data/alerting/vocabulary";
+import { formatResourceName } from "@/data/as-code/identity";
 import { insertAdminRows } from "@/lib/clickhouse";
 import { exceptionAttributes, serverLogger } from "@/telemetry/logger";
 import {
@@ -72,6 +73,34 @@ export function historyDefFromJournalRow(row: {
     previewId: row.previewId,
     severity: row.severity,
     ruleMuted: row.suppressed,
+  };
+}
+
+/**
+ * The same identity, taken from the definition row rather than a journal row.
+ * Callers that still hold the rule (the evaluator, preview teardown) come
+ * through here, so the fields that identify a history row have one derivation
+ * per source and not one per writer.
+ */
+export function historyDefFromDefinitionRow(def: {
+  id: string;
+  organizationId: string;
+  repoid: string;
+  project: string;
+  slug: string;
+  previewId: string | null;
+  spec: { severity: string };
+}): AlertHistoryDefinition {
+  return {
+    id: def.id,
+    organizationId: def.organizationId,
+    repoid: def.repoid,
+    slug: formatResourceName(def.project, def.slug),
+    previewId: def.previewId,
+    severity: def.spec.severity,
+    // A preview rule never notifies. Teardown passes preview rows only, so
+    // this is the same `true` it used to hardcode.
+    ruleMuted: def.previewId !== null,
   };
 }
 
@@ -300,6 +329,39 @@ export function suppressionHistoryRow(opts: {
 }
 
 /**
+ * The terminal a notification chain gets when it ends without notifying.
+ *
+ * Every drop path owes one, and they differ only in why, so the mapping from a
+ * journal row to its terminal lives here instead of being restated wherever a
+ * chain dies. A new drop reason then names itself and nothing else, and a new
+ * field on the terminal reaches every writer at once.
+ */
+export function journalTerminalRow(
+  event: Parameters<typeof historyDefFromJournalRow>[0] & {
+    id: string;
+    instanceFingerprint: string;
+    instanceLabels: Record<string, string>;
+  },
+  opts: {
+    reason?: AlertingLifecycleReason;
+    silenced?: boolean;
+    inhibited?: boolean;
+    silenceId?: string | null;
+  } = {},
+): AlertHistoryRow {
+  return suppressionHistoryRow({
+    def: historyDefFromJournalRow(event),
+    notificationEventId: event.id,
+    fingerprint: event.instanceFingerprint,
+    labels: event.instanceLabels,
+    silenced: opts.silenced ?? false,
+    inhibited: opts.inhibited ?? false,
+    silenceId: opts.silenceId ?? null,
+    ...(opts.reason ? { reason: opts.reason } : {}),
+  });
+}
+
+/**
  * One row per delivery outcome. `delivery_targets` carries the channel name and
  * a non-secret label for what it reached, so a delivery trail is readable
  * without joining PostgreSQL.
@@ -349,15 +411,6 @@ export function deliveryHistoryRow(opts: {
   };
 }
 
-function insertAlertHistoryRowsAsync(rows: AlertHistoryRow[]): Promise<void> {
-  return insertAdminRows("app.alert_events", rows, {
-    async_insert: 1,
-    wait_for_async_insert: 1,
-    date_time_input_format: "best_effort",
-    insert_deduplication_token: alertHistoryDedupToken(rows),
-  });
-}
-
 // Anchors dedup to the batch's logical identity (which journal or hold-decision
 // rows it projects), not to matching insert bytes: the same rows in a
 // different order, or from a racing second writer, still converge.
@@ -366,13 +419,19 @@ function alertHistoryDedupToken(rows: readonly AlertHistoryRow[]): string {
   return `app.alert_events:${ids.join(",")}`;
 }
 
-// Synchronous because this path is a rare lifecycle projection rather than the
-// hot path, so the stronger write is cheap here. The token, not the insert
-// mode, is what makes a retry converge: it dedups under async_insert too,
-// which is why the live path carries the same one.
-function insertAlertHistoryRowsSync(rows: AlertHistoryRow[]): Promise<void> {
+/**
+ * `sync` waits for the write instead of batching it. The rare lifecycle
+ * projection takes it, where the stronger write is cheap; the hot path does
+ * not. The token, not the insert mode, is what makes a retry converge: it
+ * dedups under async_insert too, which is why both modes carry the same one.
+ */
+function insertAlertHistoryRows(
+  rows: AlertHistoryRow[],
+  { sync }: { sync: boolean },
+): Promise<void> {
   return insertAdminRows("app.alert_events", rows, {
-    async_insert: 0,
+    async_insert: sync ? 0 : 1,
+    ...(sync ? {} : { wait_for_async_insert: 1 }),
     date_time_input_format: "best_effort",
     insert_deduplication_token: alertHistoryDedupToken(rows),
   });
@@ -390,7 +449,7 @@ export async function recordAlertHistoryStrict(
   rows: AlertHistoryRow[],
 ): Promise<void> {
   if (rows.length === 0) return;
-  await insertAlertHistoryRowsSync(rows);
+  await insertAlertHistoryRows(rows, { sync: true });
 }
 
 export async function recordAlertHistory(
@@ -401,7 +460,7 @@ export async function recordAlertHistory(
 ): Promise<void> {
   if (rows.length === 0) return;
   try {
-    await insertAlertHistoryRowsAsync(rows);
+    await insertAlertHistoryRows(rows, { sync: false });
   } catch (error) {
     serverLogger.error("alerts.history.insert_failed", {
       ...exceptionAttributes(error),

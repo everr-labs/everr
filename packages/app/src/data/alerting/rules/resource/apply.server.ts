@@ -67,25 +67,26 @@ const EVIDENCE_COLUMN_CAP = 16;
 // omitted. Temporal types are deliberately excluded: a `toStartOfMinute(ts)
 // AS bucket` column is a String-adjacent shape but changes every evaluation,
 // so inferring it as identity would open a new episode per bucket forever.
-function isStringTypedColumn(chType: string): boolean {
+// Both predicates below classify the type inside the wrappers, so a third one
+// cannot forget to unwrap first.
+function unwrapChType(chType: string): string {
   let t = chType.trim();
   for (;;) {
     const wrapped = /^(?:Nullable|LowCardinality)\((.*)\)$/.exec(t);
-    if (!wrapped) break;
+    if (!wrapped) return t;
     t = wrapped[1];
   }
-  return /^(?:String|FixedString|Enum8|Enum16|UUID|IPv4|IPv6)(?:\(|$)/.test(t);
+}
+
+function isStringTypedColumn(chType: string): boolean {
+  return /^(?:String|FixedString|Enum8|Enum16|UUID|IPv4|IPv6)(?:\(|$)/.test(
+    unwrapChType(chType),
+  );
 }
 
 function isNumericTypedColumn(chType: string): boolean {
-  let t = chType.trim();
-  for (;;) {
-    const wrapped = /^(?:Nullable|LowCardinality)\((.*)\)$/.exec(t);
-    if (!wrapped) break;
-    t = wrapped[1];
-  }
   return /^(?:U?Int(?:8|16|32|64|128|256)|Float(?:32|64)|BFloat16|Decimal(?:32|64|128|256)?)(?:\(|$)/.test(
-    t,
+    unwrapChType(chType),
   );
 }
 

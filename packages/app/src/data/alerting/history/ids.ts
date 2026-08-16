@@ -25,6 +25,19 @@ export function uuidv7Time(id: string): Date {
   return new Date(Number.parseInt(id.replaceAll("-", "").slice(0, 12), 16));
 }
 
+/**
+ * A UUID derived from `seed` rather than from time or randomness. Version 8
+ * marks it as custom-derived, so a reader cannot mistake it for a v7 whose
+ * bytes carry a timestamp. Both deterministic ids below stamp the same way,
+ * so a change to the variant bits reaches both.
+ */
+function deterministicUuidV8(seed: string): string {
+  const bytes = createHash("sha256").update(seed).digest().subarray(0, 16);
+  bytes[6] = (bytes[6] & 0x0f) | 0x80;
+  bytes[8] = (bytes[8] & 0x3f) | 0x80;
+  return formatUuid(bytes);
+}
+
 // A chain gets exactly one terminal suppression row, so its id derives from
 // the notification event alone. Deterministic for the same reason as delivery
 // ids: the lifecycle projection runs under Graphile retry, and a retry (or a
@@ -33,13 +46,9 @@ export function uuidv7Time(id: string): Date {
 export function deterministicSuppressionEventId(
   notificationEventId: string,
 ): string {
-  const digest = createHash("sha256")
-    .update(`everr.alert_suppression_event.v1\0${notificationEventId}`)
-    .digest();
-  const bytes = digest.subarray(0, 16);
-  bytes[6] = (bytes[6] & 0x0f) | 0x80;
-  bytes[8] = (bytes[8] & 0x3f) | 0x80;
-  return formatUuid(bytes);
+  return deterministicUuidV8(
+    `everr.alert_suppression_event.v1\0${notificationEventId}`,
+  );
 }
 
 // Delivery outcome rows must not mint random ids: the reconciler re-inserts a
@@ -56,13 +65,7 @@ export function deterministicDeliveryEventId(opts: {
 }): string {
   const attempt =
     opts.outcome === "failed" ? (opts.attemptAt?.toISOString() ?? "") : "";
-  const digest = createHash("sha256")
-    .update(
-      `everr.alert_delivery_event.v1\0${opts.notificationEventId}\0${opts.dedupKey}\0${opts.outcome}\0${attempt}`,
-    )
-    .digest();
-  const bytes = digest.subarray(0, 16);
-  bytes[6] = (bytes[6] & 0x0f) | 0x80;
-  bytes[8] = (bytes[8] & 0x3f) | 0x80;
-  return formatUuid(bytes);
+  return deterministicUuidV8(
+    `everr.alert_delivery_event.v1\0${opts.notificationEventId}\0${opts.dedupKey}\0${opts.outcome}\0${attempt}`,
+  );
 }

@@ -1,4 +1,5 @@
 import * as z from "zod";
+import { formatResourceName } from "@/data/as-code/identity";
 import {
   dashboardProjectSchema,
   dashboardSlugSchema,
@@ -61,5 +62,5 @@ export function refIdentityKey(project: string, slug: string): string {
 // (parseRunbookRef's bare-slug fallback resolves against the READER's own
 // alert project, which may not be "default").
 export function formatRunbookRef(project: string, slug: string): string {
-  return `${project}/${slug}`;
+  return formatResourceName(project, slug);
 }

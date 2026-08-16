@@ -382,7 +382,11 @@ describe("the alerting pipeline's capacity bounds", () => {
       (job) => job.identifier === ALERT_EVALUATE_TASK,
     );
     expect(allJobs).toHaveLength(SCANNER_BATCH_SIZE + 1);
-  });
+    // 5001 rules inserted and two full scans: about 2.5 seconds on its own,
+    // but several times that while the rest of the suite runs beside it, so
+    // the default 5s budget fails on machine load rather than on behaviour.
+    // Same reasoning as the 501-member case above.
+  }, 60_000);
 
   it("skips a rule whose last_enqueued_at is newer than next_evaluation_at, and re-enqueues it once that stamp passes the stale cutoff", async () => {
     const now = new Date();

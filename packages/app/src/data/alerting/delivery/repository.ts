@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { and, asc, countDistinct, desc, eq, inArray } from "drizzle-orm";
 import { deliveryIsInFlight } from "@/data/alerting/delivery/config";
+import { formatResourceName } from "@/data/as-code/identity";
 import { type DbExecutor, db } from "@/db/client";
 import {
   alertChannels,
@@ -168,7 +169,7 @@ export async function deleteChannel(
     throwAlertingPersistenceError(
       409,
       "conflict",
-      `Channel is used directly by alerts: ${definitionRefs.map((r) => `${r.project}/${r.slug}`).join(", ")}`,
+      `Channel is used directly by alerts: ${definitionRefs.map((r) => formatResourceName(r.project, r.slug)).join(", ")}`,
     );
   }
   // One transaction: a flush that inserts a delivery for this channel between

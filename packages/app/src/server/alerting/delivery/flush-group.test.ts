@@ -136,8 +136,10 @@ vi.mock("./suppression", () => ({
 
 vi.mock("../history/clickhouse", () => ({
   recordAlertHistory: mocks.recordHistory,
-  historyDefFromJournalRow: (row: unknown) => row,
-  suppressionHistoryRow: (opts: unknown) => opts,
+  journalTerminalRow: (
+    event: { id: string },
+    opts: Record<string, unknown> = {},
+  ) => ({ notificationEventId: event.id, ...opts }),
 }));
 
 import { CHANNEL_TEXT_MAX } from "@/data/alerting/delivery/channel-text-limits";

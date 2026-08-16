@@ -1,5 +1,5 @@
 import { and, asc, count, eq, inArray, isNull } from "drizzle-orm";
-import { CHANNEL_TEXT_MAX } from "@/data/alerting/delivery/channel-text-limits";
+import { CHANNEL_TEXT_MIN } from "@/data/alerting/delivery/channel-text-limits";
 import { ALERT_DELIVERY_MAX_ATTEMPTS } from "@/data/alerting/delivery/config";
 import {
   ALERT_FLUSH_GROUP_TASK,
@@ -21,12 +21,9 @@ import {
   alertNotificationGroups,
   alertReceiverChannels,
 } from "@/db/schema";
+import { truncateWithEllipsis } from "@/lib/truncate";
 import { addWorkerJobInTransaction } from "@/server/worker/jobs";
-import {
-  historyDefFromJournalRow,
-  recordAlertHistory,
-  suppressionHistoryRow,
-} from "../history/clickhouse";
+import { journalTerminalRow, recordAlertHistory } from "../history/clickhouse";
 import {
   type GroupMember,
   groupNotificationPlan,
@@ -50,7 +47,7 @@ import { alertDeliveryHash } from "./targeting";
 // url eats past the margin, never the url itself. The title carries the full
 // firing/resolved counts, so cutting lines never hides how big the group is.
 const COMPOSE_FRAME_MARGIN = 200;
-const BODY_MAX_CHARS = CHANNEL_TEXT_MAX.discord - COMPOSE_FRAME_MARGIN;
+const BODY_MAX_CHARS = CHANNEL_TEXT_MIN - COMPOSE_FRAME_MARGIN;
 export const BODY_MAX_EVENTS = 20;
 const LINE_MAX_CHARS = 200;
 // Room kept back for the "…and N more" line so appending it cannot overflow.
@@ -97,10 +94,7 @@ export function formatNotification(events: NotificationEvent[]) {
       ? `: ${event.notificationDescription}`
       : "";
     const full = `${event.eventType === "instance_resolved" ? "Resolved" : "Firing"}: ${heading}${labels ? ` (${labels})` : ""}${detail}`;
-    const line =
-      full.length > LINE_MAX_CHARS
-        ? `${full.slice(0, LINE_MAX_CHARS - 1)}…`
-        : full;
+    const line = truncateWithEllipsis(full, LINE_MAX_CHARS);
     const cost = line.length + (lines.length > 0 ? 1 : 0);
     if (used + cost > BODY_MAX_CHARS - OMITTED_LINE_RESERVE) break;
     lines.push(line);
@@ -299,12 +293,13 @@ export async function flushAlertGroup(rawPayload: unknown): Promise<void> {
       .for("update")
       .limit(1);
     if (!fresh) return;
+    const dedupEventIds = notificationEvents.map((event) => event.id).sort();
     for (const { channel } of notificationEvents.length > 0 ? channels : []) {
       const dedupKey = alertDeliveryHash(
         group.id,
         channel.id,
         group.nextFlushAt.toISOString(),
-        ...notificationEvents.map((event) => event.id).sort(),
+        ...dedupEventIds,
       );
       const inserted = await tx
         .insert(alertDeliveries)
@@ -414,45 +409,17 @@ export async function flushAlertGroup(rawPayload: unknown): Promise<void> {
   ) {
     await recordAlertHistory(null, [
       ...droppedRows.map(({ row: { event }, reason }) =>
-        suppressionHistoryRow({
-          def: historyDefFromJournalRow(event),
-          notificationEventId: event.id,
-          fingerprint: event.instanceFingerprint,
-          labels: event.instanceLabels,
-          silenced: false,
-          inhibited: false,
-          silenceId: null,
-          reason,
-        }),
+        journalTerminalRow(event, { reason }),
       ),
       // A resolve whose fire never went out: nobody was ever told this
       // instance was firing, so the resolve does not notify either, but its
       // chain still needs a terminal so it does not read as forever in
       // flight.
-      ...droppedUnannounced.map((event) =>
-        suppressionHistoryRow({
-          def: historyDefFromJournalRow(event),
-          notificationEventId: event.id,
-          fingerprint: event.instanceFingerprint,
-          labels: event.instanceLabels,
-          silenced: false,
-          inhibited: false,
-          silenceId: null,
-        }),
-      ),
+      ...droppedUnannounced.map((event) => journalTerminalRow(event)),
       // A receiver or rule with no channels attached: nothing was sent, but
       // the flush still marked these flushed and advanced lastNotifiedAt.
       ...noChannelDrops.map((event) =>
-        suppressionHistoryRow({
-          def: historyDefFromJournalRow(event),
-          notificationEventId: event.id,
-          fingerprint: event.instanceFingerprint,
-          labels: event.instanceLabels,
-          silenced: false,
-          inhibited: false,
-          silenceId: null,
-          reason: "no_channels",
-        }),
+        journalTerminalRow(event, { reason: "no_channels" }),
       ),
     ]);
   }

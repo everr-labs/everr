@@ -3,6 +3,7 @@ import {
   alertingDispatchLabels,
   alertingMatchingSilence,
   alertingSelectRoutes,
+  alertingSilenceIsActive,
 } from "@/data/alerting/routing/resolution";
 import { alertingRuleIdentity } from "@/data/alerting/rules/identity";
 import type {
@@ -185,11 +186,8 @@ export function alertingTriageCounts(
     pending,
     silenced,
     unroutedFiring,
-    activeSilences: silences.filter(
-      (s) =>
-        new Date(s.starts_at).getTime() <= now &&
-        now < new Date(s.ends_at).getTime(),
-    ).length,
+    activeSilences: silences.filter((s) => alertingSilenceIsActive(s, now))
+      .length,
   };
 }
 

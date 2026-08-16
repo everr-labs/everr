@@ -103,7 +103,7 @@ function quoteArrayItem(name: string, item: unknown): string {
   if (typeof item !== "string") {
     throw new Error(`query parameter ${name} holds a non-scalar array item`);
   }
-  return `'${item.replace(/\\/g, "\\\\").replace(/'/g, "\\'")}'`;
+  return quoteSqlString(item);
 }
 
 function quoteSqlString(value: string): string {
