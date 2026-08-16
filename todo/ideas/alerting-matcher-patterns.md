@@ -16,8 +16,9 @@ preference:
   lengths, and a bounded compiled-pattern cache.
 
 Whatever lands must keep the property that removal bought: no
-user-provided pattern can exhaust CPU or memory (finding 10 in
-`../issues/alerting-surface/04-alerting-branch-review.md`).
+user-provided pattern can exhaust CPU or memory. Removing the ops retired
+that risk by construction (see
+`../issues/alerting-surface/05-what-shipped.md`).
 
 Watch for the frozen `silence_matchers_json` on ClickHouse rows: new ops
 appear in frozen history, so the skill file's description of matcher

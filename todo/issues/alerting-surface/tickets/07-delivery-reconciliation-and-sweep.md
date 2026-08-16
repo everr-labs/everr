@@ -7,8 +7,8 @@ a delivery abandoned past the retry horizon becomes a terminal failure
 with a counter.
 
 **Details:** issue 10 in `../03-alerting-surface-plan.md`; blocker 6 in
-the design doc's findings; finding 21 in
-`../04-alerting-branch-review.md` (delivery half).
+the design doc's findings. This is the delivery half of the retention
+leak whose event half is ticket 30.
 
 **Blocked by:** 06.
 

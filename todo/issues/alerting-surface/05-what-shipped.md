@@ -14,10 +14,15 @@ The gate decided on 2026-08-09 was tickets 01, 02, 03, 04, 05, 11, 12,
 13, 20, 21 and 22. All of them are below. Ticket 16 landed with them,
 because the actor it plumbs is what a silence stores.
 
-Two P1 findings from `04-alerting-branch-review.md` are deliberately
-outside the gate and still open: 18 (alerting authorization, waits for a
-real RBAC model) and 19 (SSRF-safe webhook delivery). Merging ships both
-risks knowingly.
+Two P1s are deliberately outside the gate and still open, each with its
+risk stated in its ticket: 18 (alerting authorization, waits for a real
+RBAC model) and 19 (SSRF-safe webhook delivery). Merging ships both risks
+knowingly.
+
+One more thing to carry into a deploy: `drizzle/0011_robust_cardiac.sql`
+drops the earlier alerting tables on purpose. Breaking changes and the
+loss of earlier alert configuration are accepted at this release
+stage.
 
 ## The journal reaches its final shape (01, 03)
 

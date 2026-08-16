@@ -4,7 +4,13 @@
 concurrent sends, and a failed webhook cannot buffer an unbounded
 response body.
 
-**Details:** finding 19 in `../04-alerting-branch-review.md`.
+**Evidence:** Telegram channels accept an unbounded recipient array and
+start every send at once, and a failed webhook buffers the whole response
+body before it builds an error:
+
+- `packages/app/src/data/alerting/schema.ts:115`
+- `packages/app/src/data/alerting/delivery/channel-sender.server.ts:86`
+- `packages/app/src/data/alerting/delivery/providers/slack.ts`
 
 **Blocked by:** None; can start immediately.
 

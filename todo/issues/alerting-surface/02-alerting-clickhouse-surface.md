@@ -868,8 +868,9 @@ TTL` exists, so retention stays mutable.
 
 `ORDER BY` is immutable in ClickHouse, so a sort key change requires a table
 recreation. `app.alert_events` is treated as recreatable here; destructive
-migration is accepted in
-[`04-alerting-branch-review.md`](04-alerting-branch-review.md).
+migration is accepted at this release stage, and the same acceptance
+covers the PostgreSQL side (see
+[`05-what-shipped.md`](05-what-shipped.md)).
 
 ### Volume arithmetic
 
@@ -1460,10 +1461,9 @@ only for the length of a dropped insert's repair window.
 
 ## Prerequisite
 
-The one P1 blocker that gated this surface has landed. Finding 1 in
-[`04-alerting-branch-review.md`](04-alerting-branch-review.md)
-dropped firing events during concurrent group flushing, so the record this
-surface makes queryable would have reported that nothing happened.
+The one P1 blocker that gated this surface has landed: firing events were
+dropped during concurrent group flushing, so the record this surface
+makes queryable would have reported that nothing happened.
 
 A flush now claims its memberships under the same row lock
 `processAlertEvent` takes, deletes only what it claimed, and rereads the

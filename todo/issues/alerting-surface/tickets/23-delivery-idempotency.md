@@ -8,7 +8,13 @@ crash-window double-page stays possible and is documented; the fix here
 is per-recipient fan-out state plus provider idempotency where it
 exists.
 
-**Details:** finding 12 in `../04-alerting-branch-review.md`.
+**Evidence:** a provider can accept a request before the worker marks
+the delivery sent, and the retry sends it again. A Telegram fan-out can
+also partly succeed, after which `Promise.all` rejects and every
+recipient is retried:
+
+- `packages/app/src/server/alerting/delivery/send-delivery.ts:24`
+- `packages/app/src/data/alerting/delivery/channel-sender.server.ts:133`
 
 **Blocked by:** None; can start immediately.
 

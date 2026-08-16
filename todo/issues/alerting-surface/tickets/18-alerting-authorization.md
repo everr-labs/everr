@@ -5,7 +5,13 @@ webhooks, rewrite routes, create a catch-all silence, or pause
 monitoring. Alerting administration requires a defined role, enforced on
 the server.
 
-**Details:** finding 4 in `../04-alerting-branch-review.md`.
+**Evidence:** the mutations require authentication and an active
+organization, and nothing more:
+
+- `packages/app/src/data/alerting/delivery/server.ts:36`
+- `packages/app/src/data/alerting/silences/server.ts:13`
+- `packages/app/src/data/alerting/rules/server.ts:114`
+- `packages/app/src/lib/serverFn.ts:5`
 
 **Blocked by:** A real RBAC model. Deferred out of the merge gate
 (2026-08-09): the product has no proper role-based permission system yet

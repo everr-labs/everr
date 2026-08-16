@@ -4,7 +4,11 @@
 detail or the runbook. Apply already generates the annotations and the
 senders already support a URL; the middle is missing.
 
-**Details:** finding 18 in `../04-alerting-branch-review.md`.
+**Evidence:**
+
+- `packages/app/src/data/alerting/rules/resource/mapping.ts:62`
+- `packages/app/src/server/alerting/evaluation/rule.ts:319`
+- `packages/app/src/server/alerting/delivery/flush-group.ts:29`
 
 **Blocked by:** None; can start immediately.
 

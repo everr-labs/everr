@@ -5,12 +5,15 @@ longer evades cleanup forever. The end of its processing is recorded
 with a timestamp, so retention can collect it. The delivery half of this
 leak is ticket 07.
 
-**Details:** finding 21 in `../04-alerting-branch-review.md`.
+**Evidence:**
+
+- `packages/app/src/server/alerting/maintenance/cleanup.ts:95`
+- `packages/app/src/server/alerting/delivery/process-event.ts:114`
 
 Cleanup selects events on `processed_at < cutoff`
 (`server/alerting/maintenance/cleanup.ts`), so anything left at null is
-uncollectable, whatever put it there. Finding 21 named one cause: a
-processing job that exhausts every retry. A second cause reaches the same
+uncollectable, whatever put it there. One cause is a processing job that
+exhausts every retry. A second cause reaches the same
 state and is not a failure at all, so a fix aimed only at failures misses it:
 
 - **A hold whose wake-up is lost.** `deferSuppressedEvent` sets `processed_at`
