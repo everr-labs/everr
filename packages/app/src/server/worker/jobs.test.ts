@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { StringChunk } from "drizzle-orm";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
   execute: vi.fn(),
@@ -13,14 +13,6 @@ vi.mock("@/db/client", () => ({
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.execute.mockResolvedValue({ rows: [] });
-  // Both paths default `run_at` to `new Date()`. Freeze the clock so two
-  // separate calls in one test see the same instant instead of racing a
-  // millisecond boundary.
-  vi.useFakeTimers();
-});
-
-afterEach(() => {
-  vi.useRealTimers();
 });
 
 describe("addWorkerJob", () => {
@@ -57,7 +49,7 @@ describe("addWorkerJob", () => {
       "task",
       JSON.stringify({ a: 1 }),
       null, // queue_name
-      new Date(), // run_at, the frozen now
+      null, // run_at, left for the database's now()
       25, // max_attempts
       null, // job_key
       0, // priority

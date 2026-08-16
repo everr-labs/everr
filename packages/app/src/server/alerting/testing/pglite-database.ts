@@ -8,6 +8,8 @@ import { drizzle, type PgliteDatabase } from "drizzle-orm/pglite";
 import * as schema from "@/db/schema";
 
 const GRAPHILE_WORKER_SCHEMA = "graphile_worker";
+const CLOCK_SCHEMA = "test_clock";
+const CLOCK_SETTING = "test.now";
 
 export interface TestDatabase {
   db: PgliteDatabase<typeof schema>;
@@ -31,6 +33,61 @@ function sqlFilesIn(dir: string): string[] {
     .filter((name) => name.endsWith(".sql"))
     .sort()
     .map((name) => join(dir, name));
+}
+
+/**
+ * Extend the suite's faked clock into the database, so both engines date their
+ * work on one timeline. Left alone, PGlite's real `now()` stamps every
+ * `default now()` column and, above all, `add_job`'s `coalesce(run_at, now())`
+ * months away from the instant a test pinned, and such a job never comes due.
+ *
+ * The shadow works because `now()` is a function and `pg_catalog` only wins by
+ * default while the search path does not name it. `public` stays first so
+ * unqualified DDL still creates its tables there.
+ *
+ * Call before any schema is applied: a column default binds to the function it
+ * resolved to when the table was created.
+ */
+async function installFakeClock(client: PGlite): Promise<void> {
+  await client.exec(`
+    CREATE SCHEMA ${CLOCK_SCHEMA};
+    CREATE FUNCTION ${CLOCK_SCHEMA}.now() RETURNS timestamptz
+      LANGUAGE sql STABLE AS $$
+        SELECT coalesce(
+          current_setting('${CLOCK_SETTING}', true)::timestamptz,
+          pg_catalog.now()
+        )
+      $$;
+    SET search_path = public, ${CLOCK_SCHEMA}, pg_catalog;
+  `);
+
+  // Pulled before each statement rather than pushed by setNow/advance, so a
+  // test moves both engines with one call. A transaction is stamped on the way
+  // in, and the statements inside share that instant, the way `now()` behaves
+  // for production code. The memo matters: without it every statement in the
+  // suite pays a publish, which measures at about a second.
+  const query = client.query.bind(client);
+  let published: number | undefined;
+  const publish = async () => {
+    const now = Date.now();
+    if (now === published) return;
+    published = now;
+    await query(`SELECT set_config($1, $2, false)`, [
+      CLOCK_SETTING,
+      new Date(now).toISOString(),
+    ]);
+  };
+
+  client.query = (async (...args: Parameters<typeof query>) => {
+    await publish();
+    return query(...args);
+  }) as typeof client.query;
+
+  const transaction = client.transaction.bind(client);
+  client.transaction = (async (...args: Parameters<typeof transaction>) => {
+    await publish();
+    return transaction(...args);
+  }) as typeof client.transaction;
 }
 
 // Applies graphile-worker's schema objects only, not its migration bookkeeping
@@ -106,6 +163,7 @@ function withRowCount(client: PGlite): PGlite {
 
 export async function createTestDatabase(): Promise<TestDatabase> {
   const client = withRowCount(await PGlite.create());
+  await installFakeClock(client);
   await applyGraphileWorkerSchema(client);
   await applyAppSchema(client);
   const db = drizzle(client, { schema });

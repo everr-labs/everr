@@ -34,7 +34,8 @@ export async function createAlertingHarness(): Promise<AlertingHarness> {
   // Fake Date only, not the whole timer set: PGlite boots a WebAssembly
   // runtime and awaits real timers while doing so, so a fully faked clock
   // (setTimeout, setInterval, queueMicrotask, ...) stops that boot from ever
-  // completing. Date is all setNow/advance below need.
+  // completing. Date is all setNow/advance below need, and PostgreSQL reads
+  // it too: installFakeClock shadows the database's now() with this clock.
   vi.useFakeTimers({ toFake: ["Date"] });
   const database = await createTestDatabase();
   setTestDatabase(database.db);

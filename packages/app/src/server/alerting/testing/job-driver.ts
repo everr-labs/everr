@@ -20,20 +20,19 @@ type DueJob = {
  * Why this file drives jobs itself instead of calling graphile-worker's own
  * SQL.
  *
- * Every one of graphile's statements dates its work with the database's
- * `now()`. The harness fakes `Date` in JavaScript only, so `now()` inside
- * PGlite still returns the real wall clock. A claim that asked graphile which
- * jobs are due would compare a real `now()` against `run_at` values this suite
- * wrote from a clock pinned to 2026, and would answer about a timeline no test
- * is on. Every date this file compares or writes therefore comes in as a bound
- * parameter from the faked clock.
+ * graphile's runner is out of reach: every entry point it offers (run,
+ * makeWorkerUtils, quickAddJob) runs its migrations on connect, and
+ * pglite-database.ts installs the schema objects without the bookkeeping those
+ * migrations read (see the note there). And 0.16.6 has no `fail_job` function
+ * left to call: retrying is inlined from `dist/sql/failJob.js` at runtime, and
+ * the only surviving failure function, `permanently_fail_jobs`, sets
+ * `attempts = max_attempts` with no backoff at all.
  *
- * Version note: 0.16.6 has no `fail_job` function left to call. Retrying is
- * inlined from `dist/sql/failJob.js` at runtime, and the only surviving
- * failure function, `permanently_fail_jobs`, sets `attempts = max_attempts`
- * with no backoff at all.
+ * The clock is not a reason. `installFakeClock` shadows the database's `now()`
+ * with the suite's faked `Date`, so the statements below can date their work
+ * the way graphile's own do.
  */
-async function claimNextDueJob(db: Db, now: Date): Promise<DueJob | undefined> {
+async function claimNextDueJob(db: Db): Promise<DueJob | undefined> {
   const result = await db.execute<DueJob>(sql`
     SELECT j.id::text AS id,
            t.identifier AS identifier,
@@ -42,7 +41,7 @@ async function claimNextDueJob(db: Db, now: Date): Promise<DueJob | undefined> {
            j.max_attempts AS max_attempts
     FROM graphile_worker._private_jobs j
     JOIN graphile_worker._private_tasks t ON t.id = j.task_id
-    WHERE j.run_at <= ${now}
+    WHERE j.run_at <= now()
       AND j.attempts < j.max_attempts
     ORDER BY j.priority, j.run_at, j.id
     LIMIT 1
@@ -57,13 +56,12 @@ async function claimNextDueJob(db: Db, now: Date): Promise<DueJob | undefined> {
  */
 export async function runDueJobs(
   db: Db,
-  opts: { now?: Date; limit?: number } = {},
+  opts: { limit?: number } = {},
 ): Promise<number> {
   const limit = opts.limit ?? 500;
   let ran = 0;
   for (; ran < limit; ) {
-    const now = opts.now ?? new Date();
-    const job = await claimNextDueJob(db, now);
+    const job = await claimNextDueJob(db);
     if (!job) return ran;
     ran += 1;
     const handler = alertTaskList[job.identifier];
@@ -77,19 +75,18 @@ export async function runDueJobs(
       );
     } catch (cause) {
       const message = cause instanceof Error ? cause.message : String(cause);
-      // graphile's own retry expression, copied from `dist/sql/failJob.js`
-      // with `now()` replaced by the faked clock, so a test that counts
-      // attempts over time counts the intervals production would space them
-      // by. `SET` reads the row's old values, so `attempts + 1` is the count
-      // this failure produces, which is the number graphile raises to as
-      // well: it increments on claim (`dist/sql/getJob.js`) rather than on
-      // failure, and then backs off by `least(attempts, 10)`.
+      // graphile's own retry expression, copied from `dist/sql/failJob.js`, so
+      // a test that counts attempts over time counts the intervals production
+      // would space them by. `SET` reads the row's old values, so `attempts +
+      // 1` is the count this failure produces, which is the number graphile
+      // raises to as well: it increments on claim (`dist/sql/getJob.js`)
+      // rather than on failure, and then backs off by `least(attempts, 10)`.
       // BACKOFF_EXPRESSION_TEST covers the copy against the shipped file.
       await db.execute(sql`
         UPDATE graphile_worker._private_jobs
         SET attempts = attempts + 1,
             last_error = ${message},
-            run_at = greatest(${now}::timestamptz, run_at)
+            run_at = greatest(now(), run_at)
                      + (exp(least(attempts + 1, 10)) * interval '1 second')
         WHERE id = ${job.id}::bigint
       `);

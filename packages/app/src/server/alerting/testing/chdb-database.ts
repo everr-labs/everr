@@ -67,17 +67,17 @@ function isAccessControl(statement: string): boolean {
 /**
  * The table without its TTL clause.
  *
- * TTL is the second thing a real engine evaluates against the machine clock
- * while this suite writes at a pinned virtual date, the same trap graphile's
- * `now()` sets in the job driver. Evaluation rows expire after 30 days, and
- * the cases write them at 2026-01-01, so on any machine more than a month
- * past that the engine drops them as they land and the case reads an empty
- * history. Keeping the clause would make the suite fail by calendar.
+ * TTL is evaluated against the machine clock while this suite writes at a
+ * pinned virtual date. Evaluation rows expire after 30 days, and the cases
+ * write them at 2026-01-01, so on any machine more than a month past that the
+ * engine drops them as they land and the case reads an empty history. Keeping
+ * the clause would make the suite fail by calendar.
  *
- * Retention is out of scope for this suite for exactly that reason: proving
- * it needs a harness whose clock the engine shares. Everything the TTL does
- * not touch, which is every column, type, default and the deduplication
- * window, still comes from the shipped file.
+ * Expiry is therefore out of scope here. PostgreSQL lets pglite-database.ts
+ * shadow `now()` through the search path; ClickHouse exposes no such seam, so
+ * that answer does not transfer. Everything the TTL does not touch, which is
+ * every column, type, default and the deduplication window, still comes from
+ * the shipped file.
  */
 function withoutTtl(statement: string): string {
   return statement.replace(/\nTTL [\s\S]*?(?=\nSETTINGS )/, "\n");
