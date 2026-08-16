@@ -11,7 +11,7 @@ Firing, and the history explains both.
 
 **Blocked by:** 02, 03, 11.
 
-**Status:** ready-for-agent
+**Status:** done
 
 - [x] Chain membership for pending and terminal rows is specified in the design doc before the rows are written (Episodes and chain membership, 2026-08-09: pending and closed rows carry a zero `notification_event_id` and the `episode_id`)
 - [x] Pending rows on entry to pending, and a pending-cleared terminal when the condition clears before firing, both journaled and born processed (state-machine `pending`/`pending_cleared` events; `transitionEventRows` writes them state-kind with `processed_at` set; the episode opens at pending and the fire inherits it)

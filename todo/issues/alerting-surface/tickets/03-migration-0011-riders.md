@@ -10,7 +10,7 @@ generate`).
 
 **Blocked by:** 01 (the enum needs the terminal type name).
 
-**Status:** ready-for-agent
+**Status:** done
 
 - [x] The `kind` discriminator on the journal table
 - [x] The event-type enum extended with pending, terminal and hold decision values, and `evaluation_failed` as a journaled state kind

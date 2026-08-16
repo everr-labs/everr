@@ -9,7 +9,7 @@ field is replaced, not kept beside the real actor.
 
 **Blocked by:** None; can start immediately.
 
-**Status:** ready-for-agent
+**Status:** done
 
 - [x] An actor argument threads through the session-narrowing boundary that covers every mutation path
 - [x] The actor derives from the authenticated principal (user or API key)

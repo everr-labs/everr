@@ -10,7 +10,7 @@ under the SQL API profile.
 
 **Blocked by:** 02, 04.
 
-**Status:** ready-for-agent
+**Status:** done
 
 - [x] The skill file exists with the column reference and worked queries
 - [x] The lockstep rule with the design doc's Reference is stated

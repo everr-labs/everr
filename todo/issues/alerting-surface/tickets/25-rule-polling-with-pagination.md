@@ -7,7 +7,7 @@ receiving live list updates instead of polling silently stopping.
 
 **Blocked by:** None; can start immediately.
 
-**Status:** ready-for-agent
+**Status:** done
 
 - [x] Paginated rule data refreshes without silently disabling updates
 - [x] Coverage for an organization with at least two pages

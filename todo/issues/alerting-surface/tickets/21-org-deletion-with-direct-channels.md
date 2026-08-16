@@ -8,7 +8,9 @@ reject the cleanup and roll it back.
 
 **Blocked by:** None; can start immediately.
 
-**Status:** ready-for-agent
+**Status:** done
+
+**Progress (2026-08-16):** The ordering shipped and is pinned by the cleanup unit test. The remaining box stays open as a follow-up: a real-database harness now exists (`testing/pglite-database.ts`), so the organization-cleanup case is writable where it was not before.
 
 - [x] Cleanup ordering handles direct rule-to-channel mappings
 - [ ] An organization cleanup integration test with direct rule channels

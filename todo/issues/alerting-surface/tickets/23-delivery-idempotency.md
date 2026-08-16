@@ -14,6 +14,8 @@ exists.
 
 **Status:** ready-for-agent
 
+**Progress (2026-08-16):** Delivery-row convergence is done: one send twice leaves one `delivery_succeeded` row. The three open boxes are per-recipient, and overlap ticket 29: a fan-out to several recipients has no per-recipient state, so a retry re-sends to recipients that already succeeded (recorded in `providers/telegram.ts`).
+
 **Requirement on the ClickHouse trail, decided 2026-08-11.** A delivery that
 is sent twice must still leave one `delivery_succeeded` row. The trail
 cannot lean on the engine for this: `app.alert_events` is a plain MergeTree,

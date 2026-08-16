@@ -12,7 +12,7 @@ reads "stopped because paused", not "recovered"; resume re-fires.
 **Blocked by:** 02 (the `reason` column and terminal type live in the
 recreated table), 03, 11.
 
-**Status:** ready-for-agent
+**Status:** done
 
 - [x] Pause and delete journal one terminal row per open instance, with the reason, in the mutation's own transaction (`closeRuleLifecycle`; the projection runs from a job enqueued in the same transaction)
 - [x] Pause resets its instances so resume re-pends, re-fires, re-notifies (reset to inactive with `episode_id` cleared, after the close reads the open set)

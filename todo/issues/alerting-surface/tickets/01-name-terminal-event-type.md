@@ -12,7 +12,7 @@ processed, discriminated by the existing `reason` column
 
 **Blocked by:** None; can start immediately.
 
-**Status:** ready-for-agent
+**Status:** done
 
 - [x] The name appears in the design doc's event-type table and Reference
 - [x] The event-type arithmetic in the design doc is corrected

@@ -13,9 +13,11 @@ in the design doc's findings.
 
 **Status:** ready-for-agent
 
+**Progress (2026-08-16):** The live half is in place: inserts carry a deduplication token and rows carry `write_source = 'live'`. The reconciler job itself does not exist, and the table's `non_replicated_deduplication_window` is already sized for it.
+
 - [ ] One job in a named queue; serial runs as scheduling hygiene
 - [ ] Repair inserts are idempotent: deduplication token per stream and id, deduplication window set on the table, insert mode pinned
-- [ ] The live insert path carries the same deduplication token and insert mode, so an in-doubt live write converges with its reconciled copy
+- [x] The live insert path carries the same deduplication token and insert mode, so an in-doubt live write converges with its reconciled copy (`history/clickhouse.ts` sets `insert_deduplication_token` on both insert paths)
 - [ ] Evaluation failures are journaled on the write path and diffed as their own stream; success rows stay fire and forget
 - [ ] The diff filters on `journaled_at`, evaluated on the PostgreSQL clock. It is transaction-start time, not commit time: a row becomes visible up to one transaction duration after its stamp
 - [ ] Both window bounds are tested invariants: wider than outage plus retry span plus the longest journal-writing transaction (a slow registry apply), narrower than retention

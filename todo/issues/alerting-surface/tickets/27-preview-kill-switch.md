@@ -8,10 +8,10 @@ never used.
 
 **Blocked by:** None; can start immediately.
 
-**Status:** ready-for-agent
+**Status:** done
 
 - [x] The switch is enforced before preview work is enqueued
-- [ ] Both values are tested
+- [x] Both values are tested (`evaluation/rule.test.ts`, on and off)
 
 Record check 2026-08-10: enforcement exists at the scanner and at the per-rule
 reschedule. The off value is tested; the on branch of the gate condition is not

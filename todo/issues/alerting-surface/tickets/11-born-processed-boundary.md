@@ -9,7 +9,7 @@ queries the journal for deliverable events.
 
 **Blocked by:** 03.
 
-**Status:** ready-for-agent
+**Status:** done
 
 - [x] One reader function selects only notifying events (`delivery/journal-reader.ts`, 2026-08-09)
 - [x] No other code path queries the journal for deliverable events (process-event and flush-group both read through the module)

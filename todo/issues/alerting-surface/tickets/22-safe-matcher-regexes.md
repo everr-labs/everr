@@ -15,7 +15,7 @@ of this branch.
 
 **Blocked by:** None; can start immediately. In the merge gate.
 
-**Status:** ready-for-agent
+**Status:** done
 
 - [x] `regex` and `notregex` are removed from the matcher op enum and every consumer (routing resolution, silences, inhibitions)
 - [x] Apply rejects specs that still use the removed ops, with a clear error

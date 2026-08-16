@@ -7,10 +7,10 @@ the preview's own evidence and transitions, not empty or live-scope data.
 
 **Blocked by:** None; can start immediately.
 
-**Status:** ready-for-agent
+**Status:** done
 
-- [ ] Preview identity carries through the history query
-- [ ] A test covers the same rule identity in live and preview scopes
+- [x] Preview identity carries through the history query (`previewIds` threads through `queryClickHouseAlertEventLog`)
+- [x] A test covers the same rule identity in live and preview scopes (`repository.server.test.ts` overlays selected preview ids; `pipeline-read-path.integration.test.ts` keeps a preview out of live history until its id is asked for)
 
 Record check 2026-08-10: the rule detail page carries preview scope correctly.
 The triage-board expander, the surface this ticket names, still queries with a

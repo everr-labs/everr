@@ -11,7 +11,7 @@ The table recreation in `../02-alerting-clickhouse-surface.md`.
 
 **Blocked by:** 01 (the terminal event type name is in the DDL).
 
-**Status:** ready-for-agent
+**Status:** done
 
 - [x] Composite partition key on `(month, evaluation-or-not)`; `event_date` dropped; no set index
 - [x] Column changes per The table recreation and the recreation findings, including the reserved inhibition-freeze columns

@@ -8,7 +8,7 @@ downsampling.
 
 **Blocked by:** None; can start immediately.
 
-**Status:** ready-for-agent
+**Status:** done
 
 - [x] Exceptional points and state transitions are preserved before the display budget fills with representative samples
 - [x] A test with one exceptional point between sampled indexes
