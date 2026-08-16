@@ -18,7 +18,7 @@ preference:
 Whatever lands must keep the property that removal bought: no
 user-provided pattern can exhaust CPU or memory. Removing the ops retired
 that risk by construction (see
-`../issues/alerting-surface/05-what-shipped.md`).
+`../issues/alerting-surface/03-where-the-work-stands.md`).
 
 Watch for the frozen `silence_matchers_json` on ClickHouse rows: new ops
 appear in frozen history, so the skill file's description of matcher

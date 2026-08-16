@@ -88,12 +88,11 @@ engine. The plan ships in two phases:
 1. **Shipped:** the pieces that cannot be changed later. The history
    table's final shape, the database migration while it was still
    unshipped, and the permissions that let `cloud query` reach the table
-   at all. Described in
-   [05-what-shipped.md](05-what-shipped.md).
+   at all.
 2. **Later, additive:** everything else lands incrementally: the repair
    job, the held-notification records, the live-state view, the audit
    trail. Until each lands, the surface is honest about being best-effort.
 
-What is left, grouped into arcs, lives in
-[03-alerting-surface-plan.md](03-alerting-surface-plan.md), with one
+Both halves, what shipped and what is left, are in
+[03-where-the-work-stands.md](03-where-the-work-stands.md), with one
 ticket per unit of work in [tickets/](tickets/).

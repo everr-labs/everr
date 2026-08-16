@@ -870,7 +870,7 @@ TTL` exists, so retention stays mutable.
 recreation. `app.alert_events` is treated as recreatable here; destructive
 migration is accepted at this release stage, and the same acceptance
 covers the PostgreSQL side (see
-[`05-what-shipped.md`](05-what-shipped.md)).
+[`03-where-the-work-stands.md`](03-where-the-work-stands.md)).
 
 ### Volume arithmetic
 
@@ -1071,9 +1071,8 @@ LIMIT 100
 ## The table and what is left
 
 The shape under The table recreation below is the authority for
-`app.alert_events`. What has been built against it is described in
-[`05-what-shipped.md`](05-what-shipped.md); what is left, grouped into arcs, is
-in [`03-alerting-surface-plan.md`](03-alerting-surface-plan.md).
+`app.alert_events`. What has been built against it, and what is left, are
+both in [`03-where-the-work-stands.md`](03-where-the-work-stands.md).
 
 Nine of the ten event types have writers. `notification_deferred` is the
 exception, and step 6 below is what gives it one.
@@ -1205,13 +1204,13 @@ step 1, blocker 2 is step 3, blockers 3, 4 and 6 are requirements of
 step 4, and the skill-file finding closes at step 3.
 
 An issue-level breakdown of these steps lives in
-[`03-alerting-surface-plan.md`](03-alerting-surface-plan.md).
+[`03-where-the-work-stands.md`](03-where-the-work-stands.md).
 The steps here are the design units; the issues are the review units.
 
 #### Now: shipped
 
 Steps 1, 2 and 3 are done, and step 7 landed with them. See
-[`05-what-shipped.md`](05-what-shipped.md) for what each one built and how it was
+[`03-where-the-work-stands.md`](03-where-the-work-stands.md) for what each one built and how it was
 verified. They keep their numbers here because the later steps and the
 open tickets refer to them.
 
@@ -1263,7 +1262,7 @@ to take the steps up; step 9 can run at any point.
 7. **Complete the transition stream.** Done: `instance_pending`, its
    pending-cleared terminal, and the terminals on pause, delete and
    preview deletion with the pause-time instance reset. Step 8 depended
-   on this and is now unblocked. See [`05-what-shipped.md`](05-what-shipped.md).
+   on this and is now unblocked. See [`03-where-the-work-stands.md`](03-where-the-work-stands.md).
 8. **Add `app.alert_state` as a view.** Requires step 7. Closes
    priority 1. Deferred cost: "what fires now" stays answerable only in
    the application, which reads PostgreSQL. Decide:

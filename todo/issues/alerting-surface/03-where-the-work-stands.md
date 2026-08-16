@@ -1,17 +1,25 @@
-# 05: What shipped on the alerting surface
+# 03: Where the alerting work stands
 
-This file replaces the 19 tickets for completed work, deleted on
-2026-08-16. Their numbers stay in the headings below, so a ticket number
-in git history, in a code comment, or in PR #343 still resolves to
-something.
+The design authority is
+[`02-alerting-clickhouse-surface.md`](02-alerting-clickhouse-surface.md).
+When this file and the doc disagree, fix the doc first.
 
-What is still open keeps its own ticket in `tickets/`, indexed by
-`03-alerting-surface-plan.md`.
+This file is both tenses of the same question. What is left comes first,
+because it is what anyone picking the work up needs. What shipped follows
+as reference: it replaced the 19 tickets for completed work, deleted on
+2026-08-16, and keeps their numbers in its headings so a number in git
+history, in a code comment, or in PR #343 still resolves to something.
+
+The executable tickets for what is left live in [`tickets/`](tickets/),
+one file per ticket with its blockers and its own detail. Work any ticket
+whose blockers are all done. Ticket numbers are stable: they are cited by
+code comments and by PR #343, so a number is never reused or renumbered,
+and the sequence has gaps where completed tickets were removed.
 
 ## The merge gate is met
 
 The gate decided on 2026-08-09 was tickets 01, 02, 03, 04, 05, 11, 12,
-13, 20, 21 and 22. All of them are below. Ticket 16 landed with them,
+13, 20, 21 and 22. All of them are below, and ticket 16 landed with them
 because the actor it plumbs is what a silence stores.
 
 Two P1s are deliberately outside the gate and still open, each with its
@@ -21,10 +29,70 @@ knowingly.
 
 One more thing to carry into a deploy: `drizzle/0011_robust_cardiac.sql`
 drops the earlier alerting tables on purpose. Breaking changes and the
-loss of earlier alert configuration are accepted at this release
-stage.
+loss of earlier alert configuration are accepted at this release stage.
 
-## The journal reaches its final shape (01, 03)
+## What is left
+
+Phase 1 was the one-way doors and the front door: the final table shape,
+the row builders, the migration riders, tenancy and the skill file. It is
+done. Phase 2 is additive. No ticket in it needs a migration or a table
+recreation. Until it lands, the surface is best effort rather than
+durable, and an absent row means unknown.
+
+The 28 open tickets group into six arcs. The first three are the ones
+that finish the design; the last three are hardening and the batch the
+integration suite turned up.
+
+### Arc A: durability (06, 07, 08)
+
+The reconciler that makes a dropped insert a delay instead of a permanent
+hole, the delivery diff and sweep beside it, and the counters that say
+whether the primary path is rotting. The table's
+`non_replicated_deduplication_window` is already sized for this arc, and
+the live insert path already carries its deduplication token, so the
+schema is committed to a reconciler that does not exist yet.
+
+### Arc B: the vocabulary gets its writers (09, 10, 14)
+
+`hold_changed` sits in the event-type enum and in a CHECK constraint with
+nothing writing it, and `notification_deferred` appears nowhere in the
+source. This arc gives them writers, with the silence and inhibition
+freezes, and adds `app.alert_state`. Until it lands, the schema promises
+rows that do not exist.
+
+### Arc C: attribution and observability (15, 17, 31)
+
+The engine has no spans and no counters, so no operational question about
+it has an answer. Ticket 16 already put the actor where the audit journal
+needs it, so 17 is unblocked, and 31 extends it to the remaining
+mutations.
+
+### Arc D: delivery hardening (23, 28, 29, 30)
+
+Per-recipient delivery state, the alert and runbook links reaching a
+notification, bounded recipients and error bodies, and the terminal
+failure state that retention needs. Each ticket records which half is
+already in place.
+
+### Arc E: deferred by decision (18, 19)
+
+Authorization waits for a real RBAC model. SSRF-safe webhook delivery is
+a non-blocking follow-up. Both ship as accepted risks.
+
+### Arc F: found by the integration suite (34 to 47, minus 45)
+
+Thirteen tickets filed while building and testing the pipeline, none of
+them fixed. Tickets 39 and 41 already have characterization cases that
+pin today's answer, so whoever lands the fix flips the expectation rather
+than writing the case. 46 and 47 came out of the read of the flush claim
+and the routing lookup.
+
+## What shipped
+
+Organised by theme rather than by ticket. The ticket numbers in each
+heading are the ones that built it.
+
+### The journal reaches its final shape (01, 03)
 
 The PostgreSQL journal took its final shape while migration 0011 was
 still unshipped, so the whole branch carries one migration rather than a
@@ -53,7 +121,7 @@ hand, with the snapshot round-trip verified byte-identical before
 patching, and the dev database altered to match with enum value order
 pinned.
 
-## The history table and its writers (02)
+### The history table and its writers (02)
 
 The one-way door. `app.alert_events` was recreated in its final shape,
 and the row builders landed in the same commit because they must match
@@ -99,7 +167,7 @@ plain `event_time` bound, and an `instance_fired` row carries an
 `episode_id` equal to its own `event_id` with the same id on the
 PostgreSQL instance row.
 
-## Reading the history (04, 05)
+### Reading the history (04, 05)
 
 Tenancy is the template every future alerting object copies:
 `GRANT SELECT ON app.alert_events TO sql_api_role`, a
@@ -128,7 +196,7 @@ SQL API profile.
 Design signal recorded rather than papered over: the reference does not
 fit the "roughly a page" budget. 28 columns drive it to about three.
 
-## State rows can never be delivered (11)
+### State rows can never be delivered (11)
 
 `delivery/journal-reader.ts` is the delivery pipeline's only way to read
 the journal, and both of its reads hard-code `kind = 'notifying'`, pinned
@@ -137,7 +205,7 @@ evaluator never enqueues process jobs for state rows
 (`shouldEnqueueProcessEvent`, tested against real `transitionEventRows`
 output).
 
-## The instance lifecycle is complete (12, 13)
+### The instance lifecycle is complete (12, 13)
 
 **Pending.** The state machine emits `instance_pending` on entry to the
 for-duration and `instance_closed` with `reason = 'pending_cleared'` when
@@ -173,7 +241,7 @@ Preview deletion writes its terminals as projections only:
 and projects `instance_closed` with `reason = 'preview_deleted'` for the
 previews it actually removed.
 
-## Every mutation knows who did it (16)
+### Every mutation knows who did it (16)
 
 `AlertingActor` (`user` | `apikey` | `system`, with id and display) lives
 at the session-narrowing boundary in `data/alerting/session.ts`, and
@@ -194,7 +262,7 @@ through the resource registry rather than a server function, and
 `context.actor` is on the apply context for ticket 17 to thread through.
 `testChannel` stays unattributed, because it changes no state.
 
-## Applies and cleanup (20, 21)
+### Applies and cleanup (20, 21)
 
 The alert reconciler writes through the transaction executor the resource
 registry supplies. Rule mutations nest as savepoints and run serially,
@@ -215,7 +283,7 @@ non-cascading foreign keys into `alert_channels` are cleared first. An
 organization-cleanup integration case is still open on ticket 21, and is
 writable now that a real-database harness exists.
 
-## Matchers are exact match only (22)
+### Matchers are exact match only (22)
 
 `regex` and `notregex` are gone from the shared matcher op enum, so
 route, silence and inhibition matchers are exact match only. The
@@ -228,7 +296,7 @@ their raw op name rather than "undefined". This retires review finding 10
 by construction. A follow-up for safe pattern matching lives in
 `todo/ideas/alerting-matcher-patterns.md`.
 
-## Preview scope (26, 27)
+### Preview scope (26, 27)
 
 Preview identity threads through the history query as `previewIds` on
 `queryClickHouseAlertEventLog`: `null` means live only, an empty list
@@ -237,7 +305,7 @@ history. `EVERR_PREVIEW_ALERTS=off` now gates the scanner through an
 extracted pure predicate, so preview-owned definitions are excluded from
 selection and never enqueued, tested for both values.
 
-## Charts and lists (24, 25)
+### Charts and lists (24, 25)
 
 Downsampling builds a required set first (range edges, every failed or
 breaching evaluation, every state transition including recovery) and
@@ -247,7 +315,7 @@ Rule polling no longer disables itself past the first page: the
 `refetchInterval` conditional is gone, and a background refetch of an
 infinite query walks every loaded page.
 
-## Fixes found in review and testing (32, 33, 45)
+### Fixes found in review and testing (32, 33, 45)
 
 - **32**: notification history stopped making a channel undeletable. A
   settled delivery keeps the channel name it was sent to, so only a
