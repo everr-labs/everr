@@ -180,6 +180,29 @@ describe("the alerting pipeline's instance lifecycle", () => {
     expect(harness.fetchCalls()).toHaveLength(2);
   });
 
+  it("tracks a still-breaching instance's new value without journaling a second event", async () => {
+    await insertRule(harness.db, { forSecs: 0, intervalSecs: 60 });
+    harness.clickhouse.setSignal([{ service: "checkout", value: 42 }]);
+    await harness.runDueJobs();
+
+    const [fired] = await harness.db.select().from(alertInstances);
+    expect(fired.status).toBe("firing");
+    expect(fired.value).toBe(42);
+
+    harness.clickhouse.setSignal([{ service: "checkout", value: 43 }]);
+    harness.advance(60_000);
+    await harness.runDueJobs();
+
+    const [held] = await harness.db.select().from(alertInstances);
+    expect(held.value).toBe(43);
+    // A hold is not a new breach: same episode, and the journal still holds
+    // the one fire. A second event here would page whoever the first one
+    // already reached, on every evaluation for as long as the breach lasts.
+    expect(held.status).toBe("firing");
+    expect(held.episodeId).toBe(fired.episodeId);
+    expect(await harness.db.select().from(alertEvents)).toHaveLength(1);
+  });
+
   it("a flap opens a new episode, distinct from the one it closed", async () => {
     await insertRule(harness.db, {
       forSecs: 0,
@@ -380,6 +403,34 @@ describe("the alerting pipeline's instance lifecycle", () => {
     ).toHaveLength(2);
   });
 
+  it("pausing a degraded rule hands it back healthy on resume", async () => {
+    const rule = await insertRule(harness.db, {
+      intervalSecs: 60,
+      sql: "SELECT throwIf(1, 'the rule is broken')",
+    });
+
+    await harness.runDueJobs();
+    const [degraded] = await harness.db
+      .select()
+      .from(alertDefinitions)
+      .where(eq(alertDefinitions.id, rule.id));
+    expect(degraded.healthStatus).toBe("degraded");
+    expect(degraded.consecutiveFailures).toBeGreaterThan(0);
+
+    await pauseRule({ organizationId: TEST_ORG, actor: SYSTEM_ACTOR }, rule.id);
+
+    // A stale degraded status would survive the pause and greet the resume
+    // near the retry-backoff ceiling, so a rule fixed while paused would sit
+    // out its first interval before anyone saw it evaluate again.
+    const [paused] = await harness.db
+      .select()
+      .from(alertDefinitions)
+      .where(eq(alertDefinitions.id, rule.id));
+    expect(paused.healthStatus).toBe("healthy");
+    expect(paused.consecutiveFailures).toBe(0);
+    expect(paused.degradedSince).toBeNull();
+  });
+
   it("the scanner replaces rather than duplicates a due evaluation, and evaluating advances the schedule one interval", async () => {
     const rule = await insertRule(harness.db, { intervalSecs: 60, forSecs: 0 });
     harness.clickhouse.setSignal([{ service: "checkout", value: 42 }]);
@@ -463,6 +514,85 @@ describe("the alerting pipeline's instance lifecycle", () => {
     expect(closedHistoryRow?.reason).toBe("labels_changed");
   });
 
+  it("keeps the instances when a label_columns change only reorders them", async () => {
+    const sql = "select 'checkout' as service, 'us' as region, 42 as value";
+    const rule = await insertRule(harness.db, {
+      sql,
+      labelColumns: ["service", "region"],
+      forSecs: 0,
+      intervalSecs: 60,
+    });
+    harness.clickhouse.setSignal([
+      { service: "checkout", region: "us", value: 42 },
+    ]);
+    await harness.runDueJobs();
+
+    const [firing] = await harness.db.select().from(alertInstances);
+    expect(firing.status).toBe("firing");
+
+    // The fingerprint is built from the label set, which reordering does not
+    // change. Comparing the two lists positionally would destroy every open
+    // instance of the rule for an edit that changed nothing.
+    await updateRule(
+      TEST_ORG,
+      rule.id,
+      {
+        sql,
+        interval_secs: 60,
+        for_secs: 0,
+        label_columns: ["region", "service"],
+        condition: { operator: "gt", threshold: 0 },
+        severity: "warning",
+        annotations: {},
+        resolve_after: 1,
+        notification_channels: [],
+      },
+      undefined,
+      asDbExecutor(harness.db),
+    );
+    await harness.runDueJobs();
+
+    const [survivor] = await harness.db.select().from(alertInstances);
+    expect(survivor.id).toBe(firing.id);
+    expect(survivor.status).toBe("firing");
+    expect(
+      await harness.db
+        .select()
+        .from(alertEvents)
+        .where(eq(alertEvents.eventType, "instance_closed")),
+    ).toHaveLength(0);
+  });
+
+  it("writes nothing for a second evaluation of a scheduledFor it already recorded", async () => {
+    const rule = await insertRule(harness.db, { forSecs: 0, intervalSecs: 60 });
+    harness.clickhouse.setSignal([{ service: "checkout", value: 42 }]);
+    const [definition] = await harness.db
+      .select()
+      .from(alertDefinitions)
+      .where(eq(alertDefinitions.id, rule.id));
+    const scheduledFor = new Date().toISOString();
+    const evaluation = {
+      alertDefinitionId: rule.id,
+      scheduledFor,
+      ruleVersion: definition.version,
+    };
+
+    await evaluateAlert(evaluation);
+    const [firing] = await harness.db.select().from(alertInstances);
+    expect(firing.status).toBe("firing");
+
+    // The condition clears, so a second evaluation that really ran would
+    // resolve the instance. The alert_evaluations row the first one already
+    // committed for this scheduledFor is what stops it: a redelivered job
+    // must not replay a decision the engine has taken once.
+    harness.clickhouse.setSignal([]);
+    await evaluateAlert(evaluation);
+
+    const [unchanged] = await harness.db.select().from(alertInstances);
+    expect(unchanged).toEqual(firing);
+    expect(await harness.db.select().from(alertEvents)).toHaveLength(1);
+  });
+
   it("a stale ruleVersion in the job payload is a no-op, and does not overwrite the newer state", async () => {
     const rule = await insertRule(harness.db, { forSecs: 0, intervalSecs: 60 });
     harness.clickhouse.setSignal([{ service: "checkout", value: 42 }]);
@@ -532,6 +662,43 @@ describe("the alerting pipeline's instance lifecycle", () => {
         .historyRows()
         .filter((row) => row.event_type === "instance_closed"),
     ).toHaveLength(1);
+  });
+
+  it("projects a closure for the instance and a suppression for the notification the pause canceled", async () => {
+    const rule = await insertRule(harness.db, { forSecs: 0, intervalSecs: 60 });
+    harness.clickhouse.setSignal([{ service: "checkout", value: 42 }]);
+    // The evaluation alone, rather than a drain: it journals the fire and
+    // enqueues its processing, and stopping there leaves the unprocessed
+    // notifying event a pause has to cancel. A drain would dispatch it first.
+    const [definition] = await harness.db
+      .select()
+      .from(alertDefinitions)
+      .where(eq(alertDefinitions.id, rule.id));
+    await evaluateAlert({
+      alertDefinitionId: rule.id,
+      scheduledFor: new Date().toISOString(),
+      ruleVersion: definition.version,
+    });
+    const [fire] = await harness.db
+      .select()
+      .from(alertEvents)
+      .where(eq(alertEvents.eventType, "instance_fired"));
+    expect(fire.processedAt).toBeNull();
+
+    await pauseRule({ organizationId: TEST_ORG, actor: SYSTEM_ACTOR }, rule.id);
+    await harness.runDueJobs();
+
+    const rows = harness.clickhouse.historyRows();
+    expect(
+      rows.find((row) => row.event_type === "instance_closed")?.reason,
+    ).toBe("rule_paused");
+    // The canceled notification gets its own row, naming the fire it ends, so
+    // the chain reads as withheld rather than stopping mid-sentence.
+    const suppressed = rows.find(
+      (row) => row.event_type === "notification_suppressed",
+    );
+    expect(suppressed?.reason).toBe("rule_paused");
+    expect(suppressed?.notification_event_id).toBe(fire.id);
   });
 });
 

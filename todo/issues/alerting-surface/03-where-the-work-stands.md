@@ -39,7 +39,7 @@ done. Phase 2 is additive. No ticket in it needs a migration or a table
 recreation. Until it lands, the surface is best effort rather than
 durable, and an absent row means unknown.
 
-The 28 open tickets group into six arcs. The first three are the ones
+The 27 open tickets group into six arcs. The first three are the ones
 that finish the design; the last three are hardening and the batch the
 integration suite turned up.
 
@@ -79,13 +79,13 @@ already in place.
 Authorization waits for a real RBAC model. SSRF-safe webhook delivery is
 a non-blocking follow-up. Both ship as accepted risks.
 
-### Arc F: found by the integration suite (34 to 47, minus 45)
+### Arc F: found by the integration suite (34 to 47, minus 36 and 45)
 
-Thirteen tickets filed while building and testing the pipeline, none of
-them fixed. Tickets 39 and 41 already have characterization cases that
-pin today's answer, so whoever lands the fix flips the expectation rather
-than writing the case. 46 and 47 came out of the read of the flush claim
-and the routing lookup.
+Twelve tickets filed while building and testing the pipeline, none of
+them fixed in the engine. Tickets 39 and 41 already have characterization
+cases that pin today's answer, so whoever lands the fix flips the
+expectation rather than writing the case. 46 and 47 came out of the read
+of the flush claim and the routing lookup.
 
 ## What shipped
 
@@ -326,3 +326,50 @@ infinite query walks every loaded page.
 - **45**: a channel that will never accept the message stops trying. A
   permanent failure fails on the first attempt for every channel type,
   not just two of the four.
+
+### The pipeline runs against real databases in the suite (no ticket)
+
+Landed as PR #360. The harness lives in `server/alerting/testing/`: PGlite
+holds PostgreSQL in the vitest process with both migration sets applied,
+chdb holds ClickHouse with the shipped `app.alert_events` DDL, a job
+driver dispatches `graphile_worker` rows to the real handlers in
+`alertTaskList`, and one virtual clock drives JavaScript and PostgreSQL
+together. Every constraint, CHECK, enum, foreign key, unique index,
+`FOR UPDATE` and upsert runs as written. Only outbound HTTP is a double.
+
+Eleven files cover the pipeline: smoke, lifecycle, suppression, delivery,
+capacity, routing, invariants, history, preview, retention and the read
+path. Each capacity case sits on a documented bound. Two organizations
+run the same rule slugs and receiver names to prove tenant isolation.
+The suite is what found tickets 34 to 47.
+
+What it cannot do is stated rather than papered over: PGlite is one
+connection, so true concurrency and `FOR UPDATE SKIP LOCKED` stay
+unproven, and tests drive the serialized outcome of a race instead. The
+harness sees the databases and the captured requests, so it cannot
+observe telemetry (which is why ticket 35 stays open past the capacity
+case that reaches its bound).
+
+### The stage tests stopped standing in for the database (36)
+
+The suite's own follow-up, and the last thing the deleted pipeline test
+plan still owed. Sixteen alerting test files substituted the database
+with fluent fakes. Six were only import guards around pure functions.
+The other ten were read case by case against the integration suite, and
+the outcome was recorded per file before anything was deleted: two files
+went whole (`delivery/targeting`, `silences/repository`), one lost the
+`fullTx` helper that reimplemented `INSERT ... ON CONFLICT DO UPDATE` in
+JavaScript, and 79 cases became 60.
+
+Nine integration cases were written first, so nothing was deleted without
+a home: the hold tick, a reorder-only label change, a repeated
+`scheduledFor`, the pause health reset and the pause projection; the dead
+group member with and without a delivery behind it, and the channel-less
+receiver; one delivery fanned over several transitions; a second cancel
+of one silence.
+
+What stays faked is what the harness cannot produce: a write that throws
+mid-transaction, a claim lost to a concurrent cancel, a group-creation
+race, a query that rejects. A fake that answers a query the suite can
+drive for real is what this removed. Full app suite after it: 206 files,
+1650 tests, green.

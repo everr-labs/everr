@@ -187,38 +187,3 @@ describe("sendAlertDelivery status write after a successful send", () => {
     expect(mocks.where).toHaveBeenCalledTimes(2);
   });
 });
-
-describe("sendAlertDelivery permanent send errors", () => {
-  beforeEach(() => {
-    mocks.deliveryRows = [deliveryRow];
-    mocks.liveRules = [{ eventId: "e-1" }];
-    mocks.outcome.mockReset().mockResolvedValue(undefined);
-    mocks.where.mockReset().mockResolvedValue(undefined);
-    mocks.set.mockReset().mockReturnValue({ where: mocks.where });
-    mocks.update.mockReset().mockReturnValue({ set: mocks.set });
-  });
-
-  // Resolving rather than throwing is the claim. The failure write pins
-  // attempts at the maximum whichever way the branch goes, so the written row
-  // cannot tell a wrongful rethrow from a correct return; only the settled
-  // promise can, and a rethrow here would buy a retry for a verdict that is
-  // already final.
-  it("records a permanent failure at the max attempts and does not rethrow", async () => {
-    mocks.send.mockReset().mockRejectedValue(
-      new mocks.ChannelSendError("notification webhook failed: 400", {
-        permanent: true,
-      }),
-    );
-
-    await expect(
-      sendAlertDelivery({ dedupKey: "dk-1" }),
-    ).resolves.toBeUndefined();
-
-    expect(mocks.set).toHaveBeenCalledWith(
-      expect.objectContaining({
-        status: "failed",
-        attempts: ALERT_DELIVERY_MAX_ATTEMPTS,
-      }),
-    );
-  });
-});

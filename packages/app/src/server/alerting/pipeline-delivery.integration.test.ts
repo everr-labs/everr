@@ -22,7 +22,11 @@ import {
   ALERTING_DEFAULT_GROUP_INTERVAL_SECS,
   ALERTING_DEFAULT_GROUP_WAIT_SECS,
 } from "@/data/alerting/routing/defaults";
-import { deleteRule, pauseRule } from "@/data/alerting/rules/repository";
+import {
+  deleteRule,
+  pauseRule,
+  updateRule,
+} from "@/data/alerting/rules/repository";
 import { SYSTEM_ACTOR } from "@/data/alerting/session";
 import {
   alertChannels,
@@ -559,6 +563,123 @@ describe("the alerting pipeline's delivery", () => {
           (row.instance_labels as Record<string, string>).service === "svc-a",
       );
     expect(droppedRow).toBeDefined();
+  });
+
+  // A member leaves its group when its resolve arrives, and several ordinary
+  // actions destroy that resolve before it can: a label-column change deletes
+  // the instances, a silence built from an instance's labels swallows the
+  // resolve as well as the fire, and a pause resets an instance whose
+  // condition may have cleared by the time the rule resumes. Without the
+  // flush's own liveness check the member is announced with every later
+  // notification of the group, forever. The label change is the one of the
+  // three that needs no second feature to reach.
+  async function fireThenDestroyTheInstance(harnessRule: {
+    id: string;
+  }): Promise<void> {
+    const [channel] = await harness.db
+      .select({ name: alertChannels.name })
+      .from(alertChannels);
+    await updateRule(
+      TEST_ORG,
+      harnessRule.id,
+      {
+        sql: "select 'checkout' as service, 'us' as region, 42 as value",
+        interval_secs: 60,
+        for_secs: 0,
+        label_columns: ["service", "region"],
+        condition: { operator: "gt", threshold: 0 },
+        severity: "warning",
+        annotations: {},
+        resolve_after: 1,
+        // The rule keeps its channel: clearing it would make the flush blame
+        // a missing channel instead of the dead instance.
+        notification_channels: [channel.name],
+      },
+      undefined,
+      asDbExecutor(harness.db),
+    );
+    await harness.runDueJobs();
+  }
+
+  const STALE_MEMBER_RULE = {
+    sql: "select 'checkout' as service, 'us' as region, 42 as value",
+    labelColumns: ["service"],
+    forSecs: 0,
+    intervalSecs: 60,
+    channelType: "slack" as const,
+  };
+
+  it("withholds a member whose instance died before the flush, and records why", async () => {
+    const rule = await insertDirectRule(harness.db, STALE_MEMBER_RULE);
+    harness.clickhouse.setSignal([
+      { service: "checkout", region: "us", value: 42 },
+    ]);
+    await harness.runDueJobs(); // fires and dispatches; the flush is not due yet
+    expect(
+      await harness.db.select().from(alertNotificationGroupEvents),
+    ).toHaveLength(1);
+
+    await fireThenDestroyTheInstance(rule);
+
+    harness.advance(ALERTING_DEFAULT_GROUP_WAIT_SECS * 1000);
+    await harness.runDueJobs();
+
+    expect(harness.fetchCalls()).toHaveLength(0);
+    const terminal = harness.clickhouse
+      .historyRows()
+      .find((row) => row.event_type === "notification_suppressed");
+    expect(terminal?.reason).toBe("no_longer_firing");
+  });
+
+  it("owes no terminal to a dead member whose chain already ended in a delivery", async () => {
+    const rule = await insertDirectRule(harness.db, STALE_MEMBER_RULE);
+    harness.clickhouse.setSignal([
+      { service: "checkout", region: "us", value: 42 },
+    ]);
+    await harness.fireAndFlush();
+    expect(harness.fetchCalls()).toHaveLength(1);
+    const [announced] = await harness.db
+      .select()
+      .from(alertEvents)
+      .where(eq(alertEvents.eventType, "instance_fired"));
+
+    await fireThenDestroyTheInstance(rule);
+
+    // The new label set fires an instance of its own, which is what gives the
+    // group a second flush: without one, nothing would ever look at the dead
+    // member again and this case would prove nothing.
+    harness.advance(ALERTING_DEFAULT_GROUP_INTERVAL_SECS * 1000);
+    await harness.runDueJobs();
+    expect(harness.fetchCalls()).toHaveLength(2);
+
+    const members = await harness.db
+      .select()
+      .from(alertNotificationGroupEvents);
+    expect(members.map((member) => member.eventId)).not.toContain(announced.id);
+    // Dropped, not withheld. A terminal here would claim its notification
+    // never went out, when it did.
+    expect(
+      harness.clickhouse
+        .historyRows()
+        .filter((row) => row.event_type === "notification_suppressed"),
+    ).toHaveLength(0);
+  });
+
+  it("records a terminal when the receiver behind a notifiable group has no channel", async () => {
+    await insertReceiver(harness.db, { name: "team-payments" });
+    await insertRoute(harness.db, { receiver: "team-payments" });
+    await insertRule(harness.db, { forSecs: 0 });
+    harness.clickhouse.setSignal([{ service: "checkout", value: 42 }]);
+
+    await harness.fireAndFlush();
+
+    // Nothing to send it to is not the same as nothing to say. The chain has
+    // to end somewhere, or the fire sits unexplained in the history forever.
+    expect(harness.fetchCalls()).toHaveLength(0);
+    const terminal = harness.clickhouse
+      .historyRows()
+      .find((row) => row.event_type === "notification_suppressed");
+    expect(terminal?.reason).toBe("no_channels");
   });
 
   it("each provider truncates at its own limit, and the cut is visible in the request body", async () => {

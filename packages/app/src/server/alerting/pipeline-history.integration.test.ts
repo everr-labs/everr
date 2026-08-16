@@ -287,4 +287,31 @@ describe("the alerting pipeline's ClickHouse projection", () => {
       "00000000-0000-0000-0000-000000000000",
     );
   });
+
+  it("writes one delivery row per transition the notification carried", async () => {
+    await insertDirectRule(harness.db, { forSecs: 0, channelType: "webhook" });
+    harness.clickhouse.setSignal([
+      { service: "checkout", value: 42 },
+      { service: "payments", value: 42 },
+    ]);
+
+    await harness.fireAndFlush();
+
+    // One message went out for both instances. Recording it once would leave
+    // one of the two fires with no record of ever being notified, so a
+    // per-instance history would call it undelivered.
+    const rows = harness.clickhouse.queryRows(`
+      SELECT notification_event_id, delivery_dedup_key, instance_labels
+      FROM app.alert_events
+      WHERE event_type = 'delivery_succeeded'
+    `);
+    expect(rows).toHaveLength(2);
+    expect(new Set(rows.map((row) => row.notification_event_id)).size).toBe(2);
+    expect(new Set(rows.map((row) => row.delivery_dedup_key)).size).toBe(1);
+    expect(
+      rows
+        .map((row) => (row.instance_labels as Record<string, string>).service)
+        .sort(),
+    ).toEqual(["checkout", "payments"]);
+  });
 });

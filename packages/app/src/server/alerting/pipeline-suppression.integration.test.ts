@@ -183,6 +183,23 @@ describe("the alerting pipeline's suppression", () => {
     expect(ruleA.id).not.toBe(ruleB.id);
   });
 
+  it("releases nothing on a second cancel of the same silence", async () => {
+    await insertDirectRule(harness.db, { forSecs: 0, channelType: "slack" });
+    const silence = await insertSilence(harness.db);
+    harness.clickhouse.setSignal([{ service: "checkout", value: 42 }]);
+    await harness.runDueJobs();
+
+    const scope = { organizationId: TEST_ORG, actor: SYSTEM_ACTOR };
+    expect(await expireSilence(scope, silence.id)).toEqual({ expired: true });
+    const releasedOnce = (await harness.pendingJobs()).length;
+
+    // The cancel's release is guarded on the silence still being open, so a
+    // repeated cancel (a double click, a retried job) cannot re-release a
+    // chain that has already moved on.
+    expect(await expireSilence(scope, silence.id)).toEqual({ expired: false });
+    expect(await harness.pendingJobs()).toHaveLength(releasedOnce);
+  });
+
   it("an inhibition holds the target while the source fires", async () => {
     // No channel: the source's own delivery is never asserted on, only that
     // it counts as firing for the inhibition context.

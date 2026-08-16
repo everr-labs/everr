@@ -9,8 +9,6 @@ const mocks = vi.hoisted(() => ({
   // The alert_instances rows a fresh evaluateAlertRule call reads back, as
   // if they were the previous call's persisted state.
   instanceRows: [] as Record<string, unknown>[],
-  instanceUpserts: [] as Record<string, unknown>[],
-  eventRows: [] as Record<string, unknown>[],
   query: vi.fn(),
   transaction: vi.fn(),
   definitionUpdates: [] as Record<string, unknown>[],
@@ -58,9 +56,7 @@ vi.mock("../history/clickhouse", async (importOriginal) => ({
   recordAlertHistory: mocks.history,
 }));
 
-import { ALERT_PROCESS_EVENT_TASK } from "@/data/alerting/delivery/tasks";
 import { ALERT_EVALUATE_TASK } from "@/data/alerting/scheduling/evaluation-jobs.server";
-import { alertEvaluations, alertEvents, alertInstances } from "@/db/schema";
 import {
   evaluateAlert,
   isNoopInactiveTransition,
@@ -103,94 +99,6 @@ function recordingTx() {
   };
 }
 
-/**
- * Drives the real success-path transaction: the FOR UPDATE guard, the
- * alert_evaluations dedup insert, and a table-aware insert() that applies
- * INSERT ... ON CONFLICT DO UPDATE semantics against `mocks.instanceRows`
- * (unset fields on a conflict keep the existing row's value, the same way
- * Postgres does), so a later evaluateAlert call reading previousRows sees
- * exactly what this one persisted.
- */
-function fullTx(opts?: {
-  active?: boolean;
-  version?: number;
-  applies?: boolean;
-}) {
-  return {
-    select: () => ({
-      from: () => ({
-        where: () => ({
-          for: () => ({
-            limit: () =>
-              Promise.resolve(
-                (opts?.active ?? true)
-                  ? [
-                      {
-                        active: true,
-                        version: opts?.version ?? definition.version,
-                      },
-                    ]
-                  : [],
-              ),
-          }),
-        }),
-      }),
-    }),
-    insert: (table: unknown) => {
-      if (table === alertEvaluations) {
-        return {
-          values: () => ({
-            onConflictDoNothing: () => ({
-              returning: () =>
-                Promise.resolve(
-                  (opts?.applies ?? true)
-                    ? [{ alertDefinitionId: RULE_ID }]
-                    : [],
-                ),
-            }),
-          }),
-        };
-      }
-      if (table === alertInstances) {
-        return {
-          values: (row: Record<string, unknown>) => ({
-            onConflictDoUpdate: (upsert: { set: Record<string, unknown> }) => {
-              const existing = mocks.instanceRows.find(
-                (candidate) => candidate.fingerprint === row.fingerprint,
-              );
-              mocks.instanceUpserts.push(
-                existing ? { ...existing, ...upsert.set } : row,
-              );
-              return Promise.resolve();
-            },
-          }),
-        };
-      }
-      if (table === alertEvents) {
-        return {
-          values: (rows: Record<string, unknown>[]) => {
-            mocks.eventRows.push(...rows);
-            return Promise.resolve();
-          },
-        };
-      }
-      throw new Error("fullTx: unexpected insert table");
-    },
-    update: () => ({
-      set: (values: Record<string, unknown>) => {
-        mocks.definitionUpdates.push(values);
-        return { where: () => Promise.resolve() };
-      },
-    }),
-  };
-}
-
-/** Feeds the previous call's persisted instance rows into the next call. */
-function persistInstances() {
-  mocks.instanceRows = mocks.instanceUpserts;
-  mocks.instanceUpserts = [];
-}
-
 const RULE_ID = "6f1c9d20-3b7a-4c11-9f2e-8a5d4c3b2a10";
 
 const definition = {
@@ -228,8 +136,6 @@ describe("evaluateAlert scheduling state", () => {
     mocks.definition = definition;
     mocks.freshDefinition = undefined;
     mocks.instanceRows = [];
-    mocks.instanceUpserts = [];
-    mocks.eventRows = [];
     mocks.definitionUpdates = [];
     mocks.scheduledJobs = [];
     mocks.query.mockReset();
@@ -666,159 +572,5 @@ describe("isNoopInactiveTransition", () => {
         event: null,
       }),
     ).toBe(false);
-  });
-});
-
-describe("evaluateAlert full evaluation lifecycle", () => {
-  const scheduledAt = (minute: number) => ({
-    ...payload,
-    scheduledFor: `2026-08-06T10:0${minute}:00.000Z`,
-  });
-
-  beforeEach(() => {
-    mocks.definition = definition;
-    mocks.instanceRows = [];
-    mocks.instanceUpserts = [];
-    mocks.eventRows = [];
-    mocks.definitionUpdates = [];
-    mocks.scheduledJobs = [];
-    mocks.query.mockReset();
-    mocks.transaction.mockReset();
-    mocks.history.mockReset().mockResolvedValue(undefined);
-    mocks.previewAlerts = "on";
-  });
-
-  it("drives an instance through fire, hold, and resolve across three evaluations", async () => {
-    // Fire: the first breaching evaluation, from no prior instance.
-    mocks.query.mockResolvedValueOnce({
-      rows: [{ service: "api", value: 5 }],
-    });
-    mocks.transaction.mockImplementationOnce(
-      (cb: (tx: unknown) => Promise<unknown>) => cb(fullTx()),
-    );
-    await evaluateAlert(scheduledAt(0));
-
-    expect(mocks.eventRows).toHaveLength(1);
-    expect(mocks.eventRows[0]).toMatchObject({
-      eventType: "instance_fired",
-      kind: "notifying",
-    });
-    const firedEventId = mocks.eventRows[0].id as string;
-    expect(mocks.scheduledJobs).toContainEqual(
-      expect.objectContaining({
-        task: ALERT_PROCESS_EVENT_TASK,
-        payload: { eventId: firedEventId },
-      }),
-    );
-    expect(mocks.instanceUpserts).toHaveLength(1);
-    expect(mocks.instanceUpserts[0]).toMatchObject({
-      status: "firing",
-      value: 5,
-      episodeId: firedEventId,
-    });
-    expect(mocks.definitionUpdates).toContainEqual(
-      expect.objectContaining({
-        currentState: "firing",
-        firingInstanceCount: 1,
-      }),
-    );
-
-    persistInstances();
-    mocks.eventRows = [];
-    mocks.scheduledJobs = [];
-    mocks.definitionUpdates = [];
-
-    // Hold: still breaching, so no new event, but the instance row keeps
-    // tracking the latest value on the episode fire already opened.
-    mocks.query.mockResolvedValueOnce({
-      rows: [{ service: "api", value: 7 }],
-    });
-    mocks.transaction.mockImplementationOnce(
-      (cb: (tx: unknown) => Promise<unknown>) => cb(fullTx()),
-    );
-    await evaluateAlert(scheduledAt(1));
-
-    expect(mocks.eventRows).toHaveLength(0);
-    expect(mocks.instanceUpserts).toHaveLength(1);
-    expect(mocks.instanceUpserts[0]).toMatchObject({
-      status: "firing",
-      value: 7,
-      episodeId: firedEventId,
-    });
-    expect(
-      mocks.scheduledJobs.some((job) => job.task === ALERT_PROCESS_EVENT_TASK),
-    ).toBe(false);
-
-    persistInstances();
-    mocks.eventRows = [];
-    mocks.scheduledJobs = [];
-    mocks.definitionUpdates = [];
-
-    // Resolve: the row drops out of the query result entirely.
-    mocks.query.mockResolvedValueOnce({ rows: [] });
-    mocks.transaction.mockImplementationOnce(
-      (cb: (tx: unknown) => Promise<unknown>) => cb(fullTx()),
-    );
-    await evaluateAlert(scheduledAt(2));
-
-    expect(mocks.eventRows).toHaveLength(1);
-    expect(mocks.eventRows[0]).toMatchObject({
-      eventType: "instance_resolved",
-      kind: "notifying",
-    });
-    expect(mocks.instanceUpserts[0]).toMatchObject({
-      status: "inactive",
-      episodeId: null,
-    });
-    expect(mocks.definitionUpdates).toContainEqual(
-      expect.objectContaining({
-        currentState: "resolved",
-        firingInstanceCount: 0,
-      }),
-    );
-  });
-
-  // The applied === false guard: a duplicate scheduledFor (already recorded)
-  // must not write a second copy of anything.
-  it("suppresses a stale evaluation instead of writing anything", async () => {
-    mocks.query.mockResolvedValueOnce({
-      rows: [{ service: "api", value: 5 }],
-    });
-    mocks.transaction.mockImplementationOnce(
-      (cb: (tx: unknown) => Promise<unknown>) => cb(fullTx({ applies: false })),
-    );
-
-    await evaluateAlert(payload);
-
-    expect(mocks.instanceUpserts).toEqual([]);
-    expect(mocks.eventRows).toEqual([]);
-    expect(mocks.history).not.toHaveBeenCalled();
-  });
-
-  it("does not enqueue a process job for a state-kind pending transition", async () => {
-    mocks.definition = {
-      ...definition,
-      spec: { ...definition.spec, for_secs: 300 },
-    };
-    mocks.query.mockResolvedValueOnce({
-      rows: [{ service: "api", value: 5 }],
-    });
-    mocks.transaction.mockImplementationOnce(
-      (cb: (tx: unknown) => Promise<unknown>) => cb(fullTx()),
-    );
-
-    await evaluateAlert(payload);
-
-    expect(mocks.eventRows).toHaveLength(1);
-    expect(mocks.eventRows[0]).toMatchObject({
-      eventType: "instance_pending",
-      kind: "state",
-    });
-    expect(
-      mocks.scheduledJobs.some((job) => job.task === ALERT_PROCESS_EVENT_TASK),
-    ).toBe(false);
-    expect(
-      mocks.scheduledJobs.some((job) => job.task === ALERT_EVALUATE_TASK),
-    ).toBe(true);
   });
 });

@@ -63,11 +63,7 @@ vi.mock("../history/clickhouse", () => ({
 }));
 
 import type { alertEvents } from "@/db/schema";
-import {
-  deferSuppressedEvent,
-  isInhibited,
-  matchInhibition,
-} from "./suppression";
+import { deferSuppressedEvent, matchInhibition } from "./suppression";
 
 beforeEach(() => {
   mocks.wheres = [];
@@ -76,21 +72,6 @@ beforeEach(() => {
   mocks.stampWheres = [];
   mocks.enqueued = [];
   mocks.history = [];
-});
-
-it("resolves false with no inhibition rules configured", async () => {
-  const event = {
-    eventType: "instance_fired",
-    organizationId: "org-1",
-    previewId: "prev-1",
-    sourceDefinitionId: "def-1",
-    severity: "critical",
-    instanceLabels: {},
-  } as unknown as typeof alertEvents.$inferSelect;
-  // loadInhibitionContext's two queries: inhibitions, then firing sources.
-  mocks.selectRows = [[], []];
-
-  await expect(isInhibited(event)).resolves.toBe(false);
 });
 
 // The context is loaded once per flush and evaluated in memory for every

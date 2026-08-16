@@ -93,47 +93,6 @@ describe("deliveryTargets", () => {
 });
 
 describe("recordDeliveryOutcome", () => {
-  it("writes one trail row per alert event the delivery carried", async () => {
-    mocks.linkedRows = [
-      linkedEvent,
-      {
-        event: {
-          ...linkedEvent.event,
-          id: "019c3abf-0000-7000-8000-000000000002",
-          instanceFingerprint: "fp-2",
-        },
-      },
-    ];
-
-    await recordDeliveryOutcome(outcome);
-
-    const [definitionId, rows] = mocks.recordAlertHistory.mock.calls[0];
-    expect(definitionId).toBe("019c3ab6-54d6-7e26-bc76-8cadd67542fb");
-    expect(rows).toHaveLength(2);
-    expect(rows[0]).toMatchObject({
-      event_type: "delivery_succeeded",
-      notification_event_id: "019c3aba-29f8-7d6e-9e55-301cf47fa80d",
-      delivery_targets: { slack: ["on-call"] },
-    });
-    expect(rows[1]).toMatchObject({
-      notification_event_id: "019c3abf-0000-7000-8000-000000000002",
-      instance_fingerprint: "fp-2",
-    });
-  });
-
-  it("marks the trail as failed when the send reported an error", async () => {
-    await recordDeliveryOutcome({
-      ...outcome,
-      outcome: "failed",
-      error: "429",
-    });
-
-    expect(mocks.recordAlertHistory.mock.calls[0][1][0]).toMatchObject({
-      event_type: "delivery_failed",
-      error: "429",
-    });
-  });
-
   it("writes nothing when the delivery has no linked events", async () => {
     mocks.linkedRows = [];
 
