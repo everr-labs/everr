@@ -33,28 +33,7 @@ Global evaluation concurrency and tenant fairness remain planned work in
 
 **Resolved** by ticket 13. See [`05-what-shipped.md`](05-what-shipped.md).
 
-Files:
-
-- `packages/app/src/data/alerting/rules/repository.ts:519`
-- `packages/app/src/server/alerting/delivery/suppression.ts:50`
-- `packages/app/src/server/alerting/delivery/flush-group.ts:99`
-
-Pausing changes the definition flag but leaves firing instances, pending group
-flushes, and repeat notifications active. Existing notification groups can
-continue sending after an operator pauses the rule.
-
-Issue 16 in [`03-alerting-surface-plan.md`](03-alerting-surface-plan.md)
-closes the history side of pause (terminal rows and the instance reset).
-This finding is the delivery side; both land together as ticket 13. The
-pending-notification decision is made (2026-08-09): cancel everything;
-see the design doc and ticket 13.
-
-Required outcome:
-
-- Make delivery checks account for the active or paused state of the rule.
-- Stop repeat delivery for paused rules.
-- Define and test whether pending notifications are canceled or retained when
-  the rule is paused.
+Pausing changed the definition flag but left firing instances, pending group flushes and repeat notifications active.
 
 ### 4. Any organization member can reconfigure or suppress alerting
 
@@ -106,91 +85,25 @@ Required outcome:
 
 **Resolved** by ticket 20. See [`05-what-shipped.md`](05-what-shipped.md).
 
-Files:
-
-- `packages/app/src/data/as-code/registry.ts:221`
-- `packages/app/src/data/alerting/rules/resource/apply.server.ts:184`
-
-The alert reconciler ignores the transaction executor supplied by the
-resource registry. If a later reconciler fails, apply reports failure even
-though earlier alerting mutations already committed.
-
-Required outcome:
-
-- Pass the supplied executor through every alert repository mutation,
-  or explicitly replace the transaction contract with a durable convergence
-  protocol.
-- Add an integration test where a later resource kind fails after alerting
-  mutations begin.
+The alert reconciler ignored the transaction executor, so a failed apply left alerting configuration partly changed.
 
 ### 9. Organization deletion fails when a rule uses a direct channel
 
 **Resolved** by ticket 21. See [`05-what-shipped.md`](05-what-shipped.md). One integration case stays open on that ticket.
 
-Files:
-
-- `packages/app/src/lib/organization-data-cleanup.server.ts:43`
-- `packages/app/src/db/schema/alerts.ts:349`
-
-Cleanup deletes channels before definitions, while the direct rule-to-channel
-foreign key does not cascade when a channel is deleted. PostgreSQL rejects the
-delete and rolls back the organization cleanup.
-
-Required outcome:
-
-- Delete direct channel mappings first, or delete alert definitions before
-  channels.
-- Add an organization cleanup integration test with direct rule channels.
+A rule mapped directly to a channel made PostgreSQL reject the organization cleanup on foreign key ordering.
 
 ### 10. Routing regexes permit CPU and memory denial of service
 
 **Retired by construction** in ticket 22: the regex ops are removed, so no user pattern reaches `RegExp`. See [`05-what-shipped.md`](05-what-shipped.md).
 
-Files:
-
-- `packages/app/src/data/alerting/routing/resolution.ts:24`
-- `packages/app/src/data/alerting/schema.ts:34`
-
-User-provided patterns run through native JavaScript `RegExp`, which permits
-catastrophic backtracking. The process-wide regex cache is unbounded despite
-its comment saying that configuration bounds it.
-
-Resolved by decision on 2026-08-09: regex matching is removed instead of
-hardened. Matchers become exact match only; ticket 22 carries the removal,
-and safe pattern matching is a follow-up idea in
-`../../ideas/alerting-matcher-patterns.md`.
-
-Original required outcome, superseded by the removal:
-
-- Use a linear-time regex engine such as RE2.
-- Limit matcher counts, pattern lengths, and matched value lengths.
-- Replace the global map with a bounded cache.
+User-supplied route, silence and inhibition regexes reached `RegExp` through an unbounded process-wide cache.
 
 ### 11. Pending rules are reported as OK
 
 **Resolved** by ticket 12. See [`05-what-shipped.md`](05-what-shipped.md).
 
-Files:
-
-- `packages/app/src/server/alerting/evaluation/rule.ts:288`
-- `packages/app/src/data/alerting/rules/repository.ts:60`
-- `packages/app/src/routes/_authenticated/_dashboard/_previewable/alerts/rules_.$project.$slug.tsx:63`
-
-Definition state stores only firing or resolved. The repository maps everything
-except firing to inactive, so the detail page's Pending state is unreachable
-even when instances are breaching during `for_secs`.
-
-This is the UI side of the `instance_pending` gap. Build it with issue 15 in
-[`03-alerting-surface-plan.md`](03-alerting-surface-plan.md); both land
-together as ticket 12.
-
-Required outcome:
-
-- Derive or persist a pending definition state.
-- Keep rule lists, detail pages, triage, and API vocabulary consistent.
-- Cover inactive, pending, firing, and resolved rollups.
-
-## P2: important follow-ups
+A rule inside its for-duration reported as OK, because no pending state existed to report.
 
 ### 12. Delivery retries can send duplicate notifications
 
@@ -202,7 +115,7 @@ Files:
 - `packages/app/src/data/alerting/delivery/channel-sender.server.ts:133`
 
 A provider can accept a request before the worker fails to mark the delivery as
-sent. The retry sends it again. Email and Telegram fan-out can also partially
+sent. The retry sends it again. Telegram fan-out can also partially
 succeed, after which `Promise.all` rejects and retries every recipient.
 
 Required outcome:
@@ -216,62 +129,25 @@ Required outcome:
 
 **Resolved** by ticket 24. See [`05-what-shipped.md`](05-what-shipped.md).
 
-File: `packages/app/src/data/alerting/rules/evaluation-series.ts:37`
-
-Even index selection preserves range edges but does not preserve failed,
-breaching, or state-transition evaluations. A chart can omit the only important
-point in the selected range.
-
-Required outcome:
-
-- Preserve exceptional points and state transitions before filling the
-  remaining display budget with representative samples.
-- Add a test with one exceptional point between sampled indexes.
+Even-index downsampling could drop the only breaching or failed evaluation in a range.
 
 ### 15. Rule polling stops after the second page is loaded
 
 **Resolved** by ticket 25. See [`05-what-shipped.md`](05-what-shipped.md).
 
-File: `packages/app/src/data/alerting/rules/queries.ts:35`
-
-The infinite query disables polling when it contains more than one page.
-Organizations with more than 100 rules stop receiving live list updates.
-
-Required outcome:
-
-- Refresh paginated rule data without silently disabling updates.
-- Cover an organization with at least two pages.
+The `refetchInterval` conditional disabled polling once a second page was loaded.
 
 ### 16. Expanded preview alerts request live history
 
 **Resolved** by ticket 26. See [`05-what-shipped.md`](05-what-shipped.md).
 
-File: `packages/app/src/routes/_authenticated/_dashboard/_previewable/alerts/-components/triage/instance-detail.tsx:28`
-
-The expanded triage detail does not pass preview identity to its history query.
-Preview alerts can show empty or misleading evidence and transitions.
-
-Required outcome:
-
-- Carry preview identity through the history query.
-- Test the same rule identity in live and preview scopes.
+Expanded preview alerts queried live-scope history, so the detail was empty or wrong.
 
 ### 17. `EVERR_PREVIEW_ALERTS=off` has no effect
 
 **Resolved** by ticket 27. See [`05-what-shipped.md`](05-what-shipped.md).
 
-Files:
-
-- `packages/app/src/env/index.ts:27`
-- `packages/app/src/server/alerting/scheduling/scanner.ts:23`
-
-The environment variable is parsed but never used by scheduling or evaluation.
-The documented operational kill switch cannot reduce preview evaluation load.
-
-Required outcome:
-
-- Enforce the switch before preview work is enqueued.
-- Test both values.
+The preview kill switch was parsed and never read, so `off` changed nothing.
 
 ### 18. Generated runbook and alert links do not reach notifications
 
@@ -303,7 +179,7 @@ Files:
 - `packages/app/src/data/alerting/delivery/channel-sender.server.ts:86`
 - `packages/app/src/data/alerting/delivery/providers/slack.ts`
 
-Email and Telegram channels accept unbounded recipient arrays and start every
+Telegram channels accept unbounded recipient arrays and start every
 send concurrently. Failed webhooks buffer the complete response body before
 building an error.
 
@@ -317,19 +193,7 @@ Required outcome:
 
 **Resolved** by ticket 16. See [`05-what-shipped.md`](05-what-shipped.md).
 
-Files:
-
-- `packages/app/src/data/alerting/schema.ts:184`
-- `packages/app/src/data/alerting/silences/server.ts:13`
-- `packages/app/src/data/alerting/silences/repository.ts:40`
-
-The caller can submit any author string, so the alert-suppression audit trail is
-spoofable.
-
-Absorbed by issue 19 in
-[`03-alerting-surface-plan.md`](03-alerting-surface-plan.md): the actor
-plumbing must replace this column, not sit beside it. Tracked there, as
-ticket 16.
+The silence author came from the client, so the suppression trail could be spoofed.
 
 ### 21. Permanently failed event jobs evade retention
 

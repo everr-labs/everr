@@ -1,6 +1,6 @@
 # 29: Bounded recipients and error bodies
 
-**What to build:** Email and Telegram fan-out cannot start unbounded
+**What to build:** Telegram fan-out cannot start unbounded
 concurrent sends, and a failed webhook cannot buffer an unbounded
 response body.
 

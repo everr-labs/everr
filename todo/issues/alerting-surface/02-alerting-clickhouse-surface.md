@@ -515,8 +515,9 @@ follow. See Rejected alternatives.
 Delivery itself is at-least-once, documented rather than closed (decided
 2026-08-09): a crash between provider acceptance and the status update
 pages twice while the trail shows one delivery. The trail counts recorded
-outcomes, not provider calls. Per-recipient fan-out state for email and
-Telegram keeps a partial success from re-sending succeeded recipients;
+outcomes, not provider calls. Per-recipient fan-out state for Telegram,
+the one channel that fans out, keeps a partial success from re-sending
+succeeded recipients;
 provider idempotency is used where it exists.
 
 Audit sits outside this table entirely. The audit row commits with the
@@ -710,7 +711,7 @@ Best-effort covers losing rows, not writing wrong ones.
 
 Settled for delivery targets: `deliveryTargets` in
 `server/alerting/delivery/history.ts` records the channel name, not its
-address; email rows record no recipient count and no address. Settled for
+address, and no row records a recipient count or an address. Settled for
 the rendered notification body (2026-08-09): it never lands in ClickHouse.
 It stays in PostgreSQL (`alert_deliveries.notification`), where erasure is
 a `DELETE`; the agent-facing content travels as `context_json` instead.
@@ -1066,73 +1067,20 @@ ORDER BY fired_at DESC
 LIMIT 100
 ```
 
-## The gap
+## The table and what is left
 
-### What exists
+The shape under The table recreation below is the authority for
+`app.alert_events`. What has been built against it is described in
+[`05-what-shipped.md`](05-what-shipped.md); what is left, grouped into arcs, is
+in [`03-alerting-surface-plan.md`](03-alerting-surface-plan.md).
 
-The recreated table in the shape The table recreation below describes:
-the composite partition key, the immutable sort key with bloom skip
-indexes, `instance_labels` as a Map, `is_live` through `DEFAULT`,
-`write_source`, `service_name`, `rule_muted`, `reason`,
-`delivery_dedup_key`, `episode_id`, `context_json`, the frozen silence
-and inhibition columns, the split TTL, the deduplication window, and the
-codecs. Nine of the ten event types have writers: all but
-`notification_deferred`.
-
-The row builders mint UUIDv7 (`data/alerting/history/ids.ts`), matching the
-`generateUUIDv7()` column default, so `UUIDv7ToDateTime(event_id)`
-recovers the creation time on every non-delivery row. Delivery rows carry
-the deterministic id derived from the journal event and
-`delivery_dedup_key`. Transition rows freeze `context_json` at write time
-and resolve `service_name` from the instance labels with the
-`everr.service` annotation as fallback. Delivery errors pass the
-sanitizer in `history/content.ts` before they are written. The insert
-path sets `materialized_views_ignore_errors`, so a projection failure
-cannot take the typed row down with it. The narrowed projection is live:
-`instance_fired` and `instance_resolved`, live write source only,
-readable `Body`, `ServiceName` from `service_name`,
-`everr.signal = 'alert'`. Existing deployments recreate through
-`clickhouse/migrate-alert-events-final-shape.sql`, which drops and
-recreates the table and its projection; pre-recreation history is lost,
-accepted for this release stage.
-
-Silences expire rather than delete, so `silence_id` resolves for as long as
-the cleanup retention holds.
-
-`ALERT_TRANSITION_EVENT_TYPES` and `ALERT_OUTCOME_EVENT_TYPES` in
-`data/alerting/history/event-types.ts` separate what the history UI lists
-from what is folded into it. The history read in
-`data/alerting/history/repository.server.ts` answers from ClickHouse alone,
-and its test mocks no database, so a reintroduced cross-store join fails the
-test instead of passing silently.
-
-### What is missing
-
-The journal promotion writers (born-processed events, hold decision rows;
-the schema riders landed with migration 0011), reconciliation,
-`app.alert_state`, `instance_pending` with its pending-cleared terminal
-row, terminal rows on pause and delete with the pause-time instance
-reset, `notification_deferred` with the frozen silence comment and
-matchers, the inhibition-source freeze (the columns exist, step 6 writes
-them), episode stamping for pending and closed rows (fired and resolved
-rows carry it: the fired event opens its own episode until a pending phase
-exists), the audit journal (PostgreSQL only), and engine spans.
-
-PostgreSQL `alert_events` already stores every notifying transition with the
-same id ClickHouse uses. The journal promotion narrows the meaning of an
-existing table; it does not add one.
-
-Two consequences while the gap is open. Transition and delivery rows are
-written fire-and-forget, so an absent row means unknown, not "it did not
-fire" or "not delivered"; the deduplication window and the deterministic
-delivery ids are groundwork for the reconciler that closes this, but the
-reconciler does not exist yet. And a notification held by a silence and
-then delivered leaves no trace of the hold.
+Nine of the ten event types have writers. `notification_deferred` is the
+exception, and step 6 below is what gives it one.
 
 ### The table recreation
 
-Most of the gap is additive: event types, views, spans and the reconciler can
-land incrementally. What follows cannot. It changes the shape of a table
+Most of what is left is additive: event types, views, spans and the
+reconciler can land incrementally. This could not. It changes the shape of a table
 whose `ORDER BY` is immutable, or a column type whose change is a rewrite.
 `app.alert_events` is recreatable only while it holds no history anyone would
 miss, which stops being true the first time this runs in production. It all
@@ -1259,53 +1207,30 @@ An issue-level breakdown of these steps lives in
 [`03-alerting-surface-plan.md`](03-alerting-surface-plan.md).
 The steps here are the design units; the issues are the review units.
 
-#### Now
+#### Now: shipped
 
-1. **The table recreation.** Everything under The table recreation above,
-   in one commit, folding in the recreation-time findings: the composite
-   partition key from blocker 1, which retires the set index and the
-   accepted TTL-merge cost; `severity` as `LowCardinality(String)`;
-   `row_count` as `UInt64`; `is_live` through `DEFAULT`, not
-   `MATERIALIZED`; `tenant_id` as `LowCardinality(String)`; `silence_id`
-   as `UUID`; `LowCardinality(String)` keys on `instance_labels`; the
-   codecs; and `evidence_truncated` and `samples_truncated` as real
-   columns. Add empty columns that freeze the inhibiting source next to
-   `inhibited`, mirroring `silence_comment` and `silence_matchers_json`:
-   without them, `inhibited = true` is the id-only dead end the silence
-   freeze exists to prevent. Step 6 writes them; columns are free at
-   recreation time and expensive after. The legacy `app.alert_events_logs_mv`
-   is dropped with the recreation: alert history is read from the typed
-   table, not from `app.logs`. Blocker 5 resolves here: the terminal event
-   type gets its name before the DDL exists, because the `reason` values
-   and the event-type set depend on it. First, because every later step
-   lands on this shape.
+Steps 1, 2 and 3 are done, and step 7 landed with them. See
+[`05-what-shipped.md`](05-what-shipped.md) for what each one built and how it was
+verified. They keep their numbers here because the later steps and the
+open tickets refer to them.
+
+1. **The table recreation.** The shape above, in one commit with the row
+   builders, folding in the recreation-time findings.
 2. **The migration 0011 riders.** The `kind` discriminator, the new
-   `alert_event_type` enum values, the episode id column on the journal
-   tables, and the UUIDv7 column default, per The transition journal and
-   Episodes and chain membership. Postgres 18 has native `uuidv7()`, but Drizzle's
-   `defaultRandom()` emits v4, so the column default is a custom
-   expression. Only the schema must land now, while 0011 is unshipped:
-   once v4 ids ship, the derived-time-bound query pattern in Reference
-   stops holding for old rows. The code half is additive and follows the
-   steps that consume it: the hold decision rows with step 6, the
-   born-processed path with step 7. Rows that never touch the journal get
-   their v7 ids from the builder change in step 1.
+   `alert_event_type` values, the episode id column and the native
+   `uuidv7()` default, landed while 0011 was still unshipped.
 3. **The tenancy template and the skill file.** The grant, the
-   default-deny policy, the per-organization row policy and the
-   provisioning code that let `sql_api_role` reach `app.alert_events`
-   (blocker 2), plus the skill file built from the Reference and kept in
-   lockstep with it. Without the grants, the one intended caller gets a
-   permission error. Without the skill file, the one-shot caller never
-   learns the schema. This step makes the surface exist.
+   default-deny and per-organization row policies, the provisioning code,
+   and the skill file built from the Reference and kept in lockstep with
+   it. This step made the surface exist.
 
-The reference hygiene fixes are already applied in this document: the
-entry worked queries return `notification_event_id`, every worked query
-carries a `LIMIT` that survives the `/sql` profile, the worked-query
-findings are folded in (the single-scan undelivered form, the
-aggregate-then-join template, `GROUP BY repoid, slug`, the retired
-id-order tie-break claim), and the no-personal-data claim in Constraints
-is conditioned on the open labels-redaction question. Step 3 verifies the
-queries against a live stack and builds the skill file from them.
+The reference hygiene fixes are applied in this document: the entry
+worked queries return `notification_event_id`, every worked query carries
+a `LIMIT` that survives the `/sql` profile, the worked-query findings are
+folded in (the single-scan undelivered form, the aggregate-then-join
+template, `GROUP BY repoid, slug`, the retired id-order tie-break claim),
+and the no-personal-data claim in Constraints is conditioned on the open
+labels-redaction question.
 
 #### Later, additive
 
@@ -1334,15 +1259,10 @@ to take the steps up; step 9 can run at any point.
    from step 2's code half. Deferred cost: a hold that ends in delivery
    is invisible on the surface; the chain shows a fire and a late
    delivery with nothing explaining the gap.
-7. **Complete the transition stream.** `instance_pending`, its
-   pending-cleared terminal row, and terminal rows on pause, delete and
-   preview deletion with the pause-time instance reset, per The stream
-   closes its own instances. Preview terminals are projection only. The
-   born-processed path from step 2 lands here. Completes what the state
-   view derives from. Decide whether the projection carries
-   `instance_pending`. Deferred cost: pending rules read as OK
-   (finding 11), and a paused or deleted rule's raw history never closes.
-   Step 8 must not land before this does.
+7. **Complete the transition stream.** Done: `instance_pending`, its
+   pending-cleared terminal, and the terminals on pause, delete and
+   preview deletion with the pause-time instance reset. Step 8 depended
+   on this and is now unblocked. See [`05-what-shipped.md`](05-what-shipped.md).
 8. **Add `app.alert_state` as a view.** Requires step 7. Closes
    priority 1. Deferred cost: "what fires now" stays answerable only in
    the application, which reads PostgreSQL. Decide:
