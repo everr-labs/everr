@@ -209,7 +209,11 @@ describe("the alerting pipeline's capacity bounds", () => {
     // telemetry this harness has no way to observe (it exposes only the
     // database, ClickHouse itself, and captured fetch calls).
     // This case pins the claim boundary only.
-  }, 20_000); // 501 real dispatches and a capped claim, well past vitest's 5s default
+    // 501 real dispatches and a capped claim, well past vitest's 5s default.
+    // The headroom is deliberate: this case takes about 8 seconds on its own
+    // but 3 or 4 times that while the rest of the suite runs beside it, so a
+    // tighter budget fails on machine load rather than on behaviour.
+  }, 60_000);
 
   it("captures 64 samples from 65 instances, the 3 matching ones first, and marks samples_truncated", async () => {
     const matchingIndexes = new Set([10, 30, 50]);
