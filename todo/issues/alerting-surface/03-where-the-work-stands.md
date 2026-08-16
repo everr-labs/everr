@@ -27,9 +27,18 @@ risk stated in its ticket: 18 (alerting authorization, waits for a real
 RBAC model) and 19 (SSRF-safe webhook delivery). Merging ships both risks
 knowingly.
 
-One more thing to carry into a deploy: `drizzle/0011_robust_cardiac.sql`
-drops the earlier alerting tables on purpose. Breaking changes and the
-loss of earlier alert configuration are accepted at this release stage.
+Two things to carry into a deploy.
+
+`drizzle/0011_robust_cardiac.sql` drops the earlier alerting tables on
+purpose. Breaking changes and the loss of earlier alert configuration are
+accepted at this release stage.
+
+The delivery worker needs restricted egress. That is ticket 19's decision
+of 2026-08-16: the remaining SSRF exposure is a DNS rebinding window
+between the guard's lookup and the send's own, and it is closed in the
+network rather than with a pinned-address dialer in the application. A
+release that skips it ships the window open. The ticket carries the
+evidence, the ranges to deny, and what would reopen the application fix.
 
 ## What is left
 
@@ -74,10 +83,23 @@ notification, bounded recipients and error bodies, and the terminal
 failure state that retention needs. Each ticket records which half is
 already in place.
 
-### Arc E: deferred by decision (18, 19)
+### Arc E: settled by decision (18, 19)
 
-Authorization waits for a real RBAC model. SSRF-safe webhook delivery is
-a non-blocking follow-up. Both ship as accepted risks.
+Authorization waits for a real RBAC model, and ships as an accepted risk.
+
+Ticket 19 is no longer application work. The guard in
+`providers/outbound.ts` already refuses internal literals, resolves a name
+with `all: true` and rejects it if any address is blocked, forbids
+userinfo and non-http schemes, and refuses redirects; Telegram takes no
+user host at all. What is left is the rebinding window between that lookup
+and the send's own, and on 2026-08-16 it was decided to close that in the
+network: restricted egress on the delivery worker, and the same
+requirement documented for self-hosted operators. The reference
+implementation was checked before deciding, and it is weaker than ours:
+Grafana's own webhook sender does no URL validation whatsoever. The ticket
+carries that evidence and the conditions that would reopen the pinned
+dialer, the sharpest being a hosted multi-tenant product, where the
+precedent is Grafana OnCall's CVE-2024-5526 rather than Grafana core.
 
 ### Arc F: found by the integration suite (34 to 47, minus 36 and 45)
 
