@@ -36,7 +36,7 @@ export type ActiveSilence = Awaited<
  * late a released notification goes out, not how often the condition is
  * measured.
  */
-const INHIBITION_RECHECK_SECONDS = 60;
+export const INHIBITION_RECHECK_SECONDS = 60;
 
 /**
  * Every silence active for the org right now. Load once per batch of events

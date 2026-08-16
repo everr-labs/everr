@@ -4,7 +4,7 @@ import { db } from "@/db/client";
 import { alertDefinitions } from "@/db/schema";
 import { env } from "@/env";
 
-const SCANNER_BATCH_SIZE = 5_000;
+export const SCANNER_BATCH_SIZE = 5_000;
 const ENQUEUE_CONCURRENCY = 8;
 
 /**
@@ -63,8 +63,15 @@ export async function scanDueAlerts(
       // The lte(nextEvaluationAt, now) predicate below excludes NULL, so
       // every row this query returns has one; the cast reflects that instead
       // of carrying the column's nullable type into a fallback that can
-      // never run.
-      scheduledFor: sql<Date>`${alertDefinitions.nextEvaluationAt}`,
+      // never run. `sql<Date>` alone is a compile-time claim only: a raw
+      // expression carries no decoder, so without `.mapWith` the runtime
+      // value is whatever the driver hands back unparsed (a string under
+      // pglite; only accidentally a Date under node-postgres's own OID-based
+      // parsing). `.mapWith` attaches the column's own decoder, so the cast
+      // is honored at runtime too, on every driver.
+      scheduledFor: sql<Date>`${alertDefinitions.nextEvaluationAt}`.mapWith(
+        alertDefinitions.nextEvaluationAt,
+      ),
       version: alertDefinitions.version,
     })
     .from(alertDefinitions)

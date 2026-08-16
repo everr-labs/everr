@@ -53,6 +53,10 @@ import {
   type StoredAlertInstance,
 } from "./state-machine";
 
+// How far a failing rule's retry may back off when the spec sets no
+// `max_interval_secs` of its own: this many times its evaluation interval.
+export const ALERT_RETRY_MAX_INTERVAL_FACTOR = 16;
+
 const EvaluatePayloadSchema = z.object({
   alertDefinitionId: z.string().uuid(),
   scheduledFor: z.string().datetime(),
@@ -322,7 +326,9 @@ async function recordEvaluationFailure(
       })
       .where(eq(alertDefinitions.id, def.id));
     const failureCount = fresh.consecutiveFailures + 1;
-    const maximum = def.spec.max_interval_secs ?? def.spec.interval_secs * 16;
+    const maximum =
+      def.spec.max_interval_secs ??
+      def.spec.interval_secs * ALERT_RETRY_MAX_INTERVAL_FACTOR;
     const backoff = alertingRetryDelaySeconds(
       def.spec.interval_secs,
       failureCount,

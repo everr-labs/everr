@@ -65,7 +65,7 @@ const deliveryRow = {
   channel: { id: "ch-1", encryptedConfig: "enc" },
 };
 
-describe("sendAlertDelivery rule liveness", () => {
+describe("sendAlertDelivery missing channel", () => {
   beforeEach(() => {
     mocks.deliveryRows = [deliveryRow];
     mocks.liveRules = [{ eventId: "e-1" }];
@@ -74,34 +74,6 @@ describe("sendAlertDelivery rule liveness", () => {
     mocks.where.mockReset().mockResolvedValue(undefined);
     mocks.set.mockReset().mockReturnValue({ where: mocks.where });
     mocks.update.mockReset().mockReturnValue({ set: mocks.set });
-  });
-
-  it("does not send when every rule behind the notification is paused or deleted", async () => {
-    mocks.liveRules = [];
-
-    await sendAlertDelivery({ dedupKey: "dk-1" });
-
-    expect(mocks.send).not.toHaveBeenCalled();
-    // Failed permanently, not thrown: a retry can never revive the rule.
-    expect(mocks.set).toHaveBeenCalledWith(
-      expect.objectContaining({ status: "failed" }),
-    );
-    // Attempts pinned at the max, not incremented from the current count: the
-    // retention sweep and the terminal-cleanup index only treat a failed row
-    // as done once attempts >= ALERT_DELIVERY_MAX_ATTEMPTS, or this row (and
-    // the journal events it links) would never become eligible for cleanup.
-    expect(mocks.set).toHaveBeenCalledWith(
-      expect.objectContaining({ attempts: ALERT_DELIVERY_MAX_ATTEMPTS }),
-    );
-    expect(mocks.outcome).toHaveBeenCalledWith(
-      expect.objectContaining({
-        outcome: "failed",
-        // The real channel type, not the "unknown" placeholder: the trail's
-        // delivery_targets keys on it.
-        channelType: "webhook",
-        error: expect.stringContaining("paused"),
-      }),
-    );
   });
 
   it("records a terminal failure when the channel was deleted before the send", async () => {
@@ -127,18 +99,6 @@ describe("sendAlertDelivery rule liveness", () => {
       }),
     );
   });
-
-  it("sends while at least one rule behind the notification is active", async () => {
-    await sendAlertDelivery({ dedupKey: "dk-1" });
-
-    expect(mocks.send).toHaveBeenCalledOnce();
-    expect(mocks.set).toHaveBeenCalledWith(
-      expect.objectContaining({ status: "sent" }),
-    );
-    expect(mocks.outcome).toHaveBeenCalledWith(
-      expect.objectContaining({ outcome: "succeeded" }),
-    );
-  });
 });
 
 describe("sendAlertDelivery send failure", () => {
@@ -149,24 +109,6 @@ describe("sendAlertDelivery send failure", () => {
     mocks.where.mockReset().mockResolvedValue(undefined);
     mocks.set.mockReset().mockReturnValue({ where: mocks.where });
     mocks.update.mockReset().mockReturnValue({ set: mocks.set });
-  });
-
-  it("sanitizes the webhook url out of last_error before it reaches Postgres", async () => {
-    mocks.send
-      .mockReset()
-      .mockRejectedValue(
-        new Error(
-          "notification webhook failed: 500 at https://hooks.slack.com/services/T0/B0/SECRET",
-        ),
-      );
-
-    await expect(sendAlertDelivery({ dedupKey: "dk-1" })).rejects.toThrow();
-
-    const [failedCall] = mocks.set.mock.calls.filter(
-      (call) => call[0]?.status === "failed",
-    );
-    expect(failedCall?.[0].lastError).not.toContain("SECRET");
-    expect(failedCall?.[0].lastError).toContain("[redacted-url]");
   });
 
   it("guards the failure write so a racing sent row can never flip back to failed", async () => {
@@ -244,21 +186,9 @@ describe("sendAlertDelivery status write after a successful send", () => {
     // Retried once before giving up.
     expect(mocks.where).toHaveBeenCalledTimes(2);
   });
-
-  it("records the succeeded outcome once the status write lands", async () => {
-    await sendAlertDelivery({ dedupKey: "dk-1" });
-
-    expect(mocks.outcome).toHaveBeenCalledWith(
-      expect.objectContaining({ outcome: "succeeded" }),
-    );
-    const sentCall = mocks.set.mock.calls.find(
-      (call) => call[0]?.status === "sent",
-    );
-    expect(sentCall).toBeDefined();
-  });
 });
 
-describe("sendAlertDelivery permanent vs transient send errors", () => {
+describe("sendAlertDelivery permanent send errors", () => {
   beforeEach(() => {
     mocks.deliveryRows = [deliveryRow];
     mocks.liveRules = [{ eventId: "e-1" }];
@@ -268,6 +198,11 @@ describe("sendAlertDelivery permanent vs transient send errors", () => {
     mocks.update.mockReset().mockReturnValue({ set: mocks.set });
   });
 
+  // Resolving rather than throwing is the claim. The failure write pins
+  // attempts at the maximum whichever way the branch goes, so the written row
+  // cannot tell a wrongful rethrow from a correct return; only the settled
+  // promise can, and a rethrow here would buy a retry for a verdict that is
+  // already final.
   it("records a permanent failure at the max attempts and does not rethrow", async () => {
     mocks.send.mockReset().mockRejectedValue(
       new mocks.ChannelSendError("notification webhook failed: 400", {
@@ -285,20 +220,5 @@ describe("sendAlertDelivery permanent vs transient send errors", () => {
         attempts: ALERT_DELIVERY_MAX_ATTEMPTS,
       }),
     );
-  });
-
-  it("rethrows a transient failure for the job queue to retry", async () => {
-    mocks.send.mockReset().mockRejectedValue(
-      new mocks.ChannelSendError("notification webhook failed: 500", {
-        permanent: false,
-      }),
-    );
-
-    await expect(sendAlertDelivery({ dedupKey: "dk-1" })).rejects.toThrow();
-
-    const [failedCall] = mocks.set.mock.calls.filter(
-      (call) => call[0]?.status === "failed",
-    );
-    expect(is(failedCall?.[0].attempts, SQL)).toBe(true);
   });
 });

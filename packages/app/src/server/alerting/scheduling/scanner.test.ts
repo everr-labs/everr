@@ -1,72 +1,19 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
-const mocks = vi.hoisted(() => ({
-  rows: [] as unknown[],
-  addWorkerJob: vi.fn(),
-  update: vi.fn(() => ({
-    set: () => ({ where: () => Promise.resolve() }),
-  })),
-}));
-
-vi.mock("@/db/client", () => ({
-  db: {
-    select: () => ({
-      from: () => ({
-        where: () => ({
-          orderBy: () => ({
-            limit: () => Promise.resolve(mocks.rows),
-          }),
-        }),
-      }),
-    }),
-    update: mocks.update,
-  },
-}));
-
-vi.mock("@/server/worker/jobs", () => ({
-  addWorkerJob: mocks.addWorkerJob,
-}));
-
-// scanDueAlerts reads the preview kill switch on every call; a plain "on"
-// keeps the unrelated scheduling tests below exercising their normal path.
-vi.mock("@/env", () => ({ env: { EVERR_PREVIEW_ALERTS: "on" } }));
+// Only so that importing `./scanner` for the pure functions below does not
+// build a real database pool. Nothing here answers a query: every case in
+// this file is a pure function.
+vi.mock("@/db/client", () => ({ db: {}, pool: {} }));
 
 import {
-  ALERT_EVALUATE_TASK,
-  alertEvaluationJobKey,
   alertingPartitionQueue,
   alertingRetryAt,
   alertingRetryDelaySeconds,
   nextAlertEvaluationAt,
 } from "@/data/alerting/scheduling/evaluation-jobs.server";
-import { scanDueAlerts, staleEnqueueCutoff } from "./scanner";
+import { staleEnqueueCutoff } from "./scanner";
 
 describe("alert scanner", () => {
-  beforeEach(() => {
-    mocks.rows = [];
-    mocks.addWorkerJob.mockReset().mockResolvedValue(undefined);
-    mocks.update.mockClear();
-  });
-
-  it("enqueues due rules with stable schedule keys and bounded queues", async () => {
-    const scheduledFor = new Date("2026-08-06T10:00:00Z");
-    mocks.rows = [{ id: "rule-1", scheduledFor, version: 4 }];
-
-    await expect(scanDueAlerts()).resolves.toBe(1);
-    expect(mocks.addWorkerJob).toHaveBeenCalledWith(
-      ALERT_EVALUATE_TASK,
-      {
-        alertDefinitionId: "rule-1",
-        scheduledFor: scheduledFor.toISOString(),
-        ruleVersion: 4,
-      },
-      expect.objectContaining({
-        jobKey: alertEvaluationJobKey("rule-1", scheduledFor.toISOString()),
-        queueName: alertingPartitionQueue("alert", "rule-1"),
-      }),
-    );
-  });
-
   it("uses only 64 queue partitions", () => {
     const queues = new Set(
       Array.from({ length: 2_000 }, (_, index) =>

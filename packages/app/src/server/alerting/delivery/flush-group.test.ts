@@ -141,7 +141,6 @@ vi.mock("../history/clickhouse", () => ({
 }));
 
 import { CHANNEL_TEXT_MAX } from "@/data/alerting/delivery/channel-text-limits";
-import { IDLE_GROUP_FLUSH_AT } from "@/data/alerting/delivery/tasks";
 import {
   flushAlertGroup,
   formatNotification,
@@ -237,20 +236,6 @@ describe("formatNotification", () => {
 });
 
 describe("flushAlertGroup empty claim", () => {
-  it("parks nextFlushAt on the idle sentinel instead of leaving it in the past", async () => {
-    mocks.groupRow = {
-      id: "5cbb1c68-5cc9-4444-8000-000000000001",
-      nextFlushAt: new Date("2026-08-10T09:00:00Z"),
-    };
-    mocks.memberRows = [];
-
-    await flushAlertGroup({ groupId: "5cbb1c68-5cc9-4444-8000-000000000001" });
-
-    expect(mocks.updates).toEqual([
-      expect.objectContaining({ nextFlushAt: IDLE_GROUP_FLUSH_AT }),
-    ]);
-  });
-
   it("touches nothing when the group is not due yet", async () => {
     mocks.groupRow = {
       id: "5cbb1c68-5cc9-4444-8000-000000000001",
@@ -363,6 +348,10 @@ describe("flushAlertGroup suppression batching", () => {
 describe("flushAlertGroup flap handling", () => {
   const GROUP_ID = "5cbb1c68-5cc9-4444-8000-000000000003";
 
+  // The row count is the claim. The integration suite drives this same branch
+  // and finds the resolve's terminal, but never counts the rows, so only this
+  // case says the fire does not get a terminal of its own: a later widening of
+  // the dropped-member classification would append a second row unnoticed.
   it("records a terminal for a flap instead of notifying an unannounced resolve", async () => {
     const group = {
       id: GROUP_ID,
