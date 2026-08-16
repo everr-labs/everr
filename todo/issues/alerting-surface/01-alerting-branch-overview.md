@@ -81,12 +81,15 @@ design, and they make the surface better for humans too.
 Main already proves the evaluate-and-send loop, so the risk is not the
 engine. The plan ships in two phases:
 
-1. **Now:** the pieces that cannot be changed later. The history table's
-   final shape, the database migration while it is still unshipped, and
-   the permissions that let `cloud query` reach the table at all.
+1. **Shipped:** the pieces that cannot be changed later. The history
+   table's final shape, the database migration while it was still
+   unshipped, and the permissions that let `cloud query` reach the table
+   at all. Described in
+   [05-what-shipped.md](05-what-shipped.md).
 2. **Later, additive:** everything else lands incrementally: the repair
    job, the held-notification records, the live-state view, the audit
    trail. Until each lands, the surface is honest about being best-effort.
 
-The issue-level breakdown lives in
-[03-alerting-surface-plan.md](03-alerting-surface-plan.md).
+What is left, grouped into arcs, lives in
+[03-alerting-surface-plan.md](03-alerting-surface-plan.md), with one
+ticket per unit of work in [tickets/](tickets/).

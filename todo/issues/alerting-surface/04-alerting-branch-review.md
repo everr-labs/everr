@@ -3,6 +3,10 @@
 Review scope: `origin/main...gio/graphile-alert-engine` at commit `8963616d`,
 re-validated against `gio/graphile-alert-engine-no-slos` on 2026-08-09.
 The original numbering is preserved, so removed findings leave gaps.
+Each finding below carries its state as of 2026-08-16. Where a finding
+points at an issue in [`03-alerting-surface-plan.md`](03-alerting-surface-plan.md)
+that covered shipped work, that issue is gone and the outcome is in
+[`05-what-shipped.md`](05-what-shipped.md) instead.
 
 This document records the verified findings from the runtime, frontend,
 security, persistence, migration, and contract review passes. Findings that
@@ -26,6 +30,8 @@ Global evaluation concurrency and tenant fairness remain planned work in
 ## P1: blockers
 
 ### 3. Paused rules can continue notifying
+
+**Resolved** by ticket 13. See [`05-what-shipped.md`](05-what-shipped.md).
 
 Files:
 
@@ -52,6 +58,8 @@ Required outcome:
 
 ### 4. Any organization member can reconfigure or suppress alerting
 
+**Open**, ticket 18, deferred out of the merge gate: it waits for a real RBAC model. Merging ships this risk knowingly.
+
 Files:
 
 - `packages/app/src/data/alerting/delivery/server.ts:36`
@@ -76,6 +84,8 @@ Required outcome:
 
 ### 5. Outbound webhook validation is vulnerable to DNS rebinding SSRF
 
+**Open**, ticket 19, deferred out of the merge gate as a non-blocking follow-up. Merging ships this risk knowingly.
+
 File: `packages/app/src/data/alerting/delivery/channel-sender.server.ts:54`
 
 The hostname is resolved during validation and then resolved again by `fetch`
@@ -93,6 +103,8 @@ Required outcome:
 - Add DNS rebinding and redirect tests.
 
 ### 6. Failed applies can partially change live alerting state
+
+**Resolved** by ticket 20. See [`05-what-shipped.md`](05-what-shipped.md).
 
 Files:
 
@@ -113,6 +125,8 @@ Required outcome:
 
 ### 9. Organization deletion fails when a rule uses a direct channel
 
+**Resolved** by ticket 21. See [`05-what-shipped.md`](05-what-shipped.md). One integration case stays open on that ticket.
+
 Files:
 
 - `packages/app/src/lib/organization-data-cleanup.server.ts:43`
@@ -129,6 +143,8 @@ Required outcome:
 - Add an organization cleanup integration test with direct rule channels.
 
 ### 10. Routing regexes permit CPU and memory denial of service
+
+**Retired by construction** in ticket 22: the regex ops are removed, so no user pattern reaches `RegExp`. See [`05-what-shipped.md`](05-what-shipped.md).
 
 Files:
 
@@ -151,6 +167,8 @@ Original required outcome, superseded by the removal:
 - Replace the global map with a bounded cache.
 
 ### 11. Pending rules are reported as OK
+
+**Resolved** by ticket 12. See [`05-what-shipped.md`](05-what-shipped.md).
 
 Files:
 
@@ -176,6 +194,8 @@ Required outcome:
 
 ### 12. Delivery retries can send duplicate notifications
 
+**Part done**, ticket 23: one send twice leaves one `delivery_succeeded` row, but a fan-out has no per-recipient state, so a retry re-sends to recipients that already succeeded.
+
 Files:
 
 - `packages/app/src/server/alerting/delivery/send-delivery.ts:24`
@@ -194,6 +214,8 @@ Required outcome:
 
 ### 13. Evaluation downsampling can hide exceptional evaluations
 
+**Resolved** by ticket 24. See [`05-what-shipped.md`](05-what-shipped.md).
+
 File: `packages/app/src/data/alerting/rules/evaluation-series.ts:37`
 
 Even index selection preserves range edges but does not preserve failed,
@@ -208,6 +230,8 @@ Required outcome:
 
 ### 15. Rule polling stops after the second page is loaded
 
+**Resolved** by ticket 25. See [`05-what-shipped.md`](05-what-shipped.md).
+
 File: `packages/app/src/data/alerting/rules/queries.ts:35`
 
 The infinite query disables polling when it contains more than one page.
@@ -220,6 +244,8 @@ Required outcome:
 
 ### 16. Expanded preview alerts request live history
 
+**Resolved** by ticket 26. See [`05-what-shipped.md`](05-what-shipped.md).
+
 File: `packages/app/src/routes/_authenticated/_dashboard/_previewable/alerts/-components/triage/instance-detail.tsx:28`
 
 The expanded triage detail does not pass preview identity to its history query.
@@ -231,6 +257,8 @@ Required outcome:
 - Test the same rule identity in live and preview scopes.
 
 ### 17. `EVERR_PREVIEW_ALERTS=off` has no effect
+
+**Resolved** by ticket 27. See [`05-what-shipped.md`](05-what-shipped.md).
 
 Files:
 
@@ -246,6 +274,8 @@ Required outcome:
 - Test both values.
 
 ### 18. Generated runbook and alert links do not reach notifications
+
+**Part done**, ticket 28: both links are generated into annotations and frozen into `context_json`, but neither reaches a notification.
 
 Files:
 
@@ -265,6 +295,8 @@ Required outcome:
 
 ### 19. Recipient fan-out and webhook error bodies are unbounded
 
+**Part done**, ticket 29: message bodies are bounded and error text is sanitized; recipient count, send concurrency and the retained error body are not.
+
 Files:
 
 - `packages/app/src/data/alerting/schema.ts:115`
@@ -283,6 +315,8 @@ Required outcome:
 
 ### 20. Silence authorship is client-controlled
 
+**Resolved** by ticket 16. See [`05-what-shipped.md`](05-what-shipped.md).
+
 Files:
 
 - `packages/app/src/data/alerting/schema.ts:184`
@@ -298,6 +332,8 @@ plumbing must replace this column, not sit beside it. Tracked there, as
 ticket 16.
 
 ### 21. Permanently failed event jobs evade retention
+
+**Part done**, ticket 30: retention already separates an active retry from a terminal one; the terminal processing-failure state is still missing.
 
 Files:
 
