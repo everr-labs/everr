@@ -5,8 +5,13 @@ item. Each change to the silenced, inhibited, silence triple journals its
 own decision row referencing the event, so a hold is durable and
 repairable. The freeze-then-clear sequence disappears.
 
-**Details:** issue 12 in `../03-alerting-surface-plan.md`, and The
-transition journal in `../02-alerting-clickhouse-surface.md`.
+**Details:** step 2's code half in `../02-alerting-clickhouse-surface.md`, and The transition journal in
+the same doc.
+
+**Where:**
+
+- `packages/app/src/server/alerting/delivery/suppression.ts`
+- `packages/app/src/server/alerting/delivery/process-event.ts`
 
 **Blocked by:** 03.
 

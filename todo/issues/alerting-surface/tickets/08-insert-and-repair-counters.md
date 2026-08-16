@@ -4,7 +4,11 @@
 inserts and reconciler repairs are counted, so a rotting write path is
 visible before an incident finds it.
 
-**Details:** issue 11 in `../03-alerting-surface-plan.md`.
+**Details:** step 5 of Order of work in `../02-alerting-clickhouse-surface.md`.
+
+**How to read the counters:** a rising repair rate means the primary path
+is rotting. Repairs for rows that were never dropped mean the window is
+wrong.
 
 **Blocked by:** 06.
 

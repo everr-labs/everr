@@ -4,8 +4,10 @@
 scheduler scan, evaluation, the rule query, event processing, group
 flush, delivery. Rule syntax errors do not page anyone.
 
-**Details:** issue 18 in `../03-alerting-surface-plan.md`, and step 9's
-decision list in `../02-alerting-clickhouse-surface.md`.
+**Details:** step 9 of Order of work, and its decision list, in `../02-alerting-clickhouse-surface.md`.
+Mirror the `everr.feature` attribute naming from
+`routes/api/cli/sql.ts`, and classify rule syntax errors through
+`classifyCloudQueryError` so they do not page.
 
 **Blocked by:** None; can start immediately.
 

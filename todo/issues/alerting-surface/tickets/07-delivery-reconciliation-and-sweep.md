@@ -6,9 +6,13 @@ drop a success row, the reconciler restores it from the journal outcome;
 a delivery abandoned past the retry horizon becomes a terminal failure
 with a counter.
 
-**Details:** issue 10 in `../03-alerting-surface-plan.md`; blocker 6 in
-the design doc's findings. This is the delivery half of the retention
-leak whose event half is ticket 30.
+**Details:** step 4 of Order of work in `../02-alerting-clickhouse-surface.md`; blocker 6 in the design
+doc's findings. This is the delivery half of the retention leak whose
+event half is ticket 30.
+
+**Why the diff is not presence-based:** presence cannot detect a lost
+success, and the diff key the doc documented does not exist on the
+ClickHouse side.
 
 **Blocked by:** 06.
 

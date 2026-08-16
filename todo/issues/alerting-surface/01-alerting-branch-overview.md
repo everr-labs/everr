@@ -60,16 +60,20 @@ so anyone can ask:
 The demanding caller here is an AI agent. An agent gets one query and no
 second chance: it cannot poke around, retry with a cast, or join to a
 second database. So every row must be readable on its own, every fact must
-be a typed column, and the whole schema must fit in the one page of
-documentation an agent carries. Those constraints shape most of the
-design, and they make the surface better for humans too.
+be a typed column, and the schema must fit in the documentation an agent
+carries. That last one is the constraint the design did not meet: 28
+columns take about three pages, not one, and it is recorded as a design
+signal rather than papered over. The first two shape most of the design,
+and they make the surface better for humans too.
 
 ## The rules the design holds itself to
 
 - **A missing row must never read as a false "no".** During an incident,
   "nothing fired" and "the record was lost" must not look the same. Rows
-  that matter are journaled in PostgreSQL first and repaired into
-  ClickHouse if an insert drops.
+  that matter are journaled in PostgreSQL first. The repair that carries a
+  dropped insert into ClickHouse is designed and not yet built (ticket
+  06), so until it lands the surface is best effort and an absent row
+  means unknown.
 - **Nothing irreversible.** The history store is append-only, so no
   secrets and no personal data ever land in it. Erasure stays a simple
   delete in PostgreSQL.

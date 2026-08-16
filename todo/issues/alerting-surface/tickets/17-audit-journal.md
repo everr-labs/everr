@@ -5,8 +5,7 @@ answerable in the application. One audit row per qualifying mutation,
 committed at the mutation boundary, in PostgreSQL only. No mutation path
 can skip it.
 
-**Details:** issue 20 in `../03-alerting-surface-plan.md`, and step 10's
-decision list in `../02-alerting-clickhouse-surface.md`.
+**Details:** step 10 of Order of work, and its decision list, in `../02-alerting-clickhouse-surface.md`.
 
 **Blocked by:** 16.
 

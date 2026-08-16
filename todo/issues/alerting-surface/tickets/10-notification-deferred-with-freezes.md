@@ -6,7 +6,9 @@ let the silence lapse, and the chain shows fired, deferred (with the
 silence comment on the row), then delivered; nothing needs a PostgreSQL
 join to read it.
 
-**Details:** issue 13 in `../03-alerting-surface-plan.md`.
+**Details:** step 6 of Order of work in `../02-alerting-clickhouse-surface.md`.
+
+**Where:** `packages/app/src/server/alerting/delivery/suppression.ts`
 
 **Blocked by:** 02, 09.
 
