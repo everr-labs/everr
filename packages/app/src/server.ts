@@ -20,8 +20,7 @@ if (process.env.TSS_PRERENDERING !== "true") {
         await migrate(db, { migrationsFolder: "./drizzle" });
       } catch (error) {
         captureError(error, {
-          "error.handled": false,
-          "error.source": "startup.database_migration",
+          "everr.error.source": "startup.database_migration",
         });
         throw error;
       } finally {
@@ -32,8 +31,7 @@ if (process.env.TSS_PRERENDERING !== "true") {
 
   void startWorkerRuntime().catch((error) => {
     captureError(error, {
-      "error.handled": true,
-      "error.source": "startup.worker_runtime",
+      "everr.error.source": "startup.worker_runtime",
     });
   });
 }

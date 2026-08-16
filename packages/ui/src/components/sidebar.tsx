@@ -25,6 +25,7 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useState,
 } from "react";
@@ -33,6 +34,29 @@ const SIDEBAR_WIDTH = "16rem";
 const SIDEBAR_WIDTH_MOBILE = "18rem";
 const SIDEBAR_WIDTH_ICON = "3rem";
 const SIDEBAR_KEYBOARD_SHORTCUT = "b";
+const SIDEBAR_STORAGE_KEY = "sidebar:state";
+
+const useIsomorphicLayoutEffect =
+  typeof window === "undefined" ? useEffect : useLayoutEffect;
+
+function readStoredOpen(): boolean | null {
+  try {
+    const stored = window.localStorage.getItem(SIDEBAR_STORAGE_KEY);
+    if (stored === "true") return true;
+    if (stored === "false") return false;
+  } catch {
+    // Private mode or a blocked storage partition: fall back to the default.
+  }
+  return null;
+}
+
+function writeStoredOpen(open: boolean) {
+  try {
+    window.localStorage.setItem(SIDEBAR_STORAGE_KEY, String(open));
+  } catch {
+    // Persistence is best effort.
+  }
+}
 
 type SidebarContextProps = {
   state: "expanded" | "collapsed";
@@ -81,11 +105,37 @@ function SidebarProvider({
       if (setOpenProp) {
         setOpenProp(openState);
       } else {
+        // Only uncontrolled providers read the stored value back.
+        writeStoredOpen(openState);
         _setOpen(openState);
       }
     },
     [setOpenProp, open],
   );
+
+  // Restore the last collapsed/expanded choice. This runs once, before paint,
+  // so there is no flash and the server markup still hydrates against
+  // `defaultOpen`. Width transitions stay disabled until the restored state has
+  // been painted, otherwise restoring a collapsed sidebar animates it shut.
+  const [restoring, setRestoring] = useState(true);
+  const isControlled = openProp !== undefined;
+  useIsomorphicLayoutEffect(() => {
+    if (!isControlled) {
+      const stored = readStoredOpen();
+      if (stored !== null) {
+        _setOpen(stored);
+      }
+    }
+    // Two frames: the first still precedes the paint of the restored state.
+    let inner = 0;
+    const outer = requestAnimationFrame(() => {
+      inner = requestAnimationFrame(() => setRestoring(false));
+    });
+    return () => {
+      cancelAnimationFrame(outer);
+      cancelAnimationFrame(inner);
+    };
+  }, [isControlled]);
 
   // Helper to toggle the sidebar.
   const toggleSidebar = useCallback(() => {
@@ -129,6 +179,7 @@ function SidebarProvider({
     <SidebarContext.Provider value={contextValue}>
       <div
         data-slot="sidebar-wrapper"
+        data-restoring={restoring ? "true" : undefined}
         style={
           {
             "--sidebar-width": SIDEBAR_WIDTH,
@@ -138,6 +189,10 @@ function SidebarProvider({
         }
         className={cn(
           "group/sidebar-wrapper has-data-[variant=inset]:bg-sidebar flex min-h-svh w-full",
+          // Restoring the stored state must not animate: kill every transition
+          // under the provider (sidebar rail plus any chrome that tracks it)
+          // until that state has been painted.
+          "data-[restoring=true]:[&_*]:transition-none",
           className,
         )}
         {...props}

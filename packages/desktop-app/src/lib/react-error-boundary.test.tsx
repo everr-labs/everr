@@ -4,10 +4,10 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { ReactTelemetryErrorBoundary } from "./react-error-boundary";
 
 const telemetryMocks = vi.hoisted(() => ({
-  captureReactError: vi.fn(),
+  reportRenderError: vi.fn(),
 }));
 
-vi.mock("@everr/auto-otel-errors/react", async () => {
+vi.mock("@everr/otel-web/react", async () => {
   const React = await import("react");
 
   class ErrorBoundary extends React.Component<
@@ -24,7 +24,7 @@ vi.mock("@everr/auto-otel-errors/react", async () => {
     }
 
     componentDidCatch(error: Error, errorInfo: React.ErrorInfo) {
-      telemetryMocks.captureReactError(error, errorInfo);
+      telemetryMocks.reportRenderError(error, errorInfo);
     }
 
     render() {
@@ -39,10 +39,7 @@ vi.mock("@everr/auto-otel-errors/react", async () => {
     }
   }
 
-  return {
-    ErrorBoundary,
-    captureReactError: telemetryMocks.captureReactError,
-  };
+  return { ErrorBoundary };
 });
 
 class ThrowsOnRender extends Error {
@@ -55,7 +52,7 @@ function BrokenChild(): ReactNode {
 
 describe("ReactTelemetryErrorBoundary", () => {
   afterEach(() => {
-    telemetryMocks.captureReactError.mockReset();
+    telemetryMocks.reportRenderError.mockReset();
     vi.restoreAllMocks();
   });
 
@@ -80,8 +77,8 @@ describe("ReactTelemetryErrorBoundary", () => {
       </ReactTelemetryErrorBoundary>,
     );
 
-    expect(telemetryMocks.captureReactError).toHaveBeenCalledOnce();
-    const [error, info] = telemetryMocks.captureReactError.mock.calls[0];
+    expect(telemetryMocks.reportRenderError).toHaveBeenCalledOnce();
+    const [error, info] = telemetryMocks.reportRenderError.mock.calls[0];
     expect(error).toBeInstanceOf(ThrowsOnRender);
     expect(error.message).toBe("render failed");
     expect(info.componentStack).toContain("BrokenChild");

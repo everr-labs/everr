@@ -1,8 +1,12 @@
 Everr
 Copyright 2026 Giordano Ricci (operating as "Everr Labs")
 
-Licensed under the Functional Source License, Version 1.1, ALv2 Future License
-(FSL-1.1-ALv2). See LICENSE for the full text.
+Licensed under the GNU Affero General Public License, Version 3 (AGPL-3.0-only).
+See LICENSE for the full text.
+
+The client SDK packages packages/otel-web and packages/otel-errors are
+licensed under the Apache License, Version 2.0. See the LICENSE file in
+each package.
 
 This product includes code from OpenTelemetry projects, licensed under the
 Apache License, Version 2.0. The full text of the Apache License can be found
@@ -19,5 +23,5 @@ Third-party components:
   Derived from the OpenTelemetry Collector Contrib
   (https://github.com/open-telemetry/opentelemetry-collector-contrib).
   Files modified from upstream retain the Apache License, Version 2.0.
-  Files added by Everr Labs are licensed under FSL-1.1-ALv2.
+  Files added by Everr Labs are licensed under AGPL-3.0-only.
   See individual file headers for specifics.

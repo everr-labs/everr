@@ -1,76 +1,54 @@
-import { init as initErrorTracking } from "@everr/auto-otel-errors/browser";
-import { logs } from "@opentelemetry/api-logs";
-import { OTLPLogExporter } from "@opentelemetry/exporter-logs-otlp-http";
-import { resourceFromAttributes } from "@opentelemetry/resources";
 import {
-  BatchLogRecordProcessor,
-  LoggerProvider,
-} from "@opentelemetry/sdk-logs";
-import { resolveTelemetryConfig, signalUrl } from "./config";
+  errors,
+  interactions,
+  network,
+  pageLoad,
+  pageviews,
+  performance,
+  WebSDK,
+} from "@everr/otel-web";
+import { readConsent } from "@/telemetry/consent";
 
-// Browser error tracking for the web app (dogfooding): captured errors become
-// OTel log records that ship to Everr over OTLP/HTTP. This mirrors the app's
-// server telemetry (`node.ts`) but for the browser, and reuses the same
-// endpoint/key resolution in `config.ts`.
+// The browser telemetry of the web app, and this app uses our own product. The
+// page views, the frustration clicks, the web vitals, and the errors go to Everr
+// as OTel log records. They use a browser service name, and that name is
+// different from the name of the server in `node.ts`. Thus a query can select
+// one of the two.
 //
-// `@everr/auto-otel-errors` is transport-less: its `init()` is a no-op unless a
-// global `LoggerProvider` is registered first, which is exactly what this
-// module does before calling it.
-
-const BATCH_OPTIONS = {
-  maxQueueSize: 100,
-  maxExportBatchSize: 32,
-  scheduledDelayMillis: 5_000,
-  exportTimeoutMillis: 30_000,
-};
-
-function initClientErrorTracking(): void {
-  // Runs once at client bundle load (this is a side-effect module). No-op on
-  // the server.
-  if (typeof window === "undefined") return;
-
-  const ingestKey = import.meta.env.VITE_EVERR_PUBLIC_INGEST_KEY?.trim();
-  const endpointOverride = import.meta.env.VITE_EVERR_INGEST_ENDPOINT?.trim();
-
-  // In production, only send when a public key (or explicit endpoint) is
-  // configured, so a keyless deploy never POSTs to a collector that isn't
-  // there. In dev, fall back to the local collector so developers see their
-  // own browser errors with no setup.
-  if (!ingestKey && !endpointOverride && !import.meta.env.DEV) return;
-
-  const config = resolveTelemetryConfig(
-    {
-      EVERR_INGEST_KEY: ingestKey,
-      OTEL_EXPORTER_OTLP_ENDPOINT: endpointOverride,
-      DEPLOYMENT_ENVIRONMENT: import.meta.env.MODE,
-    },
-    crypto.randomUUID(),
-  );
-  if (!config) return;
-
-  const loggerProvider = new LoggerProvider({
-    resource: resourceFromAttributes(config.resourceAttributes),
-    processors: [
-      new BatchLogRecordProcessor(
-        new OTLPLogExporter({
-          url: signalUrl(config.endpoint, "logs"),
-          headers: config.headers,
-        }),
-        BATCH_OPTIONS,
-      ),
-    ],
-  });
-  logs.setGlobalLoggerProvider(loggerProvider);
-
-  // Installs window `error` / `unhandledrejection` handlers and wires manual
-  // `captureError` / the React `ErrorBoundary`. Each capture emits one log
-  // record through the provider above.
-  initErrorTracking();
-
-  // Best-effort flush of anything still batched when the page goes away.
-  window.addEventListener("beforeunload", () => {
-    void loggerProvider.shutdown();
-  });
-}
-
-initClientErrorTracking();
+// The errors() instrumentation of the SDK captures the errors. It uses
+// window.onerror and the unhandledrejection event. The error component of the
+// router reports through `captureError`. Each error record carries the same
+// analytics envelope.
+//
+// The consent cookie in the store gives the initial persistence. Until the user
+// gives consent, the SDK uses the memory store, which writes nothing and whose
+// ids end with the page. A change of the consent changes the current client with
+// setPersistence() or revoke(). Refer to telemetry/consent-gate.tsx. This module
+// only selects the initial mode.
+//
+// The WebSDK does nothing on the server. Without a key, and not in the
+// development mode, it makes no network request. In the development mode it
+// sends the data to the local collector. The TanStack adapter gives the route
+// pattern with setRouteResolver, and `getRouter()` registers the router with
+// that adapter.
+new WebSDK({
+  persistence: readConsent() === "granted" ? "localStorage" : "memory",
+  serviceName: "everr-dev-app-web",
+  deploymentEnvironment: import.meta.env.MODE,
+  ingestKey: import.meta.env.VITE_EVERR_PUBLIC_INGEST_KEY,
+  endpoint: import.meta.env.VITE_EVERR_INGEST_ENDPOINT,
+  dev: import.meta.env.DEV,
+  // The caller must select the capture. This app uses all the built-in
+  // instrumentations. By default performance() includes the load window of the
+  // page, which gives the resource spans and the long-animation-frame records.
+  instrumentations: [
+    errors(),
+    pageviews(),
+    interactions(),
+    performance(),
+    pageLoad(),
+    // The request route template comes from the `request` route resolver in
+    // route-pattern.ts.
+    network(),
+  ],
+});

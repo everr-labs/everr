@@ -1,0 +1,87 @@
+{
+  "name": "@everr/otel-errors",
+  "version": "0.0.0",
+  "description": "OpenTelemetry instrumentation for uncaught Node.js errors",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/everr-labs/everr.git",
+    "directory": "packages/otel-errors"
+  },
+  "type": "module",
+  "sideEffects": false,
+  "files": [
+    "dist"
+  ],
+  "exports": {
+    ".": "./src/node.ts",
+    "./node": "./src/node.ts",
+    "./core": "./src/core.ts"
+  },
+  "publishConfig": {
+    "access": "public",
+    "exports": {
+      ".": {
+        "import": {
+          "types": "./dist/node.d.ts",
+          "default": "./dist/node.js"
+        },
+        "require": {
+          "types": "./dist/node.d.cts",
+          "default": "./dist/node.cjs"
+        }
+      },
+      "./node": {
+        "import": {
+          "types": "./dist/node.d.ts",
+          "default": "./dist/node.js"
+        },
+        "require": {
+          "types": "./dist/node.d.cts",
+          "default": "./dist/node.cjs"
+        }
+      },
+      "./core": {
+        "import": {
+          "types": "./dist/core.d.ts",
+          "default": "./dist/core.js"
+        },
+        "require": {
+          "types": "./dist/core.d.cts",
+          "default": "./dist/core.cjs"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "build": "tsdown",
+    "test": "vitest run",
+    "test:ci": "vitest run",
+    "test:watch": "vitest run --watch",
+    "typecheck": "tsc --noEmit"
+  },
+  "peerDependencies": {
+    "@opentelemetry/api": "^1.9.0",
+    "@opentelemetry/api-logs": "^0.218.0",
+    "@opentelemetry/instrumentation": "^0.218.0"
+  },
+  "peerDependenciesMeta": {
+    "@opentelemetry/instrumentation": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@opentelemetry/api": "^1.9.1",
+    "@opentelemetry/api-logs": "^0.218.0",
+    "@opentelemetry/context-async-hooks": "^2.7.1",
+    "@opentelemetry/instrumentation": "^0.218.0",
+    "@opentelemetry/sdk-logs": "^0.218.0",
+    "@opentelemetry/sdk-metrics": "^2.7.1",
+    "@opentelemetry/sdk-node": "^0.218.0",
+    "@opentelemetry/sdk-trace-base": "^2.7.1",
+    "@types/node": "^25.6.2",
+    "fast-check": "^4.9.0",
+    "tsdown": "^0.22.2",
+    "typescript": "catalog:"
+  }
+}

@@ -32,6 +32,25 @@ vi.mock("./node", () => ({
   SpanKind: { SERVER: 1 },
 }));
 
+// The real matcher pulls the whole generated route tree (and the server env
+// with it) into the test environment, so stub it with the shared derivation
+// over a two-route tree.
+vi.mock("./server-router", async () => {
+  const { routeTemplate } = await import("./route-template");
+  const matcher = {
+    matchRoutes: (pathname: string) =>
+      pathname === "/api/cli/sql"
+        ? [
+            { routeId: "__root__", fullPath: "/" },
+            { routeId: "/api/cli/sql", fullPath: "/api/cli/sql" },
+          ]
+        : [{ routeId: "__root__", fullPath: "/" }],
+  };
+  return {
+    serverRouteTemplate: (pathname: string) => routeTemplate(matcher, pathname),
+  };
+});
+
 import { instrumentServerFetch } from "./server";
 
 describe("instrumentServerFetch", () => {
@@ -49,11 +68,11 @@ describe("instrumentServerFetch", () => {
     );
 
     expect(response.status).toBe(500);
+    expect(response.headers.get("x-everr-route")).toBe("/api/cli/sql");
     expect(telemetryMocks.captureError).toHaveBeenCalledWith(
       expect.any(Error),
       {
-        "error.handled": false,
-        "error.source": "server.response",
+        "everr.error.source": "server.response",
         "http.request.method": "POST",
         "http.response.status_code": 500,
         "http.route": "/api/cli/sql",
@@ -61,6 +80,28 @@ describe("instrumentServerFetch", () => {
       },
     );
     expect(telemetryMocks.span.end).toHaveBeenCalledOnce();
+  });
+
+  it("names an unmatched path by method only, with no http.route", async () => {
+    const response = await instrumentServerFetch(
+      new Request("http://localhost/wp-login.php"),
+      () => new Response("{}", { status: 200 }),
+    );
+    expect(response.headers.get("x-everr-route")).toBeNull();
+
+    expect(telemetryMocks.startActiveSpan).toHaveBeenCalledWith(
+      "GET",
+      {
+        attributes: {
+          "http.request.method": "GET",
+          "url.path": "/wp-login.php",
+          "url.scheme": "http",
+        },
+        kind: 1,
+      },
+      expect.anything(),
+      expect.any(Function),
+    );
   });
 
   it("parameterizes TanStack dev serverFn IDs in server span names and attributes", async () => {
@@ -77,7 +118,8 @@ describe("instrumentServerFetch", () => {
         attributes: {
           "http.request.method": "GET",
           "http.route": "/_serverFn/:id",
-          "url.path": "/_serverFn/:id",
+          "url.path":
+            "/_serverFn/eyJmaWxlIjoiL3NyYy9yb3V0ZXMvX19yb290LnRzeD90c3Mtc2VydmVyZm4tc3BsaXQiLCJleHBvcnQiOiJnZXRTZXNzaW9uX2NyZWF0ZVNlcnZlckZuX2hhbmRsZXIifQ",
           "url.scheme": "http",
         },
         kind: 1,

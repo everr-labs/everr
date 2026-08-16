@@ -6,6 +6,8 @@ WORKDIR /app
 FROM base AS deps
 COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
 COPY packages/docs/package.json ./packages/docs/
+COPY packages/otel-errors/package.json ./packages/otel-errors/
+COPY packages/otel-web/package.json ./packages/otel-web/
 COPY packages/ui/package.json ./packages/ui/
 RUN --mount=type=cache,id=pnpm,target=/root/.local/share/pnpm/store \
     pnpm install --frozen-lockfile --ignore-scripts
@@ -13,7 +15,13 @@ RUN --mount=type=cache,id=pnpm,target=/root/.local/share/pnpm/store \
 # Stage 2: build
 FROM deps AS build
 ARG VITE_POSTHOG_PROJECT_TOKEN
-ARG VITE_PUBLIC_POSTHOG_HOST
+ARG VITE_POSTHOG_HOST
+# Public (origin-bound, ingest-only) browser key baked into the client bundle
+# by Vite at build time. Optional: when unset, browser telemetry stays off.
+ARG VITE_EVERR_PUBLIC_INGEST_KEY
+ARG VITE_COMMIT_SHA
+COPY packages/otel-errors ./packages/otel-errors
+COPY packages/otel-web ./packages/otel-web
 COPY packages/ui ./packages/ui
 COPY packages/docs ./packages/docs
 RUN pnpm --filter docs build

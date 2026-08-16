@@ -373,7 +373,6 @@ describe("ClickHouse alert history", () => {
       "alerts.history.insert_failed",
       expect.objectContaining({
         "alert.definition_id": def.id,
-        "error.handled": true,
       }),
     );
   });

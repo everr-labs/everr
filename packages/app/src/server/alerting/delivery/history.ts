@@ -92,7 +92,6 @@ export async function recordDeliveryOutcome(opts: {
     serverLogger.error("alerts.history.delivery_outcome_failed", {
       ...exceptionAttributes(cause),
       "alert.delivery.dedup_key": opts.dedupKey,
-      "error.handled": true,
     });
   }
 }

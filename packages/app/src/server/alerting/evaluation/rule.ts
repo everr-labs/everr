@@ -351,7 +351,6 @@ async function recordEvaluationFailure(
     ...exceptionAttributes(cause),
     "alert.definition_id": def.id,
     "alert.organization_id": def.organizationId,
-    "error.handled": true,
   });
 }
 
@@ -360,7 +359,6 @@ export async function evaluateAlert(rawPayload: unknown): Promise<void> {
   if (!parsed.success) {
     serverLogger.warn("alerts.evaluate.invalid_payload", {
       "alert.payload": String(rawPayload),
-      "error.handled": true,
     });
     return;
   }

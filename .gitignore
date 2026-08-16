@@ -70,3 +70,6 @@ docs/superpowers/
 # impeccable local state (machine-specific cache + local consent)
 **/.impeccable/hook.cache.json
 **/.impeccable/config.local.json
+.scratch/
+reports
+.stryker-tmp

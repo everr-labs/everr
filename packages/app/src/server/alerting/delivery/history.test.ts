@@ -153,7 +153,6 @@ describe("recordDeliveryOutcome", () => {
       "alerts.history.delivery_outcome_failed",
       expect.objectContaining({
         "alert.delivery.dedup_key": "dedup-1",
-        "error.handled": true,
       }),
     );
   });

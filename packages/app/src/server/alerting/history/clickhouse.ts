@@ -407,7 +407,6 @@ export async function recordAlertHistory(
       ...exceptionAttributes(error),
       ...(definitionId ? { "alert.definition_id": definitionId } : {}),
       "alert.event_count": rows.length,
-      "error.handled": true,
     });
   }
 }

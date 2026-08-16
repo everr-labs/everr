@@ -82,6 +82,36 @@ _Avoid_: output, log line
 **Metric**:
 A numerical time-series measurement, such as a gauge, counter, or histogram.
 
+### Browser telemetry
+
+**WebSDK**:
+The browser SDK entry point: constructing it (`new WebSDK({...})`) wires transport, identity, and the configured Instrumentations in one step, with no separate start. `shutdown()` tears everything down; a consent upgrade constructs a new one. Inert on the server and in keyless production builds. The web counterpart to OTel's NodeSDK.
+_Avoid_: init (former name), client, browser SDK instance
+
+**Instrumentation**:
+A capture source composed into the WebSDK: the only way the browser SDK captures anything. Built-ins are errors, pageviews, interactions, performance, and network; `sampled` wraps one to capture a fraction of Sessions. OTel's word for exactly this, though Everr's contract is deliberately a bare setup function, not OTel JS's class-shaped interface.
+_Avoid_: plugin (former name), integration, capture source (informal)
+
+**Analytics event**:
+A browser interaction or page lifecycle moment captured as a Log with an event name (`everr.browser.page_view`, `everr.browser.interaction.rage_click`, and the like). Not a separate signal kind: analytics events are Logs.
+_Avoid_: autocapture event, tracking event
+
+**Session**:
+One continuous visit, identified by a random `session.id`. In Cookieless mode it lives only in JS memory (a page load plus its SPA navigations); in Consented mode it persists with a 30-minute inactivity timeout. The top-level analytics unit.
+_Avoid_: visit
+
+**Visitor**:
+A browser identified across Sessions by a random stored `visitor.id`. Exists only in Consented mode; Cookieless mode has no Visitor concept at all.
+_Avoid_: person, device id, anonymous user
+
+**Cookieless mode**:
+The browser SDK mode with zero cookies, zero storage, and no identity derived from IP or user agent: only an in-memory Session. What the homepage runs.
+_Avoid_: anonymous mode, bannerless mode
+
+**Consented mode**:
+The browser SDK mode entered after explicit consent: persistent Visitor id, durable Sessions, and identify() stamping `user.*` attributes on subsequent events. Upgrading from Cookieless is a one-way door; revoking consent deletes the stored ids.
+_Avoid_: identified mode, cookie mode
+
 ### CI
 
 **CI run**:
