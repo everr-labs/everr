@@ -21,7 +21,7 @@ import { flushSync } from "react-dom";
 import { dashboardListOptions } from "@/data/dashboards/options";
 import { searchRunsOptions } from "@/data/runs-list/options";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
-import { navMain } from "@/lib/navigation";
+import { navGroups } from "@/lib/navigation";
 
 export function CommandBar() {
   const navigate = useNavigate();
@@ -146,14 +146,17 @@ export function CommandBar() {
                 ))}
               </CommandGroup>
             )}
-            {navMain.map((group) => (
-              <CommandGroup key={group.title} heading={group.title}>
-                {(group.items ?? [group]).map((item) => (
+            {navGroups.map((group) => (
+              <CommandGroup
+                key={group.label ?? "pinned"}
+                heading={group.label ?? "Navigation"}
+              >
+                {group.items.map((item) => (
                   <CommandItem
                     key={item.url}
                     onSelect={() => handleSelect(item.url)}
                   >
-                    {group.icon && <group.icon />}
+                    <item.icon />
                     {item.title}
                   </CommandItem>
                 ))}
