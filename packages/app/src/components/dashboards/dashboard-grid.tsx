@@ -39,9 +39,15 @@ export function DashboardGrid({
     <div>
       {(hasVariables || actions || leading) && (
         <div className="mb-3 flex items-start gap-x-3">
-          {leading}
+          {/* Edge controls center against the first field row (h-8 controls),
+              even when the variables wrap to more rows below. */}
+          {leading && (
+            <div className="flex h-8 shrink-0 items-center">{leading}</div>
+          )}
           {leading && hasVariables && (
-            <div aria-hidden className="mt-1.5 h-5 w-px bg-border" />
+            <div aria-hidden className="flex h-8 items-center">
+              <div className="h-5 w-px bg-border" />
+            </div>
           )}
           {/*
             The variables wrap inside their own clipped column: each field
@@ -53,7 +59,7 @@ export function DashboardGrid({
             <VariableBar className="mb-0" layout="inline" />
           </div>
           {actions && (
-            <div className="ml-auto flex shrink-0 items-center gap-2">
+            <div className="ml-auto flex h-8 shrink-0 items-center gap-2">
               {actions}
             </div>
           )}
