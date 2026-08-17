@@ -22,7 +22,7 @@ export const gaugeChartSpec = z.looseObject({
   max: z.number().default(100),
   thresholds: thresholdsSpec.optional(),
   /** Rendering variant; omitted means `arc` (the default semicircle). */
-  variant: z.enum(["arc", "horizontal", "vertical"]).optional(),
+  variant: z.enum(["arc", "horizontal"]).optional(),
   /** Show the min/max axis labels at the ends of the gauge. */
   showAxis: z.boolean().default(true),
   /** Show a numeric label at each threshold step tick mark. */

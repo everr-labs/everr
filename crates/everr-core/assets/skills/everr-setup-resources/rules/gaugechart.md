@@ -1,6 +1,6 @@
 # GaugeChart
 
-One or more gauges, each showing a single value filled between `min` and `max`, with optional threshold coloring and tick marks. Renders as a semicircular arc by default; `variant` switches to a flat horizontal or vertical bar.
+One or more gauges, each showing a single value filled between `min` and `max`, with optional threshold coloring and tick marks. Renders as a semicircular arc by default; `variant` switches to a flat horizontal bar.
 
 ## Options (`plugin.spec`)
 
@@ -13,8 +13,8 @@ One or more gauges, each showing a single value filled between `min` and `max`, 
 | `max` | number | `100` | any number | Gauge axis upper bound. **Set it to the metric's real ceiling** — the default 100 only suits percentages. Inverting the bounds (`min > max`) inverts the arc, so a lower value reads as fuller — useful for "lower is better" metrics. |
 | `showLabel` | boolean | `false` | `true` | Show the column-name label even on a single-gauge panel (multi-gauge always shows it). |
 | `noValue` | string | `–` | any string | Text rendered for a query that produced no value (empty result / no numeric column). |
-| `variant` | string | none (= `arc`) | `arc`, `horizontal`, `vertical` | Rendering shape. Omitted or `arc`: semicircular arc. `horizontal`: flat bar filling left→right with the value text above it. `vertical`: flat bar filling bottom→top with the value text beside it. Bar variants show a triangle marker at the value position and, with thresholds, multi-colored fill segments per band. |
-| `showAxis` | boolean | `true` | `false` | Show the `min`/`max` axis labels: at the arc ends, below the horizontal bar, or beside the vertical bar. |
+| `variant` | string | none (= `arc`) | `arc`, `horizontal` | Rendering shape. Omitted or `arc`: semicircular arc. `horizontal`: flat bar filling left→right with the value text above it, a triangle marker at the value position and, with thresholds, multi-colored fill segments per band. |
+| `showAxis` | boolean | `true` | `false` | Show the `min`/`max` axis labels: at the arc ends, or below the horizontal bar. |
 | `showThresholdLabels` | boolean | `false` | `true` | Show a numeric label at each threshold tick mark (any variant). |
 | `thresholds` | object | none | see below | Color the arc and mark step positions on the gauge. Omit for the default series color. |
 

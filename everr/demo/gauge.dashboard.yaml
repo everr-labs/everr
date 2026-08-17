@@ -8,7 +8,7 @@ spec:
     description: >-
       GaugeChart regression sheet — every option (all 9 calculations, unit,
       decimals, min/max bounds, thresholds absolute/percent with and without
-      thresholds.max, showLabel, noValue, variant arc/horizontal/vertical,
+      thresholds.max, showLabel, noValue, variant arc/horizontal,
       showAxis, showThresholdLabels) and behavior (spec defaults, clamping
       past the bounds, multi-query placeholder, multi-gauge, empty, inverted
       bounds) exercised with deterministic TestData.
@@ -536,71 +536,6 @@ spec:
                   columns: [cache_hit, uptime, success]
                   rows:
                     - [20, 85, 99]
-    gauge-vertical:
-      kind: Panel
-      spec:
-        display:
-          name: "Gauge: vertical"
-          description: "variant: vertical · bar fills bottom-to-top, marker beside the bar, colored ticks, value beside the bar, min/max beside (showAxis default true)"
-        plugin:
-          kind: GaugeChart
-          spec:
-            variant: vertical
-            unit: "%"
-            thresholds:
-              mode: absolute
-              defaultColor: "#22c55e"
-              steps:
-                - { value: 50, color: "#f59e0b" }
-                - { value: 80, color: "#ef4444" }
-        queries:
-          - kind: TestData
-            spec:
-              plugin:
-                kind: TestData
-                spec:
-                  scenario: csv
-                  columns: [pct]
-                  rows:
-                    - [65]
-    gauge-vertical-threshold-labels:
-      kind: Panel
-      spec:
-        display:
-          name: "Gauge: vertical, threshold labels, no axis"
-          description: "variant: vertical · showAxis: false + showThresholdLabels: true · noValue second column shows the placeholder regardless of variant"
-        plugin:
-          kind: GaugeChart
-          spec:
-            variant: vertical
-            unit: "%"
-            showAxis: false
-            showThresholdLabels: true
-            noValue: "n/a"
-            thresholds:
-              mode: percent
-              defaultColor: "#22c55e"
-              steps:
-                - { value: 70, color: "#f59e0b" }
-                - { value: 90, color: "#ef4444" }
-        queries:
-          - kind: TestData
-            spec:
-              plugin:
-                kind: TestData
-                spec:
-                  scenario: csv
-                  columns: [pct]
-                  rows:
-                    - [82]
-          - kind: TestData
-            spec:
-              plugin:
-                kind: TestData
-                spec:
-                  scenario: csv
-                  columns: [svc, never]
-                  rows: []
   layouts:
     - kind: Grid
       spec:
@@ -626,5 +561,3 @@ spec:
           - { x: 8,  y: 31, width: 8,  height: 5, content: { $ref: "#/spec/panels/gauge-horizontal" } }
           - { x: 16, y: 31, width: 8,  height: 5, content: { $ref: "#/spec/panels/gauge-horizontal-threshold-labels" } }
           - { x: 0,  y: 36, width: 12, height: 7, content: { $ref: "#/spec/panels/gauge-horizontal-inverted-multi" } }
-          - { x: 12, y: 36, width: 6,  height: 7, content: { $ref: "#/spec/panels/gauge-vertical" } }
-          - { x: 18, y: 36, width: 6,  height: 7, content: { $ref: "#/spec/panels/gauge-vertical-threshold-labels" } }

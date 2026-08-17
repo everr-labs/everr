@@ -161,8 +161,6 @@ export function GaugeChartVisualization({
       className={cn(
         variant === "horizontal" &&
           "flex h-full flex-wrap content-center-safe justify-center gap-x-6 gap-y-4 overflow-y-auto px-1",
-        variant === "vertical" &&
-          "flex h-full items-stretch justify-center gap-6",
         (variant === "arc" || variant === undefined) &&
           "flex h-full flex-wrap items-stretch justify-center gap-4",
       )}
@@ -276,117 +274,6 @@ export function GaugeChartVisualization({
                     <span>{maxText}</span>
                   </div>
                 )}
-              </div>
-            </div>
-          );
-        }
-
-        if (variant === "vertical") {
-          const segments =
-            value !== undefined
-              ? fillSegments(
-                  fraction,
-                  marks,
-                  thresholds,
-                  min,
-                  max,
-                  fallbackColor,
-                )
-              : [];
-          const coloredMarks = marks.filter((m) => m.color !== undefined);
-          return (
-            <div
-              key={key}
-              className="flex min-w-20 flex-col items-center"
-              role="img"
-              aria-label={ariaLabel}
-            >
-              {labelEl}
-              <div className="flex min-h-0 flex-1 items-stretch gap-2 pt-1">
-                {/* Bar column; pl-3 leaves room for the value marker. */}
-                <div className="relative pl-3">
-                  {value !== undefined && (
-                    <div
-                      className="absolute left-0.5 translate-y-1/2 border-y-[5px] border-l-[6px] border-y-transparent border-l-foreground"
-                      style={{ bottom: `${fraction * 100}%` }}
-                    />
-                  )}
-                  <div className="relative h-full w-2.5 overflow-hidden rounded-sm bg-muted">
-                    {segments.map((s) => (
-                      <div
-                        key={s.from}
-                        className="absolute inset-x-0"
-                        style={{
-                          bottom: `${s.from * 100}%`,
-                          height: `${(s.to - s.from) * 100}%`,
-                          backgroundColor: s.color,
-                        }}
-                      />
-                    ))}
-                  </div>
-                </div>
-                {coloredMarks.length > 0 && (
-                  // Reserve room for the numeric labels so they never overlap
-                  // the value column.
-                  <div
-                    className={cn(
-                      "relative",
-                      showThresholdLabels ? "w-9" : "w-1.5",
-                    )}
-                  >
-                    {coloredMarks.map((mark) => (
-                      <div
-                        key={mark.fraction}
-                        className="absolute left-0 flex translate-y-1/2 items-center gap-1"
-                        style={{ bottom: `${mark.fraction * 100}%` }}
-                      >
-                        <div
-                          className="h-px w-1.5"
-                          style={{ backgroundColor: mark.color }}
-                        />
-                        {showThresholdLabels && (
-                          <p className="whitespace-nowrap text-[10px] leading-none tabular-nums text-muted-foreground">
-                            {formatStatValue(mark.value, undefined)}
-                            {unit}
-                          </p>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                )}
-                <div
-                  className={cn(
-                    "flex flex-col",
-                    showAxis ? "justify-between" : "justify-center",
-                  )}
-                >
-                  {showAxis && (
-                    <span className="text-[10px] tabular-nums text-muted-foreground">
-                      {maxText}
-                    </span>
-                  )}
-                  <p className="leading-none">
-                    <span
-                      className={cn(
-                        "text-2xl font-semibold tabular-nums",
-                        value === undefined && "text-muted-foreground",
-                      )}
-                      style={value !== undefined ? { color } : undefined}
-                    >
-                      {valueText}
-                    </span>
-                    {value !== undefined && unit && (
-                      <span className="ml-1 text-xs text-muted-foreground">
-                        {unit}
-                      </span>
-                    )}
-                  </p>
-                  {showAxis && (
-                    <span className="text-[10px] tabular-nums text-muted-foreground">
-                      {minText}
-                    </span>
-                  )}
-                </div>
               </div>
             </div>
           );
