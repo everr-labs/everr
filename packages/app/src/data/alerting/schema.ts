@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { PreviewStatusSchema } from "@/data/previews/overlay";
 import {
   alertingChannelNamesSchema,
   alertingResourceNameSchema,
@@ -106,6 +107,9 @@ export const AlertingRuleViewSchema = AlertingRuleSchema.extend({
   updated_at: AlertingTimestampSchema,
   health: AlertingRuleHealthSchema,
   rollup: AlertingRuleRollupSchema,
+  // Only a preview-scoped read carries this: on live there is nothing to
+  // compare the rule against.
+  previewStatus: PreviewStatusSchema.optional(),
 });
 
 export const AlertingAlertSchema = z.object({

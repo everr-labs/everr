@@ -7,11 +7,13 @@ import {
 } from "@everr/ui/components/card";
 import { RelativeTime } from "@everr/ui/components/relative-time";
 import type { Tone } from "@everr/ui/components/tone";
+import { cn } from "@everr/ui/lib/utils";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { SlidersHorizontal } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
+import { PreviewStatusBadge } from "@/components/preview-status-badge";
 import { alertingRuleIdentity } from "@/data/alerting/rules/identity";
 import { ruleQueries } from "@/data/alerting/rules/queries";
 import { formatDurationSeconds } from "@/data/alerting/rules/resource/window";
@@ -46,6 +48,11 @@ function ruleStatus(
   firing: boolean,
   pending: boolean,
 ): { label: string; tone: Tone; muted: boolean } {
+  // A rule the preview deleted is shown from its live row, and this page's
+  // instances are the preview's. Without this the column would read "OK" for a
+  // rule firing on live right now.
+  if (rule.previewStatus === "removed")
+    return { label: "Removed", tone: "muted", muted: true };
   if (rule.paused) return { label: "Paused", tone: "muted", muted: true };
   // Firing and pending outrank health: a degraded rule that is also firing
   // (or on its way there) is a firing (or pending) rule, and the reader acts
@@ -90,7 +97,10 @@ function RuleLine({
   return (
     <li
       aria-label={identity.name}
-      className="flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2"
+      className={cn(
+        "flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2",
+        rule.previewStatus === "removed" && "opacity-50",
+      )}
     >
       <span className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1">
         <Link
@@ -100,6 +110,7 @@ function RuleLine({
         >
           {identity.name}
         </Link>
+        <PreviewStatusBadge status={rule.previewStatus} />
         <AlertingHealthHeart status={rule.health.status} />
         {rule.spec.severity !== "info" && (
           <AlertingSeverityBadge severity={rule.spec.severity} />

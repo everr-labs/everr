@@ -218,6 +218,48 @@ describe("/alerts/rules", () => {
     expect(within(region).getByText("Preview")).toBeInTheDocument();
   });
 
+  it("says how each rule differs from live under a preview", async () => {
+    mocks.listAlertingRules.mockResolvedValue([
+      alertingRule({
+        id: "rule-edited",
+        name: "default/edited",
+        previewId: "pr-1",
+        previewStatus: "changed",
+      }),
+      alertingRule({
+        id: "rule-new",
+        name: "default/fresh",
+        previewId: "pr-1",
+        previewStatus: "added",
+      }),
+      alertingRule({
+        id: "rule-same",
+        name: "default/same",
+        previewId: "pr-1",
+        previewStatus: "unchanged",
+      }),
+      alertingRule({
+        id: "rule-gone",
+        name: "default/gone",
+        previewStatus: "removed",
+      }),
+    ]);
+    mocks.listAlertingAlerts.mockResolvedValue([]);
+
+    renderRulesPage({ initialEntry: "/alerts/rules?preview=pr-1" });
+
+    expect(await screen.findByText("edited")).toBeInTheDocument();
+    expect(ruleRow("edited")).toHaveTextContent("Changed");
+    expect(ruleRow("fresh")).toHaveTextContent("Added");
+    expect(ruleRow("gone")).toHaveTextContent("Removed");
+    // A rule the branch touched not at all earns no badge: every row wearing
+    // one would tell the reader nothing about where to look.
+    expect(ruleRow("same")).not.toHaveTextContent("Changed");
+    // The status column must not claim a deleted rule is OK: this page's
+    // instances are the preview's, and it has none for a live-only rule.
+    expect(ruleRow("gone")).not.toHaveTextContent("OK");
+  });
+
   it("keeps a preview-only rule off the list without ?preview=", async () => {
     mocks.listAlertingAlerts.mockResolvedValue([]);
     const liveRule = alertingRule({ id: "rule-live", name: "default/live" });

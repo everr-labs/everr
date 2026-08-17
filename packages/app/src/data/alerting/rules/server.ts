@@ -10,7 +10,7 @@ import { AlertingError } from "../errors";
 import { alertingMutationScope, alertingOrganizationId } from "../session";
 import type { AlertingRuleView } from "../types";
 import * as rules from "./repository";
-import { visibleRulesForPreview } from "./resource/preview-overlay";
+import { rulesForPreview } from "./resource/preview-overlay";
 
 export const listAlertingRules = createAuthenticatedServerFn({
   method: "GET",
@@ -31,7 +31,7 @@ export const listAlertingRules = createAuthenticatedServerFn({
       rules.listAllRules(org),
       getPreviewScopes(org, preview),
     ]);
-    return visibleRulesForPreview(definitions, scopes);
+    return rulesForPreview(definitions, scopes);
   });
 
 export const getAlertingRule = createAuthenticatedServerFn({ method: "GET" })
@@ -61,7 +61,7 @@ export const getAlertingRuleByName = createAuthenticatedServerFn({
         rules.listAllRules(org),
         getPreviewScopes(org, preview),
       ]);
-      candidates = visibleRulesForPreview(definitions, scopes);
+      candidates = rulesForPreview(definitions, scopes);
     }
     const rule = findByResourceName(candidates, data.project, data.slug);
     if (!rule) {

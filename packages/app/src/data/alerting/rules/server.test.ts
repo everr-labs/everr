@@ -1,7 +1,7 @@
 import { beforeEach, expect, it, vi } from "vitest";
-import type { AlertingPreviewScope } from "@/data/alerting/resource/preview-overlay";
 import { alertingRuleViewFixture } from "../test-fixtures";
 import type { AlertingRuleView } from "../types";
+import type { AlertingPreviewScope } from "./resource/preview-overlay";
 import { listAlertingRules } from "./server";
 
 const mocks = vi.hoisted(() => ({

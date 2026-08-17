@@ -14,6 +14,7 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { BellOff, BookOpenText, CircleAlert } from "lucide-react";
 import { useCallback, useLayoutEffect, useRef, useState } from "react";
 import { toast } from "sonner";
+import { PreviewStatusBadge } from "@/components/preview-status-badge";
 import { alertHistoryQueries } from "@/data/alerting/history/queries";
 import { alertInstanceQueries } from "@/data/alerting/instances/queries";
 import { alertingConditionOperatorLabel } from "@/data/alerting/rules/condition";
@@ -372,6 +373,7 @@ function AlertingRuleDetailPage() {
             <h2 className="truncate text-base font-semibold">
               {identity.name}
             </h2>
+            <PreviewStatusBadge status={r.previewStatus} />
             <RuleStateLabel rule={r} />
           </div>
           <div className="flex items-center gap-2">
