@@ -24,6 +24,9 @@ import {
   type VariableOptionsState,
 } from "./use-dashboard-variables";
 
+const fieldClass = (layout: VariableBarLayout) =>
+  layout === "inline" ? "flex items-center gap-2" : "flex flex-col gap-1";
+
 function variableLabel(variable: Variable): string {
   return variable.spec.display?.name ?? variable.spec.name;
 }
@@ -35,7 +38,30 @@ function isVisible(variable: Variable): boolean {
   return true;
 }
 
-export function VariableBar() {
+/**
+ * Whether this dashboard shows any pickers at all. A container that seats the
+ * variable bar next to other controls has to know before it renders: with no
+ * pickers there is no left half, so there is nothing to divide.
+ */
+export function useHasVisibleVariables(): boolean {
+  return useDashboardVariables().variables.some(isVisible);
+}
+
+/**
+ * `inline` puts each label beside its control instead of above it, so every
+ * item in the row shares one control-height baseline. The dashboard toolbar
+ * needs that to align its actions against; the runbook viewer renders this as a
+ * standalone block, where the stacked label reads better, and keeps the default.
+ */
+export type VariableBarLayout = "stacked" | "inline";
+
+export function VariableBar({
+  className,
+  layout = "stacked",
+}: {
+  className?: string;
+  layout?: VariableBarLayout;
+} = {}) {
   const navigate = useNavigate();
   const { variables, values, optionsState } = useDashboardVariables();
 
@@ -60,12 +86,19 @@ export function VariableBar() {
   if (visible.length === 0) return null;
 
   return (
-    <div className="mb-3 flex flex-wrap items-end gap-3">
+    <div
+      className={cn(
+        "mb-3 flex flex-wrap gap-3",
+        layout === "inline" ? "items-center" : "items-end",
+        className,
+      )}
+    >
       {visible.map((variable) =>
         variable.kind === "TextVariable" ? (
           <TextVariableField
             key={variable.spec.name}
             variable={variable}
+            layout={layout}
             value={
               typeof values[variable.spec.name] === "string"
                 ? (values[variable.spec.name] as string)
@@ -77,6 +110,7 @@ export function VariableBar() {
           <ListVariableField
             key={variable.spec.name}
             variable={variable}
+            layout={layout}
             value={values[variable.spec.name]}
             optionsState={optionsState[variable.spec.name]}
             onChange={(value) => setValue(variable.spec.name, value)}
@@ -89,16 +123,18 @@ export function VariableBar() {
 
 function TextVariableField({
   variable,
+  layout,
   value,
   onCommit,
 }: {
   variable: TextVariable;
+  layout: VariableBarLayout;
   value: string;
   onCommit: (value: string) => void;
 }) {
   const name = variable.spec.name;
   return (
-    <div className="flex flex-col gap-1">
+    <div className={fieldClass(layout)}>
       <Label htmlFor={`var-${name}`} className="text-xs text-muted-foreground">
         {variableLabel(variable)}
       </Label>
@@ -120,11 +156,13 @@ function TextVariableField({
 
 function ListVariableField({
   variable,
+  layout,
   value,
   optionsState,
   onChange,
 }: {
   variable: ListVariable;
+  layout: VariableBarLayout;
   value: string | string[] | undefined;
   optionsState: VariableOptionsState | undefined;
   onChange: (value: string | string[]) => void;
@@ -162,7 +200,7 @@ function ListVariableField({
   };
 
   return (
-    <div className="flex flex-col gap-1">
+    <div className={fieldClass(layout)}>
       <Label htmlFor={`var-${name}`} className="text-xs text-muted-foreground">
         {variableLabel(variable)}
       </Label>
