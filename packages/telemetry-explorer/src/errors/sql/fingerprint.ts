@@ -15,3 +15,17 @@ export const EXCEPTION_LOG_FILTER_SQL = `
     OR mapContains(LogAttributes, 'exception.message')
   )
 `;
+
+/**
+ * How many distinct Errors a set of log rows holds, as a ClickHouse aggregate.
+ *
+ * Which rows count as an Error and what makes two of them the same Error are
+ * both this module's rules, so callers get the composed aggregate rather than
+ * the two halves to combine themselves. Add it to any `SELECT` over `logs`;
+ * being a `uniq`, it counts distinct Errors across whatever the query groups
+ * by, so a `WITH ROLLUP` total is the range-wide figure and not the sum of the
+ * per-group counts.
+ */
+export function errorIssueCountExpr(): string {
+  return `uniqIf(${ERROR_FINGERPRINT_SQL}, ${EXCEPTION_LOG_FILTER_SQL})`;
+}

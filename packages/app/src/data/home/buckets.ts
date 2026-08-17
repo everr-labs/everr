@@ -1,6 +1,15 @@
 import type { BucketGranularity } from "@/lib/time-range";
 
 /**
+ * Bucketing splits across two layers on purpose: `@/lib/time-range` decides
+ * which granularity a range deserves, and each data module renders that
+ * granularity into its own SQL and its own key grid. `cost-analysis/server.ts`
+ * has the same shape. Choosing the granularity is a product rule shared by
+ * every chart; emitting the keys is coupled to one module's column names and
+ * row shapes, so it stays next to the queries that depend on it.
+ */
+
+/**
  * The bucket key a row falls into, as ClickHouse SQL.
  *
  * Both the rounding and the formatting are pinned to UTC. `Timestamp` and
