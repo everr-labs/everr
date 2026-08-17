@@ -44,11 +44,17 @@ export const RULES_PAGE = 50;
 function ruleStatus(
   rule: AlertingRuleView,
   firing: boolean,
+  pending: boolean,
 ): { label: string; tone: Tone; muted: boolean } {
   if (rule.paused) return { label: "Paused", tone: "muted", muted: true };
-  // Firing outranks health: a degraded rule that is also firing is a firing
-  // rule, and the reader acts on the alert, not on the evaluation error.
+  // Firing and pending outrank health: a degraded rule that is also firing
+  // (or on its way there) is a firing (or pending) rule, and the reader acts
+  // on the alert, not on the evaluation error. Firing outranks pending, not
+  // the reverse: Triage's own history separates the two ("PENDING SINCE" vs
+  // "FIRING SINCE" on the same instance), so this list must not fold them
+  // into one label either.
   if (firing) return { label: "Firing", tone: "danger", muted: false };
+  if (pending) return { label: "Pending", tone: "warning", muted: false };
   if (rule.previewId !== null)
     return { label: "Preview", tone: "muted", muted: true };
   if (rule.health.status === "degraded") {
@@ -60,13 +66,15 @@ function ruleStatus(
 function RuleLine({
   rule,
   firing,
+  pending,
 }: {
   rule: AlertingRuleView;
   firing: boolean;
+  pending: boolean;
 }) {
   const qc = useQueryClient();
   const identity = alertingRuleIdentity(rule);
-  const status = ruleStatus(rule, firing);
+  const status = ruleStatus(rule, firing, pending);
   const toggle = useMutation({
     mutationFn: () =>
       rule.paused
@@ -136,11 +144,17 @@ function RuleLine({
 export function AlertingRulesCard({
   rules,
   firingRuleIds,
+  pendingRuleIds,
   pending,
 }: {
   rules: AlertingRuleView[];
   /** Which rules have a firing instance right now, keyed by rule id. */
   firingRuleIds: Set<string>;
+  /** Which rules have a pending (not yet firing) instance right now, keyed
+   *  by rule id. Disjoint from `firingRuleIds`: an instance is one or the
+   *  other, never both. */
+  pendingRuleIds: Set<string>;
+  /** Whether the rules query itself is still loading. */
   pending: boolean;
 }) {
   const [visible, setVisible] = useState(RULES_PAGE);
@@ -186,6 +200,7 @@ export function AlertingRulesCard({
                   key={rule.id}
                   rule={rule}
                   firing={firingRuleIds.has(rule.id)}
+                  pending={pendingRuleIds.has(rule.id)}
                 />
               ))}
             </ul>

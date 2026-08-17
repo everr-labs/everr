@@ -303,7 +303,8 @@ describe("/alerts triage board", () => {
     expect(
       screen.queryByRole("link", { name: /rules watching/i }),
     ).not.toBeInTheDocument();
-    // The rail replaces this shortcut in a later task.
+    // The section rail (not this page) is where Notifications and Routing
+    // live now, so Triage carries no in-page shortcut to either.
     expect(
       screen.queryByRole("link", { name: "Delivery" }),
     ).not.toBeInTheDocument();

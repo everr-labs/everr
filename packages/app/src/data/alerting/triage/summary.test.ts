@@ -9,7 +9,6 @@ import { alertingRuleViewFixture } from "../test-fixtures";
 import {
   alertingActiveGroups,
   alertingGroupInstances,
-  alertingQuietRules,
   alertingResolveTriageInstances,
   alertingSourceScopedSilenceMatchers,
   alertingTriageCounts,
@@ -350,38 +349,6 @@ describe("alertingActiveGroups", () => {
     );
 
     expect(alertingActiveGroups(groups)).toEqual([]);
-  });
-});
-
-describe("alertingQuietRules", () => {
-  it("excludes rules with an active instance and sorts the rest by name", () => {
-    const zulu = alertingRule({
-      id: "rule-z",
-      name: "default/zulu",
-      spec: {
-        ...alertingRule().spec,
-        annotations: { "everr.display.name": "Zulu check" },
-      },
-    });
-    const alpha = alertingRule({
-      id: "rule-a",
-      name: "default/alpha",
-      spec: {
-        ...alertingRule().spec,
-        annotations: { "everr.display.name": "Alpha check" },
-      },
-    });
-    const firing = alertingRule({ id: "rule-1" });
-    const groups = alertingGroupInstances(
-      resolve({ alerts: [alertingAlert()], rules: [firing] }),
-    );
-
-    const quiet = alertingQuietRules(
-      [zulu, firing, alpha],
-      alertingActiveGroups(groups),
-    );
-
-    expect(quiet.map((r) => r.id)).toEqual(["rule-a", "rule-z"]);
   });
 });
 

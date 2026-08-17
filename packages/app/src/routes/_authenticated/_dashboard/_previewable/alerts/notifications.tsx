@@ -9,7 +9,7 @@ import { ChannelsSection } from "./-components/delivery/channels-section";
 import { ReceiversSection } from "./-components/delivery/receivers-section";
 
 const NotificationsSearchSchema = z.object({
-  new: z.enum(["receiver", "channel"]).optional(),
+  new: z.enum(["receiver", "channel"]).optional().catch(undefined),
 });
 
 export const Route = createFileRoute(

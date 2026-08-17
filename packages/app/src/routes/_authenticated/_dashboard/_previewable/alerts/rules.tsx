@@ -31,9 +31,18 @@ function AlertingRulesPage() {
 
   if (rules.isError) return <AlertingQueryError error={rules.error} />;
 
+  // Kept apart, not merged into one "active" set: Triage labels these two
+  // states differently (`FIRING SINCE` vs `PENDING SINCE`), so a rule with
+  // only a pending instance would read as firing here otherwise, disagreeing
+  // with the page the reader just came from.
   const firingRuleIds = new Set(
     (alerts.data ?? EMPTY)
-      .filter((a) => a.status === "firing" || a.status === "pending")
+      .filter((a) => a.status === "firing")
+      .map((a) => a.rule),
+  );
+  const pendingRuleIds = new Set(
+    (alerts.data ?? EMPTY)
+      .filter((a) => a.status === "pending")
       .map((a) => a.rule),
   );
 
@@ -47,6 +56,7 @@ function AlertingRulesPage() {
       <AlertingRulesCard
         rules={rules.data ?? EMPTY}
         firingRuleIds={firingRuleIds}
+        pendingRuleIds={pendingRuleIds}
         pending={rules.isPending}
       />
     </div>

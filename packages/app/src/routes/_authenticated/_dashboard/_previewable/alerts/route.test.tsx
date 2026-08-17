@@ -7,7 +7,8 @@ import {
   Outlet,
   RouterProvider,
 } from "@tanstack/react-router";
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { alertingRuleViewFixture } from "@/data/alerting/test-fixtures";
 // The layout route lives at `../alerts.tsx`, the pathless-sibling file next to
@@ -57,9 +58,10 @@ vi.mock("@/data/alerting/routing/suggestions", () => ({
   listAlertingLabelValues: vi.fn().mockResolvedValue([]),
 }));
 
-/** `useMediaQuery` reads `window.matchMedia`, which jsdom implements but never
- *  evaluates against a real viewport: it always reports the wide layout. Only
- *  a narrow-window test needs this stub. */
+/** jsdom does not implement `window.matchMedia` at all. `useMediaQuery` reads
+ *  it through a guard that falls back to `?? false` when it is missing, and
+ *  `false` is what the narrow-window query resolves to, so wide is the
+ *  default without this stub. Only a narrow-window test needs it. */
 function matchMediaMock(matches: boolean) {
   vi.stubGlobal(
     "matchMedia",
@@ -181,5 +183,22 @@ describe("alerts section nav", () => {
     expect(
       screen.queryByRole("navigation", { name: "Alerting" }),
     ).not.toBeInTheDocument();
+  });
+
+  it("closes the sheet after choosing a destination on a narrow window", async () => {
+    matchMediaMock(true); // NARROW_QUERY matches
+    const user = userEvent.setup();
+    const { router } = renderAlertsLayout({ initialEntry: "/alerts" });
+
+    await user.click(await screen.findByRole("button", { name: "Alerting" }));
+    const dialog = within(await screen.findByRole("dialog"));
+    await user.click(dialog.getByRole("link", { name: "All Rules" }));
+
+    await waitFor(() =>
+      expect(router.state.location.pathname).toBe("/alerts/rules"),
+    );
+    // A destination navigates AND dismisses the sheet: leaving it mounted
+    // would strand the reader on the new page behind a modal overlay.
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 });

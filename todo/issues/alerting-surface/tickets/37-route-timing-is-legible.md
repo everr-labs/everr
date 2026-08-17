@@ -17,7 +17,8 @@ and `nextGroupFlushAt` schedules the next flush at
 
 The route behind it sets only `repeat_interval_secs: 60`. Everything else is
 null, so `group_interval_secs` falls back to the 300s default in
-`routing/defaults.ts`. The list row in `alerts/delivery.tsx` renders
+`routing/defaults.ts`. The list row in
+`alerts/-components/delivery/pipeline-section.tsx:104` renders
 `alertingRouteTimingSummary(..., "overrides")` and therefore reads
 `repeat 60s`. The 300s that governed the delay is on screen nowhere, and the
 row invites the reader to conclude the group notifies every 60s.

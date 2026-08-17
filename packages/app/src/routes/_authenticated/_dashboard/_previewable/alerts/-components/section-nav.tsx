@@ -23,7 +23,7 @@ const NARROW_QUERY = "(max-width: 1023px)";
  *  the source of truth for how a rail looks in this app. Not exported: only
  *  `AlertingSectionNavRail` places it, and an export with no consumer outside
  *  this file reads as dead code. */
-function AlertingSectionNav() {
+function AlertingSectionNav({ onNavigate }: { onNavigate?: () => void }) {
   return (
     <nav
       aria-label="Alerting"
@@ -40,6 +40,7 @@ function AlertingSectionNav() {
               to={d.to}
               activeOptions={{ exact: d.exact }}
               activeProps={{ "data-active": "true" }}
+              onClick={onNavigate}
               className="flex min-h-9 items-center rounded px-2 text-sm text-muted-foreground hover:bg-accent hover:text-accent-foreground data-active:bg-accent data-active:font-medium data-active:text-accent-foreground"
             >
               {d.label}
@@ -62,7 +63,13 @@ function AlertingSectionNav() {
 export function AlertingSectionNavRail() {
   const isNarrow = useMediaQuery(NARROW_QUERY);
   const [open, setOpen] = useState(false);
-  const nav = <AlertingSectionNav />;
+  // Only the sheet needs to close itself on navigation; the wide rail is not
+  // a dismissible overlay, so it gets no handler.
+  const nav = (
+    <AlertingSectionNav
+      onNavigate={isNarrow ? () => setOpen(false) : undefined}
+    />
+  );
 
   if (!isNarrow) return nav;
 

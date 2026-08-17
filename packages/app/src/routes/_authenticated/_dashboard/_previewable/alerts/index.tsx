@@ -34,8 +34,8 @@ const EMPTY: never[] = [];
 export const Route = createFileRoute(
   "/_authenticated/_dashboard/_previewable/alerts/",
 )({
-  staticData: { breadcrumb: "Alerts" },
-  head: () => ({ meta: [{ title: "Everr - Alerts" }] }),
+  staticData: { breadcrumb: "Triage" },
+  head: () => ({ meta: [{ title: "Everr - Triage" }] }),
   loaderDeps: ({ search: { preview } }) => ({ preview }),
   loader: ({ context: { queryClient }, deps }) =>
     Promise.all([

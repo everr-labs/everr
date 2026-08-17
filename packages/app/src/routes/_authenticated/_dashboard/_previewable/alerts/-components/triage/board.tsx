@@ -1,5 +1,7 @@
 // Every group here has at least one firing or pending instance: the route
-// filters via alertingActiveGroups. Quiet rules render in quiet-rules.tsx.
+// filters via alertingActiveGroups. The full rule list, quiet ones included,
+// is a separate page (quiet-rules.tsx, despite the name, now renders every
+// rule, not only quiet ones).
 
 import { Button, buttonVariants } from "@everr/ui/components/button";
 import {

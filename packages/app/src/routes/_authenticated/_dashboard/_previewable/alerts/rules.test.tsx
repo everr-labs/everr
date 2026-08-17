@@ -131,6 +131,23 @@ describe("/alerts/rules", () => {
     expect(ruleRow("calm")).toHaveTextContent("OK");
   });
 
+  it("labels a rule with only a pending instance Pending, not Firing", async () => {
+    mocks.listAlertingRules.mockResolvedValue([
+      alertingRule({ id: "rule-1", name: "default/limbo" }),
+    ]);
+    mocks.listAlertingAlerts.mockResolvedValue([
+      alertingAlert({ rule: "rule-1", status: "pending" }),
+    ]);
+
+    renderRulesPage();
+
+    expect(await screen.findByText("limbo")).toBeInTheDocument();
+    // The same instance reads "PENDING SINCE" on Triage: this list must not
+    // claim it as firing just because it is one of the two active states.
+    expect(ruleRow("limbo")).toHaveTextContent("Pending");
+    expect(ruleRow("limbo")).not.toHaveTextContent("Firing");
+  });
+
   it("pages the rule list past its cap", async () => {
     const overflow = 10;
     const total = RULES_PAGE + overflow;

@@ -118,9 +118,11 @@ describe("/alerts/rules/$project/$slug", () => {
   it("puts the description under the name and keeps every definition fact", async () => {
     mocks.getAlertingRuleByName.mockResolvedValue(
       alertingRule({
+        notification_channels: ["oncall-hook"],
         spec: {
           ...alertingRule().spec,
           interval_secs: 60,
+          max_interval_secs: 300,
           for_secs: 600,
           resolve_after: 2,
           label_columns: ["host"],
@@ -128,6 +130,7 @@ describe("/alerts/rules/$project/$slug", () => {
           sql: "SELECT 1",
           annotations: {
             "everr.display.name": "Flapping check",
+            summary: "Flaps when the source keeps toggling.",
             "everr.display.description": "Fires when the flap condition holds.",
           },
         },
@@ -136,17 +139,19 @@ describe("/alerts/rules/$project/$slug", () => {
 
     renderRuleDetail();
 
-    const heading = await screen.findByRole("heading", {
-      name: "Flapping check",
-    });
-    expect(heading).toBeInTheDocument();
+    await screen.findByRole("heading", { name: "Flapping check" });
+    expect(
+      screen.getByText("Flaps when the source keeps toggling."),
+    ).toBeInTheDocument();
     expect(
       screen.getByText("Fires when the flap condition holds."),
     ).toBeInTheDocument();
 
     expect(screen.getByText(/every 1m/i)).toBeInTheDocument();
+    expect(screen.getByText(/up to 5m/i)).toBeInTheDocument();
     expect(screen.getByText(/for 10m/i)).toBeInTheDocument();
     expect(screen.getByText(/2 missed/i)).toBeInTheDocument();
+    expect(screen.getByText(/to oncall-hook/i)).toBeInTheDocument();
     expect(screen.getByText(/value > 0/)).toBeInTheDocument();
     expect(screen.getByText(/host/)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /query/i })).toBeInTheDocument();

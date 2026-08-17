@@ -21,7 +21,6 @@ const mocks = vi.hoisted(() => ({
   listAlertingRoutes: vi.fn(),
   listAlertingReceivers: vi.fn(),
   listAlertingChannels: vi.fn(),
-  listAlertingInhibitions: vi.fn(),
   createAlertingChannel: vi.fn(),
   updateAlertingChannel: vi.fn(),
   deleteAlertingChannel: vi.fn(),
@@ -39,7 +38,6 @@ vi.mock("@/data/alerting/delivery/server", () => ({
   listAlertingRoutes: mocks.listAlertingRoutes,
   listAlertingReceivers: mocks.listAlertingReceivers,
   listAlertingChannels: mocks.listAlertingChannels,
-  listAlertingInhibitions: mocks.listAlertingInhibitions,
   createAlertingChannel: mocks.createAlertingChannel,
   updateAlertingChannel: mocks.updateAlertingChannel,
   deleteAlertingChannel: mocks.deleteAlertingChannel,
@@ -48,16 +46,16 @@ vi.mock("@/data/alerting/delivery/server", () => ({
   deleteAlertingReceiver: mocks.deleteAlertingReceiver,
 }));
 
-// The channel chip renders through the shared `Pill` component, which always
-// resolves rule-shaped matcher values against the rules list, even here
-// where no matcher is ever shown. Unmocked, the real module reaches for a
-// server-only env var and crashes on import.
+// `ReceiversSection` renders `ChannelChip` (route-preview.tsx), which imports
+// `Pill` from shared/signal.tsx and named exports from matchers-editor.tsx.
+// Neither is called here, but both modules pull in the real rules and routing
+// repositories at import time, and those reach `db/client.ts`, which has no
+// database to talk to in this environment. Mock the two leaf modules so the
+// import graph never gets that far.
 vi.mock("@/data/alerting/rules/server", () => ({
   listAlertingRules: mocks.listAlertingRules,
 }));
 
-// The channel chip's matcher preview reaches for label/value suggestions
-// through this module, which itself pulls in a server-only data source.
 vi.mock("@/data/alerting/routing/suggestions", () => ({
   listAlertingLabelKeys: mocks.listAlertingLabelKeys,
   listAlertingLabelValues: mocks.listAlertingLabelValues,
@@ -107,7 +105,10 @@ function route(overrides: Partial<AlertingRoute> = {}): AlertingRoute {
 }
 
 function renderNotificationsPage(
-  search: { new?: "receiver" | "channel" } = {},
+  // A plain `string` (not the narrower search-param union) so a test can
+  // drive an unexpected `?new=` value the way a bookmark or a hand-edited
+  // URL would.
+  search: { new?: string } = {},
 ) {
   const rootRoute = createRootRoute({ component: Outlet });
   const authenticatedRoute = createRoute({
@@ -175,7 +176,6 @@ beforeEach(() => {
   mocks.listAlertingRoutes.mockResolvedValue([]);
   mocks.listAlertingReceivers.mockResolvedValue([]);
   mocks.listAlertingChannels.mockResolvedValue([]);
-  mocks.listAlertingInhibitions.mockResolvedValue([]);
   mocks.listAlertingRules.mockResolvedValue([]);
   mocks.listAlertingLabelKeys.mockResolvedValue([]);
   mocks.listAlertingLabelValues.mockResolvedValue([]);
@@ -239,6 +239,15 @@ describe("/alerts/notifications entry from a link", () => {
 
     const drawer = await findSettledDrawer();
     expect(within(drawer).getByText("New channel")).toBeInTheDocument();
+  });
+
+  it("renders normally with no builder open when ?new= holds an unexpected value", async () => {
+    renderNotificationsPage({ new: "bogus" });
+
+    expect(
+      await screen.findByRole("heading", { name: "Notifications" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 });
 

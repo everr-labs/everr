@@ -121,9 +121,10 @@ export type TriageGroup = {
 
 /**
  * Groups cut to the instances a reader has to act on: firing now, or pending
- * and on the way. Pending belongs here rather than in the quiet band because
- * a rule minutes from paging is the reader's business, and the row already
- * carries its own status so the two never read as the same thing.
+ * and on the way. Pending belongs here rather than being left off the board
+ * entirely: a rule minutes from paging is the reader's business, and the row
+ * already carries its own status ("PENDING SINCE" vs "FIRING SINCE"), so the
+ * two never read as the same thing.
  */
 export function alertingActiveGroups(groups: TriageGroup[]): TriageGroup[] {
   return groups
@@ -136,25 +137,6 @@ export function alertingActiveGroups(groups: TriageGroup[]): TriageGroup[] {
       ),
     }))
     .filter((group) => group.rows.length > 0);
-}
-
-/**
- * Rules with nothing on the board. Sorted by display name rather than by
- * update time: this list is read by hunting for a rule you can name, and the
- * update order only ever existed to serve keyset pagination.
- */
-export function alertingQuietRules(
-  rules: AlertingRuleView[],
-  activeGroups: TriageGroup[],
-): AlertingRuleView[] {
-  const active = new Set(activeGroups.map((group) => group.sourceId));
-  return rules
-    .filter((rule) => !active.has(rule.id))
-    .sort((a, b) =>
-      alertingRuleDisplayName(a, a.id).localeCompare(
-        alertingRuleDisplayName(b, b.id),
-      ),
-    );
 }
 
 export function alertingResolveTriageInstances({
