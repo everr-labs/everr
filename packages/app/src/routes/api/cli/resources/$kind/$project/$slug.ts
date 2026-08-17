@@ -3,6 +3,7 @@ import {
   deleteResource,
   getResource,
   isResourceKind,
+  ReservedProjectError,
 } from "@/data/as-code/resource-admin.server";
 import { getBuiltinDashboard } from "@/data/dashboards/built-in/catalog";
 import { BUILTIN_PROJECT } from "@/data/dashboards/schema";
@@ -43,22 +44,20 @@ export const Route = createFileRoute("/api/cli/resources/$kind/$project/$slug")(
         DELETE: async ({ params, context }) => {
           const { kind, project, slug } = params;
           if (!isResourceKind(kind)) return unknownKindResponse(kind);
-          if (project === BUILTIN_PROJECT) {
-            return Response.json(
-              {
-                error:
-                  "built-in dashboards ship with Everr and cannot be deleted",
-              },
-              { status: 403 },
+          try {
+            const deleted = await deleteResource(
+              context.session.session.activeOrganizationId,
+              kind,
+              project,
+              slug,
             );
+            if (!deleted) return notFoundResponse(kind, project, slug);
+          } catch (error) {
+            if (error instanceof ReservedProjectError) {
+              return Response.json({ error: error.message }, { status: 403 });
+            }
+            throw error;
           }
-          const deleted = await deleteResource(
-            context.session.session.activeOrganizationId,
-            kind,
-            project,
-            slug,
-          );
-          if (!deleted) return notFoundResponse(kind, project, slug);
           return Response.json({ ok: true, kind, project, slug });
         },
       },

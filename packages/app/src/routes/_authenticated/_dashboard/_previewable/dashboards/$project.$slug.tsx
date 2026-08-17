@@ -4,7 +4,6 @@ import gridLayoutCSS from "react-grid-layout/css/styles.css?url";
 import { DashboardGrid } from "@/components/dashboards/dashboard-grid";
 import gridLayoutOverridesCSS from "@/components/dashboards/dashboard-grid.css?url";
 import { DashboardNotFound } from "@/components/dashboards/dashboard-not-found";
-import { FrameToggle } from "@/components/dashboards/frame-toggle";
 import { DashboardProvider } from "@/components/dashboards/use-dashboard";
 import { recordLastViewed } from "@/data/dashboards/last-viewed";
 import { dashboardOptions } from "@/data/dashboards/options";
@@ -43,6 +42,7 @@ export const Route = createFileRoute(
     context: { queryClient },
     params: { project, slug },
     deps: { preview },
+    preload,
   }) => {
     // A missing dashboard throws notFound() from the server fn (→ notFound UI);
     // any other failure propagates to the error boundary instead of being
@@ -50,7 +50,9 @@ export const Route = createFileRoute(
     const { document, previewStatus } = await queryClient.ensureQueryData(
       dashboardOptions(project, slug, preview),
     );
-    recordLastViewed({ project, slug });
+    // Preloads (link hover) run this loader too; only a committed navigation
+    // counts as "viewed".
+    if (!preload) recordLastViewed({ project, slug });
     // Expose the dashboard's duration/refreshInterval as route time defaults so
     // the time-range hooks seed the picker and panels from the first render —
     // no post-mount URL write, so panels never query the wrong window first.
@@ -74,7 +76,7 @@ function DashboardPage() {
   } = useSuspenseQuery(dashboardOptions(project, slug, preview));
   return (
     <DashboardProvider document={document}>
-      <DashboardGrid leading={<FrameToggle />} />
+      <DashboardGrid />
     </DashboardProvider>
   );
 }

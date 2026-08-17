@@ -5,6 +5,7 @@ import {
   PopoverTrigger,
 } from "@everr/ui/components/popover";
 import { useCopyToClipboard } from "@everr/ui/hooks/use-copy-to-clipboard";
+import { cn } from "@everr/ui/lib/utils";
 import { Check, Copy, Sparkles } from "lucide-react";
 import { useRef } from "react";
 import { createFromBuiltinPrompt } from "@/data/dashboards/built-in/prompt";
@@ -62,17 +63,19 @@ export function CreateFromBuiltin({
           )}
           {copyState === "copied" ? "Copied" : "Copy prompt"}
         </Button>
-        <p aria-live="polite" className="sr-only">
+        {/* One status line serves sighted and screen-reader users alike:
+            visible on failure, announced-only for the transient "copied". */}
+        <p
+          role="status"
+          className={cn(
+            "mt-2 text-amber-400 text-xs",
+            copyState !== "failed" && "sr-only",
+          )}
+        >
           {copyState === "copied" && "Prompt copied to clipboard."}
           {copyState === "failed" &&
             "Couldn't access the clipboard. The prompt is selected, copy it manually."}
         </p>
-        {copyState === "failed" && (
-          <p className="mt-2 text-amber-400 text-xs">
-            Couldn't access the clipboard. The prompt is selected, copy it
-            manually.
-          </p>
-        )}
       </PopoverContent>
     </Popover>
   );

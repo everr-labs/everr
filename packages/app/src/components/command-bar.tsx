@@ -18,7 +18,7 @@ import { useNavigate, useSearch } from "@tanstack/react-router";
 import { LayoutDashboard, SearchIcon } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { flushSync } from "react-dom";
-import { BUILTIN_DASHBOARDS } from "@/data/dashboards/built-in/catalog";
+import { BUILTIN_MANIFEST } from "@/data/dashboards/built-in/manifest";
 import { dashboardListOptions } from "@/data/dashboards/options";
 import { searchRunsOptions } from "@/data/runs-list/options";
 import { useDebouncedValue } from "@/hooks/use-debounced-value";
@@ -148,7 +148,7 @@ export function CommandBar() {
               </CommandGroup>
             )}
             <CommandGroup heading="Built-in dashboards">
-              {BUILTIN_DASHBOARDS.map((b) => (
+              {BUILTIN_MANIFEST.map((b) => (
                 <CommandItem
                   key={b.id}
                   value={`built-in dashboard ${b.name} ${b.id}`}

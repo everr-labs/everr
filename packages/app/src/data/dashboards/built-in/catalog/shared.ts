@@ -1,4 +1,4 @@
-import { ALL_VALUE } from "../../interpolate";
+import { ALL_VALUE, sqlLiteral } from "../../interpolate";
 import type { Panel, Variable } from "../../schema";
 import { layout, split, stat, thresholds, timeSeries } from "../build";
 import type {
@@ -129,8 +129,9 @@ const metricRows = (metric: string, seriesSelect?: string, seriesWhere = "") =>
     ` AND MetricName = '${metric}'${seriesWhere}`,
   );
 
-const quoted = (values: string[]) =>
-  values.map((value) => `'${value}'`).join(", ");
+// Reuses interpolate's escaping so a value containing a quote can't break the
+// generated SQL.
+const quoted = (values: string[]) => values.map(sqlLiteral).join(", ");
 
 /**
  * Restrict which values of the series dimension a panel draws, before anything

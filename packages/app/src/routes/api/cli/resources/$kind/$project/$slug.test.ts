@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   deleteResource,
   getResource,
+  ReservedProjectError,
 } from "@/data/as-code/resource-admin.server";
 import { getRouteHandler } from "../../../-test-utils";
 import { Route } from "./$slug";
@@ -144,13 +145,13 @@ describe("DELETE .../$kind/$project/$slug", () => {
     expect(res.status).toBe(404);
   });
 
-  it("403s the built-in pseudo-project", async () => {
+  it("403s when the admin layer rejects the reserved project", async () => {
+    mockedDelete.mockRejectedValueOnce(new ReservedProjectError("deleted"));
     const res = await del()({
       request: new Request(url, { method: "DELETE" }),
       context: rwCtx,
       params: { kind: "dashboard", project: "built-in", slug: "log-overview" },
     });
     expect(res.status).toBe(403);
-    expect(mockedDelete).not.toHaveBeenCalled();
   });
 });

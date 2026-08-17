@@ -5,7 +5,6 @@ import { CreateFromBuiltin } from "@/components/dashboards/create-from-builtin";
 import { DashboardGrid } from "@/components/dashboards/dashboard-grid";
 import gridLayoutOverridesCSS from "@/components/dashboards/dashboard-grid.css?url";
 import { DashboardNotFound } from "@/components/dashboards/dashboard-not-found";
-import { FrameToggle } from "@/components/dashboards/frame-toggle";
 import { DashboardProvider } from "@/components/dashboards/use-dashboard";
 import { evaluateBuiltin } from "@/data/dashboards/built-in/capabilities";
 import { getBuiltinDashboard } from "@/data/dashboards/built-in/catalog";
@@ -32,10 +31,12 @@ export const Route = createFileRoute(
   }),
   component: BuiltinDashboardPage,
   notFoundComponent: DashboardNotFound,
-  loader: ({ params: { slug } }) => {
+  loader: ({ params: { slug }, preload }) => {
     const builtin = getBuiltinDashboard(slug);
     if (!builtin) throw notFound();
-    recordLastViewed({ slug });
+    // Preloads (link hover) run this loader too; only a committed navigation
+    // counts as "viewed".
+    if (!preload) recordLastViewed({ slug });
     return {
       name: builtin.name,
       timeDefaults: dashboardTimeDefaults(builtin.document.spec),
@@ -78,7 +79,6 @@ function BuiltinDashboardPage() {
           variable toolbar like any other dashboard control. */}
       <DashboardProvider document={builtin.document}>
         <DashboardGrid
-          leading={<FrameToggle />}
           actions={<CreateFromBuiltin slug={builtin.id} name={builtin.name} />}
         />
       </DashboardProvider>

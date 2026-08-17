@@ -45,6 +45,8 @@ function DashboardsLayout() {
         and scrolls its own overflow; only the tree and rows scroll, the
         heading and search stay pinned. `overflow-hidden` plus the fixed-width
         inner column keep the content from reflowing while the track animates.
+        The 4.5rem offset is the app header (h-12) plus the PageContainer's
+        vertical p-3 insets — update it if either changes.
       */}
       <aside
         inert={full}

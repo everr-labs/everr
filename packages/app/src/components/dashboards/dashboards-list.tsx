@@ -3,7 +3,7 @@ import { Input } from "@everr/ui/components/input";
 import { DEFAULT_TIME_RANGE } from "@everr/ui/lib/time-range";
 import { cn } from "@everr/ui/lib/utils";
 import { useQuery } from "@tanstack/react-query";
-import { Link, useParams } from "@tanstack/react-router";
+import { Link, useMatchRoute } from "@tanstack/react-router";
 import {
   Activity,
   Boxes,
@@ -89,32 +89,37 @@ export function DashboardsList({ preview }: { preview?: string }) {
     [capabilities],
   );
 
-  const matching = useMemo(() => {
+  // The probe not having answered yet is one global fact, not a per-entry one.
+  const ungraded = !capabilities;
+
+  const { matching, ready, needsData } = useMemo(() => {
     const q = search.trim().toLowerCase();
-    if (!q) return graded;
-    return graded.filter(
-      ({ builtin }) =>
-        builtin.name.toLowerCase().includes(q) ||
-        builtin.description.toLowerCase().includes(q) ||
-        builtin.category.toLowerCase().includes(q) ||
-        // Requirements are searchable too: someone who knows they emit
-        // `redis.*` should find the Redis built-in by typing what they send.
-        builtin.requires.some((r) => r.match.toLowerCase().includes(q)),
-    );
+    const matching = !q
+      ? graded
+      : graded.filter(
+          ({ builtin }) =>
+            builtin.name.toLowerCase().includes(q) ||
+            builtin.description.toLowerCase().includes(q) ||
+            builtin.category.toLowerCase().includes(q) ||
+            // Requirements are searchable too: someone who knows they emit
+            // `redis.*` should find the Redis built-in by typing what they
+            // send.
+            builtin.requires.some((r) => r.match.toLowerCase().includes(q)),
+        );
+    return {
+      matching,
+      ready: matching.filter((e) => e.readiness?.status === "ready"),
+      needsData: matching.filter((e) => e.readiness?.status !== "ready"),
+    };
   }, [graded, search]);
 
-  const ready = matching.filter((e) => e.readiness?.status === "ready");
-  const needsData = matching.filter((e) => e.readiness?.status !== "ready");
-  const ungraded = matching.some((e) => e.readiness === null);
-
   // A deep link can land on an unready built-in; the disclosure must not hide
-  // the active row, or the list stops saying where you are. The built-in
-  // route is the only one with a bare `slug` param (yours carry `project`).
-  const params = useParams({ strict: false }) as {
-    project?: string;
-    slug?: string;
-  };
-  const activeBuiltin = params.project ? undefined : params.slug;
+  // the active row, or the list stops saying where you are. Matched by route
+  // identity rather than param shape, so a future sibling route with a `slug`
+  // param cannot mis-detect.
+  const matchRoute = useMatchRoute();
+  const builtinMatch = matchRoute({ to: "/dashboards/built-in/$slug" });
+  const activeBuiltin = builtinMatch ? builtinMatch.slug : undefined;
   const showNeedsData =
     needsDataOpen || needsData.some((e) => e.builtin.id === activeBuiltin);
 

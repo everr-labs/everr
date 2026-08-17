@@ -1,11 +1,29 @@
 import { and, eq, isNull, ne, or } from "drizzle-orm";
 import type { PgColumn } from "drizzle-orm/pg-core";
+import { BUILTIN_PROJECT } from "@/data/dashboards/schema";
 import { db } from "@/db/client";
 import { alertDefinitions } from "@/db/schema/alerts";
 import { dashboards, runbooks } from "@/db/schema/app";
 
 export const RESOURCE_KINDS = ["dashboard", "runbook", "alert"] as const;
 export type ResourceKind = (typeof RESOURCE_KINDS)[number];
+
+/**
+ * Thrown by every mutating function when the target names the reserved
+ * `built-in` pseudo-project (ADR 0004). Centralized here so a new write verb
+ * inherits the invariant instead of remembering its own route-level check;
+ * routes translate this to a 403.
+ */
+export class ReservedProjectError extends Error {
+  constructor(action: string) {
+    super(`built-in dashboards ship with Everr and cannot be ${action}`);
+    this.name = "ReservedProjectError";
+  }
+}
+
+function rejectReservedProject(project: string, action: string): void {
+  if (project === BUILTIN_PROJECT) throw new ReservedProjectError(action);
+}
 
 export function isResourceKind(value: string): value is ResourceKind {
   return (RESOURCE_KINDS as readonly string[]).includes(value);
@@ -140,6 +158,7 @@ export async function deleteResource(
   project: string,
   slug: string,
 ): Promise<boolean> {
+  rejectReservedProject(project, "deleted");
   const result = await db
     .delete(tableFor(kind))
     .where(scopedRow(kind, orgId, project, slug));
@@ -163,6 +182,7 @@ export async function adoptResource(
   slug: string,
   destRepoid: string,
 ): Promise<AdoptResult> {
+  rejectReservedProject(project, "adopted");
   const table = tableFor(kind);
   const where = scopedRow(kind, orgId, project, slug);
   // Flip ownership in one statement; the ownership guard leaves 0 rows only

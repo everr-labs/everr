@@ -91,12 +91,18 @@ export function VariableBar({
   const visible = variables.filter(isVisible);
   if (visible.length === 0) return null;
 
-  return (
+  const fields = (
     <div
       className={cn(
-        "mb-3 flex flex-wrap gap-3",
-        layout === "inline" ? "-ml-[13px] items-center" : "items-end",
-        className,
+        "flex flex-wrap gap-3",
+        layout === "inline"
+          ? // The negative margin pulls every wrapped row's first field
+            // hairline (`fieldClass`: pl-3 + 1px border = 13px) outside the
+            // clipping wrapper below, so no row starts or ends with a
+            // dangling divider.
+            "-ml-[13px] items-center"
+          : "mb-3 items-end",
+        layout !== "inline" && className,
       )}
     >
       {visible.map((variable) =>
@@ -125,6 +131,11 @@ export function VariableBar({
       )}
     </div>
   );
+
+  if (layout !== "inline") return fields;
+  // Inline mode is self-contained: the clip that makes the per-field
+  // hairlines work lives here, not in whichever parent seats the bar.
+  return <div className={cn("overflow-hidden", className)}>{fields}</div>;
 }
 
 function TextVariableField({
