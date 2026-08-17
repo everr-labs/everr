@@ -7,10 +7,7 @@ export {
 } from "./data/repository";
 export * from "./data/schemas";
 export * from "./data/types";
-export {
-  ERROR_FINGERPRINT_SQL,
-  EXCEPTION_LOG_FILTER_SQL,
-} from "./sql/fingerprint";
+export { errorIssueCountExpr } from "./sql/fingerprint";
 export { ErrorDetail, type ErrorDetailProps } from "./ui/error-detail";
 export {
   ErrorIssues,

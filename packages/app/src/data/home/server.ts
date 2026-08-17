@@ -1,7 +1,4 @@
-import {
-  ERROR_FINGERPRINT_SQL,
-  EXCEPTION_LOG_FILTER_SQL,
-} from "@everr/telemetry-explorer/errors";
+import { errorIssueCountExpr } from "@everr/telemetry-explorer/errors";
 import { resolveTimeRange } from "@everr/ui/lib/time-range";
 import { TimeRangeInputSchema } from "@/data/analytics/schemas";
 import {
@@ -29,12 +26,12 @@ interface HomeOverview {
 
 const MAX_SERVICES = 10;
 
-function fillSeries<Row extends { bucket: string }>(
+function fillSeries<Key extends string>(
   grid: string[],
-  rows: Row[],
-  value: (row: Row) => string,
+  rows: ({ bucket: string } & Record<Key, string>)[],
+  key: Key,
 ): number[] {
-  const byBucket = new Map(rows.map((r) => [r.bucket, Number(value(r))]));
+  const byBucket = new Map(rows.map((r) => [r.bucket, Number(r[key])]));
   return grid.map((bucket) => byBucket.get(bucket) ?? 0);
 }
 
@@ -45,6 +42,12 @@ function fillSeries<Row extends { bucket: string }>(
  * with, so it doubles as the marker for "this is the total row".
  */
 const ROLLUP_TOTAL_BUCKET = "";
+
+function rollupTotal<Row extends { bucket: string }>(
+  rows: Row[],
+): Row | undefined {
+  return rows.find((r) => r.bucket === ROLLUP_TOTAL_BUCKET);
+}
 
 /**
  * The services worth showing, ranked on both signals rather than on their sum.
@@ -63,14 +66,11 @@ function topServices(
 
   const picked: HomeService[] = [];
   const seen = new Set<string>();
-  for (let i = 0; i < all.length && picked.length < limit; i++) {
-    for (const ranking of [byLogs, byTraces]) {
-      const candidate = ranking[i];
-      if (!candidate || seen.has(candidate.name)) continue;
-      if (picked.length === limit) break;
-      seen.add(candidate.name);
-      picked.push(candidate);
-    }
+  for (const service of byLogs.flatMap((s, i) => [s, byTraces[i]])) {
+    if (picked.length === limit) break;
+    if (seen.has(service.name)) continue;
+    seen.add(service.name);
+    picked.push(service);
   }
   return picked;
 }
@@ -89,7 +89,7 @@ export const getHomeOverview = createAuthenticatedServerFn({ method: "GET" })
       SELECT
         ${bucketExpr("TimestampTime", granularity)} AS bucket,
         count() AS logCount,
-        uniqIf(${ERROR_FINGERPRINT_SQL}, ${EXCEPTION_LOG_FILTER_SQL}) AS issueCount
+        ${errorIssueCountExpr()} AS issueCount
       FROM logs
       WHERE ${logsTimeFilter}
       GROUP BY bucket WITH ROLLUP
@@ -117,7 +117,7 @@ export const getHomeOverview = createAuthenticatedServerFn({ method: "GET" })
       SELECT
         ServiceName AS service,
         count() AS logCount,
-        uniqIf(${ERROR_FINGERPRINT_SQL}, ${EXCEPTION_LOG_FILTER_SQL}) AS errorCount
+        ${errorIssueCountExpr()} AS errorCount
       FROM logs
       WHERE ${logsTimeFilter} AND ServiceName != ''
       GROUP BY service
@@ -197,28 +197,22 @@ export const getHomeOverview = createAuthenticatedServerFn({ method: "GET" })
       clickhouse.query<{ prMedianTotalTimeMs: string }>(prTimeSql, params),
     ]);
 
-    const rollupTotal = <Row extends { bucket: string }>(rows: Row[]) =>
-      rows.find((r) => r.bucket === ROLLUP_TOTAL_BUCKET);
-
     const services = new Map<string, HomeService>();
+    const service = (name: string): HomeService => {
+      let entry = services.get(name);
+      if (!entry) {
+        entry = { name, logCount: 0, traceCount: 0, errorCount: 0 };
+        services.set(name, entry);
+      }
+      return entry;
+    };
     for (const row of traceServiceRows) {
-      services.set(row.service, {
-        name: row.service,
-        logCount: 0,
-        traceCount: Number(row.traceCount),
-        errorCount: 0,
-      });
+      service(row.service).traceCount = Number(row.traceCount);
     }
     for (const row of logServiceRows) {
-      const entry = services.get(row.service) ?? {
-        name: row.service,
-        logCount: 0,
-        traceCount: 0,
-        errorCount: 0,
-      };
+      const entry = service(row.service);
       entry.logCount = Number(row.logCount);
       entry.errorCount = Number(row.errorCount);
-      services.set(row.service, entry);
     }
 
     const serviceList = topServices(services.values(), MAX_SERVICES);
@@ -229,21 +223,21 @@ export const getHomeOverview = createAuthenticatedServerFn({ method: "GET" })
     return {
       logs: {
         total: Number(logsTotal?.logCount ?? 0),
-        series: fillSeries(grid, logsRows, (r) => r.logCount),
+        series: fillSeries(grid, logsRows, "logCount"),
       },
       traces: {
         total: Number(rollupTotal(tracesRows)?.traceCount ?? 0),
-        series: fillSeries(grid, tracesRows, (r) => r.traceCount),
+        series: fillSeries(grid, tracesRows, "traceCount"),
       },
       services: serviceList,
       errors: {
         issues: Number(logsTotal?.issueCount ?? 0),
-        series: fillSeries(grid, logsRows, (r) => r.issueCount),
+        series: fillSeries(grid, logsRows, "issueCount"),
       },
       ci: {
         totalRuns,
         prMedianTotalTimeMs: Number(prTimeRows[0]?.prMedianTotalTimeMs ?? 0),
-        series: fillSeries(grid, ciRows, (r) => r.runCount),
+        series: fillSeries(grid, ciRows, "runCount"),
       },
     } satisfies HomeOverview;
   });
