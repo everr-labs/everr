@@ -149,11 +149,7 @@ export function PanelShell({
       {hasHeader && (
         <CardHeader className={headerClassName}>
           {title && <CardTitle>{title}</CardTitle>}
-          {description && (
-            <CardDescription className="line-clamp-2" title={description}>
-              {description}
-            </CardDescription>
-          )}
+          {description && <CardDescription>{description}</CardDescription>}
           {action && <CardAction>{action}</CardAction>}
         </CardHeader>
       )}
