@@ -26,9 +26,11 @@ const CAPABILITY_NAMES_LIMIT = 500;
  * types.
  *
  * Written out rather than filtered from `SQL_API_TENANT_TABLES`: this module is
- * imported by the gallery component, and `lib/clickhouse` would drag the server
- * env and `node:crypto` into the client bundle. `capabilities.test.ts` asserts
- * the two lists agree instead.
+ * imported by the dashboards list component, and `lib/clickhouse` would drag
+ * the server env and `node:crypto` into the client bundle.
+ * `capabilities.test.ts` pins the same five names (it cannot import the real
+ * list either, for the same reason), so a drift shows up as a failing probe
+ * assertion rather than silently.
  */
 const METRIC_TABLES = [
   "metrics_gauge",

@@ -11,6 +11,22 @@ import {
   telemetryCapabilitiesOptions,
 } from "@/data/dashboards/options";
 
+const toBuiltin = (slug: string) =>
+  redirect({
+    to: "/dashboards/built-in/$slug",
+    params: { slug },
+    search: (prev) => prev,
+    replace: true,
+  });
+
+const toDashboard = (project: string, slug: string) =>
+  redirect({
+    to: "/dashboards/$project/$slug",
+    params: { project, slug },
+    search: (prev) => prev,
+    replace: true,
+  });
+
 export const Route = createFileRoute(
   "/_authenticated/_dashboard/_previewable/dashboards/",
 )({
@@ -22,32 +38,23 @@ export const Route = createFileRoute(
   // dashboard, else the first built-in that actually has data — the screen is
   // never blank and never an empty grid when a live one exists.
   loader: async ({ context: { queryClient }, deps: { preview } }) => {
+    const last = readLastViewed();
+
+    // A remembered built-in needs no server data to validate.
+    if (last && !last.project && getBuiltinDashboard(last.slug)) {
+      throw toBuiltin(last.slug);
+    }
+
     const list = await queryClient.ensureQueryData(
       dashboardListOptions(preview),
     );
     const live = list.filter((d) => d.previewStatus !== "removed");
 
-    const last = readLastViewed();
-    if (last) {
-      const target = last.project
-        ? live.find((d) => d.project === last.project && d.slug === last.slug)
-        : getBuiltinDashboard(last.slug);
-      if (target && last.project) {
-        throw redirect({
-          to: "/dashboards/$project/$slug",
-          params: { project: last.project, slug: last.slug },
-          search: (prev) => prev,
-          replace: true,
-        });
-      }
-      if (target && !last.project) {
-        throw redirect({
-          to: "/dashboards/built-in/$slug",
-          params: { slug: last.slug },
-          search: (prev) => prev,
-          replace: true,
-        });
-      }
+    if (
+      last?.project &&
+      live.some((d) => d.project === last.project && d.slug === last.slug)
+    ) {
+      throw toDashboard(last.project, last.slug);
     }
 
     // Only top-level dashboards qualify as the default: opening something out
@@ -55,14 +62,7 @@ export const Route = createFileRoute(
     const [first] = live
       .filter((d) => d.folderPath === "")
       .sort((a, b) => a.name.localeCompare(b.name));
-    if (first) {
-      throw redirect({
-        to: "/dashboards/$project/$slug",
-        params: { project: first.project, slug: first.slug },
-        search: (prev) => prev,
-        replace: true,
-      });
-    }
+    if (first) throw toDashboard(first.project, first.slug);
 
     // No dashboards of your own yet: land on a built-in that has something to
     // draw. The probe can fail; an arbitrary built-in still beats a blank pane.
@@ -81,13 +81,7 @@ export const Route = createFileRoute(
     } catch {
       // Fall through to the first built-in.
     }
-    if (!builtin) return;
-    throw redirect({
-      to: "/dashboards/built-in/$slug",
-      params: { slug: builtin.id },
-      search: (prev) => prev,
-      replace: true,
-    });
+    throw toBuiltin(builtin.id);
   },
   component: () => null,
 });

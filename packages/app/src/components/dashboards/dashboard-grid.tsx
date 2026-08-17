@@ -4,6 +4,7 @@ import { GridLayout, noCompactor, useContainerWidth } from "react-grid-layout";
 import { persesToRGL } from "@/data/dashboards/convert";
 import { GRID_COLS } from "@/data/dashboards/schema";
 import { DashboardPanel } from "./dashboard-panel";
+import { FrameToggle } from "./frame-toggle";
 import { useDashboard } from "./use-dashboard";
 import { useHasVisibleVariables, VariableBar } from "./variable-bar";
 
@@ -16,13 +17,7 @@ const ROW_HEIGHT = 30;
  * object that belongs to the grid beneath it, and it keeps its shape on the
  * many dashboards that declare no variables at all.
  */
-export function DashboardGrid({
-  actions,
-  leading,
-}: {
-  actions?: ReactNode;
-  leading?: ReactNode;
-} = {}) {
+export function DashboardGrid({ actions }: { actions?: ReactNode } = {}) {
   const dashboard = useDashboard();
   const hasVariables = useHasVisibleVariables();
   const { width, containerRef } = useContainerWidth({
@@ -37,34 +32,26 @@ export function DashboardGrid({
 
   return (
     <div>
-      {(hasVariables || actions || leading) && (
-        <div className="mb-3 flex items-start gap-x-3">
-          {/* Edge controls center against the first field row (h-8 controls),
-              even when the variables wrap to more rows below. */}
-          {leading && (
-            <div className="flex h-8 shrink-0 items-center">{leading}</div>
-          )}
-          {leading && hasVariables && (
-            <div aria-hidden className="flex h-8 items-center">
-              <div className="h-5 w-px bg-border" />
-            </div>
-          )}
-          {/*
-            The variables wrap inside their own clipped column: each field
-            draws a left hairline, and the bar's negative margin pulls every
-            wrapped row's first hairline outside this wrapper, so no row ever
-            starts or ends with a dangling divider.
-          */}
-          <div className="min-w-0 flex-1 overflow-hidden">
-            <VariableBar className="mb-0" layout="inline" />
-          </div>
-          {actions && (
-            <div className="ml-auto flex h-8 shrink-0 items-center gap-2">
-              {actions}
-            </div>
-          )}
+      <div className="mb-3 flex items-start gap-x-3">
+        {/* Edge controls center against the first field row (h-8 controls),
+            even when the variables wrap to more rows below. */}
+        <div className="flex h-8 shrink-0 items-center">
+          <FrameToggle />
         </div>
-      )}
+        {hasVariables && (
+          <div aria-hidden className="flex h-8 items-center">
+            <div className="h-5 w-px bg-border" />
+          </div>
+        )}
+        <div className="min-w-0 flex-1">
+          <VariableBar layout="inline" />
+        </div>
+        {actions && (
+          <div className="ml-auto flex h-8 shrink-0 items-center gap-2">
+            {actions}
+          </div>
+        )}
+      </div>
       <div ref={containerRef}>
         <GridLayout
           width={width}
