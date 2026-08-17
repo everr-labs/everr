@@ -12,7 +12,7 @@ import { Label } from "@everr/ui/components/label";
 import { cn } from "@everr/ui/lib/utils";
 import { useNavigate } from "@tanstack/react-router";
 import { AlertCircle, ChevronDown, Loader2 } from "lucide-react";
-import { useCallback } from "react";
+import { Fragment, useCallback } from "react";
 import { ALL_VALUE } from "@/data/dashboards/interpolate";
 import type {
   ListVariable,
@@ -93,30 +93,36 @@ export function VariableBar({
         className,
       )}
     >
-      {visible.map((variable) =>
-        variable.kind === "TextVariable" ? (
-          <TextVariableField
-            key={variable.spec.name}
-            variable={variable}
-            layout={layout}
-            value={
-              typeof values[variable.spec.name] === "string"
-                ? (values[variable.spec.name] as string)
-                : ""
-            }
-            onCommit={(value) => setValue(variable.spec.name, value)}
-          />
-        ) : (
-          <ListVariableField
-            key={variable.spec.name}
-            variable={variable}
-            layout={layout}
-            value={values[variable.spec.name]}
-            optionsState={optionsState[variable.spec.name]}
-            onChange={(value) => setValue(variable.spec.name, value)}
-          />
-        ),
-      )}
+      {visible.map((variable, index) => (
+        <Fragment key={variable.spec.name}>
+          {/* A hairline between fields keeps label-control pairs legible when
+              many variables share the strip; the stacked layout separates by
+              space alone. */}
+          {layout === "inline" && index > 0 && (
+            <div aria-hidden className="h-5 w-px self-center bg-border" />
+          )}
+          {variable.kind === "TextVariable" ? (
+            <TextVariableField
+              variable={variable}
+              layout={layout}
+              value={
+                typeof values[variable.spec.name] === "string"
+                  ? (values[variable.spec.name] as string)
+                  : ""
+              }
+              onCommit={(value) => setValue(variable.spec.name, value)}
+            />
+          ) : (
+            <ListVariableField
+              variable={variable}
+              layout={layout}
+              value={values[variable.spec.name]}
+              optionsState={optionsState[variable.spec.name]}
+              onChange={(value) => setValue(variable.spec.name, value)}
+            />
+          )}
+        </Fragment>
+      ))}
     </div>
   );
 }

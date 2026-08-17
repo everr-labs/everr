@@ -65,7 +65,14 @@ function DashboardsLayout() {
 
   return (
     <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,20rem)_minmax(0,1fr)]">
-      <aside className="flex min-w-0 flex-col gap-3 lg:sticky lg:top-4">
+      {/*
+        The list is a navigation rail: it must hold still while the dashboard
+        scrolls. Sticky only engages when the element fits the viewport, so the
+        rail caps its height (viewport minus the app header and page insets)
+        and scrolls its own overflow; only the tree and rows scroll, the
+        heading and search stay pinned.
+      */}
+      <aside className="flex min-w-0 flex-col gap-3 lg:sticky lg:top-0 lg:max-h-[calc(100dvh-4.5rem)]">
         <div className="flex items-center justify-between gap-2">
           <h1 className="px-1 text-lg font-semibold">Dashboards</h1>
           <Button
