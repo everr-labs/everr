@@ -137,7 +137,7 @@ export function DashboardsList({ preview }: { preview?: string }) {
       </div>
 
       {/* Only the rows scroll; the heading and search stay pinned above. */}
-      <div className="flex min-h-0 flex-1 flex-col gap-4 md:overflow-y-auto md:pr-1 md:pb-3">
+      <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto pr-1 pb-3">
         <section aria-label="Your dashboards">
           <GroupLabel label="Your dashboards" />
           {listQuery.isLoading && (
