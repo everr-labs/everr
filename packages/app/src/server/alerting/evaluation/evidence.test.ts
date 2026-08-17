@@ -12,7 +12,7 @@ describe("boundEvidence", () => {
     const result = boundEvidence(
       Array.from({ length: 60 }, (_, index) => ({ index })),
     );
-    expect(result.rows).toHaveLength(MAX_EVIDENCE_ROWS);
+    expect(JSON.parse(result.json)).toHaveLength(MAX_EVIDENCE_ROWS);
     expect(result.rowCount).toBe(60);
     expect(result.truncated).toBe(true);
   });

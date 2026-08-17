@@ -35,18 +35,17 @@ const EMPTY_COUNTS: AlertingCleanupCounts = {
   instances: 0,
 };
 
+// Keyed rather than field by field, so a seventh table added to the counts is
+// summed without a second edit here.
 function addCounts(
   total: AlertingCleanupCounts,
   batch: AlertingCleanupCounts,
 ): AlertingCleanupCounts {
-  return {
-    alertEvaluations: total.alertEvaluations + batch.alertEvaluations,
-    events: total.events + batch.events,
-    deliveries: total.deliveries + batch.deliveries,
-    notificationGroups: total.notificationGroups + batch.notificationGroups,
-    silences: total.silences + batch.silences,
-    instances: total.instances + batch.instances,
-  };
+  const summed = { ...total };
+  for (const key of Object.keys(summed) as (keyof AlertingCleanupCounts)[]) {
+    summed[key] = total[key] + batch[key];
+  }
+  return summed;
 }
 
 function deletedRows(result: { rowCount?: number | null }): number {

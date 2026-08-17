@@ -1,17 +1,14 @@
 import { and, eq, isNull, TransactionRollbackError } from "drizzle-orm";
 import {
-  ALERT_FLUSH_GROUP_TASK,
   AlertEventTaskPayloadSchema,
-  flushGroupJobKey,
+  enqueueFlushGroup,
 } from "@/data/alerting/delivery/tasks";
-import { alertingPartitionQueue } from "@/data/alerting/scheduling/evaluation-jobs.server";
 import { db } from "@/db/client";
 import {
   alertEvents,
   alertNotificationGroupEvents,
   alertNotificationGroups,
 } from "@/db/schema";
-import { addWorkerJobInTransaction } from "@/server/worker/jobs";
 import { journalTerminalRow, recordAlertHistory } from "../history/clickhouse";
 import { nextGroupFlushAt } from "./grouping";
 import { claimDeliverableEvent } from "./journal-reader";
@@ -97,18 +94,7 @@ export async function processAlertEvent(rawPayload: unknown): Promise<void> {
             eventId: event.id,
           })
           .onConflictDoNothing();
-        await addWorkerJobInTransaction(
-          tx,
-          ALERT_FLUSH_GROUP_TASK,
-          { groupId: group.id },
-          {
-            jobKey: flushGroupJobKey(group.id, group.nextFlushAt),
-            jobKeyMode: "replace",
-            maxAttempts: 5,
-            queueName: alertingPartitionQueue("group", group.id),
-            runAt: group.nextFlushAt,
-          },
-        );
+        await enqueueFlushGroup(tx, group.id, group.nextFlushAt);
       }
       const stamped = await tx
         .update(alertEvents)

@@ -75,7 +75,10 @@ export function alertEvaluationJobKey(
   return `${ALERT_EVALUATE_TASK}:${id}:${scheduledFor}`;
 }
 
-function evaluationTaskSpec(payload: EvaluatePayload, runAt: Date): TaskSpec {
+// `runAt` is not a parameter: the payload's own `scheduledFor` is when the
+// evaluation is due, and a job that ran at any other time would evaluate a
+// different instant than the one it is keyed on.
+function evaluationTaskSpec(payload: EvaluatePayload): TaskSpec {
   return {
     jobKey: alertEvaluationJobKey(
       payload.alertDefinitionId,
@@ -84,18 +87,17 @@ function evaluationTaskSpec(payload: EvaluatePayload, runAt: Date): TaskSpec {
     jobKeyMode: "replace",
     maxAttempts: EVALUATE_MAX_ATTEMPTS,
     queueName: alertingPartitionQueue("alert", payload.alertDefinitionId),
-    runAt,
+    runAt: new Date(payload.scheduledFor),
   };
 }
 
 export function enqueueAlertEvaluation(
   payload: EvaluatePayload,
-  runAt = new Date(payload.scheduledFor),
 ): Promise<void> {
   return addWorkerJob(
     ALERT_EVALUATE_TASK,
     payload,
-    evaluationTaskSpec(payload, runAt),
+    evaluationTaskSpec(payload),
   );
 }
 
@@ -104,12 +106,11 @@ export function enqueueAlertEvaluation(
 export function enqueueAlertEvaluationInTransaction(
   tx: Transaction,
   payload: EvaluatePayload,
-  runAt = new Date(payload.scheduledFor),
 ): Promise<void> {
   return addWorkerJobInTransaction(
     tx,
     ALERT_EVALUATE_TASK,
     payload,
-    evaluationTaskSpec(payload, runAt),
+    evaluationTaskSpec(payload),
   );
 }

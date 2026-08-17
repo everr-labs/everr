@@ -519,16 +519,9 @@ export async function adoptRule(
     );
   }
   const input = rawSpec ? AlertingRuleUpdateSchema.parse(rawSpec) : null;
-  const notificationChannels = input?.notification_channels;
-  const spec = input
-    ? AlertingRuleSpecSchema.parse(
-        Object.fromEntries(
-          Object.entries(input).filter(
-            ([key]) => key !== "notification_channels",
-          ),
-        ),
-      )
-    : null;
+  const { notification_channels: notificationChannels, ...rawRuleSpec } =
+    input ?? {};
+  const spec = input ? AlertingRuleSpecSchema.parse(rawRuleSpec) : null;
   const channelIds = notificationChannels
     ? await resolveOptionalChannelIds(
         organizationId,
@@ -587,12 +580,6 @@ export async function adoptRule(
       return updated;
     }),
   );
-  if (!row)
-    throwAlertingPersistenceError(
-      409,
-      "conflict",
-      `Rule version changed: ${id}`,
-    );
   return ruleBase(
     row,
     notificationChannels ??

@@ -2,14 +2,12 @@ import { and, asc, count, eq, inArray, isNull } from "drizzle-orm";
 import { CHANNEL_TEXT_MIN } from "@/data/alerting/delivery/channel-text-limits";
 import { ALERT_DELIVERY_MAX_ATTEMPTS } from "@/data/alerting/delivery/config";
 import {
-  ALERT_FLUSH_GROUP_TASK,
   ALERT_SEND_DELIVERY_TASK,
   AlertGroupTaskPayloadSchema,
-  flushGroupJobKey,
+  enqueueFlushGroup,
   IDLE_GROUP_FLUSH_AT,
 } from "@/data/alerting/delivery/tasks";
 import { ALERTING_DEFAULT_GROUP_INTERVAL_SECS } from "@/data/alerting/routing/defaults";
-import { alertingPartitionQueue } from "@/data/alerting/scheduling/evaluation-jobs.server";
 import { db } from "@/db/client";
 import {
   alertChannels,
@@ -388,18 +386,7 @@ export async function flushAlertGroup(rawPayload: unknown): Promise<void> {
       })
       .where(eq(alertNotificationGroups.id, group.id));
     if (enqueue) {
-      await addWorkerJobInTransaction(
-        tx,
-        ALERT_FLUSH_GROUP_TASK,
-        { groupId: group.id },
-        {
-          jobKey: flushGroupJobKey(group.id, nextFlushAt),
-          jobKeyMode: "replace",
-          maxAttempts: 5,
-          queueName: alertingPartitionQueue("group", group.id),
-          runAt: nextFlushAt,
-        },
-      );
+      await enqueueFlushGroup(tx, group.id, nextFlushAt);
     }
   });
   if (

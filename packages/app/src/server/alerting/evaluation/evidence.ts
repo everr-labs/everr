@@ -7,8 +7,6 @@ export interface BoundedEvidence {
   json: string;
   truncated: boolean;
   rowCount: number;
-  firstRow: Record<string, unknown> | undefined;
-  rows: Record<string, unknown>[];
 }
 
 export function boundEventEvidence(
@@ -48,11 +46,5 @@ export function boundEvidence(
     truncated = true;
     json = "[]";
   }
-  return {
-    json,
-    truncated,
-    rowCount: rows.length,
-    firstRow: rows[0],
-    rows: kept,
-  };
+  return { json, truncated, rowCount: rows.length };
 }

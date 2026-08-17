@@ -102,9 +102,10 @@ async function directDispatchTarget(
 async function routedDispatchTargets(
   event: typeof alertEvents.$inferSelect,
 ): Promise<DispatchTarget[]> {
+  const labels = alertEventDispatchLabels(event);
   const routes = alertingSelectRoutes(
     await loadRoutes(event.organizationId),
-    alertEventDispatchLabels(event),
+    labels,
   );
   const targets: DispatchTarget[] = [];
   for (const route of routes) {
@@ -119,7 +120,6 @@ async function routedDispatchTargets(
       )
       .limit(1);
     if (!receiver) continue;
-    const labels = alertEventDispatchLabels(event);
     const groupLabels = Object.fromEntries(
       (route.group_by ?? [...ALERTING_DEFAULT_GROUP_BY]).map((key) => [
         key,
