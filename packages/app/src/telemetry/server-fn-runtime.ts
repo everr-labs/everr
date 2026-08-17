@@ -42,14 +42,29 @@ export async function instrumentServerFunction<T>(
   );
 }
 
+/**
+ * The RPC semantic conventions, in their current spelling. `rpc.system`,
+ * `rpc.service` and `rpc.grpc.status_code` are all deprecated: the system
+ * became `rpc.system.name`, and `rpc.service` was absorbed into `rpc.method`,
+ * which now carries the fully-qualified `{service}/{method}` name.
+ * https://opentelemetry.io/docs/specs/semconv/non-normative/rpc-migration/
+ *
+ * The span stays INTERNAL rather than SERVER, which the conventions would ask
+ * of an RPC server span. Every one of these nests inside the framework's own
+ * `POST /_serverFn/:id` SERVER span, so promoting it would make one inbound
+ * request count as two on every panel that splits traffic by span kind.
+ */
+const RPC_SERVICE = "server_function";
+
 function serverFunctionAttributes(
   request: Request | undefined,
   serverFnMeta: ServerFunctionMeta | undefined,
 ): Attributes {
   return {
-    ...(serverFnMeta ? { "rpc.method": serverFnMeta.name } : {}),
-    "rpc.service": "server_function",
-    "rpc.system": "tanstack-start",
+    ...(serverFnMeta
+      ? { "rpc.method": `${RPC_SERVICE}/${serverFnMeta.name}` }
+      : {}),
+    "rpc.system.name": "tanstack-start",
     ...(request ? { "url.path": parameterizeServerFunctionPath(request) } : {}),
   };
 }
