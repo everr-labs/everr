@@ -72,50 +72,6 @@ export function SpanDetailPanel({
             <span className="font-medium">#{span.stepNumber}</span>
           </div>
         )}
-        {/* Test-specific attributes */}
-        {span.testName && (
-          <>
-            <div className="flex gap-2">
-              <span className="text-muted-foreground w-20">Test</span>
-              <span className="font-medium">{span.testName}</span>
-            </div>
-            <div className="flex gap-2">
-              <span className="text-muted-foreground w-20">Result</span>
-              <span
-                className={cn(
-                  "font-medium capitalize",
-                  span.testResult === "pass" && "text-green-600",
-                  span.testResult === "fail" && "text-red-600",
-                  span.testResult === "skip" && "text-yellow-600",
-                )}
-              >
-                {span.testResult}
-              </span>
-            </div>
-            {span.testFramework && (
-              <div className="flex gap-2">
-                <span className="text-muted-foreground w-20">Framework</span>
-                <span className="font-medium">{span.testFramework}</span>
-              </div>
-            )}
-            {span.testLanguage && (
-              <div className="flex gap-2">
-                <span className="text-muted-foreground w-20">Language</span>
-                <span className="font-medium">{span.testLanguage}</span>
-              </div>
-            )}
-            {(span.isSuite || span.isSubtest) && (
-              <div className="flex gap-2">
-                <span className="text-muted-foreground w-20">Type</span>
-                <span className="font-medium">
-                  {[span.isSuite && "Suite", span.isSubtest && "Subtest"]
-                    .filter(Boolean)
-                    .join(", ")}
-                </span>
-              </div>
-            )}
-          </>
-        )}
         {/* Job-specific attributes */}
         {!span.stepNumber && span.headBranch && (
           <div className="flex gap-2">

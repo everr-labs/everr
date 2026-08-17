@@ -51,7 +51,6 @@ export const getCostOverview = createAuthenticatedServerFn({
         AND ${nonEmptyResourceAttribute(RESOURCE_ATTRIBUTE_KEYS.jobId)}
         AND lowerUTF8(${resourceAttribute("cicd.pipeline.task.run.result")}) != 'skip'
         AND SpanAttributes['everr.github.workflow_job_step.number'] = ''
-        AND SpanAttributes['everr.test.name'] = ''
       GROUP BY labels
     `;
 
@@ -128,7 +127,6 @@ export const getCostByWorkflow = createAuthenticatedServerFn({
         AND ${nonEmptyResourceAttribute(RESOURCE_ATTRIBUTE_KEYS.jobId)}
         AND lowerUTF8(${resourceAttribute("cicd.pipeline.task.run.result")}) != 'skip'
         AND SpanAttributes['everr.github.workflow_job_step.number'] = ''
-        AND SpanAttributes['everr.test.name'] = ''
         AND ${nonEmptyResourceAttribute(RESOURCE_ATTRIBUTE_KEYS.repo)}
         AND ${nonEmptyResourceAttribute(RESOURCE_ATTRIBUTE_KEYS.workflow)}
       GROUP BY repo, workflow, labels
@@ -226,7 +224,6 @@ export const getCostOverTimeBreakdown = createAuthenticatedServerFn({
         AND ${nonEmptyResourceAttribute(RESOURCE_ATTRIBUTE_KEYS.jobId)}
         AND lowerUTF8(${resourceAttribute("cicd.pipeline.task.run.result")}) != 'skip'
         AND SpanAttributes['everr.github.workflow_job_step.number'] = ''
-        AND SpanAttributes['everr.test.name'] = ''
         ${dimensionFilter}
       GROUP BY date, series, labels
       ORDER BY date ASC

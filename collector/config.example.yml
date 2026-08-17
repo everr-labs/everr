@@ -77,15 +77,12 @@ exporters:
     create_schema: false
     ttl: 72h
 
-connectors:
-  testlogstotraces:
-
 service:
   extensions: [everr_apikey]
   pipelines:
     # Internal pipelines: trusted receivers, tenant from receiver-populated metadata header.
     traces:
-      receivers: [githubactions, testlogstotraces]
+      receivers: [githubactions]
       processors: [resource, batch]
       exporters: [clickhouse, debug]
     metrics:
@@ -95,7 +92,7 @@ service:
     logs:
       receivers: [githubactions]
       processors: [resource, batch]
-      exporters: [clickhouse, debug, testlogstotraces]
+      exporters: [clickhouse, debug]
 
     # Public pipelines: untrusted clients, tenant from authenticated key.
     # Must NOT share the `resource` processor with the internal pipelines —

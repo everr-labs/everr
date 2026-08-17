@@ -12,10 +12,6 @@
     "setup-new-repo",
     "debug-ci",
     "resource-monitoring",
-    "cost-analysis",
-    "---Test telemetry---",
-    "vitest",
-    "go-tests",
-    "rust-tests"
+    "cost-analysis"
   ]
 }
