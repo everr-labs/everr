@@ -203,12 +203,15 @@ export function GaugeChartVisualization({
             >
               {labelEl && <div className="mb-1">{labelEl}</div>}
               <p className="mb-2 leading-none">
+                {/* Like the arc, the number stays neutral: the band color is
+                    carried by the fill segments, not the text. */}
                 <span
                   className={cn(
                     "text-2xl font-semibold tabular-nums",
-                    value === undefined && "text-muted-foreground",
+                    value === undefined
+                      ? "text-muted-foreground"
+                      : "text-foreground",
                   )}
-                  style={value !== undefined ? { color } : undefined}
                 >
                   {valueText}
                 </span>
@@ -250,7 +253,7 @@ export function GaugeChartVisualization({
                       .filter((m) => m.color !== undefined)
                       .map((mark) => (
                         <div
-                          key={mark.fraction}
+                          key={`${mark.fraction}-${mark.color}`}
                           className="absolute top-0 -translate-x-1/2"
                           style={{ left: `${mark.fraction * 100}%` }}
                         >
@@ -335,6 +338,7 @@ export function GaugeChartVisualization({
                             className="fill-muted-foreground tabular-nums"
                           >
                             {formatStatValue(mark.value, undefined)}
+                            {unit}
                           </text>
                         )}
                       </g>

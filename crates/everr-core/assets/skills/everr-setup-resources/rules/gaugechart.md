@@ -15,7 +15,7 @@ One or more gauges, each showing a single value filled between `min` and `max`, 
 | `noValue` | string | `–` | any string | Text rendered for a query that produced no value (empty result / no numeric column). |
 | `variant` | string | none (= `arc`) | `arc`, `horizontal` | Rendering shape. Omitted or `arc`: semicircular arc. `horizontal`: flat bar filling left→right with the value text above it, a triangle marker at the value position and, with thresholds, multi-colored fill segments per band. |
 | `showAxis` | boolean | `true` | `false` | Show the `min`/`max` axis labels: at the arc ends, or below the horizontal bar. |
-| `showThresholdLabels` | boolean | `false` | `true` | Show a numeric label at each threshold tick mark (any variant). |
+| `showThresholdLabels` | boolean | `false` | `true` | Show a numeric label at each threshold tick mark (any variant). The label is the step position in axis units with the `unit` suffix, so a `percent` step reads as the value it lands on, not as the percentage you wrote. |
 | `thresholds` | object | none | see below | Color the arc and mark step positions on the gauge. Omit for the default series color. |
 
 ### `thresholds`

@@ -406,7 +406,7 @@ spec:
       spec:
         display:
           name: "Gauge: arc, threshold labels"
-          description: "variant: arc (explicit) · showThresholdLabels: true — numeric labels at each threshold tick on the semicircle"
+          description: "variant: arc (explicit) · showThresholdLabels: true. Numeric labels at each threshold tick on the semicircle"
         plugin:
           kind: GaugeChart
           spec:
@@ -434,7 +434,7 @@ spec:
       spec:
         display:
           name: "Gauge: arc, no axis"
-          description: "showAxis: false on the default arc — min/max end labels hidden"
+          description: "showAxis: false on the default arc. The min/max end labels are hidden"
         plugin:
           kind: GaugeChart
           spec:
@@ -483,7 +483,7 @@ spec:
       spec:
         display:
           name: "Gauge: horizontal, only threshold labels"
-          description: "variant: horizontal · showAxis: false + showThresholdLabels: true — numeric labels below each tick, no min/max row"
+          description: "variant: horizontal · showAxis: false + showThresholdLabels: true. Numeric labels below each tick, no min/max row"
         plugin:
           kind: GaugeChart
           spec:
