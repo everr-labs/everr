@@ -15,8 +15,10 @@ export const Route = createFileRoute(
     const list = await queryClient.ensureQueryData(
       dashboardListOptions(preview),
     );
+    // Only top-level dashboards qualify as the default: opening something out
+    // of a folder the reader has never expanded reads as a random pick.
     const [first] = [...list]
-      .filter((d) => d.previewStatus !== "removed")
+      .filter((d) => d.previewStatus !== "removed" && d.folderPath === "")
       .sort((a, b) => a.name.localeCompare(b.name));
     if (first) {
       throw redirect({
