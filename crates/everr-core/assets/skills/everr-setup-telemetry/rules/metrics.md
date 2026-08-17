@@ -33,7 +33,7 @@ When these instrumentations are present, expect metrics in these domains before 
 | HTTP client | `http.client.request.duration` |
 | Database client | `db.client.operation.duration` |
 | Messaging | `messaging.process.duration`, `messaging.publish.duration` |
-| RPC | `rpc.server.duration`, `rpc.client.duration` |
+| RPC | `rpc.server.call.duration`, `rpc.client.call.duration` (both seconds; the retired names were `rpc.server.duration` and `rpc.client.duration`, in milliseconds) |
 | Runtime/process | `process.runtime.*`, `process.cpu.*`, `process.memory.*` |
 
 Exact names can vary by SDK version and semantic convention stability setting. If a service depends on a metric for alerts or dashboards, test the emitted shape instead of assuming the library uses the current stable name.

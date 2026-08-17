@@ -106,6 +106,8 @@ export const startInstance = createStart(() => ({
 
 The middleware (`createMiddleware({ type: "function" })`) starts an INTERNAL span per invocation with the function id, name, and filename from `serverFnMeta` as attributes (prefix non-semconv attributes with `everr.`). It nests under the request's SERVER span automatically because the fetch wrapper's context is active.
 
+A server function call is an RPC, so describe it with the RPC conventions in `spans.md`: `rpc.system.name` for the framework and a fully-qualified `rpc.method`. Keep the span INTERNAL even though the conventions ask an RPC server span to be SERVER, because the request already has one and a second would double every inbound count.
+
 TanStack Start signals control flow with throwables: `redirect()` and `notFound()` surface as thrown values inside server functions. Filter those out before calling `captureError`, or every redirect becomes a phantom error.
 
 ## Validation
