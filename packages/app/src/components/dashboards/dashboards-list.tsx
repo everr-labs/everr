@@ -108,7 +108,7 @@ export function DashboardsList({ preview }: { preview?: string }) {
   const ungraded = matching.some((e) => e.readiness === null);
 
   return (
-    <div className="flex min-w-0 flex-col gap-4">
+    <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-4">
       <div className="relative">
         <SearchIcon className="absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
         <Input
@@ -120,95 +120,100 @@ export function DashboardsList({ preview }: { preview?: string }) {
         />
       </div>
 
-      <section aria-label="Your dashboards">
-        <GroupLabel label="Your dashboards" count={dashboards.length} />
-        {listQuery.isLoading && (
-          <p className="px-1 py-1 text-muted-foreground text-xs">Loading...</p>
-        )}
-        {listQuery.isError && (
-          <p className="px-1 py-1 text-amber-400 text-xs">
-            Couldn't load your dashboards
-          </p>
-        )}
-        {!listQuery.isLoading &&
-          !listQuery.isError &&
-          dashboards.length === 0 && (
+      {/* Only the rows scroll; the heading and search stay pinned above. */}
+      <div className="flex min-h-0 flex-1 flex-col gap-4 lg:overflow-y-auto lg:pr-1 lg:pb-3">
+        <section aria-label="Your dashboards">
+          <GroupLabel label="Your dashboards" count={dashboards.length} />
+          {listQuery.isLoading && (
             <p className="px-1 py-1 text-muted-foreground text-xs">
-              None yet. Open a built-in below and fork it with your assistant.
+              Loading...
             </p>
           )}
-        {dashboards.length > 0 && (
-          <DashboardTree dashboards={dashboards} search={search} />
-        )}
-      </section>
+          {listQuery.isError && (
+            <p className="px-1 py-1 text-amber-400 text-xs">
+              Couldn't load your dashboards
+            </p>
+          )}
+          {!listQuery.isLoading &&
+            !listQuery.isError &&
+            dashboards.length === 0 && (
+              <p className="px-1 py-1 text-muted-foreground text-xs">
+                None yet. Open a built-in below and fork it with your assistant.
+              </p>
+            )}
+          {dashboards.length > 0 && (
+            <DashboardTree dashboards={dashboards} search={search} />
+          )}
+        </section>
 
-      <section aria-label="Built-in dashboards">
-        <GroupLabel
-          label="Built-in dashboards"
-          count={BUILTIN_DASHBOARDS.length}
-        />
+        <section aria-label="Built-in dashboards">
+          <GroupLabel
+            label="Built-in dashboards"
+            count={BUILTIN_DASHBOARDS.length}
+          />
 
-        {capabilitiesQuery.isPending && (
-          <p className="inline-flex items-center gap-1.5 px-1 pb-1 text-muted-foreground text-xs">
-            <Loader2 className="size-3.5 animate-spin" />
-            Checking what you send
-          </p>
-        )}
-        {capabilitiesQuery.isError && (
-          <div className="flex flex-wrap items-center gap-x-2 gap-y-1 px-1 pb-1 text-xs">
-            <span className="inline-flex items-center gap-1.5 text-amber-400">
-              <TriangleAlert className="size-3.5" />
-              Couldn't check what you send
-            </span>
-            <Button
-              type="button"
-              variant="ghost"
-              size="xs"
-              onClick={() => void capabilitiesQuery.refetch()}
-            >
-              <RotateCw className="size-3" />
-              Retry
-            </Button>
-          </div>
-        )}
-
-        {matching.length === 0 && (
-          <p className="px-1 py-1 text-muted-foreground text-xs">
-            No built-in matches that search.
-          </p>
-        )}
-
-        {/* Until the probe answers, one flat list — no grouping to rearrange. */}
-        {(ungraded ? matching : ready).map((entry) => (
-          <BuiltinRow key={entry.builtin.id} entry={entry} />
-        ))}
-
-        {!ungraded && needsData.length > 0 && (
-          <>
-            <button
-              type="button"
-              onClick={() => setNeedsDataOpen((open) => !open)}
-              aria-expanded={needsDataOpen}
-              title="Nothing sent in the last 7 days"
-              className="mt-2.5 mb-0.5 flex w-full items-center gap-1 rounded-md px-1 py-0.5 text-left font-medium text-[0.6875rem] text-muted-foreground/80 hover:text-foreground"
-            >
-              {needsDataOpen ? (
-                <ChevronDown className="size-3 shrink-0" />
-              ) : (
-                <ChevronRight className="size-3 shrink-0" />
-              )}
-              Needs data
-              <span className="ml-1 tabular-nums opacity-80">
-                {needsData.length}
+          {capabilitiesQuery.isPending && (
+            <p className="inline-flex items-center gap-1.5 px-1 pb-1 text-muted-foreground text-xs">
+              <Loader2 className="size-3.5 animate-spin" />
+              Checking what you send
+            </p>
+          )}
+          {capabilitiesQuery.isError && (
+            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 px-1 pb-1 text-xs">
+              <span className="inline-flex items-center gap-1.5 text-amber-400">
+                <TriangleAlert className="size-3.5" />
+                Couldn't check what you send
               </span>
-            </button>
-            {needsDataOpen &&
-              needsData.map((entry) => (
-                <BuiltinRow key={entry.builtin.id} entry={entry} />
-              ))}
-          </>
-        )}
-      </section>
+              <Button
+                type="button"
+                variant="ghost"
+                size="xs"
+                onClick={() => void capabilitiesQuery.refetch()}
+              >
+                <RotateCw className="size-3" />
+                Retry
+              </Button>
+            </div>
+          )}
+
+          {matching.length === 0 && (
+            <p className="px-1 py-1 text-muted-foreground text-xs">
+              No built-in matches that search.
+            </p>
+          )}
+
+          {/* Until the probe answers, one flat list — no grouping to rearrange. */}
+          {(ungraded ? matching : ready).map((entry) => (
+            <BuiltinRow key={entry.builtin.id} entry={entry} />
+          ))}
+
+          {!ungraded && needsData.length > 0 && (
+            <>
+              <button
+                type="button"
+                onClick={() => setNeedsDataOpen((open) => !open)}
+                aria-expanded={needsDataOpen}
+                title="Nothing sent in the last 7 days"
+                className="mt-2.5 mb-0.5 flex w-full items-center gap-1 rounded-md px-1 py-0.5 text-left font-medium text-[0.6875rem] text-muted-foreground/80 hover:text-foreground"
+              >
+                {needsDataOpen ? (
+                  <ChevronDown className="size-3 shrink-0" />
+                ) : (
+                  <ChevronRight className="size-3 shrink-0" />
+                )}
+                Needs data
+                <span className="ml-1 tabular-nums opacity-80">
+                  {needsData.length}
+                </span>
+              </button>
+              {needsDataOpen &&
+                needsData.map((entry) => (
+                  <BuiltinRow key={entry.builtin.id} entry={entry} />
+                ))}
+            </>
+          )}
+        </section>
+      </div>
     </div>
   );
 }
