@@ -12,7 +12,7 @@ import { Label } from "@everr/ui/components/label";
 import { cn } from "@everr/ui/lib/utils";
 import { useNavigate } from "@tanstack/react-router";
 import { AlertCircle, ChevronDown, Loader2 } from "lucide-react";
-import { Fragment, useCallback } from "react";
+import { useCallback } from "react";
 import { ALL_VALUE } from "@/data/dashboards/interpolate";
 import type {
   ListVariable,
