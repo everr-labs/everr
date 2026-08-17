@@ -12,18 +12,16 @@ export const Route = createFileRoute(
 function AlertingSectionLayout() {
   return (
     <div
-      // `_previewable.tsx` renders every route here inside `PageContainer`
-      // (padded, and not itself a flex/grid box), unlike the Explore layout
-      // this rail mirrors, which is a bare flex column. That leaves two gaps
-      // at the `lg` (rail) breakpoint: the inherited padding insets the rail
-      // from the content edge, and `minmax(0,1fr)` has no definite parent
-      // height to size against, so the row shrinks to its content instead of
-      // running full height. `lg:-m-3` cancels the inherited padding and
-      // `lg:h-[calc(100dvh-3rem)]` (3rem is the fixed topnav's height, see
-      // `_dashboard.tsx`) gives the grid a real height to size its row
-      // against; `lg:flex-none` stops `flex-1`'s zero flex-basis from
-      // overriding that explicit height.
-      className="grid min-h-0 flex-1 grid-cols-1 grid-rows-[auto_minmax(0,1fr)] lg:-m-3 lg:h-[calc(100dvh-3rem)] lg:flex-none lg:grid-cols-[260px_minmax(0,1fr)] lg:grid-rows-[minmax(0,1fr)]"
+      // `_previewable.tsx` renders every route here inside `PageContainer`,
+      // which is a flex column carrying `flex-1 min-h-0`, the same idiom the
+      // Explore layout and the explorer grids (e.g. error-issues.tsx) use to
+      // size themselves. That lets this grid take its height from the real
+      // ancestor chain (viewport minus topnav minus whatever banners are
+      // showing) instead of computing it, so a banner above this layout just
+      // shrinks the space the grid is handed rather than being invisible to a
+      // fixed calculation. `lg:-m-3` cancels the inherited padding at the
+      // rail breakpoint so the rail sits flush against the sidebar.
+      className="grid min-h-0 flex-1 grid-cols-1 grid-rows-[auto_minmax(0,1fr)] lg:-m-3 lg:grid-cols-[260px_minmax(0,1fr)] lg:grid-rows-[minmax(0,1fr)]"
     >
       <AlertingSectionNavRail />
       <div className="min-w-0 overflow-auto p-3">

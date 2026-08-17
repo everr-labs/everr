@@ -35,7 +35,14 @@ function PreviewableLayout() {
   }
 
   const content = (
-    <div className="min-h-0 flex-1 overflow-auto overscroll-y-contain">
+    // `lg:flex lg:flex-col` (matching `ScrollPage`'s wrapper) is what lets
+    // `PageContainer`'s own `flex-1 min-h-0` resolve to a real height here: a
+    // block box doesn't hand a percentage/flex height down to its children, so
+    // without this, PageContainer (and anything under it, like the alerting
+    // section rail) has no definite height to fill and falls back to sizing
+    // from its content. Scoped to `lg:` so mobile, which never asked for a
+    // definite height here, is unaffected.
+    <div className="min-h-0 flex-1 overflow-auto overscroll-y-contain lg:flex lg:flex-col">
       <PageContainer>
         <Outlet />
       </PageContainer>

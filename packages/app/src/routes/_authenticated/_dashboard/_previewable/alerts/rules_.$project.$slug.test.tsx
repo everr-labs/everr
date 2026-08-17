@@ -155,6 +155,7 @@ describe("/alerts/rules/$project/$slug", () => {
     expect(screen.getByText(/value > 0/)).toBeInTheDocument();
     expect(screen.getByText(/host/)).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /query/i })).toBeInTheDocument();
+    expect(screen.getByText("SELECT 1")).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: /annotations/i }),
     ).toBeInTheDocument();
