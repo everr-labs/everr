@@ -7,6 +7,8 @@ import { Link } from "@tanstack/react-router";
 import {
   Activity,
   Boxes,
+  ChevronDown,
+  ChevronRight,
   Cpu,
   Database,
   Globe,
@@ -60,6 +62,9 @@ interface Graded {
  */
 export function DashboardsList({ preview }: { preview?: string }) {
   const [search, setSearch] = useState("");
+  // Collapsed by default: the unready tail is reference material, not the
+  // menu. The count keeps it discoverable.
+  const [needsDataOpen, setNeedsDataOpen] = useState(false);
 
   const listQuery = useQuery(dashboardListOptions(preview));
   const dashboards = listQuery.data ?? [];
@@ -180,17 +185,27 @@ export function DashboardsList({ preview }: { preview?: string }) {
 
         {!ungraded && needsData.length > 0 && (
           <>
-            {ready.length > 0 && (
-              <h3 className="mt-2.5 mb-0.5 flex items-baseline justify-between gap-3 px-2 font-medium text-[0.6875rem] text-muted-foreground/80">
-                Needs data
-                <span className="truncate font-normal">
-                  nothing sent in the last 7 days
-                </span>
-              </h3>
-            )}
-            {needsData.map((entry) => (
-              <BuiltinRow key={entry.builtin.id} entry={entry} />
-            ))}
+            <button
+              type="button"
+              onClick={() => setNeedsDataOpen((open) => !open)}
+              aria-expanded={needsDataOpen}
+              title="Nothing sent in the last 7 days"
+              className="mt-2.5 mb-0.5 flex w-full items-center gap-1 rounded-md px-1 py-0.5 text-left font-medium text-[0.6875rem] text-muted-foreground/80 hover:text-foreground"
+            >
+              {needsDataOpen ? (
+                <ChevronDown className="size-3 shrink-0" />
+              ) : (
+                <ChevronRight className="size-3 shrink-0" />
+              )}
+              Needs data
+              <span className="ml-1 tabular-nums opacity-80">
+                {needsData.length}
+              </span>
+            </button>
+            {needsDataOpen &&
+              needsData.map((entry) => (
+                <BuiltinRow key={entry.builtin.id} entry={entry} />
+              ))}
           </>
         )}
       </section>
@@ -226,13 +241,13 @@ function BuiltinRow({ entry }: { entry: Graded }) {
       params={{ slug: builtin.id }}
       className={cn(
         "flex w-full items-center gap-2.5 rounded-md px-2 py-1.5 text-left transition-colors",
-        "text-muted-foreground hover:bg-muted/50 hover:text-foreground",
+        "text-foreground hover:bg-muted/50",
       )}
       activeProps={{
         className: "bg-muted text-foreground [&>svg]:text-primary",
       }}
     >
-      <Icon className="size-3.5 shrink-0" />
+      <Icon className="size-3.5 shrink-0 text-muted-foreground" />
       <span className="min-w-0 flex-1 truncate text-sm">{builtin.name}</span>
       {reason && (
         <span
