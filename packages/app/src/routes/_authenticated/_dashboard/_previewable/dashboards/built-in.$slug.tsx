@@ -5,7 +5,7 @@ import { CreateFromBuiltin } from "@/components/dashboards/create-from-builtin";
 import { DashboardGrid } from "@/components/dashboards/dashboard-grid";
 import gridLayoutOverridesCSS from "@/components/dashboards/dashboard-grid.css?url";
 import { DashboardNotFound } from "@/components/dashboards/dashboard-not-found";
-import { FrameRestore } from "@/components/dashboards/frame-restore";
+import { FrameToggle } from "@/components/dashboards/frame-toggle";
 import { DashboardProvider } from "@/components/dashboards/use-dashboard";
 import { evaluateBuiltin } from "@/data/dashboards/built-in/capabilities";
 import { getBuiltinDashboard } from "@/data/dashboards/built-in/catalog";
@@ -78,7 +78,7 @@ function BuiltinDashboardPage() {
           variable toolbar like any other dashboard control. */}
       <DashboardProvider document={builtin.document}>
         <DashboardGrid
-          leading={<FrameRestore />}
+          leading={<FrameToggle />}
           actions={<CreateFromBuiltin slug={builtin.id} name={builtin.name} />}
         />
       </DashboardProvider>

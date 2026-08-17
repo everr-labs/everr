@@ -24,8 +24,14 @@ import {
   type VariableOptionsState,
 } from "./use-dashboard-variables";
 
+// Inline fields carry their own left-hairline separator. Drawn as a border
+// (not an interleaved element) so a wrapped row can never start or end with a
+// dangling divider: the bar's negative margin pulls every row's first border
+// outside the clipping wrapper.
 const fieldClass = (layout: VariableBarLayout) =>
-  layout === "inline" ? "flex items-center gap-2" : "flex flex-col gap-1";
+  layout === "inline"
+    ? "flex items-center gap-2 border-border/70 border-l pl-3"
+    : "flex flex-col gap-1";
 
 function variableLabel(variable: Variable): string {
   return variable.spec.display?.name ?? variable.spec.name;
@@ -89,40 +95,34 @@ export function VariableBar({
     <div
       className={cn(
         "mb-3 flex flex-wrap gap-3",
-        layout === "inline" ? "items-center" : "items-end",
+        layout === "inline" ? "-ml-[13px] items-center" : "items-end",
         className,
       )}
     >
-      {visible.map((variable, index) => (
-        <Fragment key={variable.spec.name}>
-          {/* A hairline between fields keeps label-control pairs legible when
-              many variables share the strip; the stacked layout separates by
-              space alone. */}
-          {layout === "inline" && index > 0 && (
-            <div aria-hidden className="h-5 w-px self-center bg-border" />
-          )}
-          {variable.kind === "TextVariable" ? (
-            <TextVariableField
-              variable={variable}
-              layout={layout}
-              value={
-                typeof values[variable.spec.name] === "string"
-                  ? (values[variable.spec.name] as string)
-                  : ""
-              }
-              onCommit={(value) => setValue(variable.spec.name, value)}
-            />
-          ) : (
-            <ListVariableField
-              variable={variable}
-              layout={layout}
-              value={values[variable.spec.name]}
-              optionsState={optionsState[variable.spec.name]}
-              onChange={(value) => setValue(variable.spec.name, value)}
-            />
-          )}
-        </Fragment>
-      ))}
+      {visible.map((variable) =>
+        variable.kind === "TextVariable" ? (
+          <TextVariableField
+            key={variable.spec.name}
+            variable={variable}
+            layout={layout}
+            value={
+              typeof values[variable.spec.name] === "string"
+                ? (values[variable.spec.name] as string)
+                : ""
+            }
+            onCommit={(value) => setValue(variable.spec.name, value)}
+          />
+        ) : (
+          <ListVariableField
+            key={variable.spec.name}
+            variable={variable}
+            layout={layout}
+            value={values[variable.spec.name]}
+            optionsState={optionsState[variable.spec.name]}
+            onChange={(value) => setValue(variable.spec.name, value)}
+          />
+        ),
+      )}
     </div>
   );
 }

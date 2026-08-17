@@ -4,7 +4,7 @@ import gridLayoutCSS from "react-grid-layout/css/styles.css?url";
 import { DashboardGrid } from "@/components/dashboards/dashboard-grid";
 import gridLayoutOverridesCSS from "@/components/dashboards/dashboard-grid.css?url";
 import { DashboardNotFound } from "@/components/dashboards/dashboard-not-found";
-import { FrameRestore } from "@/components/dashboards/frame-restore";
+import { FrameToggle } from "@/components/dashboards/frame-toggle";
 import { DashboardProvider } from "@/components/dashboards/use-dashboard";
 import { recordLastViewed } from "@/data/dashboards/last-viewed";
 import { dashboardOptions } from "@/data/dashboards/options";
@@ -74,7 +74,7 @@ function DashboardPage() {
   } = useSuspenseQuery(dashboardOptions(project, slug, preview));
   return (
     <DashboardProvider document={document}>
-      <DashboardGrid leading={<FrameRestore />} />
+      <DashboardGrid leading={<FrameToggle />} />
     </DashboardProvider>
   );
 }
