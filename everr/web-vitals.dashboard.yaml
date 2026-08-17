@@ -1,0 +1,337 @@
+kind: Dashboard
+metadata:
+  name: web-vitals
+spec:
+  display:
+    description: 'Core Web Vitals from the @everr/web-sdk browser clients (web app and docs): p75 per vital against the standard good/poor thresholds, trends over time, rating distribution, and the worst routes.'
+    name: Web Vitals
+  duration: 24h
+  layouts:
+  - kind: Grid
+    spec:
+      items:
+      - content:
+          $ref: '#/spec/panels/p75-lcp'
+        height: 5
+        width: 6
+        x: 0
+        y: 0
+      - content:
+          $ref: '#/spec/panels/p75-inp'
+        height: 5
+        width: 6
+        x: 6
+        y: 0
+      - content:
+          $ref: '#/spec/panels/p75-cls'
+        height: 5
+        width: 6
+        x: 12
+        y: 0
+      - content:
+          $ref: '#/spec/panels/p75-ttfb'
+        height: 5
+        width: 6
+        x: 18
+        y: 0
+      - content:
+          $ref: '#/spec/panels/ms-vitals-over-time'
+        height: 9
+        width: 16
+        x: 0
+        y: 5
+      - content:
+          $ref: '#/spec/panels/cls-over-time'
+        height: 9
+        width: 8
+        x: 16
+        y: 5
+      - content:
+          $ref: '#/spec/panels/rating-by-vital'
+        height: 9
+        width: 10
+        x: 0
+        y: 14
+      - content:
+          $ref: '#/spec/panels/worst-routes'
+        height: 9
+        width: 14
+        x: 10
+        y: 14
+  panels:
+    cls-over-time:
+      kind: Panel
+      spec:
+        display:
+          name: CLS p75 over time
+        plugin:
+          kind: TimeSeriesChart
+          spec:
+            connectNulls: true
+            showLegend: true
+        queries:
+        - kind: ClickHouseSQL
+          spec:
+            plugin:
+              kind: ClickHouseSQL
+              spec:
+                query: |
+                  SELECT toStartOfInterval(Timestamp, INTERVAL {step:UInt32} SECOND) AS ts,
+                         ServiceName,
+                         round(quantile(0.75)(toFloat64OrNull(LogAttributes['browser.web_vital.value'])), 3) AS cls
+                  FROM logs
+                  WHERE Timestamp >= {from:String} AND Timestamp <= {to:String}
+                    AND EventName = 'browser.web_vital'
+                    AND LogAttributes['browser.web_vital.name'] = 'cls'
+                    AND ServiceName IN $service
+                  GROUP BY ts, ServiceName
+                  ORDER BY ts
+    ms-vitals-over-time:
+      kind: Panel
+      spec:
+        display:
+          description: LCP, INP, TTFB, and FCP p75 per bucket.
+          name: p75 over time (ms vitals)
+        plugin:
+          kind: TimeSeriesChart
+          spec:
+            connectNulls: true
+            showLegend: true
+            unit: ms
+        queries:
+        - kind: ClickHouseSQL
+          spec:
+            plugin:
+              kind: ClickHouseSQL
+              spec:
+                query: |
+                  SELECT toStartOfInterval(Timestamp, INTERVAL {step:UInt32} SECOND) AS ts,
+                         round(quantileIf(0.75)(toFloat64OrNull(LogAttributes['browser.web_vital.value']), LogAttributes['browser.web_vital.name'] = 'lcp')) AS lcp,
+                         round(quantileIf(0.75)(toFloat64OrNull(LogAttributes['browser.web_vital.value']), LogAttributes['browser.web_vital.name'] = 'inp')) AS inp,
+                         round(quantileIf(0.75)(toFloat64OrNull(LogAttributes['browser.web_vital.value']), LogAttributes['browser.web_vital.name'] = 'ttfb')) AS ttfb,
+                         round(quantileIf(0.75)(toFloat64OrNull(LogAttributes['browser.web_vital.value']), LogAttributes['browser.web_vital.name'] = 'fcp')) AS fcp
+                  FROM logs
+                  WHERE Timestamp >= {from:String} AND Timestamp <= {to:String}
+                    AND EventName = 'browser.web_vital'
+                    AND ServiceName IN $service
+                  GROUP BY ts
+                  ORDER BY ts
+    p75-cls:
+      kind: Panel
+      spec:
+        display:
+          name: CLS p75
+        plugin:
+          kind: GaugeChart
+          spec:
+            calculation: last
+            decimals: 3
+            min: 0
+            max: 0.35
+            thresholds:
+              defaultColor: '#22c55e'
+              defaultName: Good
+              mode: absolute
+              steps:
+              - color: '#f59e0b'
+                name: Needs improvement
+                value: 0.1
+              - color: '#ef4444'
+                name: Poor
+                value: 0.25
+        queries:
+        - kind: ClickHouseSQL
+          spec:
+            plugin:
+              kind: ClickHouseSQL
+              spec:
+                query: |
+                  SELECT round(quantile(0.75)(toFloat64OrNull(LogAttributes['browser.web_vital.value'])), 3) AS cls
+                  FROM logs
+                  WHERE Timestamp >= {from:String} AND Timestamp <= {to:String}
+                    AND EventName = 'browser.web_vital'
+                    AND LogAttributes['browser.web_vital.name'] = 'cls'
+                    AND ServiceName IN $service
+    p75-inp:
+      kind: Panel
+      spec:
+        display:
+          name: INP p75
+        plugin:
+          kind: GaugeChart
+          spec:
+            calculation: last
+            decimals: 0
+            min: 0
+            max: 700
+            thresholds:
+              defaultColor: '#22c55e'
+              defaultName: Good
+              mode: absolute
+              steps:
+              - color: '#f59e0b'
+                name: Needs improvement
+                value: 200
+              - color: '#ef4444'
+                name: Poor
+                value: 500
+            unit: ms
+        queries:
+        - kind: ClickHouseSQL
+          spec:
+            plugin:
+              kind: ClickHouseSQL
+              spec:
+                query: |
+                  SELECT round(quantile(0.75)(toFloat64OrNull(LogAttributes['browser.web_vital.value']))) AS inp
+                  FROM logs
+                  WHERE Timestamp >= {from:String} AND Timestamp <= {to:String}
+                    AND EventName = 'browser.web_vital'
+                    AND LogAttributes['browser.web_vital.name'] = 'inp'
+                    AND ServiceName IN $service
+    p75-lcp:
+      kind: Panel
+      spec:
+        display:
+          name: LCP p75
+        plugin:
+          kind: GaugeChart
+          spec:
+            calculation: last
+            decimals: 0
+            min: 0
+            max: 5300
+            thresholds:
+              defaultColor: '#22c55e'
+              defaultName: Good
+              mode: absolute
+              steps:
+              - color: '#f59e0b'
+                name: Needs improvement
+                value: 2500
+              - color: '#ef4444'
+                name: Poor
+                value: 4000
+            unit: ms
+        queries:
+        - kind: ClickHouseSQL
+          spec:
+            plugin:
+              kind: ClickHouseSQL
+              spec:
+                query: |
+                  SELECT round(quantile(0.75)(toFloat64OrNull(LogAttributes['browser.web_vital.value']))) AS lcp
+                  FROM logs
+                  WHERE Timestamp >= {from:String} AND Timestamp <= {to:String}
+                    AND EventName = 'browser.web_vital'
+                    AND LogAttributes['browser.web_vital.name'] = 'lcp'
+                    AND ServiceName IN $service
+    p75-ttfb:
+      kind: Panel
+      spec:
+        display:
+          name: TTFB p75
+        plugin:
+          kind: GaugeChart
+          spec:
+            calculation: last
+            decimals: 0
+            min: 0
+            max: 2400
+            thresholds:
+              defaultColor: '#22c55e'
+              defaultName: Good
+              mode: absolute
+              steps:
+              - color: '#f59e0b'
+                name: Needs improvement
+                value: 800
+              - color: '#ef4444'
+                name: Poor
+                value: 1800
+            unit: ms
+        queries:
+        - kind: ClickHouseSQL
+          spec:
+            plugin:
+              kind: ClickHouseSQL
+              spec:
+                query: |
+                  SELECT round(quantile(0.75)(toFloat64OrNull(LogAttributes['browser.web_vital.value']))) AS ttfb
+                  FROM logs
+                  WHERE Timestamp >= {from:String} AND Timestamp <= {to:String}
+                    AND EventName = 'browser.web_vital'
+                    AND LogAttributes['browser.web_vital.name'] = 'ttfb'
+                    AND ServiceName IN $service
+    rating-by-vital:
+      kind: Panel
+      spec:
+        display:
+          description: Share of good / needs-improvement / poor samples per vital.
+          name: Rating distribution by vital
+        plugin:
+          kind: BarChart
+          spec:
+            showLegend: true
+            stacking: percent
+        queries:
+        - kind: ClickHouseSQL
+          spec:
+            plugin:
+              kind: ClickHouseSQL
+              spec:
+                query: |
+                  SELECT LogAttributes['browser.web_vital.name'] AS vital,
+                         LogAttributes['browser.web_vital.rating'] AS rating,
+                         count() AS samples
+                  FROM logs
+                  WHERE Timestamp >= {from:String} AND Timestamp <= {to:String}
+                    AND EventName = 'browser.web_vital'
+                    AND ServiceName IN $service
+                  GROUP BY vital, rating
+                  ORDER BY vital, rating
+    worst-routes:
+      kind: Panel
+      spec:
+        display:
+          description: Route pattern when the router reported one, else the raw path.
+          name: Worst routes by LCP p75
+        plugin:
+          kind: Table
+          spec:
+            stickyHeader: true
+        queries:
+        - kind: ClickHouseSQL
+          spec:
+            plugin:
+              kind: ClickHouseSQL
+              spec:
+                query: |
+                  SELECT ServiceName AS service,
+                         if(LogAttributes['everr.route.pattern'] != '', LogAttributes['everr.route.pattern'], LogAttributes['url.path']) AS route,
+                         count() AS samples,
+                         round(quantileIf(0.75)(toFloat64OrNull(LogAttributes['browser.web_vital.value']), LogAttributes['browser.web_vital.name'] = 'lcp')) AS lcp_p75_ms,
+                         round(quantileIf(0.75)(toFloat64OrNull(LogAttributes['browser.web_vital.value']), LogAttributes['browser.web_vital.name'] = 'inp')) AS inp_p75_ms,
+                         round(quantileIf(0.75)(toFloat64OrNull(LogAttributes['browser.web_vital.value']), LogAttributes['browser.web_vital.name'] = 'cls'), 3) AS cls_p75
+                  FROM logs
+                  WHERE Timestamp >= {from:String} AND Timestamp <= {to:String}
+                    AND EventName = 'browser.web_vital'
+                    AND ServiceName IN $service
+                  GROUP BY service, route
+                  ORDER BY lcp_p75_ms DESC NULLS LAST
+                  LIMIT 15
+  refreshInterval: 1m
+  variables:
+  - kind: ListVariable
+    spec:
+      allowAllValue: true
+      allowMultiple: true
+      defaultValue: __all
+      display:
+        name: Service
+      name: service
+      plugin:
+        kind: ClickHouseSQLVariable
+        spec:
+          query: SELECT DISTINCT ServiceName FROM logs WHERE EventName = 'browser.web_vital' ORDER BY ServiceName
+      sort: alphabetical-asc
