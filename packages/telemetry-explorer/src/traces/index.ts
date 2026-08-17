@@ -9,6 +9,7 @@ export * from "./data/schemas";
 export * from "./data/types";
 export * from "./data/window";
 export { TimeRangeSearchSchema } from "./time-range";
+export { serviceColor } from "./ui/shared/service-color";
 export type {
   TraceDetailProps,
   TraceDetailSearch,
