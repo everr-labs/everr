@@ -55,6 +55,9 @@ export const panel = z.object({
   }),
 });
 
+/** Columns every dashboard grid is measured in, layout and renderer alike. */
+export const GRID_COLS = 24;
+
 /** Prefix every layout `content.$ref` must use to point at a panel key. */
 export const PANEL_REF_PREFIX = "#/spec/panels/";
 
