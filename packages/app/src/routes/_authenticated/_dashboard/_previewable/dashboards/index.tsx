@@ -1,78 +1,39 @@
-import { Input } from "@everr/ui/components/input";
-import { useQuery } from "@tanstack/react-query";
-import { createFileRoute, useSearch } from "@tanstack/react-router";
-import { AlertCircle, LayoutDashboard, SearchIcon } from "lucide-react";
-import { useState } from "react";
-import { DashboardTree } from "@/components/dashboards/dashboard-tree";
-import { ResourceEmptyState } from "@/components/resource-empty-state";
+import { createFileRoute, redirect } from "@tanstack/react-router";
+import { BUILTIN_DASHBOARDS } from "@/data/dashboards/built-in/catalog";
 import { dashboardListOptions } from "@/data/dashboards/options";
-
-const ASSISTANT_DASHBOARD_PROMPT =
-  "/everr-setup-resources Help me build a good first dashboard based on the telemetry we have in production";
 
 export const Route = createFileRoute(
   "/_authenticated/_dashboard/_previewable/dashboards/",
 )({
   staticData: { breadcrumb: "Dashboards" },
   head: () => ({ meta: [{ title: "Everr - Dashboards" }] }),
-  component: DashboardsIndexPage,
+  loaderDeps: ({ search }) => ({ preview: search.preview }),
+  // The index is never a page of its own: the layout always shows the list, so
+  // landing here opens the first dashboard — yours when you have any, the
+  // first built-in otherwise — and the screen is never blank.
+  loader: async ({ context: { queryClient }, deps: { preview } }) => {
+    const list = await queryClient.ensureQueryData(
+      dashboardListOptions(preview),
+    );
+    const [first] = [...list]
+      .filter((d) => d.previewStatus !== "removed")
+      .sort((a, b) => a.name.localeCompare(b.name));
+    if (first) {
+      throw redirect({
+        to: "/dashboards/$project/$slug",
+        params: { project: first.project, slug: first.slug },
+        search: (prev) => prev,
+        replace: true,
+      });
+    }
+    const builtin = BUILTIN_DASHBOARDS[0];
+    if (!builtin) return;
+    throw redirect({
+      to: "/dashboards/built-in/$slug",
+      params: { slug: builtin.id },
+      search: (prev) => prev,
+      replace: true,
+    });
+  },
+  component: () => null,
 });
-
-function DashboardsIndexPage() {
-  const { preview } = useSearch({ from: "/_authenticated/_dashboard" });
-  const {
-    data: dashboards,
-    isLoading,
-    isError,
-    error,
-  } = useQuery(dashboardListOptions(preview));
-  const [search, setSearch] = useState("");
-  const isEmpty = !isLoading && !isError && (dashboards?.length ?? 0) === 0;
-
-  return (
-    <div>
-      <div className="mb-6 flex items-center gap-2">
-        <LayoutDashboard className="size-5 text-muted-foreground" />
-        <h1 className="text-lg font-semibold">Dashboards</h1>
-      </div>
-
-      {!isEmpty && (
-        <div className="relative mb-4 max-w-sm">
-          <SearchIcon className="absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            placeholder="Search dashboards..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="pl-8"
-          />
-        </div>
-      )}
-
-      {isLoading && <p className="text-sm text-muted-foreground">Loading...</p>}
-
-      {!isLoading && isError && (
-        <div className="flex flex-col items-center justify-center gap-3 py-16 text-muted-foreground">
-          <AlertCircle className="size-10" />
-          <p className="text-sm">
-            {error instanceof Error
-              ? error.message
-              : "Failed to load dashboards"}
-          </p>
-        </div>
-      )}
-
-      {isEmpty && (
-        <ResourceEmptyState
-          title="No dashboards yet"
-          description="Paste this into your coding assistant. It writes the YAML, applies it, and the dashboard shows up here."
-          assistantPrompt={ASSISTANT_DASHBOARD_PROMPT}
-          docsHref="https://everr.dev/docs/learn/first-dashboard"
-        />
-      )}
-
-      {!isLoading && !isError && !isEmpty && (
-        <DashboardTree dashboards={dashboards ?? []} search={search} />
-      )}
-    </div>
-  );
-}

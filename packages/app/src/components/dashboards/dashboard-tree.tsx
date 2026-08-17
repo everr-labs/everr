@@ -185,6 +185,7 @@ function DashboardRow({
         }
         params={{ project: dashboard.project, slug: dashboard.slug }}
         className="flex min-w-0 flex-1 items-center gap-2 py-0.5"
+        activeProps={{ className: "text-foreground [&>svg]:text-primary" }}
       >
         <Icon className="size-4 shrink-0 text-muted-foreground" />
         <span className="truncate text-sm">{dashboard.name}</span>
