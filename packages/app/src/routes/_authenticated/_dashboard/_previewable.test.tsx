@@ -36,12 +36,12 @@ function renderPreviewableLayout(initialEntry: string) {
     id: "_dashboard",
     component: Outlet,
   });
-  // `id` isn't in `.update()`'s public type (only the generator is meant to
-  // set it); the same `as any` cast is what routeTree.gen.ts itself uses.
+  // `id` isn't in `.update()`'s public type: only the generator is meant to set
+  // it, and routeTree.gen.ts casts for the same reason.
   PreviewableLayoutFileRoute.update({
     id: "/_previewable",
     getParentRoute: () => dashboardRoute,
-  } as any);
+  } as Parameters<typeof PreviewableLayoutFileRoute.update>[0]);
   const asCodeRoute = createRoute({
     getParentRoute: () => PreviewableLayoutFileRoute,
     path: "as-code",
