@@ -30,13 +30,16 @@ function DashboardsLayout() {
   // Both directions of the toggle live inside the grid toolbar (`FrameToggle`
   // via DashboardGrid). Full mode keeps the same grid and animates the rail's
   // track to zero — the dashboard slides over instead of snapping.
+  // The rail engages at `md:` where the Explore rails use `lg:` — deliberate:
+  // this is navigation, not filters, and it stays useful beside a dashboard
+  // on ~1000px windows where the explorers already collapse.
   return (
     <div
       className={cn(
-        "grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)] md:grid-rows-[minmax(0,1fr)] md:transition-[grid-template-columns] md:duration-300 md:ease-out motion-reduce:md:transition-none",
+        "grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)] [--rail:260px] md:grid-rows-[minmax(0,1fr)] md:transition-[grid-template-columns] md:duration-300 md:ease-out motion-reduce:md:transition-none",
         full
           ? "md:grid-cols-[0px_minmax(0,1fr)]"
-          : "md:grid-cols-[260px_minmax(0,1fr)]",
+          : "md:grid-cols-[var(--rail)_minmax(0,1fr)]",
       )}
     >
       {/*
@@ -49,11 +52,15 @@ function DashboardsLayout() {
         aria-label="Dashboards"
         className={cn(
           "min-h-0 min-w-0 overflow-hidden border-b bg-muted/15 md:border-r md:border-b-0",
+          // Stacked on narrow viewports the rail stays expanded — it is
+          // navigation, not filters, so hiding it behind a button would bury
+          // the only way to switch dashboards. Just under half the viewport
+          // leaves the open dashboard the larger share; the rows scroll.
           "max-md:max-h-[45dvh]",
           full && "max-md:hidden md:border-r-0",
         )}
       >
-        <div className="flex h-full min-h-0 flex-col gap-3 p-3 md:w-[260px]">
+        <div className="flex h-full min-h-0 flex-col p-3 md:w-[var(--rail)]">
           <DashboardsList preview={preview} />
         </div>
       </aside>
