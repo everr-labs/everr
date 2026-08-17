@@ -1,6 +1,5 @@
 import { cn } from "@everr/ui/lib/utils";
 import { createFileRoute, Outlet, useSearch } from "@tanstack/react-router";
-import { LayoutDashboard } from "lucide-react";
 import * as z from "zod";
 import { DashboardsList } from "@/components/dashboards/dashboards-list";
 
@@ -55,10 +54,6 @@ function DashboardsLayout() {
         )}
       >
         <div className="flex h-full min-h-0 flex-col gap-3 p-3 md:w-[260px]">
-          <div className="flex items-center gap-2 font-medium text-[0.6875rem] text-muted-foreground uppercase tracking-wider">
-            <LayoutDashboard className="size-3.5" />
-            Dashboards
-          </div>
           <DashboardsList preview={preview} />
         </div>
       </aside>
