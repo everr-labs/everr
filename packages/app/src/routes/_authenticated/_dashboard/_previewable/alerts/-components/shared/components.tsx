@@ -243,27 +243,6 @@ export function AlertingRunbookLink({
   );
 }
 
-export function AlertingDefRow({
-  label,
-  children,
-}: {
-  label: string;
-  children: ReactNode;
-}) {
-  return (
-    <div className="flex flex-col gap-0.5 py-1.5 sm:flex-row sm:items-baseline sm:gap-3">
-      <dt className="shrink-0 text-xs text-muted-foreground sm:w-28">
-        {label}
-      </dt>
-      {/* min-w-0 so a wide value scrolls inside the row rather than
-          stretching the card. */}
-      <dd className="min-w-0 flex-1 break-words font-mono text-xs [overflow-wrap:anywhere]">
-        {children}
-      </dd>
-    </div>
-  );
-}
-
 // ── Pause / resume ────────────────────────────────────────────────────────────
 
 type AlertingPausableKind = "alert rule";

@@ -5,10 +5,6 @@ import {
   CardHeader,
   CardTitle,
 } from "@everr/ui/components/card";
-import {
-  Collapsible,
-  CollapsibleContent,
-} from "@everr/ui/components/collapsible";
 import { RelativeTime } from "@everr/ui/components/relative-time";
 import { Skeleton } from "@everr/ui/components/skeleton";
 import { withTimeRange } from "@everr/ui/lib/time-range";
@@ -41,13 +37,15 @@ import {
   alertRuleEvaluationOutcome,
   summarizeAlertRuleLatestCheck,
 } from "./-components/rules/chart-data";
+import {
+  RuleMetaLine,
+  RuleReferenceDisclosures,
+} from "./-components/rules/definition";
 import { EvaluationCountdown } from "./-components/rules/evaluation-countdown";
 import { AlertRuleHistory } from "./-components/rules/history";
 import { AlertRuleSignalChart } from "./-components/rules/signal-chart";
 import {
   AlertingBackLink,
-  AlertingDefRow,
-  AlertingDisclosureTrigger,
   AlertingPauseToggle,
   AlertingQueryError,
   alertingErrorMessage,
@@ -290,9 +288,6 @@ function AlertingRuleDetailPage() {
     enabled: rule.data !== undefined,
     refetchInterval: false,
   });
-  const [sqlOpen, setSqlOpen] = useState(false);
-  const [annotationsOpen, setAnnotationsOpen] = useState(false);
-
   const toggle = useMutation({
     mutationFn: (paused: boolean) => {
       const ruleId = rule.data?.id;
@@ -332,7 +327,6 @@ function AlertingRuleDetailPage() {
       alert.rule === ruleId &&
       (alert.status === "firing" || alert.status === "pending"),
   );
-  const annotationEntries = Object.entries(r.spec.annotations ?? {});
   const annotationSummary = r.spec.annotations?.summary;
   const annotationDescription =
     r.spec.annotations?.description ??
@@ -374,7 +368,7 @@ function AlertingRuleDetailPage() {
       <header className="space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="flex min-w-0 flex-wrap items-center gap-3">
-            <AlertingBackLink to="/alerts" label="Back to alerts" />
+            <AlertingBackLink to="/alerts/rules" label="All Rules" />
             <h2 className="truncate text-base font-semibold">
               {identity.name}
             </h2>
@@ -418,6 +412,16 @@ function AlertingRuleDetailPage() {
             />
           </div>
         </div>
+        {annotationSummary && (
+          <p className="text-sm text-muted-foreground">{annotationSummary}</p>
+        )}
+        {annotationDescription &&
+          annotationDescription !== annotationSummary && (
+            <p className="text-sm text-muted-foreground">
+              {annotationDescription}
+            </p>
+          )}
+        <RuleMetaLine rule={r} />
         <AlertingSummaryCard ariaLabel="Rule activity summary">
           <AlertingSummaryStat
             label="Breaching instances"
@@ -526,6 +530,11 @@ function AlertingRuleDetailPage() {
           <CardTitle>
             <h3>Signal history</h3>
           </CardTitle>
+          <p className="text-xs text-muted-foreground">
+            value {conditionOperator} {r.spec.condition.threshold}
+            {r.spec.label_columns.length > 0 &&
+              ` · grouped by ${r.spec.label_columns.join(", ")}`}
+          </p>
         </CardHeader>
         <CardContent>
           {evaluationSeries.data && (
@@ -567,105 +576,7 @@ function AlertingRuleDetailPage() {
         eventsError={eventHistory.isError ? eventHistory.error : null}
       />
 
-      <Card>
-        <CardHeader>
-          <CardTitle>
-            <h3>Definition</h3>
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          {(annotationSummary || annotationDescription) && (
-            <div className="max-w-[75ch] space-y-1">
-              {annotationSummary && (
-                <p className="text-sm font-medium">{annotationSummary}</p>
-              )}
-              {annotationDescription && (
-                <p className="text-xs text-muted-foreground">
-                  {annotationDescription}
-                </p>
-              )}
-            </div>
-          )}
-          <dl className="divide-y divide-border/60">
-            <AlertingDefRow label="Interval">
-              {r.spec.interval_secs}s
-            </AlertingDefRow>
-            {r.spec.max_interval_secs != null && (
-              <AlertingDefRow label="Max interval">
-                {r.spec.max_interval_secs}s
-              </AlertingDefRow>
-            )}
-            <AlertingDefRow label="For">{r.spec.for_secs}s</AlertingDefRow>
-            <AlertingDefRow label="Resolve after">
-              {r.spec.resolve_after} missed evaluation
-              {r.spec.resolve_after === 1 ? "" : "s"}
-            </AlertingDefRow>
-            <AlertingDefRow label="Label columns">
-              {r.spec.label_columns.join(", ") || "—"}
-            </AlertingDefRow>
-            <AlertingDefRow label="Condition">
-              <span className="font-mono">
-                value {conditionOperator} {r.spec.condition.threshold}
-              </span>
-            </AlertingDefRow>
-            <AlertingDefRow label="Delivery">
-              {r.notification_channels.length > 0
-                ? `Explicit channels: ${r.notification_channels.join(", ")}`
-                : "Advanced routing"}
-            </AlertingDefRow>
-          </dl>
-          {annotationEntries.length > 0 && (
-            <Collapsible
-              open={annotationsOpen}
-              onOpenChange={setAnnotationsOpen}
-            >
-              <AlertingDisclosureTrigger open={annotationsOpen}>
-                <span className="text-xs font-medium">
-                  Advanced annotations
-                </span>
-                {!annotationsOpen && (
-                  <span className="min-w-0 truncate text-[0.6875rem] text-muted-foreground">
-                    {annotationEntries.length} metadata field
-                    {annotationEntries.length === 1 ? "" : "s"}
-                  </span>
-                )}
-              </AlertingDisclosureTrigger>
-              <CollapsibleContent>
-                <dl className="mt-2 divide-y divide-border/60 rounded-md bg-muted/30 px-3 ring-1 ring-foreground/10">
-                  {annotationEntries.map(([key, value]) => (
-                    <div
-                      key={key}
-                      className="flex flex-col gap-0.5 py-1.5 sm:flex-row sm:gap-3"
-                    >
-                      <dt className="shrink-0 font-mono text-[0.6875rem] text-muted-foreground sm:w-40">
-                        {key}
-                      </dt>
-                      <dd className="min-w-0 break-words text-xs [overflow-wrap:anywhere]">
-                        {value}
-                      </dd>
-                    </div>
-                  ))}
-                </dl>
-              </CollapsibleContent>
-            </Collapsible>
-          )}
-          <Collapsible open={sqlOpen} onOpenChange={setSqlOpen}>
-            <AlertingDisclosureTrigger open={sqlOpen}>
-              <span className="text-xs font-medium">SQL</span>
-              {!sqlOpen && (
-                <span className="min-w-0 truncate font-mono text-[0.6875rem] text-muted-foreground">
-                  {r.spec.sql}
-                </span>
-              )}
-            </AlertingDisclosureTrigger>
-            <CollapsibleContent>
-              <pre className="mt-2 overflow-x-auto rounded-md bg-muted/50 p-3 font-mono text-xs ring-1 ring-foreground/10">
-                {r.spec.sql}
-              </pre>
-            </CollapsibleContent>
-          </Collapsible>
-        </CardContent>
-      </Card>
+      <RuleReferenceDisclosures rule={r} />
       <SilenceCreateDrawer ref={silenceDrawer} />
     </div>
   );
