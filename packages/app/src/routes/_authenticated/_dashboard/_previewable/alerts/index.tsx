@@ -1,8 +1,6 @@
-import { buttonVariants } from "@everr/ui/components/button";
 import { Skeleton } from "@everr/ui/components/skeleton";
-import { cn } from "@everr/ui/lib/utils";
 import { useQuery } from "@tanstack/react-query";
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useRef } from "react";
 import { PageHeader } from "@/components/page-header";
 import { deliveryQueries } from "@/data/alerting/delivery/queries";
@@ -13,7 +11,6 @@ import { silenceQueries } from "@/data/alerting/silences/queries";
 import {
   alertingActiveGroups,
   alertingGroupInstances,
-  alertingQuietRules,
   alertingResolveTriageInstances,
   alertingTriageCounts,
   TRIAGE_EVENT_RANGE,
@@ -23,10 +20,8 @@ import { AlertingQueryError } from "./-components/shared/components";
 import {
   SilenceCreateDrawer,
   type SilenceDrawerHandle,
-  SilencesPanel,
 } from "./-components/silences/panel";
 import { TriageBoard } from "./-components/triage/board";
-import { QuietRulesCard } from "./-components/triage/quiet-rules";
 
 // One stored event only: it date-stamps the all-clear readout (quiet board vs
 // broken pipeline); nothing on this page lists events.
@@ -115,10 +110,6 @@ function AlertingTriagePage() {
     [groups, silences.data, channelsByReceiver],
   );
   const boardGroups = useMemo(() => alertingActiveGroups(groups), [groups]);
-  const quietRules = useMemo(
-    () => alertingQuietRules(rulesData, boardGroups),
-    [rulesData, boardGroups],
-  );
 
   const watchingRules = rulesData.filter((r) => !r.paused).length;
   // Row-derived numbers come from `counts` only, so the strip and the board
@@ -139,17 +130,9 @@ function AlertingTriagePage() {
   return (
     <div className="space-y-3">
       <PageHeader
-        title="Alerts"
-        lede="What is firing now, and every rule watching your telemetry."
+        title="Triage"
+        lede="What is firing now, and what is on its way."
         docsHref="https://everr.dev/docs/concepts/how-alerts-work"
-        actions={
-          <Link
-            to="/alerts/delivery"
-            className={cn(buttonVariants({ variant: "outline" }), "min-h-8")}
-          >
-            Delivery
-          </Link>
-        }
       />
 
       {/* Wait for the data. Zeros during loading would show a false all-clear. */}
@@ -171,13 +154,6 @@ function AlertingTriagePage() {
         }
       />
 
-      <QuietRulesCard
-        rules={quietRules}
-        totalRules={rulesData.length}
-        pending={pending}
-      />
-
-      <SilencesPanel onNewSilence={() => silenceDrawer.current?.openWith([])} />
       <SilenceCreateDrawer ref={silenceDrawer} />
     </div>
   );

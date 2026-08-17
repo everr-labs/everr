@@ -19,7 +19,6 @@ import type {
   AlertingRuleView,
   AlertingSilence,
 } from "@/data/alerting/types";
-import { QUIET_RULES_PAGE } from "./-components/triage/quiet-rules";
 import { Route as AlertsIndexFileRoute } from "./index";
 
 const mocks = vi.hoisted(() => ({
@@ -294,19 +293,19 @@ beforeEach(() => {
 });
 
 describe("/alerts triage board", () => {
-  it("heads the page as Alerts and offers the delivery link", async () => {
+  it("heads the page as Triage", async () => {
     seedBoard();
     renderTriagePage();
 
     expect(
-      await screen.findByRole("heading", { level: 1, name: "Alerts" }),
+      await screen.findByRole("heading", { level: 1, name: "Triage" }),
     ).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: "Delivery" })).toHaveAttribute(
-      "href",
-      "/alerts/delivery",
-    );
     expect(
       screen.queryByRole("link", { name: /rules watching/i }),
+    ).not.toBeInTheDocument();
+    // The rail replaces this shortcut in a later task.
+    expect(
+      screen.queryByRole("link", { name: "Delivery" }),
     ).not.toBeInTheDocument();
   });
 
@@ -747,127 +746,6 @@ describe("/alerts triage board", () => {
     expect(
       screen.queryByRole("region", { name: "Alerting pipeline" }),
     ).not.toBeInTheDocument();
-  });
-
-  it("lists a rule with no active instance in the quiet band, and pages it", async () => {
-    seedBoard();
-    const overflow = 10;
-    const total = QUIET_RULES_PAGE + overflow;
-    mocks.listAlertingRules.mockResolvedValue([
-      alertingRule(),
-      ...Array.from({ length: total }, (_, i) =>
-        alertingRule({
-          id: `quiet-${String(i).padStart(2, "0")}`,
-          name: `default/quiet-${String(i).padStart(2, "0")}`,
-          spec: {
-            ...alertingRule().spec,
-            annotations: {
-              "everr.display.name": `Quiet ${String(i).padStart(2, "0")}`,
-            },
-          },
-        }),
-      ),
-    ]);
-    const firstHidden = `Quiet ${String(QUIET_RULES_PAGE).padStart(2, "0")}`;
-
-    const user = userEvent.setup();
-    renderTriagePage();
-
-    const quiet = await screen.findByRole("region", { name: "Quiet rules" });
-    // The card itself renders before its data does, so its first row must be
-    // awaited rather than read straight off the loading skeleton.
-    expect(await within(quiet).findByText("Quiet 00")).toBeInTheDocument();
-    expect(within(quiet).queryByText(firstHidden)).not.toBeInTheDocument();
-    expect(
-      within(quiet).getByText(`${overflow} more of ${total}`),
-    ).toBeInTheDocument();
-
-    await user.click(within(quiet).getByRole("button", { name: "Load more" }));
-
-    expect(within(quiet).getByText(firstHidden)).toBeInTheDocument();
-  });
-
-  it("labels a degraded rule and, under ?preview=, a preview rule too", async () => {
-    seedBoard();
-    const degraded = alertingRule({
-      id: "rule-degraded",
-      name: "default/degraded",
-      health: {
-        status: "degraded",
-        consecutive_failures: 3,
-        degraded_since: new Date().toISOString(),
-        last_error: "boom",
-        last_error_at: new Date().toISOString(),
-      },
-    });
-    const previewOnly = alertingRule({
-      id: "rule-preview",
-      name: "default/preview",
-      previewId: "pr-1",
-    });
-    // The real server only returns `previewOnly` when asked for that
-    // preview's scope: the fixture must react to the call args, or this
-    // test would pass even if the page never asked for the preview scope.
-    mocks.listAlertingRules.mockImplementation(async (opts) =>
-      opts?.data?.preview === "pr-1" ? [degraded, previewOnly] : [degraded],
-    );
-
-    renderTriagePage({ initialEntry: "/alerts/?preview=pr-1" });
-
-    const quiet = await screen.findByRole("region", { name: "Quiet rules" });
-    // The card renders before its data does, so the first label read must be
-    // awaited rather than taken off the loading skeleton.
-    expect(await within(quiet).findByText("Degraded")).toBeInTheDocument();
-    expect(within(quiet).getByText("Preview")).toBeInTheDocument();
-  });
-
-  it("keeps a preview-only rule out of the quiet band without ?preview=", async () => {
-    mocks.listAlertingAlerts.mockResolvedValue([]);
-    mocks.listAlertingSilences.mockResolvedValue([]);
-    const liveRule = alertingRule({ id: "rule-live", name: "default/live" });
-    const previewOnly = alertingRule({
-      id: "rule-preview",
-      name: "default/preview",
-      previewId: "pr-1",
-    });
-    mocks.listAlertingRules.mockImplementation(async (opts) =>
-      opts?.data?.preview === "pr-1" ? [liveRule, previewOnly] : [liveRule],
-    );
-
-    renderTriagePage();
-
-    const quiet = await screen.findByRole("region", { name: "Quiet rules" });
-    await within(quiet).findByText("Flapping check");
-    expect(within(quiet).queryByText("Preview")).not.toBeInTheDocument();
-    expect(mocks.listAlertingRules).toHaveBeenCalledWith(undefined);
-  });
-
-  it("tells the reader how to define rules when there are none", async () => {
-    seedBoard();
-    mocks.listAlertingRules.mockResolvedValue([]);
-    mocks.listAlertingAlerts.mockResolvedValue([]);
-
-    renderTriagePage();
-
-    const quiet = await screen.findByRole("region", { name: "Quiet rules" });
-    expect(await within(quiet).findByText("everr apply")).toBeInTheDocument();
-  });
-
-  it("says every rule is on the board when rules exist but none are quiet", async () => {
-    // seedBoard's two rules both have a firing or pending instance, so the
-    // quiet band is empty even though rules are defined: the reader must not
-    // be told to define rules they already have.
-    seedBoard();
-
-    renderTriagePage();
-
-    const quiet = await screen.findByRole("region", { name: "Quiet rules" });
-    expect(
-      await within(quiet).findByText(
-        /every rule has a firing or pending instance/i,
-      ),
-    ).toBeInTheDocument();
-    expect(within(quiet).queryByText("everr apply")).not.toBeInTheDocument();
   });
 
   it("says the event read failed rather than claiming no events", async () => {

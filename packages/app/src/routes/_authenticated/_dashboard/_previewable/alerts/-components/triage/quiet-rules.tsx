@@ -34,31 +34,39 @@ import {
   AlertingStatusLabel,
 } from "../shared/status";
 
-/** How many quiet rules render before Load more. */
-export const QUIET_RULES_PAGE = 50;
+/** How many rules render before Load more. */
+export const RULES_PAGE = 50;
 
 /**
- * A quiet rule has no firing or pending instance, so it has no rows to show.
  * `rollup` is always present on the view (see `ruleView` in the rules
  * repository), so there is no "not reported" case to carry here.
  */
-function quietStatus(rule: AlertingRuleView): {
-  label: string;
-  tone: Tone;
-  muted?: boolean;
-} {
-  if (rule.paused) return { label: "Paused", tone: "muted" };
-  if (rule.previewId !== null) return { label: "Preview", tone: "muted" };
+function ruleStatus(
+  rule: AlertingRuleView,
+  firing: boolean,
+): { label: string; tone: Tone; muted: boolean } {
+  if (rule.paused) return { label: "Paused", tone: "muted", muted: true };
+  // Firing outranks health: a degraded rule that is also firing is a firing
+  // rule, and the reader acts on the alert, not on the evaluation error.
+  if (firing) return { label: "Firing", tone: "danger", muted: false };
+  if (rule.previewId !== null)
+    return { label: "Preview", tone: "muted", muted: true };
   if (rule.health.status === "degraded") {
-    return { label: "Degraded", tone: "warning" };
+    return { label: "Degraded", tone: "warning", muted: false };
   }
   return { label: "OK", tone: "healthy", muted: true };
 }
 
-function QuietRuleLine({ rule }: { rule: AlertingRuleView }) {
+function RuleLine({
+  rule,
+  firing,
+}: {
+  rule: AlertingRuleView;
+  firing: boolean;
+}) {
   const qc = useQueryClient();
   const identity = alertingRuleIdentity(rule);
-  const status = quietStatus(rule);
+  const status = ruleStatus(rule, firing);
   const toggle = useMutation({
     mutationFn: () =>
       rule.paused
@@ -72,7 +80,10 @@ function QuietRuleLine({ rule }: { rule: AlertingRuleView }) {
   });
 
   return (
-    <div className="flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2">
+    <li
+      aria-label={identity.name}
+      className="flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2"
+    >
       <span className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1">
         <Link
           to="/alerts/rules/$project/$slug"
@@ -118,78 +129,77 @@ function QuietRuleLine({ rule }: { rule: AlertingRuleView }) {
           onToggle={() => toggle.mutate()}
         />
       </span>
-    </div>
+    </li>
   );
 }
 
-export function QuietRulesCard({
+export function AlertingRulesCard({
   rules,
-  totalRules,
+  firingRuleIds,
   pending,
 }: {
   rules: AlertingRuleView[];
-  /** Every rule the tenant has, board and quiet band combined. Distinguishes
-   *  "no rules defined" from "every rule is on the board above", which read
-   *  as the same empty list otherwise. */
-  totalRules: number;
+  /** Which rules have a firing instance right now, keyed by rule id. */
+  firingRuleIds: Set<string>;
   pending: boolean;
 }) {
-  const [visible, setVisible] = useState(QUIET_RULES_PAGE);
-  const shown = rules.slice(0, visible);
-  const remaining = rules.length - shown.length;
+  const [visible, setVisible] = useState(RULES_PAGE);
+  // Alphabetical by display name: this list is read by hunting for a rule
+  // you can name, not by internal update order.
+  const sorted = [...rules].sort((a, b) =>
+    alertingRuleIdentity(a).name.localeCompare(alertingRuleIdentity(b).name),
+  );
+  const shown = sorted.slice(0, visible);
+  const remaining = sorted.length - shown.length;
 
   return (
     <Card
       inset="flush-content"
       role="region"
-      aria-label="Quiet rules"
+      aria-label="All rules"
       aria-busy={pending}
     >
       <CardHeader className="border-b border-border/60 py-2">
         <CardTitle>
-          <h2>Quiet rules</h2>
+          <h2>All rules</h2>
         </CardTitle>
       </CardHeader>
       <CardContent>
         {pending ? (
           <AlertingTableSkeleton rows={5} />
-        ) : rules.length === 0 ? (
-          totalRules === 0 ? (
-            <AlertingEmptyState
-              icon={SlidersHorizontal}
-              title="No quiet rules"
-              hint={
-                <>
-                  Define alerting rules as code and apply them with{" "}
-                  <code>everr apply</code>.
-                </>
-              }
-            />
-          ) : (
-            <AlertingEmptyState
-              icon={SlidersHorizontal}
-              title="No quiet rules"
-              hint="Every rule has a firing or pending instance. See Active alerts above."
-            />
-          )
+        ) : sorted.length === 0 ? (
+          <AlertingEmptyState
+            icon={SlidersHorizontal}
+            title="No rules"
+            hint={
+              <>
+                Define alerting rules as code and apply them with{" "}
+                <code>everr apply</code>.
+              </>
+            }
+          />
         ) : (
           <>
-            <div className="divide-y divide-border/60">
+            <ul className="divide-y divide-border/60">
               {shown.map((rule) => (
-                <QuietRuleLine key={rule.id} rule={rule} />
+                <RuleLine
+                  key={rule.id}
+                  rule={rule}
+                  firing={firingRuleIds.has(rule.id)}
+                />
               ))}
-            </div>
+            </ul>
             {remaining > 0 && (
               <div className="flex items-center justify-center gap-2 px-3 py-2">
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => setVisible((n) => n + QUIET_RULES_PAGE)}
+                  onClick={() => setVisible((n) => n + RULES_PAGE)}
                 >
                   Load more
                 </Button>
                 <span className="text-xs text-muted-foreground tabular-nums">
-                  {remaining} more of {rules.length}
+                  {remaining} more of {sorted.length}
                 </span>
               </div>
             )}
