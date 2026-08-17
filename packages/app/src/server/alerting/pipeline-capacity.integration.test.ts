@@ -195,9 +195,13 @@ describe("the alerting pipeline's capacity bounds", () => {
     // instead of scheduling a follow-up. The park ticket 41 fixed does not
     // save this one: that fix reads the sentinel as "no flush booked" only
     // while lastFlushedAt is null, and here it is set, so the group is not
-    // dead, it just has no follow-up. Pinned here as today's behavior, not
-    // asserted as correct. Ticket 46 changes it, and this expectation
-    // flips to a real follow-up time when it lands:
+    // dead, it just has no follow-up. The sentinel is the wanted answer, not
+    // a pinned defect: this leftover was already announced, and the route
+    // configured no repeat, so it needs no second announcement. Arming a
+    // flush here would claim already-flushed members and page for them,
+    // because groupNotificationPlan announces every still-firing member when
+    // no claimed member is unflushed. What the leftover does need is pruning,
+    // which ticket 46 puts in the maintenance sweep rather than in a flush:
     // todo/issues/alerting-surface/tickets/46-a-capped-claim-leaves-no-one-behind.md
     const [group] = await harness.db
       .select()
