@@ -69,7 +69,8 @@ import { Route as AuthenticatedDashboardExploreErrorsFingerprintRouteImport } fr
 import { Route as AuthenticatedDashboardExploreTracesTraceIdRouteImport } from './routes/_authenticated/_dashboard/_explore/traces_.$traceId'
 import { Route as AuthenticatedDashboardPaddedCheckoutSuccessRouteImport } from './routes/_authenticated/_dashboard/_padded/checkout.success'
 import { Route as AuthenticatedDashboardPreviewableAlertsIndexRouteImport } from './routes/_authenticated/_dashboard/_previewable/alerts/index'
-import { Route as AuthenticatedDashboardPreviewableAlertsDeliveryRouteImport } from './routes/_authenticated/_dashboard/_previewable/alerts/delivery'
+import { Route as AuthenticatedDashboardPreviewableAlertsNotificationsRouteImport } from './routes/_authenticated/_dashboard/_previewable/alerts/notifications'
+import { Route as AuthenticatedDashboardPreviewableAlertsRoutingRouteImport } from './routes/_authenticated/_dashboard/_previewable/alerts/routing'
 import { Route as AuthenticatedDashboardPreviewableAlertsRulesRouteImport } from './routes/_authenticated/_dashboard/_previewable/alerts/rules'
 import { Route as AuthenticatedDashboardPreviewableAlertsSilencesRouteImport } from './routes/_authenticated/_dashboard/_previewable/alerts/silences'
 import { Route as AuthenticatedDashboardPreviewableDashboardsIndexRouteImport } from './routes/_authenticated/_dashboard/_previewable/dashboards/index'
@@ -409,10 +410,16 @@ const AuthenticatedDashboardPreviewableAlertsIndexRoute =
     path: '/',
     getParentRoute: () => AuthenticatedDashboardPreviewableAlertsRoute,
   } as any)
-const AuthenticatedDashboardPreviewableAlertsDeliveryRoute =
-  AuthenticatedDashboardPreviewableAlertsDeliveryRouteImport.update({
-    id: '/delivery',
-    path: '/delivery',
+const AuthenticatedDashboardPreviewableAlertsNotificationsRoute =
+  AuthenticatedDashboardPreviewableAlertsNotificationsRouteImport.update({
+    id: '/notifications',
+    path: '/notifications',
+    getParentRoute: () => AuthenticatedDashboardPreviewableAlertsRoute,
+  } as any)
+const AuthenticatedDashboardPreviewableAlertsRoutingRoute =
+  AuthenticatedDashboardPreviewableAlertsRoutingRouteImport.update({
+    id: '/routing',
+    path: '/routing',
     getParentRoute: () => AuthenticatedDashboardPreviewableAlertsRoute,
   } as any)
 const AuthenticatedDashboardPreviewableAlertsRulesRoute =
@@ -576,7 +583,8 @@ export interface FileRoutesByFullPath {
   '/errors/$fingerprint': typeof AuthenticatedDashboardExploreErrorsFingerprintRoute
   '/traces/$traceId': typeof AuthenticatedDashboardExploreTracesTraceIdRoute
   '/checkout/success': typeof AuthenticatedDashboardPaddedCheckoutSuccessRoute
-  '/alerts/delivery': typeof AuthenticatedDashboardPreviewableAlertsDeliveryRoute
+  '/alerts/notifications': typeof AuthenticatedDashboardPreviewableAlertsNotificationsRoute
+  '/alerts/routing': typeof AuthenticatedDashboardPreviewableAlertsRoutingRoute
   '/alerts/rules': typeof AuthenticatedDashboardPreviewableAlertsRulesRoute
   '/alerts/silences': typeof AuthenticatedDashboardPreviewableAlertsSilencesRoute
   '/runs/$traceId/trace': typeof AuthenticatedDashboardRunsTraceIdTraceRoute
@@ -647,7 +655,8 @@ export interface FileRoutesByTo {
   '/errors/$fingerprint': typeof AuthenticatedDashboardExploreErrorsFingerprintRoute
   '/traces/$traceId': typeof AuthenticatedDashboardExploreTracesTraceIdRoute
   '/checkout/success': typeof AuthenticatedDashboardPaddedCheckoutSuccessRoute
-  '/alerts/delivery': typeof AuthenticatedDashboardPreviewableAlertsDeliveryRoute
+  '/alerts/notifications': typeof AuthenticatedDashboardPreviewableAlertsNotificationsRoute
+  '/alerts/routing': typeof AuthenticatedDashboardPreviewableAlertsRoutingRoute
   '/alerts/rules': typeof AuthenticatedDashboardPreviewableAlertsRulesRoute
   '/alerts/silences': typeof AuthenticatedDashboardPreviewableAlertsSilencesRoute
   '/runs/$traceId/trace': typeof AuthenticatedDashboardRunsTraceIdTraceRoute
@@ -729,7 +738,8 @@ export interface FileRoutesById {
   '/_authenticated/_dashboard/_explore/errors_/$fingerprint': typeof AuthenticatedDashboardExploreErrorsFingerprintRoute
   '/_authenticated/_dashboard/_explore/traces_/$traceId': typeof AuthenticatedDashboardExploreTracesTraceIdRoute
   '/_authenticated/_dashboard/_padded/checkout/success': typeof AuthenticatedDashboardPaddedCheckoutSuccessRoute
-  '/_authenticated/_dashboard/_previewable/alerts/delivery': typeof AuthenticatedDashboardPreviewableAlertsDeliveryRoute
+  '/_authenticated/_dashboard/_previewable/alerts/notifications': typeof AuthenticatedDashboardPreviewableAlertsNotificationsRoute
+  '/_authenticated/_dashboard/_previewable/alerts/routing': typeof AuthenticatedDashboardPreviewableAlertsRoutingRoute
   '/_authenticated/_dashboard/_previewable/alerts/rules': typeof AuthenticatedDashboardPreviewableAlertsRulesRoute
   '/_authenticated/_dashboard/_previewable/alerts/silences': typeof AuthenticatedDashboardPreviewableAlertsSilencesRoute
   '/_authenticated/_dashboard/runs/$traceId/trace': typeof AuthenticatedDashboardRunsTraceIdTraceRoute
@@ -805,7 +815,8 @@ export interface FileRouteTypes {
     | '/errors/$fingerprint'
     | '/traces/$traceId'
     | '/checkout/success'
-    | '/alerts/delivery'
+    | '/alerts/notifications'
+    | '/alerts/routing'
     | '/alerts/rules'
     | '/alerts/silences'
     | '/runs/$traceId/trace'
@@ -876,7 +887,8 @@ export interface FileRouteTypes {
     | '/errors/$fingerprint'
     | '/traces/$traceId'
     | '/checkout/success'
-    | '/alerts/delivery'
+    | '/alerts/notifications'
+    | '/alerts/routing'
     | '/alerts/rules'
     | '/alerts/silences'
     | '/runs/$traceId/trace'
@@ -957,7 +969,8 @@ export interface FileRouteTypes {
     | '/_authenticated/_dashboard/_explore/errors_/$fingerprint'
     | '/_authenticated/_dashboard/_explore/traces_/$traceId'
     | '/_authenticated/_dashboard/_padded/checkout/success'
-    | '/_authenticated/_dashboard/_previewable/alerts/delivery'
+    | '/_authenticated/_dashboard/_previewable/alerts/notifications'
+    | '/_authenticated/_dashboard/_previewable/alerts/routing'
     | '/_authenticated/_dashboard/_previewable/alerts/rules'
     | '/_authenticated/_dashboard/_previewable/alerts/silences'
     | '/_authenticated/_dashboard/runs/$traceId/trace'
@@ -1420,11 +1433,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedDashboardPreviewableAlertsIndexRouteImport
       parentRoute: typeof AuthenticatedDashboardPreviewableAlertsRoute
     }
-    '/_authenticated/_dashboard/_previewable/alerts/delivery': {
-      id: '/_authenticated/_dashboard/_previewable/alerts/delivery'
-      path: '/delivery'
-      fullPath: '/alerts/delivery'
-      preLoaderRoute: typeof AuthenticatedDashboardPreviewableAlertsDeliveryRouteImport
+    '/_authenticated/_dashboard/_previewable/alerts/notifications': {
+      id: '/_authenticated/_dashboard/_previewable/alerts/notifications'
+      path: '/notifications'
+      fullPath: '/alerts/notifications'
+      preLoaderRoute: typeof AuthenticatedDashboardPreviewableAlertsNotificationsRouteImport
+      parentRoute: typeof AuthenticatedDashboardPreviewableAlertsRoute
+    }
+    '/_authenticated/_dashboard/_previewable/alerts/routing': {
+      id: '/_authenticated/_dashboard/_previewable/alerts/routing'
+      path: '/routing'
+      fullPath: '/alerts/routing'
+      preLoaderRoute: typeof AuthenticatedDashboardPreviewableAlertsRoutingRouteImport
       parentRoute: typeof AuthenticatedDashboardPreviewableAlertsRoute
     }
     '/_authenticated/_dashboard/_previewable/alerts/rules': {
@@ -1685,7 +1705,8 @@ const AuthenticatedDashboardPaddedRouteWithChildren =
   )
 
 interface AuthenticatedDashboardPreviewableAlertsRouteChildren {
-  AuthenticatedDashboardPreviewableAlertsDeliveryRoute: typeof AuthenticatedDashboardPreviewableAlertsDeliveryRoute
+  AuthenticatedDashboardPreviewableAlertsNotificationsRoute: typeof AuthenticatedDashboardPreviewableAlertsNotificationsRoute
+  AuthenticatedDashboardPreviewableAlertsRoutingRoute: typeof AuthenticatedDashboardPreviewableAlertsRoutingRoute
   AuthenticatedDashboardPreviewableAlertsRulesRoute: typeof AuthenticatedDashboardPreviewableAlertsRulesRoute
   AuthenticatedDashboardPreviewableAlertsSilencesRoute: typeof AuthenticatedDashboardPreviewableAlertsSilencesRoute
   AuthenticatedDashboardPreviewableAlertsIndexRoute: typeof AuthenticatedDashboardPreviewableAlertsIndexRoute
@@ -1694,8 +1715,10 @@ interface AuthenticatedDashboardPreviewableAlertsRouteChildren {
 
 const AuthenticatedDashboardPreviewableAlertsRouteChildren: AuthenticatedDashboardPreviewableAlertsRouteChildren =
   {
-    AuthenticatedDashboardPreviewableAlertsDeliveryRoute:
-      AuthenticatedDashboardPreviewableAlertsDeliveryRoute,
+    AuthenticatedDashboardPreviewableAlertsNotificationsRoute:
+      AuthenticatedDashboardPreviewableAlertsNotificationsRoute,
+    AuthenticatedDashboardPreviewableAlertsRoutingRoute:
+      AuthenticatedDashboardPreviewableAlertsRoutingRoute,
     AuthenticatedDashboardPreviewableAlertsRulesRoute:
       AuthenticatedDashboardPreviewableAlertsRulesRoute,
     AuthenticatedDashboardPreviewableAlertsSilencesRoute:

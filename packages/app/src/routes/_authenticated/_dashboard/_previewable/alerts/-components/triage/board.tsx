@@ -522,7 +522,7 @@ export function TriageBoard({
             </p>
           </div>
           <Link
-            to="/alerts/delivery"
+            to="/alerts/routing"
             className={cn(
               buttonVariants({ variant: "outline" }),
               "min-h-11 lg:min-h-8",

@@ -33,8 +33,7 @@ export function TriageDeliveryFact({
   if (matchedRoutes.length === 0) {
     return (
       <Link
-        to="/alerts/delivery"
-        hash="routes"
+        to="/alerts/routing"
         onClick={(event) => event.stopPropagation()}
         className={cn(
           "inline-flex min-h-11 items-center whitespace-nowrap text-xs underline-offset-2 hover:underline @[52rem]/triage:min-h-0",
@@ -58,7 +57,7 @@ export function TriageDeliveryFact({
   if (channels.length === 0) {
     return (
       <Link
-        to="/alerts/delivery"
+        to="/alerts/notifications"
         hash="receivers"
         onClick={(event) => event.stopPropagation()}
         title={receivers.join(", ")}

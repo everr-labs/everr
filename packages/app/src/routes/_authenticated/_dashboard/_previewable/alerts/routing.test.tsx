@@ -17,7 +17,7 @@ import type {
   AlertingRoute,
   AlertingRuleView,
 } from "@/data/alerting/types";
-import { Route as DeliveryFileRoute } from "./delivery";
+import { Route as RoutingFileRoute } from "./routing";
 
 const mocks = vi.hoisted(() => ({
   listAlertingRoutes: vi.fn(),
@@ -28,12 +28,6 @@ const mocks = vi.hoisted(() => ({
   listAlertingRules: vi.fn(),
   listAlertingLabelKeys: vi.fn(),
   listAlertingLabelValues: vi.fn(),
-  createAlertingChannel: vi.fn(),
-  updateAlertingChannel: vi.fn(),
-  deleteAlertingChannel: vi.fn(),
-  createAlertingReceiver: vi.fn(),
-  updateAlertingReceiver: vi.fn(),
-  deleteAlertingReceiver: vi.fn(),
   createAlertingRoute: vi.fn(),
   updateAlertingRoute: vi.fn(),
   deleteAlertingRoute: vi.fn(),
@@ -48,12 +42,6 @@ vi.mock("@/data/alerting/delivery/server", () => ({
   listAlertingReceivers: mocks.listAlertingReceivers,
   listAlertingChannels: mocks.listAlertingChannels,
   listAlertingInhibitions: mocks.listAlertingInhibitions,
-  createAlertingChannel: mocks.createAlertingChannel,
-  updateAlertingChannel: mocks.updateAlertingChannel,
-  deleteAlertingChannel: mocks.deleteAlertingChannel,
-  createAlertingReceiver: mocks.createAlertingReceiver,
-  updateAlertingReceiver: mocks.updateAlertingReceiver,
-  deleteAlertingReceiver: mocks.deleteAlertingReceiver,
   createAlertingRoute: mocks.createAlertingRoute,
   updateAlertingRoute: mocks.updateAlertingRoute,
   deleteAlertingRoute: mocks.deleteAlertingRoute,
@@ -117,7 +105,7 @@ function route(overrides: Partial<AlertingRoute> = {}): AlertingRoute {
   };
 }
 
-function renderDeliveryRoute() {
+function renderRoutingPage() {
   const rootRoute = createRootRoute({ component: Outlet });
   const authenticatedRoute = createRoute({
     getParentRoute: () => rootRoute,
@@ -129,19 +117,26 @@ function renderDeliveryRoute() {
     id: "_dashboard",
     component: Outlet,
   });
-  const deliveryRoute = createRoute({
+  const routingRoute = createRoute({
     getParentRoute: () => dashboardRoute,
-    path: "alerts/delivery",
-    component: DeliveryFileRoute.options.component,
+    path: "alerts/routing",
+    component: RoutingFileRoute.options.component,
+  });
+  // Destination of the two crossing callbacks. A stub is enough: these tests
+  // only check where the router lands, not what the Notifications page does.
+  const notificationsRoute = createRoute({
+    getParentRoute: () => dashboardRoute,
+    path: "alerts/notifications",
+    component: () => null,
   });
 
   const routeTree = rootRoute.addChildren([
     authenticatedRoute.addChildren([
-      dashboardRoute.addChildren([deliveryRoute]),
+      dashboardRoute.addChildren([routingRoute, notificationsRoute]),
     ]),
   ]);
 
-  const history = createMemoryHistory({ initialEntries: ["/alerts/delivery"] });
+  const history = createMemoryHistory({ initialEntries: ["/alerts/routing"] });
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
@@ -153,17 +148,6 @@ function renderDeliveryRoute() {
     </QueryClientProvider>,
   );
   return { router, queryClient };
-}
-
-// Base UI moves initial focus into an opened dialog asynchronously; typing
-// before that settles can lose keystrokes to the focus trap. Always wait for
-// focus to land inside the drawer before interacting with its fields.
-async function findSettledDrawer() {
-  const drawer = await screen.findByRole("dialog");
-  await waitFor(() => {
-    expect(drawer.contains(document.activeElement)).toBe(true);
-  });
-  return drawer;
 }
 
 beforeEach(() => {
@@ -178,11 +162,11 @@ beforeEach(() => {
   mocks.listAlertingLabelValues.mockResolvedValue([]);
 });
 
-describe("/alerts/delivery inline route editor", () => {
+describe("/alerts/routing inline route editor", () => {
   it("keeps an incomplete condition from being saved", async () => {
     const user = userEvent.setup();
 
-    renderDeliveryRoute();
+    renderRoutingPage();
 
     await user.click(await screen.findByRole("button", { name: "New route" }));
     const editor = await screen.findByRole("listitem", {
@@ -222,7 +206,7 @@ describe("/alerts/delivery inline route editor", () => {
     mocks.createAlertingRoute.mockResolvedValue(route({ group_by: ["team"] }));
     const user = userEvent.setup();
 
-    renderDeliveryRoute();
+    renderRoutingPage();
 
     await user.click(await screen.findByRole("button", { name: "New route" }));
     const editor = await screen.findByRole("listitem", {
@@ -260,7 +244,7 @@ describe("/alerts/delivery inline route editor", () => {
     mocks.createAlertingRoute.mockResolvedValue(route({ group_by: [] }));
     const user = userEvent.setup();
 
-    renderDeliveryRoute();
+    renderRoutingPage();
 
     await user.click(await screen.findByRole("button", { name: "New route" }));
     const editor = await screen.findByRole("listitem", {
@@ -295,7 +279,7 @@ describe("/alerts/delivery inline route editor", () => {
     mocks.createAlertingRoute.mockResolvedValue(route());
     const user = userEvent.setup();
 
-    renderDeliveryRoute();
+    renderRoutingPage();
 
     await user.click(await screen.findByRole("button", { name: "New route" }));
     const editor = await screen.findByRole("listitem", {
@@ -339,7 +323,7 @@ describe("/alerts/delivery inline route editor", () => {
     mocks.updateAlertingRoute.mockResolvedValue({ ...first, continue: true });
     const user = userEvent.setup();
 
-    renderDeliveryRoute();
+    renderRoutingPage();
 
     await user.click(
       await screen.findByRole("button", { name: "Edit route 1" }),
@@ -399,7 +383,7 @@ describe("/alerts/delivery inline route editor", () => {
     mocks.createAlertingRoute.mockResolvedValue(inserted);
     const user = userEvent.setup();
 
-    renderDeliveryRoute();
+    renderRoutingPage();
 
     await user.click(
       await screen.findByRole("button", {
@@ -450,26 +434,29 @@ describe("/alerts/delivery inline route editor", () => {
   });
 });
 
-describe("/alerts/delivery setup checklist", () => {
-  it("walks a fresh org from channel to receiver to route", async () => {
+describe("/alerts/routing setup checklist", () => {
+  it("shows every setup step for a fresh org, and opens the route builder from it", async () => {
     const user = userEvent.setup();
-    renderDeliveryRoute();
+    renderRoutingPage();
 
     await screen.findByText("Set up delivery");
+    expect(screen.getByRole("button", { name: "Add channel" })).toBeVisible();
     expect(screen.getByRole("button", { name: "Add receiver" })).toBeVisible();
     expect(screen.getByRole("button", { name: "Add route" })).toBeVisible();
 
-    // Step actions open the real create drawers, not just scroll somewhere.
-    await user.click(screen.getByRole("button", { name: "Add channel" }));
-    const drawer = await findSettledDrawer();
-    expect(within(drawer).getByText("New channel")).toBeInTheDocument();
+    // The route step still opens its editor in place: only the channel and
+    // receiver steps became cross-page navigations.
+    await user.click(screen.getByRole("button", { name: "Add route" }));
+    expect(
+      screen.getByRole("listitem", { name: "Creating a new route" }),
+    ).toBeInTheDocument();
   });
 
   it("marks completed steps and keeps only the missing ones actionable", async () => {
     mocks.listAlertingChannels.mockResolvedValue([channel()]);
     mocks.listAlertingReceivers.mockResolvedValue([receiver()]);
 
-    renderDeliveryRoute();
+    renderRoutingPage();
 
     await screen.findByText("Set up delivery");
     expect(
@@ -484,51 +471,44 @@ describe("/alerts/delivery setup checklist", () => {
   it("disappears once a route exists", async () => {
     mocks.listAlertingRoutes.mockResolvedValue([route()]);
 
-    renderDeliveryRoute();
+    renderRoutingPage();
 
     await screen.findByText("no match");
     expect(screen.queryByText("Set up delivery")).not.toBeInTheDocument();
   });
-});
 
-describe("/alerts/delivery usage facts", () => {
-  it("warns about receivers no route targets and channels no receiver references", async () => {
-    mocks.listAlertingReceivers.mockResolvedValue([receiver()]);
-    mocks.listAlertingChannels.mockResolvedValue([
-      channel(),
-      channel({ id: "55555555-5555-5555-5555-555555555555", name: "spare" }),
-    ]);
+  it("sends the reader to notifications to add a channel", async () => {
+    const user = userEvent.setup();
 
-    renderDeliveryRoute();
+    const { router } = renderRoutingPage();
 
-    // receiver() exists but no route targets it; "spare" is in no receiver.
-    expect(
-      await screen.findByText("no route targets this receiver"),
-    ).toBeInTheDocument();
-    expect(
-      await screen.findByText("not referenced by any receiver"),
-    ).toBeInTheDocument();
-    // "oncall-hook" IS referenced by the receiver.
-    expect(await screen.findByText("1 receiver")).toBeInTheDocument();
+    await user.click(
+      await screen.findByRole("button", { name: "Add channel" }),
+    );
+    await waitFor(() =>
+      expect(router.state.location.pathname).toBe("/alerts/notifications"),
+    );
+    expect(router.state.location.search).toEqual({ new: "channel" });
   });
 
-  it("counts the routes targeting a receiver", async () => {
-    mocks.listAlertingRoutes.mockResolvedValue([route()]);
-    mocks.listAlertingReceivers.mockResolvedValue([receiver()]);
-    mocks.listAlertingChannels.mockResolvedValue([channel()]);
+  it("sends the reader to notifications to add a receiver", async () => {
+    const user = userEvent.setup();
 
-    renderDeliveryRoute();
+    const { router } = renderRoutingPage();
 
-    expect(await screen.findByText("1 route")).toBeInTheDocument();
-    expect(
-      screen.queryByText("no route targets this receiver"),
-    ).not.toBeInTheDocument();
+    await user.click(
+      await screen.findByRole("button", { name: "Add receiver" }),
+    );
+    await waitFor(() =>
+      expect(router.state.location.pathname).toBe("/alerts/notifications"),
+    );
+    expect(router.state.location.search).toEqual({ new: "receiver" });
   });
 });
 
-describe("/alerts/delivery pipeline fall-through", () => {
+describe("/alerts/routing pipeline fall-through", () => {
   it("with zero routes, says alerts are not delivered", async () => {
-    renderDeliveryRoute();
+    renderRoutingPage();
 
     const row = await screen.findByText("no match");
     expect(row.parentElement).toHaveTextContent("not delivered");
@@ -538,7 +518,7 @@ describe("/alerts/delivery pipeline fall-through", () => {
   it("with routes and no catch-all, says unmatched alerts are not delivered", async () => {
     mocks.listAlertingRoutes.mockResolvedValue([route()]);
 
-    renderDeliveryRoute();
+    renderRoutingPage();
 
     const row = await screen.findByText("no match");
     expect(row.parentElement).toHaveTextContent("not delivered");
@@ -551,14 +531,14 @@ describe("/alerts/delivery pipeline fall-through", () => {
       route({ id: "44444444-4444-4444-4444-444444444444", matchers: [] }),
     ]);
 
-    renderDeliveryRoute();
+    renderRoutingPage();
 
     await screen.findByText("any alert");
     expect(screen.queryByText("no match")).not.toBeInTheDocument();
   });
 });
 
-describe("/alerts/delivery route safety", () => {
+describe("/alerts/routing route safety", () => {
   it("moves routes directly and normalizes their priorities", async () => {
     const first = route();
     const second = route({
@@ -572,7 +552,7 @@ describe("/alerts/delivery route safety", () => {
     mocks.updateAlertingRoute.mockResolvedValue(second);
     const user = userEvent.setup();
 
-    renderDeliveryRoute();
+    renderRoutingPage();
 
     await user.click(
       await screen.findByRole("button", { name: "Move route 2 up" }),
@@ -604,253 +584,7 @@ describe("/alerts/delivery route safety", () => {
   });
 });
 
-describe("/alerts/delivery channels section", () => {
-  it("creates a channel with the {name, config} payload shape, once the name is free and the config complete", async () => {
-    mocks.listAlertingChannels.mockResolvedValue([
-      channel({ name: "team-slack" }),
-    ]);
-    mocks.createAlertingChannel.mockResolvedValue(channel({ name: "hook" }));
-    const user = userEvent.setup();
-
-    renderDeliveryRoute();
-
-    await user.click(
-      await screen.findByRole("button", { name: "New channel" }),
-    );
-    const dialog = await findSettledDrawer();
-    const create = within(dialog).getByRole("button", {
-      name: "Create channel",
-    });
-    const name = within(dialog).getByLabelText("Name");
-    expect(create).toBeDisabled();
-
-    await user.type(name, "hook");
-    expect(create).toBeDisabled();
-    await user.type(
-      within(dialog).getByLabelText("Webhook URL"),
-      "https://example.com/hook",
-    );
-    expect(create).toBeEnabled();
-
-    // Duplicate names are blocked before submission.
-    await user.clear(name);
-    await user.type(name, "team-slack");
-    expect(create).toBeDisabled();
-
-    await user.clear(name);
-    await user.type(name, "hook");
-    await user.click(create);
-
-    await waitFor(() =>
-      expect(mocks.createAlertingChannel).toHaveBeenCalledWith({
-        data: {
-          name: "hook",
-          config: { type: "webhook", url: "https://example.com/hook" },
-        },
-      }),
-    );
-    await waitFor(() =>
-      expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
-    );
-  });
-
-  it("surfaces a channel deletion conflict from referring receivers", async () => {
-    mocks.listAlertingChannels.mockResolvedValue([
-      channel({ name: "team-slack" }),
-    ]);
-    mocks.deleteAlertingChannel.mockRejectedValueOnce(
-      new Error("channel is referenced by receivers: oncall, ops"),
-    );
-    const user = userEvent.setup();
-
-    renderDeliveryRoute();
-
-    const remove = await screen.findByRole("button", {
-      name: "Delete channel team-slack",
-    });
-    await user.click(remove);
-    await user.click(screen.getByRole("button", { name: /^Delete channel$/ }));
-    await waitFor(() =>
-      expect(screen.getByText("Deletion did not finish")).toBeInTheDocument(),
-    );
-    expect(
-      screen.getByText("channel is referenced by receivers: oncall, ops"),
-    ).toBeInTheDocument();
-    expect(screen.getByRole("alertdialog")).toBeInTheDocument();
-
-    mocks.deleteAlertingChannel.mockResolvedValue({ deleted: true });
-    await user.click(screen.getByRole("button", { name: /^Delete channel$/ }));
-    await waitFor(() =>
-      expect(mocks.deleteAlertingChannel).toHaveBeenLastCalledWith({
-        data: { name: "team-slack" },
-      }),
-    );
-    expect(mocks.toastSuccess).toHaveBeenCalledWith("Channel deleted");
-  });
-
-  it("removes a channel from receivers that retain another channel, then deletes it", async () => {
-    mocks.listAlertingChannels.mockResolvedValue([
-      channel(),
-      channel({
-        id: "55555555-5555-5555-5555-555555555555",
-        name: "team-slack",
-        config: { type: "slack", url: "***" },
-      }),
-    ]);
-    mocks.listAlertingReceivers.mockResolvedValue([
-      receiver({ channels: ["oncall-hook", "team-slack"] }),
-    ]);
-    mocks.updateAlertingReceiver.mockResolvedValue(
-      receiver({ channels: ["oncall-hook"] }),
-    );
-    mocks.deleteAlertingChannel.mockResolvedValue({ deleted: true });
-    const user = userEvent.setup();
-
-    renderDeliveryRoute();
-
-    await user.click(
-      await screen.findByRole("button", {
-        name: "Delete channel team-slack",
-      }),
-    );
-    const dialog = screen.getByRole("alertdialog");
-    expect(within(dialog).getByText("Changes")).toBeInTheDocument();
-    expect(dialog).toHaveTextContent(
-      "Remove team-slack from oncall. It keeps oncall-hook.",
-    );
-    await user.click(screen.getByRole("button", { name: /^Delete channel$/ }));
-
-    await waitFor(() =>
-      expect(mocks.updateAlertingReceiver).toHaveBeenCalledWith({
-        data: { name: "oncall", channels: ["oncall-hook"] },
-      }),
-    );
-    expect(mocks.deleteAlertingChannel).toHaveBeenCalledWith({
-      data: { name: "team-slack" },
-    });
-    expect(mocks.toastSuccess).toHaveBeenCalledWith(
-      "Channel deleted and 1 receiver updated",
-    );
-  });
-
-  it("shows the impact dialog but blocks deletion when a receiver would become empty", async () => {
-    mocks.listAlertingChannels.mockResolvedValue([channel()]);
-    mocks.listAlertingReceivers.mockResolvedValue([receiver()]);
-    const user = userEvent.setup();
-
-    renderDeliveryRoute();
-
-    await user.click(
-      await screen.findByRole("button", {
-        name: "Delete channel oncall-hook",
-      }),
-    );
-
-    expect(screen.getByText(/oncall has no other channel/)).toBeInTheDocument();
-    expect(
-      screen.queryByRole("button", { name: /^Delete channel$/ }),
-    ).not.toBeInTheDocument();
-    const editReceiver = screen.getByRole("button", { name: "Edit oncall" });
-    expect(editReceiver).toBeEnabled();
-    expect(mocks.updateAlertingReceiver).not.toHaveBeenCalled();
-    expect(mocks.deleteAlertingChannel).not.toHaveBeenCalled();
-
-    await user.click(editReceiver);
-    expect(await findSettledDrawer()).toHaveTextContent("Edit receiver");
-  });
-});
-
-describe("/alerts/delivery receivers section", () => {
-  it("creates a receiver by picking existing channels (names-only payload), needing a free name and at least one channel", async () => {
-    mocks.listAlertingChannels.mockResolvedValue([
-      channel({ name: "team-slack", config: { type: "slack", url: "***" } }),
-      channel({
-        name: "ops-discord",
-        config: { type: "discord", url: "***" },
-      }),
-    ]);
-    mocks.listAlertingReceivers.mockResolvedValue([
-      receiver({ name: "oncall" }),
-    ]);
-    mocks.createAlertingReceiver.mockResolvedValue(
-      receiver({ name: "multi", channels: ["team-slack", "ops-discord"] }),
-    );
-    const user = userEvent.setup();
-
-    renderDeliveryRoute();
-
-    await user.click(
-      await screen.findByRole("button", { name: "New receiver" }),
-    );
-    const dialog = await findSettledDrawer();
-    const create = within(dialog).getByRole("button", {
-      name: "Create receiver",
-    });
-    const name = within(dialog).getByLabelText("Name");
-    const teamSlack = within(dialog).getByRole("checkbox", {
-      name: "Channel team-slack",
-    });
-
-    // Duplicate names are blocked before submission.
-    await user.type(name, "oncall");
-    await user.click(teamSlack);
-    expect(create).toBeDisabled();
-
-    await user.clear(name);
-    await user.type(name, "multi");
-    expect(create).toBeEnabled();
-
-    // The pick is a real requirement, on the way out as well as in.
-    await user.click(teamSlack);
-    expect(create).toBeDisabled();
-
-    await user.click(teamSlack);
-    await user.click(
-      within(dialog).getByRole("checkbox", { name: "Channel ops-discord" }),
-    );
-    await user.click(create);
-
-    await waitFor(() =>
-      expect(mocks.createAlertingReceiver).toHaveBeenCalledWith({
-        data: { name: "multi", channels: ["team-slack", "ops-discord"] },
-      }),
-    );
-    await waitFor(() =>
-      expect(screen.queryByRole("dialog")).not.toBeInTheDocument(),
-    );
-  });
-
-  it("surfaces the reason a receiver deletion is rejected", async () => {
-    mocks.listAlertingReceivers.mockResolvedValue([
-      receiver({ name: "oncall" }),
-    ]);
-    mocks.deleteAlertingReceiver.mockRejectedValueOnce(new Error("not found"));
-    const user = userEvent.setup();
-
-    renderDeliveryRoute();
-
-    const remove = await screen.findByRole("button", {
-      name: "Delete receiver oncall",
-    });
-    await user.click(remove);
-    await user.click(screen.getByRole("button", { name: /^Delete receiver$/ }));
-    await waitFor(() =>
-      expect(screen.getByText("Deletion did not finish")).toBeInTheDocument(),
-    );
-    expect(screen.getByText("not found")).toBeInTheDocument();
-
-    mocks.deleteAlertingReceiver.mockResolvedValue({ deleted: true });
-    await user.click(screen.getByRole("button", { name: /^Delete receiver$/ }));
-    await waitFor(() =>
-      expect(mocks.deleteAlertingReceiver).toHaveBeenLastCalledWith({
-        data: { name: "oncall" },
-      }),
-    );
-    expect(mocks.toastSuccess).toHaveBeenCalledWith("Receiver deleted");
-  });
-});
-
-describe("/alerts/delivery matcher name resolution", () => {
+describe("/alerts/routing matcher name resolution", () => {
   const RULE_ID = "44444444-4444-4444-4444-444444444444";
 
   function alertingRuleView(
@@ -884,7 +618,7 @@ describe("/alerts/delivery matcher name resolution", () => {
     mocks.listAlertingReceivers.mockResolvedValue([receiver()]);
     mocks.listAlertingChannels.mockResolvedValue([channel()]);
 
-    renderDeliveryRoute();
+    renderRoutingPage();
 
     const link = await screen.findByRole("link", { name: "flapping" });
     expect(link).toHaveAttribute("title", RULE_ID);
@@ -899,89 +633,8 @@ describe("/alerts/delivery matcher name resolution", () => {
     mocks.listAlertingReceivers.mockResolvedValue([receiver()]);
     mocks.listAlertingChannels.mockResolvedValue([channel()]);
 
-    renderDeliveryRoute();
+    renderRoutingPage();
 
     expect(await screen.findByText(RULE_ID)).toBeInTheDocument();
-  });
-});
-
-describe("/alerts/delivery edit flows", () => {
-  it("edits a channel in place: config re-entered, rename in PUT payload", async () => {
-    mocks.listAlertingChannels.mockResolvedValue([channel()]);
-    mocks.updateAlertingChannel.mockResolvedValue(channel());
-    const user = userEvent.setup();
-
-    renderDeliveryRoute();
-
-    await user.click(
-      await screen.findByRole("button", { name: "Edit channel oncall-hook" }),
-    );
-    const drawer = await findSettledDrawer();
-
-    // ID references keep receivers attached across a channel rename.
-    const nameInput = within(drawer).getByLabelText("Name");
-    expect(nameInput).toHaveValue("oncall-hook");
-    // The stored URL is write-only (redacted on read), so the field starts
-    // blank and saving requires a value.
-    const url = within(drawer).getByLabelText("Webhook URL");
-    expect(url).toHaveValue("");
-    const save = within(drawer).getByRole("button", { name: "Save channel" });
-    expect(save).toBeDisabled();
-
-    await user.type(url, "https://example.com/rotated");
-    await user.clear(nameInput);
-    await user.type(nameInput, "ops-hook");
-    await user.click(save);
-
-    await waitFor(() =>
-      expect(mocks.updateAlertingChannel).toHaveBeenCalledWith({
-        data: {
-          name: "oncall-hook",
-          newName: "ops-hook",
-          config: { type: "webhook", url: "https://example.com/rotated" },
-        },
-      }),
-    );
-    expect(mocks.createAlertingChannel).not.toHaveBeenCalled();
-  });
-
-  it("edits a receiver in place: channels prefilled, only UI-editable fields sent", async () => {
-    mocks.listAlertingReceivers.mockResolvedValue([receiver()]);
-    mocks.listAlertingChannels.mockResolvedValue([
-      channel(),
-      channel({
-        name: "backup-discord",
-        config: { type: "discord", url: "***" },
-      }),
-    ]);
-    mocks.updateAlertingReceiver.mockResolvedValue(receiver());
-    const user = userEvent.setup();
-
-    renderDeliveryRoute();
-
-    await user.click(
-      await screen.findByRole("button", { name: "Edit receiver oncall" }),
-    );
-    const drawer = await findSettledDrawer();
-
-    // An unchanged name is a plain replacement.
-    expect(within(drawer).getByLabelText("Name")).toHaveValue("oncall");
-    expect(within(drawer).getByLabelText("Channel oncall-hook")).toBeChecked();
-
-    await user.click(within(drawer).getByLabelText("Channel backup-discord"));
-    await user.click(
-      within(drawer).getByRole("button", { name: "Save receiver" }),
-    );
-
-    await waitFor(() =>
-      expect(mocks.updateAlertingReceiver).toHaveBeenCalledWith({
-        data: {
-          name: "oncall",
-          newName: "oncall",
-          channels: ["oncall-hook", "backup-discord"],
-        },
-      }),
-    );
-    expect(mocks.createAlertingReceiver).not.toHaveBeenCalled();
   });
 });
