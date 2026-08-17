@@ -84,7 +84,6 @@ WHERE Timestamp > now() - INTERVAL 7 DAY
   AND ResourceAttributes['vcs.repository.name'] = '<owner/repo>'
   AND ResourceAttributes['cicd.pipeline.run.id'] != ''
   AND SpanAttributes['everr.github.workflow_job_step.number'] = ''
-  AND SpanAttributes['everr.test.name'] = ''
 GROUP BY TraceId
 ORDER BY last_seen DESC
 LIMIT 20

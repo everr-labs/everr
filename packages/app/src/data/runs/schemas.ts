@@ -53,14 +53,6 @@ export interface Span {
   sender?: string;
   runAttempt?: number;
   htmlUrl?: string;
-  // Test-specific attributes
-  testName?: string;
-  testResult?: string;
-  testDuration?: number;
-  testFramework?: string;
-  testLanguage?: string;
-  isSubtest?: boolean;
-  isSuite?: boolean;
 }
 
 const IN_PROGRESS_CONCLUSIONS = new Set([

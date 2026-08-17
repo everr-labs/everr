@@ -320,7 +320,6 @@ export const searchRuns = createAuthenticatedServerFn({
             AND ResourceAttributes['cicd.pipeline.run.id'] != ''
             AND ResourceAttributes['cicd.pipeline.task.run.result'] != ''
             AND SpanAttributes['everr.github.workflow_job_step.number'] = ''
-            AND SpanAttributes['everr.test.name'] = ''
             AND (ResourceAttributes['cicd.pipeline.run.id'] LIKE {pattern:String}
               OR ResourceAttributes['cicd.pipeline.name'] ILIKE {pattern:String})`,
           groupByExpr: "TraceId",

@@ -59,10 +59,6 @@ export const navMain: NavItem[] = [
         title: "Cost Analysis",
         url: "/cost-analysis",
       },
-      {
-        title: "Tests Overview",
-        url: "/tests-overview",
-      },
     ],
   },
 ];
