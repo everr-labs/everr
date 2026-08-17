@@ -8,7 +8,9 @@ import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
  * directions: hide the dashboard list, or bring it back.
  */
 export function FrameToggle() {
-  const { full } = useSearch({ strict: false }) as { full?: boolean };
+  const { full } = useSearch({
+    from: "/_authenticated/_dashboard/_previewable/dashboards",
+  });
   const navigate = useNavigate();
   const setFull = (value: boolean) =>
     // `to: "."` keeps the open dashboard; `replace` because toggling the

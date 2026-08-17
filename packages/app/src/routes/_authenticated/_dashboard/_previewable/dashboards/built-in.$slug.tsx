@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, notFound } from "@tanstack/react-router";
+import { Info } from "lucide-react";
 import gridLayoutCSS from "react-grid-layout/css/styles.css?url";
 import { CreateFromBuiltin } from "@/components/dashboards/create-from-builtin";
 import { DashboardGrid } from "@/components/dashboards/dashboard-grid";
@@ -65,13 +66,20 @@ function BuiltinDashboardPage() {
   return (
     <div className="flex min-w-0 flex-col gap-3">
       {readiness?.status === "needs-setup" && (
-        <p role="status" className="text-muted-foreground text-xs">
-          Nothing to draw yet: the selected time range has{" "}
-          <span className="font-mono text-foreground/90">
-            {readiness.missing.join(", ")}
-          </span>
-          .
-        </p>
+        <div
+          role="status"
+          className="flex items-start gap-2 rounded-md border border-border/60 bg-muted/30 px-3 py-2"
+        >
+          <Info className="mt-px size-3.5 shrink-0 text-muted-foreground" />
+          <p className="text-muted-foreground text-xs leading-relaxed">
+            Nothing to draw in this time range:{" "}
+            <span className="font-mono text-foreground/90">
+              {readiness.missing.join(", ")}
+            </span>
+            . The panels fill in on their own once that telemetry arrives. If
+            you sent it before, widen the time range.
+          </p>
+        </div>
       )}
 
       {/* No header of its own: the list row and breadcrumb already name the

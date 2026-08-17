@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { GRID_COLS } from "../schema";
 import {
   buildCapabilitiesQuery,
   decodeCapabilityRows,
@@ -209,7 +210,7 @@ describe("catalog", () => {
         Object.keys(t.document.spec.panels).sort(),
       );
       for (const item of t.document.spec.layouts[0]?.spec.items ?? []) {
-        expect(item.x + item.width).toBeLessThanOrEqual(24);
+        expect(item.x + item.width).toBeLessThanOrEqual(GRID_COLS);
       }
     }
   });
