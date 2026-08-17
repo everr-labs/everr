@@ -65,10 +65,7 @@ function BuiltinDashboardPage() {
           <h2 className="font-semibold text-xl tracking-tight">
             {builtin.name}
           </h2>
-          <p className="mt-0.5 text-muted-foreground text-xs">
-            Built-in dashboard · {builtin.category}
-          </p>
-          <p className="mt-2 max-w-prose text-foreground/80 text-sm/relaxed">
+          <p className="mt-1 max-w-prose text-foreground/80 text-sm/relaxed">
             {builtin.description}
           </p>
           {readiness?.status === "needs-setup" && (
