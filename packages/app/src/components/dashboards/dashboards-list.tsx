@@ -1,5 +1,6 @@
 import { Button } from "@everr/ui/components/button";
 import { Input } from "@everr/ui/components/input";
+import { DEFAULT_TIME_RANGE } from "@everr/ui/lib/time-range";
 import { cn } from "@everr/ui/lib/utils";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
@@ -28,7 +29,6 @@ import {
   dashboardListOptions,
   telemetryCapabilitiesOptions,
 } from "@/data/dashboards/options";
-import { useTimeRange } from "@/hooks/use-time-range";
 import { DashboardTree } from "./dashboard-tree";
 
 const CATEGORY_ICON: Record<
@@ -56,19 +56,23 @@ interface Graded {
 /**
  * The one list of Dashboards: the user's own first (their folder tree
  * preserved), then every Built-in dashboard, ready ones before the ones whose
- * telemetry is missing in the selected range.
+ * telemetry has not been seen recently.
  */
 export function DashboardsList({ preview }: { preview?: string }) {
   const [search, setSearch] = useState("");
-  const { timeRange } = useTimeRange();
 
   const listQuery = useQuery(dashboardListOptions(preview));
   const dashboards = listQuery.data ?? [];
 
-  // The same range the dashboards render. Readiness is a claim about that
-  // exact window, so the two can never contradict each other on screen.
+  // Probed over a fixed window, not the picker's: every dashboard sets its own
+  // time defaults on open, so a range-keyed probe would reshuffle
+  // ready/needs-data on every navigation. The list answers "do you send this
+  // at all"; the open built-in's own notice grades the on-screen range.
   const capabilitiesQuery = useQuery(
-    telemetryCapabilitiesOptions(timeRange.from, timeRange.to),
+    telemetryCapabilitiesOptions(
+      DEFAULT_TIME_RANGE.from,
+      DEFAULT_TIME_RANGE.to,
+    ),
   );
   const capabilities = capabilitiesQuery.data;
   const graded = useMemo<Graded[]>(
@@ -142,7 +146,7 @@ export function DashboardsList({ preview }: { preview?: string }) {
         {capabilitiesQuery.isPending && (
           <p className="inline-flex items-center gap-1.5 px-1 pb-1 text-muted-foreground text-xs">
             <Loader2 className="size-3.5 animate-spin" />
-            Checking what you send in this time range
+            Checking what you send
           </p>
         )}
         {capabilitiesQuery.isError && (
@@ -180,7 +184,7 @@ export function DashboardsList({ preview }: { preview?: string }) {
               <h3 className="mt-2.5 mb-0.5 flex items-baseline justify-between gap-3 px-2 font-medium text-[0.6875rem] text-muted-foreground/80">
                 Needs data
                 <span className="truncate font-normal">
-                  these would render empty
+                  nothing sent in the last 7 days
                 </span>
               </h3>
             )}
