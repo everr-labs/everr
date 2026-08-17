@@ -54,7 +54,6 @@ import { Route as AuthenticatedDashboardPaddedApiKeysRouteImport } from './route
 import { Route as AuthenticatedDashboardPaddedBillingRouteImport } from './routes/_authenticated/_dashboard/_padded/billing'
 import { Route as AuthenticatedDashboardPaddedCostAnalysisRouteImport } from './routes/_authenticated/_dashboard/_padded/cost-analysis'
 import { Route as AuthenticatedDashboardPaddedReposRouteImport } from './routes/_authenticated/_dashboard/_padded/repos'
-import { Route as AuthenticatedDashboardPaddedTestsOverviewRouteImport } from './routes/_authenticated/_dashboard/_padded/tests-overview'
 import { Route as AuthenticatedDashboardPaddedUsersManagementRouteImport } from './routes/_authenticated/_dashboard/_padded/users-management'
 import { Route as AuthenticatedDashboardPreviewableAlertsRouteImport } from './routes/_authenticated/_dashboard/_previewable/alerts'
 import { Route as AuthenticatedDashboardRunsIndexRouteImport } from './routes/_authenticated/_dashboard/runs/index'
@@ -322,12 +321,6 @@ const AuthenticatedDashboardPaddedReposRoute =
     path: '/repos',
     getParentRoute: () => AuthenticatedDashboardPaddedRoute,
   } as any)
-const AuthenticatedDashboardPaddedTestsOverviewRoute =
-  AuthenticatedDashboardPaddedTestsOverviewRouteImport.update({
-    id: '/tests-overview',
-    path: '/tests-overview',
-    getParentRoute: () => AuthenticatedDashboardPaddedRoute,
-  } as any)
 const AuthenticatedDashboardPaddedUsersManagementRoute =
   AuthenticatedDashboardPaddedUsersManagementRouteImport.update({
     id: '/users-management',
@@ -542,7 +535,6 @@ export interface FileRoutesByFullPath {
   '/billing': typeof AuthenticatedDashboardPaddedBillingRoute
   '/cost-analysis': typeof AuthenticatedDashboardPaddedCostAnalysisRoute
   '/repos': typeof AuthenticatedDashboardPaddedReposRoute
-  '/tests-overview': typeof AuthenticatedDashboardPaddedTestsOverviewRoute
   '/users-management': typeof AuthenticatedDashboardPaddedUsersManagementRoute
   '/alerts': typeof AuthenticatedDashboardPreviewableAlertsRoute
   '/api/cli/org/name': typeof ApiCliOrgNameRoute
@@ -611,7 +603,6 @@ export interface FileRoutesByTo {
   '/billing': typeof AuthenticatedDashboardPaddedBillingRoute
   '/cost-analysis': typeof AuthenticatedDashboardPaddedCostAnalysisRoute
   '/repos': typeof AuthenticatedDashboardPaddedReposRoute
-  '/tests-overview': typeof AuthenticatedDashboardPaddedTestsOverviewRoute
   '/users-management': typeof AuthenticatedDashboardPaddedUsersManagementRoute
   '/alerts': typeof AuthenticatedDashboardPreviewableAlertsRoute
   '/api/cli/org/name': typeof ApiCliOrgNameRoute
@@ -689,7 +680,6 @@ export interface FileRoutesById {
   '/_authenticated/_dashboard/_padded/billing': typeof AuthenticatedDashboardPaddedBillingRoute
   '/_authenticated/_dashboard/_padded/cost-analysis': typeof AuthenticatedDashboardPaddedCostAnalysisRoute
   '/_authenticated/_dashboard/_padded/repos': typeof AuthenticatedDashboardPaddedReposRoute
-  '/_authenticated/_dashboard/_padded/tests-overview': typeof AuthenticatedDashboardPaddedTestsOverviewRoute
   '/_authenticated/_dashboard/_padded/users-management': typeof AuthenticatedDashboardPaddedUsersManagementRoute
   '/_authenticated/_dashboard/_previewable/alerts': typeof AuthenticatedDashboardPreviewableAlertsRoute
   '/api/cli/org/name': typeof ApiCliOrgNameRoute
@@ -763,7 +753,6 @@ export interface FileRouteTypes {
     | '/billing'
     | '/cost-analysis'
     | '/repos'
-    | '/tests-overview'
     | '/users-management'
     | '/alerts'
     | '/api/cli/org/name'
@@ -832,7 +821,6 @@ export interface FileRouteTypes {
     | '/billing'
     | '/cost-analysis'
     | '/repos'
-    | '/tests-overview'
     | '/users-management'
     | '/alerts'
     | '/api/cli/org/name'
@@ -909,7 +897,6 @@ export interface FileRouteTypes {
     | '/_authenticated/_dashboard/_padded/billing'
     | '/_authenticated/_dashboard/_padded/cost-analysis'
     | '/_authenticated/_dashboard/_padded/repos'
-    | '/_authenticated/_dashboard/_padded/tests-overview'
     | '/_authenticated/_dashboard/_padded/users-management'
     | '/_authenticated/_dashboard/_previewable/alerts'
     | '/api/cli/org/name'
@@ -1278,13 +1265,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedDashboardPaddedReposRouteImport
       parentRoute: typeof AuthenticatedDashboardPaddedRoute
     }
-    '/_authenticated/_dashboard/_padded/tests-overview': {
-      id: '/_authenticated/_dashboard/_padded/tests-overview'
-      path: '/tests-overview'
-      fullPath: '/tests-overview'
-      preLoaderRoute: typeof AuthenticatedDashboardPaddedTestsOverviewRouteImport
-      parentRoute: typeof AuthenticatedDashboardPaddedRoute
-    }
     '/_authenticated/_dashboard/_padded/users-management': {
       id: '/_authenticated/_dashboard/_padded/users-management'
       path: '/users-management'
@@ -1593,7 +1573,6 @@ interface AuthenticatedDashboardPaddedRouteChildren {
   AuthenticatedDashboardPaddedBillingRoute: typeof AuthenticatedDashboardPaddedBillingRoute
   AuthenticatedDashboardPaddedCostAnalysisRoute: typeof AuthenticatedDashboardPaddedCostAnalysisRoute
   AuthenticatedDashboardPaddedReposRoute: typeof AuthenticatedDashboardPaddedReposRoute
-  AuthenticatedDashboardPaddedTestsOverviewRoute: typeof AuthenticatedDashboardPaddedTestsOverviewRoute
   AuthenticatedDashboardPaddedUsersManagementRoute: typeof AuthenticatedDashboardPaddedUsersManagementRoute
   AuthenticatedDashboardPaddedIndexRoute: typeof AuthenticatedDashboardPaddedIndexRoute
   AuthenticatedDashboardPaddedCheckoutSuccessRoute: typeof AuthenticatedDashboardPaddedCheckoutSuccessRoute
@@ -1612,8 +1591,6 @@ const AuthenticatedDashboardPaddedRouteChildren: AuthenticatedDashboardPaddedRou
       AuthenticatedDashboardPaddedCostAnalysisRoute,
     AuthenticatedDashboardPaddedReposRoute:
       AuthenticatedDashboardPaddedReposRoute,
-    AuthenticatedDashboardPaddedTestsOverviewRoute:
-      AuthenticatedDashboardPaddedTestsOverviewRoute,
     AuthenticatedDashboardPaddedUsersManagementRoute:
       AuthenticatedDashboardPaddedUsersManagementRoute,
     AuthenticatedDashboardPaddedIndexRoute:

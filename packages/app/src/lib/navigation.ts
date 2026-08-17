@@ -3,7 +3,6 @@ import {
   Bell,
   Bug,
   ChartLine,
-  FlaskConical,
   House,
   LayoutDashboard,
   type LucideIcon,
@@ -48,7 +47,6 @@ export const navGroups: NavGroup[] = [
     items: [
       { title: "Runs", url: "/runs", icon: Activity },
       { title: "Cost Analysis", url: "/cost-analysis", icon: ChartLine },
-      { title: "Tests Overview", url: "/tests-overview", icon: FlaskConical },
     ],
   },
 ];
