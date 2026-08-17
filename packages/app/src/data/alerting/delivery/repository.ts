@@ -214,14 +214,11 @@ export async function deleteChannel(
   return { deleted: true };
 }
 
-export async function testChannel(
-  _organizationId: string,
-  body: { config: AlertingChannelConfig },
-) {
+async function sendTest(config: AlertingChannelConfig) {
   const started = performance.now();
   try {
     const { sendChannelTest } = await import("./channel-sender.server");
-    await sendChannelTest(AlertingChannelConfigSchema.parse(body.config));
+    await sendChannelTest(AlertingChannelConfigSchema.parse(config));
     return { ok: true, latency_ms: Math.round(performance.now() - started) };
   } catch (cause) {
     return {
@@ -230,6 +227,28 @@ export async function testChannel(
       error: cause instanceof Error ? cause.message : String(cause),
     };
   }
+}
+
+export async function testChannel(
+  _organizationId: string,
+  body: { config: AlertingChannelConfig },
+) {
+  return sendTest(body.config);
+}
+
+/**
+ * Test a channel that is already stored, with the secret it holds.
+ *
+ * The read path redacts secrets, so a caller looking at a saved channel has no
+ * config to send. Without this, proving a stored webhook still works would mean
+ * pasting the URL in again, which is exactly the state the operator is trying
+ * to check.
+ */
+export async function testSavedChannel(organizationId: string, name: string) {
+  const row = await getChannelRow(organizationId, name);
+  return sendTest(
+    decryptChannelConfig(organizationId, row.id, row.encryptedConfig),
+  );
 }
 
 async function receiverChannels(organizationId: string) {

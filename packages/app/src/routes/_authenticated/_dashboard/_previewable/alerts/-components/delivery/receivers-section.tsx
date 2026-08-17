@@ -3,6 +3,7 @@ import {
   Card,
   CardAction,
   CardContent,
+  CardDescription,
   CardHeader,
 } from "@everr/ui/components/card";
 import { toneText } from "@everr/ui/components/tone";
@@ -18,7 +19,6 @@ import type {
   AlertingReceiver,
   AlertingRoute,
 } from "@/data/alerting/types";
-import { ReceiverBuilder } from "./receiver-builder";
 import { ChannelChip } from "./route-preview";
 import {
   ConfirmDeleteAction,
@@ -30,14 +30,14 @@ import {
 export function ReceiversSection({
   channels,
   routes,
-  editing,
-  onEditingChange,
+  onNewReceiver,
+  onEditReceiver,
   onReviewRoutes,
 }: {
   channels: AlertingChannel[];
   routes: AlertingRoute[] | undefined;
-  editing: AlertingReceiver | "new" | null;
-  onEditingChange: (editing: AlertingReceiver | "new" | null) => void;
+  onNewReceiver: () => void;
+  onEditReceiver: (receiver: AlertingReceiver) => void;
   onReviewRoutes: () => void;
 }) {
   const qc = useQueryClient();
@@ -61,11 +61,14 @@ export function ReceiversSection({
     <Card id="receivers" inset="flush-content" className="scroll-mt-4">
       <CardHeader>
         <SectionHeading>Receivers</SectionHeading>
+        <CardDescription>
+          The name a route delivers to, and the channels it fans out across.
+        </CardDescription>
         <CardAction>
           <Button
             variant="outline"
             className="h-10 sm:h-8"
-            onClick={() => onEditingChange("new")}
+            onClick={onNewReceiver}
           >
             <Plus data-icon="inline-start" />
             New receiver
@@ -81,8 +84,8 @@ export function ReceiversSection({
           empty={{
             when: (data ?? []).length === 0,
             icon: Inbox,
-            title: "No receivers defined",
-            hint: "Add a receiver that references one or more channels for routes to deliver alerts to.",
+            title: "No receivers yet",
+            hint: "Group the channels one audience should get, then point routes at the group.",
           }}
         >
           <ul className="divide-y divide-border/60">
@@ -98,22 +101,32 @@ export function ReceiversSection({
                     ? `${targetCount} ${targetCount === 1 ? "route still targets" : "routes still target"} this receiver. Move ${targetCount === 1 ? "that route" : "those routes"} first. No changes will be made.`
                     : undefined;
               return (
-                <li key={r.name} className="flex items-start gap-3 px-3 py-2.5">
+                <li
+                  key={r.name}
+                  className="flex items-start gap-3 px-3 py-2.5 transition-colors duration-200 hover:bg-muted/30"
+                >
                   <span className="flex size-7 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
                     <Inbox className="size-4" />
                   </span>
                   <div className="min-w-0 flex-1 space-y-1">
-                    <div className="flex flex-wrap items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
                       <span className="text-sm font-medium">{r.name}</span>
                       {targeting !== undefined &&
                         (targeting === 0 ? (
                           <span
                             className={cn(
-                              "text-xs",
+                              "inline-flex items-center gap-2 text-xs",
                               toneText({ tone: "warning" }),
                             )}
                           >
                             no route targets this receiver
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={onReviewRoutes}
+                            >
+                              Add a route
+                            </Button>
                           </span>
                         ) : (
                           <span className="text-xs text-muted-foreground">
@@ -122,6 +135,12 @@ export function ReceiversSection({
                         ))}
                     </div>
                     <div className="flex flex-wrap items-center gap-1.5">
+                      <span
+                        aria-hidden
+                        className="text-xs text-muted-foreground"
+                      >
+                        →
+                      </span>
                       {r.channels.map((name) => (
                         <ChannelChip
                           key={name}
@@ -137,7 +156,7 @@ export function ReceiversSection({
                     size="icon-lg"
                     className="size-10 sm:size-8"
                     aria-label={`Edit receiver ${r.name}`}
-                    onClick={() => onEditingChange(r)}
+                    onClick={() => onEditReceiver(r)}
                   >
                     <Pencil />
                   </Button>
@@ -177,16 +196,6 @@ export function ReceiversSection({
           </ul>
         </SectionBody>
       </CardContent>
-      <ReceiverBuilder
-        key={editing === "new" ? "new" : (editing?.name ?? "closed")}
-        open={editing !== null}
-        onOpenChange={(o) => {
-          if (!o) onEditingChange(null);
-        }}
-        existingNames={(data ?? []).map((r) => r.name)}
-        channels={channels}
-        receiver={editing === "new" ? null : editing}
-      />
     </Card>
   );
 }

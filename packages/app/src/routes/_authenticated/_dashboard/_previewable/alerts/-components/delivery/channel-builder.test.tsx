@@ -9,6 +9,7 @@ const testAlertingChannel = vi.fn();
 vi.mock("@/data/alerting/delivery/server", () => ({
   createAlertingChannel: vi.fn(),
   testAlertingChannel: (...args: unknown[]) => testAlertingChannel(...args),
+  testAlertingSavedChannel: vi.fn(),
 }));
 
 vi.mock("@/data/alerting/rules/server", () => ({
@@ -33,6 +34,9 @@ async function renderBuilder() {
   await waitFor(() => {
     expect(drawer.contains(document.activeElement)).toBe(true);
   });
+  // A new channel starts with no type, so the fields below only exist once
+  // one is picked. Webhook is the plain-URL case these tests drive.
+  await userEvent.click(screen.getByRole("radio", { name: /webhook/i }));
 }
 
 describe("ChannelBuilder test button", () => {

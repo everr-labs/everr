@@ -1,7 +1,9 @@
 import { Button } from "@everr/ui/components/button";
 import { Input } from "@everr/ui/components/input";
 import { Label } from "@everr/ui/components/label";
+import { cn } from "@everr/ui/lib/utils";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { Plus } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 import { deliveryQueries } from "@/data/alerting/delivery/queries";
@@ -10,11 +12,19 @@ import {
   updateAlertingReceiver,
 } from "@/data/alerting/delivery/server";
 import type { AlertingChannel, AlertingReceiver } from "@/data/alerting/types";
-import { AlertingConceptNote } from "../common/concept-note";
 import { AlertingDrawer } from "../common/drawer";
 import { alertingErrorMessage } from "../common/query-error";
-import { CHANNEL_LABEL } from "./channel-meta";
+import {
+  CHANNEL_ICON,
+  CHANNEL_LABEL,
+  type ChannelType,
+  channelTargetSummary,
+} from "./channel-meta";
+import { ChannelTypeLauncher } from "./channel-type-picker";
 import { isDuplicateName } from "./name-validation";
+
+/** A receiver in progress, held while the reader steps out to add a channel. */
+export type ReceiverDraft = { name: string; channels: string[] };
 
 export function ReceiverBuilder({
   open,
@@ -22,6 +32,8 @@ export function ReceiverBuilder({
   existingNames,
   channels,
   receiver: editing = null,
+  draft: initialDraft = null,
+  onAddChannel,
 }: {
   open: boolean;
   onOpenChange: (o: boolean) => void;
@@ -29,10 +41,16 @@ export function ReceiverBuilder({
   channels: AlertingChannel[];
   /** Edit target; the caller remounts (key) per target, so state inits here. */
   receiver?: AlertingReceiver | null;
+  /** A draft to resume, from a trip through the channel builder. */
+  draft?: ReceiverDraft | null;
+  /** Leave for the channel builder, carrying this draft back afterwards. */
+  onAddChannel?: (type: ChannelType | null, draft: ReceiverDraft) => void;
 }) {
   const qc = useQueryClient();
-  const [name, setName] = useState(editing?.name ?? "");
-  const [selected, setSelected] = useState<string[]>(editing?.channels ?? []);
+  const [name, setName] = useState(initialDraft?.name ?? editing?.name ?? "");
+  const [selected, setSelected] = useState<string[]>(
+    initialDraft?.channels ?? editing?.channels ?? [],
+  );
 
   const duplicate = isDuplicateName(existingNames, name.trim(), editing?.name);
 
@@ -91,11 +109,6 @@ export function ReceiverBuilder({
         </>
       }
     >
-      <AlertingConceptNote>
-        A receiver is a named set of channels; routes send matching alerts to
-        every channel in the set. Channels are reusable: the same Slack hook or
-        Telegram bot can back any number of receivers.
-      </AlertingConceptNote>
       <div className="space-y-1.5">
         <Label htmlFor="receiver-name">Name</Label>
         <Input
@@ -105,49 +118,91 @@ export function ReceiverBuilder({
           onChange={(e) => setName(e.target.value)}
           placeholder="oncall"
         />
-        {duplicate && (
+        {duplicate ? (
           <p className="text-destructive text-xs" role="alert">
             A receiver with this name already exists
+          </p>
+        ) : (
+          <p className="text-xs text-muted-foreground">
+            Routes address a receiver by this name.
           </p>
         )}
       </div>
       <div className="space-y-1.5">
         <Label>Channels</Label>
         {channels.length === 0 ? (
-          <p
-            className="rounded-md border border-dashed p-3 text-xs text-muted-foreground"
-            role="alert"
-          >
-            No channels yet. Create one with &ldquo;New channel&rdquo; in the
-            Channels section first; receivers deliver through existing channels.
-          </p>
+          <div className="space-y-2 rounded-md border border-dashed p-3">
+            <p className="text-xs text-muted-foreground" role="alert">
+              A receiver delivers through channels, and there are none yet. Add
+              the first one; this draft is waiting when you come back.
+            </p>
+            <ChannelTypeLauncher
+              labelPrefix="Add a channel:"
+              onPick={(type) =>
+                onAddChannel?.(type, { name, channels: selected })
+              }
+            />
+          </div>
         ) : (
-          <ul className="max-h-56 overflow-y-auto rounded-md border">
-            {channels.map((c) => (
-              <li key={c.name} className="border-b last:border-b-0">
-                <label className="flex w-full cursor-pointer items-center gap-2 px-3 py-2 text-sm hover:bg-muted/50">
-                  <input
-                    type="checkbox"
-                    className="size-4 shrink-0 accent-primary"
-                    checked={selected.includes(c.name)}
-                    aria-label={`Channel ${c.name}`}
-                    onChange={() => toggle(c.name)}
-                  />
-                  <span className="min-w-0 flex-1 truncate font-mono text-xs">
-                    {c.name}
-                  </span>
-                  <span className="shrink-0 text-xs text-muted-foreground">
-                    {CHANNEL_LABEL[c.config.type]}
-                  </span>
-                </label>
-              </li>
-            ))}
-          </ul>
-        )}
-        {channels.length > 0 && selected.length === 0 && (
-          <p className="text-muted-foreground text-xs">
-            Pick at least one channel
-          </p>
+          <>
+            <ul className="divide-y divide-border/60 overflow-hidden rounded-md border">
+              {channels.map((c) => {
+                const Icon = CHANNEL_ICON[c.config.type];
+                const target = channelTargetSummary(c.config);
+                return (
+                  <li key={c.name}>
+                    <label className="flex w-full cursor-pointer items-center gap-2.5 px-3 py-2 hover:bg-muted/50">
+                      <input
+                        type="checkbox"
+                        className="size-4 shrink-0 accent-primary"
+                        checked={selected.includes(c.name)}
+                        aria-label={`Channel ${c.name}`}
+                        onChange={() => toggle(c.name)}
+                      />
+                      <Icon aria-hidden className="size-4 shrink-0" />
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-xs font-medium">
+                          {c.name}
+                        </span>
+                        <span
+                          className={cn(
+                            "block truncate text-[0.6875rem] text-muted-foreground",
+                            target.literal && "font-mono",
+                          )}
+                        >
+                          {target.text}
+                        </span>
+                      </span>
+                      <span className="shrink-0 text-[0.6875rem] text-muted-foreground">
+                        {CHANNEL_LABEL[c.config.type]}
+                      </span>
+                    </label>
+                  </li>
+                );
+              })}
+            </ul>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <p className="text-xs text-muted-foreground">
+                {selected.length === 0
+                  ? "Pick at least one channel"
+                  : selected.length === 1
+                    ? "Every alert routed here goes to that channel."
+                    : `Every alert routed here goes to all ${selected.length} channels.`}
+              </p>
+              {onAddChannel && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() =>
+                    onAddChannel(null, { name, channels: selected })
+                  }
+                >
+                  <Plus data-icon="inline-start" />
+                  New channel
+                </Button>
+              )}
+            </div>
+          </>
         )}
       </div>
     </AlertingDrawer>
