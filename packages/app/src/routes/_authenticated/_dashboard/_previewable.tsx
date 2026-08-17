@@ -26,12 +26,16 @@ function PreviewableLayout() {
   // expose a `previewStatus` in its loaderData can't feed the bar.
   const matches = useMatches();
   let status: PreviewStatus | undefined;
+  let hidePreviewFrame = false;
   for (const match of matches) {
     if (!match.routeId.startsWith(Route.id)) continue;
     const data = match.loaderData as
       | { previewStatus?: PreviewStatus }
       | undefined;
     if (data?.previewStatus !== undefined) status = data.previewStatus;
+    if (match.staticData?.hidePreviewFrame !== undefined) {
+      hidePreviewFrame = match.staticData.hidePreviewFrame;
+    }
   }
 
   const content = (
@@ -49,7 +53,7 @@ function PreviewableLayout() {
     </div>
   );
 
-  if (!name) return content;
+  if (!name || hidePreviewFrame) return content;
 
   return (
     <PreviewFrame

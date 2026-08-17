@@ -15,7 +15,9 @@ const NotificationsSearchSchema = z.object({
 export const Route = createFileRoute(
   "/_authenticated/_dashboard/_previewable/alerts/notifications",
 )({
-  staticData: { breadcrumb: "Notifications" },
+  // Receivers/channels are live operational config, not an as-code resource a
+  // preview branch overlays, so the preview banner would be misleading here.
+  staticData: { breadcrumb: "Notifications", hidePreviewFrame: true },
   head: () => ({ meta: [{ title: "Everr - Alert notifications" }] }),
   validateSearch: NotificationsSearchSchema,
   loader: ({ context: { queryClient } }) =>

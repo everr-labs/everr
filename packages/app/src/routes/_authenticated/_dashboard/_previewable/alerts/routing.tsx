@@ -16,7 +16,11 @@ import { PipelineSection } from "./-components/delivery/pipeline-section";
 export const Route = createFileRoute(
   "/_authenticated/_dashboard/_previewable/alerts/routing",
 )({
-  staticData: { breadcrumb: "Routing" },
+  // Routes/receivers/channels/inhibitions are live operational config, not an
+  // as-code resource a preview branch overlays (the `preview` param this
+  // loader threads through is only for the alert/rule context it displays
+  // alongside them), so the preview banner would be misleading here.
+  staticData: { breadcrumb: "Routing", hidePreviewFrame: true },
   head: () => ({ meta: [{ title: "Everr - Alert routing" }] }),
   loaderDeps: ({ search: { preview } }) => ({ preview }),
   loader: ({ context: { queryClient }, deps }) =>
