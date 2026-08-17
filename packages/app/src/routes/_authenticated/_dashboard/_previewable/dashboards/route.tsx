@@ -46,19 +46,24 @@ function DashboardsLayout() {
   if (full) {
     return (
       <div className="relative">
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon-sm"
-          aria-label="Show the dashboard list"
-          onClick={() => setFull(false)}
-          className="absolute top-0 left-0 z-10 text-muted-foreground"
-        >
-          <PanelLeftOpen className="size-4" />
-        </Button>
-        <div className="pt-9">
-          <Outlet />
+        {/*
+          A zero-height sticky rail so the restore control costs the dashboard
+          no vertical space: it rides the viewport's left edge at mid-height,
+          clear of the dashboard header and the panel grid alike.
+        */}
+        <div className="sticky top-[45dvh] z-10 h-0">
+          <Button
+            type="button"
+            variant="outline"
+            size="icon-sm"
+            aria-label="Show the dashboard list"
+            onClick={() => setFull(false)}
+            className="-ml-1 bg-background/90 text-muted-foreground shadow-sm backdrop-blur"
+          >
+            <PanelLeftOpen className="size-4" />
+          </Button>
         </div>
+        <Outlet />
       </div>
     );
   }
