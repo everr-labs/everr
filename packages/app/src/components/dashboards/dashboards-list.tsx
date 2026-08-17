@@ -132,9 +132,9 @@ export function DashboardsList({ preview }: { preview?: string }) {
       </div>
 
       {/* Only the rows scroll; the heading and search stay pinned above. */}
-      <div className="flex min-h-0 flex-1 flex-col gap-4 lg:overflow-y-auto lg:pr-1 lg:pb-3">
+      <div className="flex min-h-0 flex-1 flex-col gap-4 md:overflow-y-auto md:pr-1 md:pb-3">
         <section aria-label="Your dashboards">
-          <GroupLabel label="Your dashboards" count={dashboards.length} />
+          <GroupLabel label="Your dashboards" />
           {listQuery.isLoading && (
             <p className="px-1 py-1 text-muted-foreground text-xs">
               Loading...
@@ -158,10 +158,7 @@ export function DashboardsList({ preview }: { preview?: string }) {
         </section>
 
         <section aria-label="Built-in dashboards">
-          <GroupLabel
-            label="Built-in dashboards"
-            count={BUILTIN_DASHBOARDS.length}
-          />
+          <GroupLabel label="Built-in dashboards" />
 
           {capabilitiesQuery.isPending && (
             <p className="inline-flex items-center gap-1.5 px-1 pb-1 text-muted-foreground text-xs">
@@ -229,17 +226,11 @@ export function DashboardsList({ preview }: { preview?: string }) {
   );
 }
 
-function GroupLabel({ label, count }: { label: string; count: number }) {
+function GroupLabel({ label }: { label: string }) {
   return (
     <header className="mb-1.5 px-1">
-      <h2
-        className="font-semibold text-[0.6875rem] text-foreground/75 uppercase tracking-wider"
-        aria-label={`${label}, ${count}`}
-      >
-        <span aria-hidden>
-          {label}
-          <span className="ml-1.5 tabular-nums opacity-80">{count}</span>
-        </span>
+      <h2 className="font-semibold text-[0.6875rem] text-foreground/75 uppercase tracking-wider">
+        {label}
       </h2>
     </header>
   );

@@ -38,17 +38,24 @@ export function DashboardGrid({
   return (
     <div>
       {(hasVariables || actions || leading) && (
-        <div className="mb-3 flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg border bg-card/40 px-2.5 py-2">
+        <div className="mb-3 flex items-start gap-x-3">
           {leading}
           {leading && hasVariables && (
-            <div aria-hidden className="h-5 w-px self-center bg-border" />
+            <div aria-hidden className="mt-1.5 h-5 w-px bg-border" />
           )}
-          <VariableBar className="mb-0" layout="inline" />
-          {hasVariables && actions && (
-            <div aria-hidden className="h-5 w-px self-center bg-border" />
-          )}
+          {/*
+            The variables wrap inside their own clipped column: each field
+            draws a left hairline, and the bar's negative margin pulls every
+            wrapped row's first hairline outside this wrapper, so no row ever
+            starts or ends with a dangling divider.
+          */}
+          <div className="min-w-0 flex-1 overflow-hidden">
+            <VariableBar className="mb-0" layout="inline" />
+          </div>
           {actions && (
-            <div className="ml-auto flex items-center gap-2">{actions}</div>
+            <div className="ml-auto flex shrink-0 items-center gap-2">
+              {actions}
+            </div>
           )}
         </div>
       )}
