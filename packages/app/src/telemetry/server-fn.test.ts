@@ -72,18 +72,16 @@ describe("instrumentServerFunction", () => {
 
     expect(telemetryMocks.captureError).toHaveBeenCalledWith(error, {
       "everr.error.source": "server_fn",
-      "rpc.method": "getActiveOrganization",
-      "rpc.service": "server_function",
-      "rpc.system": "tanstack-start",
+      "rpc.method": "server_function/getActiveOrganization",
+      "rpc.system.name": "tanstack-start",
       "url.path": "/_serverFn/:id",
     });
     expect(telemetryMocks.startActiveSpan).toHaveBeenCalledWith(
       "tanstack.server_fn",
       {
         attributes: {
-          "rpc.method": "getActiveOrganization",
-          "rpc.service": "server_function",
-          "rpc.system": "tanstack-start",
+          "rpc.method": "server_function/getActiveOrganization",
+          "rpc.system.name": "tanstack-start",
           "url.path": "/_serverFn/:id",
         },
         kind: 0,
@@ -133,9 +131,8 @@ describe("instrumentServerFunction", () => {
       "tanstack.server_fn",
       {
         attributes: {
-          "rpc.method": "getSession",
-          "rpc.service": "server_function",
-          "rpc.system": "tanstack-start",
+          "rpc.method": "server_function/getSession",
+          "rpc.system.name": "tanstack-start",
           "url.path": "/_serverFn/:id",
         },
         kind: 0,
