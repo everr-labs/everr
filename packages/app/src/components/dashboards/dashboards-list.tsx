@@ -197,7 +197,7 @@ export function DashboardsList({ preview }: { preview?: string }) {
 
           {/* Until the probe answers, one flat list — no grouping to rearrange. */}
           {(ungraded ? matching : ready).map((entry) => (
-            <BuiltinRow key={entry.builtin.id} entry={entry} />
+            <BuiltinRow key={entry.builtin.id} builtin={entry.builtin} />
           ))}
 
           {!ungraded && needsData.length > 0 && (
@@ -221,7 +221,7 @@ export function DashboardsList({ preview }: { preview?: string }) {
               </button>
               {showNeedsData &&
                 needsData.map((entry) => (
-                  <BuiltinRow key={entry.builtin.id} entry={entry} />
+                  <BuiltinRow key={entry.builtin.id} builtin={entry.builtin} />
                 ))}
             </>
           )}
@@ -241,11 +241,8 @@ function GroupLabel({ label }: { label: string }) {
   );
 }
 
-function BuiltinRow({ entry }: { entry: Graded }) {
-  const { builtin, readiness } = entry;
+function BuiltinRow({ builtin }: { builtin: BuiltinDashboard }) {
   const Icon = CATEGORY_ICON[builtin.category];
-  const reason =
-    readiness?.status === "needs-setup" ? readiness.missing.join(", ") : null;
 
   return (
     <Link
@@ -261,14 +258,6 @@ function BuiltinRow({ entry }: { entry: Graded }) {
     >
       <Icon className="size-4 shrink-0 text-muted-foreground" />
       <span className="min-w-0 flex-1 truncate text-sm">{builtin.name}</span>
-      {reason && (
-        <span
-          title={reason}
-          className="max-w-32 shrink-0 truncate font-mono text-muted-foreground text-xs"
-        >
-          {reason}
-        </span>
-      )}
     </Link>
   );
 }

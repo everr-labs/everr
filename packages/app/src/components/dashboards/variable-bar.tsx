@@ -62,10 +62,8 @@ export function useHasVisibleVariables(): boolean {
 export type VariableBarLayout = "stacked" | "inline";
 
 export function VariableBar({
-  className,
   layout = "stacked",
 }: {
-  className?: string;
   layout?: VariableBarLayout;
 } = {}) {
   const navigate = useNavigate();
@@ -102,7 +100,6 @@ export function VariableBar({
             // dangling divider.
             "-ml-[13px] items-center"
           : "mb-3 items-end",
-        layout !== "inline" && className,
       )}
     >
       {visible.map((variable) =>
@@ -135,7 +132,7 @@ export function VariableBar({
   if (layout !== "inline") return fields;
   // Inline mode is self-contained: the clip that makes the per-field
   // hairlines work lives here, not in whichever parent seats the bar.
-  return <div className={cn("overflow-hidden", className)}>{fields}</div>;
+  return <div className="overflow-hidden">{fields}</div>;
 }
 
 function TextVariableField({

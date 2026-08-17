@@ -3,11 +3,14 @@ import {
   deleteResource,
   getResource,
   isResourceKind,
-  ReservedProjectError,
 } from "@/data/as-code/resource-admin.server";
 import { getBuiltinDashboard } from "@/data/dashboards/built-in/catalog";
 import { BUILTIN_PROJECT } from "@/data/dashboards/schema";
-import { notFoundResponse, unknownKindResponse } from "../../-responses";
+import {
+  guardReservedProject,
+  notFoundResponse,
+  unknownKindResponse,
+} from "../../-responses";
 
 /**
  * Only dashboards exist under the `built-in` pseudo-project, and only for
@@ -44,20 +47,16 @@ export const Route = createFileRoute("/api/cli/resources/$kind/$project/$slug")(
         DELETE: async ({ params, context }) => {
           const { kind, project, slug } = params;
           if (!isResourceKind(kind)) return unknownKindResponse(kind);
-          try {
-            const deleted = await deleteResource(
+          const deleted = await guardReservedProject(() =>
+            deleteResource(
               context.session.session.activeOrganizationId,
               kind,
               project,
               slug,
-            );
-            if (!deleted) return notFoundResponse(kind, project, slug);
-          } catch (error) {
-            if (error instanceof ReservedProjectError) {
-              return Response.json({ error: error.message }, { status: 403 });
-            }
-            throw error;
-          }
+            ),
+          );
+          if (deleted instanceof Response) return deleted;
+          if (!deleted) return notFoundResponse(kind, project, slug);
           return Response.json({ ok: true, kind, project, slug });
         },
       },

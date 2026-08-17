@@ -38,8 +38,10 @@ const HOST = `coalesce(nullIf(SpanAttributes['server.address'], ''), SpanName)`;
  * which. Reading them together, as the template used to, charts a service's
  * own latency and its dependencies' latency as one line.
  */
-const INBOUND = `${WITHIN} AND ${OF_SERVICE} AND SpanKind = 'Server' AND ${METHOD} != ''`;
-const OUTBOUND = `${WITHIN} AND ${OF_SERVICE} AND SpanKind = 'Client' AND ${METHOD} != ''`;
+const SERVER_HTTP = ` AND SpanKind = 'Server' AND ${METHOD} != ''`;
+const CLIENT_HTTP = ` AND SpanKind = 'Client' AND ${METHOD} != ''`;
+const INBOUND = `${WITHIN} AND ${OF_SERVICE}${SERVER_HTTP}`;
+const OUTBOUND = `${WITHIN} AND ${OF_SERVICE}${CLIENT_HTTP}`;
 
 /** Status class, as 19419 splits its request counts: 2xx / 3xx / 4xx / 5xx. */
 const STATUS_CLASS = `concat(toString(intDiv(${STATUS}, 100)), 'xx')`;
@@ -71,8 +73,8 @@ const ERROR_TYPE = `SpanAttributes['error.type']`;
  */
 const RPC_METHOD = `coalesce(nullIf(SpanAttributes['rpc.method'], ''), SpanName)`;
 
-/** Which server an outbound call went to. */
-const RPC_PEER = `coalesce(nullIf(SpanAttributes['server.address'], ''), SpanName)`;
+/** Which server an outbound call went to. Same fallback rule as HTTP. */
+const RPC_PEER = HOST;
 
 /**
  * Span kind is the inbound/outbound split here exactly as it is on the HTTP
@@ -172,13 +174,7 @@ WHERE ${INBOUND}`,
 FROM traces
 WHERE ${INBOUND}`,
           ),
-          "p95-latency": stat(
-            "P95 latency",
-            { calculation: "last", unit: "ms", decimals: 1 },
-            `SELECT round(quantile(0.95)(Duration) / 1000000, 1) AS p95
-FROM traces
-WHERE ${INBOUND}`,
-          ),
+          "p95-latency": p95LatencyStat("P95 latency", SERVER_HTTP),
           "by-status": timeSeries(
             "Requests by status class",
             { showLegend: true, stacked: true },
@@ -280,13 +276,7 @@ ORDER BY ts`,
 FROM traces
 WHERE ${OUTBOUND}`,
           ),
-          "outbound-p95": stat(
-            "Outbound P95 latency",
-            { calculation: "last", unit: "ms", decimals: 1 },
-            `SELECT round(quantile(0.95)(Duration) / 1000000, 1) AS p95
-FROM traces
-WHERE ${OUTBOUND}`,
-          ),
+          "outbound-p95": p95LatencyStat("Outbound P95 latency", CLIENT_HTTP),
           "outbound-by-host": timeSeries(
             "Outbound calls by host",
             { showLegend: true, stacked: true },

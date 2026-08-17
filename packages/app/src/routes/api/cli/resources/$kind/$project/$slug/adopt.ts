@@ -3,9 +3,12 @@ import { z } from "zod";
 import {
   adoptResource,
   isResourceKind,
-  ReservedProjectError,
 } from "@/data/as-code/resource-admin.server";
-import { notFoundResponse, unknownKindResponse } from "../../../-responses";
+import {
+  guardReservedProject,
+  notFoundResponse,
+  unknownKindResponse,
+} from "../../../-responses";
 
 const BodySchema = z.object({ repoid: z.string().min(1) });
 
@@ -26,21 +29,16 @@ export const Route = createFileRoute(
             { status: 400 },
           );
         }
-        let result: Awaited<ReturnType<typeof adoptResource>>;
-        try {
-          result = await adoptResource(
+        const result = await guardReservedProject(() =>
+          adoptResource(
             context.session.session.activeOrganizationId,
             kind,
             project,
             slug,
             parsed.data.repoid,
-          );
-        } catch (error) {
-          if (error instanceof ReservedProjectError) {
-            return Response.json({ error: error.message }, { status: 403 });
-          }
-          throw error;
-        }
+          ),
+        );
+        if (result instanceof Response) return result;
         if (!result.found) return notFoundResponse(kind, project, slug);
         return Response.json({
           kind,
