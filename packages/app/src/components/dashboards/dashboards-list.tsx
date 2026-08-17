@@ -3,7 +3,7 @@ import { Input } from "@everr/ui/components/input";
 import { DEFAULT_TIME_RANGE } from "@everr/ui/lib/time-range";
 import { cn } from "@everr/ui/lib/utils";
 import { useQuery } from "@tanstack/react-query";
-import { Link } from "@tanstack/react-router";
+import { Link, useParams } from "@tanstack/react-router";
 import {
   Activity,
   Boxes,
@@ -107,6 +107,17 @@ export function DashboardsList({ preview }: { preview?: string }) {
   const needsData = matching.filter((e) => e.readiness?.status !== "ready");
   const ungraded = matching.some((e) => e.readiness === null);
 
+  // A deep link can land on an unready built-in; the disclosure must not hide
+  // the active row, or the list stops saying where you are. The built-in
+  // route is the only one with a bare `slug` param (yours carry `project`).
+  const params = useParams({ strict: false }) as {
+    project?: string;
+    slug?: string;
+  };
+  const activeBuiltin = params.project ? undefined : params.slug;
+  const showNeedsData =
+    needsDataOpen || needsData.some((e) => e.builtin.id === activeBuiltin);
+
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-4">
       <div className="relative">
@@ -192,11 +203,11 @@ export function DashboardsList({ preview }: { preview?: string }) {
               <button
                 type="button"
                 onClick={() => setNeedsDataOpen((open) => !open)}
-                aria-expanded={needsDataOpen}
+                aria-expanded={showNeedsData}
                 title="Nothing sent in the last 7 days"
                 className="mt-2.5 mb-0.5 flex w-full items-center gap-1 rounded-md px-1 py-0.5 text-left font-medium text-[0.6875rem] text-muted-foreground/80 hover:text-foreground"
               >
-                {needsDataOpen ? (
+                {showNeedsData ? (
                   <ChevronDown className="size-3 shrink-0" />
                 ) : (
                   <ChevronRight className="size-3 shrink-0" />
@@ -206,7 +217,7 @@ export function DashboardsList({ preview }: { preview?: string }) {
                   {needsData.length}
                 </span>
               </button>
-              {needsDataOpen &&
+              {showNeedsData &&
                 needsData.map((entry) => (
                   <BuiltinRow key={entry.builtin.id} entry={entry} />
                 ))}
@@ -252,7 +263,7 @@ function BuiltinRow({ entry }: { entry: Graded }) {
         className: "bg-muted text-foreground [&>svg]:text-primary",
       }}
     >
-      <Icon className="size-3.5 shrink-0 text-muted-foreground" />
+      <Icon className="size-4 shrink-0 text-muted-foreground" />
       <span className="min-w-0 flex-1 truncate text-sm">{builtin.name}</span>
       {reason && (
         <span

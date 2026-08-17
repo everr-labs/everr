@@ -4,7 +4,9 @@ import gridLayoutCSS from "react-grid-layout/css/styles.css?url";
 import { DashboardGrid } from "@/components/dashboards/dashboard-grid";
 import gridLayoutOverridesCSS from "@/components/dashboards/dashboard-grid.css?url";
 import { DashboardNotFound } from "@/components/dashboards/dashboard-not-found";
+import { FrameRestore } from "@/components/dashboards/frame-restore";
 import { DashboardProvider } from "@/components/dashboards/use-dashboard";
+import { recordLastViewed } from "@/data/dashboards/last-viewed";
 import { dashboardOptions } from "@/data/dashboards/options";
 import { dashboardTimeDefaults } from "@/data/dashboards/time-defaults";
 
@@ -48,6 +50,7 @@ export const Route = createFileRoute(
     const { document, previewStatus } = await queryClient.ensureQueryData(
       dashboardOptions(project, slug, preview),
     );
+    recordLastViewed({ project, slug });
     // Expose the dashboard's duration/refreshInterval as route time defaults so
     // the time-range hooks seed the picker and panels from the first render —
     // no post-mount URL write, so panels never query the wrong window first.
@@ -71,7 +74,7 @@ function DashboardPage() {
   } = useSuspenseQuery(dashboardOptions(project, slug, preview));
   return (
     <DashboardProvider document={document}>
-      <DashboardGrid />
+      <DashboardGrid leading={<FrameRestore />} />
     </DashboardProvider>
   );
 }

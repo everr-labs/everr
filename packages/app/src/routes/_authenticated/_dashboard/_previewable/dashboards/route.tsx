@@ -5,7 +5,7 @@ import {
   useNavigate,
   useSearch,
 } from "@tanstack/react-router";
-import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import { PanelLeftClose } from "lucide-react";
 import * as z from "zod";
 import { DashboardsList } from "@/components/dashboards/dashboards-list";
 
@@ -43,30 +43,10 @@ function DashboardsLayout() {
       replace: true,
     });
 
-  if (full) {
-    return (
-      <div className="relative">
-        {/*
-          A zero-height sticky rail so the restore control costs the dashboard
-          no vertical space: it rides the viewport's left edge at mid-height,
-          clear of the dashboard header and the panel grid alike.
-        */}
-        <div className="sticky top-[45dvh] z-10 h-0">
-          <Button
-            type="button"
-            variant="outline"
-            size="icon-sm"
-            aria-label="Show the dashboard list"
-            onClick={() => setFull(false)}
-            className="-ml-1 bg-background/90 text-muted-foreground shadow-sm backdrop-blur"
-          >
-            <PanelLeftOpen className="size-4" />
-          </Button>
-        </div>
-        <Outlet />
-      </div>
-    );
-  }
+  // In full mode the restore control lives inside the grid toolbar
+  // (`FrameRestore` via DashboardGrid's `leading` slot), so the layout adds
+  // no chrome of its own.
+  if (full) return <Outlet />;
 
   return (
     <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,20rem)_minmax(0,1fr)]">
