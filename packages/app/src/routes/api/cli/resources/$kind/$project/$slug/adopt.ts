@@ -4,6 +4,7 @@ import {
   adoptResource,
   isResourceKind,
 } from "@/data/as-code/resource-admin.server";
+import { BUILTIN_PROJECT } from "@/data/dashboards/schema";
 import { notFoundResponse, unknownKindResponse } from "../../../-responses";
 
 const BodySchema = z.object({ repoid: z.string().min(1) });
@@ -18,6 +19,15 @@ export const Route = createFileRoute(
       POST: async ({ request, params, context }) => {
         const { kind, project, slug } = params;
         if (!isResourceKind(kind)) return unknownKindResponse(kind);
+        if (project === BUILTIN_PROJECT) {
+          // Built-ins are catalog entries, not rows; there is no owner to
+          // transfer. An editable copy is made by applying the document as
+          // your own resource, not by adopting (ADR 0004).
+          return Response.json(
+            { error: "built-in dashboards cannot be adopted" },
+            { status: 403 },
+          );
+        }
         const parsed = BodySchema.safeParse(await request.json());
         if (!parsed.success) {
           return Response.json(

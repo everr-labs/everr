@@ -280,6 +280,14 @@ export const dashboardSlugSchema = z
     "Slug must use lowercase letters, digits and hyphens, and cannot start or end with a hyphen",
   );
 
+/**
+ * The reserved pseudo-project the catalog of Built-in dashboards is served
+ * under — `/dashboards/built-in/$slug` and `everr resources show --project
+ * built-in`. No user resource may claim it, or it would collide with the
+ * pseudo-project in routes and the resources API (ADR 0004).
+ */
+export const BUILTIN_PROJECT = "built-in";
+
 /** Validates a project name: lowercase letters, digits and hyphens only. */
 export const dashboardProjectSchema = z
   .string()
@@ -288,4 +296,7 @@ export const dashboardProjectSchema = z
   .regex(
     /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/,
     "Project must use lowercase letters, digits and hyphens, and cannot start or end with a hyphen",
-  );
+  )
+  .refine((project) => project !== BUILTIN_PROJECT, {
+    message: `"${BUILTIN_PROJECT}" is reserved for Everr's built-in dashboards`,
+  });

@@ -81,4 +81,14 @@ describe("POST .../adopt", () => {
     expect(res.status).toBe(400);
     expect(mockedAdopt).not.toHaveBeenCalled();
   });
+
+  it("403s the built-in pseudo-project", async () => {
+    const res = await post({ repoid: "github.com/acme/app" }, rwCtx, {
+      kind: "dashboard",
+      project: "built-in",
+      slug: "log-overview",
+    });
+    expect(res.status).toBe(403);
+    expect(mockedAdopt).not.toHaveBeenCalled();
+  });
 });
