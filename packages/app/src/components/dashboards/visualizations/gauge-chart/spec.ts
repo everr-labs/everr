@@ -21,6 +21,12 @@ export const gaugeChartSpec = z.looseObject({
    */
   max: z.number().default(100),
   thresholds: thresholdsSpec.optional(),
+  /** Rendering variant; omitted means `arc` (the default semicircle). */
+  variant: z.enum(["arc", "horizontal", "vertical"]).optional(),
+  /** Show the min/max axis labels at the ends of the gauge. */
+  showAxis: z.boolean().default(true),
+  /** Show a numeric label at each threshold step tick mark. */
+  showThresholdLabels: z.boolean().default(false),
   /** Show the series label even on a single-gauge panel (multi-gauge always shows it). */
   showLabel: z.boolean().default(false),
   /** Text shown for a query that produced no value. */
