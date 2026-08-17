@@ -18,8 +18,7 @@ function fnv1a(str: string): number {
   return h;
 }
 
-export function serviceColor(namespace: string, name: string): string {
-  const key = `${namespace}/${name}`;
-  const idx = fnv1a(key) % PALETTE.length;
+export function serviceColor(name: string): string {
+  const idx = fnv1a(name) % PALETTE.length;
   return `var(${PALETTE[idx]})`;
 }
