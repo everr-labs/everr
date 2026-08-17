@@ -23,6 +23,7 @@ import {
   alertingRuleIdentity,
 } from "@/data/alerting/rules/identity";
 import { ruleQueries } from "@/data/alerting/rules/queries";
+import { fromAlertingRule } from "@/data/alerting/rules/resource/mapping";
 import {
   pauseAlertingRule,
   resumeAlertingRule,
@@ -33,30 +34,31 @@ import type {
   AlertingRuleView,
 } from "@/data/alerting/types";
 import { useTimeRange } from "@/hooks/use-time-range";
+import { AlertingBackLink } from "./-components/common/navigation";
+import { AlertingPauseToggle } from "./-components/common/pause-toggle";
+import {
+  AlertingQueryError,
+  alertingErrorMessage,
+} from "./-components/common/query-error";
+import { AlertingStatusLabel } from "./-components/common/status";
+import {
+  AlertingBreachBreakdown,
+  AlertingSummaryCard,
+  AlertingSummaryStat,
+} from "./-components/common/summary-card";
 import {
   alertRuleChartPointTarget,
   alertRuleEvaluationOutcome,
   summarizeAlertRuleLatestCheck,
 } from "./-components/rules/chart-data";
 import {
-  RuleMetaLine,
+  RuleDefinitionFacts,
+  RuleLabels,
   RuleReferenceDisclosures,
 } from "./-components/rules/definition";
 import { EvaluationCountdown } from "./-components/rules/evaluation-countdown";
 import { AlertRuleHistory } from "./-components/rules/history";
 import { AlertRuleSignalChart } from "./-components/rules/signal-chart";
-import {
-  AlertingBackLink,
-  AlertingPauseToggle,
-  AlertingQueryError,
-  alertingErrorMessage,
-} from "./-components/shared/components";
-import { AlertingStatusLabel } from "./-components/shared/status";
-import {
-  AlertingBreachBreakdown,
-  AlertingSummaryCard,
-  AlertingSummaryStat,
-} from "./-components/shared/summary-card";
 import {
   SilenceCreateDrawer,
   type SilenceDrawerHandle,
@@ -325,10 +327,10 @@ function AlertingRuleDetailPage() {
       alert.rule === ruleId &&
       (alert.status === "firing" || alert.status === "pending"),
   );
-  const annotationSummary = r.spec.annotations?.summary;
-  const annotationDescription =
-    r.spec.annotations?.description ??
-    r.spec.annotations?.["everr.display.description"];
+  // `spec.annotations.description` is the notification body template, not
+  // prose: it renders per instance and reads as broken text without one.
+  // Only the display description was written to be read here.
+  const description = fromAlertingRule(r).displayDescription;
   const latestEvaluation = evaluationSeries.data?.points.at(-1);
   const latestCheck = latestEvaluation
     ? summarizeAlertRuleLatestCheck(latestEvaluation, r.spec.condition)
@@ -411,16 +413,13 @@ function AlertingRuleDetailPage() {
             />
           </div>
         </div>
-        {annotationSummary && (
-          <p className="text-sm text-muted-foreground">{annotationSummary}</p>
+        {description && (
+          <p className="max-w-prose text-sm text-muted-foreground">
+            {description}
+          </p>
         )}
-        {annotationDescription &&
-          annotationDescription !== annotationSummary && (
-            <p className="text-sm text-muted-foreground">
-              {annotationDescription}
-            </p>
-          )}
-        <RuleMetaLine rule={r} />
+        <RuleLabels rule={r} />
+        <RuleDefinitionFacts rule={r} />
         <AlertingSummaryCard ariaLabel="Rule activity summary">
           <AlertingSummaryStat
             label="Breaching instances"

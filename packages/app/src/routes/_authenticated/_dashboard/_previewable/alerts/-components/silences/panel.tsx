@@ -35,17 +35,17 @@ import {
   expireAlertingSilence,
 } from "@/data/alerting/silences/server";
 import type { AlertingMatcher, AlertingSilence } from "@/data/alerting/types";
-import { MatchersEditor, matchersAreScoped } from "../delivery/matchers-editor";
+import { AlertingConceptNote } from "../common/concept-note";
+import { AlertingDrawer } from "../common/drawer";
+import { alertingFormatTs } from "../common/format";
+import { Conditions } from "../common/labels";
+import { AlertingTableSkeleton } from "../common/placeholders";
 import {
-  AlertingConceptNote,
   AlertingQueryError,
-  AlertingTableSkeleton,
   alertingErrorMessage,
-  alertingFormatTs,
-} from "../shared/components";
-import { AlertingDrawer } from "../shared/drawer";
-import { Conditions } from "../shared/signal";
-import { AlertingStatusLabel } from "../shared/status";
+} from "../common/query-error";
+import { AlertingStatusLabel } from "../common/status";
+import { MatchersEditor, matchersAreScoped } from "../delivery/matchers-editor";
 
 /**
  * Imperative on purpose: the drawer resets its own form state inside

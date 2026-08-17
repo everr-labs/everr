@@ -3,8 +3,8 @@ import { createFileRoute } from "@tanstack/react-router";
 import { PageHeader } from "@/components/page-header";
 import { alertInstanceQueries } from "@/data/alerting/instances/queries";
 import { ruleQueries } from "@/data/alerting/rules/queries";
-import { AlertingQueryError } from "./-components/shared/components";
-import { AlertingRulesCard } from "./-components/triage/quiet-rules";
+import { AlertingQueryError } from "./-components/common/query-error";
+import { AlertingRulesCard } from "./-components/rules/list";
 
 // Stable identity for `?? EMPTY`: a fresh `[]` each render would churn every
 // memo keyed on it.

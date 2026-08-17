@@ -13,7 +13,7 @@ import { toast } from "sonner";
 import { deliveryQueries } from "@/data/alerting/delivery/queries";
 import { deleteAlertingInhibition } from "@/data/alerting/delivery/server";
 import type { AlertingInhibition } from "@/data/alerting/types";
-import { Conditions } from "../shared/signal";
+import { Conditions } from "../common/labels";
 import { InhibitionBuilder } from "./inhibition-builder";
 import {
   ConfirmDeleteAction,

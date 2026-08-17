@@ -427,28 +427,36 @@ describe("/alerts triage board", () => {
     expect(text.indexOf("zeta")).toBeLessThan(text.indexOf("alpha"));
   });
 
-  it("shows a firing rule's health and evaluation interval, and pauses it from the board", async () => {
+  it("shows a firing rule's health and evaluation interval", async () => {
     seedBoard();
-    mocks.pauseAlertingRule.mockResolvedValue({ ok: true });
 
-    const user = userEvent.setup();
     renderTriagePage();
 
     const board = await screen.findByRole("region", { name: "Active alerts" });
     await within(board).findByText("Flapping check");
     const group = withinRuleGroup(board, "Flapping check");
     expect(group.getByText("Every 30s")).toBeInTheDocument();
-
-    await user.click(group.getByRole("button", { name: "Pause" }));
-    const confirm = await screen.findByRole("alertdialog");
-    await user.click(
-      within(confirm).getByRole("button", { name: "Pause rule" }),
-    );
-
-    await waitFor(() => expect(mocks.pauseAlertingRule).toHaveBeenCalled());
   });
 
-  it("resolves a firing preview rule to its name and controls, and refreshes the list after pausing it, under ?preview=", async () => {
+  // Triage answers what is firing. Taking a rule out of evaluation is a
+  // destructive change and belongs to the pages that own the rule.
+  it("offers no way to stop evaluation from the board", async () => {
+    seedBoard();
+
+    renderTriagePage();
+
+    const board = await screen.findByRole("region", { name: "Active alerts" });
+    await within(board).findByText("Flapping check");
+    expect(
+      within(board).queryByRole("button", { name: /pause/i }),
+    ).not.toBeInTheDocument();
+    // Silencing only mutes the notification, so it stays.
+    expect(
+      within(board).getAllByRole("button", { name: /silence/i }).length,
+    ).toBeGreaterThan(0);
+  });
+
+  it("resolves a firing preview rule to its name under ?preview=", async () => {
     const previewRule = alertingRule({
       id: "eeeeeeee-1111-2222-3333-444444444444",
       name: "default/preview-check",
@@ -475,9 +483,7 @@ describe("/alerts triage board", () => {
     mocks.listAlertingReceivers.mockResolvedValue([]);
     mocks.listAlertingSilences.mockResolvedValue([]);
     mocks.listAlertingEventHistory.mockResolvedValue([]);
-    mocks.pauseAlertingRule.mockResolvedValue({ ok: true });
 
-    const user = userEvent.setup();
     renderTriagePage({ initialEntry: "/alerts/?preview=pr-1" });
 
     const board = await screen.findByRole("region", { name: "Active alerts" });
@@ -485,25 +491,6 @@ describe("/alerts triage board", () => {
     expect(within(board).queryByText("eeeeeeee")).not.toBeInTheDocument();
     const group = withinRuleGroup(board, "Preview check");
     expect(group.getByText("Every 30s")).toBeInTheDocument();
-
-    const callsBeforePause = mocks.listAlertingRules.mock.calls.length;
-    await user.click(group.getByRole("button", { name: "Pause" }));
-    const confirm = await screen.findByRole("alertdialog");
-    await user.click(
-      within(confirm).getByRole("button", { name: "Pause rule" }),
-    );
-
-    await waitFor(() => expect(mocks.pauseAlertingRule).toHaveBeenCalled());
-    // The invalidation after a pause must target the SAME preview scope the
-    // page is reading, or the refreshed list never lands.
-    await waitFor(() =>
-      expect(mocks.listAlertingRules.mock.calls.length).toBeGreaterThan(
-        callsBeforePause,
-      ),
-    );
-    expect(mocks.listAlertingRules).toHaveBeenLastCalledWith({
-      data: { preview: "pr-1" },
-    });
   });
 
   it("names each row's controls after the row, not 'instance'", async () => {

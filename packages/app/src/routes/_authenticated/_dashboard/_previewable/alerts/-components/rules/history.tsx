@@ -19,13 +19,11 @@ import type {
   AlertingRuleEvaluationSeries,
 } from "@/data/alerting/types";
 import type { AlertingLifecycleReason } from "@/data/alerting/vocabulary";
-import {
-  AlertingTableSkeleton,
-  alertingErrorMessage,
-  alertingFormatTs,
-} from "../shared/components";
-import { EvidenceChips, LabelSet } from "../shared/signal";
-import { AlertingStatusLabel } from "../shared/status";
+import { alertingFormatTs } from "../common/format";
+import { EvidenceChips, LabelSet } from "../common/labels";
+import { AlertingTableSkeleton } from "../common/placeholders";
+import { alertingErrorMessage } from "../common/query-error";
+import { AlertingStatusLabel } from "../common/status";
 import { AlertRuleEvaluationHistoryTable } from "./evaluation-details";
 
 // Keyed over AlertTransitionEventType, the exact set

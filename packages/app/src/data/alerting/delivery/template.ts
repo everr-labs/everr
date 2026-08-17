@@ -4,6 +4,29 @@ export function extractVariables(template: string): string[] {
   return [...template.matchAll(VARIABLE_RE)].map((match) => match[1]);
 }
 
+export type TemplateSegment =
+  | { kind: "text"; value: string }
+  /** `value` is the column name, without the `${}` around it. */
+  | { kind: "variable"; value: string };
+
+/** Splits a message template so a surface can mark its placeholders. */
+export function splitTemplate(template: string): TemplateSegment[] {
+  const segments: TemplateSegment[] = [];
+  let cursor = 0;
+  for (const match of template.matchAll(VARIABLE_RE)) {
+    const start = match.index;
+    if (start > cursor) {
+      segments.push({ kind: "text", value: template.slice(cursor, start) });
+    }
+    segments.push({ kind: "variable", value: match[1] });
+    cursor = start + match[0].length;
+  }
+  if (cursor < template.length) {
+    segments.push({ kind: "text", value: template.slice(cursor) });
+  }
+  return segments;
+}
+
 export function validateQueryTemplate(query: string): void {
   const [name] = extractVariables(query);
   if (name !== undefined) {

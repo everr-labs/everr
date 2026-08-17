@@ -22,19 +22,19 @@ import {
   resumeAlertingRule,
 } from "@/data/alerting/rules/server";
 import type { AlertingRuleView } from "@/data/alerting/types";
+import { alertingFormatTs } from "../common/format";
+import { AlertingRunbookLink } from "../common/navigation";
+import { AlertingPauseToggle } from "../common/pause-toggle";
 import {
   AlertingEmptyState,
-  AlertingPauseToggle,
-  AlertingRunbookLink,
   AlertingTableSkeleton,
-  alertingErrorMessage,
-  alertingFormatTs,
-} from "../shared/components";
+} from "../common/placeholders";
+import { alertingErrorMessage } from "../common/query-error";
 import {
   AlertingHealthHeart,
   AlertingSeverityBadge,
   AlertingStatusLabel,
-} from "../shared/status";
+} from "../common/status";
 
 /** How many rules render before Load more. */
 export const RULES_PAGE = 50;

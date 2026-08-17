@@ -39,11 +39,9 @@ import type {
   AlertingReceiver,
   AlertingRoute,
 } from "@/data/alerting/types";
-import {
-  AlertingDisclosureTrigger,
-  alertingErrorMessage,
-} from "../shared/components";
-import { Conditions } from "../shared/signal";
+import { AlertingDisclosureTrigger } from "../common/disclosure";
+import { Conditions } from "../common/labels";
+import { alertingErrorMessage } from "../common/query-error";
 import { RouteBuilder, routeOrderWarning } from "./route-builder";
 import { ChannelChip, RoutePreview } from "./route-preview";
 import {

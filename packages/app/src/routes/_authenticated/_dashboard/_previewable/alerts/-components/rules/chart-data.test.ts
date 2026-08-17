@@ -5,10 +5,12 @@ import {
   ALERT_RULE_CHART_SERIES_LIMIT,
   alertRuleChartPointTarget,
   alertRuleEvaluationOutcome,
+  alertRuleFiringPeriodCount,
   alertRuleRailBucketCount,
   buildAlertRuleChartModel,
   buildAlertRuleEvaluationRail,
   buildAlertRuleEvaluationSpans,
+  buildAlertRuleFiringPeriods,
   buildAlertRuleIncidentRail,
   summarizeAlertRuleLatestCheck,
 } from "./chart-data";
@@ -206,16 +208,27 @@ describe("alert rule evaluation states", () => {
     evidenceTruncated: false,
   });
 
-  it("reconstructs incident state backwards from current instances", () => {
-    const rail = buildAlertRuleIncidentRail(
-      [
-        railEvent("2026-08-06T12:01:00Z", "instance_fired"),
-        railEvent("2026-08-06T12:03:00Z", "instance_resolved"),
-      ],
-      [],
+  const railFor = (
+    events: Parameters<typeof buildAlertRuleFiringPeriods>[0],
+    currentFiring: string[] = [],
+    earliestEvidence: number | null = null,
+  ) =>
+    buildAlertRuleIncidentRail(
+      buildAlertRuleFiringPeriods(
+        events,
+        currentFiring,
+        domain,
+        earliestEvidence,
+      ),
       domain,
       4,
     );
+
+  it("reconstructs incident state backwards from current instances", () => {
+    const rail = railFor([
+      railEvent("2026-08-06T12:01:00Z", "instance_fired"),
+      railEvent("2026-08-06T12:03:00Z", "instance_resolved"),
+    ]);
 
     expect(rail.map((bucket) => bucket.activeInstances)).toEqual([0, 1, 1, 0]);
   });
@@ -224,15 +237,10 @@ describe("alert rule evaluation states", () => {
   // instance_resolved. Skipping the close erased the whole incident from the
   // rail: nothing re-added the instance on the backwards walk.
   it("keeps a fired-then-paused incident visible in the rail", () => {
-    const rail = buildAlertRuleIncidentRail(
-      [
-        railEvent("2026-08-06T12:01:00Z", "instance_fired"),
-        railEvent("2026-08-06T12:03:00Z", "instance_closed", "rule_paused"),
-      ],
-      [],
-      domain,
-      4,
-    );
+    const rail = railFor([
+      railEvent("2026-08-06T12:01:00Z", "instance_fired"),
+      railEvent("2026-08-06T12:03:00Z", "instance_closed", "rule_paused"),
+    ]);
 
     expect(rail.map((bucket) => bucket.activeInstances)).toEqual([0, 1, 1, 0]);
   });
@@ -240,16 +248,57 @@ describe("alert rule evaluation states", () => {
   // A pending_cleared close ended an instance that never fired; re-adding it
   // would paint it firing back to the domain edge.
   it("does not count a cleared pending instance as ever firing", () => {
-    const rail = buildAlertRuleIncidentRail(
+    const rail = railFor([
+      railEvent("2026-08-06T12:01:00Z", "instance_pending"),
+      railEvent("2026-08-06T12:03:00Z", "instance_closed", "pending_cleared"),
+    ]);
+
+    expect(rail.map((bucket) => bucket.activeInstances)).toEqual([0, 0, 0, 0]);
+  });
+
+  // Buckets are wider than the periods inside them at any real range: at 7
+  // days a bucket spans hours, so a rule that fires for three minutes lit a
+  // bucket only when it happened to straddle that bucket's midpoint.
+  it("shows a firing period shorter than the bucket it falls in", () => {
+    const rail = railFor([
+      railEvent("2026-08-06T12:01:35Z", "instance_fired"),
+      railEvent("2026-08-06T12:01:50Z", "instance_resolved"),
+    ]);
+
+    expect(rail.map((bucket) => bucket.activeInstances)).toEqual([0, 1, 0, 0]);
+  });
+
+  it("counts every firing period in a bucket, not the bucket", () => {
+    const periods = buildAlertRuleFiringPeriods(
       [
-        railEvent("2026-08-06T12:01:00Z", "instance_pending"),
-        railEvent("2026-08-06T12:03:00Z", "instance_closed", "pending_cleared"),
+        railEvent("2026-08-06T12:01:10Z", "instance_fired"),
+        railEvent("2026-08-06T12:01:20Z", "instance_resolved"),
+        railEvent("2026-08-06T12:01:40Z", "instance_fired"),
+        railEvent("2026-08-06T12:01:50Z", "instance_resolved"),
       ],
       [],
       domain,
-      4,
     );
 
-    expect(rail.map((bucket) => bucket.activeInstances)).toEqual([0, 0, 0, 0]);
+    expect(alertRuleFiringPeriodCount(periods)).toBe(2);
+    expect(
+      buildAlertRuleIncidentRail(periods, domain, 4).map(
+        (bucket) => bucket.activeInstances,
+      ),
+    ).toEqual([0, 1, 0, 0]);
+  });
+
+  // An open instance with no events reaches back past every window the rule
+  // was observed in. The rail must not claim firing where CHECKS is blank.
+  it("does not claim firing before the oldest evaluation in range", () => {
+    const rail = railFor([], ["api"], Date.parse("2026-08-06T12:03:00Z"));
+
+    expect(rail.map((bucket) => bucket.activeInstances)).toEqual([0, 0, 0, 1]);
+  });
+
+  it("carries an open instance across the range when evidence covers it", () => {
+    const rail = railFor([], ["api"], Date.parse("2026-08-06T12:00:00Z"));
+
+    expect(rail.map((bucket) => bucket.activeInstances)).toEqual([1, 1, 1, 1]);
   });
 });

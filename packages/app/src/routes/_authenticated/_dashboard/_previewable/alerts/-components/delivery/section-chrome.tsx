@@ -17,10 +17,12 @@ import { LoaderCircle, Trash2, TriangleAlert } from "lucide-react";
 import { useState } from "react";
 import {
   AlertingEmptyState,
-  AlertingQueryError,
   AlertingTableSkeleton,
+} from "../common/placeholders";
+import {
+  AlertingQueryError,
   alertingErrorMessage,
-} from "../shared/components";
+} from "../common/query-error";
 import type { ChannelIcon } from "./channel-meta";
 
 export function SectionBody({

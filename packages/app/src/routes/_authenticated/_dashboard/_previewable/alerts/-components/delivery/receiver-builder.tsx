@@ -10,13 +10,11 @@ import {
   updateAlertingReceiver,
 } from "@/data/alerting/delivery/server";
 import type { AlertingChannel, AlertingReceiver } from "@/data/alerting/types";
-import {
-  AlertingConceptNote,
-  alertingErrorMessage,
-  isDuplicateName,
-} from "../shared/components";
-import { AlertingDrawer } from "../shared/drawer";
+import { AlertingConceptNote } from "../common/concept-note";
+import { AlertingDrawer } from "../common/drawer";
+import { alertingErrorMessage } from "../common/query-error";
 import { CHANNEL_LABEL } from "./channel-meta";
+import { isDuplicateName } from "./name-validation";
 
 export function ReceiverBuilder({
   open,

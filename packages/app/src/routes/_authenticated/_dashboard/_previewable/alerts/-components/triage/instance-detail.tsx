@@ -13,9 +13,9 @@ import {
   TRIAGE_EVENT_RANGE,
   type TriageInstance,
 } from "@/data/alerting/triage/summary";
-import { alertingFormatTs } from "../shared/components";
-import { Conditions, EvidenceChips } from "../shared/signal";
-import { AlertingStatusDot } from "../shared/status";
+import { alertingFormatTs } from "../common/format";
+import { Conditions, EvidenceChips } from "../common/labels";
+import { AlertingStatusDot } from "../common/status";
 
 const TRIAGE_INSTANCE_EVENT_LIMIT = 100;
 

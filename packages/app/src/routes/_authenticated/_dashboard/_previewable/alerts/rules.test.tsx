@@ -7,12 +7,12 @@ import {
   Outlet,
   RouterProvider,
 } from "@tanstack/react-router";
-import { render, screen, within } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { alertingRuleViewFixture as alertingRule } from "@/data/alerting/test-fixtures";
 import type { AlertingAlert } from "@/data/alerting/types";
-import { RULES_PAGE } from "./-components/triage/quiet-rules";
+import { RULES_PAGE } from "./-components/rules/list";
 import { Route as AlertsRulesFileRoute } from "./rules";
 
 const mocks = vi.hoisted(() => ({
@@ -282,6 +282,49 @@ describe("/alerts/rules", () => {
       within(region).queryByRole("listitem", { name: "branch-only" }),
     ).not.toBeInTheDocument();
     expect(mocks.listAlertingRules).toHaveBeenCalledWith(undefined);
+  });
+
+  // Pausing lives here and on the rule detail page now, not on the triage
+  // board. The refresh after it must target the SAME preview scope the page
+  // is reading, or the updated list never lands.
+  it("refreshes within the current preview scope after pausing a rule", async () => {
+    const previewRule = alertingRule({
+      id: "eeeeeeee-1111-2222-3333-444444444444",
+      name: "default/preview-check",
+      previewId: "pr-1",
+      spec: {
+        ...alertingRule().spec,
+        annotations: { "everr.display.name": "Preview check" },
+      },
+    });
+    mocks.listAlertingRules.mockImplementation(async (opts) =>
+      opts?.data?.preview === "pr-1" ? [previewRule] : [],
+    );
+    mocks.listAlertingAlerts.mockResolvedValue([]);
+    mocks.pauseAlertingRule.mockResolvedValue({ ok: true });
+
+    const user = userEvent.setup();
+    renderRulesPage({ initialEntry: "/alerts/rules?preview=pr-1" });
+
+    const region = await screen.findByRole("region", { name: "All rules" });
+    await within(region).findByText("Preview check");
+    const callsBeforePause = mocks.listAlertingRules.mock.calls.length;
+
+    await user.click(within(region).getByRole("button", { name: "Pause" }));
+    const confirm = await screen.findByRole("alertdialog");
+    await user.click(
+      within(confirm).getByRole("button", { name: "Pause rule" }),
+    );
+
+    await waitFor(() => expect(mocks.pauseAlertingRule).toHaveBeenCalled());
+    await waitFor(() =>
+      expect(mocks.listAlertingRules.mock.calls.length).toBeGreaterThan(
+        callsBeforePause,
+      ),
+    );
+    expect(mocks.listAlertingRules).toHaveBeenLastCalledWith({
+      data: { preview: "pr-1" },
+    });
   });
 
   it("tells the reader how to define rules when there are none", async () => {

@@ -15,8 +15,8 @@ import {
   alertingTriageCounts,
   TRIAGE_EVENT_RANGE,
 } from "@/data/alerting/triage/summary";
+import { AlertingQueryError } from "./-components/common/query-error";
 import { AlertingPipelineStrip } from "./-components/delivery/pipeline-strip";
-import { AlertingQueryError } from "./-components/shared/components";
 import {
   SilenceCreateDrawer,
   type SilenceDrawerHandle,

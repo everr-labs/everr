@@ -30,7 +30,7 @@ import type {
   AlertingRuleCondition,
   AlertingRuleEvaluationSeries,
 } from "@/data/alerting/types";
-import { alertingFormatTs } from "../shared/components";
+import { alertingFormatTs } from "../common/format";
 import {
   buildAlertRuleChartModel,
   buildAlertRuleEvaluationSpans,

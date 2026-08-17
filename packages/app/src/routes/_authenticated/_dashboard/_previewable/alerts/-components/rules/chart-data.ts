@@ -69,6 +69,13 @@ export type AlertRuleIncidentBucket = {
   activeInstances: number;
 };
 
+/** One instance's firing stretch, clamped to the rendered domain. */
+export type AlertRuleFiringPeriod = {
+  start: number;
+  end: number;
+  fingerprint: string;
+};
+
 export type AlertRuleLatestCheckSummary = {
   total: number;
   breached: number;
@@ -233,13 +240,23 @@ function backwardsRailEffect(
   }
 }
 
-export function buildAlertRuleIncidentRail(
+/**
+ * Reconstructs when each instance was firing, as intervals rather than as a
+ * state sampled at one instant. Walking backwards, a "remove" is the moment
+ * the stretch above it began and an "add" is the moment a stretch below it
+ * ended, so each pair closes one interval.
+ *
+ * `earliestEvidence` is the oldest evaluation the range actually holds. An
+ * instance still open when the walk reaches the start of the range began
+ * before it, but the rail must not claim firing over a window the rule was
+ * never observed in, so the interval starts there and not at the domain edge.
+ */
+export function buildAlertRuleFiringPeriods(
   events: readonly AlertEventLogRow[],
   currentFiringFingerprints: readonly string[],
   domain: [number, number],
-  bucketCount = 60,
-): AlertRuleIncidentBucket[] {
-  const count = Math.max(1, bucketCount);
+  earliestEvidence: number | null = null,
+): AlertRuleFiringPeriod[] {
   const transitions = events
     .flatMap((event) => {
       const effect = backwardsRailEffect(event);
@@ -249,27 +266,76 @@ export function buildAlertRuleIncidentRail(
       return [{ fingerprint: event.instanceFingerprint, effect, timestamp }];
     })
     .sort((a, b) => b.timestamp - a.timestamp);
-  const active = new Set(currentFiringFingerprints);
-  let transitionIndex = 0;
-  const buckets: AlertRuleIncidentBucket[] = [];
-  for (let index = count - 1; index >= 0; index -= 1) {
-    const [start, end] = bucketBounds(domain, index, count);
-    const midpoint = start + (end - start) / 2;
-    while (
-      transitionIndex < transitions.length &&
-      transitions[transitionIndex].timestamp > midpoint
-    ) {
-      const event = transitions[transitionIndex];
-      if (event.effect === "remove") {
-        active.delete(event.fingerprint);
-      } else {
-        active.add(event.fingerprint);
-      }
-      transitionIndex += 1;
-    }
-    buckets.unshift({ start, end, activeInstances: active.size });
+
+  const openEnd = new Map<string, number>();
+  for (const fingerprint of currentFiringFingerprints) {
+    openEnd.set(fingerprint, domain[1]);
   }
-  return buckets;
+  const periods: AlertRuleFiringPeriod[] = [];
+  for (const { fingerprint, effect, timestamp } of transitions) {
+    if (effect === "remove") {
+      const end = openEnd.get(fingerprint);
+      if (end === undefined) continue;
+      periods.push({ start: timestamp, end, fingerprint });
+      openEnd.delete(fingerprint);
+    } else if (!openEnd.has(fingerprint)) {
+      openEnd.set(fingerprint, timestamp);
+    }
+  }
+  const floor = Math.max(domain[0], earliestEvidence ?? domain[0]);
+  for (const [fingerprint, end] of openEnd) {
+    periods.push({ start: floor, end, fingerprint });
+  }
+
+  return (
+    periods
+      .map((period) => ({
+        fingerprint: period.fingerprint,
+        start: Math.max(domain[0], period.start),
+        end: Math.min(domain[1], period.end),
+      }))
+      .filter((period) => period.end >= period.start)
+      // An instance that fired and resolved between two evaluations still
+      // happened; without a width it would land in no bucket at all.
+      .map((period) =>
+        period.end === period.start
+          ? { ...period, end: period.start + 1 }
+          : period,
+      )
+      .sort((a, b) => a.start - b.start)
+  );
+}
+
+/** How many separate times the rule was firing, overlapping instances merged. */
+export function alertRuleFiringPeriodCount(
+  periods: readonly AlertRuleFiringPeriod[],
+): number {
+  let count = 0;
+  let reach = Number.NEGATIVE_INFINITY;
+  for (const period of periods) {
+    if (period.start > reach) count += 1;
+    reach = Math.max(reach, period.end);
+  }
+  return count;
+}
+
+export function buildAlertRuleIncidentRail(
+  periods: readonly AlertRuleFiringPeriod[],
+  domain: [number, number],
+  bucketCount = 60,
+): AlertRuleIncidentBucket[] {
+  const count = Math.max(1, bucketCount);
+  return Array.from({ length: count }, (_, index) => {
+    const [start, end] = bucketBounds(domain, index, count);
+    // Any overlap, not a sample at one instant: at a 7 day range a bucket
+    // spans hours, so sampling would miss every period shorter than it.
+    const firing = new Set(
+      periods
+        .filter((period) => period.start < end && period.end > start)
+        .map((period) => period.fingerprint),
+    );
+    return { start, end, activeInstances: firing.size };
+  });
 }
 
 function labelsDisplay(labels: Record<string, string>): string {

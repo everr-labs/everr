@@ -13,7 +13,7 @@ import {
   ANN_DISPLAY_DESCRIPTION,
   ANN_DISPLAY_NAME,
   ANN_LABEL_PREFIX,
-  isReservedAnnotationKey,
+  partitionAnnotations,
 } from "../../resource-annotations";
 import type { AlertRuleYaml } from "./schema";
 import {
@@ -176,15 +176,7 @@ export function toAlertRuleDocument(
   const { project, slug } = parseResourceName(rule.name);
   const ann = rule.spec.annotations ?? {};
 
-  const labels: Record<string, string> = {};
-  const passthrough: Record<string, string> = {};
-  for (const [key, value] of Object.entries(ann)) {
-    if (key.startsWith(ANN_LABEL_PREFIX)) {
-      labels[key.slice(ANN_LABEL_PREFIX.length)] = value;
-    } else if (!isReservedAnnotationKey(key)) {
-      passthrough[key] = value;
-    }
-  }
+  const { labels, custom: passthrough } = partitionAnnotations(ann);
 
   const display =
     ann[ANN_DISPLAY_NAME] || ann[ANN_DISPLAY_DESCRIPTION]

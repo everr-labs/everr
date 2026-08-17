@@ -6,11 +6,9 @@ import { toast } from "sonner";
 import { deliveryQueries } from "@/data/alerting/delivery/queries";
 import { createAlertingInhibition } from "@/data/alerting/delivery/server";
 import type { AlertingMatcher } from "@/data/alerting/types";
-import {
-  AlertingConceptNote,
-  alertingErrorMessage,
-} from "../shared/components";
-import { AlertingDrawer } from "../shared/drawer";
+import { AlertingConceptNote } from "../common/concept-note";
+import { AlertingDrawer } from "../common/drawer";
+import { alertingErrorMessage } from "../common/query-error";
 import {
   alertingLabelKeyFilterOptions,
   MatchersEditor,

@@ -15,12 +15,14 @@ import type {
   AlertingRuleEvaluationPoint,
   AlertingRuleEvaluationSeries,
 } from "@/data/alerting/types";
-import { alertingFormatTs } from "../shared/components";
+import { alertingFormatTs } from "../common/format";
 import {
   type AlertRuleEvaluationOutcome,
   alertRuleEvaluationOutcome,
+  alertRuleFiringPeriodCount,
   alertRuleRailBucketCount,
   buildAlertRuleEvaluationRail,
+  buildAlertRuleFiringPeriods,
   buildAlertRuleIncidentRail,
 } from "./chart-data";
 
@@ -151,9 +153,24 @@ export function AlertRuleEvaluationDetails({
     domain,
     bucketCount,
   );
-  const incidentBuckets = buildAlertRuleIncidentRail(
+  // The oldest evaluation the range actually holds, so the firing rail can
+  // never assert coverage over a window the CHECKS rail leaves blank.
+  const earliestEvidence = evaluationSeries.points.reduce<number | null>(
+    (oldest, point) => {
+      const timestamp = Date.parse(point.t);
+      if (timestamp < domain[0] || timestamp > domain[1]) return oldest;
+      return oldest === null ? timestamp : Math.min(oldest, timestamp);
+    },
+    null,
+  );
+  const firingPeriods = buildAlertRuleFiringPeriods(
     events,
     currentFiringFingerprints,
+    domain,
+    earliestEvidence,
+  );
+  const incidentBuckets = buildAlertRuleIncidentRail(
+    firingPeriods,
     domain,
     bucketCount,
   );
@@ -173,7 +190,7 @@ export function AlertRuleEvaluationDetails({
     key: bucket.start,
     label:
       bucket.activeInstances > 0
-        ? `${bucket.activeInstances} firing instance${bucket.activeInstances === 1 ? "" : "s"}`
+        ? `${bucket.activeInstances} instance${bucket.activeInstances === 1 ? "" : "s"} firing in this window`
         : "No active alerts",
     window: formatWindow(bucket.start, bucket.end),
   }));
@@ -184,14 +201,9 @@ export function AlertRuleEvaluationDetails({
     },
     { healthy: 0, breached: 0, no_data: 0, failed: 0, unknown: 0 },
   );
-  const firingPeriodCount = incidentBuckets.reduce(
-    (periods, bucket, index) =>
-      bucket.activeInstances > 0 &&
-      (incidentBuckets[index - 1]?.activeInstances ?? 0) === 0
-        ? periods + 1
-        : periods,
-    0,
-  );
+  // Counted from the periods themselves: at a wide range one bucket can hold
+  // many, so counting bucket edges undercounts to 1.
+  const firingPeriodCount = alertRuleFiringPeriodCount(firingPeriods);
 
   return (
     <fieldset className="space-y-2">

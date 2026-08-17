@@ -65,16 +65,22 @@ export function AlertingStatusLabel({
   );
 }
 
+export function alertingSeverityTone(severity: string): Tone {
+  return severity === "critical"
+    ? "danger"
+    : severity === "warning"
+      ? "warning"
+      : severity === "info"
+        ? "info"
+        : "muted";
+}
+
 export function AlertingSeverityBadge({ severity }: { severity: string }) {
-  const tone: Tone =
-    severity === "critical"
-      ? "danger"
-      : severity === "warning"
-        ? "warning"
-        : severity === "info"
-          ? "info"
-          : "muted";
-  return <AlertingStatusLabel tone={tone}>{severity}</AlertingStatusLabel>;
+  return (
+    <AlertingStatusLabel tone={alertingSeverityTone(severity)}>
+      {severity}
+    </AlertingStatusLabel>
+  );
 }
 
 export function AlertingHealthHeart({

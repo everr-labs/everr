@@ -47,7 +47,7 @@ vi.mock("@/data/alerting/delivery/server", () => ({
 }));
 
 // `ReceiversSection` renders `ChannelChip` (route-preview.tsx), which imports
-// `Pill` from shared/signal.tsx and named exports from matchers-editor.tsx.
+// `Pill` from common/labels.tsx and named exports from matchers-editor.tsx.
 // Neither is called here, but both modules pull in the real rules and routing
 // repositories at import time, and those reach `db/client.ts`, which has no
 // database to talk to in this environment. Mock the two leaf modules so the

@@ -1,6 +1,9 @@
 import { parseTimestampAsUTC } from "@everr/ui/lib/timestamp";
 import { useEffect, useState } from "react";
 
+// Scheduling runs a little late routinely; only a sustained miss is news.
+const OVERDUE_GRACE_SECONDS = 30;
+
 export function formatEvaluationCountdown(totalSeconds: number): string {
   const seconds = Math.max(0, Math.ceil(totalSeconds));
   if (seconds < 60) return `${seconds}s`;
@@ -38,9 +41,13 @@ export function EvaluationCountdown({
   const remainingSeconds = (target.getTime() - now) / 1_000;
   return (
     <span suppressHydrationWarning>
-      {remainingSeconds <= 0
-        ? "Evaluation due"
-        : `Next in ${formatEvaluationCountdown(remainingSeconds)}`}
+      {remainingSeconds > 0
+        ? `Next in ${formatEvaluationCountdown(remainingSeconds)}`
+        : // A rule whose evaluations stopped an hour ago read the same as one
+          // due in a second. Past the jitter grace, say how far behind it is.
+          -remainingSeconds < OVERDUE_GRACE_SECONDS
+          ? "Evaluation due"
+          : `Overdue by ${formatEvaluationCountdown(-remainingSeconds)}`}
     </span>
   );
 }

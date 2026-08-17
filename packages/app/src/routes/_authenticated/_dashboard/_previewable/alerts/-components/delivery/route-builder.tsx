@@ -30,10 +30,8 @@ import type {
   AlertingReceiver,
   AlertingRoute,
 } from "@/data/alerting/types";
-import {
-  AlertingDisclosureTrigger,
-  alertingErrorMessage,
-} from "../shared/components";
+import { AlertingDisclosureTrigger } from "../common/disclosure";
+import { alertingErrorMessage } from "../common/query-error";
 import {
   alertingLabelKeyFilterOptions,
   MatchersEditor,

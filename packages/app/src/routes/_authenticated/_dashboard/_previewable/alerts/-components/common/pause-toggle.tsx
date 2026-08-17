@@ -1,0 +1,93 @@
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@everr/ui/components/alert-dialog";
+import { Button } from "@everr/ui/components/button";
+import { CirclePause, Play } from "lucide-react";
+
+type AlertingPausableKind = "alert rule";
+
+const PAUSE_CONSEQUENCE: Record<AlertingPausableKind, string> = {
+  "alert rule":
+    "It stops being evaluated, so it cannot fire or resolve while paused. Anything it would have caught passes unnoticed.",
+};
+
+/**
+ * Only the pause confirms: its cost is silent by construction (nothing fires
+ * to remind you later), while a resume shows its own effect.
+ */
+export function AlertingPauseToggle({
+  paused,
+  pending,
+  kind,
+  name,
+  variant = "ghost",
+  onToggle,
+}: {
+  paused: boolean;
+  pending: boolean;
+  kind: AlertingPausableKind;
+  name: string;
+  /** "ghost" in a table row, "outline" beside a page heading. */
+  variant?: "ghost" | "outline";
+  onToggle: () => void;
+}) {
+  const size = variant === "ghost" ? ("sm" as const) : undefined;
+
+  if (paused) {
+    return (
+      <Button
+        variant={variant}
+        size={size}
+        disabled={pending}
+        onClick={onToggle}
+      >
+        <Play data-icon="inline-start" />
+        Resume
+      </Button>
+    );
+  }
+
+  return (
+    <AlertDialog>
+      <AlertDialogTrigger
+        // Destructive beside a page heading, where it is the one pause on
+        // screen. In a row it repeats down the whole table and the red would
+        // outweigh the state column the table exists to show, so rows stay
+        // quiet and the confirm dialog carries the weight instead.
+        render={
+          <Button
+            variant={variant === "outline" ? "destructive" : variant}
+            size={size}
+            disabled={pending}
+          />
+        }
+      >
+        <CirclePause data-icon="inline-start" />
+        Pause
+      </AlertDialogTrigger>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Pause {name}?</AlertDialogTitle>
+          <AlertDialogDescription>
+            {PAUSE_CONSEQUENCE[kind]} Resuming picks evaluation back up from the
+            live data at that moment; the gap is not backfilled.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Cancel</AlertDialogCancel>
+          <AlertDialogAction variant="destructive" onClick={onToggle}>
+            Pause rule
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
+}

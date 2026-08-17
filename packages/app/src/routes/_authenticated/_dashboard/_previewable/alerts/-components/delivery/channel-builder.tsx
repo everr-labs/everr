@@ -18,18 +18,16 @@ import type {
   AlertingChannel,
   AlertingChannelConfig,
 } from "@/data/alerting/types";
-import {
-  AlertingConceptNote,
-  alertingErrorMessage,
-  isDuplicateName,
-} from "../shared/components";
-import { AlertingDrawer } from "../shared/drawer";
+import { AlertingConceptNote } from "../common/concept-note";
+import { AlertingDrawer } from "../common/drawer";
+import { alertingErrorMessage } from "../common/query-error";
 import {
   CHANNEL_ICON,
   CHANNEL_LABEL,
   CHANNEL_URL_FIELD,
   type ChannelType,
 } from "./channel-meta";
+import { isDuplicateName } from "./name-validation";
 
 /** Every per-type field kept side by side so switching the type never loses input. */
 type ConfigDraft = {

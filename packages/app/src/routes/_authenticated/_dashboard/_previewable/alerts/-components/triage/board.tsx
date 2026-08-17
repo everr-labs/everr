@@ -1,7 +1,6 @@
 // Every group here has at least one firing or pending instance: the route
 // filters via alertingActiveGroups. The full rule list, quiet ones included,
-// is a separate page (quiet-rules.tsx, despite the name, now renders every
-// rule, not only quiet ones).
+// is a separate page (rules/list.tsx).
 
 import { Button, buttonVariants } from "@everr/ui/components/button";
 import {
@@ -20,21 +19,12 @@ import {
 } from "@everr/ui/components/dropdown-menu";
 import { RelativeTime } from "@everr/ui/components/relative-time";
 import { cn } from "@everr/ui/lib/utils";
-import {
-  type UseMutationResult,
-  useMutation,
-  useQueryClient,
-} from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { BellOff, ChevronDown, ChevronRight } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
-import { ruleQueries } from "@/data/alerting/rules/queries";
 import { formatDurationSeconds } from "@/data/alerting/rules/resource/window";
-import {
-  pauseAlertingRule,
-  resumeAlertingRule,
-} from "@/data/alerting/rules/server";
 import { silenceQueries } from "@/data/alerting/silences/queries";
 import {
   createAlertingSilence,
@@ -50,22 +40,19 @@ import {
   type TriageGroup,
   type TriageRow,
 } from "@/data/alerting/triage/summary";
-import type { AlertingMatcher, AlertingRuleView } from "@/data/alerting/types";
+import type { AlertingMatcher } from "@/data/alerting/types";
 import { parseResourceName } from "@/data/as-code/identity";
-import {
-  AlertingPauseToggle,
-  AlertingRunbookLink,
-  AlertingTableSkeleton,
-  alertingErrorMessage,
-  alertingFormatTs,
-} from "../shared/components";
-import { LabelSet } from "../shared/signal";
+import { alertingFormatTs } from "../common/format";
+import { LabelSet } from "../common/labels";
+import { AlertingRunbookLink } from "../common/navigation";
+import { AlertingTableSkeleton } from "../common/placeholders";
+import { alertingErrorMessage } from "../common/query-error";
 import {
   AlertingHealthHeart,
   AlertingSeverityBadge,
   AlertingStatusDot,
-} from "../shared/status";
-import { AlertingSummaryLabel } from "../shared/summary-card";
+} from "../common/status";
+import { AlertingSummaryLabel } from "../common/summary-card";
 import type { SilenceDrawerOptions } from "../silences/panel";
 import { TriageDeliveryFact } from "./delivery-fact";
 import { TriageInstanceDetail } from "./instance-detail";
@@ -204,33 +191,6 @@ function GroupIdentity({ group }: { group: TriageGroup }) {
   );
 }
 
-/** A rule's pause control. Both the group header and the merged single-row
- *  path need it, and a group whose rule is gone (deleted while firing) has
- *  nothing to pause. */
-function RulePauseAction({
-  group,
-  mutation,
-}: {
-  group: TriageGroup;
-  mutation: UseMutationResult<
-    unknown,
-    Error,
-    { ruleId: string; rule: AlertingRuleView }
-  >;
-}) {
-  const rule = group.rule;
-  if (!rule) return null;
-  return (
-    <AlertingPauseToggle
-      paused={rule.paused}
-      pending={mutation.isPending && mutation.variables?.ruleId === rule.id}
-      kind="alert rule"
-      name={group.name}
-      onToggle={() => mutation.mutate({ ruleId: rule.id, rule })}
-    />
-  );
-}
-
 function InstanceRow({
   row,
   group,
@@ -240,7 +200,6 @@ function InstanceRow({
   onQuickSilence,
   silencePending,
   deliveryFact,
-  pauseAction,
   children,
 }: {
   row: TriageRow;
@@ -251,10 +210,6 @@ function InstanceRow({
   onQuickSilence: (hours: number) => void;
   silencePending: boolean;
   deliveryFact: React.ReactNode;
-  /** Rendered before the silence action when this row carries its group's
-   *  identity (the merged path), because then there is no group header to
-   *  hold it. */
-  pauseAction?: React.ReactNode;
   children?: React.ReactNode;
 }) {
   const inst = row.lead;
@@ -360,7 +315,6 @@ function InstanceRow({
           )}
         </span>
         <LineActions>
-          {pauseAction}
           {runbook && <AlertingRunbookLink {...runbook} name={group.name} />}
           <SilenceSplitAction
             label={silenceLabel}
@@ -497,17 +451,6 @@ export function TriageBoard({
     },
     onError: (e) => toast.error(alertingErrorMessage(e)),
   });
-  const togglePause = useMutation({
-    mutationFn: ({ rule }: { ruleId: string; rule: AlertingRuleView }) =>
-      rule.paused
-        ? resumeAlertingRule({ data: { ruleId: rule.id } })
-        : pauseAlertingRule({ data: { ruleId: rule.id } }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ruleQueries.rulesFamily });
-      toast.success("Rule updated");
-    },
-    onError: (e) => toast.error(alertingErrorMessage(e)),
-  });
 
   return (
     <div className="space-y-2">
@@ -614,14 +557,6 @@ export function TriageBoard({
                           channelsByReceiver={channelsByReceiver}
                         />
                       }
-                      pauseAction={
-                        merged ? (
-                          <RulePauseAction
-                            group={group}
-                            mutation={togglePause}
-                          />
-                        ) : null
-                      }
                     >
                       <TriageInstanceDetail instance={row.lead} />
                     </InstanceRow>
@@ -638,10 +573,6 @@ export function TriageBoard({
                         <div className="flex items-center gap-2 px-3 pt-2 pb-0.5">
                           <GroupIdentity group={group} />
                           <span className="ml-auto flex shrink-0 items-center">
-                            <RulePauseAction
-                              group={group}
-                              mutation={togglePause}
-                            />
                             <SilenceSplitAction
                               label={group.name}
                               pending={

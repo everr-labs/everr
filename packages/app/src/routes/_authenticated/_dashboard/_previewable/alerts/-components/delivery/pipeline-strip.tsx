@@ -3,7 +3,7 @@ import {
   AlertingBreachBreakdown,
   AlertingSummaryCard,
   AlertingSummaryStat,
-} from "../shared/summary-card";
+} from "../common/summary-card";
 
 export type AlertingPipelineFacts = {
   watchingRules: number;
