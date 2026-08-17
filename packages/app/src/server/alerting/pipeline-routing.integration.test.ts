@@ -191,15 +191,8 @@ describe("the alerting pipeline's routing", () => {
     //
     // With the receiver gone, `loadRoutes` (targeting.ts) drops the route at
     // its inner join before route selection ever sees it: that join is the
-    // only place this drop can happen. The later per-route receiver lookup
-    // in the same file (`if (!receiver) continue`) can never run for this
-    // row, or for any row: a route's receiver name always comes from a row
-    // the join already matched, the foreign key is composite on
-    // organization_id so that row is always in the route's own organization,
-    // and receiver names are unique per organization. This case does not
-    // exercise that lookup; it is unreachable, and ticket 47
-    // (todo/issues/alerting-surface/tickets/47-routing-asks-twice-for-what-it-has.md)
-    // tracks removing it.
+    // only place this drop can happen, and since ticket 47 it is also the
+    // only place the receiver is read at all.
     await harness.db.execute(
       sql.raw("ALTER TABLE alert_receivers DISABLE TRIGGER ALL"),
     );

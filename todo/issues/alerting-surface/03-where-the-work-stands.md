@@ -48,7 +48,7 @@ done. Phase 2 is additive. No ticket in it needs a migration or a table
 recreation. Until it lands, the surface is best effort rather than
 durable, and an absent row means unknown.
 
-The 27 open tickets group into six arcs. The first three are the ones
+The 24 open tickets group into six arcs. The first three are the ones
 that finish the design; the last three are hardening and the batch the
 integration suite turned up.
 
@@ -101,13 +101,14 @@ carries that evidence and the conditions that would reopen the pinned
 dialer, the sharpest being a hosted multi-tenant product, where the
 precedent is Grafana OnCall's CVE-2024-5526 rather than Grafana core.
 
-### Arc F: found by the integration suite (34 to 47, minus 36 and 45)
+### Arc F: found by the integration suite (34, 35, 37, 38, 39, 40, 43, 44, 46)
 
-Twelve tickets filed while building and testing the pipeline, none of
-them fixed in the engine. Tickets 39 and 41 already have characterization
-cases that pin today's answer, so whoever lands the fix flips the
-expectation rather than writing the case. 46 and 47 came out of the read
-of the flush claim and the routing lookup.
+Nine tickets filed while building and testing the pipeline and still open
+in the engine. Ticket 39 already has a characterization case that pins
+today's answer, so whoever lands the fix flips the expectation rather
+than writing the case. 46 came out of the read of the flush claim. The
+three smallest of the arc (41, 42 and 47) shipped before the release and
+are below.
 
 ## What shipped
 
@@ -395,3 +396,37 @@ mid-transaction, a claim lost to a concurrent cancel, a group-creation
 race, a query that rejects. A fake that answers a query the suite can
 drive for real is what this removed. Full app suite after it: 206 files,
 1650 tests, green.
+
+### The three smallest findings of Arc F, before the release (41, 42, 47)
+
+Picked out of the arc on 2026-08-17 on one test: small enough to land and
+verify in a sitting, with no decision left to take first. The other nine
+tickets of the arc each need a decision, a migration-free but multi-file
+change, or both, and none of them is a release gate.
+
+- **41**: a group parked on the idle sentinel wakes again. `nextGroupFlushAt`
+  read "no `last_flushed_at`" as "a first flush is already booked" and could
+  not tell that apart from the year-9999 park, so every later dispatch wrote
+  the sentinel back and the group never notified again. A parked group now
+  takes a group wait, the same answer a group nobody has seen gets, and a
+  booked first flush is still not postponed. The characterization case in
+  `pipeline-delivery.integration.test.ts` flipped to the wanted answer and
+  now also proves the group flushes when it comes due.
+- **42**: an evaluation error is sanitized on every path.
+  `recordEvaluationFailure` built one message for two stores and sanitized
+  only the ClickHouse copy, so `alert_definitions.last_error`, which the rule
+  detail page renders, kept the raw text. It now sanitizes once at the top,
+  the same boundary `failDelivery` settled. The rule is stated where the next
+  writer will see it, on `sanitizeAlertError` itself, with the difference
+  that matters: ClickHouse is append-only and `last_error` is overwritten, so
+  this buys one rule to copy, not permanence.
+- **47**: routing stopped asking twice for the receiver it had. `loadRoutes`
+  joined `alert_receivers` and kept only the name, and the dispatch loop
+  re-selected the row per matched route to read back the id the join already
+  held. The join now carries the id, `alertingSelectRoutes` is generic over
+  the loaded route so the extra field survives selection, and the
+  `!receiver` guard is gone rather than bypassed: the composite foreign key
+  and the unique index on `(organization_id, name)` made it unreachable. One
+  round trip per matched route per event leaves the dispatch path.
+
+450 alerting tests green, `tsc --noEmit` and `biome check` clean.

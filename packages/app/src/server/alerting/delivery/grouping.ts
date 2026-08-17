@@ -222,10 +222,18 @@ export function nextGroupFlushAt(
   groupWaitSeconds: number,
   groupIntervalSeconds: number,
 ): Date {
-  if (!existing) {
-    return new Date(now.getTime() + groupWaitSeconds * 1_000);
+  const firstArrival = new Date(now.getTime() + groupWaitSeconds * 1_000);
+  if (!existing) return firstArrival;
+  if (!existing.lastFlushedAt) {
+    // A booked first flush stands: later arrivals join it rather than
+    // postponing it. A group parked on the idle sentinel has no booking at
+    // all, and to an arriving event that is the same as a group nobody has
+    // seen. Reading the sentinel as a booking writes the year 9999 back on
+    // every later dispatch, and the group never notifies again.
+    return existing.nextFlushAt < IDLE_GROUP_FLUSH_AT
+      ? existing.nextFlushAt
+      : firstArrival;
   }
-  if (!existing.lastFlushedAt) return existing.nextFlushAt;
   return new Date(
     Math.min(
       existing.nextFlushAt.getTime(),

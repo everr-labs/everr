@@ -190,14 +190,11 @@ describe("the alerting pipeline's delivery", () => {
     expect(harness.fetchCalls()).toHaveLength(2);
   });
 
-  // Ticket 41 (todo/issues/alerting-surface/tickets/41-a-parked-group-wakes-again.md):
-  // a group parked on the idle sentinel with `last_flushed_at` still null
-  // keeps the sentinel forever, because `nextGroupFlushAt` (grouping.ts)
-  // treats "lastFlushedAt is null" as "a first flush is already booked" and
-  // does not tell that apart from "this group parked on the sentinel and
-  // never flushed at all". This case pins today's behaviour, it does not
-  // assert it is right.
-  it("today, a group parked on the idle sentinel keeps the sentinel when the next event reaches it (ticket 41)", async () => {
+  // A group parked on the idle sentinel with `last_flushed_at` still null has
+  // no flush booked, however much `nextGroupFlushAt` (grouping.ts) reads the
+  // sentinel like one. Without the distinction the sentinel survives every
+  // later dispatch and the group never notifies again.
+  it("gives a group parked on the idle sentinel a real schedule when the next event reaches it", async () => {
     await insertDirectRule(harness.db, {
       forSecs: 0,
       intervalSecs: FAST_TICK_SECS,
@@ -215,12 +212,11 @@ describe("the alerting pipeline's delivery", () => {
     expect(membersBefore).toHaveLength(1);
 
     // The empty-claim park in `flushAlertGroup` only runs when every
-    // member's journal row is gone by the time the flush runs, and ticket
-    // 41 itself documents that nothing reachable through the exported
-    // repository surface (pause, delete) produces that: pause and delete
-    // both leave `alert_events` rows in place. This reaches for the
-    // membership row directly to construct the state ticket 41 describes,
-    // the same way its own analysis says it would have to happen.
+    // member's journal row is gone by the time the flush runs, and nothing
+    // reachable through the exported repository surface produces that: pause
+    // and delete both leave `alert_events` rows in place. This reaches for
+    // the membership row directly to construct the state, which is the only
+    // way to reach it.
     await harness.db
       .delete(alertNotificationGroupEvents)
       .where(eq(alertNotificationGroupEvents.groupId, group.id));
@@ -232,16 +228,14 @@ describe("the alerting pipeline's delivery", () => {
       .select()
       .from(alertNotificationGroups)
       .where(eq(alertNotificationGroups.id, group.id));
-    // Confirms the real `flushAlertGroup` empty-claim branch ran (not a
-    // hand-built row): the sentinel is set and `lastFlushedAt` is still
-    // null, exactly the state ticket 41 describes.
+    // Confirms the real `flushAlertGroup` empty-claim branch ran, not a
+    // hand-built row: the sentinel is set and `lastFlushedAt` is still null.
     expect(parked.nextFlushAt).toEqual(IDLE_GROUP_FLUSH_AT);
     expect(parked.lastFlushedAt).toBeNull();
 
     // A brand new instance under the same rule dispatches into the same
     // group (group_by is [rule, severity], unchanged by a new service
-    // label): this is "the next event dispatched to it" ticket 41
-    // describes.
+    // label).
     harness.clickhouse.setSignal([
       { service: "svc-a", value: 42 },
       { service: "svc-b", value: 42 },
@@ -253,13 +247,16 @@ describe("the alerting pipeline's delivery", () => {
       .select()
       .from(alertNotificationGroups)
       .where(eq(alertNotificationGroups.id, group.id));
-    // What ticket 41 asks for is a fresh group wait here, the same answer a
-    // group that has never been seen gets. Today the sentinel survives the
-    // dispatch untouched, roughly 7973 years out, so the group never flushes
-    // again. Pinned as today's actual behaviour; this expectation becomes
-    // `dispatch time + ALERTING_DEFAULT_GROUP_WAIT_SECS` when ticket 41's
-    // one-line fix in `nextGroupFlushAt` (grouping.ts) lands.
-    expect(afterNextEvent.nextFlushAt).toEqual(IDLE_GROUP_FLUSH_AT);
+    // A first arrival at a group that has notified nobody waits a group
+    // wait, the same answer a group that has never been seen gets.
+    expect(afterNextEvent.nextFlushAt).toEqual(
+      new Date(Date.now() + ALERTING_DEFAULT_GROUP_WAIT_SECS * 1000),
+    );
+
+    // And the schedule is real: the group flushes when it comes due.
+    harness.advance(ALERTING_DEFAULT_GROUP_WAIT_SECS * 1000);
+    await harness.runDueJobs();
+    expect(harness.fetchCalls()).toHaveLength(1);
   });
 
   it("stops a permanently failing delivery after one attempt, at the max attempts", async () => {

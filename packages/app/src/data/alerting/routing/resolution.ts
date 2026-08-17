@@ -82,11 +82,11 @@ export function alertingDispatchLabels(
 }
 
 /** Select matching routes by priority, stopping at the first terminal route. */
-export function alertingSelectRoutes(
-  routes: AlertingRoute[],
+export function alertingSelectRoutes<T extends AlertingRoute>(
+  routes: T[],
   labels: Record<string, string>,
-): AlertingRoute[] {
-  const out: AlertingRoute[] = [];
+): T[] {
+  const out: T[] = [];
   for (const r of [...routes].sort((a, b) => a.priority - b.priority)) {
     if (!alertingRouteMatches(r.matchers, labels)) continue;
     out.push(r);

@@ -403,6 +403,28 @@ describe("the alerting pipeline's instance lifecycle", () => {
     ).toHaveLength(2);
   });
 
+  it("keeps a URL out of both copies of an evaluation error", async () => {
+    const rule = await insertRule(harness.db, {
+      intervalSecs: 60,
+      sql: "SELECT throwIf(1, 'refused by https://hooks.slack.com/services/T0/B0/secret')",
+    });
+
+    await harness.runDueJobs();
+
+    const [failed] = await harness.db
+      .select()
+      .from(alertDefinitions)
+      .where(eq(alertDefinitions.id, rule.id));
+    const [historyRow] = harness.clickhouse
+      .historyRows()
+      .filter((row) => row.event_type === "evaluation_failed");
+
+    for (const stored of [failed.lastError, historyRow.error]) {
+      expect(stored).toContain("[redacted-url]");
+      expect(stored).not.toContain("hooks.slack.com");
+    }
+  });
+
   it("pausing a degraded rule hands it back healthy on resume", async () => {
     const rule = await insertRule(harness.db, {
       intervalSecs: 60,

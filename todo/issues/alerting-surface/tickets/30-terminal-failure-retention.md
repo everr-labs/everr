@@ -31,7 +31,7 @@ both live, and both must survive the sweep.
 
 **Status:** ready-for-agent
 
-**Progress (2026-08-16):** Retention already distinguishes an active retry from a terminal one: `maintenance/cleanup.ts` keeps deliveries below `ALERT_DELIVERY_MAX_ATTEMPTS` and collects the rest, covered by `pipeline-retention.integration.test.ts`. The terminal processing-failure state and the never-waking hold (ticket 41) are still open.
+**Progress (2026-08-16):** Retention already distinguishes an active retry from a terminal one: `maintenance/cleanup.ts` keeps deliveries below `ALERT_DELIVERY_MAX_ATTEMPTS` and collects the rest, covered by `pipeline-retention.integration.test.ts`. The terminal processing-failure state and the never-waking hold described above are still open.
 
 - [ ] A terminal processing failure state and timestamp are recorded
 - [ ] A hold whose wake-up never arrives reaches the same terminal state

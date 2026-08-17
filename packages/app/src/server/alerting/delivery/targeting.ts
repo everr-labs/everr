@@ -40,15 +40,24 @@ export function alertEventDispatchLabels(
   });
 }
 
-async function loadRoutes(organizationId: string): Promise<AlertingRoute[]> {
+/** A loaded route carries the receiver's id beside its name. Selection and the
+ * route config speak in names, dispatch needs the id, and the join has both. */
+type DispatchRoute = AlertingRoute & { receiverId: string };
+
+async function loadRoutes(organizationId: string): Promise<DispatchRoute[]> {
   const rows = await db
-    .select({ route: alertRoutes, receiver: alertReceivers.name })
+    .select({
+      route: alertRoutes,
+      receiverId: alertReceivers.id,
+      receiver: alertReceivers.name,
+    })
     .from(alertRoutes)
     .innerJoin(alertReceivers, eq(alertRoutes.receiverId, alertReceivers.id))
     .where(eq(alertRoutes.organizationId, organizationId));
-  return rows.map(({ route, receiver }) => ({
+  return rows.map(({ route, receiverId, receiver }) => ({
     id: route.id,
     tenant: organizationId,
+    receiverId,
     receiver,
     priority: route.priority,
     ...route.config,
@@ -109,17 +118,6 @@ async function routedDispatchTargets(
   );
   const targets: DispatchTarget[] = [];
   for (const route of routes) {
-    const [receiver] = await db
-      .select()
-      .from(alertReceivers)
-      .where(
-        and(
-          eq(alertReceivers.organizationId, event.organizationId),
-          eq(alertReceivers.name, route.receiver),
-        ),
-      )
-      .limit(1);
-    if (!receiver) continue;
     const groupLabels = Object.fromEntries(
       (route.group_by ?? [...ALERTING_DEFAULT_GROUP_BY]).map((key) => [
         key,
@@ -127,9 +125,9 @@ async function routedDispatchTargets(
       ]),
     );
     targets.push({
-      receiverId: receiver.id,
+      receiverId: route.receiverId,
       directAlertDefinitionId: null,
-      groupKey: alertDeliveryHash(receiver.id, stableJson(groupLabels)),
+      groupKey: alertDeliveryHash(route.receiverId, stableJson(groupLabels)),
       groupLabels,
       groupWaitSeconds:
         route.group_wait_secs ?? ALERTING_DEFAULT_GROUP_WAIT_SECS,

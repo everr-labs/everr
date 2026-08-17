@@ -66,6 +66,17 @@ describe("nextGroupFlushAt", () => {
     ).toEqual(first);
   });
 
+  it("treats a group parked on the idle sentinel as a first arrival", () => {
+    expect(
+      nextGroupFlushAt(
+        { nextFlushAt: IDLE_GROUP_FLUSH_AT, lastFlushedAt: null },
+        now,
+        30,
+        300,
+      ).toISOString(),
+    ).toBe("2026-08-06T10:00:30.000Z");
+  });
+
   it("pulls a repeat forward to the earliest group interval", () => {
     expect(
       nextGroupFlushAt(

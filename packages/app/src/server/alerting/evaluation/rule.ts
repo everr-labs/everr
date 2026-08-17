@@ -42,7 +42,7 @@ import {
   recordAlertHistory,
   ZERO_UUID,
 } from "../history/clickhouse";
-import { buildAlertContextJson } from "../history/content";
+import { buildAlertContextJson, sanitizeAlertError } from "../history/content";
 import { boundEventEvidence, boundEvidence } from "./evidence";
 import { rowsToInstances } from "./instances";
 import { captureAlertEvaluationSamples } from "./samples";
@@ -272,7 +272,11 @@ async function recordEvaluationFailure(
   scheduledFor: Date,
   cause: unknown,
 ) {
-  const message = errorMessage(cause).slice(0, 8_000);
+  // One message reaches two stores, so it is sanitized here rather than at
+  // each write: the ClickHouse row already sanitized its copy, and a
+  // `last_error` the rule detail renders must not be the one that keeps the
+  // URL. Same boundary as failDelivery.
+  const message = sanitizeAlertError(errorMessage(cause)).slice(0, 8_000);
   const occurredAt = new Date();
   const applied = await db.transaction(async (tx) => {
     // Mirrors the success path's guard: a rule paused or deleted between the

@@ -192,9 +192,10 @@ describe("the alerting pipeline's capacity bounds", () => {
     // for). It does not hold for this member: its flushedAt is not null
     // (phase one already set it), so this flush's own pending count does
     // not see it as pending, and the group parks on the idle sentinel
-    // instead of scheduling a follow-up. This is a distinct finding from
-    // ticket 41 (a parked group with lastFlushedAt still null): here
-    // lastFlushedAt is set. Pinned here as today's actual behavior, not
+    // instead of scheduling a follow-up. The park ticket 41 fixed does not
+    // save this one: that fix reads the sentinel as "no flush booked" only
+    // while lastFlushedAt is null, and here it is set, so the group is not
+    // dead, it just has no follow-up. Pinned here as today's behavior, not
     // asserted as correct. Ticket 46 changes it, and this expectation
     // flips to a real follow-up time when it lands:
     // todo/issues/alerting-surface/tickets/46-a-capped-claim-leaves-no-one-behind.md

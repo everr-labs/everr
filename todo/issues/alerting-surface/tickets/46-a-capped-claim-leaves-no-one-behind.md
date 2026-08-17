@@ -30,8 +30,10 @@ carries a `flushed_at`, so the pending count is zero. With no
 `repeat_interval_seconds` set, `repeatAt` is null too, and
 `nextGroupFlushState` has nothing to schedule from: the group parks on
 `IDLE_GROUP_FLUSH_AT` and enqueues nothing. The leftover waits for unrelated
-new traffic. This is not ticket 41: `last_flushed_at` is set here, so the next
-arrival does take a real schedule and the group is not dead. What is lost is
+new traffic. The park ticket 41 fixed does not cover this one: that fix reads
+the sentinel as "no flush booked" only while `last_flushed_at` is null, and it
+is set here, so the next arrival does take a real schedule and the group is not
+dead. What is lost is
 the immediate follow-up, and with it the pruning pass. A membership row leaves
 a group only by being claimed once more and then not written back as active
 (`journal-reader.ts:49-53`), so a row belonging to a deactivated rule stays
