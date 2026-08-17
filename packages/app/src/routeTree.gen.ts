@@ -70,7 +70,6 @@ import { Route as AuthenticatedDashboardExploreTracesTraceIdRouteImport } from '
 import { Route as AuthenticatedDashboardPaddedCheckoutSuccessRouteImport } from './routes/_authenticated/_dashboard/_padded/checkout.success'
 import { Route as AuthenticatedDashboardPreviewableAlertsIndexRouteImport } from './routes/_authenticated/_dashboard/_previewable/alerts/index'
 import { Route as AuthenticatedDashboardPreviewableAlertsDeliveryRouteImport } from './routes/_authenticated/_dashboard/_previewable/alerts/delivery'
-import { Route as AuthenticatedDashboardPreviewableAlertsRulesRouteImport } from './routes/_authenticated/_dashboard/_previewable/alerts/rules'
 import { Route as AuthenticatedDashboardPreviewableDashboardsIndexRouteImport } from './routes/_authenticated/_dashboard/_previewable/dashboards/index'
 import { Route as AuthenticatedDashboardPreviewableRunbooksIndexRouteImport } from './routes/_authenticated/_dashboard/_previewable/runbooks/index'
 import { Route as AuthenticatedDashboardRunsTraceIdIndexRouteImport } from './routes/_authenticated/_dashboard/runs/$traceId/index'
@@ -414,12 +413,6 @@ const AuthenticatedDashboardPreviewableAlertsDeliveryRoute =
     path: '/delivery',
     getParentRoute: () => AuthenticatedDashboardPreviewableAlertsRoute,
   } as any)
-const AuthenticatedDashboardPreviewableAlertsRulesRoute =
-  AuthenticatedDashboardPreviewableAlertsRulesRouteImport.update({
-    id: '/rules',
-    path: '/rules',
-    getParentRoute: () => AuthenticatedDashboardPreviewableAlertsRoute,
-  } as any)
 const AuthenticatedDashboardPreviewableDashboardsIndexRoute =
   AuthenticatedDashboardPreviewableDashboardsIndexRouteImport.update({
     id: '/dashboards/',
@@ -570,7 +563,6 @@ export interface FileRoutesByFullPath {
   '/traces/$traceId': typeof AuthenticatedDashboardExploreTracesTraceIdRoute
   '/checkout/success': typeof AuthenticatedDashboardPaddedCheckoutSuccessRoute
   '/alerts/delivery': typeof AuthenticatedDashboardPreviewableAlertsDeliveryRoute
-  '/alerts/rules': typeof AuthenticatedDashboardPreviewableAlertsRulesRoute
   '/runs/$traceId/trace': typeof AuthenticatedDashboardRunsTraceIdTraceRoute
   '/api/cli/runs/$traceId/logs': typeof ApiCliRunsTraceIdLogsRoute
   '/alerts/': typeof AuthenticatedDashboardPreviewableAlertsIndexRoute
@@ -640,7 +632,6 @@ export interface FileRoutesByTo {
   '/traces/$traceId': typeof AuthenticatedDashboardExploreTracesTraceIdRoute
   '/checkout/success': typeof AuthenticatedDashboardPaddedCheckoutSuccessRoute
   '/alerts/delivery': typeof AuthenticatedDashboardPreviewableAlertsDeliveryRoute
-  '/alerts/rules': typeof AuthenticatedDashboardPreviewableAlertsRulesRoute
   '/runs/$traceId/trace': typeof AuthenticatedDashboardRunsTraceIdTraceRoute
   '/api/cli/runs/$traceId/logs': typeof ApiCliRunsTraceIdLogsRoute
   '/alerts': typeof AuthenticatedDashboardPreviewableAlertsIndexRoute
@@ -721,7 +712,6 @@ export interface FileRoutesById {
   '/_authenticated/_dashboard/_explore/traces_/$traceId': typeof AuthenticatedDashboardExploreTracesTraceIdRoute
   '/_authenticated/_dashboard/_padded/checkout/success': typeof AuthenticatedDashboardPaddedCheckoutSuccessRoute
   '/_authenticated/_dashboard/_previewable/alerts/delivery': typeof AuthenticatedDashboardPreviewableAlertsDeliveryRoute
-  '/_authenticated/_dashboard/_previewable/alerts/rules': typeof AuthenticatedDashboardPreviewableAlertsRulesRoute
   '/_authenticated/_dashboard/runs/$traceId/trace': typeof AuthenticatedDashboardRunsTraceIdTraceRoute
   '/api/cli/runs/$traceId/logs': typeof ApiCliRunsTraceIdLogsRoute
   '/_authenticated/_dashboard/_previewable/alerts/': typeof AuthenticatedDashboardPreviewableAlertsIndexRoute
@@ -796,7 +786,6 @@ export interface FileRouteTypes {
     | '/traces/$traceId'
     | '/checkout/success'
     | '/alerts/delivery'
-    | '/alerts/rules'
     | '/runs/$traceId/trace'
     | '/api/cli/runs/$traceId/logs'
     | '/alerts/'
@@ -866,7 +855,6 @@ export interface FileRouteTypes {
     | '/traces/$traceId'
     | '/checkout/success'
     | '/alerts/delivery'
-    | '/alerts/rules'
     | '/runs/$traceId/trace'
     | '/api/cli/runs/$traceId/logs'
     | '/alerts'
@@ -946,7 +934,6 @@ export interface FileRouteTypes {
     | '/_authenticated/_dashboard/_explore/traces_/$traceId'
     | '/_authenticated/_dashboard/_padded/checkout/success'
     | '/_authenticated/_dashboard/_previewable/alerts/delivery'
-    | '/_authenticated/_dashboard/_previewable/alerts/rules'
     | '/_authenticated/_dashboard/runs/$traceId/trace'
     | '/api/cli/runs/$traceId/logs'
     | '/_authenticated/_dashboard/_previewable/alerts/'
@@ -1414,13 +1401,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedDashboardPreviewableAlertsDeliveryRouteImport
       parentRoute: typeof AuthenticatedDashboardPreviewableAlertsRoute
     }
-    '/_authenticated/_dashboard/_previewable/alerts/rules': {
-      id: '/_authenticated/_dashboard/_previewable/alerts/rules'
-      path: '/rules'
-      fullPath: '/alerts/rules'
-      preLoaderRoute: typeof AuthenticatedDashboardPreviewableAlertsRulesRouteImport
-      parentRoute: typeof AuthenticatedDashboardPreviewableAlertsRoute
-    }
     '/_authenticated/_dashboard/_previewable/dashboards/': {
       id: '/_authenticated/_dashboard/_previewable/dashboards/'
       path: '/dashboards'
@@ -1666,7 +1646,6 @@ const AuthenticatedDashboardPaddedRouteWithChildren =
 
 interface AuthenticatedDashboardPreviewableAlertsRouteChildren {
   AuthenticatedDashboardPreviewableAlertsDeliveryRoute: typeof AuthenticatedDashboardPreviewableAlertsDeliveryRoute
-  AuthenticatedDashboardPreviewableAlertsRulesRoute: typeof AuthenticatedDashboardPreviewableAlertsRulesRoute
   AuthenticatedDashboardPreviewableAlertsIndexRoute: typeof AuthenticatedDashboardPreviewableAlertsIndexRoute
   AuthenticatedDashboardPreviewableAlertsRulesProjectSlugRoute: typeof AuthenticatedDashboardPreviewableAlertsRulesProjectSlugRoute
 }
@@ -1675,8 +1654,6 @@ const AuthenticatedDashboardPreviewableAlertsRouteChildren: AuthenticatedDashboa
   {
     AuthenticatedDashboardPreviewableAlertsDeliveryRoute:
       AuthenticatedDashboardPreviewableAlertsDeliveryRoute,
-    AuthenticatedDashboardPreviewableAlertsRulesRoute:
-      AuthenticatedDashboardPreviewableAlertsRulesRoute,
     AuthenticatedDashboardPreviewableAlertsIndexRoute:
       AuthenticatedDashboardPreviewableAlertsIndexRoute,
     AuthenticatedDashboardPreviewableAlertsRulesProjectSlugRoute:

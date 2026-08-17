@@ -17,7 +17,6 @@ import {
 import { alertingRuleViewFixture as alertingRule } from "./test-fixtures";
 
 const mocks = vi.hoisted(() => ({
-  listRulesPage: vi.fn(),
   listAlerts: vi.fn(),
   listAllRules: vi.fn(),
   getRuleEvaluationSeries: vi.fn(),
@@ -26,7 +25,6 @@ const mocks = vi.hoisted(() => ({
 
 // Mock each domain repository while keeping the server behavior real.
 vi.mock("./rules/repository", () => ({
-  listRulesPage: mocks.listRulesPage,
   listAllRules: mocks.listAllRules,
   getRuleEvaluationSeries: mocks.getRuleEvaluationSeries,
 }));
@@ -110,8 +108,9 @@ describe("getAlertingRuleByName", () => {
       data: { project: "default", slug: "checkout-latency", preview: "gio/x" },
     });
 
+    // Only reachable if the live-only filter (previewId: null) was skipped:
+    // that filter would have excluded r-prev before the scope check ran.
     expect(result.id).toBe("r-prev");
-    expect(mocks.listRulesPage).not.toHaveBeenCalled();
   });
 });
 

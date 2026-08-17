@@ -14,7 +14,6 @@ import type {
   AlertingRuleInputSchema,
   AlertingRuleSchema,
   AlertingRuleSpecSchema,
-  AlertingRulesPageSchema,
   AlertingRuleUpdateSchema,
   AlertingRuleViewSchema,
   AlertingSeveritySchema,
@@ -33,7 +32,6 @@ export type AlertingRule = z.infer<typeof AlertingRuleSchema>;
 export type AlertingRuleInput = z.infer<typeof AlertingRuleInputSchema>;
 export type AlertingRuleUpdate = z.infer<typeof AlertingRuleUpdateSchema>;
 export type AlertingRuleView = z.infer<typeof AlertingRuleViewSchema>;
-export type AlertingRulesPage = z.infer<typeof AlertingRulesPageSchema>;
 export type AlertingAlert = z.infer<typeof AlertingAlertSchema>;
 
 /** One bounded result-row sample captured from a successful rule evaluation. */

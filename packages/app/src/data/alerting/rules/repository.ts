@@ -191,7 +191,7 @@ function decodeOffset(cursor: string | undefined): number {
   return value;
 }
 
-export async function listRulesPage(
+async function listRulesPage(
   organizationId: string,
   opts: {
     limit?: number;

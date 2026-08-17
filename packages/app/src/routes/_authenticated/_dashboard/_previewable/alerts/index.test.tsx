@@ -19,6 +19,7 @@ import type {
   AlertingRuleView,
   AlertingSilence,
 } from "@/data/alerting/types";
+import { QUIET_RULES_PAGE } from "./-components/triage/quiet-rules";
 import { Route as AlertsIndexFileRoute } from "./index";
 
 const mocks = vi.hoisted(() => ({
@@ -30,6 +31,8 @@ const mocks = vi.hoisted(() => ({
   listAlertingEventHistory: vi.fn(),
   createAlertingSilence: vi.fn(),
   expireAlertingSilence: vi.fn(),
+  pauseAlertingRule: vi.fn(),
+  resumeAlertingRule: vi.fn(),
   toastSuccess: vi.fn(),
 }));
 
@@ -44,6 +47,8 @@ vi.mock("@/data/alerting/instances/server", () => ({
 }));
 vi.mock("@/data/alerting/rules/server", () => ({
   listAlertingRules: mocks.listAlertingRules,
+  pauseAlertingRule: mocks.pauseAlertingRule,
+  resumeAlertingRule: mocks.resumeAlertingRule,
 }));
 vi.mock("@/data/alerting/delivery/server", () => ({
   listAlertingRoutes: mocks.listAlertingRoutes,
@@ -82,6 +87,10 @@ function alertingRule(
 }
 
 function alertingAlert(overrides: Partial<AlertingAlert> = {}): AlertingAlert {
+  // The engine never sets `active_since` until an instance fires; a pending
+  // instance's timeline lives in `pending_since` instead. So a "pending"
+  // override must not inherit the firing defaults below.
+  const status = overrides.status ?? "firing";
   return {
     key: "rule-1:fp-1",
     fingerprint: "fp-1",
@@ -90,7 +99,14 @@ function alertingAlert(overrides: Partial<AlertingAlert> = {}): AlertingAlert {
     status: "firing",
     labels: { host: "web-1" },
     value: 42,
-    active_since: new Date(Date.now() - 300_000).toISOString(),
+    active_since:
+      status === "pending"
+        ? null
+        : new Date(Date.now() - 300_000).toISOString(),
+    pending_since:
+      status === "pending"
+        ? new Date(Date.now() - 120_000).toISOString()
+        : null,
     last_seen: new Date().toISOString(),
     absent_count: 0,
     ...overrides,
@@ -207,7 +223,8 @@ function seedBoard() {
   mocks.listAlertingEventHistory.mockResolvedValue([eventRow()]);
 }
 
-function renderTriagePage() {
+function renderTriagePage(options: { initialEntry?: string } = {}) {
+  const { initialEntry = "/alerts/" } = options;
   const rootRoute = createRootRoute({ component: Outlet });
   const authenticatedRoute = createRoute({
     getParentRoute: () => rootRoute,
@@ -229,7 +246,6 @@ function renderTriagePage() {
     path: "/",
     component: AlertsIndexFileRoute.options.component,
   });
-
   const routeTree = rootRoute.addChildren([
     authenticatedRoute.addChildren([
       dashboardRoute.addChildren([
@@ -238,7 +254,7 @@ function renderTriagePage() {
     ]),
   ]);
 
-  const history = createMemoryHistory({ initialEntries: ["/alerts/"] });
+  const history = createMemoryHistory({ initialEntries: [initialEntry] });
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
@@ -259,6 +275,15 @@ async function expandRowByLabel(
   await user.click(await screen.findByText(text));
 }
 
+/** Scopes queries to one rule's group section, since two seeded rules share
+ *  the same evaluation interval and would otherwise collide on its text. */
+function withinRuleGroup(board: HTMLElement, ruleName: string) {
+  const identity = within(board).getByText(ruleName);
+  const section = identity.closest("section");
+  if (!section) throw new Error(`No group section for "${ruleName}"`);
+  return within(section as HTMLElement);
+}
+
 beforeEach(() => {
   for (const fn of Object.values(mocks)) fn.mockReset();
   mocks.createAlertingSilence.mockResolvedValue(
@@ -269,7 +294,23 @@ beforeEach(() => {
 });
 
 describe("/alerts triage board", () => {
-  it("counts the whole pipeline but boards only what is firing", async () => {
+  it("heads the page as Alerts and offers the delivery link", async () => {
+    seedBoard();
+    renderTriagePage();
+
+    expect(
+      await screen.findByRole("heading", { level: 1, name: "Alerts" }),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Delivery" })).toHaveAttribute(
+      "href",
+      "/alerts/delivery",
+    );
+    expect(
+      screen.queryByRole("link", { name: /rules watching/i }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("counts the whole pipeline and boards what is firing or pending", async () => {
     renderTriagePage();
 
     const strip = await screen.findByRole("region", {
@@ -278,29 +319,197 @@ describe("/alerts triage board", () => {
     expect(strip).toHaveTextContent("2 rules");
     expect(strip).toHaveTextContent("1 active silence");
     expect(within(strip).queryAllByRole("button")).toHaveLength(0);
+    // The Watching cell is a plain count now: the rules it counts are listed
+    // further down this same page.
     expect(
-      within(strip).getByRole("link", { name: "2 rules" }),
-    ).toHaveAttribute("href", "/alerts/rules");
+      within(strip).queryByRole("link", { name: "2 rules" }),
+    ).not.toBeInTheDocument();
 
-    // The board is triage, not inventory: pending and inactive instances are
-    // counted by the strip but not listed.
-    const board = screen.getByRole("region", { name: "Triage board" });
+    // The board is triage, not inventory: inactive instances are counted by
+    // the strip but not listed. Pending instances are listed too, since a
+    // rule minutes from paging is the reader's business.
+    const board = screen.getByRole("region", { name: "Active alerts" });
     expect(within(board).getByText("Flapping check")).toBeInTheDocument();
     expect(within(board).getByText("api-errors")).toBeInTheDocument();
     expect(within(board).getByText("web-1")).toBeInTheDocument();
     expect(within(board).getByText("api")).toBeInTheDocument();
-    expect(within(board).queryByText("web-2")).toBeNull();
+    expect(within(board).getByText("web-2")).toBeInTheDocument();
     expect(within(board).queryByText("web-9")).toBeNull();
     // Every row names its state and duration together ("firing 12h"): the
-    // age cell is self-describing.
+    // age cell is self-describing, and pending rows say so too.
     expect(within(board).getAllByTitle(/^firing since /)).toHaveLength(2);
+    expect(within(board).getAllByTitle(/^pending since /)).toHaveLength(1);
     expect(within(board).getByText("silenced")).toBeInTheDocument();
+  });
+
+  it("keeps a firing group above an all-pending group of higher severity", async () => {
+    const warningRule = alertingRule({
+      id: "rule-2",
+      name: "default/api-errors",
+      spec: { ...alertingRule().spec, severity: "warning", annotations: {} },
+    });
+    mocks.listAlertingRules.mockResolvedValue([alertingRule(), warningRule]);
+    mocks.listAlertingAlerts.mockResolvedValue([
+      // rule-1 is critical, but its only instance is pending, not firing.
+      alertingAlert({
+        status: "pending",
+        labels: { host: "web-2" },
+        value: null,
+      }),
+      // rule-2 is only warning, but it is genuinely firing.
+      alertingAlert({
+        key: "fp-3",
+        rule: "rule-2",
+        labels: { svc: "api" },
+        value: 7,
+      }),
+    ]);
+    mocks.listAlertingRoutes.mockResolvedValue([alertingRoute()]);
+    mocks.listAlertingReceivers.mockResolvedValue([alertingReceiver()]);
+    mocks.listAlertingSilences.mockResolvedValue([]);
+    mocks.listAlertingEventHistory.mockResolvedValue([eventRow()]);
+
+    renderTriagePage();
+
+    const board = await screen.findByRole("region", { name: "Active alerts" });
+    await within(board).findByText("api-errors");
+    const text = board.textContent ?? "";
+    const firingGroupAt = text.indexOf("api-errors");
+    const pendingGroupAt = text.indexOf("Flapping check");
+    expect(firingGroupAt).toBeGreaterThanOrEqual(0);
+    expect(pendingGroupAt).toBeGreaterThan(firingGroupAt);
+  });
+
+  it("orders two pending groups by when they went pending, not by name", async () => {
+    // Both groups are pending and equally severe, so the tie breaks on how long
+    // each has been pending. The names are chosen so alphabetical order is the
+    // opposite of the expected order: a board that cannot read a pending
+    // instance's clock falls through to the name and puts "alpha" first.
+    const alpha = alertingRule({
+      id: "rule-alpha",
+      name: "default/alpha",
+      spec: { ...alertingRule().spec, annotations: {} },
+    });
+    const zeta = alertingRule({
+      id: "rule-zeta",
+      name: "default/zeta",
+      spec: { ...alertingRule().spec, annotations: {} },
+    });
+    mocks.listAlertingRules.mockResolvedValue([alpha, zeta]);
+    mocks.listAlertingAlerts.mockResolvedValue([
+      alertingAlert({
+        key: "alpha:fp",
+        rule: "rule-alpha",
+        status: "pending",
+        labels: { host: "web-a" },
+        value: null,
+        pending_since: new Date(Date.now() - 600_000).toISOString(),
+      }),
+      alertingAlert({
+        key: "zeta:fp",
+        rule: "rule-zeta",
+        status: "pending",
+        labels: { host: "web-z" },
+        value: null,
+        pending_since: new Date(Date.now() - 60_000).toISOString(),
+      }),
+    ]);
+    mocks.listAlertingRoutes.mockResolvedValue([alertingRoute()]);
+    mocks.listAlertingReceivers.mockResolvedValue([alertingReceiver()]);
+    mocks.listAlertingSilences.mockResolvedValue([]);
+    mocks.listAlertingEventHistory.mockResolvedValue([eventRow()]);
+
+    renderTriagePage();
+
+    const board = await screen.findByRole("region", { name: "Active alerts" });
+    await within(board).findByText("zeta");
+    const text = board.textContent ?? "";
+    expect(text.indexOf("zeta")).toBeLessThan(text.indexOf("alpha"));
+  });
+
+  it("shows a firing rule's health and evaluation interval, and pauses it from the board", async () => {
+    seedBoard();
+    mocks.pauseAlertingRule.mockResolvedValue({ ok: true });
+
+    const user = userEvent.setup();
+    renderTriagePage();
+
+    const board = await screen.findByRole("region", { name: "Active alerts" });
+    await within(board).findByText("Flapping check");
+    const group = withinRuleGroup(board, "Flapping check");
+    expect(group.getByText("Every 30s")).toBeInTheDocument();
+
+    await user.click(group.getByRole("button", { name: "Pause" }));
+    const confirm = await screen.findByRole("alertdialog");
+    await user.click(
+      within(confirm).getByRole("button", { name: "Pause rule" }),
+    );
+
+    await waitFor(() => expect(mocks.pauseAlertingRule).toHaveBeenCalled());
+  });
+
+  it("resolves a firing preview rule to its name and controls, and refreshes the list after pausing it, under ?preview=", async () => {
+    const previewRule = alertingRule({
+      id: "eeeeeeee-1111-2222-3333-444444444444",
+      name: "default/preview-check",
+      previewId: "pr-1",
+      spec: {
+        ...alertingRule().spec,
+        annotations: { "everr.display.name": "Preview check" },
+      },
+    });
+    // Only the preview-scoped call sees this rule: a page that forgot to ask
+    // for the preview scope would get nothing back, and the firing instance
+    // below would render as a bare id instead of "Preview check".
+    mocks.listAlertingRules.mockImplementation(async (opts) =>
+      opts?.data?.preview === "pr-1" ? [previewRule] : [],
+    );
+    mocks.listAlertingAlerts.mockResolvedValue([
+      alertingAlert({
+        key: "fp-preview",
+        fingerprint: "fp-preview",
+        rule: previewRule.id,
+      }),
+    ]);
+    mocks.listAlertingRoutes.mockResolvedValue([]);
+    mocks.listAlertingReceivers.mockResolvedValue([]);
+    mocks.listAlertingSilences.mockResolvedValue([]);
+    mocks.listAlertingEventHistory.mockResolvedValue([]);
+    mocks.pauseAlertingRule.mockResolvedValue({ ok: true });
+
+    const user = userEvent.setup();
+    renderTriagePage({ initialEntry: "/alerts/?preview=pr-1" });
+
+    const board = await screen.findByRole("region", { name: "Active alerts" });
+    await within(board).findByText("Preview check");
+    expect(within(board).queryByText("eeeeeeee")).not.toBeInTheDocument();
+    const group = withinRuleGroup(board, "Preview check");
+    expect(group.getByText("Every 30s")).toBeInTheDocument();
+
+    const callsBeforePause = mocks.listAlertingRules.mock.calls.length;
+    await user.click(group.getByRole("button", { name: "Pause" }));
+    const confirm = await screen.findByRole("alertdialog");
+    await user.click(
+      within(confirm).getByRole("button", { name: "Pause rule" }),
+    );
+
+    await waitFor(() => expect(mocks.pauseAlertingRule).toHaveBeenCalled());
+    // The invalidation after a pause must target the SAME preview scope the
+    // page is reading, or the refreshed list never lands.
+    await waitFor(() =>
+      expect(mocks.listAlertingRules.mock.calls.length).toBeGreaterThan(
+        callsBeforePause,
+      ),
+    );
+    expect(mocks.listAlertingRules).toHaveBeenLastCalledWith({
+      data: { preview: "pr-1" },
+    });
   });
 
   it("names each row's controls after the row, not 'instance'", async () => {
     const user = userEvent.setup();
     renderTriagePage();
-    const board = await screen.findByRole("region", { name: "Triage board" });
+    const board = await screen.findByRole("region", { name: "Active alerts" });
 
     // Several rows means several expanders; naming them all "Expand instance"
     // would make them indistinguishable to anyone listening rather than
@@ -335,9 +544,13 @@ describe("/alerts triage board", () => {
     renderTriagePage();
 
     await screen.findByTitle(/team-slack, pd/);
-    // Only host=web-1 matches the route. The other firing row is intentionally
-    // silenced, so it is not presented as a delivery failure.
-    expect(screen.queryByText("Not delivered")).toBeNull();
+    // Only host=web-1 matches the route. The svc=api row is intentionally
+    // silenced, so it must never read as a delivery failure, even though the
+    // pending host=web-2 row genuinely has nowhere to go once it fires.
+    const silencedRow = (
+      await screen.findByRole("button", { name: "Expand svc=api" })
+    ).closest("div") as HTMLElement;
+    expect(within(silencedRow).queryByText("Not delivered")).toBeNull();
     expect(screen.queryByRole("alert")).toBeNull();
   });
 
@@ -384,7 +597,9 @@ describe("/alerts triage board", () => {
 
     renderTriagePage();
 
-    await screen.findByText("Not delivered");
+    // Both the firing and the pending row lack a route, but the banner
+    // counts only the firing one: a pending alert has nothing to deliver yet.
+    expect(await screen.findAllByText("Not delivered")).toHaveLength(2);
     const warning = screen.getByRole("alert");
     expect(warning).toHaveTextContent("1 firing alert is not being delivered");
     expect(
@@ -403,10 +618,12 @@ describe("/alerts triage board", () => {
       screen.getByText("Fires when the flap condition holds."),
     ).toBeInTheDocument();
     // Two runbook paths on purpose: the row's shortcut icon and the
-    // expanded detail's full-width action.
-    expect(screen.getAllByRole("link", { name: /Runbook/ })).not.toHaveLength(
-      0,
-    );
+    // expanded detail's full-width action. Each is pinned by its own
+    // accessible name, so either one disappearing fails the assertion.
+    expect(
+      screen.getAllByRole("link", { name: "Open runbook for Flapping check" }),
+    ).not.toHaveLength(0);
+    expect(screen.getByRole("link", { name: "Runbook" })).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "View logs" })).toBeNull();
 
     // The page reads a single stored event, only to date-stamp the all-clear
@@ -525,11 +742,132 @@ describe("/alerts triage board", () => {
       await screen.findByText("Alerting service unavailable"),
     ).toBeInTheDocument();
     expect(
-      screen.queryByRole("region", { name: "Triage board" }),
+      screen.queryByRole("region", { name: "Active alerts" }),
     ).not.toBeInTheDocument();
     expect(
       screen.queryByRole("region", { name: "Alerting pipeline" }),
     ).not.toBeInTheDocument();
+  });
+
+  it("lists a rule with no active instance in the quiet band, and pages it", async () => {
+    seedBoard();
+    const overflow = 10;
+    const total = QUIET_RULES_PAGE + overflow;
+    mocks.listAlertingRules.mockResolvedValue([
+      alertingRule(),
+      ...Array.from({ length: total }, (_, i) =>
+        alertingRule({
+          id: `quiet-${String(i).padStart(2, "0")}`,
+          name: `default/quiet-${String(i).padStart(2, "0")}`,
+          spec: {
+            ...alertingRule().spec,
+            annotations: {
+              "everr.display.name": `Quiet ${String(i).padStart(2, "0")}`,
+            },
+          },
+        }),
+      ),
+    ]);
+    const firstHidden = `Quiet ${String(QUIET_RULES_PAGE).padStart(2, "0")}`;
+
+    const user = userEvent.setup();
+    renderTriagePage();
+
+    const quiet = await screen.findByRole("region", { name: "Quiet rules" });
+    // The card itself renders before its data does, so its first row must be
+    // awaited rather than read straight off the loading skeleton.
+    expect(await within(quiet).findByText("Quiet 00")).toBeInTheDocument();
+    expect(within(quiet).queryByText(firstHidden)).not.toBeInTheDocument();
+    expect(
+      within(quiet).getByText(`${overflow} more of ${total}`),
+    ).toBeInTheDocument();
+
+    await user.click(within(quiet).getByRole("button", { name: "Load more" }));
+
+    expect(within(quiet).getByText(firstHidden)).toBeInTheDocument();
+  });
+
+  it("labels a degraded rule and, under ?preview=, a preview rule too", async () => {
+    seedBoard();
+    const degraded = alertingRule({
+      id: "rule-degraded",
+      name: "default/degraded",
+      health: {
+        status: "degraded",
+        consecutive_failures: 3,
+        degraded_since: new Date().toISOString(),
+        last_error: "boom",
+        last_error_at: new Date().toISOString(),
+      },
+    });
+    const previewOnly = alertingRule({
+      id: "rule-preview",
+      name: "default/preview",
+      previewId: "pr-1",
+    });
+    // The real server only returns `previewOnly` when asked for that
+    // preview's scope: the fixture must react to the call args, or this
+    // test would pass even if the page never asked for the preview scope.
+    mocks.listAlertingRules.mockImplementation(async (opts) =>
+      opts?.data?.preview === "pr-1" ? [degraded, previewOnly] : [degraded],
+    );
+
+    renderTriagePage({ initialEntry: "/alerts/?preview=pr-1" });
+
+    const quiet = await screen.findByRole("region", { name: "Quiet rules" });
+    // The card renders before its data does, so the first label read must be
+    // awaited rather than taken off the loading skeleton.
+    expect(await within(quiet).findByText("Degraded")).toBeInTheDocument();
+    expect(within(quiet).getByText("Preview")).toBeInTheDocument();
+  });
+
+  it("keeps a preview-only rule out of the quiet band without ?preview=", async () => {
+    mocks.listAlertingAlerts.mockResolvedValue([]);
+    mocks.listAlertingSilences.mockResolvedValue([]);
+    const liveRule = alertingRule({ id: "rule-live", name: "default/live" });
+    const previewOnly = alertingRule({
+      id: "rule-preview",
+      name: "default/preview",
+      previewId: "pr-1",
+    });
+    mocks.listAlertingRules.mockImplementation(async (opts) =>
+      opts?.data?.preview === "pr-1" ? [liveRule, previewOnly] : [liveRule],
+    );
+
+    renderTriagePage();
+
+    const quiet = await screen.findByRole("region", { name: "Quiet rules" });
+    await within(quiet).findByText("Flapping check");
+    expect(within(quiet).queryByText("Preview")).not.toBeInTheDocument();
+    expect(mocks.listAlertingRules).toHaveBeenCalledWith(undefined);
+  });
+
+  it("tells the reader how to define rules when there are none", async () => {
+    seedBoard();
+    mocks.listAlertingRules.mockResolvedValue([]);
+    mocks.listAlertingAlerts.mockResolvedValue([]);
+
+    renderTriagePage();
+
+    const quiet = await screen.findByRole("region", { name: "Quiet rules" });
+    expect(await within(quiet).findByText("everr apply")).toBeInTheDocument();
+  });
+
+  it("says every rule is on the board when rules exist but none are quiet", async () => {
+    // seedBoard's two rules both have a firing or pending instance, so the
+    // quiet band is empty even though rules are defined: the reader must not
+    // be told to define rules they already have.
+    seedBoard();
+
+    renderTriagePage();
+
+    const quiet = await screen.findByRole("region", { name: "Quiet rules" });
+    expect(
+      await within(quiet).findByText(
+        /every rule has a firing or pending instance/i,
+      ),
+    ).toBeInTheDocument();
+    expect(within(quiet).queryByText("everr apply")).not.toBeInTheDocument();
   });
 
   it("says the event read failed rather than claiming no events", async () => {

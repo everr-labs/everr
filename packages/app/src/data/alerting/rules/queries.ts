@@ -1,42 +1,33 @@
 import type { TimeRange } from "@everr/ui/lib/time-range";
-import { infiniteQueryOptions, queryOptions } from "@tanstack/react-query";
+import { queryOptions } from "@tanstack/react-query";
 import { ALERTING_POLL_INTERVAL_MS } from "../polling";
 import {
   getAlertingRule,
   getAlertingRuleByName,
   getAlertingRuleEvaluationSeries,
   listAlertingRules,
-  listAlertingRulesPage,
 } from "./server";
 
-const RULES_PAGE_LIMIT = 100;
-
 export const ruleQueries = {
-  rules: () =>
-    queryOptions({
-      queryKey: ["alerting", "rules"] as const,
-      queryFn: () => listAlertingRules(),
-      refetchInterval: ALERTING_POLL_INTERVAL_MS,
-    }),
+  /**
+   * Every scope of the rules list, live and preview alike. Pausing a rule
+   * changes it in whichever scope shows it, so invalidation targets the whole
+   * family: a `rules()` key ends in its own scope, and a filter carrying one
+   * scope matches only that scope, never its siblings.
+   */
+  rulesFamily: ["alerting", "rules"] as const,
 
-  rulesPage: (preview?: string) =>
-    infiniteQueryOptions({
-      queryKey: ["alerting", "rules", "page", preview?.trim() || null] as const,
-      queryFn: ({ pageParam }) =>
-        listAlertingRulesPage({
-          data: {
-            limit: RULES_PAGE_LIMIT,
-            ...(pageParam ? { cursor: pageParam } : {}),
-            ...(preview?.trim() ? { preview: preview.trim() } : {}),
-          },
-        }),
-      initialPageParam: null as string | null,
-      getNextPageParam: (last) => last.next_cursor,
-      // A background refetch (no fetchMore direction) walks every already
-      // loaded page in sequence, not just the first, so polling here keeps
-      // organizations with many pages of rules live too.
+  rules: (preview?: string) => {
+    const previewName = preview?.trim() || null;
+    return queryOptions({
+      queryKey: ["alerting", "rules", previewName] as const,
+      queryFn: () =>
+        listAlertingRules(
+          previewName === null ? undefined : { data: { preview: previewName } },
+        ),
       refetchInterval: ALERTING_POLL_INTERVAL_MS,
-    }),
+    });
+  },
 
   rule: (ruleId: string) =>
     queryOptions({

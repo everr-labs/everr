@@ -108,13 +108,6 @@ export const AlertingRuleViewSchema = AlertingRuleSchema.extend({
   rollup: AlertingRuleRollupSchema,
 });
 
-// Paginated `GET /v1/rules`: `limit`/`cursor` opt into this envelope.
-// `next_cursor` is an opaque keyset token; null means the last page.
-export const AlertingRulesPageSchema = z.object({
-  items: z.array(AlertingRuleViewSchema),
-  next_cursor: z.string().nullable(),
-});
-
 export const AlertingAlertSchema = z.object({
   key: z.string(),
   fingerprint: z.string(),

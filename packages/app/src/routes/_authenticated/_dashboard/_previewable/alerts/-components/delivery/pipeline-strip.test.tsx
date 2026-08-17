@@ -49,15 +49,16 @@ describe("AlertingPipelineStrip", () => {
     expect(strip).toHaveTextContent("2 routes · 3 destinations");
   });
 
-  it("links the watched resource counts to their listings", async () => {
+  it("shows the watched rule count as plain text, not a link", async () => {
     renderStrip(<AlertingPipelineStrip facts={FACTS} />);
     const strip = await screen.findByRole("region", {
       name: "Alerting pipeline",
     });
 
+    // The rule inventory this cell used to link to is this same page now.
     expect(
-      within(strip).getByRole("link", { name: "4 rules" }),
-    ).toHaveAttribute("href", "/alerts/rules");
+      within(strip).queryByRole("link", { name: "4 rules" }),
+    ).not.toBeInTheDocument();
     expect(within(strip).queryAllByRole("button")).toHaveLength(0);
   });
 

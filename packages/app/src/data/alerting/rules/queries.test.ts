@@ -1,68 +1,42 @@
-import { InfiniteQueryObserver, QueryClient } from "@tanstack/react-query";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { ALERTING_POLL_INTERVAL_MS } from "../polling";
-
-const mocks = vi.hoisted(() => ({
-  listAlertingRulesPage: vi.fn(),
-}));
+import { QueryClient } from "@tanstack/react-query";
+import { describe, expect, it, vi } from "vitest";
+import { ruleQueries } from "./queries";
 
 vi.mock("./server", () => ({
   getAlertingRule: vi.fn(),
   getAlertingRuleByName: vi.fn(),
   getAlertingRuleEvaluationSeries: vi.fn(),
   listAlertingRules: vi.fn(),
-  listAlertingRulesPage: mocks.listAlertingRulesPage,
 }));
 
-import { ruleQueries } from "./queries";
+describe("the rules list across preview scopes", () => {
+  it("invalidates every scope from the family key", async () => {
+    const qc = new QueryClient();
+    qc.setQueryData(ruleQueries.rules().queryKey, []);
+    qc.setQueryData(ruleQueries.rules("pr-1").queryKey, []);
 
-describe("ruleQueries.rulesPage polling", () => {
-  let queryClient: QueryClient;
+    await qc.invalidateQueries({ queryKey: ruleQueries.rulesFamily });
 
-  beforeEach(() => {
-    vi.useFakeTimers();
-    queryClient = new QueryClient();
-    mocks.listAlertingRulesPage.mockReset();
+    expect(qc.getQueryState(ruleQueries.rules().queryKey)?.isInvalidated).toBe(
+      true,
+    );
+    expect(
+      qc.getQueryState(ruleQueries.rules("pr-1").queryKey)?.isInvalidated,
+    ).toBe(true);
   });
 
-  afterEach(() => {
-    queryClient.clear();
-    vi.useRealTimers();
-  });
+  it("cannot reach a sibling scope from one scope's own key", async () => {
+    // Pausing a rule changes it in every scope that lists it, which is why the
+    // pause mutations invalidate the family rather than the scope they read.
+    // A key carrying one scope compares that scope, so it stops at its own.
+    const qc = new QueryClient();
+    qc.setQueryData(ruleQueries.rules().queryKey, []);
+    qc.setQueryData(ruleQueries.rules("pr-1").queryKey, []);
 
-  it("keeps refreshing every loaded page for an organization with two pages", async () => {
-    // Cursor-keyed so every refetch of page 1 still chains to page 2,
-    // regardless of how many times the interval re-fetches both pages.
-    mocks.listAlertingRulesPage.mockImplementation(
-      async ({ data }: { data: { cursor?: string } }) =>
-        data.cursor
-          ? { items: [], next_cursor: null }
-          : { items: [], next_cursor: "cursor-1" },
-    );
+    await qc.invalidateQueries({ queryKey: ruleQueries.rules().queryKey });
 
-    const observer = new InfiniteQueryObserver(
-      queryClient,
-      ruleQueries.rulesPage(),
-    );
-
-    let resolveFirstFetch: () => void = () => {};
-    const firstFetch = new Promise<void>((resolve) => {
-      resolveFirstFetch = resolve;
-    });
-    const unsubscribe = observer.subscribe((result) => {
-      if (result.isSuccess) resolveFirstFetch();
-    });
-    await firstFetch;
-    expect(mocks.listAlertingRulesPage).toHaveBeenCalledTimes(1);
-
-    await observer.fetchNextPage();
-    expect(mocks.listAlertingRulesPage).toHaveBeenCalledTimes(2);
-    expect(observer.getCurrentResult().data?.pages).toHaveLength(2);
-
-    // Polling must not silently stop once a second page is loaded.
-    await vi.advanceTimersByTimeAsync(ALERTING_POLL_INTERVAL_MS);
-    expect(mocks.listAlertingRulesPage).toHaveBeenCalledTimes(4);
-
-    unsubscribe();
+    expect(
+      qc.getQueryState(ruleQueries.rules("pr-1").queryKey)?.isInvalidated,
+    ).toBe(false);
   });
 });

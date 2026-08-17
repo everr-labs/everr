@@ -306,7 +306,7 @@ function AlertingRuleDetailPage() {
         queryKey: ruleQueries.ruleByName(project, slug, preview).queryKey,
       });
       // The rules listing shows the paused state too.
-      qc.invalidateQueries({ queryKey: ruleQueries.rules().queryKey });
+      qc.invalidateQueries({ queryKey: ruleQueries.rulesFamily });
       toast.success("Rule updated");
     },
     onError: (e) => toast.error(alertingErrorMessage(e)),
@@ -374,7 +374,7 @@ function AlertingRuleDetailPage() {
       <header className="space-y-3">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="flex min-w-0 flex-wrap items-center gap-3">
-            <AlertingBackLink to="/alerts/rules" label="Back to rules" />
+            <AlertingBackLink to="/alerts" label="Back to alerts" />
             <h2 className="truncate text-base font-semibold">
               {identity.name}
             </h2>

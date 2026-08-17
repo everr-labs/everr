@@ -21,11 +21,23 @@ const SEVERITY_RANK: Record<string, number> = {
   warning: 1,
   info: 2,
 };
-const STATUS_RANK: Record<string, number> = {
+export const STATUS_RANK: Record<string, number> = {
   firing: 0,
   pending: 1,
   inactive: 2,
 };
+
+/**
+ * When an alert's current status began. The engine only ever writes
+ * `active_since` on the transition into firing (see `advanceAlertInstance`),
+ * so it stays null for the whole time an alert is pending; `pending_since` is
+ * the field that carries that start time until then.
+ */
+export function alertingStatusSince(alert: AlertingAlert): string | null {
+  return alert.status === "pending"
+    ? (alert.pending_since ?? null)
+    : alert.active_since;
+}
 
 function alertingRuleDisplayName(
   rule: AlertingRuleView | undefined,
@@ -107,13 +119,42 @@ export type TriageGroup = {
   rows: TriageRow[];
 };
 
-export function alertingFiringGroups(groups: TriageGroup[]): TriageGroup[] {
+/**
+ * Groups cut to the instances a reader has to act on: firing now, or pending
+ * and on the way. Pending belongs here rather than in the quiet band because
+ * a rule minutes from paging is the reader's business, and the row already
+ * carries its own status so the two never read as the same thing.
+ */
+export function alertingActiveGroups(groups: TriageGroup[]): TriageGroup[] {
   return groups
     .map((group) => ({
       ...group,
-      rows: group.rows.filter((row) => row.lead.alert.status === "firing"),
+      rows: group.rows.filter(
+        (row) =>
+          row.lead.alert.status === "firing" ||
+          row.lead.alert.status === "pending",
+      ),
     }))
     .filter((group) => group.rows.length > 0);
+}
+
+/**
+ * Rules with nothing on the board. Sorted by display name rather than by
+ * update time: this list is read by hunting for a rule you can name, and the
+ * update order only ever existed to serve keyset pagination.
+ */
+export function alertingQuietRules(
+  rules: AlertingRuleView[],
+  activeGroups: TriageGroup[],
+): AlertingRuleView[] {
+  const active = new Set(activeGroups.map((group) => group.sourceId));
+  return rules
+    .filter((rule) => !active.has(rule.id))
+    .sort((a, b) =>
+      alertingRuleDisplayName(a, a.id).localeCompare(
+        alertingRuleDisplayName(b, b.id),
+      ),
+    );
 }
 
 export function alertingResolveTriageInstances({

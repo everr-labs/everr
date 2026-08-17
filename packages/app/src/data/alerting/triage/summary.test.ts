@@ -7,7 +7,9 @@ import type {
 } from "@/data/alerting/types";
 import { alertingRuleViewFixture } from "../test-fixtures";
 import {
+  alertingActiveGroups,
   alertingGroupInstances,
+  alertingQuietRules,
   alertingResolveTriageInstances,
   alertingSourceScopedSilenceMatchers,
   alertingTriageCounts,
@@ -309,6 +311,77 @@ describe("alertingGroupInstances", () => {
     const [group] = alertingGroupInstances(instances);
     expect(group.name).toBe("unknown-".slice(0, 8));
     expect(group.rule).toBeUndefined();
+  });
+});
+
+describe("alertingActiveGroups", () => {
+  it("keeps firing and pending rows and drops inactive ones", () => {
+    const groups = alertingGroupInstances(
+      resolve({
+        alerts: [
+          alertingAlert({ key: "fp-firing", fingerprint: "fp-firing" }),
+          alertingAlert({
+            key: "fp-pending",
+            fingerprint: "fp-pending",
+            status: "pending",
+          }),
+          alertingAlert({
+            key: "fp-inactive",
+            fingerprint: "fp-inactive",
+            status: "inactive",
+          }),
+        ],
+      }),
+    );
+
+    const active = alertingActiveGroups(groups);
+
+    expect(active.flatMap((g) => g.rows.map((r) => r.lead.alert.key))).toEqual([
+      "fp-firing",
+      "fp-pending",
+    ]);
+  });
+
+  it("drops a rule whose every instance is inactive", () => {
+    const groups = alertingGroupInstances(
+      resolve({
+        alerts: [alertingAlert({ status: "inactive" })],
+      }),
+    );
+
+    expect(alertingActiveGroups(groups)).toEqual([]);
+  });
+});
+
+describe("alertingQuietRules", () => {
+  it("excludes rules with an active instance and sorts the rest by name", () => {
+    const zulu = alertingRule({
+      id: "rule-z",
+      name: "default/zulu",
+      spec: {
+        ...alertingRule().spec,
+        annotations: { "everr.display.name": "Zulu check" },
+      },
+    });
+    const alpha = alertingRule({
+      id: "rule-a",
+      name: "default/alpha",
+      spec: {
+        ...alertingRule().spec,
+        annotations: { "everr.display.name": "Alpha check" },
+      },
+    });
+    const firing = alertingRule({ id: "rule-1" });
+    const groups = alertingGroupInstances(
+      resolve({ alerts: [alertingAlert()], rules: [firing] }),
+    );
+
+    const quiet = alertingQuietRules(
+      [zulu, firing, alpha],
+      alertingActiveGroups(groups),
+    );
+
+    expect(quiet.map((r) => r.id)).toEqual(["rule-a", "rule-z"]);
   });
 });
 

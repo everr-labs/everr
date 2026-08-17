@@ -14,40 +14,23 @@ import { visibleRulesForPreview } from "./resource/preview-overlay";
 
 export const listAlertingRules = createAuthenticatedServerFn({
   method: "GET",
-}).handler(({ context: { session } }) =>
-  // Live scope: every caller (triage headline count, routing suggestions)
-  // reads this as "the organization's rules", not "including previews".
-  rules.listAllRules(alertingOrganizationId(session), { previewId: null }),
-);
-
-export const listAlertingRulesPage = createAuthenticatedServerFn({
-  method: "GET",
 })
-  .inputValidator(
-    z.object({
-      limit: z.number().int().min(1).max(500).default(100),
-      cursor: z.string().optional(),
-      preview: z.string().optional(),
-    }),
-  )
+  .inputValidator(z.object({ preview: z.string().optional() }).optional())
   .handler(async ({ data, context: { session } }) => {
     const org = alertingOrganizationId(session);
-    const preview = data.preview?.trim() || null;
+    const preview = data?.preview?.trim() || null;
+    // Live scope is the default: the delivery page and the signal chip want
+    // the organization's real rules, not previews. The alerts page opts into
+    // preview scope because its instances are preview-scoped too; a firing
+    // preview rule with no matching entry here would render as a bare id.
     if (preview === null) {
-      return rules.listRulesPage(org, {
-        limit: data.limit,
-        ...(data.cursor ? { cursor: data.cursor } : {}),
-        previewId: null,
-      });
+      return rules.listAllRules(org, { previewId: null });
     }
     const [definitions, scopes] = await Promise.all([
       rules.listAllRules(org),
       getPreviewScopes(org, preview),
     ]);
-    return {
-      items: visibleRulesForPreview(definitions, scopes),
-      next_cursor: null,
-    };
+    return visibleRulesForPreview(definitions, scopes);
   });
 
 export const getAlertingRule = createAuthenticatedServerFn({ method: "GET" })

@@ -1,5 +1,4 @@
 import { toneText } from "@everr/ui/components/tone";
-import { Link } from "@tanstack/react-router";
 import {
   AlertingBreachBreakdown,
   AlertingSummaryCard,
@@ -94,16 +93,11 @@ export function AlertingPipelineStrip({
         label="Watching"
         wrapValue
         value={
-          <Link
-            to="/alerts/rules"
-            className="rounded-sm underline-offset-2 outline-2 outline-dotted outline-transparent hover:underline focus-visible:outline-primary"
-          >
-            <MetricCount
-              value={facts.watchingRules}
-              singular="rule"
-              plural="rules"
-            />
-          </Link>
+          <MetricCount
+            value={facts.watchingRules}
+            singular="rule"
+            plural="rules"
+          />
         }
         detail={
           facts.pausedRules > 0 ? `${facts.pausedRules} paused` : "All enabled"
