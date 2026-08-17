@@ -19,9 +19,10 @@ export const listAlertingRules = createAuthenticatedServerFn({
   .handler(async ({ data, context: { session } }) => {
     const org = alertingOrganizationId(session);
     const preview = data?.preview?.trim() || null;
-    // Live scope is the default: the delivery page and the signal chip want
-    // the organization's real rules, not previews. The alerts page opts into
-    // preview scope because its instances are preview-scoped too; a firing
+    // Live scope is the default: the signal chip wants the organization's
+    // real rules, not previews, since it only resolves matcher labels for
+    // display. Routing, All Rules, and the alerts page opt into preview
+    // scope because their instances are preview-scoped too; a firing
     // preview rule with no matching entry here would render as a bare id.
     if (preview === null) {
       return rules.listAllRules(org, { previewId: null });
