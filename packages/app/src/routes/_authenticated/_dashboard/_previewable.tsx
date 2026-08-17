@@ -34,7 +34,17 @@ function PreviewableLayout() {
     if (data?.previewStatus !== undefined) status = data.previewStatus;
   }
 
-  const content = (
+  // A full-bleed route (explorer-style split panes) owns its scroll and
+  // touches the content edges; every other route gets the padded page scroll.
+  const fullBleed = matches.some(
+    (match) => match.routeId.startsWith(Route.id) && match.staticData.fullBleed,
+  );
+
+  const content = fullBleed ? (
+    <div className="min-h-0 flex-1">
+      <Outlet />
+    </div>
+  ) : (
     <div className="min-h-0 flex-1 overflow-auto overscroll-y-contain">
       <PageContainer>
         <Outlet />
