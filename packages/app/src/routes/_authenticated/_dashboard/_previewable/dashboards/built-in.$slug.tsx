@@ -59,32 +59,24 @@ function BuiltinDashboardPage() {
     : null;
 
   return (
-    <div className="flex min-w-0 flex-col gap-5">
-      <header className="flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
-        <div className="min-w-0 flex-1">
-          <h2 className="font-semibold text-xl tracking-tight">
-            {builtin.name}
-          </h2>
-          <p className="mt-1 max-w-prose text-foreground/80 text-sm/relaxed">
-            {builtin.description}
-          </p>
-          {readiness?.status === "needs-setup" && (
-            <p role="status" className="mt-2 text-muted-foreground text-xs">
-              Nothing to draw yet: this needs{" "}
-              <span className="font-mono text-foreground/90">
-                {readiness.missing.join(", ")}
-              </span>{" "}
-              in the selected time range.
-            </p>
-          )}
-        </div>
-        <div className="shrink-0">
-          <CreateFromBuiltin slug={builtin.id} name={builtin.name} />
-        </div>
-      </header>
+    <div className="flex min-w-0 flex-col gap-3">
+      {readiness?.status === "needs-setup" && (
+        <p role="status" className="text-muted-foreground text-xs">
+          Nothing to draw yet: this needs{" "}
+          <span className="font-mono text-foreground/90">
+            {readiness.missing.join(", ")}
+          </span>{" "}
+          in the selected time range.
+        </p>
+      )}
 
+      {/* No header of its own: the list row and breadcrumb already name the
+          built-in, so the page is the grid, and the fork action sits in the
+          variable toolbar like any other dashboard control. */}
       <DashboardProvider document={builtin.document}>
-        <DashboardGrid />
+        <DashboardGrid
+          actions={<CreateFromBuiltin slug={builtin.id} name={builtin.name} />}
+        />
       </DashboardProvider>
     </div>
   );
