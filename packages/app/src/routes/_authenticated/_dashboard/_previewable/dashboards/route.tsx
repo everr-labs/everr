@@ -56,7 +56,6 @@ function DashboardsLayout() {
         )}
       >
         <div className="flex min-h-0 flex-1 flex-col gap-3 md:w-80">
-          <h1 className="px-1 text-lg font-semibold">Dashboards</h1>
           <DashboardsList preview={preview} />
         </div>
       </aside>
