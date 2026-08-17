@@ -5,9 +5,11 @@ import { CreateFromBuiltin } from "@/components/dashboards/create-from-builtin";
 import { DashboardGrid } from "@/components/dashboards/dashboard-grid";
 import gridLayoutOverridesCSS from "@/components/dashboards/dashboard-grid.css?url";
 import { DashboardNotFound } from "@/components/dashboards/dashboard-not-found";
+import { FrameRestore } from "@/components/dashboards/frame-restore";
 import { DashboardProvider } from "@/components/dashboards/use-dashboard";
 import { evaluateBuiltin } from "@/data/dashboards/built-in/capabilities";
 import { getBuiltinDashboard } from "@/data/dashboards/built-in/catalog";
+import { recordLastViewed } from "@/data/dashboards/last-viewed";
 import { telemetryCapabilitiesOptions } from "@/data/dashboards/options";
 import { dashboardTimeDefaults } from "@/data/dashboards/time-defaults";
 import { useTimeRange } from "@/hooks/use-time-range";
@@ -33,6 +35,7 @@ export const Route = createFileRoute(
   loader: ({ params: { slug } }) => {
     const builtin = getBuiltinDashboard(slug);
     if (!builtin) throw notFound();
+    recordLastViewed({ slug });
     return {
       name: builtin.name,
       timeDefaults: dashboardTimeDefaults(builtin.document.spec),
@@ -62,11 +65,11 @@ function BuiltinDashboardPage() {
     <div className="flex min-w-0 flex-col gap-3">
       {readiness?.status === "needs-setup" && (
         <p role="status" className="text-muted-foreground text-xs">
-          Nothing to draw yet: this needs{" "}
+          Nothing to draw yet: the selected time range has{" "}
           <span className="font-mono text-foreground/90">
             {readiness.missing.join(", ")}
-          </span>{" "}
-          in the selected time range.
+          </span>
+          .
         </p>
       )}
 
@@ -75,6 +78,7 @@ function BuiltinDashboardPage() {
           variable toolbar like any other dashboard control. */}
       <DashboardProvider document={builtin.document}>
         <DashboardGrid
+          leading={<FrameRestore />}
           actions={<CreateFromBuiltin slug={builtin.id} name={builtin.name} />}
         />
       </DashboardProvider>
