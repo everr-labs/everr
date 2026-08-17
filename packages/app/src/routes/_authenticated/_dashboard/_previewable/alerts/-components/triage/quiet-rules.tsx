@@ -62,8 +62,6 @@ function ruleStatus(
   // into one label either.
   if (firing) return { label: "Firing", tone: "danger", muted: false };
   if (pending) return { label: "Pending", tone: "warning", muted: false };
-  if (rule.previewId !== null)
-    return { label: "Preview", tone: "muted", muted: true };
   if (rule.health.status === "degraded") {
     return { label: "Degraded", tone: "warning", muted: false };
   }

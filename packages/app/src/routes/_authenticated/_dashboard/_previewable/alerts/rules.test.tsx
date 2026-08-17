@@ -184,38 +184,40 @@ describe("/alerts/rules", () => {
     expect(within(region).getByText(firstHidden)).toBeInTheDocument();
   });
 
-  it("labels a degraded rule and, under ?preview=, a preview rule too", async () => {
-    const degraded = alertingRule({
-      id: "rule-degraded",
-      name: "default/degraded",
-      health: {
-        status: "degraded",
-        consecutive_failures: 3,
-        degraded_since: new Date().toISOString(),
-        last_error: "boom",
-        last_error_at: new Date().toISOString(),
-      },
-    });
-    const previewOnly = alertingRule({
-      id: "rule-preview",
-      name: "default/preview",
-      previewId: "pr-1",
-    });
-    // The real server only returns `previewOnly` when asked for that
-    // preview's scope: the fixture must react to the call args, or this
-    // test would pass even if the page never asked for the preview scope.
+  it("labels a degraded rule, on a preview branch as much as on live", async () => {
+    const degraded = (id: string, name: string, previewId: string | null) =>
+      alertingRule({
+        id,
+        name,
+        previewId,
+        health: {
+          status: "degraded",
+          consecutive_failures: 3,
+          degraded_since: new Date().toISOString(),
+          last_error: "boom",
+          last_error_at: new Date().toISOString(),
+        },
+      });
+    const live = degraded("rule-live", "default/live-rule", null);
+    const onBranch = degraded("rule-preview", "default/branch-rule", "pr-1");
+    // The real server only returns `onBranch` when asked for that preview's
+    // scope: the fixture must react to the call args, or this test would pass
+    // even if the page never asked for the preview scope.
     mocks.listAlertingRules.mockImplementation(async (opts) =>
-      opts?.data?.preview === "pr-1" ? [degraded, previewOnly] : [degraded],
+      opts?.data?.preview === "pr-1" ? [live, onBranch] : [live],
     );
     mocks.listAlertingAlerts.mockResolvedValue([]);
 
     renderRulesPage({ initialEntry: "/alerts/rules?preview=pr-1" });
 
-    const region = await screen.findByRole("region", { name: "All rules" });
     // The card renders before its data does, so the first label read must be
     // awaited rather than taken off the loading skeleton.
-    expect(await within(region).findByText("Degraded")).toBeInTheDocument();
-    expect(within(region).getByText("Preview")).toBeInTheDocument();
+    expect(await screen.findByText("live-rule")).toBeInTheDocument();
+    expect(ruleRow("live-rule")).toHaveTextContent("Degraded");
+    // A rule on a branch evaluates on schedule like any other, so its own
+    // state is what this column reports. That it belongs to the branch is the
+    // badge's business, and the badge does not displace the state.
+    expect(ruleRow("branch-rule")).toHaveTextContent("Degraded");
   });
 
   it("says how each rule differs from live under a preview", async () => {
@@ -265,7 +267,7 @@ describe("/alerts/rules", () => {
     const liveRule = alertingRule({ id: "rule-live", name: "default/live" });
     const previewOnly = alertingRule({
       id: "rule-preview",
-      name: "default/preview",
+      name: "default/branch-only",
       previewId: "pr-1",
     });
     mocks.listAlertingRules.mockImplementation(async (opts) =>
@@ -276,7 +278,9 @@ describe("/alerts/rules", () => {
 
     const region = await screen.findByRole("region", { name: "All rules" });
     await within(region).findByText("live");
-    expect(within(region).queryByText("Preview")).not.toBeInTheDocument();
+    expect(
+      within(region).queryByRole("listitem", { name: "branch-only" }),
+    ).not.toBeInTheDocument();
     expect(mocks.listAlertingRules).toHaveBeenCalledWith(undefined);
   });
 

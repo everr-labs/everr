@@ -70,14 +70,6 @@ function RuleStateLabel({ rule }: { rule: AlertingRuleView }) {
       </AlertingStatusLabel>
     );
   }
-  // A preview rule evaluates and records history, but never notifies.
-  if (rule.previewId !== null) {
-    return (
-      <AlertingStatusLabel tone="muted" muted>
-        Preview
-      </AlertingStatusLabel>
-    );
-  }
   if (rule.health.status === "degraded") {
     return <AlertingStatusLabel tone="danger">Degraded</AlertingStatusLabel>;
   }
