@@ -37,7 +37,6 @@ describe("queryClickHouseAlertEventLog", () => {
     expect(sql).toContain(
       "event_type IN ('instance_pending', 'instance_fired', 'instance_resolved', 'instance_closed')",
     );
-    expect(sql).toContain("is_live");
     // JSONEachRow renders a Map column natively; no toJSONString round-trip.
     expect(sql).toContain("instance_labels AS labels");
     expect(sql).not.toContain("toJSONString");
@@ -93,22 +92,44 @@ describe("queryClickHouseAlertEventLog", () => {
     expect(params).not.toHaveProperty("repoid");
   });
 
-  it("overlays selected Preview ids on live history", async () => {
+  // The same overlay the rules list applies: for a repo the branch covers, its
+  // events replace live's rather than joining them. A union would have shown
+  // the live rule's whole past beside a branch rule minutes old.
+  it("replaces a covered repo's live history with the preview's", async () => {
     await queryClickHouseAlertEventLog("org-1", {
       ...range,
       previewIds: ["preview-1", "preview-2"],
+      coveredRepoids: ["repo-1"],
       slugs: ["default/high-5xx"],
     });
 
     const [sql, , params] = mocks.query.mock.calls[0];
     expect(sql).toContain(
-      "(is_live OR preview_id IN {previewIds:Array(UUID)})",
+      "(preview_id IN {previewIds:Array(UUID)} OR (is_live AND repoid NOT IN {coveredRepoids:Array(String)}))",
     );
     expect(sql).toContain("slug IN {slugs:Array(String)}");
     expect(params).toMatchObject({
       previewIds: ["preview-1", "preview-2"],
+      coveredRepoids: ["repo-1"],
       slugs: ["default/high-5xx"],
     });
+  });
+
+  // Scoping by definition id already picks a side of the overlay. Asking again
+  // would drop every event a preview definition wrote, since none are live,
+  // which is what emptied the per-instance feed under `?preview=`.
+  it("leaves the live-or-preview question alone when a definition id is given", async () => {
+    await queryClickHouseAlertEventLog("org-1", {
+      ...range,
+      previewIds: ["preview-1"],
+      coveredRepoids: ["repo-1"],
+      sourceId: "019c3ab6-54d6-7e26-bc76-8cadd67542fb",
+    });
+
+    const [sql] = mocks.query.mock.calls[0];
+    expect(sql).toContain("alert_definition_id = {sourceId:UUID}");
+    expect(sql).not.toContain("is_live");
+    expect(sql).not.toContain("preview_id IN");
   });
 
   it("folds suppression and delivery outcomes onto their transition", async () => {

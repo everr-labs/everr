@@ -233,7 +233,11 @@ export const Route = createFileRoute(
         alertHistoryQueries.events(deps.timeRange, {
           slugs: alertingRuleHandles(rule),
           repoid: rule.repoid,
-          preview: deps.preview,
+          // The definition this page shows, which is what the signal chart
+          // plots too. Naming it keeps the two halves of the same card from
+          // telling different stories under `?preview=`, where the slug alone
+          // matches the live rule's history as well as the branch's.
+          sourceId: rule.id,
         }),
       ),
     ]);
@@ -275,8 +279,9 @@ function AlertingRuleDetailPage() {
   const eventHistory = useQuery({
     ...alertHistoryQueries.events(timeRange, {
       slugs: pendingScope,
-      ...(rule.data ? { repoid: rule.data.repoid } : {}),
-      preview,
+      ...(rule.data
+        ? { repoid: rule.data.repoid, sourceId: rule.data.id }
+        : {}),
     }),
     enabled: rule.data !== undefined,
     refetchInterval: false,

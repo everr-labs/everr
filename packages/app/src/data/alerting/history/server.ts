@@ -30,15 +30,16 @@ export const listAlertingEventHistory = createAuthenticatedServerFn({
       const { fromDate, toDate } = resolveTimeRange(timeRange);
       const org = alertingOrganizationId(session);
       const previewName = preview?.trim() || null;
-      const previewIds =
-        previewName === null
-          ? null
-          : (await getPreviewScopes(org, previewName)).map((scope) => scope.id);
+      const scopes =
+        previewName === null ? null : await getPreviewScopes(org, previewName);
       return queryClickHouseAlertEventLog(org, {
         limit,
         from: fromDate,
         to: toDate,
-        previewIds,
+        previewIds: scopes === null ? null : scopes.map((scope) => scope.id),
+        ...(scopes === null
+          ? {}
+          : { coveredRepoids: scopes.map((scope) => scope.repoid) }),
         ...(fingerprint !== undefined ? { fingerprint } : {}),
         ...(sourceId !== undefined ? { sourceId } : {}),
         ...(slugs !== undefined ? { slugs } : {}),

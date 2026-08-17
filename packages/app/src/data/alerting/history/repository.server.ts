@@ -151,8 +151,14 @@ export async function queryClickHouseAlertEventLog(
      * unset only for a caller that genuinely spans repos (org-wide history).
      */
     repoid?: string;
-    /** null selects live events; an array overlays those Preview ids on live. */
+    /** null selects live events; an array selects those previews' events. */
     previewIds: readonly string[] | null;
+    /**
+     * The repoids those previews cover. Live events of a covered repo are the
+     * ones the preview replaces, so they drop out: the rules that raised them
+     * are not the rules the branch would run.
+     */
+    coveredRepoids?: readonly string[];
   },
 ): Promise<AlertEventLogRow[]> {
   const filters = [
@@ -161,12 +167,17 @@ export async function queryClickHouseAlertEventLog(
     "event_time >= {from:DateTime64(3)}",
     "event_time <= {to:DateTime64(3)}",
   ];
-  // No previews asked for, and an empty list, mean the same thing: live only.
-  filters.push(
-    opts.previewIds?.length
-      ? "(is_live OR preview_id IN {previewIds:Array(UUID)})"
-      : "is_live",
-  );
+  // A definition id already names one side of the overlay, so scoping by it
+  // answers the live-or-preview question on its own. Asking again would drop
+  // every event a preview definition ever wrote, since none of them are live.
+  if (opts.sourceId === undefined) {
+    // No previews asked for, and an empty list, mean the same thing: live only.
+    filters.push(
+      opts.previewIds?.length
+        ? "(preview_id IN {previewIds:Array(UUID)} OR (is_live AND repoid NOT IN {coveredRepoids:Array(String)}))"
+        : "is_live",
+    );
+  }
   if (opts.repoid !== undefined) {
     filters.push("repoid = {repoid:String}");
   }
@@ -205,7 +216,12 @@ export async function queryClickHouseAlertEventLog(
       from: toClickHouseDateTime(opts.from),
       to: toClickHouseDateTime(opts.to),
       limit: opts.limit,
-      ...(opts.previewIds?.length ? { previewIds: [...opts.previewIds] } : {}),
+      ...(opts.previewIds?.length
+        ? {
+            previewIds: [...opts.previewIds],
+            coveredRepoids: [...(opts.coveredRepoids ?? [])],
+          }
+        : {}),
       ...(opts.repoid !== undefined ? { repoid: opts.repoid } : {}),
       ...(opts.fingerprint !== undefined
         ? { fingerprint: opts.fingerprint }
