@@ -20,7 +20,6 @@ import {
 import { Fragment, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { Span } from "@/data/runs/schemas";
 import { parseDuration } from "@/lib/formatting";
-import { FrameworkIcon } from "./framework-icon";
 import { SpanDetailPanel } from "./span-detail-panel";
 import {
   buildSpanTree,
@@ -32,14 +31,9 @@ import {
 interface TraceWaterfallProps {
   spans: Span[];
   traceId: string;
-  flakyTestNames?: string[];
 }
 
-export function TraceWaterfall({
-  spans,
-  traceId,
-  flakyTestNames,
-}: TraceWaterfallProps) {
+export function TraceWaterfall({ spans, traceId }: TraceWaterfallProps) {
   const [collapsedSpans, setCollapsedSpans] = useState<Set<string>>(new Set());
   const [selectedSpanId, setSelectedSpanId] = useState<string | null>(null);
   const [focusedSpanId, setFocusedSpanId] = useState<string | null>(null);
@@ -50,11 +44,6 @@ export function TraceWaterfall({
   const rightScrollRef = useRef<HTMLDivElement>(null);
   const scrollSourceRef = useRef<"left" | "right" | null>(null);
   const detailRef = useRef<HTMLDivElement>(null);
-
-  const flakySet = useMemo(
-    () => new Set(flakyTestNames ?? []),
-    [flakyTestNames],
-  );
 
   const minDuration = useMemo(
     () => parseDuration(durationFilter) ?? 0,
@@ -255,21 +244,9 @@ export function TraceWaterfall({
                           conclusion={span.conclusion}
                           className="size-3 shrink-0"
                         />
-                        <FrameworkIcon
-                          framework={span.testFramework}
-                          className="size-3 shrink-0"
-                        />
                         <span className="truncate text-xs font-medium">
                           {span.name}
                         </span>
-                        {span.testName &&
-                          flakySet.size > 0 &&
-                          (flakySet.has(span.testName) ||
-                            flakySet.has(span.name)) && (
-                            <span className="shrink-0 rounded bg-orange-950 px-1 py-0.5 text-[10px] font-medium text-orange-400">
-                              Flaky
-                            </span>
-                          )}
                       </button>
                       <button
                         type="button"

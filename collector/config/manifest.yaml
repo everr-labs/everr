@@ -11,8 +11,7 @@ exporters:
   - gomod: go.opentelemetry.io/collector/exporter/debugexporter v0.152.0
   - gomod: go.opentelemetry.io/collector/exporter/otlphttpexporter v0.152.0
 
-connectors:
-  - gomod: github.com/everr-labs/everr/collector/connector/testlogstotraces v0.152.0
+connectors: []
 
 processors:
   - gomod: go.opentelemetry.io/collector/processor/batchprocessor v0.152.0
@@ -36,6 +35,5 @@ providers:
 replaces:
   - github.com/everr-labs/everr/collector/receiver/githubactionsreceiver => ../receiver/githubactionsreceiver
   - github.com/everr-labs/everr/collector/internal/sharedcomponent => ../internal/sharedcomponent
-  - github.com/everr-labs/everr/collector/connector/testlogstotraces => ../connector/testlogstotraces
   - github.com/everr-labs/everr/collector/semconv => ../semconv
   - github.com/everr-labs/everr/collector/extension/everrapikeyauth => ../extension/everrapikeyauth

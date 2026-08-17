@@ -159,15 +159,6 @@ describe("TraceWaterfall", () => {
     expect(screen.getByRole("button", { name: /Zero/ })).toBeInTheDocument();
   });
 
-  it("renders a framework icon only for spans with a test framework", () => {
-    renderWaterfall([
-      makeSpan({ spanId: "t1", name: "TestAdd", testFramework: "vitest" }),
-      makeSpan({ spanId: "t2", name: "Job A" }),
-    ]);
-
-    expect(screen.getAllByRole("img")).toHaveLength(1);
-  });
-
   it("collapses and re-expands every parent span", async () => {
     const user = renderWaterfall(hierarchicalSpans);
 
@@ -261,43 +252,5 @@ describe("TraceWaterfall", () => {
     expect(
       screen.queryByRole("heading", { name: "Job A" }),
     ).not.toBeInTheDocument();
-  });
-
-  it("shows test attributes in the detail panel", async () => {
-    const user = renderWaterfall([
-      makeSpan({
-        spanId: "case",
-        name: "formats milliseconds",
-        testName: "src/test.ts > formatDuration > formats milliseconds",
-        testResult: "pass",
-        testFramework: "vitest",
-        testLanguage: "typescript",
-      }),
-      makeSpan({
-        spanId: "nested",
-        name: "Nested Suite",
-        testName: "src/test.ts > outer > inner",
-        testResult: "pass",
-        testFramework: "vitest",
-        isSuite: true,
-        isSubtest: true,
-      }),
-    ]);
-
-    await user.click(
-      screen.getByRole("button", { name: /formats milliseconds/ }),
-    );
-
-    const frameworkRow = screen.getByText("Framework").parentElement;
-    assert(frameworkRow instanceof HTMLElement, "expected framework row");
-    expect(within(frameworkRow).getByText("vitest")).toBeInTheDocument();
-
-    const languageRow = screen.getByText("Language").parentElement;
-    assert(languageRow instanceof HTMLElement, "expected language row");
-    expect(within(languageRow).getByText("typescript")).toBeInTheDocument();
-
-    await user.click(screen.getByRole("button", { name: /Nested Suite/ }));
-
-    expect(screen.getByText("Suite, Subtest")).toBeInTheDocument();
   });
 });

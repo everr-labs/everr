@@ -13,11 +13,6 @@ function normalizeConclusion(conclusion: string | null): string {
   return conclusion;
 }
 const MAX_LOG_PAGE_SIZE = 5000;
-const TEST_RESULT_TO_CONCLUSION: Record<string, string> = {
-  pass: "success",
-  fail: "failure",
-  skip: "skip",
-};
 
 function mapLogRow(row: { timestamp: string; body: string | null }): LogEntry {
   return {
@@ -410,22 +405,7 @@ export const getRunSpans = createAuthenticatedServerFn({
 				ResourceAttributes['cicd.pipeline.worker.labels'] as labels,
 				ResourceAttributes['cicd.pipeline.task.run.sender.login'] as sender,
 				ResourceAttributes['everr.github.workflow_job.run_attempt'] as runAttempt,
-				ResourceAttributes['cicd.pipeline.task.run.url.full'] as htmlUrl,
-				SpanAttributes['everr.test.name'] as testName,
-				SpanAttributes['everr.test.result'] as testResult,
-				SpanAttributes['everr.test.duration_seconds'] as testDuration,
-				coalesce(
-					nullIf(SpanAttributes['everr.test.framework'], ''),
-					nullIf(ResourceAttributes['everr.test.framework'], ''),
-					''
-				) as testFramework,
-				coalesce(
-					nullIf(SpanAttributes['everr.test.language'], ''),
-					nullIf(ResourceAttributes['everr.test.language'], ''),
-					''
-				) as testLanguage,
-				SpanAttributes['everr.test.is_subtest'] as isSubtest,
-				SpanAttributes['everr.test.is_suite'] as isSuite
+				ResourceAttributes['cicd.pipeline.task.run.url.full'] as htmlUrl
 			FROM traces
 			WHERE TraceId = {traceId:String}
 			ORDER BY startTime ASC
@@ -451,13 +431,6 @@ export const getRunSpans = createAuthenticatedServerFn({
       sender: string;
       runAttempt: string;
       htmlUrl: string;
-      testName: string;
-      testResult: string;
-      testDuration: string;
-      testFramework: string;
-      testLanguage: string;
-      isSubtest: string;
-      isSuite: string;
     }>(sql, { traceId });
 
     return result.map((row) => {
@@ -481,8 +454,7 @@ export const getRunSpans = createAuthenticatedServerFn({
         startTime: Number(row.startTime),
         endTime: Number(row.endTime),
         duration: Number(row.duration),
-        conclusion:
-          row.conclusion || TEST_RESULT_TO_CONCLUSION[row.testResult] || "",
+        conclusion: row.conclusion || "",
         jobId: row.jobId || undefined,
         jobName: row.jobName || undefined,
         stepNumber: row.stepNumber || undefined,
@@ -496,14 +468,6 @@ export const getRunSpans = createAuthenticatedServerFn({
         runAttempt:
           isJobSpan && row.runAttempt ? Number(row.runAttempt) : undefined,
         htmlUrl: isJobSpan && row.htmlUrl ? row.htmlUrl : undefined,
-        // Test-specific attributes
-        testName: row.testName || undefined,
-        testResult: row.testResult || undefined,
-        testDuration: row.testDuration ? Number(row.testDuration) : undefined,
-        testFramework: row.testFramework || undefined,
-        testLanguage: row.testLanguage || undefined,
-        isSubtest: row.isSubtest === "true" || row.isSubtest === "1",
-        isSuite: row.isSuite === "true" || row.isSuite === "1",
       };
     }) satisfies Span[];
   });
