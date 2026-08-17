@@ -466,19 +466,6 @@ function TemplatePreview({
             <p className="mt-0.5 text-muted-foreground text-xs">
               {template.category}
             </p>
-            <p className="mt-2 max-w-prose text-foreground/80 text-sm/relaxed">
-              {template.description}
-            </p>
-            {readiness?.status === "needs-setup" && (
-              <p role="status" className="mt-2 text-muted-foreground text-xs">
-                Nothing to draw yet: this needs{" "}
-                <span className="font-mono text-foreground/90">
-                  {readiness.missing.join(", ")}
-                </span>{" "}
-                in the selected time range. You can still create it and send the
-                data later.
-              </p>
-            )}
           </div>
         </div>
 
@@ -515,6 +502,22 @@ function TemplatePreview({
           </Button>
         </div>
       </header>
+
+      <div className="-mt-2">
+        <p className="max-w-prose text-foreground/80 text-sm/relaxed">
+          {template.description}
+        </p>
+        {readiness?.status === "needs-setup" && (
+          <p role="status" className="mt-2 text-muted-foreground text-xs">
+            Nothing to draw yet: this needs{" "}
+            <span className="font-mono text-foreground/90">
+              {readiness.missing.join(", ")}
+            </span>{" "}
+            in the selected time range. You can still create it and send the
+            data later.
+          </p>
+        )}
+      </div>
 
       {/*
         The real renderer on the real document — the same DashboardProvider and
