@@ -125,8 +125,7 @@ export function DashboardsList({ preview }: { preview?: string }) {
           !listQuery.isError &&
           dashboards.length === 0 && (
             <p className="px-1 py-1 text-muted-foreground text-xs">
-              None yet. Open a built-in below and create your own with your
-              assistant.
+              None yet. Open a built-in below and fork it with your assistant.
             </p>
           )}
         {dashboards.length > 0 && (

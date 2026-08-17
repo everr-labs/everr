@@ -32,7 +32,7 @@ export function CreateFromBuiltin({
     <Popover>
       <PopoverTrigger render={<Button size="sm" />}>
         <Sparkles className="size-3.5" />
-        Create your own with your assistant
+        Fork this dashboard
       </PopoverTrigger>
       <PopoverContent align="end" className="w-96">
         <p className="text-muted-foreground text-xs/relaxed">
