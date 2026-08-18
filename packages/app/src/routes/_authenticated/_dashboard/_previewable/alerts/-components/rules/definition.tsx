@@ -176,7 +176,6 @@ function annotationHref(value: string): string | null {
 
 export function RuleReferenceDisclosures({ rule }: { rule: AlertingRuleView }) {
   const [messageOpen, setMessageOpen] = useState(false);
-  const [sqlOpen, setSqlOpen] = useState(false);
   const [annotationsOpen, setAnnotationsOpen] = useState(false);
   const view = fromAlertingRule(rule);
   // Only what a person wrote. The rest of the stored annotations are generated
@@ -263,22 +262,6 @@ export function RuleReferenceDisclosures({ rule }: { rule: AlertingRuleView }) {
           </CollapsibleContent>
         </Collapsible>
       )}
-
-      <Collapsible open={sqlOpen} onOpenChange={setSqlOpen}>
-        <AlertingDisclosureTrigger open={sqlOpen}>
-          <span className="shrink-0 text-xs font-medium">Query</span>
-          {!sqlOpen && (
-            <span className="min-w-0 truncate font-mono text-[0.6875rem] text-muted-foreground">
-              {rule.spec.sql}
-            </span>
-          )}
-        </AlertingDisclosureTrigger>
-        <CollapsibleContent>
-          <pre className="mt-2 overflow-x-auto rounded-md bg-muted/50 p-3 font-mono text-xs ring-1 ring-foreground/10">
-            {rule.spec.sql}
-          </pre>
-        </CollapsibleContent>
-      </Collapsible>
     </div>
   );
 }

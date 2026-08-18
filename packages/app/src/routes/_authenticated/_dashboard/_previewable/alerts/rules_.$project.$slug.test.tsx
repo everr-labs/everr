@@ -172,8 +172,8 @@ describe("/alerts/rules/$project/$slug", () => {
     expect(screen.getByText("oncall-hook")).toBeInTheDocument();
     expect(screen.getByText(/value > 0/)).toBeInTheDocument();
     expect(screen.getByText(/grouped by host/)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /query/i })).toBeInTheDocument();
-    expect(screen.getByText("SELECT 1")).toBeInTheDocument();
+    // The SQL itself stays in the as-code definition, not on this page.
+    expect(screen.queryByText("SELECT 1")).not.toBeInTheDocument();
   });
 
   it("sends a rule with no direct channel to the routing tree", async () => {
