@@ -298,6 +298,105 @@ describe("the alerting pipeline's read path", () => {
     expect(series.points.every((point) => point.error === null)).toBe(true);
   });
 
+  it("reads one rule's series without the evaluations of the rule beside it", async () => {
+    // The read narrows on the sort-key prefix (repoid and the qualified slug)
+    // as well as the definition id. Both halves can fail quietly: too loose
+    // and a rule's chart shows its neighbour's evaluations, too tight and it
+    // shows nothing at all.
+    const mine = await insertRule(harness.db, {
+      slug: "mine",
+      forSecs: 0,
+      intervalSecs: 60,
+    });
+    // The neighbour's query fails, so its evaluations are distinguishable
+    // from this rule's in the series itself. Two healthy rules on the same
+    // cadence would bucket into the same shape, and a leak would hide.
+    const other = await insertRule(harness.db, {
+      slug: "other",
+      forSecs: 0,
+      intervalSecs: 60,
+      sql: "SELECT * FROM app.no_such_table",
+    });
+    harness.clickhouse.setSignal(BREACHING);
+    await harness.runDueJobs();
+    harness.advance(60_000);
+    await harness.runDueJobs();
+
+    const { getRuleEvaluationSeries } = await import(
+      "@/data/alerting/rules/repository"
+    );
+    const mineSeries = await getRuleEvaluationSeries(TEST_ORG, mine.id, {
+      ...WINDOW,
+      points: 100,
+    });
+    const otherSeries = await getRuleEvaluationSeries(TEST_ORG, other.id, {
+      ...WINDOW,
+      points: 100,
+    });
+
+    expect(mineSeries.points.length).toBeGreaterThan(0);
+    expect(mineSeries.points.every((point) => point.error === null)).toBe(true);
+    expect(otherSeries.points.length).toBeGreaterThan(0);
+    expect(otherSeries.points.some((point) => point.error !== null)).toBe(true);
+  });
+
+  it("keeps an evaluation that ran late inside the window it was due in", async () => {
+    // The caller asks in scheduled time, but the read prunes on event_time,
+    // which is when the row was written. A rule that runs late writes its row
+    // outside the asked-for window, and the slack on the event_time bound is
+    // the only thing that keeps it readable.
+    const lateBy = 6 * 60 * 60 * 1_000;
+    const dueAt = new Date(Date.now() - lateBy);
+    const rule = await insertRule(harness.db, {
+      forSecs: 0,
+      intervalSecs: 60,
+      nextEvaluationAt: dueAt,
+    });
+    harness.clickhouse.setSignal(BREACHING);
+    await harness.runDueJobs();
+
+    const { getRuleEvaluationSeries } = await import(
+      "@/data/alerting/rules/repository"
+    );
+    const series = await getRuleEvaluationSeries(TEST_ORG, rule.id, {
+      from: new Date(dueAt.getTime() - 60 * 60 * 1_000),
+      to: new Date(dueAt.getTime() + 60 * 60 * 1_000),
+      points: 100,
+    });
+
+    expect(series.points.length).toBeGreaterThan(0);
+  });
+
+  it("folds outcomes onto the transitions that head a chain, and onto no others", async () => {
+    // Pending and closed rows write a zero chain id, so they can never carry
+    // an outcome. The fold asks only for the ids that can, which must not
+    // cost the fired row its delivery.
+    await insertDirectRule(harness.db, {
+      forSecs: 60,
+      intervalSecs: 60,
+      channelType: "webhook",
+    });
+    harness.clickhouse.setSignal(BREACHING);
+    await harness.runDueJobs(); // pending: inside the for window
+    harness.advance(60_000);
+    await harness.fireAndFlush(); // fires, then delivers
+
+    const { queryClickHouseAlertEventLog } = await import(
+      "@/data/alerting/history/repository.server"
+    );
+    const rows = await queryClickHouseAlertEventLog(TEST_ORG, {
+      limit: 100,
+      ...WINDOW,
+      previewIds: null,
+    });
+
+    const pending = rows.find((row) => row.eventType === "instance_pending");
+    const fired = rows.find((row) => row.eventType === "instance_fired");
+    expect(pending?.deliveryTargets).toEqual([]);
+    expect(pending?.silenced).toBe(false);
+    expect(fired?.deliveryTargets.length).toBeGreaterThan(0);
+  });
+
   it("returns nothing for an org that wrote nothing, without reading another's rows", async () => {
     await insertRule(harness.db, { forSecs: 0 });
     harness.clickhouse.setSignal(BREACHING);

@@ -96,6 +96,7 @@ async function queryNotificationOutcomes(
     silenced: boolean;
     deliveryTargets: string[];
   };
+  if (eventIds.length === 0) return new Map();
   const rows = await query<OutcomeRow>(
     `
       SELECT
@@ -228,9 +229,18 @@ export async function queryClickHouseAlertEventLog(
   );
 
   if (rows.length === 0) return [];
+  // Only a fire or a resolve heads a chain; pending and closed rows write a
+  // zero chain id and can never match, so sending their ids only widens the
+  // bloom probe.
   const outcomes = await queryNotificationOutcomes(
     organizationId,
-    rows.map((row) => row.eventId),
+    rows
+      .filter(
+        (row) =>
+          row.eventType === "instance_fired" ||
+          row.eventType === "instance_resolved",
+      )
+      .map((row) => row.eventId),
     opts.from,
   );
 

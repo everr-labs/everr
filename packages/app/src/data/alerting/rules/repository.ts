@@ -217,6 +217,15 @@ export async function getRule(organizationId: string, id: string) {
 // display budget.
 const EVALUATION_SERIES_ROW_CAP = 20_000;
 
+// The window is asked for in scheduled time, but only `event_time` is the
+// partition key's time dimension and part of the sort key, so a bound on it
+// is what prunes. An evaluation writes its row within a run of being due, and
+// a day of slack covers any backlog that is not already an incident of its
+// own. Without this the read falls back to a bloom probe over the tenant's
+// whole evaluation stream, which is two orders of magnitude larger than
+// everything else in the table.
+const EVALUATION_EVENT_TIME_SLACK_MS = 24 * 60 * 60 * 1_000;
+
 export async function getRuleEvaluationSeries(
   organizationId: string,
   id: string,
@@ -241,8 +250,12 @@ export async function getRuleEvaluationSeries(
         samples_truncated AS samplesTruncated
       FROM app.alert_events
       WHERE tenant_id = {organizationId:String}
+        AND repoid = {repoid:String}
+        AND slug = {slug:String}
         AND event_type IN ('evaluation_succeeded', 'evaluation_failed')
         AND alert_definition_id = {alertDefinitionId:UUID}
+        AND event_time >= {eventFrom:DateTime64(3)}
+        AND event_time <= {eventTo:DateTime64(3)}
         AND evaluation_scheduled_at >= {from:DateTime64(3)}
         AND evaluation_scheduled_at <= {to:DateTime64(3)}
       ORDER BY evaluation_scheduled_at DESC
@@ -251,9 +264,18 @@ export async function getRuleEvaluationSeries(
     organizationId,
     {
       organizationId,
+      repoid: def.repoid,
+      // The history column holds the qualified name, not the bare slug.
+      slug: ruleName(def),
       alertDefinitionId: id,
       from: toClickHouseDateTime(opts.from),
       to: toClickHouseDateTime(opts.to),
+      eventFrom: toClickHouseDateTime(
+        new Date(opts.from.getTime() - EVALUATION_EVENT_TIME_SLACK_MS),
+      ),
+      eventTo: toClickHouseDateTime(
+        new Date(opts.to.getTime() + EVALUATION_EVENT_TIME_SLACK_MS),
+      ),
       rowCap: EVALUATION_SERIES_ROW_CAP,
     },
   );
