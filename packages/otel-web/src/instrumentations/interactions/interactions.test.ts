@@ -172,31 +172,41 @@ describe("startInteractions", () => {
       expect(a["everr.browser.click.y"]).toBe(29);
     });
 
-    it("builds positional selectors when no id anchors the path", () => {
+    it("stops at the shortest path that matches one element", () => {
       document.body.innerHTML =
         "<div><p>one</p><p>two <span>deep</span></p></div>";
       rageBurst(document.querySelector("span") as Element);
       const rage = emitted.find(
         (e) => e.name === "everr.browser.interaction.rage_click",
       );
-      expect(rage?.attrs?.["everr.element.selector"]).toBe(
-        "body > div > p:nth-of-type(2) > span",
-      );
+      expect(rage?.attrs?.["everr.element.selector"]).toBe("span");
     });
 
-    it("prefers stable classes over positions and drops unstable ones", () => {
+    it("returns the full path when no prefix is unique", () => {
+      // Two identical rows: no path tells them apart, so the walk ends at
+      // the root and the two rows share one selector.
       document.body.innerHTML =
-        '<div class="sidebar css-x9f2 group/wrap md:flex"><p>one</p>' +
-        '<p class="row hint"><span class="mx-2">deep</span></p></div>';
-      // css-x9f2 and mx-2 carry digits; group/wrap and md:flex are not
-      // valid selector idents. The path drops them all.
-      rageBurst(document.querySelector("span") as Element);
+        "<ul><li><span>a</span></li><li><span>b</span></li></ul>";
+      rageBurst(document.querySelectorAll("span")[1] as Element);
       const rage = emitted.find(
         (e) => e.name === "everr.browser.interaction.rage_click",
       );
       expect(rage?.attrs?.["everr.element.selector"]).toBe(
-        "body > div.sidebar > p.row.hint > span",
+        "html > body > ul > li > span",
       );
+    });
+
+    it("prefers stable classes and drops unstable ones", () => {
+      document.body.innerHTML =
+        '<div class="css-x9f2"><p><span class="mx-2">one</span></p>' +
+        '<p class="row hint"><span class="mx-2">deep</span></p></div>';
+      // css-x9f2 and mx-2 carry digits, so the path drops them; the row and
+      // hint classes make the second paragraph the unique step.
+      rageBurst(document.querySelectorAll("span")[1] as Element);
+      const rage = emitted.find(
+        (e) => e.name === "everr.browser.interaction.rage_click",
+      );
+      expect(rage?.attrs?.["everr.element.selector"]).toBe("p.row.hint > span");
     });
 
     it("names an element by its naming attribute before classes or position", () => {
@@ -208,13 +218,14 @@ describe("startInteractions", () => {
         (e) => e.name === "everr.browser.interaction.rage_click",
       );
       expect(rage?.attrs?.["everr.element.selector"]).toBe(
-        'body > div.toolbar > button[aria-label="Close"]',
+        'button[aria-label="Close"]',
       );
     });
 
     it("escapes an id that is not a plain identifier", () => {
-      document.body.innerHTML = '<div id="user:42"><span>x</span></div>';
-      rageBurst(document.querySelector("span") as Element);
+      document.body.innerHTML =
+        '<div><span>x</span></div><div id="user:42"><span>y</span></div>';
+      rageBurst(document.querySelectorAll("span")[1] as Element);
       const rage = emitted.find(
         (e) => e.name === "everr.browser.interaction.rage_click",
       );

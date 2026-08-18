@@ -57,44 +57,30 @@ const NAME_ATTRS = ["aria-label", "type", "name", "title", "alt"];
  * class, which a rebuild or a layout change rewrites. Any other character
  * (the `:`, `[`, or `/` of a Tailwind variant) makes the class invalid in a
  * selector without an escape.
- * The position of the element is the last resort, when it has no attribute
- * and no stable class, because a new sibling changes the position. This is
- * the one method to write an element path in all the signals: the
- * interactions, the INP, and the targets of the LCP attribution and the CLS
- * attribution.
+ * The walk stops at the first path that matches exactly one element in the
+ * document, so a selector carries only the levels it needs. This is the one
+ * method to write an element path in all the signals: the interactions, the
+ * INP, and the targets of the LCP attribution and the CLS attribution.
  */
 export function selectorOf(el: Element): string {
-  const parts: string[] = [];
-  for (let node: Element | null = el; node?.parentElement; ) {
-    if (node.id) {
-      parts.unshift(`#${CSS.escape(node.id)}`);
-      break;
-    }
-    let part = node.tagName.toLowerCase();
-    let named = false;
-    for (const name of NAME_ATTRS) {
-      const value = node.getAttribute(name);
-      if (value) {
-        part += `[${name}="${value.replace(/"/g, '\\"')}"]`;
-        named = true;
-        break;
+  let sel = "";
+  for (let node: Element | null = el; node; node = node.parentElement) {
+    let part = node.id ? `#${CSS.escape(node.id)}` : node.tagName.toLowerCase();
+    if (!node.id) {
+      for (const name of NAME_ATTRS) {
+        const value = node.getAttribute(name);
+        if (value) {
+          part += `[${name}="${value.replace(/"/g, '\\"')}"]`;
+          break;
+        }
       }
+      const classes = [...node.classList]
+        .filter((c) => /^[A-Za-z][A-Za-z_-]*$/.test(c))
+        .slice(0, 3);
+      if (classes.length) part += `.${classes.join(".")}`;
     }
-    const classes = [...node.classList]
-      .filter((c) => /^[A-Za-z][A-Za-z_-]*$/.test(c))
-      .slice(0, 3);
-    if (classes.length) {
-      part += `.${classes.join(".")}`;
-    } else if (!named) {
-      let nth = 1;
-      for (let sib = node.previousElementSibling; sib; ) {
-        if (sib.tagName === node.tagName) nth++;
-        sib = sib.previousElementSibling;
-      }
-      if (nth > 1) part += `:nth-of-type(${nth})`;
-    }
-    parts.unshift(part);
-    node = node.parentElement;
+    sel = sel ? `${part} > ${sel}` : part;
+    if (document.querySelectorAll(sel).length === 1) return sel;
   }
-  return parts.join(" > ");
+  return sel;
 }
