@@ -58,5 +58,4 @@ There is **no** `title`, `orientation`, `sparkline`, or `colorMode`. `calculatio
 - A query that returns no value still renders its gauge (empty arc, `noValue` text) — it does not silently vanish from a multi-query panel.
 - **`percent` thresholds** compare against `thresholds.max`, falling back to the gauge `max` — unlike StatChart there is no series-max fallback, so single-value queries behave predictably.
 - Threshold ticks only render for steps that have a `color` and fall strictly inside `(min, max)`.
-- The `min`/`max` end labels carry the `unit` unless the end is `0`, which reads bare.
 - Values ≥ 1 million **abbreviate** (`1234567` → `1.23M`, then `B`, `T`); the `min`/`max` end labels use the same formatting.
