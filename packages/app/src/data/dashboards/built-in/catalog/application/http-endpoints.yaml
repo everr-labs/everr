@@ -1,0 +1,551 @@
+id: http-endpoints
+name: HTTP Endpoints
+description: "HTTP traffic by route, split into inbound requests this service served and outbound calls it made: volume, status classes, and the routes that are slowest or failing most."
+category: Application
+requires:
+  - signal: traces
+    label: no traces
+  - signal: traces
+    match: http.request.method
+    label: no http.request.method*
+document:
+  kind: Dashboard
+  metadata:
+    name: http-endpoints
+  spec:
+    display:
+      name: HTTP Endpoints
+    duration: 6h
+    refreshInterval: 1m
+    variables:
+      - kind: ListVariable
+        spec:
+          name: service
+          display:
+            name: Service
+          allowMultiple: true
+          allowAllValue: true
+          defaultValue: __all
+          sort: alphabetical-asc
+          plugin:
+            kind: ClickHouseSQLVariable
+            spec:
+              query: SELECT DISTINCT ServiceName FROM traces WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} ORDER BY ServiceName
+    panels:
+      requests:
+        kind: Panel
+        spec:
+          display:
+            name: Requests
+          plugin:
+            kind: StatChart
+            spec:
+              calculation: sum
+              sparkline: true
+          queries:
+            - kind: ClickHouseSQL
+              spec:
+                plugin:
+                  kind: ClickHouseSQL
+                  spec:
+                    query: |-
+                      SELECT toStartOfInterval(Timestamp, INTERVAL {step:UInt32} SECOND) AS ts, count() AS requests
+                      FROM traces
+                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND SpanKind = 'Server' AND SpanAttributes['http.request.method'] != ''
+                      GROUP BY ts
+                      ORDER BY ts
+      server-errors:
+        kind: Panel
+        spec:
+          display:
+            name: 5xx rate
+          plugin:
+            kind: StatChart
+            spec:
+              calculation: last
+              unit: "%"
+              decimals: 2
+              thresholds:
+                mode: absolute
+                defaultColor: "#22c55e"
+                steps:
+                  - value: 1
+                    color: "#f59e0b"
+                  - value: 5
+                    color: "#ef4444"
+          queries:
+            - kind: ClickHouseSQL
+              spec:
+                plugin:
+                  kind: ClickHouseSQL
+                  spec:
+                    query: |-
+                      SELECT countIf(toUInt16OrZero(SpanAttributes['http.response.status_code']) >= 500) / count() * 100 AS pct
+                      FROM traces
+                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND SpanKind = 'Server' AND SpanAttributes['http.request.method'] != ''
+      client-errors:
+        kind: Panel
+        spec:
+          display:
+            name: 4xx rate
+          plugin:
+            kind: StatChart
+            spec:
+              calculation: last
+              unit: "%"
+              decimals: 2
+              thresholds:
+                mode: absolute
+                defaultColor: "#22c55e"
+                steps:
+                  - value: 5
+                    color: "#f59e0b"
+                  - value: 20
+                    color: "#ef4444"
+          queries:
+            - kind: ClickHouseSQL
+              spec:
+                plugin:
+                  kind: ClickHouseSQL
+                  spec:
+                    query: |-
+                      SELECT countIf(toUInt16OrZero(SpanAttributes['http.response.status_code']) BETWEEN 400 AND 499) / count() * 100 AS pct
+                      FROM traces
+                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND SpanKind = 'Server' AND SpanAttributes['http.request.method'] != ''
+      p95-latency:
+        kind: Panel
+        spec:
+          display:
+            name: P95 latency
+          plugin:
+            kind: StatChart
+            spec:
+              calculation: last
+              unit: ms
+              decimals: 1
+          queries:
+            - kind: ClickHouseSQL
+              spec:
+                plugin:
+                  kind: ClickHouseSQL
+                  spec:
+                    query: |-
+                      SELECT round(quantile(0.95)(Duration) / 1000000, 1) AS p95
+                      FROM traces
+                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND SpanKind = 'Server' AND SpanAttributes['http.request.method'] != ''
+      by-status:
+        kind: Panel
+        spec:
+          display:
+            name: Requests by status class
+          plugin:
+            kind: TimeSeriesChart
+            spec:
+              showLegend: true
+              stacked: true
+          queries:
+            - kind: ClickHouseSQL
+              spec:
+                plugin:
+                  kind: ClickHouseSQL
+                  spec:
+                    query: |-
+                      SELECT toStartOfInterval(Timestamp, INTERVAL {step:UInt32} * 6 SECOND) AS ts,
+                             concat(toString(intDiv(toUInt16OrZero(SpanAttributes['http.response.status_code']), 100)), 'xx') AS status_class,
+                             count() AS requests
+                      FROM traces
+                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND SpanKind = 'Server' AND SpanAttributes['http.request.method'] != '' AND SpanAttributes['http.response.status_code'] != ''
+                      GROUP BY ts, status_class
+                      ORDER BY ts
+      by-route:
+        kind: Panel
+        spec:
+          display:
+            name: Requests by route
+            description: The eight busiest routes over the range. Quieter routes are in the tables below.
+          plugin:
+            kind: TimeSeriesChart
+            spec:
+              showLegend: true
+              stacked: true
+          queries:
+            - kind: ClickHouseSQL
+              spec:
+                plugin:
+                  kind: ClickHouseSQL
+                  spec:
+                    query: |-
+                      SELECT toStartOfInterval(Timestamp, INTERVAL {step:UInt32} * 6 SECOND) AS ts,
+                             coalesce(nullIf(SpanAttributes['http.route'], ''), nullIf(SpanAttributes['url.path'], ''), SpanName) AS route,
+                             count() AS requests
+                      FROM traces
+                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND SpanKind = 'Server' AND SpanAttributes['http.request.method'] != ''
+                        AND coalesce(nullIf(SpanAttributes['http.route'], ''), nullIf(SpanAttributes['url.path'], ''), SpanName) IN (
+                        SELECT coalesce(nullIf(SpanAttributes['http.route'], ''), nullIf(SpanAttributes['url.path'], ''), SpanName) FROM traces WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND SpanKind = 'Server' AND SpanAttributes['http.request.method'] != ''
+                        GROUP BY coalesce(nullIf(SpanAttributes['http.route'], ''), nullIf(SpanAttributes['url.path'], ''), SpanName) ORDER BY count() DESC LIMIT 8
+                      )
+                      GROUP BY ts, route
+                      ORDER BY ts
+      latency-by-route:
+        kind: Panel
+        spec:
+          display:
+            name: P95 latency by route
+          plugin:
+            kind: TimeSeriesChart
+            spec:
+              showLegend: true
+              unit: ms
+          queries:
+            - kind: ClickHouseSQL
+              spec:
+                plugin:
+                  kind: ClickHouseSQL
+                  spec:
+                    query: |-
+                      SELECT toStartOfInterval(Timestamp, INTERVAL {step:UInt32} * 6 SECOND) AS ts,
+                             coalesce(nullIf(SpanAttributes['http.route'], ''), nullIf(SpanAttributes['url.path'], ''), SpanName) AS route,
+                             round(quantile(0.95)(Duration) / 1000000, 1) AS p95_ms
+                      FROM traces
+                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND SpanKind = 'Server' AND SpanAttributes['http.request.method'] != ''
+                        AND coalesce(nullIf(SpanAttributes['http.route'], ''), nullIf(SpanAttributes['url.path'], ''), SpanName) IN (
+                        SELECT coalesce(nullIf(SpanAttributes['http.route'], ''), nullIf(SpanAttributes['url.path'], ''), SpanName) FROM traces WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND SpanKind = 'Server' AND SpanAttributes['http.request.method'] != ''
+                        GROUP BY coalesce(nullIf(SpanAttributes['http.route'], ''), nullIf(SpanAttributes['url.path'], ''), SpanName) ORDER BY count() DESC LIMIT 8
+                      )
+                      GROUP BY ts, route
+                      ORDER BY ts
+      slowest-routes:
+        kind: Panel
+        spec:
+          display:
+            name: Slowest routes
+            description: Ranked by P95. Low-traffic routes can top this list.
+          plugin:
+            kind: Table
+            spec:
+              stickyHeader: true
+          queries:
+            - kind: ClickHouseSQL
+              spec:
+                plugin:
+                  kind: ClickHouseSQL
+                  spec:
+                    query: |-
+                      SELECT coalesce(nullIf(SpanAttributes['http.route'], ''), nullIf(SpanAttributes['url.path'], ''), SpanName) AS route,
+                             SpanAttributes['http.request.method'] AS method,
+                             count() AS requests,
+                             round(avg(Duration) / 1000000, 1) AS avg_ms,
+                             round(quantile(0.95)(Duration) / 1000000, 1) AS p95_ms,
+                             round(quantile(0.99)(Duration) / 1000000, 1) AS p99_ms
+                      FROM traces
+                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND SpanKind = 'Server' AND SpanAttributes['http.request.method'] != ''
+                      GROUP BY route, method
+                      ORDER BY p95_ms DESC
+                      LIMIT 30
+      time-by-route:
+        kind: Panel
+        spec:
+          display:
+            name: Time spent by route
+            description: Total request time, not per-request time. Where the service actually spends its day.
+          plugin:
+            kind: Table
+            spec:
+              stickyHeader: true
+          queries:
+            - kind: ClickHouseSQL
+              spec:
+                plugin:
+                  kind: ClickHouseSQL
+                  spec:
+                    query: |-
+                      SELECT coalesce(nullIf(SpanAttributes['http.route'], ''), nullIf(SpanAttributes['url.path'], ''), SpanName) AS route,
+                             SpanAttributes['http.request.method'] AS method,
+                             count() AS requests,
+                             round(sum(Duration) / 1000000000, 2) AS total_seconds,
+                             round(sum(Duration) / (SELECT sum(Duration) FROM traces WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND SpanKind = 'Server' AND SpanAttributes['http.request.method'] != '') * 100, 1) AS share_pct
+                      FROM traces
+                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND SpanKind = 'Server' AND SpanAttributes['http.request.method'] != ''
+                      GROUP BY route, method
+                      ORDER BY total_seconds DESC
+                      LIMIT 30
+      failing-routes:
+        kind: Panel
+        spec:
+          display:
+            name: Failing routes
+          plugin:
+            kind: Table
+            spec:
+              stickyHeader: true
+          queries:
+            - kind: ClickHouseSQL
+              spec:
+                plugin:
+                  kind: ClickHouseSQL
+                  spec:
+                    query: |-
+                      SELECT coalesce(nullIf(SpanAttributes['http.route'], ''), nullIf(SpanAttributes['url.path'], ''), SpanName) AS route,
+                             SpanAttributes['http.request.method'] AS method,
+                             countIf(toUInt16OrZero(SpanAttributes['http.response.status_code']) >= 500) AS server_errors,
+                             countIf(toUInt16OrZero(SpanAttributes['http.response.status_code']) BETWEEN 400 AND 499) AS client_errors,
+                             count() AS requests,
+                             anyIf(SpanAttributes['http.response.status_code'], toUInt16OrZero(SpanAttributes['http.response.status_code']) >= 400) AS sample_status
+                      FROM traces
+                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND SpanKind = 'Server' AND SpanAttributes['http.request.method'] != ''
+                      GROUP BY route, method
+                      HAVING server_errors + client_errors > 0
+                      ORDER BY server_errors DESC, client_errors DESC
+                      LIMIT 30
+      outbound-calls:
+        kind: Panel
+        spec:
+          display:
+            name: Outbound calls
+          plugin:
+            kind: StatChart
+            spec:
+              calculation: sum
+              sparkline: true
+          queries:
+            - kind: ClickHouseSQL
+              spec:
+                plugin:
+                  kind: ClickHouseSQL
+                  spec:
+                    query: |-
+                      SELECT toStartOfInterval(Timestamp, INTERVAL {step:UInt32} SECOND) AS ts, count() AS calls
+                      FROM traces
+                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND SpanKind = 'Client' AND SpanAttributes['http.request.method'] != ''
+                      GROUP BY ts
+                      ORDER BY ts
+      outbound-errors:
+        kind: Panel
+        spec:
+          display:
+            name: Outbound 5xx rate
+          plugin:
+            kind: StatChart
+            spec:
+              calculation: last
+              unit: "%"
+              decimals: 2
+              thresholds:
+                mode: absolute
+                defaultColor: "#22c55e"
+                steps:
+                  - value: 1
+                    color: "#f59e0b"
+                  - value: 5
+                    color: "#ef4444"
+          queries:
+            - kind: ClickHouseSQL
+              spec:
+                plugin:
+                  kind: ClickHouseSQL
+                  spec:
+                    query: |-
+                      SELECT countIf(toUInt16OrZero(SpanAttributes['http.response.status_code']) >= 500) / count() * 100 AS pct
+                      FROM traces
+                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND SpanKind = 'Client' AND SpanAttributes['http.request.method'] != ''
+      outbound-p95:
+        kind: Panel
+        spec:
+          display:
+            name: Outbound P95 latency
+          plugin:
+            kind: StatChart
+            spec:
+              calculation: last
+              unit: ms
+              decimals: 1
+          queries:
+            - kind: ClickHouseSQL
+              spec:
+                plugin:
+                  kind: ClickHouseSQL
+                  spec:
+                    query: |-
+                      SELECT round(quantile(0.95)(Duration) / 1000000, 1) AS p95
+                      FROM traces
+                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND SpanKind = 'Client' AND SpanAttributes['http.request.method'] != ''
+      outbound-by-host:
+        kind: Panel
+        spec:
+          display:
+            name: Outbound calls by host
+          plugin:
+            kind: TimeSeriesChart
+            spec:
+              showLegend: true
+              stacked: true
+          queries:
+            - kind: ClickHouseSQL
+              spec:
+                plugin:
+                  kind: ClickHouseSQL
+                  spec:
+                    query: |-
+                      SELECT toStartOfInterval(Timestamp, INTERVAL {step:UInt32} * 6 SECOND) AS ts,
+                             coalesce(nullIf(SpanAttributes['server.address'], ''), SpanName) AS host,
+                             count() AS calls
+                      FROM traces
+                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND SpanKind = 'Client' AND SpanAttributes['http.request.method'] != ''
+                        AND coalesce(nullIf(SpanAttributes['server.address'], ''), SpanName) IN (
+                        SELECT coalesce(nullIf(SpanAttributes['server.address'], ''), SpanName) FROM traces WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND SpanKind = 'Client' AND SpanAttributes['http.request.method'] != ''
+                        GROUP BY coalesce(nullIf(SpanAttributes['server.address'], ''), SpanName) ORDER BY count() DESC LIMIT 8
+                      )
+                      GROUP BY ts, host
+                      ORDER BY ts
+      outbound-by-status:
+        kind: Panel
+        spec:
+          display:
+            name: Outbound calls by status class
+          plugin:
+            kind: TimeSeriesChart
+            spec:
+              showLegend: true
+              stacked: true
+          queries:
+            - kind: ClickHouseSQL
+              spec:
+                plugin:
+                  kind: ClickHouseSQL
+                  spec:
+                    query: |-
+                      SELECT toStartOfInterval(Timestamp, INTERVAL {step:UInt32} * 6 SECOND) AS ts,
+                             concat(toString(intDiv(toUInt16OrZero(SpanAttributes['http.response.status_code']), 100)), 'xx') AS status_class,
+                             count() AS calls
+                      FROM traces
+                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND SpanKind = 'Client' AND SpanAttributes['http.request.method'] != '' AND SpanAttributes['http.response.status_code'] != ''
+                      GROUP BY ts, status_class
+                      ORDER BY ts
+      dependencies:
+        kind: Panel
+        spec:
+          display:
+            name: Dependencies
+            description: Every host this service called, ranked by call volume.
+          plugin:
+            kind: Table
+            spec:
+              stickyHeader: true
+          queries:
+            - kind: ClickHouseSQL
+              spec:
+                plugin:
+                  kind: ClickHouseSQL
+                  spec:
+                    query: |-
+                      SELECT coalesce(nullIf(SpanAttributes['server.address'], ''), SpanName) AS host,
+                             SpanAttributes['http.request.method'] AS method,
+                             count() AS calls,
+                             countIf(toUInt16OrZero(SpanAttributes['http.response.status_code']) >= 400) AS errors,
+                             round(avg(Duration) / 1000000, 1) AS avg_ms,
+                             round(quantile(0.95)(Duration) / 1000000, 1) AS p95_ms
+                      FROM traces
+                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND SpanKind = 'Client' AND SpanAttributes['http.request.method'] != ''
+                      GROUP BY host, method
+                      ORDER BY calls DESC
+                      LIMIT 30
+    layouts:
+      - kind: Grid
+        spec:
+          items:
+            - x: 0
+              y: 0
+              width: 6
+              height: 5
+              content:
+                $ref: "#/spec/panels/requests"
+            - x: 6
+              y: 0
+              width: 6
+              height: 5
+              content:
+                $ref: "#/spec/panels/server-errors"
+            - x: 12
+              y: 0
+              width: 6
+              height: 5
+              content:
+                $ref: "#/spec/panels/client-errors"
+            - x: 18
+              y: 0
+              width: 6
+              height: 5
+              content:
+                $ref: "#/spec/panels/p95-latency"
+            - x: 0
+              y: 5
+              width: 12
+              height: 8
+              content:
+                $ref: "#/spec/panels/by-status"
+            - x: 12
+              y: 5
+              width: 12
+              height: 8
+              content:
+                $ref: "#/spec/panels/by-route"
+            - x: 0
+              y: 13
+              width: 24
+              height: 8
+              content:
+                $ref: "#/spec/panels/latency-by-route"
+            - x: 0
+              y: 21
+              width: 12
+              height: 9
+              content:
+                $ref: "#/spec/panels/slowest-routes"
+            - x: 12
+              y: 21
+              width: 12
+              height: 9
+              content:
+                $ref: "#/spec/panels/time-by-route"
+            - x: 0
+              y: 30
+              width: 24
+              height: 9
+              content:
+                $ref: "#/spec/panels/failing-routes"
+            - x: 0
+              y: 39
+              width: 8
+              height: 5
+              content:
+                $ref: "#/spec/panels/outbound-calls"
+            - x: 8
+              y: 39
+              width: 8
+              height: 5
+              content:
+                $ref: "#/spec/panels/outbound-errors"
+            - x: 16
+              y: 39
+              width: 8
+              height: 5
+              content:
+                $ref: "#/spec/panels/outbound-p95"
+            - x: 0
+              y: 44
+              width: 12
+              height: 8
+              content:
+                $ref: "#/spec/panels/outbound-by-host"
+            - x: 12
+              y: 44
+              width: 12
+              height: 8
+              content:
+                $ref: "#/spec/panels/outbound-by-status"
+            - x: 0
+              y: 52
+              width: 24
+              height: 9
+              content:
+                $ref: "#/spec/panels/dependencies"

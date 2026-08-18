@@ -1,0 +1,218 @@
+id: log-overview
+name: Log Overview
+description: Log volume by severity and service, the error share of it, and the messages that repeat most.
+category: Application
+requires:
+  - signal: logs
+    label: no logs
+document:
+  kind: Dashboard
+  metadata:
+    name: log-overview
+  spec:
+    display:
+      name: Log Overview
+    duration: 6h
+    refreshInterval: 1m
+    variables:
+      - kind: ListVariable
+        spec:
+          name: service
+          display:
+            name: Service
+          allowMultiple: true
+          allowAllValue: true
+          defaultValue: __all
+          sort: alphabetical-asc
+          plugin:
+            kind: ClickHouseSQLVariable
+            spec:
+              query: SELECT DISTINCT ServiceName FROM logs WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} ORDER BY ServiceName
+    panels:
+      volume:
+        kind: Panel
+        spec:
+          display:
+            name: Log records
+          plugin:
+            kind: StatChart
+            spec:
+              calculation: sum
+              sparkline: true
+          queries:
+            - kind: ClickHouseSQL
+              spec:
+                plugin:
+                  kind: ClickHouseSQL
+                  spec:
+                    query: |-
+                      SELECT toStartOfInterval(Timestamp, INTERVAL {step:UInt32} SECOND) AS ts, count() AS records
+                      FROM logs
+                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service
+                      GROUP BY ts
+                      ORDER BY ts
+      error-share:
+        kind: Panel
+        spec:
+          display:
+            name: Error share
+          plugin:
+            kind: StatChart
+            spec:
+              calculation: last
+              unit: "%"
+              decimals: 2
+              thresholds:
+                mode: absolute
+                defaultColor: "#22c55e"
+                steps:
+                  - value: 1
+                    color: "#f59e0b"
+                  - value: 5
+                    color: "#ef4444"
+          queries:
+            - kind: ClickHouseSQL
+              spec:
+                plugin:
+                  kind: ClickHouseSQL
+                  spec:
+                    query: |-
+                      SELECT countIf(upper(SeverityText) IN ('ERROR', 'FATAL')) / count() * 100 AS error_pct
+                      FROM logs
+                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service
+      error-logs:
+        kind: Panel
+        spec:
+          display:
+            name: Error records
+          plugin:
+            kind: StatChart
+            spec:
+              calculation: sum
+              sparkline: true
+          queries:
+            - kind: ClickHouseSQL
+              spec:
+                plugin:
+                  kind: ClickHouseSQL
+                  spec:
+                    query: |-
+                      SELECT toStartOfInterval(Timestamp, INTERVAL {step:UInt32} SECOND) AS ts, count() AS errors
+                      FROM logs
+                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND upper(SeverityText) IN ('ERROR', 'FATAL')
+                      GROUP BY ts
+                      ORDER BY ts
+      by-severity:
+        kind: Panel
+        spec:
+          display:
+            name: Records by severity
+          plugin:
+            kind: TimeSeriesChart
+            spec:
+              showLegend: true
+              stacked: true
+          queries:
+            - kind: ClickHouseSQL
+              spec:
+                plugin:
+                  kind: ClickHouseSQL
+                  spec:
+                    query: |-
+                      SELECT toStartOfInterval(Timestamp, INTERVAL {step:UInt32} * 6 SECOND) AS ts,
+                             upper(SeverityText) AS severity,
+                             count() AS records
+                      FROM logs
+                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND SeverityText != ''
+                      GROUP BY ts, severity
+                      ORDER BY ts
+      noisiest-messages:
+        kind: Panel
+        spec:
+          display:
+            name: Repeated messages
+            description: Numbers are normalized away, so one message with varying ids groups as one row.
+          plugin:
+            kind: Table
+            spec:
+              stickyHeader: true
+          queries:
+            - kind: ClickHouseSQL
+              spec:
+                plugin:
+                  kind: ClickHouseSQL
+                  spec:
+                    query: |-
+                      SELECT ServiceName AS service,
+                             replaceRegexpAll(substring(Body, 1, 160), '[0-9]+([.][0-9]+)?', 'N') AS message,
+                             upper(any(SeverityText)) AS severity,
+                             count() AS occurrences
+                      FROM logs
+                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service
+                      GROUP BY service, message
+                      ORDER BY occurrences DESC
+                      LIMIT 40
+      recent-errors:
+        kind: Panel
+        spec:
+          display:
+            name: Recent errors
+          plugin:
+            kind: Table
+            spec:
+              stickyHeader: true
+          queries:
+            - kind: ClickHouseSQL
+              spec:
+                plugin:
+                  kind: ClickHouseSQL
+                  spec:
+                    query: |-
+                      SELECT formatDateTime(Timestamp, '%m-%d %H:%i:%S') AS time,
+                             ServiceName AS service,
+                             substring(Body, 1, 140) AS message,
+                             TraceId AS trace_id
+                      FROM logs
+                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND upper(SeverityText) IN ('ERROR', 'FATAL')
+                      ORDER BY Timestamp DESC
+                      LIMIT 50
+    layouts:
+      - kind: Grid
+        spec:
+          items:
+            - x: 0
+              y: 0
+              width: 8
+              height: 5
+              content:
+                $ref: "#/spec/panels/volume"
+            - x: 8
+              y: 0
+              width: 8
+              height: 5
+              content:
+                $ref: "#/spec/panels/error-share"
+            - x: 16
+              y: 0
+              width: 8
+              height: 5
+              content:
+                $ref: "#/spec/panels/error-logs"
+            - x: 0
+              y: 5
+              width: 24
+              height: 8
+              content:
+                $ref: "#/spec/panels/by-severity"
+            - x: 0
+              y: 13
+              width: 12
+              height: 9
+              content:
+                $ref: "#/spec/panels/noisiest-messages"
+            - x: 12
+              y: 13
+              width: 12
+              height: 9
+              content:
+                $ref: "#/spec/panels/recent-errors"

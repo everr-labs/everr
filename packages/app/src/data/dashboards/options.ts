@@ -5,6 +5,7 @@ import { createLimiter } from "@/lib/limiter";
 import type { VariableMeta, VariableValues } from "./interpolate";
 import {
   getDashboard,
+  getTelemetryCapabilities,
   listDashboards,
   runPanelQuery,
   runVariableOptionsQuery,
@@ -36,6 +37,19 @@ export const dashboardListOptions = (preview?: string) =>
   queryOptions({
     queryKey: [...dashboardsQueryKey, "list", preview ?? ""],
     queryFn: () => listDashboards({ data: { preview } }),
+  });
+
+/**
+ * Keyed by the exact range the dashboards render, so changing the time range
+ * re-grades the built-in list from the same window. Readiness moves when
+ * ingestion starts or stops, which is minutes-scale, and the probe scans every
+ * signal table, so it stays fresh for five minutes rather than one.
+ */
+export const telemetryCapabilitiesOptions = (from: string, to: string) =>
+  queryOptions({
+    queryKey: [...dashboardsQueryKey, "capabilities", from, to],
+    queryFn: () => getTelemetryCapabilities({ data: { from, to } }),
+    staleTime: 5 * 60_000,
   });
 
 export const panelQueryOptions = (

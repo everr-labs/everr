@@ -1,0 +1,484 @@
+id: mysql-overview
+name: MySQL Overview
+description: Uptime and buffer pool size, thread and connection activity, the command and handler mix behind the query load, and client network traffic, from the OpenTelemetry mysql receiver.
+category: Databases
+requires:
+  - signal: metrics
+    label: no metrics
+  - signal: metrics
+    match: mysql
+    label: no mysql*
+document:
+  kind: Dashboard
+  metadata:
+    name: mysql-overview
+  spec:
+    display:
+      name: MySQL Overview
+    duration: 6h
+    refreshInterval: 1m
+    panels:
+      uptime:
+        kind: Panel
+        spec:
+          display:
+            name: Uptime
+            description: A reset here explains a discontinuity in every counter below.
+          plugin:
+            kind: StatChart
+            spec:
+              calculation: last
+              unit: d
+              decimals: 1
+          queries:
+            - kind: ClickHouseSQL
+              spec:
+                plugin:
+                  kind: ClickHouseSQL
+                  spec:
+                    query: |-
+                      SELECT nullIf(max(Value), 0) / 86400 AS days
+                      FROM (SELECT Value FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'mysql.uptime' UNION ALL SELECT Value FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'mysql.uptime')
+      buffer-pool-size:
+        kind: Panel
+        spec:
+          display:
+            name: Buffer pool size
+            description: Read Buffer pool usage against it.
+          plugin:
+            kind: StatChart
+            spec:
+              calculation: last
+              unit: MB
+              decimals: 0
+          queries:
+            - kind: ClickHouseSQL
+              spec:
+                plugin:
+                  kind: ClickHouseSQL
+                  spec:
+                    query: |-
+                      SELECT nullIf(max(Value), 0) / 1048576 AS mb
+                      FROM (SELECT Value FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'mysql.buffer_pool.limit' UNION ALL SELECT Value FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'mysql.buffer_pool.limit')
+      connections:
+        kind: Panel
+        spec:
+          display:
+            name: Connections
+          plugin:
+            kind: StatChart
+            spec:
+              calculation: last
+              decimals: 0
+              sparkline: true
+          queries:
+            - kind: ClickHouseSQL
+              spec:
+                plugin:
+                  kind: ClickHouseSQL
+                  spec:
+                    query: |-
+                      SELECT toStartOfInterval(TimeUnix, INTERVAL {step:UInt32} SECOND) AS ts, avg(Value) AS connected
+                      FROM (SELECT TimeUnix, Attributes, Value FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'mysql.threads' AND Attributes['kind'] = 'connected' UNION ALL SELECT TimeUnix, Attributes, Value FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'mysql.threads' AND Attributes['kind'] = 'connected')
+                      GROUP BY ts
+                      ORDER BY ts
+      queries-per-second:
+        kind: Panel
+        spec:
+          display:
+            name: Queries per second
+            description: Needs mysql.query.count, which the receiver leaves off.
+          plugin:
+            kind: StatChart
+            spec:
+              calculation: last
+              decimals: 1
+              sparkline: true
+          queries:
+            - kind: ClickHouseSQL
+              spec:
+                plugin:
+                  kind: ClickHouseSQL
+                  spec:
+                    query: |-
+                      SELECT ts, sum(delta) / {step:UInt32} AS qps
+                      FROM (
+                        SELECT toStartOfInterval(TimeUnix, INTERVAL {step:UInt32} SECOND) AS ts,
+                               ResourceAttributes AS resource, Attributes AS attrs,
+                               max(Value) - min(Value) AS delta
+                        FROM (SELECT TimeUnix, ResourceAttributes, Attributes, Value FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'mysql.query.count' UNION ALL SELECT TimeUnix, ResourceAttributes, Attributes, Value FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'mysql.query.count')
+                        GROUP BY ts, resource, attrs
+                      )
+                      GROUP BY ts
+                      ORDER BY ts
+      thread-activity:
+        kind: Panel
+        spec:
+          display:
+            name: Thread activity
+            description: Connected is who is attached; running is who is actually working. Running climbing toward connected is the server falling behind.
+          plugin:
+            kind: TimeSeriesChart
+            spec:
+              unit: ""
+              showLegend: true
+          queries:
+            - kind: ClickHouseSQL
+              spec:
+                plugin:
+                  kind: ClickHouseSQL
+                  spec:
+                    query: |-
+                      WITH points AS (SELECT TimeUnix, Value, Attributes['kind'] AS series FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'mysql.threads' UNION ALL SELECT TimeUnix, Value, Attributes['kind'] AS series FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'mysql.threads')
+                      SELECT toStartOfInterval(TimeUnix, INTERVAL {step:UInt32} * 6 SECOND) AS ts,
+                             series,
+                             avg(Value) AS value
+                      FROM points
+                      WHERE series IN (
+                        SELECT series FROM points WHERE 1
+                        GROUP BY series ORDER BY count() DESC LIMIT 8
+                      )
+                      GROUP BY ts, series
+                      ORDER BY ts
+      commands:
+        kind: Panel
+        spec:
+          display:
+            name: Top commands
+            description: Optional in the receiver, so this stays empty unless mysql.commands is enabled in its metrics config.
+          plugin:
+            kind: TimeSeriesChart
+            spec:
+              unit: ""
+              showLegend: true
+              stacked: false
+          queries:
+            - kind: ClickHouseSQL
+              spec:
+                plugin:
+                  kind: ClickHouseSQL
+                  spec:
+                    query: |-
+                      WITH points AS (SELECT TimeUnix, ResourceAttributes, Attributes, Value, Attributes['command'] AS series FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'mysql.commands' UNION ALL SELECT TimeUnix, ResourceAttributes, Attributes, Value, Attributes['command'] AS series FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'mysql.commands')
+                      SELECT ts, series, sum(delta) AS value
+                      FROM (
+                        SELECT toStartOfInterval(TimeUnix, INTERVAL {step:UInt32} * 6 SECOND) AS ts, series,
+                               ResourceAttributes AS resource, Attributes AS attrs,
+                               max(Value) - min(Value) AS delta
+                        FROM points
+                        WHERE series IN (
+                        SELECT series FROM points WHERE 1
+                        GROUP BY series ORDER BY count() DESC LIMIT 8
+                      )
+                        GROUP BY ts, series, resource, attrs
+                      )
+                      GROUP BY ts, series
+                      ORDER BY ts
+      handlers:
+        kind: Panel
+        spec:
+          display:
+            name: Handlers
+            description: How rows were reached. A large read_rnd_next share means table scans rather than index lookups.
+          plugin:
+            kind: TimeSeriesChart
+            spec:
+              unit: ""
+              showLegend: true
+              stacked: false
+          queries:
+            - kind: ClickHouseSQL
+              spec:
+                plugin:
+                  kind: ClickHouseSQL
+                  spec:
+                    query: |-
+                      WITH points AS (SELECT TimeUnix, ResourceAttributes, Attributes, Value, Attributes['kind'] AS series FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'mysql.handlers' AND Attributes['kind'] NOT IN ('commit', 'rollback', 'prepare', 'savepoint', 'savepoint_rollback') UNION ALL SELECT TimeUnix, ResourceAttributes, Attributes, Value, Attributes['kind'] AS series FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'mysql.handlers' AND Attributes['kind'] NOT IN ('commit', 'rollback', 'prepare', 'savepoint', 'savepoint_rollback'))
+                      SELECT ts, series, sum(delta) AS value
+                      FROM (
+                        SELECT toStartOfInterval(TimeUnix, INTERVAL {step:UInt32} * 6 SECOND) AS ts, series,
+                               ResourceAttributes AS resource, Attributes AS attrs,
+                               max(Value) - min(Value) AS delta
+                        FROM points
+                        WHERE series IN (
+                        SELECT series FROM points WHERE 1
+                        GROUP BY series ORDER BY count() DESC LIMIT 8
+                      )
+                        GROUP BY ts, series, resource, attrs
+                      )
+                      GROUP BY ts, series
+                      ORDER BY ts
+      transaction-handlers:
+        kind: Panel
+        spec:
+          display:
+            name: Transaction handlers
+            description: Split from the other handlers because the read handlers are orders of magnitude busier and would flatten these to zero on a shared chart.
+          plugin:
+            kind: TimeSeriesChart
+            spec:
+              unit: ""
+              showLegend: true
+              stacked: false
+          queries:
+            - kind: ClickHouseSQL
+              spec:
+                plugin:
+                  kind: ClickHouseSQL
+                  spec:
+                    query: |-
+                      WITH points AS (SELECT TimeUnix, ResourceAttributes, Attributes, Value, Attributes['kind'] AS series FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'mysql.handlers' AND Attributes['kind'] IN ('commit', 'rollback', 'prepare', 'savepoint', 'savepoint_rollback') UNION ALL SELECT TimeUnix, ResourceAttributes, Attributes, Value, Attributes['kind'] AS series FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'mysql.handlers' AND Attributes['kind'] IN ('commit', 'rollback', 'prepare', 'savepoint', 'savepoint_rollback'))
+                      SELECT ts, series, sum(delta) AS value
+                      FROM (
+                        SELECT toStartOfInterval(TimeUnix, INTERVAL {step:UInt32} * 6 SECOND) AS ts, series,
+                               ResourceAttributes AS resource, Attributes AS attrs,
+                               max(Value) - min(Value) AS delta
+                        FROM points
+                        WHERE series IN (
+                        SELECT series FROM points WHERE 1
+                        GROUP BY series ORDER BY count() DESC LIMIT 8
+                      )
+                        GROUP BY ts, series, resource, attrs
+                      )
+                      GROUP BY ts, series
+                      ORDER BY ts
+      row-operations:
+        kind: Panel
+        spec:
+          display:
+            name: Row operations
+          plugin:
+            kind: TimeSeriesChart
+            spec:
+              unit: ""
+              showLegend: true
+              stacked: true
+          queries:
+            - kind: ClickHouseSQL
+              spec:
+                plugin:
+                  kind: ClickHouseSQL
+                  spec:
+                    query: |-
+                      WITH points AS (SELECT TimeUnix, ResourceAttributes, Attributes, Value, Attributes['operation'] AS series FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'mysql.row_operations' UNION ALL SELECT TimeUnix, ResourceAttributes, Attributes, Value, Attributes['operation'] AS series FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'mysql.row_operations')
+                      SELECT ts, series, sum(delta) AS value
+                      FROM (
+                        SELECT toStartOfInterval(TimeUnix, INTERVAL {step:UInt32} * 6 SECOND) AS ts, series,
+                               ResourceAttributes AS resource, Attributes AS attrs,
+                               max(Value) - min(Value) AS delta
+                        FROM points
+                        WHERE series IN (
+                        SELECT series FROM points WHERE 1
+                        GROUP BY series ORDER BY count() DESC LIMIT 8
+                      )
+                        GROUP BY ts, series, resource, attrs
+                      )
+                      GROUP BY ts, series
+                      ORDER BY ts
+      network-io:
+        kind: Panel
+        spec:
+          display:
+            name: Client network traffic
+            description: Optional in the receiver, so this stays empty unless mysql.client.network.io is enabled in its metrics config.
+          plugin:
+            kind: TimeSeriesChart
+            spec:
+              unit: MB
+              showLegend: true
+              stacked: false
+          queries:
+            - kind: ClickHouseSQL
+              spec:
+                plugin:
+                  kind: ClickHouseSQL
+                  spec:
+                    query: |-
+                      WITH points AS (SELECT TimeUnix, ResourceAttributes, Attributes, Value, Attributes['kind'] AS series FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'mysql.client.network.io' UNION ALL SELECT TimeUnix, ResourceAttributes, Attributes, Value, Attributes['kind'] AS series FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'mysql.client.network.io')
+                      SELECT ts, series, sum(delta) / 1048576 AS value
+                      FROM (
+                        SELECT toStartOfInterval(TimeUnix, INTERVAL {step:UInt32} * 6 SECOND) AS ts, series,
+                               ResourceAttributes AS resource, Attributes AS attrs,
+                               max(Value) - min(Value) AS delta
+                        FROM points
+                        WHERE series IN (
+                        SELECT series FROM points WHERE 1
+                        GROUP BY series ORDER BY count() DESC LIMIT 8
+                      )
+                        GROUP BY ts, series, resource, attrs
+                      )
+                      GROUP BY ts, series
+                      ORDER BY ts
+      buffer-pool-usage:
+        kind: Panel
+        spec:
+          display:
+            name: Buffer pool usage
+          plugin:
+            kind: TimeSeriesChart
+            spec:
+              unit: MB
+              showLegend: true
+          queries:
+            - kind: ClickHouseSQL
+              spec:
+                plugin:
+                  kind: ClickHouseSQL
+                  spec:
+                    query: |-
+                      WITH points AS (SELECT TimeUnix, Value, Attributes['status'] AS series FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'mysql.buffer_pool.usage' UNION ALL SELECT TimeUnix, Value, Attributes['status'] AS series FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'mysql.buffer_pool.usage')
+                      SELECT toStartOfInterval(TimeUnix, INTERVAL {step:UInt32} * 6 SECOND) AS ts,
+                             series,
+                             avg(Value) / 1048576 AS value
+                      FROM points
+                      WHERE series IN (
+                        SELECT series FROM points WHERE 1
+                        GROUP BY series ORDER BY count() DESC LIMIT 8
+                      )
+                      GROUP BY ts, series
+                      ORDER BY ts
+      buffer-pool-pages:
+        kind: Panel
+        spec:
+          display:
+            name: Buffer pool pages
+            description: "Data, free and misc. Total is left out: it is the sum of the other three and would dwarf them."
+          plugin:
+            kind: TimeSeriesChart
+            spec:
+              unit: ""
+              showLegend: true
+          queries:
+            - kind: ClickHouseSQL
+              spec:
+                plugin:
+                  kind: ClickHouseSQL
+                  spec:
+                    query: |-
+                      WITH points AS (SELECT TimeUnix, Value, Attributes['kind'] AS series FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'mysql.buffer_pool.pages' AND Attributes['kind'] NOT IN ('total') UNION ALL SELECT TimeUnix, Value, Attributes['kind'] AS series FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'mysql.buffer_pool.pages' AND Attributes['kind'] NOT IN ('total'))
+                      SELECT toStartOfInterval(TimeUnix, INTERVAL {step:UInt32} * 6 SECOND) AS ts,
+                             series,
+                             avg(Value) AS value
+                      FROM points
+                      WHERE series IN (
+                        SELECT series FROM points WHERE 1
+                        GROUP BY series ORDER BY count() DESC LIMIT 8
+                      )
+                      GROUP BY ts, series
+                      ORDER BY ts
+      table-locks:
+        kind: Panel
+        spec:
+          display:
+            name: Table locks
+            description: Immediate locks were granted at once; waited ones queued. A rising waited line is contention.
+          plugin:
+            kind: TimeSeriesChart
+            spec:
+              unit: ""
+              showLegend: true
+              stacked: false
+          queries:
+            - kind: ClickHouseSQL
+              spec:
+                plugin:
+                  kind: ClickHouseSQL
+                  spec:
+                    query: |-
+                      WITH points AS (SELECT TimeUnix, ResourceAttributes, Attributes, Value, Attributes['kind'] AS series FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'mysql.locks' UNION ALL SELECT TimeUnix, ResourceAttributes, Attributes, Value, Attributes['kind'] AS series FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'mysql.locks')
+                      SELECT ts, series, sum(delta) AS value
+                      FROM (
+                        SELECT toStartOfInterval(TimeUnix, INTERVAL {step:UInt32} * 6 SECOND) AS ts, series,
+                               ResourceAttributes AS resource, Attributes AS attrs,
+                               max(Value) - min(Value) AS delta
+                        FROM points
+                        WHERE series IN (
+                        SELECT series FROM points WHERE 1
+                        GROUP BY series ORDER BY count() DESC LIMIT 8
+                      )
+                        GROUP BY ts, series, resource, attrs
+                      )
+                      GROUP BY ts, series
+                      ORDER BY ts
+    layouts:
+      - kind: Grid
+        spec:
+          items:
+            - x: 0
+              y: 0
+              width: 6
+              height: 5
+              content:
+                $ref: "#/spec/panels/uptime"
+            - x: 6
+              y: 0
+              width: 6
+              height: 5
+              content:
+                $ref: "#/spec/panels/buffer-pool-size"
+            - x: 12
+              y: 0
+              width: 6
+              height: 5
+              content:
+                $ref: "#/spec/panels/connections"
+            - x: 18
+              y: 0
+              width: 6
+              height: 5
+              content:
+                $ref: "#/spec/panels/queries-per-second"
+            - x: 0
+              y: 5
+              width: 12
+              height: 8
+              content:
+                $ref: "#/spec/panels/thread-activity"
+            - x: 12
+              y: 5
+              width: 12
+              height: 8
+              content:
+                $ref: "#/spec/panels/commands"
+            - x: 0
+              y: 13
+              width: 12
+              height: 8
+              content:
+                $ref: "#/spec/panels/handlers"
+            - x: 12
+              y: 13
+              width: 12
+              height: 8
+              content:
+                $ref: "#/spec/panels/transaction-handlers"
+            - x: 0
+              y: 21
+              width: 12
+              height: 8
+              content:
+                $ref: "#/spec/panels/row-operations"
+            - x: 12
+              y: 21
+              width: 12
+              height: 8
+              content:
+                $ref: "#/spec/panels/network-io"
+            - x: 0
+              y: 29
+              width: 12
+              height: 8
+              content:
+                $ref: "#/spec/panels/buffer-pool-usage"
+            - x: 12
+              y: 29
+              width: 12
+              height: 8
+              content:
+                $ref: "#/spec/panels/buffer-pool-pages"
+            - x: 0
+              y: 37
+              width: 24
+              height: 7
+              content:
+                $ref: "#/spec/panels/table-locks"

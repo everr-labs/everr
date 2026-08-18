@@ -18,6 +18,14 @@ import {
 
 type TreeResource = "dashboard" | "runbook";
 
+// One selection language for every row in the dashboards rail (own and
+// built-in): filled active row, primary-tinted icon.
+export const railRowClass =
+  "rounded-md py-1.5 transition-colors hover:bg-muted/50";
+export const railRowActiveProps = {
+  className: "bg-muted text-foreground [&>svg]:text-primary",
+};
+
 interface DashboardTreeProps {
   dashboards: DashboardSummary[];
   search: string;
@@ -170,29 +178,27 @@ function DashboardRow({
   const Icon = resource === "runbook" ? NotebookText : LayoutDashboard;
   const removed = dashboard.previewStatus === "removed";
   return (
-    <div
+    <Link
+      to={
+        resource === "runbook"
+          ? "/runbooks/$project/$slug"
+          : "/dashboards/$project/$slug"
+      }
+      params={{ project: dashboard.project, slug: dashboard.slug }}
       className={cn(
-        "flex items-center gap-1 rounded-md py-1 pr-1 hover:bg-accent/50",
+        railRowClass,
+        "flex min-w-0 items-center gap-2 pr-1",
         removed && "opacity-50",
       )}
       style={{ paddingLeft: `${depth * 20 + 26}px` }}
+      activeProps={railRowActiveProps}
     >
-      <Link
-        to={
-          resource === "runbook"
-            ? "/runbooks/$project/$slug"
-            : "/dashboards/$project/$slug"
-        }
-        params={{ project: dashboard.project, slug: dashboard.slug }}
-        className="flex min-w-0 flex-1 items-center gap-2 py-0.5"
-      >
-        <Icon className="size-4 shrink-0 text-muted-foreground" />
-        <span className="truncate text-sm">{dashboard.name}</span>
-        {path && (
-          <span className="truncate text-xs text-muted-foreground">{path}</span>
-        )}
-        <PreviewStatusBadge status={dashboard.previewStatus} />
-      </Link>
-    </div>
+      <Icon className="size-4 shrink-0 text-muted-foreground" />
+      <span className="truncate text-sm">{dashboard.name}</span>
+      {path && (
+        <span className="truncate text-xs text-muted-foreground">{path}</span>
+      )}
+      <PreviewStatusBadge status={dashboard.previewStatus} />
+    </Link>
   );
 }

@@ -4,7 +4,11 @@ import {
   adoptResource,
   isResourceKind,
 } from "@/data/as-code/resource-admin.server";
-import { notFoundResponse, unknownKindResponse } from "../../../-responses";
+import {
+  notFoundResponse,
+  reservedProjectResponse,
+  unknownKindResponse,
+} from "../../../-responses";
 
 const BodySchema = z.object({ repoid: z.string().min(1) });
 
@@ -25,13 +29,20 @@ export const Route = createFileRoute(
             { status: 400 },
           );
         }
-        const result = await adoptResource(
-          context.session.session.activeOrganizationId,
-          kind,
-          project,
-          slug,
-          parsed.data.repoid,
-        );
+        let result: Awaited<ReturnType<typeof adoptResource>>;
+        try {
+          result = await adoptResource(
+            context.session.session.activeOrganizationId,
+            kind,
+            project,
+            slug,
+            parsed.data.repoid,
+          );
+        } catch (error) {
+          const forbidden = reservedProjectResponse(error);
+          if (forbidden) return forbidden;
+          throw error;
+        }
         if (!result.found) return notFoundResponse(kind, project, slug);
         return Response.json({
           kind,
