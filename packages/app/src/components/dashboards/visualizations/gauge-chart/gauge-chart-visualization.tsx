@@ -6,9 +6,17 @@ import type { VisualizationProps } from "../index";
 import {
   formatStatValue,
   resolveThresholdColor,
-  type ThresholdsSpec,
 } from "../stat-chart/stat-calculations";
 import { computeStatTiles } from "../stat-chart/stat-series";
+import {
+  axisFraction,
+  bandColors,
+  type FillSegment,
+  fillSegments,
+  formatAxisValue,
+  type ThresholdMark,
+  thresholdMarks,
+} from "./gauge-axis";
 import type { GaugeChartSpec } from "./spec";
 
 // Semicircle geometry in viewBox units. The round caps and the threshold
@@ -31,85 +39,21 @@ function arcPath(startAngle: number, endAngle: number): string {
   return `M ${s.x} ${s.y} A ${R} ${R} 0 0 1 ${e.x} ${e.y}`;
 }
 
-/**
- * 0..1 position of `value` along the gauge axis, measured from the `min` end.
- * Inverted bounds (`min > max`) are supported: the signed span flips the
- * direction so the gauge fills toward the `max` end as the value approaches
- * it. Returns 0 only for a truly degenerate axis (`min === max`).
- */
-function axisFraction(value: number, min: number, max: number): number {
-  if (max === min) return 0;
-  return Math.min(1, Math.max(0, (value - min) / (max - min)));
-}
+/** A mark that renders: the colorless steps are filtered out up front. */
+type Tick = ThresholdMark & { color: string };
 
-interface ThresholdMark {
+/** Everything both variants draw, prepared once per gauge. */
+interface TileProps {
+  label: React.ReactNode;
+  value: number | undefined;
+  valueText: string;
+  unit: string;
   fraction: number;
-  /** Step value in axis units, for the tick label. */
-  value: number;
-  /** Ticks only render for steps that declare a color. */
-  color?: string;
-}
-
-interface FillSegment {
-  from: number;
-  to: number;
-  color: string;
-}
-
-/**
- * Step positions projected onto the gauge axis. Percent steps resolve against
- * the same reference `resolveThresholdColor` uses (thresholds.max, falling
- * back to the gauge max), so a mark always sits where the color changes.
- * Only steps strictly inside the axis span are kept — works for inverted
- * bounds too.
- */
-function thresholdMarks(
-  thresholds: ThresholdsSpec | undefined,
-  min: number,
-  max: number,
-): ThresholdMark[] {
-  if (!thresholds?.steps) return [];
-  const ref = thresholds.max ?? max;
-  return thresholds.steps
-    .map((step) => ({
-      value:
-        thresholds.mode === "percent" ? (step.value / 100) * ref : step.value,
-      color: step.color,
-    }))
-    .filter((t) => t.value > Math.min(min, max) && t.value < Math.max(min, max))
-    .map((t) => ({
-      fraction: axisFraction(t.value, min, max),
-      value: t.value,
-      color: t.color,
-    }))
-    .sort((a, b) => a.fraction - b.fraction);
-}
-
-/**
- * The filled part of the track, split at each threshold the value has crossed,
- * each piece painted with its band's color. Each segment resolves its color
- * from the axis value at its midpoint, so inverted bounds (`min > max`) paint
- * the bands on the correct side without any ascending-axis assumption.
- */
-function fillSegments(
-  fraction: number,
-  marks: ThresholdMark[],
-  thresholds: ThresholdsSpec | undefined,
-  min: number,
-  max: number,
-  fallback: string,
-): FillSegment[] {
-  const bounds = [0, ...marks.map((m) => m.fraction), 1];
-  const segments: FillSegment[] = [];
-  for (let i = 0; i < bounds.length - 1; i++) {
-    const from = bounds[i] ?? 0;
-    const to = Math.min(fraction, bounds[i + 1] ?? 1);
-    if (to <= from) continue;
-    const midValue = min + ((from + to) / 2) * (max - min);
-    const color = resolveThresholdColor(midValue, thresholds, max) ?? fallback;
-    segments.push({ from, to, color });
-  }
-  return segments;
+  ticks: Tick[];
+  showAxis: boolean;
+  showThresholdLabels: boolean;
+  minText: string;
+  maxText: string;
 }
 
 export function GaugeChartVisualization({
@@ -135,9 +79,20 @@ export function GaugeChartVisualization({
     [data, calculation],
   );
   const hasAnyValue = tiles.some((t) => t.value !== undefined);
+  const fallbackColor = SERIES_COLORS[0] ?? "currentColor";
   const marks = useMemo(
-    () => thresholdMarks(thresholds, min, max),
-    [thresholds, min, max],
+    () => thresholdMarks(thresholds, min, max, unit),
+    [thresholds, min, max, unit],
+  );
+  const ticks = useMemo(
+    () => marks.filter((m): m is Tick => m.color !== undefined),
+    [marks],
+  );
+  // The bands the marks cut the track into are the same for every gauge in the
+  // panel, so they are resolved here rather than per tile.
+  const colors = useMemo(
+    () => bandColors(marks, thresholds, min, max, fallbackColor),
+    [marks, thresholds, min, max, fallbackColor],
   );
 
   if (!data || !hasAnyValue) {
@@ -151,249 +106,281 @@ export function GaugeChartVisualization({
     );
   }
 
+  const horizontal = variant === "horizontal";
   const multi = tiles.length > 1;
-  const fallbackColor = SERIES_COLORS[0] ?? "currentColor";
-  const minText = formatStatValue(min, undefined);
-  const maxText = formatStatValue(max, undefined);
+  const minText = formatAxisValue(min);
+  const maxText = formatAxisValue(max);
 
   return (
     <div
       className={cn(
-        variant === "horizontal" &&
-          "flex h-full flex-wrap content-center-safe justify-center gap-x-6 gap-y-4 overflow-y-auto px-1",
-        (variant === "arc" || variant === undefined) &&
-          "flex h-full flex-wrap items-stretch justify-center gap-4",
+        "flex h-full flex-wrap justify-center",
+        horizontal
+          ? "content-center-safe gap-x-6 gap-y-4 overflow-y-auto px-1"
+          : "items-stretch gap-4",
       )}
     >
       {tiles.map((tile) => {
         const value = tile.value;
-        const label = tile.label || queryLabel(tile.frame);
-        const color =
-          (value !== undefined
-            ? resolveThresholdColor(value, thresholds, max)
-            : undefined) ?? fallbackColor;
+        const name = tile.label || queryLabel(tile.frame);
         const fraction =
           value !== undefined ? axisFraction(value, min, max) : 0;
         const valueText =
           value === undefined ? noValue : formatStatValue(value, decimals);
-        const ariaLabel = `${label}: ${valueText}${unit ? ` ${unit}` : ""}`;
-        const key = `${tile.frame}-${tile.label}`;
-        const labelEl = (multi || showLabel) && (
-          <p className="truncate text-xs text-muted-foreground">{label}</p>
+        const label = (multi || showLabel) && (
+          <p
+            className={cn(
+              "truncate text-xs text-muted-foreground",
+              horizontal && "mb-1",
+            )}
+          >
+            {name}
+          </p>
         );
+        const props: TileProps = {
+          label,
+          value,
+          valueText,
+          unit,
+          fraction,
+          ticks,
+          showAxis,
+          showThresholdLabels,
+          minText,
+          maxText,
+        };
+        const key = `${tile.frame}-${tile.label}`;
+        const ariaLabel = `${name}: ${valueText}${unit ? ` ${unit}` : ""}`;
 
-        if (variant === "horizontal") {
-          const segments =
-            value !== undefined
-              ? fillSegments(
-                  fraction,
-                  marks,
-                  thresholds,
-                  min,
-                  max,
-                  fallbackColor,
-                )
-              : [];
-          return (
-            <div
-              key={key}
-              className="min-w-40 flex-1"
-              role="img"
-              aria-label={ariaLabel}
-            >
-              {labelEl && <div className="mb-1">{labelEl}</div>}
-              <p className="mb-2 leading-none">
-                {/* Like the arc, the number stays neutral: the band color is
-                    carried by the fill segments, not the text. */}
-                <span
-                  className={cn(
-                    "text-2xl font-semibold tabular-nums",
-                    value === undefined
-                      ? "text-muted-foreground"
-                      : "text-foreground",
-                  )}
-                >
-                  {valueText}
-                </span>
-                {value !== undefined && unit && (
-                  <span className="ml-1 text-xs text-muted-foreground">
-                    {unit}
-                  </span>
-                )}
-              </p>
-              <div className="relative pt-2">
-                {/* Triangle marker pointing down at the value position. */}
-                {value !== undefined && (
-                  <div
-                    className="absolute top-0 -translate-x-1/2 border-x-[5px] border-t-[6px] border-x-transparent border-t-foreground"
-                    style={{ left: `${fraction * 100}%` }}
-                  />
-                )}
-                <div className="relative h-2.5 overflow-hidden rounded-sm bg-muted">
-                  {segments.map((s) => (
-                    <div
-                      key={s.from}
-                      className="absolute inset-y-0"
-                      style={{
-                        left: `${s.from * 100}%`,
-                        width: `${(s.to - s.from) * 100}%`,
-                        backgroundColor: s.color,
-                      }}
-                    />
-                  ))}
-                </div>
-                {marks.some((m) => m.color) && (
-                  <div
-                    className={cn(
-                      "relative",
-                      showThresholdLabels ? "h-6" : "h-2",
-                    )}
-                  >
-                    {marks
-                      .filter((m) => m.color !== undefined)
-                      .map((mark) => (
-                        <div
-                          key={`${mark.fraction}-${mark.color}`}
-                          className="absolute top-0 -translate-x-1/2"
-                          style={{ left: `${mark.fraction * 100}%` }}
-                        >
-                          <div
-                            className="mx-auto h-1.5 w-px"
-                            style={{ backgroundColor: mark.color }}
-                          />
-                          {showThresholdLabels && (
-                            <p className="whitespace-nowrap text-[10px] tabular-nums text-muted-foreground">
-                              {formatStatValue(mark.value, undefined)}
-                              {unit}
-                            </p>
-                          )}
-                        </div>
-                      ))}
-                  </div>
-                )}
-                {showAxis && (
-                  <div className="flex justify-between text-[10px] tabular-nums text-muted-foreground">
-                    <span>{minText}</span>
-                    <span>{maxText}</span>
-                  </div>
-                )}
-              </div>
-            </div>
-          );
-        }
-
-        return (
-          <div key={key} className="flex min-w-28 flex-1 flex-col items-center">
-            {labelEl}
-            {/* The SVG is absolutely positioned: inside a wrapped flex line a
-                percentage height can't resolve and the SVG would fall back to
-                width-driven sizing and overflow the panel. */}
-            <div className="relative min-h-0 w-full flex-1">
-              <svg
-                viewBox={VIEWBOX}
-                preserveAspectRatio="xMidYMid meet"
-                className="absolute inset-0 h-full w-full"
-                role="img"
-                aria-label={ariaLabel}
-              >
-                <path
-                  d={arcPath(180, 0)}
-                  className="stroke-muted"
-                  strokeWidth={STROKE}
-                  strokeLinecap="round"
-                  fill="none"
-                />
-                {fraction > 0 && (
-                  <path
-                    d={arcPath(180, 180 - fraction * 180)}
-                    stroke={color}
-                    strokeWidth={STROKE}
-                    strokeLinecap="round"
-                    fill="none"
-                  />
-                )}
-                {marks
-                  .filter((m) => m.color !== undefined)
-                  .map((mark) => {
-                    const angle = 180 - mark.fraction * 180;
-                    const inner = polar(R - STROKE / 2 - 2, angle);
-                    const outer = polar(R + STROKE / 2 + 2, angle);
-                    const labelPos = polar(R + STROKE / 2 + 6, angle);
-                    return (
-                      <g key={`${mark.fraction}-${mark.color}`}>
-                        <line
-                          x1={inner.x}
-                          y1={inner.y}
-                          x2={outer.x}
-                          y2={outer.y}
-                          stroke={mark.color}
-                          strokeWidth={1.25}
-                        />
-                        {showThresholdLabels && (
-                          <text
-                            x={labelPos.x}
-                            y={labelPos.y}
-                            textAnchor="middle"
-                            fontSize={5}
-                            className="fill-muted-foreground tabular-nums"
-                          >
-                            {formatStatValue(mark.value, undefined)}
-                            {unit}
-                          </text>
-                        )}
-                      </g>
-                    );
-                  })}
-                <text
-                  x={CX}
-                  y={46}
-                  textAnchor="middle"
-                  fontSize={13}
-                  className={cn(
-                    "font-semibold tabular-nums",
-                    value === undefined
-                      ? "fill-muted-foreground"
-                      : "fill-foreground",
-                  )}
-                >
-                  {valueText}
-                  {value !== undefined && unit && (
-                    <tspan
-                      dx={1.5}
-                      fontSize={7}
-                      className="fill-muted-foreground font-normal"
-                    >
-                      {unit}
-                    </tspan>
-                  )}
-                </text>
-                {showAxis && (
-                  <>
-                    <text
-                      x={CX - R}
-                      y={62}
-                      textAnchor="middle"
-                      fontSize={5.5}
-                      className="fill-muted-foreground tabular-nums"
-                    >
-                      {minText}
-                    </text>
-                    <text
-                      x={CX + R}
-                      y={62}
-                      textAnchor="middle"
-                      fontSize={5.5}
-                      className="fill-muted-foreground tabular-nums"
-                    >
-                      {maxText}
-                    </text>
-                  </>
-                )}
-              </svg>
-            </div>
-          </div>
+        return horizontal ? (
+          <GaugeBar
+            key={key}
+            {...props}
+            ariaLabel={ariaLabel}
+            segments={fillSegments(fraction, marks, colors)}
+          />
+        ) : (
+          <GaugeArc
+            key={key}
+            {...props}
+            ariaLabel={ariaLabel}
+            color={
+              (value !== undefined
+                ? resolveThresholdColor(value, thresholds, max)
+                : undefined) ?? fallbackColor
+            }
+          />
         );
       })}
+    </div>
+  );
+}
+
+/** Flat bar filling left to right, with a marker at the current value. */
+function GaugeBar({
+  label,
+  value,
+  valueText,
+  unit,
+  fraction,
+  ticks,
+  showAxis,
+  showThresholdLabels,
+  minText,
+  maxText,
+  ariaLabel,
+  segments,
+}: TileProps & { ariaLabel: string; segments: FillSegment[] }) {
+  return (
+    <div className="min-w-40 flex-1" role="img" aria-label={ariaLabel}>
+      {label}
+      <p className="mb-2 leading-none">
+        {/* Like the arc, the number stays neutral: the band color is carried
+            by the fill segments, not the text. */}
+        <span
+          className={cn(
+            "text-2xl font-semibold tabular-nums",
+            value === undefined ? "text-muted-foreground" : "text-foreground",
+          )}
+        >
+          {valueText}
+        </span>
+        {value !== undefined && unit && (
+          <span className="ml-1 text-xs text-muted-foreground">{unit}</span>
+        )}
+      </p>
+      <div className="relative pt-2">
+        {/* Triangle marker pointing down at the value position. */}
+        {value !== undefined && (
+          <div
+            className="absolute top-0 -translate-x-1/2 border-x-[5px] border-t-[6px] border-x-transparent border-t-foreground"
+            style={{ left: `${fraction * 100}%` }}
+          />
+        )}
+        <div className="relative h-2.5 overflow-hidden rounded-sm bg-muted">
+          {segments.map((s) => (
+            <div
+              key={s.from}
+              className="absolute inset-y-0"
+              style={{
+                left: `${s.from * 100}%`,
+                width: `${(s.to - s.from) * 100}%`,
+                backgroundColor: s.color,
+              }}
+            />
+          ))}
+        </div>
+        {ticks.length > 0 && (
+          <div className={cn("relative", showThresholdLabels ? "h-6" : "h-2")}>
+            {ticks.map((tick) => (
+              <div
+                key={`${tick.fraction}-${tick.color}`}
+                className="absolute top-0 -translate-x-1/2"
+                style={{ left: `${tick.fraction * 100}%` }}
+              >
+                <div
+                  className="mx-auto h-1.5 w-px"
+                  style={{ backgroundColor: tick.color }}
+                />
+                {showThresholdLabels && (
+                  <p className="whitespace-nowrap text-[10px] tabular-nums text-muted-foreground">
+                    {tick.text}
+                  </p>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+        {showAxis && (
+          <div className="flex justify-between text-[10px] tabular-nums text-muted-foreground">
+            <span>{minText}</span>
+            <span>{maxText}</span>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/** Semicircular arc filling from the min end, with the value at its center. */
+function GaugeArc({
+  label,
+  value,
+  valueText,
+  unit,
+  fraction,
+  ticks,
+  showAxis,
+  showThresholdLabels,
+  minText,
+  maxText,
+  ariaLabel,
+  color,
+}: TileProps & { ariaLabel: string; color: string }) {
+  return (
+    <div className="flex min-w-28 flex-1 flex-col items-center">
+      {label}
+      {/* The SVG is absolutely positioned: inside a wrapped flex line a
+          percentage height can't resolve and the SVG would fall back to
+          width-driven sizing and overflow the panel. */}
+      <div className="relative min-h-0 w-full flex-1">
+        <svg
+          viewBox={VIEWBOX}
+          preserveAspectRatio="xMidYMid meet"
+          className="absolute inset-0 h-full w-full"
+          role="img"
+          aria-label={ariaLabel}
+        >
+          <path
+            d={arcPath(180, 0)}
+            className="stroke-muted"
+            strokeWidth={STROKE}
+            strokeLinecap="round"
+            fill="none"
+          />
+          {fraction > 0 && (
+            <path
+              d={arcPath(180, 180 - fraction * 180)}
+              stroke={color}
+              strokeWidth={STROKE}
+              strokeLinecap="round"
+              fill="none"
+            />
+          )}
+          {ticks.map((tick) => {
+            const angle = 180 - tick.fraction * 180;
+            const inner = polar(R - STROKE / 2 - 2, angle);
+            const outer = polar(R + STROKE / 2 + 2, angle);
+            const labelPos = polar(R + STROKE / 2 + 6, angle);
+            return (
+              <g key={`${tick.fraction}-${tick.color}`}>
+                <line
+                  x1={inner.x}
+                  y1={inner.y}
+                  x2={outer.x}
+                  y2={outer.y}
+                  stroke={tick.color}
+                  strokeWidth={1.25}
+                />
+                {showThresholdLabels && (
+                  <text
+                    x={labelPos.x}
+                    y={labelPos.y}
+                    textAnchor="middle"
+                    fontSize={5}
+                    className="fill-muted-foreground tabular-nums"
+                  >
+                    {tick.text}
+                  </text>
+                )}
+              </g>
+            );
+          })}
+          <text
+            x={CX}
+            y={46}
+            textAnchor="middle"
+            fontSize={13}
+            className={cn(
+              "font-semibold tabular-nums",
+              value === undefined ? "fill-muted-foreground" : "fill-foreground",
+            )}
+          >
+            {valueText}
+            {value !== undefined && unit && (
+              <tspan
+                dx={1.5}
+                fontSize={7}
+                className="fill-muted-foreground font-normal"
+              >
+                {unit}
+              </tspan>
+            )}
+          </text>
+          {showAxis && (
+            <>
+              <text
+                x={CX - R}
+                y={62}
+                textAnchor="middle"
+                fontSize={5.5}
+                className="fill-muted-foreground tabular-nums"
+              >
+                {minText}
+              </text>
+              <text
+                x={CX + R}
+                y={62}
+                textAnchor="middle"
+                fontSize={5.5}
+                className="fill-muted-foreground tabular-nums"
+              >
+                {maxText}
+              </text>
+            </>
+          )}
+        </svg>
+      </div>
     </div>
   );
 }

@@ -13,9 +13,9 @@ One or more gauges, each showing a single value filled between `min` and `max`, 
 | `max` | number | `100` | any number | Gauge axis upper bound. **Set it to the metric's real ceiling** — the default 100 only suits percentages. Inverting the bounds (`min > max`) inverts the arc, so a lower value reads as fuller — useful for "lower is better" metrics. |
 | `showLabel` | boolean | `false` | `true` | Show the column-name label even on a single-gauge panel (multi-gauge always shows it). |
 | `noValue` | string | `–` | any string | Text rendered for a query that produced no value (empty result / no numeric column). |
-| `variant` | string | none (= `arc`) | `arc`, `horizontal` | Rendering shape. Omitted or `arc`: semicircular arc. `horizontal`: flat bar filling left→right with the value text above it, a triangle marker at the value position and, with thresholds, multi-colored fill segments per band. |
+| `variant` | string | `arc` | `arc`, `horizontal` | Rendering shape. `arc`: semicircular arc. `horizontal`: flat bar filling left→right with the value text above it, a triangle marker at the value position and, with thresholds, multi-colored fill segments per band. |
 | `showAxis` | boolean | `true` | `false` | Show the `min`/`max` axis labels: at the arc ends, or below the horizontal bar. |
-| `showThresholdLabels` | boolean | `false` | `true` | Show a numeric label at each threshold tick mark (any variant). The label is the step position in axis units with the `unit` suffix, so a `percent` step reads as the value it lands on, not as the percentage you wrote. |
+| `showThresholdLabels` | boolean | `false` | `true` | Show a numeric label at each threshold tick mark (any variant). |
 | `thresholds` | object | none | see below | Color the arc and mark step positions on the gauge. Omit for the default series color. |
 
 ### `thresholds`
