@@ -67,13 +67,7 @@ export function selectorOf(el: Element): string {
   const parts: string[] = [];
   for (let node: Element | null = el; node?.parentElement; ) {
     if (node.id) {
-      // A plain id keeps the `#id` form; any other id needs an escape in a
-      // selector, and the attribute form only has to escape its quotes.
-      parts.unshift(
-        /^[A-Za-z][\w-]*$/.test(node.id)
-          ? `#${node.id}`
-          : `[id="${node.id.replace(/"/g, '\\"')}"]`,
-      );
+      parts.unshift(`#${CSS.escape(node.id)}`);
       break;
     }
     let part = node.tagName.toLowerCase();

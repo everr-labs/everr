@@ -212,15 +212,13 @@ describe("startInteractions", () => {
       );
     });
 
-    it("quotes an id that is not a plain identifier", () => {
+    it("escapes an id that is not a plain identifier", () => {
       document.body.innerHTML = '<div id="user:42"><span>x</span></div>';
       rageBurst(document.querySelector("span") as Element);
       const rage = emitted.find(
         (e) => e.name === "everr.browser.interaction.rage_click",
       );
-      expect(rage?.attrs?.["everr.element.selector"]).toBe(
-        '[id="user:42"] > span',
-      );
+      expect(rage?.attrs?.["everr.element.selector"]).toBe("#user\\:42 > span");
     });
 
     it("skips clicks on password and hidden inputs", () => {
