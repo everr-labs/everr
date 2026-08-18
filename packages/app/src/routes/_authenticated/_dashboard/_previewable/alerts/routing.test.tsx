@@ -178,12 +178,12 @@ describe("/alerts/routing inline route editor", () => {
       "oncall",
     );
     await user.click(
-      within(editor).getByRole("button", { name: "Add condition" }),
+      within(editor).getByRole("button", { name: "Add matcher" }),
     );
 
     expect(
       within(editor).getByText(
-        "Choose a label or remove the empty condition before saving.",
+        "Choose a label or remove the empty matcher before saving.",
       ),
     ).toBeVisible();
     expect(

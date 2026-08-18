@@ -21,7 +21,7 @@ const FACTS: AlertingPipelineFacts = {
   activeSilences: 1,
   routeCount: 2,
   receiverCount: 3,
-  unroutedFiring: 0,
+  undeliveredFiring: 0,
 };
 
 function renderStrip(ui: ReactNode) {
@@ -37,7 +37,7 @@ describe("AlertingPipelineStrip", () => {
   it("reads out all four stages", async () => {
     renderStrip(<AlertingPipelineStrip facts={FACTS} />);
     const strip = await screen.findByRole("region", {
-      name: "Alerting pipeline",
+      name: "Alerting overview",
     });
 
     expect(strip).toHaveTextContent("4 rules");
@@ -46,13 +46,13 @@ describe("AlertingPipelineStrip", () => {
     expect(strip).toHaveTextContent("3 firing");
     expect(strip).toHaveTextContent("1 pending");
     expect(strip).toHaveTextContent("1 active silence");
-    expect(strip).toHaveTextContent("2 routes · 3 destinations");
+    expect(strip).toHaveTextContent("2 routes · 3 receivers");
   });
 
   it("shows the watched rule count as plain text, not a link", async () => {
     renderStrip(<AlertingPipelineStrip facts={FACTS} />);
     const strip = await screen.findByRole("region", {
-      name: "Alerting pipeline",
+      name: "Alerting overview",
     });
 
     // The rule inventory this cell used to link to is this same page now.
@@ -62,9 +62,9 @@ describe("AlertingPipelineStrip", () => {
     expect(within(strip).queryAllByRole("button")).toHaveLength(0);
   });
 
-  it("flags unrouted firing instances on the Delivery stage", async () => {
+  it("flags undelivered firing instances on the Delivery stage", async () => {
     renderStrip(
-      <AlertingPipelineStrip facts={{ ...FACTS, unroutedFiring: 3 }} />,
+      <AlertingPipelineStrip facts={{ ...FACTS, undeliveredFiring: 3 }} />,
     );
     expect(await screen.findByText("Coverage incomplete")).toBeInTheDocument();
   });
@@ -74,7 +74,7 @@ describe("AlertingPipelineStrip", () => {
       <AlertingPipelineStrip facts={{ ...FACTS, firing: 2, pending: 2 }} />,
     );
     const strip = await screen.findByRole("region", {
-      name: "Alerting pipeline",
+      name: "Alerting overview",
     });
     const breaching = within(strip)
       .getByText("Breaching instances")

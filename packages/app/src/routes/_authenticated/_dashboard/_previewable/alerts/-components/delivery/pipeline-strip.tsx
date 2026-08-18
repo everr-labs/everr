@@ -14,7 +14,7 @@ export type AlertingPipelineFacts = {
   activeSilences: number;
   routeCount: number;
   receiverCount: number;
-  unroutedFiring: number;
+  undeliveredFiring: number;
 };
 
 function MetricNumber({ children }: { children: React.ReactNode }) {
@@ -48,7 +48,7 @@ export function AlertingPipelineStrip({
   const breaching = facts.firing + facts.pending;
 
   return (
-    <AlertingSummaryCard ariaLabel="Alerting pipeline" ariaLive="polite">
+    <AlertingSummaryCard ariaLabel="Alerting overview" ariaLive="polite">
       <AlertingSummaryStat
         label="Breaching instances"
         value={<MetricNumber>{breaching}</MetricNumber>}
@@ -73,20 +73,22 @@ export function AlertingPipelineStrip({
             <span className="text-xs text-muted-foreground"> · </span>
             <MetricCount
               value={facts.receiverCount}
-              singular="destination"
-              plural="destinations"
+              singular="receiver"
+              plural="receivers"
             />
           </span>
         }
         detail={
           facts.routeCount === 0
             ? "Not configured"
-            : facts.unroutedFiring > 0
+            : facts.undeliveredFiring > 0
               ? "Coverage incomplete"
               : "Delivery ready"
         }
         detailClassName={
-          facts.unroutedFiring > 0 ? toneText({ tone: "warning" }) : undefined
+          facts.undeliveredFiring > 0
+            ? toneText({ tone: "warning" })
+            : undefined
         }
       />
       <AlertingSummaryStat

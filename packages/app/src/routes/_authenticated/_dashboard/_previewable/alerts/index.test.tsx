@@ -314,7 +314,7 @@ describe("/alerts triage board", () => {
     renderTriagePage();
 
     const strip = await screen.findByRole("region", {
-      name: "Alerting pipeline",
+      name: "Alerting overview",
     });
     expect(strip).toHaveTextContent("2 rules");
     expect(strip).toHaveTextContent("1 active silence");
@@ -576,7 +576,7 @@ describe("/alerts triage board", () => {
 
     // Routed to a receiver that fans out to nothing delivers exactly nothing:
     // it gets the "not routed" warning treatment, not a healthy arrow.
-    await screen.findByRole("link", { name: "No destination" });
+    await screen.findByRole("link", { name: "No channels" });
   });
 
   it("marks unrouted instances as not delivered when no routes exist", async () => {
@@ -732,7 +732,7 @@ describe("/alerts triage board", () => {
       screen.queryByRole("region", { name: "Active alerts" }),
     ).not.toBeInTheDocument();
     expect(
-      screen.queryByRole("region", { name: "Alerting pipeline" }),
+      screen.queryByRole("region", { name: "Alerting overview" }),
     ).not.toBeInTheDocument();
   });
 

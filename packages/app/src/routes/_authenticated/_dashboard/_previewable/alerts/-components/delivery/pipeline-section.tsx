@@ -40,7 +40,7 @@ import type {
   AlertingRoute,
 } from "@/data/alerting/types";
 import { AlertingDisclosureTrigger } from "../common/disclosure";
-import { Conditions } from "../common/labels";
+import { Matchers } from "../common/labels";
 import { alertingErrorMessage } from "../common/query-error";
 import { RouteBuilder, routeOrderWarning } from "./route-builder";
 import { ChannelChip, RoutePreview } from "./route-preview";
@@ -208,7 +208,7 @@ function PipelineRoute({
       </span>
       <div className="min-w-0 flex-1 space-y-1">
         <div className="flex flex-wrap items-center gap-2">
-          <Conditions matchers={route.matchers} emptyLabel="any alert" />
+          <Matchers matchers={route.matchers} emptyLabel="any alert" />
           <ArrowRight
             aria-hidden
             className={cn(
@@ -536,7 +536,7 @@ function SetupChecklist({
         index={3}
         done={false}
         title="Route alerts to it"
-        detail="Conditions pick which alerts it receives; a route with no conditions matches every alert."
+        detail="Matchers pick which alerts it receives; a route with no conditions matches every alert."
         action="Add route"
         onAction={onAddRoute}
       />

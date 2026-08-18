@@ -23,7 +23,7 @@ export function TriageDeliveryFact({
     return (
       <span
         className="truncate font-mono text-xs text-muted-foreground"
-        title={`Explicit destination: ${directChannels.join(", ")}`}
+        title={`Direct channels: ${directChannels.join(", ")}`}
       >
         <span aria-hidden>→ </span>
         <span className="text-foreground">{names}</span>
@@ -66,7 +66,7 @@ export function TriageDeliveryFact({
           toneText({ tone: "warning" }),
         )}
       >
-        No destination
+        No channels
       </Link>
     );
   }

@@ -32,7 +32,7 @@ import {
 } from "@/data/alerting/silences/server";
 import {
   alertingGroupSilenceMatchers,
-  alertingInstanceIsUndeliverable,
+  alertingInstanceIsUndelivered,
   alertingRunbookParams,
   alertingSourceScopedSilenceMatchers,
   alertingStatusSince,
@@ -383,16 +383,16 @@ export function TriageBoard({
 }) {
   const [expandedKey, setExpandedKey] = useState<string | null>(null);
   const qc = useQueryClient();
-  const rowIsUnrouted = (row: TriageRow) =>
+  const rowIsUndelivered = (row: TriageRow) =>
     row.lead.silence === null &&
-    alertingInstanceIsUndeliverable(row.lead, channelsByReceiver);
+    alertingInstanceIsUndelivered(row.lead, channelsByReceiver);
   // Pending rows have not fired yet, so they have nothing to deliver:
   // the banner below only speaks about firing alerts, and must count only those.
-  const unroutedCount = groups.reduce(
+  const undeliveredCount = groups.reduce(
     (count, group) =>
       count +
       group.rows.filter(
-        (row) => row.lead.alert.status === "firing" && rowIsUnrouted(row),
+        (row) => row.lead.alert.status === "firing" && rowIsUndelivered(row),
       ).length,
     0,
   );
@@ -402,7 +402,8 @@ export function TriageBoard({
         (STATUS_RANK[b.rows[0].lead.alert.status] ?? 3) ||
       (SEVERITY_PRIORITY[a.severity] ?? 3) -
         (SEVERITY_PRIORITY[b.severity] ?? 3) ||
-      Number(b.rows.some(rowIsUnrouted)) - Number(a.rows.some(rowIsUnrouted)) ||
+      Number(b.rows.some(rowIsUndelivered)) -
+        Number(a.rows.some(rowIsUndelivered)) ||
       rowStartedAt(b.rows[0]) - rowStartedAt(a.rows[0]) ||
       a.name.localeCompare(b.name)
     );
@@ -454,15 +455,15 @@ export function TriageBoard({
 
   return (
     <div className="space-y-2">
-      {unroutedCount > 0 && (
+      {undeliveredCount > 0 && (
         <div
           role="alert"
           className="flex flex-col gap-3 rounded-md border border-destructive/30 bg-destructive/5 px-3 py-3 lg:flex-row lg:items-center"
         >
           <div className="min-w-0 flex-1">
             <p className="text-sm font-semibold text-destructive">
-              {unroutedCount} firing
-              {unroutedCount === 1 ? " alert is" : " alerts are"} not being
+              {undeliveredCount} firing
+              {undeliveredCount === 1 ? " alert is" : " alerts are"} not being
               delivered
             </p>
           </div>

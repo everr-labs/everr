@@ -58,7 +58,7 @@ function useAlertingMatcherValueLink(): (
   }, [rules.data]);
 }
 
-export function Conditions({
+export function Matchers({
   matchers,
   emptyLabel = "*",
 }: {

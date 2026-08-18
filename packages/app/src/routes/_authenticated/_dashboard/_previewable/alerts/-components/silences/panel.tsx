@@ -38,7 +38,7 @@ import type { AlertingMatcher, AlertingSilence } from "@/data/alerting/types";
 import { AlertingConceptNote } from "../common/concept-note";
 import { AlertingDrawer } from "../common/drawer";
 import { alertingFormatTs } from "../common/format";
-import { Conditions } from "../common/labels";
+import { Matchers } from "../common/labels";
 import { AlertingTableSkeleton } from "../common/placeholders";
 import {
   AlertingQueryError,
@@ -143,7 +143,7 @@ export function SilencesPanel({ onNewSilence }: { onNewSilence: () => void }) {
     },
     {
       header: "Matchers",
-      cell: (s) => <Conditions matchers={s.matchers} />,
+      cell: (s) => <Matchers matchers={s.matchers} />,
     },
     { header: "Starts", cell: (s) => alertingFormatTs(s.starts_at) },
     { header: "Ends", cell: (s) => alertingFormatTs(s.ends_at) },

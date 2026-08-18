@@ -73,7 +73,7 @@ function activeSilence(
   });
 }
 
-// Conditions resolves rule matcher values, so the panel needs a router whose
+// Matchers resolves rule matcher values, so the panel needs a router whose
 // tree carries the _authenticated/_dashboard layout ids.
 function renderPanel(onNewSilence = vi.fn()) {
   const rootRoute = createRootRoute({ component: Outlet });

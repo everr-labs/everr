@@ -13,7 +13,7 @@ import { toast } from "sonner";
 import { deliveryQueries } from "@/data/alerting/delivery/queries";
 import { deleteAlertingInhibition } from "@/data/alerting/delivery/server";
 import type { AlertingInhibition } from "@/data/alerting/types";
-import { Conditions } from "../common/labels";
+import { Matchers } from "../common/labels";
 import { InhibitionBuilder } from "./inhibition-builder";
 import {
   ConfirmDeleteAction,
@@ -80,11 +80,11 @@ export function InhibitionsSection() {
                 <div className="min-w-0 flex-1">
                   While{" "}
                   <span className="inline-flex flex-wrap items-center gap-1 align-middle">
-                    <Conditions matchers={r.source_matchers} />
+                    <Matchers matchers={r.source_matchers} />
                   </span>{" "}
                   fires, suppress{" "}
                   <span className="inline-flex flex-wrap items-center gap-1 align-middle">
-                    <Conditions matchers={r.target_matchers} />
+                    <Matchers matchers={r.target_matchers} />
                   </span>
                   {(r.equal ?? []).length > 0 && (
                     <>

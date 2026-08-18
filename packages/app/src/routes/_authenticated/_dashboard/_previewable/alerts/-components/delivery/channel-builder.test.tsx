@@ -34,9 +34,7 @@ async function renderBuilder() {
   await waitFor(() => {
     expect(drawer.contains(document.activeElement)).toBe(true);
   });
-  // A new channel starts with no type, so the fields below only exist once
-  // one is picked. Webhook is the plain-URL case these tests drive.
-  await userEvent.click(screen.getByRole("radio", { name: /webhook/i }));
+  // A new channel starts as a webhook, the plain-URL case these tests drive.
 }
 
 describe("ChannelBuilder test button", () => {

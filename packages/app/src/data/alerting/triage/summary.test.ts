@@ -112,7 +112,7 @@ describe("alertingResolveTriageInstances", () => {
     expect(inst.matchedRoutes).toEqual([]);
     expect(
       alertingTriageCounts(alertingGroupInstances([inst]), [], NOW),
-    ).toMatchObject({ firing: 1, unroutedFiring: 0 });
+    ).toMatchObject({ firing: 1, undeliveredFiring: 0 });
   });
 
   it("attaches a matching active silence", () => {
@@ -146,8 +146,8 @@ describe("alertingTriageCounts", () => {
 
     // fp-1 and fp-3 are firing; fp-2 is pending and fp-4 inactive. Only fp-3
     // (svc=api) is matched by the silence, and `silenced` ignores inactive
-    // rows. The single route matches host=web-1, so fp-3 is firing-unrouted.
-    // but it is silenced, so it does not count as unrouted either.
+    // rows. The single route matches host=web-1, so fp-3 is firing-undelivered.
+    // but it is silenced, so it does not count as undelivered either.
     expect(
       alertingTriageCounts(
         alertingGroupInstances(instances),
@@ -158,7 +158,7 @@ describe("alertingTriageCounts", () => {
       firing: 2,
       pending: 1,
       silenced: 1,
-      unroutedFiring: 0,
+      undeliveredFiring: 0,
       activeSilences: 1,
     });
   });
@@ -171,7 +171,7 @@ describe("alertingTriageCounts", () => {
       alertingTriageCounts(alertingGroupInstances(instances), [], NOW),
     ).toMatchObject({
       firing: 1,
-      unroutedFiring: 1,
+      undeliveredFiring: 1,
     });
   });
 

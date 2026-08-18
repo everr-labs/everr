@@ -85,7 +85,7 @@ export function alertingDeliveryFanout(
   return { receivers, channels, dead };
 }
 
-export function alertingInstanceIsUndeliverable(
+export function alertingInstanceIsUndelivered(
   instance: TriageInstance,
   channelsByReceiver?: Map<string, string[]>,
 ): boolean {
@@ -179,22 +179,22 @@ export function alertingTriageCounts(
   firing: number;
   pending: number;
   silenced: number;
-  unroutedFiring: number;
+  undeliveredFiring: number;
   activeSilences: number;
 } {
   let firing = 0;
   let pending = 0;
   let silenced = 0;
-  let unroutedFiring = 0;
+  let undeliveredFiring = 0;
   for (const group of groups) {
     for (const { lead } of group.rows) {
       if (lead.alert.status === "firing") {
         firing += 1;
         if (
           lead.silence === null &&
-          alertingInstanceIsUndeliverable(lead, channelsByReceiver)
+          alertingInstanceIsUndelivered(lead, channelsByReceiver)
         ) {
-          unroutedFiring += 1;
+          undeliveredFiring += 1;
         }
       } else if (lead.alert.status === "pending") {
         pending += 1;
@@ -208,7 +208,7 @@ export function alertingTriageCounts(
     firing,
     pending,
     silenced,
-    unroutedFiring,
+    undeliveredFiring,
     activeSilences: silences.filter((s) => alertingSilenceIsActive(s, now))
       .length,
   };

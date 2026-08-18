@@ -345,7 +345,7 @@ export function RouteBuilder({
           <div className="space-y-3">
             <MatchersEditor
               label="Match alerts"
-              addLabel="Add condition"
+              addLabel="Add matcher"
               value={matchers}
               onChange={setMatchers}
             />
@@ -365,7 +365,7 @@ export function RouteBuilder({
             )}
             {hasIncompleteMatchers && (
               <p className="text-xs text-muted-foreground">
-                Choose a label or remove the empty condition before saving.
+                Choose a label or remove the empty matcher before saving.
               </p>
             )}
           </div>

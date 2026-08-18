@@ -14,7 +14,7 @@ import {
   type TriageInstance,
 } from "@/data/alerting/triage/summary";
 import { alertingFormatTs } from "../common/format";
-import { Conditions, EvidenceChips } from "../common/labels";
+import { EvidenceChips, Matchers } from "../common/labels";
 import { AlertingStatusDot } from "../common/status";
 
 const TRIAGE_INSTANCE_EVENT_LIMIT = 100;
@@ -72,7 +72,7 @@ export function TriageInstanceDetail({
           </h3>
           {instance.directChannels.length > 0 ? (
             <div className="flex flex-wrap items-center gap-2 text-xs">
-              <span className="text-muted-foreground">Direct destinations</span>
+              <span className="text-muted-foreground">Direct channels</span>
               <span className="font-mono text-foreground">
                 {instance.directChannels.join(", ")}
               </span>
@@ -87,7 +87,7 @@ export function TriageInstanceDetail({
                   <span className="font-mono text-xs text-foreground">
                     {route.receiver}
                   </span>
-                  <Conditions
+                  <Matchers
                     matchers={route.matchers}
                     emptyLabel="* (catch-all)"
                   />

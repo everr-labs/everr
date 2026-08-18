@@ -24,8 +24,7 @@ const mocks = vi.hoisted(() => ({
   createAlertingChannel: vi.fn(),
   updateAlertingChannel: vi.fn(),
   deleteAlertingChannel: vi.fn(),
-  testAlertingSavedChannel: vi.fn(),
-  listAlertingChannelHealth: vi.fn(),
+  testAlertingChannel: vi.fn(),
   createAlertingReceiver: vi.fn(),
   updateAlertingReceiver: vi.fn(),
   deleteAlertingReceiver: vi.fn(),
@@ -43,8 +42,7 @@ vi.mock("@/data/alerting/delivery/server", () => ({
   createAlertingChannel: mocks.createAlertingChannel,
   updateAlertingChannel: mocks.updateAlertingChannel,
   deleteAlertingChannel: mocks.deleteAlertingChannel,
-  testAlertingSavedChannel: mocks.testAlertingSavedChannel,
-  listAlertingChannelHealth: mocks.listAlertingChannelHealth,
+  testAlertingChannel: mocks.testAlertingChannel,
   createAlertingReceiver: mocks.createAlertingReceiver,
   updateAlertingReceiver: mocks.updateAlertingReceiver,
   deleteAlertingReceiver: mocks.deleteAlertingReceiver,
@@ -180,7 +178,6 @@ beforeEach(() => {
   mocks.listAlertingRoutes.mockResolvedValue([]);
   mocks.listAlertingReceivers.mockResolvedValue([]);
   mocks.listAlertingChannels.mockResolvedValue([]);
-  mocks.listAlertingChannelHealth.mockResolvedValue([]);
   mocks.listAlertingRules.mockResolvedValue([]);
   mocks.listAlertingLabelKeys.mockResolvedValue([]);
   mocks.listAlertingLabelValues.mockResolvedValue([]);
@@ -271,13 +268,13 @@ describe("/alerts/notifications usage facts", () => {
       await screen.findByText("no route targets this receiver"),
     ).toBeInTheDocument();
     expect(
-      await screen.findByText(/In no receiver, so nothing delivers here/),
+      await screen.findByText("not referenced by any receiver"),
     ).toBeInTheDocument();
     // "oncall-hook" IS referenced by the receiver.
     const usedChannelRow = (
-      await screen.findByRole("button", { name: "Send test to oncall-hook" })
+      await screen.findByRole("button", { name: "Edit channel oncall-hook" })
     ).closest("li");
-    expect(usedChannelRow).toHaveTextContent("In oncall");
+    expect(usedChannelRow).toHaveTextContent("1 receiver");
   });
 
   it("counts the routes targeting a receiver", async () => {
@@ -311,17 +308,11 @@ describe("/alerts/notifications channels section", () => {
     const create = within(dialog).getByRole("button", {
       name: "Create channel",
     });
-    // The type comes first: nothing else is asked until it is chosen.
-    expect(create).toBeDisabled();
-    expect(within(dialog).queryByLabelText("Name")).not.toBeInTheDocument();
-
-    await user.click(within(dialog).getByRole("radio", { name: /webhook/i }));
+    // A new channel starts as a webhook with everything else blank.
     const name = within(dialog).getByLabelText("Name");
-    // Picking the type offers a name to go with it.
-    expect(name).toHaveValue("ops-webhook");
+    expect(name).toHaveValue("");
     expect(create).toBeDisabled();
 
-    await user.clear(name);
     await user.type(name, "hook");
     expect(create).toBeDisabled();
     await user.type(
@@ -549,7 +540,7 @@ describe("/alerts/notifications receivers section", () => {
 });
 
 describe("/alerts/notifications edit flows", () => {
-  it("renames a channel without making the reader enter the secret again", async () => {
+  it("edits a channel with write-only secrets: the URL starts blank and must be re-entered", async () => {
     mocks.listAlertingChannels.mockResolvedValue([channel()]);
     mocks.updateAlertingChannel.mockResolvedValue(channel());
     const user = userEvent.setup();
@@ -561,17 +552,18 @@ describe("/alerts/notifications edit flows", () => {
     );
     const drawer = await findSettledDrawer();
 
-    // ID references keep receivers attached across a channel rename.
     const nameInput = within(drawer).getByLabelText("Name");
     expect(nameInput).toHaveValue("oncall-hook");
-    // The stored URL never comes back out, so it stands in for itself rather
-    // than as an empty field the reader has to refill to save anything.
-    expect(within(drawer).getByText("Stored and hidden")).toBeInTheDocument();
+    // The stored URL never comes back out, so saving anything means entering
+    // it again.
+    const url = within(drawer).getByLabelText("Webhook URL");
+    expect(url).toHaveValue("");
     const save = within(drawer).getByRole("button", { name: "Save channel" });
-    expect(save).toBeEnabled();
+    expect(save).toBeDisabled();
 
     await user.clear(nameInput);
     await user.type(nameInput, "ops-hook");
+    await user.type(url, "https://example.com/rotated");
     await user.click(save);
 
     await waitFor(() =>
@@ -579,49 +571,11 @@ describe("/alerts/notifications edit flows", () => {
         data: {
           name: "oncall-hook",
           newName: "ops-hook",
-          config: { type: "webhook", url: "***" },
-        },
-      }),
-    );
-    expect(mocks.createAlertingChannel).not.toHaveBeenCalled();
-  });
-
-  it("sends the new secret only once the reader asks to replace it", async () => {
-    mocks.listAlertingChannels.mockResolvedValue([channel()]);
-    mocks.updateAlertingChannel.mockResolvedValue(channel());
-    const user = userEvent.setup();
-
-    renderNotificationsPage();
-
-    await user.click(
-      await screen.findByRole("button", { name: "Edit channel oncall-hook" }),
-    );
-    const drawer = await findSettledDrawer();
-
-    await user.click(
-      within(drawer).getByRole("button", { name: /replace webhook url/i }),
-    );
-    const url = within(drawer).getByLabelText("Webhook URL");
-    expect(url).toHaveValue("");
-    // A cleared secret is a real gap now: there is nothing to fall back on.
-    expect(
-      within(drawer).getByRole("button", { name: "Save channel" }),
-    ).toBeDisabled();
-
-    await user.type(url, "https://example.com/rotated");
-    await user.click(
-      within(drawer).getByRole("button", { name: "Save channel" }),
-    );
-
-    await waitFor(() =>
-      expect(mocks.updateAlertingChannel).toHaveBeenCalledWith({
-        data: {
-          name: "oncall-hook",
-          newName: "oncall-hook",
           config: { type: "webhook", url: "https://example.com/rotated" },
         },
       }),
     );
+    expect(mocks.createAlertingChannel).not.toHaveBeenCalled();
   });
 
   it("edits a receiver in place: channels prefilled, only UI-editable fields sent", async () => {
@@ -662,178 +616,5 @@ describe("/alerts/notifications edit flows", () => {
       }),
     );
     expect(mocks.createAlertingReceiver).not.toHaveBeenCalled();
-  });
-});
-
-describe("/alerts/notifications setup guide", () => {
-  it("guides an empty setup instead of showing two empty lists", async () => {
-    renderNotificationsPage();
-
-    expect(
-      await screen.findByRole("heading", { name: "Set up notifications" }),
-    ).toBeInTheDocument();
-    expect(
-      screen.queryByRole("heading", { name: "Channels" }),
-    ).not.toBeInTheDocument();
-    expect(
-      screen.queryByRole("heading", { name: "Receivers" }),
-    ).not.toBeInTheDocument();
-  });
-
-  it("starts a channel of the type the guide was entered by", async () => {
-    const user = userEvent.setup();
-    renderNotificationsPage();
-
-    await user.click(
-      await screen.findByRole("button", { name: "Add Telegram" }),
-    );
-
-    const drawer = await findSettledDrawer();
-    expect(within(drawer).getByLabelText("Chat IDs")).toBeInTheDocument();
-    expect(within(drawer).getByLabelText("Name")).toHaveValue(
-      "oncall-telegram",
-    );
-  });
-
-  it("drops to a single next step once only the route is missing", async () => {
-    mocks.listAlertingChannels.mockResolvedValue([channel()]);
-    mocks.listAlertingReceivers.mockResolvedValue([receiver()]);
-
-    renderNotificationsPage();
-
-    expect(
-      await screen.findByText(/Routing decides which alerts reach/),
-    ).toBeInTheDocument();
-    expect(
-      screen.queryByRole("heading", { name: "Set up notifications" }),
-    ).not.toBeInTheDocument();
-    // The configuration is real by now, so the lists are back.
-    expect(
-      screen.getByRole("heading", { name: "Channels" }),
-    ).toBeInTheDocument();
-  });
-
-  it("says nothing once channels, receivers and routes all exist", async () => {
-    mocks.listAlertingChannels.mockResolvedValue([channel()]);
-    mocks.listAlertingReceivers.mockResolvedValue([receiver()]);
-    mocks.listAlertingRoutes.mockResolvedValue([route()]);
-
-    renderNotificationsPage();
-
-    expect(
-      await screen.findByRole("heading", { name: "Channels" }),
-    ).toBeInTheDocument();
-    expect(
-      screen.queryByRole("heading", { name: "Set up notifications" }),
-    ).not.toBeInTheDocument();
-    expect(
-      screen.queryByText(/Routing decides which alerts reach/),
-    ).not.toBeInTheDocument();
-  });
-});
-
-describe("/alerts/notifications channel proof", () => {
-  it("tests a saved channel with the secret it already holds", async () => {
-    mocks.listAlertingChannels.mockResolvedValue([channel()]);
-    mocks.testAlertingSavedChannel.mockResolvedValue({
-      ok: true,
-      latency_ms: 240,
-    });
-    const user = userEvent.setup();
-
-    renderNotificationsPage();
-
-    await user.click(
-      await screen.findByRole("button", { name: "Send test to oncall-hook" }),
-    );
-
-    await waitFor(() =>
-      expect(mocks.testAlertingSavedChannel).toHaveBeenCalledWith({
-        data: { name: "oncall-hook" },
-      }),
-    );
-    expect(mocks.toastSuccess).toHaveBeenCalledWith(
-      "Test message delivered to oncall-hook in 240ms",
-    );
-  });
-
-  it("reports the failures the last day of deliveries recorded", async () => {
-    mocks.listAlertingChannels.mockResolvedValue([channel()]);
-    mocks.listAlertingChannelHealth.mockResolvedValue([
-      {
-        channel: "oncall-hook",
-        delivered: 4,
-        failed: 2,
-        lastSuccessAt: "2026-08-17T10:00:00.000Z",
-        lastFailureAt: "2026-08-17T11:00:00.000Z",
-        lastError: "404 from the webhook",
-      },
-    ]);
-
-    renderNotificationsPage();
-
-    expect(
-      await screen.findByText(
-        "2 of 6 deliveries failed in 24h: 404 from the webhook",
-      ),
-    ).toBeInTheDocument();
-  });
-});
-
-describe("/alerts/notifications channel and receiver hand-off", () => {
-  it("keeps a receiver draft while the reader steps out to add its first channel", async () => {
-    mocks.listAlertingReceivers.mockResolvedValue([receiver()]);
-    mocks.createAlertingChannel.mockResolvedValue(
-      channel({ name: "team-slack", config: { type: "slack", url: "***" } }),
-    );
-    const user = userEvent.setup();
-
-    renderNotificationsPage();
-
-    await user.click(
-      await screen.findByRole("button", { name: "New receiver" }),
-    );
-    let drawer = await findSettledDrawer();
-    await user.type(within(drawer).getByLabelText("Name"), "escalation");
-    await user.click(
-      within(drawer).getByRole("button", { name: "Add a channel: Slack" }),
-    );
-
-    // The channel builder took over, already on Slack.
-    drawer = await findSettledDrawer();
-    const url = within(drawer).getByLabelText("Incoming webhook URL");
-    await user.type(url, "https://hooks.slack.com/services/T/B/X");
-    mocks.listAlertingChannels.mockResolvedValue([
-      channel({ name: "team-slack", config: { type: "slack", url: "***" } }),
-    ]);
-    await user.click(
-      within(drawer).getByRole("button", { name: "Create channel" }),
-    );
-
-    // Back in the receiver, name intact and the new channel already picked.
-    drawer = await findSettledDrawer();
-    expect(within(drawer).getByLabelText("Name")).toHaveValue("escalation");
-    await waitFor(() =>
-      expect(
-        within(drawer).getByRole("checkbox", { name: "Channel team-slack" }),
-      ).toBeChecked(),
-    );
-  });
-
-  it("starts a receiver holding the channel that has none", async () => {
-    mocks.listAlertingChannels.mockResolvedValue([channel()]);
-    const user = userEvent.setup();
-
-    renderNotificationsPage();
-
-    await user.click(
-      await screen.findByRole("button", { name: "Add to a receiver" }),
-    );
-
-    const drawer = await findSettledDrawer();
-    expect(within(drawer).getByText("New receiver")).toBeInTheDocument();
-    expect(
-      within(drawer).getByRole("checkbox", { name: "Channel oncall-hook" }),
-    ).toBeChecked();
   });
 });
