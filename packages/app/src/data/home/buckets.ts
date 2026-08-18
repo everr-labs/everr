@@ -12,24 +12,26 @@ import type { BucketGranularity } from "@/lib/time-range";
 /**
  * The bucket key a row falls into, as ClickHouse SQL.
  *
- * Both the rounding and the formatting are pinned to UTC. `Timestamp` and
- * `TimestampTime` carry no timezone, so on a server whose timezone is not UTC
- * these functions would round and format in local time while still writing a
- * literal `Z`. The keys would then miss every entry in `bucketGrid`, and each
- * series would come back fully zero-filled.
+ * The rounding and the formatting both follow the server timezone, matching
+ * `cost-analysis/server.ts`. `Timestamp` and `TimestampTime` carry no
+ * timezone, and `bucketGrid` builds its keys in UTC, so both modules assume a
+ * ClickHouse server set to UTC. On a server set to anything else the keys here
+ * would carry local time under a literal `Z`, miss every entry in
+ * `bucketGrid`, and zero-fill each series.
  */
 export function bucketExpr(
   column: string,
   granularity: BucketGranularity,
 ): string {
   return granularity === "hour"
-    ? `formatDateTime(toStartOfHour(${column}, 'UTC'), '%Y-%m-%dT%H:00:00Z', 'UTC')`
-    : `formatDateTime(toStartOfDay(${column}, 'UTC'), '%Y-%m-%dT00:00:00Z', 'UTC')`;
+    ? `formatDateTime(toStartOfHour(${column}), '%Y-%m-%dT%H:00:00Z')`
+    : `formatDateTime(toStartOfDay(${column}), '%Y-%m-%dT00:00:00Z')`;
 }
 
 /**
  * Every bucket key in the range, in order, so a series can be zero-filled
- * where the query returned no row at all. Keys match `bucketExpr` exactly.
+ * where the query returned no row at all. Keys match `bucketExpr` on a
+ * ClickHouse server set to UTC.
  */
 export function bucketGrid(
   fromDate: Date,
