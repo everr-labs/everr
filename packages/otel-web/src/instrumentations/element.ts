@@ -47,7 +47,7 @@ export function elementAttrs(
 
 /** The attributes that name an element, in the order of preference. They are
  * the names that a developer writes and that a rebuild does not change. */
-const NAME_ATTRS = ["aria-label", "type", "name", "title", "alt"];
+const NAME_ATTRS = "aria-label,type,name,title,alt".split(",");
 
 /**
  * A CSS path that does not change. It starts at the nearest id, and below that
@@ -73,9 +73,10 @@ export function selectorOf(el: Element): string {
   let best = "";
   let bestCount = Infinity;
   for (let node: Element | null = el; node; node = node.parentElement) {
-    const id = stableName.test(node.id) ? node.id : "";
-    let part = id ? `#${id}` : node.tagName.toLowerCase();
-    if (!id) {
+    let part = stableName.test(node.id)
+      ? `#${node.id}`
+      : node.tagName.toLowerCase();
+    if (part[0] !== "#") {
       for (const name of NAME_ATTRS) {
         const value = node.getAttribute(name);
         if (value) {
@@ -83,17 +84,18 @@ export function selectorOf(el: Element): string {
           break;
         }
       }
-      const classes = [...node.classList]
+      for (const c of [...node.classList]
         .filter((c) => stableName.test(c))
-        .slice(0, 3);
-      if (classes.length) part += `.${classes.join(".")}`;
+        .slice(0, 3))
+        part += `.${c}`;
     }
     sel = sel ? `${part} > ${sel}` : part;
     const count = document.querySelectorAll(sel).length;
-    if (count === 1) return sel;
     if (count < bestCount) {
       bestCount = count;
       best = sel;
+      // 1 is unique; 0 is a detached element, which no path can pin down.
+      if (count < 2) break;
     }
   }
   return best;
