@@ -2,7 +2,7 @@
 // filters via alertingActiveGroups. The full rule list, quiet ones included,
 // is a separate page (rules/list.tsx).
 
-import { Button, buttonVariants } from "@everr/ui/components/button";
+import { Button } from "@everr/ui/components/button";
 import {
   Card,
   CardContent,
@@ -466,15 +466,9 @@ export function TriageBoard({
               delivered
             </p>
           </div>
-          <Link
-            to="/alerts/routing"
-            className={cn(
-              buttonVariants({ variant: "outline" }),
-              "min-h-11 lg:min-h-8",
-            )}
-          >
+          <Button variant="outline" render={<Link to="/alerts/routing" />}>
             Configure delivery
-          </Link>
+          </Button>
         </div>
       )}
 

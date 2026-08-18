@@ -2,7 +2,7 @@ import { Button } from "@everr/ui/components/button";
 import { Sheet, SheetContent, SheetTitle } from "@everr/ui/components/sheet";
 import { useMediaQuery } from "@everr/ui/hooks/use-media-query";
 import { Link } from "@tanstack/react-router";
-import { BellRing, Menu } from "lucide-react";
+import { Menu } from "lucide-react";
 import { useState } from "react";
 
 const DESTINATIONS = [
@@ -29,10 +29,6 @@ function AlertingSectionNav({ onNavigate }: { onNavigate?: () => void }) {
       aria-label="Alerting"
       className="bg-muted/15 flex h-full min-h-0 flex-col gap-3 overflow-auto border-b p-3 lg:border-r lg:border-b-0"
     >
-      <div className="text-muted-foreground flex items-center gap-2 text-[0.6875rem] font-medium tracking-wider uppercase">
-        <BellRing className="size-3.5" />
-        Alerting
-      </div>
       <ul className="flex flex-col gap-0.5">
         {DESTINATIONS.map((d) => (
           <li key={d.to}>
