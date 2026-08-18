@@ -11,7 +11,6 @@ import {
   vi,
 } from "vitest";
 import { ALERT_PROCESS_EVENT_TASK } from "@/data/alerting/delivery/tasks";
-import { pauseRule } from "@/data/alerting/rules/repository";
 import { SYSTEM_ACTOR } from "@/data/alerting/session";
 import {
   createSilence,
@@ -24,12 +23,9 @@ import {
   alertInstances,
   alertSilences,
 } from "@/db/schema";
-import { INHIBITION_RECHECK_SECONDS } from "@/server/alerting/delivery/suppression";
 import {
   insertDirectRule,
-  insertInhibition,
   insertPreview,
-  insertRule,
   insertSilence,
   TEST_ORG,
 } from "./testing/fixtures";
@@ -198,84 +194,6 @@ describe("the alerting pipeline's suppression", () => {
     // chain that has already moved on.
     expect(await expireSilence(scope, silence.id)).toEqual({ expired: false });
     expect(await harness.pendingJobs()).toHaveLength(releasedOnce);
-  });
-
-  it("an inhibition holds the target while the source fires", async () => {
-    // No channel: the source's own delivery is never asserted on, only that
-    // it counts as firing for the inhibition context.
-    const sourceRule = await insertRule(harness.db, {
-      slug: "inhibition-source",
-      forSecs: 0,
-    });
-    const targetRule = await insertDirectRule(harness.db, {
-      slug: "inhibition-target",
-      forSecs: 0,
-      channelType: "slack",
-    });
-    await insertInhibition(harness.db, {
-      sourceMatchers: [{ label: "rule", op: "eq", value: sourceRule.id }],
-      targetMatchers: [{ label: "rule", op: "eq", value: targetRule.id }],
-      equalLabels: [],
-    });
-    harness.clickhouse.setSignal([{ service: "checkout", value: 42 }]);
-
-    await harness.runDueJobs();
-
-    expect(harness.fetchCalls()).toHaveLength(0);
-    // The hold decision, recorded on the target's own journal row: inhibited
-    // while the event is still retried, the same way a silence's defer is.
-    const [targetEvent] = await harness.db
-      .select()
-      .from(alertEvents)
-      .where(eq(alertEvents.sourceDefinitionId, targetRule.id));
-    expect(targetEvent.inhibited).toBe(true);
-    expect(targetEvent.processedAt).toBeNull();
-  });
-
-  it("the held target notifies after the source clears and the recheck interval elapses", async () => {
-    // No channel: the source's own delivery is never asserted on, only that
-    // it counts as firing for the inhibition context.
-    const sourceRule = await insertRule(harness.db, {
-      slug: "inhibition-source",
-      forSecs: 0,
-    });
-    const targetRule = await insertDirectRule(harness.db, {
-      slug: "inhibition-target",
-      forSecs: 0,
-      channelType: "slack",
-    });
-    await insertInhibition(harness.db, {
-      sourceMatchers: [{ label: "rule", op: "eq", value: sourceRule.id }],
-      targetMatchers: [{ label: "rule", op: "eq", value: targetRule.id }],
-      equalLabels: [],
-    });
-    harness.clickhouse.setSignal([{ service: "checkout", value: 42 }]);
-    await harness.runDueJobs();
-    expect(harness.fetchCalls()).toHaveLength(0);
-    // Proof the hold actually happened, not just that the group wait had not
-    // elapsed yet: without it, this case would still pass with an inhibition
-    // that does nothing at all.
-    const [heldTargetEvent] = await harness.db
-      .select()
-      .from(alertEvents)
-      .where(eq(alertEvents.sourceDefinitionId, targetRule.id));
-    expect(heldTargetEvent.inhibited).toBe(true);
-    expect(heldTargetEvent.processedAt).toBeNull();
-
-    // Close the source's own instance rather than starving it of rows: both
-    // rules read the one signal table, so clearing it would also resolve the
-    // target's own instance, hiding the mechanism under test (the held target
-    // event's periodic recheck).
-    await pauseRule(
-      { organizationId: TEST_ORG, actor: SYSTEM_ACTOR },
-      sourceRule.id,
-    );
-    await harness.runDueJobs();
-
-    harness.advance(INHIBITION_RECHECK_SECONDS * 1_000);
-    await harness.fireAndFlush();
-
-    expect(harness.fetchCalls()).toHaveLength(1);
   });
 
   it("a preview rule never notifies, and its history row still carries rule_muted", async () => {

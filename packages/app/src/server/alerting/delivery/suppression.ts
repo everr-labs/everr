@@ -1,18 +1,8 @@
 import { and, eq, gt, inArray, isNull, lte } from "drizzle-orm";
 import { enqueueProcessAlertEvent } from "@/data/alerting/delivery/tasks";
-import {
-  alertingMatchingSilence,
-  alertingRouteMatches,
-  alertingSyntheticLabels,
-} from "@/data/alerting/routing/resolution";
+import { alertingMatchingSilence } from "@/data/alerting/routing/resolution";
 import { db } from "@/db/client";
-import {
-  alertDefinitions,
-  alertEvents,
-  alertInhibitions,
-  alertInstances,
-  alertSilences,
-} from "@/db/schema";
+import { alertEvents, alertInstances, alertSilences } from "@/db/schema";
 import { journalTerminalRow, recordAlertHistory } from "../history/clickhouse";
 import { instanceKey } from "./grouping";
 import { alertEventDispatchLabels } from "./targeting";
@@ -20,19 +10,6 @@ import { alertEventDispatchLabels } from "./targeting";
 export type ActiveSilence = Awaited<
   ReturnType<typeof loadActiveSilences>
 >[number];
-
-/**
- * How long a deferred event waits before an inhibition is reconsidered.
- *
- * A silence carries its own end time, so a silenced event is scheduled for
- * exactly that moment and wakes once. An inhibition has no end time: it ends
- * when the source instance stops firing, and nothing notifies this job of that
- * state change, so the only way to notice is to look again. This is that poll
- * period, and it is unrelated to any rule's `evaluationInterval`: it bounds how
- * late a released notification goes out, not how often the condition is
- * measured.
- */
-export const INHIBITION_RECHECK_SECONDS = 60;
 
 /**
  * Every silence active for the org right now. Load once per batch of events
@@ -147,8 +124,7 @@ export async function loadFiringInstanceKeys(
 
 export async function deferSuppressedEvent(
   event: typeof alertEvents.$inferSelect,
-  silence: Awaited<ReturnType<typeof matchingSilence>>,
-  inhibited: boolean,
+  silence: NonNullable<Awaited<ReturnType<typeof matchingSilence>>>,
   now: Date,
 ) {
   const shouldRetry =
@@ -157,9 +133,8 @@ export async function deferSuppressedEvent(
     const stamped = await tx
       .update(alertEvents)
       .set({
-        silenced: Boolean(silence),
-        silenceId: silence?.id ?? null,
-        inhibited,
+        silenced: true,
+        silenceId: silence.id,
         processedAt: shouldRetry ? null : now,
       })
       // This write is a claim, like the dispatch stamp: a concurrent pause or
@@ -180,9 +155,7 @@ export async function deferSuppressedEvent(
       .returning({ id: alertEvents.id });
     if (stamped.length === 0) return false;
     if (shouldRetry) {
-      const runAt = silence
-        ? new Date(silence.ends_at)
-        : new Date(now.getTime() + INHIBITION_RECHECK_SECONDS * 1_000);
+      const runAt = new Date(silence.ends_at);
       await enqueueProcessAlertEvent(tx, event.id, {
         keySuffix: runAt.toISOString(),
         runAt,
@@ -198,90 +171,6 @@ export async function deferSuppressedEvent(
   // notification was withheld that may still go out.
   if (shouldRetry) return;
   await recordAlertHistory(event.sourceDefinitionId, [
-    journalTerminalRow(event, {
-      silenced: Boolean(silence),
-      inhibited,
-      silenceId: silence?.id ?? null,
-    }),
+    journalTerminalRow(event, { silenced: true, silenceId: silence.id }),
   ]);
-}
-
-export type InhibitionContext = Awaited<
-  ReturnType<typeof loadInhibitionContext>
->;
-
-/**
- * Every inhibition rule and every firing instance for the org right now, for
- * `matchInhibition` to evaluate in memory. Load once per batch rather than
- * per event: `isInhibited` used to run this pair of org-wide scans for every
- * single member a flush considered.
- */
-export async function loadInhibitionContext(organizationId: string): Promise<{
-  inhibitions: (typeof alertInhibitions.$inferSelect)[];
-  sources: { previewId: string | null; labels: Record<string, string> }[];
-}> {
-  const inhibitions = await db
-    .select()
-    .from(alertInhibitions)
-    .where(eq(alertInhibitions.organizationId, organizationId));
-  // `matchInhibition` answers false with no rules configured, which is the
-  // default state, so the org-wide firing-instance scan below would be pure
-  // waste. It is also widest exactly when it hurts most: during a storm.
-  if (inhibitions.length === 0) return { inhibitions, sources: [] };
-  const ruleSources = await db
-    .select({ instance: alertInstances, def: alertDefinitions })
-    .from(alertInstances)
-    .innerJoin(
-      alertDefinitions,
-      eq(alertInstances.alertDefinitionId, alertDefinitions.id),
-    )
-    .where(
-      and(
-        eq(alertInstances.organizationId, organizationId),
-        eq(alertInstances.status, "firing"),
-      ),
-    );
-  return {
-    inhibitions,
-    sources: ruleSources.map(({ instance, def }) => ({
-      previewId: def.previewId,
-      labels: alertingSyntheticLabels(instance.labels, {
-        severity: def.spec.severity,
-        status: "firing",
-        rule: def.id,
-      }),
-    })),
-  };
-}
-
-export function matchInhibition(
-  event: typeof alertEvents.$inferSelect,
-  context: InhibitionContext,
-): boolean {
-  if (event.eventType === "instance_resolved") return false;
-  const target = alertEventDispatchLabels(event);
-  return context.inhibitions.some(({ config }) => {
-    if (!alertingRouteMatches(config.target_matchers, target)) return false;
-    return context.sources.some(
-      (source) =>
-        // Sources must come from the same world as the target: live rules
-        // for live events, and only the same preview for preview events. A
-        // firing preview instance must not mute a live alert. Muted rules
-        // stay valid sources on purpose: a muted root cause still holds its
-        // dependents.
-        source.previewId === event.previewId &&
-        alertingRouteMatches(config.source_matchers, source.labels) &&
-        config.equal.every(
-          (key) => (source.labels[key] ?? "") === (target[key] ?? ""),
-        ),
-    );
-  });
-}
-
-export async function isInhibited(event: typeof alertEvents.$inferSelect) {
-  if (event.eventType === "instance_resolved") return false;
-  return matchInhibition(
-    event,
-    await loadInhibitionContext(event.organizationId),
-  );
 }

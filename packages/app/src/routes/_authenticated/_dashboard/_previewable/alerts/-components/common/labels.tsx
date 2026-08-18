@@ -11,7 +11,7 @@ import { alertingRuleIdentity } from "@/data/alerting/rules/identity";
 import { ruleQueries } from "@/data/alerting/rules/queries";
 import type { AlertingMatcher } from "@/data/alerting/types";
 
-export function Pill({
+function Pill({
   className,
   title,
   children,

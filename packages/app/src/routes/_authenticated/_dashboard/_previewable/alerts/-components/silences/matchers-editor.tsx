@@ -5,10 +5,7 @@ import {
   type SuggestItem,
 } from "@everr/ui/components/suggest-combobox";
 import { LockKeyhole, Plus, X } from "lucide-react";
-import {
-  alertingIsCatchAll,
-  alertingOpSymbol,
-} from "@/data/alerting/routing/resolution";
+import { alertingOpSymbol } from "@/data/alerting/routing/resolution";
 import {
   type AlertingLabelKeySuggestion,
   type AlertingLabelValueSuggestion,
@@ -17,15 +14,6 @@ import {
 } from "@/data/alerting/routing/suggestions";
 import { AlertingMatchOpSchema } from "@/data/alerting/schema";
 import type { AlertingMatcher } from "@/data/alerting/types";
-
-/** Plain-language preview of a matcher set, e.g. "severity = critical and team = pay". */
-export function matchersPhrase(m: AlertingMatcher[]): string {
-  const real = m.filter((x) => x.label.trim() !== "");
-  if (alertingIsCatchAll(real)) return "any alert";
-  return real
-    .map((x) => `${x.label} ${alertingOpSymbol(x.op)} ${x.value || "…"}`)
-    .join(" and ");
-}
 
 /**
  * True when every matcher has a label and therefore narrows the set.
@@ -56,7 +44,7 @@ export function updateMatcher(
 const SUGGESTION_STALE_MS = 60_000;
 
 /** Synthetic keys carry a tag. */
-export const alertingLabelKeyOptions = () => ({
+const alertingLabelKeyOptions = () => ({
   queryKey: ["alerting", "label-keys"] as const,
   queryFn: () => listAlertingLabelKeys(),
   staleTime: SUGGESTION_STALE_MS,
@@ -67,13 +55,8 @@ export const alertingLabelKeyOptions = () => ({
     })),
 });
 
-export const alertingLabelKeyFilterOptions = () => ({
-  ...alertingLabelKeyOptions(),
-  select: (keys: AlertingLabelKeySuggestion[]) => keys.map((key) => key.key),
-});
-
 /** An unset key resolves to no suggestions. */
-export const alertingLabelValueOptions = (key: string) => ({
+const alertingLabelValueOptions = (key: string) => ({
   queryKey: ["alerting", "label-values", key] as const,
   queryFn: () =>
     key

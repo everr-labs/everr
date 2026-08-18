@@ -44,10 +44,8 @@ import { projectAlertLifecycle } from "./history/project-lifecycle";
 import {
   asDbExecutor,
   insertChannel,
+  insertDefaultChannels,
   insertDirectRule,
-  insertInhibition,
-  insertReceiver,
-  insertRoute,
   insertRule,
   insertSilence,
   TEST_ORG,
@@ -509,7 +507,6 @@ describe("the alerting pipeline's instance lifecycle", () => {
         severity: "warning",
         annotations: {},
         resolve_after: 1,
-        notification_channels: [],
       },
       undefined,
       asDbExecutor(harness.db),
@@ -567,7 +564,6 @@ describe("the alerting pipeline's instance lifecycle", () => {
         severity: "warning",
         annotations: {},
         resolve_after: 1,
-        notification_channels: [],
       },
       undefined,
       asDbExecutor(harness.db),
@@ -726,52 +722,30 @@ describe("the alerting pipeline's instance lifecycle", () => {
 
 // A second organization, deliberately built to collide with TEST_ORG on
 // everything but its own id: the same rule slug, the same instance labels,
-// the same receiver and channel names. Only the organization id tells the
-// two apart, so any lookup that forgets to filter by it has real, matching
-// data on the other side ready to leak through.
+// the same channel names, the same default-destination tier. Only the
+// organization id tells the two apart, so any lookup that forgets to filter
+// by it has real, matching data on the other side ready to leak through.
 const ORG_B = "org_test_b";
 
 /**
- * Two organizations, each with its own receiver, channel and route sharing
- * the same names, and a rule breaching on the same default label.
+ * Two organizations, each with its own default destination behind a channel
+ * sharing the same name, and a rule breaching on the same default label.
  *
- * Org B's route sorts ahead of org A's own (a lower priority number) and
- * groups on a different label. This is deliberate: `loadRoutes`
- * (delivery/targeting.ts) is the only place in the dispatch path that scopes
- * by organization without also narrowing by some other already-unique id
- * (a rule id, a receiver id, a channel id), so it is the only filter a
- * shared-UUID setup cannot protect on its own. If that filter were ever
- * missing, org A's own route would never reach `alertingSelectRoutes` at
- * all: org B's route would win the priority sort, the scan would stop there
- * (`continue: false`), and org B's own `group_by` would decide org A's
- * group identity instead of org A's own route's. The receiver name lookup
- * one step later (targeting.ts:110-121) stays organization-scoped either
- * way and always resolves back to the calling organization's own receiver,
- * which is exactly why a channel- or receiver-identity assertion cannot
- * detect this: only the group's own `labels`, carried from whichever
- * route's `group_by` actually won the selection, can.
+ * The default-destination lookup (delivery/targeting.ts and the flush's own
+ * channel resolution) scopes by organization without also narrowing by some
+ * other already-unique id (a rule id, a channel id), so it is the filter a
+ * shared-name setup exercises: if it were ever missing, org A's event would
+ * see org B's destination rows too and the fan-out would cross the tenant
+ * line.
  */
-async function insertTwinRoutedRules() {
+async function insertTwinDefaultRules() {
   const CHANNEL_NAME = "shared-channel";
-  const RECEIVER_NAME = "shared-receiver";
-  const matchers = [
-    { label: "service" as const, op: "eq" as const, value: "checkout" },
-  ];
 
   const channelA = await insertChannel(harness.db, {
     type: "webhook",
     name: CHANNEL_NAME,
   });
-  const receiverA = await insertReceiver(harness.db, {
-    name: RECEIVER_NAME,
-    channelIds: [channelA.id],
-  });
-  await insertRoute(harness.db, {
-    receiver: RECEIVER_NAME,
-    priority: 1,
-    matchers,
-    groupBy: ["rule"],
-  });
+  await insertDefaultChannels(harness.db, { channelIds: [channelA.id] });
   const ruleA = await insertRule(harness.db, { forSecs: 0 });
 
   const channelB = await insertChannel(harness.db, {
@@ -779,24 +753,16 @@ async function insertTwinRoutedRules() {
     type: "webhook",
     name: CHANNEL_NAME,
   });
-  const receiverB = await insertReceiver(harness.db, {
+  await insertDefaultChannels(harness.db, {
     organizationId: ORG_B,
-    name: RECEIVER_NAME,
     channelIds: [channelB.id],
-  });
-  await insertRoute(harness.db, {
-    organizationId: ORG_B,
-    receiver: RECEIVER_NAME,
-    priority: 0,
-    matchers,
-    groupBy: ["service"],
   });
   const ruleB = await insertRule(harness.db, {
     organizationId: ORG_B,
     forSecs: 0,
   });
 
-  return { ruleA, ruleB, channelA, channelB, receiverA, receiverB };
+  return { ruleA, ruleB, channelA, channelB };
 }
 
 describe("the alerting pipeline's organization isolation", () => {
@@ -880,7 +846,7 @@ describe("the alerting pipeline's organization isolation", () => {
   });
 
   it("org A's group holds only org A's members", async () => {
-    const { ruleA } = await insertTwinRoutedRules();
+    const { ruleA } = await insertTwinDefaultRules();
     harness.clickhouse.setSignal([{ service: "checkout", value: 42 }]);
 
     // Dispatches both organizations' events into their own group; still
@@ -893,12 +859,10 @@ describe("the alerting pipeline's organization isolation", () => {
       .where(eq(alertNotificationGroups.organizationId, TEST_ORG));
     expect(groupA).toBeDefined();
 
-    // This label can only have come from org A's own route's group_by
-    // (["rule"]). loadRoutes' organization filter (delivery/targeting.ts) is
-    // what keeps org B's lower-priority, differently configured route out of
-    // org A's own selection; without it, org B's route wins the priority
-    // sort and this label reads "service" (org B's own group_by) instead.
-    expect(groupA.labels).toEqual({ rule: ruleA.id });
+    // The fixed group_by is [rule, severity]: org A's group carries org A's
+    // own rule id, and its target is its own default destination.
+    expect(groupA.labels).toEqual({ rule: ruleA.id, severity: "warning" });
+    expect(groupA.defaultTier).toBe("all");
 
     // Reads the real membership rows, joined to the events they carry, rather
     // than trusting a count: proves which organization and which rule the
@@ -921,31 +885,25 @@ describe("the alerting pipeline's organization isolation", () => {
   });
 
   it("listing deliveries for org A returns none of org B's", async () => {
-    const { ruleA, channelA } = await insertTwinRoutedRules();
+    const { ruleA, channelA } = await insertTwinDefaultRules();
     harness.clickhouse.setSignal([{ service: "checkout", value: 42 }]);
 
     await harness.fireAndFlush();
 
     expect(harness.fetchCalls()).toHaveLength(2);
 
-    // Sound already, independent of the routed rebuild below: rests on the
-    // flush's own `organizationId: group.organizationId` write
+    // Rests on the flush's own `organizationId: group.organizationId` write
     // (delivery/flush-group.ts).
     const deliveriesA = await harness.db
       .select()
       .from(alertDeliveries)
       .where(eq(alertDeliveries.organizationId, TEST_ORG));
     expect(deliveriesA).toHaveLength(1);
-    // Always true regardless of loadRoutes: the receiver name lookup that
-    // decides this id stays organization-scoped on its own (see the helper
-    // comment above), so this is a sanity check, not this case's proof.
+    // The channel behind the delivery is org A's own row for the shared
+    // name: the flush resolved its own organization's default destination,
+    // not org B's identically named channel.
     expect(deliveriesA[0].channelId).toBe(channelA.id);
 
-    // The proof: the delivery's own notification group is the one whose
-    // identity depends on loadRoutes' organization filter (same mechanism as
-    // the case above). Its labels reflect org A's own route's group_by, not
-    // org B's route, which would win the priority sort and decide this
-    // delivery's group if that filter were ever missing.
     expect(deliveriesA[0].notificationGroupId).not.toBeNull();
     const [groupA] = await harness.db
       .select()
@@ -956,80 +914,6 @@ describe("the alerting pipeline's organization isolation", () => {
           deliveriesA[0].notificationGroupId as string,
         ),
       );
-    expect(groupA.labels).toEqual({ rule: ruleA.id });
-  });
-
-  it("an inhibition in org A does not hold org B's target", async () => {
-    const CHANNEL_NAME = "shared-channel";
-    // No channel on the source rule: only that it counts as firing for the
-    // inhibition context, the same way the single-organization suppression
-    // case builds its source.
-    await insertRule(harness.db, { slug: "inhibition-source", forSecs: 0 });
-    const targetRuleA = await insertDirectRule(harness.db, {
-      slug: "inhibition-target",
-      channelName: CHANNEL_NAME,
-      forSecs: 0,
-      channelType: "slack",
-    });
-    await insertRule(harness.db, {
-      organizationId: ORG_B,
-      slug: "inhibition-source",
-      forSecs: 0,
-    });
-    await insertDirectRule(harness.db, {
-      organizationId: ORG_B,
-      slug: "inhibition-target",
-      channelName: CHANNEL_NAME,
-      forSecs: 0,
-      channelType: "slack",
-    });
-
-    // Matched on the shared "service" label, carried by both organizations'
-    // instances, rather than a rule id: a rule id is unique per row on its
-    // own and would never collide across organizations even if the lookup
-    // forgot to scope by organization. This is the matcher shape that
-    // actually exercises the scope.
-    await insertInhibition(harness.db, {
-      sourceMatchers: [{ label: "service", op: "eq", value: "checkout" }],
-      targetMatchers: [{ label: "service", op: "eq", value: "checkout" }],
-      equalLabels: [],
-    });
-    harness.clickhouse.setSignal([{ service: "checkout", value: 42 }]);
-
-    await harness.fireAndFlush();
-
-    // Org A's target is held by its own inhibition; org B's target, with no
-    // inhibition of its own, notifies normally.
-    expect(harness.fetchCalls()).toHaveLength(1);
-
-    const deliveriesB = await harness.db
-      .select()
-      .from(alertDeliveries)
-      .where(eq(alertDeliveries.organizationId, ORG_B));
-    expect(deliveriesB).toHaveLength(1);
-    expect(deliveriesB[0].status).toBe("sent");
-
-    const deliveriesA = await harness.db
-      .select()
-      .from(alertDeliveries)
-      .where(eq(alertDeliveries.organizationId, TEST_ORG));
-    expect(deliveriesA).toHaveLength(0);
-
-    // Org A's own source event also matches this inhibition's target
-    // matcher (it carries the same "service" label), so it is filtered out
-    // here by its rule id: only the target rule's own event is the one this
-    // case makes a claim about.
-    const [heldTargetA] = await harness.db
-      .select()
-      .from(alertEvents)
-      .where(
-        and(
-          eq(alertEvents.organizationId, TEST_ORG),
-          eq(alertEvents.eventType, "instance_fired"),
-          eq(alertEvents.sourceDefinitionId, targetRuleA.id),
-        ),
-      );
-    expect(heldTargetA.inhibited).toBe(true);
-    expect(heldTargetA.processedAt).toBeNull();
+    expect(groupA.labels).toEqual({ rule: ruleA.id, severity: "warning" });
   });
 });

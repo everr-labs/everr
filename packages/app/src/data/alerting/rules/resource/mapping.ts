@@ -107,7 +107,9 @@ export function toRuleInput(
     // visible in history, but the dispatcher never notifies on it. This
     // column is the whole record of that; nothing copies it into the spec.
     previewId: opts.previewId ?? null,
-    notification_channels: rule.spec.notification?.channels ?? [],
+    ...(rule.spec.notifications
+      ? { notifications: rule.spec.notifications }
+      : {}),
     ...spec,
   };
 }
@@ -137,7 +139,7 @@ export type SimpleAlertView = {
 export function fromAlertingRule(
   rule: Pick<
     AlertingRule,
-    "previewId" | "repoid" | "name" | "notification_channels" | "spec"
+    "previewId" | "repoid" | "name" | "notifications" | "spec"
   >,
 ): SimpleAlertView {
   const { project, slug } = parseResourceName(rule.name);
@@ -156,7 +158,7 @@ export function fromAlertingRule(
     severity: rule.spec.severity,
     notificationTitleTemplate: ann[ANN_ALERTING_SUMMARY] ?? "",
     notificationDescriptionTemplate: ann[ANN_ALERTING_DESCRIPTION] ?? "",
-    notificationChannels: rule.notification_channels,
+    notificationChannels: rule.notifications?.channels ?? [],
     displayName: ann[ANN_DISPLAY_NAME] ?? null,
     displayDescription: ann[ANN_DISPLAY_DESCRIPTION] ?? null,
     instanceLabelColumns: rule.spec.label_columns ?? [],
@@ -171,7 +173,7 @@ export function fromAlertingRule(
 
 /** Reconstructs the canonical as-code document from a stored rule. */
 export function toAlertRuleDocument(
-  rule: Pick<AlertingRule, "name" | "notification_channels" | "spec">,
+  rule: Pick<AlertingRule, "name" | "notifications" | "spec">,
 ): AlertRuleYaml {
   const { project, slug } = parseResourceName(rule.name);
   const ann = rule.spec.annotations ?? {};
@@ -207,9 +209,7 @@ export function toAlertRuleDocument(
       for: formatDurationSeconds(rule.spec.for_secs),
       resolveAfter: rule.spec.resolve_after,
       severity: rule.spec.severity,
-      ...(rule.notification_channels.length > 0
-        ? { notification: { channels: rule.notification_channels } }
-        : {}),
+      ...(rule.notifications ? { notifications: rule.notifications } : {}),
       notificationMessage: {
         title: ann[ANN_ALERTING_SUMMARY] ?? "",
         ...(ann[ANN_ALERTING_DESCRIPTION]

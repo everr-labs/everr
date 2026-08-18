@@ -40,8 +40,8 @@ describe("AlertRuleYamlSchema", () => {
       { runbook: "Bad_Slug" },
       { runbook: "platform/" },
       { condition: { operator: "above", threshold: 1 } },
-      { notification: { channels: [] } },
-      { notification: { channels: ["team-slack", "team-slack"] } },
+      { notifications: { channels: [] } },
+      { notifications: { channels: ["team-slack", "team-slack"] } },
     ]) {
       expect(parseSpec(spec).success).toBe(false);
     }

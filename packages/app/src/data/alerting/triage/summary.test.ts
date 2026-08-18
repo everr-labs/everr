@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type {
   AlertingAlert,
-  AlertingRoute,
+  AlertingDefaultDestination,
   AlertingRuleView,
   AlertingSilence,
 } from "@/data/alerting/types";
@@ -47,22 +47,6 @@ function alertingAlert(overrides: Partial<AlertingAlert> = {}): AlertingAlert {
   };
 }
 
-function alertingRoute(overrides: Partial<AlertingRoute> = {}): AlertingRoute {
-  return {
-    id: "route-1",
-    tenant: "org1",
-    matchers: [{ label: "host", op: "eq", value: "web-1" }],
-    receiver: "oncall",
-    continue: false,
-    priority: 1,
-    group_by: null,
-    group_wait_secs: null,
-    group_interval_secs: null,
-    repeat_interval_secs: null,
-    ...overrides,
-  };
-}
-
 function alertingSilence(
   overrides: Partial<AlertingSilence> = {},
 ): AlertingSilence {
@@ -79,39 +63,41 @@ function alertingSilence(
   };
 }
 
+const DESTINATION: AlertingDefaultDestination = {
+  tiers: { all: ["oncall-slack"] },
+};
+
 function resolve(input: {
   alerts: AlertingAlert[];
   rules?: AlertingRuleView[];
-  routes?: AlertingRoute[];
   silences?: AlertingSilence[];
 }) {
   return alertingResolveTriageInstances({
     alerts: input.alerts,
     rules: input.rules ?? [alertingRule()],
-    routes: input.routes ?? [alertingRoute()],
     silences: input.silences ?? [],
     now: NOW,
   });
 }
 
 describe("alertingResolveTriageInstances", () => {
-  it("resolves a rule-sourced instance to its rule, routes, and silence", () => {
+  it("resolves a rule-sourced instance to its rule and silence", () => {
     const [inst] = resolve({ alerts: [alertingAlert()] });
     expect(inst.rule?.id).toBe("rule-1");
-    expect(inst.matchedRoutes.map((r) => r.receiver)).toEqual(["oncall"]);
     expect(inst.silence).toBeNull();
   });
 
-  it("uses explicit channels instead of matching advanced routes", () => {
+  it("keeps a rule's own channels as a delivered override", () => {
     const [inst] = resolve({
       alerts: [alertingAlert()],
-      rules: [alertingRule({ notification_channels: ["team-slack"] })],
+      rules: [alertingRule({ notifications: { channels: ["team-slack"] } })],
     });
 
-    expect(inst.directChannels).toEqual(["team-slack"]);
-    expect(inst.matchedRoutes).toEqual([]);
+    expect(inst.rule?.notifications?.channels).toEqual(["team-slack"]);
     expect(
-      alertingTriageCounts(alertingGroupInstances([inst]), [], NOW),
+      alertingTriageCounts(alertingGroupInstances([inst]), [], NOW, {
+        tiers: {},
+      }),
     ).toMatchObject({ firing: 1, undeliveredFiring: 0 });
   });
 
@@ -146,13 +132,14 @@ describe("alertingTriageCounts", () => {
 
     // fp-1 and fp-3 are firing; fp-2 is pending and fp-4 inactive. Only fp-3
     // (svc=api) is matched by the silence, and `silenced` ignores inactive
-    // rows. The single route matches host=web-1, so fp-3 is firing-undelivered.
-    // but it is silenced, so it does not count as undelivered either.
+    // rows. The default destination covers every severity, so nothing counts
+    // as undelivered.
     expect(
       alertingTriageCounts(
         alertingGroupInstances(instances),
         [alertingSilence()],
         NOW,
+        DESTINATION,
       ),
     ).toEqual({
       firing: 2,
@@ -163,16 +150,26 @@ describe("alertingTriageCounts", () => {
     });
   });
 
-  it("counts a firing instance that matches no route and no silence", () => {
-    const instances = resolve({
-      alerts: [alertingAlert({ labels: { host: "nowhere" } })],
-    });
+  it("counts a firing instance undelivered when its severity has no channels", () => {
+    const instances = resolve({ alerts: [alertingAlert()] });
+    const split: AlertingDefaultDestination = {
+      tiers: { warning: ["oncall-slack"] },
+    };
+    // The rule is critical and only the warning tier has channels.
     expect(
-      alertingTriageCounts(alertingGroupInstances(instances), [], NOW),
+      alertingTriageCounts(alertingGroupInstances(instances), [], NOW, split),
     ).toMatchObject({
       firing: 1,
       undeliveredFiring: 1,
     });
+    expect(
+      alertingTriageCounts(
+        alertingGroupInstances(instances),
+        [],
+        NOW,
+        DESTINATION,
+      ),
+    ).toMatchObject({ firing: 1, undeliveredFiring: 0 });
   });
 
   it("does not count an expired silence as active", () => {

@@ -117,6 +117,11 @@ export function ChannelBuilder({
     },
     onSuccess: (c) => {
       qc.invalidateQueries({ queryKey: deliveryQueries.channels().queryKey });
+      // The first channel becomes the default destination server-side, so the
+      // Delivery card has to re-read it.
+      qc.invalidateQueries({
+        queryKey: deliveryQueries.defaultDestination().queryKey,
+      });
       onOpenChange(false);
       toast.success(`Channel "${c.name}" ${editing ? "updated" : "created"}`);
     },

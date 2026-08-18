@@ -7,17 +7,16 @@ import {
   enqueueFlushGroup,
   IDLE_GROUP_FLUSH_AT,
 } from "@/data/alerting/delivery/tasks";
-import { ALERTING_DEFAULT_GROUP_INTERVAL_SECS } from "@/data/alerting/routing/defaults";
 import { db } from "@/db/client";
 import {
   alertChannels,
+  alertDefaultChannels,
   alertDefinitionChannels,
   alertDeliveries,
   alertDeliveryEvents,
   alertEvents,
   alertNotificationGroupEvents,
   alertNotificationGroups,
-  alertReceiverChannels,
 } from "@/db/schema";
 import { truncateWithEllipsis } from "@/lib/truncate";
 import { addWorkerJobInTransaction } from "@/server/worker/jobs";
@@ -34,8 +33,6 @@ import {
   deferSuppressedEvent,
   loadActiveSilences,
   loadFiringInstanceKeys,
-  loadInhibitionContext,
-  matchInhibition,
   matchSilence,
 } from "./suppression";
 import { alertDeliveryHash } from "./targeting";
@@ -179,28 +176,22 @@ export async function flushAlertGroup(rawPayload: unknown): Promise<void> {
     if (verdict.terminal) droppedRows.push({ row, reason: verdict.terminal });
   }
   // Loaded once for the whole flush, not once per member: matchingSilence
-  // and isInhibited each ran an org-wide scan, so a flush with hundreds of
-  // members used to issue hundreds of identical scans.
+  // ran an org-wide scan, so a flush with hundreds of members used to issue
+  // hundreds of identical scans.
   const now = new Date();
-  const [silences, inhibitionContext] =
+  const silences =
     candidateRows.length > 0
-      ? await Promise.all([
-          loadActiveSilences(group.organizationId, now),
-          loadInhibitionContext(group.organizationId),
-        ])
-      : [[], { inhibitions: [], sources: [] }];
+      ? await loadActiveSilences(group.organizationId, now)
+      : [];
   for (const row of candidateRows) {
     const { event, flushedAt } = row;
     const silence = matchSilence(event, silences, now);
-    const inhibited = silence
-      ? false
-      : matchInhibition(event, inhibitionContext);
-    if (silence || inhibited) {
-      await deferSuppressedEvent(event, silence, inhibited, now);
+    if (silence) {
+      await deferSuppressedEvent(event, silence, now);
       // Drop the membership now and disown the id. Deferral reschedules
-      // processing, which re-adds the membership; the inhibition path
-      // reschedules only 60 seconds out, and this loop can outlast that. Still
-      // owning the id would make the commit below delete that fresh row.
+      // processing, which re-adds the membership, and this loop can outlast
+      // that. Still owning the id would make the commit below delete that
+      // fresh row.
       await db
         .delete(alertNotificationGroupEvents)
         .where(
@@ -212,10 +203,10 @@ export async function flushAlertGroup(rawPayload: unknown): Promise<void> {
       claimedEventIds.delete(event.id);
       continue;
     }
-    if (event.silenced || event.inhibited || event.silenceId) {
+    if (event.silenced || event.silenceId) {
       await db
         .update(alertEvents)
-        .set({ silenced: false, inhibited: false, silenceId: null })
+        .set({ silenced: false, silenceId: null })
         .where(eq(alertEvents.id, event.id));
     }
     members.push({ event, flushedAt });
@@ -249,27 +240,27 @@ export async function flushAlertGroup(rawPayload: unknown): Promise<void> {
           ),
         )
         .orderBy(asc(alertDefinitionChannels.position))
-    : group.receiverId
+    : group.defaultTier
       ? await db
           .select({ channel: alertChannels })
-          .from(alertReceiverChannels)
+          .from(alertDefaultChannels)
           .innerJoin(
             alertChannels,
             and(
               eq(
-                alertReceiverChannels.organizationId,
+                alertDefaultChannels.organizationId,
                 alertChannels.organizationId,
               ),
-              eq(alertReceiverChannels.channelId, alertChannels.id),
+              eq(alertDefaultChannels.channelId, alertChannels.id),
             ),
           )
           .where(
             and(
-              eq(alertReceiverChannels.organizationId, group.organizationId),
-              eq(alertReceiverChannels.receiverId, group.receiverId),
+              eq(alertDefaultChannels.organizationId, group.organizationId),
+              eq(alertDefaultChannels.tier, group.defaultTier),
             ),
           )
-          .orderBy(asc(alertReceiverChannels.position))
+          .orderBy(asc(alertDefaultChannels.position))
       : [];
   // A notification-worthy set with nowhere to send it: the flush below still
   // marks these members flushed and advances lastNotifiedAt, so without a
@@ -362,18 +353,13 @@ export async function flushAlertGroup(rawPayload: unknown): Promise<void> {
           isNull(alertNotificationGroupEvents.flushedAt),
         ),
       );
-    const repeatAt =
-      active.length > 0 && group.repeatIntervalSeconds
-        ? new Date(flushedAt.getTime() + group.repeatIntervalSeconds * 1_000)
-        : null;
     const { nextFlushAt, enqueue } = nextGroupFlushState({
-      repeatAt,
+      // Re-notification of still-firing alerts is off by design: a repeat
+      // would need a knob, and the fixed model has none.
+      repeatAt: null,
       pendingFlushAt: fresh.nextFlushAt,
       hasUnflushedMembers: (pending?.unflushed ?? 0) > 0,
       now: flushedAt,
-      // Null on groups written before the column existed.
-      groupIntervalSeconds:
-        group.groupIntervalSeconds ?? ALERTING_DEFAULT_GROUP_INTERVAL_SECS,
     });
     await tx
       .update(alertNotificationGroups)

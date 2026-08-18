@@ -2,16 +2,13 @@ import { and, eq } from "drizzle-orm";
 import { db } from "@/db/client";
 import {
   alertChannels,
+  alertDefaultChannels,
   alertDefinitionChannels,
   alertDefinitions,
   alertDeliveries,
   alertEvents,
-  alertInhibitions,
   alertInstances,
   alertNotificationGroups,
-  alertReceiverChannels,
-  alertReceivers,
-  alertRoutes,
   alertSilences,
   apikey,
   dashboards,
@@ -36,26 +33,17 @@ export async function deletePostgresOrganizationData(
     await tx
       .delete(alertNotificationGroups)
       .where(eq(alertNotificationGroups.organizationId, organizationId));
-    await tx
-      .delete(alertReceiverChannels)
-      .where(eq(alertReceiverChannels.organizationId, organizationId));
     // The direct rule-to-channel mapping's channel FK does not cascade, so
     // it must clear before alertChannels or the delete below is rejected.
     await tx
       .delete(alertDefinitionChannels)
       .where(eq(alertDefinitionChannels.organizationId, organizationId));
     await tx
-      .delete(alertRoutes)
-      .where(eq(alertRoutes.organizationId, organizationId));
+      .delete(alertDefaultChannels)
+      .where(eq(alertDefaultChannels.organizationId, organizationId));
     await tx
       .delete(alertChannels)
       .where(eq(alertChannels.organizationId, organizationId));
-    await tx
-      .delete(alertReceivers)
-      .where(eq(alertReceivers.organizationId, organizationId));
-    await tx
-      .delete(alertInhibitions)
-      .where(eq(alertInhibitions.organizationId, organizationId));
     await tx
       .delete(alertSilences)
       .where(eq(alertSilences.organizationId, organizationId));

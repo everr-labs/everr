@@ -229,7 +229,7 @@ export const applyAlertSpecs: Reconciler = async ({
     namespace.kind === "preview" && namespace.id === null
       ? []
       : await alerting.listAllRules(orgId, {}, executor);
-  const channels = parsed.some((p) => p.rule.spec.notification)
+  const channels = parsed.some((p) => p.rule.spec.notifications)
     ? await listChannels(orgId, executor)
     : [];
   const validations = await validationsPromise;
@@ -243,7 +243,7 @@ export const applyAlertSpecs: Reconciler = async ({
   // the channel exists links it.
   const channelWarnings: string[] = [];
   for (const item of parsed) {
-    const declared = item.rule.spec.notification?.channels ?? [];
+    const declared = item.rule.spec.notifications?.channels ?? [];
     const missing = declared.filter(
       (channel) => !availableChannelNames.has(channel),
     );
@@ -254,7 +254,7 @@ export const applyAlertSpecs: Reconciler = async ({
     const kept = declared.filter((channel) =>
       availableChannelNames.has(channel),
     );
-    item.rule.spec.notification =
+    item.rule.spec.notifications =
       kept.length > 0 ? { channels: kept } : undefined;
   }
 
@@ -307,7 +307,9 @@ export const applyAlertSpecs: Reconciler = async ({
     if (
       specFingerprint({
         ...(cur.spec as Record<string, unknown>),
-        notification_channels: cur.notification_channels,
+        // Mirror the input shape: the key is absent when there is no override,
+        // so presence changes are part of the fingerprint too.
+        ...(cur.notifications ? { notifications: cur.notifications } : {}),
       }) !== specFingerprint(spec as unknown as Record<string, unknown>)
     ) {
       updates.push({ d, cur });

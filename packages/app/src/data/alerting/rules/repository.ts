@@ -52,7 +52,9 @@ function ruleBase(row: RuleRow, notificationChannels: string[]) {
     repoid: row.repoid,
     previewId: row.previewId,
     name: ruleName(row),
-    notification_channels: notificationChannels,
+    ...(notificationChannels.length > 0
+      ? { notifications: { channels: notificationChannels } }
+      : {}),
     spec: row.spec,
     version: row.version,
     paused: !row.active,
@@ -400,9 +402,10 @@ export async function createRule(
   executor: DbExecutor,
 ) {
   const input = AlertingRuleInputSchema.parse(rawInput);
+  const notificationChannels = input.notifications?.channels ?? [];
   const channelIds = await resolveOptionalChannelIds(
     organizationId,
-    input.notification_channels,
+    notificationChannels,
     executor,
   );
   const id = randomUUID();
@@ -422,7 +425,7 @@ export async function createRule(
       return created;
     }),
   );
-  return ruleBase(row, input.notification_channels);
+  return ruleBase(row, notificationChannels);
 }
 
 export async function updateRule(
@@ -433,7 +436,8 @@ export async function updateRule(
   executor: DbExecutor,
 ) {
   const input = AlertingRuleUpdateSchema.parse(rawSpec);
-  const { notification_channels: notificationChannels, ...rawRuleSpec } = input;
+  const { notifications, ...rawRuleSpec } = input;
+  const notificationChannels = notifications?.channels ?? [];
   const spec = AlertingRuleSpecSchema.parse(rawRuleSpec);
   const channelIds = await resolveOptionalChannelIds(
     organizationId,
@@ -519,8 +523,8 @@ export async function adoptRule(
     );
   }
   const input = rawSpec ? AlertingRuleUpdateSchema.parse(rawSpec) : null;
-  const { notification_channels: notificationChannels, ...rawRuleSpec } =
-    input ?? {};
+  const { notifications, ...rawRuleSpec } = input ?? {};
+  const notificationChannels = input ? (notifications?.channels ?? []) : null;
   const spec = input ? AlertingRuleSpecSchema.parse(rawRuleSpec) : null;
   const channelIds = notificationChannels
     ? await resolveOptionalChannelIds(

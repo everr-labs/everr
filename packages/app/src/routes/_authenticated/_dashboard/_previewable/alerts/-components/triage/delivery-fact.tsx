@@ -1,39 +1,20 @@
 import { toneText } from "@everr/ui/components/tone";
 import { cn } from "@everr/ui/lib/utils";
 import { Link } from "@tanstack/react-router";
-import { alertingDeliveryFanout } from "@/data/alerting/triage/summary";
-import type { AlertingRoute } from "@/data/alerting/types";
 
 export function TriageDeliveryFact({
   directChannels,
-  matchedRoutes,
-  channelsByReceiver,
+  defaultChannels,
 }: {
   directChannels: string[];
-  matchedRoutes: AlertingRoute[];
-  channelsByReceiver: Map<string, string[]>;
+  /** The default-destination channels this instance's severity resolves to. */
+  defaultChannels: string[];
 }) {
-  if (directChannels.length > 0) {
-    const shown = directChannels.slice(0, 2);
-    const names =
-      shown.join(", ") +
-      (directChannels.length > shown.length
-        ? ` +${directChannels.length - shown.length}`
-        : "");
-    return (
-      <span
-        className="truncate font-mono text-xs text-muted-foreground"
-        title={`Direct channels: ${directChannels.join(", ")}`}
-      >
-        <span aria-hidden>→ </span>
-        <span className="text-foreground">{names}</span>
-      </span>
-    );
-  }
-  if (matchedRoutes.length === 0) {
+  const channels = directChannels.length > 0 ? directChannels : defaultChannels;
+  if (channels.length === 0) {
     return (
       <Link
-        to="/alerts/routing"
+        to="/alerts/notifications"
         onClick={(event) => event.stopPropagation()}
         className={cn(
           "inline-flex min-h-11 items-center whitespace-nowrap text-xs underline-offset-2 hover:underline @[52rem]/triage:min-h-0",
@@ -44,42 +25,20 @@ export function TriageDeliveryFact({
       </Link>
     );
   }
-  const { receivers, channels, dead } = alertingDeliveryFanout(
-    matchedRoutes,
-    channelsByReceiver,
-  );
-  const shown = receivers.slice(0, 2);
+  const shown = channels.slice(0, 2);
   const names =
     shown.join(", ") +
-    (receivers.length > shown.length
-      ? ` +${receivers.length - shown.length}`
+    (channels.length > shown.length
+      ? ` +${channels.length - shown.length}`
       : "");
-  if (channels.length === 0) {
-    return (
-      <Link
-        to="/alerts/notifications"
-        hash="receivers"
-        onClick={(event) => event.stopPropagation()}
-        title={receivers.join(", ")}
-        className={cn(
-          "inline-flex min-h-11 items-center whitespace-nowrap text-xs underline-offset-2 hover:underline @[52rem]/triage:min-h-0",
-          toneText({ tone: "warning" }),
-        )}
-      >
-        No channels
-      </Link>
-    );
-  }
   return (
     <span
       className="truncate font-mono text-xs text-muted-foreground"
-      title={[
-        receivers.join(", "),
-        channels.join(", "),
-        dead.length > 0 ? `no channels: ${dead.join(", ")}` : "",
-      ]
-        .filter(Boolean)
-        .join(" · ")}
+      title={
+        directChannels.length > 0
+          ? `Direct channels: ${channels.join(", ")}`
+          : `Default destination: ${channels.join(", ")}`
+      }
     >
       <span aria-hidden>→ </span>
       <span className="text-foreground">{names}</span>

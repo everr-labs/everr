@@ -1,6 +1,6 @@
-# 10: notification_deferred with the silence and inhibition freeze
+# 10: notification_deferred with the silence freeze
 
-**What to build:** A notification held by a silence or an inhibition
+**What to build:** A notification held by a silence
 leaves a visible, self-sufficient record. Demo: silence a firing alert,
 let the silence lapse, and the chain shows fired, deferred (with the
 silence comment on the row), then delivered; nothing needs a PostgreSQL
@@ -16,10 +16,11 @@ join to read it.
 
 - [ ] The deferred event type is written on each hold change, projected from the decision rows
 - [ ] The silence comment and matchers freeze onto deferred and suppressed rows
-- [ ] The inhibiting source freezes into the columns ticket 02 reserved
 - [ ] A deferred chain that ends without delivery gets its own terminal suppressed row with a matching reason
 
 Record check 2026-08-10: the terminal row on the deferred path exists
 (`deferSuppressedEvent`), but it omits `reason`, so the column defaults to the
 empty string. The parallel direct drop in `process-event.ts` writes
 `no_longer_firing`. The freeze columns from ticket 02 are still written empty.
+
+Rescoped 2026-08-18: inhibitions were removed from the product; the silence half of this ticket is unchanged.

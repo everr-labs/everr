@@ -16,12 +16,7 @@ import {
   uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
-import type {
-  AlertingInhibitionInput,
-  AlertingMatcher,
-  AlertingRouteInput,
-  AlertingRuleSpec,
-} from "@/data/alerting/types";
+import type { AlertingMatcher, AlertingRuleSpec } from "@/data/alerting/types";
 import type { AlertingLifecycleReason } from "@/data/alerting/vocabulary";
 import {
   ALERTING_EVENT_TYPES,
@@ -441,98 +436,41 @@ export const alertDefinitionChannels = pgTable(
   ],
 );
 
-export const alertReceivers = pgTable(
-  "alert_receivers",
-  {
-    id: uuid("id").primaryKey().defaultRandom(),
-    organizationId: text("organization_id").notNull(),
-    name: text("name").notNull(),
-    createdAt: timestamp("created_at", { withTimezone: true })
-      .notNull()
-      .defaultNow(),
-    updatedAt: timestamp("updated_at", { withTimezone: true })
-      .notNull()
-      .defaultNow(),
-  },
-  (table) => [
-    uniqueIndex("alert_receivers_org_name_uq").on(
-      table.organizationId,
-      table.name,
-    ),
-    uniqueIndex("alert_receivers_org_id_uq").on(table.organizationId, table.id),
-  ],
-);
-
-export const alertReceiverChannels = pgTable(
-  "alert_receiver_channels",
+// The org-level default destination: where alerts deliver when their rule
+// names no channels of its own. Tier "all" is the unsplit mode; the per
+// severity tiers exist only when the org opted into splitting. App logic
+// keeps the two modes exclusive, since a cross-row constraint cannot.
+export const alertDefaultChannels = pgTable(
+  "alert_default_channels",
   {
     organizationId: text("organization_id").notNull(),
-    receiverId: uuid("receiver_id").notNull(),
+    tier: text("tier", {
+      enum: ["all", "critical", "warning", "info"],
+    }).notNull(),
     channelId: uuid("channel_id").notNull(),
     position: integer("position").notNull(),
   },
   (table) => [
-    primaryKey({ columns: [table.receiverId, table.channelId] }),
-    foreignKey({
-      columns: [table.organizationId, table.receiverId],
-      foreignColumns: [alertReceivers.organizationId, alertReceivers.id],
-    }).onDelete("cascade"),
+    primaryKey({
+      columns: [table.organizationId, table.tier, table.channelId],
+    }),
     foreignKey({
       columns: [table.organizationId, table.channelId],
       foreignColumns: [alertChannels.organizationId, alertChannels.id],
-    }),
-    uniqueIndex("alert_receiver_channels_receiver_position_uq").on(
-      table.receiverId,
+      // A channel delete quietly leaves the default; the UI warns when the
+      // delete empties a tier.
+    }).onDelete("cascade"),
+    uniqueIndex("alert_default_channels_tier_position_uq").on(
+      table.organizationId,
+      table.tier,
       table.position,
     ),
     check(
-      "alert_receiver_channels_position_nonnegative",
+      "alert_default_channels_position_nonnegative",
       sql`${table.position} >= 0`,
     ),
-    index("alert_receiver_channels_channel_idx").on(table.channelId),
+    index("alert_default_channels_channel_idx").on(table.channelId),
   ],
-);
-
-export const alertRoutes = pgTable(
-  "alert_routes",
-  {
-    id: uuid("id").primaryKey().defaultRandom(),
-    organizationId: text("organization_id").notNull(),
-    receiverId: uuid("receiver_id").notNull(),
-    priority: integer("priority").notNull(),
-    config: jsonb("config")
-      .notNull()
-      .$type<Omit<AlertingRouteInput, "receiver" | "priority">>(),
-    createdAt: timestamp("created_at", { withTimezone: true })
-      .notNull()
-      .defaultNow(),
-    updatedAt: timestamp("updated_at", { withTimezone: true })
-      .notNull()
-      .defaultNow(),
-  },
-  (table) => [
-    foreignKey({
-      columns: [table.organizationId, table.receiverId],
-      foreignColumns: [alertReceivers.organizationId, alertReceivers.id],
-    }),
-    index("alert_routes_org_receiver_idx").on(
-      table.organizationId,
-      table.receiverId,
-    ),
-  ],
-);
-
-export const alertInhibitions = pgTable(
-  "alert_inhibitions",
-  {
-    id: uuid("id").primaryKey().defaultRandom(),
-    organizationId: text("organization_id").notNull(),
-    config: jsonb("config").notNull().$type<AlertingInhibitionInput>(),
-    createdAt: timestamp("created_at", { withTimezone: true })
-      .notNull()
-      .defaultNow(),
-  },
-  (table) => [index("alert_inhibitions_org_idx").on(table.organizationId)],
 );
 
 export const alertNotificationGroups = pgTable(
@@ -541,7 +479,12 @@ export const alertNotificationGroups = pgTable(
     id: uuid("id").primaryKey().defaultRandom(),
     organizationId: text("organization_id").notNull(),
     groupKey: text("group_key").notNull(),
-    receiverId: uuid("receiver_id"),
+    // Which default-destination tier this group delivers to, or null for a
+    // group created by a rule's own channels. Channels resolve at flush, so
+    // a default edited mid-wait delivers to the current config.
+    defaultTier: text("default_tier", {
+      enum: ["all", "critical", "warning", "info"],
+    }),
     directAlertDefinitionId: uuid("direct_alert_definition_id"),
     labels: jsonb("labels")
       .notNull()
@@ -550,12 +493,6 @@ export const alertNotificationGroups = pgTable(
     nextFlushAt: timestamp("next_flush_at", { withTimezone: true }).notNull(),
     lastFlushedAt: timestamp("last_flushed_at", { withTimezone: true }),
     lastNotifiedAt: timestamp("last_notified_at", { withTimezone: true }),
-    // Persisted from the dispatch target for the same reason as the repeat
-    // interval: the flush needs it to pace itself and cannot re-derive the
-    // route it came from. Null on rows written before this column existed;
-    // readers fall back to the default.
-    groupIntervalSeconds: integer("group_interval_seconds"),
-    repeatIntervalSeconds: integer("repeat_interval_seconds"),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -564,11 +501,6 @@ export const alertNotificationGroups = pgTable(
       .defaultNow(),
   },
   (table) => [
-    foreignKey({
-      columns: [table.organizationId, table.receiverId],
-      foreignColumns: [alertReceivers.organizationId, alertReceivers.id],
-      name: "alert_notification_groups_receiver_tenant_fk",
-    }).onDelete("cascade"),
     foreignKey({
       columns: [table.organizationId, table.directAlertDefinitionId],
       foreignColumns: [alertDefinitions.organizationId, alertDefinitions.id],
@@ -583,12 +515,8 @@ export const alertNotificationGroups = pgTable(
       table.id,
     ),
     check(
-      "alert_notification_groups_repeat_interval_valid",
-      sql`${table.repeatIntervalSeconds} IS NULL OR ${table.repeatIntervalSeconds} >= 60`,
-    ),
-    check(
       "alert_notification_groups_one_target",
-      sql`num_nonnulls(${table.receiverId}, ${table.directAlertDefinitionId}) = 1`,
+      sql`num_nonnulls(${table.defaultTier}, ${table.directAlertDefinitionId}) = 1`,
     ),
     index("alert_notification_groups_cleanup_idx").on(
       table.updatedAt,

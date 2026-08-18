@@ -1,72 +1,49 @@
 ---
 title: Set up alert notifications
-description: Route firing and resolved alerts to receivers with matchers, and control grouping, repeats, silences, and inhibitions.
+description: Point the default destination at your channels, split delivery by severity, override it per rule, and silence known noise.
 ---
 
-Alert rules are defined as code, but delivery is configured in the app and applies across the whole organization. Everything below lives under **Alerts** in Everr: channels, receivers, and routes on the **Delivery** page, silences on the **Silences** page.
+Alert rules are defined as code, but delivery is configured in the app and applies across the whole organization. Everything below lives under **Alerts** in Everr: the default destination and channels on the **Notifications** page, silences on the **Silences** page.
 
-## The delivery pipeline
+## The delivery model
 
-When an alert fires or resolves, it walks a fixed path:
+Every firing and resolved alert delivers to the organization's **default destination**: a set of channels you pick once. There is no routing tree to configure.
 
-1. **Routes** are checked top to bottom by priority; the first route whose matchers fit the alert's labels picks a receiver (a route with continue enabled lets later routes also pick a receiver for the same alert).
-2. Each matched **receiver** fans the notification out to every **channel** it references (Slack, Discord, email, webhook, or Telegram).
-3. An alert that matches no route is **not delivered**, so end the route list with a catch-all (a route with no matchers) if you want a default receiver.
+1. If the alert's rule declares its own channels (`spec.notifications.channels`), those channels receive it and the default destination is skipped.
+2. Otherwise the alert goes to the default destination: one channel list for all alerts, or one list per severity when you split.
+3. Silences suppress delivery without stopping evaluation.
 
-Silences and inhibitions suppress delivery without stopping evaluation.
+Your first channel automatically becomes the default destination, so creating one channel is a complete setup.
 
 ## Channels
 
-A channel is a named delivery endpoint, created and deleted on the Delivery page. Channels are reusable: any number of receivers can reference the same channel by name.
+A channel is a named delivery endpoint, created and deleted on the Notifications page. Channel types: **Slack** (an [Incoming Webhook](https://api.slack.com/messaging/webhooks) URL), **Discord** (a [channel webhook](https://support.discord.com/hc/en-us/articles/228383668) URL), **webhook** (any HTTPS endpoint), and **Telegram** (a bot token and chat IDs, see Telegram's [BotFather guide](https://core.telegram.org/bots/features#botfather)).
 
-Channel types: **email** (recipient addresses), **Slack** (an [Incoming Webhook](https://api.slack.com/messaging/webhooks) URL), **Discord** (a [channel webhook](https://support.discord.com/hc/en-us/articles/228383668) URL), **webhook** (any HTTPS endpoint), and **Telegram** (a bot token and chat IDs, see Telegram's [BotFather guide](https://core.telegram.org/bots/features#botfather)).
+Webhook URLs (generic, Slack, and Discord) and Telegram bot tokens are write-only: after saving, Everr shows them redacted (`***`). To rotate a redacted secret, edit the channel and enter the new value; the secret fields start blank on edit precisely because the stored values are never shown again. Names are editable labels.
 
-Webhook URLs (generic, Slack, and Discord) and Telegram bot tokens are write-only: after saving, Everr shows them redacted (`***`). Email recipients are not secrets and stay visible as entered. To rotate a redacted secret, edit the channel and enter the new value; the secret fields start blank on edit precisely because the stored values are never shown again. Names are editable labels: renaming a channel or receiver never breaks the receivers and routes that reference it.
+Channels can always be deleted. A deleted channel drops out of the default destination, and rules that named it directly fall back to the default destination. The rule's as-code spec keeps the name, so re-creating the channel (or the next `everr apply`) links it up again. Only a channel with notifications still sending is briefly refused; retry once they settle.
 
-A channel that is still referenced cannot be deleted. Everr refuses and names what still uses it: receivers that include the channel, or alert rules that name it directly in `spec.notification.channels`. A channel with delivery history also cannot be deleted. Delete or repoint the receivers and rules first.
+## The default destination
 
-## Receivers
+The **Delivery** card on the Notifications page shows where alerts go. By default it is one row: **All alerts** and its channel list.
 
-A receiver is a named set of channels; routes reference receivers by name, and a notification for the receiver is delivered to every channel in the set. Create a receiver on the Delivery page by picking from your existing channels (at least one). Receivers carry no secrets themselves, only channel names.
+**Split by severity** to send different severities different places: one channel list each for `critical`, `warning`, and `info`. `severity` is set on every alert rule (see [the AlertRule spec](/docs/reference/alert-spec#spec)). A tier with no channels is a delivery gap: those alerts are not delivered, and Everr says so on the Triage board.
 
-## Routes
+## Rule overrides
 
-A route is a set of **matchers** (label comparisons such as `severity = critical`, using equals or not-equals operators), a target receiver, and a priority. `severity` is set on every alert rule (see [the AlertRule spec](/docs/reference/alert-spec#spec)) and is one of the labels a matcher can compare against.
+A rule that names `spec.notifications.channels` in its YAML delivers to exactly those channels and skips the default destination. The **Rule overrides** card lists these rules read-only; overrides are changed in the rule's YAML and applied as code. See [the AlertRule spec](/docs/reference/alert-spec#notification-destination).
 
-Routes are checked in priority order. The first route whose matchers fit the alert's labels receives it. Enable **Continue matching later routes** on a route to pass the alert on to later routes too, so more than one receiver can act on the same alert.
+## Grouping and timing
 
-### Group notifications
+Grouping decides which alert instances are batched into the same Slack message or webhook payload. It is fixed, with no knobs:
 
-Grouping happens after a route selects a receiver. It does not change which alerts fire or where they are sent. It decides which alert instances are batched into the same Slack message, email, or webhook payload.
-
-For example, if 20 pods trigger the same rule during the group-wait window, grouping them by rule and severity produces one notification containing 20 instances instead of 20 separate notifications.
-
-The route editor offers three grouping modes:
-
-| Mode | Behavior |
-| --- | --- |
-| **Automatic** | Groups by rule and severity. This is the recommended starting point. |
-| **One group** | Puts every alert sent to this receiver into one notification group. This can be useful for a receiver dedicated to one incident stream, but it can mix unrelated alerts. |
-| **By labels** | Creates one group for each combination of selected label values. Grouping by `cluster`, for example, produces a separate notification stream for each cluster. |
-
-Groups are always separate per receiver. Choosing **One group** combines alerts for one receiver, not across every receiver in the organization.
-
-Choose labels that match how responders divide incidents. Labels such as `service`, `cluster`, `region`, or `team` are often useful. Too few labels can combine unrelated incidents; too many labels can fragment one incident into many notifications and defeat batching. Avoid grouping by `status`, particularly when repeat notifications are enabled, because firing and resolved events can land in different groups.
-
-### Control notification timing
-
-Each route also controls when its groups are sent:
-
-- **Group wait** holds a new group before its first send so a burst can become one notification. It is also the minimum delivery delay for a newly created group.
-- **Group interval** is the minimum time between updates for a group that has already been sent.
-- **Repeat interval** re-sends a group while it still contains firing alerts, so a long-lived incident is not silent after its first notification. Leave it empty to notify only when the group's contents change.
-
-## Inhibitions
-
-An inhibition suppresses downstream alerts while a related, higher-level alert is already firing: while alerts matching the **source** matchers fire, alerts matching the **target** matchers are suppressed. Optional **equal labels** scope it to pairs that share the same value for those labels, so a database outage in `region=eu` only inhibits alerts from the same region.
+- Alerts group by **rule and severity**, so one rule firing on 20 pods produces one notification with 20 instances, and unrelated rules never share a message.
+- A new group waits **10 seconds** before its first send, so a burst becomes one notification.
+- A group that already notified sends updates at most every **5 minutes**.
+- Notifications go out when the group's contents change: new instances, and resolutions. There are no repeat notifications for an unchanged group.
 
 ## Silences
 
-To stop notifications for a known issue or maintenance window without touching the rule, create a **silence** on the Silences page: matchers select the alerts, a time window bounds the suppression, and a comment records why. Silences can be scheduled ahead of a maintenance window. The rule keeps evaluating the whole time; silenced alerts are suppressed from delivery and recorded in the event stream.
+To stop notifications for a known issue or maintenance window without touching the rule, create a **silence** on the Silences page: matchers select the alerts (label comparisons such as `severity = critical`, using equals or not-equals operators), a time window bounds the suppression, and a comment records why. Silences can be scheduled ahead of a maintenance window. The rule keeps evaluating the whole time; silenced alerts are suppressed from delivery and recorded in the event stream.
 
 For when notifications fire, see [How alerts work](/docs/concepts/how-alerts-work).

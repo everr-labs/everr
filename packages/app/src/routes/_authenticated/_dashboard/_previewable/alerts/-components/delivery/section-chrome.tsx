@@ -10,8 +10,6 @@ import {
   AlertDialogTrigger,
 } from "@everr/ui/components/alert-dialog";
 import { Button } from "@everr/ui/components/button";
-import { toneText } from "@everr/ui/components/tone";
-import { cn } from "@everr/ui/lib/utils";
 import { LoaderCircle, Trash2, TriangleAlert } from "lucide-react";
 import { useState } from "react";
 import {
@@ -68,9 +66,6 @@ export function ConfirmDeleteAction({
   description,
   confirmLabel,
   pending,
-  details,
-  confirmDisabledReason,
-  blockedAction,
   onConfirm,
 }: {
   label: string;
@@ -78,9 +73,6 @@ export function ConfirmDeleteAction({
   description: React.ReactNode;
   confirmLabel: string;
   pending: boolean;
-  details?: React.ReactNode;
-  confirmDisabledReason?: string;
-  blockedAction?: { label: string; onClick: () => void };
   onConfirm: () => Promise<unknown>;
 }) {
   const [open, setOpen] = useState(false);
@@ -122,18 +114,6 @@ export function ConfirmDeleteAction({
           <AlertDialogTitle>{title}</AlertDialogTitle>
           <AlertDialogDescription>{description}</AlertDialogDescription>
         </AlertDialogHeader>
-        {details}
-        {confirmDisabledReason && (
-          <div
-            className={cn(
-              "flex items-start gap-2 rounded-md border border-amber-500/30 bg-amber-500/5 p-3 text-xs",
-              toneText({ tone: "warning" }),
-            )}
-          >
-            <TriangleAlert aria-hidden className="mt-0.5 size-3.5 shrink-0" />
-            <p>{confirmDisabledReason}</p>
-          </div>
-        )}
         {failure && (
           <div className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/5 p-3 text-xs text-destructive">
             <TriangleAlert aria-hidden className="mt-0.5 size-3.5 shrink-0" />
@@ -147,49 +127,20 @@ export function ConfirmDeleteAction({
           </div>
         )}
         <AlertDialogFooter>
-          <AlertDialogCancel disabled={pending}>
-            {confirmDisabledReason ? "Close" : "Cancel"}
-          </AlertDialogCancel>
-          {confirmDisabledReason ? (
-            blockedAction && (
-              <AlertDialogAction
-                onClick={() => {
-                  setOpen(false);
-                  requestAnimationFrame(blockedAction.onClick);
-                }}
-              >
-                {blockedAction.label}
-              </AlertDialogAction>
-            )
-          ) : (
-            <AlertDialogAction
-              variant="destructive"
-              aria-busy={pending}
-              disabled={pending}
-              onClick={confirm}
-            >
-              {pending && (
-                <LoaderCircle
-                  aria-hidden
-                  className="motion-safe:animate-spin"
-                />
-              )}
-              {pending ? "Deleting..." : confirmLabel}
-            </AlertDialogAction>
-          )}
+          <AlertDialogCancel disabled={pending}>Cancel</AlertDialogCancel>
+          <AlertDialogAction
+            variant="destructive"
+            aria-busy={pending}
+            disabled={pending}
+            onClick={confirm}
+          >
+            {pending && (
+              <LoaderCircle aria-hidden className="motion-safe:animate-spin" />
+            )}
+            {pending ? "Deleting..." : confirmLabel}
+          </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>
     </AlertDialog>
-  );
-}
-
-export function DeleteOperations({ children }: { children: React.ReactNode }) {
-  return (
-    <div className="space-y-1.5 rounded-md border border-border bg-muted/20 p-3 text-xs">
-      <div className="font-medium text-foreground">Changes</div>
-      <ol className="list-decimal space-y-1 pl-4 text-muted-foreground marker:text-muted-foreground/70">
-        {children}
-      </ol>
-    </div>
   );
 }

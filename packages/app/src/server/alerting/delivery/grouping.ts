@@ -1,4 +1,8 @@
 import { IDLE_GROUP_FLUSH_AT } from "@/data/alerting/delivery/tasks";
+import {
+  ALERTING_DEFAULT_GROUP_INTERVAL_SECS,
+  ALERTING_DEFAULT_GROUP_WAIT_SECS,
+} from "@/data/alerting/routing/defaults";
 import type { AlertingLifecycleReason } from "@/data/alerting/vocabulary";
 
 /**
@@ -193,9 +197,6 @@ export function nextGroupFlushState(opts: {
   pendingFlushAt: Date;
   hasUnflushedMembers: boolean;
   now: Date;
-  /** The group's own configured interval, never a constant: a route that asked
-   * for a slower cadence must not be flushed faster than it asked. */
-  groupIntervalSeconds: number;
 }): { nextFlushAt: Date; enqueue: boolean } {
   const times: number[] = [];
   if (opts.repeatAt) times.push(opts.repeatAt.getTime());
@@ -207,7 +208,7 @@ export function nextGroupFlushState(opts: {
     times.push(
       candidate > opts.now.getTime()
         ? candidate
-        : opts.now.getTime() + opts.groupIntervalSeconds * 1_000,
+        : opts.now.getTime() + ALERTING_DEFAULT_GROUP_INTERVAL_SECS * 1_000,
     );
   }
   if (times.length === 0) {
@@ -219,10 +220,10 @@ export function nextGroupFlushState(opts: {
 export function nextGroupFlushAt(
   existing: GroupSchedule | null,
   now: Date,
-  groupWaitSeconds: number,
-  groupIntervalSeconds: number,
 ): Date {
-  const firstArrival = new Date(now.getTime() + groupWaitSeconds * 1_000);
+  const firstArrival = new Date(
+    now.getTime() + ALERTING_DEFAULT_GROUP_WAIT_SECS * 1_000,
+  );
   if (!existing) return firstArrival;
   if (!existing.lastFlushedAt) {
     // A booked first flush stands: later arrivals join it rather than
@@ -239,7 +240,8 @@ export function nextGroupFlushAt(
       existing.nextFlushAt.getTime(),
       Math.max(
         now.getTime(),
-        existing.lastFlushedAt.getTime() + groupIntervalSeconds * 1_000,
+        existing.lastFlushedAt.getTime() +
+          ALERTING_DEFAULT_GROUP_INTERVAL_SECS * 1_000,
       ),
     ),
   );

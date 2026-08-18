@@ -2,15 +2,7 @@ import { Button } from "@everr/ui/components/button";
 import { Sheet, SheetContent, SheetTitle } from "@everr/ui/components/sheet";
 import { useMediaQuery } from "@everr/ui/hooks/use-media-query";
 import { Link } from "@tanstack/react-router";
-import {
-  BellOff,
-  CircleSlash,
-  Flame,
-  Menu,
-  Route,
-  Send,
-  SlidersHorizontal,
-} from "lucide-react";
+import { BellOff, Flame, Menu, Send, SlidersHorizontal } from "lucide-react";
 import { useState } from "react";
 
 const GROUPS = [
@@ -34,23 +26,6 @@ const GROUPS = [
         to: "/alerts/notifications",
         label: "Notifications",
         icon: Send,
-        exact: false,
-      },
-    ],
-  },
-  {
-    label: "Advanced",
-    destinations: [
-      {
-        to: "/alerts/routing",
-        label: "Advanced routing",
-        icon: Route,
-        exact: false,
-      },
-      {
-        to: "/alerts/inhibitions",
-        label: "Inhibitions",
-        icon: CircleSlash,
         exact: false,
       },
     ],

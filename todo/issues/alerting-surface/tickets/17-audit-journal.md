@@ -11,7 +11,7 @@ can skip it.
 
 **Status:** ready-for-agent
 
-- [ ] The suppression-affecting mutation set is covered (decided 2026-08-09): rule pause/resume/delete, silence create/cancel plus system expiry, inhibition and route changes; everything else is ticket 31
+- [ ] The suppression-affecting mutation set is covered (decided 2026-08-09, trimmed 2026-08-18 when inhibitions and routes were removed): rule pause/resume/delete, silence create/cancel plus system expiry, default-destination changes; everything else is ticket 31
 - [ ] The actor column shape is `actor_kind` + `actor_id` + `actor_display`; system actions record `actor_kind = 'system'`
 - [ ] Full spec snapshot per qualifying mutation, redacted through a typed per-channel-type schema: no webhook URLs, tokens, or recipient lists
 - [ ] The enforcement boundary makes skipping audit unrepresentable

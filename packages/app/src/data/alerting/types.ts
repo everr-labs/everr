@@ -3,12 +3,9 @@ import type {
   AlertingAlertSchema,
   AlertingChannelConfigSchema,
   AlertingChannelSchema,
-  AlertingInhibitionInputSchema,
-  AlertingInhibitionSchema,
+  AlertingDefaultDestinationInputSchema,
+  AlertingDefaultDestinationSchema,
   AlertingMatcherSchema,
-  AlertingReceiverSchema,
-  AlertingRouteInputSchema,
-  AlertingRouteSchema,
   AlertingRuleConditionSchema,
   AlertingRuleHealthStatusSchema,
   AlertingRuleInputSchema,
@@ -59,12 +56,11 @@ export type AlertingRuleEvaluationSeries = {
 
 export type AlertingChannelConfig = z.infer<typeof AlertingChannelConfigSchema>;
 export type AlertingChannel = z.infer<typeof AlertingChannelSchema>;
-export type AlertingReceiver = z.infer<typeof AlertingReceiverSchema>;
-export type AlertingRoute = z.infer<typeof AlertingRouteSchema>;
-export type AlertingRouteInput = z.infer<typeof AlertingRouteInputSchema>;
-export type AlertingInhibitionInput = z.infer<
-  typeof AlertingInhibitionInputSchema
+export type AlertingDefaultDestination = z.infer<
+  typeof AlertingDefaultDestinationSchema
+>;
+export type AlertingDefaultDestinationInput = z.infer<
+  typeof AlertingDefaultDestinationInputSchema
 >;
 export type AlertingSilenceInput = z.infer<typeof AlertingSilenceInputSchema>;
 export type AlertingSilence = z.infer<typeof AlertingSilenceSchema>;
-export type AlertingInhibition = z.infer<typeof AlertingInhibitionSchema>;

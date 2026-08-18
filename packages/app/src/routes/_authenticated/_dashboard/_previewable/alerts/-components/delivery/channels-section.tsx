@@ -6,71 +6,41 @@ import {
   CardDescription,
   CardHeader,
 } from "@everr/ui/components/card";
-import { toneText } from "@everr/ui/components/tone";
-import { cn } from "@everr/ui/lib/utils";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Inbox, Pencil, Plus } from "lucide-react";
 import { toast } from "sonner";
 import { deliveryQueries } from "@/data/alerting/delivery/queries";
-import {
-  deleteAlertingChannel,
-  updateAlertingReceiver,
-} from "@/data/alerting/delivery/server";
-import type { AlertingChannel, AlertingReceiver } from "@/data/alerting/types";
+import { deleteAlertingChannel } from "@/data/alerting/delivery/server";
+import type {
+  AlertingChannel,
+  AlertingDefaultDestination,
+} from "@/data/alerting/types";
 import { SectionHeading } from "../common/section-heading";
 import { ChannelBuilder } from "./channel-builder";
 import { CHANNEL_ICON, CHANNEL_LABEL, channelTarget } from "./channel-meta";
-import {
-  ConfirmDeleteAction,
-  DeleteOperations,
-  SectionBody,
-} from "./section-chrome";
+import { ConfirmDeleteAction, SectionBody } from "./section-chrome";
 
 const CHANNEL_KIND_LIST = new Intl.ListFormat("en", {
   type: "disjunction",
 }).format(Object.values(CHANNEL_LABEL));
 
-function ChannelDeleteOperations({
-  channelName,
-  referencingReceivers,
-}: {
-  channelName: string;
-  referencingReceivers: AlertingReceiver[];
-}) {
-  return (
-    <DeleteOperations>
-      {referencingReceivers.map((receiver) => (
-        <li key={receiver.id} className="pl-1">
-          Remove <span className="font-mono">{channelName}</span> from{" "}
-          <strong className="font-medium text-foreground">
-            {receiver.name}
-          </strong>
-          . It keeps{" "}
-          <span className="font-mono text-foreground">
-            {receiver.channels
-              .filter((name) => name !== channelName)
-              .join(", ")}
-          </span>
-          .
-        </li>
-      ))}
-      <li className="pl-1">
-        Delete <span className="font-mono">{channelName}</span>.
-      </li>
-    </DeleteOperations>
+function channelIsDefault(
+  destination: AlertingDefaultDestination | undefined,
+  channelName: string,
+): boolean {
+  return Object.values(destination?.tiers ?? {}).some((names) =>
+    names.includes(channelName),
   );
 }
 
 export function ChannelsSection({
-  receivers,
+  destination,
   editing,
   onEditingChange,
-  onEditReceiver,
 }: {
-  receivers: AlertingReceiver[] | undefined;
+  destination: AlertingDefaultDestination | undefined;
   editing: AlertingChannel | "new" | null;
   onEditingChange: (editing: AlertingChannel | "new" | null) => void;
-  onEditReceiver: (receiver: AlertingReceiver) => void;
 }) {
   const qc = useQueryClient();
   const { data, isPending, isError, error } = useQuery(
@@ -78,38 +48,13 @@ export function ChannelsSection({
   );
 
   const remove = useMutation({
-    mutationFn: async ({
-      name,
-      referencingReceivers,
-    }: {
-      name: string;
-      referencingReceivers: AlertingReceiver[];
-    }) => {
-      await Promise.all(
-        referencingReceivers.map((receiver) =>
-          updateAlertingReceiver({
-            data: {
-              name: receiver.name,
-              channels: receiver.channels.filter(
-                (channelName) => channelName !== name,
-              ),
-            },
-          }),
-        ),
-      );
-      await deleteAlertingChannel({ data: { name } });
-      return referencingReceivers.length;
-    },
-    onSuccess: (receiverCount) => {
-      toast.success(
-        receiverCount === 0
-          ? "Channel deleted"
-          : `Channel deleted and ${receiverCount} ${receiverCount === 1 ? "receiver" : "receivers"} updated`,
-      );
-    },
+    mutationFn: (name: string) => deleteAlertingChannel({ data: { name } }),
+    onSuccess: () => toast.success("Channel deleted"),
     onSettled: () => {
       qc.invalidateQueries({ queryKey: deliveryQueries.channels().queryKey });
-      qc.invalidateQueries({ queryKey: deliveryQueries.receivers().queryKey });
+      qc.invalidateQueries({
+        queryKey: deliveryQueries.defaultDestination().queryKey,
+      });
     },
   });
 
@@ -141,29 +86,14 @@ export function ChannelsSection({
             when: (data ?? []).length === 0,
             icon: Inbox,
             title: "No channels defined",
-            hint: `Add a ${CHANNEL_KIND_LIST} endpoint for receivers to deliver through.`,
+            hint: `Add a ${CHANNEL_KIND_LIST} endpoint for alerts to deliver through.`,
           }}
         >
           <ul className="divide-y divide-border/60">
             {(data ?? []).map((c) => {
               const Icon = CHANNEL_ICON[c.config.type];
               const target = channelTarget(c.config);
-              const referencingReceivers = (receivers ?? []).filter((r) =>
-                r.channels.includes(c.name),
-              );
-              const usedBy =
-                receivers === undefined
-                  ? undefined
-                  : referencingReceivers.length;
-              const blockingReceivers = referencingReceivers.filter(
-                (receiver) => receiver.channels.length === 1,
-              );
-              const confirmDisabledReason =
-                receivers === undefined
-                  ? "Receiver references are still loading or unavailable. Try again after the Receivers section is ready."
-                  : blockingReceivers.length > 0
-                    ? `${blockingReceivers.map((receiver) => receiver.name).join(", ")} ${blockingReceivers.length === 1 ? "has" : "have"} no other channel. Add another channel there first. No changes will be made.`
-                    : undefined;
+              const isDefault = channelIsDefault(destination, c.name);
               return (
                 <li
                   key={c.name}
@@ -175,27 +105,17 @@ export function ChannelsSection({
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
                       <span className="text-sm font-medium">{c.name}</span>
+                      {isDefault && (
+                        <span className="rounded-sm border border-primary/40 px-1.5 py-px text-[10px] font-medium uppercase tracking-wide text-primary">
+                          default
+                        </span>
+                      )}
                     </div>
                     {target !== "" && target !== "***" && (
                       <div className="truncate font-mono text-xs text-muted-foreground">
                         {target}
                       </div>
                     )}
-                    {usedBy !== undefined &&
-                      (usedBy === 0 ? (
-                        <div
-                          className={cn(
-                            "text-xs",
-                            toneText({ tone: "warning" }),
-                          )}
-                        >
-                          not referenced by any receiver
-                        </div>
-                      ) : (
-                        <div className="text-xs text-muted-foreground">
-                          {usedBy} {usedBy === 1 ? "receiver" : "receivers"}
-                        </div>
-                      ))}
                   </div>
                   <span className="shrink-0 text-xs text-muted-foreground">
                     {c.config.type}
@@ -213,40 +133,13 @@ export function ChannelsSection({
                     label={`Delete channel ${c.name}`}
                     title={`Delete “${c.name}”?`}
                     description={
-                      blockingReceivers.length > 0
-                        ? `This channel is the only channel for ${blockingReceivers.length} ${blockingReceivers.length === 1 ? "receiver" : "receivers"}, so it cannot be removed automatically yet.`
-                        : referencingReceivers.length === 0
-                          ? "No receiver uses this channel. A rule naming it directly falls back to routing. Past notifications keep its name in their record. This cannot be undone."
-                          : `This will update ${referencingReceivers.length} ${referencingReceivers.length === 1 ? "receiver" : "receivers"} before deleting the channel. This cannot be undone.`
+                      isDefault
+                        ? "This channel is part of the default destination and will drop out of it. Rules naming it directly fall back to the default destination. Past notifications keep its name in their record. This cannot be undone."
+                        : "Rules naming this channel directly fall back to the default destination. Past notifications keep its name in their record. This cannot be undone."
                     }
                     confirmLabel="Delete channel"
                     pending={remove.isPending}
-                    details={
-                      confirmDisabledReason === undefined ? (
-                        <ChannelDeleteOperations
-                          channelName={c.name}
-                          referencingReceivers={referencingReceivers}
-                        />
-                      ) : undefined
-                    }
-                    confirmDisabledReason={confirmDisabledReason}
-                    blockedAction={
-                      blockingReceivers.length > 0
-                        ? {
-                            label: `Edit ${blockingReceivers[0]?.name}`,
-                            onClick: () => {
-                              const receiver = blockingReceivers[0];
-                              if (receiver) onEditReceiver(receiver);
-                            },
-                          }
-                        : undefined
-                    }
-                    onConfirm={() =>
-                      remove.mutateAsync({
-                        name: c.name,
-                        referencingReceivers,
-                      })
-                    }
+                    onConfirm={() => remove.mutateAsync(c.name)}
                   />
                 </li>
               );

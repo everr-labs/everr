@@ -30,6 +30,7 @@ import {
 import { SYSTEM_ACTOR } from "@/data/alerting/session";
 import {
   alertChannels,
+  alertDefaultChannels,
   alertDeliveries,
   alertEvents,
   alertNotificationGroupEvents,
@@ -41,9 +42,8 @@ import { sendAlertDelivery } from "./delivery/send-delivery";
 import {
   asDbExecutor,
   insertChannel,
+  insertDefaultChannels,
   insertDirectRule,
-  insertReceiver,
-  insertRoute,
   insertRule,
   TEST_ORG,
 } from "./testing/fixtures";
@@ -156,38 +156,21 @@ describe("the alerting pipeline's delivery", () => {
     expect(body).toContain("svc-d");
   });
 
-  // Ticket 39 (todo/issues/alerting-surface/tickets/39-repeat-shorter-than-interval.md)
-  // leaves open, on purpose, what a repeat interval below the group interval
-  // should mean: "legitimate", "usually a mistake", and "always a mistake"
-  // are all still live answers, and the dev route's own
-  // `repeat_interval_secs: 60` against the 300s default group interval is
-  // the example the ticket cites. This case does not take a side: it pins
-  // what `nextGroupFlushState` (grouping.ts) actually does today, so that
-  // whoever resolves ticket 39 changes this test deliberately instead of
-  // discovering by accident that something depended on the current shape.
-  it("today, a repeat interval shorter than the group interval does repeat faster (ticket 39, undecided)", async () => {
+  it("never repeats a notification for a group that stays firing with nothing new to say", async () => {
     const channel = await insertChannel(harness.db, { type: "slack" });
-    const receiver = await insertReceiver(harness.db, {
-      channelIds: [channel.id],
-    });
-    await insertRoute(harness.db, {
-      receiver: receiver.name,
-      repeatIntervalSecs: 60,
-    });
+    await insertDefaultChannels(harness.db, { channelIds: [channel.id] });
     await insertRule(harness.db, { forSecs: 0 });
     harness.clickhouse.setSignal([{ service: "checkout", value: 42 }]);
 
     await harness.fireAndFlush();
     expect(harness.fetchCalls()).toHaveLength(1);
 
-    // The route's repeat interval (60s) is well short of the group interval
-    // (ALERTING_DEFAULT_GROUP_INTERVAL_SECS, 300s by default). Nothing floors
-    // the repeat against the group interval today, so the second
-    // notification lands at the repeat interval, long before a group
-    // interval's worth of time has passed.
-    harness.advance(60_000);
+    // Repeat notifications are off by design in the fixed model: an instance
+    // that keeps breaching, with no new dispatch into its group, is announced
+    // exactly once however long it fires.
+    harness.advance(10 * ALERTING_DEFAULT_GROUP_INTERVAL_SECS * 1000);
     await harness.runDueJobs();
-    expect(harness.fetchCalls()).toHaveLength(2);
+    expect(harness.fetchCalls()).toHaveLength(1);
   });
 
   // A group parked on the idle sentinel with `last_flushed_at` still null has
@@ -590,7 +573,7 @@ describe("the alerting pipeline's delivery", () => {
         resolve_after: 1,
         // The rule keeps its channel: clearing it would make the flush blame
         // a missing channel instead of the dead instance.
-        notification_channels: [channel.name],
+        notifications: { channels: [channel.name] },
       },
       undefined,
       asDbExecutor(harness.db),
@@ -662,13 +645,21 @@ describe("the alerting pipeline's delivery", () => {
     ).toHaveLength(0);
   });
 
-  it("records a terminal when the receiver behind a notifiable group has no channel", async () => {
-    await insertReceiver(harness.db, { name: "team-payments" });
-    await insertRoute(harness.db, { receiver: "team-payments" });
+  it("records a terminal when the default destination behind a notifiable group has lost its channels", async () => {
+    const channel = await insertChannel(harness.db, { type: "webhook" });
+    await insertDefaultChannels(harness.db, { channelIds: [channel.id] });
     await insertRule(harness.db, { forSecs: 0 });
     harness.clickhouse.setSignal([{ service: "checkout", value: 42 }]);
 
-    await harness.fireAndFlush();
+    await harness.runDueJobs(); // fires and dispatches; the flush is not due yet
+
+    // The destination is emptied between dispatch and flush: the group
+    // already exists and still comes due, but resolves no channels. The
+    // repository refuses to delete a channel that is a default destination,
+    // so clearing the destination rows themselves is how the gap arises.
+    await harness.db.delete(alertDefaultChannels);
+    harness.advance(ALERTING_DEFAULT_GROUP_WAIT_SECS * 1000);
+    await harness.runDueJobs();
 
     // Nothing to send it to is not the same as nothing to say. The chain has
     // to end somewhere, or the fire sits unexplained in the history forever.

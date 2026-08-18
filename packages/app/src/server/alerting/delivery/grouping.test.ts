@@ -48,21 +48,16 @@ function member(
 }
 
 describe("nextGroupFlushAt", () => {
-  it("uses group wait for a new notification group", () => {
-    expect(nextGroupFlushAt(null, now, 30, 300).toISOString()).toBe(
-      "2026-08-06T10:00:30.000Z",
+  it("uses the fixed group wait for a new notification group", () => {
+    expect(nextGroupFlushAt(null, now).toISOString()).toBe(
+      "2026-08-06T10:00:10.000Z",
     );
   });
 
   it("does not postpone the first flush when more events arrive", () => {
     const first = new Date("2026-08-06T10:00:10Z");
     expect(
-      nextGroupFlushAt(
-        { nextFlushAt: first, lastFlushedAt: null },
-        now,
-        30,
-        300,
-      ),
+      nextGroupFlushAt({ nextFlushAt: first, lastFlushedAt: null }, now),
     ).toEqual(first);
   });
 
@@ -71,10 +66,8 @@ describe("nextGroupFlushAt", () => {
       nextGroupFlushAt(
         { nextFlushAt: IDLE_GROUP_FLUSH_AT, lastFlushedAt: null },
         now,
-        30,
-        300,
       ).toISOString(),
-    ).toBe("2026-08-06T10:00:30.000Z");
+    ).toBe("2026-08-06T10:00:10.000Z");
   });
 
   it("pulls a repeat forward to the earliest group interval", () => {
@@ -85,8 +78,6 @@ describe("nextGroupFlushAt", () => {
           lastFlushedAt: new Date("2026-08-06T09:58:00Z"),
         },
         now,
-        30,
-        300,
       ).toISOString(),
     ).toBe("2026-08-06T10:03:00.000Z");
   });
@@ -100,8 +91,6 @@ describe("nextGroupFlushAt", () => {
           lastFlushedAt: new Date("2026-08-06T09:58:00Z"),
         },
         now,
-        30,
-        300,
       ),
     ).toEqual(scheduled);
   });
@@ -217,7 +206,6 @@ describe("nextGroupFlushState", () => {
         pendingFlushAt: IDLE_GROUP_FLUSH_AT,
         hasUnflushedMembers: false,
         now,
-        groupIntervalSeconds: 300,
       }),
     ).toEqual({ nextFlushAt: IDLE_GROUP_FLUSH_AT, enqueue: false });
   });
@@ -234,7 +222,6 @@ describe("nextGroupFlushState", () => {
         pendingFlushAt: IDLE_GROUP_FLUSH_AT,
         hasUnflushedMembers: true,
         now,
-        groupIntervalSeconds: 300,
       }),
     ).toEqual({
       nextFlushAt: new Date(now.getTime() + 300_000),
@@ -252,25 +239,11 @@ describe("nextGroupFlushState", () => {
         pendingFlushAt: consumed,
         hasUnflushedMembers: true,
         now,
-        groupIntervalSeconds: 300,
       }),
     ).toEqual({
       nextFlushAt: new Date(now.getTime() + 300_000),
       enqueue: true,
     });
-  });
-
-  // A route that asked for a slower cadence must not be flushed faster.
-  it("paces on the group's own interval, not a constant", () => {
-    expect(
-      nextGroupFlushState({
-        repeatAt: null,
-        pendingFlushAt: new Date(now.getTime() - 60_000),
-        hasUnflushedMembers: true,
-        now,
-        groupIntervalSeconds: 900,
-      }).nextFlushAt,
-    ).toEqual(new Date(now.getTime() + 900_000));
   });
 
   it("keeps a schedule another writer set rather than postponing it", () => {
@@ -281,7 +254,6 @@ describe("nextGroupFlushState", () => {
         pendingFlushAt: pending,
         hasUnflushedMembers: true,
         now,
-        groupIntervalSeconds: 300,
       }),
     ).toEqual({ nextFlushAt: pending, enqueue: true });
   });
@@ -294,7 +266,6 @@ describe("nextGroupFlushState", () => {
         pendingFlushAt: new Date("2026-08-06T10:04:00Z"),
         hasUnflushedMembers: true,
         now,
-        groupIntervalSeconds: 300,
       }),
     ).toEqual({ nextFlushAt: repeatAt, enqueue: true });
   });
@@ -307,7 +278,6 @@ describe("nextGroupFlushState", () => {
         pendingFlushAt: new Date("2026-08-06T10:00:30Z"),
         hasUnflushedMembers: false,
         now,
-        groupIntervalSeconds: 300,
       }),
     ).toEqual({ nextFlushAt: repeatAt, enqueue: true });
   });

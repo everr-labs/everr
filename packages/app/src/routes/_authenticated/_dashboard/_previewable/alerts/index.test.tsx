@@ -14,8 +14,6 @@ import type { AlertEventLogRow } from "@/data/alerting/history/repository.server
 import { alertingRuleViewFixture } from "@/data/alerting/test-fixtures";
 import type {
   AlertingAlert,
-  AlertingReceiver,
-  AlertingRoute,
   AlertingRuleView,
   AlertingSilence,
 } from "@/data/alerting/types";
@@ -24,8 +22,7 @@ import { Route as AlertsIndexFileRoute } from "./index";
 const mocks = vi.hoisted(() => ({
   listAlertingAlerts: vi.fn(),
   listAlertingRules: vi.fn(),
-  listAlertingRoutes: vi.fn(),
-  listAlertingReceivers: vi.fn(),
+  getAlertingDefaultDestination: vi.fn(),
   listAlertingSilences: vi.fn(),
   listAlertingEventHistory: vi.fn(),
   createAlertingSilence: vi.fn(),
@@ -50,8 +47,7 @@ vi.mock("@/data/alerting/rules/server", () => ({
   resumeAlertingRule: mocks.resumeAlertingRule,
 }));
 vi.mock("@/data/alerting/delivery/server", () => ({
-  listAlertingRoutes: mocks.listAlertingRoutes,
-  listAlertingReceivers: mocks.listAlertingReceivers,
+  getAlertingDefaultDestination: mocks.getAlertingDefaultDestination,
 }));
 vi.mock("@/data/alerting/silences/server", () => ({
   listAlertingSilences: mocks.listAlertingSilences,
@@ -112,34 +108,6 @@ function alertingAlert(overrides: Partial<AlertingAlert> = {}): AlertingAlert {
   };
 }
 
-function alertingRoute(overrides: Partial<AlertingRoute> = {}): AlertingRoute {
-  return {
-    id: "route-1",
-    tenant: "org1",
-    matchers: [{ label: "host", op: "eq", value: "web-1" }],
-    receiver: "oncall",
-    continue: false,
-    priority: 1,
-    group_by: null,
-    group_wait_secs: null,
-    group_interval_secs: null,
-    repeat_interval_secs: null,
-    ...overrides,
-  };
-}
-
-function alertingReceiver(
-  overrides: Partial<AlertingReceiver> = {},
-): AlertingReceiver {
-  return {
-    id: "recv-1",
-    tenant: "org1",
-    name: "oncall",
-    channels: ["team-slack", "pd"],
-    ...overrides,
-  };
-}
-
 function alertingSilence(
   overrides: Partial<AlertingSilence> = {},
 ): AlertingSilence {
@@ -175,7 +143,7 @@ function eventRow(overrides: Partial<AlertEventLogRow> = {}): AlertEventLogRow {
   };
 }
 
-/** Seed routed, pending, silenced, and inactive instances. */
+/** Seed delivered, pending, silenced, and inactive instances. */
 function seedBoard() {
   mocks.listAlertingRules.mockResolvedValue([
     alertingRule(),
@@ -216,8 +184,9 @@ function seedBoard() {
       labels: { host: "web-9" },
     }),
   ]);
-  mocks.listAlertingRoutes.mockResolvedValue([alertingRoute()]);
-  mocks.listAlertingReceivers.mockResolvedValue([alertingReceiver()]);
+  mocks.getAlertingDefaultDestination.mockResolvedValue({
+    tiers: { all: ["team-slack", "pd"] },
+  });
   mocks.listAlertingSilences.mockResolvedValue([alertingSilence()]);
   mocks.listAlertingEventHistory.mockResolvedValue([eventRow()]);
 }
@@ -364,8 +333,9 @@ describe("/alerts triage board", () => {
         value: 7,
       }),
     ]);
-    mocks.listAlertingRoutes.mockResolvedValue([alertingRoute()]);
-    mocks.listAlertingReceivers.mockResolvedValue([alertingReceiver()]);
+    mocks.getAlertingDefaultDestination.mockResolvedValue({
+      tiers: { all: ["team-slack", "pd"] },
+    });
     mocks.listAlertingSilences.mockResolvedValue([]);
     mocks.listAlertingEventHistory.mockResolvedValue([eventRow()]);
 
@@ -414,8 +384,9 @@ describe("/alerts triage board", () => {
         pending_since: new Date(Date.now() - 60_000).toISOString(),
       }),
     ]);
-    mocks.listAlertingRoutes.mockResolvedValue([alertingRoute()]);
-    mocks.listAlertingReceivers.mockResolvedValue([alertingReceiver()]);
+    mocks.getAlertingDefaultDestination.mockResolvedValue({
+      tiers: { all: ["team-slack", "pd"] },
+    });
     mocks.listAlertingSilences.mockResolvedValue([]);
     mocks.listAlertingEventHistory.mockResolvedValue([eventRow()]);
 
@@ -479,8 +450,7 @@ describe("/alerts triage board", () => {
         rule: previewRule.id,
       }),
     ]);
-    mocks.listAlertingRoutes.mockResolvedValue([]);
-    mocks.listAlertingReceivers.mockResolvedValue([]);
+    mocks.getAlertingDefaultDestination.mockResolvedValue({ tiers: {} });
     mocks.listAlertingSilences.mockResolvedValue([]);
     mocks.listAlertingEventHistory.mockResolvedValue([]);
 
@@ -527,13 +497,15 @@ describe("/alerts triage board", () => {
     ).toBeInTheDocument();
   });
 
-  it("resolves delivery through routes without flagging a silenced row", async () => {
+  it("resolves delivery through the default destination without flagging a silenced row", async () => {
     renderTriagePage();
 
-    await screen.findByTitle(/team-slack, pd/);
-    // Only host=web-1 matches the route. The svc=api row is intentionally
-    // silenced, so it must never read as a delivery failure, even though the
-    // pending host=web-2 row genuinely has nowhere to go once it fires.
+    // Every unsilenced row carries the destination on its tooltip.
+    expect(
+      (await screen.findAllByTitle(/team-slack, pd/)).length,
+    ).toBeGreaterThan(0);
+    // The svc=api row is intentionally silenced, so it must never read as a
+    // delivery failure.
     const silencedRow = (
       await screen.findByRole("button", { name: "Expand svc=api" })
     ).closest("div") as HTMLElement;
@@ -541,46 +513,35 @@ describe("/alerts triage board", () => {
     expect(screen.queryByRole("alert")).toBeNull();
   });
 
-  it("overflows a long receiver list as +N instead of truncating names", async () => {
-    mocks.listAlertingRoutes.mockResolvedValue([
-      alertingRoute({ id: "route-1", receiver: "oncall", continue: true }),
-      alertingRoute({
-        id: "route-2",
-        receiver: "backup",
-        continue: true,
-        priority: 2,
-      }),
-      alertingRoute({ id: "route-3", receiver: "mgmt", priority: 3 }),
-    ]);
-    mocks.listAlertingReceivers.mockResolvedValue([
-      alertingReceiver(),
-      alertingReceiver({
-        id: "recv-2",
-        name: "backup",
-        channels: ["ops-hook"],
-      }),
-      alertingReceiver({ id: "recv-3", name: "mgmt", channels: ["ops-hook"] }),
-    ]);
+  it("overflows a long channel list as +N instead of truncating names", async () => {
+    mocks.getAlertingDefaultDestination.mockResolvedValue({
+      tiers: { all: ["oncall", "backup", "mgmt"] },
+    });
     renderTriagePage();
 
     // Two names shown, the rest counted; the full list stays on the tooltip.
-    expect(await screen.findByText("oncall, backup +1")).toBeInTheDocument();
-    expect(screen.getByTitle(/oncall, backup, mgmt/)).toBeInTheDocument();
+    expect(
+      (await screen.findAllByText("oncall, backup +1")).length,
+    ).toBeGreaterThan(0);
+    expect(screen.getAllByTitle(/oncall, backup, mgmt/).length).toBeGreaterThan(
+      0,
+    );
   });
 
-  it("warns when every matched receiver has no channels", async () => {
-    mocks.listAlertingReceivers.mockResolvedValue([
-      alertingReceiver({ channels: [] }),
-    ]);
+  it("marks a severity gap in a split destination as not delivered", async () => {
+    // The seeded rules are critical and warning; only info has channels.
+    mocks.getAlertingDefaultDestination.mockResolvedValue({
+      tiers: { info: ["oncall"] },
+    });
     renderTriagePage();
 
-    // Routed to a receiver that fans out to nothing delivers exactly nothing:
-    // it gets the "not routed" warning treatment, not a healthy arrow.
-    await screen.findByRole("link", { name: "No channels" });
+    expect(
+      (await screen.findAllByText("Not delivered")).length,
+    ).toBeGreaterThan(0);
   });
 
-  it("marks unrouted instances as not delivered when no routes exist", async () => {
-    mocks.listAlertingRoutes.mockResolvedValue([]);
+  it("marks instances as not delivered when no default destination exists", async () => {
+    mocks.getAlertingDefaultDestination.mockResolvedValue({ tiers: {} });
 
     renderTriagePage();
 

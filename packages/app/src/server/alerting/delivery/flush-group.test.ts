@@ -10,9 +10,6 @@ const mocks = vi.hoisted(() => ({
   // select, then the pending-unflushed-count select.
   commitSelectQueue: [] as unknown[][],
   loadSilences: vi.fn(() => Promise.resolve([])),
-  loadInhibition: vi.fn(() =>
-    Promise.resolve({ inhibitions: [], sources: [] }),
-  ),
   // Every member's instance is still firing unless a test says otherwise.
   loadFiringKeys: vi.fn(
     (
@@ -127,10 +124,8 @@ vi.mock("@/server/worker/jobs", () => ({
 
 vi.mock("./suppression", () => ({
   loadActiveSilences: mocks.loadSilences,
-  loadInhibitionContext: mocks.loadInhibition,
   loadFiringInstanceKeys: mocks.loadFiringKeys,
   matchSilence: () => null,
-  matchInhibition: () => false,
   deferSuppressedEvent: vi.fn(),
 }));
 
@@ -157,7 +152,6 @@ beforeEach(() => {
   mocks.commitSelectQueue = [];
   mocks.transactionCalls = 0;
   mocks.loadSilences.mockClear();
-  mocks.loadInhibition.mockClear();
   mocks.loadFiringKeys.mockClear();
   mocks.recordHistory.mockClear();
   mocks.channelRows = [];
@@ -273,19 +267,18 @@ describe("flushAlertGroup suppression batching", () => {
     };
   }
 
-  it("loads silences and inhibition sources once, not once per member", async () => {
+  it("loads silences once, not once per member", async () => {
     const group = {
       id: GROUP_ID,
       organizationId: "org-1",
       nextFlushAt: new Date("2026-08-10T09:00:00Z"),
       directAlertDefinitionId: null,
-      receiverId: null,
-      repeatIntervalSeconds: null,
+      defaultTier: null,
       lastNotifiedAt: null,
     };
     mocks.groupRow = group;
     // 5 distinct firing members: with the per-member design this would have
-    // been 5 silence scans and 5 inhibition scans.
+    // been 5 silence scans.
     mocks.memberRows = Array.from({ length: 5 }, (_, i) => member(i));
     mocks.commitSelectQueue = [
       [group], // re-read under lock
@@ -295,7 +288,6 @@ describe("flushAlertGroup suppression batching", () => {
     await flushAlertGroup({ groupId: GROUP_ID });
 
     expect(mocks.loadSilences).toHaveBeenCalledTimes(1);
-    expect(mocks.loadInhibition).toHaveBeenCalledTimes(1);
   });
 
   // A group above the claim cap leaves members unflushed on every pass. The
@@ -331,8 +323,7 @@ describe("flushAlertGroup suppression batching", () => {
       organizationId: "org-1",
       nextFlushAt: new Date("2026-08-10T09:00:00Z"),
       directAlertDefinitionId: null,
-      receiverId: null,
-      repeatIntervalSeconds: null,
+      defaultTier: null,
       lastNotifiedAt: null,
     };
     mocks.groupRow = group;
@@ -343,7 +334,6 @@ describe("flushAlertGroup suppression batching", () => {
     await flushAlertGroup({ groupId: GROUP_ID });
 
     expect(mocks.loadSilences).not.toHaveBeenCalled();
-    expect(mocks.loadInhibition).not.toHaveBeenCalled();
   });
 });
 
@@ -360,8 +350,7 @@ describe("flushAlertGroup flap handling", () => {
       organizationId: "org-1",
       nextFlushAt: new Date("2026-08-10T09:00:00Z"),
       directAlertDefinitionId: null,
-      receiverId: null,
-      repeatIntervalSeconds: null,
+      defaultTier: null,
       lastNotifiedAt: null,
     };
     mocks.groupRow = group;

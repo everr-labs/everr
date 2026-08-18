@@ -1,5 +1,4 @@
 // @vitest-environment node
-import { eq, sql } from "drizzle-orm";
 import {
   afterAll,
   afterEach,
@@ -10,17 +9,11 @@ import {
   it,
   vi,
 } from "vitest";
-import {
-  alertDeliveries,
-  alertNotificationGroups,
-  alertReceivers,
-  alertRoutes,
-} from "@/db/schema";
+import { alertDeliveries, alertNotificationGroups } from "@/db/schema";
 import {
   insertChannel,
+  insertDefaultChannels,
   insertDirectRule,
-  insertReceiver,
-  insertRoute,
   insertRule,
 } from "./testing/fixtures";
 import { type AlertingHarness, createAlertingHarness } from "./testing/harness";
@@ -61,25 +54,23 @@ async function fireDefaultRuleAndFlush(
   await harness.fireAndFlush();
 }
 
-describe("the alerting pipeline's routing", () => {
-  it("never consults routes for a rule with direct channels, even when a route would match", async () => {
+describe("the alerting pipeline's default-destination targeting", () => {
+  it("never consults the default destination for a rule with direct channels", async () => {
     await insertDirectRule(harness.db, {
       forSecs: 0,
       channelType: "webhook",
       channelName: "direct-channel",
     });
 
-    const routedChannel = await insertChannel(harness.db, {
+    // An unsplit default destination: if the direct rule ever fell through to
+    // it, this channel would be notified too.
+    const defaultChannel = await insertChannel(harness.db, {
       type: "webhook",
-      name: "routed-channel",
+      name: "default-channel",
     });
-    const receiver = await insertReceiver(harness.db, {
-      name: "routed-receiver",
-      channelIds: [routedChannel.id],
+    await insertDefaultChannels(harness.db, {
+      channelIds: [defaultChannel.id],
     });
-    // A catch-all route (no matchers): if the direct rule ever consulted
-    // routes, this one would fire too.
-    await insertRoute(harness.db, { receiver: receiver.name });
 
     harness.clickhouse.setSignal([{ service: "checkout", value: 42 }]);
     await harness.fireAndFlush();
@@ -91,330 +82,123 @@ describe("the alerting pipeline's routing", () => {
 
     const [group] = await harness.db.select().from(alertNotificationGroups);
     expect(group.directAlertDefinitionId).not.toBeNull();
-    expect(group.receiverId).toBeNull();
+    expect(group.defaultTier).toBeNull();
   });
 
-  it("delivers through only the lower-priority route when both match and continue is false", async () => {
-    const channelA = await insertChannel(harness.db, {
-      type: "webhook",
-      name: "receiver-a-channel",
-    });
-    const receiverA = await insertReceiver(harness.db, {
-      name: "receiver-a",
-      channelIds: [channelA.id],
-    });
-    const channelB = await insertChannel(harness.db, {
-      type: "webhook",
-      name: "receiver-b-channel",
-    });
-    const receiverB = await insertReceiver(harness.db, {
-      name: "receiver-b",
-      channelIds: [channelB.id],
-    });
-    await insertRoute(harness.db, { receiver: receiverA.name, priority: 0 });
-    await insertRoute(harness.db, { receiver: receiverB.name, priority: 1 });
-
-    await fireDefaultRuleAndFlush();
-
-    expect(harness.fetchCalls()).toHaveLength(1);
-    const [delivery] = await harness.db.select().from(alertDeliveries);
-    expect(delivery.channelName).toBe("receiver-a-channel");
-  });
-
-  it("delivers through both receivers, into two groups, when the first matching route continues", async () => {
-    const channelA = await insertChannel(harness.db, {
-      type: "webhook",
-      name: "receiver-a-channel",
-    });
-    const receiverA = await insertReceiver(harness.db, {
-      name: "receiver-a",
-      channelIds: [channelA.id],
-    });
-    const channelB = await insertChannel(harness.db, {
-      type: "webhook",
-      name: "receiver-b-channel",
-    });
-    const receiverB = await insertReceiver(harness.db, {
-      name: "receiver-b",
-      channelIds: [channelB.id],
-    });
-    await insertRoute(harness.db, {
-      receiver: receiverA.name,
-      priority: 0,
-      continue: true,
-    });
-    await insertRoute(harness.db, { receiver: receiverB.name, priority: 1 });
-
-    await fireDefaultRuleAndFlush();
-
-    expect(harness.fetchCalls()).toHaveLength(2);
-    const deliveries = await harness.db.select().from(alertDeliveries);
-    expect(deliveries.map((d) => d.channelName).sort()).toEqual([
-      "receiver-a-channel",
-      "receiver-b-channel",
-    ]);
-    const groups = await harness.db.select().from(alertNotificationGroups);
-    expect(groups).toHaveLength(2);
-  });
-
-  it("drops a route at the join when its receiver row is gone, and a later matching route still delivers", async () => {
-    const ghostReceiver = await insertReceiver(harness.db, {
-      name: "ghost-receiver",
-    });
-    await insertRoute(harness.db, {
-      receiver: ghostReceiver.name,
-      priority: 0,
-      continue: true,
-    });
-
-    const liveChannel = await insertChannel(harness.db, {
-      type: "webhook",
-      name: "live-channel",
-    });
-    const liveReceiver = await insertReceiver(harness.db, {
-      name: "live-receiver",
-      channelIds: [liveChannel.id],
-    });
-    await insertRoute(harness.db, { receiver: liveReceiver.name, priority: 1 });
-
-    // No path through the application can leave a route pointing at a
-    // receiver that no longer exists. `deleteReceiver` (repository.ts)
-    // refuses while a route still references the receiver, and the
-    // organization wipe (organization-data-cleanup.server.ts) deletes routes
-    // before receivers. The foreign key on alert_routes.receiver_id enforces
-    // the same rule at the database level, so no insert or delete this test
-    // could otherwise issue reaches the row state this case needs. The
-    // trigger below is disabled only long enough to build the row that an
-    // out-of-band write could leave behind, then restored in a `finally`, so
-    // the constraint stays live for every later case in this file even if
-    // the delete throws.
-    //
-    // With the receiver gone, `loadRoutes` (targeting.ts) drops the route at
-    // its inner join before route selection ever sees it: that join is the
-    // only place this drop can happen, and since ticket 47 it is also the
-    // only place the receiver is read at all.
-    await harness.db.execute(
-      sql.raw("ALTER TABLE alert_receivers DISABLE TRIGGER ALL"),
-    );
-    try {
-      await harness.db
-        .delete(alertReceivers)
-        .where(eq(alertReceivers.id, ghostReceiver.id));
-    } finally {
-      await harness.db.execute(
-        sql.raw("ALTER TABLE alert_receivers ENABLE TRIGGER ALL"),
-      );
-    }
-
-    await fireDefaultRuleAndFlush();
-
-    expect(harness.fetchCalls()).toHaveLength(1);
-    const [delivery] = await harness.db.select().from(alertDeliveries);
-    expect(delivery.channelName).toBe("live-channel");
-  });
-
-  it("matches eq and ne, matches a missing label only against the empty string, and a bare route catches everything", async () => {
-    const eqChannel = await insertChannel(harness.db, {
-      type: "webhook",
-      name: "eq-channel",
-    });
-    const eqReceiver = await insertReceiver(harness.db, {
-      name: "eq-receiver",
-      channelIds: [eqChannel.id],
-    });
-    await insertRoute(harness.db, {
-      receiver: eqReceiver.name,
-      priority: 0,
-      continue: true,
-      matchers: [{ label: "service", op: "eq", value: "checkout" }],
-    });
-
-    const neChannel = await insertChannel(harness.db, {
-      type: "webhook",
-      name: "ne-channel",
-    });
-    const neReceiver = await insertReceiver(harness.db, {
-      name: "ne-receiver",
-      channelIds: [neChannel.id],
-    });
-    await insertRoute(harness.db, {
-      receiver: neReceiver.name,
-      priority: 1,
-      continue: true,
-      matchers: [{ label: "service", op: "ne", value: "billing" }],
-    });
-
-    const emptyMatchChannel = await insertChannel(harness.db, {
-      type: "webhook",
-      name: "empty-match-channel",
-    });
-    const emptyMatchReceiver = await insertReceiver(harness.db, {
-      name: "empty-match-receiver",
-      channelIds: [emptyMatchChannel.id],
-    });
-    // "region" is not one of the rule's label columns, so the instance never
-    // carries it: a missing label reads as the empty string.
-    await insertRoute(harness.db, {
-      receiver: emptyMatchReceiver.name,
-      priority: 2,
-      continue: true,
-      matchers: [{ label: "region", op: "eq", value: "" }],
-    });
-
-    const emptyMismatchChannel = await insertChannel(harness.db, {
-      type: "webhook",
-      name: "empty-mismatch-channel",
-    });
-    const emptyMismatchReceiver = await insertReceiver(harness.db, {
-      name: "empty-mismatch-receiver",
-      channelIds: [emptyMismatchChannel.id],
-    });
-    // Same missing label, a non-empty value: proves the match above is
-    // against the empty string specifically, not "any missing label".
-    await insertRoute(harness.db, {
-      receiver: emptyMismatchReceiver.name,
-      priority: 3,
-      continue: true,
-      matchers: [{ label: "region", op: "eq", value: "us-east" }],
-    });
-
-    const catchAllChannel = await insertChannel(harness.db, {
-      type: "webhook",
-      name: "catch-all-channel",
-    });
-    const catchAllReceiver = await insertReceiver(harness.db, {
-      name: "catch-all-receiver",
-      channelIds: [catchAllChannel.id],
-    });
-    await insertRoute(harness.db, {
-      receiver: catchAllReceiver.name,
-      priority: 4,
-    });
-
-    await fireDefaultRuleAndFlush();
-
-    expect(harness.fetchCalls()).toHaveLength(4);
-    const deliveries = await harness.db.select().from(alertDeliveries);
-    expect(deliveries.map((d) => d.channelName).sort()).toEqual([
-      "catch-all-channel",
-      "empty-match-channel",
-      "eq-channel",
-      "ne-channel",
-    ]);
-  });
-
-  it("never matches a route row persisted with a retired regex op", async () => {
-    const staleChannel = await insertChannel(harness.db, {
-      type: "webhook",
-      name: "stale-op-channel",
-    });
-    const staleReceiver = await insertReceiver(harness.db, {
-      name: "stale-op-receiver",
-      channelIds: [staleChannel.id],
-    });
-    const staleRoute = await insertRoute(harness.db, {
-      receiver: staleReceiver.name,
-      priority: 0,
-      continue: true,
-    });
-    // "regex" was removed from AlertingMatchOpSchema: no validating path
-    // (createRoute, updateRoute) can produce this row today. Writing the
-    // jsonb column directly is what a row persisted before the removal
-    // looks like.
-    await harness.db
-      .update(alertRoutes)
-      .set({
-        config: {
-          matchers: [{ label: "service", op: "regex", value: "check.*" }],
-          continue: true,
-          group_by: null,
-          group_wait_secs: null,
-          group_interval_secs: null,
-          repeat_interval_secs: null,
-        } as never,
-      })
-      .where(eq(alertRoutes.id, staleRoute.id));
-
-    const catchAllChannel = await insertChannel(harness.db, {
-      type: "webhook",
-      name: "catch-all-channel",
-    });
-    const catchAllReceiver = await insertReceiver(harness.db, {
-      name: "catch-all-receiver",
-      channelIds: [catchAllChannel.id],
-    });
-    await insertRoute(harness.db, {
-      receiver: catchAllReceiver.name,
-      priority: 1,
-    });
-
-    await fireDefaultRuleAndFlush();
-
-    // A live regex engine would have matched "checkout" against "check.*".
-    // The retired op never matches, so only the catch-all route delivers.
-    expect(harness.fetchCalls()).toHaveLength(1);
-    const [delivery] = await harness.db.select().from(alertDeliveries);
-    expect(delivery.channelName).toBe("catch-all-channel");
-  });
-
-  it("splits two instances into two groups by group_by, where the default grouping would have joined them", async () => {
+  it("delivers a warning-severity event through the 'all' tier when the destination is unsplit", async () => {
     const channel = await insertChannel(harness.db, {
       type: "webhook",
-      name: "grouped-channel",
+      name: "unsplit-channel",
     });
-    const receiver = await insertReceiver(harness.db, {
-      name: "grouped-receiver",
-      channelIds: [channel.id],
-    });
-    // Both instances below share the same rule and severity, so the default
-    // group_by (["rule", "severity"]) would fold them into one group.
-    await insertRoute(harness.db, {
-      receiver: receiver.name,
-      groupBy: ["service"],
-    });
+    await insertDefaultChannels(harness.db, { channelIds: [channel.id] });
 
-    await insertRule(harness.db, {
-      sql: "select 'svc-a' as service, 42 as value union all select 'svc-b' as service, 42 as value",
-      forSecs: 0,
-    });
-    harness.clickhouse.setSignal([
-      { service: "svc-a", value: 42 },
-      { service: "svc-b", value: 42 },
-    ]);
-    await harness.fireAndFlush();
+    await fireDefaultRuleAndFlush();
 
-    expect(harness.fetchCalls()).toHaveLength(2);
-    const groups = await harness.db.select().from(alertNotificationGroups);
-    expect(groups).toHaveLength(2);
+    expect(harness.fetchCalls()).toHaveLength(1);
+    const [delivery] = await harness.db.select().from(alertDeliveries);
+    expect(delivery.channelName).toBe("unsplit-channel");
+    const [group] = await harness.db.select().from(alertNotificationGroups);
+    expect(group.defaultTier).toBe("all");
+    expect(group.directAlertDefinitionId).toBeNull();
   });
 
-  it("does not let a user label named severity override the system severity in the dispatch labels", async () => {
+  it("delivers to the tier matching the event's severity when the destination is split", async () => {
+    const warningChannel = await insertChannel(harness.db, {
+      type: "webhook",
+      name: "warning-channel",
+    });
+    await insertDefaultChannels(harness.db, {
+      tier: "warning",
+      channelIds: [warningChannel.id],
+    });
+    const criticalChannel = await insertChannel(harness.db, {
+      type: "webhook",
+      name: "critical-channel",
+    });
+    await insertDefaultChannels(harness.db, {
+      tier: "critical",
+      channelIds: [criticalChannel.id],
+    });
+
+    await fireDefaultRuleAndFlush({ severity: "warning" });
+
+    expect(harness.fetchCalls()).toHaveLength(1);
+    const [delivery] = await harness.db.select().from(alertDeliveries);
+    expect(delivery.channelName).toBe("warning-channel");
+    const [group] = await harness.db.select().from(alertNotificationGroups);
+    expect(group.defaultTier).toBe("warning");
+  });
+
+  it("delivers nothing when the split destination has no tier for the event's severity", async () => {
+    const criticalChannel = await insertChannel(harness.db, {
+      type: "webhook",
+      name: "critical-channel",
+    });
+    await insertDefaultChannels(harness.db, {
+      tier: "critical",
+      channelIds: [criticalChannel.id],
+    });
+
+    await fireDefaultRuleAndFlush({ severity: "info" });
+
+    // No matching tier resolves to no dispatch target at all: no group is
+    // ever created, so there is nothing to flush and nothing to send.
+    expect(harness.fetchCalls()).toHaveLength(0);
+    expect(await harness.db.select().from(alertDeliveries)).toHaveLength(0);
+    expect(
+      await harness.db.select().from(alertNotificationGroups),
+    ).toHaveLength(0);
+  });
+
+  it("fans one flush out to every channel of the destination, in position order", async () => {
+    const first = await insertChannel(harness.db, {
+      type: "webhook",
+      name: "first-channel",
+    });
+    const second = await insertChannel(harness.db, {
+      type: "webhook",
+      name: "second-channel",
+    });
+    const third = await insertChannel(harness.db, {
+      type: "webhook",
+      name: "third-channel",
+    });
+    // insertDefaultChannels assigns position from array order.
+    await insertDefaultChannels(harness.db, {
+      channelIds: [first.id, second.id, third.id],
+    });
+
+    await fireDefaultRuleAndFlush();
+
+    expect(harness.fetchCalls()).toHaveLength(3);
+    // One group, one delivery per channel, resolved in position order.
+    expect(
+      await harness.db.select().from(alertNotificationGroups),
+    ).toHaveLength(1);
+    const deliveries = await harness.db.select().from(alertDeliveries);
+    expect(deliveries.map((d) => d.channelName)).toEqual([
+      "first-channel",
+      "second-channel",
+      "third-channel",
+    ]);
+  });
+
+  it("does not let a user label named severity steer tier selection away from the rule's severity", async () => {
     const warnChannel = await insertChannel(harness.db, {
       type: "webhook",
       name: "warn-channel",
     });
-    const warnReceiver = await insertReceiver(harness.db, {
-      name: "warn-receiver",
+    await insertDefaultChannels(harness.db, {
+      tier: "warning",
       channelIds: [warnChannel.id],
     });
-    await insertRoute(harness.db, {
-      receiver: warnReceiver.name,
-      priority: 0,
-      matchers: [{ label: "severity", op: "eq", value: "warning" }],
-    });
-
     const critChannel = await insertChannel(harness.db, {
       type: "webhook",
       name: "crit-channel",
     });
-    const critReceiver = await insertReceiver(harness.db, {
-      name: "crit-receiver",
+    await insertDefaultChannels(harness.db, {
+      tier: "critical",
       channelIds: [critChannel.id],
-    });
-    await insertRoute(harness.db, {
-      receiver: critReceiver.name,
-      priority: 1,
-      matchers: [{ label: "severity", op: "eq", value: "critical" }],
     });
 
     // The row's own label column is named "severity" and carries "critical",
@@ -436,33 +220,23 @@ describe("the alerting pipeline's routing", () => {
     expect(delivery.channelName).toBe("warn-channel");
   });
 
-  it("reaches all 12 receivers when 12 routes match and every one continues, dropping none", async () => {
-    const ROUTE_COUNT = 12;
-    for (let index = 0; index < ROUTE_COUNT; index += 1) {
-      const channel = await insertChannel(harness.db, {
-        type: "webhook",
-        name: `fanout-channel-${index}`,
-      });
-      const receiver = await insertReceiver(harness.db, {
-        name: `fanout-receiver-${index}`,
-        channelIds: [channel.id],
-      });
-      await insertRoute(harness.db, {
-        receiver: receiver.name,
-        priority: index,
-        continue: true,
-      });
-    }
+  it("splits two rules into two groups under one destination, since grouping is by rule", async () => {
+    const channel = await insertChannel(harness.db, {
+      type: "webhook",
+      name: "shared-channel",
+    });
+    await insertDefaultChannels(harness.db, { channelIds: [channel.id] });
 
-    await fireDefaultRuleAndFlush();
+    await insertRule(harness.db, { slug: "rule-a", forSecs: 0 });
+    await insertRule(harness.db, { slug: "rule-b", forSecs: 0 });
+    harness.clickhouse.setSignal([{ service: "checkout", value: 42 }]);
+    await harness.fireAndFlush();
 
-    // Route fan-out has no cap in the runtime: ticket 29's bound is on the
-    // recipients inside one channel (email, Telegram), not on how many
-    // routes one event fans into.
-    expect(harness.fetchCalls()).toHaveLength(ROUTE_COUNT);
+    // The fixed group_by is [rule, severity]: two rules never share a group,
+    // even when they deliver through the same default destination.
+    expect(harness.fetchCalls()).toHaveLength(2);
     const groups = await harness.db.select().from(alertNotificationGroups);
-    expect(groups).toHaveLength(ROUTE_COUNT);
-    const deliveries = await harness.db.select().from(alertDeliveries);
-    expect(deliveries).toHaveLength(ROUTE_COUNT);
+    expect(groups).toHaveLength(2);
+    expect(groups.every((group) => group.defaultTier === "all")).toBe(true);
   });
 });

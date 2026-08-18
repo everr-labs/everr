@@ -15,7 +15,6 @@ import { claimDeliverableEvent } from "./journal-reader";
 import {
   deferSuppressedEvent,
   eventStillFiring,
-  isInhibited,
   matchingSilence,
 } from "./suppression";
 import { dispatchTargetsForEvent } from "./targeting";
@@ -58,15 +57,14 @@ export async function processAlertEvent(rawPayload: unknown): Promise<void> {
     return;
   }
   const silence = await matchingSilence(event, now);
-  const inhibited = silence ? false : await isInhibited(event);
-  if (silence || inhibited) {
-    await deferSuppressedEvent(event, silence, inhibited, now);
+  if (silence) {
+    await deferSuppressedEvent(event, silence, now);
     return;
   }
-  if (event.silenced || event.inhibited || event.silenceId) {
+  if (event.silenced || event.silenceId) {
     await db
       .update(alertEvents)
-      .set({ silenced: false, inhibited: false, silenceId: null })
+      .set({ silenced: false, silenceId: null })
       .where(eq(alertEvents.id, event.id));
   }
 
@@ -156,11 +154,7 @@ export async function claimNotificationGroup(
               lastFlushedAt: existing.lastFlushedAt,
             },
             now,
-            target.groupWaitSeconds,
-            target.groupIntervalSeconds,
           ),
-          groupIntervalSeconds: target.groupIntervalSeconds,
-          repeatIntervalSeconds: target.repeatIntervalSeconds,
           updatedAt: now,
         })
         .where(eq(alertNotificationGroups.id, existing.id))
@@ -172,17 +166,10 @@ export async function claimNotificationGroup(
       .values({
         organizationId: event.organizationId,
         groupKey: target.groupKey,
-        receiverId: target.receiverId,
+        defaultTier: target.defaultTier,
         directAlertDefinitionId: target.directAlertDefinitionId,
         labels: target.groupLabels,
-        nextFlushAt: nextGroupFlushAt(
-          null,
-          now,
-          target.groupWaitSeconds,
-          target.groupIntervalSeconds,
-        ),
-        groupIntervalSeconds: target.groupIntervalSeconds,
-        repeatIntervalSeconds: target.repeatIntervalSeconds,
+        nextFlushAt: nextGroupFlushAt(null, now),
       })
       .onConflictDoNothing({
         target: [

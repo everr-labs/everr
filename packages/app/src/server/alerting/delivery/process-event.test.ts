@@ -44,27 +44,6 @@ import {
   processAlertEvent,
   processedStampGuard,
 } from "./process-event";
-import { selectDispatchTargets } from "./targeting";
-
-describe("notification destination precedence", () => {
-  it("uses an explicit destination without resolving advanced routes", async () => {
-    const routedTargets = vi.fn().mockResolvedValue(["advanced"]);
-
-    await expect(
-      selectDispatchTargets("direct", routedTargets),
-    ).resolves.toEqual(["direct"]);
-    expect(routedTargets).not.toHaveBeenCalled();
-  });
-
-  it("falls back to advanced routes when no destination is explicit", async () => {
-    const routedTargets = vi.fn().mockResolvedValue(["advanced"]);
-
-    await expect(selectDispatchTargets(null, routedTargets)).resolves.toEqual([
-      "advanced",
-    ]);
-    expect(routedTargets).toHaveBeenCalledOnce();
-  });
-});
 
 const EVENT_ID = "0ee52a7c-c9d7-4bca-9c67-a21db2096acf";
 
@@ -187,12 +166,9 @@ describe("claimNotificationGroup", () => {
       { organizationId: "org-1" },
       {
         groupKey: "direct:def-1",
-        receiverId: null,
+        defaultTier: null,
         directAlertDefinitionId: "def-1",
         groupLabels: {},
-        groupWaitSeconds: 30,
-        groupIntervalSeconds: 300,
-        repeatIntervalSeconds: null,
       },
       now,
     );

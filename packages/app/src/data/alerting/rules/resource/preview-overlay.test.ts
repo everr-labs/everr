@@ -59,8 +59,8 @@ describe("rulesForPreview", () => {
   it("counts a re-routed rule as changed even with an identical spec", () => {
     const out = rulesForPreview(
       [
-        live("paged", { notification_channels: ["team-slack"] }),
-        onBranch("paged", { notification_channels: ["pagerduty"] }),
+        live("paged", { notifications: { channels: ["team-slack"] } }),
+        onBranch("paged", { notifications: { channels: ["pagerduty"] } }),
       ],
       scopes,
     );

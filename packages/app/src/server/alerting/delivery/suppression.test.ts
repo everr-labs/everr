@@ -65,7 +65,7 @@ vi.mock("../history/clickhouse", () => ({
 }));
 
 import type { alertEvents } from "@/db/schema";
-import { deferSuppressedEvent, matchInhibition } from "./suppression";
+import { deferSuppressedEvent } from "./suppression";
 
 beforeEach(() => {
   mocks.wheres = [];
@@ -74,57 +74,6 @@ beforeEach(() => {
   mocks.stampWheres = [];
   mocks.enqueued = [];
   mocks.history = [];
-});
-
-// The context is loaded once per flush and evaluated in memory for every
-// member, so the world scoping that used to sit in the SQL filter
-// (preview_id IS NOT DISTINCT FROM) is now matchInhibition's job.
-describe("matchInhibition", () => {
-  const target = {
-    eventType: "instance_fired",
-    organizationId: "org-1",
-    previewId: "prev-1",
-    sourceDefinitionId: "def-1",
-    severity: "critical",
-    instanceLabels: {},
-  } as unknown as typeof alertEvents.$inferSelect;
-  const config = { target_matchers: [], source_matchers: [], equal: [] };
-  const sourceLabels = {
-    rule: "def-2",
-    status: "firing",
-    severity: "critical",
-    kind: "alert",
-  };
-
-  it("does not let a source from a different preview inhibit a live target", () => {
-    expect(
-      matchInhibition(target, {
-        inhibitions: [{ config }] as never,
-        sources: [{ previewId: null, labels: sourceLabels }],
-      }),
-    ).toBe(false);
-  });
-
-  it("does not let a live source inhibit a preview target", () => {
-    expect(
-      matchInhibition(
-        { ...target, previewId: null },
-        {
-          inhibitions: [{ config }] as never,
-          sources: [{ previewId: "prev-1", labels: sourceLabels }],
-        },
-      ),
-    ).toBe(false);
-  });
-
-  it("inhibits once a source shares the target's own world", () => {
-    expect(
-      matchInhibition(target, {
-        inhibitions: [{ config }] as never,
-        sources: [{ previewId: "prev-1", labels: sourceLabels }],
-      }),
-    ).toBe(true);
-  });
 });
 
 describe("deferSuppressedEvent", () => {
@@ -146,7 +95,7 @@ describe("deferSuppressedEvent", () => {
     mocks.selectRows = [[{ id: "inst-1" }]];
     mocks.stampReturn = [{ id: event.id }];
 
-    await deferSuppressedEvent(event, silence, false, now);
+    await deferSuppressedEvent(event, silence, now);
 
     const stamp = new PgDialect().sqlToQuery(mocks.stampWheres[0] as SQL);
     expect(stamp.sql).toContain('"processed_at" is null');
@@ -166,7 +115,7 @@ describe("deferSuppressedEvent", () => {
     mocks.selectRows = [[{ id: "inst-1" }]];
     mocks.stampReturn = [];
 
-    await deferSuppressedEvent(event, silence, false, now);
+    await deferSuppressedEvent(event, silence, now);
 
     expect(mocks.enqueued).toEqual([]);
     expect(mocks.history).toEqual([]);
@@ -182,7 +131,6 @@ describe("deferSuppressedEvent", () => {
     await deferSuppressedEvent(
       { ...event, processedAt: dispatchStamp },
       silence,
-      false,
       now,
     );
 

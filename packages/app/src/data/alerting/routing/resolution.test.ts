@@ -1,16 +1,11 @@
 import { describe, expect, it } from "vitest";
-import type {
-  AlertingMatcher,
-  AlertingRoute,
-  AlertingRuleView,
-} from "../types";
+import type { AlertingMatcher, AlertingRuleView } from "../types";
 import {
   alertingDispatchLabels,
   alertingIsCatchAll,
   alertingMatcherMatches,
+  alertingMatchersMatch,
   alertingMatchingSilence,
-  alertingRouteMatches,
-  alertingSelectRoutes,
   alertingSyntheticLabels,
 } from "./resolution";
 
@@ -20,20 +15,6 @@ function matcher(
   label = "team",
 ): AlertingMatcher {
   return { label, op, value };
-}
-
-function route(
-  priority: number,
-  matchers: AlertingMatcher[],
-  overrides: Partial<AlertingRoute> = {},
-): AlertingRoute {
-  return {
-    id: `r-${priority}`,
-    priority,
-    matchers,
-    receiver: "default",
-    ...overrides,
-  } as AlertingRoute;
 }
 
 describe("alertingMatcherMatches", () => {
@@ -61,19 +42,19 @@ describe("alertingMatcherMatches", () => {
   });
 });
 
-describe("alertingRouteMatches", () => {
+describe("alertingMatchersMatch", () => {
   it("requires every matcher to match, and is vacuously true with none", () => {
-    expect(alertingRouteMatches([], { team: "pay" })).toBe(true);
+    expect(alertingMatchersMatch([], { team: "pay" })).toBe(true);
 
     const matchers = [
       matcher("eq", "pay"),
       matcher("eq", "critical", "severity"),
     ];
     expect(
-      alertingRouteMatches(matchers, { team: "pay", severity: "critical" }),
+      alertingMatchersMatch(matchers, { team: "pay", severity: "critical" }),
     ).toBe(true);
     expect(
-      alertingRouteMatches(matchers, { team: "pay", severity: "warning" }),
+      alertingMatchersMatch(matchers, { team: "pay", severity: "warning" }),
     ).toBe(false);
   });
 });
@@ -102,39 +83,6 @@ describe("alertingDispatchLabels", () => {
       { spec: { severity: "warning" } as AlertingRuleView["spec"] },
     );
     expect(labels.severity).toBe("warning");
-  });
-});
-
-describe("alertingSelectRoutes", () => {
-  it("stops after the first match when continue is false", () => {
-    const first = route(1, [matcher("eq", "pay")], {
-      id: "first",
-      continue: false,
-    });
-    const second = route(2, [matcher("eq", "pay")], { id: "second" });
-    expect(alertingSelectRoutes([second, first], { team: "pay" })).toEqual([
-      first,
-    ]);
-  });
-
-  it("keeps collecting past continue routes until a terminal match", () => {
-    const cont = route(1, [matcher("eq", "pay")], {
-      id: "cont",
-      continue: true,
-    });
-    const terminal = route(2, [], { id: "terminal", continue: false });
-    const after = route(3, [], { id: "after" });
-    expect(
-      alertingSelectRoutes([after, terminal, cont], { team: "pay" }),
-    ).toEqual([cont, terminal]);
-  });
-
-  it("returns an empty array when nothing matches", () => {
-    expect(
-      alertingSelectRoutes([route(1, [matcher("eq", "core")])], {
-        team: "pay",
-      }),
-    ).toEqual([]);
   });
 });
 

@@ -19,15 +19,16 @@ responses: the first is an incident, the second is a setting. Today the
 history surface can separate them and the UI cannot.
 
 The numbers are not small. Over four hours on that one rule a fire waited a
-median of 138.2s while a resolve waited 19.2s, because a resolve arrives when
-a repeat tick is already booked and `nextGroupFlushAt` takes the earlier of
-that and the group interval floor. A fire has no tick waiting for it and pays
-the full remaining interval. That asymmetry is invisible everywhere in the
-product.
+median of 138.2s while a resolve waited 19.2s, because a resolve often lands
+in a group whose flush is already booked, while a fire has no tick waiting
+for it and pays the full remaining interval. That asymmetry is invisible
+everywhere in the product. (Measured 2026-08-11 under the since-removed
+repeat mechanism; the pacing asymmetry itself survives the fixed-grouping
+model.)
 
 This belongs on the alert or notification surface, not on the delivery
-configuration page. Ticket 37 covers the separate problem that a route row
-misstates its own timing.
+configuration page. (Ticket 37, a route row misstating its timing, was
+deleted as obsolete when routes were removed on 2026-08-18.)
 
 **Blocked by:** None; can start immediately.
 
@@ -35,7 +36,7 @@ misstates its own timing.
 
 - [ ] A notification carries the time its transition occurred and the time it
       was sent, so the delay is visible rather than inferred
-- [ ] The reason for the delay is named: group wait, group interval, repeat,
-      or a delivery retry
+- [ ] The reason for the delay is named: group wait, group interval, or a
+      delivery retry
 - [ ] Detection lag and notification throttling read as different things
 - [ ] Nothing here requires a SQL query or a source file to interpret

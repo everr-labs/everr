@@ -29,11 +29,8 @@ import {
 import { addWorkerJobInTransaction } from "@/server/worker/jobs";
 import {
   asDbExecutor,
-  insertChannel,
   insertDirectRule,
   insertPreview,
-  insertReceiver,
-  insertRoute,
   insertRule,
   TEST_ORG,
 } from "./testing/fixtures";
@@ -292,31 +289,38 @@ describe("the alerting pipeline's PostgreSQL invariants", () => {
   });
 
   it("holds one queue for every flush of one group, and spreads many rules' evaluations across more than one queue", async () => {
-    // One group, flushed twice: a repeat interval is what makes the flush
-    // re-enqueue itself at all (an idle group with nothing left to say
-    // schedules no further job). Both jobs partition on the group's own id,
-    // so both must land on the same queue: that is what serializes the
-    // group's own flushes against each other. This runs, and drains fully,
-    // before any other rule exists, so runDueJobs below has nothing due to
-    // pick up but this one group's own work.
-    const channel = await insertChannel(harness.db, { type: "webhook" });
-    const receiver = await insertReceiver(harness.db, {
-      channelIds: [channel.id],
+    // One group, flushed twice: with repeats off, only a fresh dispatch into
+    // an already-flushed group books a second flush, so a second instance of
+    // the same rule arrives after the first flush to provide it. Both jobs
+    // partition on the group's own id, so both must land on the same queue:
+    // that is what serializes the group's own flushes against each other.
+    // This runs, and drains fully, before any other rule exists, so
+    // runDueJobs below has nothing due to pick up but this one group's own
+    // work.
+    await insertDirectRule(harness.db, {
+      slug: "queue-rule",
+      forSecs: 0,
+      intervalSecs: 60,
+      channelType: "webhook",
     });
-    await insertRoute(harness.db, {
-      receiver: receiver.name,
-      repeatIntervalSecs: 60,
-    });
-    await insertRule(harness.db, { slug: "repeat-rule", forSecs: 0 });
     harness.clickhouse.setSignal([{ service: "checkout", value: 42 }]);
 
-    await harness.runDueJobs(); // evaluates, fires, routes: enqueues the first flush job
+    await harness.runDueJobs(); // evaluates, fires, dispatches: enqueues the first flush job
     const [firstFlush] = await queueNamesFor(ALERT_FLUSH_GROUP_TASK);
     expect(firstFlush).toBeDefined();
     expect(firstFlush.queueName).toMatch(/^alerts-group-\d+$/);
 
     harness.advance(ALERTING_DEFAULT_GROUP_WAIT_SECS * 1000);
-    await harness.runDueJobs(); // flushes, delivers, and re-enqueues for the repeat interval
+    await harness.runDueJobs(); // flushes and delivers; the group goes idle
+
+    // A new instance under the same rule dispatches into the same group and
+    // books its second flush.
+    harness.clickhouse.setSignal([
+      { service: "checkout", value: 42 },
+      { service: "payments", value: 42 },
+    ]);
+    harness.advance(60_000 - ALERTING_DEFAULT_GROUP_WAIT_SECS * 1000);
+    await harness.runDueJobs();
 
     const [secondFlush] = await queueNamesFor(ALERT_FLUSH_GROUP_TASK);
     expect(secondFlush).toBeDefined();
@@ -328,8 +332,8 @@ describe("the alerting pipeline's PostgreSQL invariants", () => {
     // not a flake. These are read straight off the enqueued rows, never run:
     // running them would fire against the ClickHouse rows set above and
     // confuse this assertion with a fresh crop of flush jobs. Filtered to
-    // this loop's own ids, since the repeat-rule above keeps rescheduling its
-    // own evaluation too.
+    // this loop's own ids, since the rule above keeps rescheduling its own
+    // evaluation too.
     const RULE_COUNT = 20;
     const partitionRuleIds = new Set<string>();
     for (let index = 0; index < RULE_COUNT; index += 1) {

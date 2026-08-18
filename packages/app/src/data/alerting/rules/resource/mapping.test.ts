@@ -45,10 +45,10 @@ function asRule(
   input: AlertingRuleInput,
 ): Pick<
   AlertingRule,
-  "previewId" | "repoid" | "name" | "notification_channels" | "spec"
+  "previewId" | "repoid" | "name" | "notifications" | "spec"
 > {
-  const { name, repoid, previewId, notification_channels, ...spec } = input;
-  return { name, repoid, previewId, notification_channels, spec };
+  const { name, repoid, previewId, notifications, ...spec } = input;
+  return { name, repoid, previewId, notifications, spec };
 }
 
 describe("toRuleInput", () => {
@@ -156,14 +156,14 @@ describe("toRuleInput", () => {
       name: _name,
       repoid: _repoid,
       previewId: _previewId,
-      notification_channels,
+      notifications,
       ...spec
     } = input;
     const view = fromAlertingRule({
       previewId: null,
       repoid: "repo-1",
       name: "payments/checkout",
-      notification_channels,
+      notifications,
       spec,
     });
     expect(view.project).toBe("payments");
@@ -189,11 +189,11 @@ describe("toRuleInput", () => {
 
   it("maps an explicit notification destination outside the evaluator spec", () => {
     const input = toRuleInput(
-      parseRule({ notification: { channels: ["team-slack", "pager"] } }),
+      parseRule({ notifications: { channels: ["team-slack", "pager"] } }),
       "repo-1",
     );
 
-    expect(input.notification_channels).toEqual(["team-slack", "pager"]);
+    expect(input.notifications?.channels).toEqual(["team-slack", "pager"]);
     expect(fromAlertingRule(asRule(input)).notificationChannels).toEqual([
       "team-slack",
       "pager",
@@ -230,7 +230,7 @@ describe("toAlertRuleDocument", () => {
         condition: { operator: "gte", threshold: 10 },
         maxInterval: "1h",
         runbook: "ops/high-5xx",
-        notification: { channels: ["team-slack"] },
+        notifications: { channels: ["team-slack"] },
         annotations: { "team.pager": "platform" },
       },
       { name: "high-5xx" },
@@ -243,7 +243,7 @@ describe("toAlertRuleDocument", () => {
     expect(reparsed.metadata.labels).toEqual({ team: "platform" });
     expect(reparsed.spec.display).toEqual(parsed.spec.display);
     expect(reparsed.spec.runbook).toBe("ops/high-5xx");
-    expect(reparsed.spec.notification).toEqual({ channels: ["team-slack"] });
+    expect(reparsed.spec.notifications).toEqual({ channels: ["team-slack"] });
     expect(reparsed.spec.evaluationInterval).toBe("5m");
     expect(reparsed.spec.for).toBe("10m");
     expect(reparsed.spec.resolveAfter).toBe(3);

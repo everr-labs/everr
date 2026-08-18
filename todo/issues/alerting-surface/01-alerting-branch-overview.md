@@ -96,3 +96,12 @@ engine. The plan ships in two phases:
 Both halves, what shipped and what is left, are in
 [03-where-the-work-stands.md](03-where-the-work-stands.md), with one
 ticket per unit of work in [tickets/](tickets/).
+
+## 2026-08-18 update
+
+The Alertmanager-style routing tree described elsewhere in these documents
+no longer exists. Delivery is now: every alert goes to the organization's
+default destination (one channel list, optionally split by severity) unless
+its rule names `spec.notifications.channels`. Silences are the only
+suppression mechanism. Grouping is fixed and repeats are gone. Read
+route/receiver/inhibition passages below as history.

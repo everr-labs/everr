@@ -310,7 +310,7 @@ export function AlertRuleSignalChart({
                 y={condition.threshold}
                 stroke={THRESHOLD_COLOR}
                 strokeDasharray="5 4"
-                strokeWidth={1.5}
+                strokeWidth={1}
               />
               {model.series.map((series) => (
                 <Line
@@ -319,7 +319,7 @@ export function AlertRuleSignalChart({
                   name={series.key}
                   type="linear"
                   stroke={series.color}
-                  strokeWidth={2}
+                  strokeWidth={1}
                   dot={samplePointCount === 1 ? { r: 3 } : false}
                   connectNulls={false}
                   isAnimationActive={false}

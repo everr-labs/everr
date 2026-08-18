@@ -1,7 +1,7 @@
 # 09: Hold decision rows
 
 **What to build:** Hold decisions stop mutating the notification work
-item. Each change to the silenced, inhibited, silence triple journals its
+item. Each change to the silenced state journals its
 own decision row referencing the event, so a hold is durable and
 repairable. The freeze-then-clear sequence disappears.
 
@@ -18,6 +18,8 @@ the same doc.
 **Status:** ready-for-agent
 
 - [ ] The compare-and-insert runs in one transaction holding the event row lock
-- [ ] The previous triple is read from the journal, never from ClickHouse
+- [ ] The previous hold state is read from the journal, never from ClickHouse
 - [ ] One row per hold period, not per 60-second re-deferral
 - [ ] The freeze-then-clear code path is removed
+
+Rescoped 2026-08-18: inhibitions were removed; holds are silence-only now.

@@ -45,7 +45,7 @@ import {
 } from "../common/query-error";
 import { SectionHeading } from "../common/section-heading";
 import { AlertingStatusLabel } from "../common/status";
-import { MatchersEditor, matchersAreScoped } from "../delivery/matchers-editor";
+import { MatchersEditor, matchersAreScoped } from "./matchers-editor";
 
 /**
  * Imperative on purpose: the drawer resets its own form state inside

@@ -1,15 +1,15 @@
 import type { TimeRange } from "@everr/ui/lib/time-range";
+import type { AlertingDefaultTier } from "@/data/alerting/routing/defaults";
 import {
   alertingDispatchLabels,
   alertingMatchingSilence,
-  alertingSelectRoutes,
   alertingSilenceIsActive,
 } from "@/data/alerting/routing/resolution";
 import { alertingRuleIdentity } from "@/data/alerting/rules/identity";
 import type {
   AlertingAlert,
+  AlertingDefaultDestination,
   AlertingMatcher,
-  AlertingRoute,
   AlertingRuleView,
   AlertingSeverity,
   AlertingSilence,
@@ -72,38 +72,32 @@ export function alertingGroupSilenceMatchers(
   return [{ label: "rule", op: "eq", value: group.sourceId }];
 }
 
-export function alertingDeliveryFanout(
-  matchedRoutes: AlertingRoute[],
-  channelsByReceiver: Map<string, string[]>,
-): { receivers: string[]; channels: string[]; dead: string[] } {
-  const receivers = [...new Set(matchedRoutes.map((r) => r.receiver))];
-  const channels = [
-    ...new Set(receivers.flatMap((n) => channelsByReceiver.get(n) ?? [])),
-  ];
-  const dead = receivers.filter(
-    (n) => (channelsByReceiver.get(n) ?? []).length === 0,
-  );
-  return { receivers, channels, dead };
+/**
+ * The default-destination channels this severity delivers to: the unsplit
+ * "all" tier when present, else the severity's own tier.
+ */
+export function alertingDefaultChannelsFor(
+  destination: AlertingDefaultDestination,
+  severity: AlertingSeverity,
+): string[] {
+  const all = destination.tiers.all;
+  if (all !== undefined) return all;
+  return destination.tiers[severity as AlertingDefaultTier] ?? [];
 }
 
 export function alertingInstanceIsUndelivered(
   instance: TriageInstance,
-  channelsByReceiver?: Map<string, string[]>,
+  destination?: AlertingDefaultDestination,
 ): boolean {
-  if (instance.directChannels.length > 0) return false;
-  if (instance.matchedRoutes.length === 0) return true;
-  if (channelsByReceiver === undefined) return false;
-  return (
-    alertingDeliveryFanout(instance.matchedRoutes, channelsByReceiver).channels
-      .length === 0
-  );
+  if ((instance.rule?.notifications?.channels ?? []).length > 0) return false;
+  if (destination === undefined) return false;
+  const severity = instance.rule?.spec.severity ?? "info";
+  return alertingDefaultChannelsFor(destination, severity).length === 0;
 }
 
 export type TriageInstance = {
   alert: AlertingAlert;
   rule: AlertingRuleView | undefined;
-  directChannels: string[];
-  matchedRoutes: AlertingRoute[];
   silence: AlertingSilence | null;
 };
 
@@ -143,13 +137,11 @@ export function alertingActiveGroups(groups: TriageGroup[]): TriageGroup[] {
 export function alertingResolveTriageInstances({
   alerts,
   rules,
-  routes,
   silences,
   now,
 }: {
   alerts: AlertingAlert[];
   rules: AlertingRuleView[];
-  routes: AlertingRoute[];
   silences: AlertingSilence[];
   now: number;
 }): TriageInstance[] {
@@ -157,15 +149,9 @@ export function alertingResolveTriageInstances({
   return alerts.map((alert) => {
     const rule = ruleById.get(alert.rule);
     const matchLabels = alertingDispatchLabels(alert, rule);
-    const directChannels = rule?.notification_channels ?? [];
     return {
       alert,
       rule,
-      directChannels,
-      matchedRoutes:
-        directChannels.length > 0
-          ? []
-          : alertingSelectRoutes(routes, matchLabels),
       silence: alertingMatchingSilence(matchLabels, silences, now),
     };
   });
@@ -175,7 +161,7 @@ export function alertingTriageCounts(
   groups: TriageGroup[],
   silences: AlertingSilence[],
   now: number,
-  channelsByReceiver?: Map<string, string[]>,
+  destination?: AlertingDefaultDestination,
 ): {
   firing: number;
   pending: number;
@@ -193,7 +179,7 @@ export function alertingTriageCounts(
         firing += 1;
         if (
           lead.silence === null &&
-          alertingInstanceIsUndelivered(lead, channelsByReceiver)
+          alertingInstanceIsUndelivered(lead, destination)
         ) {
           undeliveredFiring += 1;
         }

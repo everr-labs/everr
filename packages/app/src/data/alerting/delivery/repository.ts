@@ -1,15 +1,13 @@
 import { randomUUID } from "node:crypto";
-import { and, asc, countDistinct, desc, eq, inArray } from "drizzle-orm";
+import { and, asc, countDistinct, eq, inArray, sql } from "drizzle-orm";
 import { deliveryIsInFlight } from "@/data/alerting/delivery/config";
+import type { AlertingDefaultTier } from "@/data/alerting/routing/defaults";
 import { type DbExecutor, db } from "@/db/client";
 import {
   alertChannels,
+  alertDefaultChannels,
   alertDefinitionChannels,
   alertDeliveries,
-  alertInhibitions,
-  alertReceiverChannels,
-  alertReceivers,
-  alertRoutes,
 } from "@/db/schema";
 import {
   throwAlertingPersistenceError,
@@ -17,14 +15,12 @@ import {
 } from "../persistence";
 import {
   AlertingChannelConfigSchema,
-  AlertingInhibitionInputSchema,
-  AlertingRouteInputSchema,
+  AlertingDefaultDestinationInputSchema,
 } from "../schema";
 import type { AlertingMutationScope } from "../session";
 import type {
   AlertingChannelConfig,
-  AlertingInhibitionInput,
-  AlertingRouteInput,
+  AlertingDefaultDestinationInput,
 } from "../types";
 import {
   decryptChannelConfig,
@@ -73,6 +69,15 @@ export async function createChannel(
       })
       .returning(),
   );
+  // The first channel becomes the default destination, so one create is a
+  // complete delivery setup. Racing creates collide on the position unique
+  // index; losing that race means a default already exists, which is fine.
+  if (!(await hasDefaultDestination(organizationId))) {
+    await db
+      .insert(alertDefaultChannels)
+      .values({ organizationId, tier: "all", channelId: id, position: 0 })
+      .onConflictDoNothing();
+  }
   return channelView(row);
 }
 
@@ -135,21 +140,6 @@ export async function deleteChannel(
   name: string,
 ) {
   const channel = await getChannelRow(organizationId, name);
-  const receiverRefs = await db
-    .select({ receiver: alertReceivers.name })
-    .from(alertReceiverChannels)
-    .innerJoin(
-      alertReceivers,
-      eq(alertReceiverChannels.receiverId, alertReceivers.id),
-    )
-    .where(eq(alertReceiverChannels.channelId, channel.id));
-  if (receiverRefs.length > 0) {
-    throwAlertingPersistenceError(
-      409,
-      "conflict",
-      `Channel is used by receivers: ${receiverRefs.map((r) => r.receiver).join(", ")}`,
-    );
-  }
   // One transaction: a flush that inserts a delivery for this channel between
   // the count and the delete would otherwise slip past the guard. It can still
   // land between the update and the delete, and then the foreign key rejects
@@ -188,9 +178,9 @@ export async function deleteChannel(
         ),
       );
     // Rules naming the channel directly do not veto the delete: they fall
-    // back to routing once detached, and the as-code spec still holds the
-    // name, so the next apply either re-links a recreated channel or fails
-    // loudly on the missing one.
+    // back to the default destination once detached, and the as-code spec
+    // still holds the name, so the next apply re-links a recreated channel
+    // or warns on the missing one.
     await tx
       .delete(alertDefinitionChannels)
       .where(
@@ -222,44 +212,108 @@ export async function testChannel(
   }
 }
 
-async function receiverChannels(organizationId: string) {
-  const links = await db
+/**
+ * The org's default destination: which channels each tier delivers to. The
+ * "all" tier is the unsplit mode; per-severity tiers exist only when the org
+ * split. Returned as name lists in stored order.
+ */
+export async function listDefaultDestination(organizationId: string) {
+  const rows = await db
     .select({
-      receiverId: alertReceiverChannels.receiverId,
+      tier: alertDefaultChannels.tier,
       channelName: alertChannels.name,
-      position: alertReceiverChannels.position,
+      position: alertDefaultChannels.position,
     })
-    .from(alertReceiverChannels)
+    .from(alertDefaultChannels)
     .innerJoin(
       alertChannels,
-      eq(alertReceiverChannels.channelId, alertChannels.id),
+      and(
+        eq(alertDefaultChannels.organizationId, alertChannels.organizationId),
+        eq(alertDefaultChannels.channelId, alertChannels.id),
+      ),
     )
-    .where(eq(alertReceiverChannels.organizationId, organizationId))
-    .orderBy(asc(alertReceiverChannels.position));
-  const byReceiver = new Map<string, string[]>();
-  for (const link of links) {
-    const names = byReceiver.get(link.receiverId) ?? [];
-    names.push(link.channelName);
-    byReceiver.set(link.receiverId, names);
+    .where(eq(alertDefaultChannels.organizationId, organizationId))
+    .orderBy(
+      asc(alertDefaultChannels.tier),
+      asc(alertDefaultChannels.position),
+    );
+  const tiers: Partial<Record<AlertingDefaultTier, string[]>> = {};
+  for (const row of rows) {
+    const list = tiers[row.tier] ?? [];
+    list.push(row.channelName);
+    tiers[row.tier] = list;
   }
-  return byReceiver;
+  return { tiers };
 }
 
-export async function listReceivers(organizationId: string) {
-  const [rows, channels] = await Promise.all([
-    db
-      .select()
-      .from(alertReceivers)
-      .where(eq(alertReceivers.organizationId, organizationId))
-      .orderBy(asc(alertReceivers.name)),
-    receiverChannels(organizationId),
-  ]);
-  return rows.map((row) => ({
-    id: row.id,
-    tenant: row.organizationId,
-    name: row.name,
-    channels: channels.get(row.id) ?? [],
-  }));
+/**
+ * Replace the whole default destination in one write. Passing tiers with an
+ * "all" entry stores unsplit mode; per-severity entries store split mode; the
+ * two never coexist because this replaces everything. An empty object clears
+ * the default entirely (alerts stop delivering unless a rule names channels).
+ */
+export async function setDefaultDestination(
+  { organizationId }: AlertingMutationScope,
+  rawInput: AlertingDefaultDestinationInput,
+) {
+  const input = AlertingDefaultDestinationInputSchema.parse(rawInput);
+  const entries = Object.entries(input.tiers) as [
+    AlertingDefaultTier,
+    string[],
+  ][];
+  if (entries.some(([tier]) => tier === "all") && entries.length > 1) {
+    throwAlertingPersistenceError(
+      422,
+      "validation",
+      'the "all" tier cannot be combined with severity tiers',
+    );
+  }
+  const names = [...new Set(entries.flatMap(([, channels]) => channels))];
+  const resolved = await db
+    .select({ id: alertChannels.id, name: alertChannels.name })
+    .from(alertChannels)
+    .where(
+      and(
+        eq(alertChannels.organizationId, organizationId),
+        names.length > 0 ? inArray(alertChannels.name, names) : sql`false`,
+      ),
+    );
+  const idByName = new Map(resolved.map((row) => [row.name, row.id]));
+  const missing = names.filter((name) => !idByName.has(name));
+  if (missing.length > 0) {
+    throwAlertingPersistenceError(
+      422,
+      "validation",
+      `Unknown channels: ${missing.join(", ")}`,
+    );
+  }
+  await db.transaction(async (tx) => {
+    await tx
+      .delete(alertDefaultChannels)
+      .where(eq(alertDefaultChannels.organizationId, organizationId));
+    const values = entries.flatMap(([tier, channels]) =>
+      channels.map((name, position) => ({
+        organizationId,
+        tier,
+        channelId: idByName.get(name) as string,
+        position,
+      })),
+    );
+    if (values.length > 0) {
+      await tx.insert(alertDefaultChannels).values(values);
+    }
+  });
+  return listDefaultDestination(organizationId);
+}
+
+/** Whether any default-destination tier has at least one channel. */
+async function hasDefaultDestination(organizationId: string) {
+  const [row] = await db
+    .select({ tier: alertDefaultChannels.tier })
+    .from(alertDefaultChannels)
+    .where(eq(alertDefaultChannels.organizationId, organizationId))
+    .limit(1);
+  return Boolean(row);
 }
 
 async function resolveChannelIds(
@@ -267,13 +321,6 @@ async function resolveChannelIds(
   names: string[],
   executor: DbExecutor = db,
 ): Promise<string[]> {
-  if (names.length === 0) {
-    throwAlertingPersistenceError(
-      422,
-      "validation",
-      "receiver needs a channel",
-    );
-  }
   const rows = await executor
     .select({ id: alertChannels.id, name: alertChannels.name })
     .from(alertChannels)
@@ -303,238 +350,4 @@ export async function resolveOptionalChannelIds(
   return names.length === 0
     ? []
     : resolveChannelIds(organizationId, names, executor);
-}
-
-export async function createReceiver(
-  { organizationId }: AlertingMutationScope,
-  body: { name: string; channels: string[] },
-) {
-  const channelIds = await resolveChannelIds(organizationId, body.channels);
-  return translateAlertingConflict(() =>
-    db.transaction(async (tx) => {
-      const [row] = await tx
-        .insert(alertReceivers)
-        .values({ organizationId, name: body.name })
-        .returning();
-      await tx.insert(alertReceiverChannels).values(
-        channelIds.map((channelId, position) => ({
-          organizationId,
-          receiverId: row.id,
-          channelId,
-          position,
-        })),
-      );
-      return {
-        id: row.id,
-        tenant: organizationId,
-        name: row.name,
-        channels: body.channels,
-      };
-    }),
-  );
-}
-
-async function getReceiverRow(organizationId: string, name: string) {
-  const [row] = await db
-    .select()
-    .from(alertReceivers)
-    .where(
-      and(
-        eq(alertReceivers.organizationId, organizationId),
-        eq(alertReceivers.name, name),
-      ),
-    )
-    .limit(1);
-  if (!row) {
-    throwAlertingPersistenceError(
-      404,
-      "not_found",
-      `Receiver not found: ${name}`,
-    );
-  }
-  return row;
-}
-
-export async function updateReceiver(
-  { organizationId }: AlertingMutationScope,
-  name: string,
-  body: { name?: string; channels: string[] },
-) {
-  const previous = await getReceiverRow(organizationId, name);
-  const channelIds = await resolveChannelIds(organizationId, body.channels);
-  return translateAlertingConflict(() =>
-    db.transaction(async (tx) => {
-      const [row] = await tx
-        .update(alertReceivers)
-        .set({ name: body.name ?? name, updatedAt: new Date() })
-        .where(eq(alertReceivers.id, previous.id))
-        .returning();
-      await tx
-        .delete(alertReceiverChannels)
-        .where(eq(alertReceiverChannels.receiverId, previous.id));
-      await tx.insert(alertReceiverChannels).values(
-        channelIds.map((channelId, position) => ({
-          organizationId,
-          receiverId: previous.id,
-          channelId,
-          position,
-        })),
-      );
-      return {
-        id: row.id,
-        tenant: organizationId,
-        name: row.name,
-        channels: body.channels,
-      };
-    }),
-  );
-}
-
-export async function deleteReceiver(
-  { organizationId }: AlertingMutationScope,
-  name: string,
-) {
-  const receiver = await getReceiverRow(organizationId, name);
-  const routes = await db
-    .select({ id: alertRoutes.id })
-    .from(alertRoutes)
-    .where(eq(alertRoutes.receiverId, receiver.id));
-  if (routes.length > 0) {
-    throwAlertingPersistenceError(
-      409,
-      "conflict",
-      `Receiver is used by ${routes.length} route(s)`,
-    );
-  }
-  await db.delete(alertReceivers).where(eq(alertReceivers.id, receiver.id));
-  return { deleted: true };
-}
-
-export async function listRoutes(organizationId: string) {
-  const rows = await db
-    .select({ route: alertRoutes, receiver: alertReceivers.name })
-    .from(alertRoutes)
-    .innerJoin(alertReceivers, eq(alertRoutes.receiverId, alertReceivers.id))
-    .where(eq(alertRoutes.organizationId, organizationId))
-    .orderBy(asc(alertRoutes.priority));
-  return rows.map(({ route, receiver }) => ({
-    id: route.id,
-    tenant: organizationId,
-    receiver,
-    priority: route.priority,
-    ...route.config,
-  }));
-}
-
-export async function createRoute(
-  { organizationId }: AlertingMutationScope,
-  rawInput: AlertingRouteInput,
-) {
-  const input = AlertingRouteInputSchema.parse(rawInput);
-  const receiver = await getReceiverRow(organizationId, input.receiver);
-  const { receiver: _receiver, priority, ...config } = input;
-  const [row] = await db
-    .insert(alertRoutes)
-    .values({ organizationId, receiverId: receiver.id, priority, config })
-    .returning();
-  return {
-    id: row.id,
-    tenant: organizationId,
-    receiver: receiver.name,
-    priority,
-    ...config,
-  };
-}
-
-export async function updateRoute(
-  { organizationId }: AlertingMutationScope,
-  id: string,
-  rawInput: AlertingRouteInput,
-) {
-  const input = AlertingRouteInputSchema.parse(rawInput);
-  const receiver = await getReceiverRow(organizationId, input.receiver);
-  const { receiver: _receiver, priority, ...config } = input;
-  const [row] = await db
-    .update(alertRoutes)
-    .set({ receiverId: receiver.id, priority, config, updatedAt: new Date() })
-    .where(
-      and(
-        eq(alertRoutes.organizationId, organizationId),
-        eq(alertRoutes.id, id),
-      ),
-    )
-    .returning();
-  if (!row) {
-    throwAlertingPersistenceError(404, "not_found", `Route not found: ${id}`);
-  }
-  return {
-    id: row.id,
-    tenant: organizationId,
-    receiver: receiver.name,
-    priority,
-    ...config,
-  };
-}
-
-export async function deleteRoute(
-  { organizationId }: AlertingMutationScope,
-  id: string,
-) {
-  const rows = await db
-    .delete(alertRoutes)
-    .where(
-      and(
-        eq(alertRoutes.organizationId, organizationId),
-        eq(alertRoutes.id, id),
-      ),
-    )
-    .returning({ id: alertRoutes.id });
-  return { deleted: rows.length > 0 };
-}
-
-export async function listInhibitions(organizationId: string) {
-  const rows = await db
-    .select()
-    .from(alertInhibitions)
-    .where(eq(alertInhibitions.organizationId, organizationId))
-    .orderBy(desc(alertInhibitions.createdAt));
-  return rows.map((row) => ({
-    id: row.id,
-    tenant: row.organizationId,
-    ...row.config,
-    created_at: row.createdAt.toISOString(),
-  }));
-}
-
-export async function createInhibition(
-  { organizationId }: AlertingMutationScope,
-  rawInput: AlertingInhibitionInput,
-) {
-  const config = AlertingInhibitionInputSchema.parse(rawInput);
-  const [row] = await db
-    .insert(alertInhibitions)
-    .values({ organizationId, config })
-    .returning();
-  return {
-    id: row.id,
-    tenant: row.organizationId,
-    ...config,
-    created_at: row.createdAt.toISOString(),
-  };
-}
-
-export async function deleteInhibition(
-  { organizationId }: AlertingMutationScope,
-  id: string,
-) {
-  const rows = await db
-    .delete(alertInhibitions)
-    .where(
-      and(
-        eq(alertInhibitions.organizationId, organizationId),
-        eq(alertInhibitions.id, id),
-      ),
-    )
-    .returning({ id: alertInhibitions.id });
-  return { deleted: rows.length > 0 };
 }

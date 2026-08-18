@@ -84,7 +84,6 @@ function managedRule(name: string, over: Record<string, unknown> = {}) {
     previewId: null,
     repoid,
     name: `default/${name}`,
-    notification_channels: [],
     spec: {
       sql: "SELECT service, count() AS value FROM logs GROUP BY service",
       interval_secs: 300,
@@ -243,7 +242,7 @@ describe("applyAlertSpecs", () => {
         {
           path: "direct.alert.yaml",
           resource: alert("direct", {
-            notification: { channels: ["team-slack"] },
+            notifications: { channels: ["team-slack"] },
           }),
         },
       ],
@@ -252,7 +251,7 @@ describe("applyAlertSpecs", () => {
     expect(mockedListChannels).toHaveBeenCalledWith("o", db);
     expect(mockedCreateRule).toHaveBeenCalledWith(
       "o",
-      expect.objectContaining({ notification_channels: ["team-slack"] }),
+      expect.objectContaining({ notifications: { channels: ["team-slack"] } }),
       db,
     );
   });
@@ -266,7 +265,7 @@ describe("applyAlertSpecs", () => {
         {
           path: "direct.alert.yaml",
           resource: alert("direct", {
-            notification: { channels: ["missing", "team-slack"] },
+            notifications: { channels: ["missing", "team-slack"] },
           }),
         },
       ],
@@ -275,7 +274,7 @@ describe("applyAlertSpecs", () => {
     // The known channel survives; the missing one is skipped, not fatal.
     expect(mockedCreateRule).toHaveBeenCalledWith(
       "o",
-      expect.objectContaining({ notification_channels: ["team-slack"] }),
+      expect.objectContaining({ notifications: { channels: ["team-slack"] } }),
       db,
     );
     expect(res.note).toContain(

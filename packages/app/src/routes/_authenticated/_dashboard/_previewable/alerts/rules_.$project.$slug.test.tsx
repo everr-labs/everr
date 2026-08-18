@@ -134,7 +134,7 @@ function mockAppliedRule(
 ) {
   mocks.getAlertingRuleByName.mockResolvedValue(
     alertingRule({
-      notification_channels: ["oncall-hook"],
+      notifications: { channels: ["oncall-hook"] },
       spec: {
         ...alertingRule().spec,
         interval_secs: 60,
@@ -176,10 +176,9 @@ describe("/alerts/rules/$project/$slug", () => {
     expect(screen.queryByText("SELECT 1")).not.toBeInTheDocument();
   });
 
-  it("sends a rule with no direct channel to the routing tree", async () => {
+  it("sends a rule with no direct channel to the default destination", async () => {
     mocks.getAlertingRuleByName.mockResolvedValue(
       alertingRule({
-        notification_channels: [],
         spec: {
           ...alertingRule().spec,
           for_secs: 0,
@@ -191,10 +190,9 @@ describe("/alerts/rules/$project/$slug", () => {
     renderRuleDetail();
 
     await screen.findByRole("heading", { name: "Flapping check" });
-    expect(screen.getByRole("link", { name: "Routing tree" })).toHaveAttribute(
-      "href",
-      "/alerts/routing",
-    );
+    expect(
+      screen.getByRole("link", { name: "Default destination" }),
+    ).toHaveAttribute("href", "/alerts/notifications");
     // `for: 0` is the absence of a wait, not a duration worth reading.
     expect(screen.getByText("first breach")).toBeInTheDocument();
     expect(screen.queryByText("0s")).not.toBeInTheDocument();

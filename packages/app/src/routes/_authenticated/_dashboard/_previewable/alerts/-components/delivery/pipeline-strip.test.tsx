@@ -19,8 +19,7 @@ const FACTS: AlertingPipelineFacts = {
   pending: 1,
   silenced: 2,
   activeSilences: 1,
-  routeCount: 2,
-  receiverCount: 3,
+  defaultChannelCount: 2,
   undeliveredFiring: 0,
 };
 
@@ -46,7 +45,7 @@ describe("AlertingPipelineStrip", () => {
     expect(strip).toHaveTextContent("3 firing");
     expect(strip).toHaveTextContent("1 pending");
     expect(strip).toHaveTextContent("1 active silence");
-    expect(strip).toHaveTextContent("2 routes · 3 receivers");
+    expect(strip).toHaveTextContent("2 default channels");
   });
 
   it("shows the watched rule count as plain text, not a link", async () => {

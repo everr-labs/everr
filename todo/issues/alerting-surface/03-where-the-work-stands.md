@@ -430,3 +430,17 @@ change, or both, and none of them is a release gate.
   round trip per matched route per event leaves the dispatch path.
 
 450 alerting tests green, `tsc --noEmit` and `biome check` clean.
+
+## 2026-08-18: the routing tree is gone
+
+Delivery was rebuilt around one org-level **default destination**
+(`alert_default_channels`: tier `all`, or split by severity). Routes,
+receivers, and inhibitions were removed entirely, tables included. A rule
+opts out with `spec.notifications.channels` (renamed from
+`spec.notification.channels`; the app model now carries the same nested
+shape). Grouping is fixed: group by rule and severity, wait 10s, interval
+300s, and repeat notifications no longer exist. Suppression is silence-only.
+Apply warns instead of failing on a missing channel, and channels are always
+deletable (rules fall back to the default destination). Tickets 37, 39, and
+46 were obsoleted by this and deleted; 09, 10, 17, 18, 31, and 38 were
+rescoped in place.

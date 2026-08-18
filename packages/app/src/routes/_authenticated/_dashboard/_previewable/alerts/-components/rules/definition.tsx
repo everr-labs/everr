@@ -52,7 +52,7 @@ function RuleFact({
  */
 export function RuleDefinitionFacts({ rule }: { rule: AlertingRuleView }) {
   const { for_secs, resolve_after, severity } = rule.spec;
-  const channels = rule.notification_channels;
+  const channels = rule.notifications?.channels ?? [];
 
   return (
     <dl className="flex flex-wrap gap-x-8 gap-y-2">
@@ -95,13 +95,13 @@ export function RuleDefinitionFacts({ rule }: { rule: AlertingRuleView }) {
           channels.length > 0 ? (
             channels.join(", ")
           ) : (
-            // No direct channels means the routing tree decides, which is a
-            // page the reader can go read.
+            // No direct channels means the default destination delivers,
+            // which is a page the reader can go read.
             <Link
-              to="/alerts/routing"
+              to="/alerts/notifications"
               className="font-normal underline decoration-foreground/30 underline-offset-2 transition-colors duration-150 hover:decoration-foreground"
             >
-              Routing tree
+              Default destination
             </Link>
           )
         }

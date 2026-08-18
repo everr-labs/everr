@@ -1,5 +1,4 @@
 import { randomUUID } from "node:crypto";
-import { and, eq } from "drizzle-orm";
 import type { PgliteDatabase } from "drizzle-orm/pglite";
 import { encryptChannelConfig } from "@/data/alerting/delivery/channel-secrets.server";
 import { enqueueAlertEvaluationInTransaction } from "@/data/alerting/scheduling/evaluation-jobs.server";
@@ -8,12 +7,9 @@ import type { DbExecutor } from "@/db/client";
 import type * as schema from "@/db/schema";
 import {
   alertChannels,
+  alertDefaultChannels,
   alertDefinitionChannels,
   alertDefinitions,
-  alertInhibitions,
-  alertReceiverChannels,
-  alertReceivers,
-  alertRoutes,
   alertSilences,
   previews,
 } from "@/db/schema";
@@ -223,85 +219,24 @@ export async function insertPreview(db: Db) {
   return preview;
 }
 
-export async function insertReceiver(
+export async function insertDefaultChannels(
   db: Db,
   overrides: {
     organizationId?: string;
-    name?: string;
-    channelIds?: string[];
-  } = {},
+    tier?: "all" | "critical" | "warning" | "info";
+    channelIds: string[];
+  },
 ) {
   const organizationId = overrides.organizationId ?? TEST_ORG;
-  const name = overrides.name ?? "team-payments";
-  const [receiver] = await db
-    .insert(alertReceivers)
-    .values({ organizationId, name })
-    .returning({ id: alertReceivers.id });
-  const channelIds = overrides.channelIds ?? [];
-  if (channelIds.length > 0) {
-    await db.insert(alertReceiverChannels).values(
-      channelIds.map((channelId, position) => ({
-        organizationId,
-        receiverId: receiver.id,
-        channelId,
-        position,
-      })),
-    );
-  }
-  return { id: receiver.id, name };
-}
-
-export async function insertRoute(
-  db: Db,
-  overrides: {
-    organizationId?: string;
-    receiver?: string;
-    priority?: number;
-    matchers?: AlertingMatcher[];
-    continue?: boolean;
-    groupBy?: string[] | null;
-    repeatIntervalSecs?: number | null;
-  } = {},
-) {
-  const organizationId = overrides.organizationId ?? TEST_ORG;
-  const receiverName = overrides.receiver ?? "team-payments";
-  // alert_routes.receiver_id is a foreign key, not a name column, so the
-  // receiver must already exist. insertReceiver's own default name matches
-  // this builder's default, so the common pairing needs no override.
-  const [receiver] = await db
-    .select({ id: alertReceivers.id })
-    .from(alertReceivers)
-    .where(
-      and(
-        eq(alertReceivers.organizationId, organizationId),
-        eq(alertReceivers.name, receiverName),
-      ),
-    )
-    .limit(1);
-  if (!receiver) {
-    throw new Error(
-      `insertRoute: no receiver named "${receiverName}" in ${organizationId}; call insertReceiver first`,
-    );
-  }
-  const [route] = await db
-    .insert(alertRoutes)
-    .values({
+  const tier = overrides.tier ?? "all";
+  await db.insert(alertDefaultChannels).values(
+    overrides.channelIds.map((channelId, position) => ({
       organizationId,
-      receiverId: receiver.id,
-      priority: overrides.priority ?? 0,
-      // The route's non-identity fields live in one jsonb column, in the
-      // same snake_case shape AlertingRouteInputSchema defines.
-      config: {
-        matchers: overrides.matchers ?? [],
-        continue: overrides.continue ?? false,
-        group_by: overrides.groupBy ?? null,
-        group_wait_secs: null,
-        group_interval_secs: null,
-        repeat_interval_secs: overrides.repeatIntervalSecs ?? null,
-      },
-    })
-    .returning({ id: alertRoutes.id });
-  return route;
+      tier,
+      channelId,
+      position,
+    })),
+  );
 }
 
 /** A rule wired straight to one channel: the shortest path to a delivery. */
@@ -361,33 +296,4 @@ export async function insertSilence(
     })
     .returning({ id: alertSilences.id });
   return silence;
-}
-
-export async function insertInhibition(
-  db: Db,
-  overrides: {
-    organizationId?: string;
-    sourceMatchers?: AlertingMatcher[];
-    targetMatchers?: AlertingMatcher[];
-    equalLabels?: string[];
-  } = {},
-) {
-  const [inhibition] = await db
-    .insert(alertInhibitions)
-    .values({
-      organizationId: overrides.organizationId ?? TEST_ORG,
-      // source_matchers/target_matchers/equal live in one jsonb column, in
-      // the same snake_case shape AlertingInhibitionInputSchema defines.
-      config: {
-        source_matchers: overrides.sourceMatchers ?? [
-          { label: "rule", op: "eq", value: "default/cluster-down" },
-        ],
-        target_matchers: overrides.targetMatchers ?? [
-          { label: "rule", op: "eq", value: "default/checkout-latency" },
-        ],
-        equal: overrides.equalLabels ?? [],
-      },
-    })
-    .returning({ id: alertInhibitions.id });
-  return inhibition;
 }

@@ -4,6 +4,7 @@ import {
   alertingChannelNamesSchema,
   alertingResourceNameSchema,
 } from "./resource/schema";
+import { ALERTING_DEFAULT_TIERS } from "./routing/defaults";
 import {
   ALERTING_HEALTH_STATUSES,
   ALERTING_INSTANCE_STATUSES,
@@ -75,13 +76,19 @@ const AlertingRuleHealthSchema = z.object({
   last_error_at: AlertingTimestampNullable,
 });
 
+// Present only when the rule overrides the default destination, exactly as
+// authored in the YAML's `notifications` block.
+const AlertingRuleNotificationsSchema = z.object({
+  channels: AlertingChannelNamesSchema,
+});
+
 export const AlertingRuleSchema = z.object({
   id: z.string(),
   tenant: z.string(),
   repoid: z.string().min(1),
   previewId: z.string().nullable(),
   name: alertingResourceNameSchema,
-  notification_channels: AlertingChannelNamesSchema,
+  notifications: AlertingRuleNotificationsSchema.optional(),
   spec: AlertingRuleSpecSchema,
   version: z.number().int(),
   paused: z.boolean(),
@@ -139,53 +146,37 @@ export const AlertingChannelSchema = z.object({
   config: AlertingChannelConfigSchema,
 });
 
-export const AlertingReceiverSchema = z.object({
-  id: z.string(),
-  tenant: z.string(),
-  name: z.string(),
-  // Receivers reference channel names and never carry channel secrets.
-  channels: z.array(z.string()).min(1),
+// The org default destination, keyed by tier. "all" is the unsplit mode and
+// never coexists with severity tiers; the repository enforces that, since a
+// record schema cannot.
+export const AlertingDefaultDestinationInputSchema = z.object({
+  tiers: z
+    .partialRecord(
+      z.enum(ALERTING_DEFAULT_TIERS),
+      z.array(z.string().min(1)).max(16),
+    )
+    .refine(
+      (tiers) =>
+        Object.values(tiers).every(
+          (channels) => new Set(channels).size === channels.length,
+        ),
+      { message: "channels must be unique within a tier" },
+    ),
 });
 
-export const AlertingRouteSchema = z.object({
-  id: z.string(),
-  tenant: z.string(),
-  matchers: alertingMatchersSchema(AlertingMatcherSchema),
-  receiver: z.string(),
-  continue: z.boolean(),
-  priority: z.number().int(),
-  group_by: z.array(z.string()).nullable(),
-  group_wait_secs: z.number().int().nullable(),
-  group_interval_secs: z.number().int().nullable(),
-  repeat_interval_secs: z.number().int().nullable(),
-});
-
-export const AlertingRouteInputSchema = z.object({
-  matchers: alertingMatchersSchema(AlertingMatcherSchema),
-  receiver: z.string().min(1),
-  continue: z.boolean(),
-  priority: z.number().int(),
-  group_by: z.array(z.string()).nullable(),
-  group_wait_secs: z.number().int().min(0).nullable(),
-  group_interval_secs: z.number().int().min(0).nullable(),
-  repeat_interval_secs: z.number().int().min(60).nullable(),
+export const AlertingDefaultDestinationSchema = z.object({
+  tiers: z.partialRecord(z.enum(ALERTING_DEFAULT_TIERS), z.array(z.string())),
 });
 
 export const AlertingRuleInputSchema = AlertingRuleSpecSchema.extend({
   name: alertingResourceNameSchema,
   repoid: z.string().min(1),
   previewId: z.string().nullable(),
-  notification_channels: AlertingChannelNamesSchema.default([]),
+  notifications: AlertingRuleNotificationsSchema.optional(),
 });
 
 export const AlertingRuleUpdateSchema = AlertingRuleSpecSchema.extend({
-  notification_channels: AlertingChannelNamesSchema.default([]),
-});
-
-export const AlertingInhibitionInputSchema = z.object({
-  source_matchers: alertingMatchersSchema(AlertingMatcherSchema),
-  target_matchers: alertingMatchersSchema(AlertingMatcherSchema),
-  equal: z.array(z.string()),
+  notifications: AlertingRuleNotificationsSchema.optional(),
 });
 
 export const AlertingSilenceInputSchema = z.object({
@@ -211,13 +202,4 @@ export const AlertingSilenceSchema = z.object({
   author: z.string().nullable().optional(),
   created_at: AlertingTimestampSchema,
   canceled_at: AlertingTimestampNullable.optional(),
-});
-
-export const AlertingInhibitionSchema = z.object({
-  id: z.string(),
-  tenant: z.string(),
-  source_matchers: alertingMatchersSchema(AlertingMatcherSchema),
-  target_matchers: alertingMatchersSchema(AlertingMatcherSchema),
-  equal: z.array(z.string()).nullable().optional(),
-  created_at: AlertingTimestampSchema,
 });

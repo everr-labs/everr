@@ -25,6 +25,7 @@ import {
   expireAlertingSilence,
 } from "@/data/alerting/silences/server";
 import {
+  alertingDefaultChannelsFor,
   alertingGroupSilenceMatchers,
   alertingInstanceIsUndelivered,
   alertingRunbookParams,
@@ -34,7 +35,10 @@ import {
   type TriageGroup,
   type TriageRow,
 } from "@/data/alerting/triage/summary";
-import type { AlertingMatcher } from "@/data/alerting/types";
+import type {
+  AlertingDefaultDestination,
+  AlertingMatcher,
+} from "@/data/alerting/types";
 import { parseResourceName } from "@/data/as-code/identity";
 import { alertingFormatTs } from "../common/format";
 import { LabelSet } from "../common/labels";
@@ -336,7 +340,7 @@ function silenceSeed(
 export function TriageBoard({
   groups,
   pending,
-  channelsByReceiver,
+  destination,
   watchingRules,
   lastEventTs,
   eventsUnavailable,
@@ -344,7 +348,7 @@ export function TriageBoard({
 }: {
   groups: TriageGroup[];
   pending: boolean;
-  channelsByReceiver: Map<string, string[]>;
+  destination: AlertingDefaultDestination | undefined;
   /** How many rules are unpaused, for the all-clear readout. */
   watchingRules: number;
   lastEventTs: string | null;
@@ -363,7 +367,7 @@ export function TriageBoard({
   const qc = useQueryClient();
   const rowIsUndelivered = (row: TriageRow) =>
     row.lead.silence === null &&
-    alertingInstanceIsUndelivered(row.lead, channelsByReceiver);
+    alertingInstanceIsUndelivered(row.lead, destination);
   // Pending rows have not fired yet, so they have nothing to deliver:
   // the banner below only speaks about firing alerts, and must count only those.
   const undeliveredCount = groups.reduce(
@@ -445,7 +449,10 @@ export function TriageBoard({
               delivered
             </p>
           </div>
-          <Button variant="outline" render={<Link to="/alerts/routing" />}>
+          <Button
+            variant="outline"
+            render={<Link to="/alerts/notifications" />}
+          >
             Configure delivery
           </Button>
         </div>
@@ -523,9 +530,17 @@ export function TriageBoard({
                       }
                       deliveryFact={
                         <TriageDeliveryFact
-                          directChannels={row.lead.directChannels}
-                          matchedRoutes={row.lead.matchedRoutes}
-                          channelsByReceiver={channelsByReceiver}
+                          directChannels={
+                            row.lead.rule?.notifications?.channels ?? []
+                          }
+                          defaultChannels={
+                            destination === undefined
+                              ? []
+                              : alertingDefaultChannelsFor(
+                                  destination,
+                                  row.lead.rule?.spec.severity ?? "info",
+                                )
+                          }
                         />
                       }
                     >

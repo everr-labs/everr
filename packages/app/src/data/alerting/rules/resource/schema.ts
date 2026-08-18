@@ -39,8 +39,8 @@ export const AlertRuleYamlSchema = z
         for: alertingNonEmptyStringSchema.default("0s"),
         resolveAfter: z.number().int().min(1).default(1),
         severity: AlertingSeveritySchema.default("info"),
-        // Direct channels bypass route matching.
-        notification: notificationDestinationSchema.optional(),
+        // Direct channels opt this rule out of the default destination.
+        notifications: notificationDestinationSchema.optional(),
         notificationMessage: notificationMessageSchema,
         query: alertingNonEmptyStringSchema,
         // An empty list is explicit: the whole result is one instance. Omitting

@@ -31,4 +31,4 @@ By default an instance's identity is the set of **string** columns the query ret
 
 ## Notifications
 
-Firing and resolved alerts normally flow through Organization-wide routes, which select receivers and their channels. A rule can instead declare `spec.notification.channels` as an explicit notification destination. When present, those channels receive the alert and route matching is skipped. Silences and inhibitions still apply, and preview alerts remain suppressed. See [set up notifications](/docs/guides/set-up-notifications).
+Firing and resolved alerts normally deliver to the Organization's default destination: one channel list for all alerts, or one per severity. A rule can instead declare `spec.notifications.channels` as its own destination. When present, those channels receive the alert and the default destination is skipped. Silences still apply, and preview alerts remain suppressed. See [set up notifications](/docs/guides/set-up-notifications).

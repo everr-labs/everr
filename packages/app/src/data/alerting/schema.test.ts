@@ -4,8 +4,7 @@ import {
   ALERTING_MATCHER_VALUE_MAX,
   ALERTING_MATCHERS_MAX,
   AlertingChannelSchema,
-  AlertingReceiverSchema,
-  AlertingRouteInputSchema,
+  AlertingDefaultDestinationInputSchema,
   AlertingRuleViewSchema,
   AlertingSilenceInputSchema,
 } from "./schema";
@@ -16,7 +15,7 @@ const ruleView = {
   repoid: "repo-1",
   previewId: "demo",
   name: "default/checkout-errors",
-  notification_channels: ["team-slack"],
+  notifications: { channels: ["team-slack"] },
   spec: {
     sql: "SELECT host, x AS value FROM t",
     interval_secs: 30,
@@ -76,73 +75,40 @@ it("rejects a rule with no identity rather than defaulting it", () => {
   }
 });
 
-it("rejects receiver channels that are not a non-empty list of names", () => {
-  const receiver = (channels: unknown) => ({
-    id: "i",
-    tenant: "t",
-    name: "oncall",
-    channels,
+it("rejects any silence op that is not exact matching", () => {
+  const silence = (op: string) => ({
+    matchers: [{ label: "team", op, value: "^pay.*" }],
+    starts_at: "2026-07-01T11:00:00Z",
+    ends_at: "2026-07-01T13:00:00Z",
   });
-  expect(() => AlertingReceiverSchema.parse(receiver([]))).toThrow();
-  // Receivers reference channel names; inline configs predate that.
-  expect(() =>
-    AlertingReceiverSchema.parse(receiver([{ type: "slack", url: "***" }])),
-  ).toThrow();
-});
-
-const routeInput = (matchers: unknown) => ({
-  matchers,
-  receiver: "oncall",
-  continue: false,
-  priority: 1,
-  group_by: null,
-  group_wait_secs: null,
-  group_interval_secs: null,
-  repeat_interval_secs: null,
-});
-
-it("rejects any op that is not exact matching", () => {
-  for (const op of ["regex", "notregex"] as const) {
-    const result = AlertingRouteInputSchema.safeParse(
-      routeInput([{ label: "team", op, value: "^pay.*" }]),
-    );
+  for (const op of ["regex", "notregex", "glob"]) {
+    const result = AlertingSilenceInputSchema.safeParse(silence(op));
     expect(result.success).toBe(false);
-    expect(result.error?.issues[0]?.message).toContain("eq");
+    expect(JSON.stringify(result.error?.issues)).toContain("eq");
   }
+});
 
-  const unknown = AlertingRouteInputSchema.safeParse(
-    routeInput([{ label: "team", op: "glob", value: "pay*" }]),
-  );
-  expect(unknown.success).toBe(false);
-  expect(unknown.error?.issues[0]?.message).toContain("eq");
+it("rejects an unknown tier and duplicate channels in the default destination", () => {
+  expect(
+    AlertingDefaultDestinationInputSchema.safeParse({
+      tiers: { all: ["team-slack"] },
+    }).success,
+  ).toBe(true);
+  expect(
+    AlertingDefaultDestinationInputSchema.safeParse({
+      tiers: { paging: ["team-slack"] },
+    }).success,
+  ).toBe(false);
+  expect(
+    AlertingDefaultDestinationInputSchema.safeParse({
+      tiers: { all: ["team-slack", "team-slack"] },
+    }).success,
+  ).toBe(false);
 });
 
 it("bounds matcher counts and label and value lengths", () => {
   const matchers = (count: number, value = "pay") =>
     Array.from({ length: count }, () => ({ label: "team", op: "eq", value }));
-
-  expect(
-    AlertingRouteInputSchema.safeParse(
-      routeInput([
-        {
-          label: "x".repeat(ALERTING_MATCHER_LABEL_MAX + 1),
-          op: "eq",
-          value: "pay",
-        },
-      ]),
-    ).success,
-  ).toBe(false);
-
-  expect(
-    AlertingRouteInputSchema.safeParse(
-      routeInput(matchers(ALERTING_MATCHERS_MAX)),
-    ).success,
-  ).toBe(true);
-  expect(
-    AlertingRouteInputSchema.safeParse(
-      routeInput(matchers(ALERTING_MATCHERS_MAX + 1)),
-    ).success,
-  ).toBe(false);
 
   const silence = (matchers: unknown) => ({
     matchers,
@@ -162,6 +128,17 @@ it("bounds matcher counts and label and value lengths", () => {
   expect(
     AlertingSilenceInputSchema.safeParse(
       silence(matchers(ALERTING_MATCHERS_MAX + 1)),
+    ).success,
+  ).toBe(false);
+  expect(
+    AlertingSilenceInputSchema.safeParse(
+      silence([
+        {
+          label: "x".repeat(ALERTING_MATCHER_LABEL_MAX + 1),
+          op: "eq",
+          value: "pay",
+        },
+      ]),
     ).success,
   ).toBe(false);
 });

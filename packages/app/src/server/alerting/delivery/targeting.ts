@@ -1,21 +1,15 @@
 import { createHash } from "node:crypto";
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import {
   ALERTING_DEFAULT_GROUP_BY,
-  ALERTING_DEFAULT_GROUP_INTERVAL_SECS,
-  ALERTING_DEFAULT_GROUP_WAIT_SECS,
+  type AlertingDefaultTier,
 } from "@/data/alerting/routing/defaults";
-import {
-  alertingSelectRoutes,
-  alertingSyntheticLabels,
-} from "@/data/alerting/routing/resolution";
-import type { AlertingRoute } from "@/data/alerting/types";
+import { alertingSyntheticLabels } from "@/data/alerting/routing/resolution";
 import { db } from "@/db/client";
 import {
+  alertDefaultChannels,
   alertDefinitionChannels,
   type alertEvents,
-  alertReceivers,
-  alertRoutes,
 } from "@/db/schema";
 
 function stableJson(value: Record<string, string>) {
@@ -40,39 +34,19 @@ export function alertEventDispatchLabels(
   });
 }
 
-/** A loaded route carries the receiver's id beside its name. Selection and the
- * route config speak in names, dispatch needs the id, and the join has both. */
-type DispatchRoute = AlertingRoute & { receiverId: string };
-
-async function loadRoutes(organizationId: string): Promise<DispatchRoute[]> {
-  const rows = await db
-    .select({
-      route: alertRoutes,
-      receiverId: alertReceivers.id,
-      receiver: alertReceivers.name,
-    })
-    .from(alertRoutes)
-    .innerJoin(alertReceivers, eq(alertRoutes.receiverId, alertReceivers.id))
-    .where(eq(alertRoutes.organizationId, organizationId));
-  return rows.map(({ route, receiverId, receiver }) => ({
-    id: route.id,
-    tenant: organizationId,
-    receiverId,
-    receiver,
-    priority: route.priority,
-    ...route.config,
-  }));
-}
-
 export type DispatchTarget = {
-  receiverId: string | null;
+  defaultTier: AlertingDefaultTier | null;
   directAlertDefinitionId: string | null;
   groupKey: string;
   groupLabels: Record<string, string>;
-  groupWaitSeconds: number;
-  groupIntervalSeconds: number;
-  repeatIntervalSeconds: number | null;
 };
+
+function groupLabelsFor(event: typeof alertEvents.$inferSelect) {
+  const labels = alertEventDispatchLabels(event);
+  return Object.fromEntries(
+    ALERTING_DEFAULT_GROUP_BY.map((key) => [key, labels[key] ?? ""]),
+  );
+}
 
 async function directDispatchTarget(
   event: typeof alertEvents.$inferSelect,
@@ -89,12 +63,9 @@ async function directDispatchTarget(
     .limit(1);
   if (!destination) return null;
 
-  const labels = alertEventDispatchLabels(event);
-  const groupLabels = Object.fromEntries(
-    ALERTING_DEFAULT_GROUP_BY.map((key) => [key, labels[key] ?? ""]),
-  );
+  const groupLabels = groupLabelsFor(event);
   return {
-    receiverId: null,
+    defaultTier: null,
     directAlertDefinitionId: event.sourceDefinitionId,
     groupKey: alertDeliveryHash(
       "direct",
@@ -102,55 +73,50 @@ async function directDispatchTarget(
       stableJson(groupLabels),
     ),
     groupLabels,
-    groupWaitSeconds: ALERTING_DEFAULT_GROUP_WAIT_SECS,
-    groupIntervalSeconds: ALERTING_DEFAULT_GROUP_INTERVAL_SECS,
-    repeatIntervalSeconds: null,
   };
 }
 
-async function routedDispatchTargets(
+/**
+ * The default-destination tier this event delivers to: the "all" tier when
+ * the org has not split by severity, else the event's own severity tier. A
+ * tier that exists but currently has no channels still resolves — the flush
+ * ends the chain with a `no_channels` terminal, matching how every other
+ * config gap is recorded rather than silently dropped.
+ */
+async function defaultDispatchTarget(
   event: typeof alertEvents.$inferSelect,
-): Promise<DispatchTarget[]> {
-  const labels = alertEventDispatchLabels(event);
-  const routes = alertingSelectRoutes(
-    await loadRoutes(event.organizationId),
-    labels,
-  );
-  const targets: DispatchTarget[] = [];
-  for (const route of routes) {
-    const groupLabels = Object.fromEntries(
-      (route.group_by ?? [...ALERTING_DEFAULT_GROUP_BY]).map((key) => [
-        key,
-        labels[key] ?? "",
-      ]),
+): Promise<DispatchTarget | null> {
+  const tiers = await db
+    .selectDistinct({ tier: alertDefaultChannels.tier })
+    .from(alertDefaultChannels)
+    .where(
+      and(
+        eq(alertDefaultChannels.organizationId, event.organizationId),
+        inArray(alertDefaultChannels.tier, ["all", event.severity]),
+      ),
     );
-    targets.push({
-      receiverId: route.receiverId,
-      directAlertDefinitionId: null,
-      groupKey: alertDeliveryHash(route.receiverId, stableJson(groupLabels)),
-      groupLabels,
-      groupWaitSeconds:
-        route.group_wait_secs ?? ALERTING_DEFAULT_GROUP_WAIT_SECS,
-      groupIntervalSeconds:
-        route.group_interval_secs ?? ALERTING_DEFAULT_GROUP_INTERVAL_SECS,
-      repeatIntervalSeconds: route.repeat_interval_secs,
-    });
-  }
-  return targets;
-}
+  const tier = tiers.some((row) => row.tier === "all")
+    ? ("all" as const)
+    : tiers.length > 0
+      ? event.severity
+      : null;
+  if (tier === null) return null;
 
-export async function selectDispatchTargets<T>(
-  directTarget: T | null,
-  routedTargets: () => Promise<T[]>,
-): Promise<T[]> {
-  return directTarget ? [directTarget] : routedTargets();
+  const groupLabels = groupLabelsFor(event);
+  return {
+    defaultTier: tier,
+    directAlertDefinitionId: null,
+    groupKey: alertDeliveryHash("default", tier, stableJson(groupLabels)),
+    groupLabels,
+  };
 }
 
 export async function dispatchTargetsForEvent(
   event: typeof alertEvents.$inferSelect,
 ): Promise<DispatchTarget[]> {
-  const directTarget = await directDispatchTarget(event);
-  return selectDispatchTargets(directTarget, () =>
-    routedDispatchTargets(event),
-  );
+  // A rule naming its own channels opts out of the default destination.
+  const direct = await directDispatchTarget(event);
+  if (direct) return [direct];
+  const fallback = await defaultDispatchTarget(event);
+  return fallback ? [fallback] : [];
 }

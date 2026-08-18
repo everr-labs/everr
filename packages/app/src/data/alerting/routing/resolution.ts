@@ -1,7 +1,6 @@
 import type {
   AlertingAlert,
   AlertingMatcher,
-  AlertingRoute,
   AlertingRuleView,
 } from "../types";
 
@@ -30,7 +29,7 @@ export function alertingMatcherMatches(
   }
 }
 
-export function alertingRouteMatches(
+export function alertingMatchersMatch(
   matchers: AlertingMatcher[],
   labels: Record<string, string>,
 ): boolean {
@@ -73,20 +72,6 @@ export function alertingDispatchLabels(
   });
 }
 
-/** Select matching routes by priority, stopping at the first terminal route. */
-export function alertingSelectRoutes<T extends AlertingRoute>(
-  routes: T[],
-  labels: Record<string, string>,
-): T[] {
-  const out: T[] = [];
-  for (const r of [...routes].sort((a, b) => a.priority - b.priority)) {
-    if (!alertingRouteMatches(r.matchers, labels)) continue;
-    out.push(r);
-    if (!r.continue) break;
-  }
-  return out;
-}
-
 /** Half-open: a silence covers its start instant and not its end instant. */
 export function alertingSilenceIsActive(
   silence: { starts_at: string; ends_at: string },
@@ -106,7 +91,7 @@ export function alertingMatchingSilence<
     silences.find(
       (s) =>
         alertingSilenceIsActive(s, now) &&
-        alertingRouteMatches(s.matchers, labels),
+        alertingMatchersMatch(s.matchers, labels),
     ) ?? null
   );
 }

@@ -12,8 +12,7 @@ export type AlertingPipelineFacts = {
   pending: number;
   silenced: number;
   activeSilences: number;
-  routeCount: number;
-  receiverCount: number;
+  defaultChannelCount: number;
   undeliveredFiring: number;
 };
 
@@ -64,22 +63,14 @@ export function AlertingPipelineStrip({
         label="Delivery"
         wrapValue
         value={
-          <span className="flex flex-wrap items-baseline gap-x-1.5 gap-y-0.5">
-            <MetricCount
-              value={facts.routeCount}
-              singular="route"
-              plural="routes"
-            />
-            <span className="text-xs text-muted-foreground"> · </span>
-            <MetricCount
-              value={facts.receiverCount}
-              singular="receiver"
-              plural="receivers"
-            />
-          </span>
+          <MetricCount
+            value={facts.defaultChannelCount}
+            singular="default channel"
+            plural="default channels"
+          />
         }
         detail={
-          facts.routeCount === 0
+          facts.defaultChannelCount === 0
             ? "Not configured"
             : facts.undeliveredFiring > 0
               ? "Coverage incomplete"

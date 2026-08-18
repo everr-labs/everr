@@ -14,7 +14,7 @@ import {
   type TriageInstance,
 } from "@/data/alerting/triage/summary";
 import { alertingFormatTs } from "../common/format";
-import { EvidenceChips, Matchers } from "../common/labels";
+import { EvidenceChips } from "../common/labels";
 import { AlertingStatusDot } from "../common/status";
 
 const TRIAGE_INSTANCE_EVENT_LIMIT = 100;
@@ -64,37 +64,17 @@ export function TriageInstanceDetail({
         </div>
       )}
 
-      {(instance.directChannels.length > 0 ||
-        instance.matchedRoutes.length > 0) && (
+      {instance.rule?.notifications && (
         <div className="space-y-1">
           <h3 className="text-xs font-medium text-muted-foreground">
             Notifications
           </h3>
-          {instance.directChannels.length > 0 ? (
-            <div className="flex flex-wrap items-center gap-2 text-xs">
-              <span className="text-muted-foreground">Direct channels</span>
-              <span className="font-mono text-foreground">
-                {instance.directChannels.join(", ")}
-              </span>
-            </div>
-          ) : (
-            <div className="space-y-1">
-              {instance.matchedRoutes.map((route) => (
-                <div
-                  key={route.id}
-                  className="flex flex-wrap items-center gap-2"
-                >
-                  <span className="font-mono text-xs text-foreground">
-                    {route.receiver}
-                  </span>
-                  <Matchers
-                    matchers={route.matchers}
-                    emptyLabel="* (catch-all)"
-                  />
-                </div>
-              ))}
-            </div>
-          )}
+          <div className="flex flex-wrap items-center gap-2 text-xs">
+            <span className="text-muted-foreground">Direct channels</span>
+            <span className="font-mono text-foreground">
+              {instance.rule.notifications.channels.join(", ")}
+            </span>
+          </div>
         </div>
       )}
 

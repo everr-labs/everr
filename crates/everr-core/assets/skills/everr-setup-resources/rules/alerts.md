@@ -26,8 +26,9 @@ spec:
   notificationMessage:
     title: "${ServiceName} is failing"  # required; supports ${column} and ${value}
     description: "${value} errors in the last window"  # optional; same templating
-  notification:              # optional explicit destination; bypasses routes
-    channels: [team-slack]   # existing Organization channel names, unique
+  notifications:             # optional direct channels; overrides the
+    channels: [team-slack]   #   Organization's default destination. Existing
+                             #   channel names, unique
   query: |                   # required ClickHouse SQL, no ${...} templating.
     SELECT ..., error_rate AS value
   condition:                 # required numeric threshold, evaluated per row
@@ -51,7 +52,7 @@ spec:
 
 All fields are strict: unknown keys are rejected.
 
-When `notification.channels` is present, Everr sends firing and resolved notifications to those channels and skips advanced route matching. Silences and inhibitions still apply. The field must contain at least one unique channel name, and apply fails when a named channel does not exist. Omit `notification` to use Organization-wide routes.
+When `notifications.channels` is present, Everr sends firing and resolved notifications to those channels instead of the Organization's default destination. Silences still apply. The field must contain at least one unique channel name. A named channel that does not exist is a warning, not a failure: the reference stays in the spec and links up when the channel is created. Omit `notifications` to deliver to the default destination.
 
 ## Alert Design Checklist
 

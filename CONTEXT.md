@@ -236,31 +236,27 @@ The surface for what needs attention now: only rules with Breaching instances, w
 _Avoid_: overview, inbox
 
 **Matcher**:
-A label-matching expression (label, operator, value) used by Notification routes, Silences, and Inhibitions to select alerts. Equality operators only.
+A label-matching expression (label, operator, value) used by Silences to select alerts. Equality operators only.
 _Avoid_: condition (the rule's threshold), filter
 
 **Notification channel**:
-An Organization-owned delivery endpoint: a webhook, Slack, Discord, or Telegram destination. Reusable by any number of Receivers.
+An Organization-owned delivery endpoint: a webhook, Slack, Discord, or Telegram destination.
 _Avoid_: receiver, destination, route
 
-**Receiver**:
-A named set of Notification channels that Notification routes deliver to.
-_Avoid_: destination, channel
+**Default destination**:
+The Organization-wide set of Notification channels every alert delivers to unless its rule names Direct channels. Either one channel list for all alerts, or split by Severity with one list per tier.
+_Avoid_: route, receiver, catch-all
+
+**Severity split**:
+The Default destination mode with one channel list per Severity tier. A tier with no channels is a delivery gap: those alerts are Undelivered.
+_Avoid_: routing, escalation
 
 **Direct channels**:
-Notification channels attached to an Alert rule itself. When present, routes are never consulted for that rule's alerts.
+Notification channels attached to an Alert rule itself. When present, the Default destination is never consulted for that rule's alerts.
 _Avoid_: explicit destination, direct destinations, inline channel
 
-**Notification route**:
-An Organization-wide, priority-ordered policy whose Matchers select alerts for a Receiver, along with grouping and delivery timing. The first matching route decides, unless it continues to later routes.
-_Avoid_: channel, receiver
-
-**Catch-all route**:
-A Notification route with no Matchers: it matches every alert, and no later route is evaluated after it.
-_Avoid_: default route, fallback
-
 **Notification group**:
-The batch a route target accumulates before one notification goes out, shaped by group labels, group wait, group interval, and repeat interval. Distinct from Triage's per-rule grouping.
+The batch a delivery target accumulates before one notification goes out, grouped by rule and Severity with a fixed wait and pacing interval. Distinct from Triage's per-rule grouping.
 _Avoid_: batch, bucket
 
 **Delivery**:
@@ -268,23 +264,19 @@ One notification sent to one Notification channel, succeeding or failing as a un
 _Avoid_: send, dispatch
 
 **Delivery pipeline**:
-The whole chain a notifying transition travels: journaled event, routing, grouping, and the Delivery itself. Reserved for this chain; the Triage stats strip is not a pipeline.
+The whole chain a notifying transition travels: journaled event, targeting, grouping, and the Delivery itself. Reserved for this chain; the Triage stats strip is not a pipeline.
 _Avoid_: pipeline (bare, ambiguous with CI)
 
 **Undelivered**:
-A Firing alert that nothing will deliver: no route matches and no Direct channels exist, or the selected Receiver has no channels.
-_Avoid_: unrouted (too narrow), undeliverable, not delivered (prose, not the term)
+A Firing alert that nothing will deliver: no Direct channels exist and the Default destination has no channels for its Severity.
+_Avoid_: unrouted, undeliverable, not delivered (prose, not the term)
 
 **Silence**:
 A time-bounded mute a person creates with Matchers. Notifications for matching alerts are Deferred while the window is open and go out late if the alert still fires when it ends. Cancelling a Silence closes its window early.
 _Avoid_: mute (see Muted), snooze
 
-**Inhibition**:
-A policy where a firing source alert holds back notifications for matching target alerts that share its equal labels, so a root cause does not page alongside its symptoms.
-_Avoid_: suppression (see Suppressed)
-
 **Deferred**:
-A notification withheld for now by a Silence or an Inhibition and reconsidered later. It may still be delivered late. A deferral is not recorded in history; only a terminal Suppression is.
+A notification withheld for now by a Silence and reconsidered later. It may still be delivered late. A deferral is not recorded in history; only a terminal Suppression is.
 _Avoid_: suppressed (a terminal decision), dropped
 
 **Suppressed**:

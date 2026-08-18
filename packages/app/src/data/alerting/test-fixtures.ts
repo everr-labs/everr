@@ -18,7 +18,6 @@ export function alertingRuleViewFixture(
     repoid: "repo-1",
     previewId: null,
     name: "default/flapping",
-    notification_channels: [],
     spec: {
       sql: "SELECT 1",
       interval_secs: 60,
