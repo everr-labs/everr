@@ -67,14 +67,15 @@ describe("buildBarChartModel", () => {
       ],
     ]);
     expect(model.valueKeys).toEqual(["s0", "s1"]);
-    // Pivoted series labels are sorted.
-    expect(model.chartConfig.s0?.label).toBe("error");
-    expect(model.chartConfig.s1?.label).toBe("ok");
+    // Pivoted series keep the order the rows arrived in, so a query's
+    // ORDER BY decides which series stacks at the bottom.
+    expect(model.chartConfig.s0?.label).toBe("ok");
+    expect(model.chartConfig.s1?.label).toBe("error");
     expect(model.chartData).toHaveLength(2);
-    expect(model.chartData[0]?.s0).toBe(2);
-    expect(model.chartData[0]?.s1).toBe(8);
+    expect(model.chartData[0]?.s0).toBe(8);
+    expect(model.chartData[0]?.s1).toBe(2);
     // "no bar here" stays absent, not 0.
-    expect(model.chartData[1]?.s0).toBeUndefined();
+    expect(model.chartData[1]?.s1).toBeUndefined();
   });
 
   it("pivots remaining string columns on a category axis", () => {

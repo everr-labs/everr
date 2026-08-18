@@ -105,7 +105,7 @@ describe("buildChartModel", () => {
       ],
       WIDE,
     );
-    // One opaque key per group value, in sorted group order (a, b).
+    // One opaque key per group value, in the order the rows arrived (a, b).
     expect(model.valueKeys).toEqual(["s0", "s1"]);
     expect(model.chartConfig.s0?.label).toBe("a");
     expect(model.chartConfig.s1?.label).toBe("b");
@@ -134,9 +134,9 @@ describe("buildChartModel", () => {
     // neither series overwrites the other.
     expect(model.valueKeys).toEqual(["s0", "s1"]);
     const labels = model.valueKeys.map((k) => model.chartConfig[k]?.label);
-    expect(labels).toEqual(["a b", "a-b"]); // sorted group order
-    expect(model.chartData[0]?.s0).toBe(2); // "a b"
-    expect(model.chartData[0]?.s1).toBe(1); // "a-b"
+    expect(labels).toEqual(["a-b", "a b"]); // first-seen group order
+    expect(model.chartData[0]?.s0).toBe(1); // "a-b"
+    expect(model.chartData[0]?.s1).toBe(2); // "a b"
   });
 
   it("keeps non-identifier column names as the label without mangling the key", () => {
