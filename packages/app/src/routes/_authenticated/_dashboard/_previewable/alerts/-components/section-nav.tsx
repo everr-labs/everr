@@ -2,15 +2,59 @@ import { Button } from "@everr/ui/components/button";
 import { Sheet, SheetContent, SheetTitle } from "@everr/ui/components/sheet";
 import { useMediaQuery } from "@everr/ui/hooks/use-media-query";
 import { Link } from "@tanstack/react-router";
-import { Menu } from "lucide-react";
+import {
+  BellOff,
+  CircleSlash,
+  Flame,
+  Menu,
+  Route,
+  Send,
+  SlidersHorizontal,
+} from "lucide-react";
 import { useState } from "react";
 
-const DESTINATIONS = [
-  { to: "/alerts", label: "Triage", exact: true },
-  { to: "/alerts/rules", label: "All Rules", exact: false },
-  { to: "/alerts/silences", label: "Silences", exact: false },
-  { to: "/alerts/notifications", label: "Notifications", exact: false },
-  { to: "/alerts/routing", label: "Routing", exact: false },
+const GROUPS = [
+  {
+    label: null,
+    destinations: [
+      { to: "/alerts", label: "Triage", icon: Flame, exact: true },
+      {
+        to: "/alerts/rules",
+        label: "All Rules",
+        icon: SlidersHorizontal,
+        exact: false,
+      },
+      {
+        to: "/alerts/silences",
+        label: "Silences",
+        icon: BellOff,
+        exact: false,
+      },
+      {
+        to: "/alerts/notifications",
+        label: "Notifications",
+        icon: Send,
+        exact: false,
+      },
+    ],
+  },
+  {
+    label: "Advanced",
+    destinations: [
+      {
+        to: "/alerts/routing",
+        label: "Advanced routing",
+        icon: Route,
+        exact: false,
+      },
+      {
+        to: "/alerts/inhibitions",
+        label: "Inhibitions",
+        icon: CircleSlash,
+        exact: false,
+      },
+    ],
+  },
 ] as const;
 
 // The same width as the `lg:` column rules on the Explore grids. Below it
@@ -29,21 +73,34 @@ function AlertingSectionNav({ onNavigate }: { onNavigate?: () => void }) {
       aria-label="Alerting"
       className="bg-muted/15 flex h-full min-h-0 flex-col gap-3 overflow-auto border-b p-3 lg:border-r lg:border-b-0"
     >
-      <ul className="flex flex-col gap-0.5">
-        {DESTINATIONS.map((d) => (
-          <li key={d.to}>
-            <Link
-              to={d.to}
-              activeOptions={{ exact: d.exact }}
-              activeProps={{ "data-active": "true" }}
-              onClick={onNavigate}
-              className="flex min-h-9 items-center rounded px-2 text-sm text-muted-foreground hover:bg-accent hover:text-accent-foreground data-active:bg-accent data-active:font-medium data-active:text-accent-foreground"
-            >
-              {d.label}
-            </Link>
-          </li>
-        ))}
-      </ul>
+      {GROUPS.map((group) => (
+        <div key={group.label ?? "main"} className="flex flex-col gap-1">
+          {group.label && (
+            <span className="px-2 text-[0.625rem] font-medium tracking-wide text-muted-foreground uppercase">
+              {group.label}
+            </span>
+          )}
+          <ul className="flex flex-col gap-0.5">
+            {group.destinations.map((d) => (
+              <li key={d.to}>
+                <Link
+                  to={d.to}
+                  activeOptions={{ exact: d.exact }}
+                  activeProps={{ "data-active": "true" }}
+                  onClick={onNavigate}
+                  className="group flex min-h-9 items-center gap-2 rounded px-2 text-sm text-muted-foreground hover:bg-accent hover:text-accent-foreground data-active:bg-accent data-active:font-medium data-active:text-accent-foreground"
+                >
+                  <d.icon
+                    aria-hidden
+                    className="size-3.5 shrink-0 group-data-active:text-primary"
+                  />
+                  {d.label}
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </div>
+      ))}
     </nav>
   );
 }

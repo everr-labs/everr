@@ -188,7 +188,7 @@ export function MatchersEditor({
       {value.length === 0 && (
         <p className="text-xs text-muted-foreground">
           <span className="font-medium text-foreground">All alerts.</span> No
-          conditions added.
+          matchers added.
         </p>
       )}
     </div>

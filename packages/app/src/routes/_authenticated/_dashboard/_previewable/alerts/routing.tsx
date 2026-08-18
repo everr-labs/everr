@@ -10,7 +10,6 @@ import {
 } from "@/data/alerting/routing/resolution";
 import { alertingRuleIdentity } from "@/data/alerting/rules/identity";
 import { ruleQueries } from "@/data/alerting/rules/queries";
-import { InhibitionsSection } from "./-components/delivery/inhibitions-section";
 import { PipelineSection } from "./-components/delivery/pipeline-section";
 
 export const Route = createFileRoute(
@@ -20,15 +19,14 @@ export const Route = createFileRoute(
   // as-code resource a preview branch overlays (the `preview` param this
   // loader threads through is only for the alert/rule context it displays
   // alongside them), so the preview banner would be misleading here.
-  staticData: { breadcrumb: "Routing", hidePreviewFrame: true },
-  head: () => ({ meta: [{ title: "Everr - Alert routing" }] }),
+  staticData: { breadcrumb: "Advanced routing", hidePreviewFrame: true },
+  head: () => ({ meta: [{ title: "Everr - Advanced alert routing" }] }),
   loaderDeps: ({ search: { preview } }) => ({ preview }),
   loader: ({ context: { queryClient }, deps }) =>
     Promise.all([
       queryClient.prefetchQuery(deliveryQueries.routes()),
       queryClient.prefetchQuery(deliveryQueries.receivers()),
       queryClient.prefetchQuery(deliveryQueries.channels()),
-      queryClient.prefetchQuery(deliveryQueries.inhibitions()),
       queryClient.prefetchQuery(alertInstanceQueries.list(deps.preview)),
       queryClient.prefetchQuery(ruleQueries.rules(deps.preview)),
     ]),
@@ -78,8 +76,8 @@ function AlertingRoutingPage() {
   return (
     <div className="space-y-3">
       <PageHeader
-        title="Routing"
-        lede="Which alerts reach which receiver, and which alerts suppress others."
+        title="Advanced routing"
+        lede="Which alerts reach which receiver."
         docsHref="https://everr.dev/docs/guides/set-up-notifications"
       />
       <PipelineSection
@@ -109,7 +107,6 @@ function AlertingRoutingPage() {
           })
         }
       />
-      <InhibitionsSection />
     </div>
   );
 }

@@ -342,7 +342,7 @@ function FallThroughRow({
           not delivered
         </span>
         <span className="text-muted-foreground">
-          · add a catch-all route (no conditions) to set a default receiver
+          · add a catch-all route (no matchers) to set a default receiver
         </span>
       </span>
     </li>
@@ -536,7 +536,7 @@ function SetupChecklist({
         index={3}
         done={false}
         title="Route alerts to it"
-        detail="Matchers pick which alerts it receives; a route with no conditions matches every alert."
+        detail="Matchers pick which alerts it receives; a route with no matchers matches every alert."
         action="Add route"
         onAction={onAddRoute}
       />
