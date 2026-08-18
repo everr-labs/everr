@@ -3,7 +3,11 @@ import { enqueueProcessAlertEvent } from "@/data/alerting/delivery/tasks";
 import { alertingMatchingSilence } from "@/data/alerting/routing/resolution";
 import { db } from "@/db/client";
 import { alertEvents, alertInstances, alertSilences } from "@/db/schema";
-import { journalTerminalRow, recordAlertHistory } from "../history/clickhouse";
+import {
+  journalHoldRow,
+  journalTerminalRow,
+  recordAlertHistory,
+} from "../history/clickhouse";
 import { instanceKey } from "./grouping";
 import { alertEventDispatchLabels } from "./targeting";
 
@@ -165,11 +169,18 @@ export async function deferSuppressedEvent(
   // The cancel that won the claim owns the terminal; recording one here too
   // would put two suppression rows on one chain.
   if (!claimed) return;
-  // Only a terminal suppression is a fact. A deferred event will be
-  // reconsidered when the silence lapses, so recording it now would claim a
-  // notification was withheld that may still go out.
-  if (shouldRetry) return;
+  // A hold is a fact; a withholding is not one yet. The event is
+  // reconsidered when the silence lapses and may still go out, so the row
+  // says "held by this silence", and the chain ends later with a delivery or
+  // a suppression. The id derives from the event and the silence, so the two
+  // defer paths and their retries converge on one row per hold.
+  if (shouldRetry) {
+    await recordAlertHistory(event.sourceDefinitionId, [
+      journalHoldRow(event, silence),
+    ]);
+    return;
+  }
   await recordAlertHistory(event.sourceDefinitionId, [
-    journalTerminalRow(event, { silenced: true, silenceId: silence.id }),
+    journalTerminalRow(event, { silence }),
   ]);
 }

@@ -268,7 +268,7 @@ The whole chain a notifying transition travels: journaled event, targeting, grou
 _Avoid_: pipeline (bare, ambiguous with CI)
 
 **Undelivered**:
-A Firing alert that nothing will deliver: no Direct channels exist and the Default destination has no channels for its Severity.
+A Firing alert that nothing will deliver: it names no Direct channels and the Default destination has none for its Severity, or the Direct channels it names do not exist. The Triage board currently detects the first case only.
 _Avoid_: unrouted, undeliverable, not delivered (prose, not the term)
 
 **Silence**:
@@ -276,7 +276,7 @@ A time-bounded mute a person creates with Matchers. Notifications for matching a
 _Avoid_: mute (see Muted), snooze
 
 **Deferred**:
-A notification withheld for now by a Silence and reconsidered later. It may still be delivered late. A deferral is not recorded in history; only a terminal Suppression is.
+A notification withheld for now by a Silence and reconsidered later. It may still be delivered late. Recorded in history as a Hold, which the later delivery or Suppression closes.
 _Avoid_: suppressed (a terminal decision), dropped
 
 **Suppressed**:
@@ -284,7 +284,7 @@ The terminal decision that one notification will never be delivered, always reco
 _Avoid_: deferred (may still deliver), muted (rule-level)
 
 **Hold**:
-The planned reified record of a defer decision, so a deferral leaves a trace. Designed but not yet implemented.
+The history row a Deferred notification leaves, naming the Silence that holds it. One per Silence that holds a chain. A hold with no later delivery or Suppression on the same chain is held right now.
 _Avoid_: lock, freeze
 
 **Journal**:

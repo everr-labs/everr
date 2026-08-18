@@ -184,7 +184,7 @@ describe("queryClickHouseAlertEventLog", () => {
       "notification_event_id IN {eventIds:Array(UUID)}",
     );
     expect(outcomeSql).toContain(
-      "event_type IN ('notification_suppressed', 'delivery_succeeded', 'delivery_failed')",
+      "event_type IN ('notification_deferred', 'notification_suppressed', 'delivery_succeeded', 'delivery_failed')",
     );
   });
 });

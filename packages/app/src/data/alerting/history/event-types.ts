@@ -15,6 +15,7 @@ export type AlertHistoryEventType =
   | "instance_fired"
   | "instance_resolved"
   | "instance_closed"
+  | "notification_deferred"
   | "notification_suppressed"
   | "delivery_succeeded"
   | "delivery_failed";
@@ -36,6 +37,7 @@ export type AlertTransitionEventType =
  * transition they belong to rather than listed separately in the history UI.
  */
 const ALERT_OUTCOME_EVENT_TYPES = [
+  "notification_deferred",
   "notification_suppressed",
   "delivery_succeeded",
   "delivery_failed",

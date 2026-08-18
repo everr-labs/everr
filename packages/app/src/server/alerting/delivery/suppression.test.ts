@@ -62,6 +62,10 @@ vi.mock("../history/clickhouse", () => ({
     event: { id: string },
     opts: Record<string, unknown> = {},
   ) => ({ notificationEventId: event.id, ...opts }),
+  journalHoldRow: (event: { id: string }, silence: { id: string }) => ({
+    notificationEventId: event.id,
+    held: silence.id,
+  }),
 }));
 
 import type { alertEvents } from "@/db/schema";
@@ -105,6 +109,11 @@ describe("deferSuppressedEvent", () => {
         keySuffix: "2026-08-10T11:00:00.000Z",
         runAt: new Date(silence.ends_at),
       },
+    ]);
+    // The hold is recorded even though the notification is not decided: a
+    // chain with a fire and nothing after it reads as a lost write.
+    expect(mocks.history).toEqual([
+      [{ notificationEventId: event.id, held: silence.id }],
     ]);
   });
 

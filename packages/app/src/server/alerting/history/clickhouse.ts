@@ -1,11 +1,16 @@
 import type { AlertHistoryEventType } from "@/data/alerting/history/event-types";
 import {
   deterministicDeliveryEventId,
+  deterministicHoldEventId,
   deterministicSuppressionEventId,
   uuidv7,
   uuidv7Time,
 } from "@/data/alerting/history/ids";
-import type { AlertingEvaluationSample } from "@/data/alerting/types";
+import { ALERTING_SILENCE_COMMENT_MAX } from "@/data/alerting/schema";
+import type {
+  AlertingEvaluationSample,
+  AlertingMatcher,
+} from "@/data/alerting/types";
 import type { AlertingLifecycleReason } from "@/data/alerting/vocabulary";
 import { formatResourceName } from "@/data/as-code/identity";
 import { insertAdminRows } from "@/lib/clickhouse";
@@ -280,6 +285,50 @@ export function instanceHistoryRow(opts: {
 }
 
 /**
+ * What a terminal freezes from the silence that withheld it. The id alone is
+ * a dead end for a caller holding this table and nothing else, and retention
+ * deletes the silence at 90 days, long before the history it explains.
+ */
+export type SuppressingSilence = {
+  id: string;
+  comment: string;
+  matchers: AlertingMatcher[];
+};
+
+// Silences created before the input cap carry an unbounded comment, and the
+// column is append-only, so the bound is applied where the row is built too.
+function boundSilenceComment(comment: string) {
+  return comment.length <= ALERTING_SILENCE_COMMENT_MAX
+    ? comment
+    : `${comment.slice(0, ALERTING_SILENCE_COMMENT_MAX - 3)}...`;
+}
+
+/**
+ * Fixed key order, so a retried projection re-serializes byte for byte: the
+ * suppression id is deterministic, and two rows that differ in any byte are
+ * two permanent rows on a MergeTree. PostgreSQL jsonb does not preserve the
+ * authored order, so the order cannot come from the stored value.
+ */
+function silenceMatchersJson(matchers: AlertingMatcher[]) {
+  return JSON.stringify(
+    matchers.map((matcher) => ({
+      label: matcher.label,
+      op: matcher.op,
+      value: matcher.value,
+    })),
+  );
+}
+
+function silenceRowFields(silence: SuppressingSilence | undefined) {
+  return {
+    silenced: silence !== undefined,
+    silence_id: silence?.id ?? ZERO_UUID,
+    silence_comment: boundSilenceComment(silence?.comment ?? ""),
+    silence_matchers_json: silence ? silenceMatchersJson(silence.matchers) : "",
+  };
+}
+
+/**
  * A notification that was decided against. Written when a silence stops an
  * event from reaching any channel, so "why was I not paged" is answerable
  * from the same table as the transition itself.
@@ -294,8 +343,10 @@ export function suppressionHistoryRow(opts: {
   notificationEventId: string;
   fingerprint: string;
   labels: Record<string, string>;
-  silenced: boolean;
-  silenceId: string | null;
+  /** The silence that made the decision. Its presence is what `silenced`
+   * means, so no writer can claim a silence without freezing the copy that
+   * outlives it. */
+  silence?: SuppressingSilence;
   /** Set on lifecycle terminals (`rule_paused`, `rule_deleted`); empty when a
    * silence made the decision. */
   reason?: AlertingLifecycleReason;
@@ -312,10 +363,59 @@ export function suppressionHistoryRow(opts: {
       occurredAt: uuidv7Time(opts.notificationEventId),
     }),
     ...instanceRowFields(opts.fingerprint, opts.labels),
-    silenced: opts.silenced,
-    silence_id: opts.silenceId ?? ZERO_UUID,
+    ...silenceRowFields(opts.silence),
     reason: opts.reason ?? "",
   };
+}
+
+/**
+ * A notification a silence is holding right now. Not a decision: the event is
+ * reconsidered when the silence lapses and may still go out, which is why the
+ * hold is its own event type and not a suppression with a softer reason.
+ * Without it a chain shows a fire and then nothing for as long as the hold
+ * lasts, and a reader cannot tell a held notification from a lost write.
+ *
+ * A hold ends when a delivery or a suppression row lands on the same chain,
+ * so "held right now" is a hold with neither, and needs no end time on the
+ * row. `event_time` is the chain's own time for the same reason the terminal
+ * uses it: the row must be byte-identical across retries, and a decision
+ * clock differs on every attempt.
+ */
+export function deferralHistoryRow(opts: {
+  def: AlertHistoryDefinition;
+  notificationEventId: string;
+  fingerprint: string;
+  labels: Record<string, string>;
+  silence: SuppressingSilence;
+}): AlertHistoryRow {
+  return {
+    ...baseHistoryRow({
+      def: opts.def,
+      eventId: deterministicHoldEventId({
+        notificationEventId: opts.notificationEventId,
+        silenceId: opts.silence.id,
+      }),
+      notificationEventId: opts.notificationEventId,
+      eventType: "notification_deferred",
+      occurredAt: uuidv7Time(opts.notificationEventId),
+    }),
+    ...instanceRowFields(opts.fingerprint, opts.labels),
+    ...silenceRowFields(opts.silence),
+  };
+}
+
+/** The hold a chain gets while a silence keeps its notification waiting. */
+export function journalHoldRow(
+  event: Parameters<typeof journalTerminalRow>[0],
+  silence: SuppressingSilence,
+): AlertHistoryRow {
+  return deferralHistoryRow({
+    def: historyDefFromJournalRow(event),
+    notificationEventId: event.id,
+    fingerprint: event.instanceFingerprint,
+    labels: event.instanceLabels,
+    silence,
+  });
 }
 
 /**
@@ -334,8 +434,7 @@ export function journalTerminalRow(
   },
   opts: {
     reason?: AlertingLifecycleReason;
-    silenced?: boolean;
-    silenceId?: string | null;
+    silence?: SuppressingSilence;
   } = {},
 ): AlertHistoryRow {
   return suppressionHistoryRow({
@@ -343,8 +442,7 @@ export function journalTerminalRow(
     notificationEventId: event.id,
     fingerprint: event.instanceFingerprint,
     labels: event.instanceLabels,
-    silenced: opts.silenced ?? false,
-    silenceId: opts.silenceId ?? null,
+    ...(opts.silence ? { silence: opts.silence } : {}),
     ...(opts.reason ? { reason: opts.reason } : {}),
   });
 }

@@ -2,14 +2,17 @@
 -- in lockstep with it.
 CREATE TABLE IF NOT EXISTS app.alert_events
 (
-  -- UUIDv7 on non-delivery rows, so UUIDv7ToDateTime(event_id) recovers the
-  -- creation time and equals the PostgreSQL journal row it projects. Delivery
-  -- rows carry a deterministic id derived from the journal event and the
-  -- delivery key, so a retried projection converges on one row instead of
-  -- appending a second.
+  -- UUIDv7 on evaluation and transition rows, so UUIDv7ToDateTime(event_id)
+  -- recovers the creation time and equals the PostgreSQL journal row it
+  -- projects. Outcome rows carry a deterministic id instead, so a retried
+  -- projection converges on one row instead of appending a second: from the
+  -- journal event and the delivery key on a delivery, from the notification
+  -- event alone on a terminal suppression (one per chain), and from the
+  -- notification event and the silence on a hold (one per silence that
+  -- holds the chain).
   event_id UUID DEFAULT generateUUIDv7(),
   -- Correlates the rows produced by one notification: the transition and the
-  -- suppression or delivery rows that follow it in later jobs. Transitions set
+  -- hold, suppression or delivery rows that follow it in later jobs. Transitions set
   -- this to their own event_id. Evaluation and lifecycle-only rows leave it
   -- zero.
   notification_event_id UUID DEFAULT toUUID('00000000-0000-0000-0000-000000000000'),
@@ -59,12 +62,15 @@ CREATE TABLE IF NOT EXISTS app.alert_events
   -- pending_cleared, labels_changed, rule_paused, rule_deleted or
   -- preview_deleted on instance_closed; rule_paused, rule_deleted,
   -- no_longer_firing or no_channels on a terminal notification_suppressed.
+  -- Always empty on notification_deferred: a hold is not a decision.
   -- The closed vocabulary lives in ALERTING_LIFECYCLE_REASONS
   -- (src/data/alerting/vocabulary.ts).
   reason LowCardinality(String) DEFAULT '',
   -- Notification outcome, frozen at the moment it was decided. A silence
   -- created later never rewrites what these say happened. Meaningful only on
-  -- notification_suppressed rows.
+  -- notification_deferred and notification_suppressed rows: a deferred row
+  -- says a silence holds the notification now and it may still go out, a
+  -- suppressed row says it never will.
   silenced Bool DEFAULT false,
   silence_id UUID DEFAULT toUUID('00000000-0000-0000-0000-000000000000'),
   -- Frozen from the silence so the row reads without PostgreSQL: the id alone

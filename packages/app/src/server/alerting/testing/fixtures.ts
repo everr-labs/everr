@@ -282,6 +282,7 @@ export async function insertSilence(
     organizationId?: string;
     matchers?: AlertingMatcher[];
     endsAt?: Date;
+    comment?: string;
   } = {},
 ) {
   const now = new Date();
@@ -294,6 +295,9 @@ export async function insertSilence(
       ],
       startsAt: now,
       endsAt: overrides.endsAt ?? new Date(now.getTime() + 3_600_000),
+      ...(overrides.comment === undefined
+        ? {}
+        : { comment: overrides.comment }),
     })
     .returning({ id: alertSilences.id });
   return silence;

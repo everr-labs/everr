@@ -24,9 +24,10 @@ incident in timestamp order with no join.
    dimension, so a bound on it prunes whole months of data.
 5. `silenced`, `silence_id` and `silence_comment` are decided after the
    transition is written, so they carry meaning **only on
-   `notification_suppressed` rows**.
+   `notification_deferred` and `notification_suppressed` rows**.
    `WHERE event_type = 'instance_fired' AND silenced` returns nothing, however
-   many alerts were silenced.
+   many alerts were silenced. A hold says a silence holds the notification now
+   and it may still go out; a suppression says it never will.
 6. **An absent row means unknown, not "it did not happen".** History writes
    are best effort and nothing repairs a lost one, so a missing delivery row
    is equally consistent with a lost write and a notification that never went
@@ -43,6 +44,7 @@ incident in timestamp order with no join.
 | `instance_fired` | An instance started alerting |
 | `instance_resolved` | The condition cleared |
 | `instance_closed` | The instance stopped for a reason other than clearing: pending cleared, labels changed, rule paused, rule deleted, preview deleted. `reason` says which |
+| `notification_deferred` | A silence holds the notification. It may still go out when the silence ends |
 | `notification_suppressed` | The notification was withheld for good |
 | `delivery_succeeded` | A channel accepted the notification |
 | `delivery_failed` | One send attempt failed. `error` holds the sanitized reason |
@@ -54,8 +56,8 @@ not about a missing feature. Read it with rule 6.
 
 | Column | Type | Notes |
 | --- | --- | --- |
-| `event_id` | `UUID` | Unique per row. UUIDv7 on transition and evaluation rows, so `UUIDv7ToDateTime(event_id)` recovers its creation time. Delivery rows and terminal `notification_suppressed` rows are the exceptions: their ids are deterministic so retries and repair converge, and they carry no embedded time |
-| `notification_event_id` | `UUID` | Links a transition to the suppression and delivery rows that follow it. A transition sets it to its own `event_id`. Zero on evaluation rows. UUIDv7, so its embedded time is the chain start |
+| `event_id` | `UUID` | Unique per row. UUIDv7 on transition and evaluation rows, so `UUIDv7ToDateTime(event_id)` recovers its creation time. Delivery rows, `notification_deferred` rows and terminal `notification_suppressed` rows are the exceptions: their ids are deterministic so retries and repair converge, and they carry no embedded time |
+| `notification_event_id` | `UUID` | Links a transition to the hold, suppression and delivery rows that follow it. A transition sets it to its own `event_id`. Zero on evaluation rows. UUIDv7, so its embedded time is the chain start |
 | `episode_id` | `UUID` | The opening event's id: one continuous breach, from leaving inactive to resolved or closed. Set on `instance_pending`, `instance_fired`, `instance_resolved` and `instance_closed`; zero elsewhere. `GROUP BY episode_id` reads an incident whole |
 | `tenant_id` | `LowCardinality(String)` | Enforced by row policy. Never filter on it |
 | `alert_definition_id` | `UUID` | The rule's id |
@@ -72,9 +74,9 @@ not about a missing feature. Read it with rule 6.
 | `instance_labels` | `Map(LowCardinality(String), String)` | Read a key with `instance_labels['service']` |
 | `service_name` | `LowCardinality(String)` | The service the alert concerns, resolved when the row was written; `'alert'` when none |
 | `severity` | `LowCardinality(String)` | `info`, `warning` or `critical`. The rule's severity at write time: editing a rule changes later rows, not past ones |
-| `rule_muted` | `Bool` | The rule never notifies at all (`spec.suppressed`, or a preview). Set on every row. Unrelated to `silenced`, which is about one notification |
-| `reason` | `LowCardinality(String)` | A closed vocabulary, empty off terminal rows. `condition_cleared` on `instance_resolved`. `pending_cleared`, `labels_changed`, `rule_paused`, `rule_deleted` or `preview_deleted` on `instance_closed`. `rule_paused`, `rule_deleted`, `no_longer_firing` or `no_channels` on a terminal `notification_suppressed`: `no_longer_firing` means the fire reached delivery after its instance had stopped firing, `no_channels` that the flush found no channel attached. A `notification_suppressed` row can also carry no reason at all: with `silenced` true a silence ended it, and `silence_id` and `silence_comment` say which; with `silenced` false the row does not record why, so read it as unexplained rather than guessing |
-| `silenced` | `Bool` | Frozen when the notification was decided. Meaningful only on `notification_suppressed` rows; always false on a transition |
+| `rule_muted` | `Bool` | The rule never notifies at all, which today means one thing: it belongs to a preview. Set on every row. Unrelated to `silenced`, which is about one notification |
+| `reason` | `LowCardinality(String)` | A closed vocabulary, empty off terminal rows. `condition_cleared` on `instance_resolved`. `pending_cleared`, `labels_changed`, `rule_paused`, `rule_deleted` or `preview_deleted` on `instance_closed`. `rule_paused`, `rule_deleted`, `no_longer_firing` or `no_channels` on a terminal `notification_suppressed`: `no_longer_firing` means the fire reached delivery after its instance had stopped firing, `no_channels` that the flush found no channel attached. A `notification_suppressed` row can also carry no reason at all: with `silenced` true a silence ended it, and `silence_id` and `silence_comment` say which; with `silenced` false the row does not record why, so read it as unexplained rather than guessing. Always empty on `notification_deferred`: a hold is not a decision, and `silence_id` says what holds it |
+| `silenced` | `Bool` | Frozen when the notification was decided. Meaningful only on `notification_deferred` and `notification_suppressed` rows; always false on a transition |
 | `silence_id` | `UUID` | The matched silence, zero if none |
 | `silence_comment`, `silence_matchers_json` | `String` | Copied from the silence, so the row explains itself |
 | `context_json` | `String` | Opaque JSON frozen on lifecycle rows, keys `{summary, description, links: {runbook, alert}, condition}`. `condition` is what makes "at what value" readable; `links` is the pivot to the runbook and the alert page |
@@ -180,14 +182,40 @@ ORDER BY failures DESC
 LIMIT 100
 ```
 
+Notifications a silence is holding right now. A hold ends when a delivery or
+a suppression lands on the same chain, so a hold with neither is still held.
+The alert itself keeps firing while this is true: a silence stops the message,
+never the alerting:
+
+```sql
+SELECT notification_event_id,
+       any(slug) AS slug,
+       any(instance_fingerprint) AS instance_fingerprint,
+       anyIf(silence_id, event_type = 'notification_deferred') AS silence_id,
+       anyIf(silence_comment,
+             event_type = 'notification_deferred') AS silence_comment,
+       min(event_time) AS held_since
+FROM alert_events
+WHERE event_type IN ('notification_deferred', 'notification_suppressed',
+                     'delivery_succeeded', 'delivery_failed')
+  AND is_live
+  AND event_time >= now() - INTERVAL 7 DAY
+GROUP BY notification_event_id
+HAVING countIf(event_type = 'notification_deferred') > 0
+   AND countIf(event_type IN ('notification_suppressed',
+                              'delivery_succeeded')) = 0
+ORDER BY held_since
+LIMIT 100
+```
+
 Critical alerts with no successful delivery. Read the result with rule 6:
 a lost history write and a broken delivery look the same, and nothing
 distinguishes them after the fact. `NOT rule_muted` excludes rules that never
 notify by design. The 15 minute maturity offset keeps fires still inside the
-group-flush wait from showing as undelivered. `withheld` separates two
-stories: a withheld notification never had a delivery to make, which is not a
-delivery incident. One scan and a `HAVING` keep the query correct under any
-session setting:
+group-flush wait from showing as undelivered. `withheld` and `held` separate
+the stories: a withheld notification never had a delivery to make, and a held
+one has not had it yet, so neither is a delivery incident. One scan and a
+`HAVING` keep the query correct under any session setting:
 
 ```sql
 SELECT notification_event_id,
@@ -195,12 +223,14 @@ SELECT notification_event_id,
        anyIf(slug, event_type = 'instance_fired') AS slug,
        anyIf(instance_fingerprint,
              event_type = 'instance_fired') AS instance_fingerprint,
-       countIf(event_type = 'notification_suppressed') > 0 AS withheld
+       countIf(event_type = 'notification_suppressed') > 0 AS withheld,
+       countIf(event_type = 'notification_deferred') > 0
+         AND countIf(event_type = 'notification_suppressed') = 0 AS held
 FROM alert_events
 WHERE event_time >= now() - INTERVAL 7 DAY
   AND is_live
   AND event_type IN ('instance_fired', 'delivery_succeeded',
-                     'notification_suppressed')
+                     'notification_deferred', 'notification_suppressed')
 GROUP BY notification_event_id
 HAVING countIf(event_type = 'instance_fired'
                AND severity = 'critical'

@@ -16,6 +16,7 @@ vi.mock("@/telemetry/logger", () => ({
 
 import { uuidv7Time } from "@/data/alerting/history/ids";
 import {
+  deferralHistoryRow,
   deliveryHistoryRow,
   evaluationHistoryRow,
   instanceHistoryRow,
@@ -212,8 +213,6 @@ describe("ClickHouse alert history", () => {
       notificationEventId: "019c3aba-29f8-7d6e-9e55-301cf47fa80d",
       fingerprint: "api",
       labels: { service: "api" },
-      silenced: false,
-      silenceId: null,
     };
     // The whole row, not only the id: an event_time from a decision clock
     // would differ between two writes, and a MergeTree keeps both of them.
@@ -229,14 +228,50 @@ describe("ClickHouse alert history", () => {
     );
   });
 
+  it("holds a chain once per silence, and the hold is not the terminal", () => {
+    const opts = {
+      def,
+      notificationEventId: "019c3aba-29f8-7d6e-9e55-301cf47fa80d",
+      fingerprint: "api",
+      labels: { service: "api" },
+      silence: {
+        id: "019c3abf-0000-7000-8000-000000000001",
+        comment: "checkout migration window",
+        matchers: [{ label: "service", op: "eq" as const, value: "api" }],
+      },
+    };
+    // Both defer paths retry, so two writes of one hold must be one row.
+    expect(deferralHistoryRow(opts)).toEqual(deferralHistoryRow(opts));
+    expect(deferralHistoryRow(opts)).toMatchObject({
+      event_type: "notification_deferred",
+      silenced: true,
+      silence_id: "019c3abf-0000-7000-8000-000000000001",
+      silence_comment: "checkout migration window",
+      silence_matchers_json: '[{"label":"service","op":"eq","value":"api"}]',
+    });
+    // A second silence over the same chain is a second hold.
+    expect(
+      deferralHistoryRow({
+        ...opts,
+        silence: {
+          ...opts.silence,
+          id: "019c3abf-0000-7000-8000-000000000002",
+        },
+      }).event_id,
+    ).not.toBe(deferralHistoryRow(opts).event_id);
+    // The hold and the terminal are different rows on one chain: a hold that
+    // took the terminal's id would erase the decision when it landed.
+    expect(deferralHistoryRow(opts).event_id).not.toBe(
+      suppressionHistoryRow(opts).event_id,
+    );
+  });
+
   it("carries a lifecycle reason on a terminal suppression", () => {
     const row = suppressionHistoryRow({
       def,
       notificationEventId: "019c3aba-29f8-7d6e-9e55-301cf47fa80d",
       fingerprint: "api",
       labels: { service: "api" },
-      silenced: false,
-      silenceId: null,
       reason: "rule_paused",
     });
     expect(row.reason).toBe("rule_paused");
@@ -249,8 +284,11 @@ describe("ClickHouse alert history", () => {
       notificationEventId: "019c3aba-29f8-7d6e-9e55-301cf47fa80d",
       fingerprint: "api",
       labels: { service: "api" },
-      silenced: true,
-      silenceId: "019c3abf-0000-7000-8000-000000000001",
+      silence: {
+        id: "019c3abf-0000-7000-8000-000000000001",
+        comment: "checkout migration window",
+        matchers: [{ label: "service", op: "eq", value: "api" }],
+      },
     });
 
     expect(row).toMatchObject({
@@ -258,6 +296,10 @@ describe("ClickHouse alert history", () => {
       notification_event_id: "019c3aba-29f8-7d6e-9e55-301cf47fa80d",
       silenced: true,
       silence_id: "019c3abf-0000-7000-8000-000000000001",
+      // The row answers "why was I not paged" on its own: the silence it
+      // names is deleted at 90 days, well before this history is.
+      silence_comment: "checkout migration window",
+      silence_matchers_json: '[{"label":"service","op":"eq","value":"api"}]',
     });
     // Its own id, so the row is addressable independently of the transition.
     expect(row.event_id).not.toBe(row.notification_event_id);
@@ -270,8 +312,6 @@ describe("ClickHouse alert history", () => {
         notificationEventId: "019c3aba-29f8-7d6e-9e55-301cf47fa80d",
         fingerprint: "api",
         labels: {},
-        silenced: false,
-        silenceId: null,
       }).silence_id,
     ).toBe(ZERO_UUID);
   });
@@ -381,8 +421,6 @@ describe("ClickHouse alert history", () => {
         notificationEventId: "019c3aba-29f8-7d6e-9e55-301cf47fa80d",
         fingerprint: "api",
         labels: { service: "api" },
-        silenced: false,
-        silenceId: null,
         reason: "rule_paused",
       });
       const second = instanceHistoryRow({

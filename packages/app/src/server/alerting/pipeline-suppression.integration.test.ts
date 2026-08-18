@@ -11,6 +11,7 @@ import {
   vi,
 } from "vitest";
 import { ALERT_PROCESS_EVENT_TASK } from "@/data/alerting/delivery/tasks";
+import { ALERTING_DEFAULT_GROUP_WAIT_SECS } from "@/data/alerting/routing/defaults";
 import { SYSTEM_ACTOR } from "@/data/alerting/session";
 import {
   createSilence,
@@ -72,16 +73,59 @@ describe("the alerting pipeline's suppression", () => {
     expect(harness.fetchCalls()).toHaveLength(0);
 
     // The event still firing at defer time is retried rather than settled, so
-    // ClickHouse gets no terminal row yet (deferSuppressedEvent only journals
-    // a decision that will not be revisited). The Postgres journal row is the
-    // record of the defer decision: tied to the matching silence,
-    // and left unprocessed so the retry job wakes it later.
+    // the chain gets a hold, not a terminal: the notification may still go
+    // out when the silence lapses.
+    const outcomes = harness.clickhouse
+      .historyRows()
+      .filter(
+        (row) =>
+          row.event_type === "notification_deferred" ||
+          row.event_type === "notification_suppressed",
+      );
+    expect(outcomes.map((row) => row.event_type)).toEqual([
+      "notification_deferred",
+    ]);
+    expect(outcomes[0].silenced).toBe(true);
+
+    // The Postgres journal row is the record of the defer decision: tied to
+    // the matching silence, and left unprocessed so the retry job wakes it
+    // later.
     const [firedEvent] = await harness.db
       .select()
       .from(alertEvents)
       .where(eq(alertEvents.eventType, "instance_fired"));
     expect(firedEvent.silenceId).not.toBeNull();
     expect(firedEvent.processedAt).toBeNull();
+  });
+
+  it("records the hold when the silence arrives between dispatch and flush", async () => {
+    await insertDirectRule(harness.db, { forSecs: 0, channelType: "slack" });
+    harness.clickhouse.setSignal([{ service: "checkout", value: 42 }]);
+
+    await harness.runDueJobs(); // fires and dispatches; the flush is not due yet
+
+    // The second defer path: the group already exists and comes due, and the
+    // flush is what finds the silence. It owes the same hold the dispatch
+    // path writes, or a notification held this way reads as lost.
+    const silence = await insertSilence(harness.db, {
+      comment: "checkout migration window",
+    });
+    harness.advance(ALERTING_DEFAULT_GROUP_WAIT_SECS * 1_000);
+    await harness.runDueJobs();
+
+    expect(harness.fetchCalls()).toHaveLength(0);
+    const holds = harness.clickhouse
+      .historyRows()
+      .filter((row) => row.event_type === "notification_deferred");
+    expect(holds).toHaveLength(1);
+    // The hold reads without PostgreSQL, exactly as the terminal does.
+    expect(holds[0]).toMatchObject({
+      silenced: true,
+      silence_id: silence.id,
+      silence_comment: "checkout migration window",
+      silence_matchers_json:
+        '[{"label":"service","op":"eq","value":"checkout"}]',
+    });
   });
 
   it("the notification goes out once the silence's window passes, no longer held", async () => {
@@ -110,7 +154,19 @@ describe("the alerting pipeline's suppression", () => {
 
     expect(harness.fetchCalls()).toHaveLength(1);
     // The chain that was held now carries a delivery outcome: it escaped the
-    // hold rather than being silently dropped once the window closed.
+    // hold rather than being silently dropped once the window closed. The
+    // hold stays on the chain, so a late notification explains its own
+    // lateness.
+    expect(
+      harness.clickhouse
+        .historyRows()
+        .filter(
+          (row) =>
+            row.event_type === "notification_deferred" ||
+            row.event_type === "notification_suppressed",
+        )
+        .map((row) => row.event_type),
+    ).toEqual(["notification_deferred"]);
     expect(
       harness.clickhouse
         .historyRows()
@@ -121,6 +177,98 @@ describe("the alerting pipeline's suppression", () => {
       .from(alertEvents)
       .where(eq(alertEvents.eventType, "instance_fired"));
     expect(firedEvent.silenceId).toBeNull();
+  });
+
+  it("freezes the silence's comment and matchers onto the terminal it withheld", async () => {
+    await insertDirectRule(harness.db, { forSecs: 0, channelType: "slack" });
+    const silence = await insertSilence(harness.db, {
+      comment: "checkout migration window",
+      matchers: [{ label: "service", op: "eq", value: "checkout" }],
+    });
+    harness.clickhouse.setSignal([{ service: "checkout", value: 42 }]);
+    await harness.runDueJobs();
+
+    // The instance stops firing while the silence still holds the fire, so
+    // the resolve is the decision that will not be revisited: the chain ends
+    // there, silenced.
+    harness.clickhouse.setSignal([]);
+    harness.advance(60_000); // the rule's evaluation interval
+    await harness.fireAndFlush();
+
+    const terminal = harness.clickhouse
+      .historyRows()
+      .find((row) => row.event_type === "notification_suppressed");
+    expect(harness.fetchCalls()).toHaveLength(0);
+    // "Why was I not paged" is answerable from this row alone. Retention
+    // deletes the silence at 90 days, long before the history it explains.
+    expect(terminal).toMatchObject({
+      silenced: true,
+      silence_id: silence.id,
+      silence_comment: "checkout migration window",
+      silence_matchers_json:
+        '[{"label":"service","op":"eq","value":"checkout"}]',
+    });
+  });
+
+  it("refuses a window that is not an instant in time", async () => {
+    const scope = { organizationId: TEST_ORG, actor: SYSTEM_ACTOR };
+    const matchers = [
+      { label: "service", op: "eq" as const, value: "checkout" },
+    ];
+
+    // `new Date("2026-08-18 09:00:00")` parses in the server's own timezone,
+    // and the window check still passes, so an accepted value here would mute
+    // hours nobody chose. The offset is invisible in the stored row.
+    await expect(
+      createSilence(scope, {
+        matchers,
+        starts_at: "2026-08-18 09:00:00",
+        ends_at: "2026-08-18 11:00:00",
+      } as unknown as AlertingSilenceInput),
+    ).rejects.toThrow();
+
+    const created = await createSilence(scope, {
+      matchers,
+      starts_at: "2026-08-18T09:00:00.000Z",
+      ends_at: "2026-08-18T11:00:00.000Z",
+    });
+    expect(new Date(created.starts_at).toISOString()).toBe(
+      "2026-08-18T09:00:00.000Z",
+    );
+  });
+
+  it("holds one chain twice when a second silence takes over from the first", async () => {
+    await insertDirectRule(harness.db, { forSecs: 0, channelType: "slack" });
+    const windowMs = 120_000;
+    const first = await insertSilence(harness.db, {
+      comment: "first window",
+      endsAt: new Date(Date.now() + windowMs),
+    });
+    harness.clickhouse.setSignal([{ service: "checkout", value: 42 }]);
+    await harness.runDueJobs();
+
+    // The event wakes at the first silence's end and finds a second one
+    // covering it. That is a different hold, not the same one continuing, so
+    // it earns its own row: the pair (event, silence) is what a hold is
+    // keyed on.
+    harness.advance(windowMs);
+    const second = await insertSilence(harness.db, {
+      comment: "second window",
+    });
+    await harness.fireAndFlush();
+
+    expect(harness.fetchCalls()).toHaveLength(0);
+    const holds = harness.clickhouse
+      .historyRows()
+      .filter((row) => row.event_type === "notification_deferred");
+    expect(holds).toHaveLength(2);
+    expect(holds.map((row) => row.silence_id).sort()).toEqual(
+      [first.id, second.id].sort(),
+    );
+    expect(holds.map((row) => row.silence_comment).sort()).toEqual([
+      "first window",
+      "second window",
+    ]);
   });
 
   it("canceling the silence releases every held event in one statement", async () => {

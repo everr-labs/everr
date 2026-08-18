@@ -51,6 +51,20 @@ export function deterministicSuppressionEventId(
   );
 }
 
+// One hold row per silence that holds a chain, so its id derives from the
+// pair. Both writers of a hold (the dispatch path and the flush) run under
+// Graphile retry, and either can re-defer the same event under the same
+// silence: the pair is what makes those converge on one row instead of
+// appending a hold per attempt.
+export function deterministicHoldEventId(opts: {
+  notificationEventId: string;
+  silenceId: string;
+}): string {
+  return deterministicUuidV8(
+    `everr.alert_hold_event.v1\0${opts.notificationEventId}\0${opts.silenceId}`,
+  );
+}
+
 // Delivery outcome rows must not mint random ids: the send job retries, and
 // only a deterministic id lets the retry converge instead of appending a
 // second row. The id hashes the journal event, the delivery key and the

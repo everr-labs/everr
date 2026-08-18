@@ -137,7 +137,7 @@ flowchart LR
   E -->|evaluation and transition rows| CE
 
   S -->|journal hold decisions| PE
-  S -->|notification_suppressed| CE
+  S -->|notification_deferred, notification_suppressed| CE
   S -->|create delivery| PD
   SI -->|comment and matchers frozen onto the row| CE
 
@@ -173,10 +173,11 @@ under Order of work. It makes "deleting a rule pages nobody" a guarantee.
 Second, a silence records itself on the work item rather than beside it. A
 matched silence stamps `silence_id` onto the event row and re-enqueues the
 event for the silence's end, so the hold is a scheduled retry, not a state
-machine of its own. Only the outcome reaches ClickHouse, as one terminal
-`notification_suppressed` row carrying the frozen comment and matchers. A
-repaired row recovers them with a join to `alert_silences`, which works
-because silences expire instead of deleting.
+machine of its own. Two rows reach ClickHouse, both carrying the frozen
+comment and matchers: a `notification_deferred` row when the hold starts, and
+a terminal `notification_suppressed` row if the notification is finally
+withheld. A repaired row recovers them with a join to `alert_silences`, which
+works because silences expire instead of deleting.
 
 ### The notification chain
 
@@ -195,6 +196,7 @@ sequenceDiagram
   Ev->>CH: instance_fired<br/>event_id = E, notification_event_id = E
   Note over Pr: minutes later
   Note over Pr: a silence holds the event; it is re-enqueued for the silence's end
+  Pr->>CH: notification_deferred<br/>held by silence S
   Pr->>CH: notification_suppressed (terminal)<br/>or the event proceeds to delivery
   Note over De: after group flush
   De->>CH: delivery_succeeded<br/>notification_event_id = E
@@ -223,7 +225,7 @@ Membership is fixed per event type:
 |---|---|---|
 | `instance_pending`, `instance_closed` | zero (they never notify) | the episode |
 | `instance_fired`, `instance_resolved` | its own `event_id` | the episode |
-| `notification_suppressed`, delivery rows | the transition's id | zero (the chain reaches the episode through its transition) |
+| `notification_deferred`, `notification_suppressed`, delivery rows | the transition's id | zero (the chain reaches the episode through its transition) |
 | evaluation rows | zero | zero |
 
 ## Storage split
@@ -324,6 +326,7 @@ value. Evaluation rows leave it zero.
 | `instance_pending` | `evaluation/rule.ts` |
 | `instance_fired` | `evaluation/rule.ts` |
 | `instance_resolved` | `evaluation/rule.ts` |
+| `notification_deferred` | `delivery/suppression.ts` |
 | `notification_suppressed` | `delivery/suppression.ts` |
 | `delivery_succeeded` | `delivery/history.ts` |
 | `delivery_failed` | `delivery/history.ts` |
@@ -342,7 +345,8 @@ engine decided, not what it should have decided; a wrong decision is
 itself the fact an investigator needs. Repair re-derives from the journal,
 the decision record, never by re-running the logic.
 
-**Both carry meaning only on `notification_suppressed` rows.** The
+**Both carry meaning only on `notification_deferred` and
+`notification_suppressed` rows.** The
 evaluation job writes the transition.
 The silence check runs later, in the processing job. So `silenced` is always
 false on an `instance_fired` row, and
@@ -368,13 +372,32 @@ A silence does not always end a notification. If the instance still fires,
 processing stamps `silence_id` onto the journal row and re-enqueues the event
 for the silence's end. The notification then goes out late.
 
-The hold writes no ClickHouse row of its own. A chain can therefore show a
-fire at 02:00 and a delivery at 06:00 with nothing between them to explain the
-four hours; the silence that caused the gap is recoverable only from the
-journal row's `silence_id` while the event is still in flight. Recording holds
-as their own event type was considered and cut: it needs a second meaning for
-`silenced` (held now, possibly delivered later) beside the terminal one
-(withheld for good), and the pipeline has no reader for the difference.
+The hold writes a `notification_deferred` row (decided 2026-08-18, reversing
+the cut of the same day). Without it a chain shows a fire at 02:00 and a
+delivery at 06:00 with nothing between them to explain the four hours, and a
+chain still held shows a fire and nothing at all, which a reader cannot tell
+from a lost write.
+
+The cut reasoned that the hold needs a second meaning for `silenced` beside
+the terminal one, with no reader for the difference. Both halves have moved.
+The event type carries the difference, not the boolean: a `deferred` row says
+held now and possibly delivered later, a `suppressed` row says withheld for
+good, and `silenced` keeps one meaning on both. The readers exist: the rule
+history folds outcome rows onto their transition, and the skill file's held
+query reads exactly this row.
+
+Cost moved too. The cut was priced against inhibitions, which re-deferred on
+a 60-second poll and would have written 60 rows an hour for one held
+notification. Inhibitions are gone. A silence has an end time, so it defers
+once and wakes at `ends_at`, and a firing instance journals one event however
+long it fires: one hold row per silence that holds a chain. The id derives
+from the pair, so both defer paths and their Graphile retries converge on
+that one row.
+
+The row carries no end time. "Held right now" is a hold with no later
+delivery or suppression row on the same chain, which is a bounded read on a
+chain that is already keyed; an end time would be a second copy of a fact the
+silence already holds, and would need a column of its own.
 
 `notification_suppressed` stays the terminal decision: this event will never
 be delivered.
@@ -782,15 +805,15 @@ queries must not add a `tenant_id` predicate.
 
 | Column | Type | Notes |
 |---|---|---|
-| `event_id` | `UUID` | Unique per row. UUIDv7 on transition and evaluation rows: `UUIDv7ToDateTime(event_id)` recovers its creation time, and the value equals the `alert_events` id of the PostgreSQL journal row it projects. Delivery rows and terminal `notification_suppressed` rows are the exceptions: their ids are deterministic so a retry or repair converges instead of duplicating, and they carry no embedded time, which nothing needs there, because a chain's time bound derives from `notification_event_id` and both carry `event_time`. Delivery ids hash the journal event and `delivery_dedup_key` (failed attempts additionally hash their attempt time, so each retry keeps its own row while the succeeded id stays stable); suppression ids hash the notification event alone, because a chain gets exactly one terminal suppression |
-| `notification_event_id` | `UUID` | Links a transition to the suppression and delivery rows that follow it. Zero on evaluation rows. UUIDv7, so its embedded time is the chain start; see Worked queries |
+| `event_id` | `UUID` | Unique per row. UUIDv7 on transition and evaluation rows: `UUIDv7ToDateTime(event_id)` recovers its creation time, and the value equals the `alert_events` id of the PostgreSQL journal row it projects. Delivery rows and terminal `notification_suppressed` rows are the exceptions: their ids are deterministic so a retry or repair converges instead of duplicating, and they carry no embedded time, which nothing needs there, because a chain's time bound derives from `notification_event_id` and both carry `event_time`. Delivery ids hash the journal event and `delivery_dedup_key` (failed attempts additionally hash their attempt time, so each retry keeps its own row while the succeeded id stays stable); suppression ids hash the notification event alone, because a chain gets exactly one terminal suppression; hold ids hash the notification event and the silence, because a chain gets one hold per silence that holds it |
+| `notification_event_id` | `UUID` | Links a transition to the hold, suppression and delivery rows that follow it. Zero on evaluation rows. UUIDv7, so its embedded time is the chain start; see Worked queries |
 | `tenant_id` | `LowCardinality(String)` | Enforced by row policy; a `cloud query` caller must never filter on it |
 | `alert_definition_id` | `UUID` | Bloom skip index |
 | `repoid`, `slug` | `LowCardinality(String)` | Sort key prefix; filtering on both is significantly faster |
 | `preview_id` | `UUID` | Zero UUID means live |
 | `is_live` | `Bool` | Computed by `DEFAULT` from `preview_id`, so it stays visible to `SELECT *` and filtering to live alerts never types a zero sentinel |
 | `event_type` | `LowCardinality(String)` | See the event-type table above. Second partition dimension: evaluation rows sit in their own partitions, so every non-evaluation query skips them whole |
-| `evaluation_scheduled_at`, `event_time` | `DateTime64(3)` | The partition key's time dimension is `toYYYYMM(event_time)`, so a plain `event_time` bound prunes with no second predicate. `evaluation_scheduled_at` is zero (epoch 1970) off evaluation rows; never `dateDiff` against it there. On rows with a derived `event_id` the time is derived too, so a retry writes the same bytes: a suppression row takes the notification event's UUIDv7 time, a `delivery_succeeded` row the delivery's `created_at`. A `delivery_failed` row keeps its own attempt time, which its id already hashes |
+| `evaluation_scheduled_at`, `event_time` | `DateTime64(3)` | The partition key's time dimension is `toYYYYMM(event_time)`, so a plain `event_time` bound prunes with no second predicate. `evaluation_scheduled_at` is zero (epoch 1970) off evaluation rows; never `dateDiff` against it there. On rows with a derived `event_id` the time is derived too, so a retry writes the same bytes: a hold row and a suppression row take the notification event's UUIDv7 time, a `delivery_succeeded` row the delivery's `created_at`. A `delivery_failed` row keeps its own attempt time, which its id already hashes |
 | `row_count` | `UInt64` | Rows returned by the rule query, which is arbitrary user SQL |
 | `evidence_json`, `samples_json` | `String` | Opaque JSON |
 | `evidence_truncated`, `samples_truncated` | `Bool` | Set when the JSON beside them was truncated |
@@ -802,8 +825,8 @@ queries must not add a `tenant_id` predicate.
 | `service_name` | `LowCardinality(String)` | The service the alert concerns, resolved at write time; `'alert'` when none |
 | `severity` | `LowCardinality(String)` | `info`, `warning` or `critical`, validated at the spec boundary, not by the insert path (a non-throwing writer must not drop rows when a value is added). The rule's severity when the row was written; editing a rule changes later rows, not past ones |
 | `rule_muted` | `Bool` | The rule never notifies (`spec.suppressed` or a preview). Set on every row; unrelated to `silenced` |
-| `reason` | `LowCardinality(String)` | `condition_cleared` on `instance_resolved`; `pending_cleared`, `labels_changed`, `rule_paused`, `rule_deleted` or `preview_deleted` on `instance_closed`; `rule_paused`, `rule_deleted`, `no_longer_firing` or `no_channels` on a terminal `notification_suppressed`. The closed vocabulary is `ALERTING_LIFECYCLE_REASONS` in `data/alerting/vocabulary.ts` |
-| `silenced` | `Bool` | Frozen at write time. Meaningful only on `notification_suppressed` rows; always false on a transition |
+| `reason` | `LowCardinality(String)` | `condition_cleared` on `instance_resolved`; `pending_cleared`, `labels_changed`, `rule_paused`, `rule_deleted` or `preview_deleted` on `instance_closed`; `rule_paused`, `rule_deleted`, `no_longer_firing` or `no_channels` on a terminal `notification_suppressed`. Empty on a `notification_deferred` row: a hold is not a decision, and `silence_id` already says what holds it. The closed vocabulary is `ALERTING_LIFECYCLE_REASONS` in `data/alerting/vocabulary.ts` |
+| `silenced` | `Bool` | Frozen at write time. Meaningful only on `notification_deferred` and `notification_suppressed` rows; always false on a transition |
 | `silence_id` | `UUID` | The matched silence, zero if none |
 | `silence_comment`, `silence_matchers_json` | `String` | Frozen from the silence, so the row reads without PostgreSQL |
 | `delivery_targets` | `Map(String, Array(String))` | Channel type to channel name; never an address |
@@ -1034,8 +1057,9 @@ reconciliation exists; before that, a dropped insert and an absent delivery
 look the same. `NOT rule_muted` excludes rules that never notify by design.
 The maturity offset keeps fires still inside the group-flush wait from
 showing as undelivered. The `withheld` column separates two stories:
-`withheld` means the engine decided never to send it; not withheld and not
-delivered means delivery is broken or the notification was lost. The first is
+`withheld` means the engine decided never to send it, and `held` that a
+silence is still holding it; neither withheld nor held nor delivered means
+delivery is broken or the notification was lost. The first is
 not a delivery incident. One scan and a `HAVING` keep the query correct
 under any session setting:
 
@@ -1045,12 +1069,14 @@ SELECT notification_event_id,
        anyIf(slug, event_type = 'instance_fired') AS slug,
        anyIf(instance_fingerprint,
              event_type = 'instance_fired') AS instance_fingerprint,
-       countIf(event_type = 'notification_suppressed') > 0 AS withheld
+       countIf(event_type = 'notification_suppressed') > 0 AS withheld,
+       countIf(event_type = 'notification_deferred') > 0
+         AND countIf(event_type = 'notification_suppressed') = 0 AS held
 FROM app.alert_events
 WHERE event_time >= now() - INTERVAL 7 DAY
   AND is_live
   AND event_type IN ('instance_fired', 'delivery_succeeded',
-                     'notification_suppressed')
+                     'notification_deferred', 'notification_suppressed')
 GROUP BY notification_event_id
 HAVING countIf(event_type = 'instance_fired'
                AND severity = 'critical'
@@ -1138,10 +1164,11 @@ lands as one recreation. Settled:
   builders or the column default. Without both changes here,
   `UUIDv7ToDateTime(event_id)` on an evaluation row decodes random bytes
   into a nonsense time instead of erroring. Node has no v7 generator, so
-  this needs one small helper. Delivery rows and terminal
-  `notification_suppressed` rows are the exceptions: their ids are
-  deterministic (delivery ids from the journal event and
-  `delivery_dedup_key`, suppression ids from the notification event alone),
+  this needs one small helper. Delivery rows, `notification_deferred`
+  rows and terminal `notification_suppressed` rows are the exceptions: their
+  ids are deterministic (delivery ids from the journal event and
+  `delivery_dedup_key`, suppression ids from the notification event alone,
+  hold ids from the notification event and the silence),
   so retries and repair inserts converge instead of duplicating; see
   Reconciliation and the `event_id` row in Reference. The scheme is decided
   here, at write time, so id semantics never flip mid-history.
