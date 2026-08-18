@@ -26,7 +26,11 @@ import {
   AlertingRuleUpdateSchema,
 } from "../schema";
 import type { AlertingMutationScope } from "../session";
-import type { AlertingRuleInput, AlertingRuleUpdate } from "../types";
+import type {
+  AlertingRuleHealthStatus,
+  AlertingRuleInput,
+  AlertingRuleUpdate,
+} from "../types";
 import {
   parseAlertEvaluationSamples,
   shapeAlertEvaluationSeries,
@@ -70,12 +74,22 @@ export function rollupAlertState(
   }
 }
 
+/**
+ * `degraded_since` is non-null exactly while the rule is degraded, so the
+ * status is read off it rather than stored beside it.
+ */
+function ruleHealthStatus(
+  degradedSince: Date | null,
+): AlertingRuleHealthStatus {
+  return degradedSince === null ? "healthy" : "degraded";
+}
+
 function ruleView(row: RuleRow) {
   return {
     ...ruleBase(row),
     updated_at: row.updatedAt.toISOString(),
     health: {
-      status: row.healthStatus,
+      status: ruleHealthStatus(row.degradedSince),
       consecutive_failures: row.consecutiveFailures,
       degraded_since: row.degradedSince?.toISOString() ?? null,
       last_error: row.lastError,
@@ -516,7 +530,6 @@ export async function pauseRule(
         // gets to run again.
         currentState: "unknown",
         firingInstanceCount: 0,
-        healthStatus: "healthy",
         consecutiveFailures: 0,
         degradedSince: null,
         updatedAt: now,

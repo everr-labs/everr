@@ -20,7 +20,6 @@ import type { AlertingMatcher, AlertingRuleSpec } from "@/data/alerting/types";
 import type { AlertingLifecycleReason } from "@/data/alerting/vocabulary";
 import {
   ALERTING_EVENT_TYPES,
-  ALERTING_HEALTH_STATUSES,
   ALERTING_INSTANCE_STATUSES,
   ALERTING_LIFECYCLE_REASONS,
   ALERTING_SEVERITIES,
@@ -44,8 +43,6 @@ export const alertInstanceStateEnum = pgEnum(
   "alert_instance_state",
   ALERTING_INSTANCE_STATUSES,
 );
-
-export const alertHealthEnum = pgEnum("alert_health", ALERTING_HEALTH_STATUSES);
 
 export const alertDeliveryStateEnum = pgEnum("alert_delivery_state", [
   "pending",
@@ -90,11 +87,12 @@ export const alertDefinitions = pgTable(
     active: boolean("active").notNull().default(true),
     lastError: text("last_error"),
     currentState: alertStateEnum("current_state").notNull().default("unknown"),
-    healthStatus: alertHealthEnum("health_status").notNull().default("healthy"),
     consecutiveFailures: integer("consecutive_failures").notNull().default(0),
+    // Non-null exactly while the rule is degraded, which is what the rule
+    // view reports as its health status. A separate status column could only
+    // ever restate this one.
     degradedSince: timestamp("degraded_since", { withTimezone: true }),
     lastErrorAt: timestamp("last_error_at", { withTimezone: true }),
-    lastEvaluatedAt: timestamp("last_evaluated_at", { withTimezone: true }),
     lastFiredAt: timestamp("last_fired_at", { withTimezone: true }),
     lastResolvedAt: timestamp("last_resolved_at", { withTimezone: true }),
     lastSeenAt: timestamp("last_seen_at", { withTimezone: true }),
@@ -195,13 +193,6 @@ export const alertInstances = pgTable(
       table.alertDefinitionId,
       table.fingerprint,
     ),
-    index("alert_instances_org_updated_idx").on(
-      table.organizationId,
-      sql`updated_at DESC`,
-    ),
-    index("alert_instances_org_firing_idx")
-      .on(table.organizationId, sql`updated_at DESC`)
-      .where(sql`${table.status} = 'firing'`),
     // Backs the retention sweep: it selects the oldest inactive rows across
     // every organization, so the index cannot lead on organization_id.
     index("alert_instances_inactive_updated_idx")
@@ -217,9 +208,6 @@ export const alertEvaluations = pgTable(
       .notNull()
       .references(() => alertDefinitions.id, { onDelete: "cascade" }),
     scheduledFor: timestamp("scheduled_for", { withTimezone: true }).notNull(),
-    appliedAt: timestamp("applied_at", { withTimezone: true })
-      .notNull()
-      .defaultNow(),
   },
   (table) => [
     primaryKey({ columns: [table.alertDefinitionId, table.scheduledFor] }),

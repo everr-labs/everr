@@ -355,7 +355,6 @@ describe("the alerting pipeline's instance lifecycle", () => {
       .select()
       .from(alertDefinitions)
       .where(eq(alertDefinitions.id, rule.id));
-    expect(afterFirstFailure.healthStatus).toBe("degraded");
     expect(afterFirstFailure.degradedSince).not.toBeNull();
     const firstBackoffSecs = alertingRetryDelaySeconds(
       60,
@@ -375,7 +374,6 @@ describe("the alerting pipeline's instance lifecycle", () => {
       .select()
       .from(alertDefinitions)
       .where(eq(alertDefinitions.id, rule.id));
-    expect(afterSecondFailure.healthStatus).toBe("degraded");
     // Set once: the second failure must not move it forward.
     expect(afterSecondFailure.degradedSince).toEqual(
       afterFirstFailure.degradedSince,
@@ -434,7 +432,7 @@ describe("the alerting pipeline's instance lifecycle", () => {
       .select()
       .from(alertDefinitions)
       .where(eq(alertDefinitions.id, rule.id));
-    expect(degraded.healthStatus).toBe("degraded");
+    expect(degraded.degradedSince).not.toBeNull();
     expect(degraded.consecutiveFailures).toBeGreaterThan(0);
 
     await pauseRule({ organizationId: TEST_ORG, actor: SYSTEM_ACTOR }, rule.id);
@@ -446,7 +444,6 @@ describe("the alerting pipeline's instance lifecycle", () => {
       .select()
       .from(alertDefinitions)
       .where(eq(alertDefinitions.id, rule.id));
-    expect(paused.healthStatus).toBe("healthy");
     expect(paused.consecutiveFailures).toBe(0);
     expect(paused.degradedSince).toBeNull();
   });

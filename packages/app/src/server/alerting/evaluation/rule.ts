@@ -309,10 +309,8 @@ async function recordEvaluationFailure(
       .update(alertDefinitions)
       .set({
         lastError: message,
-        lastEvaluatedAt: occurredAt,
         lastErrorAt: occurredAt,
         consecutiveFailures: sql`${alertDefinitions.consecutiveFailures} + 1`,
-        healthStatus: "degraded",
         degradedSince: sql`coalesce(${alertDefinitions.degradedSince}, now())`,
       })
       .where(eq(alertDefinitions.id, def.id));
@@ -582,10 +580,8 @@ async function evaluateAlertRule(
       .update(alertDefinitions)
       .set({
         lastError: null,
-        healthStatus: "healthy",
         consecutiveFailures: 0,
         degradedSince: null,
-        lastEvaluatedAt: evaluatedAt,
         lastSeenAt: present.length > 0 ? evaluatedAt : def.lastSeenAt,
         lastRowCount: evidence.rowCount,
         firingInstanceCount: firing.length,

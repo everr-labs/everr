@@ -175,7 +175,7 @@ describe("evaluateAlert scheduling state", () => {
     await expect(evaluateAlert(payload)).resolves.toBeUndefined();
 
     expect(mocks.definitionUpdates).toContainEqual(
-      expect.objectContaining({ healthStatus: "degraded" }),
+      expect.objectContaining({ degradedSince: expect.anything() }),
     );
     expect(mocks.definitionUpdates).toContainEqual(
       expect.objectContaining({ nextEvaluationAt: expect.any(Date) }),

@@ -273,14 +273,6 @@
           "notNull": true,
           "default": "'unknown'"
         },
-        "health_status": {
-          "name": "health_status",
-          "type": "alert_health",
-          "typeSchema": "public",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'healthy'"
-        },
         "consecutive_failures": {
           "name": "consecutive_failures",
           "type": "integer",
@@ -296,12 +288,6 @@
         },
         "last_error_at": {
           "name": "last_error_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "last_evaluated_at": {
-          "name": "last_evaluated_at",
           "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": false
@@ -805,13 +791,6 @@
           "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": true
-        },
-        "applied_at": {
-          "name": "applied_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
         }
       },
       "indexes": {
@@ -1309,49 +1288,6 @@
             }
           ],
           "isUnique": true,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "alert_instances_org_updated_idx": {
-          "name": "alert_instances_org_updated_idx",
-          "columns": [
-            {
-              "expression": "organization_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "updated_at DESC",
-              "asc": true,
-              "isExpression": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "alert_instances_org_firing_idx": {
-          "name": "alert_instances_org_firing_idx",
-          "columns": [
-            {
-              "expression": "organization_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "updated_at DESC",
-              "asc": true,
-              "isExpression": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "where": "\"alert_instances\".\"status\" = 'firing'",
           "concurrently": false,
           "method": "btree",
           "with": {}
@@ -4526,14 +4462,6 @@
         "instance_resolved",
         "instance_closed",
         "evaluation_failed"
-      ]
-    },
-    "public.alert_health": {
-      "name": "alert_health",
-      "schema": "public",
-      "values": [
-        "healthy",
-        "degraded"
       ]
     },
     "public.alert_instance_state": {

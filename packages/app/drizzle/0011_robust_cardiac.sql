@@ -5,7 +5,6 @@ ALTER TYPE "public"."alert_state" ADD VALUE 'pending' BEFORE 'firing';--> statem
 CREATE TYPE "public"."alert_delivery_state" AS ENUM('pending', 'sent', 'failed');--> statement-breakpoint
 CREATE TYPE "public"."alert_event_kind" AS ENUM('notifying', 'state');--> statement-breakpoint
 CREATE TYPE "public"."alert_event_type" AS ENUM('instance_pending', 'instance_fired', 'instance_resolved', 'instance_closed', 'evaluation_failed');--> statement-breakpoint
-CREATE TYPE "public"."alert_health" AS ENUM('healthy', 'degraded');--> statement-breakpoint
 CREATE TYPE "public"."alert_instance_state" AS ENUM('inactive', 'pending', 'firing');--> statement-breakpoint
 CREATE TYPE "public"."alert_severity" AS ENUM('info', 'warning', 'critical');--> statement-breakpoint
 CREATE TABLE "alert_definitions" (
@@ -24,11 +23,9 @@ CREATE TABLE "alert_definitions" (
 	"active" boolean DEFAULT true NOT NULL,
 	"last_error" text,
 	"current_state" "alert_state" DEFAULT 'unknown' NOT NULL,
-	"health_status" "alert_health" DEFAULT 'healthy' NOT NULL,
 	"consecutive_failures" integer DEFAULT 0 NOT NULL,
 	"degraded_since" timestamp with time zone,
 	"last_error_at" timestamp with time zone,
-	"last_evaluated_at" timestamp with time zone,
 	"last_fired_at" timestamp with time zone,
 	"last_resolved_at" timestamp with time zone,
 	"last_seen_at" timestamp with time zone,
@@ -91,7 +88,6 @@ CREATE TABLE "alert_delivery_events" (
 CREATE TABLE "alert_evaluations" (
 	"alert_definition_id" uuid NOT NULL,
 	"scheduled_for" timestamp with time zone NOT NULL,
-	"applied_at" timestamp with time zone DEFAULT now() NOT NULL,
 	CONSTRAINT "alert_evaluations_alert_definition_id_scheduled_for_pk" PRIMARY KEY("alert_definition_id","scheduled_for")
 );
 --> statement-breakpoint
@@ -197,8 +193,6 @@ CREATE INDEX "alert_events_processed_idx" ON "alert_events" USING btree ("proces
 CREATE INDEX "alert_events_held_silence_idx" ON "alert_events" USING btree ("silence_id") WHERE "alert_events"."processed_at" IS NULL AND "alert_events"."silence_id" IS NOT NULL;--> statement-breakpoint
 CREATE INDEX "alert_default_channels_channel_idx" ON "alert_default_channels" USING btree ("channel_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "alert_instances_definition_fingerprint_uq" ON "alert_instances" USING btree ("alert_definition_id","fingerprint");--> statement-breakpoint
-CREATE INDEX "alert_instances_org_updated_idx" ON "alert_instances" USING btree ("organization_id",updated_at DESC);--> statement-breakpoint
-CREATE INDEX "alert_instances_org_firing_idx" ON "alert_instances" USING btree ("organization_id",updated_at DESC) WHERE "alert_instances"."status" = 'firing';--> statement-breakpoint
 CREATE INDEX "alert_notification_group_events_event_idx" ON "alert_notification_group_events" USING btree ("event_id");--> statement-breakpoint
 CREATE INDEX "alert_definitions_org_updated_idx" ON "alert_definitions" USING btree ("organization_id",updated_at DESC,id DESC);--> statement-breakpoint
 CREATE INDEX "alert_events_cancelable_idx" ON "alert_events" USING btree ("organization_id","source_definition_id") WHERE "alert_events"."processed_at" IS NULL;--> statement-breakpoint
