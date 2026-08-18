@@ -38,7 +38,7 @@ Use this rule when investigating web-app behavior: page views, clicks, web vital
 | `browser.web_vital` | One per metric (lcp, cls, ttfb, inp) per navigation | see below |
 | `exception` | Frontend error (unhandled, unhandled rejection, React boundary, or manual capture) | see below |
 
-Element attributes, shared by everything that names a DOM element: `everr.element.selector` (stable CSS path, the one spelling across all signals: nearest `#id` anchor, then `tag.class` steps using digit-free classes, positional `:nth-of-type` only as a last resort), `everr.element.tag`, `everr.element.href`, `everr.viewport.width`/`height`. The SDK never captures element text or input values.
+Element attributes, shared by everything that names a DOM element: `everr.element.selector` (stable CSS path, the one spelling across all signals: nearest `#id` anchor, then per step a naming attribute (`aria-label`, `type`, `name`, `title`, `alt`) and digit-free classes on the tag, positional `:nth-of-type` only as a last resort), `everr.element.tag`, `everr.element.href`, `everr.viewport.width`/`height`. The SDK never captures element text or input values.
 
 ### Web vitals
 

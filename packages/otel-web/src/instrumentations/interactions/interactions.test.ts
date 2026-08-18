@@ -199,6 +199,30 @@ describe("startInteractions", () => {
       );
     });
 
+    it("names an element by its naming attribute before classes or position", () => {
+      document.body.innerHTML =
+        '<div class="toolbar"><button aria-label="Close" class="mx-2"></button>' +
+        "<button>two</button></div>";
+      rageBurst(document.querySelector("button") as Element);
+      const rage = emitted.find(
+        (e) => e.name === "everr.browser.interaction.rage_click",
+      );
+      expect(rage?.attrs?.["everr.element.selector"]).toBe(
+        'body > div.toolbar > button[aria-label="Close"]',
+      );
+    });
+
+    it("quotes an id that is not a plain identifier", () => {
+      document.body.innerHTML = '<div id="user:42"><span>x</span></div>';
+      rageBurst(document.querySelector("span") as Element);
+      const rage = emitted.find(
+        (e) => e.name === "everr.browser.interaction.rage_click",
+      );
+      expect(rage?.attrs?.["everr.element.selector"]).toBe(
+        '[id="user:42"] > span',
+      );
+    });
+
     it("skips clicks on password and hidden inputs", () => {
       document.body.innerHTML = '<input type="password">';
       click(document.querySelector("input") as Element);

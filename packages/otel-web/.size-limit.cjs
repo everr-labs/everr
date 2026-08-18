@@ -30,11 +30,12 @@ module.exports = [
     limit: "3.6 KB",
   },
   {
+    // Raised for the naming attributes in the element selector.
     name: "core + interactions",
     path: "dist/index.js",
     import: "{ WebSDK, interactions }",
     gzip: true,
-    limit: "4 KB",
+    limit: "4.3 KB",
   },
   {
     // The heaviest instrumentation: the in-house web vitals (LCP/CLS/TTFB/INP)
@@ -70,6 +71,6 @@ module.exports = [
     import:
       "{ WebSDK, errors, pageviews, interactions, performance, pageLoad, network, sampled }",
     gzip: true,
-    limit: "9.5 KB",
+    limit: "9.8 KB",
   },
 ];
