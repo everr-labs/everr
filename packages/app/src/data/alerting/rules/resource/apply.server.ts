@@ -6,7 +6,7 @@ import { ApplyValidationError } from "@/data/as-code/errors";
 import { formatResourceName, parseResourceName } from "@/data/as-code/identity";
 import type { OwnershipConflict } from "@/data/as-code/ownership";
 import { stableStringify } from "@/data/as-code/reconcile";
-import type { Reconciler } from "@/data/as-code/registry";
+import type { ApplyCache, Reconciler } from "@/data/as-code/registry";
 import { authEnv } from "@/env/auth";
 import { querySqlApiWithMeta, type SqlApiResult } from "@/lib/clickhouse";
 import { createLimiter } from "@/lib/limiter";
@@ -169,6 +169,46 @@ async function validateAlertRuleQuery(
   return { instanceLabelColumns, ...(warning ? { warning } : {}) };
 }
 
+type AlertQueryValidation = Awaited<ReturnType<typeof validateAlertRuleQuery>>;
+
+/**
+ * The validation above reads the query's column metadata, never its rows, so
+ * its outcome is a function of the document alone. That lets the two passes of
+ * one apply share a single ClickHouse round trip per rule. The key carries the
+ * path and the org because both appear in the result the caller gets back.
+ */
+function validationCacheKey(
+  path: string,
+  rule: AlertRuleYaml,
+  organizationId: string,
+): string {
+  return `alert-query:${stableStringify({
+    organizationId,
+    path,
+    query: rule.spec.query,
+    instanceLabels: rule.spec.instanceLabels ?? null,
+    message: rule.spec.notificationMessage,
+  })}`;
+}
+
+function cachedQueryValidation(
+  cache: ApplyCache | undefined,
+  path: string,
+  rule: AlertRuleYaml,
+  organizationId: string,
+  start: () => Promise<AlertQueryValidation>,
+): Promise<AlertQueryValidation> {
+  if (!cache) return start();
+  const key = validationCacheKey(path, rule, organizationId);
+  const cached = cache.get(key) as Promise<AlertQueryValidation> | undefined;
+  if (cached) return cached;
+  // The promise, not its result: two rules validating concurrently on the same
+  // key share one round trip instead of racing to store the second.
+  const started = start();
+  cache.set(key, started);
+  return started;
+}
+
 const VALIDATION_QUERY_CONCURRENCY = 8;
 
 function specFingerprint(spec: Record<string, unknown>): string {
@@ -186,6 +226,7 @@ export const applyAlertSpecs: Reconciler = async ({
   dryRun,
   adopt,
   db: executor,
+  cache,
 }): Promise<ApplyAlertsResult> => {
   const { orgId, repoid } = namespace;
   // A missing first-apply preview id scopes to no existing rules.
@@ -213,8 +254,10 @@ export const applyAlertSpecs: Reconciler = async ({
   const runValidation = createLimiter(VALIDATION_QUERY_CONCURRENCY);
   const validationsPromise = Promise.allSettled(
     parsed.map((p) =>
-      runValidation(undefined, () =>
-        validateAlertRuleQuery(p.path, p.rule, orgId),
+      cachedQueryValidation(cache, p.path, p.rule, orgId, () =>
+        runValidation(undefined, () =>
+          validateAlertRuleQuery(p.path, p.rule, orgId),
+        ),
       ),
     ),
   );

@@ -305,6 +305,55 @@ describe("applyAlertSpecs", () => {
     expect(mockedDeleteRule).not.toHaveBeenCalled();
   });
 
+  // An apply reconciles every kind twice: once to validate, once to write.
+  it("validates a rule's query once across both passes of one apply", async () => {
+    const cache = new Map<string, unknown>();
+    const resources = [{ path: "a.yaml", resource: alert() }];
+
+    await applyAlertSpecs({
+      namespace: live,
+      db,
+      resources,
+      dryRun: true,
+      cache,
+    });
+    const res = await applyAlertSpecs({
+      namespace: live,
+      db,
+      resources,
+      cache,
+    });
+
+    expect(ch).toHaveBeenCalledTimes(1);
+    expect(res.created).toEqual(["default/high-errors"]);
+  });
+
+  it("revalidates a rule whose query changed", async () => {
+    const cache = new Map<string, unknown>();
+
+    await applyAlertSpecs({
+      namespace: live,
+      db,
+      resources: [{ path: "a.yaml", resource: alert() }],
+      dryRun: true,
+      cache,
+    });
+    await applyAlertSpecs({
+      namespace: live,
+      db,
+      resources: [
+        {
+          path: "a.yaml",
+          resource: alert("high-errors", { query: CHANGED_SQL }),
+        },
+      ],
+      dryRun: true,
+      cache,
+    });
+
+    expect(ch).toHaveBeenCalledTimes(2);
+  });
+
   it("preview apply creates a rule that evaluates but never notifies", async () => {
     const res = await applyAlertSpecs({
       namespace: preview("p1"),

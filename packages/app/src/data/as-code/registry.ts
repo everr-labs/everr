@@ -30,6 +30,15 @@ export interface ApplyResourcesResult {
   results: KindResult[];
 }
 
+/**
+ * Scratch space shared by the validation pass and the write pass of one apply.
+ * A reconciler runs twice per apply (see `applyResources`), so work that only
+ * depends on the submitted documents can be done once and reused. Keys are
+ * namespaced by the reconciler that owns them; values are whatever that
+ * reconciler stored, including in-flight promises.
+ */
+export type ApplyCache = Map<string, unknown>;
+
 /** A reconciler makes the repo's resources of one kind match the given entries. */
 export type Reconciler = (opts: {
   /** The apply target — live or a preview, carrying its (org, repoid). Scopes
@@ -44,6 +53,9 @@ export type Reconciler = (opts: {
   /** Runs queries: the shared apply transaction for real runs, base db for
    * dry-run reads. */
   db: DbExecutor;
+  /** Shared across this apply's two passes. Absent when a reconciler is called
+   * on its own, which just means nothing is reused. */
+  cache?: ApplyCache;
 }) => Promise<{
   created: string[];
   updated: string[];
@@ -156,6 +168,9 @@ export async function applyResources(opts: {
   // is also the result.
   const validated: KindResult[] = [];
   const conflicts: (OwnershipConflict & { kind: string })[] = [];
+  // Both passes see the same submitted documents, so document-only work (the
+  // per-rule ClickHouse schema check, above all) runs once instead of twice.
+  const cache: ApplyCache = new Map();
   for (const { key, kind, reconcile } of REGISTRY) {
     validateResourceKind(state[key], kind);
     const r = await reconcile({
@@ -165,6 +180,7 @@ export async function applyResources(opts: {
       dryRun: true,
       adopt,
       db,
+      cache,
     });
     validated.push(summarize(kind, r));
     for (const c of r.conflicts) conflicts.push({ kind, ...c });
@@ -235,6 +251,7 @@ export async function applyResources(opts: {
         dryRun: false,
         adopt,
         db: tx,
+        cache,
       });
       results.push(summarize(kind, r));
     }
