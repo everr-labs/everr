@@ -87,6 +87,7 @@ export async function recordDeliveryOutcome(opts: {
           ...(opts.error === undefined ? {} : { error: opts.error }),
         }),
       ),
+      { convergesOnRetry: true },
     );
   } catch (cause) {
     serverLogger.error("alerts.history.delivery_outcome_failed", {

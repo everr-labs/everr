@@ -67,5 +67,6 @@ export async function recordPreviewTeardownClosures(
         reason: "preview_deleted",
       }),
     ),
+    { convergesOnRetry: false },
   );
 }

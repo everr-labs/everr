@@ -77,8 +77,13 @@ describe("ClickHouse alert history", () => {
       contextJson: '{"summary":"42 errors"}',
     });
 
-    await recordAlertHistory(def.id, [evaluation, transition]);
+    await recordAlertHistory(def.id, [evaluation, transition], {
+      convergesOnRetry: false,
+    });
 
+    // No deduplication token: an evaluation mints fresh uuidv7 ids on every
+    // attempt, so the token could never match a previous insert, and a token
+    // that differs every time gives each insert its own async-insert buffer.
     expect(mocks.insertAdminRows).toHaveBeenCalledWith(
       "app.alert_events",
       [evaluation, transition],
@@ -86,7 +91,6 @@ describe("ClickHouse alert history", () => {
         async_insert: 1,
         wait_for_async_insert: 1,
         date_time_input_format: "best_effort",
-        insert_deduplication_token: `app.alert_events:${[evaluation.event_id, transition.event_id].sort().join(",")}`,
       },
     );
     expect(evaluation).toMatchObject({
@@ -390,18 +394,22 @@ describe("ClickHouse alert history", () => {
     mocks.insertAdminRows.mockRejectedValue(new Error("unavailable"));
 
     await expect(
-      recordAlertHistory(def.id, [
-        evaluationHistoryRow({
-          def,
-          scheduledFor,
-          occurredAt,
-          rowCount: 0,
-          evidenceJson: "[]",
-          evidenceTruncated: false,
-          samples: [],
-          samplesTruncated: false,
-        }),
-      ]),
+      recordAlertHistory(
+        def.id,
+        [
+          evaluationHistoryRow({
+            def,
+            scheduledFor,
+            occurredAt,
+            rowCount: 0,
+            evidenceJson: "[]",
+            evidenceTruncated: false,
+            samples: [],
+            samplesTruncated: false,
+          }),
+        ],
+        { convergesOnRetry: false },
+      ),
     ).resolves.toBeUndefined();
     expect(mocks.error).toHaveBeenCalledWith(
       "alerts.history.insert_failed",

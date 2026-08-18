@@ -392,20 +392,24 @@ export async function flushAlertGroup(rawPayload: unknown): Promise<void> {
     droppedUnannounced.length > 0 ||
     noChannelDrops.length > 0
   ) {
-    await recordAlertHistory(null, [
-      ...droppedRows.map(({ row: { event }, reason }) =>
-        journalTerminalRow(event, { reason }),
-      ),
-      // A resolve whose fire never went out: nobody was ever told this
-      // instance was firing, so the resolve does not notify either, but its
-      // chain still needs a terminal so it does not read as forever in
-      // flight.
-      ...droppedUnannounced.map((event) => journalTerminalRow(event)),
-      // A rule or tier with no channels attached: nothing was sent, but
-      // the flush still marked these flushed.
-      ...noChannelDrops.map((event) =>
-        journalTerminalRow(event, { reason: "no_channels" }),
-      ),
-    ]);
+    await recordAlertHistory(
+      null,
+      [
+        ...droppedRows.map(({ row: { event }, reason }) =>
+          journalTerminalRow(event, { reason }),
+        ),
+        // A resolve whose fire never went out: nobody was ever told this
+        // instance was firing, so the resolve does not notify either, but its
+        // chain still needs a terminal so it does not read as forever in
+        // flight.
+        ...droppedUnannounced.map((event) => journalTerminalRow(event)),
+        // A rule or tier with no channels attached: nothing was sent, but
+        // the flush still marked these flushed.
+        ...noChannelDrops.map((event) =>
+          journalTerminalRow(event, { reason: "no_channels" }),
+        ),
+      ],
+      { convergesOnRetry: true },
+    );
   }
 }

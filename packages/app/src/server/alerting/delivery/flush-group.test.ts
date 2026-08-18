@@ -392,6 +392,10 @@ describe("flushAlertGroup flap handling", () => {
       expect.arrayContaining([
         expect.objectContaining({ notificationEventId: "resolve-event" }),
       ]),
+      // The terminal's id derives from the notification event, so a retried
+      // flush rebuilds it and the write converges instead of journaling a
+      // second terminal.
+      { convergesOnRetry: true },
     );
     const [, rows] = mocks.recordHistory.mock.calls[0] as unknown as [
       unknown,

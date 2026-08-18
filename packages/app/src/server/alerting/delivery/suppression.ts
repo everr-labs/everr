@@ -173,12 +173,16 @@ export async function deferSuppressedEvent(
   // a suppression. The id derives from the event and the silence, so the two
   // defer paths and their retries converge on one row per hold.
   if (shouldRetry) {
-    await recordAlertHistory(event.sourceDefinitionId, [
-      journalHoldRow(event, silence),
-    ]);
+    await recordAlertHistory(
+      event.sourceDefinitionId,
+      [journalHoldRow(event, silence)],
+      { convergesOnRetry: true },
+    );
     return;
   }
-  await recordAlertHistory(event.sourceDefinitionId, [
-    journalTerminalRow(event, { silence }),
-  ]);
+  await recordAlertHistory(
+    event.sourceDefinitionId,
+    [journalTerminalRow(event, { silence })],
+    { convergesOnRetry: true },
+  );
 }

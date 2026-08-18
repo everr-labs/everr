@@ -508,18 +508,28 @@ function alertHistoryDedupToken(rows: readonly AlertHistoryRow[]): string {
 /**
  * `sync` waits for the write instead of batching it. The rare lifecycle
  * projection takes it, where the stronger write is cheap; the hot path does
- * not. The token, not the insert mode, is what makes a retry converge: it
- * dedups under async_insert too, which is why both modes carry the same one.
+ * not.
+ *
+ * `convergesOnRetry` is what earns the deduplication token, and only the
+ * caller knows it: the token converges a retry onto one row when the retry
+ * rebuilds the same event ids, and a batch whose ids are minted fresh per
+ * attempt (`uuidv7`) can never do that. The token is not free where it cannot
+ * work, because ClickHouse keys the async-insert buffer on the settings as
+ * well as the query, so a token that differs on every insert gives every
+ * insert its own buffer and its own part. The table earns the token in the
+ * first place through `non_replicated_deduplication_window` in the DDL.
  */
 function insertAlertHistoryRows(
   rows: AlertHistoryRow[],
-  { sync }: { sync: boolean },
+  { sync, convergesOnRetry }: { sync: boolean; convergesOnRetry: boolean },
 ): Promise<void> {
   return insertAdminRows("app.alert_events", rows, {
     async_insert: sync ? 0 : 1,
     ...(sync ? {} : { wait_for_async_insert: 1 }),
     date_time_input_format: "best_effort",
-    insert_deduplication_token: alertHistoryDedupToken(rows),
+    ...(convergesOnRetry
+      ? { insert_deduplication_token: alertHistoryDedupToken(rows) }
+      : {}),
   });
 }
 
@@ -535,7 +545,9 @@ export async function recordAlertHistoryStrict(
   rows: AlertHistoryRow[],
 ): Promise<void> {
   if (rows.length === 0) return;
-  await insertAlertHistoryRows(rows, { sync: true });
+  // Its one caller projects rows whose ids it read from the PostgreSQL
+  // journal, so a retry rebuilds the same ids and the token converges.
+  await insertAlertHistoryRows(rows, { sync: true, convergesOnRetry: true });
 }
 
 export async function recordAlertHistory(
@@ -543,10 +555,13 @@ export async function recordAlertHistory(
   // misattribute the whole failure to one rule.
   definitionId: string | null,
   rows: AlertHistoryRow[],
+  // Stated, never defaulted: whichever way it defaulted, a new caller would
+  // silently lose either its convergence or the hot path's insert batching.
+  { convergesOnRetry }: { convergesOnRetry: boolean },
 ): Promise<void> {
   if (rows.length === 0) return;
   try {
-    await insertAlertHistoryRows(rows, { sync: false });
+    await insertAlertHistoryRows(rows, { sync: false, convergesOnRetry });
   } catch (error) {
     serverLogger.error("alerts.history.insert_failed", {
       ...exceptionAttributes(error),

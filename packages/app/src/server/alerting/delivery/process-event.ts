@@ -51,9 +51,11 @@ export async function processAlertEvent(rawPayload: unknown): Promise<void> {
     // fired, so notifying a resolve later would announce an alert that was
     // never announced as firing; the chain still needs a terminal so it does
     // not read as forever in flight.
-    await recordAlertHistory(event.sourceDefinitionId, [
-      journalTerminalRow(event, { reason: "no_longer_firing" }),
-    ]);
+    await recordAlertHistory(
+      event.sourceDefinitionId,
+      [journalTerminalRow(event, { reason: "no_longer_firing" })],
+      { convergesOnRetry: true },
+    );
     return;
   }
   const silence = await matchingSilence(event, now);
@@ -81,9 +83,11 @@ export async function processAlertEvent(rawPayload: unknown): Promise<void> {
     // default destination for this severity. No group is created, so no
     // flush runs and no flush terminal can ever land. The chain gets its
     // terminal here instead of reading as forever in flight.
-    await recordAlertHistory(event.sourceDefinitionId, [
-      journalTerminalRow(event, { reason: "no_channels" }),
-    ]);
+    await recordAlertHistory(
+      event.sourceDefinitionId,
+      [journalTerminalRow(event, { reason: "no_channels" })],
+      { convergesOnRetry: true },
+    );
     return;
   }
   // One transaction for every membership plus the processed stamp. The stamp

@@ -335,14 +335,18 @@ async function recordEvaluationFailure(
     return true;
   });
   if (applied) {
-    await recordAlertHistory(def.id, [
-      evaluationFailureHistoryRow({
-        def: historyDefFromDefinitionRow(def),
-        scheduledFor,
-        occurredAt,
-        error: message,
-      }),
-    ]);
+    await recordAlertHistory(
+      def.id,
+      [
+        evaluationFailureHistoryRow({
+          def: historyDefFromDefinitionRow(def),
+          scheduledFor,
+          occurredAt,
+          error: message,
+        }),
+      ],
+      { convergesOnRetry: false },
+    );
   }
   serverLogger.warn("alerts.evaluate.query_failed", {
     ...exceptionAttributes(cause),
@@ -643,18 +647,22 @@ async function evaluateAlertRule(
         "everr.alert.for_secs": def.spec.for_secs,
       });
     }
-    await recordAlertHistory(def.id, [
-      evaluationHistoryRow({
-        def: historyDef,
-        scheduledFor,
-        occurredAt: evaluatedAt,
-        rowCount: evidence.rowCount,
-        evidenceJson: evidence.json,
-        evidenceTruncated: evidence.truncated,
-        samples: capturedSamples.samples,
-        samplesTruncated: capturedSamples.truncated,
-      }),
-      ...transitionEvents.map(({ history }) => history),
-    ]);
+    await recordAlertHistory(
+      def.id,
+      [
+        evaluationHistoryRow({
+          def: historyDef,
+          scheduledFor,
+          occurredAt: evaluatedAt,
+          rowCount: evidence.rowCount,
+          evidenceJson: evidence.json,
+          evidenceTruncated: evidence.truncated,
+          samples: capturedSamples.samples,
+          samplesTruncated: capturedSamples.truncated,
+        }),
+        ...transitionEvents.map(({ history }) => history),
+      ],
+      { convergesOnRetry: false },
+    );
   }
 }
