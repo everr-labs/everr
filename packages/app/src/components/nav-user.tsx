@@ -91,9 +91,13 @@ export function NavUser() {
                 initials
               )}
             </div>
-            <div className="grid flex-1 text-left text-sm leading-tight">
-              <span className="truncate font-medium">{fullName}</span>
-              <span className="truncate text-xs">{activeOrg?.name ?? " "}</span>
+            <div className="grid flex-1 text-left text-sm leading-tight transition-opacity duration-200 ease-sidebar motion-reduce:transition-none group-data-[collapsible=icon]:opacity-0">
+              <span className="overflow-hidden whitespace-nowrap font-medium">
+                {fullName}
+              </span>
+              <span className="overflow-hidden whitespace-nowrap text-xs">
+                {activeOrg?.name ?? " "}
+              </span>
             </div>
             <ChevronsUpDown className="ml-auto size-4" />
           </DropdownMenuTrigger>

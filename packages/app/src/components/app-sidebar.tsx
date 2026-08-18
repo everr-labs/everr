@@ -24,9 +24,11 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
               <div className="bg-sidebar-primary text-sidebar-primary-foreground flex aspect-square size-8 items-center justify-center rounded-lg">
                 <Citrus />
               </div>
-              <div className="grid flex-1 text-left text-sm leading-tight">
-                <span className="truncate font-semibold">Everr</span>
-                <span className="truncate text-xs">
+              <div className="grid flex-1 text-left text-sm leading-tight transition-opacity duration-200 ease-sidebar motion-reduce:transition-none group-data-[collapsible=icon]:opacity-0">
+                <span className="overflow-hidden whitespace-nowrap font-semibold">
+                  Everr
+                </span>
+                <span className="overflow-hidden whitespace-nowrap text-xs">
                   Observability made simple
                 </span>
               </div>
