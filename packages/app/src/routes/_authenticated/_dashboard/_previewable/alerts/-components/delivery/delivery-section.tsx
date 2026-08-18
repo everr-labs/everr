@@ -1,3 +1,14 @@
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@everr/ui/components/alert-dialog";
 import { Button } from "@everr/ui/components/button";
 import {
   Card,
@@ -55,6 +66,64 @@ function draftFromDestination(
   };
 }
 
+function tiersFromDraft(split: boolean, draft: DestinationDraft) {
+  if (split)
+    return Object.fromEntries(
+      SEVERITY_TIERS.filter((tier) => draft[tier].length > 0).map((tier) => [
+        tier,
+        draft[tier],
+      ]),
+    );
+  return draft.all.length > 0 ? { all: draft.all } : {};
+}
+
+function destinationHasChannels(destination: AlertingDefaultDestination) {
+  return Object.values(destination.tiers).some(
+    (channels) => channels.length > 0,
+  );
+}
+
+/**
+ * Saving an empty selection deletes every default-channel row, so the save
+ * that stops all delivery states its cost before it commits.
+ */
+function ConfirmClearDelivery({
+  pending,
+  onConfirm,
+}: {
+  pending: boolean;
+  onConfirm: () => void;
+}) {
+  return (
+    <AlertDialog>
+      <AlertDialogTrigger render={<Button disabled={pending} />}>
+        Save delivery
+      </AlertDialogTrigger>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Stop delivering to every channel?</AlertDialogTitle>
+          <AlertDialogDescription>
+            The default destination keeps no channels. Alerts still fire and
+            still reach the history, but nobody is notified unless the rule
+            names its own channels.
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel disabled={pending}>Cancel</AlertDialogCancel>
+          <AlertDialogAction
+            variant="destructive"
+            aria-busy={pending}
+            disabled={pending}
+            onClick={onConfirm}
+          >
+            Save with no channels
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
+  );
+}
+
 function ChannelChecklist({
   tier,
   channels,
@@ -100,7 +169,9 @@ function DeliveryEditor({
   open: boolean;
   onOpenChange: (o: boolean) => void;
   channels: AlertingChannel[];
-  destination: AlertingDefaultDestination | undefined;
+  /** Resolved, never pending: a draft seeded from an unread destination
+   * saves an empty selection and deletes the live one. */
+  destination: AlertingDefaultDestination;
 }) {
   const qc = useQueryClient();
   const initial = draftFromDestination(destination);
@@ -115,19 +186,12 @@ function DeliveryEditor({
         : [...d[tier], channelName],
     }));
 
+  const tiers = tiersFromDraft(split, draft);
+  const clearsDelivery =
+    Object.keys(tiers).length === 0 && destinationHasChannels(destination);
+
   const save = useMutation({
-    mutationFn: () => {
-      const tiers = split
-        ? Object.fromEntries(
-            SEVERITY_TIERS.filter((tier) => draft[tier].length > 0).map(
-              (tier) => [tier, draft[tier]],
-            ),
-          )
-        : draft.all.length > 0
-          ? { all: draft.all }
-          : {};
-      return setAlertingDefaultDestination({ data: { tiers } });
-    },
+    mutationFn: () => setAlertingDefaultDestination({ data: { tiers } }),
     onSuccess: () => {
       qc.invalidateQueries({
         queryKey: deliveryQueries.defaultDestination().queryKey,
@@ -148,9 +212,16 @@ function DeliveryEditor({
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
-          <Button disabled={save.isPending} onClick={() => save.mutate()}>
-            Save delivery
-          </Button>
+          {clearsDelivery ? (
+            <ConfirmClearDelivery
+              pending={save.isPending}
+              onConfirm={() => save.mutate()}
+            />
+          ) : (
+            <Button disabled={save.isPending} onClick={() => save.mutate()}>
+              Save delivery
+            </Button>
+          )}
         </>
       }
     >
@@ -267,6 +338,7 @@ export function DeliverySection({
           <Button
             variant="outline"
             className="h-10 sm:h-8"
+            disabled={isPending || isError}
             onClick={() => onEditingChange(true)}
           >
             <Pencil data-icon="inline-start" />
@@ -295,7 +367,7 @@ export function DeliverySection({
         </SectionBody>
       </CardContent>
       {/* Remount per open so the draft re-reads the saved destination. */}
-      {editing && (
+      {editing && data && (
         <DeliveryEditor
           open={editing}
           onOpenChange={onEditingChange}
