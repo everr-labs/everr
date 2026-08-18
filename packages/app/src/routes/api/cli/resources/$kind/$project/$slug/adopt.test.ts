@@ -1,5 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
-import { adoptResource } from "@/data/as-code/resource-admin.server";
+import {
+  adoptResource,
+  ReservedProjectError,
+} from "@/data/as-code/resource-admin.server";
 import { getRouteHandler } from "../../../../-test-utils";
 import { Route } from "./adopt";
 
@@ -80,5 +83,15 @@ describe("POST .../adopt", () => {
     const res = await post({ repoid: "" }, rwCtx);
     expect(res.status).toBe(400);
     expect(mockedAdopt).not.toHaveBeenCalled();
+  });
+
+  it("403s when the admin layer rejects the reserved project", async () => {
+    mockedAdopt.mockRejectedValueOnce(new ReservedProjectError("adopted"));
+    const res = await post({ repoid: "github.com/acme/app" }, rwCtx, {
+      kind: "dashboard",
+      project: "built-in",
+      slug: "log-overview",
+    });
+    expect(res.status).toBe(403);
   });
 });
