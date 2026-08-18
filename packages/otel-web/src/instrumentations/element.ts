@@ -73,10 +73,9 @@ export function selectorOf(el: Element): string {
   let best = "";
   let bestCount = Infinity;
   for (let node: Element | null = el; node; node = node.parentElement) {
-    let part = stableName.test(node.id)
-      ? `#${node.id}`
-      : node.tagName.toLowerCase();
-    if (part[0] !== "#") {
+    let part = `#${node.id}`;
+    if (!stableName.test(node.id)) {
+      part = node.tagName.toLowerCase();
       for (const name of NAME_ATTRS) {
         const value = node.getAttribute(name);
         if (value) {
@@ -84,10 +83,12 @@ export function selectorOf(el: Element): string {
           break;
         }
       }
-      for (const c of [...node.classList]
-        .filter((c) => stableName.test(c))
-        .slice(0, 3))
-        part += `.${c}`;
+      let left = 3;
+      for (const c of node.classList)
+        if (left && stableName.test(c)) {
+          left--;
+          part += `.${c}`;
+        }
     }
     sel = sel ? `${part} > ${sel}` : part;
     const count = document.querySelectorAll(sel).length;

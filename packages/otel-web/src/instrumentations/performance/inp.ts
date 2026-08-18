@@ -485,21 +485,21 @@ function phaseAttrs(
     totalPaint = nextPaintTime - lastLoafEnd;
   }
 
-  attrs["everr.browser.interaction.total_script_duration"] = totalScript;
-  attrs["everr.browser.interaction.total_style_and_layout_duration"] =
-    totalStyleAndLayout;
-  attrs["everr.browser.interaction.total_paint_duration"] = totalPaint;
-  attrs["everr.browser.interaction.total_unattributed_duration"] =
-    nextPaintTime -
-    interactionTime -
-    totalScript -
-    totalStyleAndLayout -
-    totalPaint;
-  if (longest) {
-    Object.assign(
-      attrs,
+  return Object.assign(
+    attrs,
+    {
+      "everr.browser.interaction.total_script_duration": totalScript,
+      "everr.browser.interaction.total_style_and_layout_duration":
+        totalStyleAndLayout,
+      "everr.browser.interaction.total_paint_duration": totalPaint,
+      "everr.browser.interaction.total_unattributed_duration":
+        nextPaintTime -
+        interactionTime -
+        totalScript -
+        totalStyleAndLayout -
+        totalPaint,
+    },
+    longest &&
       scriptAttrs("everr.browser.interaction", longest, longestDuration),
-    );
-  }
-  return attrs;
+  );
 }
