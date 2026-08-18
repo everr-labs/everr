@@ -19,10 +19,16 @@
 -- rows (a wrong answer, not an error), so the backfill at the bottom is not
 -- optional.
 
-GRANT SELECT ON app.alert_events TO sql_api_role;
-
+-- The default-deny policy comes first, and the order is load-bearing:
+-- ClickHouse returns every row when no row policy applies to a user for a
+-- table, so granting first opens a window in which every provisioned
+-- sql_api_org_* user reads every tenant's alert history. The window lasts
+-- until the next statement, and this file's stated audience is a runner that
+-- sends one query per request, which can stop between the two.
 CREATE ROW POLICY IF NOT EXISTS sql_api_default_deny_alert_events
   ON app.alert_events FOR SELECT USING 0 TO sql_api_role;
+
+GRANT SELECT ON app.alert_events TO sql_api_role;
 
 -- MANDATORY SECOND STEP, not documentation: the query below is a SELECT that
 -- GENERATES CREATE ROW POLICY statements as text; it does not run them. A

@@ -56,6 +56,16 @@ export async function query<T>(
   return result.json<T>();
 }
 
+// Every provisioning statement interpolates the organization id into DDL: the
+// username inside backticks, and the tenant id inside the row policy's string
+// literal. better-auth generates the id today, so it is not caller-chosen,
+// and this keeps it that way rather than trusting that it stays true.
+function assertSqlApiOrgId(organizationId: string): void {
+  if (!/^[A-Za-z0-9_-]+$/.test(organizationId)) {
+    throw new Error("organization id is not safe to interpolate into DDL");
+  }
+}
+
 function sqlApiOrgUserName(organizationId: string): string {
   return `sql_api_org_${organizationId}`;
 }
@@ -226,6 +236,7 @@ export async function insertAdminRows(
 export async function provisionSqlApiOrgUser(
   organizationId: string,
 ): Promise<void> {
+  assertSqlApiOrgId(organizationId);
   const username = sqlApiOrgUserName(organizationId);
   const password = sqlApiOrgPassword(organizationId);
   const tenantLiteral = `'${organizationId}'`;
@@ -260,6 +271,7 @@ export async function provisionSqlApiOrgUser(
 export async function deprovisionSqlApiOrgUser(
   organizationId: string,
 ): Promise<void> {
+  assertSqlApiOrgId(organizationId);
   const username = sqlApiOrgUserName(organizationId);
 
   for (const table of SQL_API_TENANT_TABLES) {

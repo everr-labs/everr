@@ -53,6 +53,33 @@ CREATE SETTINGS PROFILE IF NOT EXISTS sql_api_profile SETTINGS
 -- which is cross-tenant and has no RLS) don't auto-expand the surface area.
 -- Per-org users `sql_api_org_<id>` are granted this role at provision time.
 CREATE ROLE IF NOT EXISTS sql_api_role SETTINGS PROFILE 'sql_api_profile';
+-- Default-deny row policies for sql_api_role. Per-org row policies attached
+-- to each `sql_api_org_<id>` user OR-combine with these to expose exactly
+-- one tenant's rows per query. Defense in depth: if provisioning ever skips
+-- the per-org policy step, the user sees zero rows rather than all rows.
+--
+-- They come before every grant below, and the order is load-bearing:
+-- ClickHouse returns every row when no row policy applies to a user for a
+-- table, so a grant that stands without its policy is a cross-tenant read for
+-- as long as it stands. In this order a run that stops part way leaves the
+-- table unreadable rather than readable by everyone.
+CREATE ROW POLICY IF NOT EXISTS sql_api_default_deny_traces
+  ON app.traces        FOR SELECT USING 0 TO sql_api_role;
+CREATE ROW POLICY IF NOT EXISTS sql_api_default_deny_logs
+  ON app.logs          FOR SELECT USING 0 TO sql_api_role;
+CREATE ROW POLICY IF NOT EXISTS sql_api_default_deny_metrics_gauge
+  ON app.metrics_gauge FOR SELECT USING 0 TO sql_api_role;
+CREATE ROW POLICY IF NOT EXISTS sql_api_default_deny_metrics_sum
+  ON app.metrics_sum       FOR SELECT USING 0 TO sql_api_role;
+CREATE ROW POLICY IF NOT EXISTS sql_api_default_deny_metrics_histogram
+  ON app.metrics_histogram              FOR SELECT USING 0 TO sql_api_role;
+CREATE ROW POLICY IF NOT EXISTS sql_api_default_deny_metrics_exponential_histogram
+  ON app.metrics_exponential_histogram FOR SELECT USING 0 TO sql_api_role;
+CREATE ROW POLICY IF NOT EXISTS sql_api_default_deny_metrics_summary
+  ON app.metrics_summary               FOR SELECT USING 0 TO sql_api_role;
+CREATE ROW POLICY IF NOT EXISTS sql_api_default_deny_alert_events
+  ON app.alert_events  FOR SELECT USING 0 TO sql_api_role;
+
 GRANT SELECT ON app.traces        TO sql_api_role;
 GRANT SELECT ON app.logs          TO sql_api_role;
 GRANT SELECT ON app.metrics_gauge TO sql_api_role;
@@ -61,8 +88,8 @@ GRANT SELECT ON app.metrics_histogram              TO sql_api_role;
 GRANT SELECT ON app.metrics_exponential_histogram TO sql_api_role;
 GRANT SELECT ON app.metrics_summary              TO sql_api_role;
 -- Tenancy template, copy all three parts for every future alerting object: the
--- SELECT grant here, the default-deny row policy at the bottom of this file,
--- and the table name in SQL_API_TENANT_TABLES
+-- default-deny row policy above, the SELECT grant here, and the table name in
+-- SQL_API_TENANT_TABLES
 -- (packages/app/src/lib/sql-api-tables.ts), which provisions the per-
 -- organization row policy and advertises the table to callers. If any one of
 -- the three is missing, the table is either unreachable or readable across
@@ -100,23 +127,3 @@ CREATE QUOTA OR REPLACE sql_api_quota
   FOR INTERVAL 1 hour   MAX queries = 2400, read_rows = 20000000000, execution_time = 1200
   TO sql_api_role EXCEPT web_app_admin;
 
--- Default-deny row policies for sql_api_role. Per-org row policies attached
--- to each `sql_api_org_<id>` user OR-combine with these to expose exactly
--- one tenant's rows per query. Defense in depth: if provisioning ever skips
--- the per-org policy step, the user sees zero rows rather than all rows.
-CREATE ROW POLICY IF NOT EXISTS sql_api_default_deny_traces
-  ON app.traces        FOR SELECT USING 0 TO sql_api_role;
-CREATE ROW POLICY IF NOT EXISTS sql_api_default_deny_logs
-  ON app.logs          FOR SELECT USING 0 TO sql_api_role;
-CREATE ROW POLICY IF NOT EXISTS sql_api_default_deny_metrics_gauge
-  ON app.metrics_gauge FOR SELECT USING 0 TO sql_api_role;
-CREATE ROW POLICY IF NOT EXISTS sql_api_default_deny_metrics_sum
-  ON app.metrics_sum       FOR SELECT USING 0 TO sql_api_role;
-CREATE ROW POLICY IF NOT EXISTS sql_api_default_deny_metrics_histogram
-  ON app.metrics_histogram              FOR SELECT USING 0 TO sql_api_role;
-CREATE ROW POLICY IF NOT EXISTS sql_api_default_deny_metrics_exponential_histogram
-  ON app.metrics_exponential_histogram FOR SELECT USING 0 TO sql_api_role;
-CREATE ROW POLICY IF NOT EXISTS sql_api_default_deny_metrics_summary
-  ON app.metrics_summary               FOR SELECT USING 0 TO sql_api_role;
-CREATE ROW POLICY IF NOT EXISTS sql_api_default_deny_alert_events
-  ON app.alert_events  FOR SELECT USING 0 TO sql_api_role;

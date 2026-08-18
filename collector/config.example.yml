@@ -47,18 +47,21 @@ receivers:
   # and ship to BOTH the dev clickhouse and the desktop everr instance.
   #
   # This writes to the same clickhouse as the public path with no auth at all,
-  # so a production copy of this file must not carry it. Every dev-only block
+  # so a production copy of this file must not carry it. Both endpoints bind
+  # to loopback, so a copy that keeps the block by mistake is still not
+  # reachable off the box: the banner is not the only thing standing between
+  # a copy and an unauthenticated cross-tenant write. Every dev-only block
   # in this file is marked with the same `DEV ONLY` banner; grep for it.
   otlp/dev:
     protocols:
       http:
-        endpoint: 0.0.0.0:4320
+        endpoint: 127.0.0.1:4320
         cors:
           allowed_origins:
             - http://localhost:5173
             - http://127.0.0.1:5173
       grpc:
-        endpoint: 0.0.0.0:4319
+        endpoint: 127.0.0.1:4319
 
 processors:
   batch:
