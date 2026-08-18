@@ -2,28 +2,41 @@ import * as z from "zod";
 import { calculationSpec, thresholdsSpec } from "../stat-chart/spec";
 
 /**
- * GaugeChart plugin options. Loose so unknown keys flow through verbatim
- * (validation must never be stricter than Perses on shape); every known field
- * is defaulted so `{}` always parses — the lenient render path relies on it.
+ * The options of the GaugeChart plugin. The object is loose, because unknown
+ * keys must stay in the output. The validation must not be more strict than
+ * Perses. All known fields have a default value, because `{}` must always
+ * parse. The lenient render path needs this.
  */
 export const gaugeChartSpec = z.looseObject({
   calculation: calculationSpec.default("last"),
   unit: z.string().default(""),
-  /** Fixed fraction digits; omitted = up to 2, trailing zeros dropped. */
+  /**
+   * The number of fraction digits. If you do not set it, the value shows a
+   * maximum of 2 digits, and the zeros at the end are removed.
+   */
   decimals: z.number().int().min(0).max(10).optional(),
-  /** Gauge axis lower bound. */
+  /** The lower bound of the gauge axis. */
   min: z.number().default(0),
   /**
-   * Gauge axis upper bound. The arc fills (value - min) / (max - min); values
-   * outside the bounds clamp to an empty/full arc while the text shows the
-   * real value. Also the `percent` thresholds reference when `thresholds.max`
-   * is omitted.
+   * The upper bound of the gauge axis. The arc fills to
+   * (value - min) / (max - min). If a value is outside the bounds, the arc
+   * becomes empty or full, but the text shows the true value. The `percent`
+   * thresholds also use this bound if you do not set `thresholds.max`.
    */
   max: z.number().default(100),
   thresholds: thresholdsSpec.optional(),
-  /** Show the series label even on a single-gauge panel (multi-gauge always shows it). */
+  /** The shape: the default semicircle, or a flat horizontal bar. */
+  variant: z.enum(["arc", "horizontal"]).default("arc"),
+  /** Shows the min and max labels at the ends of the gauge. */
+  showAxis: z.boolean().default(true),
+  /** Shows a number at the tick mark of each threshold step. */
+  showThresholdLabels: z.boolean().default(false),
+  /**
+   * Shows the series label on a panel that has one gauge. A panel that has
+   * more than one gauge always shows the labels.
+   */
   showLabel: z.boolean().default(false),
-  /** Text shown for a query that produced no value. */
+  /** The text to show if a query gives no value. */
   noValue: z.string().default("–"),
 });
 
