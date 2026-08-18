@@ -52,9 +52,11 @@ const NAME_ATTRS = ["aria-label", "type", "name", "title", "alt"];
 /**
  * A CSS path that does not change. It starts at the nearest id, and below that
  * id it names an element by its tag, one naming attribute, and its stable
- * classes. A stable class is a plain name of letters, hyphens, and
- * underscores. A digit marks a hashed class of the CSS modules or a utility
- * class, which a rebuild or a layout change rewrites. Any other character
+ * classes. A stable name is a plain name of letters, hyphens, and
+ * underscores, for the id and the classes alike. A digit or another
+ * character marks a generated name (a React useId like `_r_1g_`, a hashed
+ * class of the CSS modules, a utility class), which a render or a rebuild
+ * rewrites. Any other character
  * (the `:`, `[`, or `/` of a Tailwind variant) makes the class invalid in a
  * selector without an escape.
  * The walk stops at the first path that matches exactly one element in the
@@ -64,13 +66,16 @@ const NAME_ATTRS = ["aria-label", "type", "name", "title", "alt"];
  * write an element path in all the signals: the interactions, the INP, and
  * the targets of the LCP attribution and the CLS attribution.
  */
+const stableName = /^[A-Za-z][A-Za-z_-]*$/;
+
 export function selectorOf(el: Element): string {
   let sel = "";
   let best = "";
   let bestCount = Infinity;
   for (let node: Element | null = el; node; node = node.parentElement) {
-    let part = node.id ? `#${CSS.escape(node.id)}` : node.tagName.toLowerCase();
-    if (!node.id) {
+    const id = stableName.test(node.id) ? node.id : "";
+    let part = id ? `#${id}` : node.tagName.toLowerCase();
+    if (!id) {
       for (const name of NAME_ATTRS) {
         const value = node.getAttribute(name);
         if (value) {
@@ -79,7 +84,7 @@ export function selectorOf(el: Element): string {
         }
       }
       const classes = [...node.classList]
-        .filter((c) => /^[A-Za-z][A-Za-z_-]*$/.test(c))
+        .filter((c) => stableName.test(c))
         .slice(0, 3);
       if (classes.length) part += `.${classes.join(".")}`;
     }

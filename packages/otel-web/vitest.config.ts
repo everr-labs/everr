@@ -14,7 +14,6 @@ export default defineConfig({
   test: {
     reporters: ["verbose"],
     environment: "jsdom",
-    setupFiles: ["./vitest.setup.ts"],
     coverage: {
       provider: "v8",
       include: ["src/**"],

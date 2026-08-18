@@ -221,14 +221,20 @@ describe("startInteractions", () => {
       );
     });
 
-    it("escapes an id that is not a plain identifier", () => {
+    it("skips a generated or non-identifier id as an anchor", () => {
+      // A React useId ("_r_p_", "base-ui-_r_1g_") changes on every render,
+      // so it cannot anchor a selector. The same stability rule as the
+      // classes rejects it, and the walk continues with the tag step.
       document.body.innerHTML =
-        '<div><span>x</span></div><div id="user:42"><span>y</span></div>';
-      rageBurst(document.querySelectorAll("span")[1] as Element);
+        '<button id="x1">a</button>' +
+        '<div id="_r_p_"><button aria-label="Go">b</button></div>';
+      rageBurst(document.querySelectorAll("button")[1] as Element);
       const rage = emitted.find(
         (e) => e.name === "everr.browser.interaction.rage_click",
       );
-      expect(rage?.attrs?.["everr.element.selector"]).toBe("#user\\:42 > span");
+      expect(rage?.attrs?.["everr.element.selector"]).toBe(
+        'button[aria-label="Go"]',
+      );
     });
 
     it("skips clicks on password and hidden inputs", () => {
