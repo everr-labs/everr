@@ -156,10 +156,7 @@ function TraceHeader({
       <span
         className="size-2.5 rounded-full"
         style={{
-          backgroundColor: serviceColor(
-            root.serviceNamespace,
-            root.serviceName,
-          ),
+          backgroundColor: serviceColor(root.serviceName),
         }}
       />
       <div className="min-w-0 max-w-2xl flex-1">

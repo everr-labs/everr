@@ -66,10 +66,7 @@ export function SpanRow({
         <span
           className="size-2 shrink-0 rounded-full"
           style={{
-            backgroundColor: serviceColor(
-              span.serviceNamespace,
-              span.serviceName,
-            ),
+            backgroundColor: serviceColor(span.serviceName),
           }}
         />
         <span className="truncate font-medium">{span.spanName}</span>

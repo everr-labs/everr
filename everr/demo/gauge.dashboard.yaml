@@ -8,9 +8,10 @@ spec:
     description: >-
       GaugeChart regression sheet — every option (all 9 calculations, unit,
       decimals, min/max bounds, thresholds absolute/percent with and without
-      thresholds.max, showLabel, noValue) and behavior (spec defaults, clamping
-      past the bounds, multi-query placeholder, multi-gauge, empty) exercised
-      with deterministic TestData.
+      thresholds.max, showLabel, noValue, variant arc/horizontal,
+      showAxis, showThresholdLabels) and behavior (spec defaults, clamping
+      past the bounds, multi-query placeholder, multi-gauge, empty, inverted
+      bounds) exercised with deterministic TestData.
   duration: 7d
   refreshInterval: 1m
   panels:
@@ -399,6 +400,142 @@ spec:
                   scenario: csv
                   columns: [ts, value]
                   rows: []
+    # ── Variants + axis/threshold label toggles ──────────────────────
+    gauge-arc-threshold-labels:
+      kind: Panel
+      spec:
+        display:
+          name: "Gauge: arc, threshold labels"
+          description: "variant: arc (explicit) · showThresholdLabels: true. Numeric labels at each threshold tick on the semicircle"
+        plugin:
+          kind: GaugeChart
+          spec:
+            variant: arc
+            unit: "%"
+            showThresholdLabels: true
+            thresholds:
+              mode: absolute
+              defaultColor: "#22c55e"
+              steps:
+                - { value: 70, color: "#f59e0b" }
+                - { value: 90, color: "#ef4444" }
+        queries:
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec:
+                  scenario: csv
+                  columns: [pct]
+                  rows:
+                    - [55]
+    gauge-arc-no-axis:
+      kind: Panel
+      spec:
+        display:
+          name: "Gauge: arc, no axis"
+          description: "showAxis: false on the default arc. The min/max end labels are hidden"
+        plugin:
+          kind: GaugeChart
+          spec:
+            unit: "%"
+            showAxis: false
+        queries:
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec:
+                  scenario: csv
+                  columns: [pct]
+                  rows:
+                    - [42]
+    gauge-horizontal:
+      kind: Panel
+      spec:
+        display:
+          name: "Gauge: horizontal"
+          description: "variant: horizontal · thresholds → multi-colored fill segments, colored ticks below the bar, triangle marker at the value, min/max axis below (showAxis default true)"
+        plugin:
+          kind: GaugeChart
+          spec:
+            variant: horizontal
+            unit: "%"
+            decimals: 1
+            thresholds:
+              mode: absolute
+              defaultColor: "#22c55e"
+              steps:
+                - { value: 50, color: "#f59e0b" }
+                - { value: 80, color: "#ef4444" }
+        queries:
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec:
+                  scenario: csv
+                  columns: [pct]
+                  rows:
+                    - [65]
+    gauge-horizontal-threshold-labels:
+      kind: Panel
+      spec:
+        display:
+          name: "Gauge: horizontal, only threshold labels"
+          description: "variant: horizontal · showAxis: false + showThresholdLabels: true. Numeric labels below each tick, no min/max row"
+        plugin:
+          kind: GaugeChart
+          spec:
+            variant: horizontal
+            unit: ms
+            max: 500
+            showAxis: false
+            showThresholdLabels: true
+            thresholds:
+              mode: absolute
+              defaultColor: "#22c55e"
+              steps:
+                - { value: 200, color: "#f59e0b" }
+                - { value: 400, color: "#ef4444" }
+        queries:
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec:
+                  scenario: csv
+                  columns: [p95_ms]
+                  rows:
+                    - [310]
+    gauge-horizontal-inverted-multi:
+      kind: Panel
+      spec:
+        display:
+          name: "Gauge: horizontal, inverted bounds, multi"
+          description: "variant: horizontal · min: 100 / max: 0 (inverted) · three numeric columns → three bars with labels"
+        plugin:
+          kind: GaugeChart
+          spec:
+            variant: horizontal
+            unit: "%"
+            min: 100
+            max: 0
+            thresholds:
+              mode: absolute
+              defaultColor: "#22c55e"
+              steps:
+                - { value: 40, color: "#ef4444" }
+        queries:
+          - kind: TestData
+            spec:
+              plugin:
+                kind: TestData
+                spec:
+                  scenario: csv
+                  columns: [cache_hit, uptime, success]
+                  rows:
+                    - [20, 85, 99]
   layouts:
     - kind: Grid
       spec:
@@ -419,3 +556,8 @@ spec:
           - { x: 16, y: 20, width: 8,  height: 6, content: { $ref: "#/spec/panels/gauge-empty" } }
           - { x: 0,  y: 26, width: 8,  height: 5, content: { $ref: "#/spec/panels/gauge-inverted" } }
           - { x: 8,  y: 26, width: 8,  height: 5, content: { $ref: "#/spec/panels/gauge-mid-band" } }
+          - { x: 16, y: 26, width: 8,  height: 5, content: { $ref: "#/spec/panels/gauge-arc-threshold-labels" } }
+          - { x: 0,  y: 31, width: 8,  height: 5, content: { $ref: "#/spec/panels/gauge-arc-no-axis" } }
+          - { x: 8,  y: 31, width: 8,  height: 5, content: { $ref: "#/spec/panels/gauge-horizontal" } }
+          - { x: 16, y: 31, width: 8,  height: 5, content: { $ref: "#/spec/panels/gauge-horizontal-threshold-labels" } }
+          - { x: 0,  y: 36, width: 12, height: 7, content: { $ref: "#/spec/panels/gauge-horizontal-inverted-multi" } }

@@ -19,11 +19,5 @@ declare module "@tanstack/react-router" {
     // preview branch could change, so the banner doesn't imply a preview
     // overlay that isn't actually there.
     hidePreviewFrame?: boolean;
-    /**
-     * The route owns its scroll and touches the content edges (explorer-style
-     * split panes): the `_previewable` layout skips PageContainer and its
-     * page scroll for matches carrying this.
-     */
-    fullBleed?: boolean;
   }
 }

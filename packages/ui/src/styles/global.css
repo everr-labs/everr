@@ -14,7 +14,6 @@
   --radius-3xl: calc(var(--radius) + 12px);
   --radius-4xl: calc(var(--radius) + 16px);
   --animate-highlight-fade: highlight-fade 1.5s ease-out forwards;
-  --ease-sidebar: cubic-bezier(0.19, 1, 0.22, 1);
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-card: var(--card);

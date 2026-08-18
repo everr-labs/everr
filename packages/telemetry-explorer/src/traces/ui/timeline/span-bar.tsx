@@ -32,7 +32,7 @@ export function SpanBar({ span, traceStartNs, traceEndNs }: Props) {
         left: `${leftPct}%`,
         width: isZero ? undefined : `${Math.max(widthPct, 0.1)}%`,
         minWidth: isZero ? "1px" : undefined,
-        backgroundColor: serviceColor(span.serviceNamespace, span.serviceName),
+        backgroundColor: serviceColor(span.serviceName),
       }}
     >
       {isError && (
