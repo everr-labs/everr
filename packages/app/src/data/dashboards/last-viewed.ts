@@ -2,14 +2,22 @@
  * The dashboard to reopen when `/dashboards` is visited without a choice.
  * Local to the browser on purpose: "where was I" is a property of this
  * machine's session, not of the Organization, so it needs no server state.
- * `project` absent means a Built-in dashboard.
  */
-export interface LastViewedDashboard {
-  project?: string;
-  slug: string;
-}
+export type LastViewedDashboard =
+  | { kind: "built-in"; slug: string }
+  | { kind: "own"; project: string; slug: string };
 
 const KEY = "everr:last-dashboard";
+
+function isLastViewed(parsed: unknown): parsed is LastViewedDashboard {
+  if (typeof parsed !== "object" || parsed === null) return false;
+  const value = parsed as Record<string, unknown>;
+  if (typeof value.slug !== "string") return false;
+  return (
+    value.kind === "built-in" ||
+    (value.kind === "own" && typeof value.project === "string")
+  );
+}
 
 export function readLastViewed(): LastViewedDashboard | null {
   if (typeof window === "undefined") return null;
@@ -17,13 +25,7 @@ export function readLastViewed(): LastViewedDashboard | null {
     const raw = window.localStorage.getItem(KEY);
     if (!raw) return null;
     const parsed: unknown = JSON.parse(raw);
-    if (
-      typeof parsed === "object" &&
-      parsed !== null &&
-      typeof (parsed as LastViewedDashboard).slug === "string"
-    ) {
-      return parsed as LastViewedDashboard;
-    }
+    if (isLastViewed(parsed)) return parsed;
   } catch {
     // Corrupt or inaccessible storage reads as "no history".
   }

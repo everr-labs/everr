@@ -5,8 +5,8 @@ import {
   isResourceKind,
 } from "@/data/as-code/resource-admin.server";
 import {
-  guardReservedProject,
   notFoundResponse,
+  reservedProjectResponse,
   unknownKindResponse,
 } from "../../../-responses";
 
@@ -29,16 +29,20 @@ export const Route = createFileRoute(
             { status: 400 },
           );
         }
-        const result = await guardReservedProject(() =>
-          adoptResource(
+        let result: Awaited<ReturnType<typeof adoptResource>>;
+        try {
+          result = await adoptResource(
             context.session.session.activeOrganizationId,
             kind,
             project,
             slug,
             parsed.data.repoid,
-          ),
-        );
-        if (result instanceof Response) return result;
+          );
+        } catch (error) {
+          const forbidden = reservedProjectResponse(error);
+          if (forbidden) return forbidden;
+          throw error;
+        }
         if (!result.found) return notFoundResponse(kind, project, slug);
         return Response.json({
           kind,

@@ -41,17 +41,26 @@ export const Route = createFileRoute(
     const last = readLastViewed();
 
     // A remembered built-in needs no server data to validate.
-    if (last && !last.project && getBuiltinDashboard(last.slug)) {
+    if (last?.kind === "built-in" && getBuiltinDashboard(last.slug)) {
       throw toBuiltin(last.slug);
     }
 
+    // Warm the probe alongside the list fetch: only the empty-list branch
+    // below awaits it, and the rail issues the same query immediately anyway,
+    // so a wasted prefetch costs nothing.
+    void queryClient.prefetchQuery(
+      telemetryCapabilitiesOptions(
+        DEFAULT_TIME_RANGE.from,
+        DEFAULT_TIME_RANGE.to,
+      ),
+    );
     const list = await queryClient.ensureQueryData(
       dashboardListOptions(preview),
     );
     const live = list.filter((d) => d.previewStatus !== "removed");
 
     if (
-      last?.project &&
+      last?.kind === "own" &&
       live.some((d) => d.project === last.project && d.slug === last.slug)
     ) {
       throw toDashboard(last.project, last.slug);

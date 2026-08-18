@@ -1,6 +1,6 @@
 # BarChart
 
-A bar chart over time **or** over categories. It infers its structure from the columns you `SELECT` — there is no axis, color, or per-series configuration.
+A bar chart over time **or** over categories. It infers its structure from the columns you `SELECT` — there is no axis or per-series configuration beyond pinning colors by series name.
 
 ## Options (`plugin.spec`)
 
@@ -11,14 +11,21 @@ A bar chart over time **or** over categories. It infers its structure from the c
 | `stacking` | string | `none` | `none`, `stacked`, `percent` | `none` draws series side by side; `stacked` piles them into one bar per x value; `percent` additionally normalizes each stack to 100% — the value axis becomes percentages while tooltips keep raw values. |
 | `orientation` | string | `vertical` | `vertical`, `horizontal` | `vertical` draws bars bottom-up; `horizontal` draws them left-to-right with categories on the y-axis — prefer it for categorical data with long labels. |
 | `showValues` | boolean | `false` | `true` | Draw each bar's value: on top (vertical) / to the right (horizontal) of grouped bars, centered inside stacked segments. |
+| `colors` | map | `{}` | series name to CSS color | Pin a series to a fixed color. Use it when the series name carries a meaning a rotating palette would lose (`good` / `poor`, `pass` / `fail`). Unlisted series keep their palette color. |
 
 ```yaml
 plugin:
   kind: BarChart
-  spec: { unit: req, showLegend: true, stacking: stacked, orientation: vertical, showValues: false }
+  spec:
+    unit: req
+    showLegend: true
+    stacking: stacked
+    orientation: vertical
+    showValues: false
+    colors: { good: "#0cce6b", poor: "#ff4e42" } # optional
 ```
 
-These five are the complete set. There is **no** `yAxis` / `min` / `max`, `barWidth`, `legend` object, `thresholds`, `decimals`, or per-series color. Series colors come from a fixed 6-color palette assigned by order (wrapping after 6) and are not configurable.
+These six are the complete set. There is **no** `yAxis` / `min` / `max`, `barWidth`, `legend` object, `thresholds`, or `decimals`. A series that `colors` does not name takes its color from a fixed 6-color palette assigned by order (wrapping after 6).
 
 ## Data shape
 

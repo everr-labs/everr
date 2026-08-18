@@ -6,7 +6,11 @@ import {
   ConnectGithubCard,
   InstallEverrCard,
 } from "@/components/home/setup-cards";
-import { StatSection, StatTile } from "@/components/home/stat-tile";
+import {
+  compactNumber,
+  StatSection,
+  StatTile,
+} from "@/components/home/stat-tile";
 import { costOverviewOptions } from "@/data/cost-analysis/options";
 import { homeOverviewOptions } from "@/data/home/options";
 import { getGithubAppInstallStatus } from "@/data/onboarding";
@@ -35,11 +39,6 @@ export const Route = createFileRoute("/_authenticated/_dashboard/_padded/")({
     ]);
   },
   component: HomePage,
-});
-
-const compactNumber = new Intl.NumberFormat("en-US", {
-  notation: "compact",
-  maximumFractionDigits: 1,
 });
 
 /**

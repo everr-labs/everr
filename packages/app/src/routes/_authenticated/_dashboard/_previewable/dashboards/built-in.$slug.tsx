@@ -37,7 +37,7 @@ export const Route = createFileRoute(
     if (!builtin) throw notFound();
     // Preloads (link hover) run this loader too; only a committed navigation
     // counts as "viewed".
-    if (!preload) recordLastViewed({ slug });
+    if (!preload) recordLastViewed({ kind: "built-in", slug });
     return {
       name: builtin.name,
       timeDefaults: dashboardTimeDefaults(builtin.document.spec),
@@ -57,7 +57,8 @@ function BuiltinDashboardPage() {
   const capabilities = useQuery(
     telemetryCapabilitiesOptions(timeRange.from, timeRange.to),
   ).data;
-  if (!builtin) return <DashboardNotFound />;
+  // The loader already 404s unknown slugs; this only narrows the type.
+  if (!builtin) throw notFound();
 
   const readiness = capabilities
     ? evaluateBuiltin(builtin, capabilities)

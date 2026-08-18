@@ -14,21 +14,12 @@ export function unknownKindResponse(kind: string): Response {
 }
 
 /**
- * Runs a resource write and translates the admin layer's ReservedProjectError
- * into a 403, so every write verb inherits the reserved-project guard without
- * its own try/catch. Any other error propagates.
+ * 403 for the admin layer's ReservedProjectError, or null for any other
+ * error (which the caller should rethrow).
  */
-export async function guardReservedProject<T>(
-  fn: () => Promise<T>,
-): Promise<T | Response> {
-  try {
-    return await fn();
-  } catch (error) {
-    if (error instanceof ReservedProjectError) {
-      return Response.json({ error: error.message }, { status: 403 });
-    }
-    throw error;
-  }
+export function reservedProjectResponse(error: unknown): Response | null {
+  if (!(error instanceof ReservedProjectError)) return null;
+  return Response.json({ error: error.message }, { status: 403 });
 }
 
 /** 404 response for a resource that does not exist. */

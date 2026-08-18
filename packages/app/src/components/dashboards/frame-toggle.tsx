@@ -12,12 +12,12 @@ export function FrameToggle() {
     from: "/_authenticated/_dashboard/_previewable/dashboards",
   });
   const navigate = useNavigate();
-  const setFull = (value: boolean) =>
+  const toggle = () =>
     // `to: "."` keeps the open dashboard; `replace` because toggling the
     // frame is a view change, not a place the back button should revisit.
     void navigate({
       to: ".",
-      search: (prev) => ({ ...prev, full: value || undefined }),
+      search: (prev) => ({ ...prev, full: !full || undefined }),
       replace: true,
     });
   return (
@@ -27,7 +27,7 @@ export function FrameToggle() {
       size="icon-sm"
       aria-label={full ? "Show the dashboard list" : "Hide the dashboard list"}
       className="text-muted-foreground"
-      onClick={() => setFull(!full)}
+      onClick={toggle}
     >
       {full ? (
         <PanelLeftOpen className="size-4" />

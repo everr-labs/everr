@@ -53,6 +53,13 @@ export const timeSeries = (
   description?: string,
 ) => panel("TimeSeriesChart", name, options, query, description);
 
+export const bar = (
+  name: string,
+  options: Options,
+  query: string,
+  description?: string,
+) => panel("BarChart", name, options, query, description);
+
 /**
  * A single number read against a fixed axis. Reach for it over `stat` only
  * when the bounds are published rather than chosen — a gauge claims the reader

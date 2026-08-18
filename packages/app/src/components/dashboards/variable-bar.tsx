@@ -65,7 +65,7 @@ export function VariableBar({
   layout = "stacked",
 }: {
   layout?: VariableBarLayout;
-} = {}) {
+}) {
   const navigate = useNavigate();
   const { variables, values, optionsState } = useDashboardVariables();
 

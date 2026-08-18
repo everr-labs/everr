@@ -184,6 +184,21 @@ describe("startInteractions", () => {
       );
     });
 
+    it("prefers stable classes over positions and drops unstable ones", () => {
+      document.body.innerHTML =
+        '<div class="sidebar css-x9f2 group/wrap md:flex"><p>one</p>' +
+        '<p class="row hint"><span class="mx-2">deep</span></p></div>';
+      // css-x9f2 and mx-2 carry digits; group/wrap and md:flex are not
+      // valid selector idents. The path drops them all.
+      rageBurst(document.querySelector("span") as Element);
+      const rage = emitted.find(
+        (e) => e.name === "everr.browser.interaction.rage_click",
+      );
+      expect(rage?.attrs?.["everr.element.selector"]).toBe(
+        "body > div.sidebar > p.row.hint > span",
+      );
+    });
+
     it("skips clicks on password and hidden inputs", () => {
       document.body.innerHTML = '<input type="password">';
       click(document.querySelector("input") as Element);

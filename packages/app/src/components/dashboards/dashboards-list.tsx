@@ -18,10 +18,7 @@ import {
   TriangleAlert,
 } from "lucide-react";
 import { useMemo, useState } from "react";
-import {
-  type BuiltinReadiness,
-  evaluateBuiltin,
-} from "@/data/dashboards/built-in/capabilities";
+import { evaluateBuiltin } from "@/data/dashboards/built-in/capabilities";
 import { BUILTIN_DASHBOARDS } from "@/data/dashboards/built-in/catalog";
 import type {
   BuiltinCategory,
@@ -31,7 +28,11 @@ import {
   dashboardListOptions,
   telemetryCapabilitiesOptions,
 } from "@/data/dashboards/options";
-import { DashboardTree } from "./dashboard-tree";
+import {
+  DashboardTree,
+  railRowActiveProps,
+  railRowClass,
+} from "./dashboard-tree";
 
 const CATEGORY_ICON: Record<
   BuiltinCategory,
@@ -43,17 +44,6 @@ const CATEGORY_ICON: Record<
   Infrastructure: Boxes,
   Browser: Globe,
 };
-
-/**
- * A built-in plus what the probe can say about it. `readiness` is null until
- * the probe answers: grading against an empty result would label every
- * built-in unready for a reason nothing has established, and the list would
- * paint a grouping it is about to rearrange under the reader's cursor.
- */
-interface Graded {
-  builtin: BuiltinDashboard;
-  readiness: BuiltinReadiness | null;
-}
 
 /**
  * The one list of Dashboards: the user's own first (their folder tree
@@ -80,24 +70,17 @@ export function DashboardsList({ preview }: { preview?: string }) {
     ),
   );
   const capabilities = capabilitiesQuery.data;
-  const graded = useMemo<Graded[]>(
-    () =>
-      BUILTIN_DASHBOARDS.map((builtin) => ({
-        builtin,
-        readiness: capabilities ? evaluateBuiltin(builtin, capabilities) : null,
-      })),
-    [capabilities],
-  );
 
-  // The probe not having answered yet is one global fact, not a per-entry one.
-  const ungraded = !capabilities;
-
+  // Until the probe answers, nothing is graded: `ready` holds every match and
+  // `needsData` stays empty. Grading against an empty result would label every
+  // built-in unready for a reason nothing has established, and the list would
+  // paint a grouping it is about to rearrange under the reader's cursor.
   const { matching, ready, needsData } = useMemo(() => {
     const q = search.trim().toLowerCase();
     const matching = !q
-      ? graded
-      : graded.filter(
-          ({ builtin }) =>
+      ? BUILTIN_DASHBOARDS
+      : BUILTIN_DASHBOARDS.filter(
+          (builtin) =>
             builtin.name.toLowerCase().includes(q) ||
             builtin.description.toLowerCase().includes(q) ||
             builtin.category.toLowerCase().includes(q) ||
@@ -106,12 +89,18 @@ export function DashboardsList({ preview }: { preview?: string }) {
             // send.
             builtin.requires.some((r) => r.match.toLowerCase().includes(q)),
         );
-    return {
-      matching,
-      ready: matching.filter((e) => e.readiness?.status === "ready"),
-      needsData: matching.filter((e) => e.readiness?.status !== "ready"),
-    };
-  }, [graded, search]);
+    if (!capabilities) return { matching, ready: matching, needsData: [] };
+    const ready: BuiltinDashboard[] = [];
+    const needsData: BuiltinDashboard[] = [];
+    for (const builtin of matching) {
+      const target =
+        evaluateBuiltin(builtin, capabilities).status === "ready"
+          ? ready
+          : needsData;
+      target.push(builtin);
+    }
+    return { matching, ready, needsData };
+  }, [capabilities, search]);
 
   // A deep link can land on an unready built-in; the disclosure must not hide
   // the active row, or the list stops saying where you are. Matched by route
@@ -121,7 +110,7 @@ export function DashboardsList({ preview }: { preview?: string }) {
   const builtinMatch = matchRoute({ to: "/dashboards/built-in/$slug" });
   const activeBuiltin = builtinMatch ? builtinMatch.slug : undefined;
   const showNeedsData =
-    needsDataOpen || needsData.some((e) => e.builtin.id === activeBuiltin);
+    needsDataOpen || needsData.some((builtin) => builtin.id === activeBuiltin);
 
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-4">
@@ -195,12 +184,11 @@ export function DashboardsList({ preview }: { preview?: string }) {
             </p>
           )}
 
-          {/* Until the probe answers, one flat list — no grouping to rearrange. */}
-          {(ungraded ? matching : ready).map((entry) => (
-            <BuiltinRow key={entry.builtin.id} builtin={entry.builtin} />
+          {ready.map((builtin) => (
+            <BuiltinRow key={builtin.id} builtin={builtin} />
           ))}
 
-          {!ungraded && needsData.length > 0 && (
+          {needsData.length > 0 && (
             <>
               <button
                 type="button"
@@ -220,8 +208,8 @@ export function DashboardsList({ preview }: { preview?: string }) {
                 </span>
               </button>
               {showNeedsData &&
-                needsData.map((entry) => (
-                  <BuiltinRow key={entry.builtin.id} builtin={entry.builtin} />
+                needsData.map((builtin) => (
+                  <BuiltinRow key={builtin.id} builtin={builtin} />
                 ))}
             </>
           )}
@@ -249,12 +237,10 @@ function BuiltinRow({ builtin }: { builtin: BuiltinDashboard }) {
       to="/dashboards/built-in/$slug"
       params={{ slug: builtin.id }}
       className={cn(
-        "flex w-full items-center gap-2.5 rounded-md px-2 py-1.5 text-left transition-colors",
-        "text-foreground hover:bg-muted/50",
+        railRowClass,
+        "flex w-full items-center gap-2.5 px-2 text-left text-foreground",
       )}
-      activeProps={{
-        className: "bg-muted text-foreground [&>svg]:text-primary",
-      }}
+      activeProps={railRowActiveProps}
     >
       <Icon className="size-4 shrink-0 text-muted-foreground" />
       <span className="min-w-0 flex-1 truncate text-sm">{builtin.name}</span>

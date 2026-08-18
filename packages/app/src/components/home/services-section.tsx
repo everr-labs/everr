@@ -2,12 +2,8 @@ import { serviceColor } from "@everr/telemetry-explorer/traces";
 import { Card } from "@everr/ui/components/card";
 import { Skeleton } from "@everr/ui/components/skeleton";
 import { Link } from "@tanstack/react-router";
+import { compactNumber, SectionLabel } from "@/components/home/stat-tile";
 import type { HomeService } from "@/data/home/server";
-
-const compactNumber = new Intl.NumberFormat("en-US", {
-  notation: "compact",
-  maximumFractionDigits: 1,
-});
 
 /** Undefined services render the loading skeleton; an empty list renders nothing. */
 export function ServicesSection({
@@ -18,9 +14,7 @@ export function ServicesSection({
   if (services && services.length === 0) return null;
   return (
     <section className="space-y-2">
-      <h2 className="text-muted-foreground text-xs font-medium uppercase tracking-wider">
-        Services
-      </h2>
+      <SectionLabel>Services</SectionLabel>
       <Card className="divide-border gap-0 divide-y py-0">
         {services === undefined
           ? Array.from({ length: 3 }).map((_, i) => (

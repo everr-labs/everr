@@ -18,6 +18,14 @@ import {
 
 type TreeResource = "dashboard" | "runbook";
 
+// One selection language for every row in the dashboards rail (own and
+// built-in): filled active row, primary-tinted icon.
+export const railRowClass =
+  "rounded-md py-1.5 transition-colors hover:bg-muted/50";
+export const railRowActiveProps = {
+  className: "bg-muted text-foreground [&>svg]:text-primary",
+};
+
 interface DashboardTreeProps {
   dashboards: DashboardSummary[];
   search: string;
@@ -169,8 +177,6 @@ function DashboardRow({
 }) {
   const Icon = resource === "runbook" ? NotebookText : LayoutDashboard;
   const removed = dashboard.previewStatus === "removed";
-  // Styled to match the built-in rows in the dashboards rail — one selection
-  // language for the whole list: filled active row, primary-tinted icon.
   return (
     <Link
       to={
@@ -180,13 +186,12 @@ function DashboardRow({
       }
       params={{ project: dashboard.project, slug: dashboard.slug }}
       className={cn(
-        "flex min-w-0 items-center gap-2 rounded-md py-1.5 pr-1 transition-colors hover:bg-muted/50",
+        railRowClass,
+        "flex min-w-0 items-center gap-2 pr-1",
         removed && "opacity-50",
       )}
       style={{ paddingLeft: `${depth * 20 + 26}px` }}
-      activeProps={{
-        className: "bg-muted text-foreground [&>svg]:text-primary",
-      }}
+      activeProps={railRowActiveProps}
     >
       <Icon className="size-4 shrink-0 text-muted-foreground" />
       <span className="truncate text-sm">{dashboard.name}</span>

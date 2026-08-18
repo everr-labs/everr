@@ -44,9 +44,15 @@ export function elementAttrs(
 
 /**
  * A CSS path that does not change. It starts at the nearest id, and below that
- * id it uses the positions of the elements. This is the one method to write an
- * element path in all the signals: the interactions, the INP, and the targets
- * of the LCP attribution and the CLS attribution.
+ * id it names an element by its tag and its stable classes. A stable class is
+ * a plain name of letters, hyphens, and underscores. A digit marks a hashed
+ * class of the CSS modules or a utility class, which a rebuild or a layout
+ * change rewrites. Any other character (the `:`, `[`, or `/` of a Tailwind
+ * variant) makes the class invalid in a selector without an escape.
+ * The position of the element is the last resort, when it has no stable class,
+ * because a new sibling changes the position. This is the one method to write
+ * an element path in all the signals: the interactions, the INP, and the
+ * targets of the LCP attribution and the CLS attribution.
  */
 export function selectorOf(el: Element): string {
   const parts: string[] = [];
@@ -56,12 +62,19 @@ export function selectorOf(el: Element): string {
       break;
     }
     const tag = node.tagName.toLowerCase();
-    let nth = 1;
-    for (let sib = node.previousElementSibling; sib; ) {
-      if (sib.tagName === node.tagName) nth++;
-      sib = sib.previousElementSibling;
+    const classes = [...node.classList]
+      .filter((c) => /^[A-Za-z][A-Za-z_-]*$/.test(c))
+      .slice(0, 3);
+    if (classes.length) {
+      parts.unshift(`${tag}.${classes.join(".")}`);
+    } else {
+      let nth = 1;
+      for (let sib = node.previousElementSibling; sib; ) {
+        if (sib.tagName === node.tagName) nth++;
+        sib = sib.previousElementSibling;
+      }
+      parts.unshift(nth > 1 ? `${tag}:nth-of-type(${nth})` : tag);
     }
-    parts.unshift(nth > 1 ? `${tag}:nth-of-type(${nth})` : tag);
     node = node.parentElement;
   }
   return parts.join(" > ");

@@ -49,22 +49,12 @@ function rollupTotal<Row extends { bucket: string }>(
   return rows.find((r) => r.bucket === ROLLUP_TOTAL_BUCKET);
 }
 
-function* interleave<T>(a: readonly T[], b: readonly T[]): Generator<T> {
-  for (let i = 0; i < a.length; i++) {
-    yield a[i];
-    yield b[i];
-  }
-}
-
 /**
  * The services worth showing, ranked on both signals rather than on their sum.
  * Log volume normally runs orders of magnitude above trace count, so adding the
  * two would rank purely by logs and let one chatty service push out a
  * trace-heavy one. Taking the leaders of each ranking in turn keeps both kinds
  * of service present.
- *
- * The two rankings are walked lazily, so the loop stops at `limit` without
- * building the interleaved sequence first.
  */
 function topServices(
   services: Iterable<HomeService>,
@@ -77,11 +67,12 @@ function topServices(
 
   const picked: HomeService[] = [];
   const seen = new Set<string>();
-  for (const service of interleave(byLogs, byTraces)) {
-    if (picked.length === limit) break;
-    if (seen.has(service.name)) continue;
-    seen.add(service.name);
-    picked.push(service);
+  for (let i = 0; i < byLogs.length && picked.length < limit; i++) {
+    for (const service of [byLogs[i], byTraces[i]]) {
+      if (picked.length === limit || seen.has(service.name)) continue;
+      seen.add(service.name);
+      picked.push(service);
+    }
   }
   return picked;
 }

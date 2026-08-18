@@ -1,4 +1,7 @@
+import { ALL_VALUE } from "../../interpolate";
+import type { Variable } from "../../schema";
 import {
+  bar,
   gauge,
   layout,
   split,
@@ -12,7 +15,9 @@ import {
   BUCKET,
   needsLogAttribute,
   needsLogs,
+  OF_SERVICE,
   SERIES_BUCKET,
+  serviceVariable,
   topSeries,
   WITHIN,
 } from "./shared";
@@ -80,12 +85,92 @@ const vitalBands = (needsImprovement: number, poor: number) => ({
   ],
 });
 
+/** The route picker's selection, or every route when it is All. */
+const OF_ROUTE = `${ROUTE} IN $route`;
+
+/**
+ * Every web-vitals query is read through both pickers. A vital only means
+ * something next to the page it was measured on, so scoping is not a
+ * convenience here: a P75 mixed across a marketing page and an app screen is a
+ * number no one can act on.
+ */
+const SCOPED = `${WITHIN} AND ${OF_SERVICE} AND ${OF_ROUTE}`;
+
+/**
+ * The routes that actually carry vitals, so the picker never offers a route
+ * whose selection empties the dashboard.
+ */
+const routeVariable: Variable = {
+  kind: "ListVariable",
+  spec: {
+    name: "route",
+    display: { name: "Route" },
+    allowMultiple: true,
+    allowAllValue: true,
+    defaultValue: ALL_VALUE,
+    sort: "alphabetical-asc",
+    plugin: {
+      kind: "ClickHouseSQLVariable",
+      spec: {
+        query: `SELECT DISTINCT ${ROUTE} AS route FROM logs
+WHERE ${WITHIN} AND ${FROM_BROWSER} AND ${ROUTE} != '' ORDER BY route`,
+      },
+    },
+  },
+};
+
+/**
+ * The colors Google uses for the vital ratings in PageSpeed Insights and the
+ * web-vitals extension. Readers meet these three greens/ambers/reds wherever
+ * else they look at their vitals, so a rotating palette here would cost them
+ * the recognition for nothing.
+ */
+const VITAL_RATING_COLORS = {
+  good: "#0cce6b",
+  "needs-improvement": "#ffa400",
+  poor: "#ff4e42",
+};
+
 /** P75 of one vital over the whole window — the statistic the bands are defined on. */
 const vitalP75 = (vital: string, decimals: number) =>
   `SELECT round(quantile(0.75)(${VITAL_VALUE}), ${decimals}) AS p75
 FROM logs
-WHERE ${WITHIN} AND ${SANE_VITAL} AND EventName = 'browser.web_vital'
+WHERE ${SCOPED} AND ${SANE_VITAL} AND EventName = 'browser.web_vital'
   AND ${VITAL_NAME} = '${vital}'`;
+
+/**
+ * One vital's median, P75 and P90 in a single chart. Three quantiles of the
+ * same vital say what one P75 line cannot: whether a bad P75 is the whole
+ * audience drifting (the three lines rise together) or a slow tail dragging it
+ * (P90 pulls away while the median holds).
+ */
+const vitalQuantiles = (vital: string, decimals: number) =>
+  `SELECT ts, q.2 AS series, q.3 AS value
+FROM (
+  SELECT ${SERIES_BUCKET()} AS ts,
+         round(quantile(0.5)(${VITAL_VALUE}), ${decimals}) AS p50,
+         round(quantile(0.75)(${VITAL_VALUE}), ${decimals}) AS p75,
+         round(quantile(0.9)(${VITAL_VALUE}), ${decimals}) AS p90
+  FROM logs
+  WHERE ${SCOPED} AND ${SANE_VITAL} AND EventName = 'browser.web_vital'
+    AND ${VITAL_NAME} = '${vital}'
+  GROUP BY ts
+)
+ARRAY JOIN [(0, 'Median', p50), (1, 'P75', p75), (2, 'P90', p90)] AS q
+ORDER BY ts, q.1`;
+
+/**
+ * One vital's ratings as a share of its samples per bucket. Each vital gets
+ * its own panel because they are rated on unrelated scales: a shared stack
+ * would let a healthy CLS hide a failing INP inside the same green band.
+ */
+const ratingShare = (vital: string) =>
+  `SELECT ${SERIES_BUCKET()} AS ts, ${RATING} AS rating, count() AS samples
+FROM logs
+WHERE ${SCOPED} AND EventName = 'browser.web_vital'
+  AND ${VITAL_NAME} = '${vital}'
+GROUP BY ts, rating
+ORDER BY ts, indexOf(['good', 'needs-improvement', 'poor'], rating)`;
 
 /**
  * A vital's attribution phases as one stacked chart. Each phase is a separate
@@ -103,20 +188,24 @@ const phaseBreakdown = (
         `       round(quantile(0.75)(toFloat64OrZero(${attr(`everr.browser.web_vital.${vital}.${attribute}`)}))) AS ${alias(index)}`,
     )
     .join(",\n");
+  // The tuple carries the phase's position so the ordering can be explicit:
+  // `ORDER BY ts` alone leaves the rows of one bucket in whatever order the
+  // pipeline emits them, and the chart stacks its series in first-seen order --
+  // which would let the stack come out upside down between two loads.
   const pairs = phases
-    .map(([label], index) => `('${label}', ${alias(index)})`)
+    .map(([label], index) => `(${index}, '${label}', ${alias(index)})`)
     .join(", ");
-  return `SELECT ts, phase.1 AS series, phase.2 AS value
+  return `SELECT ts, phase.2 AS series, phase.3 AS value
 FROM (
   SELECT ${SERIES_BUCKET()} AS ts,
 ${columns}
   FROM logs
-  WHERE ${WITHIN} AND ${SANE_VITAL} AND EventName = 'browser.web_vital'
+  WHERE ${SCOPED} AND ${SANE_VITAL} AND EventName = 'browser.web_vital'
     AND ${VITAL_NAME} = '${vital}'
   GROUP BY ts
 )
 ARRAY JOIN [${pairs}] AS phase
-ORDER BY ts`;
+ORDER BY ts, phase.1`;
 };
 
 export const browserBuiltins: BuiltinDashboard[] = [
@@ -124,7 +213,7 @@ export const browserBuiltins: BuiltinDashboard[] = [
     id: "web-vitals",
     name: "Web Vitals",
     description:
-      "The four Core Web Vitals at P75 against their published good/poor bands, the page loads and errors behind them, what each slow vital was waiting on, and the routes and elements responsible.",
+      "The Core Web Vitals at P75 against their published good/poor bands, how each one moves at the median, P75 and P90, what the slow ones were waiting on, and the routes and elements responsible. Scoped by service and route.",
     category: "Browser",
     requires: [needsLogs, needsLogAttribute("browser.web_vital")],
     document: {
@@ -133,6 +222,7 @@ export const browserBuiltins: BuiltinDashboard[] = [
       spec: {
         display: { name: "Web Vitals" },
         duration: "24h",
+        variables: [serviceVariable("logs"), routeVariable],
         refreshInterval: "5m",
         panels: {
           lcp: gauge(
@@ -143,9 +233,11 @@ export const browserBuiltins: BuiltinDashboard[] = [
               min: 0,
               max: 5300,
               thresholds: vitalBands(2500, 4000),
+              variant: "horizontal",
+              showAxis: false,
+              showThresholdLabels: true,
             },
             vitalP75("lcp", 0),
-            "Largest Contentful Paint.",
           ),
           inp: gauge(
             "INP P75",
@@ -155,9 +247,11 @@ export const browserBuiltins: BuiltinDashboard[] = [
               min: 0,
               max: 700,
               thresholds: vitalBands(200, 500),
+              variant: "horizontal",
+              showAxis: false,
+              showThresholdLabels: true,
             },
             vitalP75("inp", 0),
-            "Interaction to Next Paint.",
           ),
           cls: gauge(
             "CLS P75",
@@ -166,9 +260,11 @@ export const browserBuiltins: BuiltinDashboard[] = [
               min: 0,
               max: 0.35,
               thresholds: vitalBands(0.1, 0.25),
+              variant: "horizontal",
+              showAxis: false,
+              showThresholdLabels: true,
             },
             vitalP75("cls", 3),
-            "Cumulative Layout Shift, unitless.",
           ),
           ttfb: gauge(
             "TTFB P75",
@@ -178,87 +274,53 @@ export const browserBuiltins: BuiltinDashboard[] = [
               min: 0,
               max: 2400,
               thresholds: vitalBands(800, 1800),
+              variant: "horizontal",
+              showAxis: false,
+              showThresholdLabels: true,
             },
             vitalP75("ttfb", 0),
-            "Time to First Byte.",
           ),
-          "page-loads": stat(
-            "Page loads",
-            { calculation: "last" },
-            `SELECT count() AS loads
-FROM logs
-WHERE ${WITHIN} AND ${FROM_BROWSER} AND EventName = 'everr.browser.page_view'`,
-            "SPA route changes included.",
+          "lcp-rating": bar(
+            "LCP by rating",
+            {
+              showLegend: true,
+              stacking: "percent",
+              colors: VITAL_RATING_COLORS,
+            },
+            ratingShare("lcp"),
           ),
-          "js-errors": stat(
-            "JS errors",
-            { calculation: "last" },
-            `SELECT count() AS errors
-FROM logs
-WHERE ${WITHIN} AND ${FROM_BROWSER} AND EventName = 'exception'`,
-            "Every mechanism, including React boundaries.",
+          "inp-rating": bar(
+            "INP by rating",
+            {
+              showLegend: true,
+              stacking: "percent",
+              colors: VITAL_RATING_COLORS,
+            },
+            ratingShare("inp"),
           ),
-          "error-rate": stat(
-            "Errors per 100 loads",
-            { calculation: "last", decimals: 1, thresholds: thresholds(5, 20) },
-            `SELECT round(countIf(EventName = 'exception') / greatest(countIf(EventName = 'everr.browser.page_view'), 1) * 100, 1) AS per_hundred
-FROM logs
-WHERE ${WITHIN} AND ${FROM_BROWSER}`,
-            "Can exceed 100: one load may throw repeatedly.",
+          "cls-rating": bar(
+            "CLS by rating",
+            {
+              showLegend: true,
+              stacking: "percent",
+              colors: VITAL_RATING_COLORS,
+            },
+            ratingShare("cls"),
           ),
-          "loads-and-errors": timeSeries(
-            "Page loads and errors",
-            { showLegend: true },
-            `SELECT ts, counted.1 AS series, counted.2 AS value
-FROM (
-  SELECT ${SERIES_BUCKET()} AS ts,
-         countIf(EventName = 'everr.browser.page_view') AS loads,
-         countIf(EventName = 'exception') AS errors
-  FROM logs
-  WHERE ${WITHIN} AND ${FROM_BROWSER}
-  GROUP BY ts
-)
-ARRAY JOIN [('Page loads', loads), ('JS errors', errors)] AS counted
-ORDER BY ts`,
-            "On one axis on purpose: the question is whether errors track traffic or spike against it.",
-          ),
-          "rating-over-time": timeSeries(
-            "Samples by rating",
-            { showLegend: true, stacked: true },
-            `SELECT ${SERIES_BUCKET()} AS ts, ${RATING} AS rating, count() AS samples
-FROM logs
-WHERE ${WITHIN} AND EventName = 'browser.web_vital'
-GROUP BY ts, rating
-ORDER BY ts`,
-            "All four vitals together, as the SDK rated each sample.",
-          ),
-          "ms-over-time": timeSeries(
-            "LCP, INP and TTFB P75 over time",
+          "lcp-over-time": timeSeries(
+            "LCP over time",
             { showLegend: true, unit: "ms" },
-            `SELECT ts, vital.1 AS series, vital.2 AS value
-FROM (
-  SELECT ${SERIES_BUCKET()} AS ts,
-         round(quantileIf(0.75)(${VITAL_VALUE}, ${VITAL_NAME} = 'lcp')) AS lcp,
-         round(quantileIf(0.75)(${VITAL_VALUE}, ${VITAL_NAME} = 'inp')) AS inp,
-         round(quantileIf(0.75)(${VITAL_VALUE}, ${VITAL_NAME} = 'ttfb')) AS ttfb
-  FROM logs
-  WHERE ${WITHIN} AND ${SANE_VITAL} AND EventName = 'browser.web_vital'
-  GROUP BY ts
-)
-ARRAY JOIN [('LCP', lcp), ('INP', inp), ('TTFB', ttfb)] AS vital
-ORDER BY ts`,
-            "Samples over a minute are dropped here and on every panel that averages a value: a suspended tab keeps the timer running.",
+            vitalQuantiles("lcp", 0),
+          ),
+          "inp-over-time": timeSeries(
+            "INP over time",
+            { showLegend: true, unit: "ms" },
+            vitalQuantiles("inp", 0),
           ),
           "cls-over-time": timeSeries(
-            "CLS P75 over time",
-            {},
-            `SELECT ${BUCKET()} AS ts, round(quantile(0.75)(${VITAL_VALUE}), 3) AS cls
-FROM logs
-WHERE ${WITHIN} AND EventName = 'browser.web_vital'
-  AND ${VITAL_NAME} = 'cls'
-GROUP BY ts
-ORDER BY ts`,
-            "Its own panel: CLS is unitless and would be a flat zero beside three millisecond series.",
+            "CLS over time",
+            { showLegend: true },
+            vitalQuantiles("cls", 3),
           ),
           "lcp-phases": timeSeries(
             "What LCP was waiting on",
@@ -283,33 +345,24 @@ ORDER BY ts`,
             ]),
             "Each phase is its own P75, so read which phase dominates rather than the total. Waiting covers redirects and service-worker startup, before the network is touched.",
           ),
-          "by-route": table(
-            "P75 by route",
-            `SELECT ${ROUTE} AS route,
-       ${VITAL_NAME} AS vital,
-       round(quantile(0.75)(${VITAL_VALUE}), 3) AS p75,
-       count() AS samples
-FROM logs
-WHERE ${WITHIN} AND ${SANE_VITAL} AND EventName = 'browser.web_vital'
-GROUP BY route, vital
-HAVING samples >= 5
-ORDER BY route, vital
-LIMIT 100`,
-            "Routes with fewer than 5 samples are hidden: P75 is noise below that.",
-          ),
-          "poor-pages": table(
-            "Pages rated poor",
-            `SELECT ${ROUTE} AS route,
-       ${VITAL_NAME} AS vital,
-       countIf(${RATING} = 'poor') AS poor,
+          "slow-interactions": table(
+            "Slowest interactions",
+            `SELECT ${attr("everr.element.selector")} AS element,
+       coalesce(
+         nullIf(${attr("everr.browser.interaction.name")}, ''),
+         ${attr("everr.browser.interaction.type")}
+       ) AS event,
+       round(quantile(0.75)(toFloat64OrZero(${attr("everr.browser.interaction.input_delay")}))) AS input_delay_p75_ms,
        count() AS samples,
-       round(countIf(${RATING} = 'poor') / count() * 100, 1) AS poor_pct
+       ${ROUTE} AS route
 FROM logs
-WHERE ${WITHIN} AND EventName = 'browser.web_vital'
-GROUP BY route, vital
-HAVING poor > 0
-ORDER BY poor DESC
-LIMIT 50`,
+WHERE ${SCOPED} AND ${SANE_VITAL} AND EventName = 'browser.web_vital'
+  AND ${VITAL_NAME} = 'inp'
+  AND ${attr("everr.element.selector")} != ''
+GROUP BY element, event, route
+ORDER BY input_delay_p75_ms DESC
+LIMIT 25`,
+            "Input delay is the wait before the handler even runs: a busy main thread, not slow handler code. Records from an SDK older than the one that stamps the event name fall back to the interaction type.",
           ),
           "lcp-elements": table(
             "Slowest LCP elements",
@@ -317,7 +370,7 @@ LIMIT 50`,
        round(quantile(0.75)(${VITAL_VALUE})) AS lcp_p75_ms,
        count() AS samples
 FROM logs
-WHERE ${WITHIN} AND ${SANE_VITAL} AND EventName = 'browser.web_vital'
+WHERE ${SCOPED} AND ${SANE_VITAL} AND EventName = 'browser.web_vital'
   AND ${VITAL_NAME} = 'lcp'
   AND ${attr("everr.browser.web_vital.lcp.target")} != ''
 GROUP BY element
@@ -333,7 +386,7 @@ LIMIT 25`,
        ${attr("everr.browser.web_vital.cls.load_state")} AS load_state,
        count() AS samples
 FROM logs
-WHERE ${WITHIN} AND EventName = 'browser.web_vital'
+WHERE ${SCOPED} AND EventName = 'browser.web_vital'
   AND ${VITAL_NAME} = 'cls'
   AND ${attr("everr.browser.web_vital.cls.largest_shift_target")} != ''
 GROUP BY element, load_state
@@ -343,13 +396,12 @@ LIMIT 25`,
           ),
         },
         layouts: layout([
-          split(6, "lcp", "inp", "cls", "ttfb"),
-          split(4, "page-loads", "js-errors", "error-rate"),
-          split(9, "loads-and-errors", "rating-over-time"),
-          split(9, "ms-over-time", "cls-over-time"),
+          split(4, "lcp", "inp", "cls", "ttfb"),
+          split(9, "lcp-rating", "inp-rating", "cls-rating"),
+          split(9, "lcp-over-time", "inp-over-time", "cls-over-time"),
           split(9, "lcp-phases", "ttfb-phases"),
-          split(10, "by-route", "poor-pages"),
           split(9, "lcp-elements", "cls-elements"),
+          split(9, "slow-interactions"),
         ]),
       },
     },
@@ -368,6 +420,7 @@ LIMIT 25`,
       spec: {
         display: { name: "Product Analytics" },
         duration: "24h",
+        variables: [serviceVariable("logs")],
         refreshInterval: "5m",
         panels: {
           visitors: stat(
@@ -375,7 +428,7 @@ LIMIT 25`,
             { calculation: "last" },
             `SELECT uniqExact(${attr("everr.visitor.id")}) AS visitors
 FROM logs
-WHERE ${WITHIN} AND ${FROM_BROWSER} AND EventName = 'everr.browser.page_view'`,
+WHERE ${WITHIN} AND ${OF_SERVICE} AND ${FROM_BROWSER} AND EventName = 'everr.browser.page_view'`,
             "Distinct visitor ids.",
           ),
           sessions: stat(
@@ -383,7 +436,7 @@ WHERE ${WITHIN} AND ${FROM_BROWSER} AND EventName = 'everr.browser.page_view'`,
             { calculation: "last" },
             `SELECT uniqExact(${attr("session.id")}) AS sessions
 FROM logs
-WHERE ${WITHIN} AND ${FROM_BROWSER} AND EventName = 'everr.browser.page_view'`,
+WHERE ${WITHIN} AND ${OF_SERVICE} AND ${FROM_BROWSER} AND EventName = 'everr.browser.page_view'`,
             "30-minute idle timeout.",
           ),
           "page-views": stat(
@@ -391,7 +444,7 @@ WHERE ${WITHIN} AND ${FROM_BROWSER} AND EventName = 'everr.browser.page_view'`,
             { calculation: "sum", sparkline: true },
             `SELECT ${BUCKET()} AS ts, count() AS views
 FROM logs
-WHERE ${WITHIN} AND EventName = 'everr.browser.page_view'
+WHERE ${WITHIN} AND ${OF_SERVICE} AND EventName = 'everr.browser.page_view'
 GROUP BY ts
 ORDER BY ts`,
             "SPA route changes included.",
@@ -403,7 +456,7 @@ ORDER BY ts`,
 FROM (
   SELECT dateDiff('second', min(Timestamp), max(Timestamp)) AS seconds
   FROM logs
-  WHERE ${WITHIN} AND ${FROM_BROWSER} AND ${attr("session.id")} != ''
+  WHERE ${WITHIN} AND ${OF_SERVICE} AND ${FROM_BROWSER} AND ${attr("session.id")} != ''
   GROUP BY ${attr("session.id")}
 )`,
             "First record to last.",
@@ -423,7 +476,7 @@ FROM (
          countIf(${IS_AUTOCAPTURE}) AS autocaptures,
          maxIf(toFloat64OrZero(${attr("everr.page_view.duration")}), EventName = 'everr.browser.page_leave') / 1000 AS seconds
   FROM logs
-  WHERE ${WITHIN} AND ${FROM_BROWSER} AND ${attr("session.id")} != ''
+  WHERE ${WITHIN} AND ${OF_SERVICE} AND ${FROM_BROWSER} AND ${attr("session.id")} != ''
   GROUP BY session
   HAVING views > 0
 )`,
@@ -439,7 +492,7 @@ FROM (
          uniqExact(${attr("session.id")}) AS sessions,
          count() AS views
   FROM logs
-  WHERE ${WITHIN} AND EventName = 'everr.browser.page_view'
+  WHERE ${WITHIN} AND ${OF_SERVICE} AND EventName = 'everr.browser.page_view'
   GROUP BY ts
 )
 ARRAY JOIN [('Visitors', visitors), ('Sessions', sessions), ('Page views', views)] AS counted
@@ -450,8 +503,8 @@ ORDER BY ts`,
             { showLegend: true, stacked: true },
             `SELECT ${SERIES_BUCKET()} AS ts, ${ROUTE} AS route, count() AS views
 FROM logs
-WHERE ${WITHIN} AND EventName = 'everr.browser.page_view'
-  AND ${topSeries(ROUTE, "logs", `${WITHIN} AND EventName = 'everr.browser.page_view'`)}
+WHERE ${WITHIN} AND ${OF_SERVICE} AND EventName = 'everr.browser.page_view'
+  AND ${topSeries(ROUTE, "logs", `${WITHIN} AND ${OF_SERVICE} AND EventName = 'everr.browser.page_view'`)}
 GROUP BY ts, route
 ORDER BY ts`,
           ),
@@ -471,7 +524,7 @@ FROM (
          maxIf(toFloat64OrZero(${attr("everr.page_view.duration")}), EventName = 'everr.browser.page_leave') / 1000 AS seconds,
          maxIf(toFloat64OrZero(${attr("everr.scroll.depth")}), EventName = 'everr.browser.page_leave') AS scroll
   FROM logs
-  WHERE ${WITHIN} AND ${FROM_BROWSER} AND ${attr("everr.page_view.id")} != ''
+  WHERE ${WITHIN} AND ${OF_SERVICE} AND ${FROM_BROWSER} AND ${attr("everr.page_view.id")} != ''
   GROUP BY ${attr("everr.page_view.id")}, route, visitor
 )
 GROUP BY route
@@ -486,7 +539,7 @@ LIMIT 30`,
        uniqExact(${attr("everr.visitor.id")}) AS visitors,
        count() AS views
 FROM logs
-WHERE ${WITHIN} AND EventName = 'everr.browser.page_view'
+WHERE ${WITHIN} AND ${OF_SERVICE} AND EventName = 'everr.browser.page_view'
   AND ${attr("everr.navigation.type")} = 'initial'
   AND domain(${attr("everr.referrer.url")}) != domain(${attr("url.full")})
 GROUP BY referrer
@@ -502,7 +555,7 @@ LIMIT 20`,
        uniqExact(${attr("everr.visitor.id")}) AS visitors,
        count() AS views
 FROM logs
-WHERE ${WITHIN} AND ${FROM_BROWSER} AND EventName = 'everr.browser.page_view'
+WHERE ${WITHIN} AND ${OF_SERVICE} AND ${FROM_BROWSER} AND EventName = 'everr.browser.page_view'
 GROUP BY browser, version
 ORDER BY sessions DESC
 LIMIT 20`,
@@ -514,7 +567,7 @@ LIMIT 20`,
        count() AS occurrences,
        uniqExact(${attr("session.id")}) AS sessions
 FROM logs
-WHERE ${WITHIN} AND ${FROM_BROWSER} AND EventName != ''
+WHERE ${WITHIN} AND ${OF_SERVICE} AND ${FROM_BROWSER} AND EventName != ''
 GROUP BY event
 ORDER BY occurrences DESC
 LIMIT 20`,
@@ -526,7 +579,7 @@ LIMIT 20`,
        count() AS rage_clicks,
        substring(${attr("everr.element.selector")}, -40) AS selector_tail
 FROM logs
-WHERE ${WITHIN} AND EventName = 'everr.browser.interaction.rage_click'
+WHERE ${WITHIN} AND ${OF_SERVICE} AND EventName = 'everr.browser.interaction.rage_click'
 GROUP BY route, tag, selector_tail
 ORDER BY rage_clicks DESC
 LIMIT 30`,

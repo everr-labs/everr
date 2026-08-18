@@ -5,6 +5,19 @@ import { Link, type LinkProps } from "@tanstack/react-router";
 import { ArrowUpRight } from "lucide-react";
 import type { ReactNode } from "react";
 
+export const compactNumber = new Intl.NumberFormat("en-US", {
+  notation: "compact",
+  maximumFractionDigits: 1,
+});
+
+export function SectionLabel({ children }: { children: ReactNode }) {
+  return (
+    <h2 className="text-muted-foreground text-xs font-medium uppercase tracking-wider">
+      {children}
+    </h2>
+  );
+}
+
 export function StatSection({
   label,
   children,
@@ -14,9 +27,7 @@ export function StatSection({
 }) {
   return (
     <section className="space-y-2">
-      <h2 className="text-muted-foreground text-xs font-medium uppercase tracking-wider">
-        {label}
-      </h2>
+      <SectionLabel>{label}</SectionLabel>
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{children}</div>
     </section>
   );
