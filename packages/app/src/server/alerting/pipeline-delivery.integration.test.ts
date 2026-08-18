@@ -670,6 +670,32 @@ describe("the alerting pipeline's delivery", () => {
     expect(terminal?.reason).toBe("no_channels");
   });
 
+  it("ends the chain of a rule that names a channel nobody created", async () => {
+    // A rule that declares channels stays pointed at the names it declared,
+    // by design: it never falls back to the default destination. So a name
+    // that does not exist delivers to nobody, and the only thing standing
+    // between that and silence is the terminal.
+    await insertRule(harness.db, {
+      forSecs: 0,
+      notificationChannels: ["ghost-channel"],
+    });
+    const fallback = await insertChannel(harness.db, {
+      type: "webhook",
+      name: "org-default",
+    });
+    await insertDefaultChannels(harness.db, { channelIds: [fallback.id] });
+    harness.clickhouse.setSignal([{ service: "checkout", value: 42 }]);
+
+    await harness.fireAndFlush();
+
+    expect(harness.fetchCalls()).toHaveLength(0);
+    expect(await harness.db.select().from(alertDeliveries)).toHaveLength(0);
+    const terminal = harness.clickhouse
+      .historyRows()
+      .find((row) => row.event_type === "notification_suppressed");
+    expect(terminal?.reason).toBe("no_channels");
+  });
+
   it("each provider truncates at its own limit, and the cut is visible in the request body", async () => {
     // formatNotification (flush-group.ts) already budgets a grouped message
     // against Discord's limit, the tightest of the three, before any provider
@@ -709,6 +735,54 @@ describe("the alerting pipeline's delivery", () => {
     expect(slackText.endsWith("…")).toBe(true);
     expect(discordText.endsWith("…")).toBe(true);
     expect(telegramText.endsWith("…")).toBe(true);
+  });
+
+  // A rule's message is rendered against its query results, and the instance
+  // labels ride the body too, so anything that reaches the monitored system
+  // reaches the channel: a service name, a User-Agent, an exception message.
+  // These two pin the whole path, not the provider in isolation.
+  it("never lets a value out of the query address a discord server", async () => {
+    await insertDirectRule(harness.db, {
+      forSecs: 0,
+      channelType: "discord",
+      channelName: "discord-channel",
+    });
+    harness.clickhouse.setSignal([{ service: "@everyone", value: 42 }]);
+
+    await harness.fireAndFlush();
+
+    const [call] = harness.fetchCalls();
+    const body = call.body as {
+      content: string;
+      allowed_mentions: { parse: string[] };
+    };
+    // The text still says what happened; it just cannot ping anyone.
+    expect(body.content).toContain("@everyone");
+    expect(body.allowed_mentions.parse).toEqual([]);
+  });
+
+  it("never lets a value out of the query become slack markup", async () => {
+    await insertDirectRule(harness.db, {
+      forSecs: 0,
+      channelType: "slack",
+      channelName: "slack-channel",
+    });
+    harness.clickhouse.setSignal([
+      {
+        service: "<!channel> <https://evil.example|Open the alert>",
+        value: 42,
+      },
+    ]);
+
+    await harness.fireAndFlush();
+
+    const [call] = harness.fetchCalls();
+    const text = (
+      call.body as { attachments: [{ blocks: [{ text: { text: string } }] }] }
+    ).attachments[0].blocks[0].text.text;
+    expect(text).toContain("&lt;!channel&gt;");
+    expect(text).not.toContain("<!channel>");
+    expect(text).not.toContain("<https://evil.example|");
   });
 
   it("keeps webhook URLs and bot tokens out of the delivery's error trail", async () => {

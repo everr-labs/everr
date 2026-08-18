@@ -189,3 +189,54 @@ it("fails permanently and sends nothing when the bot token is missing", async ()
   expect((error as ChannelSendError).permanent).toBe(true);
   expect(fetchMock).not.toHaveBeenCalled();
 });
+
+// The body is rendered from the rule's annotations against query result
+// values, so anything that reaches the monitored system reaches the message.
+it("never lets alert text address a discord server", async () => {
+  await sendChannelNotification(
+    { type: "discord", url: HOOK_URL },
+    { title: "Everr alert: 1 firing", body: "@everyone 5xx spike" },
+  );
+
+  const body = fetchMock.mock.calls[0]?.[1]?.body;
+  const message = JSON.parse(String(body)) as {
+    allowed_mentions: { parse: string[] };
+  };
+  expect(message.allowed_mentions.parse).toEqual([]);
+});
+
+it("never lets alert text become slack markup", async () => {
+  await sendChannelNotification(
+    { type: "slack", url: HOOK_URL },
+    {
+      title: "Everr alert: 1 firing",
+      body: "<!channel> <https://evil.example|Open the Everr alert> & more",
+    },
+  );
+
+  const body = fetchMock.mock.calls[0]?.[1]?.body;
+  const message = JSON.parse(String(body)) as {
+    attachments: { blocks: { text: { text: string } }[] }[];
+  };
+  const text = message.attachments[0].blocks[0].text.text;
+  expect(text).toContain("&lt;!channel&gt;");
+  expect(text).not.toContain("<!channel>");
+  expect(text).not.toContain("<https://evil.example|");
+});
+
+it("keeps an escaped slack message inside slack's limit", async () => {
+  // An entity is five characters where the source was one, so a body of
+  // ampersands is the case that overflows if escaping happens after the fit.
+  await sendChannelNotification(
+    { type: "slack", url: HOOK_URL },
+    { title: "Everr alert", body: "&".repeat(CHANNEL_TEXT_MAX.slack) },
+  );
+
+  const body = fetchMock.mock.calls[0]?.[1]?.body;
+  const message = JSON.parse(String(body)) as {
+    attachments: { blocks: { text: { text: string } }[] }[];
+  };
+  expect(message.attachments[0].blocks[0].text.text.length).toBeLessThanOrEqual(
+    CHANNEL_TEXT_MAX.slack,
+  );
+});

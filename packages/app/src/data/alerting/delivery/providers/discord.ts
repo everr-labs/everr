@@ -14,5 +14,10 @@ export function sendDiscordNotification(
 ): Promise<void> {
   return postJson(config.url, {
     content: composeText(notification, CHANNEL_TEXT_MAX.discord),
+    // The body is rendered from the rule's annotations against query result
+    // values, so any text that reaches the monitored system reaches here: a
+    // User-Agent, a URL path, an exception message. Without this an
+    // `@everyone` in one of them pings the whole server.
+    allowed_mentions: { parse: [] },
   });
 }
