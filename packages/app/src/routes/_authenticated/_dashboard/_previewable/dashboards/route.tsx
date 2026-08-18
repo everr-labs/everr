@@ -36,7 +36,7 @@ function DashboardsLayout() {
   return (
     <div
       className={cn(
-        "grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)] [--rail:260px] md:grid-rows-[minmax(0,1fr)] md:transition-[grid-template-columns] md:duration-300 md:ease-out motion-reduce:md:transition-none",
+        "grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)] [--rail:260px] md:grid-rows-[minmax(0,1fr)] md:transition-[grid-template-columns] md:duration-200 md:ease-sidebar motion-reduce:md:transition-none",
         full
           ? "md:grid-cols-[0px_minmax(0,1fr)]"
           : "md:grid-cols-[var(--rail)_minmax(0,1fr)]",

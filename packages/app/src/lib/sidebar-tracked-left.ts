@@ -5,4 +5,4 @@
 // transition without a `useSidebar()` re-render mid-collapse. Below `md` the
 // sidebar is offcanvas, so chrome spans from the viewport edge.
 export const SIDEBAR_TRACKED_LEFT =
-  "left-0 transition-[left] duration-200 ease-linear md:left-(--sidebar-width) md:group-has-data-[collapsible=icon]/sidebar-wrapper:left-(--sidebar-width-icon)";
+  "left-0 transition-[left] duration-200 ease-sidebar motion-reduce:transition-none md:left-(--sidebar-width) md:group-has-data-[collapsible=icon]/sidebar-wrapper:left-(--sidebar-width-icon)";
