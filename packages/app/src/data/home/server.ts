@@ -123,19 +123,32 @@ export const getHomeOverview = createAuthenticatedServerFn({ method: "GET" })
       GROUP BY service
     `;
 
+    /**
+     * The task result lives on its own spans of a run, so it cannot be
+     * filtered before the rows are grouped into runs. Filtering first would
+     * leave `lastTimestamp` as the last result bearing span rather than the
+     * last span of the run, and a run whose closing span crosses a bucket
+     * boundary would then be counted one bucket early, or fall off the end of
+     * the grid entirely. The result is pulled up with `max` and filtered
+     * afterwards, which keeps the same set of runs.
+     */
     const ciSql = `
       SELECT
         ${bucketExpr("lastTimestamp", granularity)} AS bucket,
         count() AS runCount
       FROM (
-        SELECT
-          ${resourceAttribute("cicd.pipeline.run.id")} AS run_id,
-          max(Timestamp) AS lastTimestamp
-        FROM traces
-        WHERE ${timeFilter}
-          AND ${nonEmptyResourceAttribute("cicd.pipeline.run.id")}
-          AND ${nonEmptyResourceAttribute("cicd.pipeline.task.run.result")}
-        GROUP BY run_id
+        SELECT run_id, lastTimestamp
+        FROM (
+          SELECT
+            ${resourceAttribute("cicd.pipeline.run.id")} AS run_id,
+            max(${resourceAttribute("cicd.pipeline.task.run.result")}) AS result,
+            max(Timestamp) AS lastTimestamp
+          FROM traces
+          WHERE ${timeFilter}
+            AND ${nonEmptyResourceAttribute("cicd.pipeline.run.id")}
+          GROUP BY run_id
+        )
+        WHERE result != ''
       )
       GROUP BY bucket WITH ROLLUP
     `;
