@@ -330,6 +330,7 @@ export function startInp(
     // the same information with the same keys.
     emitVital(emit, "inp", latency, restored, {
       "everr.browser.interaction.id": id,
+      "everr.browser.interaction.name": entry.name,
       ...attrs,
       ...phaseAttrs(entry, frame, intersectingLoAFs),
     });
