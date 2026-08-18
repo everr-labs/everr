@@ -44,6 +44,9 @@ const AlertingChannelNamesSchema = alertingChannelNamesSchema();
 export const ALERTING_MATCHERS_MAX = 64;
 export const ALERTING_MATCHER_LABEL_MAX = 256;
 export const ALERTING_MATCHER_VALUE_MAX = 1024;
+// A comment is frozen onto every terminal the silence withholds, and an
+// append-only column cannot be trimmed later.
+export const ALERTING_SILENCE_COMMENT_MAX = 1024;
 
 export const AlertingMatcherSchema = z.object({
   label: z.string().max(ALERTING_MATCHER_LABEL_MAX),
@@ -183,9 +186,12 @@ export const AlertingSilenceInputSchema = z.object({
       message: "matcher label is required",
     }),
   ).min(1),
-  starts_at: z.string(),
-  ends_at: z.string(),
-  comment: z.string().optional(),
+  // Validated, not bare strings: `new Date("2026-08-18 09:00:00")` parses a
+  // zone-less value in the server's own timezone, and the window check still
+  // passes, so the silence mutes hours nobody chose.
+  starts_at: AlertingTimestampSchema,
+  ends_at: AlertingTimestampSchema,
+  comment: z.string().max(ALERTING_SILENCE_COMMENT_MAX).optional(),
   // No `author`: it is stamped from the authenticated principal on the server.
 });
 
