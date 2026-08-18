@@ -99,13 +99,13 @@ If there are no changes, apply prints `Nothing to apply.` and exits without prom
 
 Open Everr and go to **Alerts** (`/alerts`). Your `eventloop-delay` rule appears in the **Rules** list with its current state. Open it:
 
-- The **What is it** card shows the evaluation interval, instance labels, threshold condition, and SQL.
-- When a service crosses the threshold, the **Firing instances** card lists one row per firing service with a **Firing since** time. If nothing is firing, it shows the resolved state.
+- The facts under the title say how the rule behaves: its severity, how often it evaluates, how long a breach has to last before it fires, how many non-breaching evaluations resolve it, and where it delivers.
+- **Breaching instances** counts the instances over the threshold right now. The **Signal history** chart below plots the rule's own signal against its threshold, so a breach that comes and goes is visible.
 - If the query errors, the rule shows an evaluation error on the detail page. Fix the SQL and re-apply.
 
 ## Get notified
 
-Seeing the alert fire in the UI needs no setup. To actually receive it via Telegram or Slack, configure a channel.
+Seeing the alert fire in the UI needs no setup. To actually receive it, create a channel on the Notifications page: Slack, Discord, Telegram, or any HTTPS webhook. Your first channel becomes the organization's default destination, so one channel is a complete setup. See [Set up alert notifications](/docs/guides/set-up-notifications).
 
 ## Change and re-apply
 

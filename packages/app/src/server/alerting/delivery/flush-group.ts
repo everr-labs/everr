@@ -39,7 +39,8 @@ import { alertDeliveryHash } from "./targeting";
 
 // The body budgets against the tightest channel limit, keeping a margin for
 // the title and url framing; the sender cuts the body further when a long
-// url eats past the margin, never the url itself. The title carries the full
+// url eats past the margin, never the url itself. No production path sets a
+// url yet (ticket 28), so the margin is currently spent on the title alone. The title carries the full
 // firing/resolved counts, so cutting lines never hides how big the group is.
 const COMPOSE_FRAME_MARGIN = 200;
 const BODY_MAX_CHARS = CHANNEL_TEXT_MIN - COMPOSE_FRAME_MARGIN;

@@ -97,7 +97,7 @@ Declarations sit flat in `everr/`, named by kind: `*.alert.yaml`, `*.dashboard.y
 - `${...}` in messages must reference a column the `query` returns or be `${value}`.
 - `query` must return a numeric column named `value`.
 - `condition.operator` must be `gt`, `gte`, `lt`, `lte`, `eq`, or `neq`; `condition.threshold` must be a finite number.
-- `instanceLabels` needs ≥1 entry when present; every entry must be a column the `query` returns.
+- `instanceLabels` entries must each be a column the `query` returns. An empty list is valid and means the whole result is one instance.
 - `query` rejects `${...}`.
 - `maxInterval`, when set, must be a valid duration and, when `evaluationInterval` also parses, greater than or equal to it.
 - `annotations` keys starting with `everr.`, and the exact keys `summary`, `description`, `link.alert`, and `link.runbook`, are rejected: those are reserved for Everr's own generated annotations.

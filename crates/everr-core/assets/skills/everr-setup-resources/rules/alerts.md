@@ -34,11 +34,11 @@ spec:
   condition:                 # required numeric threshold, evaluated per row
     operator: gt             # gt | gte | lt | lte | eq | neq
     threshold: 0.05
-  instanceLabels: [ServiceName]  # optional instance identity columns, ≥1 entry
-                                 #   when present. When omitted,
-                                 #   apply infers identity from the query's
-                                 #   string-typed result columns; set it explicitly
-                                 #   to pin identity.
+  instanceLabels: [ServiceName]  # optional instance identity columns. When
+                                 #   omitted, apply infers identity from the
+                                 #   query's string-typed result columns; set it
+                                 #   explicitly to pin identity, or to [] to make
+                                 #   the whole result one instance.
   maxInterval: 15m           # optional; duration string, ceiling for the engine's
                              #   adaptive retry backoff. Evaluation health becomes
                              #   degraded on the first failure. Must be >= evaluationInterval
@@ -83,12 +83,14 @@ The runbook should answer, for whoever the alert wakes up:
 - how to confirm it's real (the dashboards/queries to look at),
 - the usual causes and how to mitigate them.
 
-The link appears on the alert's detail page and list row, and in the Telegram and Slack notifications. See `rules/runbooks.md` for authoring.
+The link appears on the alert's detail page and list row. Notifications do not carry it yet, so a runbook has to be reachable from the alert page. See `rules/runbooks.md` for authoring.
 
 Alert transitions and delivery state are stored in Everr's alert history.
 Link readers to the alert's detail or History page from the runbook when that
-context is useful. Alert history is not part of the tenant ClickHouse schema,
-so dashboard and runbook SQL should not attempt to query it.
+context is useful. The history is also readable as `app.alert_events` through
+the same SQL surface as telemetry, so dashboard and runbook SQL can query it:
+see the `everr-use-telemetry` skill's `alert-history.md` for the columns and
+the query rules.
 
 Example: an AlertRule and its runbook applied together:
 
@@ -208,7 +210,7 @@ annotations:
   runbook.ticket: OPS-1234
 ```
 
-A rule created in the UI is not owned by an as-code repository. Use `everr resources adopt` to move it into the current repository's ownership boundary before managing it with `everr apply`.
+A rule applied under a different repository is not owned by this one. Use `everr resources adopt` to move it into the current repository's ownership boundary before managing it with `everr apply`. There is no other way for a rule to exist: the UI never creates one.
 
 ### Keep Result Sets Small
 
@@ -252,7 +254,7 @@ condition: { operator: gt, threshold: 100 }
 | Alerting on mean latency | Prefer p95/p99 or another tail-latency signal |
 | Template variable `${Foo}` but the label column is `foo` (case mismatch) | Match column names exactly |
 | Alert flaps on gappy data | Raise `resolveAfter` (and consider `for`) instead of loosening the query |
-| Notification channel enabled but no recipients | Add at least one Telegram chat ID |
+| A rule names a channel that does not exist | Create the channel with that exact name on the Notifications page, or fix the name in `spec.notifications.channels`: an unresolved name delivers to nobody |
 | Expecting re-notification on every evaluation | Notifications fire on transitions, not every tick |
 | `maxInterval` shorter than `evaluationInterval` | Raise `maxInterval` to at least `evaluationInterval`, or drop it to use the default |
 | `annotations` key rejected at apply time | Rename it: `everr.*` and the exact keys `summary`, `description`, `link.alert`, `link.runbook` are reserved for generated annotations |

@@ -257,6 +257,14 @@ async function scheduleAlertAtInTransaction(
     .update(alertDefinitions)
     .set({ nextEvaluationAt: runAt, lastEnqueuedAt: runAt })
     .where(eq(alertDefinitions.id, def.id));
+  // An explicit runAt, unlike the "as soon as possible" jobs that let the
+  // database date them (see addJob in server/worker/jobs.ts): the grid is the
+  // rule's own cadence, so it has to be computed, and it is computed from this
+  // node's clock. A node whose clock is ahead schedules every rule it touches
+  // late in database time, and the same skew reaches last_seen_at, which a
+  // different node compares against its own clock in advanceAlertInstance.
+  // Alerting assumes the app nodes agree on the time to within much less than
+  // an evaluation interval.
   await addWorkerJobInTransaction(tx, ALERT_EVALUATE_TASK, payload, {
     jobKey: alertEvaluationJobKey(def.id, payload.scheduledFor),
     jobKeyMode: "replace",
@@ -377,7 +385,10 @@ export async function evaluateAlert(rawPayload: unknown): Promise<void> {
   // Every terminal path from here has to advance scheduling state. The scanner
   // only selects a definition whose lastEnqueuedAt predates its
   // nextEvaluationAt, so a throw that escapes this function leaves the rule
-  // enqueued-but-never-rescheduled and it goes silent for good.
+  // enqueued but not rescheduled, and it stops evaluating until the scanner's
+  // stale-enqueue clause takes it back (STALE_ENQUEUE_SECONDS, 15 minutes).
+  // That backstop is the floor, not the plan: a rule that goes quiet for 15
+  // minutes has already missed the window it exists to watch.
   try {
     await evaluateAlertRule(def, payload, scheduledFor);
   } catch (cause) {

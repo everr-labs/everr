@@ -11,7 +11,7 @@ Every firing and resolved alert delivers to the organization's **default destina
 
 1. If the alert's rule declares its own channels (`spec.notifications.channels`), those channels receive it and the default destination is skipped.
 2. Otherwise the alert goes to the default destination: one channel list for all alerts, or one list per severity when you split.
-3. Silences suppress delivery without stopping evaluation.
+3. Silences hold delivery without stopping evaluation. The alert keeps firing.
 
 Your first channel automatically becomes the default destination, so creating one channel is a complete setup.
 
@@ -21,13 +21,13 @@ A channel is a named delivery endpoint, created and deleted on the Notifications
 
 Webhook URLs (generic, Slack, and Discord) and Telegram bot tokens are write-only: after saving, Everr shows them redacted (`***`). To rotate a redacted secret, edit the channel and enter the new value; the secret fields start blank on edit precisely because the stored values are never shown again. Names are editable labels.
 
-Channels can always be deleted. A deleted channel drops out of the default destination, and rules that named it directly fall back to the default destination. The rule's as-code spec keeps the name, so re-creating the channel (or the next `everr apply`) links it up again. Only a channel with notifications still sending is briefly refused; retry once they settle.
+Channels can always be deleted. A deleted channel drops out of the default destination. A rule that named it directly does not fall back to the default destination: it stays pointed at the name, so its alerts are not delivered until the name exists again, and each one is recorded as undelivered. The rule's as-code spec keeps the name, so re-creating the channel (or the next `everr apply`) links it up again. Only a channel with notifications still sending is briefly refused; retry once they settle.
 
 ## The default destination
 
 The **Delivery** card on the Notifications page shows where alerts go. By default it is one row: **All alerts** and its channel list.
 
-**Split by severity** to send different severities different places: one channel list each for `critical`, `warning`, and `info`. `severity` is set on every alert rule (see [the AlertRule spec](/docs/reference/alert-spec#spec)). A tier with no channels is a delivery gap: those alerts are not delivered, and Everr says so on the Triage board.
+**Split by severity** to send different severities different places: one channel list each for `critical`, `warning`, and `info`. `severity` is set on every alert rule (see [the AlertRule spec](/docs/reference/alert-spec#spec)). A tier with no channels is a delivery gap: those alerts are not delivered, and the Triage board says so. A rule that names a channel of its own is treated as delivered there, so the board does not catch a rule pointing at a name that no longer exists.
 
 ## Rule overrides
 
@@ -44,6 +44,6 @@ Grouping decides which alert instances are batched into the same Slack message o
 
 ## Silences
 
-To stop notifications for a known issue or maintenance window without touching the rule, create a **silence** on the Silences page: matchers select the alerts (label comparisons such as `severity = critical`, using equals or not-equals operators), a time window bounds the suppression, and a comment records why. Silences can be scheduled ahead of a maintenance window. The rule keeps evaluating the whole time; silenced alerts are suppressed from delivery and recorded in the event stream.
+To stop notifications for a known issue or maintenance window without touching the rule, create a **silence** on the Silences page: matchers select the alerts (label comparisons such as `severity = critical`, using equals or not-equals operators), a time window bounds the suppression, and a comment records why. Silences can be scheduled ahead of a maintenance window. The rule keeps evaluating the whole time, and the alert keeps firing: a silence stops the message, never the alerting. A notification held by a silence is not dropped. It waits for the window to end and then goes out, unless the alert stopped firing first, in which case nothing is sent. Both outcomes are recorded in the event stream, so a held notification is visible while it waits.
 
 For when notifications fire, see [How alerts work](/docs/concepts/how-alerts-work).

@@ -48,7 +48,9 @@ export const AlertRuleYamlSchema = z
         instanceLabels: z.array(alertingNonEmptyStringSchema).optional(),
         // Apply the condition to the numeric `value` in each result row.
         condition: AlertingRuleConditionSchema,
-        // The rule is degraded when its last evaluation is older than this value.
+        // The ceiling for the engine's retry backoff after a failed
+        // evaluation. Not a health threshold: a rule reads as degraded from
+        // its first failure, whatever this says.
         maxInterval: alertingNonEmptyStringSchema.optional(),
         annotations: alertingResourceAnnotationsSchema.optional(),
       })

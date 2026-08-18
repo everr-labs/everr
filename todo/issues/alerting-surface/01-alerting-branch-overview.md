@@ -76,8 +76,11 @@ and they make the surface better for humans too.
 - **Nothing irreversible.** The history store is append-only, so no
   secrets and no personal data ever land in it. Erasure stays a simple
   delete in PostgreSQL.
-- **Alerting stays as-code.** Rules, channels and routing are applied via
-  `everr apply`. The UI shows and explains; it does not edit.
+- **Rules stay as-code.** Alert rules are applied via `everr apply`, and the
+  UI shows and explains them rather than editing them. Channels and the
+  organization default destination are the exception, and are edited in the
+  UI: their secrets cannot live in a YAML file in a repository. Routing has
+  no configuration at all any more.
 
 ## What ships first
 

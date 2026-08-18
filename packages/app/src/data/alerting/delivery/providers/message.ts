@@ -9,10 +9,12 @@ export interface ChannelNotification {
 /**
  * Fit a notification into one channel's text limit.
  *
- * The url is the pointer to the alert page and the highest-value token in the
- * message. When a channel limit forces a cut, the body gives way and the url
- * survives whole; only a title and url that alone exceed the limit fall back
- * to a blind cut.
+ * The url is the pointer to the alert page, so when a channel limit forces a
+ * cut the body gives way and the url survives whole; only a title and url that
+ * alone exceed the limit fall back to a blind cut.
+ *
+ * No production path sets it yet, so the branch that keeps it is unreached
+ * outside tests. See ticket 28 in the alerting surface notes.
  */
 export function composeText(
   notification: ChannelNotification,
