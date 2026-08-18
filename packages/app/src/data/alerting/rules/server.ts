@@ -35,7 +35,7 @@ export const listAlertingRules = createAuthenticatedServerFn({
   });
 
 export const getAlertingRule = createAuthenticatedServerFn({ method: "GET" })
-  .inputValidator(z.object({ ruleId: z.string() }))
+  .inputValidator(z.object({ ruleId: z.string().uuid() }))
   .handler(({ data: { ruleId }, context: { session } }) =>
     rules.getRule(alertingOrganizationId(session), ruleId),
   );
@@ -98,7 +98,7 @@ export const getAlertingRuleEvaluationSeries = createAuthenticatedServerFn({
   });
 
 export const pauseAlertingRule = createAuthenticatedServerFn({ method: "POST" })
-  .inputValidator(z.object({ ruleId: z.string() }))
+  .inputValidator(z.object({ ruleId: z.string().uuid() }))
   .handler(({ data: { ruleId }, context: { session } }) =>
     rules.pauseRule(alertingMutationScope(session), ruleId),
   );
@@ -106,7 +106,7 @@ export const pauseAlertingRule = createAuthenticatedServerFn({ method: "POST" })
 export const resumeAlertingRule = createAuthenticatedServerFn({
   method: "POST",
 })
-  .inputValidator(z.object({ ruleId: z.string() }))
+  .inputValidator(z.object({ ruleId: z.string().uuid() }))
   .handler(({ data: { ruleId }, context: { session } }) =>
     rules.resumeRule(alertingMutationScope(session), ruleId),
   );

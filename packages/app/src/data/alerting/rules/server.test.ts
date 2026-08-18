@@ -2,18 +2,22 @@ import { beforeEach, expect, it, vi } from "vitest";
 import { alertingRuleViewFixture } from "../test-fixtures";
 import type { AlertingRuleView } from "../types";
 import type { AlertingPreviewScope } from "./resource/preview-overlay";
-import { listAlertingRules } from "./server";
+import { listAlertingRules, pauseAlertingRule } from "./server";
 
 const mocks = vi.hoisted(() => ({
   listAllRules: vi.fn<
     (org: string, filter?: { previewId: null }) => Promise<AlertingRuleView[]>
   >(async () => []),
+  pauseRule: vi.fn(async () => {}),
   getPreviewScopes: vi.fn<
     (org: string, preview: string) => Promise<AlertingPreviewScope[]>
   >(async () => []),
 }));
 
-vi.mock("./repository", () => ({ listAllRules: mocks.listAllRules }));
+vi.mock("./repository", () => ({
+  listAllRules: mocks.listAllRules,
+  pauseRule: mocks.pauseRule,
+}));
 vi.mock("@/data/previews/repoids", () => ({
   getPreviewScopes: mocks.getPreviewScopes,
 }));
@@ -59,4 +63,14 @@ it("overlays preview rules onto the org's rules when a preview is named", async 
   expect(mocks.listAllRules).toHaveBeenCalledWith("test_org");
   expect(mocks.getPreviewScopes).toHaveBeenCalledWith("test_org", "pr-1");
   expect(result.map((r) => r.id).sort()).toEqual(["rule-live", "rule-preview"]);
+});
+
+// The column is a uuid, so a malformed id reaches Postgres as invalid input
+// syntax and comes back a 500. It is bad request data: reject it at the edge.
+it("rejects a rule id that is not a uuid before reading the database", async () => {
+  await expect(
+    pauseAlertingRule({ data: { ruleId: "not-a-uuid" } }),
+  ).rejects.toThrow();
+
+  expect(mocks.pauseRule).not.toHaveBeenCalled();
 });

@@ -21,7 +21,7 @@ export const createAlertingSilence = createAuthenticatedServerFn({
 export const expireAlertingSilence = createAuthenticatedServerFn({
   method: "POST",
 })
-  .inputValidator(z.object({ id: z.string() }))
+  .inputValidator(z.object({ id: z.string().uuid() }))
   .handler(({ data: { id }, context: { session } }) =>
     silences.expireSilence(alertingMutationScope(session), id),
   );

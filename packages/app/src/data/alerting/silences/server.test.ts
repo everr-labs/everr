@@ -1,9 +1,15 @@
 import { beforeEach, expect, it, vi } from "vitest";
-import { createAlertingSilence } from "./server";
+import { createAlertingSilence, expireAlertingSilence } from "./server";
 
-const mocks = vi.hoisted(() => ({ createSilence: vi.fn() }));
+const mocks = vi.hoisted(() => ({
+  createSilence: vi.fn(),
+  expireSilence: vi.fn(),
+}));
 
-vi.mock("./repository", () => ({ createSilence: mocks.createSilence }));
+vi.mock("./repository", () => ({
+  createSilence: mocks.createSilence,
+  expireSilence: mocks.expireSilence,
+}));
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -36,4 +42,14 @@ it("ignores an author sent by the client", async () => {
   });
 
   expect(mocks.createSilence.mock.calls[0]?.[1]).not.toHaveProperty("author");
+});
+
+// The column is a uuid, so a malformed id reaches Postgres as invalid input
+// syntax and comes back a 500. It is bad request data: reject it at the edge.
+it("rejects a silence id that is not a uuid before reading the database", async () => {
+  await expect(
+    expireAlertingSilence({ data: { id: "not-a-uuid" } }),
+  ).rejects.toThrow();
+
+  expect(mocks.expireSilence).not.toHaveBeenCalled();
 });
