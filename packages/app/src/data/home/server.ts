@@ -5,9 +5,9 @@ import {
   nonEmptyResourceAttribute,
   resourceAttribute,
 } from "@/data/run-query-helpers";
+import { bucketExpr, bucketGrid } from "@/lib/buckets";
 import { createAuthenticatedServerFn } from "@/lib/serverFn";
 import { getBucketGranularity } from "@/lib/time-range";
-import { bucketExpr, bucketGrid } from "./buckets";
 
 export interface HomeService {
   name: string;
