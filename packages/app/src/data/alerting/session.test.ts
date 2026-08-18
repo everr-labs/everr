@@ -1,9 +1,5 @@
 import { describe, expect, it } from "vitest";
-import {
-  alertingMutationScope,
-  parseAlertingPrincipal,
-  SYSTEM_ACTOR,
-} from "./session";
+import { alertingMutationScope, parseAlertingPrincipal } from "./session";
 
 describe("parseAlertingPrincipal", () => {
   it("reads a user principal", () => {
@@ -66,8 +62,4 @@ describe("alertingMutationScope", () => {
       }).actor,
     ).toEqual({ kind: "apikey", id: "k1", display: "apikey:k1" });
   });
-});
-
-it("gives unattended changes an actor with no principal id", () => {
-  expect(SYSTEM_ACTOR).toEqual({ kind: "system", id: "", display: "system" });
 });

@@ -30,7 +30,6 @@ import {
   pauseRule,
   updateRule,
 } from "@/data/alerting/rules/repository";
-import { SYSTEM_ACTOR } from "@/data/alerting/session";
 import {
   alertChannels,
   alertDefaultChannels,
@@ -48,6 +47,7 @@ import {
   insertDefaultChannels,
   insertDirectRule,
   insertRule,
+  TEST_ACTOR,
   TEST_ORG,
 } from "./testing/fixtures";
 import { type AlertingHarness, createAlertingHarness } from "./testing/harness";
@@ -382,7 +382,7 @@ describe("the alerting pipeline's delivery", () => {
     await deleteRule(TEST_ORG, rule.id, asDbExecutor(harness.db));
 
     const { deleted } = await deleteChannel(
-      { organizationId: TEST_ORG, actor: SYSTEM_ACTOR },
+      { organizationId: TEST_ORG, actor: TEST_ACTOR },
       "delete-me",
     );
     expect(deleted).toBe(true);
@@ -413,7 +413,7 @@ describe("the alerting pipeline's delivery", () => {
     expect(delivery.status).toBe("pending");
 
     // Committed after the flush wrote the delivery, before the send ran.
-    await pauseRule({ organizationId: TEST_ORG, actor: SYSTEM_ACTOR }, rule.id);
+    await pauseRule({ organizationId: TEST_ORG, actor: TEST_ACTOR }, rule.id);
 
     await harness.runDueJobs(); // the send now finds no live rule behind it
 

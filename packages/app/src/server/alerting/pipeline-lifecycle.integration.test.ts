@@ -26,7 +26,6 @@ import {
   alertingRetryDelaySeconds,
   nextAlertEvaluationAt,
 } from "@/data/alerting/scheduling/evaluation-jobs.server";
-import { SYSTEM_ACTOR } from "@/data/alerting/session";
 import {
   alertDefinitions,
   alertDeliveries,
@@ -48,6 +47,7 @@ import {
   insertDirectRule,
   insertRule,
   insertSilence,
+  TEST_ACTOR,
   TEST_ORG,
 } from "./testing/fixtures";
 import { type AlertingHarness, createAlertingHarness } from "./testing/harness";
@@ -272,7 +272,7 @@ describe("the alerting pipeline's instance lifecycle", () => {
     const [firing] = await harness.db.select().from(alertInstances);
     expect(firing.status).toBe("firing");
 
-    await pauseRule({ organizationId: TEST_ORG, actor: SYSTEM_ACTOR }, rule.id);
+    await pauseRule({ organizationId: TEST_ORG, actor: TEST_ACTOR }, rule.id);
     // Drains the lifecycle projection job the pause enqueued.
     await harness.runDueJobs();
 
@@ -435,7 +435,7 @@ describe("the alerting pipeline's instance lifecycle", () => {
     expect(degraded.degradedSince).not.toBeNull();
     expect(degraded.consecutiveFailures).toBeGreaterThan(0);
 
-    await pauseRule({ organizationId: TEST_ORG, actor: SYSTEM_ACTOR }, rule.id);
+    await pauseRule({ organizationId: TEST_ORG, actor: TEST_ACTOR }, rule.id);
 
     // A stale degraded status would survive the pause and greet the resume
     // near the retry-backoff ceiling, so a rule fixed while paused would sit
@@ -641,7 +641,7 @@ describe("the alerting pipeline's instance lifecycle", () => {
     harness.clickhouse.setSignal([{ service: "checkout", value: 42 }]);
     await harness.runDueJobs();
 
-    await pauseRule({ organizationId: TEST_ORG, actor: SYSTEM_ACTOR }, rule.id);
+    await pauseRule({ organizationId: TEST_ORG, actor: TEST_ACTOR }, rule.id);
 
     const [projectionJob] = (await harness.pendingJobs()).filter(
       (job) => job.identifier === ALERT_PROJECT_LIFECYCLE_TASK,
@@ -679,7 +679,7 @@ describe("the alerting pipeline's instance lifecycle", () => {
       .where(eq(alertEvents.eventType, "instance_fired"));
     expect(fire.processedAt).toBeNull();
 
-    await pauseRule({ organizationId: TEST_ORG, actor: SYSTEM_ACTOR }, rule.id);
+    await pauseRule({ organizationId: TEST_ORG, actor: TEST_ACTOR }, rule.id);
     await harness.runDueJobs();
 
     const rows = harness.clickhouse.historyRows();

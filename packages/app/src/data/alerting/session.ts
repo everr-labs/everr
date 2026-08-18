@@ -3,30 +3,23 @@
  * authenticated principal, never from request input: the alert-suppression
  * trail is only worth keeping if it cannot be spoofed.
  *
- * `system` covers unattended changes, such as an automatic silence expiry,
- * and carries no id because no principal made them.
+ * Every mutation has one. An unattended kind belongs here when something
+ * unattended can actually mutate, and nothing can today.
  */
 export type AlertingActor = {
-  kind: "user" | "apikey" | "system";
+  kind: "user" | "apikey";
   id: string;
   display: string;
 };
 
-/** The actor for unattended alerting changes. */
-export const SYSTEM_ACTOR: AlertingActor = {
-  kind: "system",
-  id: "",
-  display: "system",
-};
-
 /**
- * The canonical stored identity of an actor: `user:<id>`, `apikey:<id>`, or
- * `system`. Persist this next to any stored display: the display is
- * self-editable profile data (a rename rewrites who a trail appears to name),
- * the principal is the fact a rename cannot touch.
+ * The canonical stored identity of an actor: `user:<id>` or `apikey:<id>`.
+ * Persist this next to any stored display: the display is self-editable
+ * profile data (a rename rewrites who a trail appears to name), the principal
+ * is the fact a rename cannot touch.
  */
 export function alertingActorPrincipal(actor: AlertingActor): string {
-  return actor.kind === "system" ? "system" : `${actor.kind}:${actor.id}`;
+  return `${actor.kind}:${actor.id}`;
 }
 
 /**

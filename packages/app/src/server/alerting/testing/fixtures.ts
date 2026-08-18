@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import type { PgliteDatabase } from "drizzle-orm/pglite";
 import { encryptChannelConfig } from "@/data/alerting/delivery/channel-secrets.server";
 import { enqueueAlertEvaluationInTransaction } from "@/data/alerting/scheduling/evaluation-jobs.server";
+import type { AlertingActor } from "@/data/alerting/session";
 import type { AlertingMatcher, AlertingRuleSpec } from "@/data/alerting/types";
 import type { DbExecutor } from "@/db/client";
 import type * as schema from "@/db/schema";
@@ -16,6 +17,16 @@ import {
 type Db = PgliteDatabase<typeof schema>;
 
 export const TEST_ORG = "org_test";
+
+/**
+ * The actor every mutation in a test carries. A signed-in user, because that
+ * is the only kind of actor a mutation can have outside the apply path.
+ */
+export const TEST_ACTOR: AlertingActor = {
+  kind: "user",
+  id: "u_test",
+  display: "Test User",
+};
 
 /**
  * Repository functions take a `DbExecutor`, typed against node-postgres's

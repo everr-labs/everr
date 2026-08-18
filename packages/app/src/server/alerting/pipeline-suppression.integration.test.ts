@@ -12,7 +12,6 @@ import {
 } from "vitest";
 import { ALERT_PROCESS_EVENT_TASK } from "@/data/alerting/delivery/tasks";
 import { ALERTING_DEFAULT_GROUP_WAIT_SECS } from "@/data/alerting/routing/defaults";
-import { SYSTEM_ACTOR } from "@/data/alerting/session";
 import {
   createSilence,
   expireSilence,
@@ -28,6 +27,7 @@ import {
   insertDirectRule,
   insertPreview,
   insertSilence,
+  TEST_ACTOR,
   TEST_ORG,
 } from "./testing/fixtures";
 import { type AlertingHarness, createAlertingHarness } from "./testing/harness";
@@ -211,7 +211,7 @@ describe("the alerting pipeline's suppression", () => {
   });
 
   it("refuses a window that is not an instant in time", async () => {
-    const scope = { organizationId: TEST_ORG, actor: SYSTEM_ACTOR };
+    const scope = { organizationId: TEST_ORG, actor: TEST_ACTOR };
     const matchers = [
       { label: "service", op: "eq" as const, value: "checkout" },
     ];
@@ -298,7 +298,7 @@ describe("the alerting pipeline's suppression", () => {
     expect(heldBefore.every((row) => row.processedAt === null)).toBe(true);
 
     const { expired } = await expireSilence(
-      { organizationId: TEST_ORG, actor: SYSTEM_ACTOR },
+      { organizationId: TEST_ORG, actor: TEST_ACTOR },
       silence.id,
     );
     expect(expired).toBe(true);
@@ -330,7 +330,7 @@ describe("the alerting pipeline's suppression", () => {
     harness.clickhouse.setSignal([{ service: "checkout", value: 42 }]);
     await harness.runDueJobs();
 
-    const scope = { organizationId: TEST_ORG, actor: SYSTEM_ACTOR };
+    const scope = { organizationId: TEST_ORG, actor: TEST_ACTOR };
     expect(await expireSilence(scope, silence.id)).toEqual({ expired: true });
     const releasedOnce = (await harness.pendingJobs()).length;
 
@@ -397,7 +397,7 @@ describe("the alerting pipeline's suppression", () => {
     );
 
     await expireSilence(
-      { organizationId: TEST_ORG, actor: SYSTEM_ACTOR },
+      { organizationId: TEST_ORG, actor: TEST_ACTOR },
       created.id,
     );
 
