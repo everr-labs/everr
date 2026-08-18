@@ -90,6 +90,16 @@ When OpenTelemetry is missing:
 
 Do not make high-volume runtime traces or debug logs print to stdout/stderr just so they can be inspected. Export them to Everr and query them.
 
+## Server Function Convention
+
+Framework server functions (TanStack Start server functions, Next.js server actions, and similar) are not RPCs: do not describe them with the `rpc.*` conventions. Instrument each invocation as one span:
+
+- Span name: `serverFn {name}`, falling back to `serverFn` when the framework provides no name.
+- `everr.server_function.name`: the framework's own identifier for the function, verbatim (for example `getActiveOrganization`). Do not rename, prefix, or namespace it.
+- `everr.server_function.transport`: `http` when the invocation arrived as its own request, `in-process` otherwise.
+
+Reserve `rpc.*` for actual RPC systems (gRPC, JSON-RPC, and similar). Span kind and framework-specific wiring live in the runtime rules (`spans`, `tanstack-start`, `nextjs`).
+
 ## Debug Telemetry
 
 Use debug telemetry when normal telemetry does not explain local behavior yet.

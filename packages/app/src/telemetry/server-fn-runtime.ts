@@ -1,7 +1,6 @@
 import type { Attributes } from "@opentelemetry/api";
 import { isExpectedServerFunctionError } from "./expected-errors";
 import { captureError, getTelemetryTracer, SpanKind } from "./node";
-import { serverRouteTemplate } from "./server-router";
 
 const tracer = getTelemetryTracer("everr-app.server_fn");
 
@@ -19,7 +18,7 @@ export async function instrumentServerFunction<T>(
   const attributes = serverFunctionAttributes(request, serverFnMeta);
 
   return tracer.startActiveSpan(
-    "tanstack.server_fn",
+    serverFnMeta ? `serverFn ${serverFnMeta.name}` : "serverFn",
     {
       attributes,
       kind: SpanKind.INTERNAL,
@@ -43,33 +42,21 @@ export async function instrumentServerFunction<T>(
 }
 
 /**
- * The RPC semantic conventions, in their current spelling. `rpc.system`,
- * `rpc.service` and `rpc.grpc.status_code` are all deprecated: the system
- * became `rpc.system.name`, and `rpc.service` was absorbed into `rpc.method`,
- * which now carries the fully-qualified `{service}/{method}` name.
- * https://opentelemetry.io/docs/specs/semconv/non-normative/rpc-migration/
- *
- * The span stays INTERNAL rather than SERVER, which the conventions would ask
- * of an RPC server span. Every one of these nests inside the framework's own
- * `POST /_serverFn/:id` SERVER span, so promoting it would make one inbound
- * request count as two on every panel that splits traffic by span kind.
+ * A server function invocation is not an RPC, so it does not borrow the
+ * `rpc.*` conventions: it describes itself under `everr.server_function.*`.
+ * The span stays INTERNAL — over HTTP it nests inside the framework's
+ * `POST /_serverFn/:id` SERVER span, which already counts the inbound
+ * request, and in-process it is a plain function call with no request of
+ * its own. `transport` records that split explicitly.
  */
-const RPC_SERVICE = "server_function";
-
 function serverFunctionAttributes(
   request: Request | undefined,
   serverFnMeta: ServerFunctionMeta | undefined,
 ): Attributes {
   return {
     ...(serverFnMeta
-      ? { "rpc.method": `${RPC_SERVICE}/${serverFnMeta.name}` }
+      ? { "everr.server_function.name": serverFnMeta.name }
       : {}),
-    "rpc.system.name": "tanstack-start",
-    ...(request ? { "url.path": parameterizeServerFunctionPath(request) } : {}),
+    "everr.server_function.transport": request ? "http" : "in-process",
   };
-}
-
-function parameterizeServerFunctionPath(request: Request) {
-  const pathname = new URL(request.url).pathname;
-  return serverRouteTemplate(pathname) ?? pathname;
 }

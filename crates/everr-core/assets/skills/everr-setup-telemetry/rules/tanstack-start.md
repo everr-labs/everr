@@ -104,12 +104,12 @@ export const startInstance = createStart(() => ({
 }));
 ```
 
-The middleware (`createMiddleware({ type: "function" })`) starts an INTERNAL span per invocation with the function id, name, and filename from `serverFnMeta` as attributes (prefix non-semconv attributes with `everr.`). It nests under the request's SERVER span automatically because the fetch wrapper's context is active.
+The middleware (`createMiddleware({ type: "function" })`) starts an INTERNAL span per invocation, named `serverFn {name}` from `serverFnMeta`. It nests under the request's SERVER span automatically because the fetch wrapper's context is active.
 
-A server function call is an RPC, so describe it with the RPC conventions in `spans.md`: `rpc.system.name` for the framework and a fully-qualified `rpc.method`. Keep the span INTERNAL even though the conventions ask an RPC server span to be SERVER, because the request already has one and a second would double every inbound count.
+A server function call is not an RPC, so it does not use the `rpc.*` conventions. Describe it with the server-function convention from the skill root: `everr.server_function.name` carries the function's own identifier verbatim, and `everr.server_function.transport` is `http` when the call arrived over `/_serverFn/` and `in-process` when it ran during SSR. The span stays INTERNAL: over HTTP the transport's SERVER span already counts the inbound request, and in-process there is no inbound request at all.
 
 TanStack Start signals control flow with throwables: `redirect()` and `notFound()` surface as thrown values inside server functions. Filter those out before calling `captureError`, or every redirect becomes a phantom error.
 
 ## Validation
 
-Run the seam validation from `vite-ssr.md`. Additionally trigger one server function from the browser and verify its INTERNAL span shares a `TraceId` with the browser request and the SERVER span.
+Run the seam validation from `vite-ssr.md`. Additionally trigger one server function from the browser and verify its `serverFn {name}` INTERNAL span shares a `TraceId` with the browser request and the transport's SERVER span, and carries `everr.server_function.transport: http`.
