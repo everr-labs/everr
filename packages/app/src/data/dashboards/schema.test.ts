@@ -1,7 +1,5 @@
 import { describe, expect, it } from "vitest";
 import {
-  BUILTIN_PROJECT,
-  dashboardProjectSchema,
   dashboardSlugSchema,
   dashboardSpecSchema,
   dashboardSpecSchemaStrict,
@@ -248,16 +246,5 @@ describe("dashboardSlugSchema", () => {
     expect(dashboardSlugSchema.safeParse("").success).toBe(false);
     expect(dashboardSlugSchema.safeParse("a".repeat(201)).success).toBe(false);
     expect(dashboardSlugSchema.safeParse("a".repeat(200)).success).toBe(true);
-  });
-});
-
-describe("dashboardProjectSchema", () => {
-  it("reserves the built-in pseudo-project", () => {
-    expect(dashboardProjectSchema.safeParse(BUILTIN_PROJECT).success).toBe(
-      false,
-    );
-    expect(dashboardProjectSchema.safeParse("default").success).toBe(true);
-    // Only the exact name is reserved; names around it stay usable.
-    expect(dashboardProjectSchema.safeParse("built-ins").success).toBe(true);
   });
 });

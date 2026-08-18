@@ -14,11 +14,6 @@ import { db } from "@/db/client";
 import { dashboards, previews } from "@/db/schema";
 import { querySqlApi } from "@/lib/clickhouse";
 import { createAuthenticatedServerFn } from "@/lib/serverFn";
-import {
-  buildCapabilitiesQuery,
-  type CapabilityRow,
-  decodeCapabilityRows,
-} from "./built-in/capabilities";
 import { interpolateVariables } from "./interpolate";
 import type { Dashboard } from "./schema";
 import { dashboardSpecSchema } from "./schema";
@@ -180,25 +175,6 @@ export const listDashboards = createAuthenticatedServerFn({ method: "GET" })
         ),
     ]);
     return overlayPreview({ rows, coveredRepoids: covered }).map(toItem);
-  });
-
-/**
- * What the Organization is sending right now, in the same window the
- * dashboards render. The built-in list grades readiness against this, so a
- * built-in marked ready and a dashboard that draws nothing can never disagree.
- */
-export const getTelemetryCapabilities = createAuthenticatedServerFn({
-  method: "GET",
-})
-  .inputValidator(z.object({ from: z.string(), to: z.string() }))
-  .handler(async ({ data: { from, to }, context }) => {
-    const { fromISO, toISO } = resolveTimeRange({ from, to });
-    const rows = await querySqlApi<CapabilityRow>(
-      buildCapabilitiesQuery(),
-      context.session.session.activeOrganizationId,
-      { from: fromISO, to: toISO },
-    );
-    return decodeCapabilityRows(rows);
   });
 
 type QueryRow = Record<string, string | number | boolean | null>;

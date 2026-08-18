@@ -29,8 +29,7 @@ function escapeSqlString(value: string): string {
   return value.replace(/\\/g, "\\\\").replace(/'/g, "\\'");
 }
 
-/** A ClickHouse single-quoted string literal, safely escaped. */
-export function sqlLiteral(value: string): string {
+function sqlLiteral(value: string): string {
   return `'${escapeSqlString(value)}'`;
 }
 

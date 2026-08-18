@@ -2,7 +2,6 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   deleteResource,
   getResource,
-  ReservedProjectError,
 } from "@/data/as-code/resource-admin.server";
 import { getRouteHandler } from "../../../-test-utils";
 import { Route } from "./$slug";
@@ -80,38 +79,6 @@ describe("GET .../$kind/$project/$slug", () => {
     expect(res.status).toBe(400);
     expect(mockedGet).not.toHaveBeenCalled();
   });
-
-  it("serves a built-in dashboard from the catalog, not the database", async () => {
-    const res = await get()({
-      request: new Request(url),
-      context: rwCtx,
-      params: { kind: "dashboard", project: "built-in", slug: "log-overview" },
-    });
-    expect(res.status).toBe(200);
-    const document = (await res.json()) as { kind: string };
-    expect(document.kind).toBe("Dashboard");
-    expect(mockedGet).not.toHaveBeenCalled();
-  });
-
-  it("404s an unknown built-in without touching the database", async () => {
-    const res = await get()({
-      request: new Request(url),
-      context: rwCtx,
-      params: { kind: "dashboard", project: "built-in", slug: "nope" },
-    });
-    expect(res.status).toBe(404);
-    expect(mockedGet).not.toHaveBeenCalled();
-  });
-
-  it("404s non-dashboard kinds under the built-in pseudo-project", async () => {
-    const res = await get()({
-      request: new Request(url),
-      context: rwCtx,
-      params: { kind: "runbook", project: "built-in", slug: "log-overview" },
-    });
-    expect(res.status).toBe(404);
-    expect(mockedGet).not.toHaveBeenCalled();
-  });
 });
 
 describe("DELETE .../$kind/$project/$slug", () => {
@@ -143,15 +110,5 @@ describe("DELETE .../$kind/$project/$slug", () => {
       params,
     });
     expect(res.status).toBe(404);
-  });
-
-  it("403s when the admin layer rejects the reserved project", async () => {
-    mockedDelete.mockRejectedValueOnce(new ReservedProjectError("deleted"));
-    const res = await del()({
-      request: new Request(url, { method: "DELETE" }),
-      context: rwCtx,
-      params: { kind: "dashboard", project: "built-in", slug: "log-overview" },
-    });
-    expect(res.status).toBe(403);
   });
 });
