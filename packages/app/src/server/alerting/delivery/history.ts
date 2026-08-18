@@ -87,7 +87,12 @@ export async function recordDeliveryOutcome(opts: {
           ...(opts.error === undefined ? {} : { error: opts.error }),
         }),
       ),
-      { convergesOnRetry: true },
+      // A succeeded row's id derives from the notification and the dedup key
+      // alone, so a retry rebuilds it and converges. A failed row folds in
+      // the attempt time on purpose, because every attempt is its own line in
+      // the trail, so no retry can ever match one and the token would only
+      // cost this write its insert batching.
+      { convergesOnRetry: opts.outcome === "succeeded" },
     );
   } catch (cause) {
     serverLogger.error("alerts.history.delivery_outcome_failed", {
