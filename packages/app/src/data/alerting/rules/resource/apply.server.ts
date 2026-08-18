@@ -191,7 +191,6 @@ export const applyAlertSpecs: Reconciler = async ({
   // A missing first-apply preview id scopes to no existing rules.
   const previewId = namespace.kind === "preview" ? namespace.id : null;
 
-  // 1. Parse and validate every desired rule.
   const seen = new Map<string, string>();
   const parsed = resources.map(({ path, resource }) => {
     const p = parseAlertRule(path, resource);
@@ -278,13 +277,11 @@ export const applyAlertSpecs: Reconciler = async ({
     };
   });
 
-  // 2. Scope existing rules to this repo and live/preview target.
   const existing = listed.filter(
     (r) => isOwnedRule(r, repoid) && r.previewId === previewId,
   );
   const existingByName = new Map(existing.map((r) => [r.name, r]));
 
-  // 3. Plan creates and changed rules.
   const updates: { d: (typeof desired)[number]; cur: AlertingRuleView }[] = [];
   const creates: (typeof desired)[number][] = [];
   for (const d of desired) {
@@ -307,7 +304,6 @@ export const applyAlertSpecs: Reconciler = async ({
     }
   }
 
-  // 4. Resolve cross-repo ownership for live creates.
   const foreignByName =
     namespace.kind === "live"
       ? new Map(
@@ -329,10 +325,9 @@ export const applyAlertSpecs: Reconciler = async ({
       });
   const adopted = adopt ? taken.map(({ d }) => d.input.name) : [];
 
-  // 5. Converge sequentially on the registry executor, fail-fast. Mutations
-  // run directly on the shared transaction, not inside savepoints: every
-  // writing savepoint burns a subtransaction id, and past 64 in one apply
-  // every snapshot in the cluster degrades to pg_subtrans lookups. The first
+  // Mutations run directly on the shared transaction, not inside savepoints:
+  // every writing savepoint burns a subtransaction id, and past 64 in one
+  // apply every snapshot in the cluster degrades to pg_subtrans lookups. The first
   // failure aborts the shared transaction, which loses nothing: the registry
   // rolls the entire apply back on any mutation failure, so work after the
   // first failure was always discarded.
@@ -384,7 +379,6 @@ export const applyAlertSpecs: Reconciler = async ({
     }
   }
 
-  // 6. Prune scoped rules only after all writes succeed.
   const desiredNames = new Set(desired.map((d) => d.input.name));
   const stale = [...existingByName].filter(([name]) => !desiredNames.has(name));
   const deleted: string[] = [];

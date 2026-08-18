@@ -5,10 +5,8 @@ import { sendSlackNotification } from "./providers/slack";
 import { sendTelegramNotification } from "./providers/telegram";
 import { sendWebhookNotification } from "./providers/webhook";
 
-// Re-exported so callers keep one import for "sending a notification": the
-// send job needs the error type to classify a failure, and both it and the
-// flush need the notification shape.
-export type { ChannelNotification } from "./providers/message";
+// Re-exported so a caller that sends keeps one import: the send job needs the
+// error type to classify a failure.
 export { ChannelSendError } from "./providers/outbound";
 
 /**

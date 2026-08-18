@@ -2,11 +2,11 @@
 //
 // Amber is "attention" (a warning severity, degraded health, a budget running
 // low), red is "emergency" (firing critical, exhausted), emerald is healthy,
-// sky is "informational" (an info severity — matching the sky the logs
+// sky is "informational" (an info severity, matching the sky the logs
 // explorer hard-codes for its info level, a pairing kept by convention, not
 // by a shared token). Signal Lime
 // (`primary`) stays reserved for live/selected, so it is only the `live`
-// tone. Every readout — dots, status words, meters, figures — resolves
+// tone. Every readout (dots, status words, meters, figures) resolves
 // through here instead of repeating the class strings, which keeps a palette
 // change to a single edit.
 import { cva } from "class-variance-authority";

@@ -22,7 +22,7 @@ export interface OverlayResource {
 // "added"); live rows of uncovered repoids pass through untagged; preview rows
 // outside the covered set are orphans and dropped. A preview add whose global
 // identity is already a live resource owned by a different repo is a
-// "conflict" — merging it would fail the cross-repo ownership check.
+// "conflict": merging it would fail the cross-repo ownership check.
 //
 // `identity` and `content` are the caller's, because each resource stores those
 // two differently: a dashboard's content is its document plus the folder it
@@ -52,7 +52,7 @@ export function overlayPreview<T extends OverlayResource>(opts: {
 
   const out: (T & { previewStatus?: PreviewStatus })[] = [];
   for (const row of previewRows) {
-    // Orphan preview row (repoid the registry doesn't cover) — skip it.
+    // Orphan preview row (repoid the registry doesn't cover), so skip it.
     if (!opts.coveredRepoids.has(row.repoid)) continue;
     const liveRow = liveByKey.get(key(row));
     if (!liveRow) {

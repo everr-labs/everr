@@ -1,4 +1,3 @@
-// Channel metadata shared by delivery configuration surfaces.
 import type { ComponentType, SVGProps } from "react";
 // Brand marks; Slack's and Telegram's colors are intentional and ignore
 // currentColor, the webhook glyph keeps its red accent but follows the text

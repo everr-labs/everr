@@ -19,7 +19,7 @@ const ACTIVE_R = 6;
 const NONE: ReadonlySet<string> = new Set();
 
 /**
- * Every series whose value is nearest the cursor — PLURAL, because the overlap
+ * Every series whose value is nearest the cursor. PLURAL, because the overlap
  * this exists to resolve is usually a tie. Two series plotting the same value
  * are equally near the pointer, and singling out one of them would be
  * arbitrary and would hide the other. Anything within `tolerance` of the
@@ -86,7 +86,7 @@ export function valueAtCursorY(
  * recharts chart only recognises reference shapes it can see among its own
  * children, so a wrapper component would be dropped silently.
  *
- * Called-out markers are emitted last so they paint over the plain ones —
+ * Called-out markers are emitted last so they paint over the plain ones:
  * without that, a highlighted point sharing a position with another would be
  * buried under it, which is the exact case the highlight exists for.
  */
