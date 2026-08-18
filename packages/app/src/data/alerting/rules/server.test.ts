@@ -24,7 +24,7 @@ beforeEach(() => {
   mocks.getPreviewScopes.mockResolvedValue([]);
 });
 
-// The triage headline count and the routing suggestions both read this as
+// The triage headline count and the label suggestions both read this as
 // "the organization's rules": a preview rule slipping in here inflates the
 // count and offers a suggestion nobody live can route to.
 it("scopes to live rules, excluding previews, by default", async () => {

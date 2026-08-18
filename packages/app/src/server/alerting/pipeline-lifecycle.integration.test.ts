@@ -11,11 +11,11 @@ import {
   it,
   vi,
 } from "vitest";
-import { ALERT_PROJECT_LIFECYCLE_TASK } from "@/data/alerting/history/tasks";
 import {
   ALERTING_DEFAULT_GROUP_INTERVAL_SECS,
   ALERTING_DEFAULT_GROUP_WAIT_SECS,
-} from "@/data/alerting/routing/defaults";
+} from "@/data/alerting/delivery/defaults";
+import { ALERT_PROJECT_LIFECYCLE_TASK } from "@/data/alerting/history/tasks";
 import {
   deleteRule,
   pauseRule,

@@ -1,6 +1,6 @@
 import { and, eq, gt, inArray, isNull, lte } from "drizzle-orm";
 import { enqueueProcessAlertEvent } from "@/data/alerting/delivery/tasks";
-import { alertingMatchingSilence } from "@/data/alerting/routing/resolution";
+import { alertingMatchingSilence } from "@/data/alerting/silences/matching";
 import { db } from "@/db/client";
 import { alertEvents, alertInstances, alertSilences } from "@/db/schema";
 import {

@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { and, asc, countDistinct, eq, inArray, sql } from "drizzle-orm";
 import { deliveryIsInFlight } from "@/data/alerting/delivery/config";
-import type { AlertingDefaultTier } from "@/data/alerting/routing/defaults";
+import type { AlertingDefaultTier } from "@/data/alerting/delivery/defaults";
 import { type DbExecutor, db } from "@/db/client";
 import {
   alertChannels,

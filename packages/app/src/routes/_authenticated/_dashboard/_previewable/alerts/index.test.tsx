@@ -57,7 +57,7 @@ vi.mock("@/data/alerting/silences/server", () => ({
 vi.mock("@/data/alerting/history/server", () => ({
   listAlertingEventHistory: mocks.listAlertingEventHistory,
 }));
-vi.mock("@/data/alerting/routing/suggestions", () => ({
+vi.mock("@/data/alerting/silences/suggestions", () => ({
   listAlertingLabelKeys: vi.fn().mockResolvedValue([]),
   listAlertingLabelValues: vi.fn().mockResolvedValue([]),
 }));

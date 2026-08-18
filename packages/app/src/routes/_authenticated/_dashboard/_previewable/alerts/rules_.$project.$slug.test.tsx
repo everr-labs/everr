@@ -51,7 +51,7 @@ vi.mock("@/data/alerting/silences/server", () => ({
 // The drawer's matcher editor asks for label suggestions, whose real
 // implementation reaches the drizzle client directly (no server-fn mock
 // upstream of it covers that).
-vi.mock("@/data/alerting/routing/suggestions", () => ({
+vi.mock("@/data/alerting/silences/suggestions", () => ({
   listAlertingLabelKeys: mocks.listAlertingLabelKeys,
   listAlertingLabelValues: mocks.listAlertingLabelValues,
 }));

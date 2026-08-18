@@ -11,8 +11,8 @@ import {
   it,
   vi,
 } from "vitest";
+import { ALERTING_DEFAULT_GROUP_WAIT_SECS } from "@/data/alerting/delivery/defaults";
 import { ALERT_FLUSH_GROUP_TASK } from "@/data/alerting/delivery/tasks";
-import { ALERTING_DEFAULT_GROUP_WAIT_SECS } from "@/data/alerting/routing/defaults";
 import { deleteRule } from "@/data/alerting/rules/repository";
 import {
   ALERT_EVALUATE_TASK,

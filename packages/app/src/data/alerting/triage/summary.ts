@@ -1,11 +1,11 @@
 import type { TimeRange } from "@everr/ui/lib/time-range";
-import type { AlertingDefaultTier } from "@/data/alerting/routing/defaults";
+import type { AlertingDefaultTier } from "@/data/alerting/delivery/defaults";
+import { alertingRuleIdentity } from "@/data/alerting/rules/identity";
 import {
   alertingDispatchLabels,
   alertingMatchingSilence,
   alertingSilenceIsActive,
-} from "@/data/alerting/routing/resolution";
-import { alertingRuleIdentity } from "@/data/alerting/rules/identity";
+} from "@/data/alerting/silences/matching";
 import type {
   AlertingAlert,
   AlertingDefaultDestination,

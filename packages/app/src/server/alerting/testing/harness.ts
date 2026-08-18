@@ -1,5 +1,5 @@
 import { vi } from "vitest";
-import { ALERTING_DEFAULT_GROUP_WAIT_SECS } from "@/data/alerting/routing/defaults";
+import { ALERTING_DEFAULT_GROUP_WAIT_SECS } from "@/data/alerting/delivery/defaults";
 import { setTestDatabase } from "./db-proxy";
 import { failedJobs, pendingJobs, runDueJobs } from "./job-driver";
 import { createTestDatabase, type TestDatabase } from "./pglite-database";

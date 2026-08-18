@@ -8,7 +8,7 @@ import {
   it,
   vi,
 } from "vitest";
-import { ALERTING_DEFAULT_GROUP_WAIT_SECS } from "@/data/alerting/routing/defaults";
+import { ALERTING_DEFAULT_GROUP_WAIT_SECS } from "@/data/alerting/delivery/defaults";
 import { alertDeliveries, alertInstances } from "@/db/schema";
 import { insertDirectRule } from "./testing/fixtures";
 import { type AlertingHarness, createAlertingHarness } from "./testing/harness";

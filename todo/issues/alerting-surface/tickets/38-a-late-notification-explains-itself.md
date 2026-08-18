@@ -3,12 +3,12 @@
 **What to build:** A reader looking at an alert can tell why its
 notification arrived when it did. Demo: an alert that fired at 11:42 and
 notified at 11:44 says which timing value held it and when its group last
-notified, without a SQL query or a look at `routing/defaults.ts`.
+notified, without a SQL query or a look at `delivery/defaults.ts`.
 
 **Details:** found 2026-08-11. Reconstructing one 2m25s delay on
 `demo/demo-flapping` took the `alert_events` history, a direct read of
 `alert_notification_groups` in PostgreSQL for `last_flushed_at`, and the
-default table in `routing/defaults.ts`. Only the first of those three is
+default table in `delivery/defaults.ts`. Only the first of those three is
 available to a user. The delay itself was ordinary group throttling, working
 as designed; what was missing was any way to see that from the product.
 

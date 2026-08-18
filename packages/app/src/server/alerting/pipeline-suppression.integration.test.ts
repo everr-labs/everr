@@ -10,8 +10,8 @@ import {
   it,
   vi,
 } from "vitest";
+import { ALERTING_DEFAULT_GROUP_WAIT_SECS } from "@/data/alerting/delivery/defaults";
 import { ALERT_PROCESS_EVENT_TASK } from "@/data/alerting/delivery/tasks";
-import { ALERTING_DEFAULT_GROUP_WAIT_SECS } from "@/data/alerting/routing/defaults";
 import {
   createSilence,
   expireSilence,

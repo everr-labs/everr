@@ -24,9 +24,9 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Pencil, Send } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
+import type { AlertingDefaultTier } from "@/data/alerting/delivery/defaults";
 import { deliveryQueries } from "@/data/alerting/delivery/queries";
 import { setAlertingDefaultDestination } from "@/data/alerting/delivery/server";
-import type { AlertingDefaultTier } from "@/data/alerting/routing/defaults";
 import type {
   AlertingChannel,
   AlertingDefaultDestination,

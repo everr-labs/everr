@@ -11,11 +11,11 @@ import {
   vi,
 } from "vitest";
 import { ALERT_DELIVERY_MAX_ATTEMPTS } from "@/data/alerting/delivery/config";
-import { IDLE_GROUP_FLUSH_AT } from "@/data/alerting/delivery/tasks";
 import {
   ALERTING_DEFAULT_GROUP_INTERVAL_SECS,
   ALERTING_DEFAULT_GROUP_WAIT_SECS,
-} from "@/data/alerting/routing/defaults";
+} from "@/data/alerting/delivery/defaults";
+import { IDLE_GROUP_FLUSH_AT } from "@/data/alerting/delivery/tasks";
 import {
   ALERT_EVALUATE_TASK,
   enqueueAlertEvaluation,

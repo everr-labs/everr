@@ -5,14 +5,14 @@ import {
   type SuggestItem,
 } from "@everr/ui/components/suggest-combobox";
 import { LockKeyhole, Plus, X } from "lucide-react";
-import { alertingOpSymbol } from "@/data/alerting/routing/resolution";
+import { AlertingMatchOpSchema } from "@/data/alerting/schema";
+import { alertingOpSymbol } from "@/data/alerting/silences/matching";
 import {
   type AlertingLabelKeySuggestion,
   type AlertingLabelValueSuggestion,
   listAlertingLabelKeys,
   listAlertingLabelValues,
-} from "@/data/alerting/routing/suggestions";
-import { AlertingMatchOpSchema } from "@/data/alerting/schema";
+} from "@/data/alerting/silences/suggestions";
 import type { AlertingMatcher } from "@/data/alerting/types";
 
 /**

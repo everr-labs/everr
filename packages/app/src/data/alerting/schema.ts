@@ -1,10 +1,10 @@
 import { z } from "zod";
 import { PreviewStatusSchema } from "@/data/previews/overlay";
+import { ALERTING_DEFAULT_TIERS } from "./delivery/defaults";
 import {
   alertingChannelNamesSchema,
   alertingResourceNameSchema,
 } from "./resource/schema";
-import { ALERTING_DEFAULT_TIERS } from "./routing/defaults";
 import {
   ALERTING_HEALTH_STATUSES,
   ALERTING_INSTANCE_STATUSES,

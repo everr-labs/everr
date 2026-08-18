@@ -7,7 +7,7 @@ import {
   alertingMatchersMatch,
   alertingMatchingSilence,
   alertingSyntheticLabels,
-} from "./resolution";
+} from "./matching";
 
 function matcher(
   op: AlertingMatcher["op"],

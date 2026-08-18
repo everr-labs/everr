@@ -14,6 +14,10 @@ import { sendChannelNotification } from "@/data/alerting/delivery/channel-sender
 import { CHANNEL_TEXT_MAX } from "@/data/alerting/delivery/channel-text-limits";
 import { ALERT_DELIVERY_MAX_ATTEMPTS } from "@/data/alerting/delivery/config";
 import {
+  ALERTING_DEFAULT_GROUP_INTERVAL_SECS,
+  ALERTING_DEFAULT_GROUP_WAIT_SECS,
+} from "@/data/alerting/delivery/defaults";
+import {
   deleteChannel,
   testChannel,
 } from "@/data/alerting/delivery/repository";
@@ -21,10 +25,6 @@ import {
   ALERT_SEND_DELIVERY_TASK,
   IDLE_GROUP_FLUSH_AT,
 } from "@/data/alerting/delivery/tasks";
-import {
-  ALERTING_DEFAULT_GROUP_INTERVAL_SECS,
-  ALERTING_DEFAULT_GROUP_WAIT_SECS,
-} from "@/data/alerting/routing/defaults";
 import {
   deleteRule,
   pauseRule,

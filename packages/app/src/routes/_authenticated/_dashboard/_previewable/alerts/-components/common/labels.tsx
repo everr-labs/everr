@@ -3,12 +3,12 @@ import { cn } from "@everr/ui/lib/utils";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { type ReactNode, useMemo } from "react";
+import { alertingRuleIdentity } from "@/data/alerting/rules/identity";
+import { ruleQueries } from "@/data/alerting/rules/queries";
 import {
   alertingIsCatchAll,
   alertingOpSymbol,
-} from "@/data/alerting/routing/resolution";
-import { alertingRuleIdentity } from "@/data/alerting/rules/identity";
-import { ruleQueries } from "@/data/alerting/rules/queries";
+} from "@/data/alerting/silences/matching";
 import type { AlertingMatcher } from "@/data/alerting/types";
 
 function Pill({

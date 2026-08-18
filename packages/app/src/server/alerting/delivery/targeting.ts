@@ -3,8 +3,8 @@ import { and, eq, inArray } from "drizzle-orm";
 import {
   ALERTING_DEFAULT_GROUP_BY,
   type AlertingDefaultTier,
-} from "@/data/alerting/routing/defaults";
-import { alertingSyntheticLabels } from "@/data/alerting/routing/resolution";
+} from "@/data/alerting/delivery/defaults";
+import { alertingSyntheticLabels } from "@/data/alerting/silences/matching";
 import { db } from "@/db/client";
 import {
   alertDefaultChannels,
