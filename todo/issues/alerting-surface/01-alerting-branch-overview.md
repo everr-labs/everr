@@ -70,10 +70,9 @@ and they make the surface better for humans too.
 
 - **A missing row must never read as a false "no".** During an incident,
   "nothing fired" and "the record was lost" must not look the same. Rows
-  that matter are journaled in PostgreSQL first. The repair that carries a
-  dropped insert into ClickHouse is designed and not yet built (ticket
-  06), so until it lands the surface is best effort and an absent row
-  means unknown.
+  that matter are journaled in PostgreSQL first. The repair that would carry
+  a dropped insert into ClickHouse is designed and deliberately not built, so
+  the surface is best effort and an absent row means unknown.
 - **Nothing irreversible.** The history store is append-only, so no
   secrets and no personal data ever land in it. Erasure stays a simple
   delete in PostgreSQL.

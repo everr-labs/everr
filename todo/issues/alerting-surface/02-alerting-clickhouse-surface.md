@@ -467,9 +467,9 @@ incident.
 | Stream | Write pattern | Reason |
 |---|---|---|
 | Evaluation successes | Ephemeral: project only, fire and forget | A gap is a gap; nothing reads an absent success row as a claim |
-| Evaluation failures | Journaled: decide and journal, project, repair | Staleness and broken-rule claims read from them; a dropped insert must not read as healthy. Failures are the low-volume exception path, so the 2.2M success rows stay fire and forget |
+| Evaluation failures | Journaled: decide and journal, then project | Staleness and broken-rule claims read from them; a dropped insert must not read as healthy. Failures are the low-volume exception path, so the 2.2M success rows stay fire and forget |
 | Preview terminal rows | Ephemeral: project only, fire and forget | The preview delete cascade removes the journal that would repair them; see The stream closes its own instances |
-| Everything else: transitions, pending, hold decisions, deliveries | Journaled: decide and journal, project, repair | A missing row reads as a negative answer acted on during an incident |
+| Everything else: transitions, pending, deliveries | Journaled: decide and journal, then project | A missing row reads as a negative answer acted on during an incident |
 
 Stream-by-stream classification would let each new stream escape the
 durability umbrella until someone noticed, and the first symptom is the worst
@@ -478,18 +478,18 @@ nothing. The classification table is the structural fix; the classification
 question is asked once, when an event type is born.
 
 Preview streams sit between the ephemeral and journaled rows. While a
-preview lives, its rows are journaled and repaired like live rows, with no
-carve-out anywhere. Deleting the preview cascade-deletes its journal in
-PostgreSQL, which ends repair and is why the preview terminal rows are born
-ephemeral. The guarantee matches the artifact: preview rules never notify,
+preview lives, its rows are journaled like live rows, with no carve-out
+anywhere. Deleting the preview cascade-deletes its journal in PostgreSQL,
+which is why the preview terminal rows are born ephemeral. The guarantee
+matches the artifact: preview rules never notify,
 preview history is developer feedback with no incident reader, and the state
 view folds live rows only, so no surface turns an absent preview row into a
 confident wrong answer.
 
 Deliveries bend the first verb without breaking it. No transaction can span
 the provider call, so the journal row reaches terminal status after the
-effect. That status update is the decision the projection and the repair
-follow. See Rejected alternatives.
+effect. That status update is the decision the projection follows. See
+Rejected alternatives.
 
 Delivery itself is at-least-once, documented rather than closed (decided
 2026-08-09): a crash between provider acceptance and the status update
@@ -499,11 +499,27 @@ the one channel that fans out, keeps a partial success from re-sending
 succeeded recipients;
 provider idempotency is used where it exists.
 
+Journaling buys the decision record, not a repaired projection. The
+PostgreSQL journal is what the delivery pipeline works from and what an
+investigator can fall back to; the ClickHouse projection on top of it is
+best effort, and a lost insert stays lost. Reconciliation below is the
+design that would close that, and nothing implements it: the columns it
+needed were cut on 2026-08-18 and come back with it.
+
 Audit sits outside this table entirely. The audit row commits with the
 mutation in PostgreSQL and is read there. No projection, no repair stream;
 see Auditability stays in PostgreSQL.
 
-### Reconciliation
+### Reconciliation (not built, no schema support)
+
+Nothing below is implemented. The columns this design needed, `write_source`
+on the ClickHouse table and `journaled_at` on the PostgreSQL journal, were
+cut on 2026-08-18 rather than carried indefinitely as unused scaffolding, and
+they come back with the reconciler. What survives the cut is here because it
+was expensive to work out, not because it is in force: the deterministic
+delivery and suppression ids and the insert deduplication token stayed, since
+they earn their keep on Graphile retries whether or not repair ever lands.
+
 
 Every journaled stream has a durable PostgreSQL record to diff against.
 `alert_events` holds one row per transition, pending change and lifecycle
@@ -582,7 +598,7 @@ forever while the journal still holds them. The upper bound must stay below min(
 the 90-day journal retention), or the diff resurrects TTL-expired rows
 every cycle, forever.
 
-Reconciled rows are marked `write_source = 'reconciled'`, so a reader can
+Reconciled rows would be marked with a write-source column, so a reader could
 always separate the live stream from repairs. They carry the PostgreSQL timestamp
 (`occurred_at` for transitions, `created_at` for deliveries) as `event_time`,
 never the insert time, so duration queries read real event time, not
@@ -774,7 +790,6 @@ queries must not add a `tenant_id` predicate.
 | `preview_id` | `UUID` | Zero UUID means live |
 | `is_live` | `Bool` | Computed by `DEFAULT` from `preview_id`, so it stays visible to `SELECT *` and filtering to live alerts never types a zero sentinel |
 | `event_type` | `LowCardinality(String)` | See the event-type table above. Second partition dimension: evaluation rows sit in their own partitions, so every non-evaluation query skips them whole |
-| `write_source` | `LowCardinality(String)` | `'live'` or `'reconciled'` |
 | `evaluation_scheduled_at`, `event_time` | `DateTime64(3)` | The partition key's time dimension is `toYYYYMM(event_time)`, so a plain `event_time` bound prunes with no second predicate. `evaluation_scheduled_at` is zero (epoch 1970) off evaluation rows; never `dateDiff` against it there. On rows with a derived `event_id` the time is derived too, so a retry writes the same bytes: a suppression row takes the notification event's UUIDv7 time, a `delivery_succeeded` row the delivery's `created_at`. A `delivery_failed` row keeps its own attempt time, which its id already hashes |
 | `row_count` | `UInt64` | Rows returned by the rule query, which is arbitrary user SQL |
 | `evidence_json`, `samples_json` | `String` | Opaque JSON |
@@ -792,7 +807,7 @@ queries must not add a `tenant_id` predicate.
 | `silence_id` | `UUID` | The matched silence, zero if none |
 | `silence_comment`, `silence_matchers_json` | `String` | Frozen from the silence, so the row reads without PostgreSQL |
 | `delivery_targets` | `Map(String, Array(String))` | Channel type to channel name; never an address |
-| `delivery_dedup_key` | `String` | The PostgreSQL delivery key; the reconciliation diff joins on it. Empty off delivery rows |
+| `delivery_dedup_key` | `String` | The PostgreSQL delivery key: which physical send a row belongs to, so a fan-out that reached several notifications in one message reads as one message. Empty off delivery rows |
 
 **Sort key limitation.** `ORDER BY (tenant_id, repoid, slug, event_type,
 event_time, event_id)` is tuned for per-alert history, the dominant
@@ -1084,11 +1099,10 @@ lands as one recreation. Settled:
   `ZSTD` codecs on the `DateTime64` columns and higher `ZSTD` on the three
   JSON columns.
 - `service_name`, resolved at write time from the instance labels.
-- `write_source`, so reconciled rows are distinguishable from live ones.
 - `reason` on terminal rows; see The stream closes its own instances.
-- `delivery_dedup_key`, the reconciliation join key for deliveries.
-- `silence_comment` and `silence_matchers_json`, so step 6 below becomes a
-  pure code change in `delivery/suppression.ts`.
+- `delivery_dedup_key`, so a delivery row names the send it belongs to.
+- `silence_comment` and `silence_matchers_json`, frozen onto the terminal
+  suppression row by `delivery/suppression.ts`.
 - `episode_id UUID`, per Episodes and chain membership: the episode's
   opening event id on lifecycle rows, zero elsewhere. The journal carries
   it too (a migration 0011 rider), so repair recovers it.
@@ -1227,12 +1241,6 @@ to take the steps up; step 9 can run at any point.
    two logging sites, and a repair counter in the reconciler: a rising
    repair rate means the primary path is rotting. Deferred cost:
    best-effort is unmeasured, and a rotting primary path is invisible.
-6. **Write `notification_deferred`.** Cut (2026-08-18), along with
-   inhibitions. A silence now holds an event by stamping `silence_id` on
-   the journal row and re-enqueueing it, and only the terminal
-   `notification_suppressed` reaches ClickHouse. Accepted cost: a hold
-   that ends in delivery is invisible on the surface; the chain shows a
-   fire and a late delivery with nothing explaining the gap.
 7. **Complete the transition stream.** Done: `instance_pending`, its
    pending-cleared terminal, and the terminals on pause, delete and
    preview deletion with the pause-time instance reset. Step 8 depended
@@ -1357,7 +1365,7 @@ iterating on one migration rather than accumulate a file per change, so:
    same type.
 4. Apply the change to the dev database by hand:
    `docker exec -i everr-postgres-1 psql -U postgres -d postgres`. The
-   alerting tables live in the `postgres` database, not `clickety_clack`.
+   alerting tables live in the `postgres` database.
 
 ClickHouse DDL is different again: fresh installs read `clickhouse/init/`,
 while existing deployments need a migration whose every statement carries its

@@ -68,8 +68,8 @@ at 20 anyway.
 evaluation starves, and a preview with no firing instances reads as "this rule
 would not have fired". That is a false negative in the one surface whose whole
 job is to predict behaviour. Evaluation lateness has to be visible on the
-preview before the priority split lands, not after. The rollup already carries
-`last_evaluated_at` and `next_evaluation_at`.
+preview before the priority split lands, not after. The rollup carries
+`next_evaluation_at`, and a stamp in the past is what says a rule is overdue.
 
 `EVERR_PREVIEW_ALERTS=off` is unaffected and stays what it is: the emergency
 lever for shedding preview load entirely.

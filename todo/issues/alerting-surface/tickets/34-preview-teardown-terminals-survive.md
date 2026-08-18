@@ -20,8 +20,7 @@ the only chance to record those terminals:
 
 Neither is recoverable. `history/preview-teardown.ts:41-46` states why:
 the cascade removed the journal rows in the same transaction, so these
-are projections with nothing to repair from, and the reconciler in 06 and
-07 diffs against a journal side that is empty by construction.
+are projections with nothing to rebuild from.
 
 There is no duplicate risk here. The closure set cannot be re-derived
 after the commit, so a retry writes nothing at all.

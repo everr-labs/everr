@@ -28,10 +28,10 @@ incident in timestamp order with no join.
    `WHERE event_type = 'instance_fired' AND silenced` returns nothing, however
    many alerts were silenced.
 6. **An absent row means unknown, not "it did not happen".** History writes
-   are best effort and delivery reconciliation does not exist yet, so a
-   missing delivery row is equally consistent with a lost write and a
-   notification that never went out. Say which of the two you cannot tell
-   apart rather than reporting the stronger claim.
+   are best effort and nothing repairs a lost one, so a missing delivery row
+   is equally consistent with a lost write and a notification that never went
+   out. This is permanent, not a gap waiting to close. Say which of the two
+   you cannot tell apart rather than reporting the stronger claim.
 
 ## Event Types
 
@@ -63,7 +63,6 @@ not about a missing feature. Read it with rule 6.
 | `preview_id` | `UUID` | Zero UUID means live |
 | `is_live` | `Bool` | True when `preview_id` is zero. Filter on this, never on the zero sentinel |
 | `event_type` | `LowCardinality(String)` | See the table above. Second partition dimension: evaluation rows sit in their own partitions, so every non-evaluation query skips them whole |
-| `write_source` | `LowCardinality(String)` | `'live'` or `'reconciled'` |
 | `evaluation_scheduled_at`, `event_time` | `DateTime64(3)` | `event_time` is when it happened, and the column every query bounds. `evaluation_scheduled_at` is when the evaluation was due; it is the epoch (1970) off evaluation rows, so never `dateDiff` against it there. Delivery `event_time` is send time, not evaluation time |
 | `row_count` | `UInt64` | Rows the rule query returned |
 | `evidence_json`, `samples_json` | `String` | Opaque JSON: the query-wide evidence and the captured sample rows |
@@ -74,7 +73,7 @@ not about a missing feature. Read it with rule 6.
 | `service_name` | `LowCardinality(String)` | The service the alert concerns, resolved when the row was written; `'alert'` when none |
 | `severity` | `LowCardinality(String)` | `info`, `warning` or `critical`. The rule's severity at write time: editing a rule changes later rows, not past ones |
 | `rule_muted` | `Bool` | The rule never notifies at all (`spec.suppressed`, or a preview). Set on every row. Unrelated to `silenced`, which is about one notification |
-| `reason` | `LowCardinality(String)` | A closed vocabulary, empty off terminal rows. `condition_cleared` on `instance_resolved`. `pending_cleared`, `labels_changed`, `rule_paused`, `rule_deleted` or `preview_deleted` on `instance_closed`. `rule_paused`, `rule_deleted`, `no_longer_firing` or `no_channels` on a terminal `notification_suppressed`: `no_longer_firing` means the fire reached delivery after its instance had stopped firing, `no_channels` that the flush found no channel attached |
+| `reason` | `LowCardinality(String)` | A closed vocabulary, empty off terminal rows. `condition_cleared` on `instance_resolved`. `pending_cleared`, `labels_changed`, `rule_paused`, `rule_deleted` or `preview_deleted` on `instance_closed`. `rule_paused`, `rule_deleted`, `no_longer_firing` or `no_channels` on a terminal `notification_suppressed`: `no_longer_firing` means the fire reached delivery after its instance had stopped firing, `no_channels` that the flush found no channel attached. A `notification_suppressed` row can also carry no reason at all: with `silenced` true a silence ended it, and `silence_id` and `silence_comment` say which; with `silenced` false the row does not record why, so read it as unexplained rather than guessing |
 | `silenced` | `Bool` | Frozen when the notification was decided. Meaningful only on `notification_suppressed` rows; always false on a transition |
 | `silence_id` | `UUID` | The matched silence, zero if none |
 | `silence_comment`, `silence_matchers_json` | `String` | Copied from the silence, so the row explains itself |
@@ -182,9 +181,9 @@ LIMIT 100
 ```
 
 Critical alerts with no successful delivery. Read the result with rule 6:
-until delivery reconciliation exists, a lost history write and a broken
-delivery look the same. `NOT rule_muted` excludes rules that never notify by
-design. The 15 minute maturity offset keeps fires still inside the
+a lost history write and a broken delivery look the same, and nothing
+distinguishes them after the fact. `NOT rule_muted` excludes rules that never
+notify by design. The 15 minute maturity offset keeps fires still inside the
 group-flush wait from showing as undelivered. `withheld` separates two
 stories: a withheld notification never had a delivery to make, which is not a
 delivery incident. One scan and a `HAVING` keep the query correct under any

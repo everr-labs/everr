@@ -49,11 +49,9 @@ event does, and the flush declines to announce it. Five edits over four
 files:
 
 - `processAlertEvent` defers only fires. A silenced resolve falls through to
-  the normal dispatch path. Inhibition needs no thought here, because
-  `matchInhibition` already returns false for a resolve.
-- The same function clears `silenced` and `silence_id` before dispatch. It
-  must keep them on a resolve: that flag is how the flush knows not to
-  announce it.
+  the normal dispatch path.
+- The same function clears `silence_id` before dispatch. It must keep it on a
+  resolve: that stamp is how the flush knows not to announce it.
 - `flushAlertGroup` runs its own silence check over every claimed member, and
   a silenced resolve matches there too (the triage silence carries no
   `status` matcher, so `status=resolved` does not save it). That check must

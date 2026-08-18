@@ -52,22 +52,20 @@ The 24 open tickets group into six arcs. The first three are the ones
 that finish the design; the last three are hardening and the batch the
 integration suite turned up.
 
-### Arc A: durability (06, 07, 08)
+### Arc A: durability (08, 46)
 
-The reconciler that makes a dropped insert a delay instead of a permanent
-hole, the delivery diff and sweep beside it, and the counters that say
-whether the primary path is rotting. The table's
-`non_replicated_deduplication_window` is already sized for this arc, and
-the live insert path already carries its deduplication token, so the
-schema is committed to a reconciler that does not exist yet.
+Reconciliation was cut on 2026-08-18 with its schema support, so a dropped
+insert is a permanent hole by decision rather than by omission. What is left
+is measuring it (08) and stopping an abandoned delivery from evading
+retention forever (46). The deduplication window and the insert token stay,
+because a Graphile retry must converge on one write whether or not repair
+ever lands.
 
-### Arc B: the vocabulary gets its writers (09, 10, 14)
+### Arc B: the vocabulary gets its reader (14)
 
-`hold_changed` sits in the event-type enum and in a CHECK constraint with
-nothing writing it, and `notification_deferred` appears nowhere in the
-source. This arc gives them writers, with the silence and inhibition
-freezes, and adds `app.alert_state`. Until it lands, the schema promises
-rows that do not exist.
+Every event type in the enum has a writer. What is missing is
+`app.alert_state`, so "what fires now" stays answerable only in the
+application, which reads PostgreSQL.
 
 ### Arc C: attribution and observability (15, 17, 31)
 
@@ -129,13 +127,10 @@ chain of riders.
   `rule_deleted`, `preview_deleted`). `instance_resolved` stays the
   notifying resolve, with `reason = 'condition_cleared'`. A closure can
   never render as a recovery.
-- The event-type enum also gained `instance_pending`, `hold_changed` and
+- The event-type enum also gained `instance_pending` and
   `evaluation_failed`.
 - `alert_events.id` defaults to native `uuidv7()`. Only the journal id
   qualifies; configuration and state ids stay v4.
-- `journaled_at timestamptz NOT NULL DEFAULT now()` on `alert_events` and
-  `alert_deliveries` is the commit-side clock ticket 06's diff will
-  filter on. `occurred_at` stays domain time.
 - Nullable `episode_id` on `alert_events` and `alert_instances`.
 
 Mechanics, per the design doc's "Changing the schema": no
@@ -154,8 +149,8 @@ the DDL.
   `event_date` dropped, no set index, `ORDER BY` unchanged.
 - The full column set: `instance_labels Map(LowCardinality(String), String)`,
   `is_live` by `DEFAULT` and never MATERIALIZED, `service_name`,
-  `write_source`, `reason`, `delivery_dedup_key`, the silence and reserved
-  inhibition freeze columns, `rule_muted`, LowCardinality `severity` and
+  `write_source`, `reason`, `delivery_dedup_key`, the silence freeze
+  columns, `rule_muted`, LowCardinality `severity` and
   `tenant_id`, `row_count`, `silence_id`, the truncated flags,
   `episode_id` and `context_json`.
 - `CODEC(Delta, ZSTD(1))` on the DateTime64 columns, `ZSTD(6)` on the
@@ -309,7 +304,7 @@ writable now that a real-database harness exists.
 ### Matchers are exact match only (22)
 
 `regex` and `notregex` are gone from the shared matcher op enum, so
-route, silence and inhibition matchers are exact match only. The
+silence matchers are exact match only. The
 rejection message names the removal. The regex evaluation path and its
 unbounded process-wide cache are deleted, so no user pattern reaches
 `RegExp` anywhere in the alerting tree. Bounds: 64 matchers per list,
