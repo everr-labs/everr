@@ -101,16 +101,13 @@ const routeInput = (matchers: unknown) => ({
   repeat_interval_secs: null,
 });
 
-it("rejects the removed regex ops and names them in the error", () => {
+it("rejects any op that is not exact matching", () => {
   for (const op of ["regex", "notregex"] as const) {
     const result = AlertingRouteInputSchema.safeParse(
       routeInput([{ label: "team", op, value: "^pay.*" }]),
     );
     expect(result.success).toBe(false);
-    const message = result.error?.issues[0]?.message ?? "";
-    expect(message).toContain(op);
-    expect(message).toContain("removed");
-    expect(message).toContain("eq");
+    expect(result.error?.issues[0]?.message).toContain("eq");
   }
 
   const unknown = AlertingRouteInputSchema.safeParse(

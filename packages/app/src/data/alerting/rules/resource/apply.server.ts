@@ -237,21 +237,34 @@ export const applyAlertSpecs: Reconciler = async ({
   const availableChannelNames = new Set(
     channels.map((channel) => channel.name),
   );
+  // A missing channel is a warning, not a refusal: the rule applies without
+  // it (falling back to routing when none are left) so a spec is never
+  // blocked on delivery config that lives outside the repo. Re-applying once
+  // the channel exists links it.
+  const channelWarnings: string[] = [];
   for (const item of parsed) {
-    const missing = (item.rule.spec.notification?.channels ?? []).filter(
+    const declared = item.rule.spec.notification?.channels ?? [];
+    const missing = declared.filter(
       (channel) => !availableChannelNames.has(channel),
     );
-    if (missing.length > 0) {
-      throw new ApplyValidationError(
-        `${item.path}: unknown notification channels: ${missing.join(", ")}`,
-      );
-    }
+    if (missing.length === 0) continue;
+    channelWarnings.push(
+      `${item.path}: unknown notification channels skipped: ${missing.join(", ")}`,
+    );
+    const kept = declared.filter((channel) =>
+      availableChannelNames.has(channel),
+    );
+    item.rule.spec.notification =
+      kept.length > 0 ? { channels: kept } : undefined;
   }
 
   // Surface non-fatal validation findings in the apply note.
-  const warnings = validations.flatMap((v) =>
-    v.status === "fulfilled" && v.value.warning ? [v.value.warning] : [],
-  );
+  const warnings = [
+    ...channelWarnings,
+    ...validations.flatMap((v) =>
+      v.status === "fulfilled" && v.value.warning ? [v.value.warning] : [],
+    ),
+  ];
 
   // Notification links must be absolute.
   const appBaseUrl = authEnv.BETTER_AUTH_URL;

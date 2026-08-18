@@ -16,12 +16,6 @@ export function alertingOpSymbol(op: AlertingMatcher["op"]): string {
   return (OP_SYMBOL as Record<string, string | undefined>)[op] ?? op;
 }
 
-// Rows written before the regex ops were removed never match. The `never`
-// parameter forces a new enum op to add its case before this compiles.
-function staleMatcherOpNeverMatches(_op: never): boolean {
-  return false;
-}
-
 /** Missing labels match as empty strings. Matching is exact only. */
 export function alertingMatcherMatches(
   m: AlertingMatcher,
@@ -33,8 +27,6 @@ export function alertingMatcherMatches(
       return v === m.value;
     case "ne":
       return v !== m.value;
-    default:
-      return staleMatcherOpNeverMatches(m.op);
   }
 }
 

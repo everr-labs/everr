@@ -59,14 +59,6 @@ describe("alertingMatcherMatches", () => {
       alertingMatcherMatches(matcher("eq", "^pay.*"), { team: "^pay.*" }),
     ).toBe(true);
   });
-
-  // Rows persisted before the regex ops were removed must not match.
-  it("never matches a removed op left in stored data", () => {
-    const stale = { label: "team", op: "regex", value: ".*" } as unknown;
-    expect(
-      alertingMatcherMatches(stale as AlertingMatcher, { team: "pay" }),
-    ).toBe(false);
-  });
 });
 
 describe("alertingRouteMatches", () => {

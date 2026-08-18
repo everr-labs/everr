@@ -12,17 +12,11 @@ import {
 
 export const AlertingSeveritySchema = z.enum(ALERTING_SEVERITIES);
 
-// Matching is exact only. `regex`/`notregex` were removed: user patterns
-// reached the native RegExp engine, where catastrophic backtracking and an
-// unbounded pattern cache were a denial-of-service path.
-const ALERTING_REMOVED_MATCH_OPS = ["regex", "notregex"];
-
+// Matching is exact only: user regex patterns would reach the native RegExp
+// engine, where catastrophic backtracking and an unbounded pattern cache are
+// a denial-of-service path.
 export const AlertingMatchOpSchema = z.enum(["eq", "ne"], {
-  error: (issue) =>
-    typeof issue.input === "string" &&
-    ALERTING_REMOVED_MATCH_OPS.includes(issue.input)
-      ? `matcher op "${issue.input}" was removed: matchers are exact match only, use "eq" or "ne"`
-      : `matcher op must be "eq" or "ne"`,
+  error: () => `matcher op must be "eq" or "ne"`,
 });
 const AlertingRuleConditionOperatorSchema = z.enum([
   "gt",

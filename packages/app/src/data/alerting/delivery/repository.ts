@@ -1,12 +1,10 @@
 import { randomUUID } from "node:crypto";
 import { and, asc, countDistinct, desc, eq, inArray } from "drizzle-orm";
 import { deliveryIsInFlight } from "@/data/alerting/delivery/config";
-import { formatResourceName } from "@/data/as-code/identity";
 import { type DbExecutor, db } from "@/db/client";
 import {
   alertChannels,
   alertDefinitionChannels,
-  alertDefinitions,
   alertDeliveries,
   alertInhibitions,
   alertReceiverChannels,
@@ -137,39 +135,19 @@ export async function deleteChannel(
   name: string,
 ) {
   const channel = await getChannelRow(organizationId, name);
-  const [receiverRefs, definitionRefs] = await Promise.all([
-    db
-      .select({ receiver: alertReceivers.name })
-      .from(alertReceiverChannels)
-      .innerJoin(
-        alertReceivers,
-        eq(alertReceiverChannels.receiverId, alertReceivers.id),
-      )
-      .where(eq(alertReceiverChannels.channelId, channel.id)),
-    db
-      .select({
-        project: alertDefinitions.project,
-        slug: alertDefinitions.slug,
-      })
-      .from(alertDefinitionChannels)
-      .innerJoin(
-        alertDefinitions,
-        eq(alertDefinitionChannels.alertDefinitionId, alertDefinitions.id),
-      )
-      .where(eq(alertDefinitionChannels.channelId, channel.id)),
-  ]);
+  const receiverRefs = await db
+    .select({ receiver: alertReceivers.name })
+    .from(alertReceiverChannels)
+    .innerJoin(
+      alertReceivers,
+      eq(alertReceiverChannels.receiverId, alertReceivers.id),
+    )
+    .where(eq(alertReceiverChannels.channelId, channel.id));
   if (receiverRefs.length > 0) {
     throwAlertingPersistenceError(
       409,
       "conflict",
       `Channel is used by receivers: ${receiverRefs.map((r) => r.receiver).join(", ")}`,
-    );
-  }
-  if (definitionRefs.length > 0) {
-    throwAlertingPersistenceError(
-      409,
-      "conflict",
-      `Channel is used directly by alerts: ${definitionRefs.map((r) => formatResourceName(r.project, r.slug)).join(", ")}`,
     );
   }
   // One transaction: a flush that inserts a delivery for this channel between
@@ -207,6 +185,18 @@ export async function deleteChannel(
         and(
           eq(alertDeliveries.organizationId, organizationId),
           eq(alertDeliveries.channelId, channel.id),
+        ),
+      );
+    // Rules naming the channel directly do not veto the delete: they fall
+    // back to routing once detached, and the as-code spec still holds the
+    // name, so the next apply either re-links a recreated channel or fails
+    // loudly on the missing one.
+    await tx
+      .delete(alertDefinitionChannels)
+      .where(
+        and(
+          eq(alertDefinitionChannels.organizationId, organizationId),
+          eq(alertDefinitionChannels.channelId, channel.id),
         ),
       );
     await tx.delete(alertChannels).where(eq(alertChannels.id, channel.id));

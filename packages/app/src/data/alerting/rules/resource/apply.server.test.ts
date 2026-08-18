@@ -257,25 +257,30 @@ describe("applyAlertSpecs", () => {
     );
   });
 
-  it("rejects unknown explicit notification channels during dry-run", async () => {
-    await expect(
-      applyAlertSpecs({
-        namespace: live,
-        db,
-        dryRun: true,
-        resources: [
-          {
-            path: "direct.alert.yaml",
-            resource: alert("direct", {
-              notification: { channels: ["missing"] },
-            }),
-          },
-        ],
-      }),
-    ).rejects.toThrow(
-      "direct.alert.yaml: unknown notification channels: missing",
+  it("applies a rule whose notification channel does not exist, with a warning", async () => {
+    mockedListChannels.mockResolvedValue([{ name: "team-slack" }]);
+    const res = await applyAlertSpecs({
+      namespace: live,
+      db,
+      resources: [
+        {
+          path: "direct.alert.yaml",
+          resource: alert("direct", {
+            notification: { channels: ["missing", "team-slack"] },
+          }),
+        },
+      ],
+    });
+
+    // The known channel survives; the missing one is skipped, not fatal.
+    expect(mockedCreateRule).toHaveBeenCalledWith(
+      "o",
+      expect.objectContaining({ notification_channels: ["team-slack"] }),
+      db,
     );
-    expect(mockedCreateRule).not.toHaveBeenCalled();
+    expect(res.note).toContain(
+      "direct.alert.yaml: unknown notification channels skipped: missing",
+    );
   });
 
   it("dry-run plans without mutating", async () => {
