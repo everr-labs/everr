@@ -231,10 +231,10 @@ export async function flushAlertGroup(rawPayload: unknown): Promise<void> {
       claimedEventIds.delete(event.id);
       continue;
     }
-    if (event.silenced || event.silenceId) {
+    if (event.silenceId) {
       await db
         .update(alertEvents)
-        .set({ silenced: false, silenceId: null })
+        .set({ silenceId: null })
         .where(eq(alertEvents.id, event.id));
     }
     members.push({ event, flushedAt });
@@ -276,7 +276,7 @@ export async function flushAlertGroup(rawPayload: unknown): Promise<void> {
           .orderBy(asc(alertChannels.name))
       : [];
   // A notification-worthy set with nowhere to send it: the flush below still
-  // marks these members flushed and advances lastNotifiedAt, so without a
+  // marks these members flushed, so without a
   // terminal here their chains would read as delivered with no record of why
   // nothing went out. Guarded on repo-level channel requirements today, but
   // the invariant ("chains end in an outcome") must hold regardless.
@@ -379,8 +379,6 @@ export async function flushAlertGroup(rawPayload: unknown): Promise<void> {
       .set({
         nextFlushAt,
         lastFlushedAt: flushedAt,
-        lastNotifiedAt:
-          notificationEvents.length > 0 ? flushedAt : group.lastNotifiedAt,
         updatedAt: flushedAt,
       })
       .where(eq(alertNotificationGroups.id, group.id));
@@ -402,8 +400,8 @@ export async function flushAlertGroup(rawPayload: unknown): Promise<void> {
       // chain still needs a terminal so it does not read as forever in
       // flight.
       ...droppedUnannounced.map((event) => journalTerminalRow(event)),
-      // A receiver or rule with no channels attached: nothing was sent, but
-      // the flush still marked these flushed and advanced lastNotifiedAt.
+      // A rule or tier with no channels attached: nothing was sent, but
+      // the flush still marked these flushed.
       ...noChannelDrops.map((event) =>
         journalTerminalRow(event, { reason: "no_channels" }),
       ),

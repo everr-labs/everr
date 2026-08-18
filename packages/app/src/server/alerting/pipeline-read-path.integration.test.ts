@@ -141,7 +141,6 @@ describe("the alerting pipeline's read path", () => {
     expect(row.eventType).toBe("instance_fired");
     expect(row.deliveryTargets.length).toBeGreaterThan(0);
     expect(row.silenced).toBe(false);
-    expect(row.inhibited).toBe(false);
   });
 
   it("folds a settled silence decision onto the transition it withheld", async () => {

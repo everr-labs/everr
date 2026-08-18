@@ -134,7 +134,6 @@ function eventRow(overrides: Partial<AlertEventLogRow> = {}): AlertEventLogRow {
     severity: "critical",
     suppressed: false,
     silenced: false,
-    inhibited: false,
     reason: "",
     deliveryTargets: [],
     evidence: { status_code: 500 },

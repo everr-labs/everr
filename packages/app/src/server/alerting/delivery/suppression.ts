@@ -133,7 +133,6 @@ export async function deferSuppressedEvent(
     const stamped = await tx
       .update(alertEvents)
       .set({
-        silenced: true,
         silenceId: silence.id,
         processedAt: shouldRetry ? null : now,
       })

@@ -588,13 +588,6 @@
           "notNull": true,
           "default": "now()"
         },
-        "journaled_at": {
-          "name": "journaled_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
         "updated_at": {
           "name": "updated_at",
           "type": "timestamp with time zone",
@@ -604,21 +597,6 @@
         }
       },
       "indexes": {
-        "alert_deliveries_org_idx": {
-          "name": "alert_deliveries_org_idx",
-          "columns": [
-            {
-              "expression": "organization_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
         "alert_deliveries_org_channel_inflight_idx": {
           "name": "alert_deliveries_org_channel_inflight_idx",
           "columns": [
@@ -994,20 +972,6 @@
           "notNull": true,
           "default": false
         },
-        "silenced": {
-          "name": "silenced",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": false
-        },
-        "inhibited": {
-          "name": "inhibited",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": false
-        },
         "silence_id": {
           "name": "silence_id",
           "type": "uuid",
@@ -1222,7 +1186,7 @@
         },
         "alert_events_kind_matches_type": {
           "name": "alert_events_kind_matches_type",
-          "value": "(\"alert_events\".\"event_type\" NOT IN ('instance_pending', 'instance_closed', 'evaluation_failed', 'hold_changed') OR \"alert_events\".\"kind\" = 'state') AND (\"alert_events\".\"event_type\" NOT IN ('instance_fired', 'instance_resolved') OR \"alert_events\".\"kind\" = 'notifying')"
+          "value": "(\"alert_events\".\"event_type\" NOT IN ('instance_pending', 'instance_closed', 'evaluation_failed') OR \"alert_events\".\"kind\" = 'state') AND (\"alert_events\".\"event_type\" NOT IN ('instance_fired', 'instance_resolved') OR \"alert_events\".\"kind\" = 'notifying')"
         },
         "alert_events_reason_in_vocabulary": {
           "name": "alert_events_reason_in_vocabulary",
@@ -1570,13 +1534,6 @@
           "primaryKey": false,
           "notNull": false
         },
-        "labels": {
-          "name": "labels",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'{}'::jsonb"
-        },
         "next_flush_at": {
           "name": "next_flush_at",
           "type": "timestamp with time zone",
@@ -1585,12 +1542,6 @@
         },
         "last_flushed_at": {
           "name": "last_flushed_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "last_notified_at": {
-          "name": "last_notified_at",
           "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": false
@@ -2133,27 +2084,6 @@
         }
       },
       "indexes": {
-        "previews_id_tenant_uq": {
-          "name": "previews_id_tenant_uq",
-          "columns": [
-            {
-              "expression": "id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "organization_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
         "previews_id_tenant_repo_uq": {
           "name": "previews_id_tenant_repo_uq",
           "columns": [
@@ -4595,7 +4525,6 @@
         "instance_fired",
         "instance_resolved",
         "instance_closed",
-        "hold_changed",
         "evaluation_failed"
       ]
     },

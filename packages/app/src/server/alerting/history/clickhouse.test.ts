@@ -214,7 +214,6 @@ describe("ClickHouse alert history", () => {
       fingerprint: "api",
       labels: { service: "api" },
       silenced: false,
-      inhibited: false,
       silenceId: null,
     };
     // The whole row, not only the id: an event_time from a decision clock
@@ -238,7 +237,6 @@ describe("ClickHouse alert history", () => {
       fingerprint: "api",
       labels: { service: "api" },
       silenced: false,
-      inhibited: false,
       silenceId: null,
       reason: "rule_paused",
     });
@@ -253,7 +251,6 @@ describe("ClickHouse alert history", () => {
       fingerprint: "api",
       labels: { service: "api" },
       silenced: true,
-      inhibited: false,
       silenceId: "019c3abf-0000-7000-8000-000000000001",
     });
 
@@ -261,7 +258,6 @@ describe("ClickHouse alert history", () => {
       event_type: "notification_suppressed",
       notification_event_id: "019c3aba-29f8-7d6e-9e55-301cf47fa80d",
       silenced: true,
-      inhibited: false,
       silence_id: "019c3abf-0000-7000-8000-000000000001",
     });
     // Its own id, so the row is addressable independently of the transition.
@@ -276,7 +272,6 @@ describe("ClickHouse alert history", () => {
         fingerprint: "api",
         labels: {},
         silenced: false,
-        inhibited: true,
         silenceId: null,
       }).silence_id,
     ).toBe(ZERO_UUID);
@@ -388,7 +383,6 @@ describe("ClickHouse alert history", () => {
         fingerprint: "api",
         labels: { service: "api" },
         silenced: false,
-        inhibited: false,
         silenceId: null,
         reason: "rule_paused",
       });

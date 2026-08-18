@@ -153,7 +153,6 @@ describe("queryClickHouseAlertEventLog", () => {
         {
           eventId: "019c3ab6-54d6-7e26-bc76-8cadd67542fb",
           silenced: 1,
-          inhibited: 0,
           deliveryTargets: ["on-call"],
         },
       ]);
@@ -173,7 +172,6 @@ describe("queryClickHouseAlertEventLog", () => {
         severity: "critical",
         suppressed: false,
         silenced: true,
-        inhibited: false,
         reason: "",
         deliveryTargets: ["on-call"],
         evidence: { value: 42 },

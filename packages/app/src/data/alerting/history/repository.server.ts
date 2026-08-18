@@ -36,7 +36,6 @@ export type AlertEventLogRow = {
   severity: string;
   suppressed: boolean;
   silenced: boolean;
-  inhibited: boolean;
   /** Why a terminal row ended its instance; empty off terminals. */
   reason: AlertingLifecycleReason | "";
   deliveryTargets: string[];
@@ -72,7 +71,6 @@ function parseJsonObject(json: string): Record<string, JsonValue> {
 
 type NotificationOutcome = {
   silenced: boolean;
-  inhibited: boolean;
   deliveryTargets: string[];
 };
 
@@ -96,7 +94,6 @@ async function queryNotificationOutcomes(
   type OutcomeRow = {
     eventId: string;
     silenced: boolean;
-    inhibited: boolean;
     deliveryTargets: string[];
   };
   const rows = await query<OutcomeRow>(
@@ -104,7 +101,6 @@ async function queryNotificationOutcomes(
       SELECT
         toString(notification_event_id) AS eventId,
         max(silenced) AS silenced,
-        max(inhibited) AS inhibited,
         arraySort(arrayDistinct(arrayFlatten(groupArray(
           if(event_type = 'delivery_succeeded', arrayFlatten(mapValues(delivery_targets)), [])
         )))) AS deliveryTargets
@@ -128,7 +124,6 @@ async function queryNotificationOutcomes(
       row.eventId,
       {
         silenced: Boolean(row.silenced),
-        inhibited: Boolean(row.inhibited),
         deliveryTargets: row.deliveryTargets,
       },
     ]),
@@ -250,7 +245,6 @@ export async function queryClickHouseAlertEventLog(
       severity: row.severity,
       suppressed: Boolean(row.suppressed),
       silenced: outcome?.silenced ?? false,
-      inhibited: outcome?.inhibited ?? false,
       reason: isAlertingLifecycleReason(row.reason) ? row.reason : "",
       deliveryTargets: outcome?.deliveryTargets ?? [],
       evidence: parseJsonObject(row.evidenceJson),

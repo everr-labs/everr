@@ -841,7 +841,7 @@ describe("the alerting pipeline's organization isolation", () => {
           eq(alertEvents.eventType, "instance_fired"),
         ),
       );
-    expect(heldEventA.silenced).toBe(true);
+    expect(heldEventA.silenceId).not.toBeNull();
     expect(heldEventA.processedAt).toBeNull();
   });
 
@@ -859,9 +859,8 @@ describe("the alerting pipeline's organization isolation", () => {
       .where(eq(alertNotificationGroups.organizationId, TEST_ORG));
     expect(groupA).toBeDefined();
 
-    // The fixed group_by is [rule, severity]: org A's group carries org A's
-    // own rule id, and its target is its own default destination.
-    expect(groupA.labels).toEqual({ rule: ruleA.id, severity: "warning" });
+    // The fixed group_by is [rule, severity], carried in the group key: org
+    // A's group targets its own default destination.
     expect(groupA.defaultTier).toBe("all");
 
     // Reads the real membership rows, joined to the events they carry, rather
@@ -885,7 +884,7 @@ describe("the alerting pipeline's organization isolation", () => {
   });
 
   it("listing deliveries for org A returns none of org B's", async () => {
-    const { ruleA, channelA } = await insertTwinDefaultRules();
+    const { channelA } = await insertTwinDefaultRules();
     harness.clickhouse.setSignal([{ service: "checkout", value: 42 }]);
 
     await harness.fireAndFlush();
@@ -905,15 +904,5 @@ describe("the alerting pipeline's organization isolation", () => {
     expect(deliveriesA[0].channelId).toBe(channelA.id);
 
     expect(deliveriesA[0].notificationGroupId).not.toBeNull();
-    const [groupA] = await harness.db
-      .select()
-      .from(alertNotificationGroups)
-      .where(
-        eq(
-          alertNotificationGroups.id,
-          deliveriesA[0].notificationGroupId as string,
-        ),
-      );
-    expect(groupA.labels).toEqual({ rule: ruleA.id, severity: "warning" });
   });
 });

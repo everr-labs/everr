@@ -4,7 +4,7 @@ DROP TABLE "alert_settings";--> statement-breakpoint
 ALTER TYPE "public"."alert_state" ADD VALUE 'pending' BEFORE 'firing';--> statement-breakpoint
 CREATE TYPE "public"."alert_delivery_state" AS ENUM('pending', 'sent', 'failed');--> statement-breakpoint
 CREATE TYPE "public"."alert_event_kind" AS ENUM('notifying', 'state');--> statement-breakpoint
-CREATE TYPE "public"."alert_event_type" AS ENUM('instance_pending', 'instance_fired', 'instance_resolved', 'instance_closed', 'hold_changed', 'evaluation_failed');--> statement-breakpoint
+CREATE TYPE "public"."alert_event_type" AS ENUM('instance_pending', 'instance_fired', 'instance_resolved', 'instance_closed', 'evaluation_failed');--> statement-breakpoint
 CREATE TYPE "public"."alert_health" AS ENUM('healthy', 'degraded');--> statement-breakpoint
 CREATE TYPE "public"."alert_instance_state" AS ENUM('inactive', 'pending', 'firing');--> statement-breakpoint
 CREATE TYPE "public"."alert_severity" AS ENUM('info', 'warning', 'critical');--> statement-breakpoint
@@ -77,7 +77,6 @@ CREATE TABLE "alert_deliveries" (
 	"attempts" integer DEFAULT 0 NOT NULL,
 	"last_error" text,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
-	"journaled_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
 	CONSTRAINT "alert_deliveries_attempts_nonnegative" CHECK ("alert_deliveries"."attempts" >= 0)
 );
@@ -113,14 +112,12 @@ CREATE TABLE "alert_events" (
 	"notification_title" text DEFAULT '' NOT NULL,
 	"notification_description" text DEFAULT '' NOT NULL,
 	"suppressed" boolean DEFAULT false NOT NULL,
-	"silenced" boolean DEFAULT false NOT NULL,
-	"inhibited" boolean DEFAULT false NOT NULL,
 	"silence_id" uuid,
 	"occurred_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"journaled_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"processed_at" timestamp with time zone,
 	CONSTRAINT "alert_events_repoid_nonempty" CHECK (length("alert_events"."repoid") > 0),
-	CONSTRAINT "alert_events_kind_matches_type" CHECK (("alert_events"."event_type" NOT IN ('instance_pending', 'instance_closed', 'evaluation_failed', 'hold_changed') OR "alert_events"."kind" = 'state') AND ("alert_events"."event_type" NOT IN ('instance_fired', 'instance_resolved') OR "alert_events"."kind" = 'notifying')),
+	CONSTRAINT "alert_events_kind_matches_type" CHECK (("alert_events"."event_type" NOT IN ('instance_pending', 'instance_closed', 'evaluation_failed') OR "alert_events"."kind" = 'state') AND ("alert_events"."event_type" NOT IN ('instance_fired', 'instance_resolved') OR "alert_events"."kind" = 'notifying')),
 	CONSTRAINT "alert_events_reason_in_vocabulary" CHECK ("alert_events"."reason" IN ('', 'condition_cleared', 'pending_cleared', 'labels_changed', 'rule_paused', 'rule_deleted', 'preview_deleted', 'no_longer_firing', 'no_channels'))
 );
 --> statement-breakpoint
@@ -163,16 +160,13 @@ CREATE TABLE "alert_notification_groups" (
 	"group_key" text NOT NULL,
 	"default_tier" text,
 	"direct_alert_definition_id" uuid,
-	"labels" jsonb DEFAULT '{}'::jsonb NOT NULL,
 	"next_flush_at" timestamp with time zone NOT NULL,
 	"last_flushed_at" timestamp with time zone,
-	"last_notified_at" timestamp with time zone,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
 	CONSTRAINT "alert_notification_groups_one_target" CHECK (num_nonnulls("alert_notification_groups"."default_tier", "alert_notification_groups"."direct_alert_definition_id") = 1)
 );
 --> statement-breakpoint
-CREATE UNIQUE INDEX "previews_id_tenant_uq" ON "previews" USING btree ("id","organization_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "previews_id_tenant_repo_uq" ON "previews" USING btree ("id","organization_id","repoid");--> statement-breakpoint
 CREATE UNIQUE INDEX "alert_definitions_org_id_uq" ON "alert_definitions" USING btree ("organization_id","id");--> statement-breakpoint
 CREATE UNIQUE INDEX "alert_channels_org_id_uq" ON "alert_channels" USING btree ("organization_id","id");--> statement-breakpoint
@@ -192,7 +186,6 @@ ALTER TABLE "alert_notification_group_events" ADD CONSTRAINT "alert_notification
 ALTER TABLE "alert_default_channels" ADD CONSTRAINT "alert_default_channels_organization_id_channel_id_alert_channels_organization_id_id_fk" FOREIGN KEY ("organization_id","channel_id") REFERENCES "public"."alert_channels"("organization_id","id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "alert_notification_groups" ADD CONSTRAINT "alert_notification_groups_direct_definition_tenant_fk" FOREIGN KEY ("organization_id","direct_alert_definition_id") REFERENCES "public"."alert_definitions"("organization_id","id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 CREATE UNIQUE INDEX "alert_channels_org_name_uq" ON "alert_channels" USING btree ("organization_id","name");--> statement-breakpoint
-CREATE INDEX "alert_deliveries_org_idx" ON "alert_deliveries" USING btree ("organization_id");--> statement-breakpoint
 CREATE INDEX "alert_deliveries_org_channel_inflight_idx" ON "alert_deliveries" USING btree ("organization_id","channel_id") WHERE "alert_deliveries"."status" = 'pending' OR ("alert_deliveries"."status" = 'failed' AND "alert_deliveries"."attempts" < 5);--> statement-breakpoint
 CREATE INDEX "alert_deliveries_terminal_cleanup_idx" ON "alert_deliveries" USING btree ("updated_at","dedup_key") WHERE "alert_deliveries"."status" = 'sent' OR ("alert_deliveries"."status" = 'failed' AND "alert_deliveries"."attempts" >= 5);--> statement-breakpoint
 CREATE INDEX "alert_delivery_events_event_idx" ON "alert_delivery_events" USING btree ("event_id");--> statement-breakpoint

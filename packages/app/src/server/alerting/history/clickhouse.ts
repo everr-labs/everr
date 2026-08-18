@@ -131,12 +131,9 @@ export type AlertHistoryRow = {
   rule_muted: boolean;
   reason: string;
   silenced: boolean;
-  inhibited: boolean;
   silence_id: string;
   silence_comment: string;
   silence_matchers_json: string;
-  inhibition_comment: string;
-  inhibition_source_json: string;
   delivery_targets: AlertDeliveryTargets;
   delivery_dedup_key: string;
 };
@@ -175,12 +172,9 @@ function baseHistoryRow(opts: {
     rule_muted: opts.def.ruleMuted,
     reason: "",
     silenced: false,
-    inhibited: false,
     silence_id: ZERO_UUID,
     silence_comment: "",
     silence_matchers_json: "",
-    inhibition_comment: "",
-    inhibition_source_json: "",
     delivery_targets: {},
     delivery_dedup_key: "",
   };
@@ -288,9 +282,9 @@ export function instanceHistoryRow(opts: {
 }
 
 /**
- * A notification that was decided against. Written when a silence or an
- * inhibition rule stops an event from reaching any channel, so "why was I not
- * paged" is answerable from the same table as the transition itself.
+ * A notification that was decided against. Written when a silence stops an
+ * event from reaching any channel, so "why was I not paged" is answerable
+ * from the same table as the transition itself.
  *
  * There is no `occurredAt`: the row is one per chain, so `event_time` is the
  * chain's own time, read back out of the notification event's UUIDv7. A
@@ -303,10 +297,9 @@ export function suppressionHistoryRow(opts: {
   fingerprint: string;
   labels: Record<string, string>;
   silenced: boolean;
-  inhibited: boolean;
   silenceId: string | null;
   /** Set on lifecycle terminals (`rule_paused`, `rule_deleted`); empty when a
-   * silence or inhibition made the decision. */
+   * silence made the decision. */
   reason?: AlertingLifecycleReason;
 }): AlertHistoryRow {
   return {
@@ -322,7 +315,6 @@ export function suppressionHistoryRow(opts: {
     }),
     ...instanceRowFields(opts.fingerprint, opts.labels),
     silenced: opts.silenced,
-    inhibited: opts.inhibited,
     silence_id: opts.silenceId ?? ZERO_UUID,
     reason: opts.reason ?? "",
   };
@@ -345,7 +337,6 @@ export function journalTerminalRow(
   opts: {
     reason?: AlertingLifecycleReason;
     silenced?: boolean;
-    inhibited?: boolean;
     silenceId?: string | null;
   } = {},
 ): AlertHistoryRow {
@@ -355,7 +346,6 @@ export function journalTerminalRow(
     fingerprint: event.instanceFingerprint,
     labels: event.instanceLabels,
     silenced: opts.silenced ?? false,
-    inhibited: opts.inhibited ?? false,
     silenceId: opts.silenceId ?? null,
     ...(opts.reason ? { reason: opts.reason } : {}),
   });
@@ -411,8 +401,8 @@ export function deliveryHistoryRow(opts: {
   };
 }
 
-// Anchors dedup to the batch's logical identity (which journal or hold-decision
-// rows it projects), not to matching insert bytes: the same rows in a
+// Anchors dedup to the batch's logical identity (which journal rows it
+// projects), not to matching insert bytes: the same rows in a
 // different order, or from a racing second writer, still converge.
 function alertHistoryDedupToken(rows: readonly AlertHistoryRow[]): string {
   const ids = rows.map((row) => row.event_id).sort();

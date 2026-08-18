@@ -70,19 +70,13 @@ CREATE TABLE IF NOT EXISTS app.alert_events
   reason LowCardinality(String) DEFAULT '',
   -- Notification outcome, frozen at the moment it was decided. A silence
   -- created later never rewrites what these say happened. Meaningful only on
-  -- notification_deferred and notification_suppressed rows.
+  -- notification_suppressed rows.
   silenced Bool DEFAULT false,
-  inhibited Bool DEFAULT false,
   silence_id UUID DEFAULT toUUID('00000000-0000-0000-0000-000000000000'),
   -- Frozen from the silence so the row reads without PostgreSQL: the id alone
   -- is a dead end for a one-endpoint caller.
   silence_comment String DEFAULT '',
   silence_matchers_json String DEFAULT '',
-  -- The inhibiting source, frozen like the silence: without it,
-  -- inhibited = true is the id-only dead end the silence freeze exists to
-  -- prevent. Written from the suppression job once inhibition freezing lands.
-  inhibition_comment String DEFAULT '',
-  inhibition_source_json String DEFAULT '',
   -- Channel type to the channel names it reached. Denormalized so a delivery
   -- trail never needs a join back to PostgreSQL. Never carries a URL, a token,
   -- or a chat id: see deliveryTargets in delivery/history.ts.
@@ -94,7 +88,7 @@ CREATE TABLE IF NOT EXISTS app.alert_events
   INDEX alert_notification_skip_idx notification_event_id TYPE bloom_filter GRANULARITY 4
 )
 ENGINE = MergeTree
--- The second dimension keeps every query on transitions, holds or deliveries,
+-- The second dimension keeps every query on transitions and deliveries,
 -- and every reconciliation diff, off the evaluation rows, which outnumber
 -- everything else by two orders of magnitude. Partitioning on event_time
 -- itself (not a date column) is what lets a plain event_time bound prune:

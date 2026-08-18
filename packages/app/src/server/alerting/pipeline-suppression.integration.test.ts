@@ -74,13 +74,12 @@ describe("the alerting pipeline's suppression", () => {
     // The event still firing at defer time is retried rather than settled, so
     // ClickHouse gets no terminal row yet (deferSuppressedEvent only journals
     // a decision that will not be revisited). The Postgres journal row is the
-    // record of the defer decision: silenced, tied to the matching silence,
+    // record of the defer decision: tied to the matching silence,
     // and left unprocessed so the retry job wakes it later.
     const [firedEvent] = await harness.db
       .select()
       .from(alertEvents)
       .where(eq(alertEvents.eventType, "instance_fired"));
-    expect(firedEvent.silenced).toBe(true);
     expect(firedEvent.silenceId).not.toBeNull();
     expect(firedEvent.processedAt).toBeNull();
   });
@@ -102,7 +101,6 @@ describe("the alerting pipeline's suppression", () => {
       .select()
       .from(alertEvents)
       .where(eq(alertEvents.eventType, "instance_fired"));
-    expect(heldEvent.silenced).toBe(true);
     expect(heldEvent.silenceId).not.toBeNull();
 
     // The held event's own retry job wakes exactly at the silence's ends_at,
@@ -122,7 +120,6 @@ describe("the alerting pipeline's suppression", () => {
       .select()
       .from(alertEvents)
       .where(eq(alertEvents.eventType, "instance_fired"));
-    expect(firedEvent.silenced).toBe(false);
     expect(firedEvent.silenceId).toBeNull();
   });
 
@@ -321,11 +318,10 @@ describe("the alerting pipeline's suppression", () => {
     const heldEvent = firedEvents.find(
       (row) => row.instanceLabels.service === "checkout",
     );
-    expect(heldEvent?.silenced).toBe(true);
     expect(heldEvent?.processedAt).toBeNull();
     const deliveredEvents = firedEvents.filter(
       (row) => row.instanceLabels.service !== "checkout",
     );
-    expect(deliveredEvents.every((row) => row.silenced === false)).toBe(true);
+    expect(deliveredEvents.every((row) => row.silenceId === null)).toBe(true);
   });
 });

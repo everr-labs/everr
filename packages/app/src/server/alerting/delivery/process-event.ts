@@ -61,10 +61,10 @@ export async function processAlertEvent(rawPayload: unknown): Promise<void> {
     await deferSuppressedEvent(event, silence, now);
     return;
   }
-  if (event.silenced || event.silenceId) {
+  if (event.silenceId) {
     await db
       .update(alertEvents)
-      .set({ silenced: false, silenceId: null })
+      .set({ silenceId: null })
       .where(eq(alertEvents.id, event.id));
   }
 
@@ -168,7 +168,6 @@ export async function claimNotificationGroup(
         groupKey: target.groupKey,
         defaultTier: target.defaultTier,
         directAlertDefinitionId: target.directAlertDefinitionId,
-        labels: target.groupLabels,
         nextFlushAt: nextGroupFlushAt(null, now),
       })
       .onConflictDoNothing({

@@ -84,7 +84,6 @@ function EventDetails({ event }: { event: AlertEventLogRow }) {
     closeReasonLabel(event.reason),
     event.suppressed ? "Suppressed" : null,
     event.silenced ? "Silenced" : null,
-    event.inhibited ? "Inhibited" : null,
   ].filter((flag): flag is string => flag !== null);
   const hasEvidence =
     (event.evidence !== null && Object.keys(event.evidence).length > 0) ||

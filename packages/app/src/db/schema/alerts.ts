@@ -58,7 +58,7 @@ export const alertEventTypeEnum = pgEnum(
   ALERTING_EVENT_TYPES,
 );
 
-// State-only rows (pending, closed, hold decisions, failed evaluations) are
+// State-only rows (pending, closed, failed evaluations) are
 // born processed and exist only to be projected; they must never be
 // deliverable, whatever their event type says.
 export const alertEventKindEnum = pgEnum("alert_event_kind", [
@@ -264,8 +264,9 @@ export const alertEvents = pgTable(
       .notNull()
       .default(""),
     suppressed: boolean("suppressed").notNull().default(false),
-    silenced: boolean("silenced").notNull().default(false),
-    inhibited: boolean("inhibited").notNull().default(false),
+    // The silence holding this event, while it is held; a terminal write
+    // clears it. "Was this ever silenced" lives in the ClickHouse history,
+    // not here.
     silenceId: uuid("silence_id"),
     occurredAt: timestamp("occurred_at", { withTimezone: true })
       .notNull()
@@ -294,7 +295,7 @@ export const alertEvents = pgTable(
     // notification candidate. Every event type falls on exactly one side.
     check(
       "alert_events_kind_matches_type",
-      sql`(${table.eventType} NOT IN ('instance_pending', 'instance_closed', 'evaluation_failed', 'hold_changed') OR ${table.kind} = 'state') AND (${table.eventType} NOT IN ('instance_fired', 'instance_resolved') OR ${table.kind} = 'notifying')`,
+      sql`(${table.eventType} NOT IN ('instance_pending', 'instance_closed', 'evaluation_failed') OR ${table.kind} = 'state') AND (${table.eventType} NOT IN ('instance_fired', 'instance_resolved') OR ${table.kind} = 'notifying')`,
     ),
     // Enforces the closed reason vocabulary the `reason` column comment
     // promises: derived from ALERTING_LIFECYCLE_REASONS so a reason added
@@ -444,13 +445,8 @@ export const alertNotificationGroups = pgTable(
       enum: ["all", "critical", "warning", "info"],
     }),
     directAlertDefinitionId: uuid("direct_alert_definition_id"),
-    labels: jsonb("labels")
-      .notNull()
-      .default(sql`'{}'::jsonb`)
-      .$type<Record<string, string>>(),
     nextFlushAt: timestamp("next_flush_at", { withTimezone: true }).notNull(),
     lastFlushedAt: timestamp("last_flushed_at", { withTimezone: true }),
-    lastNotifiedAt: timestamp("last_notified_at", { withTimezone: true }),
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -546,13 +542,6 @@ export const alertDeliveries = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
-    // Stamped by PostgreSQL (`now()`, transaction-start time) for the
-    // reconciliation diff; see the `alert_events` twin for the visibility
-    // margin this implies. `created_at` and `updated_at` follow the
-    // delivery's own lifecycle.
-    journaledAt: timestamp("journaled_at", { withTimezone: true })
-      .notNull()
-      .defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
@@ -564,7 +553,6 @@ export const alertDeliveries = pgTable(
       name: "alert_deliveries_channel_tenant_fk",
     }),
     check("alert_deliveries_attempts_nonnegative", sql`${table.attempts} >= 0`),
-    index("alert_deliveries_org_idx").on(table.organizationId),
     // Backs deleteChannel's reference check. Partial on the in-flight rows,
     // the only ones that block a delete: the terminal rows for a busy channel
     // outnumber them by the whole retention window, and scanning those to

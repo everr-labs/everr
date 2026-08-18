@@ -274,7 +274,6 @@ describe("flushAlertGroup suppression batching", () => {
       nextFlushAt: new Date("2026-08-10T09:00:00Z"),
       directAlertDefinitionId: null,
       defaultTier: null,
-      lastNotifiedAt: null,
     };
     mocks.groupRow = group;
     // 5 distinct firing members: with the per-member design this would have
@@ -304,7 +303,6 @@ describe("flushAlertGroup suppression batching", () => {
       receiverId: null,
       groupIntervalSeconds: 300,
       repeatIntervalSeconds: null,
-      lastNotifiedAt: null,
     };
     mocks.groupRow = group;
     mocks.memberRows = [member(0)];
@@ -324,7 +322,6 @@ describe("flushAlertGroup suppression batching", () => {
       nextFlushAt: new Date("2026-08-10T09:00:00Z"),
       directAlertDefinitionId: null,
       defaultTier: null,
-      lastNotifiedAt: null,
     };
     mocks.groupRow = group;
     // A paused rule: dropped before the suppression check runs.
@@ -351,7 +348,6 @@ describe("flushAlertGroup flap handling", () => {
       nextFlushAt: new Date("2026-08-10T09:00:00Z"),
       directAlertDefinitionId: null,
       defaultTier: null,
-      lastNotifiedAt: null,
     };
     mocks.groupRow = group;
     // Fire at T, resolve at T+15, both still unflushed at the flush: the
@@ -420,7 +416,6 @@ describe("flushAlertGroup zero channels", () => {
     directAlertDefinitionId: null,
     receiverId: "receiver-1",
     repeatIntervalSeconds: null,
-    lastNotifiedAt: null,
   };
 
   it("writes nothing when there is nothing to notify either", async () => {
