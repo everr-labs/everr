@@ -5,10 +5,10 @@ import {
 } from "../stat-chart/stat-calculations";
 
 /**
- * 0..1 position of `value` along the gauge axis, measured from the `min` end.
- * Inverted bounds (`min > max`) are supported: the signed span flips the
- * direction so the gauge fills toward the `max` end as the value approaches
- * it. Returns 0 only for a truly degenerate axis (`min === max`).
+ * Calculates the position of `value` on the gauge axis, from 0 to 1. The
+ * position 0 is the `min` end. If the bounds are inverted (`min > max`), the
+ * direction of the axis changes. The gauge then fills to the `max` end when
+ * the value moves to `max`. If `min` is equal to `max`, the result is 0.
  */
 export function axisFraction(value: number, min: number, max: number): number {
   if (max === min) return 0;
@@ -16,16 +16,18 @@ export function axisFraction(value: number, min: number, max: number): number {
 }
 
 /**
- * Axis furniture (min/max ends, threshold ticks) always formats at the default
- * precision: `decimals` is the value's precision, not the axis'.
+ * Formats a value on the axis: the min and max ends, and the threshold ticks.
+ * The axis always uses the default precision. The `decimals` option applies
+ * to the gauge value only.
  */
 function formatAxisValue(value: number, unit?: string): string {
   return `${formatStatValue(value, undefined)}${unit ?? ""}`;
 }
 
 /**
- * The min/max end labels: a zero end carries no unit, since "0%" and "0ms" say
- * nothing "0" does not, and the ends are the smallest type on the gauge.
+ * Formats one end of the axis. If the end value is 0, the label does not show
+ * the unit, because "0" is clear without it. The end labels are also the
+ * smallest text on the gauge.
  */
 export function formatAxisEnd(value: number, unit?: string): string {
   return formatAxisValue(value, value === 0 ? undefined : unit);
@@ -33,9 +35,9 @@ export function formatAxisEnd(value: number, unit?: string): string {
 
 export interface ThresholdMark {
   fraction: number;
-  /** Pre-formatted step position, for the tick label. */
+  /** The position of the step as text, for the tick label. */
   text: string;
-  /** Ticks only render for steps that declare a color. */
+  /** A tick shows only if its step has a color. */
   color?: string;
 }
 
@@ -46,11 +48,12 @@ export interface FillSegment {
 }
 
 /**
- * Step positions projected onto the gauge axis, sorted along it. Percent steps
- * resolve against the same reference `resolveThresholdColor` uses
- * (thresholds.max, falling back to the gauge max), so a mark always sits where
- * the color changes. Only steps strictly inside the axis span are kept, which
- * works for inverted bounds too.
+ * Calculates the position of each threshold step on the gauge axis, in the
+ * sequence of the axis. For `percent` steps, this function uses the same
+ * reference as `resolveThresholdColor`: `thresholds.max`, or the gauge `max`
+ * if `thresholds.max` is not set. Each mark is thus at the position where the
+ * color changes. The function keeps only the steps that are inside the span
+ * of the axis. This is also correct if the bounds are inverted.
  */
 export function thresholdMarks(
   thresholds: ThresholdsSpec | undefined,
@@ -77,11 +80,12 @@ export function thresholdMarks(
 }
 
 /**
- * The color of each band the marks cut the track into, one entry per band
- * (`marks.length + 1`). Each band resolves from the axis value at its
- * midpoint, so inverted bounds (`min > max`) paint the bands on the correct
- * side without any ascending-axis assumption. The bands do not depend on the
- * value, so this is computed once per axis rather than per gauge.
+ * Gives the color of each band between the marks. There is one color for each
+ * band (`marks.length + 1`). Each band gets its color from the axis value at
+ * the center of the band. The colors stay on the correct side if the bounds
+ * are inverted (`min > max`), because this function does not assume that the
+ * axis increases. The bands do not change with the gauge value. This function
+ * thus runs one time for each axis, and not one time for each gauge.
  */
 export function bandColors(
   marks: ThresholdMark[],
@@ -101,8 +105,8 @@ export function bandColors(
 }
 
 /**
- * The filled part of the track, split at each threshold the value has crossed
- * and each piece painted with its band's color.
+ * Gives the filled part of the track. The function divides the filled part at
+ * each threshold that the value passes. Each part has the color of its band.
  */
 export function fillSegments(
   fraction: number,
@@ -114,14 +118,14 @@ export function fillSegments(
     const from = bandStart(marks, i);
     if (from >= fraction) break;
     const to = Math.min(fraction, bandEnd(marks, i));
-    // Two steps on the same value make an empty band: skip it, so the
-    // segments stay unique by `from`.
+    // Two steps with the same value make an empty band. The loop does not
+    // add it, because each segment must have a different `from` value.
     if (to > from) segments.push({ from, to, color: colors[i] ?? "" });
   }
   return segments;
 }
 
-/** Band `i` runs from the previous mark (or the min end) to the next one. */
+/** Band `i` starts at the mark before it, or at the `min` end. */
 function bandStart(marks: ThresholdMark[], i: number): number {
   return i === 0 ? 0 : (marks[i - 1]?.fraction ?? 0);
 }

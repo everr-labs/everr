@@ -19,8 +19,9 @@ import {
 } from "./gauge-axis";
 import type { GaugeChartSpec } from "./spec";
 
-// Semicircle geometry in viewBox units. The round caps and the threshold
-// ticks extend past the arc radius, hence the margins in the viewBox.
+// The dimensions of the semicircle, in viewBox units. The round caps and the
+// threshold ticks go outside the radius of the arc. The viewBox thus includes
+// a margin for them.
 const VIEWBOX = "0 0 100 64";
 const CX = 50;
 const CY = 50;
@@ -32,17 +33,20 @@ function polar(r: number, angleDeg: number): { x: number; y: number } {
   return { x: CX + r * Math.cos(rad), y: CY - r * Math.sin(rad) };
 }
 
-/** Arc along the semicircle: 180° is the left end, 0° the right end. */
+/**
+ * Makes the path of an arc on the semicircle. The angle 180° is the left end.
+ * The angle 0° is the right end.
+ */
 function arcPath(startAngle: number, endAngle: number): string {
   const s = polar(R, startAngle);
   const e = polar(R, endAngle);
   return `M ${s.x} ${s.y} A ${R} ${R} 0 0 1 ${e.x} ${e.y}`;
 }
 
-/** A mark that renders: the colorless steps are filtered out up front. */
+/** A mark that the component shows. The steps without a color are removed. */
 type Tick = ThresholdMark & { color: string };
 
-/** Everything both variants draw, prepared once per gauge. */
+/** The data that both variants show. The component prepares it per gauge. */
 interface TileProps {
   label: React.ReactNode;
   value: number | undefined;
@@ -88,8 +92,8 @@ export function GaugeChartVisualization({
     () => marks.filter((m): m is Tick => m.color !== undefined),
     [marks],
   );
-  // The bands the marks cut the track into are the same for every gauge in the
-  // panel, so they are resolved here rather than per tile.
+  // The bands between the marks are the same for all the gauges in the panel.
+  // The component thus calculates the colors here, and not in each tile.
   const colors = useMemo(
     () => bandColors(marks, thresholds, min, max, fallbackColor),
     [marks, thresholds, min, max, fallbackColor],
@@ -176,7 +180,9 @@ export function GaugeChartVisualization({
   );
 }
 
-/** Flat bar filling left to right, with a marker at the current value. */
+/**
+ * A flat bar that fills from left to right. A marker shows the current value.
+ */
 function GaugeBar({
   label,
   value,
@@ -195,8 +201,8 @@ function GaugeBar({
     <div className="min-w-40 flex-1" role="img" aria-label={ariaLabel}>
       {label}
       <p className="mb-2 leading-none">
-        {/* Like the arc, the number stays neutral: the band color is carried
-            by the fill segments, not the text. */}
+        {/* The number keeps a neutral color, as on the arc. The segments of
+            the fill show the color of the band, and not the text. */}
         <span
           className={cn(
             "text-2xl font-semibold tabular-nums",
@@ -210,7 +216,7 @@ function GaugeBar({
         )}
       </p>
       <div className="relative pt-2">
-        {/* Triangle marker pointing down at the value position. */}
+        {/* A triangle marker that points down at the position of the value. */}
         {value !== undefined && (
           <div
             className="absolute top-0 -translate-x-1/2 border-x-[5px] border-t-[6px] border-x-transparent border-t-foreground"
@@ -262,7 +268,9 @@ function GaugeBar({
   );
 }
 
-/** Semicircular arc filling from the min end, with the value at its center. */
+/**
+ * A semicircular arc that fills from the `min` end. The value is at the center.
+ */
 function GaugeArc({
   label,
   value,
@@ -280,9 +288,9 @@ function GaugeArc({
   return (
     <div className="flex min-w-28 flex-1 flex-col items-center">
       {label}
-      {/* The SVG is absolutely positioned: inside a wrapped flex line a
-          percentage height can't resolve and the SVG would fall back to
-          width-driven sizing and overflow the panel. */}
+      {/* The SVG has an absolute position. In a flex line that wraps, a
+          height in percent does not resolve. The SVG then takes its size from
+          its width, and goes outside the panel. */}
       <div className="relative min-h-0 w-full flex-1">
         <svg
           viewBox={VIEWBOX}
