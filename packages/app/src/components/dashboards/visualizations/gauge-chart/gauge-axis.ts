@@ -19,8 +19,16 @@ export function axisFraction(value: number, min: number, max: number): number {
  * Axis furniture (min/max ends, threshold ticks) always formats at the default
  * precision: `decimals` is the value's precision, not the axis'.
  */
-export function formatAxisValue(value: number, unit?: string): string {
+function formatAxisValue(value: number, unit?: string): string {
   return `${formatStatValue(value, undefined)}${unit ?? ""}`;
+}
+
+/**
+ * The min/max end labels: a zero end carries no unit, since "0%" and "0ms" say
+ * nothing "0" does not, and the ends are the smallest type on the gauge.
+ */
+export function formatAxisEnd(value: number, unit?: string): string {
+  return formatAxisValue(value, value === 0 ? undefined : unit);
 }
 
 export interface ThresholdMark {
@@ -52,19 +60,20 @@ export function thresholdMarks(
 ): ThresholdMark[] {
   if (!thresholds?.steps) return [];
   const ref = thresholds.max ?? max;
-  return thresholds.steps
-    .map((step) => ({
-      value:
-        thresholds.mode === "percent" ? (step.value / 100) * ref : step.value,
+  const lower = Math.min(min, max);
+  const upper = Math.max(min, max);
+  const marks: ThresholdMark[] = [];
+  for (const step of thresholds.steps) {
+    const value =
+      thresholds.mode === "percent" ? (step.value / 100) * ref : step.value;
+    if (value <= lower || value >= upper) continue;
+    marks.push({
+      fraction: axisFraction(value, min, max),
+      text: formatAxisValue(value, unit),
       color: step.color,
-    }))
-    .filter((t) => t.value > Math.min(min, max) && t.value < Math.max(min, max))
-    .map((t) => ({
-      fraction: axisFraction(t.value, min, max),
-      text: formatAxisValue(t.value, unit),
-      color: t.color,
-    }))
-    .sort((a, b) => a.fraction - b.fraction);
+    });
+  }
+  return marks.sort((a, b) => a.fraction - b.fraction);
 }
 
 /**
@@ -81,12 +90,14 @@ export function bandColors(
   max: number,
   fallback: string,
 ): string[] {
-  const bounds = axisBounds(marks);
-  return bounds.slice(0, -1).map((from, i) => {
-    const to = bounds[i + 1] ?? 1;
+  const colors: string[] = [];
+  for (let i = 0; i <= marks.length; i++) {
+    const from = bandStart(marks, i);
+    const to = bandEnd(marks, i);
     const midValue = min + ((from + to) / 2) * (max - min);
-    return resolveThresholdColor(midValue, thresholds, max) ?? fallback;
-  });
+    colors.push(resolveThresholdColor(midValue, thresholds, max) ?? fallback);
+  }
+  return colors;
 }
 
 /**
@@ -98,16 +109,23 @@ export function fillSegments(
   marks: ThresholdMark[],
   colors: string[],
 ): FillSegment[] {
-  const bounds = axisBounds(marks);
   const segments: FillSegment[] = [];
-  bounds.slice(0, -1).forEach((from, i) => {
-    const to = Math.min(fraction, bounds[i + 1] ?? 1);
+  for (let i = 0; i <= marks.length; i++) {
+    const from = bandStart(marks, i);
+    if (from >= fraction) break;
+    const to = Math.min(fraction, bandEnd(marks, i));
+    // Two steps on the same value make an empty band: skip it, so the
+    // segments stay unique by `from`.
     if (to > from) segments.push({ from, to, color: colors[i] ?? "" });
-  });
+  }
   return segments;
 }
 
-/** Band edges along the track: the two axis ends plus every mark. */
-function axisBounds(marks: ThresholdMark[]): number[] {
-  return [0, ...marks.map((m) => m.fraction), 1];
+/** Band `i` runs from the previous mark (or the min end) to the next one. */
+function bandStart(marks: ThresholdMark[], i: number): number {
+  return i === 0 ? 0 : (marks[i - 1]?.fraction ?? 0);
+}
+
+function bandEnd(marks: ThresholdMark[], i: number): number {
+  return marks[i]?.fraction ?? 1;
 }

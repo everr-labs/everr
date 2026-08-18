@@ -4,6 +4,7 @@ import {
   axisFraction,
   bandColors,
   fillSegments,
+  formatAxisEnd,
   thresholdMarks,
 } from "./gauge-axis";
 
@@ -127,5 +128,40 @@ describe("fillSegments", () => {
 
   it("returns nothing for an empty gauge", () => {
     expect(fillSegments(0, marks, colors)).toEqual([]);
+  });
+});
+
+describe("duplicate steps", () => {
+  const dupes: ThresholdsSpec = {
+    mode: "absolute",
+    defaultColor: GREEN,
+    steps: [
+      { value: 50, color: AMBER },
+      { value: 50, color: RED },
+    ],
+  };
+
+  it("does not emit an empty segment for the collapsed band", () => {
+    const marks = thresholdMarks(dupes, 0, 100);
+    const colors = bandColors(marks, dupes, 0, 100, "fallback");
+    expect(fillSegments(0.9, marks, colors)).toEqual([
+      { from: 0, to: 0.5, color: GREEN },
+      { from: 0.5, to: 0.9, color: RED },
+    ]);
+  });
+});
+
+describe("formatAxisEnd", () => {
+  it("suffixes the unit on a non-zero end", () => {
+    expect(formatAxisEnd(100, "%")).toBe("100%");
+    expect(formatAxisEnd(-500, "ms")).toBe("-500ms");
+  });
+
+  it("leaves a zero end bare", () => {
+    expect(formatAxisEnd(0, "%")).toBe("0");
+  });
+
+  it("works without a unit", () => {
+    expect(formatAxisEnd(50)).toBe("50");
   });
 });

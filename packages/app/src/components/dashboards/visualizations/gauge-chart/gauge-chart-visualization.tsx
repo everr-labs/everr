@@ -13,7 +13,7 @@ import {
   bandColors,
   type FillSegment,
   fillSegments,
-  formatAxisValue,
+  formatAxisEnd,
   type ThresholdMark,
   thresholdMarks,
 } from "./gauge-axis";
@@ -108,8 +108,8 @@ export function GaugeChartVisualization({
 
   const horizontal = variant === "horizontal";
   const multi = tiles.length > 1;
-  const minText = formatAxisValue(min);
-  const maxText = formatAxisValue(max);
+  const minText = formatAxisEnd(min, unit);
+  const maxText = formatAxisEnd(max, unit);
 
   return (
     <div
