@@ -84,9 +84,10 @@ async function directDispatchTarget(
 /**
  * The default-destination tier this event delivers to: the "all" tier when
  * the org has not split by severity, else the event's own severity tier. A
- * tier that exists but currently has no channels still resolves — the flush
- * ends the chain with a `no_channels` terminal, matching how every other
- * config gap is recorded rather than silently dropped.
+ * tier is only its channel rows, so a tier with no channels does not resolve
+ * and the event gets no target at all. `processAlertEvent` ends such a chain
+ * with a `no_channels` terminal itself, because no group and no flush ever
+ * run to end it.
  */
 async function defaultDispatchTarget(
   event: typeof alertEvents.$inferSelect,

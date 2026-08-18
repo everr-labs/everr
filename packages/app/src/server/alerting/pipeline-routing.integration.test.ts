@@ -148,6 +148,25 @@ describe("the alerting pipeline's default-destination targeting", () => {
     expect(
       await harness.db.select().from(alertNotificationGroups),
     ).toHaveLength(0);
+    // No flush ever runs, so dispatch owes the terminal itself. Without it
+    // the fire reads as still in flight for good.
+    const terminal = harness.clickhouse
+      .historyRows()
+      .find((row) => row.event_type === "notification_suppressed");
+    expect(terminal?.reason).toBe("no_channels");
+  });
+
+  it("ends the chain when the organization has no default destination at all", async () => {
+    await fireDefaultRuleAndFlush();
+
+    expect(harness.fetchCalls()).toHaveLength(0);
+    expect(
+      await harness.db.select().from(alertNotificationGroups),
+    ).toHaveLength(0);
+    const terminal = harness.clickhouse
+      .historyRows()
+      .find((row) => row.event_type === "notification_suppressed");
+    expect(terminal?.reason).toBe("no_channels");
   });
 
   it("fans one flush out to every channel of the destination, in name order", async () => {

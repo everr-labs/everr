@@ -69,6 +69,23 @@ export async function processAlertEvent(rawPayload: unknown): Promise<void> {
   }
 
   const targets = await dispatchTargetsForEvent(event);
+  if (targets.length === 0) {
+    const stamped = await db
+      .update(alertEvents)
+      .set({ processedAt: now })
+      .where(processedStampGuard(event.id))
+      .returning({ id: alertEvents.id });
+    // Lost to a concurrent cancel: its projection owns the terminal.
+    if (stamped.length === 0) return;
+    // Nothing to deliver to: the rule names no channels and the org has no
+    // default destination for this severity. No group is created, so no
+    // flush runs and no flush terminal can ever land. The chain gets its
+    // terminal here instead of reading as forever in flight.
+    await recordAlertHistory(event.sourceDefinitionId, [
+      journalTerminalRow(event, { reason: "no_channels" }),
+    ]);
+    return;
+  }
   // One transaction for every membership plus the processed stamp. The stamp
   // is the claim: a concurrent pause or delete cancels events through
   // `processed_at IS NULL`, so either the cancel wins and this rolls back
