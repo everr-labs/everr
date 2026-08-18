@@ -27,7 +27,7 @@ vi.mock("./node", () => ({
   getTelemetryTracer: () => ({
     startActiveSpan: telemetryMocks.startActiveSpan,
   }),
-  SpanKind: { INTERNAL: 0 },
+  SpanKind: { SERVER: 1 },
 }));
 
 // The real matcher pulls the whole generated route tree (and the server env
@@ -84,7 +84,7 @@ describe("instrumentServerFunction", () => {
           "rpc.system.name": "tanstack-start",
           "url.path": "/_serverFn/:id",
         },
-        kind: 0,
+        kind: 1,
       },
       expect.any(Function),
     );
@@ -135,7 +135,7 @@ describe("instrumentServerFunction", () => {
           "rpc.system.name": "tanstack-start",
           "url.path": "/_serverFn/:id",
         },
-        kind: 0,
+        kind: 1,
       },
       expect.any(Function),
     );

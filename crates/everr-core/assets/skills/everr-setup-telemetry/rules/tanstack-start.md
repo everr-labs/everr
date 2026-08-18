@@ -104,12 +104,12 @@ export const startInstance = createStart(() => ({
 }));
 ```
 
-The middleware (`createMiddleware({ type: "function" })`) starts an INTERNAL span per invocation with the function id, name, and filename from `serverFnMeta` as attributes (prefix non-semconv attributes with `everr.`). It nests under the request's SERVER span automatically because the fetch wrapper's context is active.
+The middleware (`createMiddleware({ type: "function" })`) starts a SERVER span per invocation with the function id, name, and filename from `serverFnMeta` as attributes (prefix non-semconv attributes with `everr.`). It nests under the request's SERVER span automatically because the fetch wrapper's context is active.
 
-A server function call is an RPC, so describe it with the RPC conventions in `spans.md`: `rpc.system.name` for the framework and a fully-qualified `rpc.method`. Keep the span INTERNAL even though the conventions ask an RPC server span to be SERVER, because the request already has one and a second would double every inbound count.
+A server function call is an RPC, so describe it with the RPC conventions in `spans.md`: `rpc.system.name` for the framework, a fully-qualified `rpc.method`, and SpanKind SERVER. The request's own SERVER span does not make this a double count: kind-splitting consumers also filter on an attribute only one span carries (`http.request.method` there, `rpc.system.name` here).
 
 TanStack Start signals control flow with throwables: `redirect()` and `notFound()` surface as thrown values inside server functions. Filter those out before calling `captureError`, or every redirect becomes a phantom error.
 
 ## Validation
 
-Run the seam validation from `vite-ssr.md`. Additionally trigger one server function from the browser and verify its INTERNAL span shares a `TraceId` with the browser request and the SERVER span.
+Run the seam validation from `vite-ssr.md`. Additionally trigger one server function from the browser and verify its SERVER span shares a `TraceId` with the browser request and the transport's SERVER span.

@@ -97,7 +97,7 @@ await tracer.startActiveSpan('process daily orders', async (span) => {
 - `CLIENT` and `PRODUCER` spans should have a parent that explains why the outbound work happened.
 - Every child span should have a parent span in the same trace.
 - Keep `INTERNAL` spans sparse; avoid tracing tight loops.
-- A span that carries RPC attributes but nests inside a `SERVER` span that already covers the same request stays `INTERNAL`. The conventions ask an RPC server span to be `SERVER`, but promoting a nested one makes a single inbound request count twice on every panel that splits traffic by span kind.
+- A span that carries RPC attributes is `SERVER`, as the conventions require, even when it nests inside the transport's `SERVER` span for the same request. The two do not double-count: consumers that split traffic by span kind also filter on an attribute only one of them carries (`http.request.method` on the transport span, `rpc.system.name` on the RPC span).
 - Replace per-item spans with one batch span plus `batch.size`.
 - Use logs for lightweight annotations.
 - Keep application SDK sampling at the default unless the project has an explicit collector-side sampling plan. Application-side head sampling drops evidence before outcome is known.

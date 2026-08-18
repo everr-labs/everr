@@ -22,7 +22,7 @@ export async function instrumentServerFunction<T>(
     "tanstack.server_fn",
     {
       attributes,
-      kind: SpanKind.INTERNAL,
+      kind: SpanKind.SERVER,
     },
     async (span) => {
       try {
@@ -49,10 +49,11 @@ export async function instrumentServerFunction<T>(
  * which now carries the fully-qualified `{service}/{method}` name.
  * https://opentelemetry.io/docs/specs/semconv/non-normative/rpc-migration/
  *
- * The span stays INTERNAL rather than SERVER, which the conventions would ask
- * of an RPC server span. Every one of these nests inside the framework's own
- * `POST /_serverFn/:id` SERVER span, so promoting it would make one inbound
- * request count as two on every panel that splits traffic by span kind.
+ * SERVER, as the conventions require of an inbound RPC span, even though each
+ * one nests inside the framework's `POST /_serverFn/:id` SERVER span: every
+ * consumer that splits traffic by span kind also filters on an attribute only
+ * one of the two carries (`http.request.method` there, `rpc.system.name`
+ * here), so the pair never lands on the same panel.
  */
 const RPC_SERVICE = "server_function";
 
