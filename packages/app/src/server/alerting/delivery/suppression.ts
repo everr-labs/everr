@@ -11,9 +11,7 @@ import {
 import { instanceKey } from "./grouping";
 import { alertEventDispatchLabels } from "./targeting";
 
-export type ActiveSilence = Awaited<
-  ReturnType<typeof loadActiveSilences>
->[number];
+type ActiveSilence = Awaited<ReturnType<typeof loadActiveSilences>>[number];
 
 /**
  * Every silence active for the org right now. Load once per batch of events

@@ -39,7 +39,7 @@ export function asDbExecutor(db: Db): DbExecutor {
   return db as never;
 }
 
-export interface RuleFixture {
+interface RuleFixture {
   id: string;
   organizationId: string;
   project: string;

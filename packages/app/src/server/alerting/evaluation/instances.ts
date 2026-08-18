@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 
-export interface AlertInstance {
+interface AlertInstance {
   fingerprint: string;
   labels: Record<string, string>;
   row: Record<string, unknown>;

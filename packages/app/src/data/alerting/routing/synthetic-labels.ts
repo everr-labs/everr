@@ -8,8 +8,7 @@ export const ALERTING_SYNTHETIC_LABEL_KEYS = [
   "kind",
 ] as const;
 
-export type AlertingSyntheticLabelKey =
-  (typeof ALERTING_SYNTHETIC_LABEL_KEYS)[number];
+type AlertingSyntheticLabelKey = (typeof ALERTING_SYNTHETIC_LABEL_KEYS)[number];
 
 /** Fixed values for synthetic labels. Rule IDs are tenant-specific. */
 export const ALERTING_SYNTHETIC_LABEL_VALUES: Partial<

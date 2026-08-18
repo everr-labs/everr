@@ -10,7 +10,7 @@ export class AlertingError extends Error {
   }
 }
 
-export type AlertingErrorInfo = {
+type AlertingErrorInfo = {
   status: number;
   code: string;
   message: string;

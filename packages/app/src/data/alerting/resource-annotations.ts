@@ -24,7 +24,7 @@ export function isReservedAnnotationKey(key: string): boolean {
   return isEverrAnnotationKey(key) || RESERVED_ANNOTATION_KEYS.has(key);
 }
 
-export type PartitionedAnnotations = {
+type PartitionedAnnotations = {
   /** metadata.labels, restored from their `everr.label.` prefix. */
   labels: Record<string, string>;
   /** Free-form `spec.annotations` the author wrote. Nothing generated. */

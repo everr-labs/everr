@@ -289,7 +289,7 @@ export function instanceHistoryRow(opts: {
  * a dead end for a caller holding this table and nothing else, and retention
  * deletes the silence at 90 days, long before the history it explains.
  */
-export type SuppressingSilence = {
+type SuppressingSilence = {
   id: string;
   comment: string;
   matchers: AlertingMatcher[];

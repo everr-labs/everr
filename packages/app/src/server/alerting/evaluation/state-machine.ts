@@ -1,4 +1,4 @@
-export type AlertInstanceStatus = "inactive" | "pending" | "firing";
+type AlertInstanceStatus = "inactive" | "pending" | "firing";
 
 export interface StoredAlertInstance {
   fingerprint: string;

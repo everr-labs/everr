@@ -4,7 +4,7 @@ export function extractVariables(template: string): string[] {
   return [...template.matchAll(VARIABLE_RE)].map((match) => match[1]);
 }
 
-export type TemplateSegment =
+type TemplateSegment =
   | { kind: "text"; value: string }
   /** `value` is the column name, without the `${}` around it. */
   | { kind: "variable"; value: string };

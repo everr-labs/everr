@@ -34,7 +34,7 @@ export function alertEventDispatchLabels(
   });
 }
 
-export type DispatchTarget = {
+type DispatchTarget = {
   defaultTier: AlertingDefaultTier | null;
   directAlertDefinitionId: string | null;
   groupKey: string;

@@ -2,9 +2,7 @@ import type { AlertingRuleView } from "@/data/alerting/types";
 
 // Imported from *.test files only; must never be imported from app code.
 
-export type AlertingRuleViewOverrides = Partial<
-  Omit<AlertingRuleView, "spec">
-> & {
+type AlertingRuleViewOverrides = Partial<Omit<AlertingRuleView, "spec">> & {
   spec?: Partial<AlertingRuleView["spec"]>;
 };
 

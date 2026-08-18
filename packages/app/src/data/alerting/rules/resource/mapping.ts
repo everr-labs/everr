@@ -114,7 +114,7 @@ export function toRuleInput(
   };
 }
 
-export type SimpleAlertView = {
+type SimpleAlertView = {
   project: string;
   slug: string;
   repoid: string;

@@ -17,7 +17,7 @@ import {
 // a legitimate slow query.
 const ALERTING_QUERY_SETTINGS = { max_execution_time: 30 };
 
-export type JsonValue =
+type JsonValue =
   | string
   | number
   | boolean
@@ -25,7 +25,7 @@ export type JsonValue =
   | JsonValue[]
   | { [key: string]: JsonValue };
 
-export type AlertEvidence = { [key: string]: JsonValue };
+type AlertEvidence = { [key: string]: JsonValue };
 
 export type AlertEventLogRow = {
   timestamp: string;

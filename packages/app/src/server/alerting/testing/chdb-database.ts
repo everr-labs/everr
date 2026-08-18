@@ -112,7 +112,7 @@ function quoteSqlString(value: string): string {
 
 const PLACEHOLDER = /\{(\w+):/g;
 
-export interface SqlApiLikeResult {
+interface SqlApiLikeResult {
   rows: Record<string, unknown>[];
   columns: string[];
   columnTypes: string[];

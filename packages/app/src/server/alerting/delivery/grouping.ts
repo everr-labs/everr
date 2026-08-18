@@ -16,7 +16,7 @@ export function instanceKey(
   return `${event.sourceDefinitionId}:${event.instanceFingerprint}`;
 }
 
-export interface GroupSchedule {
+interface GroupSchedule {
   nextFlushAt: Date;
   lastFlushedAt: Date | null;
 }
@@ -34,7 +34,7 @@ interface GroupedEvent {
   eventType: string;
 }
 
-export interface GroupNotificationPlan<E> {
+interface GroupNotificationPlan<E> {
   /** Still-firing latest event per instance; what survives the flush. */
   active: E[];
   /** What this flush reports. `active` is always a subset. */
@@ -99,7 +99,7 @@ export function groupNotificationPlan<E extends GroupedEvent>(
   return { active, notify, droppedUnannounced };
 }
 
-export interface MemberVerdict {
+interface MemberVerdict {
   deliverable: boolean;
   /**
    * The terminal this drop owes the member's chain, or null when it owes

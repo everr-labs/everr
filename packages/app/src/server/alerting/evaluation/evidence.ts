@@ -3,7 +3,7 @@ export const MAX_EVIDENCE_BYTES = 64 * 1024;
 export const MAX_EVENT_EVIDENCE_COLUMNS = 16;
 const MAX_EVENT_EVIDENCE_BYTES = 4 * 1024;
 
-export interface BoundedEvidence {
+interface BoundedEvidence {
   json: string;
   truncated: boolean;
   rowCount: number;

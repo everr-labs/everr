@@ -9,7 +9,7 @@ import {
   ZERO_UUID,
 } from "./clickhouse";
 
-export type PreviewInstanceClosure = {
+type PreviewInstanceClosure = {
   instance: typeof alertInstances.$inferSelect;
   def: typeof alertDefinitions.$inferSelect;
 };

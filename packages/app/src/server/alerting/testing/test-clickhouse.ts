@@ -10,7 +10,7 @@ export interface SqlApiResult<T> {
   columnTypes: string[];
 }
 
-export interface ClickHouseWriteSettings {
+interface ClickHouseWriteSettings {
   insert_deduplication_token?: string;
 }
 
