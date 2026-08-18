@@ -1,6 +1,7 @@
 import type { Attributes } from "@opentelemetry/api";
 import { isExpectedServerFunctionError } from "./expected-errors";
 import { captureError, getTelemetryTracer, SpanKind } from "./node";
+import { recordServerFunctionName } from "./server-fn-name";
 
 const tracer = getTelemetryTracer("everr-app.server_fn");
 
@@ -15,6 +16,11 @@ export async function instrumentServerFunction<T>(
   serverFnMeta: ServerFunctionMeta | undefined,
   run: () => T | Promise<T>,
 ) {
+  // Report the name to the transport wrapper, which only sees the opaque
+  // /_serverFn/<id> path: it renames its SERVER span and the x-everr-route
+  // echo to `/_serverFn/{name}` once the response settles.
+  if (serverFnMeta) recordServerFunctionName(serverFnMeta.name);
+
   const attributes = serverFunctionAttributes(request, serverFnMeta);
 
   return tracer.startActiveSpan(

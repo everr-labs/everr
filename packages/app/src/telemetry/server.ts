@@ -1,6 +1,10 @@
 import type { Attributes, TextMapGetter } from "@opentelemetry/api";
 import { context, propagation } from "@opentelemetry/api";
 import { captureError, getTelemetryTracer, SpanKind } from "./node";
+import {
+  runWithServerFunctionName,
+  type ServerFunctionName,
+} from "./server-fn-name";
 import { serverRouteTemplate } from "./server-router";
 
 const tracer = getTelemetryTracer();
@@ -19,6 +23,15 @@ export async function instrumentServerFetch(
   const route = serverRouteTemplate(pathname);
   const method = request.method.toUpperCase();
 
+  // For server function requests the path only carries the opaque id; the
+  // middleware knows the function's name and reports it into this holder, so
+  // the span and the route echo can say `/_serverFn/{name}` instead.
+  const serverFn: ServerFunctionName | undefined = pathname.startsWith(
+    "/_serverFn/",
+  )
+    ? {}
+    : undefined;
+
   // Continue a trace started by a first-party client (e.g. the CLI, which
   // injects `traceparent`) instead of starting a fresh root. Requests without
   // the header extract to an empty context, so this span roots itself as before.
@@ -36,15 +49,22 @@ export async function instrumentServerFetch(
     },
     parentContext,
     async (span) => {
+      // The middleware fills the holder mid-flight, so the route is only
+      // final after `run` settles (or throws past the middleware).
+      const resolvedRoute = () =>
+        serverFn?.name ? `/_serverFn/${serverFn.name}` : route;
       try {
-        const response = await run();
+        const response = await (serverFn
+          ? runWithServerFunctionName(serverFn, run)
+          : run());
 
+        const finalRoute = resolvedRoute();
         // Echo the derived route so the browser SDK can stamp url.template on
         // its client span: the client route tree has no server-only routes, so
         // this header is the browser's only exact source for API templates.
-        if (route !== undefined) {
+        if (finalRoute !== undefined) {
           try {
-            response.headers.set("x-everr-route", route);
+            response.headers.set("x-everr-route", finalRoute);
           } catch {
             // A response with immutable headers keeps them; the span is
             // unaffected.
@@ -57,21 +77,27 @@ export async function instrumentServerFetch(
             "everr.error.source": "server.response",
             "http.request.method": method,
             "http.response.status_code": response.status,
-            ...(route === undefined ? {} : { "http.route": route }),
+            ...(finalRoute === undefined ? {} : { "http.route": finalRoute }),
             "url.path": pathname,
           });
         }
 
         return response;
       } catch (error) {
+        const finalRoute = resolvedRoute();
         captureError(error, {
           "everr.error.source": "server.fetch",
           "http.request.method": method,
-          ...(route === undefined ? {} : { "http.route": route }),
+          ...(finalRoute === undefined ? {} : { "http.route": finalRoute }),
           "url.path": pathname,
         });
         throw error;
       } finally {
+        const finalRoute = resolvedRoute();
+        if (finalRoute !== undefined && finalRoute !== route) {
+          span.updateName(`${method} ${finalRoute}`);
+          span.setAttribute("http.route", finalRoute);
+        }
         span.end();
       }
     },

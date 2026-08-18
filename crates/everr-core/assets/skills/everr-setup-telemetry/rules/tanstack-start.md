@@ -108,8 +108,10 @@ The middleware (`createMiddleware({ type: "function" })`) starts an INTERNAL spa
 
 A server function call is not an RPC, so it does not use the `rpc.*` conventions. Describe it with the server-function convention from the skill root: `everr.server_function.name` carries the function's own identifier verbatim, and `everr.server_function.transport` is `http` when the call arrived over `/_serverFn/` and `in-process` when it ran during SSR. The span stays INTERNAL: over HTTP the transport's SERVER span already counts the inbound request, and in-process there is no inbound request at all.
 
+The transport span for a server function request only knows the opaque `/_serverFn/<id>` path, so the middleware reports the function name back to the fetch wrapper (an app-owned AsyncLocalStorage holder around the handler). After the response settles, the wrapper renames its SERVER span and the `x-everr-route` echo to `/_serverFn/{name}`, falling back to `/_serverFn/:id` when the middleware never ran. The browser's client span picks the name up from the echo, so all three spans of one call read as the same function.
+
 TanStack Start signals control flow with throwables: `redirect()` and `notFound()` surface as thrown values inside server functions. Filter those out before calling `captureError`, or every redirect becomes a phantom error.
 
 ## Validation
 
-Run the seam validation from `vite-ssr.md`. Additionally trigger one server function from the browser and verify its `serverFn {name}` INTERNAL span shares a `TraceId` with the browser request and the transport's SERVER span, and carries `everr.server_function.transport: http`.
+Run the seam validation from `vite-ssr.md`. Additionally trigger one server function from the browser and verify its `serverFn {name}` INTERNAL span shares a `TraceId` with the browser request and the transport's `POST /_serverFn/{name}` SERVER span, and carries `everr.server_function.transport: http`.

@@ -4,6 +4,7 @@ const telemetryMocks = vi.hoisted(() => {
   const span = {
     end: vi.fn(),
     setAttribute: vi.fn(),
+    updateName: vi.fn(),
   };
 
   return {
@@ -51,6 +52,7 @@ vi.mock("./server-router", async () => {
 });
 
 import { instrumentServerFetch } from "./server";
+import { recordServerFunctionName } from "./server-fn-name";
 
 describe("instrumentServerFetch", () => {
   beforeEach(() => {
@@ -58,6 +60,7 @@ describe("instrumentServerFetch", () => {
     telemetryMocks.startActiveSpan.mockClear();
     telemetryMocks.span.end.mockClear();
     telemetryMocks.span.setAttribute.mockClear();
+    telemetryMocks.span.updateName.mockClear();
   });
 
   it("records 5xx responses as server response errors", async () => {
@@ -126,5 +129,38 @@ describe("instrumentServerFetch", () => {
       expect.anything(),
       expect.any(Function),
     );
+  });
+
+  it("renames the span and the route echo after the middleware reports the function name", async () => {
+    const response = await instrumentServerFetch(
+      new Request("http://localhost/_serverFn/c4d3d0c28997f144965eeaca", {
+        method: "POST",
+      }),
+      () => {
+        // The middleware runs inside the wrapper's context and reports the
+        // name it read from serverFnMeta.
+        recordServerFunctionName("getSession");
+        return new Response("{}", { status: 200 });
+      },
+    );
+
+    expect(telemetryMocks.span.updateName).toHaveBeenCalledWith(
+      "POST /_serverFn/getSession",
+    );
+    expect(telemetryMocks.span.setAttribute).toHaveBeenCalledWith(
+      "http.route",
+      "/_serverFn/getSession",
+    );
+    expect(response.headers.get("x-everr-route")).toBe("/_serverFn/getSession");
+  });
+
+  it("keeps the /_serverFn/:id fallback when no name is reported", async () => {
+    const response = await instrumentServerFetch(
+      new Request("http://localhost/_serverFn/c4d3d0c28997f144965eeaca"),
+      () => new Response("{}", { status: 200 }),
+    );
+
+    expect(telemetryMocks.span.updateName).not.toHaveBeenCalled();
+    expect(response.headers.get("x-everr-route")).toBe("/_serverFn/:id");
   });
 });
