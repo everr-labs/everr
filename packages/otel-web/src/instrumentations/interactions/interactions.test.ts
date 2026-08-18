@@ -182,18 +182,17 @@ describe("startInteractions", () => {
       expect(rage?.attrs?.["everr.element.selector"]).toBe("span");
     });
 
-    it("returns the full path when no prefix is unique", () => {
-      // Two identical rows: no path tells them apart, so the walk ends at
-      // the root and the two rows share one selector.
+    it("returns the shortest path with the fewest matches when none is unique", () => {
+      // Two identical rows: no path tells them apart, and the levels above
+      // the rows add no precision. The outside span forces one level: "span"
+      // matches 3, "li > span" matches 2, and climbing further stays at 2.
       document.body.innerHTML =
-        "<ul><li><span>a</span></li><li><span>b</span></li></ul>";
-      rageBurst(document.querySelectorAll("span")[1] as Element);
+        "<span>out</span><ul><li><span>a</span></li><li><span>b</span></li></ul>";
+      rageBurst(document.querySelectorAll("span")[2] as Element);
       const rage = emitted.find(
         (e) => e.name === "everr.browser.interaction.rage_click",
       );
-      expect(rage?.attrs?.["everr.element.selector"]).toBe(
-        "html > body > ul > li > span",
-      );
+      expect(rage?.attrs?.["everr.element.selector"]).toBe("li > span");
     });
 
     it("prefers stable classes and drops unstable ones", () => {

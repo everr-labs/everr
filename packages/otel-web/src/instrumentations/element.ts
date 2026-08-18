@@ -58,12 +58,16 @@ const NAME_ATTRS = ["aria-label", "type", "name", "title", "alt"];
  * (the `:`, `[`, or `/` of a Tailwind variant) makes the class invalid in a
  * selector without an escape.
  * The walk stops at the first path that matches exactly one element in the
- * document, so a selector carries only the levels it needs. This is the one
- * method to write an element path in all the signals: the interactions, the
- * INP, and the targets of the LCP attribution and the CLS attribution.
+ * document, so a selector carries only the levels it needs. When no path is
+ * unique (identical siblings), it returns the shortest path with the fewest
+ * matches: the levels above it add no precision. This is the one method to
+ * write an element path in all the signals: the interactions, the INP, and
+ * the targets of the LCP attribution and the CLS attribution.
  */
 export function selectorOf(el: Element): string {
   let sel = "";
+  let best = "";
+  let bestCount = Infinity;
   for (let node: Element | null = el; node; node = node.parentElement) {
     let part = node.id ? `#${CSS.escape(node.id)}` : node.tagName.toLowerCase();
     if (!node.id) {
@@ -80,7 +84,12 @@ export function selectorOf(el: Element): string {
       if (classes.length) part += `.${classes.join(".")}`;
     }
     sel = sel ? `${part} > ${sel}` : part;
-    if (document.querySelectorAll(sel).length === 1) return sel;
+    const count = document.querySelectorAll(sel).length;
+    if (count === 1) return sel;
+    if (count < bestCount) {
+      bestCount = count;
+      best = sel;
+    }
   }
-  return sel;
+  return best;
 }
