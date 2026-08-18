@@ -327,6 +327,7 @@ describe("transitionEventRows episode stamping", () => {
         absentCount: 0,
       },
       event,
+      forClockRestartMs: null,
     };
   }
 
@@ -518,6 +519,7 @@ describe("shouldEnqueueProcessEvent", () => {
         absentCount: 0,
       },
       event: status,
+      forClockRestartMs: null,
     } as AlertInstanceTransition,
     evaluatedAt,
     storedEpisodeId: null,

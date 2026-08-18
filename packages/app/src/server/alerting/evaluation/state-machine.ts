@@ -27,6 +27,19 @@ export interface AlertInstanceTransition {
    * pipeline.
    */
   event: "pending" | "firing" | "resolved" | "pending_cleared" | null;
+  /**
+   * How long the unwatched stretch was, when this evaluation threw away a
+   * pending instance's `for` progress because nothing observed the condition
+   * across it, and null otherwise.
+   *
+   * A restart after a recorded absence is not this: that one has evidence
+   * behind it. This one changes the verdict on the absence of evidence, and
+   * it writes nothing (the instance stays pending and no transition is
+   * journaled), so a rule that lands late every interval never fires and
+   * still reads healthy. The caller reports it; see
+   * `alerts.evaluate.for_clock_restarted`.
+   */
+  forClockRestartMs: number | null;
 }
 
 function inactive(previous: StoredAlertInstance): StoredAlertInstance {
@@ -72,10 +85,19 @@ export function advanceAlertInstance(input: {
     // condition held continuously, so an unobserved stretch restarts the
     // clock instead of counting as holding. Without this an outage longer
     // than `for` fires the rule on the first evaluation after it.
+    const gapMs =
+      previous.lastSeenAt === null
+        ? null
+        : evaluatedAt.getTime() - previous.lastSeenAt.getTime();
     const unobserved =
-      previous.lastSeenAt !== null &&
-      evaluatedAt.getTime() - previous.lastSeenAt.getTime() >
-        intervalSeconds * MISSED_EVALUATION_TOLERANCE * 1000;
+      gapMs !== null &&
+      gapMs > intervalSeconds * MISSED_EVALUATION_TOLERANCE * 1000;
+    // Only a pending instance loses anything to it. An inactive one starts
+    // its clock at this evaluation regardless, and a firing one keeps
+    // activeSince whatever pendingSince becomes. Reporting those too would
+    // bury the case that costs a page.
+    const forClockRestartMs =
+      unobserved && !reappeared && previous.status === "pending" ? gapMs : null;
     const pendingSince =
       previous.status === "inactive" || reappeared || unobserved
         ? evaluatedAt
@@ -102,6 +124,7 @@ export function advanceAlertInstance(input: {
           activeSince: pendingSince,
         },
         event: "firing",
+        forClockRestartMs,
       };
     }
     // Entering pending is an event; staying pending (or reappearing while
@@ -109,17 +132,24 @@ export function advanceAlertInstance(input: {
     return {
       next,
       event: previous.status === "inactive" ? "pending" : null,
+      forClockRestartMs,
     };
   }
 
-  if (previous.status === "inactive") return { next: previous, event: null };
+  if (previous.status === "inactive")
+    return { next: previous, event: null, forClockRestartMs: null };
   const absentCount = previous.absentCount + 1;
   if (absentCount < resolveAfter) {
-    return { next: { ...previous, absentCount }, event: null };
+    return {
+      next: { ...previous, absentCount },
+      event: null,
+      forClockRestartMs: null,
+    };
   }
   return {
     next: inactive({ ...previous, absentCount }),
     event: previous.status === "firing" ? "resolved" : "pending_cleared",
+    forClockRestartMs: null,
   };
 }
 

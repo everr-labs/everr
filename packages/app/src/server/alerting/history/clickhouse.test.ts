@@ -406,7 +406,7 @@ describe("ClickHouse alert history", () => {
     expect(mocks.error).toHaveBeenCalledWith(
       "alerts.history.insert_failed",
       expect.objectContaining({
-        "alert.definition_id": def.id,
+        "everr.alert.definition_id": def.id,
       }),
     );
   });

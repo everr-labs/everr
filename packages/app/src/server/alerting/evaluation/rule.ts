@@ -346,8 +346,8 @@ async function recordEvaluationFailure(
   }
   serverLogger.warn("alerts.evaluate.query_failed", {
     ...exceptionAttributes(cause),
-    "alert.definition_id": def.id,
-    "alert.organization_id": def.organizationId,
+    "everr.alert.definition_id": def.id,
+    "everr.alert.organization_id": def.organizationId,
   });
 }
 
@@ -355,7 +355,7 @@ export async function evaluateAlert(rawPayload: unknown): Promise<void> {
   const parsed = EvaluatePayloadSchema.safeParse(rawPayload);
   if (!parsed.success) {
     serverLogger.warn("alerts.evaluate.invalid_payload", {
-      "alert.payload": String(rawPayload),
+      "everr.alert.payload": String(rawPayload),
     });
     return;
   }
@@ -470,6 +470,12 @@ async function evaluateAlertRule(
     });
   });
 
+  // Collected before the transaction, reported only if it commits: a rule
+  // paused or edited mid-evaluation discards these transitions, and a restart
+  // that was never stored is not a restart that happened.
+  const forClockRestarts = transitions
+    .map((transition) => transition.forClockRestartMs)
+    .filter((gapMs): gapMs is number => gapMs !== null);
   const storedEpisodeByFingerprint = new Map(
     previousRows.map((row) => [row.fingerprint, row.episodeId]),
   );
@@ -622,6 +628,21 @@ async function evaluateAlertRule(
     return true;
   });
   if (applied) {
+    if (forClockRestarts.length > 0) {
+      // The one announcement of a decision that leaves no other trace. The
+      // instance stays pending, no transition row is written, and the rule
+      // reads healthy while its `for` clause can no longer be satisfied. See
+      // the for-clock-restarts alert under everr/.
+      serverLogger.warn("alerts.evaluate.for_clock_restarted", {
+        "everr.alert.rule": historyDef.slug,
+        "everr.alert.definition_id": def.id,
+        "everr.alert.organization_id": def.organizationId,
+        "everr.alert.restarted_instances": forClockRestarts.length,
+        "everr.alert.unobserved_gap_ms": Math.max(...forClockRestarts),
+        "everr.alert.interval_secs": def.spec.interval_secs,
+        "everr.alert.for_secs": def.spec.for_secs,
+      });
+    }
     await recordAlertHistory(def.id, [
       evaluationHistoryRow({
         def: historyDef,

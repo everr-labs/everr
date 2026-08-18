@@ -111,7 +111,7 @@ describe("recordDeliveryOutcome", () => {
     expect(mocks.error).toHaveBeenCalledWith(
       "alerts.history.delivery_outcome_failed",
       expect.objectContaining({
-        "alert.delivery.dedup_key": "dedup-1",
+        "everr.alert.delivery.dedup_key": "dedup-1",
       }),
     );
   });

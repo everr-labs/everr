@@ -550,8 +550,8 @@ export async function recordAlertHistory(
   } catch (error) {
     serverLogger.error("alerts.history.insert_failed", {
       ...exceptionAttributes(error),
-      ...(definitionId ? { "alert.definition_id": definitionId } : {}),
-      "alert.event_count": rows.length,
+      ...(definitionId ? { "everr.alert.definition_id": definitionId } : {}),
+      "everr.alert.event_count": rows.length,
     });
   }
 }

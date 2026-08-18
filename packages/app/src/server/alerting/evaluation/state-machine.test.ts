@@ -95,6 +95,9 @@ describe("advanceAlertInstance", () => {
     });
     expect(reappeared.next.status).toBe("pending");
     expect(reappeared.next.pendingSince).toEqual(at(60));
+    // A recorded absence is evidence the condition lapsed, so this restart is
+    // the right answer and not worth announcing.
+    expect(reappeared.forClockRestartMs).toBeNull();
   });
 
   it("does not fire on the first evaluation after an outage", () => {
@@ -123,6 +126,36 @@ describe("advanceAlertInstance", () => {
     expect(afterOutage.event).toBeNull();
     // The clock restarts, so firing needs a fresh `for` of observed holding.
     expect(afterOutage.next.pendingSince).toEqual(at(18_000));
+    // Nothing else records this: the status did not change and no event was
+    // emitted, so a rule stuck in this loop reads healthy. The gap is the one
+    // thing that says otherwise.
+    expect(afterOutage.forClockRestartMs).toBe(18_000_000);
+  });
+
+  it("reports nothing for an unwatched stretch that costs a firing instance nothing", () => {
+    const firing = advanceAlertInstance({
+      previous: newInactiveInstance(present),
+      present,
+      evaluatedAt: at(0),
+      forSeconds: 0,
+      resolveAfter: 3,
+      intervalSeconds: 60,
+    });
+    const afterOutage = advanceAlertInstance({
+      previous: firing.next,
+      present,
+      evaluatedAt: at(18_000),
+      forSeconds: 0,
+      resolveAfter: 3,
+      intervalSeconds: 60,
+    });
+
+    expect(firing.next.status).toBe("firing");
+    expect(afterOutage.next.status).toBe("firing");
+    // A firing instance keeps activeSince whatever pendingSince becomes, so
+    // the restart takes nothing from it. Reporting it would bury the pending
+    // case that stops a page from ever going out.
+    expect(afterOutage.forClockRestartMs).toBeNull();
   });
 
   it("still fires when evaluations arrive on cadence", () => {
@@ -148,6 +181,7 @@ describe("advanceAlertInstance", () => {
 
     expect(current.next.status).toBe("firing");
     expect(current.event).toBe("firing");
+    expect(current.forClockRestartMs).toBeNull();
   });
 
   it("resolves only after the configured absence count", () => {
