@@ -35,11 +35,20 @@ says so in place.
 
 ## What is left, and why it is accepted
 
-One gap: the resolution at `outbound.ts:104` and the connection at
-`outbound.ts:121` (and `slack.ts:24`) are separate lookups. A name that
+One gap: the resolution at `outbound.ts:135` and the connection at
+`outbound.ts:152` (and `slack.ts:45`) are separate lookups. A name that
 answers publicly for the first and internally for the second is not caught.
 That is the whole of the remaining exposure. It needs an attacker who can
 both create a channel and control a DNS server with a short TTL.
+
+The "Test channel" button makes that window reachable on demand instead of
+on the next alert, and answers with a status code and a latency. The response
+body no longer comes back with it (`ChannelSendError` keeps the endpoint's
+answer in a field the test never reads), so the window is an oracle, not a
+reader. Nothing rate-limits the button and nothing accounts the sends to an
+organization: `testChannel`'s `_organizationId` argument is unused. Both
+belong to ticket 18's authorization work, and neither changes the decision
+here, because egress control closes the window itself.
 
 Closing it in the application means connecting to the address already
 validated: `validateOutboundUrl` returning its resolved list, and both
@@ -82,7 +91,7 @@ Cloud relies on.
 - [ ] The accepted residual risk is stated where a deployer will read it: an
       operator who ignores the guidance is exposed to the rebinding gap
       above, and any organization member can create the channel that uses
-      it while ticket 18 is open
+      it, and test it on demand, while ticket 18 is open
 
 ## What would reopen the application fix
 
