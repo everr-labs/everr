@@ -259,15 +259,6 @@ export const alertEvents = pgTable(
     occurredAt: timestamp("occurred_at", { withTimezone: true })
       .notNull()
       .defaultNow(),
-    // Stamped by PostgreSQL (`now()`, transaction-start time), never the Node
-    // clock. Not commit time: the row becomes visible up to one transaction
-    // duration after its stamp, so the reconciliation diff that filters on
-    // this must re-scan with a margin wider than the longest journal-writing
-    // transaction. `occurred_at` is domain time and can be backdated by the
-    // caller.
-    journaledAt: timestamp("journaled_at", { withTimezone: true })
-      .notNull()
-      .defaultNow(),
     processedAt: timestamp("processed_at", { withTimezone: true }),
   },
   (table) => [

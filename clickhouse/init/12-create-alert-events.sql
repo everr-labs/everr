@@ -4,8 +4,9 @@ CREATE TABLE IF NOT EXISTS app.alert_events
 (
   -- UUIDv7 on non-delivery rows, so UUIDv7ToDateTime(event_id) recovers the
   -- creation time and equals the PostgreSQL journal row it projects. Delivery
-  -- rows carry a deterministic id derived from the journal event and
-  -- delivery_dedup_key, so reconciliation repair is idempotent.
+  -- rows carry a deterministic id derived from the journal event and the
+  -- delivery key, so a retried projection converges on one row instead of
+  -- appending a second.
   event_id UUID DEFAULT generateUUIDv7(),
   -- Correlates the rows produced by one notification: the transition and the
   -- suppression or delivery rows that follow it in later jobs. Transitions set
@@ -24,13 +25,6 @@ CREATE TABLE IF NOT EXISTS app.alert_events
   -- and nobody should have to type the zero-UUID sentinel to filter previews.
   is_live Bool DEFAULT preview_id = toUUID('00000000-0000-0000-0000-000000000000'),
   event_type LowCardinality(String),
-  -- 'live' or 'reconciled', so a reader can always separate the engine's own
-  -- writes from the reconciler's repairs. A repaired row is near full fidelity
-  -- but not identical to the row it replaces (empty evidence_json,
-  -- evaluation_scheduled_at approximated by occurred_at), and this is the flag
-  -- that says which one is in hand. Only 'live' is written today; the
-  -- reconciler has no writer yet.
-  write_source LowCardinality(String) DEFAULT 'live',
   -- Zero (epoch) off evaluation rows; never dateDiff against it there. Every
   -- writer sends this explicitly; the DEFAULT documents the sentinel in
   -- SHOW CREATE rather than changing what gets written.
@@ -81,15 +75,16 @@ CREATE TABLE IF NOT EXISTS app.alert_events
   -- trail never needs a join back to PostgreSQL. Never carries a URL, a token,
   -- or a chat id: see deliveryTargets in delivery/history.ts.
   delivery_targets Map(String, Array(String)) DEFAULT map(),
-  -- The PostgreSQL delivery key; the reconciliation diff joins on it. Empty
-  -- off delivery rows.
+  -- The PostgreSQL delivery key: which physical send a row belongs to, so a
+  -- fan-out that reached several notifications in one message reads as one
+  -- message. Empty off delivery rows.
   delivery_dedup_key String DEFAULT '',
   INDEX alert_def_skip_idx alert_definition_id TYPE bloom_filter GRANULARITY 4,
   INDEX alert_notification_skip_idx notification_event_id TYPE bloom_filter GRANULARITY 4
 )
 ENGINE = MergeTree
--- The second dimension keeps every query on transitions and deliveries,
--- and every reconciliation diff, off the evaluation rows, which outnumber
+-- The second dimension keeps every query on transitions and deliveries
+-- off the evaluation rows, which outnumber
 -- everything else by two orders of magnitude. Partitioning on event_time
 -- itself (not a date column) is what lets a plain event_time bound prune:
 -- ClickHouse does not infer a DEFAULT relation between two columns.
@@ -109,14 +104,16 @@ ORDER BY (tenant_id, repoid, slug, event_type, event_time, event_id)
 -- else lives at the tenant retention.
 TTL toDateTime(event_time) + INTERVAL least(toUInt32(30), dictGetOrDefault('app.tenant_retention', 'logs_days', tenant_id, toUInt32(3650))) DAY DELETE WHERE event_type IN ('evaluation_succeeded', 'evaluation_failed'),
     toDateTime(event_time) + INTERVAL dictGetOrDefault('app.tenant_retention', 'logs_days', tenant_id, toUInt32(3650)) DAY DELETE WHERE event_type NOT IN ('evaluation_succeeded', 'evaluation_failed')
--- The deduplication window is sized now, at recreation time. Both writers in
--- server/alerting/history/clickhouse.ts set insert_deduplication_token from the
--- sorted row ids, which dedups under async_insert as well as a synchronous
--- insert. The window is bounded, so it backs up row-level determinism rather
--- than replacing it: a row with a derived event_id derives its event_time too,
--- and the reconciler (when it lands) reads before it writes.
+-- Both writers in server/alerting/history/clickhouse.ts set
+-- insert_deduplication_token from the sorted row ids, which dedups under
+-- async_insert as well as a synchronous insert. The window is bounded, so it
+-- backs up row-level determinism rather than replacing it: the projection runs
+-- as a Graphile task with retries, and a retry must converge on one write
+-- rather than append duplicate terminals.
 -- allow_suspicious_ttl_expressions rides the statement, not the session, so
--- SHOW CREATE matches migrated deployments.
+-- SHOW CREATE matches migrated deployments. Every later ALTER on this table
+-- needs the same setting: an ALTER re-validates the TTL, and dictGetOrDefault
+-- fails that check without it.
 SETTINGS index_granularity = 8192, non_replicated_deduplication_window = 10000, allow_suspicious_ttl_expressions = 1;
 
 GRANT SELECT ON app.alert_events TO app_ro;

@@ -90,7 +90,6 @@ describe("ClickHouse alert history", () => {
     );
     expect(evaluation).toMatchObject({
       event_type: "evaluation_succeeded",
-      write_source: "live",
       row_count: 1,
       evidence_json: '[{"service":"api","value":42}]',
       samples_json:

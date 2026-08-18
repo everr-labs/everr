@@ -964,13 +964,6 @@
           "notNull": true,
           "default": "now()"
         },
-        "journaled_at": {
-          "name": "journaled_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
         "processed_at": {
           "name": "processed_at",
           "type": "timestamp with time zone",

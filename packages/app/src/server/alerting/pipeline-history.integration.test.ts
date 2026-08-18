@@ -230,7 +230,7 @@ describe("the alerting pipeline's ClickHouse projection", () => {
     // The sentinel is a zero UUID rather than a null, so the columns stay
     // non-nullable and a reader filters on equality instead of IS NULL.
     const [row] = harness.clickhouse.queryRows(`
-      SELECT notification_event_id, episode_id, write_source
+      SELECT notification_event_id, episode_id
       FROM app.alert_events
       WHERE event_type = 'evaluation_succeeded'
     `);
@@ -238,7 +238,6 @@ describe("the alerting pipeline's ClickHouse projection", () => {
       "00000000-0000-0000-0000-000000000000",
     );
     expect(row.episode_id).toBe("00000000-0000-0000-0000-000000000000");
-    expect(row.write_source).toBe("live");
   });
 
   it("drops a repeated write in the engine's own deduplication window", async () => {

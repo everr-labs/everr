@@ -114,7 +114,6 @@ export type AlertHistoryRow = {
   slug: string;
   preview_id: string;
   event_type: AlertHistoryEventType;
-  write_source: "live";
   evaluation_scheduled_at: string;
   event_time: string;
   row_count: number;
@@ -155,7 +154,6 @@ function baseHistoryRow(opts: {
     slug: opts.def.slug,
     preview_id: opts.def.previewId ?? ZERO_UUID,
     event_type: opts.eventType,
-    write_source: "live",
     evaluation_scheduled_at: EPOCH_ISO,
     event_time: opts.occurredAt.toISOString(),
     row_count: 0,
@@ -374,7 +372,7 @@ export function deliveryHistoryRow(opts: {
   // The caller states the outcome from the branch it is in; it is never
   // inferred from the message. A failure with an empty message must stay a
   // failure: classified as a success it would take the convergent success id,
-  // and the append-only table would carry a lie the reconciler cannot detect.
+  // and the append-only table would carry a lie nothing can correct.
   outcome: "succeeded" | "failed";
   error?: string;
 }): AlertHistoryRow {

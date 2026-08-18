@@ -39,7 +39,6 @@ CREATE TABLE app.alert_events
   preview_id UUID DEFAULT toUUID('00000000-0000-0000-0000-000000000000'),
   is_live Bool DEFAULT preview_id = toUUID('00000000-0000-0000-0000-000000000000'),
   event_type LowCardinality(String),
-  write_source LowCardinality(String) DEFAULT 'live',
   evaluation_scheduled_at DateTime64(3) DEFAULT toDateTime64(0, 3) CODEC(Delta, ZSTD(1)),
   event_time DateTime64(3) DEFAULT now64(3) CODEC(Delta, ZSTD(1)),
   row_count UInt64 DEFAULT 0,

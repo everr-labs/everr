@@ -636,27 +636,6 @@ describe("the alerting pipeline's instance lifecycle", () => {
     expect(harness.clickhouse.historyRows()).toHaveLength(historyCountBefore);
   });
 
-  it("two history rows written by the same evaluation transaction share one journaled_at", async () => {
-    await insertRule(harness.db, {
-      sql: "select 'checkout' as service, 42 as value union all select 'payments' as service, 42 as value",
-      forSecs: 0,
-      intervalSecs: 60,
-    });
-    harness.clickhouse.setSignal([
-      { service: "checkout", value: 42 },
-      { service: "payments", value: 42 },
-    ]);
-
-    await harness.runDueJobs();
-
-    const fired = await harness.db
-      .select()
-      .from(alertEvents)
-      .where(eq(alertEvents.eventType, "instance_fired"));
-    expect(fired).toHaveLength(2);
-    expect(fired[0].journaledAt).toEqual(fired[1].journaledAt);
-  });
-
   it("running the lifecycle projection twice over the same event leaves one history row", async () => {
     const rule = await insertRule(harness.db, { forSecs: 0, intervalSecs: 60 });
     harness.clickhouse.setSignal([{ service: "checkout", value: 42 }]);

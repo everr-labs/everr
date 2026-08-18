@@ -40,9 +40,9 @@ function deterministicUuidV8(seed: string): string {
 
 // A chain gets exactly one terminal suppression row, so its id derives from
 // the notification event alone. Deterministic for the same reason as delivery
-// ids: the lifecycle projection runs under Graphile retry, and a retry (or a
-// racing second writer) must converge on one id instead of minting a phantom
-// second terminal.
+// ids: the projection runs under Graphile retry, and a retry (or a racing
+// second writer) must converge on one id instead of minting a phantom second
+// terminal into an append-only table.
 export function deterministicSuppressionEventId(
   notificationEventId: string,
 ): string {
@@ -51,12 +51,12 @@ export function deterministicSuppressionEventId(
   );
 }
 
-// Delivery outcome rows must not mint random ids: the reconciler re-inserts a
-// lost `delivery_succeeded` row, and only a deterministic id lets that repair
-// converge instead of duplicating. The id hashes the journal event, the
-// delivery key and the outcome; a failed attempt additionally hashes its
-// attempt time, so retries keep their own rows while the terminal success id
-// stays stable. Version 8 marks the id as custom-derived, not time-ordered.
+// Delivery outcome rows must not mint random ids: the send job retries, and
+// only a deterministic id lets the retry converge instead of appending a
+// second row. The id hashes the journal event, the delivery key and the
+// outcome; a failed attempt additionally hashes its attempt time, so retries
+// keep their own rows while the terminal success id stays stable. Version 8
+// marks the id as custom-derived, not time-ordered.
 export function deterministicDeliveryEventId(opts: {
   notificationEventId: string;
   dedupKey: string;

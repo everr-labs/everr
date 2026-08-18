@@ -110,7 +110,6 @@ CREATE TABLE "alert_events" (
 	"suppressed" boolean DEFAULT false NOT NULL,
 	"silence_id" uuid,
 	"occurred_at" timestamp with time zone DEFAULT now() NOT NULL,
-	"journaled_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"processed_at" timestamp with time zone,
 	CONSTRAINT "alert_events_repoid_nonempty" CHECK (length("alert_events"."repoid") > 0),
 	CONSTRAINT "alert_events_kind_matches_type" CHECK (("alert_events"."event_type" NOT IN ('instance_pending', 'instance_closed', 'evaluation_failed') OR "alert_events"."kind" = 'state') AND ("alert_events"."event_type" NOT IN ('instance_fired', 'instance_resolved') OR "alert_events"."kind" = 'notifying')),
