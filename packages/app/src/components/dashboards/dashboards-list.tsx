@@ -87,7 +87,9 @@ export function DashboardsList({ preview }: { preview?: string }) {
             // Requirements are searchable too: someone who knows they emit
             // `redis.*` should find the Redis built-in by typing what they
             // send.
-            builtin.requires.some((r) => r.match.toLowerCase().includes(q)),
+            builtin.requires.some((r) =>
+              (r.match ?? r.signal).toLowerCase().includes(q),
+            ),
         );
     if (!capabilities) return { matching, ready: matching, needsData: [] };
     const ready: BuiltinDashboard[] = [];

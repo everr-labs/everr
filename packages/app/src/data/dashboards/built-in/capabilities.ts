@@ -1,10 +1,10 @@
-import type { BuiltinDashboard, RequirementKind } from "./types";
-import { REQUIREMENT_KINDS } from "./types";
+import type { BuiltinDashboard, Signal } from "./types";
+import { SIGNALS } from "./types";
 
 /**
- * Per-bucket cap on the discovery scan. Attribute and metric names are
+ * Per-signal cap on the discovery scan. Attribute and metric names are
  * low-cardinality in practice, so this shows effectively all of them while
- * keeping one runaway map from crowding out the other buckets.
+ * keeping one runaway map from crowding out the other signals.
  */
 const CAPABILITY_NAMES_LIMIT = 500;
 
@@ -15,15 +15,9 @@ const CAPABILITY_NAMES_LIMIT = 500;
  * one promise the probe makes. The `awscloudwatch` receiver emits Summary by
  * default, so this was reachable, not hypothetical.
  *
- * Both the existence probes and the metric-name scan read this list. Widening
- * only one would move the contradiction rather than close it: an Organization
- * would be told it has metrics and still see every metric builtin held back,
- * because no builtin's metric name reached the scan.
- *
- * All five share `MetricName` and `TimeUnix`, so the two added branches cost one
- * `LIMIT 1` granule read and one `DISTINCT` over a LowCardinality column each,
- * and both are empty tables for every Organization that is not sending those
- * types.
+ * All five share `MetricName` and `TimeUnix`, and each added branch costs one
+ * `DISTINCT` over a LowCardinality column on a table that is empty for every
+ * Organization not sending that type.
  *
  * Written out rather than filtered from `SQL_API_TENANT_TABLES`: this module is
  * imported by the dashboards list component, and `lib/clickhouse` would drag
@@ -41,35 +35,51 @@ const METRIC_TABLES = [
 ] as const;
 
 /**
- * What the Organization is actually sending in the probed time range, one list
- * per requirement kind. Keyed by the kind a requirement states rather than by
- * hand-named fields, so a new kind is one entry in `REQUIREMENT_KINDS` and
- * nothing else.
+ * What one signal offers in the probed time range: whether it exists at all,
+ * and the names a `match` can select within it — attribute keys for traces and
+ * logs, metric names for metrics.
  */
-export type TelemetryCapabilities = Record<RequirementKind, string[]>;
+export interface SignalCapability {
+  present: boolean;
+  names: string[];
+}
 
-const byKind = (
-  names: (kind: RequirementKind) => string[],
+/**
+ * What the Organization is actually sending in the probed time range, keyed by
+ * the signal a requirement states, so a new signal is one entry in `SIGNALS`
+ * and nothing else.
+ */
+export type TelemetryCapabilities = Record<Signal, SignalCapability>;
+
+const bySignal = (
+  capability: (signal: Signal) => SignalCapability,
 ): TelemetryCapabilities =>
   Object.fromEntries(
-    REQUIREMENT_KINDS.map((kind) => [kind, names(kind)]),
+    SIGNALS.map((signal) => [signal, capability(signal)]),
   ) as TelemetryCapabilities;
 
-export const EMPTY_CAPABILITIES: TelemetryCapabilities = byKind(() => []);
+export const EMPTY_CAPABILITIES: TelemetryCapabilities = bySignal(() => ({
+  present: false,
+  names: [],
+}));
 
 export interface CapabilityRow {
-  kind: string;
+  signal: string;
   name: string;
 }
 
 /**
- * One scan per bucket, unioned into `(kind, name)` rows.
+ * One scan per signal, unioned into `(signal, name)` rows. A row with an empty
+ * name marks bare existence; a row with a name is one selectable name within
+ * the signal.
  *
- * Signals are probed with `LIMIT 1` rather than a count: existence is the whole
- * question, and the limit lets ClickHouse stop at the first matching granule
- * instead of reading the range. The name scans follow the shape of the
- * explorer's attribute discovery (`buildAttributeKeysQuery`), including its
- * per-source cap and its per-column time-bound parsing.
+ * `traces` and `logs` are probed for existence with `LIMIT 1` rather than a
+ * count: existence is the whole question, and the limit lets ClickHouse stop at
+ * the first matching granule instead of reading the range. `metrics` has no
+ * existence probe of its own; a stored data point always has a name, so the
+ * metric-name scan already answers the question. The name scans follow the
+ * shape of the explorer's attribute discovery (`buildAttributeKeysQuery`),
+ * including its per-source cap and its per-column time-bound parsing.
  *
  * `{from}`/`{to}` are the same bound parameters every panel query gets, so the
  * probe and the previews it grades always look at one identical window.
@@ -89,52 +99,55 @@ export function buildCapabilitiesQuery(): string {
   const withinMetrics = `TimeUnix >= ${dt64("from")} AND TimeUnix <= ${dt64("to")}`;
 
   // `toString` on every name is load-bearing: attribute keys come out of a
-  // Map(LowCardinality(String), …) while metric names and the signal literals
-  // are plain String, and the union rejects the mix with a TYPE_MISMATCH.
-  const names = (kind: RequirementKind, expression: string, source: string) => `
-    SELECT '${kind}' AS kind, name FROM (
-      SELECT DISTINCT toString(${expression}) AS name FROM ${source}
-    )
+  // Map(LowCardinality(String), …) while metric names and the literals are
+  // plain String, and the union rejects the mix with a TYPE_MISMATCH.
+  const names = (signal: Signal, distinctNames: string) => `
+    SELECT '${signal}' AS signal, name FROM (${distinctNames})
     WHERE name != ''
     ORDER BY name
     LIMIT ${CAPABILITY_NAMES_LIMIT}`;
 
-  const signal = (name: string, source: string, within: string) => `
-    SELECT 'signal' AS kind, '${name}' AS name
+  const exists = (signal: Signal, source: string, within: string) => `
+    SELECT '${signal}' AS signal, '' AS name
     FROM ${source} WHERE ${within} LIMIT 1`;
 
   // `DISTINCT` inside each branch, not only on the union: `MetricName` is
   // LowCardinality over a handful of values, so deduplicating per table merges
   // small sets instead of piping every metric row through the union.
-  const metricSources = METRIC_TABLES.map(
+  const metricNames = METRIC_TABLES.map(
     (table) =>
-      `SELECT DISTINCT MetricName FROM ${table} WHERE ${withinMetrics}`,
+      `SELECT DISTINCT toString(MetricName) AS name FROM ${table} WHERE ${withinMetrics}`,
   ).join(" UNION ALL ");
 
-  return `SELECT kind, name FROM (${[
-    signal("traces", "traces", withinTraces),
-    signal("logs", "logs", withinLogs),
-    ...METRIC_TABLES.map((table) => signal("metrics", table, withinMetrics)),
+  return `SELECT signal, name FROM (${[
+    exists("traces", "traces", withinTraces),
+    exists("logs", "logs", withinLogs),
     names(
-      "span-attribute",
-      "arrayJoin(mapKeys(SpanAttributes))",
-      `(SELECT SpanAttributes FROM traces WHERE ${withinTraces})`,
+      "traces",
+      `SELECT DISTINCT toString(arrayJoin(mapKeys(SpanAttributes))) AS name
+       FROM traces WHERE ${withinTraces}`,
     ),
     names(
-      "log-attribute",
-      "arrayJoin(mapKeys(LogAttributes))",
-      `(SELECT LogAttributes FROM logs WHERE ${withinLogs})`,
+      "logs",
+      `SELECT DISTINCT toString(arrayJoin(mapKeys(LogAttributes))) AS name
+       FROM logs WHERE ${withinLogs}`,
     ),
-    names("metric", "MetricName", `(${metricSources})`),
+    names("metrics", metricNames),
   ].join("\n  UNION ALL\n")}\n)`;
 }
 
 export function decodeCapabilityRows(
   rows: CapabilityRow[],
 ): TelemetryCapabilities {
-  return byKind((kind) =>
-    [...new Set(rows.filter((r) => r.kind === kind).map((r) => r.name))].sort(),
-  );
+  return bySignal((signal) => {
+    const mine = rows.filter((row) => row.signal === signal);
+    const names = [
+      ...new Set(mine.map((row) => row.name).filter((name) => name !== "")),
+    ].sort();
+    // Any row proves existence: a named row can only come from stored data, so
+    // the empty-name existence marker is not the only evidence.
+    return { present: mine.length > 0, names };
+  });
 }
 
 /**
@@ -164,14 +177,17 @@ export function evaluateBuiltin(
   capabilities: TelemetryCapabilities,
 ): BuiltinReadiness {
   const missing: string[] = [];
-  for (const requirement of builtin.requires) {
-    const available = capabilities[requirement.kind] ?? [];
-    if (!available.some((name) => matches(name, requirement.match))) {
-      missing.push(requirement.label);
+  for (const { signal, match, label } of builtin.requires) {
+    const capability = capabilities[signal];
+    const met = match
+      ? capability.names.some((name) => matches(name, match))
+      : capability.present;
+    if (!met) {
+      missing.push(label);
     }
   }
-  // Deduplicated: two requirements can share a label ("traces") when they probe
-  // different buckets, and the gallery shows the reason once.
+  // Deduplicated: two requirements can share a label ("metrics") when they
+  // probe existence and a name, and the gallery shows the reason once.
   return missing.length === 0
     ? { status: "ready" }
     : { status: "needs-setup", missing: [...new Set(missing)] };

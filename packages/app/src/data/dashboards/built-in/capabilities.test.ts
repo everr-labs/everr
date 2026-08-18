@@ -37,16 +37,16 @@ describe("buildCapabilitiesQuery", () => {
     expect(sql).toContain("{to:String}");
   });
 
-  it("probes each signal for existence rather than counting", () => {
-    expect(sql).toContain("'signal' AS kind, 'traces' AS name");
-    expect(sql).toContain("'signal' AS kind, 'logs' AS name");
+  it("probes traces and logs for existence rather than counting", () => {
+    expect(sql).toContain("'traces' AS signal, '' AS name");
+    expect(sql).toContain("'logs' AS signal, '' AS name");
     expect(sql).toMatch(/LIMIT 1/);
     expect(sql).not.toContain("count()");
   });
 
-  // Both, not one: widening the existence probe alone would report metrics and
-  // still hold back every metric template, because no name reached the scan.
-  it("probes and scans every metric table the tenant can read", () => {
+  // Metrics existence has no probe of its own; decodeCapabilityRows derives it
+  // from this scan, so the scan must cover every table the tenant can read.
+  it("scans metric names from every metric table the tenant can read", () => {
     // Written out rather than filtered from `SQL_API_TENANT_TABLES`: the suite
     // setup mocks `@/lib/clickhouse`, so the real list is not importable here.
     for (const table of [
@@ -56,9 +56,11 @@ describe("buildCapabilitiesQuery", () => {
       "metrics_exponential_histogram",
       "metrics_summary",
     ]) {
-      expect(sql).toContain(`FROM ${table} WHERE TimeUnix >=`);
-      expect(sql).toContain(`SELECT DISTINCT MetricName FROM ${table}`);
+      expect(sql).toContain(
+        `SELECT DISTINCT toString(MetricName) AS name FROM ${table} WHERE TimeUnix >=`,
+      );
     }
+    expect(sql).not.toContain("'metrics' AS signal, ''");
   });
 
   it("uses each table's own time column", () => {
@@ -69,25 +71,37 @@ describe("buildCapabilitiesQuery", () => {
 });
 
 describe("decodeCapabilityRows", () => {
-  it("buckets rows by kind, deduplicated and sorted", () => {
+  it("buckets rows by signal, deduplicated and sorted", () => {
     expect(
       decodeCapabilityRows([
-        { kind: "signal", name: "traces" },
-        { kind: "signal", name: "traces" },
-        { kind: "metric", name: "redis.memory.used" },
-        { kind: "span-attribute", name: "http.route" },
-        { kind: "log-attribute", name: "session.id" },
+        { signal: "traces", name: "" },
+        { signal: "traces", name: "http.route" },
+        { signal: "traces", name: "http.route" },
+        { signal: "metrics", name: "redis.memory.used" },
+        { signal: "logs", name: "session.id" },
       ]),
     ).toEqual({
-      signal: ["traces"],
-      metric: ["redis.memory.used"],
-      "span-attribute": ["http.route"],
-      "log-attribute": ["session.id"],
+      traces: { present: true, names: ["http.route"] },
+      logs: { present: true, names: ["session.id"] },
+      metrics: { present: true, names: ["redis.memory.used"] },
     });
   });
 
-  it("ignores rows with an unknown kind", () => {
-    expect(decodeCapabilityRows([{ kind: "nonsense", name: "x" }])).toEqual(
+  it("treats a bare existence row as presence without names", () => {
+    expect(decodeCapabilityRows([{ signal: "traces", name: "" }])).toEqual(
+      capabilities({ traces: { present: true, names: [] } }),
+    );
+  });
+
+  it("derives metrics presence from the metric-name scan", () => {
+    expect(
+      decodeCapabilityRows([{ signal: "metrics", name: "jvm.memory.used" }])
+        .metrics,
+    ).toEqual({ present: true, names: ["jvm.memory.used"] });
+  });
+
+  it("ignores rows with an unknown signal", () => {
+    expect(decodeCapabilityRows([{ signal: "nonsense", name: "x" }])).toEqual(
       EMPTY_CAPABILITIES,
     );
   });
@@ -97,8 +111,8 @@ describe("evaluateBuiltin", () => {
   it("is ready when every requirement is met", () => {
     expect(
       evaluateBuiltin(
-        template([{ kind: "signal", match: "traces", label: "no traces" }]),
-        capabilities({ signal: ["traces"] }),
+        template([{ signal: "traces", label: "no traces" }]),
+        capabilities({ traces: { present: true, names: [] } }),
       ),
     ).toEqual({ status: "ready" });
   });
@@ -107,8 +121,8 @@ describe("evaluateBuiltin", () => {
     expect(
       evaluateBuiltin(
         template([
-          { kind: "signal", match: "metrics", label: "no metrics" },
-          { kind: "metric", match: "redis", label: "no redis.*" },
+          { signal: "metrics", label: "no metrics" },
+          { signal: "metrics", match: "redis", label: "no redis.*" },
         ]),
         EMPTY_CAPABILITIES,
       ),
@@ -118,8 +132,10 @@ describe("evaluateBuiltin", () => {
   it("matches a namespace prefix", () => {
     expect(
       evaluateBuiltin(
-        template([{ kind: "metric", match: "redis", label: "no redis.*" }]),
-        capabilities({ metric: ["redis.memory.used"] }),
+        template([{ signal: "metrics", match: "redis", label: "no redis.*" }]),
+        capabilities({
+          metrics: { present: true, names: ["redis.memory.used"] },
+        }),
       ),
     ).toEqual({ status: "ready" });
   });
@@ -127,8 +143,10 @@ describe("evaluateBuiltin", () => {
   it("does not let a substring claim credit for a namespace", () => {
     expect(
       evaluateBuiltin(
-        template([{ kind: "metric", match: "redis", label: "no redis.*" }]),
-        capabilities({ metric: ["myredis.memory.used"] }),
+        template([{ signal: "metrics", match: "redis", label: "no redis.*" }]),
+        capabilities({
+          metrics: { present: true, names: ["myredis.memory.used"] },
+        }),
       ),
     ).toEqual({ status: "needs-setup", missing: ["no redis.*"] });
   });
@@ -138,24 +156,27 @@ describe("evaluateBuiltin", () => {
       evaluateBuiltin(
         template([
           {
-            kind: "span-attribute",
+            signal: "traces",
             match: "http.request.method",
             label: "no http.request.method*",
           },
         ]),
-        capabilities({ "span-attribute": ["http.request.method"] }),
+        capabilities({
+          traces: { present: true, names: ["http.request.method"] },
+        }),
       ),
     ).toEqual({ status: "ready" });
   });
 
-  it("reads each requirement from its own bucket", () => {
-    // A metric named `http.route` must not satisfy a span-attribute requirement.
+  it("reads each requirement from its own signal", () => {
+    // A metric named `http.route` must not satisfy a trace-attribute
+    // requirement.
     expect(
       evaluateBuiltin(
         template([
-          { kind: "span-attribute", match: "http.route", label: "no http.*" },
+          { signal: "traces", match: "http.route", label: "no http.*" },
         ]),
-        capabilities({ metric: ["http.route"] }),
+        capabilities({ metrics: { present: true, names: ["http.route"] } }),
       ),
     ).toEqual({ status: "needs-setup", missing: ["no http.*"] });
   });
@@ -164,8 +185,8 @@ describe("evaluateBuiltin", () => {
     expect(
       evaluateBuiltin(
         template([
-          { kind: "signal", match: "metrics", label: "no metrics" },
-          { kind: "metric", match: "jvm", label: "no metrics" },
+          { signal: "metrics", label: "no metrics" },
+          { signal: "metrics", match: "jvm", label: "no metrics" },
         ]),
         EMPTY_CAPABILITIES,
       ),

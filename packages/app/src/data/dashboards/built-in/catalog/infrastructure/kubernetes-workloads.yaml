@@ -1,0 +1,434 @@
+id: kubernetes-workloads
+name: Kubernetes Workloads
+description: Node CPU, memory and filesystem headroom, the same resources rolled up per namespace, the busiest pods, and pod and node network traffic, from the OpenTelemetry kubeletstats receiver.
+category: Infrastructure
+requires:
+  - signal: metrics
+    label: no metrics
+  - signal: metrics
+    match: k8s
+    label: no k8s*
+document:
+  kind: Dashboard
+  metadata:
+    name: kubernetes-workloads
+  spec:
+    display:
+      name: Kubernetes Workloads
+    duration: 6h
+    refreshInterval: 1m
+    panels:
+      nodes:
+        kind: Panel
+        spec:
+          display:
+            name: Nodes
+            description: Nodes the kubelet scrape reached.
+          plugin:
+            kind: StatChart
+            spec:
+              calculation: last
+              decimals: 0
+          queries:
+            - kind: ClickHouseSQL
+              spec:
+                plugin:
+                  kind: ClickHouseSQL
+                  spec:
+                    query: |-
+                      SELECT nullIf(uniqExact(dimension), 0) AS total
+                      FROM (SELECT ResourceAttributes['k8s.node.name'] AS dimension FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'k8s.node.cpu.usage' UNION ALL SELECT ResourceAttributes['k8s.node.name'] AS dimension FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'k8s.node.cpu.usage')
+      pods:
+        kind: Panel
+        spec:
+          display:
+            name: Pods
+            description: Pods seen over the window.
+          plugin:
+            kind: StatChart
+            spec:
+              calculation: last
+              decimals: 0
+          queries:
+            - kind: ClickHouseSQL
+              spec:
+                plugin:
+                  kind: ClickHouseSQL
+                  spec:
+                    query: |-
+                      SELECT nullIf(uniqExact(dimension), 0) AS total
+                      FROM (SELECT ResourceAttributes['k8s.pod.name'] AS dimension FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'k8s.pod.cpu.usage' UNION ALL SELECT ResourceAttributes['k8s.pod.name'] AS dimension FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'k8s.pod.cpu.usage')
+      node-memory-used:
+        kind: Panel
+        spec:
+          display:
+            name: Node memory used
+            description: Working set against what is still free.
+          plugin:
+            kind: StatChart
+            spec:
+              calculation: last
+              unit: "%"
+              decimals: 1
+              thresholds:
+                mode: absolute
+                defaultColor: "#22c55e"
+                steps:
+                  - value: 75
+                    color: "#f59e0b"
+                  - value: 90
+                    color: "#ef4444"
+          queries:
+            - kind: ClickHouseSQL
+              spec:
+                plugin:
+                  kind: ClickHouseSQL
+                  spec:
+                    query: |-
+                      SELECT round(
+                               avgIf(Value, MetricName = 'k8s.node.memory.working_set')
+                               / nullIf(avgIf(Value, MetricName = 'k8s.node.memory.working_set') + avgIf(Value, MetricName = 'k8s.node.memory.available'), 0) * 100, 1) AS pct
+                      FROM (SELECT MetricName, Value FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName IN ('k8s.node.memory.working_set', 'k8s.node.memory.available') UNION ALL SELECT MetricName, Value FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName IN ('k8s.node.memory.working_set', 'k8s.node.memory.available'))
+      node-filesystem-used:
+        kind: Panel
+        spec:
+          display:
+            name: Node filesystem used
+            description: Averaged across nodes.
+          plugin:
+            kind: StatChart
+            spec:
+              calculation: last
+              unit: "%"
+              decimals: 1
+              thresholds:
+                mode: absolute
+                defaultColor: "#22c55e"
+                steps:
+                  - value: 75
+                    color: "#f59e0b"
+                  - value: 90
+                    color: "#ef4444"
+          queries:
+            - kind: ClickHouseSQL
+              spec:
+                plugin:
+                  kind: ClickHouseSQL
+                  spec:
+                    query: |-
+                      SELECT round(
+                               avgIf(Value, MetricName = 'k8s.node.filesystem.usage')
+                               / nullIf(avgIf(Value, MetricName = 'k8s.node.filesystem.capacity'), 0) * 100, 1) AS pct
+                      FROM (SELECT MetricName, Value FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName IN ('k8s.node.filesystem.usage', 'k8s.node.filesystem.capacity') UNION ALL SELECT MetricName, Value FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName IN ('k8s.node.filesystem.usage', 'k8s.node.filesystem.capacity'))
+      node-cpu:
+        kind: Panel
+        spec:
+          display:
+            name: Node CPU usage
+            description: "Cores in use per node, as the kubelet reports it. Not a percentage: read it against the cores the node has."
+          plugin:
+            kind: TimeSeriesChart
+            spec:
+              unit: " cores"
+              showLegend: true
+          queries:
+            - kind: ClickHouseSQL
+              spec:
+                plugin:
+                  kind: ClickHouseSQL
+                  spec:
+                    query: |-
+                      WITH points AS (SELECT TimeUnix, Value, ResourceAttributes['k8s.node.name'] AS series FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'k8s.node.cpu.usage' UNION ALL SELECT TimeUnix, Value, ResourceAttributes['k8s.node.name'] AS series FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'k8s.node.cpu.usage')
+                      SELECT toStartOfInterval(TimeUnix, INTERVAL {step:UInt32} * 6 SECOND) AS ts,
+                             series,
+                             avg(Value) AS value
+                      FROM points
+                      WHERE series IN (
+                        SELECT series FROM points WHERE 1
+                        GROUP BY series ORDER BY count() DESC LIMIT 8
+                      )
+                      GROUP BY ts, series
+                      ORDER BY ts
+      node-memory:
+        kind: Panel
+        spec:
+          display:
+            name: Node memory working set
+            description: Working set is what the kubelet counts against the node before it evicts, so it is the number that decides eviction, not total memory usage.
+          plugin:
+            kind: TimeSeriesChart
+            spec:
+              unit: " GiB"
+              showLegend: true
+          queries:
+            - kind: ClickHouseSQL
+              spec:
+                plugin:
+                  kind: ClickHouseSQL
+                  spec:
+                    query: |-
+                      WITH points AS (SELECT TimeUnix, Value, ResourceAttributes['k8s.node.name'] AS series FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'k8s.node.memory.working_set' UNION ALL SELECT TimeUnix, Value, ResourceAttributes['k8s.node.name'] AS series FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'k8s.node.memory.working_set')
+                      SELECT toStartOfInterval(TimeUnix, INTERVAL {step:UInt32} * 6 SECOND) AS ts,
+                             series,
+                             avg(Value) / 1073741824 AS value
+                      FROM points
+                      WHERE series IN (
+                        SELECT series FROM points WHERE 1
+                        GROUP BY series ORDER BY count() DESC LIMIT 8
+                      )
+                      GROUP BY ts, series
+                      ORDER BY ts
+      namespace-cpu:
+        kind: Panel
+        spec:
+          display:
+            name: CPU by namespace
+            description: Every pod in the namespace, summed. Top namespaces only.
+          plugin:
+            kind: TimeSeriesChart
+            spec:
+              unit: " cores"
+              showLegend: true
+              stacked: true
+          queries:
+            - kind: ClickHouseSQL
+              spec:
+                plugin:
+                  kind: ClickHouseSQL
+                  spec:
+                    query: |-
+                      WITH points AS (SELECT TimeUnix, ResourceAttributes['k8s.namespace.name'] AS series, ResourceAttributes['k8s.pod.name'] AS pod, Value FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'k8s.pod.cpu.usage' UNION ALL SELECT TimeUnix, ResourceAttributes['k8s.namespace.name'] AS series, ResourceAttributes['k8s.pod.name'] AS pod, Value FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'k8s.pod.cpu.usage')
+                      SELECT ts, series, sum(pod_value) AS value
+                      FROM (
+                        SELECT toStartOfInterval(TimeUnix, INTERVAL {step:UInt32} * 6 SECOND) AS ts, series, pod,
+                               avg(Value) AS pod_value
+                        FROM points
+                        WHERE series IN (
+                        SELECT series FROM points WHERE 1
+                        GROUP BY series ORDER BY count() DESC LIMIT 8
+                      )
+                        GROUP BY ts, series, pod
+                      )
+                      GROUP BY ts, series
+                      ORDER BY ts
+      namespace-memory:
+        kind: Panel
+        spec:
+          display:
+            name: Memory by namespace
+            description: Every pod in the namespace, summed. Top namespaces only.
+          plugin:
+            kind: TimeSeriesChart
+            spec:
+              unit: " GiB"
+              showLegend: true
+              stacked: true
+          queries:
+            - kind: ClickHouseSQL
+              spec:
+                plugin:
+                  kind: ClickHouseSQL
+                  spec:
+                    query: |-
+                      WITH points AS (SELECT TimeUnix, ResourceAttributes['k8s.namespace.name'] AS series, ResourceAttributes['k8s.pod.name'] AS pod, Value FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'k8s.pod.memory.working_set' UNION ALL SELECT TimeUnix, ResourceAttributes['k8s.namespace.name'] AS series, ResourceAttributes['k8s.pod.name'] AS pod, Value FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'k8s.pod.memory.working_set')
+                      SELECT ts, series, sum(pod_value) / 1073741824 AS value
+                      FROM (
+                        SELECT toStartOfInterval(TimeUnix, INTERVAL {step:UInt32} * 6 SECOND) AS ts, series, pod,
+                               avg(Value) AS pod_value
+                        FROM points
+                        WHERE series IN (
+                        SELECT series FROM points WHERE 1
+                        GROUP BY series ORDER BY count() DESC LIMIT 8
+                      )
+                        GROUP BY ts, series, pod
+                      )
+                      GROUP BY ts, series
+                      ORDER BY ts
+      top-pods-cpu:
+        kind: Panel
+        spec:
+          display:
+            name: Top pods by CPU
+            description: Cores, averaged over the window.
+          plugin:
+            kind: Table
+            spec:
+              stickyHeader: true
+          queries:
+            - kind: ClickHouseSQL
+              spec:
+                plugin:
+                  kind: ClickHouseSQL
+                  spec:
+                    query: |-
+                      SELECT namespace, pod, round(avg(Value), 3) AS cpu_cores
+                      FROM (SELECT ResourceAttributes['k8s.namespace.name'] AS namespace, ResourceAttributes['k8s.pod.name'] AS pod, Value FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'k8s.pod.cpu.usage' UNION ALL SELECT ResourceAttributes['k8s.namespace.name'] AS namespace, ResourceAttributes['k8s.pod.name'] AS pod, Value FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'k8s.pod.cpu.usage')
+                      GROUP BY namespace, pod
+                      ORDER BY cpu_cores DESC
+                      LIMIT 15
+      top-pods-memory:
+        kind: Panel
+        spec:
+          display:
+            name: Top pods by memory
+            description: MiB of working set, averaged over the window.
+          plugin:
+            kind: Table
+            spec:
+              stickyHeader: true
+          queries:
+            - kind: ClickHouseSQL
+              spec:
+                plugin:
+                  kind: ClickHouseSQL
+                  spec:
+                    query: |-
+                      SELECT namespace, pod, round(avg(Value) / 1048576, 3) AS mem_mib
+                      FROM (SELECT ResourceAttributes['k8s.namespace.name'] AS namespace, ResourceAttributes['k8s.pod.name'] AS pod, Value FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'k8s.pod.memory.working_set' UNION ALL SELECT ResourceAttributes['k8s.namespace.name'] AS namespace, ResourceAttributes['k8s.pod.name'] AS pod, Value FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'k8s.pod.memory.working_set')
+                      GROUP BY namespace, pod
+                      ORDER BY mem_mib DESC
+                      LIMIT 15
+      pod-network:
+        kind: Panel
+        spec:
+          display:
+            name: Pod network I/O
+            description: A cumulative counter, drawn as the bytes moved in each bucket. Summed across pods.
+          plugin:
+            kind: TimeSeriesChart
+            spec:
+              unit: MB
+              showLegend: true
+              stacked: false
+          queries:
+            - kind: ClickHouseSQL
+              spec:
+                plugin:
+                  kind: ClickHouseSQL
+                  spec:
+                    query: |-
+                      WITH points AS (SELECT TimeUnix, ResourceAttributes, Attributes, Value, Attributes['direction'] AS series FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'k8s.pod.network.io' UNION ALL SELECT TimeUnix, ResourceAttributes, Attributes, Value, Attributes['direction'] AS series FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'k8s.pod.network.io')
+                      SELECT ts, series, sum(delta) / 1048576 AS value
+                      FROM (
+                        SELECT toStartOfInterval(TimeUnix, INTERVAL {step:UInt32} * 6 SECOND) AS ts, series,
+                               ResourceAttributes AS resource, Attributes AS attrs,
+                               max(Value) - min(Value) AS delta
+                        FROM points
+                        WHERE series IN (
+                        SELECT series FROM points WHERE 1
+                        GROUP BY series ORDER BY count() DESC LIMIT 8
+                      )
+                        GROUP BY ts, series, resource, attrs
+                      )
+                      GROUP BY ts, series
+                      ORDER BY ts
+      node-network:
+        kind: Panel
+        spec:
+          display:
+            name: Node network I/O
+            description: The same traffic seen at the node, so it includes what the pod counters miss.
+          plugin:
+            kind: TimeSeriesChart
+            spec:
+              unit: MB
+              showLegend: true
+              stacked: false
+          queries:
+            - kind: ClickHouseSQL
+              spec:
+                plugin:
+                  kind: ClickHouseSQL
+                  spec:
+                    query: |-
+                      WITH points AS (SELECT TimeUnix, ResourceAttributes, Attributes, Value, Attributes['direction'] AS series FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'k8s.node.network.io' UNION ALL SELECT TimeUnix, ResourceAttributes, Attributes, Value, Attributes['direction'] AS series FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'k8s.node.network.io')
+                      SELECT ts, series, sum(delta) / 1048576 AS value
+                      FROM (
+                        SELECT toStartOfInterval(TimeUnix, INTERVAL {step:UInt32} * 6 SECOND) AS ts, series,
+                               ResourceAttributes AS resource, Attributes AS attrs,
+                               max(Value) - min(Value) AS delta
+                        FROM points
+                        WHERE series IN (
+                        SELECT series FROM points WHERE 1
+                        GROUP BY series ORDER BY count() DESC LIMIT 8
+                      )
+                        GROUP BY ts, series, resource, attrs
+                      )
+                      GROUP BY ts, series
+                      ORDER BY ts
+    layouts:
+      - kind: Grid
+        spec:
+          items:
+            - x: 0
+              y: 0
+              width: 6
+              height: 5
+              content:
+                $ref: "#/spec/panels/nodes"
+            - x: 6
+              y: 0
+              width: 6
+              height: 5
+              content:
+                $ref: "#/spec/panels/pods"
+            - x: 12
+              y: 0
+              width: 6
+              height: 5
+              content:
+                $ref: "#/spec/panels/node-memory-used"
+            - x: 18
+              y: 0
+              width: 6
+              height: 5
+              content:
+                $ref: "#/spec/panels/node-filesystem-used"
+            - x: 0
+              y: 5
+              width: 12
+              height: 8
+              content:
+                $ref: "#/spec/panels/node-cpu"
+            - x: 12
+              y: 5
+              width: 12
+              height: 8
+              content:
+                $ref: "#/spec/panels/node-memory"
+            - x: 0
+              y: 13
+              width: 12
+              height: 8
+              content:
+                $ref: "#/spec/panels/namespace-cpu"
+            - x: 12
+              y: 13
+              width: 12
+              height: 8
+              content:
+                $ref: "#/spec/panels/namespace-memory"
+            - x: 0
+              y: 21
+              width: 12
+              height: 8
+              content:
+                $ref: "#/spec/panels/top-pods-cpu"
+            - x: 12
+              y: 21
+              width: 12
+              height: 8
+              content:
+                $ref: "#/spec/panels/top-pods-memory"
+            - x: 0
+              y: 29
+              width: 12
+              height: 8
+              content:
+                $ref: "#/spec/panels/pod-network"
+            - x: 12
+              y: 29
+              width: 12
+              height: 8
+              content:
+                $ref: "#/spec/panels/node-network"

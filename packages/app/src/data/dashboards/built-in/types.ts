@@ -1,7 +1,7 @@
 import type { Dashboard } from "../schema";
 
 /** Shelf a built-in sits on in the list. Ordered as declared here. */
-export const BUILTIN_CATEGORIES = [
+const BUILTIN_CATEGORIES = [
   "Application",
   "Runtime",
   "Databases",
@@ -12,32 +12,32 @@ export const BUILTIN_CATEGORIES = [
 export type BuiltinCategory = (typeof BUILTIN_CATEGORIES)[number];
 
 /**
- * The kinds of telemetry a requirement can look for. Each is one bucket of
- * `TelemetryCapabilities` and one scan in the probe, so adding a kind here is
- * the single place that has to change — and a kind no built-in states still
- * costs a ClickHouse scan on every list load, so none are declared
- * speculatively.
+ * The signals a requirement can look at. Each is one bucket of
+ * `TelemetryCapabilities` and one existence-plus-names scan in the probe, so
+ * adding a signal here is the single place that has to change — and a signal
+ * no built-in states still costs a ClickHouse scan on every list load, so none
+ * are declared speculatively.
  */
-export const REQUIREMENT_KINDS = [
-  "signal",
-  "span-attribute",
-  "log-attribute",
-  "metric",
-] as const;
+export const SIGNALS = ["traces", "logs", "metrics"] as const;
 
-export type RequirementKind = (typeof REQUIREMENT_KINDS)[number];
+export type Signal = (typeof SIGNALS)[number];
 
 /**
  * One thing the Organization must already be sending for a built-in to render
- * anything. `match` is a prefix: `"redis."` matches every `redis.*` key, and a
- * key with no trailing dot matches that key exactly or as a namespace root.
+ * anything. Every requirement names the signal it looks at; `match` narrows it
+ * to a name within that signal — an attribute key for traces and logs, a
+ * metric name for metrics — and omitting `match` asks only that the signal
+ * exists at all.
+ *
+ * `match` is a prefix: `"redis."` matches every `redis.*` name, and a match
+ * with no trailing dot matches that name exactly or as a namespace root.
  *
  * `label` is what the list shows when the requirement is unmet, so it is
  * written the way an engineer would grep for it ("redis.*", "traces").
  */
 export interface BuiltinRequirement {
-  kind: RequirementKind;
-  match: string;
+  signal: Signal;
+  match?: string;
   label: string;
 }
 
