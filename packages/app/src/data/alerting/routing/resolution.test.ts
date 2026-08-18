@@ -60,7 +60,7 @@ describe("alertingMatchersMatch", () => {
 });
 
 describe("alertingSyntheticLabels", () => {
-  it("adds severity/status/rule/kind, letting synthetics win over same-named user labels", () => {
+  it("adds severity/status/rule, letting synthetics win over same-named user labels", () => {
     expect(
       alertingSyntheticLabels(
         { team: "pay", severity: "user-set" },
@@ -71,7 +71,6 @@ describe("alertingSyntheticLabels", () => {
       severity: "critical",
       status: "firing",
       rule: "r-1",
-      kind: "alert",
     });
   });
 });

@@ -48,7 +48,6 @@ export function alertingSyntheticLabels(
     severity: string;
     status: string;
     rule: string;
-    kind?: string;
   },
 ): Record<string, string> {
   return {
@@ -56,7 +55,6 @@ export function alertingSyntheticLabels(
     severity: opts.severity,
     status: opts.status,
     rule: opts.rule,
-    kind: opts.kind ?? "alert",
   };
 }
 

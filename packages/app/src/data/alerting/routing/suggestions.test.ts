@@ -56,7 +56,6 @@ describe("listAlertingLabelKeys", () => {
       { key: "severity", synthetic: true },
       { key: "status", synthetic: true },
       { key: "rule", synthetic: true },
-      { key: "kind", synthetic: true },
     ]);
   });
 
@@ -100,22 +99,18 @@ describe("listAlertingLabelKeys", () => {
 
     const keys = await listAlertingLabelKeys();
     expect(keys.map((k) => k.key)).toContain("svc");
-    expect(keys.filter((k) => k.synthetic)).toHaveLength(4);
+    expect(keys.filter((k) => k.synthetic)).toHaveLength(3);
   });
 });
 
 describe("listAlertingLabelValues", () => {
-  it("answers severity, status, and kind with their known values", async () => {
+  it("answers severity and status with their known values", async () => {
     expect(
       await listAlertingLabelValues({ data: { key: "severity" } }),
     ).toEqual([{ value: "info" }, { value: "warning" }, { value: "critical" }]);
     expect(await listAlertingLabelValues({ data: { key: "status" } })).toEqual([
       { value: "firing" },
       { value: "resolved" },
-    ]);
-    expect(await listAlertingLabelValues({ data: { key: "kind" } })).toEqual([
-      { value: "alert" },
-      { value: "rule_health" },
     ]);
   });
 

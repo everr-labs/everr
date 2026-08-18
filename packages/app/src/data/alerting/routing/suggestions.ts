@@ -8,11 +8,23 @@ import {
 import { listAlerts } from "../instances/repository";
 import { alertingRuleIdentity } from "../rules/identity";
 import { listAllRules } from "../rules/repository";
+import { AlertingSeveritySchema } from "../schema";
 import { alertingOrganizationId } from "../session";
-import {
-  ALERTING_SYNTHETIC_LABEL_KEYS,
-  ALERTING_SYNTHETIC_LABEL_VALUES,
-} from "./synthetic-labels";
+
+/**
+ * The labels the dispatcher stamps on every event, which a matcher can
+ * therefore always use. `alertingSyntheticLabels` is the writer; a key here
+ * that it does not write would offer a matcher that can never match.
+ */
+const ALERTING_SYNTHETIC_LABEL_KEYS = ["severity", "status", "rule"] as const;
+
+/** The values a synthetic key can hold. Rule ids are tenant-specific. */
+const ALERTING_SYNTHETIC_LABEL_VALUES: Partial<
+  Record<(typeof ALERTING_SYNTHETIC_LABEL_KEYS)[number], readonly string[]>
+> = {
+  severity: AlertingSeveritySchema.options,
+  status: ["firing", "resolved"],
+};
 
 const SUGGESTION_WINDOW = { from: "now-7d", to: "now" } as const;
 const SUGGESTION_LIMIT = 100;
