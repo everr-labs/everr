@@ -461,9 +461,9 @@ export function TriageBoard({
         >
           <div className="min-w-0 flex-1">
             <p className="text-sm font-semibold text-destructive">
-              {unroutedCount}{" "}
-              {unroutedCount === 1 ? "firing alert is" : "firing alerts are"}{" "}
-              not being delivered
+              {unroutedCount} firing
+              {unroutedCount === 1 ? " alert is" : " alerts are"} not being
+              delivered
             </p>
           </div>
           <Link

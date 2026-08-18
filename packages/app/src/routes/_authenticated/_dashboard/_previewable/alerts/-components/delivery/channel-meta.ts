@@ -47,54 +47,8 @@ export const CHANNEL_URL_FIELD: Partial<
   },
 };
 
-/** A name that reads right for the type, offered until the reader types one. */
-export const CHANNEL_NAME_PLACEHOLDER: Record<ChannelType, string> = {
-  slack: "team-slack",
-  discord: "team-discord",
-  telegram: "oncall-telegram",
-  webhook: "ops-webhook",
-};
-
-/** What a channel of this type does, in the picker. Five words, not a lesson. */
-export const CHANNEL_TAGLINE: Record<ChannelType, string> = {
-  slack: "Post to a Slack channel",
-  discord: "Post to a Discord channel",
-  telegram: "Message a Telegram chat",
-  webhook: "POST the alert as JSON",
-};
-
-/**
- * Where the value in the form comes from. Shown once, under the field it
- * belongs to: the reader who already has the URL should be able to ignore it.
- */
-export const CHANNEL_SOURCE_HINT: Record<
-  ChannelType,
-  { text: string; href: string; linkLabel: string }
-> = {
-  slack: {
-    text: "Slack app settings, Incoming Webhooks, Add New Webhook to Workspace.",
-    href: "https://api.slack.com/messaging/webhooks",
-    linkLabel: "Slack webhook guide",
-  },
-  discord: {
-    text: "Discord channel settings, Integrations, Webhooks, Copy Webhook URL.",
-    href: "https://support.discord.com/hc/en-us/articles/228383668",
-    linkLabel: "Discord webhook guide",
-  },
-  telegram: {
-    text: "@BotFather issues the token; add the bot to the chat to get its id.",
-    href: "https://core.telegram.org/bots#how-do-i-create-a-bot",
-    linkLabel: "Telegram bot guide",
-  },
-  webhook: {
-    text: "Everr POSTs a JSON body with the alert, its labels, and its status.",
-    href: "https://everr.dev/docs/guides/set-up-notifications",
-    linkLabel: "Payload reference",
-  },
-};
-
 /** The endpoint a channel config points at (URL, or Telegram chat ids). */
-function channelTarget(c: AlertingChannelConfig): string {
+export function channelTarget(c: AlertingChannelConfig): string {
   switch (c.type) {
     case "slack":
     case "discord":
@@ -103,26 +57,4 @@ function channelTarget(c: AlertingChannelConfig): string {
     case "telegram":
       return (c.chat_ids ?? []).join(", ");
   }
-}
-
-/**
- * The endpoint as a reader should see it.
- *
- * Secrets come back from the API as `***`, which reads like a value rather
- * than an absence, so a redacted target says what it is instead. `literal`
- * separates the two for the caller: an address is data and sets in mono, a
- * statement about the address is prose.
- */
-export function channelTargetSummary(c: AlertingChannelConfig): {
-  text: string;
-  literal: boolean;
-} {
-  const target = channelTarget(c);
-  if (target === "" || target === "***") {
-    return {
-      text: c.type === "telegram" ? "Token stored" : "URL stored",
-      literal: false,
-    };
-  }
-  return { text: target, literal: true };
 }

@@ -9,29 +9,26 @@ import {
 import { toneText } from "@everr/ui/components/tone";
 import { cn } from "@everr/ui/lib/utils";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { LoaderCircle, Pencil, Plus, Send, SendHorizontal } from "lucide-react";
+import { Inbox, Pencil, Plus } from "lucide-react";
 import { toast } from "sonner";
-import type { AlertingChannelHealth } from "@/data/alerting/delivery/health";
 import { deliveryQueries } from "@/data/alerting/delivery/queries";
 import {
   deleteAlertingChannel,
-  testAlertingSavedChannel,
   updateAlertingReceiver,
 } from "@/data/alerting/delivery/server";
 import type { AlertingChannel, AlertingReceiver } from "@/data/alerting/types";
-import { alertingErrorMessage } from "../common/query-error";
-import { ChannelHealthLine } from "./channel-health";
-import {
-  CHANNEL_ICON,
-  CHANNEL_LABEL,
-  channelTargetSummary,
-} from "./channel-meta";
+import { ChannelBuilder } from "./channel-builder";
+import { CHANNEL_ICON, CHANNEL_LABEL, channelTarget } from "./channel-meta";
 import {
   ConfirmDeleteAction,
   DeleteOperations,
   SectionBody,
   SectionHeading,
 } from "./section-chrome";
+
+const CHANNEL_KIND_LIST = new Intl.ListFormat("en", {
+  type: "disjunction",
+}).format(Object.values(CHANNEL_LABEL));
 
 function ChannelDeleteOperations({
   channelName,
@@ -64,84 +61,21 @@ function ChannelDeleteOperations({
   );
 }
 
-/** Which receivers deliver through this channel, or that none of them do. */
-function ChannelUsage({
-  receivers,
-  onAttach,
-}: {
-  /** undefined while the receivers are unknown: say nothing rather than guess. */
-  receivers: AlertingReceiver[] | undefined;
-  onAttach: () => void;
-}) {
-  if (receivers === undefined) return null;
-  if (receivers.length === 0) {
-    return (
-      <span
-        className={cn(
-          "inline-flex items-center gap-2 text-xs",
-          toneText({ tone: "warning" }),
-        )}
-      >
-        In no receiver, so nothing delivers here
-        <Button variant="ghost" size="sm" onClick={onAttach}>
-          Add to a receiver
-        </Button>
-      </span>
-    );
-  }
-  return (
-    <span className="min-w-0 truncate text-xs text-muted-foreground">
-      In{" "}
-      <span className="text-foreground">
-        {receivers.map((r) => r.name).join(", ")}
-      </span>
-    </span>
-  );
-}
-
 export function ChannelsSection({
   receivers,
-  onNewChannel,
-  onEditChannel,
+  editing,
+  onEditingChange,
   onEditReceiver,
-  onAttachToReceiver,
 }: {
   receivers: AlertingReceiver[] | undefined;
-  onNewChannel: () => void;
-  onEditChannel: (channel: AlertingChannel) => void;
+  editing: AlertingChannel | "new" | null;
+  onEditingChange: (editing: AlertingChannel | "new" | null) => void;
   onEditReceiver: (receiver: AlertingReceiver) => void;
-  /** Start a receiver that already holds this channel. */
-  onAttachToReceiver: (channelName: string) => void;
 }) {
   const qc = useQueryClient();
   const { data, isPending, isError, error } = useQuery(
     deliveryQueries.channels(),
   );
-  // Delivery history is a bonus fact, never a gate: a failing ClickHouse read
-  // must not take the configuration surface down with it.
-  const health = useQuery({
-    ...deliveryQueries.channelHealth(),
-    throwOnError: false,
-  });
-  const healthByChannel = new Map<string, AlertingChannelHealth>(
-    (health.data ?? []).map((row) => [row.channel, row]),
-  );
-
-  const test = useMutation({
-    mutationFn: (name: string) => testAlertingSavedChannel({ data: { name } }),
-    onSuccess: (result, name) => {
-      if (result.ok) {
-        toast.success(
-          `Test message delivered to ${name} in ${result.latency_ms}ms`,
-        );
-      } else {
-        toast.error(
-          `${name} did not deliver: ${result.error ?? "unknown error"}`,
-        );
-      }
-    },
-    onError: (e) => toast.error(alertingErrorMessage(e)),
-  });
 
   const remove = useMutation({
     mutationFn: async ({
@@ -184,13 +118,13 @@ export function ChannelsSection({
       <CardHeader>
         <SectionHeading>Channels</SectionHeading>
         <CardDescription>
-          One endpoint each. Secrets are write-only: they never come back out.
+          Saved secrets are hidden after you leave this page.
         </CardDescription>
         <CardAction>
           <Button
             variant="outline"
             className="h-10 sm:h-8"
-            onClick={onNewChannel}
+            onClick={() => onEditingChange("new")}
           >
             <Plus data-icon="inline-start" />
             New channel
@@ -205,18 +139,22 @@ export function ChannelsSection({
           skeletonRows={3}
           empty={{
             when: (data ?? []).length === 0,
-            icon: Send,
-            title: "No channels yet",
-            hint: "A channel is where a notification lands: a Slack or Discord webhook, a Telegram chat, or any URL that takes JSON.",
+            icon: Inbox,
+            title: "No channels defined",
+            hint: `Add a ${CHANNEL_KIND_LIST} endpoint for receivers to deliver through.`,
           }}
         >
           <ul className="divide-y divide-border/60">
             {(data ?? []).map((c) => {
               const Icon = CHANNEL_ICON[c.config.type];
-              const target = channelTargetSummary(c.config);
+              const target = channelTarget(c.config);
               const referencingReceivers = (receivers ?? []).filter((r) =>
                 r.channels.includes(c.name),
               );
+              const usedBy =
+                receivers === undefined
+                  ? undefined
+                  : referencingReceivers.length;
               const blockingReceivers = referencingReceivers.filter(
                 (receiver) => receiver.channels.length === 1,
               );
@@ -226,66 +164,48 @@ export function ChannelsSection({
                   : blockingReceivers.length > 0
                     ? `${blockingReceivers.map((receiver) => receiver.name).join(", ")} ${blockingReceivers.length === 1 ? "has" : "have"} no other channel. Add another channel there first. No changes will be made.`
                     : undefined;
-              const testing = test.isPending && test.variables === c.name;
               return (
                 <li
                   key={c.name}
-                  className="flex items-start gap-3 px-3 py-2.5 transition-colors duration-200 hover:bg-muted/30"
+                  className="flex items-center gap-3 px-3 py-2.5"
                 >
-                  <span className="flex size-7 shrink-0 items-center justify-center rounded-md bg-muted">
+                  <span className="flex size-7 shrink-0 items-center justify-center rounded-md bg-muted text-muted-foreground">
                     <Icon className="size-4" />
                   </span>
-                  <div className="min-w-0 flex-1 space-y-1">
-                    <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
                       <span className="text-sm font-medium">{c.name}</span>
-                      <span className="text-xs text-muted-foreground">
-                        {CHANNEL_LABEL[c.config.type]}
-                      </span>
                     </div>
-                    {/* Its own line: an endpoint is long, and a row that makes
-                        it compete with the name truncates both on a phone. */}
-                    <div
-                      className={cn(
-                        "truncate text-xs text-muted-foreground",
-                        target.literal && "font-mono",
-                      )}
-                      title={target.literal ? target.text : undefined}
-                    >
-                      {target.text}
-                    </div>
-                    <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-                      <ChannelUsage
-                        receivers={
-                          receivers === undefined
-                            ? undefined
-                            : referencingReceivers
-                        }
-                        onAttach={() => onAttachToReceiver(c.name)}
-                      />
-                      <ChannelHealthLine health={healthByChannel.get(c.name)} />
-                    </div>
-                  </div>
-                  <Button
-                    variant="ghost"
-                    size="icon-lg"
-                    className="size-10 sm:size-8"
-                    aria-label={`Send test to ${c.name}`}
-                    title="Send a test message"
-                    disabled={test.isPending}
-                    onClick={() => test.mutate(c.name)}
-                  >
-                    {testing ? (
-                      <LoaderCircle className="motion-safe:animate-spin" />
-                    ) : (
-                      <SendHorizontal />
+                    {target !== "" && target !== "***" && (
+                      <div className="truncate font-mono text-xs text-muted-foreground">
+                        {target}
+                      </div>
                     )}
-                  </Button>
+                    {usedBy !== undefined &&
+                      (usedBy === 0 ? (
+                        <div
+                          className={cn(
+                            "text-xs",
+                            toneText({ tone: "warning" }),
+                          )}
+                        >
+                          not referenced by any receiver
+                        </div>
+                      ) : (
+                        <div className="text-xs text-muted-foreground">
+                          {usedBy} {usedBy === 1 ? "receiver" : "receivers"}
+                        </div>
+                      ))}
+                  </div>
+                  <span className="shrink-0 text-xs text-muted-foreground">
+                    {c.config.type}
+                  </span>
                   <Button
                     variant="ghost"
                     size="icon-lg"
                     className="size-10 sm:size-8"
                     aria-label={`Edit channel ${c.name}`}
-                    onClick={() => onEditChannel(c)}
+                    onClick={() => onEditingChange(c)}
                   >
                     <Pencil />
                   </Button>
@@ -334,6 +254,15 @@ export function ChannelsSection({
           </ul>
         </SectionBody>
       </CardContent>
+      <ChannelBuilder
+        key={editing === "new" ? "new" : (editing?.name ?? "closed")}
+        open={editing !== null}
+        onOpenChange={(o) => {
+          if (!o) onEditingChange(null);
+        }}
+        existingNames={(data ?? []).map((c) => c.name)}
+        channel={editing === "new" ? null : editing}
+      />
     </Card>
   );
 }

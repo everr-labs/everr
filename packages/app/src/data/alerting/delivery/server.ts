@@ -80,24 +80,6 @@ export const testAlertingChannel = createAuthenticatedServerFn({
     }),
   );
 
-export const testAlertingSavedChannel = createAuthenticatedServerFn({
-  method: "POST",
-})
-  .inputValidator(z.object({ name: z.string().min(1) }))
-  .handler(({ data: { name }, context: { session } }) =>
-    delivery.testSavedChannel(alertingOrganizationId(session), name),
-  );
-
-export const listAlertingChannelHealth = createAuthenticatedServerFn({
-  method: "GET",
-}).handler(async ({ context: { session } }) => {
-  const { alertingChannelHealthWindowStart, queryClickHouseChannelHealth } =
-    await import("./health-repository.server");
-  return queryClickHouseChannelHealth(alertingOrganizationId(session), {
-    from: alertingChannelHealthWindowStart(new Date()),
-  });
-});
-
 export const createAlertingReceiver = createAuthenticatedServerFn({
   method: "POST",
 })
