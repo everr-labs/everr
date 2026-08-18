@@ -99,8 +99,8 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.alert_definition_channels": {
-      "name": "alert_definition_channels",
+    "public.alert_default_channels": {
+      "name": "alert_default_channels",
       "schema": "",
       "columns": {
         "organization_id": {
@@ -109,9 +109,9 @@
           "primaryKey": false,
           "notNull": true
         },
-        "alert_definition_id": {
-          "name": "alert_definition_id",
-          "type": "uuid",
+        "tier": {
+          "name": "tier",
+          "type": "text",
           "primaryKey": false,
           "notNull": true
         },
@@ -120,38 +120,11 @@
           "type": "uuid",
           "primaryKey": false,
           "notNull": true
-        },
-        "position": {
-          "name": "position",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
         }
       },
       "indexes": {
-        "alert_definition_channels_definition_position_uq": {
-          "name": "alert_definition_channels_definition_position_uq",
-          "columns": [
-            {
-              "expression": "alert_definition_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "position",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "alert_definition_channels_channel_idx": {
-          "name": "alert_definition_channels_channel_idx",
+        "alert_default_channels_channel_idx": {
+          "name": "alert_default_channels_channel_idx",
           "columns": [
             {
               "expression": "channel_id",
@@ -167,24 +140,9 @@
         }
       },
       "foreignKeys": {
-        "alert_definition_channels_definition_tenant_fk": {
-          "name": "alert_definition_channels_definition_tenant_fk",
-          "tableFrom": "alert_definition_channels",
-          "tableTo": "alert_definitions",
-          "columnsFrom": [
-            "organization_id",
-            "alert_definition_id"
-          ],
-          "columnsTo": [
-            "organization_id",
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "alert_definition_channels_channel_tenant_fk": {
-          "name": "alert_definition_channels_channel_tenant_fk",
-          "tableFrom": "alert_definition_channels",
+        "alert_default_channels_organization_id_channel_id_alert_channels_organization_id_id_fk": {
+          "name": "alert_default_channels_organization_id_channel_id_alert_channels_organization_id_id_fk",
+          "tableFrom": "alert_default_channels",
           "tableTo": "alert_channels",
           "columnsFrom": [
             "organization_id",
@@ -194,27 +152,23 @@
             "organization_id",
             "id"
           ],
-          "onDelete": "no action",
+          "onDelete": "cascade",
           "onUpdate": "no action"
         }
       },
       "compositePrimaryKeys": {
-        "alert_definition_channels_alert_definition_id_channel_id_pk": {
-          "name": "alert_definition_channels_alert_definition_id_channel_id_pk",
+        "alert_default_channels_organization_id_tier_channel_id_pk": {
+          "name": "alert_default_channels_organization_id_tier_channel_id_pk",
           "columns": [
-            "alert_definition_id",
+            "organization_id",
+            "tier",
             "channel_id"
           ]
         }
       },
       "uniqueConstraints": {},
       "policies": {},
-      "checkConstraints": {
-        "alert_definition_channels_position_nonnegative": {
-          "name": "alert_definition_channels_position_nonnegative",
-          "value": "\"alert_definition_channels\".\"position\" >= 0"
-        }
-      },
+      "checkConstraints": {},
       "isRLSEnabled": false
     },
     "public.alert_definitions": {
@@ -1277,61 +1231,6 @@
       },
       "isRLSEnabled": false
     },
-    "public.alert_inhibitions": {
-      "name": "alert_inhibitions",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true,
-          "default": "gen_random_uuid()"
-        },
-        "organization_id": {
-          "name": "organization_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "config": {
-          "name": "config",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {
-        "alert_inhibitions_org_idx": {
-          "name": "alert_inhibitions_org_idx",
-          "columns": [
-            {
-              "expression": "organization_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
     "public.alert_instances": {
       "name": "alert_instances",
       "schema": "",
@@ -1659,9 +1558,9 @@
           "primaryKey": false,
           "notNull": true
         },
-        "receiver_id": {
-          "name": "receiver_id",
-          "type": "uuid",
+        "default_tier": {
+          "name": "default_tier",
+          "type": "text",
           "primaryKey": false,
           "notNull": false
         },
@@ -1693,18 +1592,6 @@
         "last_notified_at": {
           "name": "last_notified_at",
           "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "group_interval_seconds": {
-          "name": "group_interval_seconds",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "repeat_interval_seconds": {
-          "name": "repeat_interval_seconds",
-          "type": "integer",
           "primaryKey": false,
           "notNull": false
         },
@@ -1810,21 +1697,6 @@
         }
       },
       "foreignKeys": {
-        "alert_notification_groups_receiver_tenant_fk": {
-          "name": "alert_notification_groups_receiver_tenant_fk",
-          "tableFrom": "alert_notification_groups",
-          "tableTo": "alert_receivers",
-          "columnsFrom": [
-            "organization_id",
-            "receiver_id"
-          ],
-          "columnsTo": [
-            "organization_id",
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
         "alert_notification_groups_direct_definition_tenant_fk": {
           "name": "alert_notification_groups_direct_definition_tenant_fk",
           "tableFrom": "alert_notification_groups",
@@ -1845,318 +1717,11 @@
       "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {
-        "alert_notification_groups_repeat_interval_valid": {
-          "name": "alert_notification_groups_repeat_interval_valid",
-          "value": "\"alert_notification_groups\".\"repeat_interval_seconds\" IS NULL OR \"alert_notification_groups\".\"repeat_interval_seconds\" >= 60"
-        },
         "alert_notification_groups_one_target": {
           "name": "alert_notification_groups_one_target",
-          "value": "num_nonnulls(\"alert_notification_groups\".\"receiver_id\", \"alert_notification_groups\".\"direct_alert_definition_id\") = 1"
+          "value": "num_nonnulls(\"alert_notification_groups\".\"default_tier\", \"alert_notification_groups\".\"direct_alert_definition_id\") = 1"
         }
       },
-      "isRLSEnabled": false
-    },
-    "public.alert_receiver_channels": {
-      "name": "alert_receiver_channels",
-      "schema": "",
-      "columns": {
-        "organization_id": {
-          "name": "organization_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "receiver_id": {
-          "name": "receiver_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "channel_id": {
-          "name": "channel_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "position": {
-          "name": "position",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        }
-      },
-      "indexes": {
-        "alert_receiver_channels_receiver_position_uq": {
-          "name": "alert_receiver_channels_receiver_position_uq",
-          "columns": [
-            {
-              "expression": "receiver_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "position",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "alert_receiver_channels_channel_idx": {
-          "name": "alert_receiver_channels_channel_idx",
-          "columns": [
-            {
-              "expression": "channel_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "alert_receiver_channels_organization_id_receiver_id_alert_receivers_organization_id_id_fk": {
-          "name": "alert_receiver_channels_organization_id_receiver_id_alert_receivers_organization_id_id_fk",
-          "tableFrom": "alert_receiver_channels",
-          "tableTo": "alert_receivers",
-          "columnsFrom": [
-            "organization_id",
-            "receiver_id"
-          ],
-          "columnsTo": [
-            "organization_id",
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "alert_receiver_channels_organization_id_channel_id_alert_channels_organization_id_id_fk": {
-          "name": "alert_receiver_channels_organization_id_channel_id_alert_channels_organization_id_id_fk",
-          "tableFrom": "alert_receiver_channels",
-          "tableTo": "alert_channels",
-          "columnsFrom": [
-            "organization_id",
-            "channel_id"
-          ],
-          "columnsTo": [
-            "organization_id",
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {
-        "alert_receiver_channels_receiver_id_channel_id_pk": {
-          "name": "alert_receiver_channels_receiver_id_channel_id_pk",
-          "columns": [
-            "receiver_id",
-            "channel_id"
-          ]
-        }
-      },
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {
-        "alert_receiver_channels_position_nonnegative": {
-          "name": "alert_receiver_channels_position_nonnegative",
-          "value": "\"alert_receiver_channels\".\"position\" >= 0"
-        }
-      },
-      "isRLSEnabled": false
-    },
-    "public.alert_receivers": {
-      "name": "alert_receivers",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true,
-          "default": "gen_random_uuid()"
-        },
-        "organization_id": {
-          "name": "organization_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "name": {
-          "name": "name",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {
-        "alert_receivers_org_name_uq": {
-          "name": "alert_receivers_org_name_uq",
-          "columns": [
-            {
-              "expression": "organization_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "name",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "alert_receivers_org_id_uq": {
-          "name": "alert_receivers_org_id_uq",
-          "columns": [
-            {
-              "expression": "organization_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {},
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.alert_routes": {
-      "name": "alert_routes",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true,
-          "default": "gen_random_uuid()"
-        },
-        "organization_id": {
-          "name": "organization_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "receiver_id": {
-          "name": "receiver_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "priority": {
-          "name": "priority",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "config": {
-          "name": "config",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {
-        "alert_routes_org_receiver_idx": {
-          "name": "alert_routes_org_receiver_idx",
-          "columns": [
-            {
-              "expression": "organization_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "receiver_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "alert_routes_organization_id_receiver_id_alert_receivers_organization_id_id_fk": {
-          "name": "alert_routes_organization_id_receiver_id_alert_receivers_organization_id_id_fk",
-          "tableFrom": "alert_routes",
-          "tableTo": "alert_receivers",
-          "columnsFrom": [
-            "organization_id",
-            "receiver_id"
-          ],
-          "columnsTo": [
-            "organization_id",
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
       "isRLSEnabled": false
     },
     "public.alert_silences": {

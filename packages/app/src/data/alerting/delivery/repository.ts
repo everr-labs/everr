@@ -6,7 +6,6 @@ import { type DbExecutor, db } from "@/db/client";
 import {
   alertChannels,
   alertDefaultChannels,
-  alertDefinitionChannels,
   alertDeliveries,
 } from "@/db/schema";
 import {
@@ -70,14 +69,19 @@ export async function createChannel(
       .returning(),
   );
   // The first channel becomes the default destination, so one create is a
-  // complete delivery setup. Racing creates collide on the position unique
-  // index; losing that race means a default already exists, which is fine.
-  if (!(await hasDefaultDestination(organizationId))) {
-    await db
-      .insert(alertDefaultChannels)
-      .values({ organizationId, tier: "all", channelId: id, position: 0 })
-      .onConflictDoNothing();
-  }
+  // complete delivery setup. The existence check and the insert are one
+  // statement, so the race window is a concurrent create's uncommitted row;
+  // if two firsts both slip through, the default just holds both, which the
+  // model allows.
+  await db.execute(sql`
+    INSERT INTO alert_default_channels (organization_id, tier, channel_id)
+    SELECT ${organizationId}, 'all', ${id}
+    WHERE NOT EXISTS (
+      SELECT 1 FROM alert_default_channels
+      WHERE organization_id = ${organizationId}
+    )
+    ON CONFLICT DO NOTHING
+  `);
   return channelView(row);
 }
 
@@ -177,18 +181,9 @@ export async function deleteChannel(
           eq(alertDeliveries.channelId, channel.id),
         ),
       );
-    // Rules naming the channel directly do not veto the delete: they fall
-    // back to the default destination once detached, and the as-code spec
-    // still holds the name, so the next apply re-links a recreated channel
-    // or warns on the missing one.
-    await tx
-      .delete(alertDefinitionChannels)
-      .where(
-        and(
-          eq(alertDefinitionChannels.organizationId, organizationId),
-          eq(alertDefinitionChannels.channelId, channel.id),
-        ),
-      );
+    // Rules naming the channel do not veto the delete: their specs keep the
+    // name and delivery resolves names at flush, so the reference simply
+    // stops matching until a channel with that name exists again.
     await tx.delete(alertChannels).where(eq(alertChannels.id, channel.id));
   });
   return { deleted: true };
@@ -215,14 +210,13 @@ export async function testChannel(
 /**
  * The org's default destination: which channels each tier delivers to. The
  * "all" tier is the unsplit mode; per-severity tiers exist only when the org
- * split. Returned as name lists in stored order.
+ * split. Returned as name lists in name order.
  */
 export async function listDefaultDestination(organizationId: string) {
   const rows = await db
     .select({
       tier: alertDefaultChannels.tier,
       channelName: alertChannels.name,
-      position: alertDefaultChannels.position,
     })
     .from(alertDefaultChannels)
     .innerJoin(
@@ -233,10 +227,7 @@ export async function listDefaultDestination(organizationId: string) {
       ),
     )
     .where(eq(alertDefaultChannels.organizationId, organizationId))
-    .orderBy(
-      asc(alertDefaultChannels.tier),
-      asc(alertDefaultChannels.position),
-    );
+    .orderBy(asc(alertDefaultChannels.tier), asc(alertChannels.name));
   const tiers: Partial<Record<AlertingDefaultTier, string[]>> = {};
   for (const row of rows) {
     const list = tiers[row.tier] ?? [];
@@ -292,11 +283,10 @@ export async function setDefaultDestination(
       .delete(alertDefaultChannels)
       .where(eq(alertDefaultChannels.organizationId, organizationId));
     const values = entries.flatMap(([tier, channels]) =>
-      channels.map((name, position) => ({
+      [...new Set(channels)].map((name) => ({
         organizationId,
         tier,
         channelId: idByName.get(name) as string,
-        position,
       })),
     );
     if (values.length > 0) {
@@ -304,50 +294,4 @@ export async function setDefaultDestination(
     }
   });
   return listDefaultDestination(organizationId);
-}
-
-/** Whether any default-destination tier has at least one channel. */
-async function hasDefaultDestination(organizationId: string) {
-  const [row] = await db
-    .select({ tier: alertDefaultChannels.tier })
-    .from(alertDefaultChannels)
-    .where(eq(alertDefaultChannels.organizationId, organizationId))
-    .limit(1);
-  return Boolean(row);
-}
-
-async function resolveChannelIds(
-  organizationId: string,
-  names: string[],
-  executor: DbExecutor = db,
-): Promise<string[]> {
-  const rows = await executor
-    .select({ id: alertChannels.id, name: alertChannels.name })
-    .from(alertChannels)
-    .where(
-      and(
-        eq(alertChannels.organizationId, organizationId),
-        inArray(alertChannels.name, names),
-      ),
-    );
-  const byName = new Map(rows.map((row) => [row.name, row.id]));
-  const missing = names.filter((name) => !byName.has(name));
-  if (missing.length > 0) {
-    throwAlertingPersistenceError(
-      422,
-      "validation",
-      `Unknown channels: ${missing.join(", ")}`,
-    );
-  }
-  return names.map((name) => byName.get(name) as string);
-}
-
-export async function resolveOptionalChannelIds(
-  organizationId: string,
-  names: string[],
-  executor: DbExecutor = db,
-): Promise<string[]> {
-  return names.length === 0
-    ? []
-    : resolveChannelIds(organizationId, names, executor);
 }

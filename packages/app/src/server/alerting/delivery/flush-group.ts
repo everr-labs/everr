@@ -11,7 +11,7 @@ import { db } from "@/db/client";
 import {
   alertChannels,
   alertDefaultChannels,
-  alertDefinitionChannels,
+  alertDefinitions,
   alertDeliveries,
   alertDeliveryEvents,
   alertEvents,
@@ -100,6 +100,34 @@ export function formatNotification(events: NotificationEvent[]) {
     lines.push(`…and ${omitted} more events in this group`);
   }
   return { title: `Everr alert: ${title}`, body: lines.join("\n") };
+}
+
+async function directRuleChannels(
+  organizationId: string,
+  alertDefinitionId: string,
+): Promise<{ channel: typeof alertChannels.$inferSelect }[]> {
+  const [definition] = await db
+    .select({ spec: alertDefinitions.spec })
+    .from(alertDefinitions)
+    .where(
+      and(
+        eq(alertDefinitions.organizationId, organizationId),
+        eq(alertDefinitions.id, alertDefinitionId),
+      ),
+    )
+    .limit(1);
+  const names = definition?.spec.notifications?.channels ?? [];
+  if (names.length === 0) return [];
+  return db
+    .select({ channel: alertChannels })
+    .from(alertChannels)
+    .where(
+      and(
+        eq(alertChannels.organizationId, organizationId),
+        inArray(alertChannels.name, names),
+      ),
+    )
+    .orderBy(asc(alertChannels.name));
 }
 
 export async function flushAlertGroup(rawPayload: unknown): Promise<void> {
@@ -216,30 +244,15 @@ export async function flushAlertGroup(rawPayload: unknown): Promise<void> {
     notify: notificationEvents,
     droppedUnannounced,
   } = groupNotificationPlan(members);
+  // A direct group's channels resolve by name at flush time: the rule's spec
+  // is the truth for what it declared, and only the names that exist as
+  // channels right now deliver. A name with no channel simply drops out, the
+  // same as if the spec had never mentioned it.
   const channels = group.directAlertDefinitionId
-    ? await db
-        .select({ channel: alertChannels })
-        .from(alertDefinitionChannels)
-        .innerJoin(
-          alertChannels,
-          and(
-            eq(
-              alertDefinitionChannels.organizationId,
-              alertChannels.organizationId,
-            ),
-            eq(alertDefinitionChannels.channelId, alertChannels.id),
-          ),
-        )
-        .where(
-          and(
-            eq(alertDefinitionChannels.organizationId, group.organizationId),
-            eq(
-              alertDefinitionChannels.alertDefinitionId,
-              group.directAlertDefinitionId,
-            ),
-          ),
-        )
-        .orderBy(asc(alertDefinitionChannels.position))
+    ? await directRuleChannels(
+        group.organizationId,
+        group.directAlertDefinitionId,
+      )
     : group.defaultTier
       ? await db
           .select({ channel: alertChannels })
@@ -260,7 +273,7 @@ export async function flushAlertGroup(rawPayload: unknown): Promise<void> {
               eq(alertDefaultChannels.tier, group.defaultTier),
             ),
           )
-          .orderBy(asc(alertDefaultChannels.position))
+          .orderBy(asc(alertChannels.name))
       : [];
   // A notification-worthy set with nowhere to send it: the flush below still
   // marks these members flushed and advances lastNotifiedAt, so without a

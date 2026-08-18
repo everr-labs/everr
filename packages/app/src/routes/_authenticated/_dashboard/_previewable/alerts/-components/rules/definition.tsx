@@ -52,7 +52,7 @@ function RuleFact({
  */
 export function RuleDefinitionFacts({ rule }: { rule: AlertingRuleView }) {
   const { for_secs, resolve_after, severity } = rule.spec;
-  const channels = rule.notifications?.channels ?? [];
+  const channels = rule.spec.notifications?.channels ?? [];
 
   return (
     <dl className="flex flex-wrap gap-x-8 gap-y-2">

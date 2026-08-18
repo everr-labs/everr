@@ -54,13 +54,15 @@ describe("rulesForPreview", () => {
     });
   });
 
-  // The channels a rule notifies live beside the spec, not inside it, so a
-  // branch that only re-routes a rule must still read as changed.
-  it("counts a re-routed rule as changed even with an identical spec", () => {
+  it("counts a re-routed rule as changed even when nothing else moved", () => {
     const out = rulesForPreview(
       [
-        live("paged", { notifications: { channels: ["team-slack"] } }),
-        onBranch("paged", { notifications: { channels: ["pagerduty"] } }),
+        live("paged", {
+          spec: { notifications: { channels: ["team-slack"] } },
+        }),
+        onBranch("paged", {
+          spec: { notifications: { channels: ["pagerduty"] } },
+        }),
       ],
       scopes,
     );

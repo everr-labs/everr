@@ -137,10 +137,7 @@ export type SimpleAlertView = {
 
 /** Reads the resource identity and display fields from a stored rule. */
 export function fromAlertingRule(
-  rule: Pick<
-    AlertingRule,
-    "previewId" | "repoid" | "name" | "notifications" | "spec"
-  >,
+  rule: Pick<AlertingRule, "previewId" | "repoid" | "name" | "spec">,
 ): SimpleAlertView {
   const { project, slug } = parseResourceName(rule.name);
   const ann = rule.spec.annotations ?? {};
@@ -158,7 +155,7 @@ export function fromAlertingRule(
     severity: rule.spec.severity,
     notificationTitleTemplate: ann[ANN_ALERTING_SUMMARY] ?? "",
     notificationDescriptionTemplate: ann[ANN_ALERTING_DESCRIPTION] ?? "",
-    notificationChannels: rule.notifications?.channels ?? [],
+    notificationChannels: rule.spec.notifications?.channels ?? [],
     displayName: ann[ANN_DISPLAY_NAME] ?? null,
     displayDescription: ann[ANN_DISPLAY_DESCRIPTION] ?? null,
     instanceLabelColumns: rule.spec.label_columns ?? [],
@@ -173,7 +170,7 @@ export function fromAlertingRule(
 
 /** Reconstructs the canonical as-code document from a stored rule. */
 export function toAlertRuleDocument(
-  rule: Pick<AlertingRule, "name" | "notifications" | "spec">,
+  rule: Pick<AlertingRule, "name" | "spec">,
 ): AlertRuleYaml {
   const { project, slug } = parseResourceName(rule.name);
   const ann = rule.spec.annotations ?? {};
@@ -209,7 +206,9 @@ export function toAlertRuleDocument(
       for: formatDurationSeconds(rule.spec.for_secs),
       resolveAfter: rule.spec.resolve_after,
       severity: rule.spec.severity,
-      ...(rule.notifications ? { notifications: rule.notifications } : {}),
+      ...(rule.spec.notifications
+        ? { notifications: rule.spec.notifications }
+        : {}),
       notificationMessage: {
         title: ann[ANN_ALERTING_SUMMARY] ?? "",
         ...(ann[ANN_ALERTING_DESCRIPTION]

@@ -8,7 +8,7 @@ export type AlertingPreviewScope = {
 
 type OverlayableRule = Pick<
   AlertingRule,
-  "previewId" | "repoid" | "name" | "notifications" | "spec"
+  "previewId" | "repoid" | "name" | "spec"
 >;
 
 /**
@@ -38,9 +38,6 @@ export function rulesForPreview<T extends OverlayableRule>(
     rows: [...inScope],
     coveredRepoids: new Set(scopes.map((scope) => scope.repoid)),
     identity: (rule) => rule.name,
-    // A rule's declared content is its spec plus the channels it notifies: the
-    // channel list hangs off the definition row, not off the spec, so a branch
-    // that only re-routes a rule would otherwise read as unchanged.
-    content: (rule) => [rule.spec, rule.notifications?.channels ?? []],
+    content: (rule) => rule.spec,
   });
 }

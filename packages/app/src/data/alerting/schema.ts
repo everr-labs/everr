@@ -54,6 +54,12 @@ export const AlertingMatcherSchema = z.object({
 const alertingMatchersSchema = <T extends z.ZodType>(matcher: T) =>
   z.array(matcher).max(ALERTING_MATCHERS_MAX);
 
+// Present only when the rule overrides the default destination, exactly as
+// authored in the YAML's `notifications` block.
+const AlertingRuleNotificationsSchema = z.object({
+  channels: AlertingChannelNamesSchema,
+});
+
 export const AlertingRuleSpecSchema = z.object({
   sql: z.string(),
   interval_secs: z.number().int().positive(),
@@ -64,6 +70,7 @@ export const AlertingRuleSpecSchema = z.object({
   annotations: z.record(z.string(), z.string()).default({}),
   resolve_after: z.number().int().positive().default(1),
   max_interval_secs: z.number().int().positive().optional(),
+  notifications: AlertingRuleNotificationsSchema.optional(),
 });
 
 export const AlertingRuleHealthStatusSchema = z.enum(ALERTING_HEALTH_STATUSES);
@@ -76,19 +83,12 @@ const AlertingRuleHealthSchema = z.object({
   last_error_at: AlertingTimestampNullable,
 });
 
-// Present only when the rule overrides the default destination, exactly as
-// authored in the YAML's `notifications` block.
-const AlertingRuleNotificationsSchema = z.object({
-  channels: AlertingChannelNamesSchema,
-});
-
 export const AlertingRuleSchema = z.object({
   id: z.string(),
   tenant: z.string(),
   repoid: z.string().min(1),
   previewId: z.string().nullable(),
   name: alertingResourceNameSchema,
-  notifications: AlertingRuleNotificationsSchema.optional(),
   spec: AlertingRuleSpecSchema,
   version: z.number().int(),
   paused: z.boolean(),
@@ -172,12 +172,9 @@ export const AlertingRuleInputSchema = AlertingRuleSpecSchema.extend({
   name: alertingResourceNameSchema,
   repoid: z.string().min(1),
   previewId: z.string().nullable(),
-  notifications: AlertingRuleNotificationsSchema.optional(),
 });
 
-export const AlertingRuleUpdateSchema = AlertingRuleSpecSchema.extend({
-  notifications: AlertingRuleNotificationsSchema.optional(),
-});
+export const AlertingRuleUpdateSchema = AlertingRuleSpecSchema;
 
 export const AlertingSilenceInputSchema = z.object({
   // Empty label names would turn missing labels into a global match.

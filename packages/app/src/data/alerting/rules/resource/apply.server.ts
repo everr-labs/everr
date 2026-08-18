@@ -237,10 +237,10 @@ export const applyAlertSpecs: Reconciler = async ({
   const availableChannelNames = new Set(
     channels.map((channel) => channel.name),
   );
-  // A missing channel is a warning, not a refusal: the rule applies without
-  // it (falling back to routing when none are left) so a spec is never
-  // blocked on delivery config that lives outside the repo. Re-applying once
-  // the channel exists links it.
+  // A missing channel is a warning, not a refusal: the spec stores the
+  // reference as authored and the rule applies without it, so a spec is
+  // never blocked on delivery config that lives outside the repo. Creating
+  // the channel later links every spec that names it.
   const channelWarnings: string[] = [];
   for (const item of parsed) {
     const declared = item.rule.spec.notifications?.channels ?? [];
@@ -251,11 +251,6 @@ export const applyAlertSpecs: Reconciler = async ({
     channelWarnings.push(
       `${item.path}: unknown notification channels skipped: ${missing.join(", ")}`,
     );
-    const kept = declared.filter((channel) =>
-      availableChannelNames.has(channel),
-    );
-    item.rule.spec.notifications =
-      kept.length > 0 ? { channels: kept } : undefined;
   }
 
   // Surface non-fatal validation findings in the apply note.
@@ -305,12 +300,8 @@ export const applyAlertSpecs: Reconciler = async ({
       ...spec
     } = d.input;
     if (
-      specFingerprint({
-        ...(cur.spec as Record<string, unknown>),
-        // Mirror the input shape: the key is absent when there is no override,
-        // so presence changes are part of the fingerprint too.
-        ...(cur.notifications ? { notifications: cur.notifications } : {}),
-      }) !== specFingerprint(spec as unknown as Record<string, unknown>)
+      specFingerprint(cur.spec as Record<string, unknown>) !==
+      specFingerprint(spec as unknown as Record<string, unknown>)
     ) {
       updates.push({ d, cur });
     }

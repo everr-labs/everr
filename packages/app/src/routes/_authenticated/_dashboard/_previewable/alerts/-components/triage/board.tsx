@@ -531,7 +531,7 @@ export function TriageBoard({
                       deliveryFact={
                         <TriageDeliveryFact
                           directChannels={
-                            row.lead.rule?.notifications?.channels ?? []
+                            row.lead.rule?.spec.notifications?.channels ?? []
                           }
                           defaultChannels={
                             destination === undefined

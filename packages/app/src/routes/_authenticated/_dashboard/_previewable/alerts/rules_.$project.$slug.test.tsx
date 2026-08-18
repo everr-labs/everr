@@ -134,9 +134,9 @@ function mockAppliedRule(
 ) {
   mocks.getAlertingRuleByName.mockResolvedValue(
     alertingRule({
-      notifications: { channels: ["oncall-hook"] },
       spec: {
         ...alertingRule().spec,
+        notifications: { channels: ["oncall-hook"] },
         interval_secs: 60,
         max_interval_secs: 300,
         for_secs: 600,

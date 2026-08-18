@@ -150,7 +150,7 @@ describe("the alerting pipeline's default-destination targeting", () => {
     ).toHaveLength(0);
   });
 
-  it("fans one flush out to every channel of the destination, in position order", async () => {
+  it("fans one flush out to every channel of the destination, in name order", async () => {
     const first = await insertChannel(harness.db, {
       type: "webhook",
       name: "first-channel",
@@ -163,7 +163,6 @@ describe("the alerting pipeline's default-destination targeting", () => {
       type: "webhook",
       name: "third-channel",
     });
-    // insertDefaultChannels assigns position from array order.
     await insertDefaultChannels(harness.db, {
       channelIds: [first.id, second.id, third.id],
     });
@@ -171,7 +170,7 @@ describe("the alerting pipeline's default-destination targeting", () => {
     await fireDefaultRuleAndFlush();
 
     expect(harness.fetchCalls()).toHaveLength(3);
-    // One group, one delivery per channel, resolved in position order.
+    // One group, one delivery per channel, resolved in name order.
     expect(
       await harness.db.select().from(alertNotificationGroups),
     ).toHaveLength(1);

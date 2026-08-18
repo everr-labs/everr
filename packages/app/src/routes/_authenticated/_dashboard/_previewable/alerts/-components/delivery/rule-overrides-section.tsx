@@ -19,7 +19,7 @@ import { SectionBody } from "./section-chrome";
 export function RuleOverridesSection() {
   const { data, isPending, isError, error } = useQuery(ruleQueries.rules());
   const overriding = (data ?? []).filter(
-    (rule) => rule.notifications !== undefined,
+    (rule) => rule.spec.notifications !== undefined,
   );
 
   return (
@@ -64,7 +64,7 @@ export function RuleOverridesSection() {
                     &rarr;
                   </span>
                   <span className="min-w-0 max-w-[50%] truncate font-mono text-xs text-muted-foreground">
-                    {rule.notifications?.channels.join(", ")}
+                    {rule.spec.notifications?.channels.join(", ")}
                   </span>
                 </li>
               );

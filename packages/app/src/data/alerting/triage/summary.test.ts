@@ -90,10 +90,17 @@ describe("alertingResolveTriageInstances", () => {
   it("keeps a rule's own channels as a delivered override", () => {
     const [inst] = resolve({
       alerts: [alertingAlert()],
-      rules: [alertingRule({ notifications: { channels: ["team-slack"] } })],
+      rules: [
+        alertingRule({
+          spec: {
+            ...alertingRule().spec,
+            notifications: { channels: ["team-slack"] },
+          },
+        }),
+      ],
     });
 
-    expect(inst.rule?.notifications?.channels).toEqual(["team-slack"]);
+    expect(inst.rule?.spec.notifications?.channels).toEqual(["team-slack"]);
     expect(
       alertingTriageCounts(alertingGroupInstances([inst]), [], NOW, {
         tiers: {},

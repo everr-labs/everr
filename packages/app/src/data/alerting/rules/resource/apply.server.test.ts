@@ -271,10 +271,13 @@ describe("applyAlertSpecs", () => {
       ],
     });
 
-    // The known channel survives; the missing one is skipped, not fatal.
+    // The spec keeps the reference as authored; the missing channel is a
+    // warning, and creating it later links it up.
     expect(mockedCreateRule).toHaveBeenCalledWith(
       "o",
-      expect.objectContaining({ notifications: { channels: ["team-slack"] } }),
+      expect.objectContaining({
+        notifications: { channels: ["missing", "team-slack"] },
+      }),
       db,
     );
     expect(res.note).toContain(

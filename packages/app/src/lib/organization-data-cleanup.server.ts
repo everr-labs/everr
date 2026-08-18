@@ -3,7 +3,6 @@ import { db } from "@/db/client";
 import {
   alertChannels,
   alertDefaultChannels,
-  alertDefinitionChannels,
   alertDefinitions,
   alertDeliveries,
   alertEvents,
@@ -33,11 +32,6 @@ export async function deletePostgresOrganizationData(
     await tx
       .delete(alertNotificationGroups)
       .where(eq(alertNotificationGroups.organizationId, organizationId));
-    // The direct rule-to-channel mapping's channel FK does not cascade, so
-    // it must clear before alertChannels or the delete below is rejected.
-    await tx
-      .delete(alertDefinitionChannels)
-      .where(eq(alertDefinitionChannels.organizationId, organizationId));
     await tx
       .delete(alertDefaultChannels)
       .where(eq(alertDefaultChannels.organizationId, organizationId));

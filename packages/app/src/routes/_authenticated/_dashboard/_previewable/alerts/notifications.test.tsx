@@ -123,7 +123,7 @@ describe("/alerts/notifications", () => {
       alertingRuleViewFixture({
         id: "rule-1",
         name: "default/checkout-errors",
-        notifications: { channels: ["ops-hook"] },
+        spec: { notifications: { channels: ["ops-hook"] } },
       }),
       alertingRuleViewFixture({
         id: "rule-2",

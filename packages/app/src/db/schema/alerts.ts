@@ -404,38 +404,6 @@ export const alertChannels = pgTable(
   ],
 );
 
-export const alertDefinitionChannels = pgTable(
-  "alert_definition_channels",
-  {
-    organizationId: text("organization_id").notNull(),
-    alertDefinitionId: uuid("alert_definition_id").notNull(),
-    channelId: uuid("channel_id").notNull(),
-    position: integer("position").notNull(),
-  },
-  (table) => [
-    primaryKey({ columns: [table.alertDefinitionId, table.channelId] }),
-    foreignKey({
-      columns: [table.organizationId, table.alertDefinitionId],
-      foreignColumns: [alertDefinitions.organizationId, alertDefinitions.id],
-      name: "alert_definition_channels_definition_tenant_fk",
-    }).onDelete("cascade"),
-    foreignKey({
-      columns: [table.organizationId, table.channelId],
-      foreignColumns: [alertChannels.organizationId, alertChannels.id],
-      name: "alert_definition_channels_channel_tenant_fk",
-    }),
-    uniqueIndex("alert_definition_channels_definition_position_uq").on(
-      table.alertDefinitionId,
-      table.position,
-    ),
-    check(
-      "alert_definition_channels_position_nonnegative",
-      sql`${table.position} >= 0`,
-    ),
-    index("alert_definition_channels_channel_idx").on(table.channelId),
-  ],
-);
-
 // The org-level default destination: where alerts deliver when their rule
 // names no channels of its own. Tier "all" is the unsplit mode; the per
 // severity tiers exist only when the org opted into splitting. App logic
@@ -448,7 +416,6 @@ export const alertDefaultChannels = pgTable(
       enum: ["all", "critical", "warning", "info"],
     }).notNull(),
     channelId: uuid("channel_id").notNull(),
-    position: integer("position").notNull(),
   },
   (table) => [
     primaryKey({
@@ -460,15 +427,6 @@ export const alertDefaultChannels = pgTable(
       // A channel delete quietly leaves the default; the UI warns when the
       // delete empties a tier.
     }).onDelete("cascade"),
-    uniqueIndex("alert_default_channels_tier_position_uq").on(
-      table.organizationId,
-      table.tier,
-      table.position,
-    ),
-    check(
-      "alert_default_channels_position_nonnegative",
-      sql`${table.position} >= 0`,
-    ),
     index("alert_default_channels_channel_idx").on(table.channelId),
   ],
 );

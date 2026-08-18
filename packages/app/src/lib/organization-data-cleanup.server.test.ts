@@ -32,7 +32,6 @@ vi.mock("drizzle-orm", async (importOriginal) => {
 import {
   alertChannels,
   alertDefaultChannels,
-  alertDefinitionChannels,
   alertDefinitions,
   alertDeliveries,
   alertEvents,
@@ -74,7 +73,6 @@ describe("deletePostgresOrganizationData", () => {
     expect(whereCalls.map((call) => call.table)).toEqual([
       alertDeliveries,
       alertNotificationGroups,
-      alertDefinitionChannels,
       alertDefaultChannels,
       alertChannels,
       alertSilences,
@@ -92,7 +90,6 @@ describe("deletePostgresOrganizationData", () => {
     for (const table of [
       alertDeliveries,
       alertNotificationGroups,
-      alertDefinitionChannels,
       alertDefaultChannels,
       alertChannels,
       alertSilences,

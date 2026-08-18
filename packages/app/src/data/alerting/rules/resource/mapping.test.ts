@@ -43,12 +43,9 @@ const rule = parseRule();
 /** Convert a create input into the stored rule shape. */
 function asRule(
   input: AlertingRuleInput,
-): Pick<
-  AlertingRule,
-  "previewId" | "repoid" | "name" | "notifications" | "spec"
-> {
-  const { name, repoid, previewId, notifications, ...spec } = input;
-  return { name, repoid, previewId, notifications, spec };
+): Pick<AlertingRule, "previewId" | "repoid" | "name" | "spec"> {
+  const { name, repoid, previewId, ...spec } = input;
+  return { name, repoid, previewId, spec };
 }
 
 describe("toRuleInput", () => {
@@ -156,14 +153,12 @@ describe("toRuleInput", () => {
       name: _name,
       repoid: _repoid,
       previewId: _previewId,
-      notifications,
       ...spec
     } = input;
     const view = fromAlertingRule({
       previewId: null,
       repoid: "repo-1",
       name: "payments/checkout",
-      notifications,
       spec,
     });
     expect(view.project).toBe("payments");

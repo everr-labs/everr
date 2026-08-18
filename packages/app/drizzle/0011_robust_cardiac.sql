@@ -66,15 +66,6 @@ CREATE TABLE "alert_channels" (
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
 );
 --> statement-breakpoint
-CREATE TABLE "alert_definition_channels" (
-	"organization_id" text NOT NULL,
-	"alert_definition_id" uuid NOT NULL,
-	"channel_id" uuid NOT NULL,
-	"position" integer NOT NULL,
-	CONSTRAINT "alert_definition_channels_alert_definition_id_channel_id_pk" PRIMARY KEY("alert_definition_id","channel_id"),
-	CONSTRAINT "alert_definition_channels_position_nonnegative" CHECK ("alert_definition_channels"."position" >= 0)
-);
---> statement-breakpoint
 CREATE TABLE "alert_deliveries" (
 	"dedup_key" text PRIMARY KEY NOT NULL,
 	"organization_id" text NOT NULL,
@@ -133,11 +124,11 @@ CREATE TABLE "alert_events" (
 	CONSTRAINT "alert_events_reason_in_vocabulary" CHECK ("alert_events"."reason" IN ('', 'condition_cleared', 'pending_cleared', 'labels_changed', 'rule_paused', 'rule_deleted', 'preview_deleted', 'no_longer_firing', 'no_channels'))
 );
 --> statement-breakpoint
-CREATE TABLE "alert_inhibitions" (
-	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
+CREATE TABLE "alert_default_channels" (
 	"organization_id" text NOT NULL,
-	"config" jsonb NOT NULL,
-	"created_at" timestamp with time zone DEFAULT now() NOT NULL
+	"tier" text NOT NULL,
+	"channel_id" uuid NOT NULL,
+	CONSTRAINT "alert_default_channels_organization_id_tier_channel_id_pk" PRIMARY KEY("organization_id","tier","channel_id")
 );
 --> statement-breakpoint
 CREATE TABLE "alert_instances" (
@@ -170,45 +161,15 @@ CREATE TABLE "alert_notification_groups" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"organization_id" text NOT NULL,
 	"group_key" text NOT NULL,
-	"receiver_id" uuid,
+	"default_tier" text,
 	"direct_alert_definition_id" uuid,
 	"labels" jsonb DEFAULT '{}'::jsonb NOT NULL,
 	"next_flush_at" timestamp with time zone NOT NULL,
 	"last_flushed_at" timestamp with time zone,
 	"last_notified_at" timestamp with time zone,
-	"group_interval_seconds" integer,
-	"repeat_interval_seconds" integer,
 	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
 	"updated_at" timestamp with time zone DEFAULT now() NOT NULL,
-	CONSTRAINT "alert_notification_groups_repeat_interval_valid" CHECK ("alert_notification_groups"."repeat_interval_seconds" IS NULL OR "alert_notification_groups"."repeat_interval_seconds" >= 60),
-	CONSTRAINT "alert_notification_groups_one_target" CHECK (num_nonnulls("alert_notification_groups"."receiver_id", "alert_notification_groups"."direct_alert_definition_id") = 1)
-);
---> statement-breakpoint
-CREATE TABLE "alert_receiver_channels" (
-	"organization_id" text NOT NULL,
-	"receiver_id" uuid NOT NULL,
-	"channel_id" uuid NOT NULL,
-	"position" integer NOT NULL,
-	CONSTRAINT "alert_receiver_channels_receiver_id_channel_id_pk" PRIMARY KEY("receiver_id","channel_id"),
-	CONSTRAINT "alert_receiver_channels_position_nonnegative" CHECK ("alert_receiver_channels"."position" >= 0)
-);
---> statement-breakpoint
-CREATE TABLE "alert_receivers" (
-	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"organization_id" text NOT NULL,
-	"name" text NOT NULL,
-	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
-	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
-);
---> statement-breakpoint
-CREATE TABLE "alert_routes" (
-	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
-	"organization_id" text NOT NULL,
-	"receiver_id" uuid NOT NULL,
-	"priority" integer NOT NULL,
-	"config" jsonb NOT NULL,
-	"created_at" timestamp with time zone DEFAULT now() NOT NULL,
-	"updated_at" timestamp with time zone DEFAULT now() NOT NULL
+	CONSTRAINT "alert_notification_groups_one_target" CHECK (num_nonnulls("alert_notification_groups"."default_tier", "alert_notification_groups"."direct_alert_definition_id") = 1)
 );
 --> statement-breakpoint
 CREATE UNIQUE INDEX "previews_id_tenant_uq" ON "previews" USING btree ("id","organization_id");--> statement-breakpoint
@@ -218,10 +179,7 @@ CREATE UNIQUE INDEX "alert_channels_org_id_uq" ON "alert_channels" USING btree (
 CREATE UNIQUE INDEX "alert_deliveries_org_key_uq" ON "alert_deliveries" USING btree ("organization_id","dedup_key");--> statement-breakpoint
 CREATE UNIQUE INDEX "alert_events_org_id_uq" ON "alert_events" USING btree ("organization_id","id");--> statement-breakpoint
 CREATE UNIQUE INDEX "alert_notification_groups_org_id_uq" ON "alert_notification_groups" USING btree ("organization_id","id");--> statement-breakpoint
-CREATE UNIQUE INDEX "alert_receivers_org_id_uq" ON "alert_receivers" USING btree ("organization_id","id");--> statement-breakpoint
 ALTER TABLE "alert_definitions" ADD CONSTRAINT "alert_definitions_preview_tenant_fk" FOREIGN KEY ("preview_id","organization_id","repoid") REFERENCES "public"."previews"("id","organization_id","repoid") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "alert_definition_channels" ADD CONSTRAINT "alert_definition_channels_definition_tenant_fk" FOREIGN KEY ("organization_id","alert_definition_id") REFERENCES "public"."alert_definitions"("organization_id","id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "alert_definition_channels" ADD CONSTRAINT "alert_definition_channels_channel_tenant_fk" FOREIGN KEY ("organization_id","channel_id") REFERENCES "public"."alert_channels"("organization_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "alert_deliveries" ADD CONSTRAINT "alert_deliveries_notification_group_id_alert_notification_groups_id_fk" FOREIGN KEY ("notification_group_id") REFERENCES "public"."alert_notification_groups"("id") ON DELETE set null ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "alert_deliveries" ADD CONSTRAINT "alert_deliveries_channel_tenant_fk" FOREIGN KEY ("organization_id","channel_id") REFERENCES "public"."alert_channels"("organization_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "alert_delivery_events" ADD CONSTRAINT "alert_delivery_events_organization_id_delivery_dedup_key_alert_deliveries_organization_id_dedup_key_fk" FOREIGN KEY ("organization_id","delivery_dedup_key") REFERENCES "public"."alert_deliveries"("organization_id","dedup_key") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
@@ -231,14 +189,9 @@ ALTER TABLE "alert_events" ADD CONSTRAINT "alert_events_preview_tenant_fk" FOREI
 ALTER TABLE "alert_instances" ADD CONSTRAINT "alert_instances_definition_tenant_fk" FOREIGN KEY ("organization_id","alert_definition_id") REFERENCES "public"."alert_definitions"("organization_id","id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "alert_notification_group_events" ADD CONSTRAINT "alert_notification_group_events_organization_id_group_id_alert_notification_groups_organization_id_id_fk" FOREIGN KEY ("organization_id","group_id") REFERENCES "public"."alert_notification_groups"("organization_id","id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "alert_notification_group_events" ADD CONSTRAINT "alert_notification_group_events_organization_id_event_id_alert_events_organization_id_id_fk" FOREIGN KEY ("organization_id","event_id") REFERENCES "public"."alert_events"("organization_id","id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "alert_notification_groups" ADD CONSTRAINT "alert_notification_groups_receiver_tenant_fk" FOREIGN KEY ("organization_id","receiver_id") REFERENCES "public"."alert_receivers"("organization_id","id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
+ALTER TABLE "alert_default_channels" ADD CONSTRAINT "alert_default_channels_organization_id_channel_id_alert_channels_organization_id_id_fk" FOREIGN KEY ("organization_id","channel_id") REFERENCES "public"."alert_channels"("organization_id","id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "alert_notification_groups" ADD CONSTRAINT "alert_notification_groups_direct_definition_tenant_fk" FOREIGN KEY ("organization_id","direct_alert_definition_id") REFERENCES "public"."alert_definitions"("organization_id","id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "alert_receiver_channels" ADD CONSTRAINT "alert_receiver_channels_organization_id_receiver_id_alert_receivers_organization_id_id_fk" FOREIGN KEY ("organization_id","receiver_id") REFERENCES "public"."alert_receivers"("organization_id","id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "alert_receiver_channels" ADD CONSTRAINT "alert_receiver_channels_organization_id_channel_id_alert_channels_organization_id_id_fk" FOREIGN KEY ("organization_id","channel_id") REFERENCES "public"."alert_channels"("organization_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
-ALTER TABLE "alert_routes" ADD CONSTRAINT "alert_routes_organization_id_receiver_id_alert_receivers_organization_id_id_fk" FOREIGN KEY ("organization_id","receiver_id") REFERENCES "public"."alert_receivers"("organization_id","id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
 CREATE UNIQUE INDEX "alert_channels_org_name_uq" ON "alert_channels" USING btree ("organization_id","name");--> statement-breakpoint
-CREATE UNIQUE INDEX "alert_definition_channels_definition_position_uq" ON "alert_definition_channels" USING btree ("alert_definition_id","position");--> statement-breakpoint
-CREATE INDEX "alert_definition_channels_channel_idx" ON "alert_definition_channels" USING btree ("channel_id");--> statement-breakpoint
 CREATE INDEX "alert_deliveries_org_idx" ON "alert_deliveries" USING btree ("organization_id");--> statement-breakpoint
 CREATE INDEX "alert_deliveries_org_channel_inflight_idx" ON "alert_deliveries" USING btree ("organization_id","channel_id") WHERE "alert_deliveries"."status" = 'pending' OR ("alert_deliveries"."status" = 'failed' AND "alert_deliveries"."attempts" < 5);--> statement-breakpoint
 CREATE INDEX "alert_deliveries_terminal_cleanup_idx" ON "alert_deliveries" USING btree ("updated_at","dedup_key") WHERE "alert_deliveries"."status" = 'sent' OR ("alert_deliveries"."status" = 'failed' AND "alert_deliveries"."attempts" >= 5);--> statement-breakpoint
@@ -249,7 +202,7 @@ CREATE INDEX "alert_events_org_fingerprint_idx" ON "alert_events" USING btree ("
 CREATE INDEX "alert_events_org_slug_idx" ON "alert_events" USING btree ("organization_id","slug",occurred_at DESC);--> statement-breakpoint
 CREATE INDEX "alert_events_processed_idx" ON "alert_events" USING btree ("processed_at","id") WHERE "alert_events"."processed_at" IS NOT NULL;--> statement-breakpoint
 CREATE INDEX "alert_events_held_silence_idx" ON "alert_events" USING btree ("silence_id") WHERE "alert_events"."processed_at" IS NULL AND "alert_events"."silence_id" IS NOT NULL;--> statement-breakpoint
-CREATE INDEX "alert_inhibitions_org_idx" ON "alert_inhibitions" USING btree ("organization_id");--> statement-breakpoint
+CREATE INDEX "alert_default_channels_channel_idx" ON "alert_default_channels" USING btree ("channel_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "alert_instances_definition_fingerprint_uq" ON "alert_instances" USING btree ("alert_definition_id","fingerprint");--> statement-breakpoint
 CREATE INDEX "alert_instances_org_updated_idx" ON "alert_instances" USING btree ("organization_id",updated_at DESC);--> statement-breakpoint
 CREATE INDEX "alert_instances_org_firing_idx" ON "alert_instances" USING btree ("organization_id",updated_at DESC) WHERE "alert_instances"."status" = 'firing';--> statement-breakpoint
@@ -260,10 +213,6 @@ CREATE INDEX "alert_instances_inactive_updated_idx" ON "alert_instances" USING b
 CREATE INDEX "alert_notification_groups_direct_definition_idx" ON "alert_notification_groups" USING btree ("organization_id","direct_alert_definition_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "alert_notification_groups_org_key_uq" ON "alert_notification_groups" USING btree ("organization_id","group_key");--> statement-breakpoint
 CREATE INDEX "alert_notification_groups_cleanup_idx" ON "alert_notification_groups" USING btree ("updated_at","id");--> statement-breakpoint
-CREATE UNIQUE INDEX "alert_receiver_channels_receiver_position_uq" ON "alert_receiver_channels" USING btree ("receiver_id","position");--> statement-breakpoint
-CREATE INDEX "alert_receiver_channels_channel_idx" ON "alert_receiver_channels" USING btree ("channel_id");--> statement-breakpoint
-CREATE UNIQUE INDEX "alert_receivers_org_name_uq" ON "alert_receivers" USING btree ("organization_id","name");--> statement-breakpoint
-CREATE INDEX "alert_routes_org_receiver_idx" ON "alert_routes" USING btree ("organization_id","receiver_id");--> statement-breakpoint
 CREATE UNIQUE INDEX "alert_definitions_live_project_slug_uq" ON "alert_definitions" USING btree ("organization_id","project","slug") WHERE "alert_definitions"."preview_id" IS NULL;--> statement-breakpoint
 CREATE UNIQUE INDEX "alert_definitions_preview_project_slug_uq" ON "alert_definitions" USING btree ("preview_id","project","slug") WHERE "alert_definitions"."preview_id" IS NOT NULL;--> statement-breakpoint
 CREATE INDEX "alert_definitions_due_idx" ON "alert_definitions" USING btree ("active","next_evaluation_at");--> statement-breakpoint

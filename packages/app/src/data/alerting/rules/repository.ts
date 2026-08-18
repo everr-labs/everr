@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { toClickHouseDateTime } from "@everr/ui/lib/time-range";
-import { and, asc, desc, eq, inArray, isNull, ne } from "drizzle-orm";
+import { and, desc, eq, isNull, ne } from "drizzle-orm";
 import { formatResourceName, parseResourceName } from "@/data/as-code/identity";
 import {
   type DbExecutor,
@@ -8,14 +8,8 @@ import {
   runInTransaction,
   type Transaction,
 } from "@/db/client";
-import {
-  alertChannels,
-  alertDefinitionChannels,
-  alertDefinitions,
-  alertInstances,
-} from "@/db/schema";
+import { alertDefinitions, alertInstances } from "@/db/schema";
 import { query } from "@/lib/clickhouse";
-import { resolveOptionalChannelIds } from "../delivery/repository";
 import { clickhouseIsoMillis } from "../history/clickhouse";
 import {
   throwAlertingPersistenceError,
@@ -45,16 +39,13 @@ function ruleName(row: RuleRow): string {
   return formatResourceName(row.project, row.slug);
 }
 
-function ruleBase(row: RuleRow, notificationChannels: string[]) {
+function ruleBase(row: RuleRow) {
   return {
     id: row.id,
     tenant: row.organizationId,
     repoid: row.repoid,
     previewId: row.previewId,
     name: ruleName(row),
-    ...(notificationChannels.length > 0
-      ? { notifications: { channels: notificationChannels } }
-      : {}),
     spec: row.spec,
     version: row.version,
     paused: !row.active,
@@ -79,9 +70,9 @@ export function rollupAlertState(
   }
 }
 
-function ruleView(row: RuleRow, notificationChannels: string[]) {
+function ruleView(row: RuleRow) {
   return {
-    ...ruleBase(row, notificationChannels),
+    ...ruleBase(row),
     updated_at: row.updatedAt.toISOString(),
     health: {
       status: row.healthStatus,
@@ -100,80 +91,6 @@ function ruleView(row: RuleRow, notificationChannels: string[]) {
       last_row_count: row.lastRowCount,
     },
   };
-}
-
-async function definitionChannelNames(
-  organizationId: string,
-  definitionIds: string[],
-  executor: DbExecutor = db,
-): Promise<Map<string, string[]>> {
-  if (definitionIds.length === 0) return new Map();
-  const rows = await executor
-    .select({
-      alertDefinitionId: alertDefinitionChannels.alertDefinitionId,
-      channelName: alertChannels.name,
-      position: alertDefinitionChannels.position,
-    })
-    .from(alertDefinitionChannels)
-    .innerJoin(
-      alertChannels,
-      and(
-        eq(
-          alertDefinitionChannels.organizationId,
-          alertChannels.organizationId,
-        ),
-        eq(alertDefinitionChannels.channelId, alertChannels.id),
-      ),
-    )
-    .where(
-      and(
-        eq(alertDefinitionChannels.organizationId, organizationId),
-        inArray(alertDefinitionChannels.alertDefinitionId, definitionIds),
-      ),
-    )
-    .orderBy(
-      asc(alertDefinitionChannels.alertDefinitionId),
-      asc(alertDefinitionChannels.position),
-    );
-  const namesByDefinition = new Map<string, string[]>();
-  for (const row of rows) {
-    const names = namesByDefinition.get(row.alertDefinitionId) ?? [];
-    names.push(row.channelName);
-    namesByDefinition.set(row.alertDefinitionId, names);
-  }
-  return namesByDefinition;
-}
-
-async function definitionChannelNamesFor(
-  organizationId: string,
-  definitionId: string,
-  executor: DbExecutor = db,
-): Promise<string[]> {
-  return (
-    (
-      await definitionChannelNames(organizationId, [definitionId], executor)
-    ).get(definitionId) ?? []
-  );
-}
-
-async function replaceDefinitionChannels(
-  tx: Transaction,
-  organizationId: string,
-  alertDefinitionId: string,
-  channelIds: string[],
-) {
-  await tx
-    .delete(alertDefinitionChannels)
-    .where(eq(alertDefinitionChannels.alertDefinitionId, alertDefinitionId));
-  if (channelIds.length === 0) return;
-  await tx.insert(alertDefinitionChannels).values(
-    channelIds.map((channelId, position) => ({
-      organizationId,
-      alertDefinitionId,
-      channelId,
-      position,
-    })),
-  );
 }
 
 function encodeOffset(offset: number): string {
@@ -226,13 +143,8 @@ async function listRulesPage(
     .limit(limit + 1)
     .offset(offset);
   const pageRows = rows.slice(0, limit);
-  const channels = await definitionChannelNames(
-    organizationId,
-    pageRows.map((row) => row.id),
-    executor,
-  );
   return {
-    items: pageRows.map((row) => ruleView(row, channels.get(row.id) ?? [])),
+    items: pageRows.map((row) => ruleView(row)),
     next_cursor: rows.length > limit ? encodeOffset(offset + limit) : null,
   };
 }
@@ -282,7 +194,7 @@ async function getRuleRow(
 
 export async function getRule(organizationId: string, id: string) {
   const row = await getRuleRow(organizationId, id);
-  return ruleView(row, await definitionChannelNamesFor(organizationId, row.id));
+  return ruleView(row);
 }
 
 // Bounds transfer and server memory for pathological windows: samples_json
@@ -402,12 +314,6 @@ export async function createRule(
   executor: DbExecutor,
 ) {
   const input = AlertingRuleInputSchema.parse(rawInput);
-  const notificationChannels = input.notifications?.channels ?? [];
-  const channelIds = await resolveOptionalChannelIds(
-    organizationId,
-    notificationChannels,
-    executor,
-  );
   const id = randomUUID();
   const row = await translateAlertingConflict(() =>
     runInTransaction(executor, async (tx) => {
@@ -415,17 +321,11 @@ export async function createRule(
         .insert(alertDefinitions)
         .values(definitionValues(id, organizationId, input))
         .returning();
-      await replaceDefinitionChannels(
-        tx,
-        organizationId,
-        created.id,
-        channelIds,
-      );
       await scheduleEvaluation(tx, created);
       return created;
     }),
   );
-  return ruleBase(row, notificationChannels);
+  return ruleBase(row);
 }
 
 export async function updateRule(
@@ -435,15 +335,7 @@ export async function updateRule(
   version: number | undefined,
   executor: DbExecutor,
 ) {
-  const input = AlertingRuleUpdateSchema.parse(rawSpec);
-  const { notifications, ...rawRuleSpec } = input;
-  const notificationChannels = notifications?.channels ?? [];
-  const spec = AlertingRuleSpecSchema.parse(rawRuleSpec);
-  const channelIds = await resolveOptionalChannelIds(
-    organizationId,
-    notificationChannels,
-    executor,
-  );
+  const spec = AlertingRuleUpdateSchema.parse(rawSpec);
   const previous = await getRuleRow(organizationId, id, executor);
   if (version !== undefined && previous.version !== version) {
     throwAlertingPersistenceError(
@@ -496,12 +388,11 @@ export async function updateRule(
           .delete(alertInstances)
           .where(eq(alertInstances.alertDefinitionId, id));
       }
-      await replaceDefinitionChannels(tx, organizationId, id, channelIds);
       await scheduleEvaluation(tx, row);
       return row;
     }),
   );
-  return ruleBase(updated, notificationChannels);
+  return ruleBase(updated);
 }
 
 export async function adoptRule(
@@ -522,17 +413,7 @@ export async function adoptRule(
       `Rule version changed: ${id}`,
     );
   }
-  const input = rawSpec ? AlertingRuleUpdateSchema.parse(rawSpec) : null;
-  const { notifications, ...rawRuleSpec } = input ?? {};
-  const notificationChannels = input ? (notifications?.channels ?? []) : null;
-  const spec = input ? AlertingRuleSpecSchema.parse(rawRuleSpec) : null;
-  const channelIds = notificationChannels
-    ? await resolveOptionalChannelIds(
-        organizationId,
-        notificationChannels,
-        executor,
-      )
-    : null;
+  const spec = rawSpec ? AlertingRuleUpdateSchema.parse(rawSpec) : null;
   const labelsChanged =
     spec !== null &&
     labelColumnsChanged(previous.spec.label_columns, spec.label_columns);
@@ -577,18 +458,11 @@ export async function adoptRule(
           .delete(alertInstances)
           .where(eq(alertInstances.alertDefinitionId, id));
       }
-      if (channelIds) {
-        await replaceDefinitionChannels(tx, organizationId, id, channelIds);
-      }
       if (spec) await scheduleEvaluation(tx, updated);
       return updated;
     }),
   );
-  return ruleBase(
-    row,
-    notificationChannels ??
-      (await definitionChannelNamesFor(organizationId, row.id, executor)),
-  );
+  return ruleBase(row);
 }
 
 export async function deleteRule(
@@ -677,7 +551,7 @@ export async function pauseRule(
       );
     return updated;
   });
-  return ruleBase(row, await definitionChannelNamesFor(organizationId, row.id));
+  return ruleBase(row);
 }
 
 export async function resumeRule(
@@ -708,5 +582,5 @@ export async function resumeRule(
       row.nextEvaluationAt?.toISOString() ?? new Date().toISOString(),
     ruleVersion: row.version,
   });
-  return ruleBase(row, await definitionChannelNamesFor(organizationId, row.id));
+  return ruleBase(row);
 }

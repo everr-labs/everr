@@ -8,7 +8,7 @@ import { alertingSyntheticLabels } from "@/data/alerting/routing/resolution";
 import { db } from "@/db/client";
 import {
   alertDefaultChannels,
-  alertDefinitionChannels,
+  alertDefinitions,
   type alertEvents,
 } from "@/db/schema";
 
@@ -51,17 +51,22 @@ function groupLabelsFor(event: typeof alertEvents.$inferSelect) {
 async function directDispatchTarget(
   event: typeof alertEvents.$inferSelect,
 ): Promise<DispatchTarget | null> {
-  const [destination] = await db
-    .select({ channelId: alertDefinitionChannels.channelId })
-    .from(alertDefinitionChannels)
+  // Declared, not resolved: a rule that names channels is a direct target
+  // even while none of those names exist yet. The flush resolves the names
+  // and records a no-channel terminal when nothing matches, rather than the
+  // rule silently rejoining the default destination.
+  const [definition] = await db
+    .select({ spec: alertDefinitions.spec })
+    .from(alertDefinitions)
     .where(
       and(
-        eq(alertDefinitionChannels.organizationId, event.organizationId),
-        eq(alertDefinitionChannels.alertDefinitionId, event.sourceDefinitionId),
+        eq(alertDefinitions.organizationId, event.organizationId),
+        eq(alertDefinitions.id, event.sourceDefinitionId),
       ),
     )
     .limit(1);
-  if (!destination) return null;
+  if ((definition?.spec.notifications?.channels ?? []).length === 0)
+    return null;
 
   const groupLabels = groupLabelsFor(event);
   return {

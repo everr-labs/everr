@@ -89,7 +89,8 @@ export function alertingInstanceIsUndelivered(
   instance: TriageInstance,
   destination?: AlertingDefaultDestination,
 ): boolean {
-  if ((instance.rule?.notifications?.channels ?? []).length > 0) return false;
+  if ((instance.rule?.spec.notifications?.channels ?? []).length > 0)
+    return false;
   if (destination === undefined) return false;
   const severity = instance.rule?.spec.severity ?? "info";
   return alertingDefaultChannelsFor(destination, severity).length === 0;

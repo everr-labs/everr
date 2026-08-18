@@ -314,12 +314,16 @@ describe("the alerting pipeline's PostgreSQL invariants", () => {
     await harness.runDueJobs(); // flushes and delivers; the group goes idle
 
     // A new instance under the same rule dispatches into the same group and
-    // books its second flush.
+    // books its second flush. Evaluations are phase-staggered by a hash of
+    // the rule id (nextAlertEvaluationAt), and when the phase lands inside
+    // the group wait the flush step above already ran an evaluation before
+    // the payments signal existed. A full interval from here always contains
+    // the next evaluation, whatever the phase.
     harness.clickhouse.setSignal([
       { service: "checkout", value: 42 },
       { service: "payments", value: 42 },
     ]);
-    harness.advance(60_000 - ALERTING_DEFAULT_GROUP_WAIT_SECS * 1000);
+    harness.advance(60_000);
     await harness.runDueJobs();
 
     const [secondFlush] = await queueNamesFor(ALERT_FLUSH_GROUP_TASK);

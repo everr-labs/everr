@@ -64,7 +64,7 @@ export function TriageInstanceDetail({
         </div>
       )}
 
-      {instance.rule?.notifications && (
+      {instance.rule?.spec.notifications && (
         <div className="space-y-1">
           <h3 className="text-xs font-medium text-muted-foreground">
             Notifications
@@ -72,7 +72,7 @@ export function TriageInstanceDetail({
           <div className="flex flex-wrap items-center gap-2 text-xs">
             <span className="text-muted-foreground">Direct channels</span>
             <span className="font-mono text-foreground">
-              {instance.rule.notifications.channels.join(", ")}
+              {instance.rule.spec.notifications.channels.join(", ")}
             </span>
           </div>
         </div>

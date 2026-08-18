@@ -8,7 +8,6 @@ import type * as schema from "@/db/schema";
 import {
   alertChannels,
   alertDefaultChannels,
-  alertDefinitionChannels,
   alertDefinitions,
   alertSilences,
   previews,
@@ -47,6 +46,7 @@ interface RuleOverrides {
   resolveAfter?: number;
   nextEvaluationAt?: Date;
   previewId?: string | null;
+  notificationChannels?: string[];
 }
 
 function ruleSpec(overrides: RuleOverrides): AlertingRuleSpec {
@@ -65,6 +65,9 @@ function ruleSpec(overrides: RuleOverrides): AlertingRuleSpec {
     severity: overrides.severity ?? "warning",
     annotations: { summary: "{{ labels.service }} is breaching" },
     resolve_after: overrides.resolveAfter ?? 1,
+    ...(overrides.notificationChannels
+      ? { notifications: { channels: overrides.notificationChannels } }
+      : {}),
   };
 }
 
@@ -230,11 +233,10 @@ export async function insertDefaultChannels(
   const organizationId = overrides.organizationId ?? TEST_ORG;
   const tier = overrides.tier ?? "all";
   await db.insert(alertDefaultChannels).values(
-    overrides.channelIds.map((channelId, position) => ({
+    overrides.channelIds.map((channelId) => ({
       organizationId,
       tier,
       channelId,
-      position,
     })),
   );
 }
@@ -251,26 +253,25 @@ export async function insertDirectRule(
     chatIds?: string[];
   } = {},
 ): Promise<RuleFixture> {
-  const rule = await insertRule(db, overrides);
-  const channel = await insertChannel(db, {
+  // Slug alone is not unique enough to derive from: a live rule and a
+  // preview of it legitimately share (project, slug), since
+  // alert_definitions' own uniqueness on that pair is scoped to preview_id
+  // IS NULL vs IS NOT NULL separately. A random suffix makes a channel-name
+  // collision structurally impossible rather than merely unlikely, whatever
+  // two rules a test wires up in one org.
+  const channelName =
+    overrides.channelName ??
+    `${overrides.slug ?? "checkout-latency"}-${randomUUID()}-channel`;
+  const rule = await insertRule(db, {
+    ...overrides,
+    notificationChannels: [channelName],
+  });
+  await insertChannel(db, {
     organizationId: rule.organizationId,
     type: overrides.channelType ?? "slack",
     botToken: overrides.botToken,
     chatIds: overrides.chatIds,
-    // Slug alone is not unique enough to derive from: a live rule and a
-    // preview of it legitimately share (project, slug), since
-    // alert_definitions' own uniqueness on that pair is scoped to preview_id
-    // IS NULL vs IS NOT NULL separately. rule.id is the row's own primary
-    // key, so keying off it makes a channel-name collision structurally
-    // impossible rather than merely unlikely, whatever two rules a test
-    // wires up in one org.
-    name: overrides.channelName ?? `${rule.slug}-${rule.id}-channel`,
-  });
-  await db.insert(alertDefinitionChannels).values({
-    organizationId: rule.organizationId,
-    alertDefinitionId: rule.id,
-    channelId: channel.id,
-    position: 0,
+    name: channelName,
   });
   return rule;
 }
