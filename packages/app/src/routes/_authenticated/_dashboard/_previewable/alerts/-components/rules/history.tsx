@@ -3,7 +3,6 @@ import {
   CardAction,
   CardContent,
   CardHeader,
-  CardTitle,
 } from "@everr/ui/components/card";
 import {
   Tabs,
@@ -21,8 +20,14 @@ import type {
 import type { AlertingLifecycleReason } from "@/data/alerting/vocabulary";
 import { alertingFormatTs } from "../common/format";
 import { EvidenceChips, LabelSet } from "../common/labels";
+import {
+  ALERTING_LOG_CELL,
+  ALERTING_LOG_CELL_NUMERIC,
+  AlertingLogTable,
+} from "../common/log-table";
 import { AlertingTableSkeleton } from "../common/placeholders";
 import { alertingErrorMessage } from "../common/query-error";
+import { SectionHeading } from "../common/section-heading";
 import { AlertingStatusLabel } from "../common/status";
 import { AlertRuleEvaluationHistoryTable } from "./evaluation-details";
 
@@ -117,57 +122,33 @@ function EventHistoryTable({
   events: readonly AlertEventLogRow[];
 }) {
   return (
-    <div className="max-h-[28rem] overflow-auto overscroll-contain border-t border-border/60">
-      <table className="w-full min-w-[42rem] text-left text-xs">
-        <thead className="sticky top-0 z-10 bg-muted text-muted-foreground">
-          <tr>
-            <th className="px-3 py-2 font-medium" scope="col">
-              Time
-            </th>
-            <th className="px-3 py-2 font-medium" scope="col">
-              Event
-            </th>
-            <th className="px-3 py-2 font-medium" scope="col">
-              Labels
-            </th>
-            <th className="px-3 py-2 font-medium" scope="col">
-              Details
-            </th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-border/60">
-          {events.map((event, index) => (
-            <tr
-              key={`${event.instanceFingerprint}-${event.timestamp}-${event.eventType}-${index}`}
-              className="h-8 hover:bg-muted/30"
-            >
-              <td className="whitespace-nowrap px-3 py-0 font-mono tabular-nums">
-                {alertingFormatTs(event.timestamp)}
-              </td>
-              <td className="whitespace-nowrap px-3 py-0">
-                <EventTypeLabel eventType={event.eventType} />
-              </td>
-              <td className="px-3 py-0">
-                <LabelSet labels={event.labels} />
-              </td>
-              <td className="px-3 py-0">
-                <EventDetails event={event} />
-              </td>
-            </tr>
-          ))}
-          {events.length === 0 && (
-            <tr>
-              <td
-                className="px-3 py-8 text-center text-muted-foreground"
-                colSpan={4}
-              >
-                No events in range
-              </td>
-            </tr>
-          )}
-        </tbody>
-      </table>
-    </div>
+    <AlertingLogTable
+      data={[...events]}
+      columns={[
+        {
+          header: "Time",
+          cell: (event) => alertingFormatTs(event.timestamp),
+          cellClassName: ALERTING_LOG_CELL_NUMERIC,
+        },
+        {
+          header: "Event",
+          cell: (event) => <EventTypeLabel eventType={event.eventType} />,
+          cellClassName: `whitespace-nowrap ${ALERTING_LOG_CELL}`,
+        },
+        {
+          header: "Labels",
+          cell: (event) => <LabelSet labels={event.labels} />,
+        },
+        {
+          header: "Details",
+          cell: (event) => <EventDetails event={event} />,
+        },
+      ]}
+      rowKey={(event, index) =>
+        `${event.instanceFingerprint}-${event.timestamp}-${event.eventType}-${index}`
+      }
+      emptyLabel="No events in range"
+    />
   );
 }
 
@@ -192,9 +173,7 @@ export function AlertRuleHistory({
     <Tabs defaultValue="evaluations" className="gap-0">
       <Card inset="flush-content">
         <CardHeader>
-          <CardTitle>
-            <h3>History</h3>
-          </CardTitle>
+          <SectionHeading level={3}>History</SectionHeading>
           <CardAction>
             <TabsList aria-label="History view">
               <TabsTrigger value="evaluations">Evaluations</TabsTrigger>

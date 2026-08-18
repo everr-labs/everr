@@ -40,15 +40,15 @@ import type {
   AlertingRoute,
 } from "@/data/alerting/types";
 import { AlertingDisclosureTrigger } from "../common/disclosure";
-import { Matchers } from "../common/labels";
+import { Matchers, Pill } from "../common/labels";
 import { alertingErrorMessage } from "../common/query-error";
+import { SectionHeading } from "../common/section-heading";
 import { RouteBuilder, routeOrderWarning } from "./route-builder";
 import { ChannelChip, RoutePreview } from "./route-preview";
 import {
   ConfirmDeleteAction,
   DeleteOperations,
   SectionBody,
-  SectionHeading,
 } from "./section-chrome";
 
 function routeInput(route: AlertingRoute, priority = route.priority) {
@@ -246,13 +246,13 @@ function PipelineRoute({
             </span>
           )}
           {route.continue && (
-            <span
+            <Pill
               title="This route keeps matching: later routes are checked too"
-              className="inline-flex items-center gap-1 rounded-md border border-border bg-muted/20 px-1.5 py-0.5 font-mono text-[0.6875rem] leading-none text-muted-foreground"
+              className="text-muted-foreground"
             >
               continue
               <CornerDownRight aria-hidden className="size-3" />
-            </span>
+            </Pill>
           )}
           {previewActive && matched && (
             <span className="font-mono text-[0.6875rem] text-primary">

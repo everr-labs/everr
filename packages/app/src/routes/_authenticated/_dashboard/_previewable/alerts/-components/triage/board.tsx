@@ -3,12 +3,7 @@
 // is a separate page (rules/list.tsx).
 
 import { Button } from "@everr/ui/components/button";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@everr/ui/components/card";
+import { Card, CardContent, CardHeader } from "@everr/ui/components/card";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -24,7 +19,6 @@ import { Link } from "@tanstack/react-router";
 import { BellOff, ChevronDown, ChevronRight } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
-import { formatDurationSeconds } from "@/data/alerting/rules/resource/window";
 import { silenceQueries } from "@/data/alerting/silences/queries";
 import {
   createAlertingSilence,
@@ -47,11 +41,9 @@ import { LabelSet } from "../common/labels";
 import { AlertingRunbookLink } from "../common/navigation";
 import { AlertingTableSkeleton } from "../common/placeholders";
 import { alertingErrorMessage } from "../common/query-error";
-import {
-  AlertingHealthHeart,
-  AlertingSeverityBadge,
-  AlertingStatusDot,
-} from "../common/status";
+import { AlertingRuleIdentity } from "../common/rule-identity";
+import { SectionHeading } from "../common/section-heading";
+import { AlertingStatusDot } from "../common/status";
 import { AlertingSummaryLabel } from "../common/summary-card";
 import type { SilenceDrawerOptions } from "../silences/panel";
 import { TriageDeliveryFact } from "./delivery-fact";
@@ -163,31 +155,17 @@ function FactCell({
 
 function GroupIdentity({ group }: { group: TriageGroup }) {
   return (
-    <>
-      {group.rule ? (
-        <Link
-          to="/alerts/rules/$project/$slug"
-          params={parseResourceName(group.rule.name)}
-          onClick={(e) => e.stopPropagation()}
-          className="inline-flex min-h-11 items-center text-sm font-medium text-foreground underline-offset-2 hover:underline @[52rem]/triage:min-h-0"
-        >
-          {group.name}
-        </Link>
-      ) : (
-        <span className="text-sm font-medium text-foreground">
-          {group.name}
-        </span>
-      )}
-      <AlertingHealthHeart status={group.rule?.health.status} />
-      {group.severity !== "info" && (
-        <AlertingSeverityBadge severity={group.severity} />
-      )}
-      {group.rule && (
-        <span className="text-[0.6875rem] text-muted-foreground">
-          Every {formatDurationSeconds(group.rule.spec.interval_secs)}
-        </span>
-      )}
-    </>
+    <AlertingRuleIdentity
+      name={group.name}
+      params={group.rule ? parseResourceName(group.rule.name) : null}
+      // The row behind the link toggles expansion on click.
+      onLinkClick={(e) => e.stopPropagation()}
+      // A touch target on narrow windows; the row is dense on wide ones.
+      linkClassName="inline-flex min-h-11 items-center @[52rem]/triage:min-h-0"
+      healthStatus={group.rule?.health.status}
+      severity={group.severity}
+      intervalSecs={group.rule?.spec.interval_secs}
+    />
   );
 }
 
@@ -242,7 +220,7 @@ function InstanceRow({
           onToggle();
         }}
         // The fact cells share a two-line height.
-        className="flex cursor-pointer flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2 transition-colors duration-150 hover:bg-muted/40 @[52rem]/triage:flex-nowrap @[52rem]/triage:gap-y-0.5 @[52rem]/triage:pb-2.5"
+        className="flex cursor-pointer flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2 transition-colors duration-150 hover:bg-muted/50 @[52rem]/triage:flex-nowrap @[52rem]/triage:gap-y-0.5 @[52rem]/triage:pb-2.5"
       >
         <button
           type="button"
@@ -482,9 +460,7 @@ export function TriageBoard({
         className="@container/triage"
       >
         <CardHeader className="border-b border-border/60 py-2">
-          <CardTitle>
-            <h2>Active alerts</h2>
-          </CardTitle>
+          <SectionHeading>Active alerts</SectionHeading>
         </CardHeader>
         <CardContent>
           {pending ? (

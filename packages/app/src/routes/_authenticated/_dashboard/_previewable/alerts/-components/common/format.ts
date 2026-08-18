@@ -1,3 +1,5 @@
+import { parseTimestampAsUTC } from "@everr/ui/lib/timestamp";
+
 const ALERTING_DATE_TIME_FORMATTER = new Intl.DateTimeFormat("en-GB", {
   day: "2-digit",
   month: "short",
@@ -13,8 +15,9 @@ export function alertingFormatTs(
   ts: string | number | Date | null | undefined,
 ): string {
   if (!ts) return "—";
-  const d = new Date(ts);
-  return Number.isNaN(d.getTime())
+  // ClickHouse DateTime strings carry no timezone and would parse as local.
+  const d = typeof ts === "string" ? parseTimestampAsUTC(ts) : new Date(ts);
+  return d === null || Number.isNaN(d.getTime())
     ? String(ts)
     : ALERTING_DATE_TIME_FORMATTER.format(d);
 }

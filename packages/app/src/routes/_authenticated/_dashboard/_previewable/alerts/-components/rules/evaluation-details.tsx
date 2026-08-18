@@ -1,3 +1,4 @@
+import type { Tone } from "@everr/ui/components/tone";
 import {
   Tooltip,
   TooltipContent,
@@ -17,6 +18,13 @@ import type {
 } from "@/data/alerting/types";
 import { alertingFormatTs } from "../common/format";
 import {
+  ALERTING_LOG_CELL,
+  ALERTING_LOG_CELL_NUMERIC,
+  AlertingLogTable,
+} from "../common/log-table";
+import { AlertingStatusDot } from "../common/status";
+import { AlertingSummaryLabel } from "../common/summary-card";
+import {
   type AlertRuleEvaluationOutcome,
   alertRuleEvaluationOutcome,
   alertRuleFiringPeriodCount,
@@ -28,36 +36,36 @@ import {
 
 const OUTCOME_META: Record<
   AlertRuleEvaluationOutcome,
-  { label: string; bar: string; dot: string; text: string }
+  { label: string; bar: string; tone: Tone; text: string }
 > = {
   healthy: {
     label: "Healthy",
     bar: "bg-emerald-500/75",
-    dot: "bg-emerald-500",
+    tone: "healthy",
     text: "text-emerald-600 dark:text-emerald-400",
   },
   breached: {
     label: "Breached",
     bar: "bg-destructive/80",
-    dot: "bg-destructive",
+    tone: "danger",
     text: "text-destructive",
   },
   no_data: {
     label: "No data",
     bar: "bg-muted-foreground/30",
-    dot: "bg-muted-foreground/45",
+    tone: "muted",
     text: "text-muted-foreground",
   },
   failed: {
     label: "Failed",
     bar: "bg-amber-500/80",
-    dot: "bg-amber-500",
+    tone: "warning",
     text: "text-amber-600 dark:text-amber-400",
   },
   unknown: {
     label: "Not recorded",
     bar: "bg-muted-foreground/15",
-    dot: "bg-muted-foreground/25",
+    tone: "muted",
     text: "text-muted-foreground",
   },
 };
@@ -70,7 +78,7 @@ function EvaluationOutcomeLabel({
   const meta = OUTCOME_META[outcome];
   return (
     <span className={cn("inline-flex items-center gap-1.5", meta.text)}>
-      <span className={cn("size-1.5 rounded-full", meta.dot)} />
+      <AlertingStatusDot tone={meta.tone} />
       {meta.label}
     </span>
   );
@@ -212,15 +220,15 @@ export function AlertRuleEvaluationDetails({
       </legend>
       <div className="space-y-0.5">
         <div className="grid grid-cols-[3rem_minmax(0,1fr)] items-center gap-3">
-          <span className="text-right text-[0.625rem] font-medium tracking-wide text-muted-foreground uppercase">
+          <AlertingSummaryLabel className="text-right">
             Checks
-          </span>
+          </AlertingSummaryLabel>
           <BucketRail buckets={evaluationRail} className="h-2" />
         </div>
         <div className="grid grid-cols-[3rem_minmax(0,1fr)] items-center gap-3">
-          <span className="text-right text-[0.625rem] font-medium tracking-wide text-muted-foreground uppercase">
+          <AlertingSummaryLabel className="text-right">
             Firing
-          </span>
+          </AlertingSummaryLabel>
           <BucketRail buckets={incidentRail} className="h-2" />
         </div>
       </div>
@@ -230,12 +238,7 @@ export function AlertRuleEvaluationDetails({
             (outcome) =>
               counts[outcome] > 0 && (
                 <li key={outcome} className="flex items-center gap-1.5">
-                  <span
-                    className={cn(
-                      "size-1.5 rounded-full",
-                      OUTCOME_META[outcome].dot,
-                    )}
-                  />
+                  <AlertingStatusDot tone={OUTCOME_META[outcome].tone} />
                   {OUTCOME_META[outcome].label} {counts[outcome]}
                 </li>
               ),
@@ -283,70 +286,54 @@ export function AlertRuleEvaluationHistoryTable({
 }) {
   const rows = [...evaluationSeries.recent_points].reverse();
   return (
-    <div className="max-h-[28rem] overflow-auto overscroll-contain border-t border-border/60">
-      <table className="w-full min-w-[42rem] text-left text-xs">
-        <thead className="sticky top-0 z-10 bg-muted text-muted-foreground">
-          <tr>
-            <th className="px-3 py-2 font-medium" scope="col">
-              Time
-            </th>
-            <th className="px-3 py-2 font-medium" scope="col">
-              Outcome
-            </th>
-            <th className="px-3 py-2 font-medium" scope="col">
-              Value / threshold
-            </th>
-            <th className="px-3 py-2 text-right font-medium" scope="col">
-              Rows
-            </th>
-            <th className="px-3 py-2 font-medium" scope="col">
-              Details
-            </th>
-          </tr>
-        </thead>
-        <tbody className="divide-y divide-border/60">
-          {rows.map((point) => {
+    <AlertingLogTable
+      data={rows}
+      columns={[
+        {
+          header: "Time",
+          cell: (point) => alertingFormatTs(point.t),
+          cellClassName: ALERTING_LOG_CELL_NUMERIC,
+        },
+        {
+          header: "Outcome",
+          cell: (point) => (
+            <EvaluationOutcomeLabel
+              outcome={alertRuleEvaluationOutcome(point, condition)}
+            />
+          ),
+          cellClassName: `whitespace-nowrap ${ALERTING_LOG_CELL}`,
+        },
+        {
+          header: "Value / threshold",
+          cell: (point) => valueSummary(point, condition),
+          cellClassName: ALERTING_LOG_CELL_NUMERIC,
+        },
+        {
+          header: "Rows",
+          cell: (point) => point.row_count ?? "—",
+          className: "px-3 py-2 text-right font-medium",
+          cellClassName: `text-right font-mono tabular-nums ${ALERTING_LOG_CELL}`,
+        },
+        {
+          header: "Details",
+          cell: (point) => {
             const outcome = alertRuleEvaluationOutcome(point, condition);
             return (
-              <tr key={point.t} className="h-8 hover:bg-muted/30">
-                <td className="whitespace-nowrap px-3 py-0 font-mono tabular-nums">
-                  {alertingFormatTs(point.t)}
-                </td>
-                <td className="whitespace-nowrap px-3 py-0">
-                  <EvaluationOutcomeLabel outcome={outcome} />
-                </td>
-                <td className="whitespace-nowrap px-3 py-0 font-mono tabular-nums">
-                  {valueSummary(point, condition)}
-                </td>
-                <td className="px-3 py-0 text-right font-mono tabular-nums">
-                  {point.row_count ?? "—"}
-                </td>
-                <td
-                  className="max-w-80 truncate px-3 py-0 text-muted-foreground"
-                  title={point.error ?? undefined}
-                >
-                  {point.error ??
-                    (outcome === "no_data"
-                      ? "Query returned no numeric values"
-                      : outcome === "unknown"
-                        ? "Evaluation predates captured samples"
-                        : "—")}
-                </td>
-              </tr>
+              <span title={point.error ?? undefined}>
+                {point.error ??
+                  (outcome === "no_data"
+                    ? "Query returned no numeric values"
+                    : outcome === "unknown"
+                      ? "Evaluation predates captured samples"
+                      : "—")}
+              </span>
             );
-          })}
-          {rows.length === 0 && (
-            <tr>
-              <td
-                className="px-3 py-8 text-center text-muted-foreground"
-                colSpan={5}
-              >
-                No evaluations in range
-              </td>
-            </tr>
-          )}
-        </tbody>
-      </table>
-    </div>
+          },
+          cellClassName: `max-w-80 truncate text-muted-foreground ${ALERTING_LOG_CELL}`,
+        },
+      ]}
+      rowKey={(point) => String(point.t)}
+      emptyLabel="No evaluations in range"
+    />
   );
 }

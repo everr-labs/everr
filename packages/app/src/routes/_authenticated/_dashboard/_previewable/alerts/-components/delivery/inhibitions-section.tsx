@@ -14,12 +14,12 @@ import { deliveryQueries } from "@/data/alerting/delivery/queries";
 import { deleteAlertingInhibition } from "@/data/alerting/delivery/server";
 import type { AlertingInhibition } from "@/data/alerting/types";
 import { Matchers } from "../common/labels";
+import { SectionHeading } from "../common/section-heading";
 import { InhibitionBuilder } from "./inhibition-builder";
 import {
   ConfirmDeleteAction,
   DeleteOperations,
   SectionBody,
-  SectionHeading,
 } from "./section-chrome";
 
 export function InhibitionsSection() {

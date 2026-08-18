@@ -17,13 +17,13 @@ import {
   updateAlertingReceiver,
 } from "@/data/alerting/delivery/server";
 import type { AlertingChannel, AlertingReceiver } from "@/data/alerting/types";
+import { SectionHeading } from "../common/section-heading";
 import { ChannelBuilder } from "./channel-builder";
 import { CHANNEL_ICON, CHANNEL_LABEL, channelTarget } from "./channel-meta";
 import {
   ConfirmDeleteAction,
   DeleteOperations,
   SectionBody,
-  SectionHeading,
 } from "./section-chrome";
 
 const CHANNEL_KIND_LIST = new Intl.ListFormat("en", {

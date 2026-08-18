@@ -15,7 +15,6 @@ import {
   CardContent,
   CardDescription,
   CardHeader,
-  CardTitle,
 } from "@everr/ui/components/card";
 import { type Column, DataTable } from "@everr/ui/components/data-table";
 import { DateTimePicker } from "@everr/ui/components/date-time-picker";
@@ -44,6 +43,7 @@ import {
   AlertingQueryError,
   alertingErrorMessage,
 } from "../common/query-error";
+import { SectionHeading } from "../common/section-heading";
 import { AlertingStatusLabel } from "../common/status";
 import { MatchersEditor, matchersAreScoped } from "../delivery/matchers-editor";
 
@@ -207,9 +207,7 @@ export function SilencesPanel({ onNewSilence }: { onNewSilence: () => void }) {
       className="scroll-mt-4"
     >
       <CardHeader>
-        <CardTitle>
-          <h2>Silences</h2>
-        </CardTitle>
+        <SectionHeading>Silences</SectionHeading>
         <CardDescription>
           {silences.length === 0 && !isPending
             ? "No active silences."

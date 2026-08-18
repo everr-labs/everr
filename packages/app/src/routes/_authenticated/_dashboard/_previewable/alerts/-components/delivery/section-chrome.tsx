@@ -10,7 +10,6 @@ import {
   AlertDialogTrigger,
 } from "@everr/ui/components/alert-dialog";
 import { Button } from "@everr/ui/components/button";
-import { CardTitle } from "@everr/ui/components/card";
 import { toneText } from "@everr/ui/components/tone";
 import { cn } from "@everr/ui/lib/utils";
 import { LoaderCircle, Trash2, TriangleAlert } from "lucide-react";
@@ -61,14 +60,6 @@ export function SectionBody({
     );
   }
   return <>{children}</>;
-}
-
-export function SectionHeading({ children }: { children: React.ReactNode }) {
-  return (
-    <CardTitle>
-      <h2>{children}</h2>
-    </CardTitle>
-  );
 }
 
 export function ConfirmDeleteAction({

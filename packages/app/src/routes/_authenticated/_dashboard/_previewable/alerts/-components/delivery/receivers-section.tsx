@@ -18,13 +18,13 @@ import type {
   AlertingReceiver,
   AlertingRoute,
 } from "@/data/alerting/types";
+import { SectionHeading } from "../common/section-heading";
 import { ReceiverBuilder } from "./receiver-builder";
 import { ChannelChip } from "./route-preview";
 import {
   ConfirmDeleteAction,
   DeleteOperations,
   SectionBody,
-  SectionHeading,
 } from "./section-chrome";
 
 export function ReceiversSection({

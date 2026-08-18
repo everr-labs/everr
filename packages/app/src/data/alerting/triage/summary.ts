@@ -11,6 +11,7 @@ import type {
   AlertingMatcher,
   AlertingRoute,
   AlertingRuleView,
+  AlertingSeverity,
   AlertingSilence,
 } from "@/data/alerting/types";
 
@@ -115,7 +116,7 @@ export type TriageGroup = {
   sourceId: string;
   rule: AlertingRuleView | undefined;
   name: string;
-  severity: string;
+  severity: AlertingSeverity;
   rows: TriageRow[];
 };
 

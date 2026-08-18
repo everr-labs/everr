@@ -1,22 +1,14 @@
 import { Button } from "@everr/ui/components/button";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@everr/ui/components/card";
+import { Card, CardContent, CardHeader } from "@everr/ui/components/card";
 import { RelativeTime } from "@everr/ui/components/relative-time";
 import type { Tone } from "@everr/ui/components/tone";
 import { cn } from "@everr/ui/lib/utils";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Link } from "@tanstack/react-router";
 import { SlidersHorizontal } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
-import { PreviewStatusBadge } from "@/components/preview-status-badge";
 import { alertingRuleIdentity } from "@/data/alerting/rules/identity";
 import { ruleQueries } from "@/data/alerting/rules/queries";
-import { formatDurationSeconds } from "@/data/alerting/rules/resource/window";
 import {
   pauseAlertingRule,
   resumeAlertingRule,
@@ -30,11 +22,10 @@ import {
   AlertingTableSkeleton,
 } from "../common/placeholders";
 import { alertingErrorMessage } from "../common/query-error";
-import {
-  AlertingHealthHeart,
-  AlertingSeverityBadge,
-  AlertingStatusLabel,
-} from "../common/status";
+import { AlertingRuleIdentity } from "../common/rule-identity";
+import { SectionHeading } from "../common/section-heading";
+import { AlertingStatusLabel } from "../common/status";
+import { AlertingSummaryLabel } from "../common/summary-card";
 
 /** How many rules render before Load more. */
 export const RULES_PAGE = 50;
@@ -101,38 +92,37 @@ function RuleLine({
       )}
     >
       <span className="flex min-w-0 flex-1 flex-wrap items-center gap-x-2 gap-y-1">
-        <Link
-          to="/alerts/rules/$project/$slug"
+        <AlertingRuleIdentity
+          name={identity.name}
           params={{ project: identity.project, slug: identity.slug }}
-          className="min-w-0 text-sm font-medium text-foreground underline-offset-2 hover:underline"
-        >
-          {identity.name}
-        </Link>
-        <PreviewStatusBadge status={rule.previewStatus} />
-        <AlertingHealthHeart status={rule.health.status} />
-        {rule.spec.severity !== "info" && (
-          <AlertingSeverityBadge severity={rule.spec.severity} />
-        )}
-        <span className="text-[0.6875rem] text-muted-foreground">
-          Every {formatDurationSeconds(rule.spec.interval_secs)}
-        </span>
+          previewStatus={rule.previewStatus}
+          healthStatus={rule.health.status}
+          severity={rule.spec.severity}
+          intervalSecs={rule.spec.interval_secs}
+        />
       </span>
-      <AlertingStatusLabel
-        tone={status.tone}
-        muted={status.muted}
-        className="w-24 text-xs"
-      >
-        {status.label}
-      </AlertingStatusLabel>
-      <span className="w-24 text-xs text-muted-foreground">
-        {rule.rollup.last_fired_at ? (
-          <RelativeTime
-            timestamp={rule.rollup.last_fired_at}
-            title={alertingFormatTs(rule.rollup.last_fired_at)}
-          />
-        ) : (
-          "never fired"
-        )}
+      <span className="flex w-24 shrink-0 flex-col">
+        <AlertingSummaryLabel>status</AlertingSummaryLabel>
+        <AlertingStatusLabel
+          tone={status.tone}
+          muted={status.muted}
+          className="text-xs"
+        >
+          {status.label}
+        </AlertingStatusLabel>
+      </span>
+      <span className="flex w-24 shrink-0 flex-col">
+        <AlertingSummaryLabel>last fired</AlertingSummaryLabel>
+        <span className="text-xs text-muted-foreground">
+          {rule.rollup.last_fired_at ? (
+            <RelativeTime
+              timestamp={rule.rollup.last_fired_at}
+              title={alertingFormatTs(rule.rollup.last_fired_at)}
+            />
+          ) : (
+            "never fired"
+          )}
+        </span>
       </span>
       <span className="flex shrink-0 items-center gap-1">
         {identity.runbook ? (
@@ -183,9 +173,7 @@ export function AlertingRulesCard({
       aria-busy={pending}
     >
       <CardHeader className="border-b border-border/60 py-2">
-        <CardTitle>
-          <h2>All rules</h2>
-        </CardTitle>
+        <SectionHeading>All rules</SectionHeading>
       </CardHeader>
       <CardContent>
         {pending ? (

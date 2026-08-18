@@ -1,10 +1,5 @@
 import { Button, buttonVariants } from "@everr/ui/components/button";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@everr/ui/components/card";
+import { Card, CardContent, CardHeader } from "@everr/ui/components/card";
 import { RelativeTime } from "@everr/ui/components/relative-time";
 import { Skeleton } from "@everr/ui/components/skeleton";
 import { withTimeRange } from "@everr/ui/lib/time-range";
@@ -40,6 +35,7 @@ import {
   AlertingQueryError,
   alertingErrorMessage,
 } from "./-components/common/query-error";
+import { SectionHeading } from "./-components/common/section-heading";
 import { AlertingStatusLabel } from "./-components/common/status";
 import {
   AlertingBreachBreakdown,
@@ -525,9 +521,7 @@ function AlertingRuleDetailPage() {
 
       <Card ref={signalChart.ref} className="pb-0">
         <CardHeader>
-          <CardTitle>
-            <h3>Signal history</h3>
-          </CardTitle>
+          <SectionHeading level={3}>Signal history</SectionHeading>
           <p className="text-xs text-muted-foreground">
             value {conditionOperator} {r.spec.condition.threshold}
             {r.spec.label_columns.length > 0 &&
