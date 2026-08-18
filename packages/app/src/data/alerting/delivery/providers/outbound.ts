@@ -61,7 +61,12 @@ function blockedIpv6(address: string): boolean {
     normalized.startsWith("fd") ||
     /^fe[89ab]/.test(normalized) ||
     normalized.startsWith("ff") ||
-    normalized.startsWith("::ffff:")
+    normalized.startsWith("::ffff:") ||
+    // NAT64 (RFC 6052) and 6to4: both embed a v4 address, so a network with
+    // either gateway reaches 127.0.0.1 through an address the prefixes above
+    // do not match.
+    normalized.startsWith("64:ff9b:") ||
+    normalized.startsWith("2002:")
   );
 }
 
@@ -97,10 +102,18 @@ export async function validateOutboundUrl(raw: string): Promise<URL> {
   if (hostname === "localhost" || hostname.endsWith(".localhost")) {
     throw new Error("notification URL must not target localhost");
   }
-  if (isIP(hostname) && blockedAddress(hostname)) {
+  // The WHATWG parser keeps the brackets on an IPv6 literal, and isIP rejects
+  // the bracketed form. Unstripped, every v6 literal skips the blocklist and
+  // falls through to a DNS lookup for "[::1]", which fails with a name error
+  // rather than saying the address is internal.
+  const literal =
+    hostname.startsWith("[") && hostname.endsWith("]")
+      ? hostname.slice(1, -1)
+      : hostname;
+  if (isIP(literal) && blockedAddress(literal)) {
     throw new Error("notification URL must not target an internal address");
   }
-  if (!isIP(hostname)) {
+  if (!isIP(literal)) {
     const addresses = await lookup(hostname, { all: true, verbatim: true });
     if (
       addresses.length === 0 ||
