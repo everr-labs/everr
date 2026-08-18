@@ -142,6 +142,13 @@ export const getHomeOverview = createAuthenticatedServerFn({ method: "GET" })
      * boundary would then be counted one bucket early, or fall off the end of
      * the grid entirely. The result is pulled up with `max` and filtered
      * afterwards, which keeps the same set of runs.
+     *
+     * The time filter is the one predicate that stays ahead of the group, and
+     * it defines what a run means here: the spans it has inside the selected
+     * range. A run still going at the range end is therefore counted at its
+     * last span inside the range, not at the span that closes it. Moving the
+     * time filter after the group would read the whole table on every load,
+     * since nothing would be left to prune partitions or the primary index on.
      */
     const ciSql = `
       SELECT
