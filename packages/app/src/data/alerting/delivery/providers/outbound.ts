@@ -9,13 +9,31 @@ export const SEND_TIMEOUT_MS = 10_000;
 // transient and worth Graphile's retry budget.
 const RETRYABLE_CLIENT_ERROR_STATUSES = new Set([408, 429]);
 
+/**
+ * A failed send, split by who wrote the text.
+ *
+ * `message` is ours and never carries a word the endpoint returned;
+ * `responseBody` is the endpoint's own answer, kept apart because the two are
+ * reported to different readers. The history trail records both (sanitized),
+ * because "invalid_payload" is what tells an operator what to fix. A channel
+ * test shows only the message: the URL under test is whatever the member
+ * typed, so reflecting the response back would make the test a way to read
+ * any HTTP endpoint the server can reach.
+ */
 export class ChannelSendError extends Error {
   readonly permanent: boolean;
+  readonly status?: number;
+  readonly responseBody?: string;
 
-  constructor(message: string, opts: { permanent: boolean }) {
+  constructor(
+    message: string,
+    opts: { permanent: boolean; status?: number; responseBody?: string },
+  ) {
     super(message);
     this.name = "ChannelSendError";
     this.permanent = opts.permanent;
+    this.status = opts.status;
+    this.responseBody = opts.responseBody;
   }
 }
 
@@ -139,10 +157,13 @@ export async function postJson(urlRaw: string, body: unknown): Promise<void> {
     signal: AbortSignal.timeout(SEND_TIMEOUT_MS),
   });
   if (!response.ok) {
-    const detail = await response.text().catch(() => "");
     throw new ChannelSendError(
-      `notification webhook failed: ${response.status} ${detail}`,
-      { permanent: isPermanentStatus(response.status) },
+      `notification webhook failed: ${response.status}`,
+      {
+        permanent: isPermanentStatus(response.status),
+        status: response.status,
+        responseBody: await response.text().catch(() => ""),
+      },
     );
   }
 }

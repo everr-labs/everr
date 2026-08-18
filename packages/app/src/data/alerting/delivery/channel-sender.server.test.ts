@@ -180,6 +180,27 @@ it("names no chat id and no bot token in the error it hands the history row", as
   expect(message).toContain("2 of 2 chats");
 });
 
+// The endpoint under a channel URL is not ours, and a channel test hands its
+// failure straight back to the member who typed that URL. Keeping the answer
+// in a field of its own is what lets the test report the failure without
+// reporting the response.
+it("keeps the endpoint's answer out of the error message", async () => {
+  fetchMock.mockResolvedValueOnce(
+    new Response("who=root&password=hunter2", { status: 403 }),
+  );
+
+  const error = (await sendChannelNotification(
+    { type: "webhook", url: HOOK_URL },
+    { title: "t", body: "b" },
+  ).catch((caught: unknown) => caught)) as ChannelSendError;
+
+  expect(error.message).toContain("403");
+  expect(error.message).not.toContain("hunter2");
+  expect(error.status).toBe(403);
+  // Still carried, because the trail is where it is worth reading.
+  expect(error.responseBody).toBe("who=root&password=hunter2");
+});
+
 it("fails permanently and sends nothing when the bot token is missing", async () => {
   const error = await sendChannelNotification(
     { ...telegram, bot_token: "  " },

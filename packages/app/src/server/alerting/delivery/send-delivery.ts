@@ -13,6 +13,16 @@ import { sanitizeAlertError } from "../history/content";
 import { recordDeliveryOutcome } from "./history";
 import { liveRuleForDeliveryQuery } from "./journal-reader";
 
+// The provider holds the endpoint's own answer apart from its error message
+// so a channel test cannot reflect it back. The trail is where that answer is
+// worth keeping: "channel_not_found" is what tells an operator what to fix.
+// failDelivery sanitizes the joined text before it lands.
+function sendFailureDetail(cause: unknown): string {
+  const message = errorMessage(cause);
+  const body = cause instanceof ChannelSendError ? cause.responseBody : "";
+  return body ? `${message} ${body}` : message;
+}
+
 export async function sendAlertDelivery(rawPayload: unknown): Promise<void> {
   const { dedupKey } = AlertDeliveryTaskPayloadSchema.parse(rawPayload);
   const [row] = await db
@@ -136,7 +146,7 @@ export async function sendAlertDelivery(rawPayload: unknown): Promise<void> {
     try {
       await failDelivery(
         channelType,
-        errorMessage(cause).slice(0, 8_000),
+        sendFailureDetail(cause).slice(0, 8_000),
         // Computed in the UPDATE, not from the Node-side `row` read: two
         // racing runs of the same delivery would otherwise both compute the
         // same stale count and one attempt would go uncounted. A permanent

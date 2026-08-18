@@ -75,10 +75,10 @@ export async function sendSlackNotification(
   // Slack answers a bad request with a non-200 and a short body such as
   // "invalid_payload", so any non-2xx is the failure signal.
   if (!response.ok) {
-    const body = await response.text().catch(() => "");
-    throw new ChannelSendError(
-      `slack webhook failed: ${response.status} ${body}`,
-      { permanent: isPermanentStatus(response.status) },
-    );
+    throw new ChannelSendError(`slack webhook failed: ${response.status}`, {
+      permanent: isPermanentStatus(response.status),
+      status: response.status,
+      responseBody: await response.text().catch(() => ""),
+    });
   }
 }

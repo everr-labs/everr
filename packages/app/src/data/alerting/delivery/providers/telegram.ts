@@ -42,10 +42,13 @@ async function sendTelegramMessage(
   );
 
   if (!response.ok) {
-    const body = await response.text().catch(() => "");
     throw new ChannelSendError(
-      `telegram sendMessage failed: ${response.status} ${body}`,
-      { permanent: isPermanentStatus(response.status) },
+      `telegram sendMessage failed: ${response.status}`,
+      {
+        permanent: isPermanentStatus(response.status),
+        status: response.status,
+        responseBody: await response.text().catch(() => ""),
+      },
     );
   }
 }
@@ -82,10 +85,16 @@ export async function sendTelegramNotification(
   const permanent = failures.every(
     (reason) => reason instanceof ChannelSendError && reason.permanent,
   );
-  const detail =
-    failures[0] instanceof Error ? failures[0].message : String(failures[0]);
+  const first = failures[0];
+  const detail = first instanceof Error ? first.message : String(first);
   throw new ChannelSendError(
     `telegram delivery failed for ${failures.length} of ${config.chat_ids.length} chats: ${detail}`,
-    { permanent },
+    {
+      permanent,
+      // Telegram's own answer travels on, so the trail keeps the one detail
+      // that names the cause ("chat not found", "bot was blocked").
+      responseBody:
+        first instanceof ChannelSendError ? first.responseBody : undefined,
+    },
   );
 }

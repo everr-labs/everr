@@ -8,6 +8,8 @@ import {
   alertDefaultChannels,
   alertDeliveries,
 } from "@/db/schema";
+import { truncateWithEllipsis } from "@/lib/truncate";
+import { sanitizeAlertError } from "@/server/alerting/history/content";
 import {
   throwAlertingPersistenceError,
   translateAlertingConflict,
@@ -189,6 +191,27 @@ export async function deleteChannel(
   return { deleted: true };
 }
 
+const TEST_CHANNEL_ERROR_MAX = 300;
+
+/**
+ * What a failed channel test may say.
+ *
+ * The URL under test is whatever the member typed, so the send is a fetch the
+ * server makes on their behalf: hand back the endpoint's response and the
+ * test becomes a way to read any HTTP service the application plane can
+ * reach. A ChannelSendError keeps that response in `responseBody` and out of
+ * its message, so what is returned here is only ever text we wrote, and it is
+ * still sanitized: a lower layer may have put a webhook URL or a bot token in
+ * a message, and both are secrets.
+ */
+function testChannelError(cause: unknown): string {
+  const message = cause instanceof Error ? cause.message : String(cause);
+  return truncateWithEllipsis(
+    sanitizeAlertError(message),
+    TEST_CHANNEL_ERROR_MAX,
+  );
+}
+
 export async function testChannel(
   _organizationId: string,
   body: { config: AlertingChannelConfig },
@@ -202,7 +225,7 @@ export async function testChannel(
     return {
       ok: false,
       latency_ms: Math.round(performance.now() - started),
-      error: cause instanceof Error ? cause.message : String(cause),
+      error: testChannelError(cause),
     };
   }
 }

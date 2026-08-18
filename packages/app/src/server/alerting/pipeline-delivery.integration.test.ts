@@ -13,7 +13,10 @@ import {
 import { sendChannelNotification } from "@/data/alerting/delivery/channel-sender.server";
 import { CHANNEL_TEXT_MAX } from "@/data/alerting/delivery/channel-text-limits";
 import { ALERT_DELIVERY_MAX_ATTEMPTS } from "@/data/alerting/delivery/config";
-import { deleteChannel } from "@/data/alerting/delivery/repository";
+import {
+  deleteChannel,
+  testChannel,
+} from "@/data/alerting/delivery/repository";
 import {
   ALERT_SEND_DELIVERY_TASK,
   IDLE_GROUP_FLUSH_AT,
@@ -834,6 +837,10 @@ describe("the alerting pipeline's delivery", () => {
       // place (channel-sender.server.ts / providers/telegram.ts); this
       // confirms that holds all the way to the stored row.
       expect(delivery.lastError).not.toContain(leakedChatId);
+      // The endpoint's answer still reaches the trail, minus its secrets:
+      // stripping it entirely would leave an operator with a status code and
+      // no reason.
+      expect(delivery.lastError).toContain("[redacted-");
     }
 
     const failedRows = harness.clickhouse
@@ -852,5 +859,30 @@ describe("the alerting pipeline's delivery", () => {
       expect(error).not.toContain(leakedToken);
       expect(error).not.toContain(leakedChatId);
     }
+  });
+
+  // Any member can run a channel test against a URL they typed, so the send
+  // is a fetch the server makes on their behalf. Reflecting what came back
+  // would turn the button into a way to read whatever HTTP the application
+  // plane can reach, which is the accepted DNS-rebinding write gap (ticket
+  // 19) upgraded to a read.
+  it("tells a channel test what failed without quoting the endpoint's answer", async () => {
+    const secret = "root:hunter2@db.internal";
+    harness.setFetchResponse({
+      status: 403,
+      body: `{"connection":"${secret}"}`,
+    });
+
+    const result = await testChannel("test_org", {
+      config: { type: "webhook", url: "https://203.0.113.10/hook" },
+    });
+
+    const error = "error" in result ? result.error : "";
+    expect(result.ok).toBe(false);
+    // It still names what went wrong, which is all the member needs to fix
+    // the channel.
+    expect(error).toContain("403");
+    expect(error).not.toContain("hunter2");
+    expect(error).not.toContain(secret);
   });
 });
