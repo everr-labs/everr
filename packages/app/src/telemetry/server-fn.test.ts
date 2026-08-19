@@ -30,19 +30,6 @@ vi.mock("./node", () => ({
   SpanKind: { INTERNAL: 0 },
 }));
 
-// The real matcher pulls the whole generated route tree (and the server env
-// with it) into the test environment; server function paths only exercise the
-// /_serverFn prefix rule, which needs no tree.
-vi.mock("./server-router", async () => {
-  const { routeTemplate } = await import("./route-template");
-  const matcher = {
-    matchRoutes: () => [{ routeId: "__root__", fullPath: "/" }],
-  };
-  return {
-    serverRouteTemplate: (pathname: string) => routeTemplate(matcher, pathname),
-  };
-});
-
 import { instrumentServerFunction } from "./server-fn-runtime";
 
 describe("instrumentServerFunction", () => {
@@ -72,17 +59,15 @@ describe("instrumentServerFunction", () => {
 
     expect(telemetryMocks.captureError).toHaveBeenCalledWith(error, {
       "everr.error.source": "server_fn",
-      "rpc.method": "server_function/getActiveOrganization",
-      "rpc.system.name": "tanstack-start",
-      "url.path": "/_serverFn/:id",
+      "everr.server_function.name": "getActiveOrganization",
+      "everr.server_function.transport": "http",
     });
     expect(telemetryMocks.startActiveSpan).toHaveBeenCalledWith(
-      "tanstack.server_fn",
+      "serverFn getActiveOrganization",
       {
         attributes: {
-          "rpc.method": "server_function/getActiveOrganization",
-          "rpc.system.name": "tanstack-start",
-          "url.path": "/_serverFn/:id",
+          "everr.server_function.name": "getActiveOrganization",
+          "everr.server_function.transport": "http",
         },
         kind: 0,
       },
@@ -114,7 +99,7 @@ describe("instrumentServerFunction", () => {
     expect(telemetryMocks.span.end).toHaveBeenCalledOnce();
   });
 
-  it("parameterizes TanStack dev serverFn IDs in serverFn span attributes", async () => {
+  it("names the span after the function", async () => {
     await instrumentServerFunction(
       new Request(
         "http://localhost/_serverFn/eyJmaWxlIjoiL3NyYy9yb3V0ZXMvX19yb290LnRzeD90c3Mtc2VydmVyZm4tc3BsaXQiLCJleHBvcnQiOiJnZXRTZXNzaW9uX2NyZWF0ZVNlcnZlckZuX2hhbmRsZXIifQ",
@@ -128,12 +113,11 @@ describe("instrumentServerFunction", () => {
     );
 
     expect(telemetryMocks.startActiveSpan).toHaveBeenCalledWith(
-      "tanstack.server_fn",
+      "serverFn getSession",
       {
         attributes: {
-          "rpc.method": "server_function/getSession",
-          "rpc.system.name": "tanstack-start",
-          "url.path": "/_serverFn/:id",
+          "everr.server_function.name": "getSession",
+          "everr.server_function.transport": "http",
         },
         kind: 0,
       },
