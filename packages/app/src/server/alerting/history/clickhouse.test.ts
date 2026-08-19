@@ -16,13 +16,13 @@ vi.mock("@/telemetry/logger", () => ({
 
 import { uuidv7Time } from "@/data/alerting/history/ids";
 import {
-  deferralHistoryRow,
   deliveryHistoryRow,
   evaluationHistoryRow,
   instanceHistoryRow,
+  journalHoldRow,
+  journalTerminalRow,
   recordAlertHistory,
   recordAlertHistoryStrict,
-  suppressionHistoryRow,
   ZERO_UUID,
 } from "./clickhouse";
 
@@ -34,6 +34,23 @@ const def = {
   previewId: null,
   severity: "critical",
   ruleMuted: false,
+};
+const journalEvent = {
+  id: "019c3aba-29f8-7d6e-9e55-301cf47fa80d",
+  sourceDefinitionId: def.id,
+  organizationId: def.organizationId,
+  repoid: def.repoid,
+  slug: def.slug,
+  previewId: def.previewId,
+  severity: def.severity,
+  suppressed: def.ruleMuted,
+  instanceFingerprint: "api",
+  instanceLabels: { service: "api" },
+};
+const silence = {
+  id: "019c3abf-0000-7000-8000-000000000001",
+  comment: "checkout migration window",
+  matchers: [{ label: "service", op: "eq" as const, value: "api" }],
 };
 const scheduledFor = new Date("2026-08-07T12:00:00Z");
 const occurredAt = new Date("2026-08-07T12:00:01Z");
@@ -212,41 +229,28 @@ describe("ClickHouse alert history", () => {
   // A projection retry or a racing second writer must land on the same row
   // id: one terminal suppression per chain, never a phantom second one.
   it("converges suppression rows for one chain on one id", () => {
-    const opts = {
-      def,
-      notificationEventId: "019c3aba-29f8-7d6e-9e55-301cf47fa80d",
-      fingerprint: "api",
-      labels: { service: "api" },
-    };
     // The whole row, not only the id: an event_time from a decision clock
     // would differ between two writes, and a MergeTree keeps both of them.
-    expect(suppressionHistoryRow(opts)).toEqual(suppressionHistoryRow(opts));
-    expect(suppressionHistoryRow(opts).event_time).toBe(
-      uuidv7Time(opts.notificationEventId).toISOString(),
+    expect(journalTerminalRow(journalEvent)).toEqual(
+      journalTerminalRow(journalEvent),
     );
-    expect(suppressionHistoryRow(opts).event_id).not.toBe(
-      suppressionHistoryRow({
-        ...opts,
-        notificationEventId: "019c3abf-0000-7000-8000-000000000002",
+    expect(journalTerminalRow(journalEvent).event_time).toBe(
+      uuidv7Time(journalEvent.id).toISOString(),
+    );
+    expect(journalTerminalRow(journalEvent).event_id).not.toBe(
+      journalTerminalRow({
+        ...journalEvent,
+        id: "019c3abf-0000-7000-8000-000000000002",
       }).event_id,
     );
   });
 
   it("holds a chain once per silence, and the hold is not the terminal", () => {
-    const opts = {
-      def,
-      notificationEventId: "019c3aba-29f8-7d6e-9e55-301cf47fa80d",
-      fingerprint: "api",
-      labels: { service: "api" },
-      silence: {
-        id: "019c3abf-0000-7000-8000-000000000001",
-        comment: "checkout migration window",
-        matchers: [{ label: "service", op: "eq" as const, value: "api" }],
-      },
-    };
     // Both defer paths retry, so two writes of one hold must be one row.
-    expect(deferralHistoryRow(opts)).toEqual(deferralHistoryRow(opts));
-    expect(deferralHistoryRow(opts)).toMatchObject({
+    expect(journalHoldRow(journalEvent, silence)).toEqual(
+      journalHoldRow(journalEvent, silence),
+    );
+    expect(journalHoldRow(journalEvent, silence)).toMatchObject({
       event_type: "notification_deferred",
       silenced: true,
       silence_id: "019c3abf-0000-7000-8000-000000000001",
@@ -255,45 +259,26 @@ describe("ClickHouse alert history", () => {
     });
     // A second silence over the same chain is a second hold.
     expect(
-      deferralHistoryRow({
-        ...opts,
-        silence: {
-          ...opts.silence,
-          id: "019c3abf-0000-7000-8000-000000000002",
-        },
+      journalHoldRow(journalEvent, {
+        ...silence,
+        id: "019c3abf-0000-7000-8000-000000000002",
       }).event_id,
-    ).not.toBe(deferralHistoryRow(opts).event_id);
+    ).not.toBe(journalHoldRow(journalEvent, silence).event_id);
     // The hold and the terminal are different rows on one chain: a hold that
     // took the terminal's id would erase the decision when it landed.
-    expect(deferralHistoryRow(opts).event_id).not.toBe(
-      suppressionHistoryRow(opts).event_id,
+    expect(journalHoldRow(journalEvent, silence).event_id).not.toBe(
+      journalTerminalRow(journalEvent, { silence }).event_id,
     );
   });
 
   it("carries a lifecycle reason on a terminal suppression", () => {
-    const row = suppressionHistoryRow({
-      def,
-      notificationEventId: "019c3aba-29f8-7d6e-9e55-301cf47fa80d",
-      fingerprint: "api",
-      labels: { service: "api" },
-      reason: "rule_paused",
-    });
+    const row = journalTerminalRow(journalEvent, { reason: "rule_paused" });
     expect(row.reason).toBe("rule_paused");
     expect(row.silenced).toBe(false);
   });
 
   it("freezes the suppression decision against the transition it withheld", () => {
-    const row = suppressionHistoryRow({
-      def,
-      notificationEventId: "019c3aba-29f8-7d6e-9e55-301cf47fa80d",
-      fingerprint: "api",
-      labels: { service: "api" },
-      silence: {
-        id: "019c3abf-0000-7000-8000-000000000001",
-        comment: "checkout migration window",
-        matchers: [{ label: "service", op: "eq", value: "api" }],
-      },
-    });
+    const row = journalTerminalRow(journalEvent, { silence });
 
     expect(row).toMatchObject({
       event_type: "notification_suppressed",
@@ -311,12 +296,7 @@ describe("ClickHouse alert history", () => {
 
   it("writes the zero UUID, not an empty string, when no silence matched", () => {
     expect(
-      suppressionHistoryRow({
-        def,
-        notificationEventId: "019c3aba-29f8-7d6e-9e55-301cf47fa80d",
-        fingerprint: "api",
-        labels: {},
-      }).silence_id,
+      journalTerminalRow({ ...journalEvent, instanceLabels: {} }).silence_id,
     ).toBe(ZERO_UUID);
   });
 
@@ -424,11 +404,7 @@ describe("ClickHouse alert history", () => {
     // journal rows read by id), so a stable token is what makes the retry
     // converge instead of duplicating terminal rows.
     it("inserts synchronously with a token derived from the sorted row ids", async () => {
-      const first = suppressionHistoryRow({
-        def,
-        notificationEventId: "019c3aba-29f8-7d6e-9e55-301cf47fa80d",
-        fingerprint: "api",
-        labels: { service: "api" },
+      const first = journalTerminalRow(journalEvent, {
         reason: "rule_paused",
       });
       const second = instanceHistoryRow({

@@ -26,32 +26,6 @@ type AlertingCleanupCounts = {
   instances: number;
 };
 
-const EMPTY_COUNTS: AlertingCleanupCounts = {
-  alertEvaluations: 0,
-  events: 0,
-  deliveries: 0,
-  notificationGroups: 0,
-  silences: 0,
-  instances: 0,
-};
-
-// Keyed rather than field by field, so a seventh table added to the counts is
-// summed without a second edit here.
-function addCounts(
-  total: AlertingCleanupCounts,
-  batch: AlertingCleanupCounts,
-): AlertingCleanupCounts {
-  const summed = { ...total };
-  for (const key of Object.keys(summed) as (keyof AlertingCleanupCounts)[]) {
-    summed[key] = total[key] + batch[key];
-  }
-  return summed;
-}
-
-function deletedRows(result: { rowCount?: number | null }): number {
-  return result.rowCount ?? 0;
-}
-
 export async function cleanupAlertingHistory(options?: {
   now?: Date;
   batchSize?: number;
@@ -76,7 +50,14 @@ export async function cleanupAlertingHistory(options?: {
   const instanceCutoff = new Date(
     now.getTime() - INSTANCE_RETENTION_DAYS * DAY_MS,
   );
-  let totals = { ...EMPTY_COUNTS };
+  const totals: AlertingCleanupCounts = {
+    alertEvaluations: 0,
+    events: 0,
+    deliveries: 0,
+    notificationGroups: 0,
+    silences: 0,
+    instances: 0,
+  };
 
   for (;;) {
     const counts = await db.transaction(async (tx) => {
@@ -202,15 +183,17 @@ export async function cleanupAlertingHistory(options?: {
       `);
 
       return {
-        alertEvaluations: deletedRows(alertEvaluations),
-        events: deletedRows(events),
-        deliveries: deletedRows(deliveries),
-        notificationGroups: deletedRows(notificationGroups),
-        silences: deletedRows(silences),
-        instances: deletedRows(instances),
+        alertEvaluations: alertEvaluations.rowCount ?? 0,
+        events: events.rowCount ?? 0,
+        deliveries: deliveries.rowCount ?? 0,
+        notificationGroups: notificationGroups.rowCount ?? 0,
+        silences: silences.rowCount ?? 0,
+        instances: instances.rowCount ?? 0,
       };
     });
-    totals = addCounts(totals, counts);
+    for (const key of Object.keys(totals) as (keyof AlertingCleanupCounts)[]) {
+      totals[key] += counts[key];
+    }
     if (Object.values(counts).every((count) => count < batchSize)) break;
     if (clock() >= deadline) break;
   }

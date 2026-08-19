@@ -9,21 +9,6 @@ import {
 } from "../history/clickhouse";
 import { linkedEventsForDeliveryQuery } from "./journal-reader";
 
-/**
- * Channel type to the channel names it reached, for `delivery_targets`.
- *
- * Deliberately not the address. `app.alert_events` is append-only with a
- * retention TTL, so a webhook URL, a bot token, or a Telegram chat id written
- * here could not be withdrawn afterwards. The channel's user-chosen name
- * identifies it just as well and carries nothing sensitive.
- */
-export function deliveryTargets(
-  channelType: string,
-  channelName: string,
-): AlertDeliveryTargets {
-  return { [channelType]: [channelName] };
-}
-
 type LinkedEvent = {
   id: string;
   definition: AlertHistoryDefinition;
@@ -70,7 +55,14 @@ export async function recordDeliveryOutcome(opts: {
     );
     const first = events[0];
     if (first === undefined) return;
-    const targets = deliveryTargets(opts.channelType, opts.channelName);
+    // The channel name, deliberately not the address. `app.alert_events` is
+    // append-only with a retention TTL, so a webhook URL, a bot token, or a
+    // Telegram chat id written here could not be withdrawn afterwards. The
+    // channel's user-chosen name identifies it just as well and carries
+    // nothing sensitive.
+    const targets: AlertDeliveryTargets = {
+      [opts.channelType]: [opts.channelName],
+    };
     await recordAlertHistory(
       first.definition.id,
       events.map((event) =>

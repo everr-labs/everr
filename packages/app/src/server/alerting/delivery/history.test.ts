@@ -49,7 +49,7 @@ vi.mock("@/telemetry/logger", () => ({
   serverLogger: { error: mocks.error },
 }));
 
-import { deliveryTargets, recordDeliveryOutcome } from "./history";
+import { recordDeliveryOutcome } from "./history";
 
 const linkedEvent = {
   event: {
@@ -84,15 +84,14 @@ beforeEach(() => {
   mocks.error.mockReset();
 });
 
-describe("deliveryTargets", () => {
-  it("names the channel rather than its address", () => {
-    expect(deliveryTargets("slack", "on-call")).toEqual({
-      slack: ["on-call"],
-    });
-  });
-});
-
 describe("recordDeliveryOutcome", () => {
+  it("names the channel rather than its address", async () => {
+    await recordDeliveryOutcome(outcome);
+
+    const [, rows] = mocks.recordAlertHistory.mock.calls[0];
+    expect(rows[0].delivery_targets).toEqual({ slack: ["on-call"] });
+  });
+
   it("writes nothing when the delivery has no linked events", async () => {
     mocks.linkedRows = [];
 

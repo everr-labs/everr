@@ -328,122 +328,87 @@ function silenceRowFields(silence: SuppressingSilence | undefined) {
   };
 }
 
+type JournalChainRow = Parameters<typeof historyDefFromJournalRow>[0] & {
+  id: string;
+  instanceFingerprint: string;
+  instanceLabels: Record<string, string>;
+};
+
 /**
- * A notification that was decided against. Written when a silence stops an
- * event from reaching any channel, so "why was I not paged" is answerable
- * from the same table as the transition itself.
+ * The hold a chain gets while a silence keeps its notification waiting.
+ *
+ * A hold is not a decision: the event is reconsidered when the silence lapses
+ * and may still go out, which is why it has its own event type. Without it, a
+ * chain shows a fire and then nothing, and a reader cannot tell a held
+ * notification from a lost write.
+ *
+ * A hold ends when a delivery or a suppression row lands on the same chain,
+ * so "held right now" is a hold with neither, and the row needs no end time.
+ * `event_time` is the chain's own time, read back out of the notification
+ * event's UUIDv7, because the row must be byte-identical across retries.
+ */
+export function journalHoldRow(
+  event: JournalChainRow,
+  silence: SuppressingSilence,
+): AlertHistoryRow {
+  return {
+    ...baseHistoryRow({
+      def: historyDefFromJournalRow(event),
+      eventId: deterministicHoldEventId({
+        notificationEventId: event.id,
+        silenceId: silence.id,
+      }),
+      notificationEventId: event.id,
+      eventType: "notification_deferred",
+      occurredAt: uuidv7Time(event.id),
+    }),
+    ...instanceRowFields(event.instanceFingerprint, event.instanceLabels),
+    ...silenceRowFields(silence),
+  };
+}
+
+/**
+ * The terminal a notification chain gets when it ends without notifying, so
+ * "why was I not paged" is answerable from the same table as the transition
+ * itself.
+ *
+ * Every drop path owes one, and they differ only in the reason. The mapping
+ * from a journal row to its terminal therefore lives here, not restated
+ * wherever a chain dies. A new drop reason then names itself and nothing
+ * else, and a new field reaches every writer at once.
  *
  * There is no `occurredAt`: the row is one per chain, so `event_time` is the
  * chain's own time, read back out of the notification event's UUIDv7. A
  * decision clock would put a different time on each attempt, and two rows that
  * differ in any byte are two permanent rows on a MergeTree.
  */
-export function suppressionHistoryRow(opts: {
-  def: AlertHistoryDefinition;
-  notificationEventId: string;
-  fingerprint: string;
-  labels: Record<string, string>;
-  /** The silence that made the decision. Its presence is what `silenced`
-   * means, so no writer can claim a silence without freezing the copy that
-   * outlives it. */
-  silence?: SuppressingSilence;
-  /** Set on lifecycle terminals (`rule_paused`, `rule_deleted`); empty when a
-   * silence made the decision. */
-  reason?: AlertingLifecycleReason;
-}): AlertHistoryRow {
-  return {
-    ...baseHistoryRow({
-      def: opts.def,
-      // One terminal suppression per chain, so the id derives from the chain:
-      // a projection retry or a racing second writer converges on one row id
-      // instead of minting a phantom second terminal.
-      eventId: deterministicSuppressionEventId(opts.notificationEventId),
-      notificationEventId: opts.notificationEventId,
-      eventType: "notification_suppressed",
-      occurredAt: uuidv7Time(opts.notificationEventId),
-    }),
-    ...instanceRowFields(opts.fingerprint, opts.labels),
-    ...silenceRowFields(opts.silence),
-    reason: opts.reason ?? "",
-  };
-}
-
-/**
- * A notification a silence is holding right now. This is not a decision: the
- * event is reconsidered when the silence lapses and may still go out, which
- * is why the hold has its own event type. Without it, a chain shows a fire
- * and then nothing, and a reader cannot tell a held notification from a lost
- * write.
- *
- * A hold ends when a delivery or a suppression row lands on the same chain,
- * so "held right now" is a hold with neither, and the row needs no end time.
- * `event_time` is the chain's own time, because the row must be
- * byte-identical across retries.
- */
-export function deferralHistoryRow(opts: {
-  def: AlertHistoryDefinition;
-  notificationEventId: string;
-  fingerprint: string;
-  labels: Record<string, string>;
-  silence: SuppressingSilence;
-}): AlertHistoryRow {
-  return {
-    ...baseHistoryRow({
-      def: opts.def,
-      eventId: deterministicHoldEventId({
-        notificationEventId: opts.notificationEventId,
-        silenceId: opts.silence.id,
-      }),
-      notificationEventId: opts.notificationEventId,
-      eventType: "notification_deferred",
-      occurredAt: uuidv7Time(opts.notificationEventId),
-    }),
-    ...instanceRowFields(opts.fingerprint, opts.labels),
-    ...silenceRowFields(opts.silence),
-  };
-}
-
-/** The hold a chain gets while a silence keeps its notification waiting. */
-export function journalHoldRow(
-  event: Parameters<typeof journalTerminalRow>[0],
-  silence: SuppressingSilence,
-): AlertHistoryRow {
-  return deferralHistoryRow({
-    def: historyDefFromJournalRow(event),
-    notificationEventId: event.id,
-    fingerprint: event.instanceFingerprint,
-    labels: event.instanceLabels,
-    silence,
-  });
-}
-
-/**
- * The terminal a notification chain gets when it ends without notifying.
- *
- * Every drop path owes one, and they differ only in the reason. The mapping
- * from a journal row to its terminal therefore lives here, not restated
- * wherever a chain dies. A new drop reason then names itself and nothing
- * else, and a new field reaches every writer at once.
- */
 export function journalTerminalRow(
-  event: Parameters<typeof historyDefFromJournalRow>[0] & {
-    id: string;
-    instanceFingerprint: string;
-    instanceLabels: Record<string, string>;
-  },
+  event: JournalChainRow,
   opts: {
+    /** Set on lifecycle terminals (`rule_paused`, `rule_deleted`); empty when
+     * a silence made the decision. */
     reason?: AlertingLifecycleReason;
+    /** The silence that made the decision. Its presence is what `silenced`
+     * means, so no writer can claim a silence without freezing the copy that
+     * outlives it. */
     silence?: SuppressingSilence;
   } = {},
 ): AlertHistoryRow {
-  return suppressionHistoryRow({
-    def: historyDefFromJournalRow(event),
-    notificationEventId: event.id,
-    fingerprint: event.instanceFingerprint,
-    labels: event.instanceLabels,
-    ...(opts.silence ? { silence: opts.silence } : {}),
-    ...(opts.reason ? { reason: opts.reason } : {}),
-  });
+  return {
+    ...baseHistoryRow({
+      def: historyDefFromJournalRow(event),
+      // One terminal suppression per chain, so the id derives from the chain:
+      // a projection retry or a racing second writer converges on one row id
+      // instead of minting a phantom second terminal.
+      eventId: deterministicSuppressionEventId(event.id),
+      notificationEventId: event.id,
+      eventType: "notification_suppressed",
+      occurredAt: uuidv7Time(event.id),
+    }),
+    ...instanceRowFields(event.instanceFingerprint, event.instanceLabels),
+    ...silenceRowFields(opts.silence),
+    reason: opts.reason ?? "",
+  };
 }
 
 /**
