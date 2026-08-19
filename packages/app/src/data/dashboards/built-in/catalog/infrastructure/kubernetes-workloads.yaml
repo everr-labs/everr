@@ -17,6 +17,20 @@ document:
       name: Kubernetes Workloads
     duration: 6h
     refreshInterval: 1m
+    variables:
+      - kind: ListVariable
+        spec:
+          name: namespace
+          display:
+            name: Namespace
+          allowMultiple: true
+          allowAllValue: true
+          defaultValue: __all
+          sort: alphabetical-asc
+          plugin:
+            kind: ClickHouseSQLVariable
+            spec:
+              query: SELECT DISTINCT namespace FROM (SELECT ResourceAttributes['k8s.namespace.name'] AS namespace FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} UNION ALL SELECT ResourceAttributes['k8s.namespace.name'] AS namespace FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String}) WHERE namespace != '' ORDER BY namespace
     panels:
       nodes:
         kind: Panel
@@ -37,7 +51,7 @@ document:
                   spec:
                     query: |-
                       SELECT nullIf(uniqExact(dimension), 0) AS total
-                      FROM (SELECT ResourceAttributes['k8s.node.name'] AS dimension FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'k8s.node.cpu.usage' UNION ALL SELECT ResourceAttributes['k8s.node.name'] AS dimension FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'k8s.node.cpu.usage')
+                      FROM (SELECT ResourceAttributes['k8s.node.name'] AS dimension FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND ResourceAttributes['k8s.namespace.name'] IN $namespace AND MetricName = 'k8s.node.cpu.usage' UNION ALL SELECT ResourceAttributes['k8s.node.name'] AS dimension FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND ResourceAttributes['k8s.namespace.name'] IN $namespace AND MetricName = 'k8s.node.cpu.usage')
       pods:
         kind: Panel
         spec:
@@ -57,7 +71,7 @@ document:
                   spec:
                     query: |-
                       SELECT nullIf(uniqExact(dimension), 0) AS total
-                      FROM (SELECT ResourceAttributes['k8s.pod.name'] AS dimension FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'k8s.pod.cpu.usage' UNION ALL SELECT ResourceAttributes['k8s.pod.name'] AS dimension FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'k8s.pod.cpu.usage')
+                      FROM (SELECT ResourceAttributes['k8s.pod.name'] AS dimension FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND ResourceAttributes['k8s.namespace.name'] IN $namespace AND MetricName = 'k8s.pod.cpu.usage' UNION ALL SELECT ResourceAttributes['k8s.pod.name'] AS dimension FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND ResourceAttributes['k8s.namespace.name'] IN $namespace AND MetricName = 'k8s.pod.cpu.usage')
       node-memory-used:
         kind: Panel
         spec:
@@ -88,7 +102,7 @@ document:
                       SELECT round(
                                avgIf(Value, MetricName = 'k8s.node.memory.working_set')
                                / nullIf(avgIf(Value, MetricName = 'k8s.node.memory.working_set') + avgIf(Value, MetricName = 'k8s.node.memory.available'), 0) * 100, 1) AS pct
-                      FROM (SELECT MetricName, Value FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName IN ('k8s.node.memory.working_set', 'k8s.node.memory.available') UNION ALL SELECT MetricName, Value FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName IN ('k8s.node.memory.working_set', 'k8s.node.memory.available'))
+                      FROM (SELECT MetricName, Value FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND ResourceAttributes['k8s.namespace.name'] IN $namespace AND MetricName IN ('k8s.node.memory.working_set', 'k8s.node.memory.available') UNION ALL SELECT MetricName, Value FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND ResourceAttributes['k8s.namespace.name'] IN $namespace AND MetricName IN ('k8s.node.memory.working_set', 'k8s.node.memory.available'))
       node-filesystem-used:
         kind: Panel
         spec:
@@ -119,7 +133,7 @@ document:
                       SELECT round(
                                avgIf(Value, MetricName = 'k8s.node.filesystem.usage')
                                / nullIf(avgIf(Value, MetricName = 'k8s.node.filesystem.capacity'), 0) * 100, 1) AS pct
-                      FROM (SELECT MetricName, Value FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName IN ('k8s.node.filesystem.usage', 'k8s.node.filesystem.capacity') UNION ALL SELECT MetricName, Value FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName IN ('k8s.node.filesystem.usage', 'k8s.node.filesystem.capacity'))
+                      FROM (SELECT MetricName, Value FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND ResourceAttributes['k8s.namespace.name'] IN $namespace AND MetricName IN ('k8s.node.filesystem.usage', 'k8s.node.filesystem.capacity') UNION ALL SELECT MetricName, Value FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND ResourceAttributes['k8s.namespace.name'] IN $namespace AND MetricName IN ('k8s.node.filesystem.usage', 'k8s.node.filesystem.capacity'))
       node-cpu:
         kind: Panel
         spec:
@@ -138,7 +152,7 @@ document:
                   kind: ClickHouseSQL
                   spec:
                     query: |-
-                      WITH points AS (SELECT TimeUnix, Value, ResourceAttributes['k8s.node.name'] AS series FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'k8s.node.cpu.usage' UNION ALL SELECT TimeUnix, Value, ResourceAttributes['k8s.node.name'] AS series FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'k8s.node.cpu.usage')
+                      WITH points AS (SELECT TimeUnix, Value, ResourceAttributes['k8s.node.name'] AS series FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND ResourceAttributes['k8s.namespace.name'] IN $namespace AND MetricName = 'k8s.node.cpu.usage' UNION ALL SELECT TimeUnix, Value, ResourceAttributes['k8s.node.name'] AS series FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND ResourceAttributes['k8s.namespace.name'] IN $namespace AND MetricName = 'k8s.node.cpu.usage')
                       SELECT toStartOfInterval(TimeUnix, INTERVAL {step:UInt32} * 6 SECOND) AS ts,
                              series,
                              avg(Value) AS value
@@ -167,7 +181,7 @@ document:
                   kind: ClickHouseSQL
                   spec:
                     query: |-
-                      WITH points AS (SELECT TimeUnix, Value, ResourceAttributes['k8s.node.name'] AS series FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'k8s.node.memory.working_set' UNION ALL SELECT TimeUnix, Value, ResourceAttributes['k8s.node.name'] AS series FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'k8s.node.memory.working_set')
+                      WITH points AS (SELECT TimeUnix, Value, ResourceAttributes['k8s.node.name'] AS series FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND ResourceAttributes['k8s.namespace.name'] IN $namespace AND MetricName = 'k8s.node.memory.working_set' UNION ALL SELECT TimeUnix, Value, ResourceAttributes['k8s.node.name'] AS series FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND ResourceAttributes['k8s.namespace.name'] IN $namespace AND MetricName = 'k8s.node.memory.working_set')
                       SELECT toStartOfInterval(TimeUnix, INTERVAL {step:UInt32} * 6 SECOND) AS ts,
                              series,
                              avg(Value) / 1073741824 AS value
@@ -197,7 +211,7 @@ document:
                   kind: ClickHouseSQL
                   spec:
                     query: |-
-                      WITH points AS (SELECT TimeUnix, ResourceAttributes['k8s.namespace.name'] AS series, ResourceAttributes['k8s.pod.name'] AS pod, Value FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'k8s.pod.cpu.usage' UNION ALL SELECT TimeUnix, ResourceAttributes['k8s.namespace.name'] AS series, ResourceAttributes['k8s.pod.name'] AS pod, Value FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'k8s.pod.cpu.usage')
+                      WITH points AS (SELECT TimeUnix, ResourceAttributes['k8s.namespace.name'] AS series, ResourceAttributes['k8s.pod.name'] AS pod, Value FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND ResourceAttributes['k8s.namespace.name'] IN $namespace AND MetricName = 'k8s.pod.cpu.usage' UNION ALL SELECT TimeUnix, ResourceAttributes['k8s.namespace.name'] AS series, ResourceAttributes['k8s.pod.name'] AS pod, Value FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND ResourceAttributes['k8s.namespace.name'] IN $namespace AND MetricName = 'k8s.pod.cpu.usage')
                       SELECT ts, series, sum(pod_value) AS value
                       FROM (
                         SELECT toStartOfInterval(TimeUnix, INTERVAL {step:UInt32} * 6 SECOND) AS ts, series, pod,
@@ -230,7 +244,7 @@ document:
                   kind: ClickHouseSQL
                   spec:
                     query: |-
-                      WITH points AS (SELECT TimeUnix, ResourceAttributes['k8s.namespace.name'] AS series, ResourceAttributes['k8s.pod.name'] AS pod, Value FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'k8s.pod.memory.working_set' UNION ALL SELECT TimeUnix, ResourceAttributes['k8s.namespace.name'] AS series, ResourceAttributes['k8s.pod.name'] AS pod, Value FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'k8s.pod.memory.working_set')
+                      WITH points AS (SELECT TimeUnix, ResourceAttributes['k8s.namespace.name'] AS series, ResourceAttributes['k8s.pod.name'] AS pod, Value FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND ResourceAttributes['k8s.namespace.name'] IN $namespace AND MetricName = 'k8s.pod.memory.working_set' UNION ALL SELECT TimeUnix, ResourceAttributes['k8s.namespace.name'] AS series, ResourceAttributes['k8s.pod.name'] AS pod, Value FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND ResourceAttributes['k8s.namespace.name'] IN $namespace AND MetricName = 'k8s.pod.memory.working_set')
                       SELECT ts, series, sum(pod_value) / 1073741824 AS value
                       FROM (
                         SELECT toStartOfInterval(TimeUnix, INTERVAL {step:UInt32} * 6 SECOND) AS ts, series, pod,
@@ -262,7 +276,7 @@ document:
                   spec:
                     query: |-
                       SELECT namespace, pod, round(avg(Value), 3) AS cpu_cores
-                      FROM (SELECT ResourceAttributes['k8s.namespace.name'] AS namespace, ResourceAttributes['k8s.pod.name'] AS pod, Value FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'k8s.pod.cpu.usage' UNION ALL SELECT ResourceAttributes['k8s.namespace.name'] AS namespace, ResourceAttributes['k8s.pod.name'] AS pod, Value FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'k8s.pod.cpu.usage')
+                      FROM (SELECT ResourceAttributes['k8s.namespace.name'] AS namespace, ResourceAttributes['k8s.pod.name'] AS pod, Value FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND ResourceAttributes['k8s.namespace.name'] IN $namespace AND MetricName = 'k8s.pod.cpu.usage' UNION ALL SELECT ResourceAttributes['k8s.namespace.name'] AS namespace, ResourceAttributes['k8s.pod.name'] AS pod, Value FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND ResourceAttributes['k8s.namespace.name'] IN $namespace AND MetricName = 'k8s.pod.cpu.usage')
                       GROUP BY namespace, pod
                       ORDER BY cpu_cores DESC
                       LIMIT 15
@@ -284,7 +298,7 @@ document:
                   spec:
                     query: |-
                       SELECT namespace, pod, round(avg(Value) / 1048576, 3) AS mem_mib
-                      FROM (SELECT ResourceAttributes['k8s.namespace.name'] AS namespace, ResourceAttributes['k8s.pod.name'] AS pod, Value FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'k8s.pod.memory.working_set' UNION ALL SELECT ResourceAttributes['k8s.namespace.name'] AS namespace, ResourceAttributes['k8s.pod.name'] AS pod, Value FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'k8s.pod.memory.working_set')
+                      FROM (SELECT ResourceAttributes['k8s.namespace.name'] AS namespace, ResourceAttributes['k8s.pod.name'] AS pod, Value FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND ResourceAttributes['k8s.namespace.name'] IN $namespace AND MetricName = 'k8s.pod.memory.working_set' UNION ALL SELECT ResourceAttributes['k8s.namespace.name'] AS namespace, ResourceAttributes['k8s.pod.name'] AS pod, Value FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND ResourceAttributes['k8s.namespace.name'] IN $namespace AND MetricName = 'k8s.pod.memory.working_set')
                       GROUP BY namespace, pod
                       ORDER BY mem_mib DESC
                       LIMIT 15
@@ -307,7 +321,7 @@ document:
                   kind: ClickHouseSQL
                   spec:
                     query: |-
-                      WITH points AS (SELECT TimeUnix, ResourceAttributes, Attributes, Value, Attributes['direction'] AS series FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'k8s.pod.network.io' UNION ALL SELECT TimeUnix, ResourceAttributes, Attributes, Value, Attributes['direction'] AS series FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'k8s.pod.network.io')
+                      WITH points AS (SELECT TimeUnix, ResourceAttributes, Attributes, Value, Attributes['direction'] AS series FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND ResourceAttributes['k8s.namespace.name'] IN $namespace AND MetricName = 'k8s.pod.network.io' UNION ALL SELECT TimeUnix, ResourceAttributes, Attributes, Value, Attributes['direction'] AS series FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND ResourceAttributes['k8s.namespace.name'] IN $namespace AND MetricName = 'k8s.pod.network.io')
                       SELECT ts, series, sum(delta) / 1048576 AS value
                       FROM (
                         SELECT toStartOfInterval(TimeUnix, INTERVAL {step:UInt32} * 6 SECOND) AS ts, series,
@@ -341,7 +355,7 @@ document:
                   kind: ClickHouseSQL
                   spec:
                     query: |-
-                      WITH points AS (SELECT TimeUnix, ResourceAttributes, Attributes, Value, Attributes['direction'] AS series FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'k8s.node.network.io' UNION ALL SELECT TimeUnix, ResourceAttributes, Attributes, Value, Attributes['direction'] AS series FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'k8s.node.network.io')
+                      WITH points AS (SELECT TimeUnix, ResourceAttributes, Attributes, Value, Attributes['direction'] AS series FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND ResourceAttributes['k8s.namespace.name'] IN $namespace AND MetricName = 'k8s.node.network.io' UNION ALL SELECT TimeUnix, ResourceAttributes, Attributes, Value, Attributes['direction'] AS series FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND ResourceAttributes['k8s.namespace.name'] IN $namespace AND MetricName = 'k8s.node.network.io')
                       SELECT ts, series, sum(delta) / 1048576 AS value
                       FROM (
                         SELECT toStartOfInterval(TimeUnix, INTERVAL {step:UInt32} * 6 SECOND) AS ts, series,

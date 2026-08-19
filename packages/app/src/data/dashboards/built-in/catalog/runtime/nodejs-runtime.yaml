@@ -17,6 +17,20 @@ document:
       name: Node.js Runtime
     duration: 6h
     refreshInterval: 1m
+    variables:
+      - kind: ListVariable
+        spec:
+          name: service
+          display:
+            name: Service
+          allowMultiple: true
+          allowAllValue: true
+          defaultValue: __all
+          sort: alphabetical-asc
+          plugin:
+            kind: ClickHouseSQLVariable
+            spec:
+              query: SELECT DISTINCT ServiceName FROM (SELECT ServiceName FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName LIKE 'nodejs.%' UNION ALL SELECT ServiceName FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName LIKE 'nodejs.%') ORDER BY ServiceName
     panels:
       utilization:
         kind: Panel
@@ -46,7 +60,7 @@ document:
                   spec:
                     query: |-
                       SELECT avg(Value) * 100 AS pct
-                      FROM (SELECT Value FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'nodejs.eventloop.utilization' UNION ALL SELECT Value FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'nodejs.eventloop.utilization')
+                      FROM (SELECT Value FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND ServiceName IN $service AND MetricName = 'nodejs.eventloop.utilization' UNION ALL SELECT Value FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND ServiceName IN $service AND MetricName = 'nodejs.eventloop.utilization')
       delay-p99:
         kind: Panel
         spec:
@@ -66,7 +80,7 @@ document:
                   spec:
                     query: |-
                       SELECT avg(Value) * 1000 AS ms
-                      FROM (SELECT Value FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'nodejs.eventloop.delay.p99' UNION ALL SELECT Value FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'nodejs.eventloop.delay.p99')
+                      FROM (SELECT Value FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND ServiceName IN $service AND MetricName = 'nodejs.eventloop.delay.p99' UNION ALL SELECT Value FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND ServiceName IN $service AND MetricName = 'nodejs.eventloop.delay.p99')
       heap-used:
         kind: Panel
         spec:
@@ -88,7 +102,7 @@ document:
                       SELECT avg(total) / 1048576 AS mb
                       FROM (
                         SELECT TimeUnix, ResourceAttributes['service.instance.id'] AS instance, sum(Value) AS total
-                        FROM (SELECT TimeUnix, ResourceAttributes, Value FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'v8js.memory.heap.used' UNION ALL SELECT TimeUnix, ResourceAttributes, Value FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'v8js.memory.heap.used')
+                        FROM (SELECT TimeUnix, ResourceAttributes, Value FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND ServiceName IN $service AND MetricName = 'v8js.memory.heap.used' UNION ALL SELECT TimeUnix, ResourceAttributes, Value FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND ServiceName IN $service AND MetricName = 'v8js.memory.heap.used')
                         GROUP BY TimeUnix, instance
                       )
       headroom:
@@ -124,7 +138,7 @@ document:
                                sumIf(Value, MetricName = 'v8js.memory.heap.used') AS used,
                                maxIf(Value, MetricName = 'v8js.memory.heap.limit') AS lim,
                                used / nullIf(lim, 0) * 100 AS pct
-                        FROM (SELECT TimeUnix, ResourceAttributes, MetricName, Value FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName IN ('v8js.memory.heap.used', 'v8js.memory.heap.limit') UNION ALL SELECT TimeUnix, ResourceAttributes, MetricName, Value FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName IN ('v8js.memory.heap.used', 'v8js.memory.heap.limit'))
+                        FROM (SELECT TimeUnix, ResourceAttributes, MetricName, Value FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND ServiceName IN $service AND MetricName IN ('v8js.memory.heap.used', 'v8js.memory.heap.limit') UNION ALL SELECT TimeUnix, ResourceAttributes, MetricName, Value FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND ServiceName IN $service AND MetricName IN ('v8js.memory.heap.used', 'v8js.memory.heap.limit'))
                         GROUP BY TimeUnix, instance
                         HAVING lim > 0
                       )
@@ -147,11 +161,11 @@ document:
                     query: |-
                       SELECT toStartOfInterval(TimeUnix, INTERVAL {step:UInt32} * 6 SECOND) AS ts, series, avg(Value) * 1000 AS ms
                       FROM (
-                        SELECT TimeUnix, 'p50' AS series, Value FROM (SELECT TimeUnix, Value FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'nodejs.eventloop.delay.p50' UNION ALL SELECT TimeUnix, Value FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'nodejs.eventloop.delay.p50')
+                        SELECT TimeUnix, 'p50' AS series, Value FROM (SELECT TimeUnix, Value FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND ServiceName IN $service AND MetricName = 'nodejs.eventloop.delay.p50' UNION ALL SELECT TimeUnix, Value FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND ServiceName IN $service AND MetricName = 'nodejs.eventloop.delay.p50')
                         UNION ALL
-                        SELECT TimeUnix, 'p90' AS series, Value FROM (SELECT TimeUnix, Value FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'nodejs.eventloop.delay.p90' UNION ALL SELECT TimeUnix, Value FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'nodejs.eventloop.delay.p90')
+                        SELECT TimeUnix, 'p90' AS series, Value FROM (SELECT TimeUnix, Value FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND ServiceName IN $service AND MetricName = 'nodejs.eventloop.delay.p90' UNION ALL SELECT TimeUnix, Value FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND ServiceName IN $service AND MetricName = 'nodejs.eventloop.delay.p90')
                         UNION ALL
-                        SELECT TimeUnix, 'p99' AS series, Value FROM (SELECT TimeUnix, Value FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'nodejs.eventloop.delay.p99' UNION ALL SELECT TimeUnix, Value FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'nodejs.eventloop.delay.p99')
+                        SELECT TimeUnix, 'p99' AS series, Value FROM (SELECT TimeUnix, Value FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND ServiceName IN $service AND MetricName = 'nodejs.eventloop.delay.p99' UNION ALL SELECT TimeUnix, Value FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND ServiceName IN $service AND MetricName = 'nodejs.eventloop.delay.p99')
                       )
                       GROUP BY ts, series
                       ORDER BY ts
@@ -174,7 +188,7 @@ document:
                     query: |-
                       SELECT toStartOfInterval(TimeUnix, INTERVAL {step:UInt32} SECOND) AS ts,
                              avg(Value) * 100 AS value
-                      FROM (SELECT TimeUnix, Value FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'nodejs.eventloop.utilization' UNION ALL SELECT TimeUnix, Value FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'nodejs.eventloop.utilization')
+                      FROM (SELECT TimeUnix, Value FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND ServiceName IN $service AND MetricName = 'nodejs.eventloop.utilization' UNION ALL SELECT TimeUnix, Value FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND ServiceName IN $service AND MetricName = 'nodejs.eventloop.utilization')
                       GROUP BY ts
                       ORDER BY ts
       heap-vs-limit:
@@ -199,7 +213,7 @@ document:
                         SELECT toStartOfInterval(TimeUnix, INTERVAL {step:UInt32} * 6 SECOND) AS ts, TimeUnix, ResourceAttributes['service.instance.id'] AS instance,
                                sumIf(Value, MetricName = 'v8js.memory.heap.used') AS used,
                                maxIf(Value, MetricName = 'v8js.memory.heap.limit') AS lim
-                        FROM (SELECT TimeUnix, ResourceAttributes, MetricName, Value FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName IN ('v8js.memory.heap.used', 'v8js.memory.heap.limit') UNION ALL SELECT TimeUnix, ResourceAttributes, MetricName, Value FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName IN ('v8js.memory.heap.used', 'v8js.memory.heap.limit'))
+                        FROM (SELECT TimeUnix, ResourceAttributes, MetricName, Value FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND ServiceName IN $service AND MetricName IN ('v8js.memory.heap.used', 'v8js.memory.heap.limit') UNION ALL SELECT TimeUnix, ResourceAttributes, MetricName, Value FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND ServiceName IN $service AND MetricName IN ('v8js.memory.heap.used', 'v8js.memory.heap.limit'))
                         GROUP BY ts, TimeUnix, instance
                       )
                       ARRAY JOIN [used, lim] AS bytes, ['used', 'limit'] AS series
@@ -227,7 +241,7 @@ document:
                       SELECT toStartOfInterval(TimeUnix, INTERVAL {step:UInt32} SECOND) AS ts,
                              sum(Sum) / nullIf(sum(Count), 0) * 1000 AS ms
                       FROM metrics_histogram
-                      WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'v8js.gc.duration'
+                      WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND ServiceName IN $service AND MetricName = 'v8js.gc.duration'
                       GROUP BY ts
                       ORDER BY ts
       space-size:
@@ -247,7 +261,7 @@ document:
                   kind: ClickHouseSQL
                   spec:
                     query: |-
-                      WITH points AS (SELECT TimeUnix, Value, Attributes['v8js.heap.space.name'] AS series FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'v8js.memory.heap.space.size' UNION ALL SELECT TimeUnix, Value, Attributes['v8js.heap.space.name'] AS series FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'v8js.memory.heap.space.size')
+                      WITH points AS (SELECT TimeUnix, Value, Attributes['v8js.heap.space.name'] AS series FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND ServiceName IN $service AND MetricName = 'v8js.memory.heap.space.size' UNION ALL SELECT TimeUnix, Value, Attributes['v8js.heap.space.name'] AS series FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND ServiceName IN $service AND MetricName = 'v8js.memory.heap.space.size')
                       SELECT toStartOfInterval(TimeUnix, INTERVAL {step:UInt32} * 6 SECOND) AS ts,
                              series,
                              avg(Value) / 1048576 AS value
@@ -275,7 +289,7 @@ document:
                   kind: ClickHouseSQL
                   spec:
                     query: |-
-                      WITH points AS (SELECT TimeUnix, Value, Attributes['v8js.heap.space.name'] AS series FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'v8js.memory.heap.space.physical_size' UNION ALL SELECT TimeUnix, Value, Attributes['v8js.heap.space.name'] AS series FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'v8js.memory.heap.space.physical_size')
+                      WITH points AS (SELECT TimeUnix, Value, Attributes['v8js.heap.space.name'] AS series FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND ServiceName IN $service AND MetricName = 'v8js.memory.heap.space.physical_size' UNION ALL SELECT TimeUnix, Value, Attributes['v8js.heap.space.name'] AS series FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND ServiceName IN $service AND MetricName = 'v8js.memory.heap.space.physical_size')
                       SELECT toStartOfInterval(TimeUnix, INTERVAL {step:UInt32} * 6 SECOND) AS ts,
                              series,
                              avg(Value) / 1048576 AS value
@@ -303,7 +317,7 @@ document:
                   kind: ClickHouseSQL
                   spec:
                     query: |-
-                      WITH points AS (SELECT TimeUnix, Value, Attributes['v8js.heap.space.name'] AS series FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'v8js.memory.heap.space.available_size' UNION ALL SELECT TimeUnix, Value, Attributes['v8js.heap.space.name'] AS series FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'v8js.memory.heap.space.available_size')
+                      WITH points AS (SELECT TimeUnix, Value, Attributes['v8js.heap.space.name'] AS series FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND ServiceName IN $service AND MetricName = 'v8js.memory.heap.space.available_size' UNION ALL SELECT TimeUnix, Value, Attributes['v8js.heap.space.name'] AS series FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND ServiceName IN $service AND MetricName = 'v8js.memory.heap.space.available_size')
                       SELECT toStartOfInterval(TimeUnix, INTERVAL {step:UInt32} * 6 SECOND) AS ts,
                              series,
                              avg(Value) / 1048576 AS value
@@ -338,7 +352,7 @@ document:
                                Attributes['nodejs.eventloop.state'] AS series,
                                ResourceAttributes['service.instance.id'] AS instance,
                                max(Value) - min(Value) AS seconds
-                        FROM (SELECT TimeUnix, ResourceAttributes, Attributes, Value FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'nodejs.eventloop.time' UNION ALL SELECT TimeUnix, ResourceAttributes, Attributes, Value FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'nodejs.eventloop.time')
+                        FROM (SELECT TimeUnix, ResourceAttributes, Attributes, Value FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND ServiceName IN $service AND MetricName = 'nodejs.eventloop.time' UNION ALL SELECT TimeUnix, ResourceAttributes, Attributes, Value FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND ServiceName IN $service AND MetricName = 'nodejs.eventloop.time')
                         GROUP BY ts, series, instance
                       )
                       GROUP BY ts, series

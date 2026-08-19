@@ -16,8 +16,10 @@ export interface BuiltinManifestEntry {
 export const BUILTIN_MANIFEST: BuiltinManifestEntry[] = [
   { id: "http-endpoints", name: "HTTP Endpoints" },
   { id: "rpc-services", name: "RPC Services" },
+  { id: "server-functions", name: "Server Functions" },
   { id: "serverless-functions", name: "Serverless Functions" },
   { id: "log-overview", name: "Log Overview" },
+  { id: "traces-overview", name: "Traces Overview" },
   { id: "metric-overview", name: "Metric Overview" },
   { id: "jvm-runtime", name: "JVM Runtime" },
   { id: "nodejs-runtime", name: "Node.js Runtime" },
@@ -25,9 +27,7 @@ export const BUILTIN_MANIFEST: BuiltinManifestEntry[] = [
   { id: "mysql-overview", name: "MySQL Overview" },
   { id: "redis-overview", name: "Redis Overview" },
   { id: "mongodb-overview", name: "MongoDB Overview" },
-  { id: "host-metrics", name: "Host Metrics" },
   { id: "kubernetes-workloads", name: "Kubernetes Workloads" },
-  { id: "container-metrics", name: "Container Metrics" },
   { id: "web-vitals", name: "Web Vitals" },
   { id: "product-analytics", name: "Product Analytics" },
 ];

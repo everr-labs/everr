@@ -17,6 +17,20 @@ document:
       name: JVM Runtime
     duration: 6h
     refreshInterval: 1m
+    variables:
+      - kind: ListVariable
+        spec:
+          name: service
+          display:
+            name: Service
+          allowMultiple: true
+          allowAllValue: true
+          defaultValue: __all
+          sort: alphabetical-asc
+          plugin:
+            kind: ClickHouseSQLVariable
+            spec:
+              query: SELECT DISTINCT ServiceName FROM (SELECT ServiceName FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName LIKE 'jvm.%' UNION ALL SELECT ServiceName FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName LIKE 'jvm.%') ORDER BY ServiceName
     panels:
       heap-used:
         kind: Panel
@@ -39,7 +53,7 @@ document:
                       SELECT bytes / 1048576 AS mb FROM (SELECT avg(total) AS bytes
                       FROM (
                         SELECT TimeUnix, ResourceAttributes['service.instance.id'] AS instance, sum(Value) AS total
-                        FROM (SELECT TimeUnix, ResourceAttributes, Value FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'jvm.memory.used' AND Attributes['jvm.memory.type'] = 'heap' UNION ALL SELECT TimeUnix, ResourceAttributes, Value FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'jvm.memory.used' AND Attributes['jvm.memory.type'] = 'heap')
+                        FROM (SELECT TimeUnix, ResourceAttributes, Value FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND ServiceName IN $service AND MetricName = 'jvm.memory.used' AND Attributes['jvm.memory.type'] = 'heap' UNION ALL SELECT TimeUnix, ResourceAttributes, Value FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND ServiceName IN $service AND MetricName = 'jvm.memory.used' AND Attributes['jvm.memory.type'] = 'heap')
                         GROUP BY TimeUnix, instance
                       ))
       heap-of-limit:
@@ -74,7 +88,7 @@ document:
                                sumIf(Value, MetricName = 'jvm.memory.used') AS used,
                                sumIf(Value, MetricName = 'jvm.memory.limit') AS lim,
                                used / nullIf(lim, 0) * 100 AS pct
-                        FROM (SELECT TimeUnix, ResourceAttributes, MetricName, Value FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName IN ('jvm.memory.used', 'jvm.memory.limit') AND Attributes['jvm.memory.type'] = 'heap' UNION ALL SELECT TimeUnix, ResourceAttributes, MetricName, Value FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName IN ('jvm.memory.used', 'jvm.memory.limit') AND Attributes['jvm.memory.type'] = 'heap')
+                        FROM (SELECT TimeUnix, ResourceAttributes, MetricName, Value FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND ServiceName IN $service AND MetricName IN ('jvm.memory.used', 'jvm.memory.limit') AND Attributes['jvm.memory.type'] = 'heap' UNION ALL SELECT TimeUnix, ResourceAttributes, MetricName, Value FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND ServiceName IN $service AND MetricName IN ('jvm.memory.used', 'jvm.memory.limit') AND Attributes['jvm.memory.type'] = 'heap')
                         GROUP BY TimeUnix, instance
                         HAVING lim > 0
                       )
@@ -99,7 +113,7 @@ document:
                       SELECT bytes / 1048576 AS mb FROM (SELECT avg(total) AS bytes
                       FROM (
                         SELECT TimeUnix, ResourceAttributes['service.instance.id'] AS instance, sum(Value) AS total
-                        FROM (SELECT TimeUnix, ResourceAttributes, Value FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'jvm.memory.used' AND Attributes['jvm.memory.type'] = 'non_heap' UNION ALL SELECT TimeUnix, ResourceAttributes, Value FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'jvm.memory.used' AND Attributes['jvm.memory.type'] = 'non_heap')
+                        FROM (SELECT TimeUnix, ResourceAttributes, Value FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND ServiceName IN $service AND MetricName = 'jvm.memory.used' AND Attributes['jvm.memory.type'] = 'non_heap' UNION ALL SELECT TimeUnix, ResourceAttributes, Value FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND ServiceName IN $service AND MetricName = 'jvm.memory.used' AND Attributes['jvm.memory.type'] = 'non_heap')
                         GROUP BY TimeUnix, instance
                       ))
       threads:
@@ -122,7 +136,7 @@ document:
                       SELECT avg(total) AS threads
                       FROM (
                         SELECT TimeUnix, ResourceAttributes['service.instance.id'] AS instance, sum(Value) AS total
-                        FROM (SELECT TimeUnix, ResourceAttributes, Value FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'jvm.thread.count' UNION ALL SELECT TimeUnix, ResourceAttributes, Value FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'jvm.thread.count')
+                        FROM (SELECT TimeUnix, ResourceAttributes, Value FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND ServiceName IN $service AND MetricName = 'jvm.thread.count' UNION ALL SELECT TimeUnix, ResourceAttributes, Value FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND ServiceName IN $service AND MetricName = 'jvm.thread.count')
                         GROUP BY TimeUnix, instance
                       )
       cpu:
@@ -152,7 +166,7 @@ document:
                   spec:
                     query: |-
                       SELECT avg(Value) * 100 AS pct
-                      FROM (SELECT Value FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'jvm.cpu.recent_utilization' UNION ALL SELECT Value FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'jvm.cpu.recent_utilization')
+                      FROM (SELECT Value FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND ServiceName IN $service AND MetricName = 'jvm.cpu.recent_utilization' UNION ALL SELECT Value FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND ServiceName IN $service AND MetricName = 'jvm.cpu.recent_utilization')
       heap-memory:
         kind: Panel
         spec:
@@ -177,7 +191,7 @@ document:
                                sumIf(Value, MetricName = 'jvm.memory.used') AS used,
                                sumIf(Value, MetricName = 'jvm.memory.committed') AS committed,
                                sumIf(Value, MetricName = 'jvm.memory.limit') AS lim
-                        FROM (SELECT TimeUnix, ResourceAttributes, MetricName, Value FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName IN ('jvm.memory.used', 'jvm.memory.committed', 'jvm.memory.limit') AND Attributes['jvm.memory.type'] = 'heap' UNION ALL SELECT TimeUnix, ResourceAttributes, MetricName, Value FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName IN ('jvm.memory.used', 'jvm.memory.committed', 'jvm.memory.limit') AND Attributes['jvm.memory.type'] = 'heap')
+                        FROM (SELECT TimeUnix, ResourceAttributes, MetricName, Value FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND ServiceName IN $service AND MetricName IN ('jvm.memory.used', 'jvm.memory.committed', 'jvm.memory.limit') AND Attributes['jvm.memory.type'] = 'heap' UNION ALL SELECT TimeUnix, ResourceAttributes, MetricName, Value FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND ServiceName IN $service AND MetricName IN ('jvm.memory.used', 'jvm.memory.committed', 'jvm.memory.limit') AND Attributes['jvm.memory.type'] = 'heap')
                         GROUP BY ts, TimeUnix, instance
                       )
                       ARRAY JOIN [used, committed, lim] AS bytes, ['used', 'committed', 'limit'] AS series
@@ -208,7 +222,7 @@ document:
                                sumIf(Value, MetricName = 'jvm.memory.used') AS used,
                                sumIf(Value, MetricName = 'jvm.memory.committed') AS committed,
                                sumIf(Value, MetricName = 'jvm.memory.limit') AS lim
-                        FROM (SELECT TimeUnix, ResourceAttributes, MetricName, Value FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName IN ('jvm.memory.used', 'jvm.memory.committed', 'jvm.memory.limit') AND Attributes['jvm.memory.type'] = 'non_heap' UNION ALL SELECT TimeUnix, ResourceAttributes, MetricName, Value FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName IN ('jvm.memory.used', 'jvm.memory.committed', 'jvm.memory.limit') AND Attributes['jvm.memory.type'] = 'non_heap')
+                        FROM (SELECT TimeUnix, ResourceAttributes, MetricName, Value FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND ServiceName IN $service AND MetricName IN ('jvm.memory.used', 'jvm.memory.committed', 'jvm.memory.limit') AND Attributes['jvm.memory.type'] = 'non_heap' UNION ALL SELECT TimeUnix, ResourceAttributes, MetricName, Value FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND ServiceName IN $service AND MetricName IN ('jvm.memory.used', 'jvm.memory.committed', 'jvm.memory.limit') AND Attributes['jvm.memory.type'] = 'non_heap')
                         GROUP BY ts, TimeUnix, instance
                       )
                       ARRAY JOIN [used, committed, lim] AS bytes, ['used', 'committed', 'limit'] AS series
@@ -232,7 +246,7 @@ document:
                   kind: ClickHouseSQL
                   spec:
                     query: |-
-                      WITH points AS (SELECT TimeUnix, Value, Attributes['jvm.memory.pool.name'] AS series FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'jvm.memory.used' UNION ALL SELECT TimeUnix, Value, Attributes['jvm.memory.pool.name'] AS series FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'jvm.memory.used')
+                      WITH points AS (SELECT TimeUnix, Value, Attributes['jvm.memory.pool.name'] AS series FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND ServiceName IN $service AND MetricName = 'jvm.memory.used' UNION ALL SELECT TimeUnix, Value, Attributes['jvm.memory.pool.name'] AS series FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND ServiceName IN $service AND MetricName = 'jvm.memory.used')
                       SELECT toStartOfInterval(TimeUnix, INTERVAL {step:UInt32} * 6 SECOND) AS ts,
                              series,
                              avg(Value) / 1048576 AS value
@@ -261,7 +275,7 @@ document:
                   kind: ClickHouseSQL
                   spec:
                     query: |-
-                      WITH points AS (SELECT TimeUnix, Value, Attributes['jvm.memory.pool.name'] AS series FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'jvm.memory.used_after_last_gc' UNION ALL SELECT TimeUnix, Value, Attributes['jvm.memory.pool.name'] AS series FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'jvm.memory.used_after_last_gc')
+                      WITH points AS (SELECT TimeUnix, Value, Attributes['jvm.memory.pool.name'] AS series FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND ServiceName IN $service AND MetricName = 'jvm.memory.used_after_last_gc' UNION ALL SELECT TimeUnix, Value, Attributes['jvm.memory.pool.name'] AS series FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND ServiceName IN $service AND MetricName = 'jvm.memory.used_after_last_gc')
                       SELECT toStartOfInterval(TimeUnix, INTERVAL {step:UInt32} * 6 SECOND) AS ts,
                              series,
                              avg(Value) / 1048576 AS value
@@ -298,7 +312,7 @@ document:
                                max(Count) - min(Count) AS collections,
                                max(Sum) - min(Sum) AS seconds
                         FROM metrics_histogram
-                        WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'jvm.gc.duration'
+                        WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND ServiceName IN $service AND MetricName = 'jvm.gc.duration'
                         GROUP BY ts, series, resource, attrs
                       )
                       GROUP BY ts, series
@@ -329,7 +343,7 @@ document:
                                max(Count) - min(Count) AS collections,
                                max(Sum) - min(Sum) AS seconds
                         FROM metrics_histogram
-                        WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'jvm.gc.duration'
+                        WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND ServiceName IN $service AND MetricName = 'jvm.gc.duration'
                         GROUP BY ts, series, resource, attrs
                       )
                       GROUP BY ts, series
@@ -360,7 +374,7 @@ document:
                                max(Count) - min(Count) AS collections,
                                max(Sum) - min(Sum) AS seconds
                         FROM metrics_histogram
-                        WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'jvm.gc.duration'
+                        WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND ServiceName IN $service AND MetricName = 'jvm.gc.duration'
                         GROUP BY ts, series, resource, attrs
                       )
                       GROUP BY ts
@@ -383,7 +397,7 @@ document:
                   kind: ClickHouseSQL
                   spec:
                     query: |-
-                      WITH points AS (SELECT TimeUnix, Value, Attributes['jvm.thread.state'] AS series FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'jvm.thread.count' UNION ALL SELECT TimeUnix, Value, Attributes['jvm.thread.state'] AS series FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'jvm.thread.count')
+                      WITH points AS (SELECT TimeUnix, Value, Attributes['jvm.thread.state'] AS series FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND ServiceName IN $service AND MetricName = 'jvm.thread.count' UNION ALL SELECT TimeUnix, Value, Attributes['jvm.thread.state'] AS series FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND ServiceName IN $service AND MetricName = 'jvm.thread.count')
                       SELECT toStartOfInterval(TimeUnix, INTERVAL {step:UInt32} * 6 SECOND) AS ts,
                              series,
                              avg(Value) AS value
@@ -415,7 +429,7 @@ document:
                       SELECT toStartOfInterval(TimeUnix, INTERVAL {step:UInt32} * 6 SECOND) AS ts,
                              transform(MetricName, ['jvm.cpu.recent_utilization', 'jvm.system.cpu.utilization'], ['process', 'system'], 'other') AS series,
                              avg(Value) * 100 AS value
-                      FROM (SELECT TimeUnix, MetricName, Value FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName IN ('jvm.cpu.recent_utilization', 'jvm.system.cpu.utilization') UNION ALL SELECT TimeUnix, MetricName, Value FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName IN ('jvm.cpu.recent_utilization', 'jvm.system.cpu.utilization'))
+                      FROM (SELECT TimeUnix, MetricName, Value FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND ServiceName IN $service AND MetricName IN ('jvm.cpu.recent_utilization', 'jvm.system.cpu.utilization') UNION ALL SELECT TimeUnix, MetricName, Value FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND ServiceName IN $service AND MetricName IN ('jvm.cpu.recent_utilization', 'jvm.system.cpu.utilization'))
                       GROUP BY ts, series
                       ORDER BY ts
       load:
@@ -439,7 +453,7 @@ document:
                       SELECT toStartOfInterval(TimeUnix, INTERVAL {step:UInt32} * 6 SECOND) AS ts,
                              transform(MetricName, ['jvm.system.cpu.load_1m', 'jvm.cpu.count'], ['load 1m', 'processors'], 'other') AS series,
                              avg(Value) AS value
-                      FROM (SELECT TimeUnix, MetricName, Value FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName IN ('jvm.system.cpu.load_1m', 'jvm.cpu.count') UNION ALL SELECT TimeUnix, MetricName, Value FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName IN ('jvm.system.cpu.load_1m', 'jvm.cpu.count'))
+                      FROM (SELECT TimeUnix, MetricName, Value FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND ServiceName IN $service AND MetricName IN ('jvm.system.cpu.load_1m', 'jvm.cpu.count') UNION ALL SELECT TimeUnix, MetricName, Value FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND ServiceName IN $service AND MetricName IN ('jvm.system.cpu.load_1m', 'jvm.cpu.count'))
                       GROUP BY ts, series
                       ORDER BY ts
       classes:
@@ -462,7 +476,7 @@ document:
                     query: |-
                       SELECT toStartOfInterval(TimeUnix, INTERVAL {step:UInt32} SECOND) AS ts,
                              avg(Value) AS value
-                      FROM (SELECT TimeUnix, Value FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'jvm.class.count' UNION ALL SELECT TimeUnix, Value FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'jvm.class.count')
+                      FROM (SELECT TimeUnix, Value FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND ServiceName IN $service AND MetricName = 'jvm.class.count' UNION ALL SELECT TimeUnix, Value FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND ServiceName IN $service AND MetricName = 'jvm.class.count')
                       GROUP BY ts
                       ORDER BY ts
       class-activity:
@@ -490,7 +504,7 @@ document:
                                transform(MetricName, ['jvm.class.loaded', 'jvm.class.unloaded'], ['loaded', 'unloaded'], 'other') AS series,
                                ResourceAttributes AS resource, Attributes AS attrs,
                                max(Value) - min(Value) AS delta
-                        FROM (SELECT TimeUnix, MetricName, ResourceAttributes, Attributes, Value FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName IN ('jvm.class.loaded', 'jvm.class.unloaded') UNION ALL SELECT TimeUnix, MetricName, ResourceAttributes, Attributes, Value FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName IN ('jvm.class.loaded', 'jvm.class.unloaded'))
+                        FROM (SELECT TimeUnix, MetricName, ResourceAttributes, Attributes, Value FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND ServiceName IN $service AND MetricName IN ('jvm.class.loaded', 'jvm.class.unloaded') UNION ALL SELECT TimeUnix, MetricName, ResourceAttributes, Attributes, Value FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND ServiceName IN $service AND MetricName IN ('jvm.class.loaded', 'jvm.class.unloaded'))
                         GROUP BY ts, series, resource, attrs
                       )
                       GROUP BY ts, series
@@ -516,7 +530,7 @@ document:
                       SELECT toStartOfInterval(TimeUnix, INTERVAL {step:UInt32} * 6 SECOND) AS ts,
                              transform(MetricName, ['jvm.buffer.memory.used', 'jvm.buffer.memory.limit'], ['used', 'capacity'], 'other') AS series,
                              avg(Value) / 1048576 AS value
-                      FROM (SELECT TimeUnix, MetricName, Value FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName IN ('jvm.buffer.memory.used', 'jvm.buffer.memory.limit') UNION ALL SELECT TimeUnix, MetricName, Value FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName IN ('jvm.buffer.memory.used', 'jvm.buffer.memory.limit'))
+                      FROM (SELECT TimeUnix, MetricName, Value FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND ServiceName IN $service AND MetricName IN ('jvm.buffer.memory.used', 'jvm.buffer.memory.limit') UNION ALL SELECT TimeUnix, MetricName, Value FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND ServiceName IN $service AND MetricName IN ('jvm.buffer.memory.used', 'jvm.buffer.memory.limit'))
                       GROUP BY ts, series
                       ORDER BY ts
       file-descriptors:
@@ -540,7 +554,7 @@ document:
                       SELECT toStartOfInterval(TimeUnix, INTERVAL {step:UInt32} * 6 SECOND) AS ts,
                              transform(MetricName, ['jvm.file_descriptor.count', 'jvm.file_descriptor.limit'], ['open', 'limit'], 'other') AS series,
                              avg(Value) AS value
-                      FROM (SELECT TimeUnix, MetricName, Value FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName IN ('jvm.file_descriptor.count', 'jvm.file_descriptor.limit') UNION ALL SELECT TimeUnix, MetricName, Value FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName IN ('jvm.file_descriptor.count', 'jvm.file_descriptor.limit'))
+                      FROM (SELECT TimeUnix, MetricName, Value FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND ServiceName IN $service AND MetricName IN ('jvm.file_descriptor.count', 'jvm.file_descriptor.limit') UNION ALL SELECT TimeUnix, MetricName, Value FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND ServiceName IN $service AND MetricName IN ('jvm.file_descriptor.count', 'jvm.file_descriptor.limit'))
                       GROUP BY ts, series
                       ORDER BY ts
     layouts:
