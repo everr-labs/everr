@@ -226,11 +226,7 @@ export function BarChartVisualization({
       onMouseMove={handleMouseMove}
       onMouseLeave={handleMouseLeave}
     >
-      <ChartContainer
-        config={chartConfig}
-        className="h-full w-full"
-        debounce={100}
-      >
+      <ChartContainer config={chartConfig} className="h-full w-full">
         <BarChart
           data={chartData}
           // recharts naming: layout "vertical" = horizontal bars.
