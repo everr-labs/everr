@@ -1,7 +1,7 @@
 import type { Dashboard } from "../schema";
 
 /** Shelf a built-in sits on in the list. Ordered as declared here. */
-const BUILTIN_CATEGORIES = [
+export const BUILTIN_CATEGORIES = [
   "Application",
   "Runtime",
   "Databases",

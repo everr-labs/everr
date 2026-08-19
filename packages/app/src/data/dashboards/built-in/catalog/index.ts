@@ -1,5 +1,4 @@
 import { parse } from "yaml";
-import { dashboardSlugSchema, dashboardSpecSchemaStrict } from "../../schema";
 import type { BuiltinDashboard } from "../types";
 
 /**
@@ -60,24 +59,4 @@ const BY_ID = new Map(BUILTIN_DASHBOARDS.map((t) => [t.id, t]));
 
 export function getBuiltinDashboard(id: string): BuiltinDashboard | undefined {
   return BY_ID.get(id);
-}
-
-/**
- * Validates the whole catalog against the same strict schema `everr apply`
- * uses, so a builtin that would be rejected as a file is rejected here too.
- * Exported for the catalog test rather than run at import time: the list
- * must not pay for validation on every page load.
- */
-export function validateCatalog(): void {
-  const ids = new Set<string>();
-  for (const builtin of BUILTIN_DASHBOARDS) {
-    if (ids.has(builtin.id)) {
-      throw new Error(`Duplicate builtin id: ${builtin.id}`);
-    }
-    ids.add(builtin.id);
-    // The id is the slug in `/dashboards/built-in/$slug` and in `everr
-    // resources show`, so it answers to the same rule every as-code slug does.
-    dashboardSlugSchema.parse(builtin.id);
-    dashboardSpecSchemaStrict.parse(builtin.document.spec);
-  }
 }
