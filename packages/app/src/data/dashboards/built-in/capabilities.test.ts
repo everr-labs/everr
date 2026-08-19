@@ -7,10 +7,11 @@ import {
 } from "../schema";
 import {
   buildCapabilitiesQuery,
+  CATALOG_PROBES,
   decodeCapabilityRows,
   EMPTY_CAPABILITIES,
   evaluateBuiltin,
-  type TelemetryCapabilities,
+  probeKey,
 } from "./capabilities";
 import { BUILTIN_DASHBOARDS } from "./catalog";
 import { BUILTIN_CATEGORIES, type BuiltinDashboard, SIGNALS } from "./types";
@@ -30,9 +31,28 @@ const template = (
   },
 });
 
-const capabilities = (
-  overrides: Partial<TelemetryCapabilities>,
-): TelemetryCapabilities => ({ ...EMPTY_CAPABILITIES, ...overrides });
+describe("CATALOG_PROBES", () => {
+  it("asks each distinct catalog requirement exactly once", () => {
+    const keys = CATALOG_PROBES.map(probeKey);
+    expect(new Set(keys).size).toBe(keys.length);
+    // Every requirement any builtin states has a probe behind it, or the
+    // builtin could never be graded ready.
+    for (const builtin of BUILTIN_DASHBOARDS) {
+      for (const requirement of builtin.requires) {
+        expect(keys).toContain(probeKey(requirement));
+      }
+    }
+  });
+
+  it("asks nothing no builtin requires", () => {
+    const stated = new Set(
+      BUILTIN_DASHBOARDS.flatMap((b) => b.requires).map(probeKey),
+    );
+    for (const probe of CATALOG_PROBES) {
+      expect(stated.has(probeKey(probe))).toBe(true);
+    }
+  });
+});
 
 describe("buildCapabilitiesQuery", () => {
   const sql = buildCapabilitiesQuery();
@@ -42,16 +62,46 @@ describe("buildCapabilitiesQuery", () => {
     expect(sql).toContain("{to:String}");
   });
 
-  it("probes traces and logs for existence rather than counting", () => {
-    expect(sql).toContain("'traces' AS signal, '' AS name");
-    expect(sql).toContain("'logs' AS signal, '' AS name");
-    expect(sql).toMatch(/LIMIT 1/);
+  it("probes for existence rather than counting or listing names", () => {
     expect(sql).not.toContain("count()");
+    // The cap is gone with the name inventory it used to truncate; a probe
+    // that stops at the first matching row cannot lose a late-sorting key.
+    expect(sql).not.toContain("LIMIT 500");
+    expect(sql).not.toContain("DISTINCT arrayJoin");
+    expect(sql).not.toContain("ORDER BY");
   });
 
-  // Metrics existence has no probe of its own; decodeCapabilityRows derives it
-  // from this scan, so the scan must cover every table the tenant can read.
-  it("scans metric names from every metric table the tenant can read", () => {
+  it("returns one row per met probe, keyed by the requirement", () => {
+    expect(sql).toContain("SELECT DISTINCT key FROM (");
+    // Metric prefixes build their key with `concat` in the shared pass below,
+    // so only the rest carry the key as a literal.
+    for (const probe of CATALOG_PROBES) {
+      if (probe.signal === "metrics" && probe.match) continue;
+      expect(sql).toContain(`'${probeKey(probe)}' AS key`);
+    }
+  });
+
+  it("reads attribute keys off the map instead of expanding it", () => {
+    expect(buildCapabilitiesQuery([{ signal: "traces", match: "faas" }])).toBe(
+      "SELECT DISTINCT key FROM (\n  " +
+        "SELECT 'traces:faas' AS key FROM traces WHERE " +
+        "Timestamp >= parseDateTime64BestEffort({from:String}, 9) AND " +
+        "Timestamp <= parseDateTime64BestEffort({to:String}, 9) AND " +
+        "arrayExists(k -> (k = 'faas' OR startsWith(k, 'faas.')), " +
+        "mapKeys(SpanAttributes)) LIMIT 1\n)",
+    );
+  });
+
+  it("matches a trailing-dot requirement as a namespace only", () => {
+    const sql = buildCapabilitiesQuery([{ signal: "logs", match: "redis." }]);
+    expect(sql).toContain("startsWith(k, 'redis.')");
+    expect(sql).not.toContain("k = 'redis.'");
+    expect(sql).toContain("mapKeys(LogAttributes)");
+  });
+
+  // Metrics existence has no probe of its own; every branch must cover every
+  // table the tenant can read, or a Summary-only Organization reads as empty.
+  it("probes every metric table the tenant can read", () => {
     // Written out rather than filtered from `SQL_API_TENANT_TABLES`: the suite
     // setup mocks `@/lib/clickhouse`, so the real list is not importable here.
     for (const table of [
@@ -61,11 +111,27 @@ describe("buildCapabilitiesQuery", () => {
       "metrics_exponential_histogram",
       "metrics_summary",
     ]) {
+      expect(sql).toContain(`'metrics' AS key FROM ${table} WHERE TimeUnix >=`);
       expect(sql).toContain(
-        `SELECT DISTINCT toString(MetricName) AS name FROM ${table} WHERE TimeUnix >=`,
+        `SELECT MetricName FROM ${table} WHERE TimeUnix >=`,
       );
     }
-    expect(sql).not.toContain("'metrics' AS signal, ''");
+  });
+
+  it("tests every metric prefix in one pass per table", () => {
+    // One probe per prefix cannot stop early when the prefix is absent, which
+    // is the common case, so the prefixes share a scan.
+    const prefixes = CATALOG_PROBES.flatMap((p) =>
+      p.signal === "metrics" && p.match ? [p.match] : [],
+    );
+    expect(prefixes.length).toBeGreaterThan(1);
+    expect(sql).toContain(
+      `[${prefixes.map((p) => `'${p}'`).join(", ")}]) AS prefix`,
+    );
+    expect(sql).toContain("concat('metrics:', prefix) AS key");
+    for (const prefix of prefixes) {
+      expect(sql).not.toContain(`'metrics:${prefix}' AS key`);
+    }
   });
 
   it("uses each table's own time column", () => {
@@ -73,52 +139,37 @@ describe("buildCapabilitiesQuery", () => {
     expect(sql).toContain("TimeUnix >=");
     expect(sql).toContain("Timestamp >=");
   });
+
+  it("refuses a match it cannot safely inline", () => {
+    expect(() =>
+      buildCapabilitiesQuery([{ signal: "traces", match: "x' OR '1" }]),
+    ).toThrow(/Unsupported capability match/);
+  });
 });
 
 describe("decodeCapabilityRows", () => {
-  it("buckets rows by signal, deduplicated and sorted", () => {
+  it("deduplicates the met probe keys", () => {
     expect(
       decodeCapabilityRows([
-        { signal: "traces", name: "" },
-        { signal: "traces", name: "http.route" },
-        { signal: "traces", name: "http.route" },
-        { signal: "metrics", name: "redis.memory.used" },
-        { signal: "logs", name: "session.id" },
+        { key: "metrics" },
+        { key: "metrics" },
+        { key: "metrics:redis" },
+        { key: "traces" },
       ]),
-    ).toEqual({
-      traces: { present: true, names: ["http.route"] },
-      logs: { present: true, names: ["session.id"] },
-      metrics: { present: true, names: ["redis.memory.used"] },
-    });
+    ).toEqual(["metrics", "metrics:redis", "traces"]);
   });
 
-  it("treats a bare existence row as presence without names", () => {
-    expect(decodeCapabilityRows([{ signal: "traces", name: "" }])).toEqual(
-      capabilities({ traces: { present: true, names: [] } }),
-    );
-  });
-
-  it("derives metrics presence from the metric-name scan", () => {
-    expect(
-      decodeCapabilityRows([{ signal: "metrics", name: "jvm.memory.used" }])
-        .metrics,
-    ).toEqual({ present: true, names: ["jvm.memory.used"] });
-  });
-
-  it("ignores rows with an unknown signal", () => {
-    expect(decodeCapabilityRows([{ signal: "nonsense", name: "x" }])).toEqual(
-      EMPTY_CAPABILITIES,
-    );
+  it("is empty when nothing came back", () => {
+    expect(decodeCapabilityRows([])).toEqual(EMPTY_CAPABILITIES);
   });
 });
 
 describe("evaluateBuiltin", () => {
   it("is ready when every requirement is met", () => {
     expect(
-      evaluateBuiltin(
-        template([{ signal: "traces", label: "no traces" }]),
-        capabilities({ traces: { present: true, names: [] } }),
-      ),
+      evaluateBuiltin(template([{ signal: "traces", label: "no traces" }]), [
+        "traces",
+      ]),
     ).toEqual({ status: "ready" });
   });
 
@@ -134,43 +185,13 @@ describe("evaluateBuiltin", () => {
     ).toEqual({ status: "needs-setup", missing: ["no metrics", "no redis.*"] });
   });
 
-  it("matches a namespace prefix", () => {
+  it("does not let a signal's bare probe satisfy a match", () => {
     expect(
       evaluateBuiltin(
         template([{ signal: "metrics", match: "redis", label: "no redis.*" }]),
-        capabilities({
-          metrics: { present: true, names: ["redis.memory.used"] },
-        }),
-      ),
-    ).toEqual({ status: "ready" });
-  });
-
-  it("does not let a substring claim credit for a namespace", () => {
-    expect(
-      evaluateBuiltin(
-        template([{ signal: "metrics", match: "redis", label: "no redis.*" }]),
-        capabilities({
-          metrics: { present: true, names: ["myredis.memory.used"] },
-        }),
+        ["metrics"],
       ),
     ).toEqual({ status: "needs-setup", missing: ["no redis.*"] });
-  });
-
-  it("matches an exact key with no namespace below it", () => {
-    expect(
-      evaluateBuiltin(
-        template([
-          {
-            signal: "traces",
-            match: "http.request.method",
-            label: "no http.request.method*",
-          },
-        ]),
-        capabilities({
-          traces: { present: true, names: ["http.request.method"] },
-        }),
-      ),
-    ).toEqual({ status: "ready" });
   });
 
   it("reads each requirement from its own signal", () => {
@@ -181,7 +202,7 @@ describe("evaluateBuiltin", () => {
         template([
           { signal: "traces", match: "http.route", label: "no http.*" },
         ]),
-        capabilities({ metrics: { present: true, names: ["http.route"] } }),
+        ["metrics", "metrics:http.route"],
       ),
     ).toEqual({ status: "needs-setup", missing: ["no http.*"] });
   });

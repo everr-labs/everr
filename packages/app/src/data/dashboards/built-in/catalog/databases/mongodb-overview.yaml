@@ -401,7 +401,7 @@ document:
                   kind: ClickHouseSQL
                   spec:
                     query: |-
-                      WITH points AS (SELECT TimeUnix, Value, coalesce(nullIf(Attributes['db.namespace'], ''), nullIf(Attributes['database'], ''), 'unknown') AS series FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'mongodb.data.size' UNION ALL SELECT TimeUnix, Value, coalesce(nullIf(Attributes['db.namespace'], ''), nullIf(Attributes['database'], ''), 'unknown') AS series FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'mongodb.data.size')
+                      WITH points AS (SELECT TimeUnix, Value, coalesce(nullIf(Attributes['db.namespace'], ''), nullIf(ResourceAttributes['database'], ''), 'unknown') AS series FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'mongodb.data.size' UNION ALL SELECT TimeUnix, Value, coalesce(nullIf(Attributes['db.namespace'], ''), nullIf(ResourceAttributes['database'], ''), 'unknown') AS series FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'mongodb.data.size')
                       SELECT toStartOfInterval(TimeUnix, INTERVAL {step:UInt32} * 6 SECOND) AS ts,
                              series,
                              avg(Value) / 1048576 AS value
@@ -430,7 +430,7 @@ document:
                   kind: ClickHouseSQL
                   spec:
                     query: |-
-                      WITH points AS (SELECT TimeUnix, Value, coalesce(nullIf(Attributes['db.namespace'], ''), nullIf(Attributes['database'], ''), 'unknown') AS series FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'mongodb.index.size' UNION ALL SELECT TimeUnix, Value, coalesce(nullIf(Attributes['db.namespace'], ''), nullIf(Attributes['database'], ''), 'unknown') AS series FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'mongodb.index.size')
+                      WITH points AS (SELECT TimeUnix, Value, coalesce(nullIf(Attributes['db.namespace'], ''), nullIf(ResourceAttributes['database'], ''), 'unknown') AS series FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'mongodb.index.size' UNION ALL SELECT TimeUnix, Value, coalesce(nullIf(Attributes['db.namespace'], ''), nullIf(ResourceAttributes['database'], ''), 'unknown') AS series FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'mongodb.index.size')
                       SELECT toStartOfInterval(TimeUnix, INTERVAL {step:UInt32} * 6 SECOND) AS ts,
                              series,
                              avg(Value) / 1048576 AS value

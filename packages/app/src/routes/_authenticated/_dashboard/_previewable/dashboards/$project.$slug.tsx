@@ -39,7 +39,7 @@ export const Route = createFileRoute(
   // switching previews refetches instead of serving the wrong overlay.
   loaderDeps: ({ search: { preview } }) => ({ preview }),
   loader: async ({
-    context: { queryClient },
+    context: { queryClient, session },
     params: { project, slug },
     deps: { preview },
     preload,
@@ -52,7 +52,12 @@ export const Route = createFileRoute(
     );
     // Preloads (link hover) run this loader too; only a committed navigation
     // counts as "viewed".
-    if (!preload) recordLastViewed({ kind: "own", project, slug });
+    if (!preload)
+      recordLastViewed(session.session.activeOrganizationId, {
+        kind: "own",
+        project,
+        slug,
+      });
     // Expose the dashboard's duration/refreshInterval as route time defaults so
     // the time-range hooks seed the picker and panels from the first render —
     // no post-mount URL write, so panels never query the wrong window first.

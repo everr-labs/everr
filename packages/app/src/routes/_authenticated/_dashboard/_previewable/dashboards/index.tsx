@@ -37,8 +37,8 @@ export const Route = createFileRoute(
   // so landing here reopens where you were, else your first top-level
   // dashboard, else the first built-in that actually has data — the screen is
   // never blank and never an empty grid when a live one exists.
-  loader: async ({ context: { queryClient }, deps: { preview } }) => {
-    const last = readLastViewed();
+  loader: async ({ context: { queryClient, session }, deps: { preview } }) => {
+    const last = readLastViewed(session.session.activeOrganizationId);
 
     // A remembered built-in needs no server data to validate.
     if (last?.kind === "built-in" && getBuiltinDashboard(last.slug)) {

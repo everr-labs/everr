@@ -32,12 +32,16 @@ export const Route = createFileRoute(
   }),
   component: BuiltinDashboardPage,
   notFoundComponent: DashboardNotFound,
-  loader: ({ params: { slug }, preload }) => {
+  loader: ({ context: { session }, params: { slug }, preload }) => {
     const builtin = getBuiltinDashboard(slug);
     if (!builtin) throw notFound();
     // Preloads (link hover) run this loader too; only a committed navigation
     // counts as "viewed".
-    if (!preload) recordLastViewed({ kind: "built-in", slug });
+    if (!preload)
+      recordLastViewed(session.session.activeOrganizationId, {
+        kind: "built-in",
+        slug,
+      });
     return {
       name: builtin.name,
       timeDefaults: dashboardTimeDefaults(builtin.document.spec),
