@@ -1,4 +1,4 @@
-# 29: Bounded recipients and error bodies
+# 9: Bounded recipients and error bodies
 
 **What to build:** Telegram fan-out cannot start unbounded
 concurrent sends, and a failed webhook cannot buffer an unbounded
@@ -8,8 +8,8 @@ response body.
 start every send at once, and a failed webhook buffers the whole response
 body before it builds an error:
 
-- `packages/app/src/data/alerting/schema.ts:115`
-- `packages/app/src/data/alerting/delivery/channel-sender.server.ts:86`
+- `packages/app/src/data/alerting/schema.ts` (the unbounded `chat_ids` array)
+- `packages/app/src/data/alerting/delivery/providers/telegram.ts`
 - `packages/app/src/data/alerting/delivery/providers/slack.ts`
 
 **Blocked by:** None; can start immediately.

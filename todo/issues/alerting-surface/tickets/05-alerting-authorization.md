@@ -1,4 +1,4 @@
-# 18: Alerting administration requires a permission
+# 5: Alerting administration requires a permission
 
 **What to build:** A regular organization member can no longer replace
 webhooks, rewrite the default destination, create a catch-all silence, or pause

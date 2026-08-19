@@ -1,4 +1,4 @@
-# 28: Alert and runbook links reach notifications
+# 8: Alert and runbook links reach notifications
 
 **What to build:** A notification carries a working link to the alert
 detail or the runbook. Apply already generates the annotations and the

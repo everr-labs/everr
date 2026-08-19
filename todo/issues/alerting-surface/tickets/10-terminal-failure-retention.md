@@ -1,9 +1,9 @@
-# 30: An event that will never be processed reaches retention
+# 10: An event that will never be processed reaches retention
 
 **What to build:** An event that no job will ever process again no
 longer evades cleanup forever. The end of its processing is recorded
 with a timestamp, so retention can collect it. The delivery half of this
-leak is ticket 46.
+leak is ticket 19.
 
 **Evidence:**
 

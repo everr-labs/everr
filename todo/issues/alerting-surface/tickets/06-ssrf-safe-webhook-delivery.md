@@ -1,4 +1,4 @@
-# 19: SSRF-safe webhook delivery
+# 6: SSRF-safe webhook delivery
 
 **What to build:** A hostname that resolves publicly during validation and
 internally during connection can no longer reach internal services.
@@ -47,7 +47,7 @@ body no longer comes back with it (`ChannelSendError` keeps the endpoint's
 answer in a field the test never reads), so the window is an oracle, not a
 reader. Nothing rate-limits the button and nothing accounts the sends to an
 organization: `testChannel`'s `_organizationId` argument is unused. Both
-belong to ticket 18's authorization work, and neither changes the decision
+belong to ticket 05's authorization work, and neither changes the decision
 here, because egress control closes the window itself.
 
 Closing it in the application means connecting to the address already
@@ -91,7 +91,7 @@ Cloud relies on.
 - [ ] The accepted residual risk is stated where a deployer will read it: an
       operator who ignores the guidance is exposed to the rebinding gap
       above, and any organization member can create the channel that uses
-      it, and test it on demand, while ticket 18 is open
+      it, and test it on demand, while ticket 05 is open
 
 ## What would reopen the application fix
 

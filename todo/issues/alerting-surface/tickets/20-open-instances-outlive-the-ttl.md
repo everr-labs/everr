@@ -1,4 +1,4 @@
-# 47: An open instance outlives its own history
+# 20: An open instance outlives its own history
 
 **What to build:** an instance that keeps firing stays visible in ClickHouse
 however long it fires, so a fold over the transition rows cannot report it as
@@ -77,7 +77,7 @@ when the instance was last projected, which is either a stamp on
   says today.
 - Whether the same sweep should re-assert the hold rows a long silence
   leaves, for the same reason.
-- Whether this is worth building before the state view itself (ticket 14),
+- Whether this is worth building before the state view itself (ticket 02),
   which is where the caveat is currently documented.
 
 **Blocked by:** nothing technically. It needs a decision on the option and

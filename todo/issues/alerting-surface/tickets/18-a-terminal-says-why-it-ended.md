@@ -1,4 +1,4 @@
-# 45: A terminal says why it ended
+# 18: A terminal says why it ended
 
 **What to build:** Every `notification_suppressed` row explains itself. A
 reader who finds a withheld notification learns why from the row, without

@@ -1,4 +1,4 @@
-# 34: Preview teardown terminals survive a crash
+# 12: Preview teardown terminals survive a crash
 
 **What to build:** The `instance_closed` rows that close a torn-down
 preview's open instances cannot be lost without trace. Demo: kill the
@@ -31,7 +31,7 @@ that opened and never ended. Status renders per row today
 (`data/alerting/history/event-types.ts:45-53`), so nothing reports a
 wrong state yet. Preview rules are muted, so nothing pages either.
 
-**Why it must land before 14:** the state view folds an instance's
+**Why it must land before 02:** the state view folds an instance's
 current state with `argMax(event_type, (event_time, event_id))` over its
 episode. A missing terminal stops being an odd-looking timeline and
 becomes an alert the view reports as firing forever, with no row that can
@@ -50,7 +50,7 @@ Writing inside the transaction instead is the wrong fix: the insert
 cannot roll back, so a transaction that fails after it leaves ClickHouse
 claiming a teardown that never happened.
 
-**Blocked by:** None; can start immediately. Must land before 14, which
+**Blocked by:** None; can start immediately. Must land before 02, which
 turns a missing terminal into a wrong answer.
 
 **Status:** ready-for-agent

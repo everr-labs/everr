@@ -1,4 +1,4 @@
-# 40: A silence mutes the message, not the bookkeeping
+# 15: A silence mutes the message, not the bookkeeping
 
 **What to build:** A silence stops a notification going out. It must not stop
 the pipeline from learning that an instance ended. Demo: silence a firing

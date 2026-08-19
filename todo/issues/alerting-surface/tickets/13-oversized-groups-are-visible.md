@@ -1,4 +1,4 @@
-# 35: An oversized notification group is visible
+# 13: An oversized notification group is visible
 
 **What to build:** A group that holds more members than one flush may claim
 says so, instead of being diagnosable only by reading the membership table.

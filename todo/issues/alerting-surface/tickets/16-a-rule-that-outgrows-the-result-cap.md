@@ -1,4 +1,4 @@
-# 43: A rule that outgrows the result cap says so
+# 16: A rule that outgrows the result cap says so
 
 **What to build:** A rule whose query returns more rows than the SQL API
 profile allows tells its author that, instead of reading as a rule that
@@ -20,7 +20,7 @@ hit.
 The cap is right and it should stay. It is what bounds instance fan-out: one
 evaluation can create at most 1000 instances, and therefore at most 1000
 journal rows and 1000 group memberships, which is what makes the flush claim
-cap (ticket 35) a drain problem instead of an unbounded one.
+cap (ticket 13) a drain problem instead of an unbounded one.
 
 Two parts, and the second is the one that matters:
 
@@ -36,7 +36,7 @@ Two parts, and the second is the one that matters:
   state.
 
 The cap also belongs in the rule-authoring reference. Today it appears in the
-docs only as a constraint on the documented history queries (ticket 05),
+docs only as a constraint on the documented history queries,
 never as a limit on what a rule's own query may return.
 
 **Blocked by:** None.

@@ -1,4 +1,4 @@
-# 44: A page outranks everything that cannot page
+# 17: A page outranks everything that cannot page
 
 **What to build:** The alerting jobs run in a stated order of importance
 instead of first-come-first-served. Demo: queue 200 preview evaluations, then
@@ -57,7 +57,7 @@ retention sweep may run for the five minutes `CLEANUP_BUDGET_MS` allows, and
 with two slots either can stall delivery for that whole time whatever its
 priority says. The real fix is separate lanes so evaluation and maintenance
 cannot hold a delivery slot, which is already written down in
-[`../../ideas/alert-evaluation-capacity.md`](../../ideas/alert-evaluation-capacity.md):
+[`../../../ideas/alert-evaluation-capacity.md`](../../../ideas/alert-evaluation-capacity.md):
 "keep notification and maintenance jobs outside those lanes so slow queries
 cannot block delivery work". This ticket is the cheap part of that, available
 today. Raising `WORKER_CONCURRENCY` is not the fix either: it multiplies

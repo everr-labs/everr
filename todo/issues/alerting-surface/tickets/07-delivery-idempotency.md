@@ -1,4 +1,4 @@
-# 23: Delivery retries do not duplicate notifications
+# 7: Delivery retries do not duplicate notifications
 
 **What to build:** A retry after a provider accepted the request does not
 page the same person twice, and a partially successful fan-out does not
@@ -10,17 +10,19 @@ exists.
 
 **Evidence:** a provider can accept a request before the worker marks
 the delivery sent, and the retry sends it again. A Telegram fan-out can
-also partly succeed, after which `Promise.all` rejects and every
-recipient is retried:
+also partly succeed: the send collects its verdicts with
+`Promise.allSettled` and throws once any chat failed, and the delivery
+row holds no per-recipient state, so the retry re-sends to the chats
+that already succeeded:
 
-- `packages/app/src/server/alerting/delivery/send-delivery.ts:24`
-- `packages/app/src/data/alerting/delivery/channel-sender.server.ts:133`
+- `packages/app/src/server/alerting/delivery/send-delivery.ts`
+- `packages/app/src/data/alerting/delivery/providers/telegram.ts`
 
 **Blocked by:** None; can start immediately.
 
 **Status:** ready-for-agent
 
-**Progress (2026-08-16):** Delivery-row convergence is done: one send twice leaves one `delivery_succeeded` row. The three open boxes are per-recipient, and overlap ticket 29: a fan-out to several recipients has no per-recipient state, so a retry re-sends to recipients that already succeeded (recorded in `providers/telegram.ts`).
+**Progress (2026-08-16):** Delivery-row convergence is done: one send twice leaves one `delivery_succeeded` row. The three open boxes are per-recipient, and overlap ticket 09: a fan-out to several recipients has no per-recipient state, so a retry re-sends to recipients that already succeeded (recorded in `providers/telegram.ts`).
 
 **Requirement on the ClickHouse trail, decided 2026-08-11.** A delivery that
 is sent twice must still leave one `delivery_succeeded` row. The trail

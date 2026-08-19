@@ -1,4 +1,4 @@
-# 46: An abandoned delivery reaches retention
+# 19: An abandoned delivery reaches retention
 
 **What to build:** A delivery that never reaches terminal status stops being
 invisible forever. A delivery abandoned past the retry horizon becomes a
@@ -11,7 +11,7 @@ the status update lands, the row stays `pending`: no terminal status, no
 ClickHouse row, and cleanup's terminal predicate never matches it. Nothing
 ages it out.
 
-This is the delivery half of the retention leak whose event half is ticket 30.
+This is the delivery half of the retention leak whose event half is ticket 10.
 
 **Where:**
 

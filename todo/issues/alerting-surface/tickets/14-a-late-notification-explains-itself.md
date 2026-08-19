@@ -1,4 +1,4 @@
-# 38: A late notification explains itself
+# 14: A late notification explains itself
 
 **What to build:** A reader looking at an alert can tell why its
 notification arrived when it did. Demo: an alert that fired at 11:42 and
@@ -27,7 +27,7 @@ repeat mechanism; the pacing asymmetry itself survives the fixed-grouping
 model.)
 
 This belongs on the alert or notification surface, not on the delivery
-configuration page. (Ticket 37, a route row misstating its timing, was
+configuration page. (A sibling ticket, a route row misstating its timing, was
 deleted as obsolete when routes were removed on 2026-08-18.)
 
 **Blocked by:** None; can start immediately.

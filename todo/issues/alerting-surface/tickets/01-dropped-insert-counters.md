@@ -1,4 +1,4 @@
-# 08: Dropped-insert counters
+# 1: Dropped-insert counters
 
 **What to build:** Best-effort stops being unmeasured. Dropped history
 inserts are counted, so a rotting write path is visible before an incident
