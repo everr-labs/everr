@@ -1,4 +1,3 @@
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
   createMemoryHistory,
   createRootRoute,
@@ -9,8 +8,7 @@ import {
 } from "@tanstack/react-router";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { alertingRuleViewFixture } from "@/data/alerting/test-fixtures";
+import { afterEach, describe, expect, it, vi } from "vitest";
 // The layout route lives at `../alerts.tsx`, the pathless-sibling file next to
 // this `alerts/` directory: adding a second `alerts/route.tsx` would define the
 // same route id twice and break route generation. This file still tests the
@@ -19,41 +17,6 @@ import { Route as AlertsSectionFileRoute } from "../alerts";
 import { Route as AlertsIndexFileRoute } from "./index";
 import { Route as AlertsRulesFileRoute } from "./rules";
 import { Route as AlertsRuleDetailFileRoute } from "./rules_.$project.$slug";
-
-const mocks = vi.hoisted(() => ({
-  listAlertingAlerts: vi.fn(),
-  listAlertingRules: vi.fn(),
-  getAlertingRuleByName: vi.fn(),
-  pauseAlertingRule: vi.fn(),
-  resumeAlertingRule: vi.fn(),
-  listAlertingSilences: vi.fn(),
-  listAlertingEventHistory: vi.fn(),
-}));
-
-vi.mock("@/data/alerting/instances/server", () => ({
-  listAlertingAlerts: mocks.listAlertingAlerts,
-}));
-vi.mock("@/data/alerting/rules/server", () => ({
-  listAlertingRules: mocks.listAlertingRules,
-  getAlertingRuleByName: mocks.getAlertingRuleByName,
-  pauseAlertingRule: mocks.pauseAlertingRule,
-  resumeAlertingRule: mocks.resumeAlertingRule,
-}));
-vi.mock("@/data/alerting/delivery/server", () => ({
-  getAlertingDefaultDestination: vi.fn(),
-}));
-vi.mock("@/data/alerting/silences/server", () => ({
-  listAlertingSilences: mocks.listAlertingSilences,
-  createAlertingSilence: vi.fn(),
-  expireAlertingSilence: vi.fn(),
-}));
-vi.mock("@/data/alerting/history/server", () => ({
-  listAlertingEventHistory: mocks.listAlertingEventHistory,
-}));
-vi.mock("@/data/alerting/silences/suggestions", () => ({
-  listAlertingLabelKeys: vi.fn().mockResolvedValue([]),
-  listAlertingLabelValues: vi.fn().mockResolvedValue([]),
-}));
 
 /** jsdom does not implement `window.matchMedia` at all. `useMediaQuery` reads
  *  it through a guard that falls back to `?? false` when it is missing, and
@@ -116,27 +79,11 @@ function renderAlertsLayout(options: { initialEntry?: string } = {}) {
   ]);
 
   const history = createMemoryHistory({ initialEntries: [initialEntry] });
-  const queryClient = new QueryClient({
-    defaultOptions: { queries: { retry: false } },
-  });
-  const router = createRouter({ routeTree, history, context: { queryClient } });
+  const router = createRouter({ routeTree, history });
 
-  render(
-    <QueryClientProvider client={queryClient}>
-      <RouterProvider router={router} />
-    </QueryClientProvider>,
-  );
-  return { router, queryClient };
+  render(<RouterProvider router={router} />);
+  return { router };
 }
-
-beforeEach(() => {
-  for (const fn of Object.values(mocks)) fn.mockReset();
-  mocks.listAlertingAlerts.mockResolvedValue([]);
-  mocks.listAlertingRules.mockResolvedValue([]);
-  mocks.listAlertingSilences.mockResolvedValue([]);
-  mocks.listAlertingEventHistory.mockResolvedValue([]);
-  mocks.getAlertingRuleByName.mockResolvedValue(alertingRuleViewFixture());
-});
 
 afterEach(() => {
   vi.unstubAllGlobals();

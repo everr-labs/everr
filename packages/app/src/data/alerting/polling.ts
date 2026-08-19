@@ -1,1 +1,0 @@
-export const ALERTING_POLL_INTERVAL_MS = 15_000;

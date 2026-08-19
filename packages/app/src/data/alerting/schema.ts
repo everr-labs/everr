@@ -16,7 +16,7 @@ export const AlertingSeveritySchema = z.enum(ALERTING_SEVERITIES);
 // Matching is exact only: user regex patterns would reach the native RegExp
 // engine, where catastrophic backtracking and an unbounded pattern cache are
 // a denial-of-service path.
-export const AlertingMatchOpSchema = z.enum(["eq", "ne"], {
+const AlertingMatchOpSchema = z.enum(["eq", "ne"], {
   error: () => `matcher op must be "eq" or "ne"`,
 });
 const AlertingRuleConditionOperatorSchema = z.enum([
@@ -147,7 +147,7 @@ export const AlertingChannelConfigSchema = z.discriminatedUnion("type", [
 // can ever address.
 const ALERTING_CHANNEL_NAME_MAX = 128;
 
-export const AlertingChannelNameSchema = z
+const AlertingChannelNameSchema = z
   .string()
   .trim()
   .min(1, { error: "channel name is required" })
@@ -188,10 +188,6 @@ export const AlertingDefaultDestinationInputSchema = z.object({
     ),
 });
 
-export const AlertingDefaultDestinationSchema = z.object({
-  tiers: z.partialRecord(z.enum(ALERTING_DEFAULT_TIERS), z.array(z.string())),
-});
-
 export const AlertingRuleInputSchema = AlertingRuleSpecSchema.extend({
   name: alertingResourceNameSchema,
   repoid: z.string().min(1),
@@ -218,16 +214,4 @@ export const AlertingSilenceInputSchema = z.object({
   ends_at: AlertingTimestampSchema,
   comment: z.string().max(ALERTING_SILENCE_COMMENT_MAX).optional(),
   // No `author`: it is stamped from the authenticated principal on the server.
-});
-
-export const AlertingSilenceSchema = z.object({
-  id: z.string(),
-  tenant: z.string(),
-  matchers: alertingMatchersSchema(AlertingMatcherSchema),
-  starts_at: AlertingTimestampSchema,
-  ends_at: AlertingTimestampSchema,
-  comment: z.string().nullable().optional(),
-  author: z.string().nullable().optional(),
-  created_at: AlertingTimestampSchema,
-  canceled_at: AlertingTimestampNullable.optional(),
 });

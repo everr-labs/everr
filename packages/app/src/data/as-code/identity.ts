@@ -15,11 +15,3 @@ export function parseResourceName(name: string): {
   }
   return { project: name.slice(0, i), slug: name.slice(i + 1) };
 }
-
-export function findByResourceName<T extends { name: string }>(
-  items: readonly T[],
-  project: string,
-  slug: string,
-): T | undefined {
-  return items.find((item) => item.name === formatResourceName(project, slug));
-}

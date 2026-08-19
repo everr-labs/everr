@@ -10,6 +10,7 @@ import { ALERT_PROJECT_LIFECYCLE_TASK } from "@/data/alerting/history/tasks";
 import {
   deleteRule,
   pauseRule,
+  resumeRule,
   updateRule,
 } from "@/data/alerting/rules/repository";
 import {
@@ -281,6 +282,44 @@ describe("the alerting pipeline's instance lifecycle", () => {
         (job) => job.identifier === ALERT_EVALUATE_TASK,
       ),
     ).toHaveLength(0);
+  });
+
+  it("resuming the rule schedules it again and it fires from scratch", async () => {
+    const rule = await insertRule(harness().db, {
+      forSecs: 0,
+      intervalSecs: 60,
+    });
+    harness().clickhouse.setSignal([{ service: "checkout", value: 42 }]);
+    await harness().runDueJobs();
+    await pauseRule({ organizationId: TEST_ORG, actor: TEST_ACTOR }, rule.id);
+    await harness().runDueJobs();
+
+    await resumeRule({ organizationId: TEST_ORG, actor: TEST_ACTOR }, rule.id);
+
+    // Pause cancels the rule's place in the queue, so resume has to put it
+    // back. Flipping `active` alone would leave a rule that reads as running
+    // and never evaluates again, which is the failure a reader cannot see.
+    const [resumed] = await harness()
+      .db.select()
+      .from(alertDefinitions)
+      .where(eq(alertDefinitions.id, rule.id));
+    expect(resumed.active).toBe(true);
+    expect(resumed.nextEvaluationAt).not.toBeNull();
+    expect(
+      (await harness().pendingJobs()).filter(
+        (job) => job.identifier === ALERT_EVALUATE_TASK,
+      ),
+    ).toHaveLength(1);
+
+    // Pause reset the instance, so the breach that never went away is a new
+    // fire rather than a continuation: a resumed rule that stayed silent
+    // because its instance still read as firing would page nobody. Resume
+    // schedules one interval out, so the clock has to reach that before the
+    // job it enqueued is due.
+    harness().advance(60_000);
+    await harness().runDueJobs();
+    const [instance] = await harness().db.select().from(alertInstances);
+    expect(instance.status).toBe("firing");
   });
 
   it("deleting the rule closes the open instance and leaves no orphaned instance rows", async () => {

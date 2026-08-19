@@ -13,7 +13,7 @@ export async function getCoveredRepoids(
   return new Set(rows.map((row) => row.repoid));
 }
 
-export async function getPreviewScopes(
+async function getPreviewScopes(
   orgId: string,
   preview: string,
 ): Promise<{ id: string; repoid: string }[]> {
