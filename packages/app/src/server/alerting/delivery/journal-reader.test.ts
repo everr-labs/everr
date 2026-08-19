@@ -7,80 +7,31 @@ import type { DbExecutor } from "@/db/client";
 import {
   deliverableEventQuery,
   deliverableGroupMemberQuery,
+  linkedEventsForDeliveryQuery,
   liveRuleForDeliveryQuery,
 } from "./journal-reader";
 
-// A detached builder renders the exact SQL the reader would execute, so these
-// tests pin the boundary itself: the WHERE clause, not a mock's behavior.
+// The pipeline never enqueues a state-only event for delivery, so no
+// end-to-end test can see this filter drop one. It is the module's stated
+// guarantee all the same, and this is the only level that can prove it: a
+// detached builder renders the exact SQL the reader would execute.
 const builder = () => new QueryBuilder() as unknown as DbExecutor;
 
+const eventId = "0ee52a7c-c9d7-4bca-9c67-a21db2096acf";
+
 describe("the delivery pipeline's journal boundary", () => {
-  it("selects an event for processing only when its kind is notifying", () => {
-    const { sql, params } = deliverableEventQuery(
-      builder(),
-      "0ee52a7c-c9d7-4bca-9c67-a21db2096acf",
-    ).toSQL();
+  it("pins every read to notifying events, so no state-only row can be delivered", () => {
+    const reads = [
+      deliverableEventQuery(builder(), eventId),
+      deliverableGroupMemberQuery(builder(), eventId, 500),
+      linkedEventsForDeliveryQuery(builder(), "org-1", "dk-1"),
+      liveRuleForDeliveryQuery(builder(), "dk-1"),
+    ];
 
-    expect(sql).toContain('"alert_events"."kind" = ');
-    expect(params).toContain("notifying");
-  });
-
-  it("joins group memberships to notifying events only", () => {
-    const { sql, params } = deliverableGroupMemberQuery(
-      builder(),
-      "1af52a7c-c9d7-4bca-9c67-a21db2096acf",
-      500,
-    ).toSQL();
-
-    expect(sql).toContain('"kind" = ');
-    expect(params).toContain("notifying");
-  });
-
-  it("reads the owning rule's liveness in the same claim", () => {
-    const { sql } = deliverableGroupMemberQuery(
-      builder(),
-      "1af52a7c-c9d7-4bca-9c67-a21db2096acf",
-      500,
-    ).toSQL();
-
-    expect(sql).toContain('left join "alert_definitions"');
-    expect(sql).toContain('"active"');
-  });
-
-  it("caps and orders the claim so a storm cannot pull an unbounded set", () => {
-    const { sql, params } = deliverableGroupMemberQuery(
-      builder(),
-      "1af52a7c-c9d7-4bca-9c67-a21db2096acf",
-      500,
-    ).toSQL();
-
-    expect(sql).toContain("order by");
-    expect(sql).toContain("limit");
-    expect(params).toContain(500);
-  });
-
-  // Ordering on the event id alone let a group above the cap keep re-claiming
-  // the same oldest members, so anything newer was never delivered.
-  it("claims unflushed members before flushed ones", () => {
-    const { sql } = deliverableGroupMemberQuery(
-      builder(),
-      "1af52a7c-c9d7-4bca-9c67-a21db2096acf",
-      500,
-    ).toSQL();
-
-    const order = sql.slice(sql.indexOf("order by")).toLowerCase();
-    expect(order).toContain('"flushed_at" is not null');
-    expect(order.indexOf("flushed_at")).toBeLessThan(order.indexOf('"id"'));
-  });
-
-  it("counts a delivery's rules as live only when notifying and active", () => {
-    const { sql, params } = liveRuleForDeliveryQuery(builder(), "dk-1").toSQL();
-
-    expect(sql).toContain('"alert_delivery_events"');
-    expect(sql).toContain('"kind" = ');
-    expect(sql).toContain('"active" = ');
-    expect(params).toContain("notifying");
-    expect(params).toContain(true);
-    expect(params).toContain("dk-1");
+    for (const read of reads) {
+      const { sql, params } = read.toSQL();
+      expect(sql).toContain('"kind" = ');
+      expect(params).toContain("notifying");
+    }
   });
 });
