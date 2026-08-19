@@ -66,6 +66,8 @@ export function DashboardTree({
         setExpanded(new Set([...expanded, ...ancestors]));
       }
     }
+  } else if (!selected && seededFor !== null) {
+    setSeededFor(null);
   }
 
   const tree = useMemo(() => buildTree(dashboards), [dashboards]);

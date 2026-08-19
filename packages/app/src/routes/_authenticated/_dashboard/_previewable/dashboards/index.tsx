@@ -5,7 +5,7 @@ import {
   BUILTIN_DASHBOARDS,
   getBuiltinDashboard,
 } from "@/data/dashboards/built-in/catalog";
-import { readLastViewed } from "@/data/dashboards/last-viewed";
+import { clearLastViewed, readLastViewed } from "@/data/dashboards/last-viewed";
 import {
   dashboardListOptions,
   telemetryCapabilitiesOptions,
@@ -64,6 +64,13 @@ export const Route = createFileRoute(
       live.some((d) => d.project === last.project && d.slug === last.slug)
     ) {
       throw toDashboard(last.project, last.slug);
+    }
+
+    // The remembered dashboard no longer exists (deleted or removed from
+    // preview). Clear the stale entry so future visits fall through to the
+    // fresh default instead of hitting this dead branch every time.
+    if (last?.kind === "own") {
+      clearLastViewed(session.session.activeOrganizationId);
     }
 
     // Only top-level dashboards qualify as the default: opening something out

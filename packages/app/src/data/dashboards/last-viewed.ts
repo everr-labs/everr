@@ -45,3 +45,12 @@ export function recordLastViewed(
     // Quota or privacy-mode failures just lose the nicety.
   }
 }
+
+export function clearLastViewed(org: string): void {
+  if (typeof window === "undefined") return;
+  try {
+    window.localStorage.removeItem(keyFor(org));
+  } catch {
+    // Privacy-mode or storage failures are harmless.
+  }
+}

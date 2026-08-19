@@ -29,7 +29,6 @@ const ORDER = [
   "serverless-functions",
   "log-overview",
   "traces-overview",
-  "server-functions",
   // Runtime
   "metric-overview",
   "jvm-runtime",
