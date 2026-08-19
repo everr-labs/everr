@@ -6,6 +6,7 @@ import { CreateFromBuiltin } from "@/components/dashboards/create-from-builtin";
 import { DashboardGrid } from "@/components/dashboards/dashboard-grid";
 import gridLayoutOverridesCSS from "@/components/dashboards/dashboard-grid.css?url";
 import { DashboardNotFound } from "@/components/dashboards/dashboard-not-found";
+import { InstrumentFromBuiltin } from "@/components/dashboards/instrument-from-builtin";
 import { DashboardProvider } from "@/components/dashboards/use-dashboard";
 import { evaluateBuiltin } from "@/data/dashboards/built-in/capabilities";
 import { getBuiltinDashboard } from "@/data/dashboards/built-in/catalog";
@@ -88,11 +89,21 @@ function BuiltinDashboardPage() {
       )}
 
       {/* No header of its own: the list row and breadcrumb already name the
-          built-in, so the page is the grid, and the fork action sits in the
-          variable toolbar like any other dashboard control. */}
+          built-in, so the page is the grid, and the action sits in the
+          variable toolbar like any other dashboard control. Fork when ready,
+          instrumentation prompt when data is missing. */}
       <DashboardProvider document={builtin.document}>
         <DashboardGrid
-          actions={<CreateFromBuiltin slug={builtin.id} name={builtin.name} />}
+          actions={
+            readiness?.status === "needs-setup" ? (
+              <InstrumentFromBuiltin
+                name={builtin.name}
+                missing={readiness.missing}
+              />
+            ) : (
+              <CreateFromBuiltin slug={builtin.id} name={builtin.name} />
+            )
+          }
         />
       </DashboardProvider>
     </div>

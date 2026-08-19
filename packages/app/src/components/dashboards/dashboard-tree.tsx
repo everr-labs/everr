@@ -39,12 +39,6 @@ export function DashboardTree({
   search,
   resource = "dashboard",
 }: DashboardTreeProps) {
-  const [expanded, setExpanded] = useState<Set<string>>(new Set());
-
-  // The folders containing the selected dashboard open when the selection
-  // changes (deep link or click from search results). Seeded once per
-  // selection via render-time state adjustment, so the user can still collapse
-  // them afterwards and other folders never auto-close.
   const matchRoute = useMatchRoute();
   const match = matchRoute(
     resource === "runbook"
@@ -56,19 +50,14 @@ export function DashboardTree({
         (d) => d.project === match.project && d.slug === match.slug,
       )
     : undefined;
-  const selectedKey = selected ? `${selected.project}/${selected.slug}` : null;
-  const [seededFor, setSeededFor] = useState<string | null>(null);
-  if (selectedKey !== seededFor) {
-    setSeededFor(selectedKey);
-    if (selected) {
-      const ancestors = folderAncestorPaths(selected.folderPath);
-      if (ancestors.some((path) => !expanded.has(path))) {
-        setExpanded(new Set([...expanded, ...ancestors]));
-      }
-    }
-  } else if (!selected && seededFor !== null) {
-    setSeededFor(null);
-  }
+
+  // Open the folders containing the dashboard selected at mount time. After
+  // that `expanded` is purely user-controlled: it never re-seeds when the
+  // selection changes, so users can collapse and other folders never
+  // auto-open or auto-close.
+  const [expanded, setExpanded] = useState<Set<string>>(
+    () => new Set(selected ? folderAncestorPaths(selected.folderPath) : []),
+  );
 
   const tree = useMemo(() => buildTree(dashboards), [dashboards]);
 

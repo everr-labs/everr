@@ -20,3 +20,17 @@ export function createFromBuiltinPrompt(input: {
 
 What to change from the built-in: `;
 }
+
+/**
+ * The handoff prompt for checking how to send the missing telemetry that a
+ * built-in dashboard requires. The dashboard cannot render until that
+ * telemetry arrives, so this prompt hands the Agent the exact requirement
+ * list and asks it to investigate and set up the instrumentation.
+ */
+export function instrumentMissingPrompt(input: {
+  name: string;
+  missing: string[];
+}): string {
+  const list = input.missing.map((m) => `- ${m}`).join("\n");
+  return `/everr-setup-telemetry This repository's built-in "${input.name}" dashboard needs telemetry that isn't arriving yet:\n${list}\n\nCheck what instrumentation is needed to send this telemetry, and set it up.`;
+}

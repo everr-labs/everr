@@ -12,7 +12,6 @@ import {
   Cpu,
   Database,
   Globe,
-  Loader2,
   RotateCw,
   SearchIcon,
   TriangleAlert,
@@ -71,10 +70,10 @@ export function DashboardsList({ preview }: { preview?: string }) {
   );
   const capabilities = capabilitiesQuery.data;
 
-  // Until the probe answers, nothing is graded: `ready` holds every match and
-  // `needsData` stays empty. Grading against an empty result would label every
-  // built-in unready for a reason nothing has established, and the list would
-  // paint a grouping it is about to rearrange under the reader's cursor.
+  // Until the probe answers, the built-in list stays empty: grading against
+  // an empty result would label every built-in unready for a reason nothing
+  // has established, and the list would paint a grouping it is about to
+  // rearrange under the reader's cursor.
   const { matching, ready, needsData } = useMemo(() => {
     const q = search.trim().toLowerCase();
     const matching = !q
@@ -91,7 +90,7 @@ export function DashboardsList({ preview }: { preview?: string }) {
               (r.match ?? r.signal).toLowerCase().includes(q),
             ),
         );
-    if (!capabilities) return { matching, ready: matching, needsData: [] };
+    if (!capabilities) return { matching, ready: [], needsData: [] };
     const ready: BuiltinDashboard[] = [];
     const needsData: BuiltinDashboard[] = [];
     for (const builtin of matching) {
@@ -156,12 +155,6 @@ export function DashboardsList({ preview }: { preview?: string }) {
         <section aria-label="Built-in dashboards">
           <GroupLabel label="Built-in dashboards" />
 
-          {capabilitiesQuery.isPending && (
-            <p className="inline-flex items-center gap-1.5 px-1 pb-1 text-muted-foreground text-xs">
-              <Loader2 className="size-3.5 animate-spin" />
-              Checking what you send
-            </p>
-          )}
           {capabilitiesQuery.isError && (
             <div className="flex flex-wrap items-center gap-x-2 gap-y-1 px-1 pb-1 text-xs">
               <span className="inline-flex items-center gap-1.5 text-amber-400">
