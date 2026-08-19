@@ -11,10 +11,10 @@ export { ChannelSendError } from "./providers/outbound";
 
 /**
  * The one place a channel type turns into a send. Each provider under
- * `providers/` owns its whole channel: the payload shape, the limit it composes
- * to, and how its failures are reported. Adding a channel type is adding a file
- * there and a case here, and the exhaustive switch makes the second half a
- * compile error if it is forgotten.
+ * `providers/` owns its whole channel: the payload shape, the limit it
+ * composes to, and how its failures are reported. Adding a channel type means
+ * adding a file there and a case here, and the exhaustive switch turns a
+ * forgotten case into a compile error.
  */
 export async function sendChannelNotification(
   config: AlertingChannelConfig,

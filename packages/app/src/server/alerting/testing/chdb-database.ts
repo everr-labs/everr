@@ -143,21 +143,22 @@ export interface ChdbDatabase {
  * A real ClickHouse for the alerting history, embedded in the test process.
  *
  * What this buys over a hand-written double: the column types, the DEFAULT
- * expressions, the TTL and the insert deduplication are the ones the shipped
- * DDL declares, so a row the pipeline writes has to survive the same engine
- * production writes it to. A double accepts whatever shape it is handed.
+ * expressions, the TTL and the insert deduplication all come from the shipped
+ * DDL. A row the pipeline writes must survive the same engine production
+ * writes it to, while a double accepts whatever shape it is handed.
  *
- * What it deliberately does NOT cover: embedded chdb runs as `default` with
- * no access management and cannot grant itself any, so `CREATE ROLE`,
- * `CREATE ROW POLICY` and the `SQL_everr_*` custom settings all fail. Tenant
- * isolation in production is a row policy. Reads here run unrestricted, so
- * nothing in this suite is evidence that a query is correctly scoped to a
- * tenant. Do not let a case claim that.
+ * What it does not cover: embedded chdb runs as `default` with no access
+ * management and cannot grant itself any, so `CREATE ROLE`, `CREATE ROW
+ * POLICY` and the `SQL_everr_*` settings all fail. Tenant isolation in
+ * production is a row policy. Reads here run unrestricted, so nothing in this
+ * suite is evidence that a query is scoped to a tenant. Do not let a case
+ * claim that.
  */
 /**
- * chdb holds one data directory per process: opening a second while the first
- * is live throws. The handle therefore lives on `globalThis`, not in a module
- * variable, because vitest can load this module more than once in a worker
+ * chdb holds one data directory per process, and opening a second while the
+ * first is live throws. The handle therefore lives on `globalThis`, not in a
+ * module variable, because vitest can load this module more than once in a
+ * worker
  * (the mocked `@/lib/clickhouse` graph and a direct import resolve through
  * different registries) and two module copies would each boot an engine.
  * vitest isolates test files, so one process is one file in practice.

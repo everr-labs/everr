@@ -45,12 +45,10 @@ function ruleStatus(
   if (rule.previewStatus === "removed")
     return { label: "Removed", tone: "muted", muted: true };
   if (rule.paused) return { label: "Paused", tone: "muted", muted: true };
-  // Firing and pending outrank health: a degraded rule that is also firing
-  // (or on its way there) is a firing (or pending) rule, and the reader acts
-  // on the alert, not on the evaluation error. Firing outranks pending, not
-  // the reverse: Triage's own history separates the two ("PENDING SINCE" vs
-  // "FIRING SINCE" on the same instance), so this list must not fold them
-  // into one label either.
+  // Firing and pending outrank health. A degraded rule that is also firing is
+  // a firing rule, and the reader acts on the alert, not on the evaluation
+  // error. Firing outranks pending, never the reverse: Triage separates the
+  // two, so this list must not fold them into one label.
   if (firing) return { label: "Firing", tone: "danger", muted: false };
   if (pending) return { label: "Pending", tone: "warning", muted: false };
   if (rule.health.status === "degraded") {

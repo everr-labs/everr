@@ -69,10 +69,10 @@ describe("the alerting pipeline's ClickHouse projection", () => {
     harness.clickhouse.setSignal([{ service: "checkout", value: 42 }]);
 
     // The seam production reads for its own checks. `apply.server.ts` uses
-    // `columnTypes` to decide whether a label column is string-typed and
-    // whether the value column is numeric, so a stub that answered "String"
-    // for every column, as this suite's did, would have let a rule that
-    // labels on a number look valid. These are the engine's answers.
+    // `columnTypes` to decide whether a label column is string-typed and the
+    // value column numeric. A stub that answered "String" for every column
+    // would let a rule that labels on a number look valid. These are the
+    // engine's own answers.
     const { querySqlApiWithMeta } = await import("./testing/test-clickhouse");
     const result = await querySqlApiWithMeta<Record<string, unknown>>(
       "SELECT * FROM app.test_signal",

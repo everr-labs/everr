@@ -12,15 +12,13 @@ const ENQUEUE_CONCURRENCY = 8;
  * How long an enqueued-but-unevaluated definition waits before the scanner
  * picks it up again.
  *
- * `lastEnqueuedAt >= nextEvaluationAt` normally means "a job is in flight",
- * which is why the scanner skips it. Nothing clears that on its own, so any
- * terminal failure that does not reschedule leaves the rule silent for good:
- * a worker killed mid-evaluation, a job dropped from the queue, or a throw on
- * a path that forgot to advance scheduling state.
+ * `lastEnqueuedAt >= nextEvaluationAt` normally means a job is in flight,
+ * which is why the scanner skips it. Nothing clears that on its own, so a
+ * terminal failure that does not reschedule leaves the rule silent for good.
  *
- * Re-enqueueing is safe because both the job key and the `alert_evaluations`
- * insert are keyed on `scheduledFor`, so a duplicate collapses. Keep this well
- * above the slowest legitimate evaluation.
+ * Re-enqueueing is safe: the job key and the `alert_evaluations` insert are
+ * both keyed on `scheduledFor`, so a duplicate collapses. Keep this well above
+ * the slowest legitimate evaluation.
  */
 const STALE_ENQUEUE_SECONDS = 15 * 60;
 

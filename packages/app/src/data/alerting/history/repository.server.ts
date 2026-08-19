@@ -273,10 +273,10 @@ const OBSERVED_LABEL_FILTERS = `
         AND event_time <= {to:DateTime64(3)}`;
 
 /**
- * Rank observed label keys (or, given `key`, values for that key) by
- * frequency in ClickHouse rather than pulling up to 10,000 label blobs into
- * Node to count there. `arrayJoin` explodes each row's keys before the
- * `GROUP BY`, so `count()` ranks over rows, not blobs.
+ * Rank observed label keys by frequency in ClickHouse, rather than pull up to
+ * 10,000 label blobs into Node to count there. Given `key`, ranks that key's
+ * values instead. `arrayJoin` explodes each row's keys before the `GROUP BY`,
+ * so `count()` ranks over rows, not blobs.
  */
 export async function queryClickHouseObservedLabelKeys(
   organizationId: string,

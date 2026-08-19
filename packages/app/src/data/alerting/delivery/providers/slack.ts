@@ -10,17 +10,16 @@ import {
 
 /**
  * Slack reads a `mrkdwn` block as markup, so the three characters that start
- * markup are escaped before the body becomes one. The body is rendered from
- * the rule's annotations against query result values, so any text that
- * reaches the monitored system reaches here: without this, `<!channel>` in a
- * log line pings the channel, and `<https://evil.example|Open the alert>`
- * renders as a trusted-looking link. Slack's own escaping rule, and the
- * ampersand has to go first or it re-escapes the others.
+ * markup are escaped first. The body is rendered from the rule's annotations
+ * against query results, so any text in the monitored system reaches here.
+ * Without this, `<!channel>` in a log line pings the channel, and
+ * `<https://evil.example|Open the alert>` renders as a trusted link. The
+ * ampersand must go first, or it re-escapes the others.
  *
- * Applied to the fields before they are composed, not to the finished text:
- * an entity is five characters where the source was one, so escaping after
- * the fit would push the message back over Slack's limit. The url is left
- * alone; it is ours, and an escaped ampersand would break the link.
+ * Applied to the fields before they are composed, not to the finished text.
+ * An entity is five characters where the source was one, so escaping after
+ * the fit would push the message back over Slack's limit. The url is ours and
+ * is left alone; an escaped ampersand would break it.
  */
 function escapeSlackMarkup(text: string): string {
   return text
@@ -33,9 +32,9 @@ function escapeSlackMarkup(text: string): string {
  * Posts a Block Kit attachment to a Slack Incoming Webhook.
  *
  * Slack does not accept the plain JSON body `postJson` sends, so this builds
- * its own request; the outbound URL still passes the same guard first, and the
- * failure is classified the same way, so a revoked webhook stops on its first
- * 4xx instead of spending the delivery's whole retry budget.
+ * its own request. The outbound URL still passes the same guard first, and
+ * the failure is classified the same way, so a revoked webhook stops on its
+ * first 4xx instead of spending the whole retry budget.
  */
 export async function sendSlackNotification(
   config: Extract<AlertingChannelConfig, { type: "slack" }>,

@@ -11,17 +11,16 @@ import {
 
 /**
  * Every alerting hop is a queue hop, so a job's span links to its enqueuer
- * rather than parenting under it. Parent-child would claim one trace spans the
- * whole chain, which is false here three times over: `evaluate` fans out one
- * event per transition, `flush-group` fans out one delivery per channel, and a
- * silence can defer an event for hours before it flushes. A link keeps every
- * job independently sized and sampled while still naming what caused it.
+ * instead of parenting under it. Parent-child would claim one trace spans the
+ * whole chain. That is false for three reasons: `evaluate` fans out one event
+ * per transition, `flush-group` one delivery per channel, and a silence can
+ * defer an event for hours. A link keeps each job independently sized and
+ * sampled, and still names what caused it.
  *
- * Causality itself lives in `alert_events`, not in the trace. But that journal
- * is customer data behind a row policy scoping it to one organization, so
- * only the owning tenant can read it. These spans belong to Everr and are the
- * only cross-tenant view of the engine: for an operator they carry the whole
- * story, and `everr.alert.episode_id` is what groups one incident together.
+ * Causality lives in `alert_events`, not in the trace. That journal is
+ * customer data behind a row policy, so only the owning tenant can read it.
+ * These spans belong to Everr and are the only cross-tenant view of the
+ * engine. `everr.alert.episode_id` groups one incident.
  */
 const tracer = trace.getTracer("everr-app.alerting");
 const meter = metrics.getMeter("everr-app.alerting");

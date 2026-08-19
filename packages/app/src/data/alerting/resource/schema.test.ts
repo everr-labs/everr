@@ -4,10 +4,10 @@ import {
   alertingResourceNameSchema,
 } from "./schema";
 
-// "." and ".." satisfy the character class but collapse away when a link
-// resolves the slug against a URL (walking up a path segment instead of
-// naming a resource), so both must fail validation even though the regex
-// alone would admit them.
+// "." and ".." satisfy the character class, but they collapse away when a
+// link resolves the slug against a URL: they walk up a path segment instead
+// of naming a resource. Both must fail validation, although the regex alone
+// would admit them.
 describe("alertingResourceMetadataSchema", () => {
   it('rejects a slug of exactly "." or ".."', () => {
     expect(

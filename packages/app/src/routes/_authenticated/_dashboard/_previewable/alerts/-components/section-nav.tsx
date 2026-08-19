@@ -81,12 +81,13 @@ function AlertingSectionNav({ onNavigate }: { onNavigate?: () => void }) {
 }
 
 /**
- * Places the section nav in one of two positions: as the first column of the
+ * Places the section nav in one of two positions: the first column of the
  * layout grid on a wide window, or behind a button that opens the same nav in
- * a sheet on a narrow one. The nav is built once, in one JSX subtree, so it
- * never renders twice at once (which would give two elements the same
- * accessible name and break the active-link assertions, plus double up for
- * anyone using a screen reader).
+ * a sheet on a narrow one.
+ *
+ * The nav is built once, in one JSX subtree, so it never renders twice at
+ * once. Two copies would give two elements the same accessible name, break
+ * the active-link assertions, and repeat the nav for a screen reader.
  */
 export function AlertingSectionNavRail() {
   const isNarrow = useMediaQuery(NARROW_QUERY);

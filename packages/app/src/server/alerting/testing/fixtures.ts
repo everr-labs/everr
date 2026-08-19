@@ -139,17 +139,19 @@ export async function insertRule(
 const BULK_INSERT_CHUNK_SIZE = 2_000;
 
 /**
- * Many rule rows in as few statements as the parameter ceiling above allows:
- * no per-row transaction, no evaluation-job enqueue. `insertRule` mirrors
- * production's `createRule`, which enqueues the first evaluation in the same
- * transaction as the row insert; calling it hundreds or thousands of times to
- * build a scanner fixture would open that many transactions and enqueue that
- * many jobs the case does not want, and would also defeat the point of the
- * case, which is the scanner *finding* rules that have no job in flight yet.
- * `lastEnqueuedAt` is left at its column default (null) for exactly that
- * reason: it is what makes the scanner's `isNull(lastEnqueuedAt)` branch
- * select these rows. Fixture-only; production never inserts a rule without
- * enqueuing its evaluation.
+ * Many rule rows in as few statements as the parameter ceiling allows, with
+ * no per-row transaction and no evaluation-job enqueue.
+ *
+ * `insertRule` mirrors production's `createRule`, which enqueues the first
+ * evaluation in the same transaction as the insert. Calling it thousands of
+ * times would open that many transactions and enqueue jobs the case does not
+ * want. It would also defeat the case, which tests the scanner finding rules
+ * with no job in flight.
+ *
+ * `lastEnqueuedAt` stays at its column default of null for the same reason:
+ * it is what makes the scanner's `isNull(lastEnqueuedAt)` branch select these
+ * rows. Fixture-only; production never inserts a rule without enqueuing its
+ * evaluation.
  */
 export async function insertRulesInBulk(
   db: Db,

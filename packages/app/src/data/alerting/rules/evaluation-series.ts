@@ -67,11 +67,10 @@ function evaluationPoint(
 
 type EvaluationState = "ok" | "breaching" | "failed";
 
-// `rowCount` is the count of rows the unfiltered alert query returned, not
-// the count that matched the condition (a GROUP BY rule's row_count can be
-// entirely healthy rows), so it cannot stand in for the breach signal. The
-// condition has to be re-applied to the stored samples, the same way the
-// chart's own outcome computation already does (chart-data.ts).
+// `rowCount` counts the rows the unfiltered alert query returned, not the
+// rows that matched the condition. A GROUP BY rule's row_count can be all
+// healthy rows, so it cannot stand in for the breach signal. The condition is
+// re-applied to the stored samples, as the chart's own outcome does.
 function evaluationState(
   row: StoredAlertEvaluationPoint,
   condition: AlertingRuleCondition,
@@ -85,10 +84,9 @@ function evaluationState(
   return breaching ? "breaching" : "ok";
 }
 
-// Indexes a downsampled chart must never drop: both range edges, every
-// failed or breaching evaluation, and every point where the state changes
-// (entering or recovering from an incident), even when the new state is
-// itself "ok".
+// Indexes a downsampled chart must never drop: both range edges, every failed
+// or breaching evaluation, and every point where the state changes, even when
+// the new state is "ok".
 function requiredEvaluationIndexes(
   rows: readonly StoredAlertEvaluationPoint[],
   condition: AlertingRuleCondition,
@@ -134,9 +132,9 @@ export function shapeAlertEvaluationSeries(
     } else {
       // Fill from the full-budget grid, thinned evenly when required points
       // already claimed part of the budget. A grid walked until the budget
-      // runs out puts every filler point left of where it stops, and the
-      // newest part of the window, the part a reader cares about most,
-      // renders required points only.
+      // runs out puts every filler point left of where it stops, so the
+      // newest part of the window, which a reader cares about most, would
+      // show required points only.
       const grid: number[] = [];
       for (let i = 0; i < count; i++) {
         const index = Math.round((i * (rows.length - 1)) / (count - 1));

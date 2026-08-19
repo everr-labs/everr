@@ -57,10 +57,10 @@ export function refIdentityKey(project: string, slug: string): string {
   return `${project}\0${slug}`;
 }
 
-// Always qualified: the writer only knows the runbook's own project, never
-// the alert's, so omitting it for "default" made the stored ref ambiguous
-// (parseRunbookRef's bare-slug fallback resolves against the READER's own
-// alert project, which may not be "default").
+// Always qualified. The writer knows the runbook's own project, never the
+// alert's, so omitting it for "default" made the stored ref ambiguous:
+// `parseRunbookRef`'s bare-slug fallback resolves against the reader's own
+// alert project, which may not be "default".
 export function formatRunbookRef(project: string, slug: string): string {
   return formatResourceName(project, slug);
 }

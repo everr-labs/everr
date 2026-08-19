@@ -78,9 +78,9 @@ export function alertEvaluationJobKey(
   return `${ALERT_EVALUATE_TASK}:${id}:${scheduledFor}`;
 }
 
-// `runAt` is not a parameter: the payload's own `scheduledFor` is when the
-// evaluation is due, and a job that ran at any other time would evaluate a
-// different instant than the one it is keyed on.
+// `runAt` is not a parameter. The payload's own `scheduledFor` is when the
+// evaluation is due, and a job run at another time would evaluate a different
+// instant than the one it is keyed on.
 function evaluationTaskSpec(payload: EvaluatePayload): TaskSpec {
   return {
     jobKey: alertEvaluationJobKey(

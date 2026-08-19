@@ -58,7 +58,7 @@ export async function createSilence(
       comment: input.comment ?? "",
       // Server-derived: the caller cannot name somebody else as the author.
       // The display renders; the principal is the identity a later rename
-      // cannot rewrite, and what ticket 17's audit reads.
+      // cannot rewrite, and what an audit trail reads.
       author: actor.display,
       authorPrincipal: alertingActorPrincipal(actor),
       matchers: input.matchers,
@@ -103,13 +103,14 @@ export async function expireSilence(
       .returning({ id: alertSilences.id });
     if (rows.length === 0) return { expired: false };
     // A deferred event wakes at the silence's original ends_at, which the
-    // cancel just collapsed; without a release it stays held for the full
+    // cancel just collapsed. Without a release it stays held for the full
     // window. One set-based statement enqueues every held event in the same
-    // transaction, and one queue per canceled silence serializes the
-    // released re-checks instead of running them all at once. The re-run
-    // re-checks every hold, so another matching silence re-defers instead of
-    // paging; the stale wake at the old ends_at then either finds the event
-    // processed and no-ops, or harmlessly re-runs the idempotent decision.
+    // transaction, and one queue per canceled silence serializes the released
+    // re-checks.
+    //
+    // The re-run re-checks every hold, so another matching silence re-defers
+    // instead of paging. The stale wake at the old ends_at then finds the
+    // event processed and does nothing, or re-runs the same decision.
     const releaseQueue = alertingPartitionQueue("alert", id);
     // One statement enqueues every held event, so the trace link is the same
     // for all of them: the request that canceled the silence. Absent when the

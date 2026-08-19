@@ -117,10 +117,9 @@ export type TriageGroup = {
 
 /**
  * Groups cut to the instances a reader has to act on: firing now, or pending
- * and on the way. Pending belongs here rather than being left off the board
- * entirely: a rule minutes from paging is the reader's business, and the row
- * already carries its own status ("PENDING SINCE" vs "FIRING SINCE"), so the
- * two never read as the same thing.
+ * and on the way. Pending belongs on the board, because a rule minutes from
+ * paging is the reader's business. The row carries its own status, so the two
+ * never read as the same thing.
  */
 export function alertingActiveGroups(groups: TriageGroup[]): TriageGroup[] {
   return groups

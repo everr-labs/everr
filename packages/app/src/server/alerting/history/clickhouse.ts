@@ -49,9 +49,9 @@ export type AlertHistoryDefinition = {
   severity: string;
   /**
    * The rule never notifies at all. A preview copy is the only cause today,
-   * so this equals `preview_id IS NOT NULL` on every row. It stays a column
-   * of its own because the fact it states is "nothing was sent for this
-   * rule", which a future reason would join rather than replace.
+   * so this equals `preview_id IS NOT NULL` on every row. It stays its own
+   * column because it states that nothing was sent for this rule. A future
+   * reason would join that fact, not replace it.
    */
   ruleMuted: boolean;
 };
@@ -83,9 +83,9 @@ export function historyDefFromJournalRow(row: {
 
 /**
  * The same identity, taken from the definition row rather than a journal row.
- * Callers that still hold the rule (the evaluator, preview teardown) come
- * through here, so the fields that identify a history row have one derivation
- * per source and not one per writer.
+ * The evaluator and preview teardown still hold the rule, so they come
+ * through here. The fields that identify a history row then have one
+ * derivation per source, not one per writer.
  */
 export function historyDefFromDefinitionRow(def: {
   id: string;
@@ -286,7 +286,7 @@ export function instanceHistoryRow(opts: {
 
 /**
  * What a terminal freezes from the silence that withheld it. The id alone is
- * a dead end for a caller holding this table and nothing else, and retention
+ * useless to a caller holding this table and nothing else, and retention
  * deletes the silence at 90 days, long before the history it explains.
  */
 type SuppressingSilence = {
@@ -369,17 +369,16 @@ export function suppressionHistoryRow(opts: {
 }
 
 /**
- * A notification a silence is holding right now. Not a decision: the event is
- * reconsidered when the silence lapses and may still go out, which is why the
- * hold is its own event type and not a suppression with a softer reason.
- * Without it a chain shows a fire and then nothing for as long as the hold
- * lasts, and a reader cannot tell a held notification from a lost write.
+ * A notification a silence is holding right now. This is not a decision: the
+ * event is reconsidered when the silence lapses and may still go out, which
+ * is why the hold has its own event type. Without it, a chain shows a fire
+ * and then nothing, and a reader cannot tell a held notification from a lost
+ * write.
  *
  * A hold ends when a delivery or a suppression row lands on the same chain,
- * so "held right now" is a hold with neither, and needs no end time on the
- * row. `event_time` is the chain's own time for the same reason the terminal
- * uses it: the row must be byte-identical across retries, and a decision
- * clock differs on every attempt.
+ * so "held right now" is a hold with neither, and the row needs no end time.
+ * `event_time` is the chain's own time, because the row must be
+ * byte-identical across retries.
  */
 export function deferralHistoryRow(opts: {
   def: AlertHistoryDefinition;
@@ -421,10 +420,10 @@ export function journalHoldRow(
 /**
  * The terminal a notification chain gets when it ends without notifying.
  *
- * Every drop path owes one, and they differ only in why, so the mapping from a
- * journal row to its terminal lives here instead of being restated wherever a
- * chain dies. A new drop reason then names itself and nothing else, and a new
- * field on the terminal reaches every writer at once.
+ * Every drop path owes one, and they differ only in the reason. The mapping
+ * from a journal row to its terminal therefore lives here, not restated
+ * wherever a chain dies. A new drop reason then names itself and nothing
+ * else, and a new field reaches every writer at once.
  */
 export function journalTerminalRow(
   event: Parameters<typeof historyDefFromJournalRow>[0] & {
@@ -507,17 +506,15 @@ function alertHistoryDedupToken(rows: readonly AlertHistoryRow[]): string {
 
 /**
  * `sync` waits for the write instead of batching it. The rare lifecycle
- * projection takes it, where the stronger write is cheap; the hot path does
- * not.
+ * projection takes it; the hot path does not.
  *
  * `convergesOnRetry` is what earns the deduplication token, and only the
- * caller knows it: the token converges a retry onto one row when the retry
- * rebuilds the same event ids, and a batch whose ids are minted fresh per
- * attempt (`uuidv7`) can never do that. The token is not free where it cannot
- * work, because ClickHouse keys the async-insert buffer on the settings as
- * well as the query, so a token that differs on every insert gives every
- * insert its own buffer and its own part. The table earns the token in the
- * first place through `non_replicated_deduplication_window` in the DDL.
+ * caller knows it. The token converges a retry onto one row when the retry
+ * rebuilds the same event ids. A batch whose ids are minted fresh per attempt
+ * can never do that, and the token is not free where it cannot work:
+ * ClickHouse keys the async-insert buffer on the settings as well as the
+ * query, so a token that differs every time gives every insert its own buffer
+ * and its own part.
  */
 function insertAlertHistoryRows(
   rows: AlertHistoryRow[],
@@ -534,12 +531,13 @@ function insertAlertHistoryRows(
 }
 
 /**
- * The throwing form, for callers whose only job is the insert: the lifecycle
+ * The throwing form, for callers whose only job is the insert. The lifecycle
  * projection runs as a Graphile task with retries, and a swallowed failure
- * there would report success while the chain's terminals are lost. This path
- * inserts synchronously with insert_deduplication_token set from the sorted
- * row ids, so a retry that resends the same logical batch converges on one
- * write instead of duplicating terminal rows.
+ * there would report success while the chain's terminals are lost.
+ *
+ * This path inserts synchronously, with the deduplication token set from the
+ * sorted row ids, so a retry that resends the same batch converges on one
+ * write instead of duplicating terminals.
  */
 export async function recordAlertHistoryStrict(
   rows: AlertHistoryRow[],

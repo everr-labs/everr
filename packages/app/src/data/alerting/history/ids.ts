@@ -39,10 +39,10 @@ function deterministicUuidV8(seed: string): string {
 }
 
 // A chain gets exactly one terminal suppression row, so its id derives from
-// the notification event alone. Deterministic for the same reason as delivery
-// ids: the projection runs under Graphile retry, and a retry (or a racing
-// second writer) must converge on one id instead of minting a phantom second
-// terminal into an append-only table.
+// the notification event alone. It is deterministic for the same reason as a
+// delivery id: the projection runs under Graphile retry, and a retry or a
+// racing second writer must converge on one id, not mint a second terminal
+// into an append-only table.
 export function deterministicSuppressionEventId(
   notificationEventId: string,
 ): string {

@@ -263,10 +263,10 @@ export const applyAlertSpecs: Reconciler = async ({
   );
   // The ClickHouse validations above fan out concurrently; these PostgreSQL
   // reads run serially on the registry executor. They must not touch the bare
-  // pool: this code already holds the registry transaction's connection, and
-  // acquiring a second one here is a hold-and-acquire, so enough concurrent
-  // applies exhaust the pool and every one waits forever for a connection
-  // none will release. A new preview has nothing to list yet.
+  // pool. This code already holds the registry transaction's connection, so
+  // acquiring a second one is a hold-and-acquire: enough concurrent applies
+  // exhaust the pool, and each one waits forever for a connection no other
+  // will release. A new preview has nothing to list yet.
   const listed: AlertingRuleView[] =
     namespace.kind === "preview" && namespace.id === null
       ? []

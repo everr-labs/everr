@@ -34,8 +34,8 @@ export interface AlertInstanceTransition {
    *
    * A restart after a recorded absence is not this: that one has evidence
    * behind it. This one changes the verdict on the absence of evidence, and
-   * it writes nothing (the instance stays pending and no transition is
-   * journaled), so a rule that lands late every interval never fires and
+   * writes nothing: the instance stays pending and no transition is
+   * journaled. So a rule that lands late every interval never fires and
    * still reads healthy. The caller reports it; see
    * `alerts.evaluate.for_clock_restarted`.
    */
@@ -79,12 +79,13 @@ export function advanceAlertInstance(input: {
   if (present) {
     const reappeared = previous.absentCount > 0;
     // An evaluation landing far later than the cadence promises means nothing
-    // watched the condition in between, and an absence in that window would
-    // have left exactly this state: absentCount stays 0 and lastSeenAt stays
-    // put, because only a real evaluation records an absence. `for` claims the
-    // condition held continuously, so an unobserved stretch restarts the
-    // clock instead of counting as holding. Without this an outage longer
-    // than `for` fires the rule on the first evaluation after it.
+    // watched the condition in between. An absence in that window would leave
+    // exactly this state: absentCount stays 0 and lastSeenAt stays put,
+    // because only a real evaluation records an absence.
+    //
+    // `for` claims the condition held continuously, so an unobserved stretch
+    // restarts the clock. Without this, an outage longer than `for` fires the
+    // rule on the first evaluation after it.
     const gapMs =
       previous.lastSeenAt === null
         ? null

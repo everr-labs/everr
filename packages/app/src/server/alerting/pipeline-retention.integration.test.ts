@@ -187,11 +187,11 @@ describe("the alerting pipeline's retention", () => {
     const [instance] = await harness.db.select().from(alertInstances);
     expect(instance.status).toBe("firing");
 
-    // Age is not what separates the two runs below: the row is equally old in
+    // Age is not what separates the two runs below; the row is equally old in
     // both. A firing instance holds the live state the evaluator compares
-    // against on every tick, so a pass that took it by age would lose the
-    // pending clock and the episode, and the next tick would open the
-    // incident again as a new one.
+    // against on every tick. A pass that took it by age would lose the pending
+    // clock and the episode, and the next tick would open the incident again
+    // as a new one.
     harness.advance(100 * DAY_MS);
     await cleanupAlertingHistory({ now: new Date() });
     expect((await rowCounts()).instances).toBe(1);

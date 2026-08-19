@@ -47,10 +47,10 @@ async function deliveryLinkedEvents(
 /**
  * One ClickHouse trail row per alert event this delivery carried.
  *
- * Never throws. It runs on the delivery path, where a raised error would either
- * replace the real send failure with a bookkeeping one or, worse, push a
- * successful send into the failure branch and have Graphile deliver it twice.
- * Recording history must never affect the operation that produced it.
+ * Never throws. It runs on the delivery path, where a raised error would
+ * replace the real send failure with a bookkeeping one. Worse, it could push
+ * a successful send into the failure branch and have Graphile deliver it
+ * twice. Recording history must never affect the operation that produced it.
  */
 export async function recordDeliveryOutcome(opts: {
   organizationId: string;
@@ -89,9 +89,9 @@ export async function recordDeliveryOutcome(opts: {
       ),
       // A succeeded row's id derives from the notification and the dedup key
       // alone, so a retry rebuilds it and converges. A failed row folds in
-      // the attempt time on purpose, because every attempt is its own line in
-      // the trail, so no retry can ever match one and the token would only
-      // cost this write its insert batching.
+      // the attempt time on purpose: every attempt is its own line in the
+      // trail, so no retry can match one, and the token would only cost this
+      // write its insert batching.
       { convergesOnRetry: opts.outcome === "succeeded" },
     );
   } catch (cause) {

@@ -111,13 +111,14 @@ export async function processAlertEvent(rawPayload: unknown): Promise<void> {
     return;
   }
   // One transaction for every membership plus the processed stamp. The stamp
-  // is the claim: a concurrent pause or delete cancels events through
-  // `processed_at IS NULL`, so either the cancel wins and this rolls back
-  // (no membership, the cancel's terminal is the only record), or this
-  // commits first and the cancel skips the event (the flush drops the
-  // membership and writes the only terminal). Split transactions left a
-  // window where both wrote one. Targets are locked in group-key order so
-  // two events dispatching to overlapping groups cannot deadlock.
+  // is the claim, and a concurrent pause or delete cancels events through
+  // `processed_at IS NULL`. So either the cancel wins and this rolls back,
+  // leaving its terminal as the only record, or this commits first and the
+  // cancel skips the event, leaving the flush to write the only terminal.
+  // Split transactions left a window where both wrote one.
+  //
+  // Targets are locked in group-key order, so two events dispatching to
+  // overlapping groups cannot deadlock.
   try {
     await db.transaction(async (tx) => {
       const ordered = [...targets].sort((a, b) =>
@@ -163,13 +164,14 @@ export function processedStampGuard(eventId: string) {
 }
 
 /**
- * Lock the target group, or create it. `FOR UPDATE` only serializes on rows
- * that exist, so two events creating the same group key race the insert; the
- * loser's `ON CONFLICT DO NOTHING` returns no row, and the second pass locks
- * the winner's now-committed row and folds into it, as if the group had
- * existed all along. Without the fallback, the loser's whole membership
- * transaction rolled back onto a Graphile retry, burning an attempt exactly
- * during a burst of simultaneous first-fires.
+ * Lock the target group, or create it. `FOR UPDATE` serializes only on rows
+ * that exist, so two events creating the same group key race the insert. The
+ * loser's `ON CONFLICT DO NOTHING` returns no row. Its second pass then locks
+ * the winner's committed row and folds into it, as if the group had always
+ * existed.
+ *
+ * Without the fallback, the loser's whole membership transaction rolled back
+ * onto a Graphile retry, burning an attempt during a burst of first-fires.
  */
 export async function claimNotificationGroup(
   tx: Parameters<Parameters<typeof db.transaction>[0]>[0],

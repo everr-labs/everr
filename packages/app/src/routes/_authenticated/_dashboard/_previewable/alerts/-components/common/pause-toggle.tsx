@@ -20,8 +20,8 @@ const PAUSE_CONSEQUENCE: Record<AlertingPausableKind, string> = {
 };
 
 /**
- * Only the pause confirms: its cost is silent by construction (nothing fires
- * to remind you later), while a resume shows its own effect.
+ * Only the pause confirms. Its cost is silent, because nothing fires to
+ * remind you later, while a resume shows its own effect.
  */
 export function AlertingPauseToggle({
   paused,
@@ -59,9 +59,9 @@ export function AlertingPauseToggle({
     <AlertDialog>
       <AlertDialogTrigger
         // Destructive beside a page heading, where it is the one pause on
-        // screen. In a row it repeats down the whole table and the red would
-        // outweigh the state column the table exists to show, so rows stay
-        // quiet and the confirm dialog carries the weight instead.
+        // screen. In a row it repeats down the whole table, and the red would
+        // outweigh the state column the table exists to show. Rows stay quiet,
+        // and the confirm dialog carries the weight.
         render={
           <Button
             variant={variant === "outline" ? "destructive" : variant}

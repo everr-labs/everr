@@ -12,13 +12,14 @@ const RETRYABLE_CLIENT_ERROR_STATUSES = new Set([408, 429]);
 /**
  * A failed send, split by who wrote the text.
  *
- * `message` is ours and never carries a word the endpoint returned;
- * `responseBody` is the endpoint's own answer, kept apart because the two are
- * reported to different readers. The history trail records both (sanitized),
- * because "invalid_payload" is what tells an operator what to fix. A channel
- * test shows only the message: the URL under test is whatever the member
- * typed, so reflecting the response back would make the test a way to read
- * any HTTP endpoint the server can reach.
+ * `message` is ours and never carries a word the endpoint returned.
+ * `responseBody` is the endpoint's own answer. They are kept apart because
+ * they go to different readers.
+ *
+ * The history trail records both, sanitized, because the endpoint's answer is
+ * what tells an operator what to fix. A channel test shows only the message:
+ * the URL under test is whatever the member typed, so reflecting the response
+ * would make the test a way to read any HTTP endpoint the server can reach.
  */
 export class ChannelSendError extends Error {
   readonly permanent: boolean;
@@ -121,9 +122,9 @@ export async function validateOutboundUrl(raw: string): Promise<URL> {
     throw new Error("notification URL must not target localhost");
   }
   // The WHATWG parser keeps the brackets on an IPv6 literal, and isIP rejects
-  // the bracketed form. Unstripped, every v6 literal skips the blocklist and
-  // falls through to a DNS lookup for "[::1]", which fails with a name error
-  // rather than saying the address is internal.
+  // the bracketed form. Left unstripped, every v6 literal skips the blocklist
+  // and falls through to a DNS lookup for "[::1]". That fails with a name
+  // error instead of saying the address is internal.
   const literal =
     hostname.startsWith("[") && hostname.endsWith("]")
       ? hostname.slice(1, -1)

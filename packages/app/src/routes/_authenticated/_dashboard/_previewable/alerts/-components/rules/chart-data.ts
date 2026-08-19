@@ -218,12 +218,14 @@ export function buildAlertRuleEvaluationRail(
 }
 
 // Walking backwards from the current firing set, each event inverts what it
-// did forward: before a fire or a pending entry the instance was not live, so
-// they remove; before a resolve or a lifecycle close it was firing, so they
-// re-add. Two refinements keep closes honest: a pending_cleared close ended an
-// instance that never fired, so it must not re-add, and pending entries must
-// remove, or a pause that caught a pending instance would read as firing all
-// the way back to the domain edge.
+// did forward. Before a fire or a pending entry the instance was not live, so
+// those remove. Before a resolve or a lifecycle close it was firing, so those
+// re-add.
+//
+// Two refinements keep closes honest. A pending_cleared close ended an
+// instance that never fired, so it must not re-add. And pending entries must
+// remove, or a pause that caught a pending instance reads as firing all the
+// way back to the domain edge.
 function backwardsRailEffect(
   event: Pick<AlertEventLogRow, "eventType" | "reason">,
 ): "add" | "remove" | null {
@@ -246,10 +248,10 @@ function backwardsRailEffect(
  * the stretch above it began and an "add" is the moment a stretch below it
  * ended, so each pair closes one interval.
  *
- * `earliestEvidence` is the oldest evaluation the range actually holds. An
- * instance still open when the walk reaches the start of the range began
- * before it, but the rail must not claim firing over a window the rule was
- * never observed in, so the interval starts there and not at the domain edge.
+ * `earliestEvidence` is the oldest evaluation the range holds. An instance
+ * still open when the walk reaches the start of the range began before it.
+ * The rail must not claim firing over a window nothing observed, so the
+ * interval starts there, not at the domain edge.
  */
 export function buildAlertRuleFiringPeriods(
   events: readonly AlertEventLogRow[],

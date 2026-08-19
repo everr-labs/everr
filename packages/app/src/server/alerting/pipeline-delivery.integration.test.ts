@@ -864,8 +864,8 @@ describe("the alerting pipeline's delivery", () => {
   // Any member can run a channel test against a URL they typed, so the send
   // is a fetch the server makes on their behalf. Reflecting what came back
   // would turn the button into a way to read whatever HTTP the application
-  // plane can reach, which is the accepted DNS-rebinding write gap (ticket
-  // 19) upgraded to a read.
+  // plane can reach, which is the accepted DNS-rebinding write gap
+  // upgraded to a read.
   it("tells a channel test what failed without quoting the endpoint's answer", async () => {
     const secret = "root:hunter2@db.internal";
     harness.setFetchResponse({

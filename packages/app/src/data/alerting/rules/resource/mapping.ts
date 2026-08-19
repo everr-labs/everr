@@ -83,10 +83,9 @@ export function toRuleInput(
     sql: rule.spec.query,
     interval_secs: parseEvaluationInterval(rule.spec.evaluationInterval),
     for_secs: parseForDuration(rule.spec.for),
-    // Sorted, not authored order: identity is fingerprinted over sorted
-    // label keys, so the stored spec must not churn (and reorder-only
-    // updates must not close every open instance) when a user or an
-    // inference pass merely reorders the same columns.
+    // Sorted, not authored order. Identity is fingerprinted over sorted label
+    // keys, so reordering the same columns must not churn the stored spec, and
+    // a reorder-only update must not close every open instance.
     label_columns: [
       ...(rule.spec.instanceLabels ?? opts.instanceLabels ?? []),
     ].sort(),
@@ -141,10 +140,10 @@ export function fromAlertingRule(
 ): SimpleAlertView {
   const { project, slug } = parseResourceName(rule.name);
   const ann = rule.spec.annotations ?? {};
-  // formatRunbookRef always qualifies now, so a stored ref is always
-  // "project/slug". A bare ref here can only be a pre-fix legacy row, and
-  // the old bug only ever dropped the "default" project, so that is the
-  // fallback (never the alert's own project, which may differ).
+  // `formatRunbookRef` always qualifies, so a stored ref is "project/slug". A
+  // bare ref can only be a legacy row, and the bug that wrote one dropped the
+  // "default" project, so that is the fallback. Never the alert's own project,
+  // which may differ.
   const runbook = ann[ANN_RUNBOOK]
     ? parseRunbookRef(ann[ANN_RUNBOOK], "default")
     : null;

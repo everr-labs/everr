@@ -31,10 +31,9 @@ function AlertingRulesPage() {
 
   if (rules.isError) return <AlertingQueryError error={rules.error} />;
 
-  // Kept apart, not merged into one "active" set: Triage labels these two
-  // states differently (`FIRING SINCE` vs `PENDING SINCE`), so a rule with
-  // only a pending instance would read as firing here otherwise, disagreeing
-  // with the page the reader just came from.
+  // Kept apart, not merged into one "active" set. Triage labels these two
+  // states differently, so merging them would show a rule with only a pending
+  // instance as firing, disagreeing with the page the reader came from.
   const firingRuleIds = new Set(
     (alerts.data ?? EMPTY)
       .filter((a) => a.status === "firing")

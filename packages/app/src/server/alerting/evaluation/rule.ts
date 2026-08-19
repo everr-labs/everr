@@ -263,13 +263,13 @@ async function scheduleAlertAtInTransaction(
     .set({ nextEvaluationAt: runAt, lastEnqueuedAt: runAt })
     .where(eq(alertDefinitions.id, def.id));
   // An explicit runAt, unlike the "as soon as possible" jobs that let the
-  // database date them (see addJob in server/worker/jobs.ts): the grid is the
-  // rule's own cadence, so it has to be computed, and it is computed from this
-  // node's clock. A node whose clock is ahead schedules every rule it touches
-  // late in database time, and the same skew reaches last_seen_at, which a
-  // different node compares against its own clock in advanceAlertInstance.
-  // Alerting assumes the app nodes agree on the time to within much less than
-  // an evaluation interval.
+  // database date them. The grid is the rule's own cadence, so it has to be
+  // computed, and it is computed from this node's clock.
+  //
+  // A node whose clock runs ahead schedules every rule it touches late in
+  // database time. The same skew reaches last_seen_at, which another node
+  // compares against its own clock. Alerting assumes the app nodes agree on
+  // the time to well within one evaluation interval.
   await addWorkerJobInTransaction(tx, ALERT_EVALUATE_TASK, payload, {
     jobKey: alertEvaluationJobKey(def.id, payload.scheduledFor),
     jobKeyMode: "replace",
@@ -292,10 +292,9 @@ async function recordEvaluationFailure(
   const message = sanitizeAlertError(errorMessage(cause)).slice(0, 8_000);
   const occurredAt = new Date();
   const applied = await db.transaction(async (tx) => {
-    // Mirrors the success path's guard: a rule paused or deleted between the
-    // outer read and this transaction must not be written back degraded
-    // with a queued retry, and a deleted rule's id would violate the
-    // alert_evaluations FK below.
+    // Mirrors the success path's guard. A rule paused or deleted between the
+    // outer read and this transaction must not be written back degraded with
+    // a queued retry, and a deleted rule's id would violate the FK below.
     const [fresh] = await tx
       .select({
         active: alertDefinitions.active,
@@ -405,13 +404,13 @@ export async function evaluateAlert(rawPayload: unknown): Promise<void> {
     return;
   }
 
-  // Every terminal path from here has to advance scheduling state. The scanner
-  // only selects a definition whose lastEnqueuedAt predates its
-  // nextEvaluationAt, so a throw that escapes this function leaves the rule
-  // enqueued but not rescheduled, and it stops evaluating until the scanner's
-  // stale-enqueue clause takes it back (STALE_ENQUEUE_SECONDS, 15 minutes).
-  // That backstop is the floor, not the plan: a rule that goes quiet for 15
-  // minutes has already missed the window it exists to watch.
+  // Every terminal path from here has to advance scheduling state. The
+  // scanner only selects a definition whose lastEnqueuedAt predates its
+  // nextEvaluationAt. A throw that escapes this function therefore leaves the
+  // rule enqueued but not rescheduled, and it stops evaluating until the
+  // stale-enqueue clause takes it back 15 minutes later. That backstop is the
+  // floor, not the plan: a rule quiet for 15 minutes has already missed the
+  // window it exists to watch.
   try {
     await evaluateAlertRule(def, payload, scheduledFor);
     recordAlertEvaluation("ok");
@@ -456,9 +455,9 @@ async function evaluateAlertRule(
   const presentByFingerprint = new Map(
     present.map((instance) => [instance.fingerprint, instance]),
   );
-  // Matching rows first, so a rule with more than the sample cap's worth of
-  // label sets never buries the breaching ones under healthy filler and the
-  // series doesn't miss a breach that paged someone.
+  // Matching rows first. A rule with more label sets than the sample cap must
+  // not bury the breaching ones under healthy filler, or the series misses a
+  // breach that paged someone.
   const capturedSamples = captureAlertEvaluationSamples(
     rows,
     def.spec.label_columns,
@@ -505,9 +504,8 @@ async function evaluateAlertRule(
     previousRows.map((row) => [row.fingerprint, row.episodeId]),
   );
   const historyDef = historyDefFromDefinitionRow(def);
-  // Computed once per transition and reused for both the journal row below
-  // and the instance upsert further down, instead of recomputing the same
-  // bound evidence twice from the same inputs.
+  // Computed once per transition, then reused by the journal row and the
+  // instance upsert, instead of bounding the same evidence twice.
   const boundedEvidenceByFingerprint = new Map(
     transitions
       .filter((transition) => !isNoopInactiveTransition(transition))

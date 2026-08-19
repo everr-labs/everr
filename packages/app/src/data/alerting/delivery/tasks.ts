@@ -37,11 +37,11 @@ export function flushGroupJobKey(groupId: string, flushAt: Date): string {
 }
 
 /**
- * The two dispatch sites (a dispatch reaching a group, and a flush arming its
- * own next run) enqueue through here, so the key scheme above, the replace
- * mode it depends on, the retry policy and the partition queue are one thing
- * rather than four that a third site could get subtly wrong. The queue is what
- * bounds how many flushes of different groups run at once.
+ * Both dispatch sites enqueue through here: a dispatch reaching a group, and
+ * a flush arming its own next run. The key scheme above, the replace mode it
+ * depends on, the retry policy and the partition queue are therefore one
+ * thing, not four a third site could get wrong. The queue bounds how many
+ * flushes of different groups run at once.
  */
 export async function enqueueFlushGroup(
   tx: Transaction,

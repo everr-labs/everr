@@ -14,7 +14,7 @@ export interface ChannelNotification {
  * alone exceed the limit fall back to a blind cut.
  *
  * No production path sets it yet, so the branch that keeps it is unreached
- * outside tests. See ticket 28 in the alerting surface notes.
+ * outside tests.
  */
 export function composeText(
   notification: ChannelNotification,

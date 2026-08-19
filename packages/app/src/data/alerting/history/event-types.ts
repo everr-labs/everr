@@ -1,11 +1,12 @@
 /**
  * The single source of truth for what `event_type` can hold in ClickHouse.
  *
- * It lives here, in the domain, rather than beside the writer: this module is
- * imported by client-bundled route components, and the writer pulls in
- * server-only dependencies (ClickHouse admin credentials, node:crypto). The
- * writer imports the union from here, so a renamed or removed event type is a
- * compile error at every reader and writer alike, not a silently empty query
+ * It lives in the domain rather than beside the writer, because
+ * client-bundled route components import this module, and the writer pulls in
+ * server-only dependencies.
+ *
+ * The writer imports the union from here, so a renamed or removed event type
+ * is a compile error at every reader and writer, not a silently empty query
  * result.
  */
 export type AlertHistoryEventType =

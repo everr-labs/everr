@@ -192,27 +192,26 @@ describe("the alerting pipeline's capacity bounds", () => {
     // for). It does not hold for this member: its flushedAt is not null
     // (phase one already set it), so this flush's own pending count does
     // not see it as pending, and the group parks on the idle sentinel
-    // instead of scheduling a follow-up. The park ticket 41 fixed does not
-    // save this one: that fix reads the sentinel as "no flush booked" only
-    // while lastFlushedAt is null, and here it is set, so the group is not
-    // dead, it just has no follow-up. The sentinel is the wanted answer, not
-    // a pinned defect: this leftover was already announced, and the route
-    // configured no repeat, so it needs no second announcement. Arming a
-    // flush here would claim already-flushed members and page for them,
-    // because groupNotificationPlan announces every still-firing member when
-    // no claimed member is unflushed. What the leftover does need is pruning,
-    // which ticket 46 puts in the maintenance sweep rather than in a flush:
-    // todo/issues/alerting-surface/tickets/46-a-capped-claim-leaves-no-one-behind.md
+    // instead of scheduling a follow-up. The rule that revives a parked
+    // group does not save this one: it reads the sentinel as "no flush
+    // booked" only while lastFlushedAt is null, and here it is set, so the
+    // group is not dead, it just has no follow-up. The sentinel is the
+    // wanted answer, not a pinned defect: this leftover was already
+    // announced, and nothing re-announces a notification already sent.
+    // Arming a flush here would claim already-flushed members and page for
+    // them, because groupNotificationPlan announces every still-firing
+    // member when no claimed member is unflushed. What the leftover does
+    // need is pruning, and that belongs in the maintenance sweep rather
+    // than in a flush.
     const [group] = await harness.db
       .select()
       .from(alertNotificationGroups)
       .where(eq(alertNotificationGroups.directAlertDefinitionId, rule.id));
     expect(group.nextFlushAt).toEqual(IDLE_GROUP_FLUSH_AT);
 
-    // Ticket 35 (todo/issues/alerting-surface/tickets/35-oversized-groups-are-visible.md)
-    // asks for a counter and a log line when a flush hits this cap: OTel
-    // telemetry this harness has no way to observe (it exposes only the
-    // database, ClickHouse itself, and captured fetch calls).
+    // A flush that hits this cap should also emit a counter and a log
+    // line, which this harness has no way to observe: it exposes only the
+    // database, ClickHouse itself, and captured fetch calls.
     // This case pins the claim boundary only.
     // 501 real dispatches and a capped claim, well past vitest's 5s default.
     // The headroom is deliberate: this case takes about 8 seconds on its own

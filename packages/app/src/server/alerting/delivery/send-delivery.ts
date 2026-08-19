@@ -83,10 +83,10 @@ export async function sendAlertDelivery(rawPayload: unknown): Promise<void> {
   };
   const channel = row.channel;
   if (!channel) {
-    // No config left to send with, and no retry can bring it back, so this
-    // is terminal at the max attempts for the same reason the withheld path
-    // below is. Silence here would read as "nothing was sent" with no record
-    // of why, which is the one thing the trail must never do.
+    // No config left to send with, and no retry can bring it back. This is
+    // terminal at the max attempts, for the same reason the withheld path
+    // below is. Staying silent would read as "nothing was sent" with no
+    // record of why, which the trail must never do.
     await failDelivery(
       "unknown",
       `Withheld: channel ${row.delivery.channelName} was deleted before the send ran`,
@@ -125,11 +125,11 @@ export async function sendAlertDelivery(rawPayload: unknown): Promise<void> {
     } catch {
       // Config unreadable; the placeholder stays.
     }
-    // The max, not row.delivery.attempts + 1: this is a terminal decision
-    // independent of how many sends were already tried, and both the
-    // retention sweep and the terminal-cleanup index key "failed and done"
-    // on attempts >= ALERT_DELIVERY_MAX_ATTEMPTS. A lower count would leave
-    // this row, and the journal events it links, undeletable forever.
+    // The max, not attempts + 1. This is a terminal decision, whatever the
+    // number of sends already tried. The retention sweep and the
+    // terminal-cleanup index both key "failed and done" on attempts reaching
+    // the max, so a lower count leaves this row, and the journal events it
+    // links, undeletable forever.
     await failDelivery(
       withheldChannelType,
       "Withheld: every rule behind this notification was paused or deleted before the send ran",
@@ -217,8 +217,8 @@ export async function sendAlertDelivery(rawPayload: unknown): Promise<void> {
       // The send went out but neither attempt to record it landed. Do not
       // classify this row failed: it was not a failed send. Leave it
       // pending and throw a distinct error so this run is not confused with
-      // a send failure; the job queue's retry (or the reconciliation sweep,
-      // ticket 23) is what resolves a row stuck here.
+      // a send failure. The job queue's retry is what resolves a row stuck
+      // here; nothing else does, since no reconciliation sweep exists.
       throw new Error(
         "alert delivery sent, but its status write failed twice",
         { cause: statusWriteError },

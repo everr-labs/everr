@@ -146,15 +146,14 @@ export async function deleteChannel(
   name: string,
 ) {
   const channel = await getChannelRow(organizationId, name);
-  // One transaction: a flush that inserts a delivery for this channel between
+  // One transaction. A flush that inserts a delivery for this channel between
   // the count and the delete would otherwise slip past the guard. It can still
-  // land between the update and the delete, and then the foreign key rejects
-  // the delete and the whole thing rolls back, which is the safe direction.
+  // land between the update and the delete. The foreign key then rejects the
+  // delete and everything rolls back, which is the safe direction.
   await db.transaction(async (tx) => {
     // Settled deliveries keep the channel's name, not the channel, so they do
-    // not block. Only a delivery that still has a send to make needs the
-    // config, and those drain in minutes, so this refusal is worth waiting
-    // out rather than permanent.
+    // not block. Only a delivery with a send still to make needs the config,
+    // and those drain in minutes. This refusal is worth waiting out.
     const [inFlight] = await tx
       .select({ count: countDistinct(alertDeliveries.dedupKey) })
       .from(alertDeliveries)
@@ -197,12 +196,14 @@ const TEST_CHANNEL_ERROR_MAX = 300;
  * What a failed channel test may say.
  *
  * The URL under test is whatever the member typed, so the send is a fetch the
- * server makes on their behalf: hand back the endpoint's response and the
- * test becomes a way to read any HTTP service the application plane can
- * reach. A ChannelSendError keeps that response in `responseBody` and out of
- * its message, so what is returned here is only ever text we wrote, and it is
- * still sanitized: a lower layer may have put a webhook URL or a bot token in
- * a message, and both are secrets.
+ * server makes on their behalf. Handing back the endpoint's response would
+ * turn the test into a way to read any HTTP service the application plane can
+ * reach.
+ *
+ * A ChannelSendError keeps that response in `responseBody`, out of its
+ * message, so what is returned here is only text we wrote. It is sanitized
+ * anyway: a lower layer may have put a webhook URL or a bot token in a
+ * message, and both are secrets.
  */
 function testChannelError(cause: unknown): string {
   const message = cause instanceof Error ? cause.message : String(cause);

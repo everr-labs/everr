@@ -79,9 +79,9 @@ export async function eventStillFiring(event: typeof alertEvents.$inferSelect) {
 
 /**
  * Which of `events` have an instance that is firing right now, as a set of
- * `instanceKey`s. Load once per batch rather than calling `eventStillFiring`
- * per member: a flush weighing hundreds of members must not issue hundreds of
- * single-row lookups.
+ * `instanceKey`s. Loaded once per batch rather than one call per member, so a
+ * flush weighing hundreds of members does not issue hundreds of single-row
+ * lookups.
  *
  * The two `IN` lists are a cross product, so a firing instance that no caller
  * asked about can enter the set. That is harmless: the set is keyed on the
@@ -138,13 +138,14 @@ export async function deferSuppressedEvent(
         silenceId: silence.id,
         processedAt: shouldRetry ? null : now,
       })
-      // This write is a claim, like the dispatch stamp: a concurrent pause or
-      // delete cancels through `processed_at IS NULL` and projects the chain's
-      // terminal, and an unguarded defer would overwrite that stamp, revive
-      // the canceled event or write a second terminal. Matching the value this
-      // processor read keeps exactly one owner: the process path read NULL,
-      // the flush path read its own dispatch stamp, and a cancel's stamp
-      // matches neither.
+      // This write is a claim, like the dispatch stamp. A concurrent pause or
+      // delete cancels through `processed_at IS NULL` and projects the
+      // chain's terminal. An unguarded defer would overwrite that stamp, and
+      // then revive the canceled event or write a second terminal.
+      //
+      // Matching the value this processor read keeps exactly one owner: the
+      // process path read NULL, the flush path read its own dispatch stamp,
+      // and a cancel's stamp matches neither.
       .where(
         and(
           eq(alertEvents.id, event.id),
@@ -167,11 +168,11 @@ export async function deferSuppressedEvent(
   // The cancel that won the claim owns the terminal; recording one here too
   // would put two suppression rows on one chain.
   if (!claimed) return;
-  // A hold is a fact; a withholding is not one yet. The event is
-  // reconsidered when the silence lapses and may still go out, so the row
-  // says "held by this silence", and the chain ends later with a delivery or
-  // a suppression. The id derives from the event and the silence, so the two
-  // defer paths and their retries converge on one row per hold.
+  // A hold is a fact; a withholding is not one yet. The event is reconsidered
+  // when the silence lapses and may still go out. So the row says "held by
+  // this silence", and the chain ends later with a delivery or a suppression.
+  // The id derives from the event and the silence, so both defer paths and
+  // their retries converge on one row per hold.
   if (shouldRetry) {
     await recordAlertHistory(
       event.sourceDefinitionId,

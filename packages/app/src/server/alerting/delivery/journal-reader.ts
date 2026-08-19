@@ -29,28 +29,24 @@ export async function claimDeliverableEvent(eventId: string) {
 
 /**
  * A group's claimed memberships, with the owning rule's liveness read in the
- * same statement. `ruleActive` is null when the definition is gone (the rule
- * was deleted; its journal rows outlive it), false when it is paused. The
- * flush drops both instead of notifying.
+ * same statement. `ruleActive` is null when the definition is gone, false
+ * when the rule is paused. The flush drops both instead of notifying.
  *
- * `cap` bounds how many rows one flush claims: a storm feeding one group
- * (thousands of firing instances into one receiver) must not push a single
- * worker through a suppression check per member unbounded. Whatever is left
- * past the cap stays linked and unflushed, which the flush's own
- * pending-member count turns into a follow-up flush.
+ * `cap` bounds how many rows one flush claims, so a storm feeding one group
+ * cannot push one worker through an unbounded number of suppression checks.
+ * What is left past the cap stays linked and unflushed, and the flush's own
+ * pending-member count turns that into a follow-up flush.
  *
- * Unflushed members come first, then the oldest by event id (UUIDv7, so
- * creation-ordered). Ordering on the id alone starved them: a member that
- * flushes while still firing is written back with the same id, so once a
- * group holds more than `cap` firing members the same oldest ones win every
- * claim, the newer ones are never reached, and the unflushed count keeps
- * re-arming the follow-up flush forever.
+ * Unflushed members come first, then the oldest by event id. Ordering on the
+ * id alone starved them. A member that flushes while still firing is written
+ * back with the same id. So once a group holds more than `cap` firing
+ * members, the same oldest ones win every claim, and the newer ones are never
+ * reached.
  *
- * Already-flushed members stay claimable, and that is deliberate. The flush
- * re-announces them when a repeat comes due, and claiming is also how their
- * membership rows are pruned: a row leaves the group by being claimed once
- * more and then not written back as active. Filtering them out here would
- * stop repeats and leak a row for every instance that resolves.
+ * Already-flushed members stay claimable on purpose. Claiming is how their
+ * rows are pruned: a row leaves the group by being claimed once more and then
+ * not written back as active. Filtering them out here would leak a row for
+ * every instance that resolves.
  */
 export function deliverableGroupMemberQuery(
   executor: DbExecutor,
@@ -126,17 +122,15 @@ export function linkedEventsForDeliveryQuery(
 /**
  * At least one still-active rule behind a composed notification. A send job
  * can outlive a pause or a delete that committed after its delivery row was
- * written; a notification whose every source rule is gone must not send. One
- * live rule is enough: dropping the whole send would lose that rule's only
- * notification.
+ * written, and a notification whose every source rule is gone must not send.
+ * One live rule is enough: dropping the whole send would lose that rule's
+ * only notification.
  *
- * Ordered oldest-first so the one row also answers "when did this start
- * firing": its `occurredAt` is the delivery's fire time, and its `slug` names
- * the rule to attribute the send to. Both are for telemetry, and both ride
- * this query on purpose. Reading them separately would put a database round
- * trip on the delivery path for no reason but measurement, and doing it after
- * the send (the only place the old separate read could go) meant a throw
- * there could retry the job and page someone twice.
+ * Ordered oldest-first, so the one row also says when the delivery started
+ * firing and which rule to attribute it to. Both are for telemetry, and both
+ * ride this query on purpose. A separate read would add a database round trip
+ * to the delivery path for measurement alone, and after the send it could
+ * throw, retry the job, and page someone twice.
  */
 export function liveRuleForDeliveryQuery(
   executor: DbExecutor,

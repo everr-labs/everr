@@ -121,13 +121,14 @@ async function applyAppSchema(client: PGlite): Promise<void> {
 /**
  * Report a write's row count the way node-postgres does.
  *
- * PGlite answers a DELETE or UPDATE with `affectedRows`; node-postgres, which
+ * PGlite answers a DELETE or UPDATE with `affectedRows`. node-postgres, which
  * production runs on, answers with `rowCount`. Code that counts what it
- * deleted reads `rowCount` (maintenance/cleanup.ts), and against the raw
- * PGlite result that is `undefined`, so every batch would report zero rows and
- * a loop that repeats while a batch was full would stop after one pass. The
- * count is the same number under both names: this fills in the name the
- * production driver uses rather than changing what the database did.
+ * deleted reads `rowCount`, which is `undefined` on a raw PGlite result. Every
+ * batch would then report zero rows, and a loop that repeats while a batch was
+ * full would stop after one pass.
+ *
+ * The count is the same number under both names. This fills in the name the
+ * production driver uses; it does not change what the database did.
  */
 type Counted = { affectedRows?: number; rowCount?: number };
 

@@ -8,9 +8,9 @@ import {
   SEND_TIMEOUT_MS,
 } from "./outbound";
 
-// Alert messages are deliberately plain text: no parse_mode and no inline
-// buttons means Telegram has nothing to validate or reject (HTML entities,
-// non-public button URLs), so a send only fails for real delivery problems.
+// Alert messages are deliberately plain text. With no parse_mode and no
+// inline buttons, Telegram has nothing to validate or reject, so a send fails
+// only for a real delivery problem.
 async function sendTelegramMessage(
   botToken: string,
   chatId: string,
@@ -56,16 +56,16 @@ async function sendTelegramMessage(
 /**
  * One channel fans out to every chat id it carries.
  *
- * The verdicts are collected rather than raced. `Promise.all` would surface
- * whichever recipient rejected first and let its verdict stand for the whole
- * delivery, so one chat that blocked the bot could end a delivery that another
- * chat behind a 5xx would have accepted on the next attempt. A fan-out is
- * permanently failed only when no retry could help any recipient.
+ * The verdicts are collected, not raced. `Promise.all` would let whichever
+ * recipient rejected first stand for the whole delivery, so one chat that
+ * blocked the bot could end a delivery another chat would accept on the next
+ * attempt. A fan-out fails permanently only when no retry could help any
+ * recipient.
  *
- * A retry still re-sends to recipients that already succeeded; per-recipient
- * state is ticket 23, and nothing here closes it. The failure count is
- * reported, but never which chats: chat ids are addresses, and the error text
- * is appended to the history row.
+ * A retry still re-sends to recipients that already succeeded: there is no
+ * per-recipient delivery state. The failure count is reported, never which
+ * chats, because chat ids are addresses and the error text reaches the
+ * history row.
  */
 export async function sendTelegramNotification(
   config: Extract<AlertingChannelConfig, { type: "telegram" }>,

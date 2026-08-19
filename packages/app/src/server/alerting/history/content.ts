@@ -47,17 +47,15 @@ const BARE_WEBHOOK_HOST_RE =
 const BOT_TOKEN_RE = /\b\d{6,12}:[A-Za-z0-9_-]{20,}\b/g;
 
 /**
- * Every alerting error string passes through here before it is stored,
- * whichever store it goes to. Provider error text can embed the webhook URL,
- * which for Slack, Discord and Telegram IS the secret, and one message is
- * routinely written twice (`failDelivery` and `recordEvaluationFailure` each
- * write to PostgreSQL and ClickHouse), so a boundary that depends on the
- * destination leaves one copy intact. Strip anything URL- or token-shaped.
+ * Every alerting error string passes through here before it is stored, for
+ * either store. Provider error text can embed the webhook URL, which for
+ * Slack, Discord and Telegram is the secret. One message is routinely written
+ * twice, to PostgreSQL and to ClickHouse, so a boundary that depends on the
+ * destination leaves one copy intact.
  *
- * The two stores differ only in how long a mistake lasts. ClickHouse is
+ * The stores differ only in how long a mistake lasts. ClickHouse is
  * append-only, so a secret written there cannot be withdrawn, while
- * `last_error` is overwritten by the next evaluation. That makes sanitizing
- * the PostgreSQL copy one rule for the next writer to copy, not permanence.
+ * `last_error` is overwritten by the next evaluation.
  *
  * Sanitizing twice is safe: no replacement leaves URL- or token-shaped text.
  */
