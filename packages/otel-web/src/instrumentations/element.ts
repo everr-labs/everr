@@ -79,7 +79,7 @@ export function selectorOf(el: Element): string {
       for (const name of NAME_ATTRS) {
         const value = node.getAttribute(name);
         if (value) {
-          part += `[${name}="${value.replace(/"/g, '\\"')}"]`;
+          part += `[${name}="${CSS.escape(value)}"]`;
           break;
         }
       }
