@@ -178,11 +178,7 @@ export function TimeSeriesChartVisualization({
       onPointerMove={handlePointerMove}
       onPointerUp={handlePointerUp}
     >
-      <ChartContainer
-        config={chartConfig}
-        className="h-full w-full"
-        debounce={100}
-      >
+      <ChartContainer config={chartConfig} className="h-full w-full">
         <ComposedChart
           data={stackedData ?? chartData}
           margin={{ left: 12, right: 12, top: 8 }}
