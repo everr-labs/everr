@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import type { TaskSpec } from "graphile-worker";
 import type { Transaction } from "@/db/client";
 import { addWorkerJob, addWorkerJobInTransaction } from "@/server/worker/jobs";
+import { currentTraceLink } from "../trace-link";
 
 export const ALERT_EVALUATE_TASK = "alerts/evaluate";
 
@@ -13,6 +14,8 @@ export interface EvaluatePayload {
   alertDefinitionId: string;
   scheduledFor: string;
   ruleVersion: number;
+  /** The enqueuer's span, so the evaluation can link back to what scheduled it. */
+  traceparent?: string;
 }
 
 export function alertingPartitionQueue(
@@ -96,7 +99,7 @@ export function enqueueAlertEvaluation(
 ): Promise<void> {
   return addWorkerJob(
     ALERT_EVALUATE_TASK,
-    payload,
+    { ...payload, ...currentTraceLink() },
     evaluationTaskSpec(payload),
   );
 }
@@ -110,7 +113,7 @@ export function enqueueAlertEvaluationInTransaction(
   return addWorkerJobInTransaction(
     tx,
     ALERT_EVALUATE_TASK,
-    payload,
+    { ...payload, ...currentTraceLink() },
     evaluationTaskSpec(payload),
   );
 }

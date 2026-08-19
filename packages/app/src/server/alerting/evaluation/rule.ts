@@ -43,6 +43,11 @@ import {
   ZERO_UUID,
 } from "../history/clickhouse";
 import { buildAlertContextJson, sanitizeAlertError } from "../history/content";
+import {
+  recordAlertEvaluation,
+  recordAlertTransition,
+  setAlertSpanAttributes,
+} from "../telemetry";
 import { boundEventEvidence, boundEvidence } from "./evidence";
 import { rowsToInstances } from "./instances";
 import { captureAlertEvaluationSamples } from "./samples";
@@ -358,6 +363,7 @@ async function recordEvaluationFailure(
 export async function evaluateAlert(rawPayload: unknown): Promise<void> {
   const parsed = EvaluatePayloadSchema.safeParse(rawPayload);
   if (!parsed.success) {
+    recordAlertEvaluation("invalid_payload");
     serverLogger.warn("alerts.evaluate.invalid_payload", {
       "everr.alert.payload": String(rawPayload),
     });
@@ -373,8 +379,19 @@ export async function evaluateAlert(rawPayload: unknown): Promise<void> {
   if (
     !def?.active ||
     (payload.ruleVersion !== undefined && def.version !== payload.ruleVersion)
-  )
+  ) {
+    recordAlertEvaluation("skipped");
     return;
+  }
+  // Schedule lag is the fleet's fairness signal: how late this ran against
+  // the tick it was meant to serve. The journal has the same number, but the
+  // journal is a customer's own row-policy-scoped data, so an operator
+  // reading across tenants can only get it from here.
+  setAlertSpanAttributes({
+    tenant: def.organizationId,
+    slug: def.slug,
+    scheduleLagMs: Date.now() - scheduledFor.getTime(),
+  });
   // The kill switch has to stop chains, not only the scanner backstop:
   // evaluations reschedule themselves and applies enqueue directly, so gating
   // only the scanner sheds no load. Returning here without rescheduling ends
@@ -383,8 +400,10 @@ export async function evaluateAlert(rawPayload: unknown): Promise<void> {
   if (
     def.previewId !== null &&
     !previewDefinitionsEnqueueable(env.EVERR_PREVIEW_ALERTS)
-  )
+  ) {
+    recordAlertEvaluation("skipped");
     return;
+  }
 
   // Every terminal path from here has to advance scheduling state. The scanner
   // only selects a definition whose lastEnqueuedAt predates its
@@ -395,7 +414,9 @@ export async function evaluateAlert(rawPayload: unknown): Promise<void> {
   // minutes has already missed the window it exists to watch.
   try {
     await evaluateAlertRule(def, payload, scheduledFor);
+    recordAlertEvaluation("ok");
   } catch (cause) {
+    recordAlertEvaluation("query_failed");
     await recordEvaluationFailure(def, payload, scheduledFor, cause);
   }
 }
@@ -622,6 +643,19 @@ async function evaluateAlertRule(
       await tx.insert(alertEvents).values(eventRows);
       for (const outbox of eventRows.filter(shouldEnqueueProcessEvent)) {
         await enqueueProcessAlertEvent(tx, outbox.id);
+      }
+      // One span per evaluation, not one per transition: a rule with a
+      // thousand firing instances describes its fan-out with counts. The
+      // per-type counts ride the span because the journal that holds them
+      // exactly is scoped to one tenant, and a fleet view cannot read it.
+      setAlertSpanAttributes({
+        batchSize: eventRows.length,
+        fired: eventRows.filter((r) => r.eventType === "instance_fired").length,
+        resolved: eventRows.filter((r) => r.eventType === "instance_resolved")
+          .length,
+      });
+      for (const outbox of eventRows) {
+        recordAlertTransition(outbox.eventType);
       }
     }
     await scheduleAlertAtInTransaction(

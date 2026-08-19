@@ -7,6 +7,7 @@ import {
   enqueueFlushGroup,
   IDLE_GROUP_FLUSH_AT,
 } from "@/data/alerting/delivery/tasks";
+import { currentTraceLink } from "@/data/alerting/trace-link";
 import { db } from "@/db/client";
 import {
   alertChannels,
@@ -21,6 +22,7 @@ import {
 import { truncateWithEllipsis } from "@/lib/truncate";
 import { addWorkerJobInTransaction } from "@/server/worker/jobs";
 import { journalTerminalRow, recordAlertHistory } from "../history/clickhouse";
+import { setAlertSpanAttributes } from "../telemetry";
 import {
   type GroupMember,
   groupNotificationPlan,
@@ -144,6 +146,7 @@ export async function flushAlertGroup(rawPayload: unknown): Promise<void> {
       .for("update")
       .limit(1);
     if (!group || group.nextFlushAt > new Date()) return null;
+    setAlertSpanAttributes({ tenant: group.organizationId });
     const rows = await deliverableGroupMemberQuery(
       tx,
       group.id,
@@ -163,6 +166,13 @@ export async function flushAlertGroup(rawPayload: unknown): Promise<void> {
   });
   if (!claimed) return;
   const { group, rows } = claimed;
+  // A capped claim means the group is larger than one flush can carry, so the
+  // rest waits for the next one. That split is invisible in the delivery
+  // itself, and it is the reason a big group's tail pages late.
+  setAlertSpanAttributes({
+    batchSize: rows.length,
+    batchCapped: rows.length >= FLUSH_GROUP_MEMBER_CLAIM_CAP,
+  });
   // Only these memberships are this flush's to remove. Anything added while
   // suppression is evaluated below belongs to the next flush.
   const claimedEventIds = new Set(rows.map(({ event }) => event.id));
@@ -296,6 +306,7 @@ export async function flushAlertGroup(rawPayload: unknown): Promise<void> {
       .for("update")
       .limit(1);
     if (!fresh) return;
+    let created = 0;
     const dedupEventIds = notificationEvents.map((event) => event.id).sort();
     for (const { channel } of notificationEvents.length > 0 ? channels : []) {
       const dedupKey = alertDeliveryHash(
@@ -317,6 +328,7 @@ export async function flushAlertGroup(rawPayload: unknown): Promise<void> {
         .onConflictDoNothing()
         .returning({ dedupKey: alertDeliveries.dedupKey });
       if (inserted.length === 0) continue;
+      created += 1;
       await tx.insert(alertDeliveryEvents).values(
         notificationEvents.map((event) => ({
           organizationId: group.organizationId,
@@ -327,7 +339,7 @@ export async function flushAlertGroup(rawPayload: unknown): Promise<void> {
       await addWorkerJobInTransaction(
         tx,
         ALERT_SEND_DELIVERY_TASK,
-        { dedupKey },
+        { dedupKey, ...currentTraceLink() },
         {
           jobKey: `${ALERT_SEND_DELIVERY_TASK}:${dedupKey}`,
           jobKeyMode: "replace",
@@ -386,6 +398,9 @@ export async function flushAlertGroup(rawPayload: unknown): Promise<void> {
     if (enqueue) {
       await enqueueFlushGroup(tx, group.id, nextFlushAt);
     }
+    // Set inside the transaction, so a rollback leaves no span claiming
+    // deliveries that were never committed.
+    setAlertSpanAttributes({ deliveries: created });
   });
   if (
     droppedRows.length > 0 ||

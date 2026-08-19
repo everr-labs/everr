@@ -22,33 +22,66 @@ import { evaluateAlert } from "./evaluation/rule";
 import { projectAlertLifecycle } from "./history/project-lifecycle";
 import { cleanupAlertingHistory } from "./maintenance/cleanup";
 import { scanDueAlerts } from "./scheduling/scanner";
+import { withAlertJobSpan } from "./telemetry";
 
 const ALERT_SCAN_TASK = "alerts/scan";
 const ALERT_RETENTION_TASK = "alerts/retention";
 
+/**
+ * The task list is the one place every alerting job passes through, so the
+ * span starts here rather than in seven handlers. Handlers enrich the active
+ * span with the identity they discover (rule, episode, channel) instead of
+ * opening a child span just to hold attributes.
+ */
+function jobTraceparent(payload: unknown): string | null {
+  if (typeof payload !== "object" || payload === null) return null;
+  const value = (payload as { traceparent?: unknown }).traceparent;
+  return typeof value === "string" ? value : null;
+}
+
+function alertJob(
+  name: string,
+  run: (payload: unknown) => Promise<void>,
+): (payload: unknown) => Promise<void> {
+  return context.bind(ROOT_CONTEXT, async (payload: unknown) => {
+    await withAlertJobSpan(name, { traceparent: jobTraceparent(payload) }, () =>
+      run(payload),
+    );
+  });
+}
+
 export const alertTaskList: TaskList = {
-  [ALERT_SCAN_TASK]: context.bind(ROOT_CONTEXT, async () => {
+  [ALERT_SCAN_TASK]: alertJob("alerts.jobs.scan", async () => {
     await scanDueAlerts();
   }),
-  [ALERT_EVALUATE_TASK]: context.bind(ROOT_CONTEXT, async (payload) => {
+  [ALERT_EVALUATE_TASK]: alertJob("alerts.jobs.evaluate", async (payload) => {
     await evaluateAlert(payload as EvaluatePayload);
   }),
-  [ALERT_PROCESS_EVENT_TASK]: context.bind(ROOT_CONTEXT, async (payload) => {
-    await processAlertEvent(payload);
-  }),
-  [ALERT_FLUSH_GROUP_TASK]: context.bind(ROOT_CONTEXT, async (payload) => {
-    await flushAlertGroup(payload);
-  }),
-  [ALERT_SEND_DELIVERY_TASK]: context.bind(ROOT_CONTEXT, async (payload) => {
-    await sendAlertDelivery(payload);
-  }),
-  [ALERT_PROJECT_LIFECYCLE_TASK]: context.bind(
-    ROOT_CONTEXT,
+  [ALERT_PROCESS_EVENT_TASK]: alertJob(
+    "alerts.jobs.process_event",
+    async (payload) => {
+      await processAlertEvent(payload);
+    },
+  ),
+  [ALERT_FLUSH_GROUP_TASK]: alertJob(
+    "alerts.jobs.flush_group",
+    async (payload) => {
+      await flushAlertGroup(payload);
+    },
+  ),
+  [ALERT_SEND_DELIVERY_TASK]: alertJob(
+    "alerts.jobs.send_delivery",
+    async (payload) => {
+      await sendAlertDelivery(payload);
+    },
+  ),
+  [ALERT_PROJECT_LIFECYCLE_TASK]: alertJob(
+    "alerts.jobs.project_lifecycle",
     async (payload) => {
       await projectAlertLifecycle(payload);
     },
   ),
-  [ALERT_RETENTION_TASK]: context.bind(ROOT_CONTEXT, async () => {
+  [ALERT_RETENTION_TASK]: alertJob("alerts.jobs.retention", async () => {
     const counts = await cleanupAlertingHistory();
     const deleted = Object.values(counts).reduce(
       (sum, count) => sum + count,

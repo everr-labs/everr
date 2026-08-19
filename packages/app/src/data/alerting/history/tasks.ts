@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { TraceLinkSchema } from "../trace-link";
 
 export const ALERT_PROJECT_LIFECYCLE_TASK = "alerts/project-lifecycle";
 
@@ -9,7 +10,7 @@ export const ALERT_PROJECT_LIFECYCLE_TASK = "alerts/project-lifecycle";
  * `suppressedEventIds` are the notifying journal rows the mutation canceled,
  * each of which gets a terminal `notification_suppressed` projection.
  */
-export const AlertLifecycleProjectionPayloadSchema = z.object({
+export const AlertLifecycleProjectionPayloadSchema = TraceLinkSchema.extend({
   closedEventIds: z.array(z.string().uuid()),
   suppressedEventIds: z.array(z.string().uuid()),
   reason: z.enum(["labels_changed", "rule_paused", "rule_deleted"]),

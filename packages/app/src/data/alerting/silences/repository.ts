@@ -4,6 +4,7 @@ import {
   PROCESS_EVENT_MAX_ATTEMPTS,
 } from "@/data/alerting/delivery/tasks";
 import { alertingPartitionQueue } from "@/data/alerting/scheduling/evaluation-jobs.server";
+import { currentTraceLink } from "@/data/alerting/trace-link";
 import { db } from "@/db/client";
 import { alertEvents, alertSilences } from "@/db/schema";
 import { throwAlertingPersistenceError } from "../persistence";
@@ -110,10 +111,17 @@ export async function expireSilence(
     // paging; the stale wake at the old ends_at then either finds the event
     // processed and no-ops, or harmlessly re-runs the idempotent decision.
     const releaseQueue = alertingPartitionQueue("alert", id);
+    // One statement enqueues every held event, so the trace link is the same
+    // for all of them: the request that canceled the silence. Absent when the
+    // cancel came from outside a span, which the consumer treats as no link.
+    const { traceparent } = currentTraceLink();
     await tx.execute(sql`
       SELECT graphile_worker.add_job(
         ${ALERT_PROCESS_EVENT_TASK},
-        json_build_object('eventId', ${alertEvents.id}),
+        json_build_object(
+          'eventId', ${alertEvents.id},
+          'traceparent', ${traceparent ?? null}::text
+        ),
         queue_name := ${releaseQueue},
         run_at := now(),
         max_attempts := ${PROCESS_EVENT_MAX_ATTEMPTS},

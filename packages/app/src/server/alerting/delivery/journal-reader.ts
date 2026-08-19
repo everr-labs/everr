@@ -129,13 +129,25 @@ export function linkedEventsForDeliveryQuery(
  * written; a notification whose every source rule is gone must not send. One
  * live rule is enough: dropping the whole send would lose that rule's only
  * notification.
+ *
+ * Ordered oldest-first so the one row also answers "when did this start
+ * firing": its `occurredAt` is the delivery's fire time, and its `slug` names
+ * the rule to attribute the send to. Both are for telemetry, and both ride
+ * this query on purpose. Reading them separately would put a database round
+ * trip on the delivery path for no reason but measurement, and doing it after
+ * the send (the only place the old separate read could go) meant a throw
+ * there could retry the job and page someone twice.
  */
 export function liveRuleForDeliveryQuery(
   executor: DbExecutor,
   dedupKey: string,
 ) {
   return executor
-    .select({ eventId: alertDeliveryEvents.eventId })
+    .select({
+      eventId: alertDeliveryEvents.eventId,
+      slug: alertEvents.slug,
+      firedAt: alertEvents.occurredAt,
+    })
     .from(alertDeliveryEvents)
     .innerJoin(
       alertEvents,
@@ -154,5 +166,6 @@ export function liveRuleForDeliveryQuery(
       ),
     )
     .where(eq(alertDeliveryEvents.deliveryDedupKey, dedupKey))
+    .orderBy(asc(alertEvents.occurredAt))
     .limit(1);
 }

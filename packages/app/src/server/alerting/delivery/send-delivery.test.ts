@@ -68,7 +68,13 @@ const deliveryRow = {
 describe("sendAlertDelivery missing channel", () => {
   beforeEach(() => {
     mocks.deliveryRows = [deliveryRow];
-    mocks.liveRules = [{ eventId: "e-1" }];
+    mocks.liveRules = [
+      {
+        eventId: "e-1",
+        slug: "demo/rule",
+        firedAt: new Date("2026-08-19T10:00:00Z"),
+      },
+    ];
     mocks.send.mockReset().mockResolvedValue(undefined);
     mocks.outcome.mockReset().mockResolvedValue(undefined);
     mocks.where.mockReset().mockResolvedValue(undefined);
@@ -104,7 +110,13 @@ describe("sendAlertDelivery missing channel", () => {
 describe("sendAlertDelivery send failure", () => {
   beforeEach(() => {
     mocks.deliveryRows = [deliveryRow];
-    mocks.liveRules = [{ eventId: "e-1" }];
+    mocks.liveRules = [
+      {
+        eventId: "e-1",
+        slug: "demo/rule",
+        firedAt: new Date("2026-08-19T10:00:00Z"),
+      },
+    ];
     mocks.outcome.mockReset().mockResolvedValue(undefined);
     mocks.where.mockReset().mockResolvedValue(undefined);
     mocks.set.mockReset().mockReturnValue({ where: mocks.where });
@@ -160,7 +172,13 @@ describe("sendAlertDelivery send failure", () => {
 describe("sendAlertDelivery status write after a successful send", () => {
   beforeEach(() => {
     mocks.deliveryRows = [deliveryRow];
-    mocks.liveRules = [{ eventId: "e-1" }];
+    mocks.liveRules = [
+      {
+        eventId: "e-1",
+        slug: "demo/rule",
+        firedAt: new Date("2026-08-19T10:00:00Z"),
+      },
+    ];
     mocks.send.mockReset().mockResolvedValue(undefined);
     mocks.outcome.mockReset().mockResolvedValue(undefined);
     mocks.where.mockReset().mockResolvedValue(undefined);

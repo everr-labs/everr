@@ -3,6 +3,7 @@ import { enqueueAlertEvaluation } from "@/data/alerting/scheduling/evaluation-jo
 import { db } from "@/db/client";
 import { alertDefinitions } from "@/db/schema";
 import { env } from "@/env";
+import { setAlertSpanAttributes } from "../telemetry";
 
 export const SCANNER_BATCH_SIZE = 5_000;
 const ENQUEUE_CONCURRENCY = 8;
@@ -94,6 +95,13 @@ export async function scanDueAlerts(
     )
     .orderBy(asc(alertDefinitions.nextEvaluationAt))
     .limit(batchSize);
+
+  // A full batch means the backlog outruns one scan: the rules beyond it wait
+  // for the next tick, which shows up as lag with no other explanation.
+  setAlertSpanAttributes({
+    batchSize: rows.length,
+    batchCapped: rows.length >= batchSize,
+  });
 
   await boundedEnqueue(rows, (row) =>
     enqueueAlertEvaluation({

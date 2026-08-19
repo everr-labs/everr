@@ -10,6 +10,7 @@ import { db } from "@/db/client";
 import { alertChannels, alertDeliveries } from "@/db/schema";
 import { errorMessage } from "@/telemetry/logger";
 import { sanitizeAlertError } from "../history/content";
+import { recordAlertNotification, setAlertSpanAttributes } from "../telemetry";
 import { recordDeliveryOutcome } from "./history";
 import { liveRuleForDeliveryQuery } from "./journal-reader";
 
@@ -41,6 +42,7 @@ export async function sendAlertDelivery(rawPayload: unknown): Promise<void> {
     .where(eq(alertDeliveries.dedupKey, dedupKey))
     .limit(1);
   if (!row || row.delivery.status === "sent") return;
+  setAlertSpanAttributes({ tenant: row.delivery.organizationId });
   const failDelivery = async (
     channelType: string,
     rawError: string,
@@ -90,9 +92,21 @@ export async function sendAlertDelivery(rawPayload: unknown): Promise<void> {
       `Withheld: channel ${row.delivery.channelName} was deleted before the send ran`,
       ALERT_DELIVERY_MAX_ATTEMPTS,
     );
+    recordAlertNotification({
+      channelType: "unknown",
+      outcome: "withheld",
+    });
     return;
   }
   const [liveRule] = await liveRuleForDeliveryQuery(db, dedupKey);
+  if (liveRule) {
+    // Stamped before the send, from the row the correctness check already
+    // read: measuring must never be a reason to touch the database again.
+    setAlertSpanAttributes({
+      slug: liveRule.slug,
+      fireToPageMs: Date.now() - liveRule.firedAt.getTime(),
+    });
+  }
   if (!liveRule) {
     // A pause or delete that committed after the flush wrote this delivery.
     // Fail the delivery permanently instead of throwing: a retry can never
@@ -121,6 +135,10 @@ export async function sendAlertDelivery(rawPayload: unknown): Promise<void> {
       "Withheld: every rule behind this notification was paused or deleted before the send ran",
       ALERT_DELIVERY_MAX_ATTEMPTS,
     );
+    recordAlertNotification({
+      channelType: withheldChannelType,
+      outcome: "withheld",
+    });
     return;
   }
   // Unresolvable until the config decrypts, and the failure path still needs a
@@ -133,6 +151,7 @@ export async function sendAlertDelivery(rawPayload: unknown): Promise<void> {
       channel.encryptedConfig,
     );
     channelType = config.type;
+    setAlertSpanAttributes({ channelType });
     await sendChannelNotification(config, row.delivery.notification);
   } catch (cause) {
     // A permanent failure (a 4xx other than 408/429: a revoked webhook, a
@@ -164,6 +183,10 @@ export async function sendAlertDelivery(rawPayload: unknown): Promise<void> {
         },
       );
     }
+    recordAlertNotification({
+      channelType,
+      outcome: permanent ? "failed_permanent" : "failed_transient",
+    });
     if (permanent) return;
     throw cause;
   }
@@ -212,5 +235,12 @@ export async function sendAlertDelivery(rawPayload: unknown): Promise<void> {
     deliveryCreatedAt: row.delivery.createdAt,
     attemptAt: new Date(),
     outcome: "succeeded",
+  });
+  // Also outside any try that could reach failDelivery: a metric must never
+  // be able to resend a delivered notification.
+  recordAlertNotification({
+    channelType,
+    outcome: "delivered",
+    latencySeconds: (Date.now() - liveRule.firedAt.getTime()) / 1000,
   });
 }

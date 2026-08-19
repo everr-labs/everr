@@ -10,6 +10,7 @@ import {
   alertNotificationGroups,
 } from "@/db/schema";
 import { journalTerminalRow, recordAlertHistory } from "../history/clickhouse";
+import { setAlertSpanAttributes } from "../telemetry";
 import { nextGroupFlushAt } from "./grouping";
 import { claimDeliverableEvent } from "./journal-reader";
 import {
@@ -22,7 +23,16 @@ import { dispatchTargetsForEvent } from "./targeting";
 export async function processAlertEvent(rawPayload: unknown): Promise<void> {
   const { eventId } = AlertEventTaskPayloadSchema.parse(rawPayload);
   const event = await claimDeliverableEvent(eventId);
-  if (!event || event.processedAt) return;
+  if (!event || event.processedAt) {
+    setAlertSpanAttributes({ outcome: "already_processed" });
+    return;
+  }
+  setAlertSpanAttributes({
+    tenant: event.organizationId,
+    slug: event.slug,
+    episodeId: event.episodeId,
+    eventId: event.id,
+  });
   const now = new Date();
   if (event.suppressed) {
     // Guarded the same as the dispatch stamp below: a concurrent lifecycle
@@ -33,6 +43,7 @@ export async function processAlertEvent(rawPayload: unknown): Promise<void> {
       .update(alertEvents)
       .set({ processedAt: now })
       .where(processedStampGuard(event.id));
+    setAlertSpanAttributes({ outcome: "muted" });
     return;
   }
   if (
@@ -45,7 +56,10 @@ export async function processAlertEvent(rawPayload: unknown): Promise<void> {
       .where(processedStampGuard(event.id))
       .returning({ id: alertEvents.id });
     // Lost to a concurrent cancel: its projection owns the terminal.
-    if (stamped.length === 0) return;
+    if (stamped.length === 0) {
+      setAlertSpanAttributes({ outcome: "lost_claim" });
+      return;
+    }
     // A fire reached here after its instance had already stopped firing (a
     // worker outage and recovery, most often). Nobody was ever told it
     // fired, so notifying a resolve later would announce an alert that was
@@ -56,11 +70,13 @@ export async function processAlertEvent(rawPayload: unknown): Promise<void> {
       [journalTerminalRow(event, { reason: "no_longer_firing" })],
       { convergesOnRetry: true },
     );
+    setAlertSpanAttributes({ outcome: "no_longer_firing" });
     return;
   }
   const silence = await matchingSilence(event, now);
   if (silence) {
     await deferSuppressedEvent(event, silence, now);
+    setAlertSpanAttributes({ outcome: "silenced" });
     return;
   }
   if (event.silenceId) {
@@ -78,7 +94,10 @@ export async function processAlertEvent(rawPayload: unknown): Promise<void> {
       .where(processedStampGuard(event.id))
       .returning({ id: alertEvents.id });
     // Lost to a concurrent cancel: its projection owns the terminal.
-    if (stamped.length === 0) return;
+    if (stamped.length === 0) {
+      setAlertSpanAttributes({ outcome: "lost_claim" });
+      return;
+    }
     // Nothing to deliver to: the rule names no channels and the org has no
     // default destination for this severity. No group is created, so no
     // flush runs and no flush terminal can ever land. The chain gets its
@@ -88,6 +107,7 @@ export async function processAlertEvent(rawPayload: unknown): Promise<void> {
       [journalTerminalRow(event, { reason: "no_channels" })],
       { convergesOnRetry: true },
     );
+    setAlertSpanAttributes({ outcome: "no_channels" });
     return;
   }
   // One transaction for every membership plus the processed stamp. The stamp
@@ -125,9 +145,13 @@ export async function processAlertEvent(rawPayload: unknown): Promise<void> {
   } catch (error) {
     // The claim was lost to a concurrent cancel; its projection owns the
     // terminal, and the rolled-back memberships never existed.
-    if (error instanceof TransactionRollbackError) return;
+    if (error instanceof TransactionRollbackError) {
+      setAlertSpanAttributes({ outcome: "lost_claim" });
+      return;
+    }
     throw error;
   }
+  setAlertSpanAttributes({ outcome: "dispatched" });
 }
 
 /**

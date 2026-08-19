@@ -2,20 +2,21 @@ import { z } from "zod";
 import type { Transaction } from "@/db/client";
 import { addWorkerJobInTransaction } from "@/server/worker/jobs";
 import { alertingPartitionQueue } from "../scheduling/evaluation-jobs.server";
+import { currentTraceLink, TraceLinkSchema } from "../trace-link";
 
 export const ALERT_PROCESS_EVENT_TASK = "alerts/process-event";
 export const ALERT_FLUSH_GROUP_TASK = "alerts/flush-group";
 export const ALERT_SEND_DELIVERY_TASK = "alerts/send-delivery";
 
-export const AlertEventTaskPayloadSchema = z.object({
+export const AlertEventTaskPayloadSchema = TraceLinkSchema.extend({
   eventId: z.string().uuid(),
 });
 
-export const AlertGroupTaskPayloadSchema = z.object({
+export const AlertGroupTaskPayloadSchema = TraceLinkSchema.extend({
   groupId: z.string().uuid(),
 });
 
-export const AlertDeliveryTaskPayloadSchema = z.object({
+export const AlertDeliveryTaskPayloadSchema = TraceLinkSchema.extend({
   dedupKey: z.string().min(1),
 });
 
@@ -50,7 +51,7 @@ export async function enqueueFlushGroup(
   await addWorkerJobInTransaction(
     tx,
     ALERT_FLUSH_GROUP_TASK,
-    { groupId },
+    { groupId, ...currentTraceLink() },
     {
       jobKey: flushGroupJobKey(groupId, flushAt),
       jobKeyMode: "replace",
@@ -72,7 +73,7 @@ export async function enqueueProcessAlertEvent(
   await addWorkerJobInTransaction(
     tx,
     ALERT_PROCESS_EVENT_TASK,
-    { eventId },
+    { eventId, ...currentTraceLink() },
     {
       jobKey: opts.keySuffix
         ? `${ALERT_PROCESS_EVENT_TASK}:${eventId}:${opts.keySuffix}`
