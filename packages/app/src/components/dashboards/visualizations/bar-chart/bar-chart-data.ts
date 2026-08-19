@@ -33,9 +33,13 @@ export interface BarChartModel {
  * per label, exactly like the time-series chart.
  *
  * A time axis is sorted ascending; categories keep first-seen (query) order.
+ * `colors` pins a series to a fixed color by name; the rest cycle the palette
+ * in first-seen order (a pinned series still consumes its palette slot, so
+ * pinning one series never reshuffles the others).
  */
 export function buildBarChartModel(
   dataSets: QueryResultRow[][],
+  colors: Record<string, string> = {},
 ): BarChartModel {
   const chartConfig: ChartConfig = {};
   const valueKeys: string[] = [];
@@ -93,7 +97,8 @@ export function buildBarChartModel(
       valueKeys.push(renderKey);
       chartConfig[renderKey] = {
         label: name,
-        color: SERIES_COLORS[seriesIndex % SERIES_COLORS.length],
+        color:
+          colors[name] ?? SERIES_COLORS[seriesIndex % SERIES_COLORS.length],
       };
       seriesIndex++;
     }

@@ -175,7 +175,12 @@ export function pivotByGroup(
     entry[group] = value;
   }
 
-  const seriesKeys = [...seriesSet].sort();
+  // First-seen order, not alphabetical: a stacked chart stacks its series in
+  // this order, so the author's `ORDER BY` is the only way to say which band
+  // sits at the bottom (a phase breakdown reads bottom-up in time order).
+  // Every query that pivots already carries an ORDER BY, so this is as stable
+  // across refreshes as sorting was.
+  const seriesKeys = [...seriesSet];
   const pivoted = [...byAxis.values()];
   return { pivoted, seriesKeys };
 }
