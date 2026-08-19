@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { GRID_COLS } from "../schema";
+import * as z from "zod";
+import {
+  dashboardSlugSchema,
+  dashboardSpecSchemaStrict,
+  GRID_COLS,
+} from "../schema";
 import {
   buildCapabilitiesQuery,
   decodeCapabilityRows,
@@ -7,8 +12,8 @@ import {
   evaluateBuiltin,
   type TelemetryCapabilities,
 } from "./capabilities";
-import { BUILTIN_DASHBOARDS, validateCatalog } from "./catalog";
-import type { BuiltinDashboard } from "./types";
+import { BUILTIN_DASHBOARDS } from "./catalog";
+import { BUILTIN_CATEGORIES, type BuiltinDashboard, SIGNALS } from "./types";
 
 const template = (
   requires: BuiltinDashboard["requires"],
@@ -199,6 +204,49 @@ describe("evaluateBuiltin", () => {
     });
   });
 });
+
+/**
+ * The catalog envelope around each dashboard document. The YAML is cast with
+ * `as BuiltinDashboard` at parse time, so this is the only place a typo'd
+ * `signal`, `category` or a missing `label` gets caught before it crashes
+ * `evaluateBuiltin` at runtime.
+ */
+const builtinDashboardSchema = z.strictObject({
+  // The id is the slug in `/dashboards/built-in/$slug` and in `everr
+  // resources show`, so it answers to the same rule every as-code slug does.
+  id: dashboardSlugSchema,
+  name: z.string().min(1),
+  description: z.string().min(1),
+  category: z.enum(BUILTIN_CATEGORIES),
+  requires: z.array(
+    z.strictObject({
+      signal: z.enum(SIGNALS),
+      match: z.string().min(1).optional(),
+      label: z.string().min(1),
+    }),
+  ),
+  document: z.strictObject({
+    kind: z.literal("Dashboard"),
+    metadata: z.strictObject({
+      name: z.string(),
+      project: z.string().optional(),
+    }),
+    // The same strict schema `everr apply` uses, so a builtin that would be
+    // rejected as a file is rejected here too.
+    spec: dashboardSpecSchemaStrict,
+  }),
+});
+
+function validateCatalog(): void {
+  const ids = new Set<string>();
+  for (const builtin of BUILTIN_DASHBOARDS) {
+    if (ids.has(builtin.id)) {
+      throw new Error(`Duplicate builtin id: ${builtin.id}`);
+    }
+    ids.add(builtin.id);
+    builtinDashboardSchema.parse(builtin);
+  }
+}
 
 describe("catalog", () => {
   it("validates against the same strict schema everr apply uses", () => {
