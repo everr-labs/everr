@@ -25,9 +25,11 @@ const ORDER = [
   // Application
   "http-endpoints",
   "rpc-services",
+  "server-functions",
   "serverless-functions",
   "log-overview",
   "traces-overview",
+  "server-functions",
   // Runtime
   "metric-overview",
   "jvm-runtime",
