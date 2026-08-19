@@ -36,6 +36,19 @@ function splitPath(folderPath: string): string[] {
     .filter(Boolean);
 }
 
+/**
+ * Every folder path (as produced by `buildTree`) on the way to a dashboard's
+ * folder, outermost first. Used to open the folders containing a selection.
+ */
+export function folderAncestorPaths(folderPath: string): string[] {
+  const segments = splitPath(folderPath);
+  const acc: string[] = [];
+  return segments.map((segment) => {
+    acc.push(segment);
+    return acc.join(" / ");
+  });
+}
+
 interface MutableNode {
   name: string;
   path: string;

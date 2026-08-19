@@ -1,5 +1,5 @@
 import { cn } from "@everr/ui/lib/utils";
-import { Link } from "@tanstack/react-router";
+import { Link, useMatchRoute } from "@tanstack/react-router";
 import {
   ChevronDown,
   ChevronRight,
@@ -13,6 +13,7 @@ import {
   buildTree,
   type DashboardSummary,
   type FolderNode,
+  folderAncestorPaths,
   searchItems,
 } from "@/data/dashboards/tree";
 
@@ -39,6 +40,33 @@ export function DashboardTree({
   resource = "dashboard",
 }: DashboardTreeProps) {
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
+
+  // The folders containing the selected dashboard open when the selection
+  // changes (deep link or click from search results). Seeded once per
+  // selection via render-time state adjustment, so the user can still collapse
+  // them afterwards and other folders never auto-close.
+  const matchRoute = useMatchRoute();
+  const match = matchRoute(
+    resource === "runbook"
+      ? { to: "/runbooks/$project/$slug" }
+      : { to: "/dashboards/$project/$slug" },
+  );
+  const selected = match
+    ? dashboards.find(
+        (d) => d.project === match.project && d.slug === match.slug,
+      )
+    : undefined;
+  const selectedKey = selected ? `${selected.project}/${selected.slug}` : null;
+  const [seededFor, setSeededFor] = useState<string | null>(null);
+  if (selectedKey !== seededFor) {
+    setSeededFor(selectedKey);
+    if (selected) {
+      const ancestors = folderAncestorPaths(selected.folderPath);
+      if (ancestors.some((path) => !expanded.has(path))) {
+        setExpanded(new Set([...expanded, ...ancestors]));
+      }
+    }
+  }
 
   const tree = useMemo(() => buildTree(dashboards), [dashboards]);
 
