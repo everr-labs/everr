@@ -7,11 +7,15 @@ import {
   InstallEverrCard,
 } from "@/components/home/setup-cards";
 import { StatSection, StatTile } from "@/components/home/stat-tile";
+import { ResourceEmptyState } from "@/components/resource-empty-state";
 import { costOverviewOptions } from "@/data/cost-analysis/options";
 import { homeOverviewOptions } from "@/data/home/options";
 import { getGithubAppInstallStatus } from "@/data/onboarding";
 import { formatCost } from "@/lib/runner-pricing";
 import { TimeRangeSearchSchema } from "@/lib/time-range";
+
+const ASSISTANT_TELEMETRY_PROMPT =
+  "/everr-setup-telemetry Instrument this app with OpenTelemetry and send its logs and traces to Everr";
 
 const githubInstallStatusOptions = queryOptions({
   queryKey: ["github", "install-status"],
@@ -71,35 +75,57 @@ function HomePage() {
 
   const githubInstalled = installations?.some((i) => i.installed) ?? true;
 
+  const telemetryEmpty =
+    overview !== undefined &&
+    overview.logs.total === 0 &&
+    overview.traces.total === 0 &&
+    overview.errors.issues === 0;
+
   return (
     <div className="space-y-6">
       <InstallEverrCard />
 
-      <StatSection label="Telemetry">
-        <StatTile
-          label="Logs"
-          to="/logs"
-          value={overview && compactNumber.format(overview.logs.total)}
-          series={overview?.logs.series}
-          color="var(--chart-2)"
-        />
-        <StatTile
-          label="Traces"
-          to="/traces"
-          value={overview && compactNumber.format(overview.traces.total)}
-          series={overview?.traces.series}
-          color="var(--chart-1)"
-        />
-        <StatTile
-          label="Error issues"
-          to="/errors"
-          value={overview && compactNumber.format(overview.errors.issues)}
-          series={overview?.errors.series}
-          color="var(--destructive)"
-        />
-      </StatSection>
+      {telemetryEmpty ? (
+        <StatSection label="Telemetry">
+          <div className="sm:col-span-2 lg:col-span-3 rounded-xl border">
+            <ResourceEmptyState
+              title="No telemetry yet"
+              description="Paste this into your coding assistant. It instruments your app, and logs and traces show up here."
+              assistantPrompt={ASSISTANT_TELEMETRY_PROMPT}
+              docsHref="https://everr.dev/docs/learn/instrument-your-app"
+              docsLede="Or set up OpenTelemetry yourself and point it at Everr."
+            />
+          </div>
+        </StatSection>
+      ) : (
+        <>
+          <StatSection label="Telemetry">
+            <StatTile
+              label="Logs"
+              to="/logs"
+              value={overview && compactNumber.format(overview.logs.total)}
+              series={overview?.logs.series}
+              color="var(--chart-2)"
+            />
+            <StatTile
+              label="Traces"
+              to="/traces"
+              value={overview && compactNumber.format(overview.traces.total)}
+              series={overview?.traces.series}
+              color="var(--chart-1)"
+            />
+            <StatTile
+              label="Error issues"
+              to="/errors"
+              value={overview && compactNumber.format(overview.errors.issues)}
+              series={overview?.errors.series}
+              color="var(--destructive)"
+            />
+          </StatSection>
 
-      <ServicesSection services={overview?.services} />
+          <ServicesSection services={overview?.services} />
+        </>
+      )}
 
       <StatSection label="CI/CD">
         {githubInstalled ? (

@@ -21,11 +21,13 @@ export function ResourceEmptyState({
   description,
   assistantPrompt,
   docsHref,
+  docsLede = "Or write the YAML yourself and publish it with the everr CLI.",
 }: {
   title: string;
   description: string;
   assistantPrompt: string;
   docsHref?: string;
+  docsLede?: string;
 }) {
   const promptRef = useRef<HTMLElement>(null);
   const [copyState, setCopyState] = useState<CopyState>("idle");
@@ -104,7 +106,7 @@ export function ResourceEmptyState({
         </div>
         {docsHref && (
           <EmptyDescription>
-            Or write the YAML yourself and publish it with the everr CLI.{" "}
+            {docsLede}{" "}
             <a href={docsHref} target="_blank" rel="noreferrer">
               Read the guide
             </a>
