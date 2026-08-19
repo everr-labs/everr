@@ -168,7 +168,6 @@ describe("claimNotificationGroup", () => {
         groupKey: "direct:def-1",
         defaultTier: null,
         directAlertDefinitionId: "def-1",
-        groupLabels: {},
       },
       now,
     );

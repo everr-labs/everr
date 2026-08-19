@@ -38,7 +38,6 @@ type DispatchTarget = {
   defaultTier: AlertingDefaultTier | null;
   directAlertDefinitionId: string | null;
   groupKey: string;
-  groupLabels: Record<string, string>;
 };
 
 function groupLabelsFor(event: typeof alertEvents.$inferSelect) {
@@ -68,16 +67,14 @@ async function directDispatchTarget(
   if ((definition?.spec.notifications?.channels ?? []).length === 0)
     return null;
 
-  const groupLabels = groupLabelsFor(event);
   return {
     defaultTier: null,
     directAlertDefinitionId: event.sourceDefinitionId,
     groupKey: alertDeliveryHash(
       "direct",
       event.sourceDefinitionId,
-      stableJson(groupLabels),
+      stableJson(groupLabelsFor(event)),
     ),
-    groupLabels,
   };
 }
 
@@ -108,21 +105,22 @@ async function defaultDispatchTarget(
       : null;
   if (tier === null) return null;
 
-  const groupLabels = groupLabelsFor(event);
   return {
     defaultTier: tier,
     directAlertDefinitionId: null,
-    groupKey: alertDeliveryHash("default", tier, stableJson(groupLabels)),
-    groupLabels,
+    groupKey: alertDeliveryHash(
+      "default",
+      tier,
+      stableJson(groupLabelsFor(event)),
+    ),
   };
 }
 
-export async function dispatchTargetsForEvent(
+export async function dispatchTargetForEvent(
   event: typeof alertEvents.$inferSelect,
-): Promise<DispatchTarget[]> {
+): Promise<DispatchTarget | null> {
   // A rule naming its own channels opts out of the default destination.
   const direct = await directDispatchTarget(event);
-  if (direct) return [direct];
-  const fallback = await defaultDispatchTarget(event);
-  return fallback ? [fallback] : [];
+  if (direct) return direct;
+  return await defaultDispatchTarget(event);
 }

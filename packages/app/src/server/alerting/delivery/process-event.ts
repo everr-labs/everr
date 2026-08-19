@@ -18,7 +18,7 @@ import {
   eventStillFiring,
   matchingSilence,
 } from "./suppression";
-import { dispatchTargetsForEvent } from "./targeting";
+import { dispatchTargetForEvent } from "./targeting";
 
 export async function processAlertEvent(rawPayload: unknown): Promise<void> {
   const { eventId } = AlertEventTaskPayloadSchema.parse(rawPayload);
@@ -50,27 +50,12 @@ export async function processAlertEvent(rawPayload: unknown): Promise<void> {
     event.eventType !== "instance_resolved" &&
     !(await eventStillFiring(event))
   ) {
-    const stamped = await db
-      .update(alertEvents)
-      .set({ processedAt: now })
-      .where(processedStampGuard(event.id))
-      .returning({ id: alertEvents.id });
-    // Lost to a concurrent cancel: its projection owns the terminal.
-    if (stamped.length === 0) {
-      setAlertSpanAttributes({ outcome: "lost_claim" });
-      return;
-    }
     // A fire reached here after its instance had already stopped firing (a
     // worker outage and recovery, most often). Nobody was ever told it
     // fired, so notifying a resolve later would announce an alert that was
     // never announced as firing; the chain still needs a terminal so it does
     // not read as forever in flight.
-    await recordAlertHistory(
-      event.sourceDefinitionId,
-      [journalTerminalRow(event, { reason: "no_longer_firing" })],
-      { convergesOnRetry: true },
-    );
-    setAlertSpanAttributes({ outcome: "no_longer_firing" });
+    await endChainWithTerminal(event, now, "no_longer_firing");
     return;
   }
   const silence = await matchingSilence(event, now);
@@ -86,56 +71,33 @@ export async function processAlertEvent(rawPayload: unknown): Promise<void> {
       .where(eq(alertEvents.id, event.id));
   }
 
-  const targets = await dispatchTargetsForEvent(event);
-  if (targets.length === 0) {
-    const stamped = await db
-      .update(alertEvents)
-      .set({ processedAt: now })
-      .where(processedStampGuard(event.id))
-      .returning({ id: alertEvents.id });
-    // Lost to a concurrent cancel: its projection owns the terminal.
-    if (stamped.length === 0) {
-      setAlertSpanAttributes({ outcome: "lost_claim" });
-      return;
-    }
+  const target = await dispatchTargetForEvent(event);
+  if (!target) {
     // Nothing to deliver to: the rule names no channels and the org has no
     // default destination for this severity. No group is created, so no
     // flush runs and no flush terminal can ever land. The chain gets its
     // terminal here instead of reading as forever in flight.
-    await recordAlertHistory(
-      event.sourceDefinitionId,
-      [journalTerminalRow(event, { reason: "no_channels" })],
-      { convergesOnRetry: true },
-    );
-    setAlertSpanAttributes({ outcome: "no_channels" });
+    await endChainWithTerminal(event, now, "no_channels");
     return;
   }
-  // One transaction for every membership plus the processed stamp. The stamp
+  // One transaction for the membership plus the processed stamp. The stamp
   // is the claim, and a concurrent pause or delete cancels events through
   // `processed_at IS NULL`. So either the cancel wins and this rolls back,
   // leaving its terminal as the only record, or this commits first and the
   // cancel skips the event, leaving the flush to write the only terminal.
   // Split transactions left a window where both wrote one.
-  //
-  // Targets are locked in group-key order, so two events dispatching to
-  // overlapping groups cannot deadlock.
   try {
     await db.transaction(async (tx) => {
-      const ordered = [...targets].sort((a, b) =>
-        a.groupKey.localeCompare(b.groupKey),
-      );
-      for (const target of ordered) {
-        const group = await claimNotificationGroup(tx, event, target, now);
-        await tx
-          .insert(alertNotificationGroupEvents)
-          .values({
-            organizationId: event.organizationId,
-            groupId: group.id,
-            eventId: event.id,
-          })
-          .onConflictDoNothing();
-        await enqueueFlushGroup(tx, group.id, group.nextFlushAt);
-      }
+      const group = await claimNotificationGroup(tx, event, target, now);
+      await tx
+        .insert(alertNotificationGroupEvents)
+        .values({
+          organizationId: event.organizationId,
+          groupId: group.id,
+          eventId: event.id,
+        })
+        .onConflictDoNothing();
+      await enqueueFlushGroup(tx, group.id, group.nextFlushAt);
       const stamped = await tx
         .update(alertEvents)
         .set({ processedAt: now })
@@ -153,6 +115,34 @@ export async function processAlertEvent(rawPayload: unknown): Promise<void> {
     throw error;
   }
   setAlertSpanAttributes({ outcome: "dispatched" });
+}
+
+/**
+ * Stamp the claim and close the chain with a terminal. No group and no flush
+ * exist to end this chain, so the terminal is written here. A lost stamp means
+ * a concurrent cancel claimed the event first, and its projection owns the
+ * terminal instead.
+ */
+async function endChainWithTerminal(
+  event: typeof alertEvents.$inferSelect,
+  now: Date,
+  reason: "no_longer_firing" | "no_channels",
+) {
+  const stamped = await db
+    .update(alertEvents)
+    .set({ processedAt: now })
+    .where(processedStampGuard(event.id))
+    .returning({ id: alertEvents.id });
+  if (stamped.length === 0) {
+    setAlertSpanAttributes({ outcome: "lost_claim" });
+    return;
+  }
+  await recordAlertHistory(
+    event.sourceDefinitionId,
+    [journalTerminalRow(event, { reason })],
+    { convergesOnRetry: true },
+  );
+  setAlertSpanAttributes({ outcome: reason });
 }
 
 /**
@@ -176,7 +166,7 @@ export function processedStampGuard(eventId: string) {
 export async function claimNotificationGroup(
   tx: Parameters<Parameters<typeof db.transaction>[0]>[0],
   event: { organizationId: string },
-  target: Awaited<ReturnType<typeof dispatchTargetsForEvent>>[number],
+  target: NonNullable<Awaited<ReturnType<typeof dispatchTargetForEvent>>>,
   now: Date,
 ) {
   const attempt = async () => {
