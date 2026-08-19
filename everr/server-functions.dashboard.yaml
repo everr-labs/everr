@@ -1,0 +1,265 @@
+kind: Dashboard
+metadata:
+  name: server-functions
+spec:
+  display:
+    name: Server Functions
+    description: >-
+      TanStack Start server function health: traffic, errors, latency, and
+      where handler time goes. Spans are `tanstack.server_fn` with the
+      function name in `rpc.method` (`server_function/<name>`).
+  duration: 6h
+  refreshInterval: 1m
+  variables:
+    - kind: ListVariable
+      spec:
+        name: service
+        display: { name: Service }
+        allowAllValue: true
+        allowMultiple: true
+        defaultValue: __all
+        sort: alphabetical-asc
+        plugin:
+          kind: ClickHouseSQLVariable
+          spec:
+            query: SELECT DISTINCT ServiceName FROM traces WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND SpanName = 'tanstack.server_fn' ORDER BY ServiceName
+  panels:
+    invocations:
+      kind: Panel
+      spec:
+        display:
+          name: Invocations
+        plugin:
+          kind: StatChart
+          spec:
+            calculation: sum
+            sparkline: true
+        queries:
+          - kind: ClickHouseSQL
+            spec:
+              plugin:
+                kind: ClickHouseSQL
+                spec:
+                  query: |-
+                    SELECT toStartOfInterval(Timestamp, INTERVAL {step:UInt32} SECOND) AS ts, count() AS invocations
+                    FROM traces
+                    WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND SpanName = 'tanstack.server_fn'
+                    GROUP BY ts
+                    ORDER BY ts
+    error-rate:
+      kind: Panel
+      spec:
+        display:
+          name: Error rate
+        plugin:
+          kind: StatChart
+          spec:
+            calculation: last
+            decimals: 2
+            unit: "%"
+            thresholds:
+              mode: absolute
+              defaultColor: "#22c55e"
+              steps:
+                - { value: 1, color: "#f59e0b" }
+                - { value: 5, color: "#ef4444" }
+        queries:
+          - kind: ClickHouseSQL
+            spec:
+              plugin:
+                kind: ClickHouseSQL
+                spec:
+                  query: |-
+                    SELECT countIf(StatusCode = 'Error') / count() * 100 AS error_pct
+                    FROM traces
+                    WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND SpanName = 'tanstack.server_fn'
+    p95-latency:
+      kind: Panel
+      spec:
+        display:
+          name: P95 latency
+        plugin:
+          kind: StatChart
+          spec:
+            calculation: last
+            decimals: 1
+            unit: ms
+        queries:
+          - kind: ClickHouseSQL
+            spec:
+              plugin:
+                kind: ClickHouseSQL
+                spec:
+                  query: |-
+                    SELECT round(quantile(0.95)(Duration) / 1000000, 1) AS p95
+                    FROM traces
+                    WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND SpanName = 'tanstack.server_fn'
+    p99-latency:
+      kind: Panel
+      spec:
+        display:
+          name: P99 latency
+        plugin:
+          kind: StatChart
+          spec:
+            calculation: last
+            decimals: 1
+            unit: ms
+        queries:
+          - kind: ClickHouseSQL
+            spec:
+              plugin:
+                kind: ClickHouseSQL
+                spec:
+                  query: |-
+                    SELECT round(quantile(0.99)(Duration) / 1000000, 1) AS p99
+                    FROM traces
+                    WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND SpanName = 'tanstack.server_fn'
+    by-function:
+      kind: Panel
+      spec:
+        display:
+          name: Invocations by function
+          description: The eight busiest functions over the range. Quieter functions are in the tables below.
+        plugin:
+          kind: TimeSeriesChart
+          spec:
+            showLegend: true
+            stacked: true
+        queries:
+          - kind: ClickHouseSQL
+            spec:
+              plugin:
+                kind: ClickHouseSQL
+                spec:
+                  query: |-
+                    SELECT toStartOfInterval(Timestamp, INTERVAL {step:UInt32} * 6 SECOND) AS ts,
+                           replaceOne(SpanAttributes['rpc.method'], 'server_function/', '') AS fn,
+                           count() AS invocations
+                    FROM traces
+                    WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND SpanName = 'tanstack.server_fn'
+                      AND SpanAttributes['rpc.method'] IN (
+                      SELECT SpanAttributes['rpc.method'] FROM traces WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND SpanName = 'tanstack.server_fn'
+                      GROUP BY SpanAttributes['rpc.method'] ORDER BY count() DESC LIMIT 8
+                    )
+                    GROUP BY ts, fn
+                    ORDER BY ts
+    by-transport:
+      kind: Panel
+      spec:
+        display:
+          name: Invocations by transport
+          description: http arrived as its own request from the client; in-process ran during SSR or from other server code (no url.path on the span).
+        plugin:
+          kind: TimeSeriesChart
+          spec:
+            showLegend: true
+            stacked: true
+        queries:
+          - kind: ClickHouseSQL
+            spec:
+              plugin:
+                kind: ClickHouseSQL
+                spec:
+                  query: |-
+                    SELECT toStartOfInterval(Timestamp, INTERVAL {step:UInt32} * 6 SECOND) AS ts,
+                           if(SpanAttributes['url.path'] != '', 'http', 'in-process') AS transport,
+                           count() AS invocations
+                    FROM traces
+                    WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND SpanName = 'tanstack.server_fn'
+                    GROUP BY ts, transport
+                    ORDER BY ts
+    latency-by-function:
+      kind: Panel
+      spec:
+        display:
+          name: P95 latency by function
+        plugin:
+          kind: TimeSeriesChart
+          spec:
+            showLegend: true
+            unit: ms
+        queries:
+          - kind: ClickHouseSQL
+            spec:
+              plugin:
+                kind: ClickHouseSQL
+                spec:
+                  query: |-
+                    SELECT toStartOfInterval(Timestamp, INTERVAL {step:UInt32} * 6 SECOND) AS ts,
+                           replaceOne(SpanAttributes['rpc.method'], 'server_function/', '') AS fn,
+                           round(quantile(0.95)(Duration) / 1000000, 1) AS p95_ms
+                    FROM traces
+                    WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND SpanName = 'tanstack.server_fn'
+                      AND SpanAttributes['rpc.method'] IN (
+                      SELECT SpanAttributes['rpc.method'] FROM traces WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND SpanName = 'tanstack.server_fn'
+                      GROUP BY SpanAttributes['rpc.method'] ORDER BY count() DESC LIMIT 8
+                    )
+                    GROUP BY ts, fn
+                    ORDER BY ts
+    slowest-functions:
+      kind: Panel
+      spec:
+        display:
+          name: Slowest functions
+          description: Ranked by P95. Low-traffic functions can top this list.
+        plugin:
+          kind: Table
+          spec:
+            stickyHeader: true
+        queries:
+          - kind: ClickHouseSQL
+            spec:
+              plugin:
+                kind: ClickHouseSQL
+                spec:
+                  query: |-
+                    SELECT replaceOne(SpanAttributes['rpc.method'], 'server_function/', '') AS fn,
+                           count() AS invocations,
+                           round(avg(Duration) / 1000000, 1) AS avg_ms,
+                           round(quantile(0.95)(Duration) / 1000000, 1) AS p95_ms,
+                           round(quantile(0.99)(Duration) / 1000000, 1) AS p99_ms
+                    FROM traces
+                    WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND SpanName = 'tanstack.server_fn'
+                    GROUP BY fn
+                    ORDER BY p95_ms DESC
+                    LIMIT 30
+    time-by-function:
+      kind: Panel
+      spec:
+        display:
+          name: Time spent by function
+          description: Total handler time, not per-call time. Where the server actually spends its day.
+        plugin:
+          kind: Table
+          spec:
+            stickyHeader: true
+        queries:
+          - kind: ClickHouseSQL
+            spec:
+              plugin:
+                kind: ClickHouseSQL
+                spec:
+                  query: |-
+                    SELECT replaceOne(SpanAttributes['rpc.method'], 'server_function/', '') AS fn,
+                           count() AS invocations,
+                           round(sum(Duration) / 1000000000, 2) AS total_seconds,
+                           round(sum(Duration) / (SELECT sum(Duration) FROM traces WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND SpanName = 'tanstack.server_fn') * 100, 1) AS share_pct
+                    FROM traces
+                    WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND SpanName = 'tanstack.server_fn'
+                    GROUP BY fn
+                    ORDER BY total_seconds DESC
+                    LIMIT 30
+  layouts:
+    - kind: Grid
+      spec:
+        items:
+          - { x: 0,  y: 0,  width: 6,  height: 5, content: { $ref: "#/spec/panels/invocations" } }
+          - { x: 6,  y: 0,  width: 6,  height: 5, content: { $ref: "#/spec/panels/error-rate" } }
+          - { x: 12, y: 0,  width: 6,  height: 5, content: { $ref: "#/spec/panels/p95-latency" } }
+          - { x: 18, y: 0,  width: 6,  height: 5, content: { $ref: "#/spec/panels/p99-latency" } }
+          - { x: 0,  y: 5,  width: 12, height: 8, content: { $ref: "#/spec/panels/by-function" } }
+          - { x: 12, y: 5,  width: 12, height: 8, content: { $ref: "#/spec/panels/by-transport" } }
+          - { x: 0,  y: 13, width: 24, height: 8, content: { $ref: "#/spec/panels/latency-by-function" } }
+          - { x: 0,  y: 21, width: 12, height: 9, content: { $ref: "#/spec/panels/slowest-functions" } }
+          - { x: 12, y: 21, width: 12, height: 9, content: { $ref: "#/spec/panels/time-by-function" } }
