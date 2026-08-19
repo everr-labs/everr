@@ -29,6 +29,7 @@ const ORDER = [
   "server-functions",
   "serverless-functions",
   "log-overview",
+  "traces-overview",
   // Runtime
   "metric-overview",
   "jvm-runtime",
@@ -39,9 +40,7 @@ const ORDER = [
   "redis-overview",
   "mongodb-overview",
   // Infrastructure
-  "host-metrics",
   "kubernetes-workloads",
-  "container-metrics",
   // Browser
   "web-vitals",
   "product-analytics",

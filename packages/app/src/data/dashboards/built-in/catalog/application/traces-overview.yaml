@@ -1,0 +1,213 @@
+id: traces-overview
+name: Traces Overview
+description: "Every span you send, in one place: how much is arriving, which services and kinds it comes from, and the span names that dominate or fail."
+category: Application
+requires:
+  - signal: traces
+    label: no traces
+document:
+  kind: Dashboard
+  metadata:
+    name: traces-overview
+  spec:
+    display:
+      name: Traces Overview
+    duration: 6h
+    refreshInterval: 1m
+    variables:
+      - kind: ListVariable
+        spec:
+          name: service
+          display:
+            name: Service
+          allowMultiple: true
+          allowAllValue: true
+          defaultValue: __all
+          sort: alphabetical-asc
+          plugin:
+            kind: ClickHouseSQLVariable
+            spec:
+              query: SELECT DISTINCT ServiceName FROM traces WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} ORDER BY ServiceName
+    panels:
+      span-count:
+        kind: Panel
+        spec:
+          display:
+            name: Spans
+          plugin:
+            kind: StatChart
+            spec:
+              calculation: sum
+              sparkline: true
+          queries:
+            - kind: ClickHouseSQL
+              spec:
+                plugin:
+                  kind: ClickHouseSQL
+                  spec:
+                    query: |-
+                      SELECT toStartOfInterval(Timestamp, INTERVAL {step:UInt32} SECOND) AS ts, count() AS spans
+                      FROM traces
+                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service
+                      GROUP BY ts
+                      ORDER BY ts
+      service-count:
+        kind: Panel
+        spec:
+          display:
+            name: Reporting services
+          plugin:
+            kind: StatChart
+            spec:
+              calculation: last
+          queries:
+            - kind: ClickHouseSQL
+              spec:
+                plugin:
+                  kind: ClickHouseSQL
+                  spec:
+                    query: SELECT uniqExact(ServiceName) AS services FROM traces WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service
+      error-rate:
+        kind: Panel
+        spec:
+          display:
+            name: Error rate
+          plugin:
+            kind: StatChart
+            spec:
+              calculation: last
+              unit: "%"
+              decimals: 2
+              thresholds:
+                mode: absolute
+                defaultColor: "#22c55e"
+                steps:
+                  - value: 1
+                    color: "#f59e0b"
+                  - value: 5
+                    color: "#ef4444"
+          queries:
+            - kind: ClickHouseSQL
+              spec:
+                plugin:
+                  kind: ClickHouseSQL
+                  spec:
+                    query: |-
+                      SELECT countIf(StatusCode = 'Error') / count() * 100 AS pct
+                      FROM traces
+                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service
+      by-kind:
+        kind: Panel
+        spec:
+          display:
+            name: Spans by kind
+          plugin:
+            kind: TimeSeriesChart
+            spec:
+              showLegend: true
+              stacked: true
+          queries:
+            - kind: ClickHouseSQL
+              spec:
+                plugin:
+                  kind: ClickHouseSQL
+                  spec:
+                    query: |-
+                      SELECT toStartOfInterval(Timestamp, INTERVAL {step:UInt32} * 6 SECOND) AS ts,
+                             SpanKind AS kind,
+                             count() AS spans
+                      FROM traces
+                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service
+                      GROUP BY ts, kind
+                      ORDER BY ts
+      errors-over-time:
+        kind: Panel
+        spec:
+          display:
+            name: Error spans
+          plugin:
+            kind: TimeSeriesChart
+            spec:
+              showLegend: true
+              stacked: true
+          queries:
+            - kind: ClickHouseSQL
+              spec:
+                plugin:
+                  kind: ClickHouseSQL
+                  spec:
+                    query: |-
+                      SELECT toStartOfInterval(Timestamp, INTERVAL {step:UInt32} * 6 SECOND) AS ts,
+                             ServiceName AS service,
+                             count() AS errors
+                      FROM traces
+                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND StatusCode = 'Error'
+                      GROUP BY ts, service
+                      ORDER BY ts
+      catalog:
+        kind: Panel
+        spec:
+          display:
+            name: Span catalog
+          plugin:
+            kind: Table
+            spec:
+              stickyHeader: true
+          queries:
+            - kind: ClickHouseSQL
+              spec:
+                plugin:
+                  kind: ClickHouseSQL
+                  spec:
+                    query: |-
+                      SELECT ServiceName AS service,
+                             SpanName AS span,
+                             any(SpanKind) AS kind,
+                             count() AS spans,
+                             round(quantile(0.95)(Duration) / 1000000, 1) AS p95_ms,
+                             countIf(StatusCode = 'Error') AS errors
+                      FROM traces
+                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service
+                      GROUP BY service, span
+                      ORDER BY spans DESC
+                      LIMIT 100
+    layouts:
+      - kind: Grid
+        spec:
+          items:
+            - x: 0
+              y: 0
+              width: 8
+              height: 5
+              content:
+                $ref: "#/spec/panels/span-count"
+            - x: 8
+              y: 0
+              width: 8
+              height: 5
+              content:
+                $ref: "#/spec/panels/service-count"
+            - x: 16
+              y: 0
+              width: 8
+              height: 5
+              content:
+                $ref: "#/spec/panels/error-rate"
+            - x: 0
+              y: 5
+              width: 12
+              height: 8
+              content:
+                $ref: "#/spec/panels/by-kind"
+            - x: 12
+              y: 5
+              width: 12
+              height: 8
+              content:
+                $ref: "#/spec/panels/errors-over-time"
+            - x: 0
+              y: 13
+              width: 24
+              height: 10
+              content:
+                $ref: "#/spec/panels/catalog"
