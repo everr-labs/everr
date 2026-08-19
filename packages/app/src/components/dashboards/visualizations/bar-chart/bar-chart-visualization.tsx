@@ -111,11 +111,11 @@ export function BarChartVisualization({
   spec,
   data,
 }: VisualizationProps<BarChartSpec>) {
-  const { unit, showLegend, stacking, orientation, showValues } = spec;
+  const { unit, showLegend, stacking, orientation, showValues, colors } = spec;
 
   const { chartData, valueKeys, chartConfig, isTimeAxis } = useMemo(
-    () => buildBarChartModel(data ?? []),
-    [data],
+    () => buildBarChartModel(data ?? [], colors),
+    [data, colors],
   );
 
   // recharts naming: layout "vertical" = horizontal bars.
