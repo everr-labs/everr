@@ -7,7 +7,9 @@ export type LastViewedDashboard =
   | { kind: "built-in"; slug: string }
   | { kind: "own"; project: string; slug: string };
 
-const KEY = "everr:last-dashboard";
+// Keyed per organization: a remembered dashboard from one org must not open
+// (or shadow) a same-named dashboard after switching orgs in the same browser.
+const keyFor = (org: string) => `everr:last-dashboard:${org}`;
 
 function isLastViewed(parsed: unknown): parsed is LastViewedDashboard {
   if (typeof parsed !== "object" || parsed === null) return false;
@@ -19,10 +21,10 @@ function isLastViewed(parsed: unknown): parsed is LastViewedDashboard {
   );
 }
 
-export function readLastViewed(): LastViewedDashboard | null {
+export function readLastViewed(org: string): LastViewedDashboard | null {
   if (typeof window === "undefined") return null;
   try {
-    const raw = window.localStorage.getItem(KEY);
+    const raw = window.localStorage.getItem(keyFor(org));
     if (!raw) return null;
     const parsed: unknown = JSON.parse(raw);
     if (isLastViewed(parsed)) return parsed;
@@ -32,10 +34,13 @@ export function readLastViewed(): LastViewedDashboard | null {
   return null;
 }
 
-export function recordLastViewed(value: LastViewedDashboard): void {
+export function recordLastViewed(
+  org: string,
+  value: LastViewedDashboard,
+): void {
   if (typeof window === "undefined") return;
   try {
-    window.localStorage.setItem(KEY, JSON.stringify(value));
+    window.localStorage.setItem(keyFor(org), JSON.stringify(value));
   } catch {
     // Quota or privacy-mode failures just lose the nicety.
   }

@@ -338,10 +338,14 @@ document:
                   kind: ClickHouseSQL
                   spec:
                     query: |-
-                      SELECT toStartOfInterval(TimeUnix, INTERVAL {step:UInt32} * 6 SECOND) AS ts,
-                             transform(MetricName, ['redis.db.keys', 'redis.db.expires'], ['keys', 'expiring'], 'other') AS series,
-                             avg(Value) AS value
-                      FROM (SELECT TimeUnix, MetricName, Value FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName IN ('redis.db.keys', 'redis.db.expires') UNION ALL SELECT TimeUnix, MetricName, Value FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName IN ('redis.db.keys', 'redis.db.expires'))
+                      SELECT toStartOfInterval(TimeUnix, INTERVAL {step:UInt32} * 6 SECOND) AS ts, series, avg(total) AS value
+                      FROM (
+                        SELECT TimeUnix,
+                               transform(MetricName, ['redis.db.keys', 'redis.db.expires'], ['keys', 'expiring'], 'other') AS series,
+                               sum(Value) AS total
+                        FROM (SELECT TimeUnix, MetricName, Value FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName IN ('redis.db.keys', 'redis.db.expires') UNION ALL SELECT TimeUnix, MetricName, Value FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName IN ('redis.db.keys', 'redis.db.expires'))
+                        GROUP BY TimeUnix, series
+                      )
                       GROUP BY ts, series
                       ORDER BY ts
       expired-evicted:

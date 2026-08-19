@@ -8,9 +8,10 @@ import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
  * directions: hide the dashboard list, or bring it back.
  */
 export function FrameToggle() {
-  const { full } = useSearch({
-    from: "/_authenticated/_dashboard/_previewable/dashboards",
-  });
+  // Loose search read: DashboardGrid mounts from routes outside the dashboards
+  // subtree (runbook embeds), where a `from`-bound read would throw.
+  const search: { full?: boolean } = useSearch({ strict: false });
+  const full = search.full ?? false;
   const navigate = useNavigate();
   const toggle = () =>
     // `to: "."` keeps the open dashboard; `replace` because toggling the
