@@ -1,16 +1,7 @@
 // @vitest-environment node
 import { randomUUID } from "node:crypto";
 import { sql } from "drizzle-orm";
-import {
-  afterAll,
-  afterEach,
-  beforeAll,
-  beforeEach,
-  describe,
-  expect,
-  it,
-  vi,
-} from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { ALERTING_DEFAULT_GROUP_WAIT_SECS } from "@/data/alerting/delivery/defaults";
 import { ALERT_FLUSH_GROUP_TASK } from "@/data/alerting/delivery/tasks";
 import { deleteRule } from "@/data/alerting/rules/repository";
@@ -34,7 +25,7 @@ import {
   insertRule,
   TEST_ORG,
 } from "./testing/fixtures";
-import { type AlertingHarness, createAlertingHarness } from "./testing/harness";
+import { useAlertingHarness } from "./testing/harness";
 
 vi.mock("@/db/client", async () => {
   const { testDb, runInTransaction } = await import("./testing/db-proxy");
@@ -43,26 +34,7 @@ vi.mock("@/db/client", async () => {
 
 vi.mock("@/lib/clickhouse", async () => import("./testing/test-clickhouse"));
 
-let harness: AlertingHarness;
-
-// The harness owns the fake clock: it installs a Date-only fake timer on
-// create and restores real timers on close. Faking the whole timer set would
-// hang PGlite's WebAssembly boot, so no test file installs its own.
-beforeAll(async () => {
-  harness = await createAlertingHarness();
-}, 60_000);
-
-beforeEach(() => {
-  harness.setNow(new Date("2026-01-01T00:00:00Z"));
-});
-
-afterEach(async () => {
-  await harness.reset();
-});
-
-afterAll(async () => {
-  await harness.close();
-});
+const harness = useAlertingHarness();
 
 // Drizzle wraps the driver error in its own DrizzleQueryError, whose message
 // is just "Failed query: ...": the constraint name lives on the wrapped
@@ -97,7 +69,7 @@ async function expectConstraintViolation(
 async function queueNamesFor(
   taskIdentifier: string,
 ): Promise<{ queueName: string | null; payload: unknown }[]> {
-  const result = await harness.db.execute<{
+  const result = await harness().db.execute<{
     queue_name: string | null;
     payload: unknown;
   }>(sql`
@@ -125,28 +97,32 @@ describe("the alerting pipeline's PostgreSQL invariants", () => {
     // kind = 'notifying', or a delivery reader that selects on that column
     // would treat a plain state change as something to send.
     await expectConstraintViolation(
-      harness.db.insert(alertEvents).values({
-        ...base,
-        eventType: "instance_pending",
-        kind: "notifying",
-      }),
+      harness()
+        .db.insert(alertEvents)
+        .values({
+          ...base,
+          eventType: "instance_pending",
+          kind: "notifying",
+        }),
       "alert_events_kind_matches_type",
     );
 
     // instance_fired is the reverse: a notifying row that must never carry
     // kind = 'state', or the delivery path would never see it at all.
     await expectConstraintViolation(
-      harness.db.insert(alertEvents).values({
-        ...base,
-        eventType: "instance_fired",
-        kind: "state",
-      }),
+      harness()
+        .db.insert(alertEvents)
+        .values({
+          ...base,
+          eventType: "instance_fired",
+          kind: "state",
+        }),
       "alert_events_kind_matches_type",
     );
   });
 
   it("converges two writes of the same instance onto one row, via alert_instances_definition_fingerprint_uq", async () => {
-    const rule = await insertRule(harness.db);
+    const rule = await insertRule(harness().db);
     const target = [
       alertInstances.alertDefinitionId,
       alertInstances.fingerprint,
@@ -157,8 +133,8 @@ describe("the alerting pipeline's PostgreSQL invariants", () => {
       fingerprint: "checkout-fingerprint",
     };
 
-    await harness.db
-      .insert(alertInstances)
+    await harness()
+      .db.insert(alertInstances)
       .values({ ...base, status: "pending", value: 10 })
       .onConflictDoUpdate({
         target,
@@ -167,54 +143,54 @@ describe("the alerting pipeline's PostgreSQL invariants", () => {
     // Without the unique index, this second write would insert a sibling row
     // instead of matching the first: onConflictDoUpdate's target only works
     // because alert_instances_definition_fingerprint_uq exists.
-    await harness.db
-      .insert(alertInstances)
+    await harness()
+      .db.insert(alertInstances)
       .values({ ...base, status: "firing", value: 99 })
       .onConflictDoUpdate({
         target,
         set: { status: "firing", value: 99, updatedAt: new Date() },
       });
 
-    const rows = await harness.db.select().from(alertInstances);
+    const rows = await harness().db.select().from(alertInstances);
     expect(rows).toHaveLength(1);
     expect(rows[0].status).toBe("firing");
     expect(rows[0].value).toBe(99);
   });
 
   it("cascades a rule delete through its instances and direct notification groups, leaving a settled delivery ungrouped but intact", async () => {
-    const rule = await insertDirectRule(harness.db, {
+    const rule = await insertDirectRule(harness().db, {
       forSecs: 0,
       channelType: "webhook",
     });
-    harness.clickhouse.setSignal([{ service: "checkout", value: 42 }]);
-    await harness.fireAndFlush();
+    harness().clickhouse.setSignal([{ service: "checkout", value: 42 }]);
+    await harness().fireAndFlush();
 
-    const [groupBefore] = await harness.db
-      .select()
+    const [groupBefore] = await harness()
+      .db.select()
       .from(alertNotificationGroups);
     expect(groupBefore.directAlertDefinitionId).toBe(rule.id);
-    const [membershipBefore] = await harness.db
-      .select()
+    const [membershipBefore] = await harness()
+      .db.select()
       .from(alertNotificationGroupEvents);
     expect(membershipBefore).toBeDefined();
-    const [deliveryBefore] = await harness.db.select().from(alertDeliveries);
+    const [deliveryBefore] = await harness().db.select().from(alertDeliveries);
     expect(deliveryBefore.status).toBe("sent");
 
-    await deleteRule(TEST_ORG, rule.id, asDbExecutor(harness.db));
+    await deleteRule(TEST_ORG, rule.id, asDbExecutor(harness().db));
 
-    expect(await harness.db.select().from(alertInstances)).toHaveLength(0);
+    expect(await harness().db.select().from(alertInstances)).toHaveLength(0);
     expect(
-      await harness.db.select().from(alertNotificationGroups),
+      await harness().db.select().from(alertNotificationGroups),
     ).toHaveLength(0);
     expect(
-      await harness.db.select().from(alertNotificationGroupEvents),
+      await harness().db.select().from(alertNotificationGroupEvents),
     ).toHaveLength(0);
 
     // alert_deliveries carries no foreign key to alert_definitions at all,
     // only to the notification group, and that FK is ON DELETE SET NULL, not
     // CASCADE: the settled delivery is the record of a notification that
     // already happened, and it survives the rule's deletion ungrouped.
-    const [deliveryAfter] = await harness.db.select().from(alertDeliveries);
+    const [deliveryAfter] = await harness().db.select().from(alertDeliveries);
     expect(deliveryAfter.dedupKey).toBe(deliveryBefore.dedupKey);
     expect(deliveryAfter.notificationGroupId).toBeNull();
     expect(deliveryAfter.status).toBe("sent");
@@ -226,12 +202,12 @@ describe("the alerting pipeline's PostgreSQL invariants", () => {
   // here would cost maintenance and add no coverage.
 
   it("allows one live rule and one preview rule to share a slug, and rejects a second live rule with it", async () => {
-    await insertRule(harness.db, { slug: "checkout-latency" });
-    const preview = await insertPreview(harness.db);
+    await insertRule(harness().db, { slug: "checkout-latency" });
+    const preview = await insertPreview(harness().db);
     // alert_definitions_live_project_slug_uq is scoped to preview_id IS NULL,
     // and alert_definitions_preview_project_slug_uq to preview_id IS NOT
     // NULL, so the same (project, slug) is legal once on each side.
-    await insertRule(harness.db, {
+    await insertRule(harness().db, {
       slug: "checkout-latency",
       previewId: preview.id,
     });
@@ -239,27 +215,27 @@ describe("the alerting pipeline's PostgreSQL invariants", () => {
     // Both halves, or the case only pins one of the two indexes and a
     // regression in the other reads as green.
     await expectConstraintViolation(
-      insertRule(harness.db, {
+      insertRule(harness().db, {
         slug: "checkout-latency",
         previewId: preview.id,
       }),
       "alert_definitions_preview_project_slug_uq",
     );
     await expectConstraintViolation(
-      insertRule(harness.db, { slug: "checkout-latency" }),
+      insertRule(harness().db, { slug: "checkout-latency" }),
       "alert_definitions_live_project_slug_uq",
     );
   });
 
   it("leaves no job behind when the transaction that enqueued it throws", async () => {
     await expect(
-      harness.db.transaction(async (tx) => {
+      harness().db.transaction(async (tx) => {
         await addWorkerJobInTransaction(tx as never, "test/never-runs", {}, {});
         throw new Error("rollback me");
       }),
     ).rejects.toThrow("rollback me");
 
-    expect(await harness.pendingJobs()).toEqual([]);
+    expect(await harness().pendingJobs()).toEqual([]);
   });
 
   it("collapses two evaluation enqueues for one scheduledFor onto one job carrying the newer payload", async () => {
@@ -281,7 +257,7 @@ describe("the alerting pipeline's PostgreSQL invariants", () => {
       ruleVersion: 7,
     });
 
-    const jobs = (await harness.pendingJobs()).filter(
+    const jobs = (await harness().pendingJobs()).filter(
       (job) => job.identifier === ALERT_EVALUATE_TASK,
     );
     expect(jobs).toHaveLength(1);
@@ -297,21 +273,21 @@ describe("the alerting pipeline's PostgreSQL invariants", () => {
     // This runs, and drains fully, before any other rule exists, so
     // runDueJobs below has nothing due to pick up but this one group's own
     // work.
-    await insertDirectRule(harness.db, {
+    await insertDirectRule(harness().db, {
       slug: "queue-rule",
       forSecs: 0,
       intervalSecs: 60,
       channelType: "webhook",
     });
-    harness.clickhouse.setSignal([{ service: "checkout", value: 42 }]);
+    harness().clickhouse.setSignal([{ service: "checkout", value: 42 }]);
 
-    await harness.runDueJobs(); // evaluates, fires, dispatches: enqueues the first flush job
+    await harness().runDueJobs(); // evaluates, fires, dispatches: enqueues the first flush job
     const [firstFlush] = await queueNamesFor(ALERT_FLUSH_GROUP_TASK);
     expect(firstFlush).toBeDefined();
     expect(firstFlush.queueName).toMatch(/^alerts-group-\d+$/);
 
-    harness.advance(ALERTING_DEFAULT_GROUP_WAIT_SECS * 1000);
-    await harness.runDueJobs(); // flushes and delivers; the group goes idle
+    harness().advance(ALERTING_DEFAULT_GROUP_WAIT_SECS * 1000);
+    await harness().runDueJobs(); // flushes and delivers; the group goes idle
 
     // A new instance under the same rule dispatches into the same group and
     // books its second flush. Evaluations are phase-staggered by a hash of
@@ -319,12 +295,12 @@ describe("the alerting pipeline's PostgreSQL invariants", () => {
     // the group wait the flush step above already ran an evaluation before
     // the payments signal existed. A full interval from here always contains
     // the next evaluation, whatever the phase.
-    harness.clickhouse.setSignal([
+    harness().clickhouse.setSignal([
       { service: "checkout", value: 42 },
       { service: "payments", value: 42 },
     ]);
-    harness.advance(60_000);
-    await harness.runDueJobs();
+    harness().advance(60_000);
+    await harness().runDueJobs();
 
     const [secondFlush] = await queueNamesFor(ALERT_FLUSH_GROUP_TASK);
     expect(secondFlush).toBeDefined();
@@ -341,7 +317,7 @@ describe("the alerting pipeline's PostgreSQL invariants", () => {
     const RULE_COUNT = 20;
     const partitionRuleIds = new Set<string>();
     for (let index = 0; index < RULE_COUNT; index += 1) {
-      const rule = await insertRule(harness.db, {
+      const rule = await insertRule(harness().db, {
         slug: `partition-rule-${index}`,
       });
       partitionRuleIds.add(rule.id);

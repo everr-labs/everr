@@ -1,14 +1,5 @@
 // @vitest-environment node
-import {
-  afterAll,
-  afterEach,
-  beforeAll,
-  beforeEach,
-  describe,
-  expect,
-  it,
-  vi,
-} from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import {
   insertDirectRule,
   insertPreview,
@@ -16,7 +7,7 @@ import {
   insertSilence,
   TEST_ORG,
 } from "./testing/fixtures";
-import { type AlertingHarness, createAlertingHarness } from "./testing/harness";
+import { useAlertingHarness } from "./testing/harness";
 
 vi.mock("@/db/client", async () => {
   const { testDb, runInTransaction } = await import("./testing/db-proxy");
@@ -25,23 +16,7 @@ vi.mock("@/db/client", async () => {
 
 vi.mock("@/lib/clickhouse", async () => import("./testing/test-clickhouse"));
 
-let harness: AlertingHarness;
-
-beforeAll(async () => {
-  harness = await createAlertingHarness();
-}, 60_000);
-
-beforeEach(() => {
-  harness.setNow(new Date("2026-01-01T00:00:00Z"));
-});
-
-afterEach(async () => {
-  await harness.reset();
-});
-
-afterAll(async () => {
-  await harness.close();
-});
+const harness = useAlertingHarness();
 
 const BREACHING = [{ service: "checkout", value: 42 }];
 
@@ -70,9 +45,9 @@ const WINDOW = {
  */
 describe("the alerting pipeline's read path", () => {
   it("returns a fired instance to the reader that asks for the org's history", async () => {
-    await insertRule(harness.db, { forSecs: 0 });
-    harness.clickhouse.setSignal(BREACHING);
-    await harness.runDueJobs();
+    await insertRule(harness().db, { forSecs: 0 });
+    harness().clickhouse.setSignal(BREACHING);
+    await harness().runDueJobs();
 
     const { queryClickHouseAlertEventLog } = await import(
       "@/data/alerting/history/repository.server"
@@ -95,13 +70,13 @@ describe("the alerting pipeline's read path", () => {
   });
 
   it("reads only the named rule's history when a repoid and a source id narrow it", async () => {
-    await insertRule(harness.db, { slug: "checkout-latency", forSecs: 0 });
-    const other = await insertRule(harness.db, {
+    await insertRule(harness().db, { slug: "checkout-latency", forSecs: 0 });
+    const other = await insertRule(harness().db, {
       slug: "cart-errors",
       forSecs: 0,
     });
-    harness.clickhouse.setSignal(BREACHING);
-    await harness.runDueJobs();
+    harness().clickhouse.setSignal(BREACHING);
+    await harness().runDueJobs();
 
     const { queryClickHouseAlertEventLog } = await import(
       "@/data/alerting/history/repository.server"
@@ -120,9 +95,12 @@ describe("the alerting pipeline's read path", () => {
   });
 
   it("folds a delivery's targets onto the transition that produced it", async () => {
-    await insertDirectRule(harness.db, { forSecs: 0, channelType: "webhook" });
-    harness.clickhouse.setSignal(BREACHING);
-    await harness.fireAndFlush();
+    await insertDirectRule(harness().db, {
+      forSecs: 0,
+      channelType: "webhook",
+    });
+    harness().clickhouse.setSignal(BREACHING);
+    await harness().fireAndFlush();
 
     // A delivery is a separate row in a later job, correlated back by
     // notification_event_id. Folding it on is the most involved SQL in the
@@ -144,24 +122,24 @@ describe("the alerting pipeline's read path", () => {
   });
 
   it("folds a settled silence decision onto the transition it withheld", async () => {
-    await insertDirectRule(harness.db, {
+    await insertDirectRule(harness().db, {
       forSecs: 0,
       intervalSecs: 60,
       channelType: "webhook",
     });
-    await insertSilence(harness.db);
-    harness.clickhouse.setSignal(BREACHING);
-    await harness.runDueJobs();
+    await insertSilence(harness().db);
+    harness().clickhouse.setSignal(BREACHING);
+    await harness().runDueJobs();
 
     // The fire is only deferred while the instance is still firing, and a
     // deferred decision is not a fact yet: nothing reaches ClickHouse. Letting
     // the breach clear settles the resolve against the same silence, and that
     // decision is terminal, so it is the one that gets journaled.
-    harness.clickhouse.setSignal([]);
-    harness.advance(60_000);
-    await harness.runDueJobs();
-    harness.advance(60_000);
-    await harness.runDueJobs();
+    harness().clickhouse.setSignal([]);
+    harness().advance(60_000);
+    await harness().runDueJobs();
+    harness().advance(60_000);
+    await harness().runDueJobs();
 
     const { queryClickHouseAlertEventLog } = await import(
       "@/data/alerting/history/repository.server"
@@ -179,15 +157,15 @@ describe("the alerting pipeline's read path", () => {
   });
 
   it("leaves a preview out of live history until its id is asked for", async () => {
-    const preview = await insertPreview(harness.db);
-    await insertRule(harness.db, { slug: "live-rule", forSecs: 0 });
-    await insertRule(harness.db, {
+    const preview = await insertPreview(harness().db);
+    await insertRule(harness().db, { slug: "live-rule", forSecs: 0 });
+    await insertRule(harness().db, {
       slug: "preview-rule",
       forSecs: 0,
       previewId: preview.id,
     });
-    harness.clickhouse.setSignal(BREACHING);
-    await harness.runDueJobs();
+    harness().clickhouse.setSignal(BREACHING);
+    await harness().runDueJobs();
 
     const { queryClickHouseAlertEventLog } = await import(
       "@/data/alerting/history/repository.server"
@@ -213,15 +191,15 @@ describe("the alerting pipeline's read path", () => {
   });
 
   it("ranks the label keys and values the org has actually observed", async () => {
-    await insertRule(harness.db, {
+    await insertRule(harness().db, {
       forSecs: 0,
       labelColumns: ["service", "region"],
     });
-    harness.clickhouse.setSignal([
+    harness().clickhouse.setSignal([
       { service: "checkout", region: "eu", value: 42 },
       { service: "cart", region: "eu", value: 42 },
     ]);
-    await harness.runDueJobs();
+    await harness().runDueJobs();
 
     const {
       queryClickHouseObservedLabelKeys,
@@ -257,9 +235,9 @@ describe("the alerting pipeline's read path", () => {
   });
 
   it("keeps a key nothing carries out of the value suggestions", async () => {
-    await insertRule(harness.db, { forSecs: 0 });
-    harness.clickhouse.setSignal(BREACHING);
-    await harness.runDueJobs();
+    await insertRule(harness().db, { forSecs: 0 });
+    harness().clickhouse.setSignal(BREACHING);
+    await harness().runDueJobs();
 
     // `has(instance_labels, {key:String})` is what stops a missing key from
     // ranking the empty string as its most common value: Map access on an
@@ -276,11 +254,14 @@ describe("the alerting pipeline's read path", () => {
   });
 
   it("reads a rule's evaluation series across both engines at once", async () => {
-    const rule = await insertRule(harness.db, { forSecs: 0, intervalSecs: 60 });
-    harness.clickhouse.setSignal(BREACHING);
-    await harness.runDueJobs();
-    harness.advance(60_000);
-    await harness.runDueJobs();
+    const rule = await insertRule(harness().db, {
+      forSecs: 0,
+      intervalSecs: 60,
+    });
+    harness().clickhouse.setSignal(BREACHING);
+    await harness().runDueJobs();
+    harness().advance(60_000);
+    await harness().runDueJobs();
 
     // The rule row comes from PostgreSQL and its evaluations from ClickHouse,
     // in one call: the series is shaped against the rule's own condition, so
@@ -303,7 +284,7 @@ describe("the alerting pipeline's read path", () => {
     // as well as the definition id. Both halves can fail quietly: too loose
     // and a rule's chart shows its neighbour's evaluations, too tight and it
     // shows nothing at all.
-    const mine = await insertRule(harness.db, {
+    const mine = await insertRule(harness().db, {
       slug: "mine",
       forSecs: 0,
       intervalSecs: 60,
@@ -311,16 +292,16 @@ describe("the alerting pipeline's read path", () => {
     // The neighbour's query fails, so its evaluations are distinguishable
     // from this rule's in the series itself. Two healthy rules on the same
     // cadence would bucket into the same shape, and a leak would hide.
-    const other = await insertRule(harness.db, {
+    const other = await insertRule(harness().db, {
       slug: "other",
       forSecs: 0,
       intervalSecs: 60,
       sql: "SELECT * FROM app.no_such_table",
     });
-    harness.clickhouse.setSignal(BREACHING);
-    await harness.runDueJobs();
-    harness.advance(60_000);
-    await harness.runDueJobs();
+    harness().clickhouse.setSignal(BREACHING);
+    await harness().runDueJobs();
+    harness().advance(60_000);
+    await harness().runDueJobs();
 
     const { getRuleEvaluationSeries } = await import(
       "@/data/alerting/rules/repository"
@@ -347,13 +328,13 @@ describe("the alerting pipeline's read path", () => {
     // the only thing that keeps it readable.
     const lateBy = 6 * 60 * 60 * 1_000;
     const dueAt = new Date(Date.now() - lateBy);
-    const rule = await insertRule(harness.db, {
+    const rule = await insertRule(harness().db, {
       forSecs: 0,
       intervalSecs: 60,
       nextEvaluationAt: dueAt,
     });
-    harness.clickhouse.setSignal(BREACHING);
-    await harness.runDueJobs();
+    harness().clickhouse.setSignal(BREACHING);
+    await harness().runDueJobs();
 
     const { getRuleEvaluationSeries } = await import(
       "@/data/alerting/rules/repository"
@@ -371,15 +352,15 @@ describe("the alerting pipeline's read path", () => {
     // Pending and closed rows write a zero chain id, so they can never carry
     // an outcome. The fold asks only for the ids that can, which must not
     // cost the fired row its delivery.
-    await insertDirectRule(harness.db, {
+    await insertDirectRule(harness().db, {
       forSecs: 60,
       intervalSecs: 60,
       channelType: "webhook",
     });
-    harness.clickhouse.setSignal(BREACHING);
-    await harness.runDueJobs(); // pending: inside the for window
-    harness.advance(60_000);
-    await harness.fireAndFlush(); // fires, then delivers
+    harness().clickhouse.setSignal(BREACHING);
+    await harness().runDueJobs(); // pending: inside the for window
+    harness().advance(60_000);
+    await harness().fireAndFlush(); // fires, then delivers
 
     const { queryClickHouseAlertEventLog } = await import(
       "@/data/alerting/history/repository.server"
@@ -398,9 +379,9 @@ describe("the alerting pipeline's read path", () => {
   });
 
   it("returns nothing for an org that wrote nothing, without reading another's rows", async () => {
-    await insertRule(harness.db, { forSecs: 0 });
-    harness.clickhouse.setSignal(BREACHING);
-    await harness.runDueJobs();
+    await insertRule(harness().db, { forSecs: 0 });
+    harness().clickhouse.setSignal(BREACHING);
+    await harness().runDueJobs();
 
     // `tenant_id = {organizationId:String}` is the reader's own filter, and it
     // is the only thing separating these orgs here: the row policy that backs

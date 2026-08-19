@@ -1,4 +1,4 @@
-import { vi } from "vitest";
+import { afterAll, afterEach, beforeAll, beforeEach, vi } from "vitest";
 import { ALERTING_DEFAULT_GROUP_WAIT_SECS } from "@/data/alerting/delivery/defaults";
 import { setTestDatabase } from "./db-proxy";
 import { failedJobs, pendingJobs, runDueJobs } from "./job-driver";
@@ -98,5 +98,47 @@ export async function createAlertingHarness(): Promise<AlertingHarness> {
       vi.useRealTimers();
       await database.close();
     },
+  };
+}
+
+/** The clock every harnessed test file starts from. */
+const TEST_CLOCK_START = new Date("2026-01-01T00:00:00Z");
+
+/**
+ * Register the lifecycle a harnessed test file needs, and give back a getter
+ * for the harness itself.
+ *
+ * The harness owns the fake clock: it installs a Date-only fake timer on
+ * create and restores real timers on close. Faking the whole timer set would
+ * hang PGlite's WebAssembly boot, so no test file installs its own.
+ *
+ * Keep the `vi.mock` calls in the test file. Vitest hoists them to the top of
+ * the file that holds them, so a mock moved in here does not apply.
+ */
+export function useAlertingHarness(): () => AlertingHarness {
+  let harness: AlertingHarness | undefined;
+
+  beforeAll(async () => {
+    harness = await createAlertingHarness();
+  }, 60_000);
+
+  beforeEach(() => {
+    harness?.setNow(TEST_CLOCK_START);
+  });
+
+  afterEach(async () => {
+    await harness?.reset();
+  });
+
+  afterAll(async () => {
+    await harness?.close();
+    harness = undefined;
+  });
+
+  return () => {
+    if (!harness) {
+      throw new Error("The alerting harness is not ready yet.");
+    }
+    return harness;
   };
 }
