@@ -19,8 +19,6 @@ import {
 
 type TreeResource = "dashboard" | "runbook";
 
-// One selection language for every row in the dashboards rail (own and
-// built-in): filled active row, primary-tinted icon.
 export const railRowClass =
   "rounded-md py-1.5 transition-colors hover:bg-muted/50";
 export const railRowActiveProps = {
@@ -30,7 +28,6 @@ export const railRowActiveProps = {
 interface DashboardTreeProps {
   dashboards: DashboardSummary[];
   search: string;
-  /** Which resource the rows link to; defaults to dashboards. */
   resource?: TreeResource;
 }
 
@@ -105,6 +102,7 @@ export function DashboardTree({
               expanded={expanded}
               onToggle={toggle}
               resource={resource}
+              selected={selected}
             />
           ))}
           {tree.dashboards.map((dashboard) => (
@@ -127,14 +125,23 @@ function FolderRows({
   expanded,
   onToggle,
   resource,
+  selected,
 }: {
   node: FolderNode;
   depth: number;
   expanded: Set<string>;
   onToggle: (path: string) => void;
   resource: TreeResource;
+  selected?: DashboardSummary;
 }) {
   const isExpanded = expanded.has(node.path);
+  // A collapsed folder still shows the active row when it lives anywhere in
+  // this subtree, same rule as the built-in groups: the list must always say
+  // where you are.
+  const containsSelected =
+    selected !== undefined &&
+    (selected.folderPath === node.path ||
+      selected.folderPath.startsWith(`${node.path}/`));
   return (
     <>
       <div
@@ -157,7 +164,7 @@ function FolderRows({
           <span className="truncate text-sm font-medium">{node.name}</span>
         </button>
       </div>
-      {isExpanded && (
+      {isExpanded ? (
         <>
           {node.subfolders.map((child) => (
             <FolderRows
@@ -167,6 +174,7 @@ function FolderRows({
               expanded={expanded}
               onToggle={onToggle}
               resource={resource}
+              selected={selected}
             />
           ))}
           {node.dashboards.map((dashboard) => (
@@ -178,6 +186,15 @@ function FolderRows({
             />
           ))}
         </>
+      ) : (
+        containsSelected &&
+        selected && (
+          <DashboardRow
+            dashboard={selected}
+            depth={depth + 1}
+            resource={resource}
+          />
+        )
       )}
     </>
   );

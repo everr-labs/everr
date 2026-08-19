@@ -10,19 +10,11 @@ import { useHasVisibleVariables, VariableBar } from "./variable-bar";
 
 const ROW_HEIGHT = 30;
 
-/**
- * `actions` share one bordered toolbar with the variable pickers instead of
- * getting a row of their own. Two controls separated by whitespace read as
- * unowned chrome floating above the grid; one strip with a divider is a single
- * object that belongs to the grid beneath it, and it keeps its shape on the
- * many dashboards that declare no variables at all.
- */
 export function DashboardGrid({
   actions,
   notice,
 }: {
   actions?: ReactNode;
-  /** Rendered between the toolbar and the panels, e.g. a readiness alert. */
   notice?: ReactNode;
 }) {
   const dashboard = useDashboard();
@@ -40,8 +32,6 @@ export function DashboardGrid({
   return (
     <div>
       <div className="mb-3 flex items-start gap-x-3">
-        {/* Edge controls center against the first field row (h-8 controls),
-            even when the variables wrap to more rows below. */}
         <div className="flex h-8 shrink-0 items-center">
           <FrameToggle />
         </div>
@@ -68,11 +58,6 @@ export function DashboardGrid({
           gridConfig={{
             cols: GRID_COLS,
             rowHeight: ROW_HEIGHT,
-            // `containerPadding` defaults to `margin`, which insets the whole
-            // grid by 10px and leaves the panels narrower than everything
-            // stacked above them — the toolbar, the breadcrumb, the page. Zero
-            // it so the panel block starts and ends on the page's own column;
-            // `margin` still spaces the panels from each other.
             containerPadding: [0, 0],
           }}
           dragConfig={{ enabled: false }}

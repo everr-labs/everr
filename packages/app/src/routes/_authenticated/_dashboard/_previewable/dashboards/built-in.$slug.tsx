@@ -1,3 +1,4 @@
+import { DEFAULT_TIME_RANGE } from "@everr/ui/lib/time-range";
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, notFound } from "@tanstack/react-router";
 import { Info } from "lucide-react";
@@ -13,7 +14,6 @@ import { getBuiltinDashboard } from "@/data/dashboards/built-in/catalog";
 import { recordLastViewed } from "@/data/dashboards/last-viewed";
 import { telemetryCapabilitiesOptions } from "@/data/dashboards/options";
 import { dashboardTimeDefaults } from "@/data/dashboards/time-defaults";
-import { useTimeRange } from "@/hooks/use-time-range";
 
 export const Route = createFileRoute(
   "/_authenticated/_dashboard/_previewable/dashboards/built-in/$slug",
@@ -58,9 +58,15 @@ export const Route = createFileRoute(
 function BuiltinDashboardPage() {
   const { slug } = Route.useParams();
   const builtin = getBuiltinDashboard(slug);
-  const { timeRange } = useTimeRange();
+  // Same fixed-window probe as the rail's ready/needs-data grouping (and the
+  // same query cache entry), so this page can never call a dashboard unready
+  // while the list files it under ready, or the other way around. The
+  // on-screen range only affects what the panels draw.
   const capabilities = useQuery(
-    telemetryCapabilitiesOptions(timeRange.from, timeRange.to),
+    telemetryCapabilitiesOptions(
+      DEFAULT_TIME_RANGE.from,
+      DEFAULT_TIME_RANGE.to,
+    ),
   ).data;
   // The loader already 404s unknown slugs; this only narrows the type.
   if (!builtin) throw notFound();
@@ -77,12 +83,11 @@ function BuiltinDashboardPage() {
     >
       <Info className="mt-px size-3.5 shrink-0 text-muted-foreground" />
       <p className="text-muted-foreground text-xs leading-relaxed">
-        Nothing to draw in this time range:{" "}
+        Nothing sent in the last 7 days:{" "}
         <span className="font-mono text-foreground/90">
           {needsSetup.missing.join(", ")}
         </span>
-        . The panels fill in on their own once that telemetry arrives. If you
-        sent it before, widen the time range.
+        . The panels fill in on their own once that telemetry arrives.
       </p>
     </div>
   );

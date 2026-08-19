@@ -17,8 +17,11 @@ import {
   SearchIcon,
   TriangleAlert,
 } from "lucide-react";
-import { useMemo, useState } from "react";
-import { evaluateBuiltin } from "@/data/dashboards/built-in/capabilities";
+import { useState } from "react";
+import {
+  evaluateBuiltin,
+  type TelemetryCapabilities,
+} from "@/data/dashboards/built-in/capabilities";
 import { BUILTIN_DASHBOARDS } from "@/data/dashboards/built-in/catalog";
 import type {
   BuiltinCategory,
@@ -38,6 +41,43 @@ import {
   railRowClass,
 } from "./dashboard-tree";
 
+function searchBuiltins(search: string): BuiltinDashboard[] {
+  const q = search.trim().toLowerCase();
+  if (!q) return BUILTIN_DASHBOARDS;
+  return BUILTIN_DASHBOARDS.filter(
+    (builtin) =>
+      builtin.name.toLowerCase().includes(q) ||
+      builtin.description.toLowerCase().includes(q) ||
+      builtin.category.toLowerCase().includes(q) ||
+      // Requirements are searchable too: someone who knows they emit
+      // `redis.*` should find the Redis built-in by typing what they send.
+      builtin.requires.some((r) =>
+        (r.match ?? r.signal).toLowerCase().includes(q),
+      ),
+  );
+}
+
+// Until the probe answers, both groups stay empty: grading against an absent
+// result would label every built-in unready for a reason nothing has
+// established, and the list would paint a grouping it is about to rearrange
+// under the reader's cursor.
+function partitionByReadiness(
+  builtins: BuiltinDashboard[],
+  capabilities: TelemetryCapabilities | undefined,
+): { ready: BuiltinDashboard[]; needsData: BuiltinDashboard[] } {
+  const ready: BuiltinDashboard[] = [];
+  const needsData: BuiltinDashboard[] = [];
+  if (!capabilities) return { ready, needsData };
+  for (const builtin of builtins) {
+    const target =
+      evaluateBuiltin(builtin, capabilities).status === "ready"
+        ? ready
+        : needsData;
+    target.push(builtin);
+  }
+  return { ready, needsData };
+}
+
 const CATEGORY_ICON: Record<
   BuiltinCategory,
   React.ComponentType<{ className?: string }>
@@ -49,17 +89,12 @@ const CATEGORY_ICON: Record<
   Browser: Globe,
 };
 
-/**
- * The one list of Dashboards: the user's own first (their folder tree
- * preserved), then every Built-in dashboard, ready ones before the ones whose
- * telemetry has not been seen recently.
- */
 export function DashboardsList({ preview }: { preview?: string }) {
   const [search, setSearch] = useState("");
-  // null = automatic: collapsed by default (the unready tail is reference
-  // material, not the menu), but opened when nothing at all is ready, because
-  // then the tail is the whole built-in story. A click makes it user-owned.
-  const [needsDataOpen, setNeedsDataOpen] = useState<boolean | null>(null);
+  // "auto" defers to autoOpenNeedsData below; a click makes it user-owned.
+  const [needsDataDisclosure, setNeedsDataDisclosure] = useState<
+    "auto" | "open" | "closed"
+  >("auto");
   const [builtinsCollapsed, setBuiltinsCollapsed] = useState(
     readBuiltinsCollapsed,
   );
@@ -69,10 +104,10 @@ export function DashboardsList({ preview }: { preview?: string }) {
 
   // Probed over a fixed window, not the picker's: every dashboard sets its own
   // time defaults on open, so a range-keyed probe would reshuffle
-  // ready/needs-data on every navigation. The list answers "do you send this
-  // at all"; the open built-in's own notice grades the on-screen range.
-  // While the group is collapsed nothing renders the grading, so the probe
-  // waits until it is expanded.
+  // ready/needs-data on every navigation. The open built-in's notice grades
+  // against the same window, so page and list always agree. While the group
+  // is collapsed nothing renders the grading, so the probe waits until it is
+  // expanded.
   const capabilitiesQuery = useQuery({
     ...telemetryCapabilitiesOptions(
       DEFAULT_TIME_RANGE.from,
@@ -82,38 +117,10 @@ export function DashboardsList({ preview }: { preview?: string }) {
   });
   const capabilities = capabilitiesQuery.data;
 
-  // Until the probe answers, the built-in list stays empty: grading against
-  // an empty result would label every built-in unready for a reason nothing
-  // has established, and the list would paint a grouping it is about to
-  // rearrange under the reader's cursor.
-  const { matching, ready, needsData } = useMemo(() => {
-    const q = search.trim().toLowerCase();
-    const matching = !q
-      ? BUILTIN_DASHBOARDS
-      : BUILTIN_DASHBOARDS.filter(
-          (builtin) =>
-            builtin.name.toLowerCase().includes(q) ||
-            builtin.description.toLowerCase().includes(q) ||
-            builtin.category.toLowerCase().includes(q) ||
-            // Requirements are searchable too: someone who knows they emit
-            // `redis.*` should find the Redis built-in by typing what they
-            // send.
-            builtin.requires.some((r) =>
-              (r.match ?? r.signal).toLowerCase().includes(q),
-            ),
-        );
-    if (!capabilities) return { matching, ready: [], needsData: [] };
-    const ready: BuiltinDashboard[] = [];
-    const needsData: BuiltinDashboard[] = [];
-    for (const builtin of matching) {
-      const target =
-        evaluateBuiltin(builtin, capabilities).status === "ready"
-          ? ready
-          : needsData;
-      target.push(builtin);
-    }
-    return { matching, ready, needsData };
-  }, [capabilities, search]);
+  // Plain derivations: the catalog is a dozen static entries, so filtering
+  // and grading it per render is cheaper than tracking memo dependencies.
+  const matching = searchBuiltins(search);
+  const { ready, needsData } = partitionByReadiness(matching, capabilities);
 
   // A deep link can land on an unready built-in; no disclosure may hide the
   // active row, or the list stops saying where you are: a collapsed group
@@ -122,20 +129,18 @@ export function DashboardsList({ preview }: { preview?: string }) {
   const matchRoute = useMatchRoute();
   const builtinMatch = matchRoute({ to: "/dashboards/built-in/$slug" });
   const activeBuiltin = builtinMatch ? builtinMatch.slug : undefined;
-  const activeNeedsData = needsData.find(
-    (builtin) => builtin.id === activeBuiltin,
-  );
+  const pinnedActive = (builtins: BuiltinDashboard[]) =>
+    builtins.filter((builtin) => builtin.id === activeBuiltin);
+
+  // Open when nothing at all is ready: then the tail is the whole built-in
+  // story. A click replaces the automatic answer with the user's.
+  const autoOpenNeedsData =
+    capabilities !== undefined && ready.length === 0 && needsData.length > 0;
   const showNeedsData =
-    needsDataOpen ??
-    (capabilities !== undefined && ready.length === 0 && needsData.length > 0);
-  const visibleNeedsData = showNeedsData
-    ? needsData
-    : activeNeedsData
-      ? [activeNeedsData]
-      : [];
-  const activeMatching = matching.find(
-    (builtin) => builtin.id === activeBuiltin,
-  );
+    needsDataDisclosure === "auto"
+      ? autoOpenNeedsData
+      : needsDataDisclosure === "open";
+  const visibleNeedsData = showNeedsData ? needsData : pinnedActive(needsData);
 
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-4">
@@ -190,7 +195,9 @@ export function DashboardsList({ preview }: { preview?: string }) {
           />
 
           {builtinsCollapsed ? (
-            activeMatching && <BuiltinRow builtin={activeMatching} />
+            pinnedActive(matching).map((builtin) => (
+              <BuiltinRow key={builtin.id} builtin={builtin} />
+            ))
           ) : (
             <>
               {capabilitiesQuery.isError && (
@@ -225,7 +232,9 @@ export function DashboardsList({ preview }: { preview?: string }) {
                 <>
                   <button
                     type="button"
-                    onClick={() => setNeedsDataOpen(!showNeedsData)}
+                    onClick={() =>
+                      setNeedsDataDisclosure(showNeedsData ? "closed" : "open")
+                    }
                     aria-expanded={showNeedsData}
                     title="Nothing sent in the last 7 days"
                     className="mt-2.5 mb-0.5 flex w-full items-center gap-1 rounded-md px-1 py-0.5 text-left font-medium text-[0.6875rem] text-muted-foreground/80 hover:text-foreground"
