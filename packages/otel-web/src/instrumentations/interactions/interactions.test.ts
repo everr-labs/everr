@@ -172,15 +172,68 @@ describe("startInteractions", () => {
       expect(a["everr.browser.click.y"]).toBe(29);
     });
 
-    it("builds positional selectors when no id anchors the path", () => {
+    it("stops at the shortest path that matches one element", () => {
       document.body.innerHTML =
         "<div><p>one</p><p>two <span>deep</span></p></div>";
       rageBurst(document.querySelector("span") as Element);
       const rage = emitted.find(
         (e) => e.name === "everr.browser.interaction.rage_click",
       );
+      expect(rage?.attrs?.["everr.element.selector"]).toBe("span");
+    });
+
+    it("returns the shortest path with the fewest matches when none is unique", () => {
+      // Two identical rows: no path tells them apart, and the levels above
+      // the rows add no precision. The outside span forces one level: "span"
+      // matches 3, "li > span" matches 2, and climbing further stays at 2.
+      document.body.innerHTML =
+        "<span>out</span><ul><li><span>a</span></li><li><span>b</span></li></ul>";
+      rageBurst(document.querySelectorAll("span")[2] as Element);
+      const rage = emitted.find(
+        (e) => e.name === "everr.browser.interaction.rage_click",
+      );
+      expect(rage?.attrs?.["everr.element.selector"]).toBe("li > span");
+    });
+
+    it("prefers stable classes and drops unstable ones", () => {
+      document.body.innerHTML =
+        '<div class="css-x9f2"><p><span class="mx-2">one</span></p>' +
+        '<p class="row hint"><span class="mx-2">deep</span></p></div>';
+      // css-x9f2 and mx-2 carry digits, so the path drops them; the row and
+      // hint classes make the second paragraph the unique step.
+      rageBurst(document.querySelectorAll("span")[1] as Element);
+      const rage = emitted.find(
+        (e) => e.name === "everr.browser.interaction.rage_click",
+      );
+      expect(rage?.attrs?.["everr.element.selector"]).toBe("p.row.hint > span");
+    });
+
+    it("names an element by its naming attribute before classes or position", () => {
+      document.body.innerHTML =
+        '<div class="toolbar"><button aria-label="Close" class="mx-2"></button>' +
+        "<button>two</button></div>";
+      rageBurst(document.querySelector("button") as Element);
+      const rage = emitted.find(
+        (e) => e.name === "everr.browser.interaction.rage_click",
+      );
       expect(rage?.attrs?.["everr.element.selector"]).toBe(
-        "body > div > p:nth-of-type(2) > span",
+        'button[aria-label="Close"]',
+      );
+    });
+
+    it("skips a generated or non-identifier id as an anchor", () => {
+      // A React useId ("_r_p_", "base-ui-_r_1g_") changes on every render,
+      // so it cannot anchor a selector. The same stability rule as the
+      // classes rejects it, and the walk continues with the tag step.
+      document.body.innerHTML =
+        '<button id="x1">a</button>' +
+        '<div id="_r_p_"><button aria-label="Go">b</button></div>';
+      rageBurst(document.querySelectorAll("button")[1] as Element);
+      const rage = emitted.find(
+        (e) => e.name === "everr.browser.interaction.rage_click",
+      );
+      expect(rage?.attrs?.["everr.element.selector"]).toBe(
+        'button[aria-label="Go"]',
       );
     });
 

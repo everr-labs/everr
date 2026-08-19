@@ -7,7 +7,10 @@ import type { AttrValue } from "../pipeline/emitter.js";
 // The code identifies an element by its structure only: the tag, a selector
 // that does not change, and the href of the link that contains it. It reads no
 // content of the DOM. Thus it reads no value of a field and no text of an
-// element, and a record can carry no data of the user that the page shows. The
+// element, and a record can carry no data of the user that the page shows.
+// The naming attributes in the selector (`aria-label`, `type`, `name`,
+// `title`, `alt`) are names that the developer writes, not content that the
+// user enters. The
 // other browser SDKs make the same decision: the XPath of OpenTelemetry, the
 // tree of selectors of Sentry, and the data attribute of Faro all identify an
 // element by its structure or by a name that the developer writes.
@@ -42,27 +45,59 @@ export function elementAttrs(
   };
 }
 
+/** The attributes that name an element, in the order of preference. They are
+ * the names that a developer writes and that a rebuild does not change. */
+const NAME_ATTRS = "aria-label,type,name,title,alt".split(",");
+
 /**
  * A CSS path that does not change. It starts at the nearest id, and below that
- * id it uses the positions of the elements. This is the one method to write an
- * element path in all the signals: the interactions, the INP, and the targets
- * of the LCP attribution and the CLS attribution.
+ * id it names an element by its tag, one naming attribute, and its stable
+ * classes. A stable name is a plain name of letters, hyphens, and
+ * underscores, for the id and the classes alike. A digit or another
+ * character marks a generated name (a React useId like `_r_1g_`, a hashed
+ * class of the CSS modules, a utility class), which a render or a rebuild
+ * rewrites. Any other character
+ * (the `:`, `[`, or `/` of a Tailwind variant) makes the class invalid in a
+ * selector without an escape.
+ * The walk stops at the first path that matches exactly one element in the
+ * document, so a selector carries only the levels it needs. When no path is
+ * unique (identical siblings), it returns the shortest path with the fewest
+ * matches: the levels above it add no precision. This is the one method to
+ * write an element path in all the signals: the interactions, the INP, and
+ * the targets of the LCP attribution and the CLS attribution.
  */
+const stableName = /^[A-Za-z][A-Za-z_-]*$/;
+
 export function selectorOf(el: Element): string {
-  const parts: string[] = [];
-  for (let node: Element | null = el; node?.parentElement; ) {
-    if (node.id) {
-      parts.unshift(`#${node.id}`);
-      break;
+  let sel = "";
+  let best = "";
+  let bestCount = Infinity;
+  for (let node: Element | null = el; node; node = node.parentElement) {
+    let part = `#${node.id}`;
+    if (!stableName.test(node.id)) {
+      part = node.tagName.toLowerCase();
+      for (const name of NAME_ATTRS) {
+        const value = node.getAttribute(name);
+        if (value) {
+          part += `[${name}="${value.replace(/"/g, '\\"')}"]`;
+          break;
+        }
+      }
+      let left = 3;
+      for (const c of node.classList)
+        if (left && stableName.test(c)) {
+          left--;
+          part += `.${c}`;
+        }
     }
-    const tag = node.tagName.toLowerCase();
-    let nth = 1;
-    for (let sib = node.previousElementSibling; sib; ) {
-      if (sib.tagName === node.tagName) nth++;
-      sib = sib.previousElementSibling;
+    sel = sel ? `${part} > ${sel}` : part;
+    const count = document.querySelectorAll(sel).length;
+    if (count < bestCount) {
+      bestCount = count;
+      best = sel;
+      // 1 is unique; 0 is a detached element, which no path can pin down.
+      if (count < 2) break;
     }
-    parts.unshift(nth > 1 ? `${tag}:nth-of-type(${nth})` : tag);
-    node = node.parentElement;
   }
-  return parts.join(" > ");
+  return best;
 }
