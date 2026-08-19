@@ -3,11 +3,15 @@ import { AlertingError, alertingErrorInfo } from "./errors";
 
 describe("alertingErrorInfo", () => {
   it("decodes a live AlertingError instance", () => {
-    const err = new AlertingError(409, "conflict", "referenced by receivers");
+    const err = new AlertingError(
+      409,
+      "conflict",
+      "referenced by a delivery in flight",
+    );
     expect(alertingErrorInfo(err)).toEqual({
       status: 409,
       code: "conflict",
-      message: "referenced by receivers",
+      message: "referenced by a delivery in flight",
     });
   });
 

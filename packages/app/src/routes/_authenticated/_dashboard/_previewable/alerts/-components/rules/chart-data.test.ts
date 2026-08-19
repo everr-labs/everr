@@ -201,7 +201,6 @@ describe("alert rule evaluation states", () => {
     severity: "critical",
     suppressed: false,
     silenced: false,
-    inhibited: false,
     reason,
     deliveryTargets: [],
     evidence: null,

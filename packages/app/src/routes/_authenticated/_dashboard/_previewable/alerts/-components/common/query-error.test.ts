@@ -30,9 +30,9 @@ describe("alertingErrorMessage", () => {
       new AlertingError(
         409,
         "conflict",
-        "channel referenced by receiver oncall",
+        "channel referenced by a delivery in flight",
       ),
-      "channel referenced by receiver oncall",
+      "channel referenced by a delivery in flight",
     ],
     [
       "the serialized server-fn shape, not just live instances",

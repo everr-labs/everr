@@ -95,10 +95,10 @@ export async function closeRuleLifecycle(
     .where(cancelableNotifyingEventsFilter(def))
     .returning({ id: alertEvents.id });
   // A delete's cascade takes the rule's direct groups and their memberships
-  // with it, so the flush that would have written those chains' terminals can
-  // never run (it finds no group and returns). Claim them here instead, before
-  // the cascade fires. Pause never needs this: its groups survive, and the
-  // flush itself drops the dead members and writes their terminals.
+  // with it. The flush that would have written those chains' terminals then
+  // finds no group and returns, so claim them here, before the cascade fires.
+  // Pause never needs this: its groups survive, and the flush drops the dead
+  // members and writes their terminals.
   const orphaned =
     reason === "rule_deleted"
       ? await tx
@@ -139,10 +139,10 @@ export async function closeRuleLifecycle(
 
 /**
  * What a mutation may cancel: the rule's own not-yet-processed notifying
- * events, nothing else. Scoped by organization and definition so no other
- * tenant's or rule's in-flight work is touched, to `kind = 'notifying'` so
- * born-processed state rows stay out, and to `processed_at IS NULL` so an
- * event a worker already claimed keeps exactly one owner.
+ * events, and nothing else. Scoped by organization and definition, so no
+ * other tenant's or rule's work is touched. Scoped to `kind = 'notifying'`,
+ * so born-processed state rows stay out. Scoped to `processed_at IS NULL`, so
+ * an event a worker already claimed keeps exactly one owner.
  */
 export function cancelableNotifyingEventsFilter(
   def: Pick<RuleRow, "id" | "organizationId">,
@@ -157,11 +157,11 @@ export function cancelableNotifyingEventsFilter(
 
 /**
  * The chains a delete's cascade would orphan: unflushed memberships in this
- * rule's own direct groups, for events with no other route to an outcome. A
- * membership that flushed anywhere means the chain already notified, and a
- * membership in any group that survives the cascade (receiver-routed, or
- * another rule's direct) means that group's flush owns the terminal; either
- * one excludes the event.
+ * rule's own direct groups, for events with no other way to an outcome.
+ *
+ * Two things exclude an event. A membership that flushed anywhere means the
+ * chain already notified. A membership in a group that survives the cascade
+ * means that group's flush owns the terminal.
  */
 export function orphanedDirectChainsFilter(
   def: Pick<RuleRow, "id" | "organizationId">,

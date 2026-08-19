@@ -31,14 +31,14 @@ const mocks = vi.hoisted(() => ({
   recordHistory: vi.fn(() => Promise.resolve()),
   addWorkerJob: vi.fn(() => Promise.resolve(undefined)),
   transactionCalls: 0,
-  // The channels attached to a group's receiver or direct rule.
+  // The channels attached to a group's default tier or direct rule.
   channelRows: [] as unknown[],
 }));
 
 vi.mock("@/db/client", () => {
   return {
     db: {
-      // The receiver/rule -> channels lookup, outside any transaction.
+      // The tier/rule -> channels lookup, outside any transaction.
       select: () => ({
         from: () => ({
           innerJoin: () => ({
@@ -287,10 +287,10 @@ describe("flushAlertGroup suppression batching", () => {
     expect(mocks.loadSilences).toHaveBeenCalledTimes(1);
   });
 
-  // A group above the claim cap leaves members unflushed on every pass. The
-  // reschedule used to hand back the schedule this flush had just consumed,
-  // which is in the past, so the job re-armed itself with no delay and the
-  // group flushed in a tight loop for as long as it stayed oversized.
+  // A group above the claim cap leaves members unflushed on every pass. A
+  // reschedule that hands back the schedule this flush just consumed is in
+  // the past, so the job re-arms with no delay and the group flushes in a
+  // tight loop for as long as it stays oversized.
   it("does not re-arm itself in the past when the cap leaves members behind", async () => {
     const consumed = new Date(Date.now() - 60_000);
     const group = {
@@ -298,9 +298,7 @@ describe("flushAlertGroup suppression batching", () => {
       organizationId: "org-1",
       nextFlushAt: consumed,
       directAlertDefinitionId: null,
-      receiverId: null,
-      groupIntervalSeconds: 300,
-      repeatIntervalSeconds: null,
+      defaultTier: null,
     };
     mocks.groupRow = group;
     mocks.memberRows = [member(0)];
@@ -412,8 +410,7 @@ describe("flushAlertGroup zero channels", () => {
     organizationId: "org-1",
     nextFlushAt: new Date("2026-08-10T09:00:00Z"),
     directAlertDefinitionId: null,
-    receiverId: "receiver-1",
-    repeatIntervalSeconds: null,
+    defaultTier: null,
   };
 
   it("writes nothing when there is nothing to notify either", async () => {

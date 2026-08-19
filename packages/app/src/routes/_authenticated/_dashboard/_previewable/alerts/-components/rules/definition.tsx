@@ -90,7 +90,7 @@ export function RuleDefinitionFacts({ rule }: { rule: AlertingRuleView }) {
         }`}
       />
       <RuleFact
-        label="Routes to"
+        label="Notifies"
         value={
           channels.length > 0 ? (
             channels.join(", ")

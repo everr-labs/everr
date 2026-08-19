@@ -34,9 +34,9 @@ export const ALERTING_LIFECYCLE_REASONS = [
   // already stopped firing (a worker outage and recovery, most often): the
   // notification is withheld, not dropped silently.
   "no_longer_firing",
-  // A group flushed a notification-worthy set to a receiver or rule with no
-  // channels attached: nothing was sent, but the chain still needs an
-  // outcome.
+  // A group flushed a notification-worthy set, but no channel resolved for
+  // it: the rule names none and the default destination has no row for the
+  // tier. Nothing was sent, and the chain still needs an outcome.
   "no_channels",
 ] as const;
 

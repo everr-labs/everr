@@ -175,7 +175,7 @@ export function ChannelBuilder({
       }
     >
       <AlertingConceptNote>
-        A channel is a named delivery endpoint that any number of receivers can
+        A channel is a named delivery endpoint that any number of rules can
         reference. Secret fields (webhook URLs, the Telegram token) are
         write-only, so editing a channel means entering them again.
       </AlertingConceptNote>

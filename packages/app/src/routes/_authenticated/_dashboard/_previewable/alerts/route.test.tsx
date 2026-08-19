@@ -26,8 +26,6 @@ const mocks = vi.hoisted(() => ({
   getAlertingRuleByName: vi.fn(),
   pauseAlertingRule: vi.fn(),
   resumeAlertingRule: vi.fn(),
-  listAlertingRoutes: vi.fn(),
-  listAlertingReceivers: vi.fn(),
   listAlertingSilences: vi.fn(),
   listAlertingEventHistory: vi.fn(),
 }));
@@ -42,8 +40,7 @@ vi.mock("@/data/alerting/rules/server", () => ({
   resumeAlertingRule: mocks.resumeAlertingRule,
 }));
 vi.mock("@/data/alerting/delivery/server", () => ({
-  listAlertingRoutes: mocks.listAlertingRoutes,
-  listAlertingReceivers: mocks.listAlertingReceivers,
+  getAlertingDefaultDestination: vi.fn(),
 }));
 vi.mock("@/data/alerting/silences/server", () => ({
   listAlertingSilences: mocks.listAlertingSilences,
@@ -136,8 +133,6 @@ beforeEach(() => {
   for (const fn of Object.values(mocks)) fn.mockReset();
   mocks.listAlertingAlerts.mockResolvedValue([]);
   mocks.listAlertingRules.mockResolvedValue([]);
-  mocks.listAlertingRoutes.mockResolvedValue([]);
-  mocks.listAlertingReceivers.mockResolvedValue([]);
   mocks.listAlertingSilences.mockResolvedValue([]);
   mocks.listAlertingEventHistory.mockResolvedValue([]);
   mocks.getAlertingRuleByName.mockResolvedValue(alertingRuleViewFixture());
