@@ -402,7 +402,6 @@ function AlertingRuleDetailPage() {
             <AlertingPauseToggle
               paused={r.paused}
               pending={toggle.isPending}
-              kind="alert rule"
               name={alertingRuleIdentity(r).name}
               variant="outline"
               onToggle={() => toggle.mutate(r.paused)}

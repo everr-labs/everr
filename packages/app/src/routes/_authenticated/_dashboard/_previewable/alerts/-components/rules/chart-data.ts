@@ -50,33 +50,33 @@ export type AlertRuleEvaluationOutcome =
   | "failed"
   | "unknown";
 
-export type AlertRuleEvaluationSpan = {
+type AlertRuleEvaluationSpan = {
   start: number;
   end: number;
   outcome: "no_data" | "failed";
 };
 
-export type AlertRuleEvaluationBucket = {
+type AlertRuleEvaluationBucket = {
   start: number;
   end: number;
   outcome: AlertRuleEvaluationOutcome | null;
   evaluations: number;
 };
 
-export type AlertRuleIncidentBucket = {
+type AlertRuleIncidentBucket = {
   start: number;
   end: number;
   activeInstances: number;
 };
 
 /** One instance's firing stretch, clamped to the rendered domain. */
-export type AlertRuleFiringPeriod = {
+type AlertRuleFiringPeriod = {
   start: number;
   end: number;
   fingerprint: string;
 };
 
-export type AlertRuleLatestCheckSummary = {
+type AlertRuleLatestCheckSummary = {
   total: number;
   breached: number;
   healthy: number;

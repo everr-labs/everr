@@ -5,12 +5,10 @@ import type { ReactNode } from "react";
 
 export function AlertingDisclosureTrigger({
   open,
-  variant = "boxed",
   className,
   children,
 }: {
   open: boolean;
-  variant?: "boxed" | "bare";
   className?: string;
   children: ReactNode;
 }) {
@@ -18,9 +16,7 @@ export function AlertingDisclosureTrigger({
     <CollapsibleTrigger
       className={cn(
         "flex items-center gap-1.5 rounded-md outline-2 outline-dotted outline-transparent outline-offset-[-2px] transition-colors duration-150 focus-visible:outline-primary",
-        variant === "boxed"
-          ? "w-full border border-border bg-muted/20 px-3 py-2 text-left hover:bg-muted/40"
-          : "px-1 py-0.5 text-xs hover:text-foreground",
+        "w-full border border-border bg-muted/20 px-3 py-2 text-left hover:bg-muted/40",
         className,
       )}
     >

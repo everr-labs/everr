@@ -73,22 +73,18 @@ const alertingLabelValueOptions = (key: string) => ({
 export function MatchersEditor({
   value,
   onChange,
-  label = "Matchers",
-  addLabel = "Add",
   lockedCount = 0,
   lockedValueLabels = [],
 }: {
   value: AlertingMatcher[];
   onChange: (m: AlertingMatcher[]) => void;
-  label?: string;
-  addLabel?: string;
   lockedCount?: number;
   lockedValueLabels?: readonly (string | undefined)[];
 }) {
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between">
-        <span className="text-sm font-medium">{label}</span>
+        <span className="text-sm font-medium">Matchers</span>
         <Button
           type="button"
           variant="outline"
@@ -96,7 +92,7 @@ export function MatchersEditor({
           onClick={() => onChange(addMatcher(value))}
         >
           <Plus data-icon="inline-start" />
-          {addLabel}
+          Add
         </Button>
       </div>
       {value.map((row, i) => {

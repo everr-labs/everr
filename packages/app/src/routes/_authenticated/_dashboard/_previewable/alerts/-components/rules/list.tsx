@@ -129,7 +129,6 @@ function RuleLine({
         <AlertingPauseToggle
           paused={rule.paused}
           pending={toggle.isPending}
-          kind="alert rule"
           name={identity.name}
           onToggle={() => toggle.mutate()}
         />

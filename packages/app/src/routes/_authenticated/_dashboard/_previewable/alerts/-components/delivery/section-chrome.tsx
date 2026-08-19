@@ -28,7 +28,6 @@ export function SectionBody({
   isPending,
   skeletonRows,
   empty,
-  errorClassName = "px-3 pb-3",
   children,
 }: {
   isError: boolean;
@@ -37,12 +36,11 @@ export function SectionBody({
   skeletonRows: number;
   /** Empty state, shown instead of children; omit to always render children. */
   empty?: { when: boolean; icon: ChannelIcon; title: string; hint: string };
-  errorClassName?: string;
   children: React.ReactNode;
 }) {
   if (isError) {
     return (
-      <div className={errorClassName}>
+      <div className="px-3 pb-3">
         <AlertingQueryError error={error} />
       </div>
     );

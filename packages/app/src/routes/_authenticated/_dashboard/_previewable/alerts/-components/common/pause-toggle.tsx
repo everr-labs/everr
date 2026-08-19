@@ -12,12 +12,8 @@ import {
 import { Button } from "@everr/ui/components/button";
 import { CirclePause, Play } from "lucide-react";
 
-type AlertingPausableKind = "alert rule";
-
-const PAUSE_CONSEQUENCE: Record<AlertingPausableKind, string> = {
-  "alert rule":
-    "It stops being evaluated, so it cannot fire or resolve while paused. Anything it would have caught passes unnoticed.",
-};
+const PAUSE_CONSEQUENCE =
+  "It stops being evaluated, so it cannot fire or resolve while paused. Anything it would have caught passes unnoticed.";
 
 /**
  * Only the pause confirms. Its cost is silent, because nothing fires to
@@ -26,14 +22,12 @@ const PAUSE_CONSEQUENCE: Record<AlertingPausableKind, string> = {
 export function AlertingPauseToggle({
   paused,
   pending,
-  kind,
   name,
   variant = "ghost",
   onToggle,
 }: {
   paused: boolean;
   pending: boolean;
-  kind: AlertingPausableKind;
   name: string;
   /** "ghost" in a table row, "outline" beside a page heading. */
   variant?: "ghost" | "outline";
@@ -77,8 +71,8 @@ export function AlertingPauseToggle({
         <AlertDialogHeader>
           <AlertDialogTitle>Pause {name}?</AlertDialogTitle>
           <AlertDialogDescription>
-            {PAUSE_CONSEQUENCE[kind]} Resuming picks evaluation back up from the
-            live data at that moment; the gap is not backfilled.
+            {PAUSE_CONSEQUENCE} Resuming picks evaluation back up from the live
+            data at that moment; the gap is not backfilled.
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>

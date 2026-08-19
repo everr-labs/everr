@@ -5,30 +5,25 @@ import { Link } from "@tanstack/react-router";
 import { BellOff, Flame, Menu, Send, SlidersHorizontal } from "lucide-react";
 import { useState } from "react";
 
-const GROUPS = [
+const DESTINATIONS = [
+  { to: "/alerts", label: "Triage", icon: Flame, exact: true },
   {
-    label: null,
-    destinations: [
-      { to: "/alerts", label: "Triage", icon: Flame, exact: true },
-      {
-        to: "/alerts/rules",
-        label: "All Rules",
-        icon: SlidersHorizontal,
-        exact: false,
-      },
-      {
-        to: "/alerts/silences",
-        label: "Silences",
-        icon: BellOff,
-        exact: false,
-      },
-      {
-        to: "/alerts/notifications",
-        label: "Notifications",
-        icon: Send,
-        exact: false,
-      },
-    ],
+    to: "/alerts/rules",
+    label: "All Rules",
+    icon: SlidersHorizontal,
+    exact: false,
+  },
+  {
+    to: "/alerts/silences",
+    label: "Silences",
+    icon: BellOff,
+    exact: false,
+  },
+  {
+    to: "/alerts/notifications",
+    label: "Notifications",
+    icon: Send,
+    exact: false,
   },
 ] as const;
 
@@ -48,34 +43,25 @@ function AlertingSectionNav({ onNavigate }: { onNavigate?: () => void }) {
       aria-label="Alerting"
       className="bg-muted/15 flex h-full min-h-0 flex-col gap-3 overflow-auto border-b p-3 lg:border-r lg:border-b-0"
     >
-      {GROUPS.map((group) => (
-        <div key={group.label ?? "main"} className="flex flex-col gap-1">
-          {group.label && (
-            <span className="px-2 text-[0.625rem] font-medium tracking-wide text-muted-foreground uppercase">
-              {group.label}
-            </span>
-          )}
-          <ul className="flex flex-col gap-0.5">
-            {group.destinations.map((d) => (
-              <li key={d.to}>
-                <Link
-                  to={d.to}
-                  activeOptions={{ exact: d.exact }}
-                  activeProps={{ "data-active": "true" }}
-                  onClick={onNavigate}
-                  className="group flex min-h-9 items-center gap-2 rounded px-2 text-sm text-muted-foreground hover:bg-accent hover:text-accent-foreground data-active:bg-accent data-active:font-medium data-active:text-accent-foreground"
-                >
-                  <d.icon
-                    aria-hidden
-                    className="size-3.5 shrink-0 group-data-active:text-primary"
-                  />
-                  {d.label}
-                </Link>
-              </li>
-            ))}
-          </ul>
-        </div>
-      ))}
+      <ul className="flex flex-col gap-0.5">
+        {DESTINATIONS.map((d) => (
+          <li key={d.to}>
+            <Link
+              to={d.to}
+              activeOptions={{ exact: d.exact }}
+              activeProps={{ "data-active": "true" }}
+              onClick={onNavigate}
+              className="group flex min-h-9 items-center gap-2 rounded px-2 text-sm text-muted-foreground hover:bg-accent hover:text-accent-foreground data-active:bg-accent data-active:font-medium data-active:text-accent-foreground"
+            >
+              <d.icon
+                aria-hidden
+                className="size-3.5 shrink-0 group-data-active:text-primary"
+              />
+              {d.label}
+            </Link>
+          </li>
+        ))}
+      </ul>
     </nav>
   );
 }
