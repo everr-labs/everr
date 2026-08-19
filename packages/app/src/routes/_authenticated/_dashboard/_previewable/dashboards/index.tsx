@@ -1,10 +1,6 @@
 import { DEFAULT_TIME_RANGE } from "@everr/ui/lib/time-range";
 import { createFileRoute, redirect } from "@tanstack/react-router";
-import { evaluateBuiltin } from "@/data/dashboards/built-in/capabilities";
-import {
-  BUILTIN_DASHBOARDS,
-  getBuiltinDashboard,
-} from "@/data/dashboards/built-in/catalog";
+import { getBuiltinDashboard } from "@/data/dashboards/built-in/catalog";
 import { clearLastViewed, readLastViewed } from "@/data/dashboards/last-viewed";
 import {
   dashboardListOptions,
@@ -80,24 +76,13 @@ export const Route = createFileRoute(
       .sort((a, b) => a.name.localeCompare(b.name));
     if (first) throw toDashboard(first.project, first.slug);
 
-    // No dashboards of your own yet: land on a built-in that has something to
-    // draw. The probe can fail; an arbitrary built-in still beats a blank pane.
-    let builtin = BUILTIN_DASHBOARDS[0];
-    try {
-      const capabilities = await queryClient.ensureQueryData(
-        telemetryCapabilitiesOptions(
-          DEFAULT_TIME_RANGE.from,
-          DEFAULT_TIME_RANGE.to,
-        ),
-      );
-      builtin =
-        BUILTIN_DASHBOARDS.find(
-          (b) => evaluateBuiltin(b, capabilities).status === "ready",
-        ) ?? builtin;
-    } catch {
-      // Fall through to the first built-in.
-    }
-    throw toBuiltin(builtin.id);
+    // No dashboards of your own yet: land on the get-started page, where the
+    // assistant prompt creates the first one.
+    throw redirect({
+      to: "/dashboards/get-started",
+      search: (prev) => prev,
+      replace: true,
+    });
   },
   component: () => null,
 });

@@ -68,37 +68,39 @@ function BuiltinDashboardPage() {
   const readiness = capabilities
     ? evaluateBuiltin(builtin, capabilities)
     : null;
+  const needsSetup = readiness?.status === "needs-setup" ? readiness : null;
+
+  const notice = needsSetup && (
+    <div
+      role="status"
+      className="flex items-start gap-2 rounded-md border border-border/60 bg-muted/30 px-3 py-2"
+    >
+      <Info className="mt-px size-3.5 shrink-0 text-muted-foreground" />
+      <p className="text-muted-foreground text-xs leading-relaxed">
+        Nothing to draw in this time range:{" "}
+        <span className="font-mono text-foreground/90">
+          {needsSetup.missing.join(", ")}
+        </span>
+        . The panels fill in on their own once that telemetry arrives. If you
+        sent it before, widen the time range.
+      </p>
+    </div>
+  );
 
   return (
     <div className="flex min-w-0 flex-col gap-3">
-      {readiness?.status === "needs-setup" && (
-        <div
-          role="status"
-          className="flex items-start gap-2 rounded-md border border-border/60 bg-muted/30 px-3 py-2"
-        >
-          <Info className="mt-px size-3.5 shrink-0 text-muted-foreground" />
-          <p className="text-muted-foreground text-xs leading-relaxed">
-            Nothing to draw in this time range:{" "}
-            <span className="font-mono text-foreground/90">
-              {readiness.missing.join(", ")}
-            </span>
-            . The panels fill in on their own once that telemetry arrives. If
-            you sent it before, widen the time range.
-          </p>
-        </div>
-      )}
-
       {/* No header of its own: the list row and breadcrumb already name the
           built-in, so the page is the grid, and the action sits in the
           variable toolbar like any other dashboard control. Fork when ready,
           instrumentation prompt when data is missing. */}
       <DashboardProvider document={builtin.document}>
         <DashboardGrid
+          notice={notice}
           actions={
-            readiness?.status === "needs-setup" ? (
+            needsSetup ? (
               <InstrumentFromBuiltin
                 name={builtin.name}
-                missing={readiness.missing}
+                missing={needsSetup.missing}
               />
             ) : (
               <CreateFromBuiltin slug={builtin.id} name={builtin.name} />

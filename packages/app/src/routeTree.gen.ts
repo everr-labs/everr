@@ -71,6 +71,7 @@ import { Route as AuthenticatedDashboardExploreTracesTraceIdRouteImport } from '
 import { Route as AuthenticatedDashboardPaddedCheckoutSuccessRouteImport } from './routes/_authenticated/_dashboard/_padded/checkout.success'
 import { Route as AuthenticatedDashboardPreviewableAlertsAlertIdRouteImport } from './routes/_authenticated/_dashboard/_previewable/alerts_.$alertId'
 import { Route as AuthenticatedDashboardPreviewableDashboardsIndexRouteImport } from './routes/_authenticated/_dashboard/_previewable/dashboards/index'
+import { Route as AuthenticatedDashboardPreviewableDashboardsGetStartedRouteImport } from './routes/_authenticated/_dashboard/_previewable/dashboards/get-started'
 import { Route as AuthenticatedDashboardPreviewableRunbooksIndexRouteImport } from './routes/_authenticated/_dashboard/_previewable/runbooks/index'
 import { Route as AuthenticatedDashboardRunsTraceIdIndexRouteImport } from './routes/_authenticated/_dashboard/runs/$traceId/index'
 import { Route as AuthenticatedDashboardRunsTraceIdTraceRouteImport } from './routes/_authenticated/_dashboard/runs/$traceId/trace'
@@ -419,6 +420,12 @@ const AuthenticatedDashboardPreviewableDashboardsIndexRoute =
     path: '/',
     getParentRoute: () => AuthenticatedDashboardPreviewableDashboardsRouteRoute,
   } as any)
+const AuthenticatedDashboardPreviewableDashboardsGetStartedRoute =
+  AuthenticatedDashboardPreviewableDashboardsGetStartedRouteImport.update({
+    id: '/get-started',
+    path: '/get-started',
+    getParentRoute: () => AuthenticatedDashboardPreviewableDashboardsRouteRoute,
+  } as any)
 const AuthenticatedDashboardPreviewableRunbooksIndexRoute =
   AuthenticatedDashboardPreviewableRunbooksIndexRouteImport.update({
     id: '/runbooks/',
@@ -564,6 +571,7 @@ export interface FileRoutesByFullPath {
   '/traces/$traceId': typeof AuthenticatedDashboardExploreTracesTraceIdRoute
   '/checkout/success': typeof AuthenticatedDashboardPaddedCheckoutSuccessRoute
   '/alerts/$alertId': typeof AuthenticatedDashboardPreviewableAlertsAlertIdRoute
+  '/dashboards/get-started': typeof AuthenticatedDashboardPreviewableDashboardsGetStartedRoute
   '/runs/$traceId/trace': typeof AuthenticatedDashboardRunsTraceIdTraceRoute
   '/api/cli/runs/$traceId/logs': typeof ApiCliRunsTraceIdLogsRoute
   '/dashboards/': typeof AuthenticatedDashboardPreviewableDashboardsIndexRoute
@@ -633,6 +641,7 @@ export interface FileRoutesByTo {
   '/traces/$traceId': typeof AuthenticatedDashboardExploreTracesTraceIdRoute
   '/checkout/success': typeof AuthenticatedDashboardPaddedCheckoutSuccessRoute
   '/alerts/$alertId': typeof AuthenticatedDashboardPreviewableAlertsAlertIdRoute
+  '/dashboards/get-started': typeof AuthenticatedDashboardPreviewableDashboardsGetStartedRoute
   '/runs/$traceId/trace': typeof AuthenticatedDashboardRunsTraceIdTraceRoute
   '/api/cli/runs/$traceId/logs': typeof ApiCliRunsTraceIdLogsRoute
   '/dashboards': typeof AuthenticatedDashboardPreviewableDashboardsIndexRoute
@@ -713,6 +722,7 @@ export interface FileRoutesById {
   '/_authenticated/_dashboard/_explore/traces_/$traceId': typeof AuthenticatedDashboardExploreTracesTraceIdRoute
   '/_authenticated/_dashboard/_padded/checkout/success': typeof AuthenticatedDashboardPaddedCheckoutSuccessRoute
   '/_authenticated/_dashboard/_previewable/alerts_/$alertId': typeof AuthenticatedDashboardPreviewableAlertsAlertIdRoute
+  '/_authenticated/_dashboard/_previewable/dashboards/get-started': typeof AuthenticatedDashboardPreviewableDashboardsGetStartedRoute
   '/_authenticated/_dashboard/runs/$traceId/trace': typeof AuthenticatedDashboardRunsTraceIdTraceRoute
   '/api/cli/runs/$traceId/logs': typeof ApiCliRunsTraceIdLogsRoute
   '/_authenticated/_dashboard/_previewable/dashboards/': typeof AuthenticatedDashboardPreviewableDashboardsIndexRoute
@@ -787,6 +797,7 @@ export interface FileRouteTypes {
     | '/traces/$traceId'
     | '/checkout/success'
     | '/alerts/$alertId'
+    | '/dashboards/get-started'
     | '/runs/$traceId/trace'
     | '/api/cli/runs/$traceId/logs'
     | '/dashboards/'
@@ -856,6 +867,7 @@ export interface FileRouteTypes {
     | '/traces/$traceId'
     | '/checkout/success'
     | '/alerts/$alertId'
+    | '/dashboards/get-started'
     | '/runs/$traceId/trace'
     | '/api/cli/runs/$traceId/logs'
     | '/dashboards'
@@ -935,6 +947,7 @@ export interface FileRouteTypes {
     | '/_authenticated/_dashboard/_explore/traces_/$traceId'
     | '/_authenticated/_dashboard/_padded/checkout/success'
     | '/_authenticated/_dashboard/_previewable/alerts_/$alertId'
+    | '/_authenticated/_dashboard/_previewable/dashboards/get-started'
     | '/_authenticated/_dashboard/runs/$traceId/trace'
     | '/api/cli/runs/$traceId/logs'
     | '/_authenticated/_dashboard/_previewable/dashboards/'
@@ -1408,6 +1421,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedDashboardPreviewableDashboardsIndexRouteImport
       parentRoute: typeof AuthenticatedDashboardPreviewableDashboardsRouteRoute
     }
+    '/_authenticated/_dashboard/_previewable/dashboards/get-started': {
+      id: '/_authenticated/_dashboard/_previewable/dashboards/get-started'
+      path: '/get-started'
+      fullPath: '/dashboards/get-started'
+      preLoaderRoute: typeof AuthenticatedDashboardPreviewableDashboardsGetStartedRouteImport
+      parentRoute: typeof AuthenticatedDashboardPreviewableDashboardsRouteRoute
+    }
     '/_authenticated/_dashboard/_previewable/runbooks/': {
       id: '/_authenticated/_dashboard/_previewable/runbooks/'
       path: '/runbooks'
@@ -1645,6 +1665,7 @@ const AuthenticatedDashboardPaddedRouteWithChildren =
   )
 
 interface AuthenticatedDashboardPreviewableDashboardsRouteRouteChildren {
+  AuthenticatedDashboardPreviewableDashboardsGetStartedRoute: typeof AuthenticatedDashboardPreviewableDashboardsGetStartedRoute
   AuthenticatedDashboardPreviewableDashboardsIndexRoute: typeof AuthenticatedDashboardPreviewableDashboardsIndexRoute
   AuthenticatedDashboardPreviewableDashboardsProjectSlugRoute: typeof AuthenticatedDashboardPreviewableDashboardsProjectSlugRoute
   AuthenticatedDashboardPreviewableDashboardsBuiltInSlugRoute: typeof AuthenticatedDashboardPreviewableDashboardsBuiltInSlugRoute
@@ -1652,6 +1673,8 @@ interface AuthenticatedDashboardPreviewableDashboardsRouteRouteChildren {
 
 const AuthenticatedDashboardPreviewableDashboardsRouteRouteChildren: AuthenticatedDashboardPreviewableDashboardsRouteRouteChildren =
   {
+    AuthenticatedDashboardPreviewableDashboardsGetStartedRoute:
+      AuthenticatedDashboardPreviewableDashboardsGetStartedRoute,
     AuthenticatedDashboardPreviewableDashboardsIndexRoute:
       AuthenticatedDashboardPreviewableDashboardsIndexRoute,
     AuthenticatedDashboardPreviewableDashboardsProjectSlugRoute:

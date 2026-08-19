@@ -195,17 +195,19 @@ function ListVariableField({
       ? [value]
       : [];
 
+  // The effective value never depends on the options (URL wins, then spec
+  // defaults), so option loading must not blank it: swapping a known "All"
+  // for a disabled "Loading…" made every dashboard navigation flicker. The
+  // spinner icon carries the pending state; the menu shows it too.
   const triggerLabel = error
     ? "Error"
-    : isPending
-      ? "Loading…"
-      : isAll
-        ? "All"
-        : selected.length === 0
-          ? "Select…"
-          : selected.length === 1
-            ? selected[0]
-            : `${selected[0]} +${selected.length - 1}`;
+    : isAll
+      ? "All"
+      : selected.length === 0
+        ? "Select…"
+        : selected.length === 1
+          ? selected[0]
+          : `${selected[0]} +${selected.length - 1}`;
 
   // Toggling an individual option clears All; selecting All clears individuals.
   const handleToggle = (option: string, checked: boolean) => {
@@ -225,7 +227,6 @@ function ListVariableField({
               id={`var-${name}`}
               variant="outline"
               size="sm"
-              disabled={isPending}
               title={
                 error ?? (selected.length > 0 ? selected.join(", ") : undefined)
               }
@@ -287,6 +288,11 @@ function ListVariableField({
                 </span>
               </DropdownMenuItem>
             ),
+          )}
+          {isPending && (
+            <div className="px-2 py-1.5 text-xs text-muted-foreground">
+              Loading options…
+            </div>
           )}
           {truncated && (
             <div className="px-2 py-1.5 text-xs text-muted-foreground">

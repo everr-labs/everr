@@ -17,7 +17,14 @@ const ROW_HEIGHT = 30;
  * object that belongs to the grid beneath it, and it keeps its shape on the
  * many dashboards that declare no variables at all.
  */
-export function DashboardGrid({ actions }: { actions?: ReactNode }) {
+export function DashboardGrid({
+  actions,
+  notice,
+}: {
+  actions?: ReactNode;
+  /** Rendered between the toolbar and the panels, e.g. a readiness alert. */
+  notice?: ReactNode;
+}) {
   const dashboard = useDashboard();
   const hasVariables = useHasVisibleVariables();
   const { width, containerRef } = useContainerWidth({
@@ -52,6 +59,7 @@ export function DashboardGrid({ actions }: { actions?: ReactNode }) {
           </div>
         )}
       </div>
+      {notice && <div className="mb-3">{notice}</div>}
       <div ref={containerRef}>
         <GridLayout
           width={width}

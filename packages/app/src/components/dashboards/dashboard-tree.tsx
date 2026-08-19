@@ -90,8 +90,8 @@ export function DashboardTree({
             />
           ))}
           {results.dashboards.length === 0 && (
-            <p className="py-8 text-center text-sm text-muted-foreground">
-              No {resource}s match your search
+            <p className="px-1 py-1 text-muted-foreground text-xs">
+              No {resource} matches that search.
             </p>
           )}
         </>
