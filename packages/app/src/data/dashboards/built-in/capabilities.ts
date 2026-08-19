@@ -2,22 +2,17 @@ import { BUILTIN_DASHBOARDS } from "./catalog";
 import type { BuiltinDashboard, Signal } from "./types";
 
 /**
- * Every metric table the tenant can read, not the three the probe used to scan.
- * An Organization whose metrics are Summary- or ExponentialHistogram-typed was
- * told it had no metrics at all while its previews drew fine, which inverts the
- * one promise the probe makes. The `awscloudwatch` receiver emits Summary by
- * default, so this was reachable, not hypothetical.
- *
- * All five share `MetricName` and `TimeUnix`, and each added branch costs one
- * short-circuited read on a table that is empty for every Organization not
- * sending that type.
+ * Every metric table the tenant can read, not just the common three. An
+ * Organization whose metrics are Summary- or ExponentialHistogram-typed would
+ * otherwise be told it had no metrics at all while its previews drew fine,
+ * which inverts the one promise the probe makes. The `awscloudwatch` receiver
+ * emits Summary by default, so this is reachable, not hypothetical.
  *
  * Written out rather than filtered from `SQL_API_TENANT_TABLES`: this module is
  * imported by the dashboards list component, and `lib/clickhouse` would drag
- * the server env and `node:crypto` into the client bundle.
- * `capabilities.test.ts` pins the same five names (it cannot import the real
- * list either, for the same reason), so a drift shows up as a failing probe
- * assertion rather than silently.
+ * the server env and `node:crypto` into the client bundle. That makes this a
+ * hand-synced copy, so a table added to the real list has to be added here too;
+ * nothing detects the drift for you.
  */
 const METRIC_TABLES = [
   "metrics_gauge",
@@ -28,17 +23,24 @@ const METRIC_TABLES = [
 ] as const;
 
 /**
+ * The bounds arrive as one ClickHouse datetime string with milliseconds, but
+ * the columns differ: `Timestamp`/`TimeUnix` are DateTime64(9) and accept it,
+ * while `logs.TimestampTime` is a plain DateTime and rejects the fraction
+ * outright. Each bound is parsed to its own column's type rather than leaning
+ * on implicit comparison.
+ *
+ * `{from}`/`{to}` are the same bound parameters every panel query gets, so the
+ * probe and the previews it grades always look at one identical window.
+ */
+const TRACES_WINDOW = `Timestamp >= parseDateTime64BestEffort({from:String}, 9) AND Timestamp <= parseDateTime64BestEffort({to:String}, 9)`;
+const LOGS_WINDOW = `TimestampTime >= parseDateTimeBestEffort({from:String}) AND TimestampTime <= parseDateTimeBestEffort({to:String})`;
+const METRICS_WINDOW = `TimeUnix >= parseDateTime64BestEffort({from:String}, 9) AND TimeUnix <= parseDateTime64BestEffort({to:String}, 9)`;
+
+/**
  * One yes/no question the probe asks ClickHouse, in the same shape a built-in
  * states its requirements. The catalog's requirements are the only questions
  * worth asking, so the probe is derived from them rather than discovering
- * everything the Organization sends and grading in JS.
- *
- * Discovering everything was the earlier design and it was both slower and
- * wrong: a per-signal `LIMIT 500` over an alphabetically ordered name list
- * silently dropped `redis.*` and `rpc.system.name` for any Organization with
- * more than 500 distinct keys, marking a built-in needs-setup while its panels
- * would have drawn fine. A truncated scan and a missing attribute are
- * indistinguishable from the outside, so the bug was invisible.
+ * everything the Organization sends and grading the names in JS.
  */
 export interface CapabilityProbe {
   signal: Signal;
@@ -68,9 +70,8 @@ export const CATALOG_PROBES: CapabilityProbe[] = [
 
 /**
  * The probes a tenant met in the window, by `probeKey`. A plain array rather
- * than a name inventory: nothing downstream of `evaluateBuiltin` ever wanted
- * the names, and this keeps the payload sixteen short strings instead of every
- * attribute key the Organization sends.
+ * than an inventory of every name the Organization sends: nothing downstream of
+ * `evaluateBuiltin` ever wanted the names.
  */
 export type TelemetryCapabilities = string[];
 
@@ -81,24 +82,11 @@ export interface CapabilityRow {
 }
 
 /**
- * Matches must be safe to inline: the catalog is YAML inlined at build time,
- * so a match is developer-authored, but it reaches ClickHouse as a string
- * literal and nothing else validates it on the way.
+ * Matches reach ClickHouse as inlined string literals. The catalog is
+ * developer-authored YAML, but nothing else validates it on the way, so a match
+ * that could break out of its quotes is rejected rather than escaped.
  */
 const SAFE_MATCH = /^[a-zA-Z0-9._-]+$/;
-
-function literal(value: string): string {
-  if (!SAFE_MATCH.test(value)) {
-    throw new Error(`Unsupported capability match: ${value}`);
-  }
-  return `'${value}'`;
-}
-
-/** Same rule as `literal`, plus the `:` that `probeKey` joins on. */
-function keyLiteral(key: string): string {
-  for (const part of key.split(":")) literal(part);
-  return `'${key}'`;
-}
 
 /**
  * Prefix match, not substring, mirroring what the requirement documents:
@@ -107,95 +95,61 @@ function keyLiteral(key: string): string {
  * below it. Substring matching would let `db.` claim credit for
  * `everr.db_nothing`.
  */
-function prefixTest(expr: string, match: string): string {
-  if (match.endsWith(".")) return `startsWith(${expr}, ${literal(match)})`;
-  return `(${expr} = ${literal(match)} OR startsWith(${expr}, ${literal(`${match}.`)}))`;
+function prefixTest(column: string, match: string): string {
+  if (match.endsWith(".")) return `startsWith(${column}, '${match}')`;
+  return `(${column} = '${match}' OR startsWith(${column}, '${match}.'))`;
 }
 
 /**
- * One `LIMIT 1` branch per catalog requirement, unioned into a set of met
+ * One `LIMIT 1` branch per catalog requirement, unioned into the set of met
  * probe keys. Existence is the whole question every branch asks, and the limit
  * lets ClickHouse stop at the first matching granule instead of reading the
  * range.
- *
- * `{from}`/`{to}` are the same bound parameters every panel query gets, so the
- * probe and the previews it grades always look at one identical window.
  */
 export function buildCapabilitiesQuery(
   probes: CapabilityProbe[] = CATALOG_PROBES,
 ): string {
-  // The bounds arrive as one ClickHouse datetime string with milliseconds, but
-  // the columns differ: `Timestamp`/`TimeUnix` are DateTime64(9) and accept it,
-  // while `logs.TimestampTime` is a plain DateTime and rejects the fraction
-  // outright. Parse each bound to the column's own type rather than leaning on
-  // implicit comparison, which is what the explorer's discovery does too.
-  const dt64 = (bound: string) =>
-    `parseDateTime64BestEffort({${bound}:String}, 9)`;
-  const dt = (bound: string) => `parseDateTimeBestEffort({${bound}:String})`;
+  const branches: string[] = [];
 
-  const within: Record<Signal, string> = {
-    traces: `Timestamp >= ${dt64("from")} AND Timestamp <= ${dt64("to")}`,
-    logs: `TimestampTime >= ${dt("from")} AND TimestampTime <= ${dt("to")}`,
-    metrics: `TimeUnix >= ${dt64("from")} AND TimeUnix <= ${dt64("to")}`,
-  };
-  const attributes: Record<"traces" | "logs", string> = {
-    traces: "SpanAttributes",
-    logs: "LogAttributes",
-  };
-
-  const exists = (key: string, source: string, where: string) =>
-    `SELECT ${keyLiteral(key)} AS key FROM ${source} WHERE ${where} LIMIT 1`;
-
-  // Metric prefixes are answered by one pass per table instead of one probe
-  // per prefix. A prefix probe cannot short-circuit when the prefix is absent,
-  // which is the common case, so eight prefixes across five tables meant up to
-  // forty full reads of `MetricName` per list load. `arrayFilter` tests every
-  // prefix against the name in the same pass, and `MetricName` is
-  // LowCardinality, so the pass is cheap and the output is bounded by the
-  // number of prefixes rather than the number of metrics.
-  const metricPrefixes = probes.flatMap(({ signal, match }) =>
-    signal === "metrics" && match ? [match] : [],
-  );
-  const prefixList = `[${metricPrefixes.map(literal).join(", ")}]`;
-  // `endsWith` reproduces `prefixTest` for a prefix only known at query time:
-  // a match already ending in a dot is a namespace and nothing else.
-  const matchedPrefixes = `arrayFilter(p -> MetricName = p OR startsWith(MetricName, if(endsWith(p, '.'), p, concat(p, '.'))), ${prefixList})`;
-
-  const metricPrefixBranches = metricPrefixes.length
-    ? METRIC_TABLES.map(
-        (table) =>
-          `SELECT DISTINCT concat('metrics:', prefix) AS key FROM (SELECT MetricName FROM ${table} WHERE ${within.metrics}) ARRAY JOIN ${matchedPrefixes} AS prefix`,
-      )
-    : [];
-
-  const branches = probes.flatMap((probe) => {
-    const key = probeKey(probe);
+  for (const probe of probes) {
     const { signal, match } = probe;
+    if (match && !SAFE_MATCH.test(match)) {
+      throw new Error(`Unsupported capability match: ${match}`);
+    }
+    const key = `'${probeKey(probe)}'`;
 
-    // Metrics live in five tables, so bare existence is five short-circuited
-    // reads that the outer DISTINCT folds back into a single key. Prefixes are
-    // handled above, in one pass rather than one probe each.
+    // Metrics live in five tables, so one requirement is five short-circuited
+    // reads that the outer DISTINCT folds back into a single key. `MetricName`
+    // is the third ORDER BY column, so keeping the prefix in the WHERE lets
+    // KeyCondition turn it into a key range: an absent prefix reads a handful
+    // of granules instead of the window. Testing the prefixes in one shared
+    // pass reads fewer columns but hides them from the index, which measured
+    // 65x worse.
     if (signal === "metrics") {
-      if (match) return [];
-      return METRIC_TABLES.map((table) => exists(key, table, within.metrics));
+      for (const table of METRIC_TABLES) {
+        const where = match
+          ? `${METRICS_WINDOW} AND ${prefixTest("MetricName", match)}`
+          : METRICS_WINDOW;
+        branches.push(
+          `SELECT ${key} AS key FROM ${table} WHERE ${where} LIMIT 1`,
+        );
+      }
+      continue;
     }
 
-    // `arrayExists` over `mapKeys`, not the old `DISTINCT arrayJoin(mapKeys(…))`
-    // — the scan no longer expands every span into one row per attribute key
-    // just to throw all but a handful away, and it can stop at the first row
-    // that carries the key.
-    return [
-      exists(
-        key,
-        signal,
-        match
-          ? `${within[signal]} AND arrayExists(k -> ${prefixTest("k", match)}, mapKeys(${attributes[signal]}))`
-          : within[signal],
-      ),
-    ];
-  });
+    // Attribute keys are not in either table's ORDER BY, so nothing prunes an
+    // absent one and the branch reads the window. `arrayExists` over `mapKeys`
+    // at least stops at the first row that carries the key, and never expands a
+    // row per attribute the way discovery had to.
+    const window = signal === "traces" ? TRACES_WINDOW : LOGS_WINDOW;
+    const attributes = signal === "traces" ? "SpanAttributes" : "LogAttributes";
+    const where = match
+      ? `${window} AND arrayExists(k -> ${prefixTest("k", match)}, mapKeys(${attributes}))`
+      : window;
+    branches.push(`SELECT ${key} AS key FROM ${signal} WHERE ${where} LIMIT 1`);
+  }
 
-  return `SELECT DISTINCT key FROM (\n  ${[...branches, ...metricPrefixBranches].join("\n  UNION ALL\n  ")}\n)`;
+  return `SELECT DISTINCT key FROM (\n  ${branches.join("\n  UNION ALL\n  ")}\n)`;
 }
 
 export function decodeCapabilityRows(
@@ -210,12 +164,9 @@ export type BuiltinReadiness =
 
 /**
  * Grade one builtin against the probe. Ready means every requirement is met,
- * which is a claim about the same time range the preview renders — so a ready
+ * which is a claim about the same time range the preview renders, so a ready
  * builtin whose preview is empty is a contradiction the UI never has to
  * explain away.
- *
- * Prefix matching happens in ClickHouse now, so this is a set lookup: a
- * requirement is met when the probe it names came back.
  */
 export function evaluateBuiltin(
   builtin: BuiltinDashboard,

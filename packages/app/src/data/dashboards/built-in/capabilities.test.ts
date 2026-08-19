@@ -33,55 +33,15 @@ const template = (
 
 describe("CATALOG_PROBES", () => {
   it("asks each distinct catalog requirement exactly once", () => {
-    const keys = CATALOG_PROBES.map(probeKey);
-    expect(new Set(keys).size).toBe(keys.length);
-    // Every requirement any builtin states has a probe behind it, or the
-    // builtin could never be graded ready.
-    for (const builtin of BUILTIN_DASHBOARDS) {
-      for (const requirement of builtin.requires) {
-        expect(keys).toContain(probeKey(requirement));
-      }
-    }
-  });
-
-  it("asks nothing no builtin requires", () => {
-    const stated = new Set(
-      BUILTIN_DASHBOARDS.flatMap((b) => b.requires).map(probeKey),
-    );
-    for (const probe of CATALOG_PROBES) {
-      expect(stated.has(probeKey(probe))).toBe(true);
-    }
+    const stated = BUILTIN_DASHBOARDS.flatMap((b) => b.requires).map(probeKey);
+    const asked = CATALOG_PROBES.map(probeKey);
+    expect(new Set(asked).size).toBe(asked.length);
+    expect([...asked].sort()).toEqual([...new Set(stated)].sort());
   });
 });
 
 describe("buildCapabilitiesQuery", () => {
-  const sql = buildCapabilitiesQuery();
-
-  it("binds the same {from}/{to} parameters panel queries get", () => {
-    expect(sql).toContain("{from:String}");
-    expect(sql).toContain("{to:String}");
-  });
-
-  it("probes for existence rather than counting or listing names", () => {
-    expect(sql).not.toContain("count()");
-    // The cap is gone with the name inventory it used to truncate; a probe
-    // that stops at the first matching row cannot lose a late-sorting key.
-    expect(sql).not.toContain("LIMIT 500");
-    expect(sql).not.toContain("DISTINCT arrayJoin");
-    expect(sql).not.toContain("ORDER BY");
-  });
-
-  it("returns one row per met probe, keyed by the requirement", () => {
-    expect(sql).toContain("SELECT DISTINCT key FROM (");
-    // Metric prefixes build their key with `concat` in the shared pass below,
-    // so only the rest carry the key as a literal.
-    for (const probe of CATALOG_PROBES) {
-      if (probe.signal === "metrics" && probe.match) continue;
-      expect(sql).toContain(`'${probeKey(probe)}' AS key`);
-    }
-  });
-
-  it("reads attribute keys off the map instead of expanding it", () => {
+  it("probes a trace attribute on the map, stopping at the first row", () => {
     expect(buildCapabilitiesQuery([{ signal: "traces", match: "faas" }])).toBe(
       "SELECT DISTINCT key FROM (\n  " +
         "SELECT 'traces:faas' AS key FROM traces WHERE " +
@@ -92,18 +52,27 @@ describe("buildCapabilitiesQuery", () => {
     );
   });
 
-  it("matches a trailing-dot requirement as a namespace only", () => {
-    const sql = buildCapabilitiesQuery([{ signal: "logs", match: "redis." }]);
-    expect(sql).toContain("startsWith(k, 'redis.')");
-    expect(sql).not.toContain("k = 'redis.'");
-    expect(sql).toContain("mapKeys(LogAttributes)");
+  it("probes a log attribute on its own time column", () => {
+    expect(
+      buildCapabilitiesQuery([{ signal: "logs", match: "browser.web_vital" }]),
+    ).toBe(
+      "SELECT DISTINCT key FROM (\n  " +
+        "SELECT 'logs:browser.web_vital' AS key FROM logs WHERE " +
+        "TimestampTime >= parseDateTimeBestEffort({from:String}) AND " +
+        "TimestampTime <= parseDateTimeBestEffort({to:String}) AND " +
+        "arrayExists(k -> (k = 'browser.web_vital' OR " +
+        "startsWith(k, 'browser.web_vital.')), mapKeys(LogAttributes)) LIMIT 1\n)",
+    );
   });
 
-  // Metrics existence has no probe of its own; every branch must cover every
-  // table the tenant can read, or a Summary-only Organization reads as empty.
-  it("probes every metric table the tenant can read", () => {
-    // Written out rather than filtered from `SQL_API_TENANT_TABLES`: the suite
-    // setup mocks `@/lib/clickhouse`, so the real list is not importable here.
+  // Written out rather than filtered from `SQL_API_TENANT_TABLES`: the suite
+  // setup mocks `@/lib/clickhouse`, so the real list is not importable here.
+  // A metric requirement is one branch per table, and the prefix stays in the
+  // WHERE so `MetricName` (the third ORDER BY column) can prune granules.
+  it("probes every metric table, keeping the prefix in the WHERE", () => {
+    const sql = buildCapabilitiesQuery([{ signal: "metrics", match: "redis" }]);
+    const branches = sql.split("\n  UNION ALL\n  ");
+    expect(branches).toHaveLength(5);
     for (const table of [
       "metrics_gauge",
       "metrics_sum",
@@ -111,33 +80,28 @@ describe("buildCapabilitiesQuery", () => {
       "metrics_exponential_histogram",
       "metrics_summary",
     ]) {
-      expect(sql).toContain(`'metrics' AS key FROM ${table} WHERE TimeUnix >=`);
       expect(sql).toContain(
-        `SELECT MetricName FROM ${table} WHERE TimeUnix >=`,
+        `SELECT 'metrics:redis' AS key FROM ${table} WHERE ` +
+          "TimeUnix >= parseDateTime64BestEffort({from:String}, 9) AND " +
+          "TimeUnix <= parseDateTime64BestEffort({to:String}, 9) AND " +
+          "(MetricName = 'redis' OR startsWith(MetricName, 'redis.')) LIMIT 1",
       );
     }
   });
 
-  it("tests every metric prefix in one pass per table", () => {
-    // One probe per prefix cannot stop early when the prefix is absent, which
-    // is the common case, so the prefixes share a scan.
-    const prefixes = CATALOG_PROBES.flatMap((p) =>
-      p.signal === "metrics" && p.match ? [p.match] : [],
-    );
-    expect(prefixes.length).toBeGreaterThan(1);
-    expect(sql).toContain(
-      `[${prefixes.map((p) => `'${p}'`).join(", ")}]) AS prefix`,
-    );
-    expect(sql).toContain("concat('metrics:', prefix) AS key");
-    for (const prefix of prefixes) {
-      expect(sql).not.toContain(`'metrics:${prefix}' AS key`);
-    }
+  it("matches a trailing-dot requirement as a namespace only", () => {
+    const sql = buildCapabilitiesQuery([{ signal: "logs", match: "redis." }]);
+    expect(sql).toContain("startsWith(k, 'redis.')");
+    expect(sql).not.toContain("k = 'redis.'");
   });
 
-  it("uses each table's own time column", () => {
-    expect(sql).toContain("TimestampTime >=");
-    expect(sql).toContain("TimeUnix >=");
-    expect(sql).toContain("Timestamp >=");
+  it("asks bare existence without a name predicate", () => {
+    expect(buildCapabilitiesQuery([{ signal: "traces" }])).toBe(
+      "SELECT DISTINCT key FROM (\n  " +
+        "SELECT 'traces' AS key FROM traces WHERE " +
+        "Timestamp >= parseDateTime64BestEffort({from:String}, 9) AND " +
+        "Timestamp <= parseDateTime64BestEffort({to:String}, 9) LIMIT 1\n)",
+    );
   });
 
   it("refuses a match it cannot safely inline", () => {
