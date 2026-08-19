@@ -1,153 +1,22 @@
-import { Skeleton } from "@everr/ui/components/skeleton";
-import { useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
-import { useMemo, useRef } from "react";
 import { PageHeader } from "@/components/page-header";
-import { deliveryQueries } from "@/data/alerting/delivery/queries";
-import { alertHistoryQueries } from "@/data/alerting/history/queries";
-import { alertInstanceQueries } from "@/data/alerting/instances/queries";
-import { ruleQueries } from "@/data/alerting/rules/queries";
-import { silenceQueries } from "@/data/alerting/silences/queries";
-import {
-  alertingActiveGroups,
-  alertingGroupInstances,
-  alertingResolveTriageInstances,
-  alertingTriageCounts,
-  TRIAGE_EVENT_RANGE,
-} from "@/data/alerting/triage/summary";
-import { AlertingQueryError } from "./-components/common/query-error";
-import { AlertingPipelineStrip } from "./-components/delivery/pipeline-strip";
-import {
-  SilenceCreateDrawer,
-  type SilenceDrawerHandle,
-} from "./-components/silences/panel";
-import { TriageBoard } from "./-components/triage/board";
-
-// One stored event only: it date-stamps the all-clear readout (quiet board vs
-// broken pipeline); nothing on this page lists events.
-const TRIAGE_EVENT_LIMIT = 1;
-
-// Stable identity for `?? EMPTY`: a fresh `[]` each render would churn every
-// memo keyed on it.
-const EMPTY: never[] = [];
 
 export const Route = createFileRoute(
   "/_authenticated/_dashboard/_previewable/alerts/",
 )({
   staticData: { breadcrumb: "Triage" },
   head: () => ({ meta: [{ title: "Everr - Triage" }] }),
-  loaderDeps: ({ search: { preview } }) => ({ preview }),
-  loader: ({ context: { queryClient }, deps }) =>
-    Promise.all([
-      queryClient.prefetchQuery(alertInstanceQueries.list(deps.preview)),
-      queryClient.prefetchQuery(ruleQueries.rules(deps.preview)),
-      queryClient.prefetchQuery(deliveryQueries.defaultDestination()),
-      queryClient.prefetchQuery(silenceQueries.list()),
-      queryClient.prefetchQuery(
-        // Same options the component asks for, preview included, or the
-        // prefetch warms a key nothing reads.
-        alertHistoryQueries.events(TRIAGE_EVENT_RANGE, {
-          limit: TRIAGE_EVENT_LIMIT,
-          preview: deps.preview,
-        }),
-      ),
-    ]),
   component: AlertingTriagePage,
 });
 
-// ── Page ──────────────────────────────────────────────────────────────────────
-
 function AlertingTriagePage() {
-  const { preview } = Route.useSearch();
-  const silenceDrawer = useRef<SilenceDrawerHandle>(null);
-  const alerts = useQuery(alertInstanceQueries.list(preview));
-  const rules = useQuery(ruleQueries.rules(preview));
-  const destination = useQuery(deliveryQueries.defaultDestination());
-  const silences = useQuery(silenceQueries.list());
-  const events = useQuery(
-    alertHistoryQueries.events(TRIAGE_EVENT_RANGE, {
-      limit: TRIAGE_EVENT_LIMIT,
-      preview,
-    }),
-  );
-  const rulesData = rules.data ?? EMPTY;
-
-  // A failed core query must not render as an all-clear zero.
-  const coreQueries = [alerts, rules, destination, silences];
-  const errored = coreQueries.find((query) => query.isError);
-
-  // Date.now() is read inside the memos, so an expired silence can read as
-  // silenced until the next `alerts` poll changes an input's identity.
-  const instances = useMemo(
-    () =>
-      alertingResolveTriageInstances({
-        alerts: alerts.data ?? EMPTY,
-        rules: rulesData,
-        silences: silences.data ?? EMPTY,
-        now: Date.now(),
-      }),
-    [alerts.data, rulesData, silences.data],
-  );
-  const groups = useMemo(() => alertingGroupInstances(instances), [instances]);
-  // Counts run over the FULL grouping (pending included); the board takes the
-  // firing-or-pending cut.
-  const counts = useMemo(
-    () =>
-      alertingTriageCounts(
-        groups,
-        silences.data ?? EMPTY,
-        Date.now(),
-        destination.data,
-      ),
-    [groups, silences.data, destination.data],
-  );
-  const boardGroups = useMemo(() => alertingActiveGroups(groups), [groups]);
-
-  const watchingRules = rulesData.filter((r) => !r.paused).length;
-  // Row-derived numbers come from `counts` only, so the strip and the board
-  // can never disagree.
-  const pipelineFacts = {
-    ...counts,
-    watchingRules,
-    pausedRules: rulesData.filter((r) => r.paused).length,
-    defaultChannelCount: new Set(
-      Object.values(destination.data?.tiers ?? {}).flat(),
-    ).size,
-  };
-
-  if (errored) return <AlertingQueryError error={errored.error} />;
-
-  const pending = coreQueries.some((query) => query.isPending);
-  const lastEventTs = events.data?.[0]?.timestamp ?? null;
-
   return (
     <div className="space-y-3">
       <PageHeader
         title="Triage"
-        lede="What is firing now, and what is on its way."
+        lede="What is firing right now, and what it means."
         docsHref="https://everr.dev/docs/concepts/how-alerts-work"
       />
-
-      {/* Wait for the data. Zeros during loading would show a false all-clear. */}
-      {pending ? (
-        <Skeleton className="h-16 w-full rounded-md" />
-      ) : (
-        <AlertingPipelineStrip facts={pipelineFacts} />
-      )}
-
-      <TriageBoard
-        groups={boardGroups}
-        pending={pending}
-        destination={destination.data}
-        watchingRules={watchingRules}
-        lastEventTs={lastEventTs}
-        eventsUnavailable={events.isError}
-        onCustomSilence={(matchers, options) =>
-          silenceDrawer.current?.openWith(matchers, options)
-        }
-      />
-
-      <SilenceCreateDrawer ref={silenceDrawer} />
     </div>
   );
 }

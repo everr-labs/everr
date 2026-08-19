@@ -4,17 +4,6 @@ import type {
   AlertingRuleView,
 } from "../types";
 
-const OP_SYMBOL = { eq: "=", ne: "≠" } satisfies Record<
-  AlertingMatcher["op"],
-  string
->;
-
-export function alertingOpSymbol(op: AlertingMatcher["op"]): string {
-  // A row persisted before an op was retired renders its raw op name, never
-  // the string "undefined".
-  return (OP_SYMBOL as Record<string, string | undefined>)[op] ?? op;
-}
-
 /** Missing labels match as empty strings. Matching is exact only. */
 export function alertingMatcherMatches(
   m: AlertingMatcher,
@@ -71,7 +60,7 @@ export function alertingDispatchLabels(
 }
 
 /** Half-open: a silence covers its start instant and not its end instant. */
-export function alertingSilenceIsActive(
+function alertingSilenceIsActive(
   silence: { starts_at: string; ends_at: string },
   now: number,
 ): boolean {

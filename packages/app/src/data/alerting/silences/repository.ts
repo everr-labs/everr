@@ -1,4 +1,4 @@
-import { and, desc, eq, gt, sql } from "drizzle-orm";
+import { and, eq, gt, sql } from "drizzle-orm";
 import {
   ALERT_PROCESS_EVENT_TASK,
   PROCESS_EVENT_MAX_ATTEMPTS,
@@ -24,15 +24,6 @@ function toSilence(row: typeof alertSilences.$inferSelect) {
     created_at: row.createdAt.toISOString(),
     canceled_at: row.canceledAt?.toISOString() ?? null,
   };
-}
-
-export async function listSilences(organizationId: string) {
-  const rows = await db
-    .select()
-    .from(alertSilences)
-    .where(eq(alertSilences.organizationId, organizationId))
-    .orderBy(desc(alertSilences.createdAt));
-  return rows.map(toSilence);
 }
 
 export async function createSilence(

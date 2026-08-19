@@ -42,9 +42,3 @@ export const ALERTING_LIFECYCLE_REASONS = [
 
 export type AlertingLifecycleReason =
   (typeof ALERTING_LIFECYCLE_REASONS)[number];
-
-export function isAlertingLifecycleReason(
-  value: string,
-): value is AlertingLifecycleReason {
-  return (ALERTING_LIFECYCLE_REASONS as readonly string[]).includes(value);
-}

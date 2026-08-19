@@ -2,9 +2,6 @@ import type { z } from "zod";
 import type {
   AlertingAlertSchema,
   AlertingChannelConfigSchema,
-  AlertingChannelSchema,
-  AlertingDefaultDestinationInputSchema,
-  AlertingDefaultDestinationSchema,
   AlertingMatcherSchema,
   AlertingRuleConditionSchema,
   AlertingRuleHealthStatusSchema,
@@ -15,7 +12,6 @@ import type {
   AlertingRuleViewSchema,
   AlertingSeveritySchema,
   AlertingSilenceInputSchema,
-  AlertingSilenceSchema,
 } from "./schema";
 
 export type AlertingSeverity = z.infer<typeof AlertingSeveritySchema>;
@@ -39,28 +35,6 @@ export type AlertingEvaluationSample = {
 };
 
 /** Evaluation history returned to the alert signal chart. */
-export type AlertingRuleEvaluationPoint = {
-  t: string;
-  samples: AlertingEvaluationSample[];
-  failed: boolean;
-  error: string | null;
-  row_count: number | null;
-};
-
-export type AlertingRuleEvaluationSeries = {
-  points: AlertingRuleEvaluationPoint[];
-  recent_points: AlertingRuleEvaluationPoint[];
-  evaluation_count: number;
-  samples_truncated: boolean;
-};
 
 export type AlertingChannelConfig = z.infer<typeof AlertingChannelConfigSchema>;
-export type AlertingChannel = z.infer<typeof AlertingChannelSchema>;
-export type AlertingDefaultDestination = z.infer<
-  typeof AlertingDefaultDestinationSchema
->;
-export type AlertingDefaultDestinationInput = z.infer<
-  typeof AlertingDefaultDestinationInputSchema
->;
 export type AlertingSilenceInput = z.infer<typeof AlertingSilenceInputSchema>;
-export type AlertingSilence = z.infer<typeof AlertingSilenceSchema>;
