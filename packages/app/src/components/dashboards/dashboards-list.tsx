@@ -106,12 +106,19 @@ export function DashboardsList({ preview }: { preview?: string }) {
   // A deep link can land on an unready built-in; the disclosure must not hide
   // the active row, or the list stops saying where you are. Matched by route
   // identity rather than param shape, so a future sibling route with a `slug`
-  // param cannot mis-detect.
+  // param cannot mis-detect. The toggle still works while a needs-data
+  // dashboard is active: collapsing shows only the active row.
   const matchRoute = useMatchRoute();
   const builtinMatch = matchRoute({ to: "/dashboards/built-in/$slug" });
   const activeBuiltin = builtinMatch ? builtinMatch.slug : undefined;
-  const showNeedsData =
-    needsDataOpen || needsData.some((builtin) => builtin.id === activeBuiltin);
+  const activeNeedsData = needsData.find(
+    (builtin) => builtin.id === activeBuiltin,
+  );
+  const visibleNeedsData = needsDataOpen
+    ? needsData
+    : activeNeedsData
+      ? [activeNeedsData]
+      : [];
 
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-4">
@@ -188,11 +195,11 @@ export function DashboardsList({ preview }: { preview?: string }) {
               <button
                 type="button"
                 onClick={() => setNeedsDataOpen((open) => !open)}
-                aria-expanded={showNeedsData}
+                aria-expanded={needsDataOpen}
                 title="Nothing sent in the last 7 days"
                 className="mt-2.5 mb-0.5 flex w-full items-center gap-1 rounded-md px-1 py-0.5 text-left font-medium text-[0.6875rem] text-muted-foreground/80 hover:text-foreground"
               >
-                {showNeedsData ? (
+                {needsDataOpen ? (
                   <ChevronDown className="size-3 shrink-0" />
                 ) : (
                   <ChevronRight className="size-3 shrink-0" />
@@ -202,10 +209,9 @@ export function DashboardsList({ preview }: { preview?: string }) {
                   {needsData.length}
                 </span>
               </button>
-              {showNeedsData &&
-                needsData.map((builtin) => (
-                  <BuiltinRow key={builtin.id} builtin={builtin} />
-                ))}
+              {visibleNeedsData.map((builtin) => (
+                <BuiltinRow key={builtin.id} builtin={builtin} />
+              ))}
             </>
           )}
         </section>
