@@ -92,7 +92,7 @@ CREATE TABLE "alert_evaluations" (
 );
 --> statement-breakpoint
 CREATE TABLE "alert_events" (
-	"id" uuid PRIMARY KEY DEFAULT uuidv7() NOT NULL,
+	"id" uuid PRIMARY KEY NOT NULL,
 	"organization_id" text NOT NULL,
 	"repoid" text NOT NULL,
 	"preview_id" uuid,

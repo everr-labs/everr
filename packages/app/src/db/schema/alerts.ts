@@ -220,8 +220,12 @@ export const alertEvents = pgTable(
   {
     // UUIDv7, not drizzle's `defaultRandom()`: the id sorts by creation time,
     // which is what makes an id range a time bound on the projected history.
-    // Postgres 18 has `uuidv7()` natively.
-    id: uuid("id").primaryKey().default(sql`uuidv7()`),
+    // Minted by `uuidv7()` in data/alerting/history/ids.ts, never by the
+    // database: the writer needs the id before the insert, to stamp the same
+    // value onto `episode_id` and onto the projected ClickHouse row. A
+    // database default would also pin us to Postgres 18, which our managed
+    // provider does not offer.
+    id: uuid("id").primaryKey(),
     organizationId: text("organization_id").notNull(),
     repoid: text("repoid").notNull(),
     previewId: uuid("preview_id"),

@@ -24,7 +24,10 @@ services:
       - ./volumes/clickhouse:/var/lib/clickhouse:Z
 
   postgres:
-    image: postgres:18.3-alpine3.23
+    # Matches the managed instance (Scaleway RDB `PostgreSQL-17`), so a
+    # migration that passes here cannot fail on deploy. Scaleway offers no
+    # Postgres 18 in any region, so do not move this ahead of 17.
+    image: postgres:17.11-alpine3.23
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 5s

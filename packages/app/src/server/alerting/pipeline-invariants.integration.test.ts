@@ -4,6 +4,7 @@ import { sql } from "drizzle-orm";
 import { describe, expect, it, vi } from "vitest";
 import { ALERTING_DEFAULT_GROUP_WAIT_SECS } from "@/data/alerting/delivery/defaults";
 import { ALERT_FLUSH_GROUP_TASK } from "@/data/alerting/delivery/tasks";
+import { uuidv7 } from "@/data/alerting/history/ids";
 import { deleteRule } from "@/data/alerting/rules/repository";
 import {
   ALERT_EVALUATE_TASK,
@@ -101,6 +102,7 @@ describe("the alerting pipeline's PostgreSQL invariants", () => {
         .db.insert(alertEvents)
         .values({
           ...base,
+          id: uuidv7(),
           eventType: "instance_pending",
           kind: "notifying",
         }),
@@ -114,6 +116,7 @@ describe("the alerting pipeline's PostgreSQL invariants", () => {
         .db.insert(alertEvents)
         .values({
           ...base,
+          id: uuidv7(),
           eventType: "instance_fired",
           kind: "state",
         }),

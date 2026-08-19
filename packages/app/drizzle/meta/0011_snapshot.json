@@ -847,8 +847,7 @@
           "name": "id",
           "type": "uuid",
           "primaryKey": true,
-          "notNull": true,
-          "default": "uuidv7()"
+          "notNull": true
         },
         "organization_id": {
           "name": "organization_id",
