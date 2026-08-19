@@ -42,7 +42,7 @@ import { alertDeliveryHash } from "./targeting";
 // The body budgets against the tightest channel limit, keeping a margin for
 // the title and url framing; the sender cuts the body further when a long
 // url eats past the margin, never the url itself. No production path sets a
-// url yet (ticket 28), so the margin is currently spent on the title alone. The title carries the full
+// url yet, so the margin is currently spent on the title alone. The title carries the full
 // firing/resolved counts, so cutting lines never hides how big the group is.
 const COMPOSE_FRAME_MARGIN = 200;
 const BODY_MAX_CHARS = CHANNEL_TEXT_MIN - COMPOSE_FRAME_MARGIN;
@@ -52,11 +52,9 @@ const LINE_MAX_CHARS = 200;
 const OMITTED_LINE_RESERVE = 48;
 
 // Bounds one flush's claimed membership set. Past this, a storm feeding one
-// group (thousands of firing instances into one receiver) would push a
-// single worker through a suppression check per member with no upper bound.
-// Whatever is left past the cap stays linked and unflushed, and the pending
-// count this flush already computes turns that into an immediate follow-up
-// flush rather than a lost member.
+// group would push one worker through an unbounded number of suppression
+// checks. What is left stays linked and unflushed, and the pending count this
+// flush already computes turns it into a follow-up flush, not a lost member.
 export const FLUSH_GROUP_MEMBER_CLAIM_CAP = 500;
 
 export type NotificationEvent = Pick<
@@ -135,9 +133,9 @@ async function directRuleChannels(
 
 export async function flushAlertGroup(rawPayload: unknown): Promise<void> {
   const { groupId } = AlertGroupTaskPayloadSchema.parse(rawPayload);
-  // Claim under the same lock processAlertEvent takes. Without it, a
-  // membership inserted between this read and the delete below is destroyed by
-  // a delete built from a stale snapshot, and its event is never delivered.
+  // Claim under the same lock processAlertEvent takes. Without it, a delete
+  // built from a stale snapshot destroys a membership inserted between this
+  // read and that delete, and its event is never delivered.
   const claimed = await db.transaction(async (tx) => {
     const [group] = await tx
       .select()
@@ -153,9 +151,9 @@ export async function flushAlertGroup(rawPayload: unknown): Promise<void> {
       FLUSH_GROUP_MEMBER_CLAIM_CAP,
     );
     if (rows.length === 0) {
-      // Nothing claimed: park on the idle sentinel instead of leaving
-      // nextFlushAt in the past, or the next event dispatched to this group
-      // would skip its whole group wait and page alone.
+      // Nothing claimed. Park on the idle sentinel rather than leave
+      // nextFlushAt in the past, or the next event dispatched here skips its
+      // group wait and pages alone.
       await tx
         .update(alertNotificationGroups)
         .set({ nextFlushAt: IDLE_GROUP_FLUSH_AT, updatedAt: new Date() })
@@ -380,9 +378,6 @@ export async function flushAlertGroup(rawPayload: unknown): Promise<void> {
         ),
       );
     const { nextFlushAt, enqueue } = nextGroupFlushState({
-      // Re-notification of still-firing alerts is off by design: a repeat
-      // would need a knob, and the fixed model has none.
-      repeatAt: null,
       pendingFlushAt: fresh.nextFlushAt,
       hasUnflushedMembers: (pending?.unflushed ?? 0) > 0,
       now: flushedAt,
@@ -413,10 +408,9 @@ export async function flushAlertGroup(rawPayload: unknown): Promise<void> {
         ...droppedRows.map(({ row: { event }, reason }) =>
           journalTerminalRow(event, { reason }),
         ),
-        // A resolve whose fire never went out: nobody was ever told this
-        // instance was firing, so the resolve does not notify either, but its
-        // chain still needs a terminal so it does not read as forever in
-        // flight.
+        // A resolve whose fire never went out. Nobody was told this instance
+        // was firing, so the resolve does not notify either. Its chain still
+        // needs a terminal, or it reads as forever in flight.
         ...droppedUnannounced.map((event) => journalTerminalRow(event)),
         // A rule or tier with no channels attached: nothing was sent, but
         // the flush still marked these flushed.

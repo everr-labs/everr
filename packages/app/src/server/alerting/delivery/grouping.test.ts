@@ -70,7 +70,7 @@ describe("nextGroupFlushAt", () => {
     ).toBe("2026-08-06T10:00:10.000Z");
   });
 
-  it("pulls a repeat forward to the earliest group interval", () => {
+  it("paces a later dispatch one interval after the last flush", () => {
     expect(
       nextGroupFlushAt(
         {
@@ -114,7 +114,7 @@ describe("groupNotificationPlan", () => {
     expect(plan.active).toEqual([]);
   });
 
-  it("repeats only what is still firing once every member has been flushed", () => {
+  it("announces only what is still firing once every member has been flushed", () => {
     const plan = groupNotificationPlan([
       member({ fingerprint: "a", flushedAt: "2026-08-06T09:59:00Z" }),
       member({
@@ -202,7 +202,6 @@ describe("nextGroupFlushState", () => {
   it("parks on the idle sentinel when nothing is left to do", () => {
     expect(
       nextGroupFlushState({
-        repeatAt: null,
         pendingFlushAt: IDLE_GROUP_FLUSH_AT,
         hasUnflushedMembers: false,
         now,
@@ -218,7 +217,6 @@ describe("nextGroupFlushState", () => {
   it("schedules an unflushed member one interval out, never at now", () => {
     expect(
       nextGroupFlushState({
-        repeatAt: null,
         pendingFlushAt: IDLE_GROUP_FLUSH_AT,
         hasUnflushedMembers: true,
         now,
@@ -235,7 +233,6 @@ describe("nextGroupFlushState", () => {
     const consumed = new Date(now.getTime() - 60_000);
     expect(
       nextGroupFlushState({
-        repeatAt: null,
         pendingFlushAt: consumed,
         hasUnflushedMembers: true,
         now,
@@ -250,36 +247,11 @@ describe("nextGroupFlushState", () => {
     const pending = new Date("2026-08-06T10:00:30Z");
     expect(
       nextGroupFlushState({
-        repeatAt: new Date("2026-08-06T10:05:00Z"),
         pendingFlushAt: pending,
         hasUnflushedMembers: true,
         now,
       }),
     ).toEqual({ nextFlushAt: pending, enqueue: true });
-  });
-
-  it("prefers the repeat when it lands first", () => {
-    const repeatAt = new Date("2026-08-06T10:01:00Z");
-    expect(
-      nextGroupFlushState({
-        repeatAt,
-        pendingFlushAt: new Date("2026-08-06T10:04:00Z"),
-        hasUnflushedMembers: true,
-        now,
-      }),
-    ).toEqual({ nextFlushAt: repeatAt, enqueue: true });
-  });
-
-  it("ignores a pending schedule when every member has been flushed", () => {
-    const repeatAt = new Date("2026-08-06T10:05:00Z");
-    expect(
-      nextGroupFlushState({
-        repeatAt,
-        pendingFlushAt: new Date("2026-08-06T10:00:30Z"),
-        hasUnflushedMembers: false,
-        now,
-      }),
-    ).toEqual({ nextFlushAt: repeatAt, enqueue: true });
   });
 });
 
@@ -311,8 +283,8 @@ describe("memberVerdict", () => {
       deliverable: false,
       terminal: "rule_deleted",
     });
-    // Already carried into a notification once: drop without a terminal row,
-    // the withheld thing is only the repeat.
+    // Already carried into a notification once, so drop it without a
+    // terminal row: the only withheld thing is the re-announcement.
     expect(
       memberVerdict({ ...live, ruleActive: false, flushedAt: flushed }),
     ).toEqual({ deliverable: false, terminal: null });
