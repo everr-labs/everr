@@ -287,67 +287,77 @@ describe("evaluateAlert scheduling state", () => {
   });
 });
 
-describe("transitionEventRows episode stamping", () => {
-  const evaluatedAt = new Date("2026-08-06T10:00:00Z");
-  const episodeDef = {
-    ...definition,
-    spec: {
-      ...definition.spec,
-      condition: { operator: "gt", threshold: 0 },
+const evaluatedAt = new Date("2026-08-06T10:00:00Z");
+
+const episodeDef = {
+  ...definition,
+  spec: {
+    ...definition.spec,
+    condition: { operator: "gt", threshold: 0 },
+  },
+} as unknown as Parameters<typeof transitionEventRows>[0]["def"];
+
+const historyDef = {
+  id: RULE_ID,
+  organizationId: "org-1",
+  repoid: "host/owner/repo",
+  slug: "default/high-5xx",
+  previewId: null,
+  severity: "critical",
+  ruleMuted: false,
+};
+
+function transition(
+  event: AlertInstanceTransition["event"],
+): AlertInstanceTransition {
+  return {
+    next: {
+      fingerprint: "api",
+      status:
+        event === "firing"
+          ? "firing"
+          : event === "pending"
+            ? "pending"
+            : "inactive",
+      labels: { service: "api" },
+      evidence: { value: 1 },
+      value: 1,
+      pendingSince: event === "pending" ? evaluatedAt : null,
+      activeSince: event === "firing" ? evaluatedAt : null,
+      lastSeenAt: evaluatedAt,
+      absentCount: 0,
     },
-  } as unknown as Parameters<typeof transitionEventRows>[0]["def"];
-  const historyDef = {
-    id: RULE_ID,
-    organizationId: "org-1",
-    repoid: "host/owner/repo",
-    slug: "default/high-5xx",
-    previewId: null,
-    severity: "critical",
-    ruleMuted: false,
+    event,
+    forClockRestartMs: null,
   };
+}
 
-  function transition(
-    event: AlertInstanceTransition["event"],
-  ): AlertInstanceTransition {
-    return {
-      next: {
-        fingerprint: "api",
-        status:
-          event === "firing"
-            ? "firing"
-            : event === "pending"
-              ? "pending"
-              : "inactive",
-        labels: { service: "api" },
-        evidence: { value: 1 },
-        value: 1,
-        pendingSince: event === "pending" ? evaluatedAt : null,
-        activeSince: event === "firing" ? evaluatedAt : null,
-        lastSeenAt: evaluatedAt,
-        absentCount: 0,
-      },
-      event,
-      forClockRestartMs: null,
-    };
-  }
+/**
+ * The rows for one transition. Only the values a case depends on go at the
+ * call site: the event, and any override of the no-open-episode default.
+ */
+function episodeRows(
+  event: AlertInstanceTransition["event"],
+  overrides: Partial<Parameters<typeof transitionEventRows>[0]> = {},
+) {
+  return transitionEventRows({
+    def: episodeDef,
+    historyDef,
+    transition: transition(event),
+    evaluatedAt,
+    storedEpisodeId: null,
+    ...overrides,
+  });
+}
 
+describe("transitionEventRows episode stamping", () => {
   it("opens the episode on fire and carries it onto the resolve", () => {
-    const [fired] = transitionEventRows({
-      def: episodeDef,
-      historyDef,
-      transition: transition("firing"),
-      evaluatedAt,
-      storedEpisodeId: null,
-    });
+    const [fired] = episodeRows("firing");
     expect(fired?.outbox.episodeId).toBe(fired?.outbox.id);
     expect(fired?.history.episode_id).toBe(fired?.outbox.id);
     expect(fired?.episodeUpdate).toBe(fired?.outbox.id);
 
-    const [resolved] = transitionEventRows({
-      def: episodeDef,
-      historyDef,
-      transition: transition("resolved"),
-      evaluatedAt,
+    const [resolved] = episodeRows("resolved", {
       storedEpisodeId: fired?.outbox.id ?? null,
     });
     expect(resolved?.outbox.episodeId).toBe(fired?.outbox.id);
@@ -357,27 +367,15 @@ describe("transitionEventRows episode stamping", () => {
   });
 
   it("mints a fresh episode id for a second fire", () => {
-    const args = {
-      def: episodeDef,
-      historyDef,
-      transition: transition("firing"),
-      evaluatedAt,
-      storedEpisodeId: null,
-    };
-    const [first] = transitionEventRows(args);
-    const [second] = transitionEventRows(args);
+    // The same inputs twice: the second fire must not reuse the first id.
+    const [first] = episodeRows("firing");
+    const [second] = episodeRows("firing");
     expect(first?.outbox.episodeId).toBeDefined();
     expect(second?.outbox.episodeId).not.toBe(first?.outbox.episodeId);
   });
 
   it("writes the zero sentinel when a resolve finds no open episode", () => {
-    const [resolved] = transitionEventRows({
-      def: episodeDef,
-      historyDef,
-      transition: transition("resolved"),
-      evaluatedAt,
-      storedEpisodeId: null,
-    });
+    const [resolved] = episodeRows("resolved");
     expect(resolved?.outbox.episodeId).toBeNull();
     expect(resolved?.history.episode_id).toBe(
       "00000000-0000-0000-0000-000000000000",
@@ -385,34 +383,16 @@ describe("transitionEventRows episode stamping", () => {
   });
 
   it("returns nothing when the evaluation caused no transition", () => {
-    expect(
-      transitionEventRows({
-        def: episodeDef,
-        historyDef,
-        transition: transition(null),
-        evaluatedAt,
-        storedEpisodeId: null,
-      }),
-    ).toEqual([]);
+    expect(episodeRows(null)).toEqual([]);
   });
 
   it("opens the episode at pending and lets the fire inherit it", () => {
-    const [pending] = transitionEventRows({
-      def: episodeDef,
-      historyDef,
-      transition: transition("pending"),
-      evaluatedAt,
-      storedEpisodeId: null,
-    });
+    const [pending] = episodeRows("pending");
     expect(pending?.outbox.eventType).toBe("instance_pending");
     expect(pending?.outbox.episodeId).toBe(pending?.outbox.id);
     expect(pending?.episodeUpdate).toBe(pending?.outbox.id);
 
-    const [fired] = transitionEventRows({
-      def: episodeDef,
-      historyDef,
-      transition: transition("firing"),
-      evaluatedAt,
+    const [fired] = episodeRows("firing", {
       storedEpisodeId: pending?.outbox.id ?? null,
     });
     expect(fired?.outbox.episodeId).toBe(pending?.outbox.id);
@@ -421,13 +401,7 @@ describe("transitionEventRows episode stamping", () => {
   });
 
   it("journals pending born processed, state kind, and outside any chain", () => {
-    const [pending] = transitionEventRows({
-      def: episodeDef,
-      historyDef,
-      transition: transition("pending"),
-      evaluatedAt,
-      storedEpisodeId: null,
-    });
+    const [pending] = episodeRows("pending");
     expect(pending?.outbox.kind).toBe("state");
     expect(pending?.outbox.processedAt).toEqual(evaluatedAt);
     expect(pending?.history.notification_event_id).toBe(
@@ -437,11 +411,7 @@ describe("transitionEventRows episode stamping", () => {
 
   it("closes a cleared pending with instance_closed and its reason", () => {
     const episodeId = "019c3ab6-54d6-7e26-bc76-8cadd67542fb";
-    const [closed] = transitionEventRows({
-      def: episodeDef,
-      historyDef,
-      transition: transition("pending_cleared"),
-      evaluatedAt,
+    const [closed] = episodeRows("pending_cleared", {
       storedEpisodeId: episodeId,
     });
     expect(closed?.outbox.eventType).toBe("instance_closed");
@@ -459,13 +429,7 @@ describe("transitionEventRows episode stamping", () => {
   });
 
   it("stamps condition_cleared on a resolve", () => {
-    const [resolved] = transitionEventRows({
-      def: episodeDef,
-      historyDef,
-      transition: transition("resolved"),
-      evaluatedAt,
-      storedEpisodeId: null,
-    });
+    const [resolved] = episodeRows("resolved");
     expect(resolved?.outbox.reason).toBe("condition_cleared");
     expect(resolved?.outbox.kind).toBe("notifying");
     expect(resolved?.history.reason).toBe("condition_cleared");
@@ -475,12 +439,7 @@ describe("transitionEventRows episode stamping", () => {
   // transition and passes it in so it is not recomputed here from the same
   // inputs.
   it("uses the caller's precomputed bounded evidence instead of recomputing it", () => {
-    const [fired] = transitionEventRows({
-      def: episodeDef,
-      historyDef,
-      transition: transition("firing"),
-      evaluatedAt,
-      storedEpisodeId: null,
+    const [fired] = episodeRows("firing", {
       bounded: { evidence: { injected: "marker" }, truncated: true },
     });
     expect(fired?.history.evidence_json).toBe(
@@ -491,55 +450,20 @@ describe("transitionEventRows episode stamping", () => {
 });
 
 describe("shouldEnqueueProcessEvent", () => {
-  const evaluatedAt = new Date("2026-08-06T10:00:00Z");
-  const args = (status: "pending" | "firing") => ({
-    def: {
-      ...definition,
-      spec: { ...definition.spec, condition: { operator: "gt", threshold: 0 } },
-    } as unknown as Parameters<typeof transitionEventRows>[0]["def"],
-    historyDef: {
-      id: RULE_ID,
-      organizationId: "org-1",
-      repoid: "host/owner/repo",
-      slug: "default/high-5xx",
-      previewId: null,
-      severity: "critical",
-      ruleMuted: false,
-    },
-    transition: {
-      next: {
-        fingerprint: "api",
-        status,
-        labels: { service: "api" },
-        evidence: { value: 1 },
-        value: 1,
-        pendingSince: status === "pending" ? evaluatedAt : null,
-        activeSince: status === "firing" ? evaluatedAt : null,
-        lastSeenAt: evaluatedAt,
-        absentCount: 0,
-      },
-      event: status,
-      forClockRestartMs: null,
-    } as AlertInstanceTransition,
-    evaluatedAt,
-    storedEpisodeId: null,
-  });
-
   it("never enqueues a process job for a born-processed state row", () => {
-    const [pending] = transitionEventRows(args("pending"));
+    const [pending] = episodeRows("pending");
     expect(pending?.outbox.kind).toBe("state");
     expect(shouldEnqueueProcessEvent(pending?.outbox ?? {})).toBe(false);
   });
 
   it("enqueues for notifying transitions", () => {
-    const [fired] = transitionEventRows(args("firing"));
+    const [fired] = episodeRows("firing");
     expect(fired?.outbox.kind).not.toBe("state");
     expect(shouldEnqueueProcessEvent(fired?.outbox ?? {})).toBe(true);
   });
 });
 
 describe("isNoopInactiveTransition", () => {
-  const evaluatedAt = new Date("2026-08-06T10:00:00Z");
   const inactiveInstance = {
     fingerprint: "api",
     status: "inactive" as const,

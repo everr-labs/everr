@@ -168,6 +168,28 @@ function event(overrides: Partial<NotificationEvent> = {}): NotificationEvent {
   };
 }
 
+/**
+ * A deliverable group member. The index picks the instance: rows that share
+ * an index are the same instance.
+ */
+function member(i: number, eventOverrides: Record<string, unknown> = {}) {
+  return {
+    event: {
+      id: `event-${i}`,
+      organizationId: "org-1",
+      sourceDefinitionId: "def-1",
+      instanceFingerprint: `fp-${i}`,
+      occurredAt: new Date("2026-08-10T08:59:00Z"),
+      eventType: "instance_fired",
+      instanceLabels: {},
+      silenceId: null,
+      ...eventOverrides,
+    },
+    flushedAt: null,
+    ruleActive: true,
+  };
+}
+
 describe("formatNotification", () => {
   it("keeps a small group byte for byte", () => {
     const events = [
@@ -247,23 +269,6 @@ describe("flushAlertGroup empty claim", () => {
 
 describe("flushAlertGroup suppression batching", () => {
   const GROUP_ID = "5cbb1c68-5cc9-4444-8000-000000000002";
-
-  function member(i: number) {
-    return {
-      event: {
-        id: `event-${i}`,
-        organizationId: "org-1",
-        sourceDefinitionId: "def-1",
-        instanceFingerprint: `fp-${i}`,
-        occurredAt: new Date("2026-08-10T08:59:00Z"),
-        eventType: "instance_fired",
-        instanceLabels: {},
-        silenceId: null,
-      },
-      flushedAt: null,
-      ruleActive: true,
-    };
-  }
 
   it("loads silences once, not once per member", async () => {
     const group = {
@@ -349,34 +354,12 @@ describe("flushAlertGroup flap handling", () => {
     // Fire at T, resolve at T+15, both still unflushed at the flush: the
     // fire never went out.
     mocks.memberRows = [
-      {
-        event: {
-          id: "fire-event",
-          organizationId: "org-1",
-          sourceDefinitionId: "def-1",
-          instanceFingerprint: "fp-1",
-          occurredAt: new Date("2026-08-10T08:59:00Z"),
-          eventType: "instance_fired",
-          instanceLabels: {},
-          silenceId: null,
-        },
-        flushedAt: null,
-        ruleActive: true,
-      },
-      {
-        event: {
-          id: "resolve-event",
-          organizationId: "org-1",
-          sourceDefinitionId: "def-1",
-          instanceFingerprint: "fp-1",
-          occurredAt: new Date("2026-08-10T08:59:15Z"),
-          eventType: "instance_resolved",
-          instanceLabels: {},
-          silenceId: null,
-        },
-        flushedAt: null,
-        ruleActive: true,
-      },
+      member(1, { id: "fire-event" }),
+      member(1, {
+        id: "resolve-event",
+        occurredAt: new Date("2026-08-10T08:59:15Z"),
+        eventType: "instance_resolved",
+      }),
     ];
     mocks.commitSelectQueue = [
       [group], // re-read under lock
@@ -421,16 +404,7 @@ describe("flushAlertGroup zero channels", () => {
     // channels.
     mocks.memberRows = [
       {
-        event: {
-          id: "fire-event",
-          organizationId: "org-1",
-          sourceDefinitionId: "def-1",
-          instanceFingerprint: "fp-1",
-          occurredAt: new Date("2026-08-10T08:59:00Z"),
-          eventType: "instance_fired",
-          instanceLabels: {},
-          silenceId: null,
-        },
+        ...member(1, { id: "fire-event" }),
         flushedAt: new Date("2026-08-10T08:00:00Z"),
         ruleActive: false,
       },
