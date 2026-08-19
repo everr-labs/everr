@@ -6,7 +6,7 @@ requires:
   - signal: metrics
     label: no metrics
   - signal: metrics
-    match: nodejs
+    match: nodejs.
     label: no nodejs*
 document:
   kind: Dashboard

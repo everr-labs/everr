@@ -6,7 +6,7 @@ requires:
   - signal: metrics
     label: no metrics
   - signal: metrics
-    match: mongodb
+    match: mongodb.
     label: no mongodb*
 document:
   kind: Dashboard

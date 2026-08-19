@@ -25,12 +25,14 @@ export type Signal = (typeof SIGNALS)[number];
 /**
  * One thing the Organization must already be sending for a built-in to render
  * anything. Every requirement names the signal it looks at; `match` narrows it
- * to a name within that signal — an attribute key for traces and logs, a
- * metric name for metrics — and omitting `match` asks only that the signal
+ * to a name within that signal, and omitting `match` asks only that the signal
  * exists at all.
  *
- * `match` is a prefix: `"redis."` matches every `redis.*` name, and a match
- * with no trailing dot matches that name exactly or as a namespace root.
+ * For traces and logs, `match` is an EXACT attribute key ("faas.trigger");
+ * prefixes are rejected because only an exact key can use the attribute-key
+ * bloom filter index. For metrics, `match` is a name prefix written with a
+ * trailing dot ("redis." matches every `redis.*` metric), which `MetricName`
+ * in the ORDER BY prunes; a dotless metric match also accepts the exact name.
  *
  * `label` is what the list shows when the requirement is unmet, so it is
  * written the way an engineer would grep for it ("redis.*", "traces").

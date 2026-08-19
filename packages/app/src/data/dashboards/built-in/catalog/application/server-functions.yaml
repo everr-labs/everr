@@ -6,8 +6,8 @@ requires:
   - signal: traces
     label: no traces
   - signal: traces
-    match: everr.server_function
-    label: no everr.server_function*
+    match: everr.server_function.name
+    label: no everr.server_function.name
 document:
   kind: Dashboard
   metadata:

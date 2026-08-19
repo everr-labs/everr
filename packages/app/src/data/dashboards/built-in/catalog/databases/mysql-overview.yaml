@@ -6,7 +6,7 @@ requires:
   - signal: metrics
     label: no metrics
   - signal: metrics
-    match: mysql
+    match: mysql.
     label: no mysql*
 document:
   kind: Dashboard

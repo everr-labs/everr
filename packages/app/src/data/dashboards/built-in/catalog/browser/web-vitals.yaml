@@ -6,8 +6,8 @@ requires:
   - signal: logs
     label: no logs
   - signal: logs
-    match: browser.web_vital
-    label: no browser.web_vital*
+    match: browser.web_vital.value
+    label: no browser.web_vital.value
 document:
   kind: Dashboard
   metadata:

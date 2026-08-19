@@ -6,8 +6,8 @@ requires:
   - signal: traces
     label: no traces
   - signal: traces
-    match: faas
-    label: no faas*
+    match: faas.trigger
+    label: no faas.trigger
 document:
   kind: Dashboard
   metadata:

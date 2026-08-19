@@ -6,7 +6,7 @@ requires:
   - signal: metrics
     label: no metrics
   - signal: metrics
-    match: postgresql
+    match: postgresql.
     label: no postgresql*
 document:
   kind: Dashboard

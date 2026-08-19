@@ -6,7 +6,7 @@ requires:
   - signal: metrics
     label: no metrics
   - signal: metrics
-    match: jvm
+    match: jvm.
     label: no jvm*
 document:
   kind: Dashboard

@@ -1,5 +1,6 @@
+import { z } from "zod";
 import { BUILTIN_DASHBOARDS } from "./catalog";
-import type { BuiltinDashboard, Signal } from "./types";
+import { type BuiltinDashboard, SIGNALS, type Signal } from "./types";
 
 /**
  * Every metric table the tenant can read, not just the common three. An
@@ -35,6 +36,19 @@ const METRIC_TABLES = [
 const TRACES_WINDOW = `Timestamp >= parseDateTime64BestEffort({from:String}, 9) AND Timestamp <= parseDateTime64BestEffort({to:String}, 9)`;
 const LOGS_WINDOW = `TimestampTime >= parseDateTimeBestEffort({from:String}) AND TimestampTime <= parseDateTimeBestEffort({to:String})`;
 const METRICS_WINDOW = `TimeUnix >= parseDateTime64BestEffort({from:String}, 9) AND TimeUnix <= parseDateTime64BestEffort({to:String}, 9)`;
+
+/**
+ * The catalog YAML is cast, not validated, on load, so the signal reaches this
+ * module as whatever the file said. Everything interpolated into a query is
+ * looked up from these explicit maps behind this schema, so an unknown signal
+ * fails loudly here instead of becoming a FROM clause.
+ */
+const SignalSchema = z.enum(SIGNALS);
+
+const ATTRIBUTE_SOURCES = {
+  traces: { window: TRACES_WINDOW, attributes: "SpanAttributes" },
+  logs: { window: LOGS_WINDOW, attributes: "LogAttributes" },
+} as const;
 
 /**
  * One yes/no question the probe asks ClickHouse, in the same shape a built-in
@@ -105,6 +119,108 @@ function prefixTest(column: string, match: string): string {
  * probe keys. Existence is the whole question every branch asks, and the limit
  * lets ClickHouse stop at the first matching granule instead of reading the
  * range.
+ *
+ * The full query the current catalog generates (`<time range>` stands for the
+ * table-specific window predicate above; regenerate by logging
+ * `buildCapabilitiesQuery()` in a vitest run when the catalog changes):
+ *
+ *   SELECT DISTINCT key FROM (
+ *     SELECT 'traces' AS key FROM traces WHERE <time range> LIMIT 1
+ *     UNION ALL
+ *     SELECT 'traces:http.request.method' AS key FROM traces WHERE <time range> AND mapContains(SpanAttributes, 'http.request.method') LIMIT 1
+ *     UNION ALL
+ *     SELECT 'traces:rpc.system.name' AS key FROM traces WHERE <time range> AND mapContains(SpanAttributes, 'rpc.system.name') LIMIT 1
+ *     UNION ALL
+ *     SELECT 'traces:everr.server_function.name' AS key FROM traces WHERE <time range> AND mapContains(SpanAttributes, 'everr.server_function.name') LIMIT 1
+ *     UNION ALL
+ *     SELECT 'traces:faas.trigger' AS key FROM traces WHERE <time range> AND mapContains(SpanAttributes, 'faas.trigger') LIMIT 1
+ *     UNION ALL
+ *     SELECT 'logs' AS key FROM logs WHERE <time range> LIMIT 1
+ *     UNION ALL
+ *     SELECT 'metrics' AS key FROM metrics_gauge WHERE <time range> LIMIT 1
+ *     UNION ALL
+ *     SELECT 'metrics' AS key FROM metrics_sum WHERE <time range> LIMIT 1
+ *     UNION ALL
+ *     SELECT 'metrics' AS key FROM metrics_histogram WHERE <time range> LIMIT 1
+ *     UNION ALL
+ *     SELECT 'metrics' AS key FROM metrics_exponential_histogram WHERE <time range> LIMIT 1
+ *     UNION ALL
+ *     SELECT 'metrics' AS key FROM metrics_summary WHERE <time range> LIMIT 1
+ *     UNION ALL
+ *     SELECT 'metrics:jvm.' AS key FROM metrics_gauge WHERE <time range> AND startsWith(MetricName, 'jvm.') LIMIT 1
+ *     UNION ALL
+ *     SELECT 'metrics:jvm.' AS key FROM metrics_sum WHERE <time range> AND startsWith(MetricName, 'jvm.') LIMIT 1
+ *     UNION ALL
+ *     SELECT 'metrics:jvm.' AS key FROM metrics_histogram WHERE <time range> AND startsWith(MetricName, 'jvm.') LIMIT 1
+ *     UNION ALL
+ *     SELECT 'metrics:jvm.' AS key FROM metrics_exponential_histogram WHERE <time range> AND startsWith(MetricName, 'jvm.') LIMIT 1
+ *     UNION ALL
+ *     SELECT 'metrics:jvm.' AS key FROM metrics_summary WHERE <time range> AND startsWith(MetricName, 'jvm.') LIMIT 1
+ *     UNION ALL
+ *     SELECT 'metrics:nodejs.' AS key FROM metrics_gauge WHERE <time range> AND startsWith(MetricName, 'nodejs.') LIMIT 1
+ *     UNION ALL
+ *     SELECT 'metrics:nodejs.' AS key FROM metrics_sum WHERE <time range> AND startsWith(MetricName, 'nodejs.') LIMIT 1
+ *     UNION ALL
+ *     SELECT 'metrics:nodejs.' AS key FROM metrics_histogram WHERE <time range> AND startsWith(MetricName, 'nodejs.') LIMIT 1
+ *     UNION ALL
+ *     SELECT 'metrics:nodejs.' AS key FROM metrics_exponential_histogram WHERE <time range> AND startsWith(MetricName, 'nodejs.') LIMIT 1
+ *     UNION ALL
+ *     SELECT 'metrics:nodejs.' AS key FROM metrics_summary WHERE <time range> AND startsWith(MetricName, 'nodejs.') LIMIT 1
+ *     UNION ALL
+ *     SELECT 'metrics:postgresql.' AS key FROM metrics_gauge WHERE <time range> AND startsWith(MetricName, 'postgresql.') LIMIT 1
+ *     UNION ALL
+ *     SELECT 'metrics:postgresql.' AS key FROM metrics_sum WHERE <time range> AND startsWith(MetricName, 'postgresql.') LIMIT 1
+ *     UNION ALL
+ *     SELECT 'metrics:postgresql.' AS key FROM metrics_histogram WHERE <time range> AND startsWith(MetricName, 'postgresql.') LIMIT 1
+ *     UNION ALL
+ *     SELECT 'metrics:postgresql.' AS key FROM metrics_exponential_histogram WHERE <time range> AND startsWith(MetricName, 'postgresql.') LIMIT 1
+ *     UNION ALL
+ *     SELECT 'metrics:postgresql.' AS key FROM metrics_summary WHERE <time range> AND startsWith(MetricName, 'postgresql.') LIMIT 1
+ *     UNION ALL
+ *     SELECT 'metrics:mysql.' AS key FROM metrics_gauge WHERE <time range> AND startsWith(MetricName, 'mysql.') LIMIT 1
+ *     UNION ALL
+ *     SELECT 'metrics:mysql.' AS key FROM metrics_sum WHERE <time range> AND startsWith(MetricName, 'mysql.') LIMIT 1
+ *     UNION ALL
+ *     SELECT 'metrics:mysql.' AS key FROM metrics_histogram WHERE <time range> AND startsWith(MetricName, 'mysql.') LIMIT 1
+ *     UNION ALL
+ *     SELECT 'metrics:mysql.' AS key FROM metrics_exponential_histogram WHERE <time range> AND startsWith(MetricName, 'mysql.') LIMIT 1
+ *     UNION ALL
+ *     SELECT 'metrics:mysql.' AS key FROM metrics_summary WHERE <time range> AND startsWith(MetricName, 'mysql.') LIMIT 1
+ *     UNION ALL
+ *     SELECT 'metrics:redis.' AS key FROM metrics_gauge WHERE <time range> AND startsWith(MetricName, 'redis.') LIMIT 1
+ *     UNION ALL
+ *     SELECT 'metrics:redis.' AS key FROM metrics_sum WHERE <time range> AND startsWith(MetricName, 'redis.') LIMIT 1
+ *     UNION ALL
+ *     SELECT 'metrics:redis.' AS key FROM metrics_histogram WHERE <time range> AND startsWith(MetricName, 'redis.') LIMIT 1
+ *     UNION ALL
+ *     SELECT 'metrics:redis.' AS key FROM metrics_exponential_histogram WHERE <time range> AND startsWith(MetricName, 'redis.') LIMIT 1
+ *     UNION ALL
+ *     SELECT 'metrics:redis.' AS key FROM metrics_summary WHERE <time range> AND startsWith(MetricName, 'redis.') LIMIT 1
+ *     UNION ALL
+ *     SELECT 'metrics:mongodb.' AS key FROM metrics_gauge WHERE <time range> AND startsWith(MetricName, 'mongodb.') LIMIT 1
+ *     UNION ALL
+ *     SELECT 'metrics:mongodb.' AS key FROM metrics_sum WHERE <time range> AND startsWith(MetricName, 'mongodb.') LIMIT 1
+ *     UNION ALL
+ *     SELECT 'metrics:mongodb.' AS key FROM metrics_histogram WHERE <time range> AND startsWith(MetricName, 'mongodb.') LIMIT 1
+ *     UNION ALL
+ *     SELECT 'metrics:mongodb.' AS key FROM metrics_exponential_histogram WHERE <time range> AND startsWith(MetricName, 'mongodb.') LIMIT 1
+ *     UNION ALL
+ *     SELECT 'metrics:mongodb.' AS key FROM metrics_summary WHERE <time range> AND startsWith(MetricName, 'mongodb.') LIMIT 1
+ *     UNION ALL
+ *     SELECT 'metrics:k8s.' AS key FROM metrics_gauge WHERE <time range> AND startsWith(MetricName, 'k8s.') LIMIT 1
+ *     UNION ALL
+ *     SELECT 'metrics:k8s.' AS key FROM metrics_sum WHERE <time range> AND startsWith(MetricName, 'k8s.') LIMIT 1
+ *     UNION ALL
+ *     SELECT 'metrics:k8s.' AS key FROM metrics_histogram WHERE <time range> AND startsWith(MetricName, 'k8s.') LIMIT 1
+ *     UNION ALL
+ *     SELECT 'metrics:k8s.' AS key FROM metrics_exponential_histogram WHERE <time range> AND startsWith(MetricName, 'k8s.') LIMIT 1
+ *     UNION ALL
+ *     SELECT 'metrics:k8s.' AS key FROM metrics_summary WHERE <time range> AND startsWith(MetricName, 'k8s.') LIMIT 1
+ *     UNION ALL
+ *     SELECT 'logs:browser.web_vital.value' AS key FROM logs WHERE <time range> AND mapContains(LogAttributes, 'browser.web_vital.value') LIMIT 1
+ *     UNION ALL
+ *     SELECT 'logs:everr.page_view.id' AS key FROM logs WHERE <time range> AND mapContains(LogAttributes, 'everr.page_view.id') LIMIT 1
+ *   )
  */
 export function buildCapabilitiesQuery(
   probes: CapabilityProbe[] = CATALOG_PROBES,
@@ -112,7 +228,12 @@ export function buildCapabilitiesQuery(
   const branches: string[] = [];
 
   for (const probe of probes) {
-    const { signal, match } = probe;
+    const { match } = probe;
+    const parsed = SignalSchema.safeParse(probe.signal);
+    if (!parsed.success) {
+      throw new Error(`Unsupported capability signal: ${String(probe.signal)}`);
+    }
+    const signal = parsed.data;
     if (match && !SAFE_MATCH.test(match)) {
       throw new Error(`Unsupported capability match: ${match}`);
     }
@@ -137,16 +258,23 @@ export function buildCapabilitiesQuery(
       continue;
     }
 
-    // Attribute keys are not in either table's ORDER BY, so nothing prunes an
-    // absent one and the branch reads the window. `arrayExists` over `mapKeys`
-    // at least stops at the first row that carries the key, and never expands a
-    // row per attribute the way discovery had to.
-    const window = signal === "traces" ? TRACES_WINDOW : LOGS_WINDOW;
-    const attributes = signal === "traces" ? "SpanAttributes" : "LogAttributes";
-    const where = match
-      ? `${window} AND arrayExists(k -> ${prefixTest("k", match)}, mapKeys(${attributes}))`
-      : window;
-    branches.push(`SELECT ${key} AS key FROM ${signal} WHERE ${where} LIMIT 1`);
+    if (match?.endsWith(".")) {
+      throw new Error(
+        `Attribute matches must name an exact key, not a prefix: ${match}`,
+      );
+    }
+
+    const { window, attributes } = ATTRIBUTE_SOURCES[signal];
+
+    if (match) {
+      branches.push(
+        `SELECT ${key} AS key FROM ${signal} WHERE ${window} AND mapContains(${attributes}, '${match}') LIMIT 1`,
+      );
+    } else {
+      branches.push(
+        `SELECT ${key} AS key FROM ${signal} WHERE ${window} LIMIT 1`,
+      );
+    }
   }
 
   return `SELECT DISTINCT key FROM (\n  ${branches.join("\n  UNION ALL\n  ")}\n)`;

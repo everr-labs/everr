@@ -41,27 +41,31 @@ describe("CATALOG_PROBES", () => {
 });
 
 describe("buildCapabilitiesQuery", () => {
-  it("probes a trace attribute on the map, stopping at the first row", () => {
-    expect(buildCapabilitiesQuery([{ signal: "traces", match: "faas" }])).toBe(
+  // `mapContains` is the shape the tables' bloom_filter key indexes can
+  // prune, so an absent attribute reads zero granules instead of the window.
+  it("probes a trace attribute with the index-prunable mapContains", () => {
+    expect(
+      buildCapabilitiesQuery([{ signal: "traces", match: "faas.trigger" }]),
+    ).toBe(
       "SELECT DISTINCT key FROM (\n  " +
-        "SELECT 'traces:faas' AS key FROM traces WHERE " +
+        "SELECT 'traces:faas.trigger' AS key FROM traces WHERE " +
         "Timestamp >= parseDateTime64BestEffort({from:String}, 9) AND " +
         "Timestamp <= parseDateTime64BestEffort({to:String}, 9) AND " +
-        "arrayExists(k -> (k = 'faas' OR startsWith(k, 'faas.')), " +
-        "mapKeys(SpanAttributes)) LIMIT 1\n)",
+        "mapContains(SpanAttributes, 'faas.trigger') LIMIT 1\n)",
     );
   });
 
   it("probes a log attribute on its own time column", () => {
     expect(
-      buildCapabilitiesQuery([{ signal: "logs", match: "browser.web_vital" }]),
+      buildCapabilitiesQuery([
+        { signal: "logs", match: "browser.web_vital.value" },
+      ]),
     ).toBe(
       "SELECT DISTINCT key FROM (\n  " +
-        "SELECT 'logs:browser.web_vital' AS key FROM logs WHERE " +
+        "SELECT 'logs:browser.web_vital.value' AS key FROM logs WHERE " +
         "TimestampTime >= parseDateTimeBestEffort({from:String}) AND " +
         "TimestampTime <= parseDateTimeBestEffort({to:String}) AND " +
-        "arrayExists(k -> (k = 'browser.web_vital' OR " +
-        "startsWith(k, 'browser.web_vital.')), mapKeys(LogAttributes)) LIMIT 1\n)",
+        "mapContains(LogAttributes, 'browser.web_vital.value') LIMIT 1\n)",
     );
   });
 
@@ -89,10 +93,12 @@ describe("buildCapabilitiesQuery", () => {
     }
   });
 
-  it("matches a trailing-dot requirement as a namespace only", () => {
-    const sql = buildCapabilitiesQuery([{ signal: "logs", match: "redis." }]);
-    expect(sql).toContain("startsWith(k, 'redis.')");
-    expect(sql).not.toContain("k = 'redis.'");
+  // A namespace can't be proven absent by the key bloom filter, so a prefix
+  // attribute match would scan the window on every probe: banned outright.
+  it("refuses a prefix attribute match", () => {
+    expect(() =>
+      buildCapabilitiesQuery([{ signal: "logs", match: "redis." }]),
+    ).toThrow(/exact key, not a prefix/);
   });
 
   it("asks bare existence without a name predicate", () => {
@@ -108,6 +114,16 @@ describe("buildCapabilitiesQuery", () => {
     expect(() =>
       buildCapabilitiesQuery([{ signal: "traces", match: "x' OR '1" }]),
     ).toThrow(/Unsupported capability match/);
+  });
+
+  it("refuses a signal outside the schema instead of interpolating it", () => {
+    expect(() =>
+      buildCapabilitiesQuery([
+        // The catalog YAML is cast, not validated, on load, so an unknown
+        // signal can reach the builder at runtime despite the types.
+        { signal: "spans; DROP TABLE traces" as never },
+      ]),
+    ).toThrow(/Unsupported capability signal/);
   });
 });
 

@@ -6,7 +6,7 @@ requires:
   - signal: metrics
     label: no metrics
   - signal: metrics
-    match: k8s
+    match: k8s.
     label: no k8s*
 document:
   kind: Dashboard
