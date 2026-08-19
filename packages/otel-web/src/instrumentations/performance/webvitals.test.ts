@@ -357,9 +357,7 @@ describe("cls", () => {
     expect(a["everr.browser.web_vital.rating"]).toBe("good");
     expect(a["everr.browser.web_vital.cls.largest_shift_value"]).toBe(0.05);
     expect(a["everr.browser.web_vital.cls.largest_shift_time"]).toBe(800);
-    expect(a["everr.browser.web_vital.cls.largest_shift_target"]).toBe(
-      "body > main > img",
-    );
+    expect(a["everr.browser.web_vital.cls.largest_shift_target"]).toBe("img");
     expect(a["everr.browser.web_vital.cls.load_state"]).toBe("complete");
   });
 
