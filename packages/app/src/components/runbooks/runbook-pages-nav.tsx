@@ -161,6 +161,9 @@ function PageLink({
   return (
     <Link
       {...target}
+      // Carry the search state across: without this the frame's `full` flag is
+      // dropped and the rail springs back open on every page you open.
+      search={(prev) => prev}
       style={
         inline
           ? undefined

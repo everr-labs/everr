@@ -24,6 +24,9 @@ export const runbookBreadcrumb = (match: {
     {
       label: name,
       to: `/runbooks/${match.params.project}/${match.params.slug}`,
+      // An empty override still takes the breadcrumb's merge path, which keeps
+      // the frame state instead of resetting the search on the way back up.
+      search: {},
     },
     { label: pageTitle },
   ];
