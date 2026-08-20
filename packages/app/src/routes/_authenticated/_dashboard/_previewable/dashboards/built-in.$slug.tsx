@@ -11,7 +11,7 @@ import { InstrumentFromBuiltin } from "@/components/dashboards/instrument-from-b
 import { DashboardProvider } from "@/components/dashboards/use-dashboard";
 import { evaluateBuiltin } from "@/data/dashboards/built-in/capabilities";
 import { getBuiltinDashboard } from "@/data/dashboards/built-in/catalog";
-import { recordLastViewed } from "@/data/dashboards/last-viewed";
+import { lastViewedDashboard } from "@/data/dashboards/last-viewed";
 import { telemetryCapabilitiesOptions } from "@/data/dashboards/options";
 import { dashboardTimeDefaults } from "@/data/dashboards/time-defaults";
 
@@ -39,7 +39,7 @@ export const Route = createFileRoute(
     // Preloads (link hover) run this loader too; only a committed navigation
     // counts as "viewed".
     if (!preload)
-      recordLastViewed(session.session.activeOrganizationId, {
+      lastViewedDashboard.record(session.session.activeOrganizationId, {
         kind: "built-in",
         slug,
       });

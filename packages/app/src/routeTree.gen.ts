@@ -57,6 +57,7 @@ import { Route as AuthenticatedDashboardPaddedReposRouteImport } from './routes/
 import { Route as AuthenticatedDashboardPaddedUsersManagementRouteImport } from './routes/_authenticated/_dashboard/_padded/users-management'
 import { Route as AuthenticatedDashboardPreviewableAlertsRouteImport } from './routes/_authenticated/_dashboard/_previewable/alerts'
 import { Route as AuthenticatedDashboardPreviewableDashboardsRouteRouteImport } from './routes/_authenticated/_dashboard/_previewable/dashboards/route'
+import { Route as AuthenticatedDashboardPreviewableRunbooksRouteRouteImport } from './routes/_authenticated/_dashboard/_previewable/runbooks/route'
 import { Route as AuthenticatedDashboardRunsIndexRouteImport } from './routes/_authenticated/_dashboard/runs/index'
 import { Route as AuthenticatedDashboardRunsTraceIdRouteRouteImport } from './routes/_authenticated/_dashboard/runs/$traceId/route'
 import { Route as ApiCliOrgNameRouteImport } from './routes/api/cli/org/name'
@@ -73,6 +74,7 @@ import { Route as AuthenticatedDashboardPreviewableAlertsAlertIdRouteImport } fr
 import { Route as AuthenticatedDashboardPreviewableDashboardsIndexRouteImport } from './routes/_authenticated/_dashboard/_previewable/dashboards/index'
 import { Route as AuthenticatedDashboardPreviewableDashboardsGetStartedRouteImport } from './routes/_authenticated/_dashboard/_previewable/dashboards/get-started'
 import { Route as AuthenticatedDashboardPreviewableRunbooksIndexRouteImport } from './routes/_authenticated/_dashboard/_previewable/runbooks/index'
+import { Route as AuthenticatedDashboardPreviewableRunbooksGetStartedRouteImport } from './routes/_authenticated/_dashboard/_previewable/runbooks/get-started'
 import { Route as AuthenticatedDashboardRunsTraceIdIndexRouteImport } from './routes/_authenticated/_dashboard/runs/$traceId/index'
 import { Route as AuthenticatedDashboardRunsTraceIdTraceRouteImport } from './routes/_authenticated/_dashboard/runs/$traceId/trace'
 import { Route as ApiCliRunsTraceIdLogsRouteImport } from './routes/api/cli/runs/$traceId/logs'
@@ -342,6 +344,12 @@ const AuthenticatedDashboardPreviewableDashboardsRouteRoute =
     path: '/dashboards',
     getParentRoute: () => AuthenticatedDashboardPreviewableRoute,
   } as any)
+const AuthenticatedDashboardPreviewableRunbooksRouteRoute =
+  AuthenticatedDashboardPreviewableRunbooksRouteRouteImport.update({
+    id: '/runbooks',
+    path: '/runbooks',
+    getParentRoute: () => AuthenticatedDashboardPreviewableRoute,
+  } as any)
 const AuthenticatedDashboardRunsIndexRoute =
   AuthenticatedDashboardRunsIndexRouteImport.update({
     id: '/',
@@ -428,9 +436,15 @@ const AuthenticatedDashboardPreviewableDashboardsGetStartedRoute =
   } as any)
 const AuthenticatedDashboardPreviewableRunbooksIndexRoute =
   AuthenticatedDashboardPreviewableRunbooksIndexRouteImport.update({
-    id: '/runbooks/',
-    path: '/runbooks/',
-    getParentRoute: () => AuthenticatedDashboardPreviewableRoute,
+    id: '/',
+    path: '/',
+    getParentRoute: () => AuthenticatedDashboardPreviewableRunbooksRouteRoute,
+  } as any)
+const AuthenticatedDashboardPreviewableRunbooksGetStartedRoute =
+  AuthenticatedDashboardPreviewableRunbooksGetStartedRouteImport.update({
+    id: '/get-started',
+    path: '/get-started',
+    getParentRoute: () => AuthenticatedDashboardPreviewableRunbooksRouteRoute,
   } as any)
 const AuthenticatedDashboardRunsTraceIdIndexRoute =
   AuthenticatedDashboardRunsTraceIdIndexRouteImport.update({
@@ -487,15 +501,15 @@ const ApiCliResourcesKindProjectSlugRoute =
   } as any)
 const AuthenticatedDashboardPreviewableRunbooksProjectSlugIndexRoute =
   AuthenticatedDashboardPreviewableRunbooksProjectSlugIndexRouteImport.update({
-    id: '/runbooks/$project/$slug/',
-    path: '/runbooks/$project/$slug/',
-    getParentRoute: () => AuthenticatedDashboardPreviewableRoute,
+    id: '/$project/$slug/',
+    path: '/$project/$slug/',
+    getParentRoute: () => AuthenticatedDashboardPreviewableRunbooksRouteRoute,
   } as any)
 const AuthenticatedDashboardPreviewableRunbooksProjectSlugSplatRoute =
   AuthenticatedDashboardPreviewableRunbooksProjectSlugSplatRouteImport.update({
-    id: '/runbooks/$project/$slug/$',
-    path: '/runbooks/$project/$slug/$',
-    getParentRoute: () => AuthenticatedDashboardPreviewableRoute,
+    id: '/$project/$slug/$',
+    path: '/$project/$slug/$',
+    getParentRoute: () => AuthenticatedDashboardPreviewableRunbooksRouteRoute,
   } as any)
 const AuthenticatedDashboardRunsTraceIdJobsJobIdIndexRoute =
   AuthenticatedDashboardRunsTraceIdJobsJobIdIndexRouteImport.update({
@@ -543,6 +557,7 @@ export interface FileRoutesByFullPath {
   '/api/events/stream': typeof ApiEventsStreamRoute
   '/api/internal/verify-key': typeof ApiInternalVerifyKeyRoute
   '/dashboards': typeof AuthenticatedDashboardPreviewableDashboardsRouteRouteWithChildren
+  '/runbooks': typeof AuthenticatedDashboardPreviewableRunbooksRouteRouteWithChildren
   '/runs/$traceId': typeof AuthenticatedDashboardRunsTraceIdRouteRouteWithChildren
   '/.well-known/oauth-authorization-server/api/auth': typeof DotwellKnownOauthAuthorizationServerApiAuthRoute
   '/auth/forgot-password': typeof AuthGuestAuthForgotPasswordRoute
@@ -572,6 +587,7 @@ export interface FileRoutesByFullPath {
   '/checkout/success': typeof AuthenticatedDashboardPaddedCheckoutSuccessRoute
   '/alerts/$alertId': typeof AuthenticatedDashboardPreviewableAlertsAlertIdRoute
   '/dashboards/get-started': typeof AuthenticatedDashboardPreviewableDashboardsGetStartedRoute
+  '/runbooks/get-started': typeof AuthenticatedDashboardPreviewableRunbooksGetStartedRoute
   '/runs/$traceId/trace': typeof AuthenticatedDashboardRunsTraceIdTraceRoute
   '/api/cli/runs/$traceId/logs': typeof ApiCliRunsTraceIdLogsRoute
   '/dashboards/': typeof AuthenticatedDashboardPreviewableDashboardsIndexRoute
@@ -642,6 +658,7 @@ export interface FileRoutesByTo {
   '/checkout/success': typeof AuthenticatedDashboardPaddedCheckoutSuccessRoute
   '/alerts/$alertId': typeof AuthenticatedDashboardPreviewableAlertsAlertIdRoute
   '/dashboards/get-started': typeof AuthenticatedDashboardPreviewableDashboardsGetStartedRoute
+  '/runbooks/get-started': typeof AuthenticatedDashboardPreviewableRunbooksGetStartedRoute
   '/runs/$traceId/trace': typeof AuthenticatedDashboardRunsTraceIdTraceRoute
   '/api/cli/runs/$traceId/logs': typeof ApiCliRunsTraceIdLogsRoute
   '/dashboards': typeof AuthenticatedDashboardPreviewableDashboardsIndexRoute
@@ -693,6 +710,7 @@ export interface FileRoutesById {
   '/api/events/stream': typeof ApiEventsStreamRoute
   '/api/internal/verify-key': typeof ApiInternalVerifyKeyRoute
   '/_authenticated/_dashboard/_previewable/dashboards': typeof AuthenticatedDashboardPreviewableDashboardsRouteRouteWithChildren
+  '/_authenticated/_dashboard/_previewable/runbooks': typeof AuthenticatedDashboardPreviewableRunbooksRouteRouteWithChildren
   '/_authenticated/_dashboard/runs/$traceId': typeof AuthenticatedDashboardRunsTraceIdRouteRouteWithChildren
   '/.well-known/oauth-authorization-server/api/auth': typeof DotwellKnownOauthAuthorizationServerApiAuthRoute
   '/_auth/_guest/auth/forgot-password': typeof AuthGuestAuthForgotPasswordRoute
@@ -723,6 +741,7 @@ export interface FileRoutesById {
   '/_authenticated/_dashboard/_padded/checkout/success': typeof AuthenticatedDashboardPaddedCheckoutSuccessRoute
   '/_authenticated/_dashboard/_previewable/alerts_/$alertId': typeof AuthenticatedDashboardPreviewableAlertsAlertIdRoute
   '/_authenticated/_dashboard/_previewable/dashboards/get-started': typeof AuthenticatedDashboardPreviewableDashboardsGetStartedRoute
+  '/_authenticated/_dashboard/_previewable/runbooks/get-started': typeof AuthenticatedDashboardPreviewableRunbooksGetStartedRoute
   '/_authenticated/_dashboard/runs/$traceId/trace': typeof AuthenticatedDashboardRunsTraceIdTraceRoute
   '/api/cli/runs/$traceId/logs': typeof ApiCliRunsTraceIdLogsRoute
   '/_authenticated/_dashboard/_previewable/dashboards/': typeof AuthenticatedDashboardPreviewableDashboardsIndexRoute
@@ -769,6 +788,7 @@ export interface FileRouteTypes {
     | '/api/events/stream'
     | '/api/internal/verify-key'
     | '/dashboards'
+    | '/runbooks'
     | '/runs/$traceId'
     | '/.well-known/oauth-authorization-server/api/auth'
     | '/auth/forgot-password'
@@ -798,6 +818,7 @@ export interface FileRouteTypes {
     | '/checkout/success'
     | '/alerts/$alertId'
     | '/dashboards/get-started'
+    | '/runbooks/get-started'
     | '/runs/$traceId/trace'
     | '/api/cli/runs/$traceId/logs'
     | '/dashboards/'
@@ -868,6 +889,7 @@ export interface FileRouteTypes {
     | '/checkout/success'
     | '/alerts/$alertId'
     | '/dashboards/get-started'
+    | '/runbooks/get-started'
     | '/runs/$traceId/trace'
     | '/api/cli/runs/$traceId/logs'
     | '/dashboards'
@@ -918,6 +940,7 @@ export interface FileRouteTypes {
     | '/api/events/stream'
     | '/api/internal/verify-key'
     | '/_authenticated/_dashboard/_previewable/dashboards'
+    | '/_authenticated/_dashboard/_previewable/runbooks'
     | '/_authenticated/_dashboard/runs/$traceId'
     | '/.well-known/oauth-authorization-server/api/auth'
     | '/_auth/_guest/auth/forgot-password'
@@ -948,6 +971,7 @@ export interface FileRouteTypes {
     | '/_authenticated/_dashboard/_padded/checkout/success'
     | '/_authenticated/_dashboard/_previewable/alerts_/$alertId'
     | '/_authenticated/_dashboard/_previewable/dashboards/get-started'
+    | '/_authenticated/_dashboard/_previewable/runbooks/get-started'
     | '/_authenticated/_dashboard/runs/$traceId/trace'
     | '/api/cli/runs/$traceId/logs'
     | '/_authenticated/_dashboard/_previewable/dashboards/'
@@ -1323,6 +1347,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedDashboardPreviewableDashboardsRouteRouteImport
       parentRoute: typeof AuthenticatedDashboardPreviewableRoute
     }
+    '/_authenticated/_dashboard/_previewable/runbooks': {
+      id: '/_authenticated/_dashboard/_previewable/runbooks'
+      path: '/runbooks'
+      fullPath: '/runbooks'
+      preLoaderRoute: typeof AuthenticatedDashboardPreviewableRunbooksRouteRouteImport
+      parentRoute: typeof AuthenticatedDashboardPreviewableRoute
+    }
     '/_authenticated/_dashboard/runs/': {
       id: '/_authenticated/_dashboard/runs/'
       path: '/'
@@ -1430,10 +1461,17 @@ declare module '@tanstack/react-router' {
     }
     '/_authenticated/_dashboard/_previewable/runbooks/': {
       id: '/_authenticated/_dashboard/_previewable/runbooks/'
-      path: '/runbooks'
+      path: '/'
       fullPath: '/runbooks/'
       preLoaderRoute: typeof AuthenticatedDashboardPreviewableRunbooksIndexRouteImport
-      parentRoute: typeof AuthenticatedDashboardPreviewableRoute
+      parentRoute: typeof AuthenticatedDashboardPreviewableRunbooksRouteRoute
+    }
+    '/_authenticated/_dashboard/_previewable/runbooks/get-started': {
+      id: '/_authenticated/_dashboard/_previewable/runbooks/get-started'
+      path: '/get-started'
+      fullPath: '/runbooks/get-started'
+      preLoaderRoute: typeof AuthenticatedDashboardPreviewableRunbooksGetStartedRouteImport
+      parentRoute: typeof AuthenticatedDashboardPreviewableRunbooksRouteRoute
     }
     '/_authenticated/_dashboard/runs/$traceId/': {
       id: '/_authenticated/_dashboard/runs/$traceId/'
@@ -1500,17 +1538,17 @@ declare module '@tanstack/react-router' {
     }
     '/_authenticated/_dashboard/_previewable/runbooks/$project/$slug/': {
       id: '/_authenticated/_dashboard/_previewable/runbooks/$project/$slug/'
-      path: '/runbooks/$project/$slug'
+      path: '/$project/$slug'
       fullPath: '/runbooks/$project/$slug/'
       preLoaderRoute: typeof AuthenticatedDashboardPreviewableRunbooksProjectSlugIndexRouteImport
-      parentRoute: typeof AuthenticatedDashboardPreviewableRoute
+      parentRoute: typeof AuthenticatedDashboardPreviewableRunbooksRouteRoute
     }
     '/_authenticated/_dashboard/_previewable/runbooks/$project/$slug/$': {
       id: '/_authenticated/_dashboard/_previewable/runbooks/$project/$slug/$'
-      path: '/runbooks/$project/$slug/$'
+      path: '/$project/$slug/$'
       fullPath: '/runbooks/$project/$slug/$'
       preLoaderRoute: typeof AuthenticatedDashboardPreviewableRunbooksProjectSlugSplatRouteImport
-      parentRoute: typeof AuthenticatedDashboardPreviewableRoute
+      parentRoute: typeof AuthenticatedDashboardPreviewableRunbooksRouteRoute
     }
     '/_authenticated/_dashboard/runs/$traceId/jobs/$jobId/': {
       id: '/_authenticated/_dashboard/runs/$traceId/jobs/$jobId/'
@@ -1688,29 +1726,47 @@ const AuthenticatedDashboardPreviewableDashboardsRouteRouteWithChildren =
     AuthenticatedDashboardPreviewableDashboardsRouteRouteChildren,
   )
 
-interface AuthenticatedDashboardPreviewableRouteChildren {
-  AuthenticatedDashboardPreviewableDashboardsRouteRoute: typeof AuthenticatedDashboardPreviewableDashboardsRouteRouteWithChildren
-  AuthenticatedDashboardPreviewableAlertsRoute: typeof AuthenticatedDashboardPreviewableAlertsRoute
-  AuthenticatedDashboardPreviewableAlertsAlertIdRoute: typeof AuthenticatedDashboardPreviewableAlertsAlertIdRoute
+interface AuthenticatedDashboardPreviewableRunbooksRouteRouteChildren {
+  AuthenticatedDashboardPreviewableRunbooksGetStartedRoute: typeof AuthenticatedDashboardPreviewableRunbooksGetStartedRoute
   AuthenticatedDashboardPreviewableRunbooksIndexRoute: typeof AuthenticatedDashboardPreviewableRunbooksIndexRoute
   AuthenticatedDashboardPreviewableRunbooksProjectSlugSplatRoute: typeof AuthenticatedDashboardPreviewableRunbooksProjectSlugSplatRoute
   AuthenticatedDashboardPreviewableRunbooksProjectSlugIndexRoute: typeof AuthenticatedDashboardPreviewableRunbooksProjectSlugIndexRoute
 }
 
-const AuthenticatedDashboardPreviewableRouteChildren: AuthenticatedDashboardPreviewableRouteChildren =
+const AuthenticatedDashboardPreviewableRunbooksRouteRouteChildren: AuthenticatedDashboardPreviewableRunbooksRouteRouteChildren =
   {
-    AuthenticatedDashboardPreviewableDashboardsRouteRoute:
-      AuthenticatedDashboardPreviewableDashboardsRouteRouteWithChildren,
-    AuthenticatedDashboardPreviewableAlertsRoute:
-      AuthenticatedDashboardPreviewableAlertsRoute,
-    AuthenticatedDashboardPreviewableAlertsAlertIdRoute:
-      AuthenticatedDashboardPreviewableAlertsAlertIdRoute,
+    AuthenticatedDashboardPreviewableRunbooksGetStartedRoute:
+      AuthenticatedDashboardPreviewableRunbooksGetStartedRoute,
     AuthenticatedDashboardPreviewableRunbooksIndexRoute:
       AuthenticatedDashboardPreviewableRunbooksIndexRoute,
     AuthenticatedDashboardPreviewableRunbooksProjectSlugSplatRoute:
       AuthenticatedDashboardPreviewableRunbooksProjectSlugSplatRoute,
     AuthenticatedDashboardPreviewableRunbooksProjectSlugIndexRoute:
       AuthenticatedDashboardPreviewableRunbooksProjectSlugIndexRoute,
+  }
+
+const AuthenticatedDashboardPreviewableRunbooksRouteRouteWithChildren =
+  AuthenticatedDashboardPreviewableRunbooksRouteRoute._addFileChildren(
+    AuthenticatedDashboardPreviewableRunbooksRouteRouteChildren,
+  )
+
+interface AuthenticatedDashboardPreviewableRouteChildren {
+  AuthenticatedDashboardPreviewableDashboardsRouteRoute: typeof AuthenticatedDashboardPreviewableDashboardsRouteRouteWithChildren
+  AuthenticatedDashboardPreviewableRunbooksRouteRoute: typeof AuthenticatedDashboardPreviewableRunbooksRouteRouteWithChildren
+  AuthenticatedDashboardPreviewableAlertsRoute: typeof AuthenticatedDashboardPreviewableAlertsRoute
+  AuthenticatedDashboardPreviewableAlertsAlertIdRoute: typeof AuthenticatedDashboardPreviewableAlertsAlertIdRoute
+}
+
+const AuthenticatedDashboardPreviewableRouteChildren: AuthenticatedDashboardPreviewableRouteChildren =
+  {
+    AuthenticatedDashboardPreviewableDashboardsRouteRoute:
+      AuthenticatedDashboardPreviewableDashboardsRouteRouteWithChildren,
+    AuthenticatedDashboardPreviewableRunbooksRouteRoute:
+      AuthenticatedDashboardPreviewableRunbooksRouteRouteWithChildren,
+    AuthenticatedDashboardPreviewableAlertsRoute:
+      AuthenticatedDashboardPreviewableAlertsRoute,
+    AuthenticatedDashboardPreviewableAlertsAlertIdRoute:
+      AuthenticatedDashboardPreviewableAlertsAlertIdRoute,
   }
 
 const AuthenticatedDashboardPreviewableRouteWithChildren =

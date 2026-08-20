@@ -70,6 +70,10 @@ export const getRouter = () => {
     // TODO: maybe preload?
     // defaultPreload: "intent",
     scrollRestoration: true,
+    // A pane that scrolls itself keeps its position across navigation unless
+    // it says otherwise; marking it puts the reader at the top of whatever
+    // they just opened. Only when the destination has no hash to scroll to.
+    scrollToTopSelectors: ["[data-scroll-to-top]"],
     // defaultPreloadStaleTime: 0,
     defaultPendingComponent: () => (
       <div className="flex items-center justify-center h-screen font-heading text-lg">

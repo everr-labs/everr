@@ -1,10 +1,10 @@
 import { type ReactNode, useMemo } from "react";
 import type { LayoutItem } from "react-grid-layout";
 import { GridLayout, noCompactor, useContainerWidth } from "react-grid-layout";
+import { FrameToggle } from "@/components/rail/frame-toggle";
 import { persesToRGL } from "@/data/dashboards/convert";
 import { GRID_COLS } from "@/data/dashboards/schema";
 import { DashboardPanel } from "./dashboard-panel";
-import { FrameToggle } from "./frame-toggle";
 import { useDashboard } from "./use-dashboard";
 import { useHasVisibleVariables, VariableBar } from "./variable-bar";
 

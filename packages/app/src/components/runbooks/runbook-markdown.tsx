@@ -140,6 +140,7 @@ interface RunbookMarkdownProps {
   /** Required (with slug) to render in-runbook links as router <Link>s. */
   project?: string;
   slug?: string;
+  /** The rendered prose, for the table of contents to read its headings from. */
 }
 
 export function RunbookMarkdown({
@@ -157,7 +158,8 @@ export function RunbookMarkdown({
   // so prose-invert is applied unconditionally for readable text.
   return (
     <RunbookLinkContext.Provider value={linkContext}>
-      <div className="prose prose-invert max-w-none">
+      {/* `scroll-mt` keeps an anchored heading off the top edge of the pane. */}
+      <div className="prose prose-invert max-w-none [&_h2]:scroll-mt-4 [&_h3]:scroll-mt-4">
         <Markdown
           remarkPlugins={REMARK_PLUGINS}
           components={MARKDOWN_COMPONENTS}

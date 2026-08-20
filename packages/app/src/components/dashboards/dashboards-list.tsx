@@ -1,9 +1,8 @@
 import { Button } from "@everr/ui/components/button";
-import { Input } from "@everr/ui/components/input";
 import { DEFAULT_TIME_RANGE } from "@everr/ui/lib/time-range";
 import { cn } from "@everr/ui/lib/utils";
 import { useQuery } from "@tanstack/react-query";
-import { Link, type LinkProps, useMatchRoute } from "@tanstack/react-router";
+import { useMatchRoute } from "@tanstack/react-router";
 import {
   Activity,
   Boxes,
@@ -14,10 +13,11 @@ import {
   Database,
   Globe,
   RotateCw,
-  SearchIcon,
   TriangleAlert,
 } from "lucide-react";
 import { useState } from "react";
+import { groupLabelClass, RailRow } from "@/components/rail/rail-row";
+import { RailSearch } from "@/components/rail/rail-search";
 import {
   evaluateBuiltin,
   type TelemetryCapabilities,
@@ -35,11 +35,7 @@ import {
   readBuiltinsCollapsed,
   writeBuiltinsCollapsed,
 } from "@/data/dashboards/ui-prefs";
-import {
-  DashboardTree,
-  railRowActiveProps,
-  railRowClass,
-} from "./dashboard-tree";
+import { DashboardTree } from "./dashboard-tree";
 
 function searchBuiltins(search: string): BuiltinDashboard[] {
   const q = search.trim().toLowerCase();
@@ -144,16 +140,7 @@ export function DashboardsList({ preview }: { preview?: string }) {
 
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-4">
-      <div className="relative">
-        <SearchIcon className="absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
-        <Input
-          placeholder="Search dashboards..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="pl-8"
-          aria-label="Search dashboards"
-        />
-      </div>
+      <RailSearch label="dashboards" value={search} onChange={setSearch} />
 
       {/* Only the rows scroll; the search stays pinned above. */}
       <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto pr-1 pb-3">
@@ -262,9 +249,6 @@ export function DashboardsList({ preview }: { preview?: string }) {
   );
 }
 
-const groupLabelClass =
-  "font-semibold text-[0.6875rem] text-foreground/75 uppercase tracking-wider";
-
 /** Static heading, or a disclosure toggle when `onToggle` is given. */
 function GroupLabel({
   label,
@@ -298,30 +282,6 @@ function GroupLabel({
         <h2 className={cn(groupLabelClass, "px-1")}>{label}</h2>
       )}
     </header>
-  );
-}
-
-/** One rail row: the shared look of every navigable item in this list. */
-function RailRow({
-  label,
-  icon: Icon,
-  ...linkProps
-}: {
-  label: string;
-  icon: React.ComponentType<{ className?: string }>;
-} & LinkProps) {
-  return (
-    <Link
-      {...linkProps}
-      className={cn(
-        railRowClass,
-        "flex w-full items-center gap-2.5 px-2 text-left text-foreground",
-      )}
-      activeProps={railRowActiveProps}
-    >
-      <Icon className="size-4 shrink-0 text-muted-foreground" />
-      <span className="min-w-0 flex-1 truncate text-sm">{label}</span>
-    </Link>
   );
 }
 

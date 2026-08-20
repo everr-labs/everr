@@ -15,7 +15,13 @@ export const Route = createFileRoute(
     context: { queryClient },
     params: { project, slug },
     deps: { preview },
-  }) => loadRunbook(queryClient, project, slug, preview),
+  }) =>
+    loadRunbook({
+      queryClient,
+      project,
+      slug,
+      preview,
+    }),
 });
 
 function RunbookIndexPage() {
