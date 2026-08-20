@@ -2,6 +2,8 @@ import { z } from "zod";
 import { createAuthenticatedServerFn } from "@/lib/serverFn";
 import {
   AlertingChannelConfigSchema,
+  AlertingChannelInputSchema,
+  AlertingChannelNameSchema,
   AlertingDefaultDestinationInputSchema,
 } from "../schema";
 import { alertingMutationScope, alertingOrganizationId } from "../session";
@@ -30,12 +32,7 @@ export const setAlertingDefaultDestination = createAuthenticatedServerFn({
 export const createAlertingChannel = createAuthenticatedServerFn({
   method: "POST",
 })
-  .inputValidator(
-    z.object({
-      name: z.string().min(1),
-      config: AlertingChannelConfigSchema,
-    }),
-  )
+  .inputValidator(AlertingChannelInputSchema)
   .handler(({ data, context: { session } }) =>
     delivery.createChannel(alertingMutationScope(session), data),
   );
@@ -45,8 +42,8 @@ export const updateAlertingChannel = createAuthenticatedServerFn({
 })
   .inputValidator(
     z.object({
-      name: z.string().min(1),
-      newName: z.string().min(1).optional(),
+      name: AlertingChannelNameSchema,
+      newName: AlertingChannelNameSchema.optional(),
       config: AlertingChannelConfigSchema,
     }),
   )
@@ -60,7 +57,7 @@ export const updateAlertingChannel = createAuthenticatedServerFn({
 export const deleteAlertingChannel = createAuthenticatedServerFn({
   method: "POST",
 })
-  .inputValidator(z.object({ name: z.string().min(1) }))
+  .inputValidator(z.object({ name: AlertingChannelNameSchema }))
   .handler(({ data: { name }, context: { session } }) =>
     delivery.deleteChannel(alertingMutationScope(session), name),
   );

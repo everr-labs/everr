@@ -1,4 +1,4 @@
-import { and, desc, eq, gt, sql } from "drizzle-orm";
+import { and, desc, eq, gt, lt, sql } from "drizzle-orm";
 import {
   ALERT_PROCESS_EVENT_TASK,
   PROCESS_EVENT_MAX_ATTEMPTS,
@@ -7,10 +7,12 @@ import { alertingPartitionQueue } from "@/data/alerting/scheduling/evaluation-jo
 import { currentTraceLink } from "@/data/alerting/trace-link";
 import { db } from "@/db/client";
 import { alertEvents, alertSilences } from "@/db/schema";
-import { throwAlertingPersistenceError } from "../persistence";
-import { AlertingSilenceInputSchema } from "../schema";
+import {
+  parseAlertingInput,
+  throwAlertingPersistenceError,
+} from "../persistence";
+import { AlertingSilenceIdSchema, AlertingSilenceInputSchema } from "../schema";
 import { type AlertingMutationScope, alertingActorPrincipal } from "../session";
-import type { AlertingSilenceInput } from "../types";
 
 function toSilence(row: typeof alertSilences.$inferSelect) {
   return {
@@ -26,20 +28,45 @@ function toSilence(row: typeof alertSilences.$inferSelect) {
   };
 }
 
-export async function listSilences(organizationId: string) {
+/**
+ * One page of the org's silences, newest first.
+ *
+ * The page is not optional. Retention keeps a closed silence for 90 days, so
+ * the table grows with how much an org pages, and there is no caller for whom
+ * reading all of it is the right thing to do.
+ *
+ * `from` and `to` select the silences whose own window overlaps the one asked
+ * about, which is the question somebody has when a page did not arrive: what
+ * was silencing at the time. The comparison is half-open at both ends, so a
+ * silence that ended exactly when the window opened did not cover it. Each
+ * bound stands alone: `from` on its own means "had not closed yet by then",
+ * and `from` equal to `to` means "covering that instant".
+ */
+export async function listSilences(
+  organizationId: string,
+  query: { limit: number; offset: number; from?: Date; to?: Date },
+) {
   const rows = await db
     .select()
     .from(alertSilences)
-    .where(eq(alertSilences.organizationId, organizationId))
-    .orderBy(desc(alertSilences.createdAt));
+    .where(
+      and(
+        eq(alertSilences.organizationId, organizationId),
+        query.to ? lt(alertSilences.startsAt, query.to) : undefined,
+        query.from ? gt(alertSilences.endsAt, query.from) : undefined,
+      ),
+    )
+    .orderBy(desc(alertSilences.createdAt))
+    .limit(query.limit)
+    .offset(query.offset);
   return rows.map(toSilence);
 }
 
 export async function createSilence(
   { organizationId, actor }: AlertingMutationScope,
-  rawInput: AlertingSilenceInput,
+  rawInput: unknown,
 ) {
-  const input = AlertingSilenceInputSchema.parse(rawInput);
+  const input = parseAlertingInput(AlertingSilenceInputSchema, rawInput);
   const startsAt = new Date(input.starts_at);
   const endsAt = new Date(input.ends_at);
   if (!(endsAt > startsAt)) {
@@ -82,8 +109,9 @@ export async function createSilence(
  */
 export async function expireSilence(
   { organizationId }: AlertingMutationScope,
-  id: string,
+  rawId: string,
 ) {
+  const id = parseAlertingInput(AlertingSilenceIdSchema, rawId);
   return db.transaction(async (tx) => {
     const rows = await tx
       .update(alertSilences)

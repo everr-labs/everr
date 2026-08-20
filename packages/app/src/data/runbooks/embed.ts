@@ -3,6 +3,7 @@ import { parse } from "yaml";
 import * as z from "zod";
 import type { Panel } from "@/data/dashboards/schema";
 import { panel } from "@/data/dashboards/schema";
+import { firstZodIssue } from "@/lib/zod-issue";
 
 /** One ```panel fence, resolved to how it renders. */
 export type PanelEmbed =
@@ -12,15 +13,6 @@ export type PanelEmbed =
 const heightSchema = z.number().int().min(80).max(2000).optional();
 
 const refEmbed = z.object({ ref: z.string().min(1), height: heightSchema });
-
-function firstIssue(error: z.ZodError): string {
-  const issue = error.issues[0];
-  const where =
-    issue && issue.path.length > 0
-      ? ` at ${issue.path.map(String).join(".")}`
-      : "";
-  return `${issue?.message}${where}`;
-}
 
 /**
  * Parse the YAML body of a ```panel fence into one of the two embed forms: an
@@ -52,17 +44,18 @@ export function parsePanelEmbed(source: string): PanelEmbed {
 
   if ("ref" in obj) {
     const r = refEmbed.safeParse(obj);
-    if (!r.success) throw new Error(firstIssue(r.error));
+    if (!r.success) throw new Error(firstZodIssue(r.error));
     return { kind: "ref", ref: r.data.ref, height: r.data.height };
   }
 
   if (obj.kind === "Panel") {
     const { height: rawHeight, ...rest } = obj;
     const h = heightSchema.safeParse(rawHeight);
-    if (!h.success) throw new Error(`invalid height: ${firstIssue(h.error)}`);
+    if (!h.success)
+      throw new Error(`invalid height: ${firstZodIssue(h.error)}`);
     const p = panel.safeParse(rest);
     if (!p.success)
-      throw new Error(`invalid inline panel: ${firstIssue(p.error)}`);
+      throw new Error(`invalid inline panel: ${firstZodIssue(p.error)}`);
     return { kind: "inline", panel: p.data, height: h.data };
   }
 

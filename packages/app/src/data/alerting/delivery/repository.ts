@@ -11,11 +11,14 @@ import {
 import { truncateWithEllipsis } from "@/lib/truncate";
 import { sanitizeAlertError } from "@/server/alerting/history/content";
 import {
+  parseAlertingInput,
   throwAlertingPersistenceError,
   translateAlertingConflict,
 } from "../persistence";
 import {
   AlertingChannelConfigSchema,
+  AlertingChannelInputSchema,
+  AlertingChannelUpdateSchema,
   AlertingDefaultDestinationInputSchema,
 } from "../schema";
 import type { AlertingMutationScope } from "../session";
@@ -55,18 +58,18 @@ export async function listChannels(
 
 export async function createChannel(
   { organizationId }: AlertingMutationScope,
-  body: { name: string; config: AlertingChannelConfig },
+  rawInput: unknown,
 ) {
+  const input = parseAlertingInput(AlertingChannelInputSchema, rawInput);
   const id = randomUUID();
-  const config = AlertingChannelConfigSchema.parse(body.config);
   const [row] = await translateAlertingConflict(() =>
     db
       .insert(alertChannels)
       .values({
         id,
         organizationId,
-        name: body.name,
-        encryptedConfig: encryptChannelConfig(organizationId, id, config),
+        name: input.name,
+        encryptedConfig: encryptChannelConfig(organizationId, id, input.config),
       })
       .returning(),
   );
@@ -111,23 +114,23 @@ async function getChannelRow(organizationId: string, name: string) {
 export async function updateChannel(
   { organizationId }: AlertingMutationScope,
   name: string,
-  body: { name?: string; config: AlertingChannelConfig },
+  rawInput: unknown,
 ) {
+  const input = parseAlertingInput(AlertingChannelUpdateSchema, rawInput);
   const previous = await getChannelRow(organizationId, name);
   const previousConfig = decryptChannelConfig(
     organizationId,
     previous.id,
     previous.encryptedConfig,
   );
-  const nextConfig = retainRedactedChannelSecrets(
-    AlertingChannelConfigSchema.parse(body.config),
-    previousConfig,
-  );
+  const nextConfig = input.config
+    ? retainRedactedChannelSecrets(input.config, previousConfig)
+    : previousConfig;
   const [row] = await translateAlertingConflict(() =>
     db
       .update(alertChannels)
       .set({
-        name: body.name ?? name,
+        name: input.name ?? name,
         encryptedConfig: encryptChannelConfig(
           organizationId,
           previous.id,

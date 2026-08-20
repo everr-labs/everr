@@ -142,6 +142,27 @@ export const AlertingChannelConfigSchema = z.discriminatedUnion("type", [
   }),
 ]);
 
+// A channel name is what a rule's `notifications.channels` names and what
+// delivery resolves at flush time, so an empty one would be a channel nothing
+// can ever address.
+const ALERTING_CHANNEL_NAME_MAX = 128;
+
+export const AlertingChannelNameSchema = z
+  .string()
+  .trim()
+  .min(1, { error: "channel name is required" })
+  .max(ALERTING_CHANNEL_NAME_MAX);
+
+export const AlertingChannelInputSchema = z.object({
+  name: AlertingChannelNameSchema,
+  config: AlertingChannelConfigSchema,
+});
+
+// Both halves are optional: an edit names only what it changes. Omitting the
+// config is what lets a rename leave the credential alone without the caller
+// having to read it back first, which it could not do anyway.
+export const AlertingChannelUpdateSchema = AlertingChannelInputSchema.partial();
+
 export const AlertingChannelSchema = z.object({
   id: z.string(),
   tenant: z.string(),
@@ -178,6 +199,10 @@ export const AlertingRuleInputSchema = AlertingRuleSpecSchema.extend({
 });
 
 export const AlertingRuleUpdateSchema = AlertingRuleSpecSchema;
+
+// The column is a uuid, so anything else reaches Postgres as a syntax error
+// rather than a miss. Every caller meets this on the way in instead.
+export const AlertingSilenceIdSchema = z.string().uuid();
 
 export const AlertingSilenceInputSchema = z.object({
   // Empty label names would turn missing labels into a global match.
