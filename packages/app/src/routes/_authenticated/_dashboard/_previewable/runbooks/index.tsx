@@ -1,6 +1,7 @@
-import { createFileRoute, redirect } from "@tanstack/react-router";
+import { createFileRoute, isRedirect, redirect } from "@tanstack/react-router";
 import { lastViewedRunbook } from "@/data/runbooks/last-viewed";
-import { runbookListOptions } from "@/data/runbooks/options";
+import { runbookListOptions, runbookOptions } from "@/data/runbooks/options";
+import { findPage } from "@/data/runbooks/pages";
 
 export const Route = createFileRoute(
   "/_authenticated/_dashboard/_previewable/runbooks/",
@@ -28,7 +29,39 @@ export const Route = createFileRoute(
       last &&
       live.some((r) => r.project === last.project && r.slug === last.slug)
     ) {
-      throw open(last);
+      // The page and heading are checked against the runbook as it is now, not
+      // as it was when the reader left: a runbook is edited as code, and a
+      // remembered page can be gone. Anything that no longer resolves is
+      // dropped, so the worst a stale entry does is open the runbook's front
+      // page. A runbook that vanished between the list and here throws, and
+      // falls through to the defaults below.
+      try {
+        const { document } = await queryClient.ensureQueryData(
+          runbookOptions(last.project, last.slug, preview),
+        );
+        const page =
+          last.page && findPage(document.spec, last.page) ? last.page : null;
+        throw page
+          ? redirect({
+              to: "/runbooks/$project/$slug/$",
+              params: { project: last.project, slug: last.slug, _splat: page },
+              hash: last.hash,
+              search: (prev) => prev,
+              replace: true,
+            })
+          : redirect({
+              to: "/runbooks/$project/$slug",
+              params: { project: last.project, slug: last.slug },
+              // A heading belongs to the page it was on: dropping that page
+              // drops the heading with it, rather than carrying a fragment
+              // onto a page that never had it.
+              hash: last.page ? undefined : last.hash,
+              search: (prev) => prev,
+              replace: true,
+            });
+      } catch (e) {
+        if (isRedirect(e)) throw e;
+      }
     }
     // The remembered runbook no longer exists (deleted, or removed from the
     // preview). Clear the stale entry so future visits fall through to the

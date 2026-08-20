@@ -1,6 +1,5 @@
 import type { QueryClient } from "@tanstack/react-query";
 import { dashboardTimeDefaults } from "@/data/dashboards/time-defaults";
-import { lastViewedRunbook } from "@/data/runbooks/last-viewed";
 import { runbookOptions } from "@/data/runbooks/options";
 import { findPage } from "@/data/runbooks/pages";
 import type { BreadcrumbSegment } from "@/router-types";
@@ -34,21 +33,17 @@ export const runbookHead = () => ({ meta: [{ title: "Everr - Runbook" }] });
 
 export async function loadRunbook({
   queryClient,
-  org,
   project,
   slug,
   preview,
   pagePath = "",
-  preload,
 }: {
   queryClient: QueryClient;
-  org: string;
   project: string;
   slug: string;
   preview?: string;
   /** "" = the runbook's own index page. */
   pagePath?: string;
-  preload: boolean;
 }) {
   // A missing runbook throws notFound() from the server fn (→ notFound UI);
   // any other failure propagates to the error boundary instead of being
@@ -56,9 +51,6 @@ export async function loadRunbook({
   const { document, previewStatus } = await queryClient.ensureQueryData(
     runbookOptions(project, slug, preview),
   );
-  // Preloads (link hover) run this loader too; only a committed navigation
-  // counts as "viewed".
-  if (!preload) lastViewedRunbook.record(org, { project, slug });
   // Expose the runbook's duration/refreshInterval as route time defaults so
   // the time-range hooks seed the picker and panels from the first render —
   // no post-mount URL write, so panels never query the wrong window first.

@@ -1,12 +1,17 @@
 import { useSuspenseQuery } from "@tanstack/react-query";
-import { useSearch } from "@tanstack/react-router";
+import {
+  useRouteContext,
+  useRouterState,
+  useSearch,
+} from "@tanstack/react-router";
 import { FileQuestion } from "lucide-react";
-import { useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import { DashboardProvider } from "@/components/dashboards/use-dashboard";
 import {
   useHasVisibleVariables,
   VariableBar,
 } from "@/components/dashboards/variable-bar";
+import { lastViewedRunbook } from "@/data/runbooks/last-viewed";
 import { runbookOptions } from "@/data/runbooks/options";
 import {
   findPage,
@@ -37,6 +42,13 @@ export function RunbookViewer({
   const page = findPage(runbook.spec, pagePath);
   const tree = pageNavTree(runbook.spec);
   const proseRef = useRef<HTMLDivElement>(null);
+  useRecordLastViewed({
+    project,
+    slug,
+    // A page the runbook doesn't have is not somewhere to send anyone back to,
+    // so remember the runbook alone rather than the way in here.
+    pagePath: page ? pagePath : "",
+  });
   // Build the link resolver once per runbook: it captures the page-path set
   // and file map so each rendered link doesn't re-walk the spec tree.
   const resolveLink = useMemo(
@@ -97,6 +109,34 @@ export function RunbookViewer({
       )}
     </DashboardProvider>
   );
+}
+
+/**
+ * Remember what is on screen, so `/runbooks` reopens it. Done from the view
+ * rather than the loader because a loader also runs on preload (hovering a
+ * link is not reading), and because the heading changes as the reader moves
+ * through the page without the loader running at all.
+ */
+function useRecordLastViewed({
+  project,
+  slug,
+  pagePath,
+}: {
+  project: string;
+  slug: string;
+  pagePath: string;
+}) {
+  const { session } = useRouteContext({ from: "/_authenticated" });
+  const org = session.session.activeOrganizationId;
+  const hash = useRouterState({ select: (s) => s.location.hash });
+  useEffect(() => {
+    lastViewedRunbook.record(org, {
+      project,
+      slug,
+      ...(pagePath ? { page: pagePath } : {}),
+      ...(hash ? { hash } : {}),
+    });
+  }, [org, project, slug, pagePath, hash]);
 }
 
 /**

@@ -12,19 +12,16 @@ export const Route = createFileRoute(
   notFoundComponent: RunbookNotFound,
   loaderDeps: ({ search: { preview } }) => ({ preview }),
   loader: ({
-    context: { queryClient, session },
+    context: { queryClient },
     params: { project, slug, _splat },
     deps: { preview },
-    preload,
   }) =>
     loadRunbook({
       queryClient,
-      org: session.session.activeOrganizationId,
       project,
       slug,
       preview,
       pagePath: _splat ?? "",
-      preload,
     }),
 });
 
