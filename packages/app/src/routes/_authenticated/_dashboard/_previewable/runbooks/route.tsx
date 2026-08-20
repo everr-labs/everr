@@ -1,6 +1,7 @@
 import { cn } from "@everr/ui/lib/utils";
 import { createFileRoute, Outlet, useSearch } from "@tanstack/react-router";
 import * as z from "zod";
+import { FrameToggle } from "@/components/dashboards/frame-toggle";
 import { RunbooksList } from "@/components/runbooks/runbooks-list";
 
 export const Route = createFileRoute(
@@ -68,7 +69,14 @@ function RunbooksLayout() {
           much room this pane has, which the viewport alone cannot tell it.
           `relative` is what that floating nav pins itself to. */}
       <main className="@container/pane min-h-0 min-w-0 overflow-auto overscroll-y-contain">
-        <div className="relative mx-auto w-full max-w-2xl p-3">
+        {/* The toggle belongs to the rail, not to the runbook, so it sits at
+            the pane's edge against it rather than over the centered text. */}
+        <div className="p-3 pb-0">
+          <FrameToggle listLabel="runbook list" />
+        </div>
+        {/* Every step up widens the reading column and the nav floating beside
+            it together, so the margin never shrinks below what the nav needs. */}
+        <div className="relative mx-auto w-full max-w-2xl px-3 pt-2 pb-3 @[76rem]/pane:max-w-3xl @[88rem]/pane:max-w-4xl">
           <Outlet />
         </div>
       </main>

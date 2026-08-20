@@ -2,7 +2,6 @@ import { useSuspenseQuery } from "@tanstack/react-query";
 import { useSearch } from "@tanstack/react-router";
 import { FileQuestion } from "lucide-react";
 import { useMemo } from "react";
-import { FrameToggle } from "@/components/dashboards/frame-toggle";
 import { DashboardProvider } from "@/components/dashboards/use-dashboard";
 import {
   useHasVisibleVariables,
@@ -59,7 +58,7 @@ export function RunbookViewer({
 
   return (
     <DashboardProvider document={dashboardDocument}>
-      <RunbookToolbar />
+      <RunbookVariables />
       {tree.length > 0 && (
         <RunbookPagesNav
           project={project}
@@ -95,25 +94,15 @@ export function RunbookViewer({
 }
 
 /**
- * The same toolbar row the dashboard grid uses: the frame toggle first, then
- * the runbook's variable pickers on one control-height baseline. Split out so
- * it can read the variables from the provider above it.
+ * The runbook's variable pickers, on one control-height baseline like the
+ * dashboard toolbar. Split out so it can read the variables from the provider
+ * above it, and so nothing renders when the runbook declares none.
  */
-function RunbookToolbar() {
-  const hasVariables = useHasVisibleVariables();
+function RunbookVariables() {
+  if (!useHasVisibleVariables()) return null;
   return (
-    <div className="mb-3 flex items-start gap-x-3">
-      <div className="flex h-8 shrink-0 items-center">
-        <FrameToggle listLabel="runbook list" />
-      </div>
-      {hasVariables && (
-        <div aria-hidden className="flex h-8 items-center">
-          <div className="h-5 w-px bg-border" />
-        </div>
-      )}
-      <div className="min-w-0 flex-1">
-        <VariableBar layout="inline" />
-      </div>
+    <div className="mb-4 flex min-w-0 items-center">
+      <VariableBar layout="inline" />
     </div>
   );
 }

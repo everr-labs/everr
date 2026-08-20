@@ -38,9 +38,11 @@ export function RunbookPagesNav(props: PagesNavProps) {
         list sticks inside that full-height box as the pane scrolls.
       */}
       <div className="absolute inset-y-0 right-full hidden pr-5 @[66rem]/pane:block">
+        {/* The list widens with the margin it floats in, in step with the
+            reading column beside it. */}
         <nav
           aria-label="Runbook pages"
-          className="sticky top-3 flex w-40 flex-col gap-0.5"
+          className="sticky top-3 flex w-40 flex-col gap-0.5 @[76rem]/pane:w-44 @[88rem]/pane:w-52"
         >
           <PageLinks {...props} />
         </nav>
@@ -161,7 +163,7 @@ function PageLink({
           : ({ paddingLeft: `${depth * PAGE_STEP + 8}px` } as CSSProperties)
       }
       className={cn(
-        "truncate rounded-md py-1 text-muted-foreground text-sm transition-colors hover:text-foreground",
+        "truncate rounded-md py-1.5 text-[0.9375rem] text-muted-foreground transition-colors hover:text-foreground",
         inline ? "shrink-0 px-2 hover:bg-muted/50" : "block pr-2",
         active && "font-medium text-foreground",
         active && inline && "bg-muted",
