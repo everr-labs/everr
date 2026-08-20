@@ -1,5 +1,10 @@
 import { cn } from "@everr/ui/lib/utils";
-import { createFileRoute, Outlet, useSearch } from "@tanstack/react-router";
+import {
+  createFileRoute,
+  Outlet,
+  retainSearchParams,
+  useSearch,
+} from "@tanstack/react-router";
 import * as z from "zod";
 import { DashboardsList } from "@/components/dashboards/dashboards-list";
 
@@ -13,6 +18,13 @@ export const Route = createFileRoute(
   validateSearch: z.object({
     full: z.boolean().optional().catch(undefined),
   }),
+  search: {
+    // How the frame is arranged belongs to the session, not to the dashboard,
+    // so it survives navigation the same way `_dashboard` carries the preview
+    // and the time range. Declared here because this is the route that stays
+    // matched while you move between dashboards.
+    middlewares: [retainSearchParams(["full"])],
+  },
   component: DashboardsLayout,
 });
 
