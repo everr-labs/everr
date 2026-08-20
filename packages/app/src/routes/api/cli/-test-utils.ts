@@ -50,15 +50,32 @@ export function getRouteHandler<T>(
   return handler;
 }
 
+/**
+ * What a CLI route handler is called with. `P` is the route's path params.
+ * `request` and `params` are optional so a test passes only what the handler
+ * under test actually reads.
+ */
+export type CliRouteHandler<P = never> = (args: {
+  request?: Request;
+  params?: P;
+  context: ReturnType<typeof cliSessionContext>;
+}) => Promise<Response>;
+
 /** Default organization id used across CLI route tests. */
 export const CLI_TEST_ORG_ID = "org-42";
 
 /**
  * Builds the minimal `context` object that CLI route handlers expect after
  * the auth middleware has populated the active session.
+ *
+ * The user is here because a route that mutates derives the acting principal
+ * from the session rather than from the request body.
  */
 export function cliSessionContext(organizationId: string = CLI_TEST_ORG_ID) {
   return {
-    session: { session: { activeOrganizationId: organizationId } },
+    session: {
+      session: { activeOrganizationId: organizationId },
+      user: { id: "user-1", name: "Ada", email: "ada@example.com" },
+    },
   };
 }
