@@ -80,9 +80,9 @@ export function routeTemplate(
 }
 ```
 
-Do not reach for the app's `getRouter()` here (it depends on the per-request SSR lifecycle): build a standalone matcher once from the same generated tree, `createRouter({ routeTree, history: createMemoryHistory() })`, and pass it to `routeTemplate` when stamping `http.route`. The server sees the full tree, API routes included.
+Do not reuse the router the framework builds to render: it does not exist yet when the wrapper needs `http.route`, and it is bound to a single request. Build a standalone matcher once and pass it to `routeTemplate`. The server sees the full tree, API routes included.
 
-Pass the matcher the same `routeMasks` and `caseSensitive` as the app router, even though a matcher never navigates. The server caches the processed route tree globally by route tree identity, ignoring these options, so the first router built wins for the whole process and the matcher is built first. Mismatch it and every later `getRouter()` throws `Cannot read properties of null (reading 'get')` in production only. Export them from one module and share them.
+Build that matcher from the same factory as the app router, behind a flag that skips the query client and the telemetry registration. The server caches the processed route tree globally by route tree identity, ignoring the options that decide how it is processed (`routeMasks` and `caseSensitive`), so the first router built wins for the whole process and the matcher is built first. A separately configured matcher makes every later render throw `Cannot read properties of null (reading 'get')`, in production only.
 
 `instrumentServerFetch` starts a SERVER span named `<METHOD> <route-template>`:
 
