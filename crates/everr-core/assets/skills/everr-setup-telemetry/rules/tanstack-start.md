@@ -45,10 +45,61 @@ export const startInstance = createStart(() => ({
 export const requestTelemetryMiddleware = createMiddleware({
   type: "request",
 }).server(async ({ request, pathname, handlerType, next }) => {
-  // ...open the SERVER span, then:
-  const result = await next();
-  result.response.headers.set("x-everr-route", route);
-  return result;
+  matcher ??= getRouter(); // the app's factory, not a second createRouter
+  const route = routeTemplate(matcher, pathname);
+  const method = request.method.toUpperCase();
+
+  // The function middleware reports the name into this holder mid-flight.
+  const serverFn = handlerType === "serverFn" ? {} : undefined;
+  const resolved = () => (serverFn?.name ? `/_serverFn/${serverFn.name}` : route);
+  const attrs = (route: string | undefined, extra?: Attributes) => ({
+    "http.request.method": method,
+    "url.path": pathname,
+    ...(route === undefined ? {} : { "http.route": route }),
+    ...extra,
+  });
+
+  return tracer.startActiveSpan(
+    route === undefined ? method : `${method} ${route}`,
+    { attributes: attrs(route), kind: SpanKind.SERVER },
+    propagation.extract(context.active(), request.headers, headersGetter),
+    async (span) => {
+      let final = route;
+      try {
+        const result = await (serverFn
+          ? runWithServerFunctionName(serverFn, () => next())
+          : next());
+        const { response } = result;
+        final = resolved();
+
+        // Immutable headers keep theirs; the span is unaffected.
+        if (final !== undefined) {
+          try { response.headers.set("x-everr-route", final); } catch {}
+        }
+        span.setAttribute("http.response.status_code", response.status);
+        if (response.status >= 500) {
+          captureError(new Error(`HTTP ${response.status}`), attrs(final, {
+            "everr.error.source": "server.response",
+            "http.response.status_code": response.status,
+          }));
+        }
+        return result;
+      } catch (error) {
+        final = resolved();
+        captureError(error, attrs(final, {
+          "everr.error.source": "server.request",
+        }));
+        throw error;
+      } finally {
+        // The name is only final once the function middleware has run.
+        if (final !== undefined && final !== route) {
+          span.updateName(`${method} ${final}`);
+          span.setAttribute("http.route", final);
+        }
+        span.end();
+      }
+    },
+  );
 });
 ```
 
@@ -86,16 +137,15 @@ export function routeTemplate(
 }
 ```
 
-Do not reuse the router the framework builds to render: it does not exist yet when the wrapper needs `http.route`, and it is bound to a single request. Build a standalone matcher once and pass it to `routeTemplate`. The server sees the full tree, API routes included.
+Do not reuse the router the framework builds to render: it does not exist yet when the middleware needs `http.route`, and it is bound to a single request. Build a standalone matcher once and pass it to `routeTemplate`. The server sees the full tree, API routes included.
 
 Build that matcher from the app's own router factory rather than a second `createRouter`. The server caches the processed route tree globally by route tree identity, ignoring the options that decide how it is processed (`routeMasks` and `caseSensitive`), so the first router built wins for the whole process and the matcher is built first. A separately configured matcher makes every later render throw `Cannot read properties of null (reading 'get')`, in production only.
 
-The middleware starts a SERVER span named `<METHOD> <route-template>`:
+Notes on the above:
 
-- Extract the parent context from the request headers with `propagation.extract` so browser-injected `traceparent` (and any first-party client's) parents the span. Requests without the header extract to an empty context and root themselves.
 - Parameterize the path before it becomes the span name or `http.route`; raw paths are unbounded cardinality.
-- Set `http.response.status_code` from the response; capture 5xx responses and thrown errors with `captureError`.
-- Echo the derived route on the response: `response.headers.set("x-everr-route", route)` when a route matched. The browser's `network()` reads this header into `url.template`, which is how browser request spans get exact templates for the server-only routes the client tree cannot see.
+- `propagation.extract` continues a trace a first-party client started (the browser, or the CLI injecting `traceparent`). A request without the header extracts to an empty context and the span roots itself.
+- The `x-everr-route` echo is how the browser gets exact templates: `@everr/otel-web`'s `network()` reads it into `url.template`, and the client route tree has no server-only routes to derive them from.
 - Disable the HTTP auto-instrumentation's incoming-request span (`disableIncomingRequestInstrumentation: true`) so each request gets one SERVER span, not two.
 
 ### Server Functions
@@ -112,11 +162,11 @@ export const startInstance = createStart(() => ({
 }));
 ```
 
-The middleware (`createMiddleware({ type: "function" })`) starts an INTERNAL span per invocation, named `serverFn {name}` from `serverFnMeta`. It nests under the request's SERVER span automatically because the fetch wrapper's context is active.
+The middleware (`createMiddleware({ type: "function" })`) starts an INTERNAL span per invocation, named `serverFn {name}` from `serverFnMeta`. It nests under the request's SERVER span automatically because the request middleware's context is active.
 
 Describe it with the server-function convention from the skill root: `everr.server_function.name` carries the function's own identifier verbatim, and `everr.server_function.transport` is `http` when the call arrived over `/_serverFn/` and `in-process` when it ran during SSR. The span stays INTERNAL: over HTTP the transport's SERVER span already counts the inbound request, and in-process there is no inbound request at all.
 
-The transport span for a server function request only knows the opaque `/_serverFn/<id>` path, so the middleware reports the function name back to the fetch wrapper (an app-owned AsyncLocalStorage holder around the handler). After the response settles, the wrapper renames its SERVER span and the `x-everr-route` echo to `/_serverFn/{name}`, falling back to `/_serverFn/:id` when the middleware never ran. The browser's client span picks the name up from the echo, so all three spans of one call read as the same function.
+The transport span for a server function request only knows the opaque `/_serverFn/<id>` path, so the function middleware reports the name back to the request middleware (an app-owned AsyncLocalStorage holder). After the response settles, the request middleware renames its SERVER span and the `x-everr-route` echo to `/_serverFn/{name}`, falling back to `/_serverFn/:id` when the middleware never ran. The browser's client span picks the name up from the echo, so all three spans of one call read as the same function.
 
 TanStack Start signals control flow with throwables: `redirect()` and `notFound()` surface as thrown values inside server functions. Filter those out before calling `captureError`, or every redirect becomes a phantom error.
 

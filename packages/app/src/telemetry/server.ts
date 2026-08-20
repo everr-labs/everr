@@ -36,94 +36,79 @@ export const requestTelemetryMiddleware = createMiddleware({
 
   // A server function request carries only the opaque id in its path. Start
   // does not hand the name to request middleware, so the function middleware
-  // reports it into this holder mid-flight and the span and the route echo
-  // can say `/_serverFn/{name}` instead.
+  // reports it into this holder mid-flight and the route can settle on
+  // `/_serverFn/{name}` once the call returns.
   const serverFn: ServerFunctionName | undefined =
     handlerType === "serverFn" ? {} : undefined;
-
-  // Continue a trace started by a first-party client (e.g. the CLI, which
-  // injects `traceparent`) instead of starting a fresh root. Requests without
-  // the header extract to an empty context, so this span roots itself as before.
-  const parentContext = propagation.extract(
-    context.active(),
-    request.headers,
-    headersGetter,
-  );
+  const resolved = () =>
+    serverFn?.name ? `/_serverFn/${serverFn.name}` : route;
+  const attrs = (
+    route: string | undefined,
+    extra?: Attributes,
+  ): Attributes => ({
+    "http.request.method": method,
+    "url.path": pathname,
+    ...(route === undefined ? {} : { "http.route": route }),
+    ...extra,
+  });
 
   return tracer.startActiveSpan(
     route === undefined ? method : `${method} ${route}`,
     {
-      attributes: requestAttributes(request, pathname, route, method),
+      // Continue a trace a first-party client started (the browser, or the CLI
+      // injecting `traceparent`). No header extracts to an empty context, and
+      // the span roots itself.
+      attributes: attrs(route, {
+        "url.scheme": new URL(request.url).protocol.replace(/:$/, ""),
+      }),
       kind: SpanKind.SERVER,
     },
-    parentContext,
+    propagation.extract(context.active(), request.headers, headersGetter),
     async (span) => {
-      // The holder fills mid-flight, so the route is only final after `next`
-      // settles (or throws past the function middleware).
-      const resolvedRoute = () =>
-        serverFn?.name ? `/_serverFn/${serverFn.name}` : route;
+      let final = route;
       try {
         const result = await (serverFn
           ? runWithServerFunctionName(serverFn, () => next())
           : next());
-        const { response } = result;
+        final = resolved();
 
-        const finalRoute = resolvedRoute();
-        // Echo the derived route so the browser SDK can stamp url.template on
-        // its client span: the client route tree has no server-only routes, so
-        // this header is the browser's only exact source for API templates.
-        if (finalRoute !== undefined) {
+        // Echo the route so the browser SDK can stamp url.template on its
+        // client span: the client tree has no server-only routes, so this
+        // header is its only exact source. Immutable headers keep theirs.
+        if (final !== undefined) {
           try {
-            response.headers.set("x-everr-route", finalRoute);
-          } catch {
-            // A response with immutable headers keeps them; the span is
-            // unaffected.
-          }
+            result.response.headers.set("x-everr-route", final);
+          } catch {}
         }
 
-        span.setAttribute("http.response.status_code", response.status);
-        if (response.status >= 500) {
-          captureError(new Error(`HTTP ${response.status}`), {
-            "everr.error.source": "server.response",
-            "http.request.method": method,
-            "http.response.status_code": response.status,
-            ...(finalRoute === undefined ? {} : { "http.route": finalRoute }),
-            "url.path": pathname,
-          });
+        const status = result.response.status;
+        span.setAttribute("http.response.status_code", status);
+        if (status >= 500) {
+          captureError(
+            new Error(`HTTP ${status}`),
+            attrs(final, {
+              "everr.error.source": "server.response",
+              "http.response.status_code": status,
+            }),
+          );
         }
-
         return result;
       } catch (error) {
-        const finalRoute = resolvedRoute();
-        captureError(error, {
-          "everr.error.source": "server.request",
-          "http.request.method": method,
-          ...(finalRoute === undefined ? {} : { "http.route": finalRoute }),
-          "url.path": pathname,
-        });
+        final = resolved();
+        captureError(
+          error,
+          attrs(final, {
+            "everr.error.source": "server.request",
+          }),
+        );
         throw error;
       } finally {
-        const finalRoute = resolvedRoute();
-        if (finalRoute !== undefined && finalRoute !== route) {
-          span.updateName(`${method} ${finalRoute}`);
-          span.setAttribute("http.route", finalRoute);
+        if (final !== undefined && final !== route) {
+          span.updateName(`${method} ${final}`);
+          span.setAttribute("http.route", final);
         }
         span.end();
       }
     },
   );
 });
-
-function requestAttributes(
-  request: Request,
-  pathname: string,
-  route: string | undefined,
-  method: string,
-): Attributes {
-  return {
-    "http.request.method": method,
-    ...(route === undefined ? {} : { "http.route": route }),
-    "url.path": pathname,
-    "url.scheme": new URL(request.url).protocol.replace(/:$/, ""),
-  };
-}
