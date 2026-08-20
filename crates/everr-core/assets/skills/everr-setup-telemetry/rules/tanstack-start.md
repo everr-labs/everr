@@ -82,21 +82,7 @@ export function routeTemplate(
 
 Do not reach for the app's `getRouter()` here (it depends on the per-request SSR lifecycle): build a standalone matcher once from the same generated tree, `createRouter({ routeTree, history: createMemoryHistory() })`, and pass it to `routeTemplate` when stamping `http.route`. The server sees the full tree, API routes included.
 
-Give the matcher the same `routeMasks` as the app router, even though a matcher never navigates:
-
-```ts
-// src/telemetry/server-router.ts
-matcher ??= createRouter({
-  routeTree,
-  routeMasks, // inert here, but see below
-  history: createMemoryHistory(),
-  context: {} as RouterContext,
-});
-```
-
-On the server, router-core caches the processed route tree on `globalThis.__TSR_CACHE__`, keyed only by route tree identity, so the first router built over a tree wins for the whole process. The matcher is built during the first request, ahead of the SSR router, so the matcher is what seeds that cache. A matcher built without the masks seeds a tree whose mask cache is null, and every later `getRouter()` inherits it and throws `TypeError: Cannot read properties of null (reading 'get')` inside `findFlatMatch` as soon as it builds a location. That is a hard 500 on every request, and it only reproduces in production builds: the cache is skipped when `NODE_ENV` is `development`.
-
-The cache is keyed on route tree identity alone, so it ignores the options that change how the tree is processed. Today those are `routeMasks` and `caseSensitive`. Every router your server builds over the same tree must pass the same values for both, whichever one gets built first. Export them from one module and pass that module's values to each `createRouter` call. There is no opt-out: the caching is unconditional on the server, and this mismatch was raised and accepted on the upstream PR that added it (TanStack/router#6475).
+Pass the matcher the same `routeMasks` and `caseSensitive` as the app router, even though a matcher never navigates. The server caches the processed route tree globally by route tree identity, ignoring these options, so the first router built wins for the whole process and the matcher is built first. Mismatch it and every later `getRouter()` throws `Cannot read properties of null (reading 'get')` in production only. Export them from one module and share them.
 
 `instrumentServerFetch` starts a SERVER span named `<METHOD> <route-template>`:
 
