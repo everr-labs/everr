@@ -2,17 +2,19 @@ import { useSuspenseQuery } from "@tanstack/react-query";
 import { useSearch } from "@tanstack/react-router";
 import { FileQuestion } from "lucide-react";
 import { useMemo } from "react";
+import { FrameToggle } from "@/components/dashboards/frame-toggle";
 import { DashboardProvider } from "@/components/dashboards/use-dashboard";
-import { VariableBar } from "@/components/dashboards/variable-bar";
+import {
+  useHasVisibleVariables,
+  VariableBar,
+} from "@/components/dashboards/variable-bar";
 import { runbookOptions } from "@/data/runbooks/options";
 import {
   findPage,
   makeRunbookLinkResolver,
-  pageNavTree,
   toDashboardDocument,
 } from "@/data/runbooks/pages";
 import { RunbookMarkdown } from "./runbook-markdown";
-import { RunbookPageNav } from "./runbook-page-nav";
 
 export function RunbookViewer({
   project,
@@ -31,9 +33,7 @@ export function RunbookViewer({
     data: { document: runbook },
   } = useSuspenseQuery(runbookOptions(project, slug, preview));
   const page = findPage(runbook.spec, pagePath);
-  const tree = pageNavTree(runbook.spec);
-  const indexTitle = runbook.spec.display?.name ?? slug;
-  // Build the link resolver once per runbook — it captures the page-path set
+  // Build the link resolver once per runbook: it captures the page-path set
   // and file map so each rendered link doesn't re-walk the spec tree.
   const resolveLink = useMemo(
     () => makeRunbookLinkResolver(runbook.spec),
@@ -56,39 +56,49 @@ export function RunbookViewer({
 
   return (
     <DashboardProvider document={dashboardDocument}>
-      <div className="flex gap-6">
-        {tree.length > 0 && (
-          <RunbookPageNav
+      <RunbookToolbar />
+      {/* The reading measure is the pane's job; the toolbar spans the pane. */}
+      <div className="min-w-0 max-w-4xl">
+        {page ? (
+          <RunbookMarkdown
+            markdown={page.markdown}
             project={project}
             slug={slug}
-            indexTitle={indexTitle}
-            tree={tree}
-            // Keep the requested path even when the page is missing: it matches
-            // no nav node, so nothing is highlighted — rather than falling back
-            // to "" and wrongly highlighting the index while the pane shows
-            // page-not-found.
-            activePath={pagePath}
+            resolveLink={resolvePageLink}
           />
+        ) : (
+          <div className="flex flex-col items-center gap-3 py-16 text-muted-foreground">
+            <FileQuestion className="size-10" />
+            <p className="text-sm">
+              This runbook has no page &ldquo;{pagePath}&rdquo;
+            </p>
+          </div>
         )}
-        <div className="min-w-0 max-w-4xl flex-1">
-          <VariableBar />
-          {page ? (
-            <RunbookMarkdown
-              markdown={page.markdown}
-              project={project}
-              slug={slug}
-              resolveLink={resolvePageLink}
-            />
-          ) : (
-            <div className="flex flex-col items-center gap-3 py-16 text-muted-foreground">
-              <FileQuestion className="size-10" />
-              <p className="text-sm">
-                This runbook has no page &ldquo;{pagePath}&rdquo;
-              </p>
-            </div>
-          )}
-        </div>
       </div>
     </DashboardProvider>
+  );
+}
+
+/**
+ * The same toolbar row the dashboard grid uses: the frame toggle first, then
+ * the runbook's variable pickers on one control-height baseline. Split out so
+ * it can read the variables from the provider above it.
+ */
+function RunbookToolbar() {
+  const hasVariables = useHasVisibleVariables();
+  return (
+    <div className="mb-3 flex items-start gap-x-3">
+      <div className="flex h-8 shrink-0 items-center">
+        <FrameToggle listLabel="runbook list" />
+      </div>
+      {hasVariables && (
+        <div aria-hidden className="flex h-8 items-center">
+          <div className="h-5 w-px bg-border" />
+        </div>
+      )}
+      <div className="min-w-0 flex-1">
+        <VariableBar layout="inline" />
+      </div>
+    </div>
   );
 }

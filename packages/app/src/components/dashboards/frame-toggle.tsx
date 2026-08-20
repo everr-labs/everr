@@ -8,13 +8,18 @@ import {
 } from "lucide-react";
 
 /**
- * The full-screen toggle for the dashboards frame, seated at the left of the
- * grid toolbar so it costs no vertical space of its own. One control, both
- * directions: hide the dashboard list, or bring it back.
+ * The full-screen toggle for a rail frame, seated at the left of the toolbar
+ * so it costs no vertical space of its own. One control, both directions: hide
+ * the rail, or bring it back. `listLabel` names what the rail lists, so the
+ * runbooks frame reuses the control without borrowing the dashboards wording.
  */
-export function FrameToggle() {
-  // Loose search read: DashboardGrid mounts from routes outside the dashboards
-  // subtree (runbook embeds), where a `from`-bound read would throw.
+export function FrameToggle({
+  listLabel = "dashboard list",
+}: {
+  listLabel?: string;
+}) {
+  // Loose search read: this control mounts from several route subtrees
+  // (dashboards, runbooks), where a `from`-bound read would throw.
   const search: { full?: boolean } = useSearch({ strict: false });
   const full = search.full ?? false;
   const navigate = useNavigate();
@@ -31,13 +36,12 @@ export function FrameToggle() {
       type="button"
       variant="ghost"
       size="icon-sm"
-      aria-label={full ? "Show the dashboard list" : "Hide the dashboard list"}
+      aria-label={full ? `Show the ${listLabel}` : `Hide the ${listLabel}`}
       className="text-muted-foreground"
       onClick={toggle}
     >
-      {/* Below `md` the list stacks above the grid (see the dashboards route
-          layout), so the icon collapses vertically there and sideways from
-          `md` up. */}
+      {/* Below `md` the rail stacks above the content (see the route layout),
+          so the icon collapses vertically there and sideways from `md` up. */}
       {full ? (
         <>
           <PanelTopOpen className="size-4 md:hidden" />

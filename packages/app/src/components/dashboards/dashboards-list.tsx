@@ -3,7 +3,7 @@ import { Input } from "@everr/ui/components/input";
 import { DEFAULT_TIME_RANGE } from "@everr/ui/lib/time-range";
 import { cn } from "@everr/ui/lib/utils";
 import { useQuery } from "@tanstack/react-query";
-import { Link, type LinkProps, useMatchRoute } from "@tanstack/react-router";
+import { useMatchRoute } from "@tanstack/react-router";
 import {
   Activity,
   Boxes,
@@ -35,11 +35,7 @@ import {
   readBuiltinsCollapsed,
   writeBuiltinsCollapsed,
 } from "@/data/dashboards/ui-prefs";
-import {
-  DashboardTree,
-  railRowActiveProps,
-  railRowClass,
-} from "./dashboard-tree";
+import { DashboardTree, RailRow } from "./dashboard-tree";
 
 function searchBuiltins(search: string): BuiltinDashboard[] {
   const q = search.trim().toLowerCase();
@@ -298,30 +294,6 @@ function GroupLabel({
         <h2 className={cn(groupLabelClass, "px-1")}>{label}</h2>
       )}
     </header>
-  );
-}
-
-/** One rail row: the shared look of every navigable item in this list. */
-function RailRow({
-  label,
-  icon: Icon,
-  ...linkProps
-}: {
-  label: string;
-  icon: React.ComponentType<{ className?: string }>;
-} & LinkProps) {
-  return (
-    <Link
-      {...linkProps}
-      className={cn(
-        railRowClass,
-        "flex w-full items-center gap-2.5 px-2 text-left text-foreground",
-      )}
-      activeProps={railRowActiveProps}
-    >
-      <Icon className="size-4 shrink-0 text-muted-foreground" />
-      <span className="min-w-0 flex-1 truncate text-sm">{label}</span>
-    </Link>
   );
 }
 
