@@ -24,37 +24,30 @@ const telemetryMocks = vi.hoisted(() => {
   };
 });
 
-vi.mock("./node", () => ({
+vi.mock("@everr/otel-errors", () => ({
   captureError: telemetryMocks.captureError,
-  getTelemetryTracer: () => ({
-    startActiveSpan: telemetryMocks.startActiveSpan,
-  }),
-  SpanKind: { SERVER: 1 },
 }));
 
-// The real router pulls the whole generated route tree (and the server env
-// with it) into the test environment, so stub the factory with a two-route
-// matcher. The real `routeTemplate` derivation still runs.
-// test-setup mocks @tanstack/react-start with a function-middleware shape
-// (`__handler`). Request middleware exposes `options.server`, which is what
-// Start actually calls, so use the real module here.
-vi.mock("@tanstack/react-start", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@tanstack/react-start")>()),
+vi.mock("@opentelemetry/api", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@opentelemetry/api")>()),
+  trace: {
+    getTracer: () => ({ startActiveSpan: telemetryMocks.startActiveSpan }),
+  },
 }));
 
-vi.mock("@/router", () => ({
-  getRouter: () => ({
-    matchRoutes: (pathname: string) =>
-      pathname === "/api/cli/sql"
-        ? [
-            { routeId: "__root__", fullPath: "/" },
-            { routeId: "/api/cli/sql", fullPath: "/api/cli/sql" },
-          ]
-        : [{ routeId: "__root__", fullPath: "/" }],
-  }),
-}));
+// A two-route matcher stands in for a real router; the real `routeTemplate`
+// derivation still runs over it.
+const router = () => ({
+  matchRoutes: (pathname: string) =>
+    pathname === "/api/cli/sql"
+      ? [
+          { routeId: "__root__", fullPath: "/" },
+          { routeId: "/api/cli/sql", fullPath: "/api/cli/sql" },
+        ]
+      : [{ routeId: "__root__", fullPath: "/" }],
+});
 
-import { requestTelemetryMiddleware } from "./server";
+import { createRequestTelemetryMiddleware } from "./request-middleware";
 import { recordServerFunctionName } from "./server-fn-name";
 
 // Drive the middleware the way Start does: it passes the request, the
@@ -64,7 +57,7 @@ async function runRequest(
   respond: () => Response | Promise<Response>,
 ): Promise<Response> {
   const pathname = new URL(request.url).pathname;
-  const server = requestTelemetryMiddleware.options.server;
+  const server = createRequestTelemetryMiddleware({ router }).options.server;
   if (!server) throw new Error("middleware has no server handler");
   const result = await server({
     request,
@@ -76,7 +69,7 @@ async function runRequest(
   return (result as { response: Response }).response;
 }
 
-describe("requestTelemetryMiddleware", () => {
+describe("createRequestTelemetryMiddleware", () => {
   beforeEach(() => {
     telemetryMocks.captureError.mockClear();
     telemetryMocks.startActiveSpan.mockClear();

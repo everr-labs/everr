@@ -132,6 +132,9 @@ importers:
       '@everr/otel-web':
         specifier: workspace:*
         version: link:../otel-web
+      '@everr/tanstack-start-otel':
+        specifier: workspace:*
+        version: link:../tanstack-start-otel
       '@everr/telemetry-explorer':
         specifier: workspace:*
         version: link:../telemetry-explorer
@@ -640,6 +643,31 @@ importers:
       typescript:
         specifier: 'catalog:'
         version: 6.0.3
+
+  packages/tanstack-start-otel:
+    dependencies:
+      '@everr/otel-errors':
+        specifier: workspace:*
+        version: link:../otel-errors
+    devDependencies:
+      '@opentelemetry/api':
+        specifier: ^1.9.1
+        version: 1.9.1
+      '@tanstack/react-start':
+        specifier: 1.168.40
+        version: 1.168.40(crossws@0.4.5(srvx@0.11.17))(react-dom@19.2.6(react@19.2.6))(react@19.2.6)(vite@8.0.11(@types/node@25.6.2)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.21.0)(yaml@2.9.0))
+      '@types/node':
+        specifier: ^25.6.2
+        version: 25.6.2
+      tsdown:
+        specifier: ^0.22.2
+        version: 0.22.2(tsx@4.21.0)(typescript@6.0.3)
+      typescript:
+        specifier: 'catalog:'
+        version: 6.0.3
+      vitest:
+        specifier: ^4.1.5
+        version: 4.1.5(@opentelemetry/api@1.9.1)(@types/node@25.6.2)(@vitest/coverage-v8@4.1.5)(@vitest/ui@4.1.5)(jsdom@29.1.1(@noble/hashes@2.2.0))(vite@8.0.11(@types/node@25.6.2)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.21.0)(yaml@2.9.0))
 
   packages/telemetry-explorer:
     dependencies:

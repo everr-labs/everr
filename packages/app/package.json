@@ -21,6 +21,7 @@
     "@better-auth/oauth-provider": "1.6.20",
     "@clickhouse/client": "^1.18.4",
     "@everr/otel-errors": "workspace:*",
+    "@everr/tanstack-start-otel": "workspace:*",
     "@everr/datemath": "workspace:*",
     "@everr/telemetry-explorer": "workspace:*",
     "@everr/ui": "workspace:*",

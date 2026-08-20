@@ -30,82 +30,42 @@ Follow `nodejs.md` for the NodeSDK setup module, including the hot-reload guard:
 
 ### Request Spans In Global Request Middleware
 
-Start's own hook for this is global request middleware, registered in `src/start.ts`. It runs for every request the framework serves, SSR and server functions alike. Prefer it over wrapping the fetch handler in `src/server.ts`: the wrapper works, but it sits outside the framework and has to re-derive things middleware is handed.
+Do not hand-roll this. `@everr/tanstack-start-otel` ships the request and server-function middleware, and the route-template derivation they share. Register both on the start instance, which is Start's own hook and runs for every request it serves, SSR and server functions alike.
 
 ```ts
 // src/start.ts
+import {
+  createRequestTelemetryMiddleware,
+  createServerFnTelemetryMiddleware,
+  type RouterLike,
+} from "@everr/tanstack-start-otel";
+import { createStart } from "@tanstack/react-start";
+import { getRouter } from "@/router";
+import { isExpectedServerFunctionError } from "@/telemetry/expected-errors";
+
 export const startInstance = createStart(() => ({
-  requestMiddleware: [requestTelemetryMiddleware],
-  functionMiddleware: [serverFnTelemetryMiddleware],
+  requestMiddleware: [
+    createRequestTelemetryMiddleware({ router: (): RouterLike => getRouter() }),
+  ],
+  functionMiddleware: [
+    createServerFnTelemetryMiddleware({
+      isExpectedError: isExpectedServerFunctionError,
+    }),
+  ],
 }));
 ```
 
-```ts
-// src/telemetry/server.ts
-export const requestTelemetryMiddleware = createMiddleware({
-  type: "request",
-}).server(async ({ request, pathname, handlerType, next }) => {
-  matcher ??= getRouter(); // the app's factory, not a second createRouter
-  const route = routeTemplate(matcher, pathname);
-  const method = request.method.toUpperCase();
+`src/server.ts` then needs no telemetry wrapper: export `createStartHandler(...)` directly and import the NodeSDK setup module for its side effect.
 
-  // The function middleware reports the name into this holder mid-flight.
-  const serverFn = handlerType === "serverFn" ? {} : undefined;
-  const resolved = () => (serverFn?.name ? `/_serverFn/${serverFn.name}` : route);
-  const attrs = (route: string | undefined, extra?: Attributes) => ({
-    "http.request.method": method,
-    "url.path": pathname,
-    ...(route === undefined ? {} : { "http.route": route }),
-    ...extra,
-  });
-
-  return tracer.startActiveSpan(
-    route === undefined ? method : `${method} ${route}`,
-    { attributes: attrs(route), kind: SpanKind.SERVER },
-    propagation.extract(context.active(), request.headers, headersGetter),
-    async (span) => {
-      let final = route;
-      try {
-        const result = await (serverFn
-          ? runWithServerFunctionName(serverFn, () => next())
-          : next());
-        const { response } = result;
-        final = resolved();
-
-        // Immutable headers keep theirs; the span is unaffected.
-        if (final !== undefined) {
-          try { response.headers.set("x-everr-route", final); } catch {}
-        }
-        span.setAttribute("http.response.status_code", response.status);
-        if (response.status >= 500) {
-          captureError(new Error(`HTTP ${response.status}`), attrs(final, {
-            "everr.error.source": "server.response",
-            "http.response.status_code": response.status,
-          }));
-        }
-        return result;
-      } catch (error) {
-        final = resolved();
-        captureError(error, attrs(final, {
-          "everr.error.source": "server.request",
-        }));
-        throw error;
-      } finally {
-        // The name is only final once the function middleware has run.
-        if (final !== undefined && final !== route) {
-          span.updateName(`${method} ${final}`);
-          span.setAttribute("http.route", final);
-        }
-        span.end();
-      }
-    },
-  );
-});
-```
-
-`handlerType` is `"serverFn"` or `"router"`, so the kind of request never has to be guessed from the path. Note that `serverFnMeta` is declared on the request middleware context but is not populated there (checked at 1.169.23), so the function's name still has to come from the function middleware.
+Pass the app's own router factory, never a fresh `createRouter`. The server caches the processed route tree globally by route tree identity, ignoring the options that decide how it is processed (`routeMasks` and `caseSensitive`), so the first router built wins for the whole process. A separately configured second router makes every later render throw `Cannot read properties of null (reading 'get')`, in production only. Annotate the callback as `RouterLike` when `routeTree.gen` binds `Register` to `getRouter`, or the two become mutually inferred.
 
 Defining a start instance replaces Start's default CSRF middleware. Once `requestMiddleware` is set, include `createCsrfMiddleware()` in the array or server functions are left unprotected.
+
+The package emits a SERVER span named `<METHOD> <route-template>`, echoes the template on `x-everr-route` for the browser SDK to read into `url.template`, and names each server-function span `serverFn {name}`. Read its README for the full attribute list and options.
+
+Disable the HTTP auto-instrumentation's incoming-request span (`disableIncomingRequestInstrumentation: true`) so each request gets one SERVER span, not two.
+
+The derivation the package uses, for reference when debugging an unexpected `http.route`:
 
 ```ts
 // src/telemetry/route-template.ts: one route-template derivation, shared by
@@ -137,38 +97,22 @@ export function routeTemplate(
 }
 ```
 
-Do not reuse the router the framework builds to render: it does not exist yet when the middleware needs `http.route`, and it is bound to a single request. Build a standalone matcher once and pass it to `routeTemplate`. The server sees the full tree, API routes included.
+The package builds this matcher once per process from the factory you pass, and never from the router the framework builds to render: that one does not exist yet when the middleware needs `http.route`, and it is bound to a single request. The server matcher sees the full tree, API routes included.
 
-Build that matcher from the app's own router factory rather than a second `createRouter`. The server caches the processed route tree globally by route tree identity, ignoring the options that decide how it is processed (`routeMasks` and `caseSensitive`), so the first router built wins for the whole process and the matcher is built first. A separately configured matcher makes every later render throw `Cannot read properties of null (reading 'get')`, in production only.
+Two things worth knowing when reading the output:
 
-Notes on the above:
-
-- Parameterize the path before it becomes the span name or `http.route`; raw paths are unbounded cardinality.
+- Paths are parameterized before they become a span name or `http.route`; raw paths are unbounded cardinality.
 - `propagation.extract` continues a trace a first-party client started (the browser, or the CLI injecting `traceparent`). A request without the header extracts to an empty context and the span roots itself.
-- The `x-everr-route` echo is how the browser gets exact templates: `@everr/otel-web`'s `network()` reads it into `url.template`, and the client route tree has no server-only routes to derive them from.
-- Disable the HTTP auto-instrumentation's incoming-request span (`disableIncomingRequestInstrumentation: true`) so each request gets one SERVER span, not two.
 
 ### Server Functions
 
-Wrap every server function through global middleware in `src/start.ts` instead of instrumenting call sites:
-
-```ts
-// src/start.ts
-import { createStart } from "@tanstack/react-start";
-import { serverFnTelemetryMiddleware } from "@/telemetry/server-fn";
-
-export const startInstance = createStart(() => ({
-  functionMiddleware: [serverFnTelemetryMiddleware],
-}));
-```
-
-The middleware (`createMiddleware({ type: "function" })`) starts an INTERNAL span per invocation, named `serverFn {name}` from `serverFnMeta`. It nests under the request's SERVER span automatically because the request middleware's context is active.
+`createServerFnTelemetryMiddleware()` covers every server function, so no call site is instrumented by hand. It starts an INTERNAL span per invocation, named `serverFn {name}` from `serverFnMeta`, nested under the request's SERVER span because the request middleware's context is active.
 
 Describe it with the server-function convention from the skill root: `everr.server_function.name` carries the function's own identifier verbatim, and `everr.server_function.transport` is `http` when the call arrived over `/_serverFn/` and `in-process` when it ran during SSR. The span stays INTERNAL: over HTTP the transport's SERVER span already counts the inbound request, and in-process there is no inbound request at all.
 
-The transport span for a server function request only knows the opaque `/_serverFn/<id>` path, so the function middleware reports the name back to the request middleware (an app-owned AsyncLocalStorage holder). After the response settles, the request middleware renames its SERVER span and the `x-everr-route` echo to `/_serverFn/{name}`, falling back to `/_serverFn/:id` when the middleware never ran. The browser's client span picks the name up from the echo, so all three spans of one call read as the same function.
+The transport span for a server function request only knows the opaque `/_serverFn/<id>` path, because Start declares `serverFnMeta` on the request middleware context but does not populate it there (checked at 1.169.23). The function middleware therefore reports the name back through an AsyncLocalStorage holder, and once the response settles the request middleware renames its SERVER span and the `x-everr-route` echo to `/_serverFn/{name}`, falling back to `/_serverFn/:id` when the middleware never ran. The browser's client span picks the name up from the echo, so all three spans of one call read as the same function.
 
-TanStack Start signals control flow with throwables: `redirect()` and `notFound()` surface as thrown values inside server functions. Filter those out before calling `captureError`, or every redirect becomes a phantom error.
+TanStack Start signals control flow with throwables: `redirect()` and `notFound()` surface as thrown values inside server functions. Pass `isExpectedError` so they are not captured, or every redirect becomes a phantom error.
 
 ## Validation
 

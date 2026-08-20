@@ -1,11 +1,20 @@
 import type { Attributes } from "@opentelemetry/api";
-import { isExpectedServerFunctionError } from "./expected-errors";
-import { captureError, getTelemetryTracer, SpanKind } from "./node";
+import { SpanKind, trace } from "@opentelemetry/api";
+import { captureError } from "@everr/otel-errors";
 import { recordServerFunctionName } from "./server-fn-name";
 
-const tracer = getTelemetryTracer("everr-app.server_fn");
+export interface ServerFnTelemetryOptions {
+  /**
+   * Errors the app treats as control flow rather than faults, so they are not
+   * captured. TanStack Start signals `redirect()` and `notFound()` as thrown
+   * values, and apps add their own expected messages on top.
+   */
+  isExpectedError?: (error: unknown) => boolean;
+  /** Tracer name for the server-function span. */
+  tracerName?: string;
+}
 
-type ServerFunctionMeta = {
+export type ServerFunctionMeta = {
   id: string;
   name: string;
   filename: string;
@@ -15,7 +24,9 @@ export async function instrumentServerFunction<T>(
   request: Request | undefined,
   serverFnMeta: ServerFunctionMeta | undefined,
   run: () => T | Promise<T>,
+  { isExpectedError, tracerName = "tanstack-start.server_fn" }: ServerFnTelemetryOptions = {},
 ) {
+  const tracer = trace.getTracer(tracerName);
   // Report the name to the transport wrapper, which only sees the opaque
   // /_serverFn/<id> path: it renames its SERVER span and the x-everr-route
   // echo to `/_serverFn/{name}` once the response settles.
@@ -33,7 +44,7 @@ export async function instrumentServerFunction<T>(
       try {
         return await run();
       } catch (error) {
-        if (!isExpectedServerFunctionError(error)) {
+        if (!isExpectedError?.(error)) {
           captureError(error, {
             ...attributes,
             "everr.error.source": "server_fn",

@@ -1,21 +1,32 @@
 import type { Attributes, TextMapGetter } from "@opentelemetry/api";
-import { context, propagation } from "@opentelemetry/api";
+import { context, propagation, SpanKind, trace } from "@opentelemetry/api";
+import { captureError } from "@everr/otel-errors";
 import { createMiddleware } from "@tanstack/react-start";
-import { getRouter } from "@/router";
-import { captureError, getTelemetryTracer, SpanKind } from "./node";
 import { type RouterLike, routeTemplate } from "./route-template";
 import {
   runWithServerFunctionName,
   type ServerFunctionName,
 } from "./server-fn-name";
 
-const tracer = getTelemetryTracer();
-
-// The rendering router does not exist yet when this middleware needs
-// http.route: Start builds it lazily further down the same request, bound to
-// that request's history. So matching gets its own router, from the same
-// factory for the reason documented on `getRouter`, built once per process.
-let matcher: RouterLike | undefined;
+export interface RequestTelemetryOptions {
+  /**
+   * The app's own router factory, called once and memoized.
+   *
+   * It must be the factory the app renders with, never a fresh
+   * `createRouter`. On the server router-core caches the processed route tree
+   * on `globalThis.__TSR_CACHE__` keyed only by route tree identity, blind to
+   * the options that decide how the tree is processed (`routeMasks`,
+   * `caseSensitive`). The first router built wins for the whole process, so a
+   * second one configured differently inherits a tree that does not match its
+   * own options and crashes in `findFlatMatch`, in production only.
+   *
+   * Lazy so importing this middleware does not pull the route tree, and the
+   * app graph behind it, at module init.
+   */
+  router: () => RouterLike;
+  /** Tracer name for the SERVER span. */
+  tracerName?: string;
+}
 
 // Read W3C headers off a Fetch `Headers` object for context extraction.
 const headersGetter: TextMapGetter<Headers> = {
@@ -27,10 +38,21 @@ const headersGetter: TextMapGetter<Headers> = {
  * Global request middleware: every request Start serves, SSR and server
  * functions alike, gets a SERVER span named `<METHOD> <route-template>`.
  */
-export const requestTelemetryMiddleware = createMiddleware({
+export const createRequestTelemetryMiddleware = ({
+  router,
+  tracerName = "tanstack-start.server",
+}: RequestTelemetryOptions) => {
+  const tracer = trace.getTracer(tracerName);
+  // The rendering router does not exist yet when this middleware needs
+  // http.route: Start builds it lazily further down the same request, bound to
+  // that request's history. So matching gets its own router, from the app's
+  // factory, built once per process.
+  let matcher: RouterLike | undefined;
+
+  return createMiddleware({
   type: "request",
 }).server(async ({ request, pathname, handlerType, next }) => {
-  matcher ??= getRouter();
+  matcher ??= router();
   const route = routeTemplate(matcher, pathname);
   const method = request.method.toUpperCase();
 
@@ -112,3 +134,4 @@ export const requestTelemetryMiddleware = createMiddleware({
     },
   );
 });
+};

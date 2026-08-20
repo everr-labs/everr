@@ -28,16 +28,16 @@ vi.mock("./server-fn-runtime", () => ({
   instrumentServerFunction: middlewareMocks.instrumentServerFunction,
 }));
 
-import { serverFnTelemetryMiddleware } from "./server-fn";
+import { createServerFnTelemetryMiddleware } from "./server-fn-middleware";
 
-const testMiddleware = serverFnTelemetryMiddleware as unknown as {
+const testMiddleware = createServerFnTelemetryMiddleware() as unknown as {
   runServer: (options: {
     next: () => Promise<unknown>;
     serverFnMeta: { filename: string; id: string; name: string };
   }) => Promise<unknown>;
 };
 
-describe("serverFnTelemetryMiddleware", () => {
+describe("createServerFnTelemetryMiddleware", () => {
   it("passes TanStack server function metadata to telemetry instrumentation", async () => {
     const next = vi.fn(async () => "ok");
     const serverFnMeta = {
@@ -57,6 +57,7 @@ describe("serverFnTelemetryMiddleware", () => {
       new Request("http://localhost/_serverFn/c4d3d0c28997f144965eeaca"),
       serverFnMeta,
       expect.any(Function),
+      expect.any(Object),
     );
   });
 });
