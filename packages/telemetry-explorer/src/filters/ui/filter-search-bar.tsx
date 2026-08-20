@@ -8,7 +8,7 @@ import { Kbd } from "@everr/ui/components/kbd";
 import { Label } from "@everr/ui/components/label";
 import { cn } from "@everr/ui/lib/utils";
 import { CornerDownLeft, Search, X } from "lucide-react";
-import { type ComponentType, useRef, useState } from "react";
+import { type ComponentType, useEffect, useRef, useState } from "react";
 
 export function FilterSearchBar({
   id,
@@ -33,15 +33,13 @@ export function FilterSearchBar({
   // committed value arrives back through `value` a navigation later, too late
   // for blur to see it.
   const committedRef = useRef(value);
+
   // Take the draft again when the value changes from outside, for example on
-  // "Clear page filters", on a link, or on Back. Comparing during render costs
-  // one pass; an effect would show the old draft for a frame first.
-  const lastValueRef = useRef(value);
-  if (lastValueRef.current !== value) {
-    lastValueRef.current = value;
+  // "Clear page filters", on a link, or on Back.
+  useEffect(() => {
     committedRef.current = value;
     setDraft(value);
-  }
+  }, [value]);
 
   // `dirty` = the field holds an edit that hasn't been run yet. It colours the
   // leading icon, so an unrun edit reads as pending under the "press Enter"
