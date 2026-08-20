@@ -35,7 +35,7 @@ import {
   readBuiltinsCollapsed,
   writeBuiltinsCollapsed,
 } from "@/data/dashboards/ui-prefs";
-import { DashboardTree, RailRow } from "./dashboard-tree";
+import { DashboardTree, groupLabelClass, RailRow } from "./dashboard-tree";
 
 function searchBuiltins(search: string): BuiltinDashboard[] {
   const q = search.trim().toLowerCase();
@@ -257,9 +257,6 @@ export function DashboardsList({ preview }: { preview?: string }) {
     </div>
   );
 }
-
-const groupLabelClass =
-  "font-semibold text-[0.6875rem] text-foreground/75 uppercase tracking-wider";
 
 /** Static heading, or a disclosure toggle when `onToggle` is given. */
 function GroupLabel({

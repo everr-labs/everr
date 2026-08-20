@@ -57,24 +57,23 @@ export function RunbookViewer({
   return (
     <DashboardProvider document={dashboardDocument}>
       <RunbookToolbar />
-      {/* The reading measure is the pane's job; the toolbar spans the pane. */}
-      <div className="min-w-0 max-w-4xl">
-        {page ? (
-          <RunbookMarkdown
-            markdown={page.markdown}
-            project={project}
-            slug={slug}
-            resolveLink={resolvePageLink}
-          />
-        ) : (
-          <div className="flex flex-col items-center gap-3 py-16 text-muted-foreground">
-            <FileQuestion className="size-10" />
-            <p className="text-sm">
-              This runbook has no page &ldquo;{pagePath}&rdquo;
-            </p>
-          </div>
-        )}
-      </div>
+      {/* The reading measure is the frame's job: the pane centers this column
+          (see the runbooks route layout), so nothing here caps its width. */}
+      {page ? (
+        <RunbookMarkdown
+          markdown={page.markdown}
+          project={project}
+          slug={slug}
+          resolveLink={resolvePageLink}
+        />
+      ) : (
+        <div className="flex flex-col items-center gap-3 py-16 text-muted-foreground">
+          <FileQuestion className="size-10" />
+          <p className="text-sm">
+            This runbook has no page &ldquo;{pagePath}&rdquo;
+          </p>
+        </div>
+      )}
     </DashboardProvider>
   );
 }

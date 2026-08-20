@@ -7,7 +7,7 @@ import {
   LayoutDashboard,
   NotebookText,
 } from "lucide-react";
-import { type ReactNode, useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import { PreviewStatusBadge } from "@/components/preview-status-badge";
 import {
   buildTree,
@@ -25,9 +25,12 @@ export const railRowActiveProps = {
   className: "bg-muted text-foreground [&>svg]:text-primary",
 };
 
-/** Left padding of a resource row at `depth`, and of the label inside it. */
-export const rowIndent = (depth: number) => depth * 20 + 26;
-export const rowLabelIndent = (depth: number) => rowIndent(depth) + 24;
+/** Left padding of a resource row at `depth`. */
+const rowIndent = (depth: number) => depth * 20 + 26;
+
+/** The heading over a group of rail rows. */
+export const groupLabelClass =
+  "font-semibold text-[0.6875rem] text-foreground/75 uppercase tracking-wider";
 
 /** One rail row that is not part of the tree: a plain labelled destination. */
 export function RailRow({
@@ -57,26 +60,12 @@ interface DashboardTreeProps {
   dashboards: DashboardSummary[];
   search: string;
   resource?: TreeResource;
-  /**
-   * Rows to render directly under an item, for resources that have an inner
-   * structure of their own (runbook pages). Called for every item; return null
-   * for the ones that have nothing to show.
-   */
-  renderChildren?: (item: DashboardSummary, depth: number) => ReactNode;
-  /**
-   * Decides which row is the open one, instead of leaving it to route
-   * matching. Runbooks need it: their rows sit above routes of their own, so
-   * a row would keep the highlight while one of its pages already holds it.
-   */
-  rowActive?: (item: DashboardSummary) => boolean;
 }
 
 export function DashboardTree({
   dashboards,
   search,
   resource = "dashboard",
-  renderChildren,
-  rowActive,
 }: DashboardTreeProps) {
   const matchRoute = useMatchRoute();
   // Fuzzy for runbooks: a runbook page is a route below the runbook, and the
@@ -117,7 +106,7 @@ export function DashboardTree({
     });
   }, []);
 
-  const rowProps = { resource, renderChildren, rowActive, selected };
+  const rowProps = { resource, selected };
 
   return (
     <div className="flex flex-col">
@@ -164,13 +153,9 @@ export function DashboardTree({
   );
 }
 
-const NO_ACTIVE_PROPS = {};
-
 /** The parts every row in one tree shares, threaded down unchanged. */
 interface RowContext {
   resource: TreeResource;
-  renderChildren?: (item: DashboardSummary, depth: number) => ReactNode;
-  rowActive?: (item: DashboardSummary) => boolean;
   selected?: DashboardSummary;
 }
 
@@ -253,54 +238,35 @@ function DashboardRow({
   depth,
   path,
   resource,
-  renderChildren,
-  rowActive,
-  selected,
 }: {
   dashboard: DashboardSummary;
   depth: number;
   path?: string;
-} & RowContext) {
+} & Omit<RowContext, "selected">) {
   const Icon = resource === "runbook" ? NotebookText : LayoutDashboard;
   const removed = dashboard.previewStatus === "removed";
-  // The open resource keeps its icon lit even when a child row (a runbook
-  // page) holds the row highlight, so the tree never stops saying which
-  // resource you are inside.
-  const isSelected =
-    selected !== undefined &&
-    selected.project === dashboard.project &&
-    selected.slug === dashboard.slug;
-  const active = rowActive?.(dashboard);
   return (
-    <>
-      <Link
-        to={
-          resource === "runbook"
-            ? "/runbooks/$project/$slug"
-            : "/dashboards/$project/$slug"
-        }
-        params={{ project: dashboard.project, slug: dashboard.slug }}
-        className={cn(
-          railRowClass,
-          "flex min-w-0 items-center gap-2 pr-1",
-          active && railRowActiveProps.className,
-          isSelected && "[&>svg]:text-primary",
-          removed && "opacity-50",
-        )}
-        style={{ paddingLeft: `${rowIndent(depth)}px` }}
-        // With `rowActive` the caller owns the state, so route matching must
-        // not add a second, contradictory answer.
-        activeProps={rowActive ? NO_ACTIVE_PROPS : railRowActiveProps}
-        aria-current={active ? "page" : undefined}
-      >
-        <Icon className="size-4 shrink-0 text-muted-foreground" />
-        <span className="truncate text-sm">{dashboard.name}</span>
-        {path && (
-          <span className="truncate text-xs text-muted-foreground">{path}</span>
-        )}
-        <PreviewStatusBadge status={dashboard.previewStatus} />
-      </Link>
-      {renderChildren?.(dashboard, depth)}
-    </>
+    <Link
+      to={
+        resource === "runbook"
+          ? "/runbooks/$project/$slug"
+          : "/dashboards/$project/$slug"
+      }
+      params={{ project: dashboard.project, slug: dashboard.slug }}
+      className={cn(
+        railRowClass,
+        "flex min-w-0 items-center gap-2 pr-1",
+        removed && "opacity-50",
+      )}
+      style={{ paddingLeft: `${rowIndent(depth)}px` }}
+      activeProps={railRowActiveProps}
+    >
+      <Icon className="size-4 shrink-0 text-muted-foreground" />
+      <span className="truncate text-sm">{dashboard.name}</span>
+      {path && (
+        <span className="truncate text-xs text-muted-foreground">{path}</span>
+      )}
+      <PreviewStatusBadge status={dashboard.previewStatus} />
+    </Link>
   );
 }
