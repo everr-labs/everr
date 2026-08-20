@@ -12,9 +12,11 @@ import { runbookOptions } from "@/data/runbooks/options";
 import {
   findPage,
   makeRunbookLinkResolver,
+  pageNavTree,
   toDashboardDocument,
 } from "@/data/runbooks/pages";
 import { RunbookMarkdown } from "./runbook-markdown";
+import { RunbookPagesNav } from "./runbook-pages-nav";
 
 export function RunbookViewer({
   project,
@@ -33,6 +35,7 @@ export function RunbookViewer({
     data: { document: runbook },
   } = useSuspenseQuery(runbookOptions(project, slug, preview));
   const page = findPage(runbook.spec, pagePath);
+  const tree = pageNavTree(runbook.spec);
   // Build the link resolver once per runbook: it captures the page-path set
   // and file map so each rendered link doesn't re-walk the spec tree.
   const resolveLink = useMemo(
@@ -57,6 +60,19 @@ export function RunbookViewer({
   return (
     <DashboardProvider document={dashboardDocument}>
       <RunbookToolbar />
+      {tree.length > 0 && (
+        <RunbookPagesNav
+          project={project}
+          slug={slug}
+          indexTitle={runbook.spec.display?.name ?? slug}
+          tree={tree}
+          // Keep the requested path even when the page is missing: it matches
+          // no nav entry, so nothing is marked current, rather than falling
+          // back to "" and wrongly marking the index while the pane shows
+          // page-not-found.
+          activePath={pagePath}
+        />
+      )}
       {/* The reading measure is the frame's job: the pane centers this column
           (see the runbooks route layout), so nothing here caps its width. */}
       {page ? (

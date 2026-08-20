@@ -1,20 +1,15 @@
 import { cn } from "@everr/ui/lib/utils";
 import { createFileRoute, Outlet, useSearch } from "@tanstack/react-router";
 import * as z from "zod";
-import { RunbookPagesRail } from "@/components/runbooks/runbook-pages-rail";
 import { RunbooksList } from "@/components/runbooks/runbooks-list";
-import {
-  useOpenRunbook,
-  useOpenRunbookPages,
-} from "@/components/runbooks/use-open-runbook";
 
 export const Route = createFileRoute(
   "/_authenticated/_dashboard/_previewable/runbooks",
 )({
   staticData: { fullBleed: true },
-  // Full screen hides both navigation columns and gives the whole width to the
-  // open runbook. In the URL so a full-screen runbook is linkable and survives
-  // a reload: a deep link from an alert can land directly on it.
+  // Full screen hides the runbook list and gives the whole width to the open
+  // runbook. In the URL so a full-screen runbook is linkable and survives a
+  // reload: a deep link from an alert can land directly on it.
   validateSearch: z.object({
     full: z.boolean().optional().catch(undefined),
   }),
@@ -22,36 +17,35 @@ export const Route = createFileRoute(
 });
 
 /**
- * The frame every runbook renders in: the runbook rail, then the pages of the
- * open runbook, then the runbook itself. Two navigation levels rather than one
- * mixed list, because a runbook and its pages are different questions: which
- * runbook am I reading, and where am I inside it.
+ * The master-detail frame every runbook renders in, shaped like the dashboards
+ * frame: a 260px tinted, bordered rail as the first grid column, and the open
+ * runbook as a pane that scrolls itself, so the page never scrolls.
+ *
+ * The runbook's own pages get no rail. They float in the margin left of the
+ * reading column (see RunbookPagesNav), which keeps the runbook centered and
+ * the frame down to one navigation column.
  */
 function RunbooksLayout() {
   const { full } = Route.useSearch();
   const { preview } = useSearch({ from: "/_authenticated/_dashboard" });
-  const open = useOpenRunbook();
-  const pages = useOpenRunbookPages(open, preview);
 
-  // Every track is a fixed length so the toggle animates: a track that
-  // collapses to `auto` has nothing to interpolate towards.
-  const columns = full
-    ? "md:grid-cols-[0px_0px_minmax(0,1fr)]"
-    : pages
-      ? "md:grid-cols-[var(--rail)_var(--pages)_minmax(0,1fr)]"
-      : "md:grid-cols-[var(--rail)_0px_minmax(0,1fr)]";
-
+  // Both directions of the toggle live inside the runbook toolbar
+  // (`FrameToggle` via RunbookViewer). Full mode keeps the same grid and
+  // animates the rail's track to zero, so the runbook slides over instead of
+  // snapping.
   return (
     <div
       className={cn(
-        "grid h-full min-h-0 grid-rows-[auto_auto_minmax(0,1fr)] [--pages:13rem] [--rail:260px] md:grid-rows-[minmax(0,1fr)] md:transition-[grid-template-columns] md:duration-200 md:ease-sidebar motion-reduce:md:transition-none",
-        columns,
+        "grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)] [--rail:260px] md:grid-rows-[minmax(0,1fr)] md:transition-[grid-template-columns] md:duration-200 md:ease-sidebar motion-reduce:md:transition-none",
+        full
+          ? "md:grid-cols-[0px_minmax(0,1fr)]"
+          : "md:grid-cols-[var(--rail)_minmax(0,1fr)]",
       )}
     >
       {/*
-        `overflow-hidden` plus the fixed-width inner column keep each rail's
+        `overflow-hidden` plus the fixed-width inner column keep the rail's
         content from reflowing while the track animates; the rows inside keep
-        their own scroll.
+        their own scroll (RunbooksList).
       */}
       <aside
         inert={full}
@@ -60,8 +54,9 @@ function RunbooksLayout() {
           "min-h-0 min-w-0 overflow-hidden border-b bg-muted/15 md:border-r md:border-b-0",
           // Stacked on narrow viewports the rail stays expanded: it is
           // navigation, so hiding it behind a button would bury the only way
-          // to switch runbooks. The rows scroll inside it.
-          "max-md:max-h-[38dvh]",
+          // to switch runbooks. Just under half the viewport leaves the open
+          // runbook the larger share; the rows scroll.
+          "max-md:max-h-[45dvh]",
           full && "max-md:hidden md:border-r-0",
         )}
       >
@@ -69,26 +64,11 @@ function RunbooksLayout() {
           <RunbooksList preview={preview} />
         </div>
       </aside>
-      {/*
-        Never `hidden`: taking this column out of the flow would shift the
-        runbook itself into the collapsed track. It empties instead, so the
-        zero-width track and the missing padding do the hiding.
-      */}
-      <aside
-        inert={full || !pages}
-        className={cn(
-          "min-h-0 min-w-0 overflow-hidden bg-muted/8",
-          open && pages && !full && "border-b md:border-r md:border-b-0",
-        )}
-      >
-        {open && pages && !full && (
-          <div className="flex h-full min-h-0 flex-col p-3 max-md:py-2 md:w-[var(--pages)]">
-            <RunbookPagesRail open={open} pages={pages} />
-          </div>
-        )}
-      </aside>
-      <main className="min-h-0 min-w-0 overflow-auto overscroll-y-contain">
-        <div className="mx-auto w-full max-w-3xl p-3">
+      {/* Named container: the runbook's pages nav floats or lies down by how
+          much room this pane has, which the viewport alone cannot tell it.
+          `relative` is what that floating nav pins itself to. */}
+      <main className="@container/pane min-h-0 min-w-0 overflow-auto overscroll-y-contain">
+        <div className="relative mx-auto w-full max-w-2xl p-3">
           <Outlet />
         </div>
       </main>
