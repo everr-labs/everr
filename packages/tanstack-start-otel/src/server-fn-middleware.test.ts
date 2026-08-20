@@ -60,4 +60,26 @@ describe("createServerFnTelemetryMiddleware", () => {
       }),
     );
   });
+
+  it("reaches instrumentation synchronously once the import is warm", async () => {
+    const serverFnMeta = {
+      filename: "src/lib/auth.server.ts",
+      id: "c4d3d0c28997f144965eeaca",
+      name: "getActiveOrganization",
+    };
+
+    // First call resolves the dynamic import.
+    await testMiddleware.runServer({ next: async () => "ok", serverFnMeta });
+    middlewareMocks.instrumentServerFunction.mockClear();
+
+    // Second call must not yield: the span has to open in the same tick, so
+    // that it nests under whatever context is active at the call site.
+    const pending = testMiddleware.runServer({
+      next: async () => "ok",
+      serverFnMeta,
+    });
+    expect(middlewareMocks.instrumentServerFunction).toHaveBeenCalledTimes(1);
+
+    await pending;
+  });
 });
