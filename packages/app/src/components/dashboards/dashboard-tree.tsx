@@ -19,9 +19,8 @@ import {
 
 type TreeResource = "dashboard" | "runbook";
 
-export const railRowClass =
-  "rounded-md py-1.5 transition-colors hover:bg-muted/50";
-export const railRowActiveProps = {
+const railRowClass = "rounded-md py-1.5 transition-colors hover:bg-muted/50";
+const railRowActiveProps = {
   className: "bg-muted text-foreground [&>svg]:text-primary",
 };
 

@@ -20,6 +20,4 @@ const LastViewedSchema = z.object({
   hash: z.string().max(200).optional(),
 });
 
-export type LastViewedRunbook = z.infer<typeof LastViewedSchema>;
-
 export const lastViewedRunbook = lastViewedStore("runbook", LastViewedSchema);
