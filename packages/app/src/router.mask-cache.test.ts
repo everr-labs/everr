@@ -62,7 +62,7 @@ test("rendering router first, then the matcher", () => {
   expect(globalThis.__TSR_CACHE__).toBeDefined();
 
   const matcher = getRouter({ forRouteMatchingOnly: true });
-  expect(() => matcher.buildLocation({ to: "/traces" })).not.toThrow();
+  expect(matcher.matchRoutes("/traces").at(-1)?.fullPath).toBe("/traces");
   expect(() => router.buildLocation({ to: "/traces" })).not.toThrow();
 });
 

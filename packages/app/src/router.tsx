@@ -1,9 +1,5 @@
 import { QueryClient } from "@tanstack/react-query";
-import {
-  createMemoryHistory,
-  createRouteMask,
-  createRouter,
-} from "@tanstack/react-router";
+import { createRouteMask, createRouter } from "@tanstack/react-router";
 import { Loader2 } from "lucide-react";
 import { registerRouter } from "@/telemetry/route-pattern";
 import { RootErrorComponent } from "./components/root-error";
@@ -39,7 +35,9 @@ const routeMasks = [
  *
  * `forRouteMatchingOnly` yields a router that just answers `matchRoutes`, for
  * deriving `http.route`. It skips the query client and the telemetry
- * registration, which belong to the router that renders.
+ * registration, which belong to the router that renders. Neither mode passes a
+ * history: Start hands the rendering router the request's, and matching needs
+ * none.
  *
  * Both modes come from one factory because on the server router-core caches
  * the processed route tree on `globalThis.__TSR_CACHE__`, keyed only by route
@@ -73,9 +71,6 @@ export const getRouter = ({
   const router = createRouter({
     routeTree,
     routeMasks,
-    // A matcher never navigates; the rendering router is handed the request's
-    // history by Start.
-    history: forRouteMatchingOnly ? createMemoryHistory() : undefined,
     // A matcher never loads a route, so its context is never read.
     context: queryClient ? { queryClient } : ({} as RouterContext),
     // Captures and renders any route render error the router catches in its
