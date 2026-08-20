@@ -51,9 +51,6 @@ export const getRouter = () => {
     // it says otherwise; marking it puts the reader at the top of whatever
     // they just opened. Only when the destination has no hash to scroll to.
     scrollToTopSelectors: ["[data-scroll-to-top]"],
-    // Instant, so that a pane which scrolls smoothly for its own anchors does
-    // not also animate its way back to the top on every navigation.
-    scrollRestorationBehavior: "instant",
     // defaultPreloadStaleTime: 0,
     defaultPendingComponent: () => (
       <div className="flex items-center justify-center h-screen font-heading text-lg">

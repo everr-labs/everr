@@ -33,15 +33,14 @@ function RunbooksLayout() {
       rail={<RunbooksList preview={preview} />}
     >
       {/*
-        Named container: the pages nav and the table of contents float or lie
-        down by how much room this pane has, which the viewport alone cannot
-        tell them. `scroll-smooth` carries the jump to a heading, and the
-        router resets this pane to the top on navigation, keyed off
+        Named container: the pages nav floats or lies down by how much room
+        this pane has, which the viewport alone cannot tell it. The router
+        resets this pane to the top on navigation, keyed off
         `data-scroll-to-top` (see `scrollToTopSelectors` in router.tsx).
       */}
       <main
         data-scroll-to-top
-        className="@container/pane min-h-0 min-w-0 scroll-smooth overflow-auto overscroll-y-contain motion-reduce:scroll-auto"
+        className="@container/pane min-h-0 min-w-0 overflow-auto overscroll-y-contain"
       >
         {/* The toggle belongs to the rail, not to the runbook, so it sits at
             the pane's edge against it rather than over the centered text. */}

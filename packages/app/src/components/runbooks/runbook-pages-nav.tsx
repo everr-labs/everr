@@ -39,7 +39,7 @@ export function RunbookPagesNav(props: PagesNavProps) {
       >
         <PageLinks {...props} inline />
       </nav>
-      <FloatingMarginNav side="left" label="Pages" ariaLabel="Runbook pages">
+      <FloatingMarginNav label="Pages" ariaLabel="Runbook pages">
         <PageLinks {...props} />
       </FloatingMarginNav>
     </>

@@ -9,7 +9,6 @@ import {
   useMemo,
 } from "react";
 import Markdown, { type Components } from "react-markdown";
-import rehypeSlug from "rehype-slug";
 import remarkGfm from "remark-gfm";
 import { hrefHash } from "@/data/runbooks/pages";
 import { PanelEmbedBlock } from "./runbook-panel-embed";
@@ -133,9 +132,6 @@ function RunbookAnchor({
 // identity, so they live at module scope rather than inline.
 const MARKDOWN_COMPONENTS: Components = { pre: PreBlock, a: RunbookAnchor };
 const REMARK_PLUGINS = [remarkGfm];
-// Heading ids: what "page.md#a-heading" links land on, and what the table of
-// contents anchors to.
-const REHYPE_PLUGINS = [rehypeSlug];
 
 interface RunbookMarkdownProps {
   markdown: string;
@@ -145,7 +141,6 @@ interface RunbookMarkdownProps {
   project?: string;
   slug?: string;
   /** The rendered prose, for the table of contents to read its headings from. */
-  containerRef?: React.Ref<HTMLDivElement>;
 }
 
 export function RunbookMarkdown({
@@ -153,7 +148,6 @@ export function RunbookMarkdown({
   resolveLink,
   project,
   slug,
-  containerRef,
 }: RunbookMarkdownProps) {
   const linkContext = useMemo(
     () => ({ resolveLink, project, slug }),
@@ -165,13 +159,9 @@ export function RunbookMarkdown({
   return (
     <RunbookLinkContext.Provider value={linkContext}>
       {/* `scroll-mt` keeps an anchored heading off the top edge of the pane. */}
-      <div
-        ref={containerRef}
-        className="prose prose-invert max-w-none [&_h2]:scroll-mt-4 [&_h3]:scroll-mt-4"
-      >
+      <div className="prose prose-invert max-w-none [&_h2]:scroll-mt-4 [&_h3]:scroll-mt-4">
         <Markdown
           remarkPlugins={REMARK_PLUGINS}
-          rehypePlugins={REHYPE_PLUGINS}
           components={MARKDOWN_COMPONENTS}
         >
           {markdown}
