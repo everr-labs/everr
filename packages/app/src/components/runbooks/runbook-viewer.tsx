@@ -1,7 +1,7 @@
 import { useSuspenseQuery } from "@tanstack/react-query";
 import { useSearch } from "@tanstack/react-router";
 import { FileQuestion } from "lucide-react";
-import { useMemo } from "react";
+import { useMemo, useRef } from "react";
 import { DashboardProvider } from "@/components/dashboards/use-dashboard";
 import {
   useHasVisibleVariables,
@@ -16,6 +16,7 @@ import {
 } from "@/data/runbooks/pages";
 import { RunbookMarkdown } from "./runbook-markdown";
 import { RunbookPagesNav } from "./runbook-pages-nav";
+import { RunbookToc } from "./runbook-toc";
 
 export function RunbookViewer({
   project,
@@ -35,6 +36,7 @@ export function RunbookViewer({
   } = useSuspenseQuery(runbookOptions(project, slug, preview));
   const page = findPage(runbook.spec, pagePath);
   const tree = pageNavTree(runbook.spec);
+  const proseRef = useRef<HTMLDivElement>(null);
   // Build the link resolver once per runbook: it captures the page-path set
   // and file map so each rendered link doesn't re-walk the spec tree.
   const resolveLink = useMemo(
@@ -75,12 +77,16 @@ export function RunbookViewer({
       {/* The reading measure is the frame's job: the pane centers this column
           (see the runbooks route layout), so nothing here caps its width. */}
       {page ? (
-        <RunbookMarkdown
-          markdown={page.markdown}
-          project={project}
-          slug={slug}
-          resolveLink={resolvePageLink}
-        />
+        <>
+          <RunbookToc container={proseRef} pageKey={`${slug}/${pagePath}`} />
+          <RunbookMarkdown
+            markdown={page.markdown}
+            project={project}
+            slug={slug}
+            resolveLink={resolvePageLink}
+            containerRef={proseRef}
+          />
+        </>
       ) : (
         <div className="flex flex-col items-center gap-3 py-16 text-muted-foreground">
           <FileQuestion className="size-10" />

@@ -1,6 +1,7 @@
 import { cn } from "@everr/ui/lib/utils";
 import { Link } from "@tanstack/react-router";
 import type { CSSProperties, ReactNode } from "react";
+import { groupLabelClass } from "@/components/dashboards/dashboard-tree";
 import type { PageNavNode } from "@/data/runbooks/pages";
 
 /** Each nesting level of pages steps in by this much past the one above. */
@@ -44,6 +45,9 @@ export function RunbookPagesNav(props: PagesNavProps) {
           aria-label="Runbook pages"
           className="sticky top-3 flex w-40 flex-col gap-0.5 @[76rem]/pane:w-44 @[88rem]/pane:w-52"
         >
+          {/* Named, because a second list floats on the other side of the text
+              and the two answer different questions. */}
+          <span className={cn(groupLabelClass, "mb-1 px-2")}>Pages</span>
           <PageLinks {...props} />
         </nav>
       </div>
