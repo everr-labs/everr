@@ -1,3 +1,4 @@
+import { FilterSearchBar } from "@everr/ui/components/filter-search-bar";
 import { Label } from "@everr/ui/components/label";
 import type { TimeRange } from "@everr/ui/lib/time-range";
 import { cn } from "@everr/ui/lib/utils";
@@ -5,7 +6,6 @@ import { Hash } from "lucide-react";
 import type { ReactNode } from "react";
 import { AttributeFilterSection } from "../../attribute-filter/ui/attribute-filter-section";
 import { ExploreFilterRail } from "../../filters/ui/explore-filter-rail";
-import { FilterSearchBar } from "../../filters/ui/filter-search-bar";
 import type { LogsRepositoryLike } from "../data/repository";
 import type { AttributeFilter, LogLevel } from "../schemas";
 import {
