@@ -32,12 +32,11 @@ vi.mock("./node", () => ({
   SpanKind: { SERVER: 1 },
 }));
 
-// The real matcher pulls the whole generated route tree (and the server env
-// with it) into the test environment, so stub it with the shared derivation
-// over a two-route tree.
-vi.mock("./server-router", async () => {
-  const { routeTemplate } = await import("./route-template");
-  const matcher = {
+// The real router pulls the whole generated route tree (and the server env
+// with it) into the test environment, so stub the factory with a two-route
+// matcher. The real `routeTemplate` derivation still runs.
+vi.mock("@/router", () => ({
+  getRouter: () => ({
     matchRoutes: (pathname: string) =>
       pathname === "/api/cli/sql"
         ? [
@@ -45,16 +44,13 @@ vi.mock("./server-router", async () => {
             { routeId: "/api/cli/sql", fullPath: "/api/cli/sql" },
           ]
         : [{ routeId: "__root__", fullPath: "/" }],
-  };
-  return {
-    serverRouteTemplate: (pathname: string) => routeTemplate(matcher, pathname),
-  };
-});
+  }),
+}));
 
-import { instrumentServerFetch } from "./server";
+import { instrumentFetch } from "./server";
 import { recordServerFunctionName } from "./server-fn-name";
 
-describe("instrumentServerFetch", () => {
+describe("instrumentFetch", () => {
   beforeEach(() => {
     telemetryMocks.captureError.mockClear();
     telemetryMocks.startActiveSpan.mockClear();
@@ -64,10 +60,9 @@ describe("instrumentServerFetch", () => {
   });
 
   it("records 5xx responses as server response errors", async () => {
-    const response = await instrumentServerFetch(
-      new Request("http://localhost/api/cli/sql", { method: "POST" }),
+    const response = await instrumentFetch(
       () => new Response("{}", { status: 500 }),
-    );
+    )(new Request("http://localhost/api/cli/sql", { method: "POST" }));
 
     expect(response.status).toBe(500);
     expect(response.headers.get("x-everr-route")).toBe("/api/cli/sql");
@@ -85,10 +80,9 @@ describe("instrumentServerFetch", () => {
   });
 
   it("names an unmatched path by method only, with no http.route", async () => {
-    const response = await instrumentServerFetch(
-      new Request("http://localhost/wp-login.php"),
+    const response = await instrumentFetch(
       () => new Response("{}", { status: 200 }),
-    );
+    )(new Request("http://localhost/wp-login.php"));
     expect(response.headers.get("x-everr-route")).toBeNull();
 
     expect(telemetryMocks.startActiveSpan).toHaveBeenCalledWith(
@@ -107,11 +101,10 @@ describe("instrumentServerFetch", () => {
   });
 
   it("parameterizes TanStack dev serverFn IDs in server span names and attributes", async () => {
-    await instrumentServerFetch(
+    await instrumentFetch(() => new Response("{}", { status: 200 }))(
       new Request(
         "http://localhost/_serverFn/eyJmaWxlIjoiL3NyYy9yb3V0ZXMvX19yb290LnRzeD90c3Mtc2VydmVyZm4tc3BsaXQiLCJleHBvcnQiOiJnZXRTZXNzaW9uX2NyZWF0ZVNlcnZlckZuX2hhbmRsZXIifQ",
       ),
-      () => new Response("{}", { status: 200 }),
     );
 
     expect(telemetryMocks.startActiveSpan).toHaveBeenCalledWith(
@@ -132,16 +125,15 @@ describe("instrumentServerFetch", () => {
   });
 
   it("renames the span and the route echo after the middleware reports the function name", async () => {
-    const response = await instrumentServerFetch(
+    const response = await instrumentFetch(() => {
+      // The middleware runs inside the wrapper's context and reports the
+      // name it read from serverFnMeta.
+      recordServerFunctionName("getSession");
+      return new Response("{}", { status: 200 });
+    })(
       new Request("http://localhost/_serverFn/c4d3d0c28997f144965eeaca", {
         method: "POST",
       }),
-      () => {
-        // The middleware runs inside the wrapper's context and reports the
-        // name it read from serverFnMeta.
-        recordServerFunctionName("getSession");
-        return new Response("{}", { status: 200 });
-      },
     );
 
     expect(telemetryMocks.span.updateName).toHaveBeenCalledWith(
@@ -155,10 +147,9 @@ describe("instrumentServerFetch", () => {
   });
 
   it("keeps the /_serverFn/:id fallback when no name is reported", async () => {
-    const response = await instrumentServerFetch(
-      new Request("http://localhost/_serverFn/c4d3d0c28997f144965eeaca"),
+    const response = await instrumentFetch(
       () => new Response("{}", { status: 200 }),
-    );
+    )(new Request("http://localhost/_serverFn/c4d3d0c28997f144965eeaca"));
 
     expect(telemetryMocks.span.updateName).not.toHaveBeenCalled();
     expect(response.headers.get("x-everr-route")).toBe("/_serverFn/:id");

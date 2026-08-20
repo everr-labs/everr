@@ -17,7 +17,7 @@ export const Route = createFileRoute("/api/cli/sql")({
     handlers: {
       POST: async ({ request, context }) => {
         const sql = await request.text();
-        // The active span here is the SERVER span opened by instrumentServerFetch
+        // The active span here is the SERVER span opened by instrumentFetch
         // (it wraps the whole fetch). We annotate it directly rather than open a
         // child, so cloud-query health is queryable off the request span itself.
         const span = trace.getActiveSpan();

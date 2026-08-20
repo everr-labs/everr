@@ -39,14 +39,13 @@ import {
   defaultStreamHandler,
   defineHandlerCallback,
 } from "@tanstack/react-start/server";
-import { instrumentServerFetch } from "@/telemetry/server";
+import { instrumentFetch } from "@/telemetry/server";
 import "@/telemetry/node";
 
 const startFetch = createStartHandler(defineHandlerCallback(defaultStreamHandler));
 
 export default {
-  fetch: (...args: Parameters<typeof startFetch>) =>
-    instrumentServerFetch(args[0], () => startFetch(...args)),
+  fetch: instrumentFetch(startFetch),
 };
 ```
 
@@ -84,7 +83,7 @@ Do not reuse the router the framework builds to render: it does not exist yet wh
 
 Build that matcher from the same factory as the app router, behind a flag that skips the query client and the telemetry registration. The server caches the processed route tree globally by route tree identity, ignoring the options that decide how it is processed (`routeMasks` and `caseSensitive`), so the first router built wins for the whole process and the matcher is built first. A separately configured matcher makes every later render throw `Cannot read properties of null (reading 'get')`, in production only.
 
-`instrumentServerFetch` starts a SERVER span named `<METHOD> <route-template>`:
+`instrumentFetch` wraps the handler and starts a SERVER span named `<METHOD> <route-template>`:
 
 - Extract the parent context from the request headers with `propagation.extract` so browser-injected `traceparent` (and any first-party client's) parents the span. Requests without the header extract to an empty context and root themselves.
 - Parameterize the path before it becomes the span name or `http.route`; raw paths are unbounded cardinality.
