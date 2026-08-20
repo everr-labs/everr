@@ -28,26 +28,33 @@ export function registerRouter(router: RouterLike): void {
 
 Follow `nodejs.md` for the NodeSDK setup module, including the hot-reload guard: `vite dev` runs the server in-process and re-evaluates on reload.
 
-### Request Spans In The Server Entry
+### Request Spans In Global Request Middleware
 
-The framework entrypoint for server telemetry is a custom `src/server.ts`: import the setup module first, then wrap the Start fetch handler so every request gets a SERVER span.
+Start's own hook for this is global request middleware, registered in `src/start.ts`. It runs for every request the framework serves, SSR and server functions alike. Prefer it over wrapping the fetch handler in `src/server.ts`: the wrapper works, but it sits outside the framework and has to re-derive things middleware is handed.
 
 ```ts
-// src/server.ts
-import {
-  createStartHandler,
-  defaultStreamHandler,
-  defineHandlerCallback,
-} from "@tanstack/react-start/server";
-import { instrumentFetch } from "@/telemetry/server";
-import "@/telemetry/node";
-
-const startFetch = createStartHandler(defineHandlerCallback(defaultStreamHandler));
-
-export default {
-  fetch: instrumentFetch(startFetch),
-};
+// src/start.ts
+export const startInstance = createStart(() => ({
+  requestMiddleware: [requestTelemetryMiddleware],
+  functionMiddleware: [serverFnTelemetryMiddleware],
+}));
 ```
+
+```ts
+// src/telemetry/server.ts
+export const requestTelemetryMiddleware = createMiddleware({
+  type: "request",
+}).server(async ({ request, pathname, handlerType, next }) => {
+  // ...open the SERVER span, then:
+  const result = await next();
+  result.response.headers.set("x-everr-route", route);
+  return result;
+});
+```
+
+`handlerType` is `"serverFn"` or `"router"`, so the kind of request never has to be guessed from the path. Note that `serverFnMeta` is declared on the request middleware context but is not populated there (checked at 1.169.23), so the function's name still has to come from the function middleware.
+
+Defining a start instance replaces Start's default CSRF middleware. Once `requestMiddleware` is set, include `createCsrfMiddleware()` in the array or server functions are left unprotected.
 
 ```ts
 // src/telemetry/route-template.ts: one route-template derivation, shared by
@@ -81,15 +88,15 @@ export function routeTemplate(
 
 Do not reuse the router the framework builds to render: it does not exist yet when the wrapper needs `http.route`, and it is bound to a single request. Build a standalone matcher once and pass it to `routeTemplate`. The server sees the full tree, API routes included.
 
-Build that matcher from the same factory as the app router, behind a flag that skips the query client and the telemetry registration. The server caches the processed route tree globally by route tree identity, ignoring the options that decide how it is processed (`routeMasks` and `caseSensitive`), so the first router built wins for the whole process and the matcher is built first. A separately configured matcher makes every later render throw `Cannot read properties of null (reading 'get')`, in production only.
+Build that matcher from the app's own router factory rather than a second `createRouter`. The server caches the processed route tree globally by route tree identity, ignoring the options that decide how it is processed (`routeMasks` and `caseSensitive`), so the first router built wins for the whole process and the matcher is built first. A separately configured matcher makes every later render throw `Cannot read properties of null (reading 'get')`, in production only.
 
-`instrumentFetch` wraps the handler and starts a SERVER span named `<METHOD> <route-template>`:
+The middleware starts a SERVER span named `<METHOD> <route-template>`:
 
 - Extract the parent context from the request headers with `propagation.extract` so browser-injected `traceparent` (and any first-party client's) parents the span. Requests without the header extract to an empty context and root themselves.
 - Parameterize the path before it becomes the span name or `http.route`; raw paths are unbounded cardinality.
 - Set `http.response.status_code` from the response; capture 5xx responses and thrown errors with `captureError`.
 - Echo the derived route on the response: `response.headers.set("x-everr-route", route)` when a route matched. The browser's `network()` reads this header into `url.template`, which is how browser request spans get exact templates for the server-only routes the client tree cannot see.
-- When wrapping the handler this way, disable the HTTP auto-instrumentation's incoming-request span (`disableIncomingRequestInstrumentation: true`) so each request gets one SERVER span, not two.
+- Disable the HTTP auto-instrumentation's incoming-request span (`disableIncomingRequestInstrumentation: true`) so each request gets one SERVER span, not two.
 
 ### Server Functions
 

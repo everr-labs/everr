@@ -33,46 +33,37 @@ const routeMasks = [
 /**
  * The app's router, and deliberately the only `createRouter` call in it.
  *
- * `forRouteMatchingOnly` yields a router that just answers `matchRoutes`, for
- * deriving `http.route`. It skips the query client and the telemetry
- * registration, which belong to the router that renders. Neither mode passes a
- * history: Start hands the rendering router the request's, and matching needs
- * none.
+ * Telemetry builds one of these too, to resolve `http.route`, and it must come
+ * from here rather than its own `createRouter`. On the server router-core
+ * caches the processed route tree on `globalThis.__TSR_CACHE__`, keyed only by
+ * route tree identity and blind to the options that decide how the tree is
+ * processed (`routeMasks`, `caseSensitive`). The first router built wins for
+ * the whole process, so a separately configured second one inherits a tree
+ * that does not match its own options and crashes in `findFlatMatch`. A single
+ * call site keeps those options identical by construction.
  *
- * Both modes come from one factory because on the server router-core caches
- * the processed route tree on `globalThis.__TSR_CACHE__`, keyed only by route
- * tree identity and blind to the options that decide how the tree is processed
- * (`routeMasks`, `caseSensitive`). The first router built wins for the whole
- * process, so a separately configured second one inherits a tree that does not
- * match its own options and crashes in `findFlatMatch`. A single call site
- * keeps those options identical by construction.
+ * It passes no history: Start hands the rendering router the request's, and
+ * matching needs none.
  *
  * Observed on @tanstack/react-router 1.170.23 (router-core 1.171.19); revisit
  * if the cache key learns about the options.
  */
-export const getRouter = ({
-  forRouteMatchingOnly = false,
-}: {
-  forRouteMatchingOnly?: boolean;
-} = {}) => {
-  const queryClient = forRouteMatchingOnly
-    ? undefined
-    : new QueryClient({
-        defaultOptions: {
-          queries: {
-            staleTime: 30_000,
-            gcTime: 5 * 60_000,
-            refetchOnWindowFocus: true,
-            retry: 3,
-          },
-        },
-      });
+export const getRouter = () => {
+  const queryClient = new QueryClient({
+    defaultOptions: {
+      queries: {
+        staleTime: 30_000,
+        gcTime: 5 * 60_000,
+        refetchOnWindowFocus: true,
+        retry: 3,
+      },
+    },
+  });
 
   const router = createRouter({
     routeTree,
     routeMasks,
-    // A matcher never loads a route, so its context is never read.
-    context: queryClient ? { queryClient } : ({} as RouterContext),
+    context: { queryClient },
     // Captures and renders any route render error the router catches in its
     // per-route boundary (routes with their own errorComponent still win).
     defaultErrorComponent: RootErrorComponent,
@@ -87,8 +78,6 @@ export const getRouter = ({
     ),
   });
 
-  // The telemetry SDK holds one global resolver, so only the rendering router
-  // claims it.
-  if (!forRouteMatchingOnly) registerRouter(router);
+  registerRouter(router);
   return router;
 };

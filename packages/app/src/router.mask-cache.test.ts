@@ -39,16 +39,17 @@ function renderingRouter() {
   return router;
 }
 
-// Whichever router is built first seeds the process-wide route tree cache, so
-// a mismatch between the two modes crashes the other one. See `getRouter`.
-// Production builds the matcher first; both orders are covered so neither mode
-// can drift from the other.
+// The first router built on the server seeds a process-wide cache of the
+// processed route tree, and later ones reuse it. Telemetry builds one to
+// resolve http.route and Start builds one per request to render, so `getRouter`
+// runs more than once per process and every one after the first takes the
+// cached path. See `getRouter`.
 beforeEach(() => {
   globalThis.__TSR_CACHE__ = undefined;
 });
 
-test("matcher first, then the rendering router", () => {
-  getRouter({ forRouteMatchingOnly: true });
+test("a second router can still build a location off the cached tree", () => {
+  getRouter();
   // Guards against passing for the wrong reason: if the environment stops
   // exercising the cache, there is no bug left to reproduce.
   expect(globalThis.__TSR_CACHE__).toBeDefined();
@@ -57,17 +58,10 @@ test("matcher first, then the rendering router", () => {
   expect(() => router.buildLocation({ to: "/traces" })).not.toThrow();
 });
 
-test("rendering router first, then the matcher", () => {
-  const router = renderingRouter();
+test("a second router can still match routes off the cached tree", () => {
+  renderingRouter();
   expect(globalThis.__TSR_CACHE__).toBeDefined();
 
-  const matcher = getRouter({ forRouteMatchingOnly: true });
+  const matcher = getRouter();
   expect(matcher.matchRoutes("/traces").at(-1)?.fullPath).toBe("/traces");
-  expect(() => router.buildLocation({ to: "/traces" })).not.toThrow();
-});
-
-test("the matcher resolves route templates without a query client", () => {
-  const matcher = getRouter({ forRouteMatchingOnly: true });
-  expect(matcher.matchRoutes("/traces").at(-1)?.fullPath).toBe("/traces");
-  expect(matcher.options.context.queryClient).toBeUndefined();
 });
