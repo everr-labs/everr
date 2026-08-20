@@ -3,7 +3,13 @@
   "version": "0.0.0",
   "description": "OpenTelemetry instrumentation for TanStack Start: SERVER spans with http.route, and server-function spans.",
   "type": "module",
-  "license": "MIT",
+  "license": "Apache-2.0",
+  "sideEffects": false,
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/everr-labs/everr.git",
+    "directory": "packages/tanstack-start-otel"
+  },
   "files": [
     "dist"
   ],

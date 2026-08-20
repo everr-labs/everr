@@ -1,7 +1,7 @@
-import type { Attributes } from "@opentelemetry/api";
-import { SpanKind, trace } from "@opentelemetry/api";
 import { captureError } from "@everr/otel-errors";
-import { recordServerFunctionName } from "./server-fn-name";
+import type { Attributes, Tracer } from "@opentelemetry/api";
+import { SpanKind } from "@opentelemetry/api";
+import { recordServerFunctionName } from "./server-fn-name.js";
 
 export interface ServerFnTelemetryOptions {
   /**
@@ -21,12 +21,19 @@ export type ServerFunctionMeta = {
 };
 
 export async function instrumentServerFunction<T>(
-  request: Request | undefined,
-  serverFnMeta: ServerFunctionMeta | undefined,
   run: () => T | Promise<T>,
-  { isExpectedError, tracerName = "tanstack-start.server_fn" }: ServerFnTelemetryOptions = {},
+  {
+    tracer,
+    request,
+    serverFnMeta,
+    isExpectedError,
+  }: {
+    tracer: Tracer;
+    request: Request | undefined;
+    serverFnMeta: ServerFunctionMeta | undefined;
+    isExpectedError?: (error: unknown) => boolean;
+  },
 ) {
-  const tracer = trace.getTracer(tracerName);
   // Report the name to the transport wrapper, which only sees the opaque
   // /_serverFn/<id> path: it renames its SERVER span and the x-everr-route
   // echo to `/_serverFn/{name}` once the response settles.

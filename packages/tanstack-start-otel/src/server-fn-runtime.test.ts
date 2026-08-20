@@ -33,7 +33,11 @@ vi.mock("@opentelemetry/api", async (importOriginal) => ({
   },
 }));
 
-import { instrumentServerFunction } from "./server-fn-runtime";
+import { instrumentServerFunction } from "./server-fn-runtime.js";
+
+const tracer = {
+  startActiveSpan: telemetryMocks.startActiveSpan,
+} as unknown as import("@opentelemetry/api").Tracer;
 
 describe("instrumentServerFunction", () => {
   beforeEach(() => {
@@ -48,14 +52,19 @@ describe("instrumentServerFunction", () => {
 
     await expect(
       instrumentServerFunction(
-        new Request("http://localhost/_serverFn/c4d3d0c28997f144965eeaca"),
-        {
-          filename: "src/lib/auth.server.ts",
-          id: "c4d3d0c28997f144965eeaca",
-          name: "getActiveOrganization",
-        },
         () => {
           throw error;
+        },
+        {
+          tracer,
+          request: new Request(
+            "http://localhost/_serverFn/c4d3d0c28997f144965eeaca",
+          ),
+          serverFnMeta: {
+            filename: "src/lib/auth.server.ts",
+            id: "c4d3d0c28997f144965eeaca",
+            name: "getActiveOrganization",
+          },
         },
       ),
     ).rejects.toThrow("database unavailable");
@@ -84,16 +93,21 @@ describe("instrumentServerFunction", () => {
 
     await expect(
       instrumentServerFunction(
-        new Request("http://localhost/_serverFn/c4d3d0c28997f144965eeaca"),
-        {
-          filename: "src/lib/auth.server.ts",
-          id: "c4d3d0c28997f144965eeaca",
-          name: "getActiveOrganization",
-        },
         () => {
           throw new Error(message);
         },
-        { isExpectedError: (error) => (error as Error).message === message },
+        {
+          tracer,
+          request: new Request(
+            "http://localhost/_serverFn/c4d3d0c28997f144965eeaca",
+          ),
+          serverFnMeta: {
+            filename: "src/lib/auth.server.ts",
+            id: "c4d3d0c28997f144965eeaca",
+            name: "getActiveOrganization",
+          },
+          isExpectedError: (error) => (error as Error).message === message,
+        },
       ),
     ).rejects.toThrow(message);
 
@@ -101,18 +115,18 @@ describe("instrumentServerFunction", () => {
     expect(telemetryMocks.span.end).toHaveBeenCalledOnce();
   });
 
-    it("names the span after the function", async () => {
-    await instrumentServerFunction(
-      new Request(
+  it("names the span after the function", async () => {
+    await instrumentServerFunction(() => "ok", {
+      tracer,
+      request: new Request(
         "http://localhost/_serverFn/eyJmaWxlIjoiL3NyYy9yb3V0ZXMvX19yb290LnRzeD90c3Mtc2VydmVyZm4tc3BsaXQiLCJleHBvcnQiOiJnZXRTZXNzaW9uX2NyZWF0ZVNlcnZlckZuX2hhbmRsZXIifQ",
       ),
-      {
+      serverFnMeta: {
         filename: "src/routes/__root.tsx",
         id: "eyJmaWxlIjoiL3NyYy9yb3V0ZXMvX19yb290LnRzeD90c3Mtc2VydmVyZm4tc3BsaXQiLCJleHBvcnQiOiJnZXRTZXNzaW9uX2NyZWF0ZVNlcnZlckZuX2hhbmRsZXIifQ",
         name: "getSession",
       },
-      () => "ok",
-    );
+    });
 
     expect(telemetryMocks.startActiveSpan).toHaveBeenCalledWith(
       "serverFn getSession",

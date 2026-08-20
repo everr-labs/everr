@@ -1,12 +1,12 @@
+import { captureError } from "@everr/otel-errors";
 import type { Attributes, TextMapGetter } from "@opentelemetry/api";
 import { context, propagation, SpanKind, trace } from "@opentelemetry/api";
-import { captureError } from "@everr/otel-errors";
 import { createMiddleware } from "@tanstack/react-start";
-import { type RouterLike, routeTemplate } from "./route-template";
+import { type RouterLike, routeTemplate } from "./route-template.js";
 import {
   runWithServerFunctionName,
   type ServerFunctionName,
-} from "./server-fn-name";
+} from "./server-fn-name.js";
 
 export interface RequestTelemetryOptions {
   /**
@@ -50,88 +50,91 @@ export const createRequestTelemetryMiddleware = ({
   let matcher: RouterLike | undefined;
 
   return createMiddleware({
-  type: "request",
-}).server(async ({ request, pathname, handlerType, next }) => {
-  matcher ??= router();
-  const route = routeTemplate(matcher, pathname);
-  const method = request.method.toUpperCase();
+    type: "request",
+  }).server(async ({ request, pathname, handlerType, next }) => {
+    matcher ??= router();
+    const route = routeTemplate(matcher, pathname);
+    const method = request.method.toUpperCase();
 
-  // A server function request carries only the opaque id in its path. Start
-  // does not hand the name to request middleware, so the function middleware
-  // reports it into this holder mid-flight and the route can settle on
-  // `/_serverFn/{name}` once the call returns.
-  const serverFn: ServerFunctionName | undefined =
-    handlerType === "serverFn" ? {} : undefined;
-  const resolved = () =>
-    serverFn?.name ? `/_serverFn/${serverFn.name}` : route;
-  const attrs = (
-    route: string | undefined,
-    extra?: Attributes,
-  ): Attributes => ({
-    "http.request.method": method,
-    "url.path": pathname,
-    ...(route === undefined ? {} : { "http.route": route }),
-    ...extra,
-  });
+    // A server function request carries only the opaque id in its path. Start
+    // does not hand the name to request middleware, so the function middleware
+    // reports it into this holder mid-flight and the route can settle on
+    // `/_serverFn/{name}` once the call returns.
+    const serverFn: ServerFunctionName | undefined =
+      handlerType === "serverFn" ? {} : undefined;
+    const resolved = () =>
+      serverFn?.name ? `/_serverFn/${serverFn.name}` : route;
+    // Reads `resolved()` rather than taking a route, so callers cannot pass a
+    // route that has gone stale since the server function reported its name.
+    const attrs = (extra?: Attributes): Attributes => {
+      const current = resolved();
+      return {
+        "http.request.method": method,
+        "url.path": pathname,
+        ...(current === undefined ? {} : { "http.route": current }),
+        ...extra,
+      };
+    };
 
-  return tracer.startActiveSpan(
-    route === undefined ? method : `${method} ${route}`,
-    {
-      // Continue a trace a first-party client started (the browser, or the CLI
-      // injecting `traceparent`). No header extracts to an empty context, and
-      // the span roots itself.
-      attributes: attrs(route, {
-        "url.scheme": new URL(request.url).protocol.replace(/:$/, ""),
-      }),
-      kind: SpanKind.SERVER,
-    },
-    propagation.extract(context.active(), request.headers, headersGetter),
-    async (span) => {
-      let final = route;
-      try {
-        const result = await (serverFn
-          ? runWithServerFunctionName(serverFn, () => next())
-          : next());
-        final = resolved();
+    return tracer.startActiveSpan(
+      route === undefined ? method : `${method} ${route}`,
+      {
+        // Continue a trace a first-party client started (the browser, or the CLI
+        // injecting `traceparent`). No header extracts to an empty context, and
+        // the span roots itself.
+        attributes: attrs({
+          "url.scheme": new URL(request.url).protocol.replace(/:$/, ""),
+        }),
+        kind: SpanKind.SERVER,
+      },
+      propagation.extract(context.active(), request.headers, headersGetter),
+      async (span) => {
+        try {
+          const result = await (serverFn
+            ? runWithServerFunctionName(serverFn, () => next())
+            : next());
+          const final = resolved();
 
-        // Echo the route so the browser SDK can stamp url.template on its
-        // client span: the client tree has no server-only routes, so this
-        // header is its only exact source. Immutable headers keep theirs.
-        if (final !== undefined) {
-          try {
-            result.response.headers.set("x-everr-route", final);
-          } catch {}
-        }
+          // Echo the route so the browser SDK can stamp url.template on its
+          // client span: the client tree has no server-only routes, so this
+          // header is its only exact source. Immutable headers keep theirs.
+          if (final !== undefined) {
+            try {
+              result.response.headers.set("x-everr-route", final);
+            } catch {}
+          }
 
-        const status = result.response.status;
-        span.setAttribute("http.response.status_code", status);
-        if (status >= 500) {
+          const status = result.response.status;
+          span.setAttribute("http.response.status_code", status);
+          if (status >= 500) {
+            captureError(
+              new Error(`HTTP ${status}`),
+              attrs({
+                "everr.error.source": "server.response",
+                "http.response.status_code": status,
+              }),
+            );
+          }
+          return result;
+        } catch (error) {
           captureError(
-            new Error(`HTTP ${status}`),
-            attrs(final, {
-              "everr.error.source": "server.response",
-              "http.response.status_code": status,
+            error,
+            attrs({
+              "everr.error.source": "server.request",
             }),
           );
+          throw error;
+        } finally {
+          // The name only arrives once the function middleware has run, so the
+          // span is renamed here rather than at start.
+          const final = resolved();
+          if (final !== undefined && final !== route) {
+            span.updateName(`${method} ${final}`);
+            span.setAttribute("http.route", final);
+          }
+          span.end();
         }
-        return result;
-      } catch (error) {
-        final = resolved();
-        captureError(
-          error,
-          attrs(final, {
-            "everr.error.source": "server.request",
-          }),
-        );
-        throw error;
-      } finally {
-        if (final !== undefined && final !== route) {
-          span.updateName(`${method} ${final}`);
-          span.setAttribute("http.route", final);
-        }
-        span.end();
-      }
-    },
-  );
-});
+      },
+    );
+  });
 };

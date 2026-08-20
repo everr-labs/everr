@@ -8,11 +8,7 @@ const middlewareMocks = vi.hoisted(() => ({
     () => new Request("http://localhost/_serverFn/c4d3d0c28997f144965eeaca"),
   ),
   instrumentServerFunction: vi.fn(
-    async (
-      _request: Request | undefined,
-      _serverFnMeta: unknown,
-      run: () => Promise<unknown>,
-    ) => run(),
+    async (run: () => Promise<unknown>, _options: unknown) => run(),
   ),
 }));
 
@@ -24,11 +20,11 @@ vi.mock("@tanstack/react-start/server", () => ({
   getRequest: middlewareMocks.getRequest,
 }));
 
-vi.mock("./server-fn-runtime", () => ({
+vi.mock("./server-fn-runtime.js", () => ({
   instrumentServerFunction: middlewareMocks.instrumentServerFunction,
 }));
 
-import { createServerFnTelemetryMiddleware } from "./server-fn-middleware";
+import { createServerFnTelemetryMiddleware } from "./server-fn-middleware.js";
 
 const testMiddleware = createServerFnTelemetryMiddleware() as unknown as {
   runServer: (options: {
@@ -54,10 +50,14 @@ describe("createServerFnTelemetryMiddleware", () => {
     ).resolves.toBe("ok");
 
     expect(middlewareMocks.instrumentServerFunction).toHaveBeenCalledWith(
-      new Request("http://localhost/_serverFn/c4d3d0c28997f144965eeaca"),
-      serverFnMeta,
       expect.any(Function),
-      expect.any(Object),
+      expect.objectContaining({
+        request: new Request(
+          "http://localhost/_serverFn/c4d3d0c28997f144965eeaca",
+        ),
+        serverFnMeta,
+        tracer: expect.any(Object),
+      }),
     );
   });
 });

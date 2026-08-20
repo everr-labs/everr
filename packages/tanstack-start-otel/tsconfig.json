@@ -3,8 +3,8 @@
   "exclude": ["src/**/*.test.ts"],
   "compilerOptions": {
     "target": "ES2022",
-    "module": "Preserve",
-    "moduleResolution": "Bundler",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
     "lib": ["ES2022"],
     "types": ["node"],
     "outDir": "./dist",

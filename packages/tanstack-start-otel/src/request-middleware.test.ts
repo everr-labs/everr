@@ -47,8 +47,8 @@ const router = () => ({
       : [{ routeId: "__root__", fullPath: "/" }],
 });
 
-import { createRequestTelemetryMiddleware } from "./request-middleware";
-import { recordServerFunctionName } from "./server-fn-name";
+import { createRequestTelemetryMiddleware } from "./request-middleware.js";
+import { recordServerFunctionName } from "./server-fn-name.js";
 
 // Drive the middleware the way Start does: it passes the request, the
 // pathname, and the handler kind, and `next` yields the downstream response.

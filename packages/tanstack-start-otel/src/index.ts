@@ -1,10 +1,9 @@
-export {
-  createRequestTelemetryMiddleware,
-  type RequestTelemetryOptions,
-} from "./request-middleware";
-export { routeTemplate, type RouterLike } from "./route-template";
-export { createServerFnTelemetryMiddleware } from "./server-fn-middleware";
-export {
-  type ServerFunctionMeta,
-  type ServerFnTelemetryOptions,
-} from "./server-fn-runtime";
+export type { RequestTelemetryOptions } from "./request-middleware.js";
+export { createRequestTelemetryMiddleware } from "./request-middleware.js";
+export type { RouterLike } from "./route-template.js";
+export { routeTemplate } from "./route-template.js";
+export { createServerFnTelemetryMiddleware } from "./server-fn-middleware.js";
+export type {
+  ServerFnTelemetryOptions,
+  ServerFunctionMeta,
+} from "./server-fn-runtime.js";

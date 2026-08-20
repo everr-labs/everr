@@ -65,37 +65,7 @@ The package emits a SERVER span named `<METHOD> <route-template>`, echoes the te
 
 Disable the HTTP auto-instrumentation's incoming-request span (`disableIncomingRequestInstrumentation: true`) so each request gets one SERVER span, not two.
 
-The derivation the package uses, for reference when debugging an unexpected `http.route`:
-
-```ts
-// src/telemetry/route-template.ts: one route-template derivation, shared by
-// the server's http.route stamping and the browser's page resolver above.
-// Server function calls go over POST /_serverFn/<id>, a deterministic prefix
-// outside the tree.
-export type RouterLike = {
-  matchRoutes(
-    pathname: string,
-  ): ReadonlyArray<{ routeId: string; fullPath: string }>;
-};
-
-export function routeTemplate(
-  router: RouterLike,
-  pathname: string,
-): string | undefined {
-  if (pathname.startsWith("/_serverFn/")) {
-    return pathname.replace(/^\/_serverFn\/[^/]+/, "/_serverFn/:id");
-  }
-  const match = router.matchRoutes(pathname).at(-1);
-  // Filter the root fallthrough and the generated not-found route: an
-  // unmatched path has no template rather than a fake one. The fullPath drops
-  // pathless segments such as /_authenticated from the template.
-  return match === undefined ||
-    match.routeId === "__root__" ||
-    match.routeId.includes("404")
-    ? undefined
-    : match.fullPath;
-}
-```
+The derivation, when an `http.route` looks wrong: a `/_serverFn/` path becomes `/_serverFn/:id`, otherwise it is the deepest match's `fullPath` (which drops pathless segments such as `/_authenticated`), and a path only the root matches has no template rather than a fake one. The source is `route-template.ts` in the package.
 
 The package builds this matcher once per process from the factory you pass, and never from the router the framework builds to render: that one does not exist yet when the middleware needs `http.route`, and it is bound to a single request. The server matcher sees the full tree, API routes included.
 
