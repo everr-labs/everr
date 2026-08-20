@@ -81,7 +81,12 @@ function RunbooksLayout() {
       {/* Named container: the runbook's pages nav floats or lies down by how
           much room this pane has, which the viewport alone cannot tell it.
           `relative` is what that floating nav pins itself to. */}
-      <main className="@container/pane min-h-0 min-w-0 overflow-auto overscroll-y-contain">
+      {/* `scroll-smooth` carries the jump to a heading; the router resets this
+          pane to the top on navigation (see `scrollToTopSelectors`). */}
+      <main
+        data-scroll-to-top
+        className="@container/pane min-h-0 min-w-0 scroll-smooth overflow-auto overscroll-y-contain motion-reduce:scroll-auto"
+      >
         {/* The toggle belongs to the rail, not to the runbook, so it sits at
             the pane's edge against it rather than over the centered text. */}
         <div className="p-3 pb-0">
