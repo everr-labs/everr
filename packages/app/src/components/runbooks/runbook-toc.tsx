@@ -49,6 +49,9 @@ function useActiveHeading(
   const [active, setActive] = useState<string>();
   useEffect(() => {
     if (headings.length === 0) return;
+    // Scoped to the prose: `rehype-slug` only makes ids unique within the page
+    // it rendered, so a document-wide lookup could measure the app shell.
+    const root = container.current;
     // The pane declares itself with the same marker the router resets on
     // (see `scrollToTopSelectors`), so this asks the layer that owns the
     // scrolling rather than sniffing overflow up the tree.
@@ -62,7 +65,7 @@ function useActiveHeading(
       // Headings are in document order, so the first one still below the band
       // ends the search.
       for (const heading of headings) {
-        const el = document.getElementById(heading.id);
+        const el = root?.querySelector(`[id="${CSS.escape(heading.id)}"]`);
         if (!el || el.getBoundingClientRect().top > HEADING_BAND) break;
         current = heading.id;
       }

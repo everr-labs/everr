@@ -20,21 +20,30 @@ export const groupLabelClass =
 export const rowIndent = (depth: number, kind: "resource" | "folder") =>
   depth * 20 + (kind === "folder" ? 4 : 26);
 
-/** One rail row that is not part of a tree: a plain labelled destination. */
+/**
+ * One rail row that is not part of a tree: a plain labelled destination.
+ *
+ * A caller's `className` is merged rather than dropped. `activeProps` is not
+ * accepted at all: the active look is what makes a rail row a rail row, so
+ * overriding it is a type error rather than something that silently happens.
+ */
 export function RailRow({
   label,
   icon: Icon,
+  className,
   ...linkProps
 }: {
   label: string;
   icon: React.ComponentType<{ className?: string }>;
-} & LinkProps) {
+  className?: string;
+} & Omit<LinkProps, "className" | "activeProps">) {
   return (
     <Link
       {...linkProps}
       className={cn(
         railRowClass,
         "flex w-full items-center gap-2.5 px-2 text-left text-foreground",
+        className,
       )}
       activeProps={railRowActiveProps}
     >
