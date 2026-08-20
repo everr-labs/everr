@@ -28,7 +28,7 @@ export function registerRouter(router: RouterLike): void {
 
 Follow `nodejs.md` for the NodeSDK setup module, including the hot-reload guard: `vite dev` runs the server in-process and re-evaluates on reload.
 
-Do not hand-roll the instrumentation. `@everr/tanstack-start-otel` ships both middlewares and the route-template derivation they share; its README documents the spans and attributes. Register them on the start instance, Start's own hook, which covers SSR and server functions alike.
+`@everr/tanstack-start-otel` ships both middlewares and the route-template derivation they share; its README documents the spans and attributes. Register them on the start instance, Start's own hook, which covers SSR and server functions alike.
 
 ```ts
 // src/start.ts
