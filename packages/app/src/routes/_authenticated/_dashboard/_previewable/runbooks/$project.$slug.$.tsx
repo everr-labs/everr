@@ -12,10 +12,20 @@ export const Route = createFileRoute(
   notFoundComponent: RunbookNotFound,
   loaderDeps: ({ search: { preview } }) => ({ preview }),
   loader: ({
-    context: { queryClient },
+    context: { queryClient, session },
     params: { project, slug, _splat },
     deps: { preview },
-  }) => loadRunbook(queryClient, project, slug, preview, _splat ?? ""),
+    preload,
+  }) =>
+    loadRunbook({
+      queryClient,
+      org: session.session.activeOrganizationId,
+      project,
+      slug,
+      preview,
+      pagePath: _splat ?? "",
+      preload,
+    }),
 });
 
 function RunbookSplatPage() {

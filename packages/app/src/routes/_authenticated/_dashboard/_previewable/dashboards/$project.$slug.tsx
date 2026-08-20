@@ -5,7 +5,7 @@ import { DashboardGrid } from "@/components/dashboards/dashboard-grid";
 import gridLayoutOverridesCSS from "@/components/dashboards/dashboard-grid.css?url";
 import { DashboardNotFound } from "@/components/dashboards/dashboard-not-found";
 import { DashboardProvider } from "@/components/dashboards/use-dashboard";
-import { recordLastViewed } from "@/data/dashboards/last-viewed";
+import { lastViewedDashboard } from "@/data/dashboards/last-viewed";
 import { dashboardOptions } from "@/data/dashboards/options";
 import { dashboardTimeDefaults } from "@/data/dashboards/time-defaults";
 
@@ -53,7 +53,7 @@ export const Route = createFileRoute(
     // Preloads (link hover) run this loader too; only a committed navigation
     // counts as "viewed".
     if (!preload)
-      recordLastViewed(session.session.activeOrganizationId, {
+      lastViewedDashboard.record(session.session.activeOrganizationId, {
         kind: "own",
         project,
         slug,

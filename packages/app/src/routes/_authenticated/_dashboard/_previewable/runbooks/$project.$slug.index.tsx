@@ -12,10 +12,19 @@ export const Route = createFileRoute(
   notFoundComponent: RunbookNotFound,
   loaderDeps: ({ search: { preview } }) => ({ preview }),
   loader: ({
-    context: { queryClient },
+    context: { queryClient, session },
     params: { project, slug },
     deps: { preview },
-  }) => loadRunbook(queryClient, project, slug, preview),
+    preload,
+  }) =>
+    loadRunbook({
+      queryClient,
+      org: session.session.activeOrganizationId,
+      project,
+      slug,
+      preview,
+      preload,
+    }),
 });
 
 function RunbookIndexPage() {

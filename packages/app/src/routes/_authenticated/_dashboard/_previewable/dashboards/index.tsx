@@ -1,7 +1,7 @@
 import { DEFAULT_TIME_RANGE } from "@everr/ui/lib/time-range";
 import { createFileRoute, redirect } from "@tanstack/react-router";
 import { getBuiltinDashboard } from "@/data/dashboards/built-in/catalog";
-import { clearLastViewed, readLastViewed } from "@/data/dashboards/last-viewed";
+import { lastViewedDashboard } from "@/data/dashboards/last-viewed";
 import {
   dashboardListOptions,
   telemetryCapabilitiesOptions,
@@ -34,7 +34,7 @@ export const Route = createFileRoute(
   // dashboard, else the first built-in that actually has data — the screen is
   // never blank and never an empty grid when a live one exists.
   loader: async ({ context: { queryClient, session }, deps: { preview } }) => {
-    const last = readLastViewed(session.session.activeOrganizationId);
+    const last = lastViewedDashboard.read(session.session.activeOrganizationId);
 
     // A remembered built-in needs no server data to validate.
     if (last?.kind === "built-in" && getBuiltinDashboard(last.slug)) {
@@ -66,7 +66,7 @@ export const Route = createFileRoute(
     // preview). Clear the stale entry so future visits fall through to the
     // fresh default instead of hitting this dead branch every time.
     if (last?.kind === "own") {
-      clearLastViewed(session.session.activeOrganizationId);
+      lastViewedDashboard.clear(session.session.activeOrganizationId);
     }
 
     // Only top-level dashboards qualify as the default: opening something out
