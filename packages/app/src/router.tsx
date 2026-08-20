@@ -34,27 +34,29 @@ const routeMasks = [
   }),
 ];
 
-export interface GetRouterOptions {
-  /**
-   * Build a router that only answers `matchRoutes`, for deriving `http.route`.
-   * It skips the query client and the telemetry registration, both of which
-   * belong to the router that actually renders.
-   *
-   * Route matching still goes through this one factory because the server
-   * caches the processed route tree on `globalThis.__TSR_CACHE__`, keyed only
-   * by route tree identity and blind to the options that decide how the tree
-   * is processed (`routeMasks` and `caseSensitive`). The first router built
-   * over the tree wins for the whole process, so a second router configured
-   * differently would inherit a tree that does not match its own options and
-   * crash in `findFlatMatch`. One factory keeps those options identical by
-   * construction.
-   */
-  forRouteMatchingOnly?: boolean;
-}
-
+/**
+ * The app's router, and deliberately the only `createRouter` call in it.
+ *
+ * `forRouteMatchingOnly` yields a router that just answers `matchRoutes`, for
+ * deriving `http.route`. It skips the query client and the telemetry
+ * registration, which belong to the router that renders.
+ *
+ * Both modes come from one factory because on the server router-core caches
+ * the processed route tree on `globalThis.__TSR_CACHE__`, keyed only by route
+ * tree identity and blind to the options that decide how the tree is processed
+ * (`routeMasks`, `caseSensitive`). The first router built wins for the whole
+ * process, so a separately configured second one inherits a tree that does not
+ * match its own options and crashes in `findFlatMatch`. A single call site
+ * keeps those options identical by construction.
+ *
+ * Observed on @tanstack/react-router 1.170.23 (router-core 1.171.19); revisit
+ * if the cache key learns about the options.
+ */
 export const getRouter = ({
   forRouteMatchingOnly = false,
-}: GetRouterOptions = {}) => {
+}: {
+  forRouteMatchingOnly?: boolean;
+} = {}) => {
   const queryClient = forRouteMatchingOnly
     ? undefined
     : new QueryClient({
@@ -71,11 +73,11 @@ export const getRouter = ({
   const router = createRouter({
     routeTree,
     routeMasks,
-    // A matcher never navigates, so it gets an inert history rather than the
-    // per-request one Start assigns to the rendering router.
-    ...(forRouteMatchingOnly ? { history: createMemoryHistory() } : {}),
-    // The matcher never loads a route, so its context is never read.
-    context: { queryClient } as RouterContext,
+    // A matcher never navigates; the rendering router is handed the request's
+    // history by Start.
+    history: forRouteMatchingOnly ? createMemoryHistory() : undefined,
+    // A matcher never loads a route, so its context is never read.
+    context: queryClient ? { queryClient } : ({} as RouterContext),
     // Captures and renders any route render error the router catches in its
     // per-route boundary (routes with their own errorComponent still win).
     defaultErrorComponent: RootErrorComponent,
