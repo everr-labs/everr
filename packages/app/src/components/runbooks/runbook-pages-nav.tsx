@@ -43,7 +43,7 @@ export function RunbookPagesNav(props: PagesNavProps) {
             reading column beside it. */}
         <nav
           aria-label="Runbook pages"
-          className="sticky top-3 flex w-40 flex-col gap-0.5 @[76rem]/pane:w-44 @[88rem]/pane:w-52"
+          className="sticky top-3 flex w-40 flex-col gap-1 @[76rem]/pane:w-44 @[88rem]/pane:w-52"
         >
           {/* Named, because a second list floats on the other side of the text
               and the two answer different questions. */}
@@ -167,14 +167,16 @@ function PageLink({
           : ({ paddingLeft: `${depth * PAGE_STEP + 8}px` } as CSSProperties)
       }
       className={cn(
-        "truncate rounded-md py-1.5 text-[0.9375rem] text-muted-foreground transition-colors hover:text-foreground",
-        inline ? "shrink-0 px-2 hover:bg-muted/50" : "block pr-2",
+        "rounded-md py-1.5 text-[0.9375rem] text-muted-foreground leading-snug transition-colors hover:text-foreground",
+        // Floating, a page name wraps rather than being cut: the nav is narrow
+        // and runbook page names are the kind that differ at the end.
+        inline
+          ? "shrink-0 whitespace-nowrap px-2 hover:bg-muted/50"
+          : "block pr-2",
         active && "font-medium text-foreground",
         active && inline && "bg-muted",
       )}
       aria-current={active ? "page" : undefined}
-      // Floating, the nav is too narrow for long page names to fit.
-      title={typeof children === "string" ? children : undefined}
     >
       {children}
     </Link>

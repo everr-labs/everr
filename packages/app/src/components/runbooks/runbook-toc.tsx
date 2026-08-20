@@ -117,17 +117,18 @@ export function RunbookToc({
     <div className="absolute inset-y-0 left-full hidden pl-5 @[67rem]/pane:block">
       <nav
         aria-label="On this page"
-        className="sticky top-3 flex w-40 flex-col gap-0.5 @[76rem]/pane:w-44 @[88rem]/pane:w-52"
+        className="sticky top-3 flex w-40 flex-col gap-1 @[76rem]/pane:w-44 @[88rem]/pane:w-52"
       >
         <span className={cn(groupLabelClass, "mb-1 px-2")}>On this page</span>
         {headings.map((heading) => (
           <a
             key={heading.id}
             href={`#${heading.id}`}
-            title={heading.text}
             aria-current={heading.id === active ? "true" : undefined}
             className={cn(
-              "truncate rounded-md py-1.5 pr-2 text-[0.9375rem] text-muted-foreground transition-colors hover:text-foreground",
+              // Headings wrap rather than being cut: half a heading is not a
+              // heading, and this list is the only place they are all visible.
+              "rounded-md py-1.5 pr-2 text-[0.9375rem] text-muted-foreground leading-snug transition-colors hover:text-foreground",
               heading.level === 3 ? "pl-5" : "pl-2",
               heading.id === active && "font-medium text-foreground",
             )}
