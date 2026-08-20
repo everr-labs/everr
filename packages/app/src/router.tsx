@@ -1,8 +1,9 @@
 import { QueryClient } from "@tanstack/react-query";
-import { createRouteMask, createRouter } from "@tanstack/react-router";
+import { createRouter } from "@tanstack/react-router";
 import { Loader2 } from "lucide-react";
 import { registerRouter } from "@/telemetry/route-pattern";
 import { RootErrorComponent } from "./components/root-error";
+import { routeMasks } from "./route-masks";
 import { routeTree } from "./routeTree.gen";
 
 export interface RouterContext {
@@ -20,26 +21,9 @@ export const getRouter = () => {
       },
     },
   });
-  const traceDetailModalMask = createRouteMask({
-    routeTree,
-    from: "/traces/$traceId/modal",
-    to: "/traces/$traceId",
-    params: true,
-    search: true,
-    unmaskOnReload: true,
-  });
-  const errorDetailModalMask = createRouteMask({
-    routeTree,
-    from: "/errors/$fingerprint/modal",
-    to: "/errors/$fingerprint",
-    params: true,
-    search: true,
-    unmaskOnReload: true,
-  });
-
   const router = createRouter({
     routeTree,
-    routeMasks: [traceDetailModalMask, errorDetailModalMask],
+    routeMasks,
     context: { queryClient },
     // Captures and renders any route render error the router catches in its
     // per-route boundary (routes with their own errorComponent still win).
