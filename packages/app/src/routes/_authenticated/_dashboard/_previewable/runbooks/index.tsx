@@ -1,80 +1,101 @@
-import { Input } from "@everr/ui/components/input";
-import { useQuery } from "@tanstack/react-query";
-import { createFileRoute, useSearch } from "@tanstack/react-router";
-import { AlertCircle, NotebookText, SearchIcon } from "lucide-react";
-import { useState } from "react";
-import { DashboardTree } from "@/components/dashboards/dashboard-tree";
-import { ResourceEmptyState } from "@/components/resource-empty-state";
-import { runbookListOptions } from "@/data/runbooks/options";
-
-const ASSISTANT_RUNBOOK_PROMPT =
-  "/everr-setup-resources Help me build a good first runbook based on the telemetry we have in production";
+import { createFileRoute, redirect } from "@tanstack/react-router";
+import { lastViewedRunbook } from "@/data/runbooks/last-viewed";
+import { runbookListOptions, runbookOptions } from "@/data/runbooks/options";
+import { findPage } from "@/data/runbooks/pages";
 
 export const Route = createFileRoute(
   "/_authenticated/_dashboard/_previewable/runbooks/",
 )({
   staticData: { breadcrumb: "Runbooks" },
   head: () => ({ meta: [{ title: "Everr - Runbooks" }] }),
-  component: RunbooksIndexPage,
+  loaderDeps: ({ search }) => ({ preview: search.preview }),
+  // The index is never a page of its own: the layout always shows the rail, so
+  // landing here opens a runbook instead of leaving the pane blank.
+  loader: async ({ context: { queryClient, session }, deps: { preview } }) => {
+    const org = session.session.activeOrganizationId;
+    const list = await queryClient.ensureQueryData(runbookListOptions(preview));
+    const live = list.filter((r) => r.previewStatus !== "removed");
+
+    // Every redirect below keeps the search (the frame's `full` flag lives
+    // there) and replaces, because this route is never a place to come back
+    // to. Spelled out rather than wrapped: a wrapper loses the typing that
+    // ties each `params` to its own `to`.
+    const last = lastViewedRunbook.read(org);
+    const remembered =
+      last &&
+      live.some((r) => r.project === last.project && r.slug === last.slug)
+        ? last
+        : null;
+    if (remembered) {
+      // The page and heading are checked against the runbook as it is now, not
+      // as it was when the reader left: a runbook is edited as code, and a
+      // remembered page can be gone. A runbook that vanished between the list
+      // and here resolves to null and falls through to the defaults below.
+      const runbook = await queryClient
+        .ensureQueryData(
+          runbookOptions(remembered.project, remembered.slug, preview),
+        )
+        // The list already vouched for this runbook, so a failure here is the
+        // fetch failing, not the runbook being gone. Fall through to the
+        // defaults for this visit rather than forgetting where the reader was.
+        .catch(() => null);
+      const page =
+        remembered.page &&
+        runbook &&
+        findPage(runbook.document.spec, remembered.page)
+          ? remembered.page
+          : null;
+      if (runbook && page) {
+        throw redirect({
+          to: "/runbooks/$project/$slug/$",
+          params: {
+            project: remembered.project,
+            slug: remembered.slug,
+            _splat: page,
+          },
+          hash: remembered.hash,
+          search: (prev) => prev,
+          replace: true,
+        });
+      }
+      if (runbook) {
+        throw redirect({
+          to: "/runbooks/$project/$slug",
+          params: { project: remembered.project, slug: remembered.slug },
+          // A heading belongs to the page it was on: dropping that page drops
+          // the heading with it, rather than carrying a fragment onto a page
+          // that never had it.
+          hash: remembered.page ? undefined : remembered.hash,
+          search: (prev) => prev,
+          replace: true,
+        });
+      }
+    } else if (last) {
+      // Remembered but not in the list: deleted, or removed from the preview.
+      // Clear it so future visits fall through to the fresh default instead of
+      // hitting this dead branch every time.
+      lastViewedRunbook.clear(org);
+    }
+
+    // Prefer a top-level runbook: opening something out of a folder the reader
+    // has never expanded reads as a random pick. With everything in folders,
+    // the first one still beats an empty state that would be a lie.
+    const byName = [...live].sort((a, b) => a.name.localeCompare(b.name));
+    const first = byName.find((r) => r.folderPath === "") ?? byName[0];
+    if (first) {
+      throw redirect({
+        to: "/runbooks/$project/$slug",
+        params: { project: first.project, slug: first.slug },
+        search: (prev) => prev,
+        replace: true,
+      });
+    }
+
+    throw redirect({
+      to: "/runbooks/get-started",
+      search: (prev) => prev,
+      replace: true,
+    });
+  },
+  component: () => null,
 });
-
-function RunbooksIndexPage() {
-  const { preview } = useSearch({ from: "/_authenticated/_dashboard" });
-  const {
-    data: runbooks,
-    isLoading,
-    isError,
-    error,
-  } = useQuery(runbookListOptions(preview));
-  const [search, setSearch] = useState("");
-  const isEmpty = !isLoading && !isError && (runbooks?.length ?? 0) === 0;
-
-  return (
-    <div>
-      <div className="mb-6 flex items-center gap-2">
-        <NotebookText className="size-5 text-muted-foreground" />
-        <h1 className="text-lg font-semibold">Runbooks</h1>
-      </div>
-
-      {!isEmpty && (
-        <div className="relative mb-4 max-w-sm">
-          <SearchIcon className="absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            placeholder="Search runbooks..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="pl-8"
-          />
-        </div>
-      )}
-
-      {isLoading && <p className="text-sm text-muted-foreground">Loading...</p>}
-
-      {!isLoading && isError && (
-        <div className="flex flex-col items-center justify-center gap-3 py-16 text-muted-foreground">
-          <AlertCircle className="size-10" />
-          <p className="text-sm">
-            {error instanceof Error ? error.message : "Failed to load runbooks"}
-          </p>
-        </div>
-      )}
-
-      {isEmpty && (
-        <ResourceEmptyState
-          title="No runbooks yet"
-          description="Paste this into your coding assistant. It writes the YAML, applies it, and the runbook shows up here."
-          assistantPrompt={ASSISTANT_RUNBOOK_PROMPT}
-          docsHref="https://everr.dev/docs/learn/add-a-runbook"
-        />
-      )}
-
-      {!isLoading && !isError && !isEmpty && (
-        <DashboardTree
-          dashboards={runbooks ?? []}
-          search={search}
-          resource="runbook"
-        />
-      )}
-    </div>
-  );
-}

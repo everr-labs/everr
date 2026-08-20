@@ -10,6 +10,11 @@ import {
 import { useCallback, useMemo, useState } from "react";
 import { PreviewStatusBadge } from "@/components/preview-status-badge";
 import {
+  railRowActiveProps,
+  railRowClass,
+  rowIndent,
+} from "@/components/rail/rail-row";
+import {
   buildTree,
   type DashboardSummary,
   type FolderNode,
@@ -18,12 +23,6 @@ import {
 } from "@/data/dashboards/tree";
 
 type TreeResource = "dashboard" | "runbook";
-
-export const railRowClass =
-  "rounded-md py-1.5 transition-colors hover:bg-muted/50";
-export const railRowActiveProps = {
-  className: "bg-muted text-foreground [&>svg]:text-primary",
-};
 
 interface DashboardTreeProps {
   dashboards: DashboardSummary[];
@@ -37,9 +36,11 @@ export function DashboardTree({
   resource = "dashboard",
 }: DashboardTreeProps) {
   const matchRoute = useMatchRoute();
+  // Fuzzy for runbooks: a runbook page is a route below the runbook, and the
+  // tree still has to know which runbook is open.
   const match = matchRoute(
     resource === "runbook"
-      ? { to: "/runbooks/$project/$slug" }
+      ? { to: "/runbooks/$project/$slug", fuzzy: true }
       : { to: "/dashboards/$project/$slug" },
   );
   const selected = match
@@ -146,7 +147,7 @@ function FolderRows({
     <>
       <div
         className="flex items-center gap-1 rounded-md py-1 pr-1 hover:bg-accent/50"
-        style={{ paddingLeft: `${depth * 20 + 4}px` }}
+        style={{ paddingLeft: `${rowIndent(depth, "folder")}px` }}
       >
         <button
           type="button"
@@ -226,7 +227,7 @@ function DashboardRow({
         "flex min-w-0 items-center gap-2 pr-1",
         removed && "opacity-50",
       )}
-      style={{ paddingLeft: `${depth * 20 + 26}px` }}
+      style={{ paddingLeft: `${rowIndent(depth, "resource")}px` }}
       activeProps={railRowActiveProps}
     >
       <Icon className="size-4 shrink-0 text-muted-foreground" />

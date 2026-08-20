@@ -13,9 +13,16 @@ export const Route = createFileRoute(
   loaderDeps: ({ search: { preview } }) => ({ preview }),
   loader: ({
     context: { queryClient },
-    params: { project, slug },
+    params: { project, slug, _splat },
     deps: { preview },
-  }) => loadRunbook(queryClient, project, slug, preview),
+  }) =>
+    loadRunbook({
+      queryClient,
+      project,
+      slug,
+      preview,
+      pagePath: _splat ?? "",
+    }),
 });
 
 function RunbookSplatPage() {
