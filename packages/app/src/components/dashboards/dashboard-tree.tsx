@@ -1,5 +1,5 @@
 import { cn } from "@everr/ui/lib/utils";
-import { Link, type LinkProps, useMatchRoute } from "@tanstack/react-router";
+import { Link, useMatchRoute } from "@tanstack/react-router";
 import {
   ChevronDown,
   ChevronRight,
@@ -10,6 +10,11 @@ import {
 import { useCallback, useMemo, useState } from "react";
 import { PreviewStatusBadge } from "@/components/preview-status-badge";
 import {
+  railRowActiveProps,
+  railRowClass,
+  rowIndent,
+} from "@/components/rail/rail-row";
+import {
   buildTree,
   type DashboardSummary,
   type FolderNode,
@@ -18,42 +23,6 @@ import {
 } from "@/data/dashboards/tree";
 
 type TreeResource = "dashboard" | "runbook";
-
-const railRowClass = "rounded-md py-1.5 transition-colors hover:bg-muted/50";
-const railRowActiveProps = {
-  className: "bg-muted text-foreground [&>svg]:text-primary",
-};
-
-/** Left padding of a resource row at `depth`. */
-const rowIndent = (depth: number) => depth * 20 + 26;
-
-/** The heading over a group of rail rows. */
-export const groupLabelClass =
-  "font-semibold text-[0.6875rem] text-foreground/75 uppercase tracking-wider";
-
-/** One rail row that is not part of the tree: a plain labelled destination. */
-export function RailRow({
-  label,
-  icon: Icon,
-  ...linkProps
-}: {
-  label: string;
-  icon: React.ComponentType<{ className?: string }>;
-} & LinkProps) {
-  return (
-    <Link
-      {...linkProps}
-      className={cn(
-        railRowClass,
-        "flex w-full items-center gap-2.5 px-2 text-left text-foreground",
-      )}
-      activeProps={railRowActiveProps}
-    >
-      <Icon className="size-4 shrink-0 text-muted-foreground" />
-      <span className="min-w-0 flex-1 truncate text-sm">{label}</span>
-    </Link>
-  );
-}
 
 interface DashboardTreeProps {
   dashboards: DashboardSummary[];
@@ -105,8 +74,6 @@ export function DashboardTree({
     });
   }, []);
 
-  const rowProps = { resource, selected };
-
   return (
     <div className="flex flex-col">
       {results ? (
@@ -117,7 +84,7 @@ export function DashboardTree({
               dashboard={dashboard}
               depth={0}
               path={path}
-              {...rowProps}
+              resource={resource}
             />
           ))}
           {results.dashboards.length === 0 && (
@@ -135,7 +102,8 @@ export function DashboardTree({
               depth={0}
               expanded={expanded}
               onToggle={toggle}
-              {...rowProps}
+              resource={resource}
+              selected={selected}
             />
           ))}
           {tree.dashboards.map((dashboard) => (
@@ -143,7 +111,7 @@ export function DashboardTree({
               key={`${dashboard.project}/${dashboard.slug}`}
               dashboard={dashboard}
               depth={0}
-              {...rowProps}
+              resource={resource}
             />
           ))}
         </>
@@ -152,25 +120,21 @@ export function DashboardTree({
   );
 }
 
-/** The parts every row in one tree shares, threaded down unchanged. */
-interface RowContext {
-  resource: TreeResource;
-  selected?: DashboardSummary;
-}
-
 function FolderRows({
   node,
   depth,
   expanded,
   onToggle,
-  ...row
+  resource,
+  selected,
 }: {
   node: FolderNode;
   depth: number;
   expanded: Set<string>;
   onToggle: (path: string) => void;
-} & RowContext) {
-  const { selected } = row;
+  resource: TreeResource;
+  selected?: DashboardSummary;
+}) {
   const isExpanded = expanded.has(node.path);
   // A collapsed folder still shows the active row when it lives anywhere in
   // this subtree, same rule as the built-in groups: the list must always say
@@ -183,7 +147,7 @@ function FolderRows({
     <>
       <div
         className="flex items-center gap-1 rounded-md py-1 pr-1 hover:bg-accent/50"
-        style={{ paddingLeft: `${depth * 20 + 4}px` }}
+        style={{ paddingLeft: `${rowIndent(depth, "folder")}px` }}
       >
         <button
           type="button"
@@ -210,7 +174,8 @@ function FolderRows({
               depth={depth + 1}
               expanded={expanded}
               onToggle={onToggle}
-              {...row}
+              resource={resource}
+              selected={selected}
             />
           ))}
           {node.dashboards.map((dashboard) => (
@@ -218,14 +183,18 @@ function FolderRows({
               key={`${dashboard.project}/${dashboard.slug}`}
               dashboard={dashboard}
               depth={depth + 1}
-              {...row}
+              resource={resource}
             />
           ))}
         </>
       ) : (
         containsSelected &&
         selected && (
-          <DashboardRow dashboard={selected} depth={depth + 1} {...row} />
+          <DashboardRow
+            dashboard={selected}
+            depth={depth + 1}
+            resource={resource}
+          />
         )
       )}
     </>
@@ -241,7 +210,8 @@ function DashboardRow({
   dashboard: DashboardSummary;
   depth: number;
   path?: string;
-} & Omit<RowContext, "selected">) {
+  resource: TreeResource;
+}) {
   const Icon = resource === "runbook" ? NotebookText : LayoutDashboard;
   const removed = dashboard.previewStatus === "removed";
   return (
@@ -257,7 +227,7 @@ function DashboardRow({
         "flex min-w-0 items-center gap-2 pr-1",
         removed && "opacity-50",
       )}
-      style={{ paddingLeft: `${rowIndent(depth)}px` }}
+      style={{ paddingLeft: `${rowIndent(depth, "resource")}px` }}
       activeProps={railRowActiveProps}
     >
       <Icon className="size-4 shrink-0 text-muted-foreground" />

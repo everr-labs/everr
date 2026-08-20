@@ -1,0 +1,56 @@
+import { cn } from "@everr/ui/lib/utils";
+import type { ReactNode } from "react";
+import { groupLabelClass } from "@/components/rail/rail-row";
+
+/**
+ * `@[67rem]/pane` is the reading column plus a nav on either side. Below it
+ * there is no margin to float in: the pages nav lies down into a strip and the
+ * table of contents drops out. Written out at each use because Tailwind reads
+ * class names from the source text and cannot follow an interpolated one.
+ */
+export const noMarginClass = "@[67rem]/pane:hidden";
+
+/** One link in a floating nav: no surface of its own, so weight marks it. */
+export const floatingLinkClass =
+  "rounded-md py-1.5 text-[0.9375rem] text-muted-foreground leading-snug transition-colors hover:text-foreground";
+export const floatingLinkActiveClass = "font-medium text-foreground";
+
+/**
+ * A nav that floats in the empty margin beside the reading column, taking none
+ * of its width so the runbook stays centered. `inset-y-0` with `right-full` or
+ * `left-full` pins it outside the column, and the list sticks inside that
+ * full-height box as the pane scrolls.
+ *
+ * Both margins are the same width by construction (the column is centered), so
+ * the two navs step up together and stay mirror images.
+ */
+export function FloatingMarginNav({
+  side,
+  label,
+  ariaLabel,
+  children,
+}: {
+  side: "left" | "right";
+  /** The heading over the list. */
+  label: string;
+  /** Overrides the accessible name where the heading is too terse alone. */
+  ariaLabel?: string;
+  children: ReactNode;
+}) {
+  return (
+    <div
+      className={cn(
+        "absolute inset-y-0 hidden @[67rem]/pane:block",
+        side === "left" ? "right-full pr-5" : "left-full pl-5",
+      )}
+    >
+      <nav
+        aria-label={ariaLabel ?? label}
+        className="sticky top-3 flex w-40 flex-col gap-1 @[76rem]/pane:w-44 @[88rem]/pane:w-52"
+      >
+        <span className={cn(groupLabelClass, "mb-1 px-2")}>{label}</span>
+        {children}
+      </nav>
+    </div>
+  );
+}

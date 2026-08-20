@@ -1,8 +1,9 @@
-import { Input } from "@everr/ui/components/input";
 import { useQuery } from "@tanstack/react-query";
-import { CirclePlus, SearchIcon } from "lucide-react";
+import { CirclePlus } from "lucide-react";
 import { useState } from "react";
-import { DashboardTree, RailRow } from "@/components/dashboards/dashboard-tree";
+import { DashboardTree } from "@/components/dashboards/dashboard-tree";
+import { RailRow } from "@/components/rail/rail-row";
+import { RailSearch } from "@/components/rail/rail-search";
 import { runbookListOptions } from "@/data/runbooks/options";
 
 /** The first navigation level: every runbook in the organization. */
@@ -13,16 +14,7 @@ export function RunbooksList({ preview }: { preview?: string }) {
 
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-4">
-      <div className="relative">
-        <SearchIcon className="absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
-        <Input
-          placeholder="Search runbooks..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="pl-8"
-          aria-label="Search runbooks"
-        />
-      </div>
+      <RailSearch label="runbooks" value={search} onChange={setSearch} />
 
       {/* Only the rows scroll; the search stays pinned above. */}
       <nav className="flex min-h-0 flex-1 flex-col overflow-y-auto pr-1 pb-3">

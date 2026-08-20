@@ -1,8 +1,13 @@
 import { cn } from "@everr/ui/lib/utils";
 import { Link } from "@tanstack/react-router";
 import type { CSSProperties, ReactNode } from "react";
-import { groupLabelClass } from "@/components/dashboards/dashboard-tree";
 import type { PageNavNode } from "@/data/runbooks/pages";
+import {
+  FloatingMarginNav,
+  floatingLinkActiveClass,
+  floatingLinkClass,
+  noMarginClass,
+} from "./floating-margin-nav";
 
 /** Each nesting level of pages steps in by this much past the one above. */
 const PAGE_STEP = 12;
@@ -19,38 +24,24 @@ interface PagesNavProps {
 
 /**
  * The navigation inside one runbook. It has no rail of its own: it floats in
- * the empty margin left of the reading column, contributing no width, so the
- * runbook stays centered in its pane. Where the pane is too narrow for that
- * margin (`@[66rem]` is the column plus a nav on either side), the same links
- * lie down into a scrolling strip above the runbook instead.
+ * the margin left of the reading column. Where the pane is too narrow for a
+ * margin, the same links lie down into a scrolling strip above the runbook.
  */
 export function RunbookPagesNav(props: PagesNavProps) {
   return (
     <>
       <nav
         aria-label="Runbook pages"
-        className="-mx-1 mb-5 flex items-center gap-0.5 overflow-x-auto pb-1 @[66rem]/pane:hidden"
+        className={cn(
+          "-mx-1 mb-5 flex items-center gap-0.5 overflow-x-auto pb-1",
+          noMarginClass,
+        )}
       >
         <PageLinks {...props} inline />
       </nav>
-      {/*
-        `inset-y-0 right-full` pins this outside the reading column, so it
-        takes none of the column's width and the runbook stays centered. The
-        list sticks inside that full-height box as the pane scrolls.
-      */}
-      <div className="absolute inset-y-0 right-full hidden pr-5 @[66rem]/pane:block">
-        {/* The list widens with the margin it floats in, in step with the
-            reading column beside it. */}
-        <nav
-          aria-label="Runbook pages"
-          className="sticky top-3 flex w-40 flex-col gap-1 @[76rem]/pane:w-44 @[88rem]/pane:w-52"
-        >
-          {/* Named, because a second list floats on the other side of the text
-              and the two answer different questions. */}
-          <span className={cn(groupLabelClass, "mb-1 px-2")}>Pages</span>
-          <PageLinks {...props} />
-        </nav>
-      </div>
+      <FloatingMarginNav side="left" label="Pages" ariaLabel="Runbook pages">
+        <PageLinks {...props} />
+      </FloatingMarginNav>
     </>
   );
 }
@@ -143,8 +134,7 @@ type PageLinkTarget =
 /**
  * Active state is decided by the caller, not by `activeProps`: a splat route's
  * active state depends on the whole remaining path, and the viewer already
- * knows it exactly. Floating, the link carries no surface of its own, so the
- * current page is marked by weight and contrast rather than a filled row.
+ * knows it exactly.
  */
 function PageLink({
   depth,
@@ -161,19 +151,21 @@ function PageLink({
   return (
     <Link
       {...target}
+      // Depth is an indent only in the floating column; the strip is flat.
       style={
         inline
           ? undefined
           : ({ paddingLeft: `${depth * PAGE_STEP + 8}px` } as CSSProperties)
       }
       className={cn(
-        "rounded-md py-1.5 text-[0.9375rem] text-muted-foreground leading-snug transition-colors hover:text-foreground",
-        // Floating, a page name wraps rather than being cut: the nav is narrow
-        // and runbook page names are the kind that differ at the end.
+        floatingLinkClass,
+        // Floating, a page name wraps rather than being cut: runbook page
+        // names are the kind that differ at the end. Lying down, the strip
+        // scrolls sideways, so its entries stay on one line.
         inline
           ? "shrink-0 whitespace-nowrap px-2 hover:bg-muted/50"
           : "block pr-2",
-        active && "font-medium text-foreground",
+        active && floatingLinkActiveClass,
         active && inline && "bg-muted",
       )}
       aria-current={active ? "page" : undefined}

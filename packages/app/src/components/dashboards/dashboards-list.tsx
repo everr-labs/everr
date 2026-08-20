@@ -1,5 +1,4 @@
 import { Button } from "@everr/ui/components/button";
-import { Input } from "@everr/ui/components/input";
 import { DEFAULT_TIME_RANGE } from "@everr/ui/lib/time-range";
 import { cn } from "@everr/ui/lib/utils";
 import { useQuery } from "@tanstack/react-query";
@@ -14,10 +13,11 @@ import {
   Database,
   Globe,
   RotateCw,
-  SearchIcon,
   TriangleAlert,
 } from "lucide-react";
 import { useState } from "react";
+import { groupLabelClass, RailRow } from "@/components/rail/rail-row";
+import { RailSearch } from "@/components/rail/rail-search";
 import {
   evaluateBuiltin,
   type TelemetryCapabilities,
@@ -35,7 +35,7 @@ import {
   readBuiltinsCollapsed,
   writeBuiltinsCollapsed,
 } from "@/data/dashboards/ui-prefs";
-import { DashboardTree, groupLabelClass, RailRow } from "./dashboard-tree";
+import { DashboardTree } from "./dashboard-tree";
 
 function searchBuiltins(search: string): BuiltinDashboard[] {
   const q = search.trim().toLowerCase();
@@ -140,16 +140,7 @@ export function DashboardsList({ preview }: { preview?: string }) {
 
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col gap-4">
-      <div className="relative">
-        <SearchIcon className="absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
-        <Input
-          placeholder="Search dashboards..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="pl-8"
-          aria-label="Search dashboards"
-        />
-      </div>
+      <RailSearch label="dashboards" value={search} onChange={setSearch} />
 
       {/* Only the rows scroll; the search stays pinned above. */}
       <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto pr-1 pb-3">

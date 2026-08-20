@@ -1,4 +1,4 @@
-import { createFileRoute, isRedirect, redirect } from "@tanstack/react-router";
+import { createFileRoute, redirect } from "@tanstack/react-router";
 import { lastViewedRunbook } from "@/data/runbooks/last-viewed";
 import { runbookListOptions, runbookOptions } from "@/data/runbooks/options";
 import { findPage } from "@/data/runbooks/pages";
@@ -16,14 +16,10 @@ export const Route = createFileRoute(
     const list = await queryClient.ensureQueryData(runbookListOptions(preview));
     const live = list.filter((r) => r.previewStatus !== "removed");
 
-    const open = (r: { project: string; slug: string }) =>
-      redirect({
-        to: "/runbooks/$project/$slug",
-        params: { project: r.project, slug: r.slug },
-        search: (prev) => prev,
-        replace: true,
-      });
-
+    // Every redirect below keeps the search (the frame's `full` flag lives
+    // there) and replaces, because this route is never a place to come back
+    // to. Spelled out rather than wrapped: a wrapper loses the typing that
+    // ties each `params` to its own `to`.
     const last = lastViewedRunbook.read(org);
     if (
       last &&
@@ -31,36 +27,35 @@ export const Route = createFileRoute(
     ) {
       // The page and heading are checked against the runbook as it is now, not
       // as it was when the reader left: a runbook is edited as code, and a
-      // remembered page can be gone. Anything that no longer resolves is
-      // dropped, so the worst a stale entry does is open the runbook's front
-      // page. A runbook that vanished between the list and here throws, and
-      // falls through to the defaults below.
-      try {
-        const { document } = await queryClient.ensureQueryData(
-          runbookOptions(last.project, last.slug, preview),
-        );
-        const page =
-          last.page && findPage(document.spec, last.page) ? last.page : null;
-        throw page
-          ? redirect({
-              to: "/runbooks/$project/$slug/$",
-              params: { project: last.project, slug: last.slug, _splat: page },
-              hash: last.hash,
-              search: (prev) => prev,
-              replace: true,
-            })
-          : redirect({
-              to: "/runbooks/$project/$slug",
-              params: { project: last.project, slug: last.slug },
-              // A heading belongs to the page it was on: dropping that page
-              // drops the heading with it, rather than carrying a fragment
-              // onto a page that never had it.
-              hash: last.page ? undefined : last.hash,
-              search: (prev) => prev,
-              replace: true,
-            });
-      } catch (e) {
-        if (isRedirect(e)) throw e;
+      // remembered page can be gone. A runbook that vanished between the list
+      // and here resolves to null and falls through to the defaults below.
+      const runbook = await queryClient
+        .ensureQueryData(runbookOptions(last.project, last.slug, preview))
+        .catch(() => null);
+      const page =
+        last.page && runbook && findPage(runbook.document.spec, last.page)
+          ? last.page
+          : null;
+      if (runbook && page) {
+        throw redirect({
+          to: "/runbooks/$project/$slug/$",
+          params: { project: last.project, slug: last.slug, _splat: page },
+          hash: last.hash,
+          search: (prev) => prev,
+          replace: true,
+        });
+      }
+      if (runbook) {
+        throw redirect({
+          to: "/runbooks/$project/$slug",
+          params: { project: last.project, slug: last.slug },
+          // A heading belongs to the page it was on: dropping that page drops
+          // the heading with it, rather than carrying a fragment onto a page
+          // that never had it.
+          hash: last.page ? undefined : last.hash,
+          search: (prev) => prev,
+          replace: true,
+        });
       }
     }
     // The remembered runbook no longer exists (deleted, or removed from the
@@ -73,7 +68,14 @@ export const Route = createFileRoute(
     // the first one still beats an empty state that would be a lie.
     const byName = [...live].sort((a, b) => a.name.localeCompare(b.name));
     const first = byName.find((r) => r.folderPath === "") ?? byName[0];
-    if (first) throw open(first);
+    if (first) {
+      throw redirect({
+        to: "/runbooks/$project/$slug",
+        params: { project: first.project, slug: first.slug },
+        search: (prev) => prev,
+        replace: true,
+      });
+    }
 
     throw redirect({
       to: "/runbooks/get-started",

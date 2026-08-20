@@ -39,16 +39,14 @@ export function RunbookViewer({
   const {
     data: { document: runbook },
   } = useSuspenseQuery(runbookOptions(project, slug, preview));
-  const page = findPage(runbook.spec, pagePath);
-  const tree = pageNavTree(runbook.spec);
+  const page = useMemo(
+    () => findPage(runbook.spec, pagePath),
+    [runbook.spec, pagePath],
+  );
+  // Memoized with the rest: a fresh tree would re-render every link in the
+  // pages nav on any render of this component.
+  const tree = useMemo(() => pageNavTree(runbook.spec), [runbook.spec]);
   const proseRef = useRef<HTMLDivElement>(null);
-  useRecordLastViewed({
-    project,
-    slug,
-    // A page the runbook doesn't have is not somewhere to send anyone back to,
-    // so remember the runbook alone rather than the way in here.
-    pagePath: page ? pagePath : "",
-  });
   // Build the link resolver once per runbook: it captures the page-path set
   // and file map so each rendered link doesn't re-walk the spec tree.
   const resolveLink = useMemo(
@@ -73,6 +71,13 @@ export function RunbookViewer({
   return (
     <DashboardProvider document={dashboardDocument}>
       <RunbookVariables />
+      <RecordLastViewed
+        project={project}
+        slug={slug}
+        // A page the runbook doesn't have is not somewhere to send anyone back
+        // to, so remember the runbook alone rather than the way in here.
+        pagePath={page ? pagePath : ""}
+      />
       {tree.length > 0 && (
         <RunbookPagesNav
           project={project}
@@ -90,7 +95,7 @@ export function RunbookViewer({
           (see the runbooks route layout), so nothing here caps its width. */}
       {page ? (
         <>
-          <RunbookToc container={proseRef} pageKey={`${slug}/${pagePath}`} />
+          <RunbookToc key={`${slug}/${pagePath}`} container={proseRef} />
           <RunbookMarkdown
             markdown={page.markdown}
             project={project}
@@ -116,8 +121,12 @@ export function RunbookViewer({
  * rather than the loader because a loader also runs on preload (hovering a
  * link is not reading), and because the heading changes as the reader moves
  * through the page without the loader running at all.
+ *
+ * Its own component, rendering nothing: subscribing to the hash here keeps a
+ * click on a heading from re-rendering the whole runbook to write one line to
+ * localStorage.
  */
-function useRecordLastViewed({
+function RecordLastViewed({
   project,
   slug,
   pagePath,
@@ -137,6 +146,7 @@ function useRecordLastViewed({
       ...(hash ? { hash } : {}),
     });
   }, [org, project, slug, pagePath, hash]);
+  return null;
 }
 
 /**

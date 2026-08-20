@@ -1,6 +1,10 @@
 import { cn } from "@everr/ui/lib/utils";
 import { type RefObject, useEffect, useState } from "react";
-import { groupLabelClass } from "@/components/dashboards/dashboard-tree";
+import {
+  FloatingMarginNav,
+  floatingLinkActiveClass,
+  floatingLinkClass,
+} from "./floating-margin-nav";
 
 interface Heading {
   id: string;
@@ -14,10 +18,7 @@ interface Heading {
  * from `rehype-slug` at render time, and reading them back is the only way the
  * list and the anchors can never disagree.
  */
-function useHeadings(
-  container: RefObject<HTMLElement | null>,
-  pageKey: string,
-): Heading[] {
+function useHeadings(container: RefObject<HTMLElement | null>): Heading[] {
   const [headings, setHeadings] = useState<Heading[]>([]);
   useEffect(() => {
     const root = container.current;
@@ -29,21 +30,12 @@ function useHeadings(
         level: el.tagName === "H2" ? 2 : 3,
       })),
     );
-  }, [container, pageKey]);
+  }, [container]);
   return headings;
 }
 
 /** How far into the viewport a heading must climb to count as the one being read. */
 const HEADING_BAND = 140;
-
-/** The element the runbook actually scrolls in, which is not the window. */
-function scrollParent(el: HTMLElement | null): HTMLElement | null {
-  for (let node = el?.parentElement; node; node = node.parentElement) {
-    const overflow = getComputedStyle(node).overflowY;
-    if (overflow === "auto" || overflow === "scroll") return node;
-  }
-  return null;
-}
 
 /**
  * The heading the reader has most recently passed. Measured rather than
@@ -57,21 +49,28 @@ function useActiveHeading(
   const [active, setActive] = useState<string>();
   useEffect(() => {
     if (headings.length === 0) return;
-    const scroller = scrollParent(container.current);
+    // The pane declares itself with the same marker the router resets on
+    // (see `scrollToTopSelectors`), so this asks the layer that owns the
+    // scrolling rather than sniffing overflow up the tree.
+    const scroller = container.current?.closest<HTMLElement>(
+      "[data-scroll-to-top]",
+    );
     let frame = 0;
     const measure = () => {
       frame = 0;
       let current = headings[0]?.id;
+      // Headings are in document order, so the first one still below the band
+      // ends the search.
       for (const heading of headings) {
         const el = document.getElementById(heading.id);
-        if (el && el.getBoundingClientRect().top <= HEADING_BAND)
-          current = heading.id;
+        if (!el || el.getBoundingClientRect().top > HEADING_BAND) break;
+        current = heading.id;
       }
       // The last sections can be too short to ever reach the band. At the
       // bottom of the runbook the reader is at the end of it, whatever the
       // measurements say.
       const atBottom =
-        scroller !== null &&
+        scroller != null &&
         scroller.scrollTop + scroller.clientHeight >= scroller.scrollHeight - 2;
       if (atBottom) current = headings[headings.length - 1]?.id;
       setActive(current);
@@ -80,12 +79,10 @@ function useActiveHeading(
       if (!frame) frame = requestAnimationFrame(measure);
     };
     measure();
-    // Capture: the runbook scrolls in its own pane, not the window, and scroll
-    // events do not bubble out of it.
-    window.addEventListener("scroll", schedule, true);
+    scroller?.addEventListener("scroll", schedule);
     window.addEventListener("resize", schedule);
     return () => {
-      window.removeEventListener("scroll", schedule, true);
+      scroller?.removeEventListener("scroll", schedule);
       window.removeEventListener("resize", schedule);
       if (frame) cancelAnimationFrame(frame);
     };
@@ -95,48 +92,39 @@ function useActiveHeading(
 
 /**
  * The headings of the page being read, floating in the margin right of the
- * reading column: the mirror of the pages nav on the left, and like it, it
- * takes none of the column's width. Where the pane has no margin to spare the
- * whole thing is dropped rather than pushed into the text.
+ * reading column: the mirror of the pages nav on the left. Give it a `key`
+ * that changes with the page, so it re-reads the headings on arrival.
  */
 export function RunbookToc({
   container,
-  pageKey,
 }: {
   container: RefObject<HTMLElement | null>;
-  /** Changes when the reader moves to another page, re-reading the headings. */
-  pageKey: string;
 }) {
-  const headings = useHeadings(container, pageKey);
+  const headings = useHeadings(container);
   const active = useActiveHeading(headings, container);
 
   // One heading is the page title over again, not a table of contents.
   if (headings.length < 2) return null;
 
   return (
-    <div className="absolute inset-y-0 left-full hidden pl-5 @[67rem]/pane:block">
-      <nav
-        aria-label="On this page"
-        className="sticky top-3 flex w-40 flex-col gap-1 @[76rem]/pane:w-44 @[88rem]/pane:w-52"
-      >
-        <span className={cn(groupLabelClass, "mb-1 px-2")}>On this page</span>
-        {headings.map((heading) => (
-          <a
-            key={heading.id}
-            href={`#${heading.id}`}
-            aria-current={heading.id === active ? "true" : undefined}
-            className={cn(
-              // Headings wrap rather than being cut: half a heading is not a
-              // heading, and this list is the only place they are all visible.
-              "rounded-md py-1.5 pr-2 text-[0.9375rem] text-muted-foreground leading-snug transition-colors hover:text-foreground",
-              heading.level === 3 ? "pl-5" : "pl-2",
-              heading.id === active && "font-medium text-foreground",
-            )}
-          >
-            {heading.text}
-          </a>
-        ))}
-      </nav>
-    </div>
+    <FloatingMarginNav side="right" label="On this page">
+      {headings.map((heading) => (
+        <a
+          key={heading.id}
+          href={`#${heading.id}`}
+          aria-current={heading.id === active ? "true" : undefined}
+          className={cn(
+            floatingLinkClass,
+            "block pr-2",
+            // Headings wrap rather than being cut: half a heading is not a
+            // heading, and this list is the only place they are all visible.
+            heading.level === 3 ? "pl-5" : "pl-2",
+            heading.id === active && floatingLinkActiveClass,
+          )}
+        >
+          {heading.text}
+        </a>
+      ))}
+    </FloatingMarginNav>
   );
 }
