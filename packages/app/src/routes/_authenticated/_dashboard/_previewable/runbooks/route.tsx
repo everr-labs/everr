@@ -44,13 +44,17 @@ function RunbooksLayout() {
       >
         {/* The toggle belongs to the rail, not to the runbook, so it sits at
             the pane's edge against it rather than over the centered text. */}
-        <div className="p-3 pb-0">
+        <div className="p-3 pb-2">
           <FrameToggle listLabel="runbook list" />
         </div>
         {/* Every step up widens the reading column and the navs floating
             beside it together, so the margins never shrink below what they
-            need. `relative` is what those navs pin themselves to. */}
-        <div className="relative mx-auto w-full max-w-2xl px-3 pt-2 pb-3 @[76rem]/pane:max-w-3xl @[88rem]/pane:max-w-4xl">
+            need. `relative` is what those navs pin themselves to.
+
+            No top padding: a floating nav pins to this box, so padding here
+            would start the text below the nav and the two would not line up.
+            The space above the text belongs to the toggle row instead. */}
+        <div className="relative mx-auto w-full max-w-2xl px-3 pb-3 @[76rem]/pane:max-w-3xl @[88rem]/pane:max-w-4xl">
           <Outlet />
         </div>
       </main>
