@@ -60,7 +60,23 @@ Four things bite here:
 - **Pass the app's own router factory, never a fresh `createRouter`.** The server caches the processed route tree globally by tree identity, ignoring the options that decide how it is processed (`routeMasks`, `caseSensitive`), so the first router built wins for the process. A second, differently configured one makes every later render throw `Cannot read properties of null (reading 'get')`, in production only. Annotate the callback as `RouterLike` when `routeTree.gen` binds `Register` to `getRouter`, or the two infer through each other.
 - **Defining a start instance replaces Start's default CSRF middleware.** Once `requestMiddleware` is set, include `createCsrfMiddleware()` in the array or server functions are left unprotected.
 - **Disable the HTTP auto-instrumentation's incoming-request span** (`disableIncomingRequestInstrumentation: true`) so each request gets one SERVER span, not two.
-- **Pass `isExpectedError`.** Start signals control flow with throwables, so `redirect()` and `notFound()` surface as thrown values inside server functions and otherwise become phantom errors.
+- **Pass `isExpectedError`.** Start signals control flow with throwables, so `redirect()` and `notFound()` surface as thrown values inside server functions. Without this every redirect is captured as an error. Write the predicate yourself, since only the app knows which of its own failures are routine:
+
+```ts
+// src/telemetry/expected-errors.ts
+import { isNotFound, isRedirect } from "@tanstack/react-router";
+
+// Failures the app returns on purpose, not faults worth alerting on.
+const EXPECTED = new Set(["Unauthenticated", "No active organization"]);
+
+export function isExpectedServerFunctionError(error: unknown): boolean {
+  return (
+    isRedirect(error) ||
+    isNotFound(error) ||
+    (error instanceof Error && EXPECTED.has(error.message))
+  );
+}
+```
 
 ## Validation
 
