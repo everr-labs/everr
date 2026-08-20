@@ -1,3 +1,4 @@
+mod alerts;
 mod api;
 mod auth;
 mod banner;
@@ -72,6 +73,7 @@ async fn run_command(command: Commands) -> Result<()> {
         Commands::Skills(args) => skills::run(args)?,
         Commands::Apply(args) => core::run_apply(args).await?,
         Commands::Resources(args) => core::run_resources(args.command).await?,
+        Commands::Alerts(args) => alerts::run_alerts(args.command).await?,
     }
 
     Ok(())

@@ -1,6 +1,6 @@
 ---
 name: everr-setup-resources
-description: Use when creating, editing, applying, or inspecting Everr as-code resources (dashboards, runbooks, alert rules), Perses-format dashboard YAML, panels, ClickHouse queries, ```panel blocks, AlertRule YAML, or the `everr apply` and `everr resources` CLIs.
+description: Use when creating, editing, applying, or inspecting Everr as-code resources (dashboards, runbooks, alert rules), Perses-format dashboard YAML, panels, ClickHouse queries, ```panel blocks, AlertRule YAML, alert channels or silences, or the `everr apply`, `everr resources`, and `everr alerts` CLIs.
 ---
 
 ## Startup Access
@@ -77,6 +77,10 @@ everr resources adopt <kind> <slug> [--yes]                    # take ownership 
 ```
 
 `--project` defaults to `default`. `list --repoid ""` shows UI-created resources. Use `delete` and `adopt` only for resources outside your apply tree (UI-created, or owned by another repo); anything in your tree is managed by `everr apply`.
+
+## Live Alerting State
+
+Alert channels and silences are not as-code: a channel holds a credential, and a silence is an operational decision made at a moment in time. Manage them with `everr alerts channels` and `everr alerts silences`, which also need a login session. A channel secret is never a flag value; it comes from a file, an environment variable, or a hidden prompt. See `rules/alerts.md` for the full surface.
 
 ## Previews
 

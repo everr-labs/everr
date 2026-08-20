@@ -7,6 +7,8 @@ const VERSION_OUTPUT: &str = concat!(env!("EVERR_VERSION"), " (debug build)");
 const VERSION_OUTPUT: &str = concat!(env!("EVERR_VERSION"), " (release build)");
 
 pub const DEFAULT_LOG_PAGE_SIZE: u32 = 1000;
+pub const DEFAULT_SILENCE_PAGE_SIZE: u32 = 20;
+pub const MAX_SILENCE_PAGE_SIZE: u32 = 100;
 pub const MAX_LOG_PAGE_SIZE: u32 = 5000;
 
 #[derive(Parser, Debug)]
@@ -47,6 +49,8 @@ pub enum Commands {
     Apply(ApplyArgs),
     /// Inspect and manage live Cloud resources (dashboards, runbooks, alerts)
     Resources(ResourcesArgs),
+    /// Manage live alerting state (silences and delivery channels)
+    Alerts(AlertsArgs),
 }
 
 impl Cli {
@@ -69,6 +73,7 @@ impl Commands {
             Commands::Skills(_) => true,
             Commands::Apply(_) => true,
             Commands::Resources(args) => args.command.prints_human_stdout(stdout_is_terminal),
+            Commands::Alerts(args) => args.command.prints_human_stdout(stdout_is_terminal),
         }
     }
 }
@@ -544,6 +549,212 @@ pub struct ResourcesTargetArgs {
     /// Project namespace
     #[arg(long, default_value = "default")]
     pub project: String,
+    /// Skip the confirmation prompt (required in non-interactive contexts)
+    #[arg(long, short = 'y')]
+    pub yes: bool,
+}
+
+#[derive(Args, Debug)]
+pub struct AlertsArgs {
+    #[command(subcommand)]
+    pub command: AlertsSubcommand,
+}
+
+#[derive(Subcommand, Debug)]
+pub enum AlertsSubcommand {
+    /// Inspect and manage alert silences
+    Silences(SilencesArgs),
+    /// Inspect and manage alert delivery channels
+    Channels(ChannelsArgs),
+}
+
+impl AlertsSubcommand {
+    fn prints_human_stdout(&self, _stdout_is_terminal: bool) -> bool {
+        match self {
+            AlertsSubcommand::Silences(args) => match &args.command {
+                SilencesSubcommand::List(args) => !args.json,
+                SilencesSubcommand::Create(args) => !args.json,
+                SilencesSubcommand::Expire(_) => true,
+            },
+            AlertsSubcommand::Channels(args) => match &args.command {
+                ChannelsSubcommand::List(args) => !args.json,
+                ChannelsSubcommand::Create(args) => !args.json,
+                ChannelsSubcommand::Edit(args) => !args.json,
+                ChannelsSubcommand::Delete(_) => true,
+            },
+        }
+    }
+}
+
+#[derive(Args, Debug)]
+pub struct SilencesArgs {
+    #[command(subcommand)]
+    pub command: SilencesSubcommand,
+}
+
+#[derive(Subcommand, Debug)]
+pub enum SilencesSubcommand {
+    /// List the organization's silences, newest first
+    List(SilencesListArgs),
+    /// Silence the alerts a set of matchers selects
+    Create(SilencesCreateArgs),
+    /// Close a silence's window now
+    Expire(SilencesExpireArgs),
+}
+
+#[derive(Args, Debug)]
+pub struct SilencesListArgs {
+    /// Only silences still open at this time, as a timestamp or date math.
+    /// With --to, only the ones whose window overlaps the two.
+    #[arg(long, value_name = "TIME")]
+    pub from: Option<String>,
+    /// Only silences that had already started by this time, as a timestamp or
+    /// date math
+    #[arg(long, value_name = "TIME")]
+    pub to: Option<String>,
+    /// How many to show
+    #[arg(long, default_value_t = DEFAULT_SILENCE_PAGE_SIZE, value_parser = clap::value_parser!(u32).range(1..=MAX_SILENCE_PAGE_SIZE as i64))]
+    pub limit: u32,
+    /// Skip this many before printing
+    #[arg(long, default_value_t = 0)]
+    pub offset: u32,
+    /// Output raw JSON instead of a table
+    #[arg(long)]
+    pub json: bool,
+}
+
+#[derive(Args, Debug)]
+pub struct SilencesCreateArgs {
+    /// A label to match, as `label=value` or `label!=value`. Repeatable.
+    /// Matching is exact: patterns are not accepted.
+    #[arg(long = "matcher", value_name = "LABEL=VALUE", required = true)]
+    pub matchers: Vec<String>,
+    /// How long the silence lasts, starting now (for example `2h`, `30m`, `7d`)
+    #[arg(long = "for", value_name = "DURATION", conflicts_with_all = ["starts_at", "ends_at"])]
+    pub duration: Option<String>,
+    /// When the silence starts, as a timestamp or date math (default: now)
+    #[arg(long, value_name = "TIME", requires = "ends_at")]
+    pub starts_at: Option<String>,
+    /// When the silence ends, as a timestamp or date math
+    #[arg(long, value_name = "TIME")]
+    pub ends_at: Option<String>,
+    /// Why the alerts are silenced. Frozen onto every notification withheld.
+    #[arg(long)]
+    pub comment: Option<String>,
+    /// Output raw JSON instead of a summary
+    #[arg(long)]
+    pub json: bool,
+}
+
+#[derive(Args, Debug)]
+pub struct SilencesExpireArgs {
+    /// The silence's id, as `silences list` prints it
+    pub id: String,
+    /// Skip the confirmation prompt (required in non-interactive contexts)
+    #[arg(long, short = 'y')]
+    pub yes: bool,
+}
+
+#[derive(Args, Debug)]
+pub struct ChannelsArgs {
+    #[command(subcommand)]
+    pub command: ChannelsSubcommand,
+}
+
+#[derive(Subcommand, Debug)]
+pub enum ChannelsSubcommand {
+    /// List the organization's delivery channels
+    List(ChannelsListArgs),
+    /// Create a delivery channel
+    Create(ChannelsCreateArgs),
+    /// Change a delivery channel's name or configuration
+    Edit(ChannelsEditArgs),
+    /// Delete a delivery channel
+    Delete(ChannelsDeleteArgs),
+}
+
+/// The transports a channel can deliver over.
+#[derive(clap::ValueEnum, Clone, Copy, Debug, PartialEq, Eq)]
+#[value(rename_all = "lower")]
+pub enum ChannelTypeArg {
+    Webhook,
+    Slack,
+    Discord,
+    Telegram,
+}
+
+#[derive(Args, Debug)]
+pub struct ChannelsListArgs {
+    /// Output raw JSON instead of a table
+    #[arg(long)]
+    pub json: bool,
+}
+
+/// Where a channel's secret comes from.
+///
+/// There is deliberately no flag carrying the value: a webhook URL and a bot
+/// token are both bearer credentials, and a flag would leave one in the shell
+/// history of everybody who ran the command. A file, an environment variable,
+/// or a hidden prompt all keep it out.
+#[derive(Args, Debug)]
+pub struct ChannelSecretArgs {
+    /// Read the webhook URL from this file, or from stdin when given `-`.
+    /// Falls back to $EVERR_CHANNEL_URL, then to a hidden prompt.
+    #[arg(long, value_name = "FILE")]
+    pub url_file: Option<String>,
+    /// Read the Telegram bot token from this file, or from stdin when given
+    /// `-`. Falls back to $EVERR_CHANNEL_BOT_TOKEN, then to a hidden prompt.
+    #[arg(long, value_name = "FILE")]
+    pub bot_token_file: Option<String>,
+    /// A Telegram chat to deliver to. Repeatable.
+    #[arg(long = "chat-id", value_name = "ID")]
+    pub chat_ids: Vec<String>,
+}
+
+impl ChannelSecretArgs {
+    /// Whether the caller named anything that describes a destination. An edit
+    /// that did not can leave the stored one untouched.
+    pub fn is_given(&self) -> bool {
+        self.url_file.is_some() || self.bot_token_file.is_some() || !self.chat_ids.is_empty()
+    }
+}
+
+#[derive(Args, Debug)]
+pub struct ChannelsCreateArgs {
+    /// The channel's name, as a rule's `notifications.channels` names it
+    #[arg(long)]
+    pub name: String,
+    /// The transport to deliver over
+    #[arg(long = "type", value_enum)]
+    pub channel_type: ChannelTypeArg,
+    #[command(flatten)]
+    pub secret: ChannelSecretArgs,
+    /// Output raw JSON instead of a summary
+    #[arg(long)]
+    pub json: bool,
+}
+
+#[derive(Args, Debug)]
+pub struct ChannelsEditArgs {
+    /// The channel to change
+    pub name: String,
+    /// A new name for the channel
+    #[arg(long)]
+    pub rename: Option<String>,
+    /// The transport to deliver over (default: the channel's current one)
+    #[arg(long = "type", value_enum)]
+    pub channel_type: Option<ChannelTypeArg>,
+    #[command(flatten)]
+    pub secret: ChannelSecretArgs,
+    /// Output raw JSON instead of a summary
+    #[arg(long)]
+    pub json: bool,
+}
+
+#[derive(Args, Debug)]
+pub struct ChannelsDeleteArgs {
+    /// The channel to delete
+    pub name: String,
     /// Skip the confirmation prompt (required in non-interactive contexts)
     #[arg(long, short = 'y')]
     pub yes: bool,

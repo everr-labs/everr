@@ -240,6 +240,103 @@ condition: { operator: gt, threshold: 100 }
 1. Test the query using `everr cloud query` and confirm the result set stays far below 1,000 rows. Check both healthy and breaching values against the configured condition.
 2. Run `everr apply ./everr --preview` and confirm the summary shows the expected creates/updates, then open the printed `Preview:` link and check the alert's firing/ok state (preview alerts evaluate but never notify).
 
+## Live Alerting State
+
+Channels and silences are not as-code. A channel holds a credential, and a
+silence is an operational decision made at a moment in time, so neither belongs
+in a file that a repository applies, and `everr apply` never touches them.
+
+They live on the Notifications and Silences pages. `everr alerts` does the same
+work from a terminal, which is what a script or an agent needs. It requires an
+`everr cloud login` session (API keys are not accepted).
+
+### Channels
+
+```sh
+everr alerts channels list [--json]
+everr alerts channels create --name <name> --type webhook|slack|discord|telegram
+everr alerts channels edit <name> [--rename <new>] [--type <type>]
+everr alerts channels delete <name> [--yes]
+```
+
+The name is what a rule's `spec.notifications.channels` refers to, so create the
+channel before, or after, the rule that names it: delivery resolves the name at
+send time.
+
+**Secrets never travel as a flag value.** A webhook URL and a Telegram bot token
+are both bearer credentials, and a flag would leave one in the shell history of
+everybody who ran the command. Give the secret in one of three ways, tried in
+this order:
+
+```sh
+# a file, or `-` to read stdin
+everr alerts channels create --name oncall --type slack --url-file ./hook.txt
+
+# an environment variable, for CI
+EVERR_CHANNEL_URL=$SLACK_HOOK everr alerts channels create --name oncall --type slack
+
+# nothing: an interactive terminal prompts, with the input hidden
+everr alerts channels create --name oncall --type slack
+```
+
+Telegram takes `--bot-token-file` (or `$EVERR_CHANNEL_BOT_TOKEN`) and one
+`--chat-id` per chat.
+
+A read never returns a stored secret: `list` shows `***`. An edit that does not
+supply a new secret keeps the stored one, so renaming is safe. Changing `--type`
+does need a new secret, because a credential belongs to the transport it was
+made for.
+
+A delete is refused while notifications are still sending to that channel. Those
+drain in minutes; retry once they settle. Rules naming a deleted channel keep the
+name and deliver again as soon as a channel with that name exists.
+
+### Silences
+
+A silence withholds delivery for the alerts its matchers select. The alerts still
+fire and stay visible; nobody is paged.
+
+```sh
+everr alerts silences list [--from TIME] [--to TIME] [--limit 20] [--offset 0] [--json]
+everr alerts silences create --matcher <label>=<value> --for <duration> [--comment <why>]
+everr alerts silences expire <id> [--yes]
+```
+
+Matching is exact: `label=value` or `label!=value`, never a pattern. Repeat
+`--matcher` to require several, and pass at least one.
+
+`--for` starts the window now (`2h`, `30m`, `7d`). For a window that starts
+later, pass `--starts-at` with `--ends-at`; both take a timestamp or date math
+such as `now+1h`.
+
+`list` shows the silences a page at a time, newest first (20 by default, 100 at
+most). Closed windows are included: retention keeps them for 90 days, and the
+STATE column tells them apart. When another page exists, the command prints the
+`--limit` and `--offset` to rerun with.
+
+`--from` and `--to` select the silences whose own window overlaps the one you
+name, which is what to ask when a page did not arrive:
+
+```sh
+# what was silencing during the incident
+everr alerts silences list --from 2026-08-20T03:00:00Z --to 2026-08-20T04:00:00Z
+
+# silencing right now
+everr alerts silences list --from now --to now
+
+# not closed yet: active and scheduled
+everr alerts silences list --from now
+```
+
+Both take a timestamp or date math, and each stands alone: `--from` on its own
+means "had not closed by then", `--to` on its own means "had already started by
+then". The comparison is half-open at both ends, so a silence that ended exactly
+when the window opened did not cover it.
+
+Expiring closes the window now and re-checks every alert the silence was
+holding. The row stays: alert history records which silence withheld a
+notification, so the record outlives the silence itself.
+
 ## Common Mistakes
 
 | Mistake | Fix |
@@ -254,7 +351,7 @@ condition: { operator: gt, threshold: 100 }
 | Alerting on mean latency | Prefer p95/p99 or another tail-latency signal |
 | Template variable `${Foo}` but the label column is `foo` (case mismatch) | Match column names exactly |
 | Alert flaps on gappy data | Raise `resolveAfter` (and consider `for`) instead of loosening the query |
-| A rule names a channel that does not exist | Create the channel with that exact name on the Notifications page, or fix the name in `spec.notifications.channels`: an unresolved name delivers to nobody |
+| A rule names a channel that does not exist | Create the channel with that exact name, on the Notifications page or with `everr alerts channels create`, or fix the name in `spec.notifications.channels`: an unresolved name delivers to nobody |
 | Expecting re-notification on every evaluation | Notifications fire on transitions, not every tick |
 | `maxInterval` shorter than `evaluationInterval` | Raise `maxInterval` to at least `evaluationInterval`, or drop it to use the default |
 | `annotations` key rejected at apply time | Rename it: `everr.*` and the exact keys `summary`, `description`, `link.alert`, `link.runbook` are reserved for generated annotations |
