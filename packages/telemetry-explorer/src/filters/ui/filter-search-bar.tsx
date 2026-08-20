@@ -8,7 +8,7 @@ import { Kbd } from "@everr/ui/components/kbd";
 import { Label } from "@everr/ui/components/label";
 import { cn } from "@everr/ui/lib/utils";
 import { CornerDownLeft, Search, X } from "lucide-react";
-import { type ComponentType, useEffect, useRef, useState } from "react";
+import { type ComponentType, useEffect, useState } from "react";
 
 export function FilterSearchBar({
   id,
@@ -28,16 +28,9 @@ export function FilterSearchBar({
   icon?: ComponentType<{ className?: string }>;
 }) {
   const [draft, setDraft] = useState(value);
-  // What the field has already asked for. It guards the commit, so leaving the
-  // field right after Enter doesn't run the same search a second time: the
-  // committed value arrives back through `value` a navigation later, too late
-  // for blur to see it.
-  const committedRef = useRef(value);
-
   // Take the draft again when the value changes from outside, for example on
   // "Clear page filters", on a link, or on Back.
   useEffect(() => {
-    committedRef.current = value;
     setDraft(value);
   }, [value]);
 
@@ -46,10 +39,8 @@ export function FilterSearchBar({
   // hint.
   const dirty = draft.trim() !== value;
 
-  const commit = (next: string) => {
-    if (next === committedRef.current) return;
-    committedRef.current = next;
-    onChange(next);
+  const commit = () => {
+    if (dirty) onChange(draft.trim());
   };
 
   return (
@@ -57,7 +48,7 @@ export function FilterSearchBar({
       className="flex w-full flex-col gap-1"
       onSubmit={(event) => {
         event.preventDefault();
-        commit(draft.trim());
+        commit();
       }}
     >
       <Label htmlFor={id} className="text-muted-foreground text-xs">
@@ -82,7 +73,7 @@ export function FilterSearchBar({
           onChange={(event) => setDraft(event.currentTarget.value)}
           // Leaving the field runs the edit it holds. Without this a typed but
           // unsubmitted draft looks applied while the results ignore it.
-          onBlur={() => commit(draft.trim())}
+          onBlur={() => commit()}
           placeholder={placeholder}
           className="text-sm"
         />
@@ -100,7 +91,7 @@ export function FilterSearchBar({
               className="group-focus-within/input-group:hidden"
               onClick={() => {
                 setDraft("");
-                commit("");
+                onChange("");
               }}
             >
               <X />
