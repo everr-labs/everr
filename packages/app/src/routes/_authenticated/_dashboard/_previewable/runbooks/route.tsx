@@ -1,5 +1,10 @@
 import { cn } from "@everr/ui/lib/utils";
-import { createFileRoute, Outlet, useSearch } from "@tanstack/react-router";
+import {
+  createFileRoute,
+  Outlet,
+  retainSearchParams,
+  useSearch,
+} from "@tanstack/react-router";
 import * as z from "zod";
 import { FrameToggle } from "@/components/dashboards/frame-toggle";
 import { RunbooksList } from "@/components/runbooks/runbooks-list";
@@ -14,6 +19,14 @@ export const Route = createFileRoute(
   validateSearch: z.object({
     full: z.boolean().optional().catch(undefined),
   }),
+  search: {
+    // How the frame is arranged belongs to the session, not to the page, so it
+    // survives navigation inside a runbook the same way `_dashboard` carries
+    // the preview and the time range. Without this every page link would have
+    // to remember to pass the flag on, and the rail would spring back open on
+    // whichever one forgot.
+    middlewares: [retainSearchParams(["full"])],
+  },
   component: RunbooksLayout,
 });
 
