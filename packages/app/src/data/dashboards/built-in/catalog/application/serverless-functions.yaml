@@ -1,0 +1,467 @@
+id: serverless-functions
+name: Serverless Functions
+description: "Function invocations from the FaaS semantic conventions: rate, duration percentiles and errors per function, what triggered each invocation, and what a cold start costs."
+category: Application
+requires:
+  - signal: traces
+    label: no traces
+  - signal: traces
+    match: faas.trigger
+    label: no faas.trigger
+document:
+  kind: Dashboard
+  metadata:
+    name: serverless-functions
+  spec:
+    display:
+      name: Serverless Functions
+    duration: 6h
+    refreshInterval: 1m
+    variables:
+      - kind: ListVariable
+        spec:
+          name: service
+          display:
+            name: Service
+          allowMultiple: true
+          allowAllValue: true
+          defaultValue: __all
+          sort: alphabetical-asc
+          plugin:
+            kind: ClickHouseSQLVariable
+            spec:
+              query: SELECT DISTINCT ServiceName FROM traces WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} ORDER BY ServiceName
+    panels:
+      invocations:
+        kind: Panel
+        spec:
+          display:
+            name: Invocations
+          plugin:
+            kind: StatChart
+            spec:
+              calculation: sum
+              sparkline: true
+          queries:
+            - kind: ClickHouseSQL
+              spec:
+                plugin:
+                  kind: ClickHouseSQL
+                  spec:
+                    query: |-
+                      SELECT toStartOfInterval(Timestamp, INTERVAL {step:UInt32} SECOND) AS ts, count() AS invocations
+                      FROM traces
+                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND SpanAttributes['faas.trigger'] != ''
+                      GROUP BY ts
+                      ORDER BY ts
+      error-rate:
+        kind: Panel
+        spec:
+          display:
+            name: Error rate
+          plugin:
+            kind: StatChart
+            spec:
+              calculation: last
+              unit: "%"
+              decimals: 2
+              thresholds:
+                mode: absolute
+                defaultColor: "#22c55e"
+                steps:
+                  - value: 1
+                    color: "#f59e0b"
+                  - value: 5
+                    color: "#ef4444"
+          queries:
+            - kind: ClickHouseSQL
+              spec:
+                plugin:
+                  kind: ClickHouseSQL
+                  spec:
+                    query: |-
+                      SELECT countIf(StatusCode = 'Error') / count() * 100 AS error_pct
+                      FROM traces
+                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND SpanAttributes['faas.trigger'] != ''
+      p95-duration:
+        kind: Panel
+        spec:
+          display:
+            name: P95 duration
+          plugin:
+            kind: StatChart
+            spec:
+              calculation: last
+              unit: ms
+              decimals: 1
+          queries:
+            - kind: ClickHouseSQL
+              spec:
+                plugin:
+                  kind: ClickHouseSQL
+                  spec:
+                    query: |-
+                      SELECT round(quantile(0.95)(Duration) / 1000000, 1) AS p95
+                      FROM traces
+                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND SpanAttributes['faas.trigger'] != ''
+      cold-start-rate:
+        kind: Panel
+        spec:
+          display:
+            name: Cold starts
+          plugin:
+            kind: StatChart
+            spec:
+              calculation: last
+              unit: "%"
+              decimals: 1
+              thresholds:
+                mode: absolute
+                defaultColor: "#22c55e"
+                steps:
+                  - value: 5
+                    color: "#f59e0b"
+                  - value: 20
+                    color: "#ef4444"
+          queries:
+            - kind: ClickHouseSQL
+              spec:
+                plugin:
+                  kind: ClickHouseSQL
+                  spec:
+                    query: |-
+                      SELECT countIf(SpanAttributes['faas.coldstart'] = 'true') / count() * 100 AS pct
+                      FROM traces
+                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND SpanAttributes['faas.trigger'] != ''
+      invocations-by-function:
+        kind: Panel
+        spec:
+          display:
+            name: Invocations by function
+          plugin:
+            kind: TimeSeriesChart
+            spec:
+              showLegend: true
+              stacked: true
+          queries:
+            - kind: ClickHouseSQL
+              spec:
+                plugin:
+                  kind: ClickHouseSQL
+                  spec:
+                    query: |-
+                      SELECT toStartOfInterval(Timestamp, INTERVAL {step:UInt32} * 6 SECOND) AS ts, coalesce(nullIf(ResourceAttributes['faas.name'], ''), ServiceName) AS function, count() AS invocations
+                      FROM traces
+                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND SpanAttributes['faas.trigger'] != ''
+                        AND coalesce(nullIf(ResourceAttributes['faas.name'], ''), ServiceName) IN (
+                        SELECT coalesce(nullIf(ResourceAttributes['faas.name'], ''), ServiceName) FROM traces WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND SpanAttributes['faas.trigger'] != ''
+                        GROUP BY coalesce(nullIf(ResourceAttributes['faas.name'], ''), ServiceName) ORDER BY count() DESC LIMIT 8
+                      )
+                      GROUP BY ts, function
+                      ORDER BY ts
+      errors-by-function:
+        kind: Panel
+        spec:
+          display:
+            name: Failed invocations by function
+            description: "A failure here is the invocation itself: a handler that threw, or one the platform stopped."
+          plugin:
+            kind: TimeSeriesChart
+            spec:
+              showLegend: true
+              stacked: true
+          queries:
+            - kind: ClickHouseSQL
+              spec:
+                plugin:
+                  kind: ClickHouseSQL
+                  spec:
+                    query: |-
+                      SELECT toStartOfInterval(Timestamp, INTERVAL {step:UInt32} * 6 SECOND) AS ts, coalesce(nullIf(ResourceAttributes['faas.name'], ''), ServiceName) AS function, count() AS errors
+                      FROM traces
+                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND SpanAttributes['faas.trigger'] != '' AND StatusCode = 'Error'
+                        AND coalesce(nullIf(ResourceAttributes['faas.name'], ''), ServiceName) IN (
+                        SELECT coalesce(nullIf(ResourceAttributes['faas.name'], ''), ServiceName) FROM traces WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND SpanAttributes['faas.trigger'] != '' AND StatusCode = 'Error'
+                        GROUP BY coalesce(nullIf(ResourceAttributes['faas.name'], ''), ServiceName) ORDER BY count() DESC LIMIT 8
+                      )
+                      GROUP BY ts, function
+                      ORDER BY ts
+      duration-percentiles:
+        kind: Panel
+        spec:
+          display:
+            name: Duration percentiles
+            description: The reference charts the average and the maximum. The average hides the tail that bills, and the maximum is one bad invocation.
+          plugin:
+            kind: TimeSeriesChart
+            spec:
+              showLegend: true
+              unit: ms
+          queries:
+            - kind: ClickHouseSQL
+              spec:
+                plugin:
+                  kind: ClickHouseSQL
+                  spec:
+                    query: |-
+                      SELECT ts, q.1 AS series, q.2 AS value
+                      FROM (
+                        SELECT toStartOfInterval(Timestamp, INTERVAL {step:UInt32} * 6 SECOND) AS ts,
+                               round(quantile(0.50)(Duration) / 1000000, 1) AS p50,
+                               round(quantile(0.95)(Duration) / 1000000, 1) AS p95,
+                               round(quantile(0.99)(Duration) / 1000000, 1) AS p99
+                        FROM traces
+                        WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND SpanAttributes['faas.trigger'] != ''
+                        GROUP BY ts
+                      )
+                      ARRAY JOIN [('P50', p50), ('P95', p95), ('P99', p99)] AS q
+                      ORDER BY ts
+      duration-by-function:
+        kind: Panel
+        spec:
+          display:
+            name: P95 duration by function
+          plugin:
+            kind: TimeSeriesChart
+            spec:
+              showLegend: true
+              unit: ms
+          queries:
+            - kind: ClickHouseSQL
+              spec:
+                plugin:
+                  kind: ClickHouseSQL
+                  spec:
+                    query: |-
+                      SELECT toStartOfInterval(Timestamp, INTERVAL {step:UInt32} * 6 SECOND) AS ts,
+                             coalesce(nullIf(ResourceAttributes['faas.name'], ''), ServiceName) AS function,
+                             round(quantile(0.95)(Duration) / 1000000, 1) AS p95_ms
+                      FROM traces
+                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND SpanAttributes['faas.trigger'] != ''
+                        AND coalesce(nullIf(ResourceAttributes['faas.name'], ''), ServiceName) IN (
+                        SELECT coalesce(nullIf(ResourceAttributes['faas.name'], ''), ServiceName) FROM traces WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND SpanAttributes['faas.trigger'] != ''
+                        GROUP BY coalesce(nullIf(ResourceAttributes['faas.name'], ''), ServiceName) ORDER BY count() DESC LIMIT 8
+                      )
+                      GROUP BY ts, function
+                      ORDER BY ts
+      cold-vs-warm:
+        kind: Panel
+        spec:
+          display:
+            name: Cold and warm invocations
+            description: Cold starts cluster after a deploy and after idle. A steady trickle means the function never stays warm.
+          plugin:
+            kind: TimeSeriesChart
+            spec:
+              showLegend: true
+              stacked: true
+          queries:
+            - kind: ClickHouseSQL
+              spec:
+                plugin:
+                  kind: ClickHouseSQL
+                  spec:
+                    query: |-
+                      SELECT ts, counted.1 AS series, counted.2 AS value
+                      FROM (
+                        SELECT toStartOfInterval(Timestamp, INTERVAL {step:UInt32} * 6 SECOND) AS ts,
+                               countIf(SpanAttributes['faas.coldstart'] = 'true') AS cold,
+                               countIf(NOT SpanAttributes['faas.coldstart'] = 'true') AS warm
+                        FROM traces
+                        WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND SpanAttributes['faas.trigger'] != ''
+                        GROUP BY ts
+                      )
+                      ARRAY JOIN [('Cold', cold), ('Warm', warm)] AS counted
+                      ORDER BY ts
+      cold-start-penalty:
+        kind: Panel
+        spec:
+          display:
+            name: P95 duration, cold against warm
+            description: "The gap is what initialization costs. A platform's own metrics cannot ask this: they carry no per-invocation cold-start flag."
+          plugin:
+            kind: TimeSeriesChart
+            spec:
+              showLegend: true
+              unit: ms
+          queries:
+            - kind: ClickHouseSQL
+              spec:
+                plugin:
+                  kind: ClickHouseSQL
+                  spec:
+                    query: |-
+                      SELECT ts, q.1 AS series, q.2 AS value
+                      FROM (
+                        SELECT toStartOfInterval(Timestamp, INTERVAL {step:UInt32} * 6 SECOND) AS ts,
+                               round(quantileIf(0.95)(Duration, SpanAttributes['faas.coldstart'] = 'true') / 1000000, 1) AS cold,
+                               round(quantileIf(0.95)(Duration, NOT SpanAttributes['faas.coldstart'] = 'true') / 1000000, 1) AS warm
+                        FROM traces
+                        WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND SpanAttributes['faas.trigger'] != ''
+                        GROUP BY ts
+                      )
+                      ARRAY JOIN [('Cold', cold), ('Warm', warm)] AS q
+                      ORDER BY ts
+      by-trigger:
+        kind: Panel
+        spec:
+          display:
+            name: Invocations by trigger
+            description: "Semconv names five: http, pubsub, datasource, timer, other. It is an open enum, so the cap stands."
+          plugin:
+            kind: TimeSeriesChart
+            spec:
+              showLegend: true
+              stacked: true
+          queries:
+            - kind: ClickHouseSQL
+              spec:
+                plugin:
+                  kind: ClickHouseSQL
+                  spec:
+                    query: |-
+                      SELECT toStartOfInterval(Timestamp, INTERVAL {step:UInt32} * 6 SECOND) AS ts, SpanAttributes['faas.trigger'] AS trigger, count() AS invocations
+                      FROM traces
+                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND SpanAttributes['faas.trigger'] != ''
+                        AND SpanAttributes['faas.trigger'] IN (
+                        SELECT SpanAttributes['faas.trigger'] FROM traces WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND SpanAttributes['faas.trigger'] != ''
+                        GROUP BY SpanAttributes['faas.trigger'] ORDER BY count() DESC LIMIT 8
+                      )
+                      GROUP BY ts, trigger
+                      ORDER BY ts
+      functions:
+        kind: Panel
+        spec:
+          display:
+            name: Functions
+          plugin:
+            kind: Table
+            spec:
+              stickyHeader: true
+          queries:
+            - kind: ClickHouseSQL
+              spec:
+                plugin:
+                  kind: ClickHouseSQL
+                  spec:
+                    query: |-
+                      SELECT coalesce(nullIf(ResourceAttributes['faas.name'], ''), ServiceName) AS function,
+                             count() AS invocations,
+                             round(quantile(0.50)(Duration) / 1000000, 1) AS p50_ms,
+                             round(quantile(0.95)(Duration) / 1000000, 1) AS p95_ms,
+                             round(countIf(StatusCode = 'Error') / count() * 100, 2) AS error_pct,
+                             round(countIf(SpanAttributes['faas.coldstart'] = 'true') / count() * 100, 1) AS cold_pct
+                      FROM traces
+                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND SpanAttributes['faas.trigger'] != ''
+                      GROUP BY function
+                      ORDER BY invocations DESC
+                      LIMIT 40
+      recent-failures:
+        kind: Panel
+        spec:
+          display:
+            name: Recent failed invocations
+            description: The invocation id is the platform's own request id, so a row here can be looked up in the function's logs.
+          plugin:
+            kind: Table
+            spec:
+              stickyHeader: true
+          queries:
+            - kind: ClickHouseSQL
+              spec:
+                plugin:
+                  kind: ClickHouseSQL
+                  spec:
+                    query: |-
+                      SELECT Timestamp AS ts,
+                             coalesce(nullIf(ResourceAttributes['faas.name'], ''), ServiceName) AS function,
+                             SpanAttributes['faas.trigger'] AS trigger,
+                             SpanAttributes['faas.invocation_id'] AS invocation_id,
+                             round(Duration / 1000000, 1) AS duration_ms,
+                             StatusMessage AS status
+                      FROM traces
+                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND SpanAttributes['faas.trigger'] != '' AND StatusCode = 'Error'
+                      ORDER BY ts DESC
+                      LIMIT 50
+    layouts:
+      - kind: Grid
+        spec:
+          items:
+            - x: 0
+              y: 0
+              width: 6
+              height: 5
+              content:
+                $ref: "#/spec/panels/invocations"
+            - x: 6
+              y: 0
+              width: 6
+              height: 5
+              content:
+                $ref: "#/spec/panels/error-rate"
+            - x: 12
+              y: 0
+              width: 6
+              height: 5
+              content:
+                $ref: "#/spec/panels/p95-duration"
+            - x: 18
+              y: 0
+              width: 6
+              height: 5
+              content:
+                $ref: "#/spec/panels/cold-start-rate"
+            - x: 0
+              y: 5
+              width: 12
+              height: 9
+              content:
+                $ref: "#/spec/panels/invocations-by-function"
+            - x: 12
+              y: 5
+              width: 12
+              height: 9
+              content:
+                $ref: "#/spec/panels/errors-by-function"
+            - x: 0
+              y: 14
+              width: 12
+              height: 9
+              content:
+                $ref: "#/spec/panels/duration-percentiles"
+            - x: 12
+              y: 14
+              width: 12
+              height: 9
+              content:
+                $ref: "#/spec/panels/duration-by-function"
+            - x: 0
+              y: 23
+              width: 12
+              height: 9
+              content:
+                $ref: "#/spec/panels/cold-vs-warm"
+            - x: 12
+              y: 23
+              width: 12
+              height: 9
+              content:
+                $ref: "#/spec/panels/cold-start-penalty"
+            - x: 0
+              y: 32
+              width: 12
+              height: 9
+              content:
+                $ref: "#/spec/panels/by-trigger"
+            - x: 12
+              y: 32
+              width: 12
+              height: 9
+              content:
+                $ref: "#/spec/panels/functions"
+            - x: 0
+              y: 41
+              width: 24
+              height: 9
+              content:
+                $ref: "#/spec/panels/recent-failures"

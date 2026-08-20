@@ -14,5 +14,11 @@ declare module "@tanstack/react-router" {
       | ((match: AnyRouteMatch) => string | BreadcrumbSegment[] | undefined);
     hideTimeRangePicker?: boolean;
     hideExploreBar?: boolean;
+    /**
+     * The route owns its scroll and touches the content edges (explorer-style
+     * split panes): the `_previewable` layout skips PageContainer and its
+     * page scroll for matches carrying this.
+     */
+    fullBleed?: boolean;
   }
 }

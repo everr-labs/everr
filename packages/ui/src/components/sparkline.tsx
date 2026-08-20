@@ -31,7 +31,7 @@ export function Sparkline({
       style={className ? undefined : { width, height }}
       className={className}
     >
-      <ResponsiveContainer width="100%" height="100%">
+      <ResponsiveContainer width="100%" height="100%" debounce={100}>
         <AreaChart
           data={chartData}
           margin={{ left: 0, right: 0, bottom: 0, top: 8 }}

@@ -6,10 +6,9 @@ import {
   EmptyHeader,
   EmptyTitle,
 } from "@everr/ui/components/empty";
+import { useCopyToClipboard } from "@everr/ui/hooks/use-copy-to-clipboard";
 import { cn } from "@everr/ui/lib/utils";
-import { useEffect, useRef, useState } from "react";
-
-type CopyState = "idle" | "copied" | "failed";
+import { useRef } from "react";
 
 /**
  * Empty state for resources managed as code (alerts, dashboards, runbooks):
@@ -28,34 +27,10 @@ export function ResourceEmptyState({
   docsHref?: string;
 }) {
   const promptRef = useRef<HTMLElement>(null);
-  const [copyState, setCopyState] = useState<CopyState>("idle");
-  const resetTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
-  useEffect(() => () => clearTimeout(resetTimer.current), []);
-
-  const copyPrompt = () => {
-    clearTimeout(resetTimer.current);
-    navigator.clipboard.writeText(assistantPrompt).then(
-      () => {
-        setCopyState("copied");
-        // "Copied" is transient feedback; a failure stays visible until the
-        // next attempt so the user has time to copy the selection manually.
-        resetTimer.current = setTimeout(() => setCopyState("idle"), 2000);
-      },
-      () => {
-        // Clipboard access can be denied (permissions policy, unfocused
-        // document). Select the prompt so a manual copy is one keystroke away.
-        const node = promptRef.current;
-        if (node) {
-          const range = document.createRange();
-          range.selectNodeContents(node);
-          const selection = window.getSelection();
-          selection?.removeAllRanges();
-          selection?.addRange(range);
-        }
-        setCopyState("failed");
-      },
-    );
-  };
+  const { state: copyState, copy: copyPrompt } = useCopyToClipboard(
+    assistantPrompt,
+    { selectOnFailure: promptRef },
+  );
 
   return (
     <Empty className="border-0 py-16">

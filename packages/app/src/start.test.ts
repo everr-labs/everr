@@ -18,6 +18,7 @@ describe("startInstance", () => {
     const { startInstance } = await import("./start");
 
     expect(startInstance).toEqual({
+      defaultSsr: false,
       functionMiddleware: [startMocks.serverFnTelemetryMiddleware],
     });
   });

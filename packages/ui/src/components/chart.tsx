@@ -36,7 +36,9 @@ function ChartContainer({
   className,
   children,
   config,
-  debounce,
+  // One re-measure per resize burst instead of one recharts re-render per
+  // animation frame while the sidebar or dashboards rail slides.
+  debounce = 100,
   ...props
 }: React.ComponentProps<"div"> & {
   config: ChartConfig;

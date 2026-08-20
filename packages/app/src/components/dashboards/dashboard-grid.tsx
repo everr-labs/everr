@@ -1,16 +1,24 @@
-import { useMemo } from "react";
+import { type ReactNode, useMemo } from "react";
 import type { LayoutItem } from "react-grid-layout";
 import { GridLayout, noCompactor, useContainerWidth } from "react-grid-layout";
 import { persesToRGL } from "@/data/dashboards/convert";
+import { GRID_COLS } from "@/data/dashboards/schema";
 import { DashboardPanel } from "./dashboard-panel";
+import { FrameToggle } from "./frame-toggle";
 import { useDashboard } from "./use-dashboard";
-import { VariableBar } from "./variable-bar";
+import { useHasVisibleVariables, VariableBar } from "./variable-bar";
 
-const GRID_COLS = 24;
 const ROW_HEIGHT = 30;
 
-export function DashboardGrid() {
+export function DashboardGrid({
+  actions,
+  notice,
+}: {
+  actions?: ReactNode;
+  notice?: ReactNode;
+}) {
   const dashboard = useDashboard();
+  const hasVariables = useHasVisibleVariables();
   const { width, containerRef } = useContainerWidth({
     measureBeforeMount: true,
   });
@@ -23,13 +31,35 @@ export function DashboardGrid() {
 
   return (
     <div>
-      <VariableBar />
+      <div className="mb-3 flex items-start gap-x-3">
+        <div className="flex h-8 shrink-0 items-center">
+          <FrameToggle />
+        </div>
+        {hasVariables && (
+          <div aria-hidden className="flex h-8 items-center">
+            <div className="h-5 w-px bg-border" />
+          </div>
+        )}
+        <div className="min-w-0 flex-1">
+          <VariableBar layout="inline" />
+        </div>
+        {actions && (
+          <div className="ml-auto flex h-8 shrink-0 items-center gap-2">
+            {actions}
+          </div>
+        )}
+      </div>
+      {notice && <div className="mb-3">{notice}</div>}
       <div ref={containerRef}>
         <GridLayout
           width={width}
           className="layout"
           layout={layout}
-          gridConfig={{ cols: GRID_COLS, rowHeight: ROW_HEIGHT }}
+          gridConfig={{
+            cols: GRID_COLS,
+            rowHeight: ROW_HEIGHT,
+            containerPadding: [0, 0],
+          }}
           dragConfig={{ enabled: false }}
           resizeConfig={{ enabled: false }}
           // No compaction: render panels at their authored x/y so intentional

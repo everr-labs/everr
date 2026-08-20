@@ -1,4 +1,7 @@
-import { RESOURCE_KINDS } from "@/data/as-code/resource-admin.server";
+import {
+  RESOURCE_KINDS,
+  ReservedProjectError,
+} from "@/data/as-code/resource-admin.server";
 
 /** 400 response for a `kind` path/query segment that is not a ResourceKind. */
 export function unknownKindResponse(kind: string): Response {
@@ -8,6 +11,15 @@ export function unknownKindResponse(kind: string): Response {
     },
     { status: 400 },
   );
+}
+
+/**
+ * 403 for the admin layer's ReservedProjectError, or null for any other
+ * error (which the caller should rethrow).
+ */
+export function reservedProjectResponse(error: unknown): Response | null {
+  if (!(error instanceof ReservedProjectError)) return null;
+  return Response.json({ error: error.message }, { status: 403 });
 }
 
 /** 404 response for a resource that does not exist. */

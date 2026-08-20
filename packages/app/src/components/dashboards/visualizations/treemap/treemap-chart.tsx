@@ -151,7 +151,7 @@ export function TreemapChart<T extends TreemapTileDatum>({
       }
       onMouseLeave={() => setHover(null)}
     >
-      <ResponsiveContainer width="100%" height="100%">
+      <ResponsiveContainer width="100%" height="100%" debounce={100}>
         <Treemap
           data={data}
           dataKey="value"

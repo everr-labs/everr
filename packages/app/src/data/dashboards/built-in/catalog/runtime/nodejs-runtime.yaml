@@ -1,0 +1,435 @@
+id: nodejs-runtime
+name: Node.js Runtime
+description: Event-loop delay and utilization, V8 heap against its limit, and the heap spaces behind it, for services running the OpenTelemetry Node runtime instrumentation.
+category: Runtime
+requires:
+  - signal: metrics
+    label: no metrics
+  - signal: metrics
+    match: nodejs.
+    label: no nodejs*
+document:
+  kind: Dashboard
+  metadata:
+    name: nodejs-runtime
+  spec:
+    display:
+      name: Node.js Runtime
+    duration: 6h
+    refreshInterval: 1m
+    variables:
+      - kind: ListVariable
+        spec:
+          name: service
+          display:
+            name: Service
+          allowMultiple: true
+          allowAllValue: true
+          defaultValue: __all
+          sort: alphabetical-asc
+          plugin:
+            kind: ClickHouseSQLVariable
+            spec:
+              query: SELECT DISTINCT ServiceName FROM (SELECT ServiceName FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName LIKE 'nodejs.%' UNION ALL SELECT ServiceName FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName LIKE 'nodejs.%') ORDER BY ServiceName
+    panels:
+      utilization:
+        kind: Panel
+        spec:
+          display:
+            name: Event-loop utilization
+            description: Share of the loop's time spent working. Sustained near 100% means it never catches up.
+          plugin:
+            kind: StatChart
+            spec:
+              calculation: last
+              unit: "%"
+              decimals: 1
+              thresholds:
+                mode: absolute
+                defaultColor: "#22c55e"
+                steps:
+                  - value: 80
+                    color: "#f59e0b"
+                  - value: 95
+                    color: "#ef4444"
+          queries:
+            - kind: ClickHouseSQL
+              spec:
+                plugin:
+                  kind: ClickHouseSQL
+                  spec:
+                    query: |-
+                      SELECT avg(Value) * 100 AS pct
+                      FROM (SELECT Value FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND ServiceName IN $service AND MetricName = 'nodejs.eventloop.utilization' UNION ALL SELECT Value FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND ServiceName IN $service AND MetricName = 'nodejs.eventloop.utilization')
+      delay-p99:
+        kind: Panel
+        spec:
+          display:
+            name: Delay P99
+          plugin:
+            kind: StatChart
+            spec:
+              calculation: last
+              unit: ms
+              decimals: 1
+          queries:
+            - kind: ClickHouseSQL
+              spec:
+                plugin:
+                  kind: ClickHouseSQL
+                  spec:
+                    query: |-
+                      SELECT avg(Value) * 1000 AS ms
+                      FROM (SELECT Value FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND ServiceName IN $service AND MetricName = 'nodejs.eventloop.delay.p99' UNION ALL SELECT Value FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND ServiceName IN $service AND MetricName = 'nodejs.eventloop.delay.p99')
+      heap-used:
+        kind: Panel
+        spec:
+          display:
+            name: Heap used
+          plugin:
+            kind: StatChart
+            spec:
+              calculation: last
+              unit: MB
+              decimals: 0
+          queries:
+            - kind: ClickHouseSQL
+              spec:
+                plugin:
+                  kind: ClickHouseSQL
+                  spec:
+                    query: |-
+                      SELECT avg(total) / 1048576 AS mb
+                      FROM (
+                        SELECT TimeUnix, ResourceAttributes['service.instance.id'] AS instance, sum(Value) AS total
+                        FROM (SELECT TimeUnix, ResourceAttributes, Value FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND ServiceName IN $service AND MetricName = 'v8js.memory.heap.used' UNION ALL SELECT TimeUnix, ResourceAttributes, Value FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND ServiceName IN $service AND MetricName = 'v8js.memory.heap.used')
+                        GROUP BY TimeUnix, instance
+                      )
+      headroom:
+        kind: Panel
+        spec:
+          display:
+            name: Heap headroom
+            description: Used against the V8 limit. This is what runs out before a heap OOM.
+          plugin:
+            kind: StatChart
+            spec:
+              calculation: last
+              unit: "%"
+              decimals: 1
+              thresholds:
+                mode: absolute
+                defaultColor: "#22c55e"
+                steps:
+                  - value: 75
+                    color: "#f59e0b"
+                  - value: 90
+                    color: "#ef4444"
+          queries:
+            - kind: ClickHouseSQL
+              spec:
+                plugin:
+                  kind: ClickHouseSQL
+                  spec:
+                    query: |-
+                      SELECT avg(pct) AS pct
+                      FROM (
+                        SELECT TimeUnix, ResourceAttributes['service.instance.id'] AS instance,
+                               sumIf(Value, MetricName = 'v8js.memory.heap.used') AS used,
+                               maxIf(Value, MetricName = 'v8js.memory.heap.limit') AS lim,
+                               used / nullIf(lim, 0) * 100 AS pct
+                        FROM (SELECT TimeUnix, ResourceAttributes, MetricName, Value FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND ServiceName IN $service AND MetricName IN ('v8js.memory.heap.used', 'v8js.memory.heap.limit') UNION ALL SELECT TimeUnix, ResourceAttributes, MetricName, Value FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND ServiceName IN $service AND MetricName IN ('v8js.memory.heap.used', 'v8js.memory.heap.limit'))
+                        GROUP BY TimeUnix, instance
+                        HAVING lim > 0
+                      )
+      delay-percentiles:
+        kind: Panel
+        spec:
+          display:
+            name: Event-loop delay percentiles
+          plugin:
+            kind: TimeSeriesChart
+            spec:
+              unit: ms
+              showLegend: true
+          queries:
+            - kind: ClickHouseSQL
+              spec:
+                plugin:
+                  kind: ClickHouseSQL
+                  spec:
+                    query: |-
+                      SELECT toStartOfInterval(TimeUnix, INTERVAL {step:UInt32} * 6 SECOND) AS ts, series, avg(Value) * 1000 AS ms
+                      FROM (
+                        SELECT TimeUnix, 'p50' AS series, Value FROM (SELECT TimeUnix, Value FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND ServiceName IN $service AND MetricName = 'nodejs.eventloop.delay.p50' UNION ALL SELECT TimeUnix, Value FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND ServiceName IN $service AND MetricName = 'nodejs.eventloop.delay.p50')
+                        UNION ALL
+                        SELECT TimeUnix, 'p90' AS series, Value FROM (SELECT TimeUnix, Value FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND ServiceName IN $service AND MetricName = 'nodejs.eventloop.delay.p90' UNION ALL SELECT TimeUnix, Value FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND ServiceName IN $service AND MetricName = 'nodejs.eventloop.delay.p90')
+                        UNION ALL
+                        SELECT TimeUnix, 'p99' AS series, Value FROM (SELECT TimeUnix, Value FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND ServiceName IN $service AND MetricName = 'nodejs.eventloop.delay.p99' UNION ALL SELECT TimeUnix, Value FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND ServiceName IN $service AND MetricName = 'nodejs.eventloop.delay.p99')
+                      )
+                      GROUP BY ts, series
+                      ORDER BY ts
+      utilization-over-time:
+        kind: Panel
+        spec:
+          display:
+            name: Event-loop utilization over time
+          plugin:
+            kind: TimeSeriesChart
+            spec:
+              unit: "%"
+              showLegend: false
+          queries:
+            - kind: ClickHouseSQL
+              spec:
+                plugin:
+                  kind: ClickHouseSQL
+                  spec:
+                    query: |-
+                      SELECT toStartOfInterval(TimeUnix, INTERVAL {step:UInt32} SECOND) AS ts,
+                             avg(Value) * 100 AS value
+                      FROM (SELECT TimeUnix, Value FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND ServiceName IN $service AND MetricName = 'nodejs.eventloop.utilization' UNION ALL SELECT TimeUnix, Value FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND ServiceName IN $service AND MetricName = 'nodejs.eventloop.utilization')
+                      GROUP BY ts
+                      ORDER BY ts
+      heap-vs-limit:
+        kind: Panel
+        spec:
+          display:
+            name: Heap used against limit
+          plugin:
+            kind: TimeSeriesChart
+            spec:
+              unit: MB
+              showLegend: true
+          queries:
+            - kind: ClickHouseSQL
+              spec:
+                plugin:
+                  kind: ClickHouseSQL
+                  spec:
+                    query: |-
+                      SELECT ts, series, avg(bytes) / 1048576 AS mb
+                      FROM (
+                        SELECT toStartOfInterval(TimeUnix, INTERVAL {step:UInt32} * 6 SECOND) AS ts, TimeUnix, ResourceAttributes['service.instance.id'] AS instance,
+                               sumIf(Value, MetricName = 'v8js.memory.heap.used') AS used,
+                               maxIf(Value, MetricName = 'v8js.memory.heap.limit') AS lim
+                        FROM (SELECT TimeUnix, ResourceAttributes, MetricName, Value FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND ServiceName IN $service AND MetricName IN ('v8js.memory.heap.used', 'v8js.memory.heap.limit') UNION ALL SELECT TimeUnix, ResourceAttributes, MetricName, Value FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND ServiceName IN $service AND MetricName IN ('v8js.memory.heap.used', 'v8js.memory.heap.limit'))
+                        GROUP BY ts, TimeUnix, instance
+                      )
+                      ARRAY JOIN [used, lim] AS bytes, ['used', 'limit'] AS series
+                      WHERE lim > 0
+                      GROUP BY ts, series
+                      ORDER BY ts
+      gc-duration:
+        kind: Panel
+        spec:
+          display:
+            name: GC duration
+            description: Mean pause per collection. Absent unless the runtime instrumentation reports GC.
+          plugin:
+            kind: TimeSeriesChart
+            spec:
+              unit: ms
+              showLegend: false
+          queries:
+            - kind: ClickHouseSQL
+              spec:
+                plugin:
+                  kind: ClickHouseSQL
+                  spec:
+                    query: |-
+                      SELECT toStartOfInterval(TimeUnix, INTERVAL {step:UInt32} SECOND) AS ts,
+                             sum(Sum) / nullIf(sum(Count), 0) * 1000 AS ms
+                      FROM metrics_histogram
+                      WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND ServiceName IN $service AND MetricName = 'v8js.gc.duration'
+                      GROUP BY ts
+                      ORDER BY ts
+      space-size:
+        kind: Panel
+        spec:
+          display:
+            name: Heap space size
+          plugin:
+            kind: TimeSeriesChart
+            spec:
+              unit: MB
+              showLegend: true
+          queries:
+            - kind: ClickHouseSQL
+              spec:
+                plugin:
+                  kind: ClickHouseSQL
+                  spec:
+                    query: |-
+                      WITH points AS (SELECT TimeUnix, Value, Attributes['v8js.heap.space.name'] AS series FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND ServiceName IN $service AND MetricName = 'v8js.memory.heap.space.size' UNION ALL SELECT TimeUnix, Value, Attributes['v8js.heap.space.name'] AS series FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND ServiceName IN $service AND MetricName = 'v8js.memory.heap.space.size')
+                      SELECT toStartOfInterval(TimeUnix, INTERVAL {step:UInt32} * 6 SECOND) AS ts,
+                             series,
+                             avg(Value) / 1048576 AS value
+                      FROM points
+                      WHERE series IN (
+                        SELECT series FROM points WHERE 1
+                        GROUP BY series ORDER BY count() DESC LIMIT 8
+                      )
+                      GROUP BY ts, series
+                      ORDER BY ts
+      space-used:
+        kind: Panel
+        spec:
+          display:
+            name: Heap space used
+          plugin:
+            kind: TimeSeriesChart
+            spec:
+              unit: MB
+              showLegend: true
+          queries:
+            - kind: ClickHouseSQL
+              spec:
+                plugin:
+                  kind: ClickHouseSQL
+                  spec:
+                    query: |-
+                      WITH points AS (SELECT TimeUnix, Value, Attributes['v8js.heap.space.name'] AS series FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND ServiceName IN $service AND MetricName = 'v8js.memory.heap.space.physical_size' UNION ALL SELECT TimeUnix, Value, Attributes['v8js.heap.space.name'] AS series FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND ServiceName IN $service AND MetricName = 'v8js.memory.heap.space.physical_size')
+                      SELECT toStartOfInterval(TimeUnix, INTERVAL {step:UInt32} * 6 SECOND) AS ts,
+                             series,
+                             avg(Value) / 1048576 AS value
+                      FROM points
+                      WHERE series IN (
+                        SELECT series FROM points WHERE 1
+                        GROUP BY series ORDER BY count() DESC LIMIT 8
+                      )
+                      GROUP BY ts, series
+                      ORDER BY ts
+      space-available:
+        kind: Panel
+        spec:
+          display:
+            name: Heap space available
+          plugin:
+            kind: TimeSeriesChart
+            spec:
+              unit: MB
+              showLegend: true
+          queries:
+            - kind: ClickHouseSQL
+              spec:
+                plugin:
+                  kind: ClickHouseSQL
+                  spec:
+                    query: |-
+                      WITH points AS (SELECT TimeUnix, Value, Attributes['v8js.heap.space.name'] AS series FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND ServiceName IN $service AND MetricName = 'v8js.memory.heap.space.available_size' UNION ALL SELECT TimeUnix, Value, Attributes['v8js.heap.space.name'] AS series FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND ServiceName IN $service AND MetricName = 'v8js.memory.heap.space.available_size')
+                      SELECT toStartOfInterval(TimeUnix, INTERVAL {step:UInt32} * 6 SECOND) AS ts,
+                             series,
+                             avg(Value) / 1048576 AS value
+                      FROM points
+                      WHERE series IN (
+                        SELECT series FROM points WHERE 1
+                        GROUP BY series ORDER BY count() DESC LIMIT 8
+                      )
+                      GROUP BY ts, series
+                      ORDER BY ts
+      eventloop-time:
+        kind: Panel
+        spec:
+          display:
+            name: Event-loop time by state
+          plugin:
+            kind: TimeSeriesChart
+            spec:
+              unit: s
+              showLegend: true
+              stacked: true
+          queries:
+            - kind: ClickHouseSQL
+              spec:
+                plugin:
+                  kind: ClickHouseSQL
+                  spec:
+                    query: |-
+                      SELECT ts, series, sum(seconds) AS value
+                      FROM (
+                        SELECT toStartOfInterval(TimeUnix, INTERVAL {step:UInt32} * 6 SECOND) AS ts,
+                               Attributes['nodejs.eventloop.state'] AS series,
+                               ResourceAttributes['service.instance.id'] AS instance,
+                               max(Value) - min(Value) AS seconds
+                        FROM (SELECT TimeUnix, ResourceAttributes, Attributes, Value FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND ServiceName IN $service AND MetricName = 'nodejs.eventloop.time' UNION ALL SELECT TimeUnix, ResourceAttributes, Attributes, Value FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND ServiceName IN $service AND MetricName = 'nodejs.eventloop.time')
+                        GROUP BY ts, series, instance
+                      )
+                      GROUP BY ts, series
+                      ORDER BY ts
+    layouts:
+      - kind: Grid
+        spec:
+          items:
+            - x: 0
+              y: 0
+              width: 6
+              height: 5
+              content:
+                $ref: "#/spec/panels/utilization"
+            - x: 6
+              y: 0
+              width: 6
+              height: 5
+              content:
+                $ref: "#/spec/panels/delay-p99"
+            - x: 12
+              y: 0
+              width: 6
+              height: 5
+              content:
+                $ref: "#/spec/panels/heap-used"
+            - x: 18
+              y: 0
+              width: 6
+              height: 5
+              content:
+                $ref: "#/spec/panels/headroom"
+            - x: 0
+              y: 5
+              width: 12
+              height: 8
+              content:
+                $ref: "#/spec/panels/delay-percentiles"
+            - x: 12
+              y: 5
+              width: 12
+              height: 8
+              content:
+                $ref: "#/spec/panels/utilization-over-time"
+            - x: 0
+              y: 13
+              width: 12
+              height: 8
+              content:
+                $ref: "#/spec/panels/heap-vs-limit"
+            - x: 12
+              y: 13
+              width: 12
+              height: 8
+              content:
+                $ref: "#/spec/panels/gc-duration"
+            - x: 0
+              y: 21
+              width: 12
+              height: 8
+              content:
+                $ref: "#/spec/panels/space-size"
+            - x: 12
+              y: 21
+              width: 12
+              height: 8
+              content:
+                $ref: "#/spec/panels/space-used"
+            - x: 0
+              y: 29
+              width: 12
+              height: 8
+              content:
+                $ref: "#/spec/panels/space-available"
+            - x: 12
+              y: 29
+              width: 12
+              height: 8
+              content:
+                $ref: "#/spec/panels/eventloop-time"
