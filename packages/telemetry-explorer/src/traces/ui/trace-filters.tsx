@@ -88,7 +88,6 @@ export function TraceFilters({
       <FilterSearchBar
         id="traces-search"
         label="Search"
-        showLabel
         value={value.name}
         onChange={(name) => onChange({ name })}
         placeholder="Filter by span name"

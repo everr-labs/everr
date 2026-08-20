@@ -59,7 +59,6 @@ export function ErrorFilters({
       <FilterSearchBar
         id="errors-search"
         label="Search"
-        showLabel
         value={value.q}
         onChange={(q) => onChange({ q })}
         placeholder="Search errors"

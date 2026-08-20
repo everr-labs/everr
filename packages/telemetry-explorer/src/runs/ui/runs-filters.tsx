@@ -102,7 +102,6 @@ export function RunsFilters({
       <FilterSearchBar
         id="runs-search"
         label="Search"
-        showLabel
         value={runId ?? ""}
         onChange={(next) => onChange({ runId: next || undefined })}
         placeholder="Search by run ID"
