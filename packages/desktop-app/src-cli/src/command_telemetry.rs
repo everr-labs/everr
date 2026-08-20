@@ -16,8 +16,8 @@ use tracing_subscriber::layer::SubscriberExt;
 use tracing_subscriber::util::SubscriberInitExt;
 
 use crate::cli::{
-    CiSubcommand, Cli, CloudSubcommand, Commands, LocalSubcommand, ResourcesSubcommand,
-    SkillsSubcommand,
+    AlertsSubcommand, ChannelsSubcommand, CiSubcommand, Cli, CloudSubcommand, Commands,
+    LocalSubcommand, ResourcesSubcommand, SilencesSubcommand, SkillsSubcommand,
 };
 
 const SERVICE_NAME: &str = "everr-cli";
@@ -316,6 +316,22 @@ impl CommandTelemetry {
                     ResourcesSubcommand::Show(_) => "show",
                     ResourcesSubcommand::Delete(_) => "delete",
                     ResourcesSubcommand::Adopt(_) => "adopt",
+                }),
+            ),
+            Commands::Alerts(args) => (
+                "alerts",
+                Some(match &args.command {
+                    AlertsSubcommand::Silences(args) => match &args.command {
+                        SilencesSubcommand::List(_) => "silences.list",
+                        SilencesSubcommand::Create(_) => "silences.create",
+                        SilencesSubcommand::Expire(_) => "silences.expire",
+                    },
+                    AlertsSubcommand::Channels(args) => match &args.command {
+                        ChannelsSubcommand::List(_) => "channels.list",
+                        ChannelsSubcommand::Create(_) => "channels.create",
+                        ChannelsSubcommand::Edit(_) => "channels.edit",
+                        ChannelsSubcommand::Delete(_) => "channels.delete",
+                    },
                 }),
             ),
         };

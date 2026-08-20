@@ -402,6 +402,108 @@ impl ApiClient {
             .context("failed to decode adopt response")
     }
 
+    /// One page of the org's alert silences, newest first.
+    pub async fn list_silences(&self, query: &SilenceQuery<'_>) -> Result<Vec<Silence>> {
+        let mut params = vec![
+            ("limit", query.limit.to_string()),
+            ("offset", query.offset.to_string()),
+        ];
+        if let Some(from) = query.from {
+            params.push(("from", from.to_string()));
+        }
+        if let Some(to) = query.to {
+            params.push(("to", to.to_string()));
+        }
+        let request = self
+            .http
+            .get(self.alerts_url(&["silences"])?)
+            .query(&params);
+        self.send_json(request, "list silences").await
+    }
+
+    pub async fn create_silence(&self, input: &SilenceInput) -> Result<Silence> {
+        let request = self.http.post(self.alerts_url(&["silences"])?).json(input);
+        self.send_json(request, "create silence").await
+    }
+
+    /// Close a silence's window. Expiring one that is already closed is not an
+    /// error: the outcome reports that nothing changed.
+    pub async fn expire_silence(&self, id: &str) -> Result<ExpireOutcome> {
+        let url = self.alerts_url(&["silences", id, "expire"])?;
+        let request = self.http.post(url);
+        self.send_json(request, "expire silence").await
+    }
+
+    /// The org's delivery channels. Secrets come back redacted as `***`.
+    pub async fn list_channels(&self) -> Result<Vec<Channel>> {
+        let request = self.http.get(self.alerts_url(&["channels"])?);
+        self.send_json(request, "list channels").await
+    }
+
+    pub async fn create_channel(&self, name: &str, config: &ChannelConfig) -> Result<Channel> {
+        let body = ChannelWrite {
+            name: Some(name),
+            config: Some(config),
+        };
+        let request = self.http.post(self.alerts_url(&["channels"])?).json(&body);
+        self.send_json(request, "create channel").await
+    }
+
+    /// Update a channel, naming only what changes. Omitting the config leaves
+    /// the stored credential alone; sending one whose secret is the redaction
+    /// marker does the same, for an edit that changes the rest of it.
+    pub async fn update_channel(
+        &self,
+        name: &str,
+        rename: Option<&str>,
+        config: Option<&ChannelConfig>,
+    ) -> Result<Channel> {
+        let body = ChannelWrite {
+            name: rename,
+            config,
+        };
+        let url = self.alerts_url(&["channels", name])?;
+        let request = self.http.patch(url).json(&body);
+        self.send_json(request, "update channel").await
+    }
+
+    pub async fn delete_channel(&self, name: &str) -> Result<DeleteOutcome> {
+        let url = self.alerts_url(&["channels", name])?;
+        let request = self.http.delete(url);
+        self.send_json(request, "delete channel").await
+    }
+
+    /// An /api/cli/alerts URL whose trailing segments are values, not literals:
+    /// a channel name or a silence id goes through `push`, which percent-encodes
+    /// it, so a name holding a slash or a space still addresses one channel.
+    fn alerts_url(&self, segments: &[&str]) -> Result<reqwest::Url> {
+        let mut url = reqwest::Url::parse(&format!("{}/alerts", self.base_endpoint))
+            .context("CLI API endpoint is not a valid URL")?;
+        {
+            let mut path = url
+                .path_segments_mut()
+                .map_err(|()| anyhow::anyhow!("CLI API endpoint cannot have path segments"))?;
+            for segment in segments {
+                path.push(segment);
+            }
+        }
+        Ok(url)
+    }
+
+    /// `send_checked` plus decoding the body, for the routes that answer with
+    /// JSON rather than an empty 2xx.
+    async fn send_json<T: DeserializeOwned>(
+        &self,
+        request: reqwest::RequestBuilder,
+        context: &'static str,
+    ) -> Result<T> {
+        let response = self.send_checked(request, context).await?;
+        response
+            .json()
+            .await
+            .with_context(|| format!("failed to decode {context} response"))
+    }
+
     /// Calls POST /api/cli/import and returns once the server acknowledges the import has started.
     pub async fn start_import_repos(&self, repos: &[String]) -> Result<()> {
         let response = self
@@ -485,12 +587,25 @@ fn current_trace_headers() -> HeaderMap {
     headers
 }
 
+/// The reason a refusal gave, unwrapped from its envelope.
+///
+/// Every /api/cli route answers a refusal with `{ "error": ... }` (the alerting
+/// ones add a `code`). Printing the envelope would put JSON in front of the
+/// sentence the user needs to read. A body in any other shape, such as apply's
+/// plain-text validation output, is passed through untouched.
+fn refusal_text(text: String) -> String {
+    serde_json::from_str::<serde_json::Value>(&text)
+        .ok()
+        .and_then(|body| Some(body.get("error")?.as_str()?.to_string()))
+        .unwrap_or(text)
+}
+
 fn http_status_error(status: StatusCode, text: String, context: &str) -> anyhow::Error {
     if status == StatusCode::UNAUTHORIZED {
         return anyhow::Error::new(ReauthenticationRequired);
     }
 
-    anyhow::anyhow!("{context} failed with {status}: {text}")
+    anyhow::anyhow!("{context} failed with {status}: {}", refusal_text(text))
 }
 
 #[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Eq)]
@@ -643,6 +758,104 @@ pub struct ResourceSummary {
     pub slug: String,
     pub repoid: String,
     pub updated_at: String,
+}
+
+/// A matcher selects the alerts a silence withholds. Matching is exact only:
+/// `eq` or `ne`, never a pattern.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct Matcher {
+    pub label: String,
+    pub op: MatchOp,
+    pub value: String,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
+pub enum MatchOp {
+    Eq,
+    Ne,
+}
+
+/// What a create sends. The author is not here: the server stamps it from the
+/// authenticated principal, so a caller cannot name somebody else.
+#[derive(Debug, Clone, Serialize, PartialEq, Eq)]
+pub struct SilenceInput {
+    pub matchers: Vec<Matcher>,
+    pub starts_at: String,
+    pub ends_at: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub comment: Option<String>,
+}
+
+/// Which page of silences to read, and which window they must overlap.
+///
+/// `from` and `to` are absolute timestamps: date math is resolved before it
+/// gets here, so the request says exactly what it asked for.
+#[derive(Debug, Clone, Copy, Default)]
+pub struct SilenceQuery<'a> {
+    pub limit: u32,
+    pub offset: u32,
+    pub from: Option<&'a str>,
+    pub to: Option<&'a str>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct Silence {
+    pub id: String,
+    pub matchers: Vec<Matcher>,
+    pub starts_at: String,
+    pub ends_at: String,
+    pub comment: String,
+    pub author: String,
+    pub created_at: String,
+    pub canceled_at: Option<String>,
+}
+
+#[derive(Debug, Clone, Copy, Deserialize, PartialEq, Eq)]
+pub struct ExpireOutcome {
+    pub expired: bool,
+}
+
+#[derive(Debug, Clone, Copy, Deserialize, PartialEq, Eq)]
+pub struct DeleteOutcome {
+    pub deleted: bool,
+}
+
+/// A delivery channel's transport and its credentials. On read the secret half
+/// is `***`; sending that back keeps whatever is stored.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(tag = "type", rename_all = "lowercase")]
+pub enum ChannelConfig {
+    Webhook {
+        url: String,
+    },
+    Slack {
+        url: String,
+    },
+    Discord {
+        url: String,
+    },
+    Telegram {
+        bot_token: String,
+        chat_ids: Vec<String>,
+    },
+}
+
+/// The body a create or an update sends. Both halves are optional because an
+/// update names only what changes; a create fills in both.
+#[derive(Debug, Serialize)]
+struct ChannelWrite<'a> {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    name: Option<&'a str>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    config: Option<&'a ChannelConfig>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+pub struct Channel {
+    pub id: String,
+    pub name: String,
+    pub config: ChannelConfig,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -1079,7 +1292,14 @@ data: {"tenantId":1,"traceId":"trace-1","runId":"42","sha":"deadbeef","repo":"ev
             .delete_resource("dashboard", "default", "nope")
             .await
             .unwrap_err();
-        assert!(err.to_string().contains("404"), "got: {err}");
+        let message = err.to_string();
+        assert!(message.contains("404"), "got: {message}");
+        // The reason, not the envelope it arrived in.
+        assert!(
+            message.contains("resource not found: dashboard/default/nope"),
+            "got: {message}"
+        );
+        assert!(!message.contains('{'), "got: {message}");
         mock.assert_async().await;
     }
 
@@ -1105,6 +1325,167 @@ data: {"tenantId":1,"traceId":"trace-1","runId":"42","sha":"deadbeef","repo":"ev
 
         assert_eq!(outcome.repoid, "github.com/acme/app");
         assert!(!outcome.already_owned);
+        mock.assert_async().await;
+    }
+    #[tokio::test]
+    async fn list_silences_decodes_the_stored_window_and_matchers() {
+        let mut server = mockito::Server::new_async().await;
+        let mock = server
+            .mock("GET", "/api/cli/alerts/silences")
+            .match_query(mockito::Matcher::AllOf(vec![
+                mockito::Matcher::UrlEncoded("limit".into(), "20".into()),
+                mockito::Matcher::UrlEncoded("offset".into(), "0".into()),
+            ]))
+            .with_body(
+                r#"[{"id":"s-1","tenant":"org-1","matchers":[{"label":"service","op":"eq","value":"api"}],"starts_at":"2026-08-20T09:00:00.000Z","ends_at":"2026-08-20T11:00:00.000Z","comment":"deploy","author":"Ada","created_at":"2026-08-20T08:00:00.000Z","canceled_at":null}]"#,
+            )
+            .create_async()
+            .await;
+
+        let client = ApiClient::from_session(&make_session(&server.url())).unwrap();
+        let silences = client
+            .list_silences(&SilenceQuery {
+                limit: 20,
+                offset: 0,
+                ..SilenceQuery::default()
+            })
+            .await
+            .unwrap();
+
+        assert_eq!(silences.len(), 1);
+        assert_eq!(silences[0].matchers[0].op, MatchOp::Eq);
+        assert_eq!(silences[0].author, "Ada");
+        assert_eq!(silences[0].canceled_at, None);
+        mock.assert_async().await;
+    }
+
+    #[tokio::test]
+    async fn create_silence_omits_a_comment_nobody_gave() {
+        let mut server = mockito::Server::new_async().await;
+        let mock = server
+            .mock("POST", "/api/cli/alerts/silences")
+            .match_body(mockito::Matcher::JsonString(
+                r#"{"matchers":[{"label":"service","op":"ne","value":"api"}],"starts_at":"2026-08-20T09:00:00.000Z","ends_at":"2026-08-20T11:00:00.000Z"}"#
+                    .to_string(),
+            ))
+            .with_body(
+                r#"{"id":"s-1","tenant":"org-1","matchers":[],"starts_at":"2026-08-20T09:00:00.000Z","ends_at":"2026-08-20T11:00:00.000Z","comment":"","author":"Ada","created_at":"2026-08-20T08:00:00.000Z","canceled_at":null}"#,
+            )
+            .create_async()
+            .await;
+
+        let client = ApiClient::from_session(&make_session(&server.url())).unwrap();
+        client
+            .create_silence(&SilenceInput {
+                matchers: vec![Matcher {
+                    label: "service".to_string(),
+                    op: MatchOp::Ne,
+                    value: "api".to_string(),
+                }],
+                starts_at: "2026-08-20T09:00:00.000Z".to_string(),
+                ends_at: "2026-08-20T11:00:00.000Z".to_string(),
+                comment: None,
+            })
+            .await
+            .unwrap();
+
+        mock.assert_async().await;
+    }
+
+    #[tokio::test]
+    async fn create_channel_sends_the_name_beside_its_tagged_config() {
+        let mut server = mockito::Server::new_async().await;
+        let mock = server
+            .mock("POST", "/api/cli/alerts/channels")
+            .match_body(mockito::Matcher::JsonString(
+                r#"{"name":"oncall","config":{"type":"telegram","bot_token":"tok","chat_ids":["1","2"]}}"#
+                    .to_string(),
+            ))
+            .with_body(
+                r#"{"id":"c-1","tenant":"org-1","name":"oncall","config":{"type":"telegram","bot_token":"***","chat_ids":["1","2"]}}"#,
+            )
+            .create_async()
+            .await;
+
+        let client = ApiClient::from_session(&make_session(&server.url())).unwrap();
+        let channel = client
+            .create_channel(
+                "oncall",
+                &ChannelConfig::Telegram {
+                    bot_token: "tok".to_string(),
+                    chat_ids: vec!["1".to_string(), "2".to_string()],
+                },
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(
+            channel.config,
+            ChannelConfig::Telegram {
+                bot_token: "***".to_string(),
+                chat_ids: vec!["1".to_string(), "2".to_string()],
+            }
+        );
+        mock.assert_async().await;
+    }
+
+    #[tokio::test]
+    async fn an_update_sends_only_the_half_that_changes() {
+        let mut server = mockito::Server::new_async().await;
+        let mock = server
+            .mock("PATCH", "/api/cli/alerts/channels/oncall")
+            .match_body(mockito::Matcher::JsonString(
+                r#"{"name":"primary-oncall"}"#.to_string(),
+            ))
+            .with_body(
+                r#"{"id":"c-1","tenant":"org-1","name":"primary-oncall","config":{"type":"slack","url":"***"}}"#,
+            )
+            .create_async()
+            .await;
+
+        let client = ApiClient::from_session(&make_session(&server.url())).unwrap();
+        client
+            .update_channel("oncall", Some("primary-oncall"), None)
+            .await
+            .unwrap();
+
+        mock.assert_async().await;
+    }
+
+    #[tokio::test]
+    async fn a_channel_name_needing_escaping_still_addresses_one_channel() {
+        let mut server = mockito::Server::new_async().await;
+        let mock = server
+            .mock("DELETE", "/api/cli/alerts/channels/team%2Foncall")
+            .with_body(r#"{"deleted":true}"#)
+            .create_async()
+            .await;
+
+        let client = ApiClient::from_session(&make_session(&server.url())).unwrap();
+        let outcome = client.delete_channel("team/oncall").await.unwrap();
+
+        assert!(outcome.deleted);
+        mock.assert_async().await;
+    }
+
+    #[tokio::test]
+    async fn a_refusal_reports_its_reason_not_its_envelope() {
+        let mut server = mockito::Server::new_async().await;
+        let mock = server
+            .mock("DELETE", "/api/cli/alerts/channels/oncall")
+            .with_status(409)
+            .with_body(
+                r#"{"error":"Channel has 2 notifications still sending; retry once they settle","code":"conflict"}"#,
+            )
+            .create_async()
+            .await;
+
+        let client = ApiClient::from_session(&make_session(&server.url())).unwrap();
+        let error = client.delete_channel("oncall").await.unwrap_err();
+
+        let message = error.to_string();
+        assert!(message.contains("still sending"), "got: {message}");
+        assert!(!message.contains("\"code\""), "got: {message}");
         mock.assert_async().await;
     }
 }

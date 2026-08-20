@@ -790,7 +790,7 @@ async fn resources_adopt(
 /// Gate a destructive action behind confirmation: `--yes` skips the prompt,
 /// interactive terminals ask (warning-styled when `warn`), and non-interactive
 /// contexts refuse with `refusal`.
-fn confirm_action(
+pub(crate) fn confirm_action(
     question: String,
     yes: bool,
     warn: bool,
