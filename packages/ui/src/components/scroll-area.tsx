@@ -9,7 +9,11 @@ function ScrollAreaRoot({
   return (
     <ScrollAreaPrimitive.Root
       data-slot="scroll-area-root"
-      className={cn("relative overflow-hidden", className)}
+      // A flex column is what lets the viewport track the root's height in
+      // every sizing shape. Base UI forces `overflow: scroll` inline on the
+      // viewport, so a percentage height there resolves against whichever
+      // ancestor is definite and the root silently clips instead of scrolling.
+      className={cn("relative flex flex-col overflow-hidden", className)}
       {...props}
     />
   );
@@ -23,7 +27,7 @@ function ScrollAreaViewport({
     <ScrollAreaPrimitive.Viewport
       data-slot="scroll-area-viewport"
       className={cn(
-        "size-full rounded-[inherit] focus-visible:outline-none",
+        "w-full min-h-0 flex-1 rounded-[inherit] focus-visible:outline-none",
         className,
       )}
       {...props}

@@ -61,3 +61,60 @@ export const ContentThatFits: Story = {
     </ScrollArea>
   ),
 };
+
+export const MaxHeightRoot: Story = {
+  render: () => (
+    <ScrollArea className="border-border max-h-[320px] w-72 rounded-md border">
+      <ul className="grid gap-1 p-3 font-mono text-sm">
+        {services.map((service) => (
+          <li key={service}>{service}</li>
+        ))}
+      </ul>
+    </ScrollArea>
+  ),
+};
+
+export const AutoHeightRootInDefiniteAncestor: Story = {
+  render: () => (
+    <div className="border-border flex h-96 w-96 flex-col gap-2 rounded-md border p-2">
+      <ScrollArea
+        orientation="horizontal"
+        className="border-border w-full rounded-md border"
+      >
+        <p className="whitespace-nowrap p-3 font-mono text-sm">{wideRow}</p>
+      </ScrollArea>
+      <p className="text-muted-foreground text-sm">
+        The strip above stays one line tall.
+      </p>
+    </div>
+  ),
+};
+
+export const FlexOneRoot: Story = {
+  render: () => (
+    <div className="border-border flex h-64 w-72 flex-col rounded-md border">
+      <p className="border-border border-b p-2 font-mono text-sm">header</p>
+      <ScrollArea className="min-h-0 flex-1">
+        <ul className="grid gap-1 p-3 font-mono text-sm">
+          {services.map((service) => (
+            <li key={service}>{service}</li>
+          ))}
+        </ul>
+      </ScrollArea>
+    </div>
+  ),
+};
+
+export const FullHeightRoot: Story = {
+  render: () => (
+    <div className="border-border h-64 w-72 rounded-md border">
+      <ScrollArea className="h-full">
+        <ul className="grid gap-1 p-3 font-mono text-sm">
+          {services.map((service) => (
+            <li key={service}>{service}</li>
+          ))}
+        </ul>
+      </ScrollArea>
+    </div>
+  ),
+};
