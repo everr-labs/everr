@@ -55,7 +55,7 @@ function ScrollAreaScrollbar({
       orientation={orientation}
       className={cn(
         "z-20 flex touch-none select-none p-0.5 opacity-0 transition-opacity duration-150",
-        "data-hovering:opacity-100 data-scrolling:opacity-100",
+        "data-scrolling:opacity-100",
         orientation === "vertical" && "h-full w-2.5",
         orientation === "horizontal" && "w-full flex-col h-2.5",
         className,
