@@ -1,3 +1,4 @@
+import { ScrollArea } from "@everr/ui/components/scroll-area";
 import { createFileRoute, Outlet } from "@tanstack/react-router";
 import { PageContainer } from "@/components/page-container";
 
@@ -10,10 +11,13 @@ export const Route = createFileRoute("/_authenticated/_dashboard/_padded")({
 // keeps `PageContainer`'s fill working for both tall and full-height content.
 function PaddedLayout() {
   return (
-    <div className="flex min-h-0 flex-1 flex-col overflow-auto overscroll-y-contain">
+    <ScrollArea
+      className="min-h-0 flex-1"
+      viewportClassName="flex flex-col overscroll-y-contain"
+    >
       <PageContainer>
         <Outlet />
       </PageContainer>
-    </div>
+    </ScrollArea>
   );
 }

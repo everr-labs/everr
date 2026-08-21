@@ -1,3 +1,4 @@
+import { ScrollArea } from "@everr/ui/components/scroll-area";
 import {
   createFileRoute,
   Outlet,
@@ -38,9 +39,17 @@ function RunbooksLayout() {
         resets this pane to the top on navigation, keyed off
         `data-scroll-to-top` (see `scrollToTopSelectors` in router.tsx).
       */}
-      <main
-        data-scroll-to-top
-        className="@container/pane min-h-0 min-w-0 overflow-auto overscroll-y-contain"
+      <ScrollArea
+        render={<main />}
+        className="min-h-0 min-w-0"
+        viewportClassName="@container/pane overscroll-y-contain"
+        // The router resets scroll by selector (`data-scroll-to-top`, see
+        // `scrollToTopSelectors` in router.tsx); that selector must find the
+        // element that actually scrolls, which is the ScrollArea viewport,
+        // not this root.
+        viewportRef={(node) => {
+          node?.setAttribute("data-scroll-to-top", "");
+        }}
       >
         {/* The toggle belongs to the rail, not to the runbook, so it sits at
             the pane's edge against it rather than over the centered text. */}
@@ -57,7 +66,7 @@ function RunbooksLayout() {
         <div className="relative mx-auto w-full max-w-2xl px-3 pb-3 @[76rem]/pane:max-w-3xl @[88rem]/pane:max-w-4xl">
           <Outlet />
         </div>
-      </main>
+      </ScrollArea>
     </RailFrame>
   );
 }

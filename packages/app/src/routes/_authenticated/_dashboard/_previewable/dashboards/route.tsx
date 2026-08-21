@@ -1,3 +1,4 @@
+import { ScrollArea } from "@everr/ui/components/scroll-area";
 import {
   createFileRoute,
   Outlet,
@@ -31,11 +32,15 @@ function DashboardsLayout() {
       full={full ?? false}
       rail={<DashboardsList preview={preview} />}
     >
-      <main className="min-h-0 min-w-0 overflow-auto overscroll-y-contain">
+      <ScrollArea
+        render={<main />}
+        className="min-h-0 min-w-0"
+        viewportClassName="overscroll-y-contain"
+      >
         <div className="p-3">
           <Outlet />
         </div>
-      </main>
+      </ScrollArea>
     </RailFrame>
   );
 }
