@@ -1,5 +1,4 @@
 import { Button } from "@everr/ui/components/button";
-import { ScrollArea } from "@everr/ui/components/scroll-area";
 import { RotateCw } from "lucide-react";
 import { AuthSettingsSection } from "../auth/auth";
 import {
@@ -8,7 +7,7 @@ import {
 } from "../local-telemetry/collector-status";
 import { NotificationEmailsSection } from "../notifications/notification-emails-section";
 import { SkillsSection } from "../skills/skills-section";
-import { PageTitleBar } from "./title-bar";
+import { SectionsPage } from "./title-bar";
 import { SettingsSection } from "./ui";
 
 function LocalTelemetrySection() {
@@ -78,16 +77,11 @@ function LocalTelemetrySection() {
 
 export function SettingsPage() {
   return (
-    <div className="flex h-full flex-col overflow-hidden">
-      <PageTitleBar title="Settings" />
-      <ScrollArea className="min-h-0 flex-1">
-        <div className="grid divide-y divide-white/[0.08]">
-          <AuthSettingsSection />
-          <NotificationEmailsSection />
-          <SkillsSection />
-          <LocalTelemetrySection />
-        </div>
-      </ScrollArea>
-    </div>
+    <SectionsPage title="Settings">
+      <AuthSettingsSection />
+      <NotificationEmailsSection />
+      <SkillsSection />
+      <LocalTelemetrySection />
+    </SectionsPage>
   );
 }
