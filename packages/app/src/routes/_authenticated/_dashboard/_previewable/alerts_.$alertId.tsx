@@ -6,6 +6,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@everr/ui/components/card";
+import { CodeBlock } from "@everr/ui/components/code-block";
 import { type Column, DataTable } from "@everr/ui/components/data-table";
 import {
   Dialog,
@@ -17,7 +18,6 @@ import {
 } from "@everr/ui/components/dialog";
 import { Input } from "@everr/ui/components/input";
 import { Label } from "@everr/ui/components/label";
-import { ScrollArea } from "@everr/ui/components/scroll-area";
 import {
   Select,
   SelectContent,
@@ -366,28 +366,21 @@ function AlertDetailPage() {
             <div className="flex flex-col gap-4">
               <DefinitionTable rows={definitionRows} />
               {detail.lastEvaluationError && (
-                <ScrollArea
-                  orientation="both"
+                <CodeBlock
                   className="max-h-32 rounded bg-muted/30"
+                  codeClassName="p-2 text-destructive"
                 >
-                  <pre className="whitespace-pre p-2 text-xs text-destructive">
-                    {detail.lastEvaluationError}
-                  </pre>
-                </ScrollArea>
+                  {detail.lastEvaluationError}
+                </CodeBlock>
               )}
 
               <div className="flex flex-col gap-1.5">
                 <span className="font-medium text-muted-foreground text-xs">
                   Query
                 </span>
-                <ScrollArea
-                  orientation="both"
-                  className="max-h-72 rounded-md border border-border/60 bg-muted/20"
-                >
-                  <pre className="whitespace-pre p-3 text-xs leading-relaxed">
-                    {detail.parsedQuery}
-                  </pre>
-                </ScrollArea>
+                <CodeBlock className="max-h-72 rounded-md border border-border/60 bg-muted/20">
+                  {detail.parsedQuery}
+                </CodeBlock>
               </div>
             </div>
           </CardContent>

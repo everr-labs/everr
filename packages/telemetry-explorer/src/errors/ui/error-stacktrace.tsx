@@ -1,5 +1,5 @@
+import { CodeBlock } from "@everr/ui/components/code-block";
 import { CopyValueButton } from "@everr/ui/components/detail-panel";
-import { ScrollArea } from "@everr/ui/components/scroll-area";
 
 export function ErrorStacktrace({
   stacktrace,
@@ -20,14 +20,9 @@ export function ErrorStacktrace({
           className="opacity-100 focus-visible:opacity-100"
         />
       </div>
-      <ScrollArea
-        orientation="both"
-        className="max-h-[28rem] rounded-md bg-muted/40"
-      >
-        <pre className="p-3 text-xs leading-relaxed whitespace-pre">
-          <code className="font-mono">{stacktrace}</code>
-        </pre>
-      </ScrollArea>
+      <CodeBlock className="max-h-[28rem] rounded-md bg-muted/40">
+        <code className="font-mono">{stacktrace}</code>
+      </CodeBlock>
     </section>
   );
 }
