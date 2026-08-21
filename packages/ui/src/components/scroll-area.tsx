@@ -97,6 +97,8 @@ function ScrollAreaCorner({
 interface ScrollAreaProps extends ScrollAreaPrimitive.Root.Props {
   viewportClassName?: string;
   viewportRef?: React.Ref<HTMLDivElement>;
+  viewportProps?: ScrollAreaPrimitive.Viewport.Props &
+    Record<`data-${string}`, string>;
   orientation?: "vertical" | "horizontal" | "both";
 }
 
@@ -105,6 +107,13 @@ function ScrollArea({
   children,
   viewportClassName,
   viewportRef,
+  // ref and className are pulled through their own dedicated props above, so
+  // a caller passing viewportProps can never clobber either.
+  viewportProps: {
+    ref: _ignoredRef,
+    className: _ignoredClassName,
+    ...viewportProps
+  } = {},
   orientation = "vertical",
   ...props
 }: ScrollAreaProps) {
@@ -112,7 +121,11 @@ function ScrollArea({
   const horizontal = orientation === "horizontal" || orientation === "both";
   return (
     <ScrollAreaRoot data-slot="scroll-area" className={className} {...props}>
-      <ScrollAreaViewport ref={viewportRef} className={viewportClassName}>
+      <ScrollAreaViewport
+        ref={viewportRef}
+        className={viewportClassName}
+        {...viewportProps}
+      >
         {children}
       </ScrollAreaViewport>
       {vertical && (

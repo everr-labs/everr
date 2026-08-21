@@ -28,6 +28,18 @@ describe("ScrollArea", () => {
     expect(viewport).toHaveAttribute("data-slot", "scroll-area-viewport");
   });
 
+  it("forwards viewportProps to the viewport element", () => {
+    render(
+      <ScrollArea viewportProps={{ "data-scroll-to-top": "" }}>
+        <p>content</p>
+      </ScrollArea>,
+    );
+    const viewport = screen
+      .getByText("content")
+      .closest("[data-slot='scroll-area-viewport']");
+    expect(viewport).toHaveAttribute("data-scroll-to-top", "");
+  });
+
   it("renders only the vertical scrollbar by default", () => {
     const { container } = render(
       <ScrollArea>

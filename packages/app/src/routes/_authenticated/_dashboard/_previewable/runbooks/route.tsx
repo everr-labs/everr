@@ -43,13 +43,10 @@ function RunbooksLayout() {
         render={<main />}
         className="min-h-0 min-w-0"
         viewportClassName="@container/pane overscroll-y-contain"
-        // The router resets scroll by selector (`data-scroll-to-top`, see
-        // `scrollToTopSelectors` in router.tsx); that selector must find the
-        // element that actually scrolls, which is the ScrollArea viewport,
-        // not this root.
-        viewportRef={(node) => {
-          node?.setAttribute("data-scroll-to-top", "");
-        }}
+        // scrollToTopSelectors (router.tsx) queries `[data-scroll-to-top]` and
+        // calls scrollTo on whatever it finds, so the attribute must sit on
+        // the element that actually scrolls: the viewport, not this root.
+        viewportProps={{ "data-scroll-to-top": "" }}
       >
         {/* The toggle belongs to the rail, not to the runbook, so it sits at
             the pane's edge against it rather than over the centered text. */}
