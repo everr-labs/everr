@@ -93,4 +93,32 @@ describe("FilterSearchBar", () => {
       screen.getByRole("button", { name: "Clear trace" }),
     ).toBeInTheDocument();
   });
+
+  it("hides the clear button while the input has focus, and only then", () => {
+    render(
+      <FilterSearchBar
+        id="s"
+        label="Search"
+        value="boom"
+        onChange={vi.fn()}
+        placeholder="p"
+      />,
+    );
+    const input = screen.getByLabelText("Search");
+    const clear = () => screen.queryByRole("button", { name: "Clear search" });
+    expect(clear()).toBeInTheDocument();
+
+    // Focus on the input swaps in the Enter hint.
+    fireEvent.focus(input);
+    expect(screen.getByText("Enter")).toBeInTheDocument();
+    expect(clear()).not.toBeInTheDocument();
+
+    // Focus on the clear button itself must not take it off the layout, which
+    // would drop the focus and swallow the activation.
+    fireEvent.blur(input);
+    const button = clear();
+    expect(button).toBeInTheDocument();
+    fireEvent.focus(button as HTMLElement);
+    expect(clear()).toBeInTheDocument();
+  });
 });

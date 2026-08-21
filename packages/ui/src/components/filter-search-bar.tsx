@@ -28,6 +28,9 @@ export function FilterSearchBar({
   icon?: ComponentType<{ className?: string }>;
 }) {
   const [draft, setDraft] = useState(value);
+  // Whether the input itself holds focus. `group-focus-within` would also match
+  // the clear button, and hiding a focused button drops the focus on the floor.
+  const [inputFocused, setInputFocused] = useState(false);
   // Take the draft again when the value changes from outside, for example on
   // "Clear page filters", on a link, or on Back.
   useEffect(() => {
@@ -73,22 +76,26 @@ export function FilterSearchBar({
           onChange={(event) => setDraft(event.currentTarget.value)}
           // Leaving the field runs the edit it holds. Without this a typed but
           // unsubmitted draft looks applied while the results ignore it.
-          onBlur={() => commit()}
+          onFocus={() => setInputFocused(true)}
+          onBlur={() => {
+            setInputFocused(false);
+            commit();
+          }}
           placeholder={placeholder}
           className="text-sm"
         />
-        {/* The hint and the clear button share one slot: `hidden` takes the one
-            that is out of turn off the layout, so they never sit side by side. */}
+        {/* The hint and the clear button share one slot, so only one of them
+            renders at a time. */}
         <InputGroupAddon align="inline-end">
-          <Kbd className="hidden gap-1 px-1.5 group-focus-within/input-group:inline-flex">
-            <CornerDownLeft className="size-3" />
-            Enter
-          </Kbd>
-          {value.length > 0 ? (
+          {inputFocused ? (
+            <Kbd className="gap-1 px-1.5">
+              <CornerDownLeft className="size-3" />
+              Enter
+            </Kbd>
+          ) : value.length > 0 ? (
             <InputGroupButton
               size="icon-xs"
               aria-label={`Clear ${label.toLowerCase()}`}
-              className="group-focus-within/input-group:hidden"
               onClick={() => {
                 setDraft("");
                 onChange("");
