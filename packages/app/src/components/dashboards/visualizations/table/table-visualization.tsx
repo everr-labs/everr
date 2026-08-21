@@ -87,6 +87,8 @@ export function TableVisualization({
             rowKey={(_, i) => String(i)}
             stickyHeader={spec.stickyHeader}
             bordered
+            // The panel above owns the scroll box this table sits in.
+            scrollable={false}
           />
         )}
       </ScrollArea>

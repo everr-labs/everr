@@ -17,6 +17,12 @@ interface DataTableProps<T> {
   emptyState?: ReactNode;
   stickyHeader?: boolean;
   bordered?: boolean;
+  /**
+   * Whether the table brings its own scroll box. Turn it off when the caller
+   * already owns one: nesting two viewports leaves the inner one unable to
+   * overflow and doubles the tab stops.
+   */
+  scrollable?: boolean;
   containerClassName?: string;
   /**
    * Makes rows clickable (mouse convenience). Keep a real link inside a cell as
@@ -34,6 +40,7 @@ export function DataTable<T>({
   emptyState,
   stickyHeader,
   bordered,
+  scrollable = true,
   containerClassName,
   onRowClick,
 }: DataTableProps<T>) {
@@ -109,15 +116,12 @@ export function DataTable<T>({
     </table>
   );
 
-  // A bordered table is always placed inside a scroll box owned by the caller,
-  // so it must not add a second one: nesting two viewports would leave the
-  // inner one unable to overflow and would double the tab stops.
-  if (bordered) {
+  if (!scrollable) {
     return <div className={containerClassName}>{table}</div>;
   }
 
-  // Both axes: a table overflows sideways on narrow panes, and the viewport
-  // scrolls on both axes regardless, so a missing scrollbar would be silent.
+  // Both axes: a table overflows sideways on narrow panes as readily as it
+  // does downwards, and a missing scrollbar on either would be silent.
   return (
     <ScrollArea className={containerClassName} orientation="both">
       {table}
