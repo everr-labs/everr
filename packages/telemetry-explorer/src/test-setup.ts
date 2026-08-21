@@ -1,4 +1,5 @@
 import "@testing-library/jest-dom/vitest";
+import "@everr/ui/testing/jsdom-shims";
 
 // jsdom lacks a few browser APIs that base-ui (popover positioning) and cmdk
 // (command list highlighting) call during render. Provide noop polyfills so
@@ -13,10 +14,4 @@ if (!globalThis.ResizeObserver) {
 
 if (!Element.prototype.scrollIntoView) {
   Element.prototype.scrollIntoView = () => {};
-}
-
-// jsdom has no Web Animations API. Base UI's ScrollArea calls getAnimations()
-// on the viewport from a timer, which throws after a test has finished.
-if (!Element.prototype.getAnimations) {
-  Element.prototype.getAnimations = () => [];
 }

@@ -1,4 +1,5 @@
 import "@testing-library/jest-dom/vitest";
+import "@everr/ui/testing/jsdom-shims";
 import { clearMocks } from "@tauri-apps/api/mocks";
 import { cleanup } from "@testing-library/react";
 import { afterEach, vi } from "vitest";
@@ -30,9 +31,3 @@ afterEach(() => {
   clearMocks();
   vi.useRealTimers();
 });
-
-// jsdom has no Web Animations API. Base UI's ScrollArea calls getAnimations()
-// on the viewport from a timer, which throws after a test has finished.
-if (!Element.prototype.getAnimations) {
-  Element.prototype.getAnimations = () => [];
-}
