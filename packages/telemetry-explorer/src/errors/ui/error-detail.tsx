@@ -122,6 +122,9 @@ export function ErrorDetail({
         actions={<ErrorHandoffButton issue={detail.summary} />}
       />
       <ScrollArea render={<main />} className="min-h-0 flex-1">
+        {/* The column is centred inside a full-width scroller, so its width
+            bound belongs to a child: on the viewport it would narrow the
+            scrolling box itself and pull the scrollbar in with it. */}
         <div className="mx-auto grid max-w-7xl gap-3 p-3">
           <ErrorStacktrace
             stacktrace={selected.exceptionStacktrace}

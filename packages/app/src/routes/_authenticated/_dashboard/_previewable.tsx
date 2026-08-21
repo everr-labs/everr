@@ -1,9 +1,8 @@
 import { Button } from "@everr/ui/components/button";
 import { PreviewFrame } from "@everr/ui/components/preview-frame";
-import { ScrollArea } from "@everr/ui/components/scroll-area";
 import { createFileRoute, Outlet, useMatches } from "@tanstack/react-router";
 import { GitBranch, LogOut } from "lucide-react";
-import { PageContainer } from "@/components/page-container";
+import { ScrollingPageContainer } from "@/components/page-container";
 import { previewMessage } from "@/components/preview-message";
 import type { PreviewStatus } from "@/data/previews/overlay";
 import { usePreview } from "@/hooks/use-preview";
@@ -44,14 +43,9 @@ function PreviewableLayout() {
       <Outlet />
     </div>
   ) : (
-    <ScrollArea
-      className="min-h-0 flex-1"
-      viewportClassName="overscroll-y-contain"
-    >
-      <PageContainer>
-        <Outlet />
-      </PageContainer>
-    </ScrollArea>
+    <ScrollingPageContainer>
+      <Outlet />
+    </ScrollingPageContainer>
   );
 
   if (!name) return content;
