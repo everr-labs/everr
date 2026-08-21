@@ -201,6 +201,16 @@ if (typeof Element !== "undefined" && !Element.prototype.scrollIntoView) {
   });
 }
 
+// jsdom does not implement getAnimations; Base UI's scroll area calls it.
+if (typeof Element !== "undefined" && !Element.prototype.getAnimations) {
+  Object.defineProperty(Element.prototype, "getAnimations", {
+    writable: true,
+    value() {
+      return [];
+    },
+  });
+}
+
 // ---------------------------------------------------------------------------
 afterEach(() => {
   cleanup();
