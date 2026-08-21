@@ -6,15 +6,15 @@ Use this rule for TanStack Start apps (Vite + Nitro, React). Read `vite-ssr.md` 
 
 Follow `browser.md` for the `@everr/otel-web` setup. TanStack Start specifics:
 
-- Put the `WebSDK` construction in a side-effect module and import it at the top of `src/routes/__root.tsx`, so it runs once when the client bundle loads. The WebSDK is inert during SSR, so no environment guard is needed.
-- Register the router with the SDK's `page` route resolver so pageviews and errors carry the route template (`/blog/$slug`) instead of raw paths. Telemetry setup runs before the router exists, so bridge through an app-owned module. Register no `request` resolver: per the seam section of `vite-ssr.md`, request templates come from exact sources only, and here the exact source is the server's `x-everr-route` echo, never a guess from the shape of a path segment.
+- Put the `WebSDK` construction in a side-effect module imported at the top of `src/routes/__root.tsx`, so it runs once when the client bundle loads. The WebSDK is inert during SSR, so no environment guard is needed.
+- Register the router with the SDK's `page` resolver only, so pageviews and errors carry the route template (`/blog/$slug`) instead of raw paths. Telemetry setup runs before the router exists, so bridge through an app-owned module.
 
-The route tree is the exact source, with one asymmetry: Start prunes server-only routes (files whose `createFileRoute` options hold only `server`) from the client route tree, so the browser cannot derive a template for the requests it makes. It does not try: the browser registers only the `page` resolver, and request templates arrive on the server's `x-everr-route` response header, which `@everr/otel-web`'s `network()` reads into `url.template` (see the server half below). An unmatched path has no template: `matchRoutes` falls through to the root/not-found match on unknown paths, and the shared `routeTemplate` helper (defined in the server half below, used by both sides) filters it rather than letting it leak as a pattern:
+Register no `request` resolver. Start prunes server-only routes from the client tree, so the browser cannot derive templates for the requests it makes and must not guess: they arrive on the server's `x-everr-route` echo, which `network()` reads into `url.template`.
 
 ```ts
 // src/telemetry/route-pattern.ts
 import { setRouteResolver } from "@everr/otel-web";
-import { type RouterLike, routeTemplate } from "./route-template";
+import { type RouterLike, routeTemplate } from "@everr/tanstack-start-otel";
 
 /** Call from `getRouter()` right after creating the router. */
 export function registerRouter(router: RouterLike): void {
@@ -28,89 +28,55 @@ export function registerRouter(router: RouterLike): void {
 
 Follow `nodejs.md` for the NodeSDK setup module, including the hot-reload guard: `vite dev` runs the server in-process and re-evaluates on reload.
 
-### Request Spans In The Server Entry
-
-The framework entrypoint for server telemetry is a custom `src/server.ts`: import the setup module first, then wrap the Start fetch handler so every request gets a SERVER span.
-
-```ts
-// src/server.ts
-import {
-  createStartHandler,
-  defaultStreamHandler,
-  defineHandlerCallback,
-} from "@tanstack/react-start/server";
-import { instrumentServerFetch } from "@/telemetry/server";
-import "@/telemetry/node";
-
-const startFetch = createStartHandler(defineHandlerCallback(defaultStreamHandler));
-
-export default {
-  fetch: (...args: Parameters<typeof startFetch>) =>
-    instrumentServerFetch(args[0], () => startFetch(...args)),
-};
-```
-
-```ts
-// src/telemetry/route-template.ts: one route-template derivation, shared by
-// the server's http.route stamping and the browser's page resolver above.
-// Server function calls go over POST /_serverFn/<id>, a deterministic prefix
-// outside the tree.
-export type RouterLike = {
-  matchRoutes(
-    pathname: string,
-  ): ReadonlyArray<{ routeId: string; fullPath: string }>;
-};
-
-export function routeTemplate(
-  router: RouterLike,
-  pathname: string,
-): string | undefined {
-  if (pathname.startsWith("/_serverFn/")) {
-    return pathname.replace(/^\/_serverFn\/[^/]+/, "/_serverFn/:id");
-  }
-  const match = router.matchRoutes(pathname).at(-1);
-  // Filter the root fallthrough and the generated not-found route: an
-  // unmatched path has no template rather than a fake one. The fullPath drops
-  // pathless segments such as /_authenticated from the template.
-  return match === undefined ||
-    match.routeId === "__root__" ||
-    match.routeId.includes("404")
-    ? undefined
-    : match.fullPath;
-}
-```
-
-Do not reach for the app's `getRouter()` here (it depends on the per-request SSR lifecycle): build a standalone matcher once from the same generated tree, `createRouter({ routeTree, history: createMemoryHistory() })`, and pass it to `routeTemplate` when stamping `http.route`. The server sees the full tree, API routes included.
-
-`instrumentServerFetch` starts a SERVER span named `<METHOD> <route-template>`:
-
-- Extract the parent context from the request headers with `propagation.extract` so browser-injected `traceparent` (and any first-party client's) parents the span. Requests without the header extract to an empty context and root themselves.
-- Parameterize the path before it becomes the span name or `http.route`; raw paths are unbounded cardinality.
-- Set `http.response.status_code` from the response; capture 5xx responses and thrown errors with `captureError`.
-- Echo the derived route on the response: `response.headers.set("x-everr-route", route)` when a route matched. The browser's `network()` reads this header into `url.template`, which is how browser request spans get exact templates for the server-only routes the client tree cannot see.
-- When wrapping the handler this way, disable the HTTP auto-instrumentation's incoming-request span (`disableIncomingRequestInstrumentation: true`) so each request gets one SERVER span, not two.
-
-### Server Functions
-
-Wrap every server function through global middleware in `src/start.ts` instead of instrumenting call sites:
+`@everr/tanstack-start-otel` ships both middlewares and the route-template derivation they share; its README documents the spans and attributes. Register them on the start instance, Start's own hook, which covers SSR and server functions alike.
 
 ```ts
 // src/start.ts
+import {
+  createRequestTelemetryMiddleware,
+  createServerFnTelemetryMiddleware,
+  type RouterLike,
+} from "@everr/tanstack-start-otel";
 import { createStart } from "@tanstack/react-start";
-import { serverFnTelemetryMiddleware } from "@/telemetry/server-fn";
+import { getRouter } from "@/router";
+import { isExpectedServerFunctionError } from "@/telemetry/expected-errors";
 
 export const startInstance = createStart(() => ({
-  functionMiddleware: [serverFnTelemetryMiddleware],
+  requestMiddleware: [
+    createRequestTelemetryMiddleware({ router: (): RouterLike => getRouter() }),
+  ],
+  functionMiddleware: [
+    createServerFnTelemetryMiddleware({
+      isExpectedError: isExpectedServerFunctionError,
+    }),
+  ],
 }));
 ```
 
-The middleware (`createMiddleware({ type: "function" })`) starts an INTERNAL span per invocation, named `serverFn {name}` from `serverFnMeta`. It nests under the request's SERVER span automatically because the fetch wrapper's context is active.
+`src/server.ts` then needs no telemetry wrapper: export `createStartHandler(...)` directly and import the NodeSDK setup module for its side effect.
 
-Describe it with the server-function convention from the skill root: `everr.server_function.name` carries the function's own identifier verbatim, and `everr.server_function.transport` is `http` when the call arrived over `/_serverFn/` and `in-process` when it ran during SSR. The span stays INTERNAL: over HTTP the transport's SERVER span already counts the inbound request, and in-process there is no inbound request at all.
+Four things bite here:
 
-The transport span for a server function request only knows the opaque `/_serverFn/<id>` path, so the middleware reports the function name back to the fetch wrapper (an app-owned AsyncLocalStorage holder around the handler). After the response settles, the wrapper renames its SERVER span and the `x-everr-route` echo to `/_serverFn/{name}`, falling back to `/_serverFn/:id` when the middleware never ran. The browser's client span picks the name up from the echo, so all three spans of one call read as the same function.
+- **Pass the app's own router factory, never a fresh `createRouter`.** The server caches the processed route tree globally by tree identity, ignoring the options that decide how it is processed (`routeMasks`, `caseSensitive`), so the first router built wins for the process. A second, differently configured one makes every later render throw `Cannot read properties of null (reading 'get')`, in production only. Annotate the callback as `RouterLike` when `routeTree.gen` binds `Register` to `getRouter`, or the two infer through each other.
+- **Defining a start instance replaces Start's default CSRF middleware.** Once `requestMiddleware` is set, include `createCsrfMiddleware()` in the array or server functions are left unprotected.
+- **Disable the HTTP auto-instrumentation's incoming-request span** (`disableIncomingRequestInstrumentation: true`) so each request gets one SERVER span, not two.
+- **Pass `isExpectedError`.** Start signals control flow with throwables, so `redirect()` and `notFound()` surface as thrown values inside server functions. Without this every redirect is captured as an error. Write the predicate yourself, since only the app knows which of its own failures are routine:
 
-TanStack Start signals control flow with throwables: `redirect()` and `notFound()` surface as thrown values inside server functions. Filter those out before calling `captureError`, or every redirect becomes a phantom error.
+```ts
+// src/telemetry/expected-errors.ts
+import { isNotFound, isRedirect } from "@tanstack/react-router";
+
+// Failures the app returns on purpose, not faults worth alerting on.
+const EXPECTED = new Set(["Unauthenticated", "No active organization"]);
+
+export function isExpectedServerFunctionError(error: unknown): boolean {
+  return (
+    isRedirect(error) ||
+    isNotFound(error) ||
+    (error instanceof Error && EXPECTED.has(error.message))
+  );
+}
+```
 
 ## Validation
 

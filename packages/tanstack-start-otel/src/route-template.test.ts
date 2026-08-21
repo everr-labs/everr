@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { routeTemplate } from "./route-template";
+import { routeTemplate } from "./route-template.js";
 
 const matcher = {
   matchRoutes: (pathname: string) =>

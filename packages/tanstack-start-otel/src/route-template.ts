@@ -2,7 +2,7 @@
 // browser's page resolver. The server matcher sees the full generated tree,
 // API routes included; the client tree is pruned of server-only routes, so
 // browser request spans take their url.template from the x-everr-route
-// response header that instrumentServerFetch echoes, not from this function.
+// response header that the request middleware echoes, not from this function.
 
 export type RouterLike = {
   matchRoutes(

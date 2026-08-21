@@ -23,6 +23,7 @@
     "@everr/datemath": "workspace:*",
     "@everr/otel-errors": "workspace:*",
     "@everr/otel-web": "workspace:*",
+    "@everr/tanstack-start-otel": "workspace:*",
     "@everr/telemetry-explorer": "workspace:*",
     "@everr/ui": "workspace:*",
     "@octokit/webhooks-methods": "^6.0.0",

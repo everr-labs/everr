@@ -24,37 +24,52 @@ const telemetryMocks = vi.hoisted(() => {
   };
 });
 
-vi.mock("./node", () => ({
+vi.mock("@everr/otel-errors", () => ({
   captureError: telemetryMocks.captureError,
-  getTelemetryTracer: () => ({
-    startActiveSpan: telemetryMocks.startActiveSpan,
-  }),
-  SpanKind: { SERVER: 1 },
 }));
 
-// The real matcher pulls the whole generated route tree (and the server env
-// with it) into the test environment, so stub it with the shared derivation
-// over a two-route tree.
-vi.mock("./server-router", async () => {
-  const { routeTemplate } = await import("./route-template");
-  const matcher = {
-    matchRoutes: (pathname: string) =>
-      pathname === "/api/cli/sql"
-        ? [
-            { routeId: "__root__", fullPath: "/" },
-            { routeId: "/api/cli/sql", fullPath: "/api/cli/sql" },
-          ]
-        : [{ routeId: "__root__", fullPath: "/" }],
-  };
-  return {
-    serverRouteTemplate: (pathname: string) => routeTemplate(matcher, pathname),
-  };
+vi.mock("@opentelemetry/api", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@opentelemetry/api")>()),
+  trace: {
+    getTracer: () => ({ startActiveSpan: telemetryMocks.startActiveSpan }),
+  },
+}));
+
+// A two-route matcher stands in for a real router; the real `routeTemplate`
+// derivation still runs over it.
+const router = () => ({
+  matchRoutes: (pathname: string) =>
+    pathname === "/api/cli/sql"
+      ? [
+          { routeId: "__root__", fullPath: "/" },
+          { routeId: "/api/cli/sql", fullPath: "/api/cli/sql" },
+        ]
+      : [{ routeId: "__root__", fullPath: "/" }],
 });
 
-import { instrumentServerFetch } from "./server";
-import { recordServerFunctionName } from "./server-fn-name";
+import { createRequestTelemetryMiddleware } from "./request-middleware.js";
+import { recordServerFunctionName } from "./server-fn-name.js";
 
-describe("instrumentServerFetch", () => {
+// Drive the middleware the way Start does: it passes the request, the
+// pathname, and the handler kind, and `next` yields the downstream response.
+async function runRequest(
+  request: Request,
+  respond: () => Response | Promise<Response>,
+): Promise<Response> {
+  const pathname = new URL(request.url).pathname;
+  const server = createRequestTelemetryMiddleware({ router }).options.server;
+  if (!server) throw new Error("middleware has no server handler");
+  const result = await server({
+    request,
+    pathname,
+    handlerType: pathname.startsWith("/_serverFn/") ? "serverFn" : "router",
+    context: {},
+    next: async () => ({ response: await respond() }),
+  } as never);
+  return (result as { response: Response }).response;
+}
+
+describe("createRequestTelemetryMiddleware", () => {
   beforeEach(() => {
     telemetryMocks.captureError.mockClear();
     telemetryMocks.startActiveSpan.mockClear();
@@ -64,7 +79,7 @@ describe("instrumentServerFetch", () => {
   });
 
   it("records 5xx responses as server response errors", async () => {
-    const response = await instrumentServerFetch(
+    const response = await runRequest(
       new Request("http://localhost/api/cli/sql", { method: "POST" }),
       () => new Response("{}", { status: 500 }),
     );
@@ -85,7 +100,7 @@ describe("instrumentServerFetch", () => {
   });
 
   it("names an unmatched path by method only, with no http.route", async () => {
-    const response = await instrumentServerFetch(
+    const response = await runRequest(
       new Request("http://localhost/wp-login.php"),
       () => new Response("{}", { status: 200 }),
     );
@@ -107,7 +122,7 @@ describe("instrumentServerFetch", () => {
   });
 
   it("parameterizes TanStack dev serverFn IDs in server span names and attributes", async () => {
-    await instrumentServerFetch(
+    await runRequest(
       new Request(
         "http://localhost/_serverFn/eyJmaWxlIjoiL3NyYy9yb3V0ZXMvX19yb290LnRzeD90c3Mtc2VydmVyZm4tc3BsaXQiLCJleHBvcnQiOiJnZXRTZXNzaW9uX2NyZWF0ZVNlcnZlckZuX2hhbmRsZXIifQ",
       ),
@@ -132,7 +147,7 @@ describe("instrumentServerFetch", () => {
   });
 
   it("renames the span and the route echo after the middleware reports the function name", async () => {
-    const response = await instrumentServerFetch(
+    const response = await runRequest(
       new Request("http://localhost/_serverFn/c4d3d0c28997f144965eeaca", {
         method: "POST",
       }),
@@ -155,7 +170,7 @@ describe("instrumentServerFetch", () => {
   });
 
   it("keeps the /_serverFn/:id fallback when no name is reported", async () => {
-    const response = await instrumentServerFetch(
+    const response = await runRequest(
       new Request("http://localhost/_serverFn/c4d3d0c28997f144965eeaca"),
       () => new Response("{}", { status: 200 }),
     );

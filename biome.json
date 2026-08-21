@@ -27,6 +27,8 @@
 
       "packages/otel-web/**/src/**/*",
 
+      "packages/tanstack-start-otel/**/src/**/*",
+
       "packages/otel-errors/**/src/**/*",
 
       "packages/datemath/**/src/**/*",
