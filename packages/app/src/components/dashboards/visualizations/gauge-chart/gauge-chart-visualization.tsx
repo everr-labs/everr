@@ -116,70 +116,69 @@ export function GaugeChartVisualization({
   const minText = formatAxisEnd(min, unit);
   const maxText = formatAxisEnd(max, unit);
 
-  const tileNodes = tiles.map((tile) => {
-    const value = tile.value;
-    const name = tile.label || queryLabel(tile.frame);
-    const fraction = value !== undefined ? axisFraction(value, min, max) : 0;
-    const valueText =
-      value === undefined ? noValue : formatStatValue(value, decimals);
-    const label = (multi || showLabel) && (
-      <p
-        className={cn(
-          "truncate text-xs text-muted-foreground",
-          horizontal && "mb-1",
-        )}
-      >
-        {name}
-      </p>
-    );
-    const props: TileProps = {
-      label,
-      value,
-      valueText,
-      unit,
-      fraction,
-      ticks,
-      showAxis,
-      showThresholdLabels,
-      minText,
-      maxText,
-    };
-    const key = `${tile.frame}-${tile.label}`;
-    const ariaLabel = `${name}: ${valueText}${unit ? ` ${unit}` : ""}`;
-
-    return horizontal ? (
-      <GaugeBar
-        key={key}
-        {...props}
-        ariaLabel={ariaLabel}
-        segments={fillSegments(fraction, marks, colors)}
-      />
-    ) : (
-      <GaugeArc
-        key={key}
-        {...props}
-        ariaLabel={ariaLabel}
-        color={
-          (value !== undefined
-            ? resolveThresholdColor(value, thresholds, max)
-            : undefined) ?? fallbackColor
-        }
-      />
-    );
-  });
-
-  // Only the horizontal bars ever overflowed the panel; the arc layout always fit.
-  return horizontal ? (
+  return (
     <ScrollArea
       className="h-full"
-      viewportClassName="flex flex-wrap content-center-safe justify-center gap-x-6 gap-y-4 px-1"
+      viewportClassName={cn(
+        "flex flex-wrap justify-center",
+        horizontal
+          ? "content-center-safe gap-x-6 gap-y-4 px-1"
+          : "items-stretch gap-4",
+      )}
     >
-      {tileNodes}
+      {tiles.map((tile) => {
+        const value = tile.value;
+        const name = tile.label || queryLabel(tile.frame);
+        const fraction =
+          value !== undefined ? axisFraction(value, min, max) : 0;
+        const valueText =
+          value === undefined ? noValue : formatStatValue(value, decimals);
+        const label = (multi || showLabel) && (
+          <p
+            className={cn(
+              "truncate text-xs text-muted-foreground",
+              horizontal && "mb-1",
+            )}
+          >
+            {name}
+          </p>
+        );
+        const props: TileProps = {
+          label,
+          value,
+          valueText,
+          unit,
+          fraction,
+          ticks,
+          showAxis,
+          showThresholdLabels,
+          minText,
+          maxText,
+        };
+        const key = `${tile.frame}-${tile.label}`;
+        const ariaLabel = `${name}: ${valueText}${unit ? ` ${unit}` : ""}`;
+
+        return horizontal ? (
+          <GaugeBar
+            key={key}
+            {...props}
+            ariaLabel={ariaLabel}
+            segments={fillSegments(fraction, marks, colors)}
+          />
+        ) : (
+          <GaugeArc
+            key={key}
+            {...props}
+            ariaLabel={ariaLabel}
+            color={
+              (value !== undefined
+                ? resolveThresholdColor(value, thresholds, max)
+                : undefined) ?? fallbackColor
+            }
+          />
+        );
+      })}
     </ScrollArea>
-  ) : (
-    <div className="flex h-full flex-wrap items-stretch justify-center gap-4">
-      {tileNodes}
-    </div>
   );
 }
 
