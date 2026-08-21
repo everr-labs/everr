@@ -1,6 +1,33 @@
-import { render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { render, screen, waitFor } from "@testing-library/react";
+import { afterEach, describe, expect, it } from "vitest";
 import { ScrollArea, ScrollAreaScroller } from "./scroll-area";
+
+// jsdom lays nothing out, so every element measures 0x0 and Base UI reads the
+// scroll area as having nothing to scroll. Scrollbars only mount for an axis
+// that overflows, so the size has to be faked for them to appear at all.
+const sizeKeys = [
+  "clientHeight",
+  "clientWidth",
+  "scrollHeight",
+  "scrollWidth",
+] as const;
+
+function overflowBothAxes() {
+  for (const key of sizeKeys) {
+    Object.defineProperty(HTMLElement.prototype, key, {
+      configurable: true,
+      get() {
+        return key.startsWith("scroll") ? 500 : 100;
+      },
+    });
+  }
+}
+
+afterEach(() => {
+  for (const key of sizeKeys) {
+    delete (HTMLElement.prototype as Partial<HTMLElement>)[key];
+  }
+});
 
 describe("ScrollArea", () => {
   it("renders its children inside the viewport", () => {
@@ -40,28 +67,83 @@ describe("ScrollArea", () => {
     expect(viewport).toHaveAttribute("data-scroll-to-top", "");
   });
 
-  it("renders only the vertical scrollbar by default", () => {
+  it("renders only the vertical scrollbar by default", async () => {
+    overflowBothAxes();
     const { container } = render(
       <ScrollArea>
         <p>content</p>
       </ScrollArea>,
     );
-    const bars = container.querySelectorAll(
-      "[data-slot='scroll-area-scrollbar']",
-    );
-    expect(bars).toHaveLength(1);
-    expect(bars[0]).toHaveAttribute("data-orientation", "vertical");
+    await waitFor(() => {
+      const bars = container.querySelectorAll(
+        "[data-slot='scroll-area-scrollbar']",
+      );
+      expect(bars).toHaveLength(1);
+      expect(bars[0]).toHaveAttribute("data-orientation", "vertical");
+    });
   });
 
-  it("renders both scrollbars when orientation is both", () => {
+  it("clips the axis it does not scroll", () => {
+    const { container } = render(
+      <>
+        <ScrollArea>
+          <p>vertical</p>
+        </ScrollArea>
+        <ScrollArea orientation="horizontal">
+          <p>horizontal</p>
+        </ScrollArea>
+        <ScrollArea orientation="both">
+          <p>both</p>
+        </ScrollArea>
+      </>,
+    );
+    const [v, h, b] = Array.from(
+      container.querySelectorAll<HTMLElement>(
+        "[data-slot='scroll-area-viewport']",
+      ),
+    );
+    expect(v?.style.overflowX).toBe("hidden");
+    expect(v?.style.overflowY).toBe("");
+    expect(h?.style.overflowY).toBe("hidden");
+    expect(h?.style.overflowX).toBe("");
+    expect(b?.style.overflowX).toBe("");
+    expect(b?.style.overflowY).toBe("");
+  });
+
+  it("keeps the landmark of a semantic render element", () => {
+    render(
+      <ScrollArea render={<main />}>
+        <p>content</p>
+      </ScrollArea>,
+    );
+    expect(screen.getByRole("main")).toBeInTheDocument();
+  });
+
+  it("renders both scrollbars when orientation is both", async () => {
+    overflowBothAxes();
     const { container } = render(
       <ScrollArea orientation="both">
         <p>content</p>
       </ScrollArea>,
     );
-    expect(
-      container.querySelectorAll("[data-slot='scroll-area-scrollbar']"),
-    ).toHaveLength(2);
+    await waitFor(() =>
+      expect(
+        container.querySelectorAll("[data-slot='scroll-area-scrollbar']"),
+      ).toHaveLength(2),
+    );
+  });
+
+  it("renders no scrollbar for an axis with nothing to scroll", async () => {
+    const { container } = render(
+      <ScrollArea orientation="both">
+        <p>content</p>
+      </ScrollArea>,
+    );
+    await waitFor(() =>
+      expect(
+        container.querySelectorAll("[data-slot='scroll-area-scrollbar']"),
+      ).toHaveLength(0),
+    );
   });
 });
 

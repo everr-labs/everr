@@ -33,6 +33,7 @@
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
+  --color-scrollbar-thumb: var(--scrollbar-thumb);
   --color-chart-1: var(--chart-1);
   --color-chart-2: var(--chart-2);
   --color-chart-3: var(--chart-3);
@@ -88,10 +89,11 @@
 @layer base {
   * {
     @apply border-border outline-ring/50;
+    scrollbar-width: thin;
   }
 
-  * {
-    scrollbar-width: thin;
+  /* scrollbar-color inherits, so the root is the only element that needs it. */
+  :root {
     scrollbar-color: var(--scrollbar-thumb) transparent;
   }
 

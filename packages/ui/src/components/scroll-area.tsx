@@ -2,23 +2,6 @@ import { ScrollArea as ScrollAreaPrimitive } from "@base-ui/react/scroll-area";
 import { cn } from "@everr/ui/lib/utils";
 import type * as React from "react";
 
-function ScrollAreaRoot({
-  className,
-  ...props
-}: ScrollAreaPrimitive.Root.Props) {
-  return (
-    <ScrollAreaPrimitive.Root
-      data-slot="scroll-area-root"
-      // A flex column is what lets the viewport track the root's height in
-      // every sizing shape. Base UI forces `overflow: scroll` inline on the
-      // viewport, so a percentage height there resolves against whichever
-      // ancestor is definite and the root silently clips instead of scrolling.
-      className={cn("relative flex flex-col overflow-hidden", className)}
-      {...props}
-    />
-  );
-}
-
 function ScrollAreaViewport({
   className,
   ...props
@@ -27,76 +10,45 @@ function ScrollAreaViewport({
     <ScrollAreaPrimitive.Viewport
       data-slot="scroll-area-viewport"
       className={cn(
-        "w-full min-h-0 flex-1 rounded-[inherit] focus-visible:outline-none",
+        "min-h-0 flex-1 rounded-[inherit] focus-visible:outline-none",
         className,
       )}
-      {...props}
-    />
-  );
-}
-
-function ScrollAreaContent({
-  className,
-  ...props
-}: ScrollAreaPrimitive.Content.Props) {
-  return (
-    <ScrollAreaPrimitive.Content
-      data-slot="scroll-area-content"
-      className={className}
       {...props}
     />
   );
 }
 
 function ScrollAreaScrollbar({
-  className,
-  orientation = "vertical",
-  ...props
-}: ScrollAreaPrimitive.Scrollbar.Props) {
+  orientation,
+}: {
+  orientation: "vertical" | "horizontal";
+}) {
   return (
+    // Not keepMounted: Base UI unmounts the bar when the axis does not
+    // overflow, and every mounted bar costs a getComputedStyle on every scroll
+    // event, whether or not it has anything to show.
     <ScrollAreaPrimitive.Scrollbar
       data-slot="scroll-area-scrollbar"
       orientation={orientation}
       className={cn(
         "z-20 flex touch-none select-none p-0.5 opacity-0 transition-opacity duration-150",
         "data-scrolling:opacity-100",
-        orientation === "vertical" && "h-full w-2.5",
-        orientation === "horizontal" && "w-full flex-col h-2.5",
-        className,
+        orientation === "vertical" ? "h-full w-2.5" : "h-2.5 w-full flex-col",
       )}
-      {...props}
-    />
+    >
+      <ScrollAreaPrimitive.Thumb
+        data-slot="scroll-area-thumb"
+        className="bg-scrollbar-thumb flex-1 rounded-full"
+      />
+    </ScrollAreaPrimitive.Scrollbar>
   );
 }
 
-function ScrollAreaThumb({
-  className,
-  ...props
-}: ScrollAreaPrimitive.Thumb.Props) {
-  return (
-    <ScrollAreaPrimitive.Thumb
-      data-slot="scroll-area-thumb"
-      className={cn(
-        "bg-(--scrollbar-thumb) hover:bg-(--scrollbar-thumb-hover) flex-1 rounded-full transition-colors",
-        className,
-      )}
-      {...props}
-    />
-  );
-}
-
-function ScrollAreaCorner({
-  className,
-  ...props
-}: ScrollAreaPrimitive.Corner.Props) {
-  return (
-    <ScrollAreaPrimitive.Corner
-      data-slot="scroll-area-corner"
-      className={cn("bg-transparent", className)}
-      {...props}
-    />
-  );
-}
+// Base UI's Root writes role="presentation". That is a no-op on the default
+// div, but on a semantic `render` element it strips the landmark, so <main>,
+// <nav> and <aside> roots stop being addressable. Clearing it restores them; a
+// caller's own role still wins, because its props are spread afterwards.
+const clearPresentationRole = { role: undefined };
 
 interface ScrollAreaProps extends ScrollAreaPrimitive.Root.Props {
   viewportClassName?: string;
@@ -116,6 +68,7 @@ function ScrollArea({
   viewportProps: {
     ref: _ignoredRef,
     className: _ignoredClassName,
+    style: viewportStyle,
     ...viewportProps
   } = {},
   orientation = "vertical",
@@ -124,26 +77,39 @@ function ScrollArea({
   const vertical = orientation === "vertical" || orientation === "both";
   const horizontal = orientation === "horizontal" || orientation === "both";
   return (
-    <ScrollAreaRoot data-slot="scroll-area" className={className} {...props}>
+    <ScrollAreaPrimitive.Root
+      data-slot="scroll-area"
+      // A flex column is what lets the viewport track the root's height in
+      // every sizing shape. Base UI forces `overflow: scroll` inline on the
+      // viewport, so a percentage height there resolves against whichever
+      // ancestor is definite and the root silently clips instead of scrolling.
+      className={cn("flex flex-col overflow-hidden", className)}
+      {...clearPresentationRole}
+      {...props}
+    >
       <ScrollAreaViewport
         ref={viewportRef}
         className={viewportClassName}
+        // Base UI writes `overflow: scroll` on both axes, so the axis this
+        // scroll area does not own has to be clipped back inline. Without it
+        // an `orientation="vertical"` area still scrolls sideways, with no
+        // scrollbar to show for it.
+        style={{
+          ...(horizontal ? undefined : { overflowX: "hidden" as const }),
+          ...(vertical ? undefined : { overflowY: "hidden" as const }),
+          ...viewportStyle,
+        }}
         {...viewportProps}
       >
         {children}
       </ScrollAreaViewport>
-      {vertical && (
-        <ScrollAreaScrollbar orientation="vertical" keepMounted>
-          <ScrollAreaThumb />
-        </ScrollAreaScrollbar>
-      )}
-      {horizontal && (
-        <ScrollAreaScrollbar orientation="horizontal" keepMounted>
-          <ScrollAreaThumb />
-        </ScrollAreaScrollbar>
-      )}
-      {orientation === "both" && <ScrollAreaCorner />}
-    </ScrollAreaRoot>
+      {vertical && <ScrollAreaScrollbar orientation="vertical" />}
+      {horizontal && <ScrollAreaScrollbar orientation="horizontal" />}
+      {/* No Corner: it only reserves the square where the two bars meet, which
+          overlay bars do not need, and mounting one makes Base UI write a fresh
+          corner size into state on every scroll event, re-rendering the whole
+          scroll area with it. */}
+    </ScrollAreaPrimitive.Root>
   );
 }
 
@@ -167,10 +133,10 @@ function ScrollAreaScroller({
   context: _context,
   ...props
 }: ScrollAreaScrollerProps) {
-  // Virtuoso's own overflow keys are dropped: Base UI already writes
-  // `overflow: scroll` inline on the viewport, and a second axis-specific value
-  // merged on top would fight it. `position: relative` is kept because the
-  // virtuoso item list is absolutely positioned against the scroller.
+  // Virtuoso's own overflow keys are dropped: the scroll area already sets
+  // overflow on both axes, and a value merged on top would fight it.
+  // `position: relative` is kept because the virtuoso item list is absolutely
+  // positioned against the scroller.
   const {
     overflowY: _y,
     overflowX: _x,
@@ -188,13 +154,9 @@ function ScrollAreaScroller({
   );
 }
 
-export {
-  ScrollArea,
-  ScrollAreaContent,
-  ScrollAreaCorner,
-  ScrollAreaRoot,
-  ScrollAreaScrollbar,
-  ScrollAreaScroller,
-  ScrollAreaThumb,
-  ScrollAreaViewport,
-};
+// Virtuoso remounts its scroller, losing the scroll position, whenever the
+// `components` map hands it a new component identity. Sharing this one object
+// keeps every list on the same stable identity, with no memoisation per list.
+const virtuosoScrollAreaComponents = { Scroller: ScrollAreaScroller };
+
+export { ScrollArea, ScrollAreaScroller, virtuosoScrollAreaComponents };
