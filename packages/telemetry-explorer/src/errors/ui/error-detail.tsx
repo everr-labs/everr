@@ -6,6 +6,7 @@ import {
   EmptyHeader,
   EmptyTitle,
 } from "@everr/ui/components/empty";
+import { ScrollArea } from "@everr/ui/components/scroll-area";
 import { Skeleton } from "@everr/ui/components/skeleton";
 import type { TimeRange } from "@everr/ui/lib/time-range";
 import { useQuery } from "@tanstack/react-query";
@@ -120,7 +121,7 @@ export function ErrorDetail({
         onClose={onClose}
         actions={<ErrorHandoffButton issue={detail.summary} />}
       />
-      <main className="min-h-0 flex-1 overflow-auto">
+      <ScrollArea render={<main />} className="min-h-0 flex-1">
         <div className="mx-auto grid max-w-7xl gap-3 p-3">
           <ErrorStacktrace
             stacktrace={selected.exceptionStacktrace}
@@ -136,7 +137,7 @@ export function ErrorDetail({
             />
           </div>
         </div>
-      </main>
+      </ScrollArea>
     </div>
   );
 }
