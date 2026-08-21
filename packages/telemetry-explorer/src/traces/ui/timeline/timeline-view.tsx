@@ -1,9 +1,14 @@
+import { ScrollAreaScroller } from "@everr/ui/components/scroll-area";
 import { useMemo } from "react";
 import { Virtuoso } from "react-virtuoso";
 import type { Span } from "../../data/types";
 import { SpanDetailPanel } from "./span-detail-panel";
 import { SpanRow } from "./span-row";
 import { useTimelineLayout } from "./use-timeline-layout";
+
+// Kept at module level: virtuoso remounts the scroller, and so loses the
+// scroll position, whenever the component identity changes.
+const components = { Scroller: ScrollAreaScroller };
 
 type Props = {
   spans: Span[];
@@ -26,6 +31,7 @@ export function TimelineView({ spans, focusedSpan, onSelectSpan }: Props) {
       <Virtuoso
         className="flex-1"
         data={rows}
+        components={components}
         computeItemKey={(_, row) => row.span.spanId}
         itemContent={(_, row) => (
           <SpanRow

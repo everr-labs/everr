@@ -7,6 +7,7 @@ const Ansi =
     : (AnsiImport as unknown as { default: typeof AnsiImport }).default;
 
 import { buttonVariants } from "@everr/ui/components/button";
+import { ScrollAreaScroller } from "@everr/ui/components/scroll-area";
 import { formatTimestampTimeOfDay } from "@everr/ui/lib/timestamp";
 import { cn } from "@everr/ui/lib/utils";
 import {
@@ -249,6 +250,31 @@ export function LogViewer({
     ],
   );
 
+  // Memoised because virtuoso remounts the scroller, and so loses the scroll
+  // position, whenever the identity of a component in this map changes.
+  const components = useMemo(
+    () => ({
+      Scroller: ScrollAreaScroller,
+      Header: isLoadingPrevious
+        ? () => (
+            <div className="text-muted-foreground flex items-center justify-center gap-2 py-2 text-xs">
+              <Loader2 className="size-3 animate-spin" />
+              Loading older logs...
+            </div>
+          )
+        : undefined,
+      Footer: isLoadingNext
+        ? () => (
+            <div className="text-muted-foreground flex items-center justify-center gap-2 py-2 text-xs">
+              <Loader2 className="size-3 animate-spin" />
+              Loading newer logs...
+            </div>
+          )
+        : undefined,
+    }),
+    [isLoadingPrevious, isLoadingNext],
+  );
+
   if (logs.length === 0) {
     return (
       <div className="text-muted-foreground flex h-full items-center justify-center text-sm">
@@ -296,6 +322,10 @@ export function LogViewer({
       {/* Virtualized log content */}
       <div className="bg-muted/50 min-h-0 flex-1 font-mono text-xs">
         <Virtuoso
+          // The scroller renders a ScrollArea root that needs a definite
+          // height of its own; virtuoso's `height: 100%` reaches the viewport
+          // inside it, not this box.
+          className="h-full"
           totalCount={visibleLines.length}
           firstItemIndex={firstItemIndex}
           initialTopMostItemIndex={
@@ -317,24 +347,7 @@ export function LogViewer({
             }
           }}
           itemContent={renderLine}
-          components={{
-            Header: isLoadingPrevious
-              ? () => (
-                  <div className="text-muted-foreground flex items-center justify-center gap-2 py-2 text-xs">
-                    <Loader2 className="size-3 animate-spin" />
-                    Loading older logs...
-                  </div>
-                )
-              : undefined,
-            Footer: isLoadingNext
-              ? () => (
-                  <div className="text-muted-foreground flex items-center justify-center gap-2 py-2 text-xs">
-                    <Loader2 className="size-3 animate-spin" />
-                    Loading newer logs...
-                  </div>
-                )
-              : undefined,
-          }}
+          components={components}
         />
       </div>
     </div>

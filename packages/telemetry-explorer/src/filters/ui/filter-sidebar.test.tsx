@@ -2,6 +2,12 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { FilterSidebar } from "./filter-sidebar";
 
+// The ScrollArea viewport that wraps the rail also carries role="presentation",
+// so the decorative divider is matched by its own slot instead of by role.
+function divider(container: HTMLElement) {
+  return container.querySelector('[data-slot="filter-sidebar-divider"]');
+}
+
 describe("FilterSidebar", () => {
   it("renders the Filters header and children", () => {
     render(
@@ -48,7 +54,7 @@ describe("FilterSidebar", () => {
   });
 
   it("puts the persistent zone above the page zone, separated by a divider", () => {
-    render(
+    const { container } = render(
       <FilterSidebar
         label="Trace filters"
         hasActiveFilters={false}
@@ -63,11 +69,11 @@ describe("FilterSidebar", () => {
     expect(persistent.compareDocumentPosition(page)).toBe(
       Node.DOCUMENT_POSITION_FOLLOWING,
     );
-    expect(screen.getByRole("presentation")).toBeInTheDocument();
+    expect(divider(container)).toBeInTheDocument();
   });
 
   it("omits the divider when there is no persistent zone", () => {
-    render(
+    const { container } = render(
       <FilterSidebar
         label="Trace filters"
         hasActiveFilters={false}
@@ -76,6 +82,6 @@ describe("FilterSidebar", () => {
         <div>page zone</div>
       </FilterSidebar>,
     );
-    expect(screen.queryByRole("presentation")).not.toBeInTheDocument();
+    expect(divider(container)).toBeNull();
   });
 });

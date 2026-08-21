@@ -7,6 +7,7 @@ import {
   EmptyTitle,
 } from "@everr/ui/components/empty";
 import { RetryError } from "@everr/ui/components/retry-error";
+import { ScrollAreaScroller } from "@everr/ui/components/scroll-area";
 import { Skeleton } from "@everr/ui/components/skeleton";
 import {
   Tooltip,
@@ -92,6 +93,7 @@ export function TraceResultsList({
 
   const components = useMemo(
     () => ({
+      Scroller: ScrollAreaScroller,
       Footer: () => (
         <ResultsFooter
           count={rows.length}
