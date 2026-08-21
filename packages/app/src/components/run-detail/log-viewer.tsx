@@ -7,7 +7,7 @@ const Ansi =
     : (AnsiImport as unknown as { default: typeof AnsiImport }).default;
 
 import { buttonVariants } from "@everr/ui/components/button";
-import { ScrollAreaScroller } from "@everr/ui/components/scroll-area";
+import { virtuosoScrollAreaComponents } from "@everr/ui/components/scroll-area";
 import { formatTimestampTimeOfDay } from "@everr/ui/lib/timestamp";
 import { cn } from "@everr/ui/lib/utils";
 import {
@@ -254,7 +254,7 @@ export function LogViewer({
   // position, whenever the identity of a component in this map changes.
   const components = useMemo(
     () => ({
-      Scroller: ScrollAreaScroller,
+      ...virtuosoScrollAreaComponents,
       Header: isLoadingPrevious
         ? () => (
             <div className="text-muted-foreground flex items-center justify-center gap-2 py-2 text-xs">

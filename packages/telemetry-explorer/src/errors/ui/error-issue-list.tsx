@@ -6,7 +6,7 @@ import {
   EmptyHeader,
   EmptyTitle,
 } from "@everr/ui/components/empty";
-import { ScrollAreaScroller } from "@everr/ui/components/scroll-area";
+import { virtuosoScrollAreaComponents } from "@everr/ui/components/scroll-area";
 import { Skeleton } from "@everr/ui/components/skeleton";
 import { RefreshCw } from "lucide-react";
 import { useCallback, useMemo } from "react";
@@ -39,7 +39,7 @@ export function ErrorIssueList({
 
   const components = useMemo(
     () => ({
-      Scroller: ScrollAreaScroller,
+      ...virtuosoScrollAreaComponents,
       Footer: () => (
         <div className="text-muted-foreground flex h-12 items-center justify-center px-3 text-xs">
           {isFetchingNextPage ? (

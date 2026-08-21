@@ -4,7 +4,7 @@ import {
   DialogTitle,
 } from "@everr/ui/components/dialog";
 import { RetryError } from "@everr/ui/components/retry-error";
-import { ScrollAreaScroller } from "@everr/ui/components/scroll-area";
+import { virtuosoScrollAreaComponents } from "@everr/ui/components/scroll-area";
 import { Skeleton } from "@everr/ui/components/skeleton";
 import type { TimeRange } from "@everr/ui/lib/time-range";
 import { cn } from "@everr/ui/lib/utils";
@@ -119,7 +119,7 @@ function LogStream({
 
   const components = useMemo(
     () => ({
-      Scroller: ScrollAreaScroller,
+      ...virtuosoScrollAreaComponents,
       Footer: () => (
         <div className="text-muted-foreground flex h-12 items-center justify-center px-3 text-xs">
           {isFetchingNextPage ? (
