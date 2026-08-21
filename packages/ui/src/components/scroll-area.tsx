@@ -147,12 +147,54 @@ function ScrollArea({
   );
 }
 
+interface ScrollAreaScrollerProps extends React.HTMLAttributes<HTMLDivElement> {
+  ref?: React.Ref<HTMLDivElement>;
+  // Virtuoso passes its `context` value to every custom component. It is not a
+  // DOM attribute, so it is dropped here instead of reaching the viewport.
+  context?: unknown;
+}
+
+// react-virtuoso attaches its scroll listener, and reads scrollTop,
+// scrollHeight and offsetHeight, on whatever element it gets this ref for, so
+// the ref has to land on the real scrolling element (the viewport) and never on
+// the root. Everything else virtuoso passes (tabIndex, data-virtuoso-scroller,
+// data-testid, the inline style) goes to the same element.
+function ScrollAreaScroller({
+  ref,
+  children,
+  className,
+  style,
+  context: _context,
+  ...props
+}: ScrollAreaScrollerProps) {
+  // Virtuoso's own overflow keys are dropped: Base UI already writes
+  // `overflow: scroll` inline on the viewport, and a second axis-specific value
+  // merged on top would fight it. `position: relative` is kept because the
+  // virtuoso item list is absolutely positioned against the scroller.
+  const {
+    overflowY: _y,
+    overflowX: _x,
+    overflow: _o,
+    ...scrollerStyle
+  } = style ?? {};
+  return (
+    <ScrollArea
+      className={className}
+      viewportRef={ref}
+      viewportProps={{ ...props, style: scrollerStyle }}
+    >
+      {children}
+    </ScrollArea>
+  );
+}
+
 export {
   ScrollArea,
   ScrollAreaContent,
   ScrollAreaCorner,
   ScrollAreaRoot,
   ScrollAreaScrollbar,
+  ScrollAreaScroller,
   ScrollAreaThumb,
   ScrollAreaViewport,
 };

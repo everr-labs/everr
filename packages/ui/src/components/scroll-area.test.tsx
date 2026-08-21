@@ -1,6 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
-import { ScrollArea } from "./scroll-area";
+import { ScrollArea, ScrollAreaScroller } from "./scroll-area";
 
 describe("ScrollArea", () => {
   it("renders its children inside the viewport", () => {
@@ -62,5 +62,53 @@ describe("ScrollArea", () => {
     expect(
       container.querySelectorAll("[data-slot='scroll-area-scrollbar']"),
     ).toHaveLength(2);
+  });
+});
+
+describe("ScrollAreaScroller", () => {
+  it("puts the ref and the virtuoso attributes on the scrolling viewport", () => {
+    let scroller: HTMLDivElement | null = null;
+    render(
+      <ScrollAreaScroller
+        ref={(node) => {
+          scroller = node;
+        }}
+        data-virtuoso-scroller
+        tabIndex={0}
+        style={{ position: "relative", overflowY: "auto" }}
+      >
+        <p>rows</p>
+      </ScrollAreaScroller>,
+    );
+    expect(scroller).toHaveAttribute("data-slot", "scroll-area-viewport");
+    expect(scroller).toHaveAttribute("data-virtuoso-scroller");
+    expect(scroller).toHaveAttribute("tabindex", "0");
+    expect(scroller).toHaveStyle({ position: "relative" });
+  });
+
+  it("leaves the overflow of the viewport to the scroll area", () => {
+    const { container } = render(
+      <ScrollAreaScroller style={{ overflowY: "auto" }}>
+        <p>rows</p>
+      </ScrollAreaScroller>,
+    );
+    const viewport = container.querySelector<HTMLDivElement>(
+      "[data-slot='scroll-area-viewport']",
+    );
+    expect(viewport?.style.overflowY).toBe("");
+  });
+
+  it("sizes the root, not the viewport, from className", () => {
+    const { container } = render(
+      <ScrollAreaScroller className="h-full">
+        <p>rows</p>
+      </ScrollAreaScroller>,
+    );
+    expect(container.querySelector("[data-slot='scroll-area']")).toHaveClass(
+      "h-full",
+    );
+    expect(
+      container.querySelector("[data-slot='scroll-area-viewport']"),
+    ).not.toHaveClass("h-full");
   });
 });
