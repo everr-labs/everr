@@ -248,7 +248,8 @@ function ListVariableField({
         </DropdownMenuTrigger>
         <DropdownMenuContent
           align="start"
-          className="max-h-80 w-auto min-w-(--anchor-width) max-w-80 overflow-y-auto"
+          className="w-auto min-w-(--anchor-width) max-w-80"
+          viewportClassName="max-h-80"
         >
           {allowAll && (
             <>
