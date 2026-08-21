@@ -259,7 +259,13 @@ export function LogInspectorPanel({
         </div>
       </div>
 
-      <ScrollArea className="min-h-0 flex-1" viewportClassName="p-3">
+      {/* Both axes: a log body is arbitrary text with no wrapping rule on it,
+          so a long unbroken line has to stay reachable sideways. */}
+      <ScrollArea
+        orientation="both"
+        className="min-h-0 flex-1"
+        viewportClassName="p-3"
+      >
         <div className="group relative mb-4 rounded-md border bg-background p-3">
           <div className="text-muted-foreground mb-2 text-xs font-medium">
             Message
