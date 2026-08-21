@@ -146,7 +146,7 @@ export function DashboardsList({ preview }: { preview?: string }) {
       {/* Only the rows scroll; the search stays pinned above. */}
       <ScrollArea
         className="min-h-0 flex-1"
-        viewportClassName="flex flex-col gap-4 pr-1 pb-3"
+        viewportClassName="flex flex-col gap-4 pb-3"
       >
         <section aria-label="Your dashboards">
           <GroupLabel label="Your dashboards" />

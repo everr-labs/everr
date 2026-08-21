@@ -168,8 +168,7 @@ export function GaugeChartVisualization({
     );
   });
 
-  // Only the horizontal bars ever overflowed the panel; the arc layout
-  // always fit, so it keeps its plain div rather than gaining a scrollbar.
+  // Only the horizontal bars ever overflowed the panel; the arc layout always fit.
   return horizontal ? (
     <ScrollArea
       className="h-full"

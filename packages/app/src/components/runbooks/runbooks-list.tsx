@@ -21,7 +21,7 @@ export function RunbooksList({ preview }: { preview?: string }) {
       <ScrollArea
         render={<nav />}
         className="min-h-0 flex-1"
-        viewportClassName="flex flex-col pr-1 pb-3"
+        viewportClassName="flex flex-col pb-3"
       >
         {listQuery.isLoading && (
           <p className="px-1 py-1 text-muted-foreground text-xs">Loading...</p>

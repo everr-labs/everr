@@ -158,7 +158,7 @@ function RunLanes({ run }: { run: WorkflowRunGantt }) {
         </span>
       </div>
 
-      <ScrollArea className="max-h-[320px]" viewportClassName="space-y-1 pr-1">
+      <ScrollArea className="max-h-[320px]" viewportClassName="space-y-1">
         {run.jobs.map((job) => {
           const left = toPct(job.startMs);
           const width = Math.max(toPct(job.endMs) - left, 1.5);
