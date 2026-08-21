@@ -264,9 +264,10 @@ export function LogInspectorPanel({
           <div className="text-muted-foreground mb-2 text-xs font-medium">
             Message
           </div>
-          {/* The body wraps on its own at spaces and hyphens. `break-words`
-              covers what has neither: a long path, an id, a base64 blob. */}
-          <div className="font-mono text-xs leading-5 break-words">
+          {/* Same treatment as a row in the list: keep the log's own line
+              breaks, wrap the long lines, and break a run that has nowhere to
+              wrap (a long path, an id, a base64 blob). */}
+          <div className="font-mono text-xs leading-5 whitespace-pre-wrap break-words">
             <Ansi useClasses>{log.body}</Ansi>
           </div>
           <CopyValueButton
