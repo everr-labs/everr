@@ -250,8 +250,11 @@ export function LogViewer({
     ],
   );
 
-  // Memoised because virtuoso remounts the scroller, and so loses the scroll
-  // position, whenever the identity of a component in this map changes.
+  // Memoised so the loaders keep one identity across unrelated re-renders and
+  // remount only when the loading state really flips. The scroller is safe
+  // either way: virtuoso reads each slot of this map separately and ignores a
+  // value it has already seen, and `Scroller` is the same module-level
+  // component every time.
   const components = useMemo(
     () => ({
       ...virtuosoScrollAreaComponents,
