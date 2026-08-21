@@ -95,8 +95,9 @@ export function AppShell() {
               </div>
             </nav>
             <CardContent className="min-w-0 flex-1 p-0">
-              {/* overscroll-none dropped: some panes (Settings, Developer) fit
-                  without scrolling, and it would swallow wheel events there. */}
+              {/* No overscroll-none: the ancestor main and Card are both
+                  h-screen/overflow-hidden, so there is no window scroll to
+                  chain to and nothing for it to guard. */}
               <ScrollArea className="size-full">
                 <Outlet />
               </ScrollArea>

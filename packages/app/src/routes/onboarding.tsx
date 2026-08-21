@@ -765,9 +765,9 @@ function WorkflowsStep({
                   </p>
                 ) : (
                   <ScrollArea
-                    render={<ul />}
                     className="max-h-64"
                     viewportClassName="space-y-1"
+                    viewportProps={{ render: <ul /> }}
                   >
                     {reposQuery.data.map((repo) => {
                       const selected = selectedRepos.has(repo.fullName);

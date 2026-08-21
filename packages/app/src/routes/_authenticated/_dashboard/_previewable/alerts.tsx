@@ -502,7 +502,10 @@ function NotificationSettingsDialog({
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="flex max-h-[85vh] flex-col sm:max-w-md">
-        <ScrollArea className="min-h-0 flex-1">
+        <ScrollArea
+          className="min-h-0 flex-1"
+          viewportClassName="flex flex-col gap-4"
+        >
           <DialogHeader>
             <DialogTitle>Notification settings</DialogTitle>
             <DialogDescription>
