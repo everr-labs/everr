@@ -1,6 +1,7 @@
 import { Button } from "@everr/ui/components/button";
 import { Input } from "@everr/ui/components/input";
 import { Label } from "@everr/ui/components/label";
+import { ScrollArea } from "@everr/ui/components/scroll-area";
 import { cn } from "@everr/ui/lib/utils";
 
 import { useForm } from "@tanstack/react-form";
@@ -763,7 +764,11 @@ function WorkflowsStep({
                     No repositories found for this installation.
                   </p>
                 ) : (
-                  <ul className="max-h-64 space-y-1 overflow-y-auto">
+                  <ScrollArea
+                    render={<ul />}
+                    className="max-h-64"
+                    viewportClassName="space-y-1"
+                  >
                     {reposQuery.data.map((repo) => {
                       const selected = selectedRepos.has(repo.fullName);
                       const disabled =
@@ -798,7 +803,7 @@ function WorkflowsStep({
                         </li>
                       );
                     })}
-                  </ul>
+                  </ScrollArea>
                 )}
               </div>
             )}

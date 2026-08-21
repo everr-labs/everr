@@ -1,3 +1,4 @@
+import { ScrollArea } from "@everr/ui/components/scroll-area";
 import { cn } from "@everr/ui/lib/utils";
 import { type ReactNode, useCallback, useMemo, useRef, useState } from "react";
 import { CursorTooltip } from "@/components/cursor-tooltip";
@@ -157,7 +158,10 @@ export function LaneTimelineChart({
         {/* No overscroll-none here: lanes usually fit, and a non-scrollable
             scroll container with overscroll-behavior:none swallows wheel
             events instead of letting the page scroll. */}
-        <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden">
+        <ScrollArea
+          className="min-h-0 flex-1"
+          viewportClassName="overflow-x-hidden"
+        >
           <div className="flex h-full min-h-fit flex-col gap-1 py-1">
             {lanes.map((lane) => (
               <div
@@ -209,7 +213,7 @@ export function LaneTimelineChart({
               </div>
             ))}
           </div>
-        </div>
+        </ScrollArea>
 
         {/* time axis, aligned with the item tracks */}
         <div className="flex h-5 shrink-0 items-start overflow-hidden">

@@ -8,6 +8,7 @@ import {
   CardTitle,
 } from "@everr/ui/components/card";
 import { Empty, EmptyDescription } from "@everr/ui/components/empty";
+import { ScrollArea } from "@everr/ui/components/scroll-area";
 import { Skeleton } from "@everr/ui/components/skeleton";
 import { formatDuration } from "@everr/ui/lib/formatting";
 import { formatRelativeTime } from "@everr/ui/lib/timestamp";
@@ -157,7 +158,7 @@ function RunLanes({ run }: { run: WorkflowRunGantt }) {
         </span>
       </div>
 
-      <div className="max-h-[320px] space-y-1 overflow-y-auto pr-1">
+      <ScrollArea className="max-h-[320px]" viewportClassName="space-y-1 pr-1">
         {run.jobs.map((job) => {
           const left = toPct(job.startMs);
           const width = Math.max(toPct(job.endMs) - left, 1.5);
@@ -188,7 +189,7 @@ function RunLanes({ run }: { run: WorkflowRunGantt }) {
             </div>
           );
         })}
-      </div>
+      </ScrollArea>
     </div>
   );
 }

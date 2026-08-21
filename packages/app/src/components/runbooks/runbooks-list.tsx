@@ -1,3 +1,4 @@
+import { ScrollArea } from "@everr/ui/components/scroll-area";
 import { useQuery } from "@tanstack/react-query";
 import { CirclePlus } from "lucide-react";
 import { useState } from "react";
@@ -17,7 +18,11 @@ export function RunbooksList({ preview }: { preview?: string }) {
       <RailSearch label="runbooks" value={search} onChange={setSearch} />
 
       {/* Only the rows scroll; the search stays pinned above. */}
-      <nav className="flex min-h-0 flex-1 flex-col overflow-y-auto pr-1 pb-3">
+      <ScrollArea
+        render={<nav />}
+        className="min-h-0 flex-1"
+        viewportClassName="flex flex-col pr-1 pb-3"
+      >
         {listQuery.isLoading && (
           <p className="px-1 py-1 text-muted-foreground text-xs">Loading...</p>
         )}
@@ -42,7 +47,7 @@ export function RunbooksList({ preview }: { preview?: string }) {
             resource="runbook"
           />
         )}
-      </nav>
+      </ScrollArea>
     </div>
   );
 }

@@ -1,4 +1,5 @@
 import { Button } from "@everr/ui/components/button";
+import { ScrollArea } from "@everr/ui/components/scroll-area";
 import { RotateCw } from "lucide-react";
 import { AuthSettingsSection } from "../auth/auth";
 import {
@@ -79,14 +80,14 @@ export function SettingsPage() {
   return (
     <div className="flex h-full flex-col overflow-hidden">
       <PageTitleBar title="Settings" />
-      <div className="min-h-0 flex-1 overflow-y-auto">
+      <ScrollArea className="min-h-0 flex-1">
         <div className="grid divide-y divide-white/[0.08]">
           <AuthSettingsSection />
           <NotificationEmailsSection />
           <SkillsSection />
           <LocalTelemetrySection />
         </div>
-      </div>
+      </ScrollArea>
     </div>
   );
 }

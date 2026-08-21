@@ -1,4 +1,5 @@
 import { Button } from "@everr/ui/components/button";
+import { ScrollArea } from "@everr/ui/components/scroll-area";
 import { DEFAULT_TIME_RANGE } from "@everr/ui/lib/time-range";
 import { cn } from "@everr/ui/lib/utils";
 import { useQuery } from "@tanstack/react-query";
@@ -143,7 +144,10 @@ export function DashboardsList({ preview }: { preview?: string }) {
       <RailSearch label="dashboards" value={search} onChange={setSearch} />
 
       {/* Only the rows scroll; the search stays pinned above. */}
-      <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto pr-1 pb-3">
+      <ScrollArea
+        className="min-h-0 flex-1"
+        viewportClassName="flex flex-col gap-4 pr-1 pb-3"
+      >
         <section aria-label="Your dashboards">
           <GroupLabel label="Your dashboards" />
           {listQuery.isLoading && (
@@ -244,7 +248,7 @@ export function DashboardsList({ preview }: { preview?: string }) {
             </>
           )}
         </section>
-      </div>
+      </ScrollArea>
     </div>
   );
 }

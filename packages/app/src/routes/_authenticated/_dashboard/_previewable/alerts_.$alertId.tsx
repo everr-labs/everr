@@ -17,6 +17,7 @@ import {
 } from "@everr/ui/components/dialog";
 import { Input } from "@everr/ui/components/input";
 import { Label } from "@everr/ui/components/label";
+import { ScrollArea } from "@everr/ui/components/scroll-area";
 import {
   Select,
   SelectContent,
@@ -365,18 +366,28 @@ function AlertDetailPage() {
             <div className="flex flex-col gap-4">
               <DefinitionTable rows={definitionRows} />
               {detail.lastEvaluationError && (
-                <pre className="max-h-32 overflow-auto rounded bg-muted/30 p-2 text-xs text-destructive">
-                  {detail.lastEvaluationError}
-                </pre>
+                <ScrollArea
+                  orientation="both"
+                  className="max-h-32 rounded bg-muted/30"
+                >
+                  <pre className="whitespace-pre p-2 text-xs text-destructive">
+                    {detail.lastEvaluationError}
+                  </pre>
+                </ScrollArea>
               )}
 
               <div className="flex flex-col gap-1.5">
                 <span className="font-medium text-muted-foreground text-xs">
                   Query
                 </span>
-                <pre className="max-h-72 overflow-auto rounded-md border border-border/60 bg-muted/20 p-3 text-xs leading-relaxed">
-                  {detail.parsedQuery}
-                </pre>
+                <ScrollArea
+                  orientation="both"
+                  className="max-h-72 rounded-md border border-border/60 bg-muted/20"
+                >
+                  <pre className="whitespace-pre p-3 text-xs leading-relaxed">
+                    {detail.parsedQuery}
+                  </pre>
+                </ScrollArea>
               </div>
             </div>
           </CardContent>
