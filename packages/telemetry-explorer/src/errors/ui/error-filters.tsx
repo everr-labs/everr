@@ -1,3 +1,4 @@
+import { FilterSearchBar } from "@everr/ui/components/filter-search-bar";
 import { Label } from "@everr/ui/components/label";
 import {
   ToggleGroup,
@@ -7,7 +8,6 @@ import type { TimeRange } from "@everr/ui/lib/time-range";
 import { type ReactNode, useId } from "react";
 import { AttributeFilterSection } from "../../attribute-filter/ui/attribute-filter-section";
 import { ExploreFilterRail } from "../../filters/ui/explore-filter-rail";
-import { FilterSearchBar } from "../../filters/ui/filter-search-bar";
 import type { ErrorsRepositoryLike } from "../data/repository";
 import type { AttributeFilter } from "../data/schemas";
 import type { ErrorSort } from "../data/types";
@@ -59,7 +59,6 @@ export function ErrorFilters({
       <FilterSearchBar
         id="errors-search"
         label="Search"
-        showLabel
         value={value.q}
         onChange={(q) => onChange({ q })}
         placeholder="Search errors"

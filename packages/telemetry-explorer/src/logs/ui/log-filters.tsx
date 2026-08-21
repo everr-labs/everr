@@ -1,17 +1,11 @@
-import {
-  InputGroup,
-  InputGroupAddon,
-  InputGroupButton,
-  InputGroupInput,
-} from "@everr/ui/components/input-group";
+import { FilterSearchBar } from "@everr/ui/components/filter-search-bar";
 import { Label } from "@everr/ui/components/label";
 import type { TimeRange } from "@everr/ui/lib/time-range";
 import { cn } from "@everr/ui/lib/utils";
-import { Hash, X } from "lucide-react";
-import { type ReactNode, useRef, useState } from "react";
+import { Hash } from "lucide-react";
+import type { ReactNode } from "react";
 import { AttributeFilterSection } from "../../attribute-filter/ui/attribute-filter-section";
 import { ExploreFilterRail } from "../../filters/ui/explore-filter-rail";
-import { FilterSearchBar } from "../../filters/ui/filter-search-bar";
 import type { LogsRepositoryLike } from "../data/repository";
 import type { AttributeFilter, LogLevel } from "../schemas";
 import {
@@ -43,64 +37,6 @@ export interface LogFiltersBarProps {
 
 function levelDotClassName(level: LogLevel) {
   return LOG_LEVEL_META[level].dotClassName;
-}
-
-function TraceFilter({
-  traceId,
-  onChange,
-}: {
-  traceId?: string;
-  onChange: (traceId?: string) => void;
-}) {
-  const [value, setValue] = useState(traceId ?? "");
-  // Set the draft again when the trace id changes from outside this component,
-  // for example on "Clear page filters", on a link, or on Back. Without this the
-  // input keeps an old value and applies it again.
-  const lastTraceIdRef = useRef(traceId);
-  if (lastTraceIdRef.current !== traceId) {
-    lastTraceIdRef.current = traceId;
-    setValue(traceId ?? "");
-  }
-
-  return (
-    <form
-      className="flex flex-col gap-1"
-      onSubmit={(event) => {
-        event.preventDefault();
-        const trimmed = value.trim();
-        onChange(trimmed || undefined);
-      }}
-    >
-      <label htmlFor="logs-trace-id" className="text-muted-foreground text-xs">
-        Trace
-      </label>
-      <InputGroup className="h-8">
-        <InputGroupAddon>
-          <Hash />
-        </InputGroupAddon>
-        <InputGroupInput
-          id="logs-trace-id"
-          value={value}
-          onChange={(event) => setValue(event.target.value)}
-          placeholder="Any trace"
-        />
-        {traceId ? (
-          <InputGroupAddon align="inline-end">
-            <InputGroupButton
-              size="icon-xs"
-              aria-label="Clear trace"
-              onClick={() => {
-                setValue("");
-                onChange(undefined);
-              }}
-            >
-              <X />
-            </InputGroupButton>
-          </InputGroupAddon>
-        ) : null}
-      </InputGroup>
-    </form>
-  );
 }
 
 export function LogFiltersBar({
@@ -151,7 +87,6 @@ export function LogFiltersBar({
       <FilterSearchBar
         id="logs-search"
         label="Search"
-        showLabel
         value={q}
         onChange={(next) => onChange({ q: next || undefined })}
         placeholder="Search messages, errors, IDs"
@@ -188,9 +123,13 @@ export function LogFiltersBar({
         </div>
       </div>
 
-      <TraceFilter
-        traceId={traceId}
-        onChange={(nextTraceId) => onChange({ traceId: nextTraceId })}
+      <FilterSearchBar
+        id="logs-trace-id"
+        label="Trace"
+        icon={Hash}
+        value={traceId ?? ""}
+        onChange={(next) => onChange({ traceId: next || undefined })}
+        placeholder="Any trace"
       />
 
       <AttributeFilterSection
