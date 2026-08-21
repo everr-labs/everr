@@ -7,6 +7,7 @@ import {
   ResizablePanel,
   ResizablePanelGroup,
 } from "@everr/ui/components/resizable";
+import { ScrollArea } from "@everr/ui/components/scroll-area";
 import { formatDuration } from "@everr/ui/lib/formatting";
 import { cn } from "@everr/ui/lib/utils";
 import {
@@ -192,10 +193,16 @@ export function TraceWaterfall({ spans, traceId }: TraceWaterfallProps) {
       <ResizablePanelGroup orientation="horizontal" className="min-h-0 flex-1">
         {/* Left panel — span names */}
         <ResizablePanel>
-          <div
-            ref={leftScrollRef}
-            className="h-full overflow-y-auto overflow-x-hidden"
-            onScroll={() => syncScroll("left")}
+          <ScrollArea
+            className="h-full"
+            viewportRef={leftScrollRef}
+            // Base UI writes `overflow: scroll` inline on the viewport, so a
+            // Tailwind overflow class there is inert. Only an inline style
+            // merges over it and keeps the x axis clipped.
+            viewportProps={{
+              onScroll: () => syncScroll("left"),
+              style: { overflowX: "hidden" },
+            }}
           >
             {/* Spacer matching time-axis height */}
             <div className="sticky top-0 z-10 h-5 bg-card border-b border-border" />
@@ -271,17 +278,20 @@ export function TraceWaterfall({ spans, traceId }: TraceWaterfallProps) {
                 </Fragment>
               );
             })}
-          </div>
+          </ScrollArea>
         </ResizablePanel>
 
         <ResizableHandle withHandle />
 
         {/* Right panel — timeline */}
         <ResizablePanel defaultSize="80%" minSize="20%" maxSize="90%">
-          <div
-            ref={rightScrollRef}
-            className="h-full overflow-y-auto overflow-x-hidden pr-1"
-            onScroll={() => syncScroll("right")}
+          <ScrollArea
+            className="h-full"
+            viewportRef={rightScrollRef}
+            viewportProps={{
+              onScroll: () => syncScroll("right"),
+              style: { overflowX: "hidden" },
+            }}
           >
             {/* Time axis */}
             <div className="sticky top-0 z-10 h-5 bg-card border-b border-border text-xs text-muted-foreground">
@@ -382,7 +392,7 @@ export function TraceWaterfall({ spans, traceId }: TraceWaterfallProps) {
                 );
               })}
             </div>
-          </div>
+          </ScrollArea>
         </ResizablePanel>
       </ResizablePanelGroup>
     </div>
