@@ -162,7 +162,9 @@ export function HeatmapVisualization({
             events instead of letting the page scroll. */}
         <ScrollArea
           className="min-h-0 flex-1"
-          viewportClassName="overflow-x-hidden"
+          // Base UI writes `overflow: scroll` inline on the viewport, so only
+          // an inline style can turn the horizontal axis off.
+          viewportProps={{ style: { overflowX: "hidden" } }}
         >
           <div className="flex h-full min-h-fit flex-col">
             {yBuckets.map((bucket, b) => (
