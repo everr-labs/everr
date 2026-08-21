@@ -1,0 +1,24 @@
+import { Meta } from "@storybook/addon-docs/blocks";
+
+<Meta title="Welcome" />
+
+# @everr/ui
+
+Every component of the shared UI package, with its variants and states.
+
+Components are grouped by role:
+
+- **Controls** buttons, inputs, selects and other form elements
+- **Overlays** dialogs, sheets, popovers, menus and toasts
+- **Layout** cards, tabs, sidebar, panels and separators
+- **Data** badges, tables, comboboxes, empty and error states
+- **Charts** and **Time** the chart primitives and the range pickers
+
+The stories import the components from source (`packages/ui/src`), so a change
+in the package shows here immediately.
+
+## Run it
+
+```bash
+pnpm --filter @everr/storybook dev
+```

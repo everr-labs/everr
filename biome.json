@@ -22,6 +22,9 @@
 
       "packages/telemetry-explorer/**/src/**/*",
 
+      "packages/storybook/**/src/**/*",
+      "packages/storybook/.storybook/**/*",
+
       "packages/otel-web/**/src/**/*",
 
       "packages/otel-errors/**/src/**/*",

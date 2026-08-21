@@ -1,0 +1,6 @@
+@import "@everr/ui/styles/global.css";
+
+/* Tailwind detects its sources from this file's package, so the component
+   classes and the story classes both have to be registered by hand. */
+@source "../src";
+@source "../../ui/src";
