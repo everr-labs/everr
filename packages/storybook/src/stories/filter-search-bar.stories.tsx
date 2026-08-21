@@ -23,9 +23,11 @@ const meta = {
     placeholder: "Search messages, errors, IDs",
     onChange: () => {},
   },
+  // Keyed on the arg so editing `value` in the controls panel seeds a fresh
+  // draft, instead of leaving the mounted bar on the value it started with.
   render: (args) => (
     <div className="w-72">
-      <StatefulSearchBar {...args} />
+      <StatefulSearchBar key={args.value} {...args} />
     </div>
   ),
 } satisfies Meta<typeof FilterSearchBar>;
