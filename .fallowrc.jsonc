@@ -29,6 +29,10 @@
     "packages/otel-web/.size-limit.cjs",
     // On-demand skill eval runner, invoked directly with `node`.
     "evals/setup-telemetry/run.mjs",
+    // Storybook loads its config and every story file by glob, never by import.
+    "packages/storybook/.storybook/*.{ts,tsx}",
+    "packages/storybook/src/**/*.stories.tsx",
+    "packages/storybook/src/**/*.mdx",
   ],
   // The two @opentelemetry/* entries are imported only by the OTel web SDK
   // sample in content/docs/guides/browser-telemetry.mdx (the reader
@@ -53,6 +57,12 @@
       // Child-process fixtures intentionally import built package output, which
       // does not exist during CI's pre-build dead-code scan.
       "files": ["packages/otel-errors/test/fixtures/*.mjs"],
+      "rules": { "unresolved-imports": "off" }
+    },
+    {
+      // The Vite alias for @everr/ui points at a source directory, which is a
+      // path rather than a resolvable module.
+      "files": ["packages/storybook/.storybook/main.ts"],
       "rules": { "unresolved-imports": "off" }
     },
     {

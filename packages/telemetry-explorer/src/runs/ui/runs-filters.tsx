@@ -1,4 +1,5 @@
 import { FilterCombobox } from "@everr/ui/components/filter-combobox";
+import { FilterSearchBar } from "@everr/ui/components/filter-search-bar";
 import { Label } from "@everr/ui/components/label";
 import { Separator } from "@everr/ui/components/separator";
 import { Switch } from "@everr/ui/components/switch";
@@ -6,7 +7,6 @@ import type { TimeRange } from "@everr/ui/lib/time-range";
 import { cn } from "@everr/ui/lib/utils";
 import { User } from "lucide-react";
 import { ExploreFilterRail } from "../../filters/ui/explore-filter-rail";
-import { FilterSearchBar } from "../../filters/ui/filter-search-bar";
 import { runsFilterOptions } from "../data/options";
 import type { RunsRepositoryLike } from "../data/repository";
 import { RUN_STATUS_FILTERS, type RunStatusFilter } from "../schemas";
@@ -102,7 +102,6 @@ export function RunsFilters({
       <FilterSearchBar
         id="runs-search"
         label="Search"
-        showLabel
         value={runId ?? ""}
         onChange={(next) => onChange({ runId: next || undefined })}
         placeholder="Search by run ID"
