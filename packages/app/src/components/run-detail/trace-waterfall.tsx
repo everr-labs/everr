@@ -196,13 +196,7 @@ export function TraceWaterfall({ spans, traceId }: TraceWaterfallProps) {
           <ScrollArea
             className="h-full"
             viewportRef={leftScrollRef}
-            // Base UI writes `overflow: scroll` inline on the viewport, so a
-            // Tailwind overflow class there is inert. Only an inline style
-            // merges over it and keeps the x axis clipped.
-            viewportProps={{
-              onScroll: () => syncScroll("left"),
-              style: { overflowX: "hidden" },
-            }}
+            viewportProps={{ onScroll: () => syncScroll("left") }}
           >
             {/* Spacer matching time-axis height */}
             <div className="sticky top-0 z-10 h-5 bg-card border-b border-border" />
@@ -288,10 +282,7 @@ export function TraceWaterfall({ spans, traceId }: TraceWaterfallProps) {
           <ScrollArea
             className="h-full"
             viewportRef={rightScrollRef}
-            viewportProps={{
-              onScroll: () => syncScroll("right"),
-              style: { overflowX: "hidden" },
-            }}
+            viewportProps={{ onScroll: () => syncScroll("right") }}
           >
             {/* Time axis */}
             <div className="sticky top-0 z-10 h-5 bg-card border-b border-border text-xs text-muted-foreground">

@@ -160,12 +160,7 @@ export function HeatmapVisualization({
         {/* No overscroll-none here: rows usually fit, and a non-scrollable
             scroll container with overscroll-behavior:none swallows wheel
             events instead of letting the page scroll. */}
-        <ScrollArea
-          className="min-h-0 flex-1"
-          // Base UI writes `overflow: scroll` inline on the viewport, so only
-          // an inline style can turn the horizontal axis off.
-          viewportProps={{ style: { overflowX: "hidden" } }}
-        >
+        <ScrollArea className="min-h-0 flex-1">
           <div className="flex h-full min-h-fit flex-col">
             {yBuckets.map((bucket, b) => (
               <div key={bucket} className="flex min-h-4 flex-1 items-stretch">

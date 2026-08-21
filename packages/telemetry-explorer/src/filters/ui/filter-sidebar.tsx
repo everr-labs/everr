@@ -31,16 +31,7 @@ export function FilterSidebar({
 }) {
   return (
     <ScrollArea
-      render={
-        <aside
-          aria-label={label}
-          // The Base UI ScrollArea root writes role="presentation" onto this
-          // element, which strips the implied landmark off the aside, so the
-          // explicit role is not redundant here: it wins the landmark back.
-          // biome-ignore lint/a11y/noRedundantRoles: overridden by Base UI
-          role="complementary"
-        />
-      }
+      render={<aside aria-label={label} />}
       className="bg-muted/15 h-full min-h-0 border-b lg:border-r lg:border-b-0"
       viewportClassName="flex flex-col gap-3 p-3"
     >

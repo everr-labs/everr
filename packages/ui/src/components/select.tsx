@@ -91,12 +91,9 @@ function SelectContent({
               (`listElement ?? popupRef`), so it has to be the viewport itself,
               not a child of one. `h-full` carries the popup's height down when
               `alignItemWithTrigger` sets `height: 100%` on the popup, and
-              `max-h-(--available-height)` bounds the root when it does not.
-              Base UI applies `overflowX: hidden` before the viewport's
-              `overflow: scroll`, so an important class is required. */}
+              `max-h-(--available-height)` bounds the root when it does not. */}
           <ScrollArea
             className="h-full max-h-(--available-height) rounded-[inherit]"
-            viewportClassName="overflow-x-hidden!"
             viewportProps={{
               // The viewport's own `role="presentation"` would otherwise win
               // the merge and strip the listbox role off the List.

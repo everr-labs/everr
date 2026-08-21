@@ -104,11 +104,9 @@ function CommandList({
     <ScrollArea
       className={cn("max-h-72", className)}
       // scroll-py-1 is scroll-padding, so it only counts on the element that
-      // scrolls. Base UI writes `overflow: scroll` inline on the viewport, so
-      // the horizontal axis has to be hidden inline as well.
+      // scrolls.
       viewportClassName="scroll-py-1 outline-none"
       viewportProps={{
-        style: { overflowX: "hidden" },
         render: <CommandPrimitive.List data-slot="command-list" {...props} />,
       }}
     >
