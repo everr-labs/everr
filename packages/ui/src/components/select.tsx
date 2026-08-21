@@ -92,9 +92,8 @@ function SelectContent({
               not a child of one. `h-full` carries the popup's height down when
               `alignItemWithTrigger` sets `height: 100%` on the popup, and
               `max-h-(--available-height)` bounds the root when it does not.
-              `overflowX` must be an inline style: Base UI writes
-              `overflow: scroll` on the viewport, and the List adds its own
-              `overflow-x: hidden` before it, so only an important class wins. */}
+              Base UI applies `overflowX: hidden` before the viewport's
+              `overflow: scroll`, so an important class is required. */}
           <ScrollArea
             className="h-full max-h-(--available-height) rounded-[inherit]"
             viewportClassName="overflow-x-hidden!"
