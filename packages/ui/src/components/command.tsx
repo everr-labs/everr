@@ -6,6 +6,7 @@ import {
   DialogTitle,
 } from "@everr/ui/components/dialog";
 import { InputGroup, InputGroupAddon } from "@everr/ui/components/input-group";
+import { ScrollArea } from "@everr/ui/components/scroll-area";
 import { cn } from "@everr/ui/lib/utils";
 import { Command as CommandPrimitive } from "cmdk";
 import { CheckIcon, SearchIcon } from "lucide-react";
@@ -96,17 +97,23 @@ function CommandInput({
 
 function CommandList({
   className,
+  children,
   ...props
 }: React.ComponentProps<typeof CommandPrimitive.List>) {
   return (
-    <CommandPrimitive.List
-      data-slot="command-list"
-      className={cn(
-        "max-h-72 scroll-py-1 outline-none overflow-x-hidden overflow-y-auto",
-        className,
-      )}
-      {...props}
-    />
+    <ScrollArea
+      className={cn("max-h-72", className)}
+      // scroll-py-1 is scroll-padding, so it only counts on the element that
+      // scrolls. Base UI writes `overflow: scroll` inline on the viewport, so
+      // the horizontal axis has to be hidden inline as well.
+      viewportClassName="scroll-py-1 outline-none"
+      viewportProps={{
+        style: { overflowX: "hidden" },
+        render: <CommandPrimitive.List data-slot="command-list" {...props} />,
+      }}
+    >
+      {children}
+    </ScrollArea>
   );
 }
 
