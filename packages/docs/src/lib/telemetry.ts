@@ -26,6 +26,12 @@ new WebSDK({
   // Without the commit, the SDK falls back to its own package version.
   serviceVersion: env.VITE_COMMIT_SHA,
   deploymentEnvironment: import.meta.env.MODE,
+  // The public key is origin-bound and ingest-only, and Vite bakes it into the
+  // client bundle at build time. It comes from the DOCS_EVERR_PUBLIC_INGEST_KEY
+  // repository variable, which the image build passes as a build argument. When
+  // that variable holds nothing, the bundle carries no key and the telemetry
+  // stays off without a sign. The origin of the site must appear on the allowed
+  // origins of the key, or the collector refuses the authenticated request.
   ingestKey: env.VITE_EVERR_PUBLIC_INGEST_KEY,
   endpoint: env.VITE_EVERR_INGEST_ENDPOINT,
   dev: import.meta.env.DEV,
