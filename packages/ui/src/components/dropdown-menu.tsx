@@ -21,14 +21,17 @@ function DropdownMenuContent({
   side = "bottom",
   sideOffset = 4,
   className,
-  viewportClassName,
+  listClassName,
   children,
   ...props
 }: MenuPrimitive.Popup.Props &
   Pick<
     MenuPrimitive.Positioner.Props,
     "align" | "alignOffset" | "side" | "sideOffset"
-  > & { viewportClassName?: string }) {
+  > & {
+    /** Extra layout for the scrolling item list, e.g. a height bound on it. */
+    listClassName?: string;
+  }) {
   return (
     <MenuPrimitive.Portal>
       <MenuPrimitive.Positioner
@@ -51,8 +54,7 @@ function DropdownMenuContent({
               has to sit on the viewport to scroll with the items. */}
           <ScrollArea
             className="max-h-(--available-height)"
-            viewportClassName={cn("p-1", viewportClassName)}
-            viewportProps={{ style: { overflowX: "hidden" } }}
+            viewportClassName={cn("p-1", listClassName)}
           >
             {children}
           </ScrollArea>

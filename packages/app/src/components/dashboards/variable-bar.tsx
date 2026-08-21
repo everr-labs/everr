@@ -249,7 +249,7 @@ function ListVariableField({
         <DropdownMenuContent
           align="start"
           className="w-auto min-w-(--anchor-width) max-w-80"
-          viewportClassName="max-h-80"
+          listClassName="max-h-80"
         >
           {allowAll && (
             <>
