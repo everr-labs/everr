@@ -1,3 +1,4 @@
+import { ScrollArea } from "@everr/ui/components/scroll-area";
 import { cn } from "@everr/ui/lib/utils";
 import type { MouseEvent, ReactNode } from "react";
 
@@ -43,72 +44,83 @@ export function DataTable<T>({
   const isFirst = (i: number) => i === 0;
   const isLast = (i: number) => i === columns.length - 1;
 
-  return (
-    <div className={cn(!bordered && "overflow-x-auto", containerClassName)}>
-      <table
-        className={cn(
-          "w-full text-sm",
-          bordered && "border-separate border-spacing-0",
-        )}
-      >
-        <thead className={cn(stickyHeader && "sticky top-0 z-10 bg-card")}>
-          <tr className="text-left text-muted-foreground">
-            {columns.map((col, i) => (
-              <th
-                key={i}
-                className={cn(
-                  "whitespace-nowrap",
-                  col.className ??
-                    (bordered
-                      ? "border-b border-r border-border px-3 py-2 font-medium last:border-r-0"
-                      : cn(
-                          "pb-2",
-                          !isLast(i) && "pr-4",
-                          isFirst(i) && "pl-3",
-                          isLast(i) && "pr-3",
-                        )),
-                )}
-              >
-                {col.header}
-              </th>
-            ))}
-          </tr>
-        </thead>
-        <tbody className={bordered ? "[&>tr:last-child>td]:border-b-0" : ""}>
-          {data.map((row, rowIndex) => (
-            <tr
-              key={rowKey(row, rowIndex)}
-              onClick={
-                onRowClick ? (event) => onRowClick(row, event) : undefined
-              }
+  const table = (
+    <table
+      className={cn(
+        "w-full text-sm",
+        bordered && "border-separate border-spacing-0",
+      )}
+    >
+      <thead className={cn(stickyHeader && "sticky top-0 z-10 bg-card")}>
+        <tr className="text-left text-muted-foreground">
+          {columns.map((col, i) => (
+            <th
+              key={i}
               className={cn(
-                "hover:bg-muted/50",
-                !bordered && "border-b last:border-0",
-                rowClassName?.(row, rowIndex),
+                "whitespace-nowrap",
+                col.className ??
+                  (bordered
+                    ? "border-b border-r border-border px-3 py-2 font-medium last:border-r-0"
+                    : cn(
+                        "pb-2",
+                        !isLast(i) && "pr-4",
+                        isFirst(i) && "pl-3",
+                        isLast(i) && "pr-3",
+                      )),
               )}
             >
-              {columns.map((col, i) => (
-                <td
-                  key={i}
-                  className={
-                    col.cellClassName ??
-                    (bordered
-                      ? "border-b border-r border-border px-3 py-2 last:border-r-0"
-                      : cn(
-                          "py-2",
-                          !isLast(i) && "pr-4",
-                          isFirst(i) && "pl-3",
-                          isLast(i) && "pr-3",
-                        ))
-                  }
-                >
-                  {col.cell(row)}
-                </td>
-              ))}
-            </tr>
+              {col.header}
+            </th>
           ))}
-        </tbody>
-      </table>
-    </div>
+        </tr>
+      </thead>
+      <tbody className={bordered ? "[&>tr:last-child>td]:border-b-0" : ""}>
+        {data.map((row, rowIndex) => (
+          <tr
+            key={rowKey(row, rowIndex)}
+            onClick={onRowClick ? (event) => onRowClick(row, event) : undefined}
+            className={cn(
+              "hover:bg-muted/50",
+              !bordered && "border-b last:border-0",
+              rowClassName?.(row, rowIndex),
+            )}
+          >
+            {columns.map((col, i) => (
+              <td
+                key={i}
+                className={
+                  col.cellClassName ??
+                  (bordered
+                    ? "border-b border-r border-border px-3 py-2 last:border-r-0"
+                    : cn(
+                        "py-2",
+                        !isLast(i) && "pr-4",
+                        isFirst(i) && "pl-3",
+                        isLast(i) && "pr-3",
+                      ))
+                }
+              >
+                {col.cell(row)}
+              </td>
+            ))}
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+
+  // A bordered table is always placed inside a scroll box owned by the caller,
+  // so it must not add a second one: nesting two viewports would leave the
+  // inner one unable to overflow and would double the tab stops.
+  if (bordered) {
+    return <div className={containerClassName}>{table}</div>;
+  }
+
+  // Both axes: a table overflows sideways on narrow panes, and the viewport
+  // scrolls on both axes regardless, so a missing scrollbar would be silent.
+  return (
+    <ScrollArea className={containerClassName} orientation="both">
+      {table}
+    </ScrollArea>
   );
 }
