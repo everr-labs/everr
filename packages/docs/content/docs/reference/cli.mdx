@@ -79,6 +79,26 @@ Collection-style commands accept `--limit <n>` and `--offset <n>` for pagination
   - `EVERR_API_KEY` an organization API key (prefix `ek_`) with the `apply` scope, used as a bearer token; when set it takes precedence over the session. The legacy `EVERR_API_TOKEN` is accepted as a deprecated alias.
   - `EVERR_API_URL` API base URL (falls back to the URL persisted by a prior `everr cloud login`)
 
+## Resources
+
+- `everr resources list` — list live resources across the organization
+  - `--kind <dashboard|runbook|alert>` filter by kind
+  - `--repoid <slug>` filter by owning repository (pass an empty string for UI-created resources)
+  - `--json` output raw JSON instead of a table
+- `everr resources show <kind> <slug>` — print a resource's stored configuration
+  - `--project <name>` project namespace (default: `default`)
+  - `--json` output raw JSON instead of YAML
+- `everr resources delete <kind> <slug>` — delete a live resource
+  - `--project <name>` project namespace (default: `default`)
+- `everr resources adopt <kind> <slug>` — take ownership of a resource for this repository
+  - `--project <name>` project namespace (default: `default`)
+  - `--yes`, `-y` skip the confirmation prompt (required in non-interactive contexts)
+
 ## Other
 
+- `everr upgrade` — upgrade the CLI (and the Everr app, if installed) to the latest version
 - `everr uninstall` — remove all config files, log out, and print the command to remove the CLI binary
+
+## The same operations over HTTP
+
+Every command here maps to an endpoint on `https://app.everr.dev`. The OpenAPI description is at [https://everr.dev/openapi.json](https://everr.dev/openapi.json); see the [HTTP API reference](/docs/reference/api).

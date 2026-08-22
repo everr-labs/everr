@@ -10,7 +10,10 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AboutRouteImport } from './routes/about'
+import { Route as ContactRouteImport } from './routes/contact'
 import { Route as PricingRouteImport } from './routes/pricing'
+import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as ApiSearchRouteImport } from './routes/api/search'
 import { Route as BlogIndexRouteImport } from './routes/blog/index'
 import { Route as BlogSlugRouteImport } from './routes/blog/$slug'
@@ -18,6 +21,7 @@ import { Route as DevlogIndexRouteImport } from './routes/devlog/index'
 import { Route as DevlogSlugRouteImport } from './routes/devlog/$slug'
 import { Route as DocsSplatRouteImport } from './routes/docs/$'
 import { Route as EverrAppSplatRouteImport } from './routes/everr-app/$'
+import { Route as ApiOgIndexRouteImport } from './routes/api/og/index'
 import { Route as ApiOgDevlogSlugRouteImport } from './routes/api/og/devlog.$slug'
 
 const IndexRoute = IndexRouteImport.update({
@@ -25,9 +29,24 @@ const IndexRoute = IndexRouteImport.update({
   path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AboutRoute = AboutRouteImport.update({
+  id: '/about',
+  path: '/about',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ContactRoute = ContactRouteImport.update({
+  id: '/contact',
+  path: '/contact',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const PricingRoute = PricingRouteImport.update({
   id: '/pricing',
   path: '/pricing',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PrivacyRoute = PrivacyRouteImport.update({
+  id: '/privacy',
+  path: '/privacy',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ApiSearchRoute = ApiSearchRouteImport.update({
@@ -65,6 +84,11 @@ const EverrAppSplatRoute = EverrAppSplatRouteImport.update({
   path: '/everr-app/$',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiOgIndexRoute = ApiOgIndexRouteImport.update({
+  id: '/api/og/',
+  path: '/api/og/',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiOgDevlogSlugRoute = ApiOgDevlogSlugRouteImport.update({
   id: '/api/og/devlog/$slug',
   path: '/api/og/devlog/$slug',
@@ -73,7 +97,10 @@ const ApiOgDevlogSlugRoute = ApiOgDevlogSlugRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/about': typeof AboutRoute
+  '/contact': typeof ContactRoute
   '/pricing': typeof PricingRoute
+  '/privacy': typeof PrivacyRoute
   '/api/search': typeof ApiSearchRoute
   '/blog/$slug': typeof BlogSlugRoute
   '/devlog/$slug': typeof DevlogSlugRoute
@@ -81,11 +108,15 @@ export interface FileRoutesByFullPath {
   '/everr-app/$': typeof EverrAppSplatRoute
   '/blog/': typeof BlogIndexRoute
   '/devlog/': typeof DevlogIndexRoute
+  '/api/og/': typeof ApiOgIndexRoute
   '/api/og/devlog/$slug': typeof ApiOgDevlogSlugRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/about': typeof AboutRoute
+  '/contact': typeof ContactRoute
   '/pricing': typeof PricingRoute
+  '/privacy': typeof PrivacyRoute
   '/api/search': typeof ApiSearchRoute
   '/blog/$slug': typeof BlogSlugRoute
   '/devlog/$slug': typeof DevlogSlugRoute
@@ -93,12 +124,16 @@ export interface FileRoutesByTo {
   '/everr-app/$': typeof EverrAppSplatRoute
   '/blog': typeof BlogIndexRoute
   '/devlog': typeof DevlogIndexRoute
+  '/api/og': typeof ApiOgIndexRoute
   '/api/og/devlog/$slug': typeof ApiOgDevlogSlugRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/about': typeof AboutRoute
+  '/contact': typeof ContactRoute
   '/pricing': typeof PricingRoute
+  '/privacy': typeof PrivacyRoute
   '/api/search': typeof ApiSearchRoute
   '/blog/$slug': typeof BlogSlugRoute
   '/devlog/$slug': typeof DevlogSlugRoute
@@ -106,13 +141,17 @@ export interface FileRoutesById {
   '/everr-app/$': typeof EverrAppSplatRoute
   '/blog/': typeof BlogIndexRoute
   '/devlog/': typeof DevlogIndexRoute
+  '/api/og/': typeof ApiOgIndexRoute
   '/api/og/devlog/$slug': typeof ApiOgDevlogSlugRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/about'
+    | '/contact'
     | '/pricing'
+    | '/privacy'
     | '/api/search'
     | '/blog/$slug'
     | '/devlog/$slug'
@@ -120,11 +159,15 @@ export interface FileRouteTypes {
     | '/everr-app/$'
     | '/blog/'
     | '/devlog/'
+    | '/api/og/'
     | '/api/og/devlog/$slug'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/about'
+    | '/contact'
     | '/pricing'
+    | '/privacy'
     | '/api/search'
     | '/blog/$slug'
     | '/devlog/$slug'
@@ -132,11 +175,15 @@ export interface FileRouteTypes {
     | '/everr-app/$'
     | '/blog'
     | '/devlog'
+    | '/api/og'
     | '/api/og/devlog/$slug'
   id:
     | '__root__'
     | '/'
+    | '/about'
+    | '/contact'
     | '/pricing'
+    | '/privacy'
     | '/api/search'
     | '/blog/$slug'
     | '/devlog/$slug'
@@ -144,12 +191,16 @@ export interface FileRouteTypes {
     | '/everr-app/$'
     | '/blog/'
     | '/devlog/'
+    | '/api/og/'
     | '/api/og/devlog/$slug'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AboutRoute: typeof AboutRoute
+  ContactRoute: typeof ContactRoute
   PricingRoute: typeof PricingRoute
+  PrivacyRoute: typeof PrivacyRoute
   ApiSearchRoute: typeof ApiSearchRoute
   BlogSlugRoute: typeof BlogSlugRoute
   DevlogSlugRoute: typeof DevlogSlugRoute
@@ -157,6 +208,7 @@ export interface RootRouteChildren {
   EverrAppSplatRoute: typeof EverrAppSplatRoute
   BlogIndexRoute: typeof BlogIndexRoute
   DevlogIndexRoute: typeof DevlogIndexRoute
+  ApiOgIndexRoute: typeof ApiOgIndexRoute
   ApiOgDevlogSlugRoute: typeof ApiOgDevlogSlugRoute
 }
 
@@ -169,11 +221,32 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/about': {
+      id: '/about'
+      path: '/about'
+      fullPath: '/about'
+      preLoaderRoute: typeof AboutRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/contact': {
+      id: '/contact'
+      path: '/contact'
+      fullPath: '/contact'
+      preLoaderRoute: typeof ContactRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/pricing': {
       id: '/pricing'
       path: '/pricing'
       fullPath: '/pricing'
       preLoaderRoute: typeof PricingRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/privacy': {
+      id: '/privacy'
+      path: '/privacy'
+      fullPath: '/privacy'
+      preLoaderRoute: typeof PrivacyRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/search': {
@@ -225,6 +298,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof EverrAppSplatRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/og/': {
+      id: '/api/og/'
+      path: '/api/og'
+      fullPath: '/api/og/'
+      preLoaderRoute: typeof ApiOgIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/og/devlog/$slug': {
       id: '/api/og/devlog/$slug'
       path: '/api/og/devlog/$slug'
@@ -237,7 +317,10 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AboutRoute: AboutRoute,
+  ContactRoute: ContactRoute,
   PricingRoute: PricingRoute,
+  PrivacyRoute: PrivacyRoute,
   ApiSearchRoute: ApiSearchRoute,
   BlogSlugRoute: BlogSlugRoute,
   DevlogSlugRoute: DevlogSlugRoute,
@@ -245,6 +328,7 @@ const rootRouteChildren: RootRouteChildren = {
   EverrAppSplatRoute: EverrAppSplatRoute,
   BlogIndexRoute: BlogIndexRoute,
   DevlogIndexRoute: DevlogIndexRoute,
+  ApiOgIndexRoute: ApiOgIndexRoute,
   ApiOgDevlogSlugRoute: ApiOgDevlogSlugRoute,
 }
 export const routeTree = rootRouteImport

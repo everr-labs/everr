@@ -12,7 +12,9 @@ import {
 import defaultMdxComponents from "fumadocs-ui/mdx";
 import { Suspense } from "react";
 import { z } from "zod";
+import { EVERR_SUMMARY } from "@/lib/agent-guide";
 import { docsOptions } from "@/lib/layout.shared";
+import { pageSeoTags } from "@/lib/seo";
 import { source } from "@/lib/source";
 
 export const Route = createFileRoute("/docs/$")({
@@ -22,6 +24,18 @@ export const Route = createFileRoute("/docs/$")({
     const data = await serverLoader({ data: slugs });
     await clientLoader.preload(data.path);
     return data;
+  },
+  head: ({ loaderData }) => {
+    if (!loaderData) return {};
+
+    const { meta, links } = pageSeoTags({
+      title: `${loaderData.title} - Everr docs`,
+      description: loaderData.description ?? EVERR_SUMMARY,
+      path: loaderData.url,
+      ogType: "article",
+    });
+
+    return { meta, links };
   },
 });
 
@@ -35,6 +49,9 @@ const serverLoader = createServerFn({
 
     return {
       path: page.path,
+      url: page.url,
+      title: page.data.title,
+      description: page.data.description ?? null,
       pageTree: await source.serializePageTree(source.getPageTree()),
     };
   });

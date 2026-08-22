@@ -1,0 +1,74 @@
+---
+title: Everr HTTP API
+description: The Everr Cloud REST API, its OpenAPI description, and how to authenticate.
+---
+
+Everything the Everr CLI and the Everr desktop app do, they do over this API. It is the same surface an agent or a script can use.
+
+The machine-readable description is published at **[https://everr.dev/openapi.json](https://everr.dev/openapi.json)** (OpenAPI 3.1). The same document is served as [openapi.yaml](https://everr.dev/openapi.yaml) for tools that look for that name. Every operation carries a unique `operationId`, a description, typed parameters and a response schema, so it can be turned into LLM function definitions without hand-editing.
+
+## Base URLs
+
+| | |
+| --- | --- |
+| Control API | `https://app.everr.dev` |
+| OTLP ingest | `https://ingest.everr.dev` |
+| MCP server | `https://app.everr.dev/mcp` (see [MCP Server](/docs/reference/mcp)) |
+
+## Authentication
+
+Every endpoint except `/api/health` needs a credential. Mint an organization API key in the Everr app under Settings, then send it either way:
+
+```shell
+curl -H "Authorization: Bearer $EVERR_API_KEY" https://app.everr.dev/api/cli/me
+curl -H "X-Api-Key: $EVERR_API_KEY" https://app.everr.dev/api/cli/me
+```
+
+`everr cloud login` stores a session for you, so the CLI needs no key on a workstation. In CI, set `EVERR_API_KEY` instead.
+
+API keys are scoped. A key with only the read capability for `apply` may call `POST /api/apply` with `dryRun: true`, but not a mutating apply.
+
+## Errors
+
+Failures return JSON with a stable `code`, never an HTML page:
+
+```json
+{
+  "error": {
+    "code": "not_found",
+    "message": "resource not found: dashboard/default/api-latency",
+    "status": 404,
+    "documentation_url": "https://everr.dev/docs",
+    "hint": "List what exists with GET /api/cli/resources."
+  }
+}
+```
+
+## What the API covers
+
+- **Telemetry.** `POST /api/cli/sql` runs a read-only SQL query over your logs, spans and metrics and streams newline-delimited JSON back. See [Alert queries](/docs/reference/alert-queries) for the tables and columns.
+- **CI runs.** `GET /api/cli/runs`, `GET /api/cli/runs/{traceId}`, `GET /api/cli/runs/{traceId}/logs` and `GET /api/cli/runs/status` cover listing runs, drilling into one, reading a step's logs, and checking whether a commit is green.
+- **Resources.** `GET /api/cli/resources` lists dashboards, runbooks and alert rules. `POST /api/apply` publishes a whole set of them in one transaction, the same operation as `everr apply`.
+- **Ingest.** `POST /v1/traces`, `/v1/logs` and `/v1/metrics` on `ingest.everr.dev` are standard OTLP endpoints. Point any OpenTelemetry exporter at them. See [Send production telemetry](/docs/learn/production-telemetry).
+
+## Rate limits
+
+There is no published per-endpoint rate limit today. `POST /api/cli/sql` is bounded by query cost rather than request count: a query that reads more than your plan allows is rejected with a `400` and an explanatory message.
+
+## Generating a client
+
+The spec is self-contained, so any OpenAPI generator works:
+
+```shell
+curl -sS https://everr.dev/openapi.json -o everr-openapi.json
+npx @openapitools/openapi-generator-cli generate -i everr-openapi.json -g typescript-fetch -o ./everr-client
+```
+
+## Reading this site programmatically
+
+everr.dev serves the same content in Markdown for agents:
+
+- Send `Accept: text/markdown` to any page, or add `.md` to its path.
+- [llms.txt](https://everr.dev/llms.txt) says what Everr is and when to reach for it.
+- [llms-full.txt](https://everr.dev/llms-full.txt) is the whole documentation in one file.
+- [sitemap.xml](https://everr.dev/sitemap.xml) lists every indexable URL.

@@ -36,6 +36,11 @@ export default defineConfig({
   ],
 });
 
+/**
+ * In dev the Nitro middleware does not see page requests, so Markdown twins
+ * are routed to a dev-only handler instead. Production uses
+ * `middleware/agent-requests.ts` for the same paths.
+ */
 function docsMarkdownDevRequests(): Plugin {
   return {
     name: "everr-docs-markdown-dev-requests",
@@ -45,10 +50,7 @@ function docsMarkdownDevRequests(): Plugin {
         if (!req.url) return next();
 
         const pathname = new URL(req.url, "http://localhost").pathname;
-        if (
-          pathname === "/docs.md" ||
-          (pathname.startsWith("/docs/") && pathname.endsWith(".md"))
-        ) {
+        if (pathname.endsWith(".md")) {
           req.url = `/__docs-markdown?pathname=${encodeURIComponent(pathname)}`;
           req.headers.accept = `text/html,${req.headers.accept ?? "*/*"}`;
         }

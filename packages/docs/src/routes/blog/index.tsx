@@ -1,10 +1,21 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { createServerFn } from "@tanstack/react-start";
 import { ArrowRight } from "lucide-react";
+import { pageSeoTags } from "@/lib/seo";
 import { blogposts } from "@/lib/source";
+
+const BLOG_TITLE = "Blog - Everr";
+const BLOG_DESCRIPTION =
+  "Product updates, engineering deep dives, and observability best practices from the Everr team.";
 
 export const Route = createFileRoute("/blog/")({
   component: BlogIndex,
+  head: () =>
+    pageSeoTags({
+      title: BLOG_TITLE,
+      description: BLOG_DESCRIPTION,
+      path: "/blog",
+    }),
   loader: async () => {
     return await loadBlogPosts();
   },

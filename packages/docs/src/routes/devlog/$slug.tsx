@@ -10,8 +10,8 @@ import {
   Plus,
 } from "lucide-react";
 import { Suspense } from "react";
+import { pageSeoTags } from "@/lib/seo";
 import { devlogposts } from "@/lib/source";
-import { getBaseUrl } from "@/lib/url";
 
 export const Route = createFileRoute("/devlog/$slug")({
   component: DevlogPost,
@@ -22,32 +22,15 @@ export const Route = createFileRoute("/devlog/$slug")({
   },
   head: ({ loaderData }) => {
     if (!loaderData) return {};
-    const title = `${loaderData.title} - Everr Devlog`;
-    const description = loaderData.description;
-    const base = getBaseUrl();
-    const url = `${base}/devlog/${loaderData.slug}`;
-    const image = `${base}/api/og/devlog/${loaderData.slug}`;
-    return {
-      meta: [
-        { title },
-        { name: "description", content: description },
-        { property: "og:title", content: title },
-        { property: "og:description", content: description },
-        { property: "og:type", content: "article" },
-        { property: "og:url", content: url },
-        { property: "og:image", content: image },
-        { property: "og:image:width", content: "1200" },
-        { property: "og:image:height", content: "630" },
-        { property: "og:image:alt", content: description },
-        { property: "og:site_name", content: "Everr" },
-        { property: "article:published_time", content: loaderData.date },
-        { name: "twitter:card", content: "summary_large_image" },
-        { name: "twitter:title", content: title },
-        { name: "twitter:description", content: description },
-        { name: "twitter:url", content: url },
-        { name: "twitter:image", content: image },
-      ],
-    };
+
+    return pageSeoTags({
+      title: `${loaderData.title} - Everr Devlog`,
+      description: loaderData.description,
+      path: `/devlog/${loaderData.slug}`,
+      image: `/api/og/devlog/${loaderData.slug}`,
+      ogType: "article",
+      publishedTime: loaderData.date,
+    });
   },
 });
 
