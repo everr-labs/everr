@@ -1,6 +1,6 @@
 {
   "name": "@everr/otel-errors",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "OpenTelemetry instrumentation for uncaught Node.js errors",
   "license": "Apache-2.0",
   "repository": {
