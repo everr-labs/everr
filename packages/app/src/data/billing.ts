@@ -56,9 +56,10 @@ export const ensureOrgBillingAdmin = createBillingAdminServerFn({
 
 export const getOrgEntitlement = createAuthenticatedServerFn({
   method: "GET",
-}).handler(async ({ context: { session } }) =>
-  readOrgEntitlement(session.session.activeOrganizationId),
-);
+}).handler(async ({ context: { session } }) => ({
+  ...(await readOrgEntitlement(session.session.activeOrganizationId)),
+  serverNow: new Date().toISOString(),
+}));
 
 export const startOrgCheckout = createBillingAdminServerFn({
   method: "POST",

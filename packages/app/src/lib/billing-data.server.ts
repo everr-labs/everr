@@ -15,6 +15,7 @@ function tierForSubscription(args: {
 export type OrgEntitlement = {
   tier: "free" | "pro";
   status: string | null;
+  currentPeriodStart: Date | null;
   currentPeriodEnd: Date | null;
   cancelAtPeriodEnd: boolean;
 };
@@ -31,6 +32,7 @@ export async function readOrgEntitlement(
   return {
     tier: tierForSubscription({ status: row?.status }),
     status: row?.status ?? null,
+    currentPeriodStart: row?.currentPeriodStart ?? null,
     currentPeriodEnd: row?.currentPeriodEnd ?? null,
     cancelAtPeriodEnd: row?.cancelAtPeriodEnd ?? false,
   };
@@ -41,6 +43,7 @@ type SubscriptionUpsert = {
   polarSubscriptionId: string;
   polarProductId: string;
   status: string;
+  currentPeriodStart: Date | null;
   currentPeriodEnd: Date | null;
   cancelAtPeriodEnd: boolean;
   polarModifiedAt: Date;
@@ -56,6 +59,7 @@ export async function upsertOrgSubscription(input: SubscriptionUpsert) {
         polarSubscriptionId: input.polarSubscriptionId,
         polarProductId: input.polarProductId,
         status: input.status,
+        currentPeriodStart: input.currentPeriodStart,
         currentPeriodEnd: input.currentPeriodEnd,
         cancelAtPeriodEnd: input.cancelAtPeriodEnd,
         polarModifiedAt: input.polarModifiedAt,

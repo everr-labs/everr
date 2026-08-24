@@ -1,3 +1,8 @@
+-- Billing uses an explicit byteSize(...) contract for every physical column in
+-- these landing tables. When a column changes here, update the matching
+-- RowBytes MATERIALIZED expression in 13-create-usage-metering.sql and
+-- clickhouse/apply-usage-metering.sql in the same change.
+
 CREATE TABLE IF NOT EXISTS otel.otel_traces (
     Timestamp DateTime64(9) CODEC(Delta, ZSTD(1)),
     TraceId String CODEC(ZSTD(1)),

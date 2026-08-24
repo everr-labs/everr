@@ -1,0 +1,39 @@
+name: Build & Test ClickHouse
+
+permissions:
+  contents: read
+
+concurrency:
+  # For pushes, this lets concurrent runs happen, so each push gets a result.
+  # But for other events (e.g. PRs), we can cancel the previous runs.
+  group: ${{ github.workflow }}-${{ github.event_name == 'push' && github.sha || github.ref }}
+  cancel-in-progress: true
+
+on:
+  pull_request:
+    paths:
+      - .github/workflows/build-and-test-clickhouse.yml
+      - clickhouse/**
+
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/build-and-test-clickhouse.yml
+      - clickhouse/**
+
+jobs:
+  usage-metering:
+    name: Usage Metering
+    runs-on: blacksmith-2vcpu-ubuntu-2404
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Collect resource usage
+        uses: ./.github/actions/everr-action
+        with:
+          check-run-id: ${{ job.check_run_id }}
+
+      - name: Test usage metering
+        run: ./clickhouse/test-usage-metering.sh
