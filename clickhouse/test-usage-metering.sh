@@ -4,7 +4,11 @@ set -euo pipefail
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 container_name="everr-clickhouse-usage-test-$$"
 admin_password="everr"
-validation_run_id="usage-metering-test-$$"
+# The run id is stored inside the fixture rows' ResourceAttributes, so its
+# length is part of the golden byteSize value below. Keep it constant: a
+# PID-derived id made the golden assertion fail whenever the PID had a
+# different digit count. Uniqueness buys nothing in a fresh per-run container.
+validation_run_id="usage-metering-test-fixture"
 
 cleanup() {
   docker rm --force "$container_name" >/dev/null 2>&1 || true
@@ -289,11 +293,11 @@ for table in "${tables[@]}"; do
 done
 
 # Pin ClickHouse's byteSize accounting for a complete fixture. The timestamp
-# values vary, but DateTime64(9) and DateTime have fixed widths, so the result
-# is deterministic.
+# values vary between runs, but DateTime64(9) and DateTime have fixed widths,
+# and the run id above is constant, so the result is deterministic.
 assert_eq \
   "log byteSize golden contract" \
-  "314" \
+  "316" \
   "$(ch "SELECT byteSize(*) FROM otel.otel_logs WHERE Body = 'metered log' SETTINGS asterisk_include_materialized_columns = 0")"
 
 assert_eq \
