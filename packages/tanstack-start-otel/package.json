@@ -1,6 +1,6 @@
 {
   "name": "@everr/tanstack-start-otel",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "OpenTelemetry instrumentation for TanStack Start: SERVER spans with http.route, and server-function spans.",
   "type": "module",
   "license": "Apache-2.0",
