@@ -9,7 +9,7 @@
  * is a compile error at every reader and writer, not a silently empty query
  * result.
  */
-const ALERT_HISTORY_EVENT_TYPES = [
+export const ALERT_HISTORY_EVENT_TYPES = [
   "evaluation_succeeded",
   "evaluation_failed",
   "instance_pending",
