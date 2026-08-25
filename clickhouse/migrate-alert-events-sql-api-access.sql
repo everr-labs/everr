@@ -63,6 +63,6 @@ SELECT
     (SELECT count() FROM system.users WHERE name LIKE 'sql\_api\_org\_%') AS org_users,
     (SELECT count() FROM system.row_policies
        WHERE database = 'app' AND table = 'alert_events'
-         AND name LIKE 'sql\_api\_org\_%\_alert\_events') AS org_alert_events_policies
+         AND short_name LIKE 'sql\_api\_org\_%\_alert\_events') AS org_alert_events_policies
 FORMAT TSVRaw;
 -- Expected result: org_alert_events_policies = org_users.
