@@ -122,7 +122,9 @@ function BillingPage() {
   });
 
   return (
-    <div className="mx-auto w-full max-w-4xl space-y-6">
+    // `pb-6` on top of the layout's `p-3`: this page scrolls, and the last card
+    // (Daily usage) otherwise ends flush against the viewport bottom.
+    <div className="mx-auto w-full max-w-4xl space-y-6 pb-6">
       <Header orgName={activeOrg?.name} />
       {entitlementQuery.isError ? (
         <EntitlementError />
