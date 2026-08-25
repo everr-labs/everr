@@ -1,10 +1,6 @@
 import { errorIssueCountExpr } from "@everr/telemetry-explorer/errors";
 import { resolveTimeRange } from "@everr/ui/lib/time-range";
 import { TimeRangeInputSchema } from "@/data/analytics/schemas";
-import {
-  nonEmptyResourceAttribute,
-  resourceAttribute,
-} from "@/data/run-query-helpers";
 import { createAuthenticatedServerFn } from "@/lib/serverFn";
 import { type BucketGranularity, getBucketGranularity } from "@/lib/time-range";
 import { bucketExpr, bucketGrid } from "./buckets";
@@ -46,14 +42,10 @@ function fillSeries<Key extends string>(
  * back defaulted to the empty string, which collides with the real rows whose
  * `ServiceName` or PR url is genuinely empty. `grouping()` reports whether a
  * key was aggregated away rather than grouped on, which separates the two, so
- * every query labels its own rows with it and callers match on the label.
+ * every query labels its own rows with a `multiIf` over `grouping()` as `kind`
+ * and callers match on the label.
  */
 type RowKind = "bucket" | "service" | "pr" | "total";
-
-/** Labels each row of a `(bucket) / (key) / ()` grouping set with its grain. */
-function groupingKindExpr(key: "service" | "pr"): string {
-  return `multiIf(grouping(bucket) = 0, 'bucket', grouping(${key}) = 0, '${key}', 'total')`;
-}
 
 function ofKind<Row extends { kind: RowKind }>(
   rows: Row[],
@@ -123,25 +115,30 @@ function topServices(
  * only in the middle of the request that runs it: these are the queries that
  * decide how fast Home loads.
  *
+ * The SQL is written out in full, so what runs can be read straight off the
+ * page and pasted into a ClickHouse client. Only two things are interpolated,
+ * and neither can be a literal here: the bucket expression, which is the one
+ * part granularity changes, and the error fingerprint, which has to stay the
+ * same expression the errors surface counts issues with.
+ *
  * Both time filters are bound through `{fromTime:String}` / `{toTime:String}`.
+ * `logs` timestamps its rows with `TimestampTime`, `traces` with `Timestamp`.
  */
 function buildHomeQueries(granularity: BucketGranularity): {
   logsSql: string;
   tracesSql: string;
   ciSql: string;
 } {
-  const timeFilter = `Timestamp >= parseDateTimeBestEffort({fromTime:String}) AND Timestamp <= parseDateTimeBestEffort({toTime:String})`;
-  const logsTimeFilter = `TimestampTime >= parseDateTimeBestEffort({fromTime:String}) AND TimestampTime <= parseDateTimeBestEffort({toTime:String})`;
-
   const logsSql = `
       SELECT
         ${bucketExpr("TimestampTime", granularity)} AS bucket,
         ServiceName AS service,
-        ${groupingKindExpr("service")} AS kind,
+        multiIf(grouping(bucket) = 0, 'bucket', grouping(service) = 0, 'service', 'total') AS kind,
         count() AS logCount,
         ${errorIssueCountExpr()} AS issueCount
       FROM logs
-      WHERE ${logsTimeFilter}
+      WHERE TimestampTime >= parseDateTimeBestEffort({fromTime:String})
+        AND TimestampTime <= parseDateTimeBestEffort({toTime:String})
       GROUP BY GROUPING SETS ((bucket), (service), ())
     `;
 
@@ -149,10 +146,11 @@ function buildHomeQueries(granularity: BucketGranularity): {
       SELECT
         ${bucketExpr("Timestamp", granularity)} AS bucket,
         ServiceName AS service,
-        ${groupingKindExpr("service")} AS kind,
+        multiIf(grouping(bucket) = 0, 'bucket', grouping(service) = 0, 'service', 'total') AS kind,
         uniqIf(TraceId, TraceId != '') AS traceCount
       FROM traces
-      WHERE ${timeFilter}
+      WHERE Timestamp >= parseDateTimeBestEffort({fromTime:String})
+        AND Timestamp <= parseDateTimeBestEffort({toTime:String})
       GROUP BY GROUPING SETS ((bucket), (service), ())
     `;
 
@@ -173,6 +171,10 @@ function buildHomeQueries(granularity: BucketGranularity): {
    * time filter after the group would read the whole table on every load,
    * since nothing would be left to prune partitions or the primary index on.
    *
+   * The `mapContains` beside it is not redundant with the `!= ''` that
+   * follows: it lets the `idx_res_attr_key` bloom skip index drop granules
+   * that carry no run id at all, before any value is read.
+   *
    * Run counts and PR durations sit at different grains, so the grouping
    * sets here are per bucket and per PR rather than per bucket and per
    * service. Requiring a result keeps the PR median over the same population
@@ -185,19 +187,21 @@ function buildHomeQueries(granularity: BucketGranularity): {
       SELECT
         ${bucketExpr("lastTimestamp", granularity)} AS bucket,
         pr,
-        ${groupingKindExpr("pr")} AS kind,
+        multiIf(grouping(bucket) = 0, 'bucket', grouping(pr) = 0, 'pr', 'total') AS kind,
         count() AS runCount,
         sum(runDurationMs) AS prTotalMs
       FROM (
         SELECT
-          ${resourceAttribute("cicd.pipeline.run.id")} AS run_id,
-          max(${resourceAttribute("everr.git.pull_requests.url")}) AS pr,
-          max(${resourceAttribute("cicd.pipeline.task.run.result")}) AS result,
+          ResourceAttributes['cicd.pipeline.run.id'] AS run_id,
+          max(ResourceAttributes['everr.git.pull_requests.url']) AS pr,
+          max(ResourceAttributes['cicd.pipeline.task.run.result']) AS result,
           max(Timestamp) AS lastTimestamp,
           max(Duration) / 1000000 AS runDurationMs
         FROM traces
-        WHERE ${timeFilter}
-          AND ${nonEmptyResourceAttribute("cicd.pipeline.run.id")}
+        WHERE Timestamp >= parseDateTimeBestEffort({fromTime:String})
+          AND Timestamp <= parseDateTimeBestEffort({toTime:String})
+          AND mapContains(ResourceAttributes, 'cicd.pipeline.run.id')
+          AND ResourceAttributes['cicd.pipeline.run.id'] != ''
         GROUP BY run_id
       )
       WHERE result != ''
