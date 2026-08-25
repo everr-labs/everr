@@ -22,6 +22,8 @@ CREATE TABLE IF NOT EXISTS app.alert_events
   tenant_id LowCardinality(String),
   alert_definition_id UUID,
   repoid LowCardinality(String),
+  -- The rule's full path, `project/slug`, as formatResourceName writes it.
+  -- Not the bare slug: `WHERE slug = 'high-5xx'` returns zero rows, silently.
   slug LowCardinality(String),
   preview_id UUID DEFAULT toUUID('00000000-0000-0000-0000-000000000000'),
   -- DEFAULT, not MATERIALIZED: a MATERIALIZED column is invisible to SELECT *,
@@ -95,16 +97,32 @@ ENGINE = MergeTree
 -- itself (not a date column) is what lets a plain event_time bound prune:
 -- ClickHouse does not infer a DEFAULT relation between two columns.
 PARTITION BY (toYYYYMM(event_time), event_type IN ('evaluation_succeeded', 'evaluation_failed'))
--- Dominant read: per-alert history by tenant + repoid + slug over a time range.
+-- Dominant read: per-alert history by tenant + slug over a time range.
 -- ORDER BY is immutable, so this intentionally prioritizes alert filters over
--- date-only scans. event_type is low-cardinality and filtered in every query,
--- so it sits before the time column. alert_definition_id and
--- notification_event_id are high-cardinality and covered by bloom skip
--- indexes instead. event_time before event_id also rules out ever collapsing
--- rows by id: a ReplacingMergeTree matches on the whole sorting key, so two
--- writes of one row that disagree on event_time stay two rows. Convergence is
--- a write-side property here; see Idempotence in the surface design doc.
-ORDER BY (tenant_id, repoid, slug, event_type, event_time, event_id)
+-- date-only scans.
+--
+-- repoid is deliberately absent. It scopes ownership for `everr apply`, not
+-- lookup: alert_definitions_live_project_slug_uq makes project/slug unique per
+-- organization on its own, so every reader already identifies a rule without
+-- it. Carrying it here cost nothing in bytes and everything in practice: a
+-- reader that omitted the second key column silently lost the index for slug
+-- too, which is what every query on this table did. A sorting key holds what
+-- readers filter on and nothing else. Previews, which may repeat a path, are
+-- separated by preview_id / is_live, never by repoid.
+--
+-- event_type is low-cardinality and filtered in nearly every query, so it sits
+-- before the time column: the evaluation rows outnumber everything else by two
+-- orders of magnitude, and selecting or excluding them has to be a range scan
+-- rather than a per-row test. A reader wanting the newest rows of any type
+-- should still name the types it wants in a positive IN, not a negation.
+--
+-- alert_definition_id and notification_event_id are high-cardinality and
+-- covered by bloom skip indexes instead. event_time before event_id also rules
+-- out ever collapsing rows by id: a ReplacingMergeTree matches on the whole
+-- sorting key, so two writes of one row that disagree on event_time stay two
+-- rows. Convergence is a write-side property here; see Idempotence in the
+-- surface design doc.
+ORDER BY (tenant_id, slug, event_type, event_time, event_id)
 -- Evaluation rows expire at min(30, tenant retention) days: they exist for
 -- staleness and rule-health reads, and their partitions drop whole. Everything
 -- else lives at the tenant retention.
