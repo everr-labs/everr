@@ -1,18 +1,9 @@
 import { Card, CardContent } from "@everr/ui/components/card";
-import {
-  Empty,
-  EmptyContent,
-  EmptyDescription,
-  EmptyHeader,
-  EmptyMedia,
-  EmptyTitle,
-} from "@everr/ui/components/empty";
 import { RetryError } from "@everr/ui/components/retry-error";
 import { Skeleton } from "@everr/ui/components/skeleton";
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, redirect } from "@tanstack/react-router";
 import { getRequestHeaders } from "@tanstack/react-start/server";
-import { KeyRound } from "lucide-react";
 import { ApiKeysSections } from "@/components/api-keys/api-keys-table";
 import { CreateApiKeyDialog } from "@/components/api-keys/create-api-key-dialog";
 import { apiKeysQueryOptions } from "@/components/api-keys/queries";
@@ -60,30 +51,8 @@ function KeysSkeleton() {
   );
 }
 
-function ApiKeysEmpty() {
-  return (
-    <Empty className="border-0">
-      <EmptyHeader>
-        <EmptyMedia variant="icon">
-          <KeyRound />
-        </EmptyMedia>
-        <EmptyTitle>No API keys yet</EmptyTitle>
-        <EmptyDescription>
-          Create a key to send OpenTelemetry data to Everr or to manage
-          dashboards, runbooks, and alerts with <code>everr apply</code>.
-        </EmptyDescription>
-      </EmptyHeader>
-      <EmptyContent>
-        <CreateApiKeyDialog />
-      </EmptyContent>
-    </Empty>
-  );
-}
-
 function ApiKeysPage() {
   const keys = useQuery(apiKeysQueryOptions());
-  const isEmpty =
-    !keys.isPending && !keys.isError && (keys.data?.length ?? 0) === 0;
 
   return (
     <div className="mx-auto w-full max-w-4xl space-y-8">
@@ -104,7 +73,10 @@ function ApiKeysPage() {
             </a>
           </p>
         </div>
-        {!isEmpty && <CreateApiKeyDialog />}
+        {/* Sits outside every data-dependent branch below. The dialog shows a
+            new key exactly once, so a branch swapping under it would drop the
+            key before it can be copied. */}
+        <CreateApiKeyDialog />
       </div>
 
       {keys.isPending ? (
@@ -125,12 +97,6 @@ function ApiKeysPage() {
               }
               onRetry={() => keys.refetch()}
             />
-          </CardContent>
-        </Card>
-      ) : isEmpty ? (
-        <Card inset="flush-content">
-          <CardContent>
-            <ApiKeysEmpty />
           </CardContent>
         </Card>
       ) : (
