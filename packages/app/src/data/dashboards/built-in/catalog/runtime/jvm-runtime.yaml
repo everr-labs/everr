@@ -1,0 +1,677 @@
+id: jvm-runtime
+name: JVM Runtime
+description: Heap and non-heap memory against their limits, the pools behind them, garbage collection, threads, classes and CPU, for services instrumented with the OpenTelemetry Java agent.
+category: Runtime
+requires:
+  - signal: metrics
+    label: no metrics
+  - signal: metrics
+    match: jvm.
+    label: no jvm*
+document:
+  kind: Dashboard
+  metadata:
+    name: jvm-runtime
+  spec:
+    display:
+      name: JVM Runtime
+    duration: 6h
+    refreshInterval: 1m
+    variables:
+      - kind: ListVariable
+        spec:
+          name: service
+          display:
+            name: Service
+          allowMultiple: true
+          allowAllValue: true
+          defaultValue: __all
+          sort: alphabetical-asc
+          plugin:
+            kind: ClickHouseSQLVariable
+            spec:
+              query: SELECT DISTINCT ServiceName FROM (SELECT ServiceName FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName LIKE 'jvm.%' UNION ALL SELECT ServiceName FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName LIKE 'jvm.%') ORDER BY ServiceName
+    panels:
+      heap-used:
+        kind: Panel
+        spec:
+          display:
+            name: Heap used
+          plugin:
+            kind: StatChart
+            spec:
+              calculation: last
+              unit: MB
+              decimals: 0
+          queries:
+            - kind: ClickHouseSQL
+              spec:
+                plugin:
+                  kind: ClickHouseSQL
+                  spec:
+                    query: |-
+                      SELECT bytes / 1048576 AS mb FROM (SELECT avg(total) AS bytes
+                      FROM (
+                        SELECT TimeUnix, ResourceAttributes['service.instance.id'] AS instance, sum(Value) AS total
+                        FROM (SELECT TimeUnix, ResourceAttributes, Value FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND ServiceName IN $service AND MetricName = 'jvm.memory.used' AND Attributes['jvm.memory.type'] = 'heap' UNION ALL SELECT TimeUnix, ResourceAttributes, Value FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND ServiceName IN $service AND MetricName = 'jvm.memory.used' AND Attributes['jvm.memory.type'] = 'heap')
+                        GROUP BY TimeUnix, instance
+                      ))
+      heap-of-limit:
+        kind: Panel
+        spec:
+          display:
+            name: Heap of limit
+          plugin:
+            kind: StatChart
+            spec:
+              calculation: last
+              unit: "%"
+              decimals: 1
+              thresholds:
+                mode: absolute
+                defaultColor: "#22c55e"
+                steps:
+                  - value: 75
+                    color: "#f59e0b"
+                  - value: 90
+                    color: "#ef4444"
+          queries:
+            - kind: ClickHouseSQL
+              spec:
+                plugin:
+                  kind: ClickHouseSQL
+                  spec:
+                    query: |-
+                      SELECT avg(pct) AS pct
+                      FROM (
+                        SELECT TimeUnix, ResourceAttributes['service.instance.id'] AS instance,
+                               sumIf(Value, MetricName = 'jvm.memory.used') AS used,
+                               sumIf(Value, MetricName = 'jvm.memory.limit') AS lim,
+                               used / nullIf(lim, 0) * 100 AS pct
+                        FROM (SELECT TimeUnix, ResourceAttributes, MetricName, Value FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND ServiceName IN $service AND MetricName IN ('jvm.memory.used', 'jvm.memory.limit') AND Attributes['jvm.memory.type'] = 'heap' UNION ALL SELECT TimeUnix, ResourceAttributes, MetricName, Value FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND ServiceName IN $service AND MetricName IN ('jvm.memory.used', 'jvm.memory.limit') AND Attributes['jvm.memory.type'] = 'heap')
+                        GROUP BY TimeUnix, instance
+                        HAVING lim > 0
+                      )
+      non-heap-used:
+        kind: Panel
+        spec:
+          display:
+            name: Non-heap used
+          plugin:
+            kind: StatChart
+            spec:
+              calculation: last
+              unit: MB
+              decimals: 0
+          queries:
+            - kind: ClickHouseSQL
+              spec:
+                plugin:
+                  kind: ClickHouseSQL
+                  spec:
+                    query: |-
+                      SELECT bytes / 1048576 AS mb FROM (SELECT avg(total) AS bytes
+                      FROM (
+                        SELECT TimeUnix, ResourceAttributes['service.instance.id'] AS instance, sum(Value) AS total
+                        FROM (SELECT TimeUnix, ResourceAttributes, Value FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND ServiceName IN $service AND MetricName = 'jvm.memory.used' AND Attributes['jvm.memory.type'] = 'non_heap' UNION ALL SELECT TimeUnix, ResourceAttributes, Value FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND ServiceName IN $service AND MetricName = 'jvm.memory.used' AND Attributes['jvm.memory.type'] = 'non_heap')
+                        GROUP BY TimeUnix, instance
+                      ))
+      threads:
+        kind: Panel
+        spec:
+          display:
+            name: Live threads
+          plugin:
+            kind: StatChart
+            spec:
+              calculation: last
+              decimals: 0
+          queries:
+            - kind: ClickHouseSQL
+              spec:
+                plugin:
+                  kind: ClickHouseSQL
+                  spec:
+                    query: |-
+                      SELECT avg(total) AS threads
+                      FROM (
+                        SELECT TimeUnix, ResourceAttributes['service.instance.id'] AS instance, sum(Value) AS total
+                        FROM (SELECT TimeUnix, ResourceAttributes, Value FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND ServiceName IN $service AND MetricName = 'jvm.thread.count' UNION ALL SELECT TimeUnix, ResourceAttributes, Value FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND ServiceName IN $service AND MetricName = 'jvm.thread.count')
+                        GROUP BY TimeUnix, instance
+                      )
+      cpu:
+        kind: Panel
+        spec:
+          display:
+            name: CPU used
+          plugin:
+            kind: StatChart
+            spec:
+              calculation: last
+              unit: "%"
+              decimals: 1
+              thresholds:
+                mode: absolute
+                defaultColor: "#22c55e"
+                steps:
+                  - value: 75
+                    color: "#f59e0b"
+                  - value: 90
+                    color: "#ef4444"
+          queries:
+            - kind: ClickHouseSQL
+              spec:
+                plugin:
+                  kind: ClickHouseSQL
+                  spec:
+                    query: |-
+                      SELECT avg(Value) * 100 AS pct
+                      FROM (SELECT Value FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND ServiceName IN $service AND MetricName = 'jvm.cpu.recent_utilization' UNION ALL SELECT Value FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND ServiceName IN $service AND MetricName = 'jvm.cpu.recent_utilization')
+      heap-memory:
+        kind: Panel
+        spec:
+          display:
+            name: Heap memory
+            description: Used against committed and the maximum obtainable heap. Pools that report no maximum are left out of the limit line.
+          plugin:
+            kind: TimeSeriesChart
+            spec:
+              unit: MB
+              showLegend: true
+          queries:
+            - kind: ClickHouseSQL
+              spec:
+                plugin:
+                  kind: ClickHouseSQL
+                  spec:
+                    query: |-
+                      SELECT ts, series, avg(bytes) / 1048576 AS mb
+                      FROM (
+                        SELECT toStartOfInterval(TimeUnix, INTERVAL {step:UInt32} * 6 SECOND) AS ts, TimeUnix, ResourceAttributes['service.instance.id'] AS instance,
+                               sumIf(Value, MetricName = 'jvm.memory.used') AS used,
+                               sumIf(Value, MetricName = 'jvm.memory.committed') AS committed,
+                               sumIf(Value, MetricName = 'jvm.memory.limit') AS lim
+                        FROM (SELECT TimeUnix, ResourceAttributes, MetricName, Value FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND ServiceName IN $service AND MetricName IN ('jvm.memory.used', 'jvm.memory.committed', 'jvm.memory.limit') AND Attributes['jvm.memory.type'] = 'heap' UNION ALL SELECT TimeUnix, ResourceAttributes, MetricName, Value FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND ServiceName IN $service AND MetricName IN ('jvm.memory.used', 'jvm.memory.committed', 'jvm.memory.limit') AND Attributes['jvm.memory.type'] = 'heap')
+                        GROUP BY ts, TimeUnix, instance
+                      )
+                      ARRAY JOIN [used, committed, lim] AS bytes, ['used', 'committed', 'limit'] AS series
+                      WHERE bytes > 0
+                      GROUP BY ts, series
+                      ORDER BY ts
+      non-heap-memory:
+        kind: Panel
+        spec:
+          display:
+            name: Non-heap memory
+            description: Metaspace, code cache and the rest. A limit line appears only for the pools that declare one.
+          plugin:
+            kind: TimeSeriesChart
+            spec:
+              unit: MB
+              showLegend: true
+          queries:
+            - kind: ClickHouseSQL
+              spec:
+                plugin:
+                  kind: ClickHouseSQL
+                  spec:
+                    query: |-
+                      SELECT ts, series, avg(bytes) / 1048576 AS mb
+                      FROM (
+                        SELECT toStartOfInterval(TimeUnix, INTERVAL {step:UInt32} * 6 SECOND) AS ts, TimeUnix, ResourceAttributes['service.instance.id'] AS instance,
+                               sumIf(Value, MetricName = 'jvm.memory.used') AS used,
+                               sumIf(Value, MetricName = 'jvm.memory.committed') AS committed,
+                               sumIf(Value, MetricName = 'jvm.memory.limit') AS lim
+                        FROM (SELECT TimeUnix, ResourceAttributes, MetricName, Value FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND ServiceName IN $service AND MetricName IN ('jvm.memory.used', 'jvm.memory.committed', 'jvm.memory.limit') AND Attributes['jvm.memory.type'] = 'non_heap' UNION ALL SELECT TimeUnix, ResourceAttributes, MetricName, Value FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND ServiceName IN $service AND MetricName IN ('jvm.memory.used', 'jvm.memory.committed', 'jvm.memory.limit') AND Attributes['jvm.memory.type'] = 'non_heap')
+                        GROUP BY ts, TimeUnix, instance
+                      )
+                      ARRAY JOIN [used, committed, lim] AS bytes, ['used', 'committed', 'limit'] AS series
+                      WHERE bytes > 0
+                      GROUP BY ts, series
+                      ORDER BY ts
+      pool-used:
+        kind: Panel
+        spec:
+          display:
+            name: Memory used by pool
+          plugin:
+            kind: TimeSeriesChart
+            spec:
+              unit: MB
+              showLegend: true
+          queries:
+            - kind: ClickHouseSQL
+              spec:
+                plugin:
+                  kind: ClickHouseSQL
+                  spec:
+                    query: |-
+                      WITH points AS (SELECT TimeUnix, Value, Attributes['jvm.memory.pool.name'] AS series FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND ServiceName IN $service AND MetricName = 'jvm.memory.used' UNION ALL SELECT TimeUnix, Value, Attributes['jvm.memory.pool.name'] AS series FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND ServiceName IN $service AND MetricName = 'jvm.memory.used')
+                      SELECT toStartOfInterval(TimeUnix, INTERVAL {step:UInt32} * 6 SECOND) AS ts,
+                             series,
+                             avg(Value) / 1048576 AS value
+                      FROM points
+                      WHERE series IN (
+                        SELECT series FROM points WHERE 1
+                        GROUP BY series ORDER BY count() DESC LIMIT 8
+                      )
+                      GROUP BY ts, series
+                      ORDER BY ts
+      pool-after-gc:
+        kind: Panel
+        spec:
+          display:
+            name: Memory after last collection, by pool
+            description: "The live set: what a collection could not reclaim. An old-generation line that climbs across collections is the shape of a leak."
+          plugin:
+            kind: TimeSeriesChart
+            spec:
+              unit: MB
+              showLegend: true
+          queries:
+            - kind: ClickHouseSQL
+              spec:
+                plugin:
+                  kind: ClickHouseSQL
+                  spec:
+                    query: |-
+                      WITH points AS (SELECT TimeUnix, Value, Attributes['jvm.memory.pool.name'] AS series FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND ServiceName IN $service AND MetricName = 'jvm.memory.used_after_last_gc' UNION ALL SELECT TimeUnix, Value, Attributes['jvm.memory.pool.name'] AS series FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND ServiceName IN $service AND MetricName = 'jvm.memory.used_after_last_gc')
+                      SELECT toStartOfInterval(TimeUnix, INTERVAL {step:UInt32} * 6 SECOND) AS ts,
+                             series,
+                             avg(Value) / 1048576 AS value
+                      FROM points
+                      WHERE series IN (
+                        SELECT series FROM points WHERE 1
+                        GROUP BY series ORDER BY count() DESC LIMIT 8
+                      )
+                      GROUP BY ts, series
+                      ORDER BY ts
+      gc-collections:
+        kind: Panel
+        spec:
+          display:
+            name: Collections
+            description: Garbage collections per bucket, by collector.
+          plugin:
+            kind: TimeSeriesChart
+            spec:
+              unit: ""
+              showLegend: true
+          queries:
+            - kind: ClickHouseSQL
+              spec:
+                plugin:
+                  kind: ClickHouseSQL
+                  spec:
+                    query: |-
+                      SELECT ts, series, sum(collections) AS value
+                      FROM (
+                        SELECT toStartOfInterval(TimeUnix, INTERVAL {step:UInt32} * 6 SECOND) AS ts,
+                               Attributes['jvm.gc.name'] AS series,
+                               ResourceAttributes AS resource, Attributes AS attrs,
+                               max(Count) - min(Count) AS collections,
+                               max(Sum) - min(Sum) AS seconds
+                        FROM metrics_histogram
+                        WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND ServiceName IN $service AND MetricName = 'jvm.gc.duration'
+                        GROUP BY ts, series, resource, attrs
+                      )
+                      GROUP BY ts, series
+                      ORDER BY ts
+      gc-pause:
+        kind: Panel
+        spec:
+          display:
+            name: Mean pause
+            description: Total pause time over the collections that produced it.
+          plugin:
+            kind: TimeSeriesChart
+            spec:
+              unit: ms
+              showLegend: true
+          queries:
+            - kind: ClickHouseSQL
+              spec:
+                plugin:
+                  kind: ClickHouseSQL
+                  spec:
+                    query: |-
+                      SELECT ts, series, sum(seconds) / nullIf(sum(collections), 0) * 1000 AS ms
+                      FROM (
+                        SELECT toStartOfInterval(TimeUnix, INTERVAL {step:UInt32} * 6 SECOND) AS ts,
+                               Attributes['jvm.gc.name'] AS series,
+                               ResourceAttributes AS resource, Attributes AS attrs,
+                               max(Count) - min(Count) AS collections,
+                               max(Sum) - min(Sum) AS seconds
+                        FROM metrics_histogram
+                        WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND ServiceName IN $service AND MetricName = 'jvm.gc.duration'
+                        GROUP BY ts, series, resource, attrs
+                      )
+                      GROUP BY ts, series
+                      ORDER BY ts
+      gc-pressure:
+        kind: Panel
+        spec:
+          display:
+            name: Time spent collecting
+            description: Pause time as a share of elapsed time, summed across every reporting process. One collector thread saturated reads as 100%.
+          plugin:
+            kind: TimeSeriesChart
+            spec:
+              unit: "%"
+              showLegend: false
+          queries:
+            - kind: ClickHouseSQL
+              spec:
+                plugin:
+                  kind: ClickHouseSQL
+                  spec:
+                    query: |-
+                      SELECT ts, sum(seconds) / nullIf({step:UInt32}, 0) * 100 AS pct
+                      FROM (
+                        SELECT toStartOfInterval(TimeUnix, INTERVAL {step:UInt32} SECOND) AS ts,
+                               Attributes['jvm.gc.name'] AS series,
+                               ResourceAttributes AS resource, Attributes AS attrs,
+                               max(Count) - min(Count) AS collections,
+                               max(Sum) - min(Sum) AS seconds
+                        FROM metrics_histogram
+                        WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND ServiceName IN $service AND MetricName = 'jvm.gc.duration'
+                        GROUP BY ts, series, resource, attrs
+                      )
+                      GROUP BY ts
+                      ORDER BY ts
+      thread-states:
+        kind: Panel
+        spec:
+          display:
+            name: Threads by state
+            description: A rising blocked count with a flat runnable count is lock contention, not load.
+          plugin:
+            kind: TimeSeriesChart
+            spec:
+              unit: ""
+              showLegend: true
+          queries:
+            - kind: ClickHouseSQL
+              spec:
+                plugin:
+                  kind: ClickHouseSQL
+                  spec:
+                    query: |-
+                      WITH points AS (SELECT TimeUnix, Value, Attributes['jvm.thread.state'] AS series FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND ServiceName IN $service AND MetricName = 'jvm.thread.count' UNION ALL SELECT TimeUnix, Value, Attributes['jvm.thread.state'] AS series FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND ServiceName IN $service AND MetricName = 'jvm.thread.count')
+                      SELECT toStartOfInterval(TimeUnix, INTERVAL {step:UInt32} * 6 SECOND) AS ts,
+                             series,
+                             avg(Value) AS value
+                      FROM points
+                      WHERE series IN (
+                        SELECT series FROM points WHERE 1
+                        GROUP BY series ORDER BY count() DESC LIMIT 8
+                      )
+                      GROUP BY ts, series
+                      ORDER BY ts
+      cpu-usage:
+        kind: Panel
+        spec:
+          display:
+            name: CPU usage
+            description: The system line needs the agent's experimental JVM metrics enabled.
+          plugin:
+            kind: TimeSeriesChart
+            spec:
+              unit: "%"
+              showLegend: true
+          queries:
+            - kind: ClickHouseSQL
+              spec:
+                plugin:
+                  kind: ClickHouseSQL
+                  spec:
+                    query: |-
+                      SELECT toStartOfInterval(TimeUnix, INTERVAL {step:UInt32} * 6 SECOND) AS ts,
+                             transform(MetricName, ['jvm.cpu.recent_utilization', 'jvm.system.cpu.utilization'], ['process', 'system'], 'other') AS series,
+                             avg(Value) * 100 AS value
+                      FROM (SELECT TimeUnix, MetricName, Value FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND ServiceName IN $service AND MetricName IN ('jvm.cpu.recent_utilization', 'jvm.system.cpu.utilization') UNION ALL SELECT TimeUnix, MetricName, Value FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND ServiceName IN $service AND MetricName IN ('jvm.cpu.recent_utilization', 'jvm.system.cpu.utilization'))
+                      GROUP BY ts, series
+                      ORDER BY ts
+      load:
+        kind: Panel
+        spec:
+          display:
+            name: System load
+            description: Load above the processor count means work is queueing. The load line needs the agent's experimental JVM metrics enabled.
+          plugin:
+            kind: TimeSeriesChart
+            spec:
+              unit: ""
+              showLegend: true
+          queries:
+            - kind: ClickHouseSQL
+              spec:
+                plugin:
+                  kind: ClickHouseSQL
+                  spec:
+                    query: |-
+                      SELECT toStartOfInterval(TimeUnix, INTERVAL {step:UInt32} * 6 SECOND) AS ts,
+                             transform(MetricName, ['jvm.system.cpu.load_1m', 'jvm.cpu.count'], ['load 1m', 'processors'], 'other') AS series,
+                             avg(Value) AS value
+                      FROM (SELECT TimeUnix, MetricName, Value FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND ServiceName IN $service AND MetricName IN ('jvm.system.cpu.load_1m', 'jvm.cpu.count') UNION ALL SELECT TimeUnix, MetricName, Value FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND ServiceName IN $service AND MetricName IN ('jvm.system.cpu.load_1m', 'jvm.cpu.count'))
+                      GROUP BY ts, series
+                      ORDER BY ts
+      classes:
+        kind: Panel
+        spec:
+          display:
+            name: Classes loaded
+            description: Currently loaded, not loaded since start.
+          plugin:
+            kind: TimeSeriesChart
+            spec:
+              unit: ""
+              showLegend: false
+          queries:
+            - kind: ClickHouseSQL
+              spec:
+                plugin:
+                  kind: ClickHouseSQL
+                  spec:
+                    query: |-
+                      SELECT toStartOfInterval(TimeUnix, INTERVAL {step:UInt32} SECOND) AS ts,
+                             avg(Value) AS value
+                      FROM (SELECT TimeUnix, Value FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND ServiceName IN $service AND MetricName = 'jvm.class.count' UNION ALL SELECT TimeUnix, Value FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND ServiceName IN $service AND MetricName = 'jvm.class.count')
+                      GROUP BY ts
+                      ORDER BY ts
+      class-activity:
+        kind: Panel
+        spec:
+          display:
+            name: Class loading activity
+            description: Classes loaded and unloaded per bucket. Sustained loading long after startup points at a class-generating framework.
+          plugin:
+            kind: TimeSeriesChart
+            spec:
+              unit: ""
+              showLegend: true
+              stacked: false
+          queries:
+            - kind: ClickHouseSQL
+              spec:
+                plugin:
+                  kind: ClickHouseSQL
+                  spec:
+                    query: |-
+                      SELECT ts, series, sum(delta) AS value
+                      FROM (
+                        SELECT toStartOfInterval(TimeUnix, INTERVAL {step:UInt32} * 6 SECOND) AS ts,
+                               transform(MetricName, ['jvm.class.loaded', 'jvm.class.unloaded'], ['loaded', 'unloaded'], 'other') AS series,
+                               ResourceAttributes AS resource, Attributes AS attrs,
+                               max(Value) - min(Value) AS delta
+                        FROM (SELECT TimeUnix, MetricName, ResourceAttributes, Attributes, Value FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND ServiceName IN $service AND MetricName IN ('jvm.class.loaded', 'jvm.class.unloaded') UNION ALL SELECT TimeUnix, MetricName, ResourceAttributes, Attributes, Value FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND ServiceName IN $service AND MetricName IN ('jvm.class.loaded', 'jvm.class.unloaded'))
+                        GROUP BY ts, series, resource, attrs
+                      )
+                      GROUP BY ts, series
+                      ORDER BY ts
+      buffers:
+        kind: Panel
+        spec:
+          display:
+            name: Buffer memory
+            description: Direct and mapped byte buffers, which live outside the heap. Needs the agent's experimental JVM metrics enabled.
+          plugin:
+            kind: TimeSeriesChart
+            spec:
+              unit: MB
+              showLegend: true
+          queries:
+            - kind: ClickHouseSQL
+              spec:
+                plugin:
+                  kind: ClickHouseSQL
+                  spec:
+                    query: |-
+                      SELECT toStartOfInterval(TimeUnix, INTERVAL {step:UInt32} * 6 SECOND) AS ts,
+                             transform(MetricName, ['jvm.buffer.memory.used', 'jvm.buffer.memory.limit'], ['used', 'capacity'], 'other') AS series,
+                             avg(Value) / 1048576 AS value
+                      FROM (SELECT TimeUnix, MetricName, Value FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND ServiceName IN $service AND MetricName IN ('jvm.buffer.memory.used', 'jvm.buffer.memory.limit') UNION ALL SELECT TimeUnix, MetricName, Value FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND ServiceName IN $service AND MetricName IN ('jvm.buffer.memory.used', 'jvm.buffer.memory.limit'))
+                      GROUP BY ts, series
+                      ORDER BY ts
+      file-descriptors:
+        kind: Panel
+        spec:
+          display:
+            name: File descriptors
+            description: Needs the agent's experimental JVM metrics enabled.
+          plugin:
+            kind: TimeSeriesChart
+            spec:
+              unit: ""
+              showLegend: true
+          queries:
+            - kind: ClickHouseSQL
+              spec:
+                plugin:
+                  kind: ClickHouseSQL
+                  spec:
+                    query: |-
+                      SELECT toStartOfInterval(TimeUnix, INTERVAL {step:UInt32} * 6 SECOND) AS ts,
+                             transform(MetricName, ['jvm.file_descriptor.count', 'jvm.file_descriptor.limit'], ['open', 'limit'], 'other') AS series,
+                             avg(Value) AS value
+                      FROM (SELECT TimeUnix, MetricName, Value FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND ServiceName IN $service AND MetricName IN ('jvm.file_descriptor.count', 'jvm.file_descriptor.limit') UNION ALL SELECT TimeUnix, MetricName, Value FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND ServiceName IN $service AND MetricName IN ('jvm.file_descriptor.count', 'jvm.file_descriptor.limit'))
+                      GROUP BY ts, series
+                      ORDER BY ts
+    layouts:
+      - kind: Grid
+        spec:
+          items:
+            - x: 0
+              y: 0
+              width: 5
+              height: 5
+              content:
+                $ref: "#/spec/panels/heap-used"
+            - x: 5
+              y: 0
+              width: 5
+              height: 5
+              content:
+                $ref: "#/spec/panels/heap-of-limit"
+            - x: 10
+              y: 0
+              width: 5
+              height: 5
+              content:
+                $ref: "#/spec/panels/non-heap-used"
+            - x: 15
+              y: 0
+              width: 5
+              height: 5
+              content:
+                $ref: "#/spec/panels/threads"
+            - x: 20
+              y: 0
+              width: 4
+              height: 5
+              content:
+                $ref: "#/spec/panels/cpu"
+            - x: 0
+              y: 5
+              width: 12
+              height: 8
+              content:
+                $ref: "#/spec/panels/heap-memory"
+            - x: 12
+              y: 5
+              width: 12
+              height: 8
+              content:
+                $ref: "#/spec/panels/non-heap-memory"
+            - x: 0
+              y: 13
+              width: 12
+              height: 8
+              content:
+                $ref: "#/spec/panels/pool-used"
+            - x: 12
+              y: 13
+              width: 12
+              height: 8
+              content:
+                $ref: "#/spec/panels/pool-after-gc"
+            - x: 0
+              y: 21
+              width: 12
+              height: 8
+              content:
+                $ref: "#/spec/panels/gc-collections"
+            - x: 12
+              y: 21
+              width: 12
+              height: 8
+              content:
+                $ref: "#/spec/panels/gc-pause"
+            - x: 0
+              y: 29
+              width: 12
+              height: 8
+              content:
+                $ref: "#/spec/panels/gc-pressure"
+            - x: 12
+              y: 29
+              width: 12
+              height: 8
+              content:
+                $ref: "#/spec/panels/thread-states"
+            - x: 0
+              y: 37
+              width: 12
+              height: 8
+              content:
+                $ref: "#/spec/panels/cpu-usage"
+            - x: 12
+              y: 37
+              width: 12
+              height: 8
+              content:
+                $ref: "#/spec/panels/load"
+            - x: 0
+              y: 45
+              width: 12
+              height: 8
+              content:
+                $ref: "#/spec/panels/classes"
+            - x: 12
+              y: 45
+              width: 12
+              height: 8
+              content:
+                $ref: "#/spec/panels/class-activity"
+            - x: 0
+              y: 53
+              width: 12
+              height: 8
+              content:
+                $ref: "#/spec/panels/buffers"
+            - x: 12
+              y: 53
+              width: 12
+              height: 8
+              content:
+                $ref: "#/spec/panels/file-descriptors"

@@ -1,78 +1,88 @@
-import { Input } from "@everr/ui/components/input";
-import { useQuery } from "@tanstack/react-query";
-import { createFileRoute, useSearch } from "@tanstack/react-router";
-import { AlertCircle, LayoutDashboard, SearchIcon } from "lucide-react";
-import { useState } from "react";
-import { DashboardTree } from "@/components/dashboards/dashboard-tree";
-import { ResourceEmptyState } from "@/components/resource-empty-state";
-import { dashboardListOptions } from "@/data/dashboards/options";
+import { DEFAULT_TIME_RANGE } from "@everr/ui/lib/time-range";
+import { createFileRoute, redirect } from "@tanstack/react-router";
+import { getBuiltinDashboard } from "@/data/dashboards/built-in/catalog";
+import { lastViewedDashboard } from "@/data/dashboards/last-viewed";
+import {
+  dashboardListOptions,
+  telemetryCapabilitiesOptions,
+} from "@/data/dashboards/options";
 
-const ASSISTANT_DASHBOARD_PROMPT =
-  "/everr-setup-resources Help me build a good first dashboard based on the telemetry we have in production";
+const toBuiltin = (slug: string) =>
+  redirect({
+    to: "/dashboards/built-in/$slug",
+    params: { slug },
+    search: (prev) => prev,
+    replace: true,
+  });
+
+const toDashboard = (project: string, slug: string) =>
+  redirect({
+    to: "/dashboards/$project/$slug",
+    params: { project, slug },
+    search: (prev) => prev,
+    replace: true,
+  });
 
 export const Route = createFileRoute(
   "/_authenticated/_dashboard/_previewable/dashboards/",
 )({
   staticData: { breadcrumb: "Dashboards" },
   head: () => ({ meta: [{ title: "Everr - Dashboards" }] }),
-  component: DashboardsIndexPage,
+  loaderDeps: ({ search }) => ({ preview: search.preview }),
+  // The index is never a page of its own: the layout always shows the list,
+  // so landing here reopens where you were, else your first top-level
+  // dashboard, else the first built-in that actually has data — the screen is
+  // never blank and never an empty grid when a live one exists.
+  loader: async ({ context: { queryClient, session }, deps: { preview } }) => {
+    const last = lastViewedDashboard.read(session.session.activeOrganizationId);
+
+    // A remembered built-in needs no server data to validate.
+    if (last?.kind === "built-in" && getBuiltinDashboard(last.slug)) {
+      throw toBuiltin(last.slug);
+    }
+
+    // Warm the probe alongside the list fetch: only the empty-list branch
+    // below awaits it, and the rail issues the same query immediately anyway,
+    // so a wasted prefetch costs nothing.
+    void queryClient.prefetchQuery(
+      telemetryCapabilitiesOptions(
+        DEFAULT_TIME_RANGE.from,
+        DEFAULT_TIME_RANGE.to,
+      ),
+    );
+    const list = await queryClient.ensureQueryData(
+      dashboardListOptions(preview),
+    );
+    const live = list.filter((d) => d.previewStatus !== "removed");
+
+    if (
+      last?.kind === "own" &&
+      live.some((d) => d.project === last.project && d.slug === last.slug)
+    ) {
+      throw toDashboard(last.project, last.slug);
+    }
+
+    // The remembered dashboard no longer exists (deleted or removed from
+    // preview). Clear the stale entry so future visits fall through to the
+    // fresh default instead of hitting this dead branch every time.
+    if (last?.kind === "own") {
+      lastViewedDashboard.clear(session.session.activeOrganizationId);
+    }
+
+    // Only top-level dashboards qualify as the default: opening something out
+    // of a folder the reader has never expanded reads as a random pick.
+    const [first] = live
+      .filter((d) => d.folderPath === "")
+      .sort((a, b) => a.name.localeCompare(b.name));
+    if (first) throw toDashboard(first.project, first.slug);
+
+    // No dashboards of your own yet: land on the get-started page, where the
+    // assistant prompt creates the first one.
+    throw redirect({
+      to: "/dashboards/get-started",
+      search: (prev) => prev,
+      replace: true,
+    });
+  },
+  component: () => null,
 });
-
-function DashboardsIndexPage() {
-  const { preview } = useSearch({ from: "/_authenticated/_dashboard" });
-  const {
-    data: dashboards,
-    isLoading,
-    isError,
-    error,
-  } = useQuery(dashboardListOptions(preview));
-  const [search, setSearch] = useState("");
-  const isEmpty = !isLoading && !isError && (dashboards?.length ?? 0) === 0;
-
-  return (
-    <div>
-      <div className="mb-6 flex items-center gap-2">
-        <LayoutDashboard className="size-5 text-muted-foreground" />
-        <h1 className="text-lg font-semibold">Dashboards</h1>
-      </div>
-
-      {!isEmpty && (
-        <div className="relative mb-4 max-w-sm">
-          <SearchIcon className="absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            placeholder="Search dashboards..."
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            className="pl-8"
-          />
-        </div>
-      )}
-
-      {isLoading && <p className="text-sm text-muted-foreground">Loading...</p>}
-
-      {!isLoading && isError && (
-        <div className="flex flex-col items-center justify-center gap-3 py-16 text-muted-foreground">
-          <AlertCircle className="size-10" />
-          <p className="text-sm">
-            {error instanceof Error
-              ? error.message
-              : "Failed to load dashboards"}
-          </p>
-        </div>
-      )}
-
-      {isEmpty && (
-        <ResourceEmptyState
-          title="No dashboards yet"
-          description="Paste this into your coding assistant. It writes the YAML, applies it, and the dashboard shows up here."
-          assistantPrompt={ASSISTANT_DASHBOARD_PROMPT}
-          docsHref="https://everr.dev/docs/learn/first-dashboard"
-        />
-      )}
-
-      {!isLoading && !isError && !isEmpty && (
-        <DashboardTree dashboards={dashboards ?? []} search={search} />
-      )}
-    </div>
-  );
-}

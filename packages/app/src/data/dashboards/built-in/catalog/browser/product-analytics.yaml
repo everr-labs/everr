@@ -1,0 +1,433 @@
+id: product-analytics
+name: Product Analytics
+description: "PostHog's five web-analytics numbers over browser events: visitors, sessions, views, session length and bounce rate, then the paths, referrers and browsers behind them."
+category: Browser
+requires:
+  - signal: logs
+    label: no logs
+  - signal: logs
+    match: everr.page_view.id
+    label: no everr.page_view.id*
+document:
+  kind: Dashboard
+  metadata:
+    name: product-analytics
+  spec:
+    display:
+      name: Product Analytics
+    duration: 24h
+    variables:
+      - kind: ListVariable
+        spec:
+          name: service
+          display:
+            name: Service
+          allowMultiple: true
+          allowAllValue: true
+          defaultValue: __all
+          sort: alphabetical-asc
+          plugin:
+            kind: ClickHouseSQLVariable
+            spec:
+              query: SELECT DISTINCT ServiceName FROM logs WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} ORDER BY ServiceName
+    refreshInterval: 5m
+    panels:
+      visitors:
+        kind: Panel
+        spec:
+          display:
+            name: Visitors
+            description: Distinct visitor ids.
+          plugin:
+            kind: StatChart
+            spec:
+              calculation: last
+          queries:
+            - kind: ClickHouseSQL
+              spec:
+                plugin:
+                  kind: ClickHouseSQL
+                  spec:
+                    query: |-
+                      SELECT uniqExact(LogAttributes['everr.visitor.id']) AS visitors
+                      FROM logs
+                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND ResourceAttributes['telemetry.distro.name'] = '@everr/otel-web' AND EventName = 'everr.browser.page_view'
+      sessions:
+        kind: Panel
+        spec:
+          display:
+            name: Sessions
+            description: 30-minute idle timeout.
+          plugin:
+            kind: StatChart
+            spec:
+              calculation: last
+          queries:
+            - kind: ClickHouseSQL
+              spec:
+                plugin:
+                  kind: ClickHouseSQL
+                  spec:
+                    query: |-
+                      SELECT uniqExact(LogAttributes['session.id']) AS sessions
+                      FROM logs
+                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND ResourceAttributes['telemetry.distro.name'] = '@everr/otel-web' AND EventName = 'everr.browser.page_view'
+      page-views:
+        kind: Panel
+        spec:
+          display:
+            name: Page views
+            description: SPA route changes included.
+          plugin:
+            kind: StatChart
+            spec:
+              calculation: sum
+              sparkline: true
+          queries:
+            - kind: ClickHouseSQL
+              spec:
+                plugin:
+                  kind: ClickHouseSQL
+                  spec:
+                    query: |-
+                      SELECT toStartOfInterval(Timestamp, INTERVAL {step:UInt32} SECOND) AS ts, count() AS views
+                      FROM logs
+                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND EventName = 'everr.browser.page_view'
+                      GROUP BY ts
+                      ORDER BY ts
+      session-duration:
+        kind: Panel
+        spec:
+          display:
+            name: Avg session
+            description: First record to last.
+          plugin:
+            kind: StatChart
+            spec:
+              calculation: last
+              unit: s
+              decimals: 1
+          queries:
+            - kind: ClickHouseSQL
+              spec:
+                plugin:
+                  kind: ClickHouseSQL
+                  spec:
+                    query: |-
+                      SELECT round(avg(seconds), 1) AS avg_seconds
+                      FROM (
+                        SELECT dateDiff('second', min(Timestamp), max(Timestamp)) AS seconds
+                        FROM logs
+                        WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND ResourceAttributes['telemetry.distro.name'] = '@everr/otel-web' AND LogAttributes['session.id'] != ''
+                        GROUP BY LogAttributes['session.id']
+                      )
+      bounce-rate:
+        kind: Panel
+        spec:
+          display:
+            name: Bounce rate
+            description: One view, no interaction, under 10s.
+          plugin:
+            kind: StatChart
+            spec:
+              calculation: last
+              unit: "%"
+              decimals: 1
+              thresholds:
+                mode: absolute
+                defaultColor: "#22c55e"
+                steps:
+                  - value: 40
+                    color: "#f59e0b"
+                  - value: 70
+                    color: "#ef4444"
+          queries:
+            - kind: ClickHouseSQL
+              spec:
+                plugin:
+                  kind: ClickHouseSQL
+                  spec:
+                    query: |-
+                      SELECT round(countIf(views = 1 AND autocaptures = 0 AND seconds < 10) / count() * 100, 1) AS bounce_pct
+                      FROM (
+                        SELECT LogAttributes['session.id'] AS session,
+                               countIf(EventName = 'everr.browser.page_view') AS views,
+                               countIf(startsWith(EventName, 'everr.browser.interaction.')) AS autocaptures,
+                               maxIf(toFloat64OrZero(LogAttributes['everr.page_view.duration']), EventName = 'everr.browser.page_leave') / 1000 AS seconds
+                        FROM logs
+                        WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND ResourceAttributes['telemetry.distro.name'] = '@everr/otel-web' AND LogAttributes['session.id'] != ''
+                        GROUP BY session
+                        HAVING views > 0
+                      )
+      visits-over-time:
+        kind: Panel
+        spec:
+          display:
+            name: Visitors, sessions and views
+          plugin:
+            kind: TimeSeriesChart
+            spec:
+              showLegend: true
+          queries:
+            - kind: ClickHouseSQL
+              spec:
+                plugin:
+                  kind: ClickHouseSQL
+                  spec:
+                    query: |-
+                      SELECT ts, counted.1 AS series, counted.2 AS value
+                      FROM (
+                        SELECT toStartOfInterval(Timestamp, INTERVAL {step:UInt32} * 6 SECOND) AS ts,
+                               uniqExact(LogAttributes['everr.visitor.id']) AS visitors,
+                               uniqExact(LogAttributes['session.id']) AS sessions,
+                               count() AS views
+                        FROM logs
+                        WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND EventName = 'everr.browser.page_view'
+                        GROUP BY ts
+                      )
+                      ARRAY JOIN [('Visitors', visitors), ('Sessions', sessions), ('Page views', views)] AS counted
+                      ORDER BY ts
+      views-over-time:
+        kind: Panel
+        spec:
+          display:
+            name: Page views by route
+          plugin:
+            kind: TimeSeriesChart
+            spec:
+              showLegend: true
+              stacked: true
+          queries:
+            - kind: ClickHouseSQL
+              spec:
+                plugin:
+                  kind: ClickHouseSQL
+                  spec:
+                    query: |-
+                      SELECT toStartOfInterval(Timestamp, INTERVAL {step:UInt32} * 6 SECOND) AS ts, coalesce(nullIf(LogAttributes['everr.route.pattern'], ''), LogAttributes['url.path']) AS route, count() AS views
+                      FROM logs
+                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND EventName = 'everr.browser.page_view'
+                        AND coalesce(nullIf(LogAttributes['everr.route.pattern'], ''), LogAttributes['url.path']) IN (
+                        SELECT coalesce(nullIf(LogAttributes['everr.route.pattern'], ''), LogAttributes['url.path']) FROM logs WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND EventName = 'everr.browser.page_view'
+                        GROUP BY coalesce(nullIf(LogAttributes['everr.route.pattern'], ''), LogAttributes['url.path']) ORDER BY count() DESC LIMIT 8
+                      )
+                      GROUP BY ts, route
+                      ORDER BY ts
+      top-routes:
+        kind: Panel
+        spec:
+          display:
+            name: Top paths
+            description: "Bounce here is per page view, not per session: a view with no interaction that ended inside 10 seconds. Duration and scroll depth only count views that reported a page_leave."
+          plugin:
+            kind: Table
+            spec:
+              stickyHeader: true
+          queries:
+            - kind: ClickHouseSQL
+              spec:
+                plugin:
+                  kind: ClickHouseSQL
+                  spec:
+                    query: |-
+                      SELECT route,
+                             count() AS views,
+                             uniqExact(visitor) AS visitors,
+                             round(countIf(autocaptures = 0 AND seconds < 10) / count() * 100, 1) AS bounce_pct,
+                             round(avgIf(seconds, left), 1) AS avg_seconds,
+                             round(avgIf(scroll, left) * 100) AS avg_scroll_pct
+                      FROM (
+                        SELECT coalesce(nullIf(LogAttributes['everr.route.pattern'], ''), LogAttributes['url.path']) AS route,
+                               LogAttributes['everr.visitor.id'] AS visitor,
+                               countIf(EventName = 'everr.browser.page_leave') > 0 AS left,
+                               countIf(startsWith(EventName, 'everr.browser.interaction.')) AS autocaptures,
+                               maxIf(toFloat64OrZero(LogAttributes['everr.page_view.duration']), EventName = 'everr.browser.page_leave') / 1000 AS seconds,
+                               maxIf(toFloat64OrZero(LogAttributes['everr.scroll.depth']), EventName = 'everr.browser.page_leave') AS scroll
+                        FROM logs
+                        WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND ResourceAttributes['telemetry.distro.name'] = '@everr/otel-web' AND LogAttributes['everr.page_view.id'] != ''
+                        GROUP BY LogAttributes['everr.page_view.id'], route, visitor
+                      )
+                      GROUP BY route
+                      ORDER BY views DESC
+                      LIMIT 30
+      top-referrers:
+        kind: Panel
+        spec:
+          display:
+            name: Top referrers
+            description: Hard navigations only, with the site's own pages excluded, so an SPA route change is not counted as a referral from itself.
+          plugin:
+            kind: Table
+            spec:
+              stickyHeader: true
+          queries:
+            - kind: ClickHouseSQL
+              spec:
+                plugin:
+                  kind: ClickHouseSQL
+                  spec:
+                    query: |-
+                      SELECT multiIf(LogAttributes['everr.referrer.url'] = '', 'direct', domain(LogAttributes['everr.referrer.url']) = '', 'other', domain(LogAttributes['everr.referrer.url'])) AS referrer,
+                             uniqExact(LogAttributes['session.id']) AS sessions,
+                             uniqExact(LogAttributes['everr.visitor.id']) AS visitors,
+                             count() AS views
+                      FROM logs
+                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND EventName = 'everr.browser.page_view'
+                        AND LogAttributes['everr.navigation.type'] = 'initial'
+                        AND domain(LogAttributes['everr.referrer.url']) != domain(LogAttributes['url.full'])
+                      GROUP BY referrer
+                      ORDER BY sessions DESC
+                      LIMIT 20
+      top-browsers:
+        kind: Panel
+        spec:
+          display:
+            name: Popular browsers
+            description: Read off the resource's user agent. Headless Chrome is broken out on its own, because it is almost never a person.
+          plugin:
+            kind: Table
+            spec:
+              stickyHeader: true
+          queries:
+            - kind: ClickHouseSQL
+              spec:
+                plugin:
+                  kind: ClickHouseSQL
+                  spec:
+                    query: |-
+                      SELECT multiIf(position(ResourceAttributes['user_agent.original'], 'Headless') > 0, 'Headless Chrome', position(ResourceAttributes['user_agent.original'], 'Edg/') > 0, 'Edge', position(ResourceAttributes['user_agent.original'], 'Firefox/') > 0, 'Firefox', position(ResourceAttributes['user_agent.original'], 'Chrome/') > 0, 'Chrome', position(ResourceAttributes['user_agent.original'], 'Safari/') > 0, 'Safari', 'Other') AS browser,
+                             extract(ResourceAttributes['user_agent.original'], '(?:Edg|Firefox|Chrome|Version)/([0-9]+)') AS version,
+                             uniqExact(LogAttributes['session.id']) AS sessions,
+                             uniqExact(LogAttributes['everr.visitor.id']) AS visitors,
+                             count() AS views
+                      FROM logs
+                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND ResourceAttributes['telemetry.distro.name'] = '@everr/otel-web' AND EventName = 'everr.browser.page_view'
+                      GROUP BY browser, version
+                      ORDER BY sessions DESC
+                      LIMIT 20
+      top-events:
+        kind: Panel
+        spec:
+          display:
+            name: Top events
+          plugin:
+            kind: Table
+            spec:
+              stickyHeader: true
+          queries:
+            - kind: ClickHouseSQL
+              spec:
+                plugin:
+                  kind: ClickHouseSQL
+                  spec:
+                    query: |-
+                      SELECT EventName AS event,
+                             count() AS occurrences,
+                             uniqExact(LogAttributes['session.id']) AS sessions
+                      FROM logs
+                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND ResourceAttributes['telemetry.distro.name'] = '@everr/otel-web' AND EventName != ''
+                      GROUP BY event
+                      ORDER BY occurrences DESC
+                      LIMIT 20
+      rage-targets:
+        kind: Panel
+        spec:
+          display:
+            name: Rage-click targets
+            description: Three clicks inside 30px in under a second each. The selector is shown tail-first, because the stable part of a DOM path is its end.
+          plugin:
+            kind: Table
+            spec:
+              stickyHeader: true
+          queries:
+            - kind: ClickHouseSQL
+              spec:
+                plugin:
+                  kind: ClickHouseSQL
+                  spec:
+                    query: |-
+                      SELECT coalesce(nullIf(LogAttributes['everr.route.pattern'], ''), LogAttributes['url.path']) AS route,
+                             LogAttributes['everr.element.tag'] AS tag,
+                             count() AS rage_clicks,
+                             substring(LogAttributes['everr.element.selector'], -40) AS selector_tail
+                      FROM logs
+                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND EventName = 'everr.browser.interaction.rage_click'
+                      GROUP BY route, tag, selector_tail
+                      ORDER BY rage_clicks DESC
+                      LIMIT 30
+    layouts:
+      - kind: Grid
+        spec:
+          items:
+            - x: 0
+              y: 0
+              width: 5
+              height: 5
+              content:
+                $ref: "#/spec/panels/visitors"
+            - x: 5
+              y: 0
+              width: 5
+              height: 5
+              content:
+                $ref: "#/spec/panels/sessions"
+            - x: 10
+              y: 0
+              width: 5
+              height: 5
+              content:
+                $ref: "#/spec/panels/page-views"
+            - x: 15
+              y: 0
+              width: 5
+              height: 5
+              content:
+                $ref: "#/spec/panels/session-duration"
+            - x: 20
+              y: 0
+              width: 4
+              height: 5
+              content:
+                $ref: "#/spec/panels/bounce-rate"
+            - x: 0
+              y: 5
+              width: 12
+              height: 8
+              content:
+                $ref: "#/spec/panels/visits-over-time"
+            - x: 12
+              y: 5
+              width: 12
+              height: 8
+              content:
+                $ref: "#/spec/panels/views-over-time"
+            - x: 0
+              y: 13
+              width: 24
+              height: 9
+              content:
+                $ref: "#/spec/panels/top-routes"
+            - x: 0
+              y: 22
+              width: 12
+              height: 9
+              content:
+                $ref: "#/spec/panels/top-referrers"
+            - x: 12
+              y: 22
+              width: 12
+              height: 9
+              content:
+                $ref: "#/spec/panels/top-events"
+            - x: 0
+              y: 31
+              width: 24
+              height: 9
+              content:
+                $ref: "#/spec/panels/top-browsers"
+            - x: 0
+              y: 40
+              width: 24
+              height: 9
+              content:
+                $ref: "#/spec/panels/rage-targets"

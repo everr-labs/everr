@@ -142,6 +142,10 @@ _Avoid_: intermittent failure
 **Dashboard**:
 A grid of Panels for visualizing telemetry, defined as code and reconciled with apply.
 
+**Built-in dashboard**:
+A Dashboard that ships with Everr: fully openable and live, but read-only and never materialized per-Organization. The counterpart to "Your dashboards" (user-defined ones). Creating something editable from a Built-in dashboard happens only by handing off to an Agent, never in the UI.
+_Avoid_: template (former framing), preset, sample dashboard
+
 **Panel**:
 The configured unit within a Dashboard or Runbook — a query plus a chosen Visualization and its placement in the grid. The Panel is the config; the Visualization is how it draws.
 _Avoid_: widget, chart (a chart is one Visualization kind, not the Panel)

@@ -36,6 +36,7 @@
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
     "jsdom": "^29.1.1",
-    "typescript": "catalog:"
+    "typescript": "catalog:",
+    "vitest": "^4.1.5"
   }
 }

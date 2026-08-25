@@ -1,0 +1,474 @@
+id: postgres-overview
+name: Postgres Overview
+description: Connections against the server limit, transaction and row-operation throughput, buffer cache behavior, checkpoint cost and database size, from the OpenTelemetry postgresql receiver.
+category: Databases
+requires:
+  - signal: metrics
+    label: no metrics
+  - signal: metrics
+    match: postgresql.
+    label: no postgresql*
+document:
+  kind: Dashboard
+  metadata:
+    name: postgres-overview
+  spec:
+    display:
+      name: Postgres Overview
+    duration: 6h
+    refreshInterval: 1m
+    panels:
+      connections:
+        kind: Panel
+        spec:
+          display:
+            name: Connections
+          plugin:
+            kind: StatChart
+            spec:
+              calculation: last
+              decimals: 0
+              sparkline: true
+          queries:
+            - kind: ClickHouseSQL
+              spec:
+                plugin:
+                  kind: ClickHouseSQL
+                  spec:
+                    query: |-
+                      SELECT ts, avg(total) AS backends
+                      FROM (
+                        SELECT toStartOfInterval(TimeUnix, INTERVAL {step:UInt32} SECOND) AS ts, TimeUnix, sum(Value) AS total
+                        FROM (SELECT TimeUnix, Value FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'postgresql.backends' UNION ALL SELECT TimeUnix, Value FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'postgresql.backends')
+                        GROUP BY ts, TimeUnix
+                      )
+                      GROUP BY ts
+                      ORDER BY ts
+      max-connections:
+        kind: Panel
+        spec:
+          display:
+            name: Max connections
+            description: The server's max_connections setting. Read Connections against it.
+          plugin:
+            kind: StatChart
+            spec:
+              calculation: last
+              decimals: 0
+          queries:
+            - kind: ClickHouseSQL
+              spec:
+                plugin:
+                  kind: ClickHouseSQL
+                  spec:
+                    query: |-
+                      SELECT nullIf(max(Value), 0) AS max_connections
+                      FROM (SELECT Value FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'postgresql.connection.max' UNION ALL SELECT Value FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'postgresql.connection.max')
+      databases:
+        kind: Panel
+        spec:
+          display:
+            name: Databases
+          plugin:
+            kind: StatChart
+            spec:
+              calculation: last
+              decimals: 0
+          queries:
+            - kind: ClickHouseSQL
+              spec:
+                plugin:
+                  kind: ClickHouseSQL
+                  spec:
+                    query: |-
+                      SELECT nullIf(max(Value), 0) AS databases
+                      FROM (SELECT Value FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'postgresql.database.count' UNION ALL SELECT Value FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'postgresql.database.count')
+      cache-hit:
+        kind: Panel
+        spec:
+          display:
+            name: Cache hit rate
+            description: Share of block reads served from shared buffers over the window.
+          plugin:
+            kind: StatChart
+            spec:
+              calculation: last
+              unit: "%"
+              decimals: 1
+          queries:
+            - kind: ClickHouseSQL
+              spec:
+                plugin:
+                  kind: ClickHouseSQL
+                  spec:
+                    query: |-
+                      SELECT sum(hits) / nullIf(sum(hits) + sum(reads), 0) * 100 AS pct
+                      FROM (
+                        SELECT Attributes['source'] AS source,
+                               ResourceAttributes AS resource, Attributes AS attrs,
+                               max(Value) - min(Value) AS delta,
+                               if(endsWith(source, '_hit'), delta, 0) AS hits,
+                               if(endsWith(source, '_read'), delta, 0) AS reads
+                        FROM (SELECT TimeUnix, ResourceAttributes, Attributes, Value FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'postgresql.blocks_read' UNION ALL SELECT TimeUnix, ResourceAttributes, Attributes, Value FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'postgresql.blocks_read')
+                        GROUP BY source, resource, attrs
+                      )
+      connections-by-database:
+        kind: Panel
+        spec:
+          display:
+            name: Connections by database
+          plugin:
+            kind: TimeSeriesChart
+            spec:
+              unit: ""
+              showLegend: true
+          queries:
+            - kind: ClickHouseSQL
+              spec:
+                plugin:
+                  kind: ClickHouseSQL
+                  spec:
+                    query: |-
+                      WITH points AS (SELECT TimeUnix, Value, coalesce(nullIf(Attributes['db.namespace'], ''), nullIf(ResourceAttributes['postgresql.database.name'], ''), 'unknown') AS series FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'postgresql.backends' UNION ALL SELECT TimeUnix, Value, coalesce(nullIf(Attributes['db.namespace'], ''), nullIf(ResourceAttributes['postgresql.database.name'], ''), 'unknown') AS series FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'postgresql.backends')
+                      SELECT toStartOfInterval(TimeUnix, INTERVAL {step:UInt32} * 6 SECOND) AS ts,
+                             series,
+                             avg(Value) AS value
+                      FROM points
+                      WHERE series IN (
+                        SELECT series FROM points WHERE 1
+                        GROUP BY series ORDER BY count() DESC LIMIT 8
+                      )
+                      GROUP BY ts, series
+                      ORDER BY ts
+      transactions:
+        kind: Panel
+        spec:
+          display:
+            name: Transactions
+            description: Committed and rolled back per bucket. A rollback line tracking commits is usually an application error path, not a database fault.
+          plugin:
+            kind: TimeSeriesChart
+            spec:
+              unit: ""
+              showLegend: true
+              stacked: false
+          queries:
+            - kind: ClickHouseSQL
+              spec:
+                plugin:
+                  kind: ClickHouseSQL
+                  spec:
+                    query: |-
+                      SELECT ts, series, sum(delta) AS value
+                      FROM (
+                        SELECT toStartOfInterval(TimeUnix, INTERVAL {step:UInt32} * 6 SECOND) AS ts,
+                               transform(MetricName, ['postgresql.commits', 'postgresql.rollbacks'], ['commits', 'rollbacks'], 'other') AS series,
+                               ResourceAttributes AS resource, Attributes AS attrs,
+                               max(Value) - min(Value) AS delta
+                        FROM (SELECT TimeUnix, MetricName, ResourceAttributes, Attributes, Value FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName IN ('postgresql.commits', 'postgresql.rollbacks') UNION ALL SELECT TimeUnix, MetricName, ResourceAttributes, Attributes, Value FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName IN ('postgresql.commits', 'postgresql.rollbacks'))
+                        GROUP BY ts, series, resource, attrs
+                      )
+                      GROUP BY ts, series
+                      ORDER BY ts
+      operations:
+        kind: Panel
+        spec:
+          display:
+            name: Row operations
+            description: Rows inserted, updated, deleted and HOT-updated. A high hot_upd share is cheap; a low one means index maintenance on every update.
+          plugin:
+            kind: TimeSeriesChart
+            spec:
+              unit: ""
+              showLegend: true
+              stacked: true
+          queries:
+            - kind: ClickHouseSQL
+              spec:
+                plugin:
+                  kind: ClickHouseSQL
+                  spec:
+                    query: |-
+                      WITH points AS (SELECT TimeUnix, ResourceAttributes, Attributes, Value, Attributes['operation'] AS series FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'postgresql.operations' UNION ALL SELECT TimeUnix, ResourceAttributes, Attributes, Value, Attributes['operation'] AS series FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'postgresql.operations')
+                      SELECT ts, series, sum(delta) AS value
+                      FROM (
+                        SELECT toStartOfInterval(TimeUnix, INTERVAL {step:UInt32} * 6 SECOND) AS ts, series,
+                               ResourceAttributes AS resource, Attributes AS attrs,
+                               max(Value) - min(Value) AS delta
+                        FROM points
+                        WHERE series IN (
+                        SELECT series FROM points WHERE 1
+                        GROUP BY series ORDER BY count() DESC LIMIT 8
+                      )
+                        GROUP BY ts, series, resource, attrs
+                      )
+                      GROUP BY ts, series
+                      ORDER BY ts
+      cache-hit-over-time:
+        kind: Panel
+        spec:
+          display:
+            name: Cache hit rate over time
+          plugin:
+            kind: TimeSeriesChart
+            spec:
+              unit: "%"
+              showLegend: false
+          queries:
+            - kind: ClickHouseSQL
+              spec:
+                plugin:
+                  kind: ClickHouseSQL
+                  spec:
+                    query: |-
+                      SELECT ts, sum(hits) / nullIf(sum(hits) + sum(reads), 0) * 100 AS pct
+                      FROM (
+                        SELECT toStartOfInterval(TimeUnix, INTERVAL {step:UInt32} SECOND) AS ts, Attributes['source'] AS source,
+                               ResourceAttributes AS resource, Attributes AS attrs,
+                               max(Value) - min(Value) AS delta,
+                               if(endsWith(source, '_hit'), delta, 0) AS hits,
+                               if(endsWith(source, '_read'), delta, 0) AS reads
+                        FROM (SELECT TimeUnix, ResourceAttributes, Attributes, Value FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'postgresql.blocks_read' UNION ALL SELECT TimeUnix, ResourceAttributes, Attributes, Value FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'postgresql.blocks_read')
+                        GROUP BY ts, source, resource, attrs
+                      )
+                      GROUP BY ts
+                      ORDER BY ts
+      blocks-read:
+        kind: Panel
+        spec:
+          display:
+            name: Block reads
+          plugin:
+            kind: TimeSeriesChart
+            spec:
+              unit: ""
+              showLegend: true
+              stacked: false
+          queries:
+            - kind: ClickHouseSQL
+              spec:
+                plugin:
+                  kind: ClickHouseSQL
+                  spec:
+                    query: |-
+                      WITH points AS (SELECT TimeUnix, ResourceAttributes, Attributes, Value, Attributes['source'] AS series FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'postgresql.blocks_read' UNION ALL SELECT TimeUnix, ResourceAttributes, Attributes, Value, Attributes['source'] AS series FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'postgresql.blocks_read')
+                      SELECT ts, series, sum(delta) AS value
+                      FROM (
+                        SELECT toStartOfInterval(TimeUnix, INTERVAL {step:UInt32} * 6 SECOND) AS ts, series,
+                               ResourceAttributes AS resource, Attributes AS attrs,
+                               max(Value) - min(Value) AS delta
+                        FROM points
+                        WHERE series IN (
+                        SELECT series FROM points WHERE 1
+                        GROUP BY series ORDER BY count() DESC LIMIT 8
+                      )
+                        GROUP BY ts, series, resource, attrs
+                      )
+                      GROUP BY ts, series
+                      ORDER BY ts
+      db-size:
+        kind: Panel
+        spec:
+          display:
+            name: Database size
+          plugin:
+            kind: TimeSeriesChart
+            spec:
+              unit: MB
+              showLegend: true
+          queries:
+            - kind: ClickHouseSQL
+              spec:
+                plugin:
+                  kind: ClickHouseSQL
+                  spec:
+                    query: |-
+                      WITH points AS (SELECT TimeUnix, Value, coalesce(nullIf(Attributes['db.namespace'], ''), nullIf(ResourceAttributes['postgresql.database.name'], ''), 'unknown') AS series FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'postgresql.db_size' UNION ALL SELECT TimeUnix, Value, coalesce(nullIf(Attributes['db.namespace'], ''), nullIf(ResourceAttributes['postgresql.database.name'], ''), 'unknown') AS series FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'postgresql.db_size')
+                      SELECT toStartOfInterval(TimeUnix, INTERVAL {step:UInt32} * 6 SECOND) AS ts,
+                             series,
+                             avg(Value) / 1048576 AS value
+                      FROM points
+                      WHERE series IN (
+                        SELECT series FROM points WHERE 1
+                        GROUP BY series ORDER BY count() DESC LIMIT 8
+                      )
+                      GROUP BY ts, series
+                      ORDER BY ts
+      bgwriter-buffers:
+        kind: Panel
+        spec:
+          display:
+            name: Buffers written
+            description: Who flushed the buffer. A large backend share means the background writer and checkpointer are not keeping up.
+          plugin:
+            kind: TimeSeriesChart
+            spec:
+              unit: ""
+              showLegend: true
+              stacked: true
+          queries:
+            - kind: ClickHouseSQL
+              spec:
+                plugin:
+                  kind: ClickHouseSQL
+                  spec:
+                    query: |-
+                      WITH points AS (SELECT TimeUnix, ResourceAttributes, Attributes, Value, Attributes['source'] AS series FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'postgresql.bgwriter.buffers.writes' UNION ALL SELECT TimeUnix, ResourceAttributes, Attributes, Value, Attributes['source'] AS series FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'postgresql.bgwriter.buffers.writes')
+                      SELECT ts, series, sum(delta) AS value
+                      FROM (
+                        SELECT toStartOfInterval(TimeUnix, INTERVAL {step:UInt32} * 6 SECOND) AS ts, series,
+                               ResourceAttributes AS resource, Attributes AS attrs,
+                               max(Value) - min(Value) AS delta
+                        FROM points
+                        WHERE series IN (
+                        SELECT series FROM points WHERE 1
+                        GROUP BY series ORDER BY count() DESC LIMIT 8
+                      )
+                        GROUP BY ts, series, resource, attrs
+                      )
+                      GROUP BY ts, series
+                      ORDER BY ts
+      checkpoint-duration:
+        kind: Panel
+        spec:
+          display:
+            name: Checkpoint time
+          plugin:
+            kind: TimeSeriesChart
+            spec:
+              unit: s
+              showLegend: true
+              stacked: false
+          queries:
+            - kind: ClickHouseSQL
+              spec:
+                plugin:
+                  kind: ClickHouseSQL
+                  spec:
+                    query: |-
+                      WITH points AS (SELECT TimeUnix, ResourceAttributes, Attributes, Value, Attributes['type'] AS series FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'postgresql.bgwriter.duration' UNION ALL SELECT TimeUnix, ResourceAttributes, Attributes, Value, Attributes['type'] AS series FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'postgresql.bgwriter.duration')
+                      SELECT ts, series, sum(delta) / 1000 AS value
+                      FROM (
+                        SELECT toStartOfInterval(TimeUnix, INTERVAL {step:UInt32} * 6 SECOND) AS ts, series,
+                               ResourceAttributes AS resource, Attributes AS attrs,
+                               max(Value) - min(Value) AS delta
+                        FROM points
+                        WHERE series IN (
+                        SELECT series FROM points WHERE 1
+                        GROUP BY series ORDER BY count() DESC LIMIT 8
+                      )
+                        GROUP BY ts, series, resource, attrs
+                      )
+                      GROUP BY ts, series
+                      ORDER BY ts
+      deadlocks:
+        kind: Panel
+        spec:
+          display:
+            name: Deadlocks
+            description: Optional in the receiver, so this stays empty unless postgresql.deadlocks is enabled in its metrics config.
+          plugin:
+            kind: TimeSeriesChart
+            spec:
+              unit: ""
+              showLegend: false
+              stacked: false
+          queries:
+            - kind: ClickHouseSQL
+              spec:
+                plugin:
+                  kind: ClickHouseSQL
+                  spec:
+                    query: |-
+                      SELECT ts, sum(delta) AS value
+                      FROM (
+                        SELECT toStartOfInterval(TimeUnix, INTERVAL {step:UInt32} SECOND) AS ts,
+                               ResourceAttributes AS resource, Attributes AS attrs,
+                               max(Value) - min(Value) AS delta
+                        FROM (SELECT TimeUnix, ResourceAttributes, Attributes, Value FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'postgresql.deadlocks' UNION ALL SELECT TimeUnix, ResourceAttributes, Attributes, Value FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'postgresql.deadlocks')
+                        GROUP BY ts, resource, attrs
+                      )
+                      GROUP BY ts
+                      ORDER BY ts
+    layouts:
+      - kind: Grid
+        spec:
+          items:
+            - x: 0
+              y: 0
+              width: 6
+              height: 5
+              content:
+                $ref: "#/spec/panels/connections"
+            - x: 6
+              y: 0
+              width: 6
+              height: 5
+              content:
+                $ref: "#/spec/panels/max-connections"
+            - x: 12
+              y: 0
+              width: 6
+              height: 5
+              content:
+                $ref: "#/spec/panels/databases"
+            - x: 18
+              y: 0
+              width: 6
+              height: 5
+              content:
+                $ref: "#/spec/panels/cache-hit"
+            - x: 0
+              y: 5
+              width: 12
+              height: 8
+              content:
+                $ref: "#/spec/panels/connections-by-database"
+            - x: 12
+              y: 5
+              width: 12
+              height: 8
+              content:
+                $ref: "#/spec/panels/transactions"
+            - x: 0
+              y: 13
+              width: 12
+              height: 8
+              content:
+                $ref: "#/spec/panels/operations"
+            - x: 12
+              y: 13
+              width: 12
+              height: 8
+              content:
+                $ref: "#/spec/panels/cache-hit-over-time"
+            - x: 0
+              y: 21
+              width: 12
+              height: 8
+              content:
+                $ref: "#/spec/panels/blocks-read"
+            - x: 12
+              y: 21
+              width: 12
+              height: 8
+              content:
+                $ref: "#/spec/panels/db-size"
+            - x: 0
+              y: 29
+              width: 12
+              height: 8
+              content:
+                $ref: "#/spec/panels/bgwriter-buffers"
+            - x: 12
+              y: 29
+              width: 12
+              height: 8
+              content:
+                $ref: "#/spec/panels/checkpoint-duration"
+            - x: 0
+              y: 37
+              width: 24
+              height: 7
+              content:
+                $ref: "#/spec/panels/deadlocks"

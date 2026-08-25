@@ -22,7 +22,12 @@
 
       "packages/telemetry-explorer/**/src/**/*",
 
+      "packages/storybook/**/src/**/*",
+      "packages/storybook/.storybook/**/*",
+
       "packages/otel-web/**/src/**/*",
+
+      "packages/tanstack-start-otel/**/src/**/*",
 
       "packages/otel-errors/**/src/**/*",
 

@@ -14,6 +14,7 @@ export default defineConfig({
   test: {
     reporters: ["verbose"],
     environment: "jsdom",
+    setupFiles: ["./src/test-setup.ts"],
     coverage: {
       provider: "v8",
       include: ["src/**"],

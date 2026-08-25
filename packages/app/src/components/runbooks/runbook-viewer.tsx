@@ -1,9 +1,17 @@
 import { useSuspenseQuery } from "@tanstack/react-query";
-import { useSearch } from "@tanstack/react-router";
+import {
+  useRouteContext,
+  useRouterState,
+  useSearch,
+} from "@tanstack/react-router";
 import { FileQuestion } from "lucide-react";
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import { DashboardProvider } from "@/components/dashboards/use-dashboard";
-import { VariableBar } from "@/components/dashboards/variable-bar";
+import {
+  useHasVisibleVariables,
+  VariableBar,
+} from "@/components/dashboards/variable-bar";
+import { lastViewedRunbook } from "@/data/runbooks/last-viewed";
 import { runbookOptions } from "@/data/runbooks/options";
 import {
   findPage,
@@ -12,7 +20,7 @@ import {
   toDashboardDocument,
 } from "@/data/runbooks/pages";
 import { RunbookMarkdown } from "./runbook-markdown";
-import { RunbookPageNav } from "./runbook-page-nav";
+import { RunbookPagesNav } from "./runbook-pages-nav";
 
 export function RunbookViewer({
   project,
@@ -30,10 +38,14 @@ export function RunbookViewer({
   const {
     data: { document: runbook },
   } = useSuspenseQuery(runbookOptions(project, slug, preview));
-  const page = findPage(runbook.spec, pagePath);
-  const tree = pageNavTree(runbook.spec);
-  const indexTitle = runbook.spec.display?.name ?? slug;
-  // Build the link resolver once per runbook — it captures the page-path set
+  const page = useMemo(
+    () => findPage(runbook.spec, pagePath),
+    [runbook.spec, pagePath],
+  );
+  // Memoized with the rest: a fresh tree would re-render every link in the
+  // pages nav on any render of this component.
+  const tree = useMemo(() => pageNavTree(runbook.spec), [runbook.spec]);
+  // Build the link resolver once per runbook: it captures the page-path set
   // and file map so each rendered link doesn't re-walk the spec tree.
   const resolveLink = useMemo(
     () => makeRunbookLinkResolver(runbook.spec),
@@ -56,39 +68,91 @@ export function RunbookViewer({
 
   return (
     <DashboardProvider document={dashboardDocument}>
-      <div className="flex gap-6">
-        {tree.length > 0 && (
-          <RunbookPageNav
-            project={project}
-            slug={slug}
-            indexTitle={indexTitle}
-            tree={tree}
-            // Keep the requested path even when the page is missing: it matches
-            // no nav node, so nothing is highlighted — rather than falling back
-            // to "" and wrongly highlighting the index while the pane shows
-            // page-not-found.
-            activePath={pagePath}
-          />
-        )}
-        <div className="min-w-0 max-w-4xl flex-1">
-          <VariableBar />
-          {page ? (
-            <RunbookMarkdown
-              markdown={page.markdown}
-              project={project}
-              slug={slug}
-              resolveLink={resolvePageLink}
-            />
-          ) : (
-            <div className="flex flex-col items-center gap-3 py-16 text-muted-foreground">
-              <FileQuestion className="size-10" />
-              <p className="text-sm">
-                This runbook has no page &ldquo;{pagePath}&rdquo;
-              </p>
-            </div>
-          )}
+      <RunbookVariables />
+      <RecordLastViewed
+        project={project}
+        slug={slug}
+        // A page the runbook doesn't have is not somewhere to send anyone back
+        // to, so remember the runbook alone rather than the way in here.
+        pagePath={page ? pagePath : ""}
+      />
+      {tree.length > 0 && (
+        <RunbookPagesNav
+          project={project}
+          slug={slug}
+          indexTitle={runbook.spec.display?.name ?? slug}
+          tree={tree}
+          // Keep the requested path even when the page is missing: it matches
+          // no nav entry, so nothing is marked current, rather than falling
+          // back to "" and wrongly marking the index while the pane shows
+          // page-not-found.
+          activePath={pagePath}
+        />
+      )}
+      {/* The reading measure is the frame's job: the pane centers this column
+          (see the runbooks route layout), so nothing here caps its width. */}
+      {page ? (
+        <RunbookMarkdown
+          markdown={page.markdown}
+          project={project}
+          slug={slug}
+          resolveLink={resolvePageLink}
+        />
+      ) : (
+        <div className="flex flex-col items-center gap-3 py-16 text-muted-foreground">
+          <FileQuestion className="size-10" />
+          <p className="text-sm">
+            This runbook has no page &ldquo;{pagePath}&rdquo;
+          </p>
         </div>
-      </div>
+      )}
     </DashboardProvider>
+  );
+}
+
+/**
+ * Remember what is on screen, so `/runbooks` reopens it. Done from the view
+ * rather than the loader because a loader also runs on preload (hovering a
+ * link is not reading), and because the heading changes as the reader moves
+ * through the page without the loader running at all.
+ *
+ * Its own component, rendering nothing: subscribing to the hash here keeps a
+ * click on a heading from re-rendering the whole runbook to write one line to
+ * localStorage.
+ */
+function RecordLastViewed({
+  project,
+  slug,
+  pagePath,
+}: {
+  project: string;
+  slug: string;
+  pagePath: string;
+}) {
+  const { session } = useRouteContext({ from: "/_authenticated" });
+  const org = session.session.activeOrganizationId;
+  const hash = useRouterState({ select: (s) => s.location.hash });
+  useEffect(() => {
+    lastViewedRunbook.record(org, {
+      project,
+      slug,
+      ...(pagePath ? { page: pagePath } : {}),
+      ...(hash ? { hash } : {}),
+    });
+  }, [org, project, slug, pagePath, hash]);
+  return null;
+}
+
+/**
+ * The runbook's variable pickers, on one control-height baseline like the
+ * dashboard toolbar. Split out so it can read the variables from the provider
+ * above it, and so nothing renders when the runbook declares none.
+ */
+function RunbookVariables() {
+  if (!useHasVisibleVariables()) return null;
+  return (
+    <div className="mb-4 flex min-w-0 items-center">
+      <VariableBar layout="inline" />
+    </div>
   );
 }

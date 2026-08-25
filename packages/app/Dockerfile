@@ -8,6 +8,7 @@ COPY pnpm-lock.yaml pnpm-workspace.yaml package.json ./
 COPY packages/app/package.json ./packages/app/
 COPY packages/otel-errors/package.json ./packages/otel-errors/
 COPY packages/otel-web/package.json ./packages/otel-web/
+COPY packages/tanstack-start-otel/package.json ./packages/tanstack-start-otel/
 COPY packages/datemath/package.json ./packages/datemath/
 COPY packages/ui/package.json ./packages/ui/
 COPY packages/telemetry-explorer/package.json ./packages/telemetry-explorer/
@@ -22,6 +23,7 @@ ARG VITE_EVERR_PUBLIC_INGEST_KEY
 ENV VITE_EVERR_PUBLIC_INGEST_KEY=$VITE_EVERR_PUBLIC_INGEST_KEY
 COPY packages/otel-errors ./packages/otel-errors
 COPY packages/otel-web ./packages/otel-web
+COPY packages/tanstack-start-otel ./packages/tanstack-start-otel
 COPY packages/datemath ./packages/datemath
 COPY packages/ui ./packages/ui
 COPY packages/telemetry-explorer ./packages/telemetry-explorer

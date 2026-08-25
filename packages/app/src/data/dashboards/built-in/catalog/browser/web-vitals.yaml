@@ -1,0 +1,609 @@
+id: web-vitals
+name: Web Vitals
+description: The Core Web Vitals at P75 against their published good/poor bands, how each one moves at the median, P75 and P90, what the slow ones were waiting on, and the routes and elements responsible. Scoped by service and route.
+category: Browser
+requires:
+  - signal: logs
+    label: no logs
+  - signal: logs
+    match: browser.web_vital.value
+    label: no browser.web_vital.value
+document:
+  kind: Dashboard
+  metadata:
+    name: web-vitals
+  spec:
+    display:
+      name: Web Vitals
+    duration: 24h
+    variables:
+      - kind: ListVariable
+        spec:
+          name: service
+          display:
+            name: Service
+          allowMultiple: true
+          allowAllValue: true
+          defaultValue: __all
+          sort: alphabetical-asc
+          plugin:
+            kind: ClickHouseSQLVariable
+            spec:
+              query: SELECT DISTINCT ServiceName FROM logs WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} ORDER BY ServiceName
+      - kind: ListVariable
+        spec:
+          name: route
+          display:
+            name: Route
+          allowMultiple: true
+          allowAllValue: true
+          defaultValue: __all
+          sort: alphabetical-asc
+          plugin:
+            kind: ClickHouseSQLVariable
+            spec:
+              query: |-
+                SELECT DISTINCT coalesce(nullIf(LogAttributes['everr.route.pattern'], ''), LogAttributes['url.path']) AS route FROM logs
+                WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ResourceAttributes['telemetry.distro.name'] = '@everr/otel-web' AND coalesce(nullIf(LogAttributes['everr.route.pattern'], ''), LogAttributes['url.path']) != '' ORDER BY route
+    refreshInterval: 5m
+    panels:
+      lcp:
+        kind: Panel
+        spec:
+          display:
+            name: LCP P75
+          plugin:
+            kind: GaugeChart
+            spec:
+              unit: ms
+              decimals: 0
+              min: 0
+              max: 5300
+              thresholds:
+                mode: absolute
+                defaultColor: "#22c55e"
+                defaultName: Good
+                steps:
+                  - value: 2500
+                    color: "#f59e0b"
+                    name: Needs improvement
+                  - value: 4000
+                    color: "#ef4444"
+                    name: Poor
+              variant: horizontal
+              showAxis: false
+              showThresholdLabels: true
+          queries:
+            - kind: ClickHouseSQL
+              spec:
+                plugin:
+                  kind: ClickHouseSQL
+                  spec:
+                    query: |-
+                      SELECT round(quantile(0.75)(toFloat64OrZero(LogAttributes['browser.web_vital.value'])), 0) AS p75
+                      FROM logs
+                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND coalesce(nullIf(LogAttributes['everr.route.pattern'], ''), LogAttributes['url.path']) IN $route AND (LogAttributes['browser.web_vital.name'] = 'cls' OR toFloat64OrZero(LogAttributes['browser.web_vital.value']) <= 60000) AND EventName = 'browser.web_vital'
+                        AND LogAttributes['browser.web_vital.name'] = 'lcp'
+      inp:
+        kind: Panel
+        spec:
+          display:
+            name: INP P75
+          plugin:
+            kind: GaugeChart
+            spec:
+              unit: ms
+              decimals: 0
+              min: 0
+              max: 700
+              thresholds:
+                mode: absolute
+                defaultColor: "#22c55e"
+                defaultName: Good
+                steps:
+                  - value: 200
+                    color: "#f59e0b"
+                    name: Needs improvement
+                  - value: 500
+                    color: "#ef4444"
+                    name: Poor
+              variant: horizontal
+              showAxis: false
+              showThresholdLabels: true
+          queries:
+            - kind: ClickHouseSQL
+              spec:
+                plugin:
+                  kind: ClickHouseSQL
+                  spec:
+                    query: |-
+                      SELECT round(quantile(0.75)(toFloat64OrZero(LogAttributes['browser.web_vital.value'])), 0) AS p75
+                      FROM logs
+                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND coalesce(nullIf(LogAttributes['everr.route.pattern'], ''), LogAttributes['url.path']) IN $route AND (LogAttributes['browser.web_vital.name'] = 'cls' OR toFloat64OrZero(LogAttributes['browser.web_vital.value']) <= 60000) AND EventName = 'browser.web_vital'
+                        AND LogAttributes['browser.web_vital.name'] = 'inp'
+      cls:
+        kind: Panel
+        spec:
+          display:
+            name: CLS P75
+          plugin:
+            kind: GaugeChart
+            spec:
+              decimals: 3
+              min: 0
+              max: 0.35
+              thresholds:
+                mode: absolute
+                defaultColor: "#22c55e"
+                defaultName: Good
+                steps:
+                  - value: 0.1
+                    color: "#f59e0b"
+                    name: Needs improvement
+                  - value: 0.25
+                    color: "#ef4444"
+                    name: Poor
+              variant: horizontal
+              showAxis: false
+              showThresholdLabels: true
+          queries:
+            - kind: ClickHouseSQL
+              spec:
+                plugin:
+                  kind: ClickHouseSQL
+                  spec:
+                    query: |-
+                      SELECT round(quantile(0.75)(toFloat64OrZero(LogAttributes['browser.web_vital.value'])), 3) AS p75
+                      FROM logs
+                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND coalesce(nullIf(LogAttributes['everr.route.pattern'], ''), LogAttributes['url.path']) IN $route AND (LogAttributes['browser.web_vital.name'] = 'cls' OR toFloat64OrZero(LogAttributes['browser.web_vital.value']) <= 60000) AND EventName = 'browser.web_vital'
+                        AND LogAttributes['browser.web_vital.name'] = 'cls'
+      ttfb:
+        kind: Panel
+        spec:
+          display:
+            name: TTFB P75
+          plugin:
+            kind: GaugeChart
+            spec:
+              unit: ms
+              decimals: 0
+              min: 0
+              max: 2400
+              thresholds:
+                mode: absolute
+                defaultColor: "#22c55e"
+                defaultName: Good
+                steps:
+                  - value: 800
+                    color: "#f59e0b"
+                    name: Needs improvement
+                  - value: 1800
+                    color: "#ef4444"
+                    name: Poor
+              variant: horizontal
+              showAxis: false
+              showThresholdLabels: true
+          queries:
+            - kind: ClickHouseSQL
+              spec:
+                plugin:
+                  kind: ClickHouseSQL
+                  spec:
+                    query: |-
+                      SELECT round(quantile(0.75)(toFloat64OrZero(LogAttributes['browser.web_vital.value'])), 0) AS p75
+                      FROM logs
+                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND coalesce(nullIf(LogAttributes['everr.route.pattern'], ''), LogAttributes['url.path']) IN $route AND (LogAttributes['browser.web_vital.name'] = 'cls' OR toFloat64OrZero(LogAttributes['browser.web_vital.value']) <= 60000) AND EventName = 'browser.web_vital'
+                        AND LogAttributes['browser.web_vital.name'] = 'ttfb'
+      lcp-rating:
+        kind: Panel
+        spec:
+          display:
+            name: LCP by rating
+          plugin:
+            kind: BarChart
+            spec:
+              showLegend: true
+              stacking: percent
+              colors: &a1
+                good: "#0cce6b"
+                needs-improvement: "#ffa400"
+                poor: "#ff4e42"
+          queries:
+            - kind: ClickHouseSQL
+              spec:
+                plugin:
+                  kind: ClickHouseSQL
+                  spec:
+                    query: |-
+                      SELECT toStartOfInterval(Timestamp, INTERVAL {step:UInt32} * 6 SECOND) AS ts, LogAttributes['everr.browser.web_vital.rating'] AS rating, count() AS samples
+                      FROM logs
+                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND coalesce(nullIf(LogAttributes['everr.route.pattern'], ''), LogAttributes['url.path']) IN $route AND EventName = 'browser.web_vital'
+                        AND LogAttributes['browser.web_vital.name'] = 'lcp'
+                      GROUP BY ts, rating
+                      ORDER BY ts, indexOf(['good', 'needs-improvement', 'poor'], rating)
+      inp-rating:
+        kind: Panel
+        spec:
+          display:
+            name: INP by rating
+          plugin:
+            kind: BarChart
+            spec:
+              showLegend: true
+              stacking: percent
+              colors: *a1
+          queries:
+            - kind: ClickHouseSQL
+              spec:
+                plugin:
+                  kind: ClickHouseSQL
+                  spec:
+                    query: |-
+                      SELECT toStartOfInterval(Timestamp, INTERVAL {step:UInt32} * 6 SECOND) AS ts, LogAttributes['everr.browser.web_vital.rating'] AS rating, count() AS samples
+                      FROM logs
+                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND coalesce(nullIf(LogAttributes['everr.route.pattern'], ''), LogAttributes['url.path']) IN $route AND EventName = 'browser.web_vital'
+                        AND LogAttributes['browser.web_vital.name'] = 'inp'
+                      GROUP BY ts, rating
+                      ORDER BY ts, indexOf(['good', 'needs-improvement', 'poor'], rating)
+      cls-rating:
+        kind: Panel
+        spec:
+          display:
+            name: CLS by rating
+          plugin:
+            kind: BarChart
+            spec:
+              showLegend: true
+              stacking: percent
+              colors: *a1
+          queries:
+            - kind: ClickHouseSQL
+              spec:
+                plugin:
+                  kind: ClickHouseSQL
+                  spec:
+                    query: |-
+                      SELECT toStartOfInterval(Timestamp, INTERVAL {step:UInt32} * 6 SECOND) AS ts, LogAttributes['everr.browser.web_vital.rating'] AS rating, count() AS samples
+                      FROM logs
+                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND coalesce(nullIf(LogAttributes['everr.route.pattern'], ''), LogAttributes['url.path']) IN $route AND EventName = 'browser.web_vital'
+                        AND LogAttributes['browser.web_vital.name'] = 'cls'
+                      GROUP BY ts, rating
+                      ORDER BY ts, indexOf(['good', 'needs-improvement', 'poor'], rating)
+      lcp-over-time:
+        kind: Panel
+        spec:
+          display:
+            name: LCP over time
+          plugin:
+            kind: TimeSeriesChart
+            spec:
+              showLegend: true
+              unit: ms
+          queries:
+            - kind: ClickHouseSQL
+              spec:
+                plugin:
+                  kind: ClickHouseSQL
+                  spec:
+                    query: |-
+                      SELECT ts, q.2 AS series, q.3 AS value
+                      FROM (
+                        SELECT toStartOfInterval(Timestamp, INTERVAL {step:UInt32} * 6 SECOND) AS ts,
+                               round(quantile(0.5)(toFloat64OrZero(LogAttributes['browser.web_vital.value'])), 0) AS p50,
+                               round(quantile(0.75)(toFloat64OrZero(LogAttributes['browser.web_vital.value'])), 0) AS p75,
+                               round(quantile(0.9)(toFloat64OrZero(LogAttributes['browser.web_vital.value'])), 0) AS p90
+                        FROM logs
+                        WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND coalesce(nullIf(LogAttributes['everr.route.pattern'], ''), LogAttributes['url.path']) IN $route AND (LogAttributes['browser.web_vital.name'] = 'cls' OR toFloat64OrZero(LogAttributes['browser.web_vital.value']) <= 60000) AND EventName = 'browser.web_vital'
+                          AND LogAttributes['browser.web_vital.name'] = 'lcp'
+                        GROUP BY ts
+                      )
+                      ARRAY JOIN [(0, 'Median', p50), (1, 'P75', p75), (2, 'P90', p90)] AS q
+                      ORDER BY ts, q.1
+      inp-over-time:
+        kind: Panel
+        spec:
+          display:
+            name: INP over time
+          plugin:
+            kind: TimeSeriesChart
+            spec:
+              showLegend: true
+              unit: ms
+          queries:
+            - kind: ClickHouseSQL
+              spec:
+                plugin:
+                  kind: ClickHouseSQL
+                  spec:
+                    query: |-
+                      SELECT ts, q.2 AS series, q.3 AS value
+                      FROM (
+                        SELECT toStartOfInterval(Timestamp, INTERVAL {step:UInt32} * 6 SECOND) AS ts,
+                               round(quantile(0.5)(toFloat64OrZero(LogAttributes['browser.web_vital.value'])), 0) AS p50,
+                               round(quantile(0.75)(toFloat64OrZero(LogAttributes['browser.web_vital.value'])), 0) AS p75,
+                               round(quantile(0.9)(toFloat64OrZero(LogAttributes['browser.web_vital.value'])), 0) AS p90
+                        FROM logs
+                        WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND coalesce(nullIf(LogAttributes['everr.route.pattern'], ''), LogAttributes['url.path']) IN $route AND (LogAttributes['browser.web_vital.name'] = 'cls' OR toFloat64OrZero(LogAttributes['browser.web_vital.value']) <= 60000) AND EventName = 'browser.web_vital'
+                          AND LogAttributes['browser.web_vital.name'] = 'inp'
+                        GROUP BY ts
+                      )
+                      ARRAY JOIN [(0, 'Median', p50), (1, 'P75', p75), (2, 'P90', p90)] AS q
+                      ORDER BY ts, q.1
+      cls-over-time:
+        kind: Panel
+        spec:
+          display:
+            name: CLS over time
+          plugin:
+            kind: TimeSeriesChart
+            spec:
+              showLegend: true
+          queries:
+            - kind: ClickHouseSQL
+              spec:
+                plugin:
+                  kind: ClickHouseSQL
+                  spec:
+                    query: |-
+                      SELECT ts, q.2 AS series, q.3 AS value
+                      FROM (
+                        SELECT toStartOfInterval(Timestamp, INTERVAL {step:UInt32} * 6 SECOND) AS ts,
+                               round(quantile(0.5)(toFloat64OrZero(LogAttributes['browser.web_vital.value'])), 3) AS p50,
+                               round(quantile(0.75)(toFloat64OrZero(LogAttributes['browser.web_vital.value'])), 3) AS p75,
+                               round(quantile(0.9)(toFloat64OrZero(LogAttributes['browser.web_vital.value'])), 3) AS p90
+                        FROM logs
+                        WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND coalesce(nullIf(LogAttributes['everr.route.pattern'], ''), LogAttributes['url.path']) IN $route AND (LogAttributes['browser.web_vital.name'] = 'cls' OR toFloat64OrZero(LogAttributes['browser.web_vital.value']) <= 60000) AND EventName = 'browser.web_vital'
+                          AND LogAttributes['browser.web_vital.name'] = 'cls'
+                        GROUP BY ts
+                      )
+                      ARRAY JOIN [(0, 'Median', p50), (1, 'P75', p75), (2, 'P90', p90)] AS q
+                      ORDER BY ts, q.1
+      lcp-phases:
+        kind: Panel
+        spec:
+          display:
+            name: What LCP was waiting on
+            description: "Each phase is its own P75, so the stack runs taller than LCP P75: read which phase dominates, not the total. A text element loads no resource, so its two middle phases are zero."
+          plugin:
+            kind: TimeSeriesChart
+            spec:
+              showLegend: true
+              stacked: true
+              unit: ms
+          queries:
+            - kind: ClickHouseSQL
+              spec:
+                plugin:
+                  kind: ClickHouseSQL
+                  spec:
+                    query: |-
+                      SELECT ts, phase.2 AS series, phase.3 AS value
+                      FROM (
+                        SELECT toStartOfInterval(Timestamp, INTERVAL {step:UInt32} * 6 SECOND) AS ts,
+                             round(quantile(0.75)(toFloat64OrZero(LogAttributes['everr.browser.web_vital.lcp.time_to_first_byte']))) AS phase_0,
+                             round(quantile(0.75)(toFloat64OrZero(LogAttributes['everr.browser.web_vital.lcp.resource_load_delay']))) AS phase_1,
+                             round(quantile(0.75)(toFloat64OrZero(LogAttributes['everr.browser.web_vital.lcp.resource_load_duration']))) AS phase_2,
+                             round(quantile(0.75)(toFloat64OrZero(LogAttributes['everr.browser.web_vital.lcp.element_render_delay']))) AS phase_3
+                        FROM logs
+                        WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND coalesce(nullIf(LogAttributes['everr.route.pattern'], ''), LogAttributes['url.path']) IN $route AND (LogAttributes['browser.web_vital.name'] = 'cls' OR toFloat64OrZero(LogAttributes['browser.web_vital.value']) <= 60000) AND EventName = 'browser.web_vital'
+                          AND LogAttributes['browser.web_vital.name'] = 'lcp'
+                        GROUP BY ts
+                      )
+                      ARRAY JOIN [(0, 'Time to first byte', phase_0), (1, 'Resource load delay', phase_1), (2, 'Resource load duration', phase_2), (3, 'Element render delay', phase_3)] AS phase
+                      ORDER BY ts, phase.1
+      ttfb-phases:
+        kind: Panel
+        spec:
+          display:
+            name: What TTFB was waiting on
+            description: Each phase is its own P75, so read which phase dominates rather than the total. Waiting covers redirects and service-worker startup, before the network is touched.
+          plugin:
+            kind: TimeSeriesChart
+            spec:
+              showLegend: true
+              stacked: true
+              unit: ms
+          queries:
+            - kind: ClickHouseSQL
+              spec:
+                plugin:
+                  kind: ClickHouseSQL
+                  spec:
+                    query: |-
+                      SELECT ts, phase.2 AS series, phase.3 AS value
+                      FROM (
+                        SELECT toStartOfInterval(Timestamp, INTERVAL {step:UInt32} * 6 SECOND) AS ts,
+                             round(quantile(0.75)(toFloat64OrZero(LogAttributes['everr.browser.web_vital.ttfb.waiting_duration']))) AS phase_0,
+                             round(quantile(0.75)(toFloat64OrZero(LogAttributes['everr.browser.web_vital.ttfb.cache_duration']))) AS phase_1,
+                             round(quantile(0.75)(toFloat64OrZero(LogAttributes['everr.browser.web_vital.ttfb.dns_duration']))) AS phase_2,
+                             round(quantile(0.75)(toFloat64OrZero(LogAttributes['everr.browser.web_vital.ttfb.connection_duration']))) AS phase_3,
+                             round(quantile(0.75)(toFloat64OrZero(LogAttributes['everr.browser.web_vital.ttfb.request_duration']))) AS phase_4
+                        FROM logs
+                        WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND coalesce(nullIf(LogAttributes['everr.route.pattern'], ''), LogAttributes['url.path']) IN $route AND (LogAttributes['browser.web_vital.name'] = 'cls' OR toFloat64OrZero(LogAttributes['browser.web_vital.value']) <= 60000) AND EventName = 'browser.web_vital'
+                          AND LogAttributes['browser.web_vital.name'] = 'ttfb'
+                        GROUP BY ts
+                      )
+                      ARRAY JOIN [(0, 'Waiting', phase_0), (1, 'Cache', phase_1), (2, 'DNS', phase_2), (3, 'Connection', phase_3), (4, 'Request', phase_4)] AS phase
+                      ORDER BY ts, phase.1
+      slow-interactions:
+        kind: Panel
+        spec:
+          display:
+            name: Slowest interactions
+            description: "Input delay is the wait before the handler even runs: a busy main thread, not slow handler code. Records from an SDK older than the one that stamps the event name fall back to the interaction type."
+          plugin:
+            kind: Table
+            spec:
+              stickyHeader: true
+          queries:
+            - kind: ClickHouseSQL
+              spec:
+                plugin:
+                  kind: ClickHouseSQL
+                  spec:
+                    query: |-
+                      SELECT LogAttributes['everr.element.selector'] AS element,
+                             coalesce(
+                               nullIf(LogAttributes['everr.browser.interaction.name'], ''),
+                               LogAttributes['everr.browser.interaction.type']
+                             ) AS event,
+                             round(quantile(0.75)(toFloat64OrZero(LogAttributes['everr.browser.interaction.input_delay']))) AS input_delay_p75_ms,
+                             count() AS samples,
+                             coalesce(nullIf(LogAttributes['everr.route.pattern'], ''), LogAttributes['url.path']) AS route
+                      FROM logs
+                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND coalesce(nullIf(LogAttributes['everr.route.pattern'], ''), LogAttributes['url.path']) IN $route AND (LogAttributes['browser.web_vital.name'] = 'cls' OR toFloat64OrZero(LogAttributes['browser.web_vital.value']) <= 60000) AND EventName = 'browser.web_vital'
+                        AND LogAttributes['browser.web_vital.name'] = 'inp'
+                        AND LogAttributes['everr.element.selector'] != ''
+                      GROUP BY element, event, route
+                      ORDER BY input_delay_p75_ms DESC
+                      LIMIT 25
+      lcp-elements:
+        kind: Panel
+        spec:
+          display:
+            name: Slowest LCP elements
+            description: The element that actually painted last, as a CSS path.
+          plugin:
+            kind: Table
+            spec:
+              stickyHeader: true
+          queries:
+            - kind: ClickHouseSQL
+              spec:
+                plugin:
+                  kind: ClickHouseSQL
+                  spec:
+                    query: |-
+                      SELECT LogAttributes['everr.browser.web_vital.lcp.target'] AS element,
+                             round(quantile(0.75)(toFloat64OrZero(LogAttributes['browser.web_vital.value']))) AS lcp_p75_ms,
+                             count() AS samples
+                      FROM logs
+                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND coalesce(nullIf(LogAttributes['everr.route.pattern'], ''), LogAttributes['url.path']) IN $route AND (LogAttributes['browser.web_vital.name'] = 'cls' OR toFloat64OrZero(LogAttributes['browser.web_vital.value']) <= 60000) AND EventName = 'browser.web_vital'
+                        AND LogAttributes['browser.web_vital.name'] = 'lcp'
+                        AND LogAttributes['everr.browser.web_vital.lcp.target'] != ''
+                      GROUP BY element
+                      HAVING samples >= 5
+                      ORDER BY lcp_p75_ms DESC
+                      LIMIT 25
+      cls-elements:
+        kind: Panel
+        spec:
+          display:
+            name: Biggest layout shifts
+            description: The single largest shift of each sample, and how far the page had loaded when it moved.
+          plugin:
+            kind: Table
+            spec:
+              stickyHeader: true
+          queries:
+            - kind: ClickHouseSQL
+              spec:
+                plugin:
+                  kind: ClickHouseSQL
+                  spec:
+                    query: |-
+                      SELECT LogAttributes['everr.browser.web_vital.cls.largest_shift_target'] AS element,
+                             round(quantile(0.75)(toFloat64OrZero(LogAttributes['everr.browser.web_vital.cls.largest_shift_value'])), 3) AS shift_p75,
+                             LogAttributes['everr.browser.web_vital.cls.load_state'] AS load_state,
+                             count() AS samples
+                      FROM logs
+                      WHERE Timestamp >= {from:String} AND Timestamp <= {to:String} AND ServiceName IN $service AND coalesce(nullIf(LogAttributes['everr.route.pattern'], ''), LogAttributes['url.path']) IN $route AND EventName = 'browser.web_vital'
+                        AND LogAttributes['browser.web_vital.name'] = 'cls'
+                        AND LogAttributes['everr.browser.web_vital.cls.largest_shift_target'] != ''
+                      GROUP BY element, load_state
+                      ORDER BY shift_p75 DESC
+                      LIMIT 25
+    layouts:
+      - kind: Grid
+        spec:
+          items:
+            - x: 0
+              y: 0
+              width: 6
+              height: 4
+              content:
+                $ref: "#/spec/panels/lcp"
+            - x: 6
+              y: 0
+              width: 6
+              height: 4
+              content:
+                $ref: "#/spec/panels/inp"
+            - x: 12
+              y: 0
+              width: 6
+              height: 4
+              content:
+                $ref: "#/spec/panels/cls"
+            - x: 18
+              y: 0
+              width: 6
+              height: 4
+              content:
+                $ref: "#/spec/panels/ttfb"
+            - x: 0
+              y: 4
+              width: 8
+              height: 9
+              content:
+                $ref: "#/spec/panels/lcp-rating"
+            - x: 8
+              y: 4
+              width: 8
+              height: 9
+              content:
+                $ref: "#/spec/panels/inp-rating"
+            - x: 16
+              y: 4
+              width: 8
+              height: 9
+              content:
+                $ref: "#/spec/panels/cls-rating"
+            - x: 0
+              y: 13
+              width: 8
+              height: 9
+              content:
+                $ref: "#/spec/panels/lcp-over-time"
+            - x: 8
+              y: 13
+              width: 8
+              height: 9
+              content:
+                $ref: "#/spec/panels/inp-over-time"
+            - x: 16
+              y: 13
+              width: 8
+              height: 9
+              content:
+                $ref: "#/spec/panels/cls-over-time"
+            - x: 0
+              y: 22
+              width: 12
+              height: 9
+              content:
+                $ref: "#/spec/panels/lcp-phases"
+            - x: 12
+              y: 22
+              width: 12
+              height: 9
+              content:
+                $ref: "#/spec/panels/ttfb-phases"
+            - x: 0
+              y: 31
+              width: 12
+              height: 9
+              content:
+                $ref: "#/spec/panels/lcp-elements"
+            - x: 12
+              y: 31
+              width: 12
+              height: 9
+              content:
+                $ref: "#/spec/panels/cls-elements"
+            - x: 0
+              y: 40
+              width: 24
+              height: 9
+              content:
+                $ref: "#/spec/panels/slow-interactions"

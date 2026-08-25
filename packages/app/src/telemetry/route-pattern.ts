@@ -1,5 +1,5 @@
 import { setRouteResolver } from "@everr/otel-web";
-import { type RouterLike, routeTemplate } from "@/telemetry/route-template";
+import { type RouterLike, routeTemplate } from "@everr/tanstack-start-otel";
 
 // The connection from the TanStack router to the setRouteResolver function of
 // the SDK. This app owns this module. The telemetry setup operates before the

@@ -1,0 +1,508 @@
+id: redis-overview
+name: Redis Overview
+description: Command rate and keyspace hit rate, memory against its limit, client and connection activity, key expiry and eviction, from the OpenTelemetry redis receiver.
+category: Databases
+requires:
+  - signal: metrics
+    label: no metrics
+  - signal: metrics
+    match: redis.
+    label: no redis*
+document:
+  kind: Dashboard
+  metadata:
+    name: redis-overview
+  spec:
+    display:
+      name: Redis Overview
+    duration: 6h
+    refreshInterval: 1m
+    panels:
+      uptime:
+        kind: Panel
+        spec:
+          display:
+            name: Uptime
+            description: A reset here explains a discontinuity in every counter below.
+          plugin:
+            kind: StatChart
+            spec:
+              calculation: last
+              unit: d
+              decimals: 1
+          queries:
+            - kind: ClickHouseSQL
+              spec:
+                plugin:
+                  kind: ClickHouseSQL
+                  spec:
+                    query: |-
+                      SELECT nullIf(max(Value), 0) / 86400 AS days
+                      FROM (SELECT Value FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'redis.uptime' UNION ALL SELECT Value FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'redis.uptime')
+      memory-used:
+        kind: Panel
+        spec:
+          display:
+            name: Memory used
+          plugin:
+            kind: StatChart
+            spec:
+              calculation: last
+              unit: MB
+              decimals: 1
+              sparkline: true
+          queries:
+            - kind: ClickHouseSQL
+              spec:
+                plugin:
+                  kind: ClickHouseSQL
+                  spec:
+                    query: |-
+                      SELECT toStartOfInterval(TimeUnix, INTERVAL {step:UInt32} SECOND) AS ts, avg(Value) / 1048576 AS mb
+                      FROM (SELECT TimeUnix, Value FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'redis.memory.used' UNION ALL SELECT TimeUnix, Value FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'redis.memory.used')
+                      GROUP BY ts
+                      ORDER BY ts
+      max-memory:
+        kind: Panel
+        spec:
+          display:
+            name: Max memory
+            description: Needs redis.maxmemory, which the receiver leaves off.
+          plugin:
+            kind: StatChart
+            spec:
+              calculation: last
+              unit: MB
+              decimals: 0
+          queries:
+            - kind: ClickHouseSQL
+              spec:
+                plugin:
+                  kind: ClickHouseSQL
+                  spec:
+                    query: |-
+                      SELECT nullIf(max(Value), 0) / 1048576 AS mb
+                      FROM (SELECT Value FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'redis.maxmemory' UNION ALL SELECT Value FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'redis.maxmemory')
+      clients:
+        kind: Panel
+        spec:
+          display:
+            name: Connected clients
+          plugin:
+            kind: StatChart
+            spec:
+              calculation: last
+              decimals: 0
+              sparkline: true
+          queries:
+            - kind: ClickHouseSQL
+              spec:
+                plugin:
+                  kind: ClickHouseSQL
+                  spec:
+                    query: |-
+                      SELECT toStartOfInterval(TimeUnix, INTERVAL {step:UInt32} SECOND) AS ts, avg(Value) AS clients
+                      FROM (SELECT TimeUnix, Value FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'redis.clients.connected' UNION ALL SELECT TimeUnix, Value FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'redis.clients.connected')
+                      GROUP BY ts
+                      ORDER BY ts
+      hit-rate:
+        kind: Panel
+        spec:
+          display:
+            name: Keyspace hit rate
+            description: Key lookups that found the key, over the window.
+          plugin:
+            kind: StatChart
+            spec:
+              calculation: last
+              unit: "%"
+              decimals: 1
+          queries:
+            - kind: ClickHouseSQL
+              spec:
+                plugin:
+                  kind: ClickHouseSQL
+                  spec:
+                    query: |-
+                      SELECT sum(hits) / nullIf(sum(hits) + sum(misses), 0) * 100 AS pct
+                      FROM (
+                        SELECT MetricName, ResourceAttributes AS resource, Attributes AS attrs,
+                               max(Value) - min(Value) AS delta,
+                               if(MetricName = 'redis.keyspace.hits', delta, 0) AS hits,
+                               if(MetricName = 'redis.keyspace.misses', delta, 0) AS misses
+                        FROM (SELECT MetricName, ResourceAttributes, Attributes, Value FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName IN ('redis.keyspace.hits', 'redis.keyspace.misses') UNION ALL SELECT MetricName, ResourceAttributes, Attributes, Value FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName IN ('redis.keyspace.hits', 'redis.keyspace.misses'))
+                        GROUP BY MetricName, resource, attrs
+                      )
+      command-rate:
+        kind: Panel
+        spec:
+          display:
+            name: Command rate
+            description: Operations per second, as the server itself reports it. Not derived from the commands counter.
+          plugin:
+            kind: TimeSeriesChart
+            spec:
+              unit: ""
+              showLegend: false
+          queries:
+            - kind: ClickHouseSQL
+              spec:
+                plugin:
+                  kind: ClickHouseSQL
+                  spec:
+                    query: |-
+                      SELECT toStartOfInterval(TimeUnix, INTERVAL {step:UInt32} SECOND) AS ts,
+                             avg(Value) AS value
+                      FROM (SELECT TimeUnix, Value FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'redis.commands' UNION ALL SELECT TimeUnix, Value FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'redis.commands')
+                      GROUP BY ts
+                      ORDER BY ts
+      keyspace:
+        kind: Panel
+        spec:
+          display:
+            name: Keyspace hits and misses
+            description: Lookups that found a key against those that did not. A miss line tracking hits is a cache that is not holding the working set.
+          plugin:
+            kind: TimeSeriesChart
+            spec:
+              unit: ""
+              showLegend: true
+              stacked: false
+          queries:
+            - kind: ClickHouseSQL
+              spec:
+                plugin:
+                  kind: ClickHouseSQL
+                  spec:
+                    query: |-
+                      SELECT ts, series, sum(delta) AS value
+                      FROM (
+                        SELECT toStartOfInterval(TimeUnix, INTERVAL {step:UInt32} * 6 SECOND) AS ts,
+                               transform(MetricName, ['redis.keyspace.hits', 'redis.keyspace.misses'], ['hits', 'misses'], 'other') AS series,
+                               ResourceAttributes AS resource, Attributes AS attrs,
+                               max(Value) - min(Value) AS delta
+                        FROM (SELECT TimeUnix, MetricName, ResourceAttributes, Attributes, Value FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName IN ('redis.keyspace.hits', 'redis.keyspace.misses') UNION ALL SELECT TimeUnix, MetricName, ResourceAttributes, Attributes, Value FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName IN ('redis.keyspace.hits', 'redis.keyspace.misses'))
+                        GROUP BY ts, series, resource, attrs
+                      )
+                      GROUP BY ts, series
+                      ORDER BY ts
+      memory:
+        kind: Panel
+        spec:
+          display:
+            name: Memory
+            description: Allocated, resident as the OS sees it, and the peak so far. Read used against the Max memory tile.
+          plugin:
+            kind: TimeSeriesChart
+            spec:
+              unit: MB
+              showLegend: true
+          queries:
+            - kind: ClickHouseSQL
+              spec:
+                plugin:
+                  kind: ClickHouseSQL
+                  spec:
+                    query: |-
+                      SELECT toStartOfInterval(TimeUnix, INTERVAL {step:UInt32} * 6 SECOND) AS ts,
+                             transform(MetricName, ['redis.memory.used', 'redis.memory.rss', 'redis.memory.peak'], ['used', 'rss', 'peak'], 'other') AS series,
+                             avg(Value) / 1048576 AS value
+                      FROM (SELECT TimeUnix, MetricName, Value FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName IN ('redis.memory.used', 'redis.memory.rss', 'redis.memory.peak') UNION ALL SELECT TimeUnix, MetricName, Value FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName IN ('redis.memory.used', 'redis.memory.rss', 'redis.memory.peak'))
+                      GROUP BY ts, series
+                      ORDER BY ts
+      network-io:
+        kind: Panel
+        spec:
+          display:
+            name: Network I/O
+          plugin:
+            kind: TimeSeriesChart
+            spec:
+              unit: MB
+              showLegend: true
+              stacked: false
+          queries:
+            - kind: ClickHouseSQL
+              spec:
+                plugin:
+                  kind: ClickHouseSQL
+                  spec:
+                    query: |-
+                      SELECT ts, series, sum(delta) / 1048576 AS value
+                      FROM (
+                        SELECT toStartOfInterval(TimeUnix, INTERVAL {step:UInt32} * 6 SECOND) AS ts,
+                               transform(MetricName, ['redis.net.input', 'redis.net.output'], ['received', 'sent'], 'other') AS series,
+                               ResourceAttributes AS resource, Attributes AS attrs,
+                               max(Value) - min(Value) AS delta
+                        FROM (SELECT TimeUnix, MetricName, ResourceAttributes, Attributes, Value FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName IN ('redis.net.input', 'redis.net.output') UNION ALL SELECT TimeUnix, MetricName, ResourceAttributes, Attributes, Value FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName IN ('redis.net.input', 'redis.net.output'))
+                        GROUP BY ts, series, resource, attrs
+                      )
+                      GROUP BY ts, series
+                      ORDER BY ts
+      client-activity:
+        kind: Panel
+        spec:
+          display:
+            name: Client activity
+          plugin:
+            kind: TimeSeriesChart
+            spec:
+              unit: ""
+              showLegend: true
+          queries:
+            - kind: ClickHouseSQL
+              spec:
+                plugin:
+                  kind: ClickHouseSQL
+                  spec:
+                    query: |-
+                      SELECT toStartOfInterval(TimeUnix, INTERVAL {step:UInt32} * 6 SECOND) AS ts,
+                             transform(MetricName, ['redis.clients.connected', 'redis.clients.blocked'], ['connected', 'blocked'], 'other') AS series,
+                             avg(Value) AS value
+                      FROM (SELECT TimeUnix, MetricName, Value FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName IN ('redis.clients.connected', 'redis.clients.blocked') UNION ALL SELECT TimeUnix, MetricName, Value FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName IN ('redis.clients.connected', 'redis.clients.blocked'))
+                      GROUP BY ts, series
+                      ORDER BY ts
+      connections:
+        kind: Panel
+        spec:
+          display:
+            name: Connections
+            description: Any rejected connection is the maxclients limit, not the network.
+          plugin:
+            kind: TimeSeriesChart
+            spec:
+              unit: ""
+              showLegend: true
+              stacked: false
+          queries:
+            - kind: ClickHouseSQL
+              spec:
+                plugin:
+                  kind: ClickHouseSQL
+                  spec:
+                    query: |-
+                      SELECT ts, series, sum(delta) AS value
+                      FROM (
+                        SELECT toStartOfInterval(TimeUnix, INTERVAL {step:UInt32} * 6 SECOND) AS ts,
+                               transform(MetricName, ['redis.connections.received', 'redis.connections.rejected'], ['accepted', 'rejected'], 'other') AS series,
+                               ResourceAttributes AS resource, Attributes AS attrs,
+                               max(Value) - min(Value) AS delta
+                        FROM (SELECT TimeUnix, MetricName, ResourceAttributes, Attributes, Value FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName IN ('redis.connections.received', 'redis.connections.rejected') UNION ALL SELECT TimeUnix, MetricName, ResourceAttributes, Attributes, Value FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName IN ('redis.connections.received', 'redis.connections.rejected'))
+                        GROUP BY ts, series, resource, attrs
+                      )
+                      GROUP BY ts, series
+                      ORDER BY ts
+      keys-by-database:
+        kind: Panel
+        spec:
+          display:
+            name: Keys by database
+          plugin:
+            kind: TimeSeriesChart
+            spec:
+              unit: ""
+              showLegend: true
+          queries:
+            - kind: ClickHouseSQL
+              spec:
+                plugin:
+                  kind: ClickHouseSQL
+                  spec:
+                    query: |-
+                      WITH points AS (SELECT TimeUnix, Value, Attributes['db'] AS series FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'redis.db.keys' UNION ALL SELECT TimeUnix, Value, Attributes['db'] AS series FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'redis.db.keys')
+                      SELECT toStartOfInterval(TimeUnix, INTERVAL {step:UInt32} * 6 SECOND) AS ts,
+                             series,
+                             avg(Value) AS value
+                      FROM points
+                      WHERE series IN (
+                        SELECT series FROM points WHERE 1
+                        GROUP BY series ORDER BY count() DESC LIMIT 8
+                      )
+                      GROUP BY ts, series
+                      ORDER BY ts
+      keys-expiring:
+        kind: Panel
+        spec:
+          display:
+            name: Keys with a TTL
+            description: Summed across databases. The gap between the two lines is the keys that never expire on their own, which are the ones eviction has to reclaim.
+          plugin:
+            kind: TimeSeriesChart
+            spec:
+              unit: ""
+              showLegend: true
+          queries:
+            - kind: ClickHouseSQL
+              spec:
+                plugin:
+                  kind: ClickHouseSQL
+                  spec:
+                    query: |-
+                      SELECT toStartOfInterval(TimeUnix, INTERVAL {step:UInt32} * 6 SECOND) AS ts, series, avg(total) AS value
+                      FROM (
+                        SELECT TimeUnix,
+                               transform(MetricName, ['redis.db.keys', 'redis.db.expires'], ['keys', 'expiring'], 'other') AS series,
+                               sum(Value) AS total
+                        FROM (SELECT TimeUnix, MetricName, Value FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName IN ('redis.db.keys', 'redis.db.expires') UNION ALL SELECT TimeUnix, MetricName, Value FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName IN ('redis.db.keys', 'redis.db.expires'))
+                        GROUP BY TimeUnix, series
+                      )
+                      GROUP BY ts, series
+                      ORDER BY ts
+      expired-evicted:
+        kind: Panel
+        spec:
+          display:
+            name: Expired and evicted keys
+            description: Expiry is a key reaching its own TTL. Eviction is Redis dropping a key it was still asked to keep, so any eviction at all is memory pressure.
+          plugin:
+            kind: TimeSeriesChart
+            spec:
+              unit: ""
+              showLegend: true
+              stacked: false
+          queries:
+            - kind: ClickHouseSQL
+              spec:
+                plugin:
+                  kind: ClickHouseSQL
+                  spec:
+                    query: |-
+                      SELECT ts, series, sum(delta) AS value
+                      FROM (
+                        SELECT toStartOfInterval(TimeUnix, INTERVAL {step:UInt32} * 6 SECOND) AS ts,
+                               transform(MetricName, ['redis.keys.expired', 'redis.keys.evicted'], ['expired', 'evicted'], 'other') AS series,
+                               ResourceAttributes AS resource, Attributes AS attrs,
+                               max(Value) - min(Value) AS delta
+                        FROM (SELECT TimeUnix, MetricName, ResourceAttributes, Attributes, Value FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName IN ('redis.keys.expired', 'redis.keys.evicted') UNION ALL SELECT TimeUnix, MetricName, ResourceAttributes, Attributes, Value FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName IN ('redis.keys.expired', 'redis.keys.evicted'))
+                        GROUP BY ts, series, resource, attrs
+                      )
+                      GROUP BY ts, series
+                      ORDER BY ts
+      command-calls:
+        kind: Panel
+        spec:
+          display:
+            name: Command calls
+            description: Needs redis.cmd.calls, which the receiver leaves off. No default metric splits the load by command.
+          plugin:
+            kind: TimeSeriesChart
+            spec:
+              unit: ""
+              showLegend: true
+              stacked: false
+          queries:
+            - kind: ClickHouseSQL
+              spec:
+                plugin:
+                  kind: ClickHouseSQL
+                  spec:
+                    query: |-
+                      WITH points AS (SELECT TimeUnix, ResourceAttributes, Attributes, Value, Attributes['cmd'] AS series FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'redis.cmd.calls' UNION ALL SELECT TimeUnix, ResourceAttributes, Attributes, Value, Attributes['cmd'] AS series FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'redis.cmd.calls')
+                      SELECT ts, series, sum(delta) AS value
+                      FROM (
+                        SELECT toStartOfInterval(TimeUnix, INTERVAL {step:UInt32} * 6 SECOND) AS ts, series,
+                               ResourceAttributes AS resource, Attributes AS attrs,
+                               max(Value) - min(Value) AS delta
+                        FROM points
+                        WHERE series IN (
+                        SELECT series FROM points WHERE 1
+                        GROUP BY series ORDER BY count() DESC LIMIT 8
+                      )
+                        GROUP BY ts, series, resource, attrs
+                      )
+                      GROUP BY ts, series
+                      ORDER BY ts
+    layouts:
+      - kind: Grid
+        spec:
+          items:
+            - x: 0
+              y: 0
+              width: 5
+              height: 5
+              content:
+                $ref: "#/spec/panels/uptime"
+            - x: 5
+              y: 0
+              width: 5
+              height: 5
+              content:
+                $ref: "#/spec/panels/memory-used"
+            - x: 10
+              y: 0
+              width: 5
+              height: 5
+              content:
+                $ref: "#/spec/panels/max-memory"
+            - x: 15
+              y: 0
+              width: 5
+              height: 5
+              content:
+                $ref: "#/spec/panels/clients"
+            - x: 20
+              y: 0
+              width: 4
+              height: 5
+              content:
+                $ref: "#/spec/panels/hit-rate"
+            - x: 0
+              y: 5
+              width: 12
+              height: 8
+              content:
+                $ref: "#/spec/panels/command-rate"
+            - x: 12
+              y: 5
+              width: 12
+              height: 8
+              content:
+                $ref: "#/spec/panels/keyspace"
+            - x: 0
+              y: 13
+              width: 12
+              height: 8
+              content:
+                $ref: "#/spec/panels/memory"
+            - x: 12
+              y: 13
+              width: 12
+              height: 8
+              content:
+                $ref: "#/spec/panels/network-io"
+            - x: 0
+              y: 21
+              width: 12
+              height: 8
+              content:
+                $ref: "#/spec/panels/client-activity"
+            - x: 12
+              y: 21
+              width: 12
+              height: 8
+              content:
+                $ref: "#/spec/panels/connections"
+            - x: 0
+              y: 29
+              width: 12
+              height: 8
+              content:
+                $ref: "#/spec/panels/keys-by-database"
+            - x: 12
+              y: 29
+              width: 12
+              height: 8
+              content:
+                $ref: "#/spec/panels/keys-expiring"
+            - x: 0
+              y: 37
+              width: 12
+              height: 8
+              content:
+                $ref: "#/spec/panels/expired-evicted"
+            - x: 12
+              y: 37
+              width: 12
+              height: 8
+              content:
+                $ref: "#/spec/panels/command-calls"

@@ -1,0 +1,167 @@
+id: metric-overview
+name: Metric Overview
+description: "Every metric you send, in one place: what exists, how often it reports, and the shape of the ones you pick."
+category: Runtime
+requires:
+  - signal: metrics
+    label: no metrics
+document:
+  kind: Dashboard
+  metadata:
+    name: metric-overview
+  spec:
+    display:
+      name: Metric Overview
+    duration: 6h
+    refreshInterval: 1m
+    variables:
+      - kind: ListVariable
+        spec:
+          name: metric
+          display:
+            name: Metric
+          allowMultiple: true
+          allowAllValue: true
+          defaultValue: __all
+          sort: alphabetical-asc
+          plugin:
+            kind: ClickHouseSQLVariable
+            spec:
+              query: |-
+                SELECT DISTINCT MetricName FROM (SELECT MetricName FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} UNION ALL SELECT MetricName FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String})
+                ORDER BY MetricName
+    panels:
+      metric-count:
+        kind: Panel
+        spec:
+          display:
+            name: Distinct metrics
+          plugin:
+            kind: StatChart
+            spec:
+              calculation: last
+          queries:
+            - kind: ClickHouseSQL
+              spec:
+                plugin:
+                  kind: ClickHouseSQL
+                  spec:
+                    query: SELECT uniqExact(MetricName) AS metrics FROM (SELECT MetricName FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} UNION ALL SELECT MetricName FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} UNION ALL SELECT MetricName FROM metrics_histogram WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} UNION ALL SELECT MetricName FROM metrics_exponential_histogram WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} UNION ALL SELECT MetricName FROM metrics_summary WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String})
+      series-count:
+        kind: Panel
+        spec:
+          display:
+            name: Data points
+          plugin:
+            kind: StatChart
+            spec:
+              calculation: sum
+              sparkline: true
+          queries:
+            - kind: ClickHouseSQL
+              spec:
+                plugin:
+                  kind: ClickHouseSQL
+                  spec:
+                    query: |-
+                      SELECT toStartOfInterval(TimeUnix, INTERVAL {step:UInt32} SECOND) AS ts, count() AS points FROM (SELECT TimeUnix FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} UNION ALL SELECT TimeUnix FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} UNION ALL SELECT TimeUnix FROM metrics_histogram WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} UNION ALL SELECT TimeUnix FROM metrics_exponential_histogram WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} UNION ALL SELECT TimeUnix FROM metrics_summary WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String})
+                      GROUP BY ts
+                      ORDER BY ts
+      service-count:
+        kind: Panel
+        spec:
+          display:
+            name: Reporting services
+          plugin:
+            kind: StatChart
+            spec:
+              calculation: last
+          queries:
+            - kind: ClickHouseSQL
+              spec:
+                plugin:
+                  kind: ClickHouseSQL
+                  spec:
+                    query: SELECT uniqExact(ServiceName) AS services FROM (SELECT ServiceName FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} UNION ALL SELECT ServiceName FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} UNION ALL SELECT ServiceName FROM metrics_histogram WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} UNION ALL SELECT ServiceName FROM metrics_exponential_histogram WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} UNION ALL SELECT ServiceName FROM metrics_summary WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String})
+      selected:
+        kind: Panel
+        spec:
+          display:
+            name: Selected metrics
+            description: Averaged across every series. Only gauge and sum metrics chart here; histograms and summaries still show in the counts and catalog. Narrow the Metric picker before reading absolute values.
+          plugin:
+            kind: TimeSeriesChart
+            spec:
+              showLegend: true
+          queries:
+            - kind: ClickHouseSQL
+              spec:
+                plugin:
+                  kind: ClickHouseSQL
+                  spec:
+                    query: |-
+                      SELECT toStartOfInterval(TimeUnix, INTERVAL {step:UInt32} * 6 SECOND) AS ts,
+                             MetricName,
+                             avg(Value) AS value
+                      FROM (SELECT TimeUnix, MetricName, Value FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName IN $metric UNION ALL SELECT TimeUnix, MetricName, Value FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName IN $metric)
+                      GROUP BY ts, MetricName
+                      ORDER BY ts
+      catalog:
+        kind: Panel
+        spec:
+          display:
+            name: Metric catalog
+          plugin:
+            kind: Table
+            spec:
+              stickyHeader: true
+          queries:
+            - kind: ClickHouseSQL
+              spec:
+                plugin:
+                  kind: ClickHouseSQL
+                  spec:
+                    query: |-
+                      SELECT MetricName AS metric,
+                             any(MetricUnit) AS unit,
+                             any(MetricDescription) AS description,
+                             uniqExact(ServiceName) AS services,
+                             count() AS points
+                      FROM (SELECT MetricName, MetricUnit, MetricDescription, ServiceName FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} UNION ALL SELECT MetricName, MetricUnit, MetricDescription, ServiceName FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} UNION ALL SELECT MetricName, MetricUnit, MetricDescription, ServiceName FROM metrics_histogram WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} UNION ALL SELECT MetricName, MetricUnit, MetricDescription, ServiceName FROM metrics_exponential_histogram WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} UNION ALL SELECT MetricName, MetricUnit, MetricDescription, ServiceName FROM metrics_summary WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String})
+                      GROUP BY metric
+                      ORDER BY points DESC
+                      LIMIT 100
+    layouts:
+      - kind: Grid
+        spec:
+          items:
+            - x: 0
+              y: 0
+              width: 8
+              height: 5
+              content:
+                $ref: "#/spec/panels/metric-count"
+            - x: 8
+              y: 0
+              width: 8
+              height: 5
+              content:
+                $ref: "#/spec/panels/series-count"
+            - x: 16
+              y: 0
+              width: 8
+              height: 5
+              content:
+                $ref: "#/spec/panels/service-count"
+            - x: 0
+              y: 5
+              width: 24
+              height: 9
+              content:
+                $ref: "#/spec/panels/selected"
+            - x: 0
+              y: 14
+              width: 24
+              height: 10
+              content:
+                $ref: "#/spec/panels/catalog"

@@ -24,11 +24,15 @@ function PreviewableLayout() {
   // Keep the deepest status so the bar's copy matches the resource on screen.
   // Only trust matches under this layout, so an unrelated route that happens to
   // expose a `previewStatus` in its loaderData can't feed the bar.
+  // A full-bleed route (explorer-style split panes) owns its scroll and
+  // touches the content edges; every other route gets the padded page scroll.
   const matches = useMatches();
   let status: PreviewStatus | undefined;
   let hidePreviewFrame = false;
+  let fullBleed = false;
   for (const match of matches) {
     if (!match.routeId.startsWith(Route.id)) continue;
+    fullBleed ||= match.staticData.fullBleed ?? false;
     const data = match.loaderData as
       | { previewStatus?: PreviewStatus }
       | undefined;
@@ -38,7 +42,11 @@ function PreviewableLayout() {
     }
   }
 
-  const content = (
+  const content = fullBleed ? (
+    <div className="min-h-0 flex-1">
+      <Outlet />
+    </div>
+  ) : (
     // `lg:flex lg:flex-col` (matching `ScrollPage`'s wrapper) is what lets
     // `PageContainer`'s own `flex-1 min-h-0` resolve to a real height here: a
     // block box doesn't hand a percentage/flex height down to its children, so

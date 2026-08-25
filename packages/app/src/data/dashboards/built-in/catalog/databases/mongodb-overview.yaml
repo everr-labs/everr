@@ -1,0 +1,617 @@
+id: mongodb-overview
+name: MongoDB Overview
+description: Operation and document throughput, connections, WiredTiger cache behavior, lock wait, memory and network traffic, and stored size per database, from the OpenTelemetry mongodb receiver.
+category: Databases
+requires:
+  - signal: metrics
+    label: no metrics
+  - signal: metrics
+    match: mongodb.
+    label: no mongodb*
+document:
+  kind: Dashboard
+  metadata:
+    name: mongodb-overview
+  spec:
+    display:
+      name: MongoDB Overview
+    duration: 6h
+    refreshInterval: 1m
+    panels:
+      uptime:
+        kind: Panel
+        spec:
+          display:
+            name: Uptime
+            description: Needs mongodb.uptime, off by default.
+          plugin:
+            kind: StatChart
+            spec:
+              calculation: last
+              unit: d
+              decimals: 1
+          queries:
+            - kind: ClickHouseSQL
+              spec:
+                plugin:
+                  kind: ClickHouseSQL
+                  spec:
+                    query: |-
+                      SELECT nullIf(max(Value), 0) / 86400000 AS days
+                      FROM (SELECT Value FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'mongodb.uptime' UNION ALL SELECT Value FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'mongodb.uptime')
+      databases:
+        kind: Panel
+        spec:
+          display:
+            name: Databases
+          plugin:
+            kind: StatChart
+            spec:
+              calculation: last
+              decimals: 0
+          queries:
+            - kind: ClickHouseSQL
+              spec:
+                plugin:
+                  kind: ClickHouseSQL
+                  spec:
+                    query: |-
+                      SELECT nullIf(max(Value), 0) AS databases
+                      FROM (SELECT Value FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'mongodb.database.count' UNION ALL SELECT Value FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'mongodb.database.count')
+      collections:
+        kind: Panel
+        spec:
+          display:
+            name: Collections
+          plugin:
+            kind: StatChart
+            spec:
+              calculation: last
+              decimals: 0
+          queries:
+            - kind: ClickHouseSQL
+              spec:
+                plugin:
+                  kind: ClickHouseSQL
+                  spec:
+                    query: |-
+                      SELECT avg(total) AS collections
+                      FROM (
+                        SELECT TimeUnix, sum(Value) AS total
+                        FROM (SELECT TimeUnix, Value FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'mongodb.collection.count' UNION ALL SELECT TimeUnix, Value FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'mongodb.collection.count')
+                        GROUP BY TimeUnix
+                      )
+      connections:
+        kind: Panel
+        spec:
+          display:
+            name: Open connections
+          plugin:
+            kind: StatChart
+            spec:
+              calculation: last
+              decimals: 0
+              sparkline: true
+          queries:
+            - kind: ClickHouseSQL
+              spec:
+                plugin:
+                  kind: ClickHouseSQL
+                  spec:
+                    query: |-
+                      SELECT toStartOfInterval(TimeUnix, INTERVAL {step:UInt32} SECOND) AS ts, avg(Value) AS current
+                      FROM (SELECT TimeUnix, Attributes, Value FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'mongodb.connection.count' AND Attributes['type'] = 'current' UNION ALL SELECT TimeUnix, Attributes, Value FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'mongodb.connection.count' AND Attributes['type'] = 'current')
+                      GROUP BY ts
+                      ORDER BY ts
+      cache-hit:
+        kind: Panel
+        spec:
+          display:
+            name: Cache hit rate
+            description: WiredTiger pages served from cache.
+          plugin:
+            kind: StatChart
+            spec:
+              calculation: last
+              unit: "%"
+              decimals: 1
+          queries:
+            - kind: ClickHouseSQL
+              spec:
+                plugin:
+                  kind: ClickHouseSQL
+                  spec:
+                    query: |-
+                      SELECT sum(hits) / nullIf(sum(hits) + sum(misses), 0) * 100 AS pct
+                      FROM (
+                        SELECT Attributes['type'] AS type,
+                               ResourceAttributes AS resource, Attributes AS attrs,
+                               max(Value) - min(Value) AS delta,
+                               if(type = 'hit', delta, 0) AS hits,
+                               if(type = 'miss', delta, 0) AS misses
+                        FROM (SELECT ResourceAttributes, Attributes, Value FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'mongodb.cache.operations' UNION ALL SELECT ResourceAttributes, Attributes, Value FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'mongodb.cache.operations')
+                        GROUP BY type, resource, attrs
+                      )
+      operations:
+        kind: Panel
+        spec:
+          display:
+            name: Operations
+            description: "The opcounters: what clients asked for. Read against Document operations, which is what those requests touched."
+          plugin:
+            kind: TimeSeriesChart
+            spec:
+              unit: ""
+              showLegend: true
+              stacked: false
+          queries:
+            - kind: ClickHouseSQL
+              spec:
+                plugin:
+                  kind: ClickHouseSQL
+                  spec:
+                    query: |-
+                      WITH points AS (SELECT TimeUnix, ResourceAttributes, Attributes, Value, Attributes['operation'] AS series FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'mongodb.operation.count' UNION ALL SELECT TimeUnix, ResourceAttributes, Attributes, Value, Attributes['operation'] AS series FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'mongodb.operation.count')
+                      SELECT ts, series, sum(delta) AS value
+                      FROM (
+                        SELECT toStartOfInterval(TimeUnix, INTERVAL {step:UInt32} * 6 SECOND) AS ts, series,
+                               ResourceAttributes AS resource, Attributes AS attrs,
+                               max(Value) - min(Value) AS delta
+                        FROM points
+                        WHERE series IN (
+                        SELECT series FROM points WHERE 1
+                        GROUP BY series ORDER BY count() DESC LIMIT 8
+                      )
+                        GROUP BY ts, series, resource, attrs
+                      )
+                      GROUP BY ts, series
+                      ORDER BY ts
+      document-operations:
+        kind: Panel
+        spec:
+          display:
+            name: Document operations
+            description: Documents actually inserted, updated, deleted and returned. One query here can move a great many documents.
+          plugin:
+            kind: TimeSeriesChart
+            spec:
+              unit: ""
+              showLegend: true
+              stacked: true
+          queries:
+            - kind: ClickHouseSQL
+              spec:
+                plugin:
+                  kind: ClickHouseSQL
+                  spec:
+                    query: |-
+                      WITH points AS (SELECT TimeUnix, ResourceAttributes, Attributes, Value, Attributes['operation'] AS series FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'mongodb.document.operation.count' UNION ALL SELECT TimeUnix, ResourceAttributes, Attributes, Value, Attributes['operation'] AS series FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'mongodb.document.operation.count')
+                      SELECT ts, series, sum(delta) AS value
+                      FROM (
+                        SELECT toStartOfInterval(TimeUnix, INTERVAL {step:UInt32} * 6 SECOND) AS ts, series,
+                               ResourceAttributes AS resource, Attributes AS attrs,
+                               max(Value) - min(Value) AS delta
+                        FROM points
+                        WHERE series IN (
+                        SELECT series FROM points WHERE 1
+                        GROUP BY series ORDER BY count() DESC LIMIT 8
+                      )
+                        GROUP BY ts, series, resource, attrs
+                      )
+                      GROUP BY ts, series
+                      ORDER BY ts
+      operation-time:
+        kind: Panel
+        spec:
+          display:
+            name: Time in operations
+            description: Server time spent per bucket, by operation. Divide by the matching Operations line for a mean latency.
+          plugin:
+            kind: TimeSeriesChart
+            spec:
+              unit: s
+              showLegend: true
+              stacked: false
+          queries:
+            - kind: ClickHouseSQL
+              spec:
+                plugin:
+                  kind: ClickHouseSQL
+                  spec:
+                    query: |-
+                      WITH points AS (SELECT TimeUnix, ResourceAttributes, Attributes, Value, Attributes['operation'] AS series FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'mongodb.operation.time' UNION ALL SELECT TimeUnix, ResourceAttributes, Attributes, Value, Attributes['operation'] AS series FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'mongodb.operation.time')
+                      SELECT ts, series, sum(delta) / 1000 AS value
+                      FROM (
+                        SELECT toStartOfInterval(TimeUnix, INTERVAL {step:UInt32} * 6 SECOND) AS ts, series,
+                               ResourceAttributes AS resource, Attributes AS attrs,
+                               max(Value) - min(Value) AS delta
+                        FROM points
+                        WHERE series IN (
+                        SELECT series FROM points WHERE 1
+                        GROUP BY series ORDER BY count() DESC LIMIT 8
+                      )
+                        GROUP BY ts, series, resource, attrs
+                      )
+                      GROUP BY ts, series
+                      ORDER BY ts
+      connection-types:
+        kind: Panel
+        spec:
+          display:
+            name: Connections
+            description: Current is what is open, active is what is doing work, available is what is left before the server refuses more.
+          plugin:
+            kind: TimeSeriesChart
+            spec:
+              unit: ""
+              showLegend: true
+          queries:
+            - kind: ClickHouseSQL
+              spec:
+                plugin:
+                  kind: ClickHouseSQL
+                  spec:
+                    query: |-
+                      WITH points AS (SELECT TimeUnix, Value, Attributes['type'] AS series FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'mongodb.connection.count' UNION ALL SELECT TimeUnix, Value, Attributes['type'] AS series FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'mongodb.connection.count')
+                      SELECT toStartOfInterval(TimeUnix, INTERVAL {step:UInt32} * 6 SECOND) AS ts,
+                             series,
+                             avg(Value) AS value
+                      FROM points
+                      WHERE series IN (
+                        SELECT series FROM points WHERE 1
+                        GROUP BY series ORDER BY count() DESC LIMIT 8
+                      )
+                      GROUP BY ts, series
+                      ORDER BY ts
+      cache-operations:
+        kind: Panel
+        spec:
+          display:
+            name: Cache operations
+            description: A miss is a page read from disk into the WiredTiger cache.
+          plugin:
+            kind: TimeSeriesChart
+            spec:
+              unit: ""
+              showLegend: true
+              stacked: false
+          queries:
+            - kind: ClickHouseSQL
+              spec:
+                plugin:
+                  kind: ClickHouseSQL
+                  spec:
+                    query: |-
+                      WITH points AS (SELECT TimeUnix, ResourceAttributes, Attributes, Value, Attributes['type'] AS series FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'mongodb.cache.operations' UNION ALL SELECT TimeUnix, ResourceAttributes, Attributes, Value, Attributes['type'] AS series FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'mongodb.cache.operations')
+                      SELECT ts, series, sum(delta) AS value
+                      FROM (
+                        SELECT toStartOfInterval(TimeUnix, INTERVAL {step:UInt32} * 6 SECOND) AS ts, series,
+                               ResourceAttributes AS resource, Attributes AS attrs,
+                               max(Value) - min(Value) AS delta
+                        FROM points
+                        WHERE series IN (
+                        SELECT series FROM points WHERE 1
+                        GROUP BY series ORDER BY count() DESC LIMIT 8
+                      )
+                        GROUP BY ts, series, resource, attrs
+                      )
+                      GROUP BY ts, series
+                      ORDER BY ts
+      global-lock-time:
+        kind: Panel
+        spec:
+          display:
+            name: Global lock wait
+            description: Time spent queued on the global lock. Rising here caps throughput no matter what the hardware does.
+          plugin:
+            kind: TimeSeriesChart
+            spec:
+              unit: s
+              showLegend: false
+              stacked: false
+          queries:
+            - kind: ClickHouseSQL
+              spec:
+                plugin:
+                  kind: ClickHouseSQL
+                  spec:
+                    query: |-
+                      SELECT ts, sum(delta) / 1000 AS value
+                      FROM (
+                        SELECT toStartOfInterval(TimeUnix, INTERVAL {step:UInt32} SECOND) AS ts,
+                               ResourceAttributes AS resource, Attributes AS attrs,
+                               max(Value) - min(Value) AS delta
+                        FROM (SELECT TimeUnix, ResourceAttributes, Attributes, Value FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'mongodb.global_lock.time' UNION ALL SELECT TimeUnix, ResourceAttributes, Attributes, Value FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'mongodb.global_lock.time')
+                        GROUP BY ts, resource, attrs
+                      )
+                      GROUP BY ts
+                      ORDER BY ts
+      memory:
+        kind: Panel
+        spec:
+          display:
+            name: Memory
+            description: Resident is physical memory held; virtual includes what is mapped but not resident.
+          plugin:
+            kind: TimeSeriesChart
+            spec:
+              unit: MB
+              showLegend: true
+          queries:
+            - kind: ClickHouseSQL
+              spec:
+                plugin:
+                  kind: ClickHouseSQL
+                  spec:
+                    query: |-
+                      WITH points AS (SELECT TimeUnix, Value, Attributes['type'] AS series FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'mongodb.memory.usage' UNION ALL SELECT TimeUnix, Value, Attributes['type'] AS series FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'mongodb.memory.usage')
+                      SELECT toStartOfInterval(TimeUnix, INTERVAL {step:UInt32} * 6 SECOND) AS ts,
+                             series,
+                             avg(Value) / 1048576 AS value
+                      FROM points
+                      WHERE series IN (
+                        SELECT series FROM points WHERE 1
+                        GROUP BY series ORDER BY count() DESC LIMIT 8
+                      )
+                      GROUP BY ts, series
+                      ORDER BY ts
+      network-io:
+        kind: Panel
+        spec:
+          display:
+            name: Network I/O
+          plugin:
+            kind: TimeSeriesChart
+            spec:
+              unit: MB
+              showLegend: true
+              stacked: false
+          queries:
+            - kind: ClickHouseSQL
+              spec:
+                plugin:
+                  kind: ClickHouseSQL
+                  spec:
+                    query: |-
+                      SELECT ts, series, sum(delta) / 1048576 AS value
+                      FROM (
+                        SELECT toStartOfInterval(TimeUnix, INTERVAL {step:UInt32} * 6 SECOND) AS ts,
+                               transform(MetricName, ['mongodb.network.io.receive', 'mongodb.network.io.transmit'], ['received', 'sent'], 'other') AS series,
+                               ResourceAttributes AS resource, Attributes AS attrs,
+                               max(Value) - min(Value) AS delta
+                        FROM (SELECT TimeUnix, MetricName, ResourceAttributes, Attributes, Value FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName IN ('mongodb.network.io.receive', 'mongodb.network.io.transmit') UNION ALL SELECT TimeUnix, MetricName, ResourceAttributes, Attributes, Value FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName IN ('mongodb.network.io.receive', 'mongodb.network.io.transmit'))
+                        GROUP BY ts, series, resource, attrs
+                      )
+                      GROUP BY ts, series
+                      ORDER BY ts
+      data-size:
+        kind: Panel
+        spec:
+          display:
+            name: Data size by database
+          plugin:
+            kind: TimeSeriesChart
+            spec:
+              unit: MB
+              showLegend: true
+          queries:
+            - kind: ClickHouseSQL
+              spec:
+                plugin:
+                  kind: ClickHouseSQL
+                  spec:
+                    query: |-
+                      WITH points AS (SELECT TimeUnix, Value, coalesce(nullIf(Attributes['db.namespace'], ''), nullIf(ResourceAttributes['database'], ''), 'unknown') AS series FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'mongodb.data.size' UNION ALL SELECT TimeUnix, Value, coalesce(nullIf(Attributes['db.namespace'], ''), nullIf(ResourceAttributes['database'], ''), 'unknown') AS series FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'mongodb.data.size')
+                      SELECT toStartOfInterval(TimeUnix, INTERVAL {step:UInt32} * 6 SECOND) AS ts,
+                             series,
+                             avg(Value) / 1048576 AS value
+                      FROM points
+                      WHERE series IN (
+                        SELECT series FROM points WHERE 1
+                        GROUP BY series ORDER BY count() DESC LIMIT 8
+                      )
+                      GROUP BY ts, series
+                      ORDER BY ts
+      index-size:
+        kind: Panel
+        spec:
+          display:
+            name: Index size by database
+            description: Indexes live in the same cache as the data. An index total approaching the data total is worth a look.
+          plugin:
+            kind: TimeSeriesChart
+            spec:
+              unit: MB
+              showLegend: true
+          queries:
+            - kind: ClickHouseSQL
+              spec:
+                plugin:
+                  kind: ClickHouseSQL
+                  spec:
+                    query: |-
+                      WITH points AS (SELECT TimeUnix, Value, coalesce(nullIf(Attributes['db.namespace'], ''), nullIf(ResourceAttributes['database'], ''), 'unknown') AS series FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'mongodb.index.size' UNION ALL SELECT TimeUnix, Value, coalesce(nullIf(Attributes['db.namespace'], ''), nullIf(ResourceAttributes['database'], ''), 'unknown') AS series FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'mongodb.index.size')
+                      SELECT toStartOfInterval(TimeUnix, INTERVAL {step:UInt32} * 6 SECOND) AS ts,
+                             series,
+                             avg(Value) / 1048576 AS value
+                      FROM points
+                      WHERE series IN (
+                        SELECT series FROM points WHERE 1
+                        GROUP BY series ORDER BY count() DESC LIMIT 8
+                      )
+                      GROUP BY ts, series
+                      ORDER BY ts
+      index-access:
+        kind: Panel
+        spec:
+          display:
+            name: Index accesses by collection
+            description: Which collections are served by their indexes. A busy collection missing from this chart is being scanned.
+          plugin:
+            kind: TimeSeriesChart
+            spec:
+              unit: ""
+              showLegend: true
+              stacked: false
+          queries:
+            - kind: ClickHouseSQL
+              spec:
+                plugin:
+                  kind: ClickHouseSQL
+                  spec:
+                    query: |-
+                      WITH points AS (SELECT TimeUnix, ResourceAttributes, Attributes, Value, Attributes['collection'] AS series FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'mongodb.index.access.count' UNION ALL SELECT TimeUnix, ResourceAttributes, Attributes, Value, Attributes['collection'] AS series FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'mongodb.index.access.count')
+                      SELECT ts, series, sum(delta) AS value
+                      FROM (
+                        SELECT toStartOfInterval(TimeUnix, INTERVAL {step:UInt32} * 6 SECOND) AS ts, series,
+                               ResourceAttributes AS resource, Attributes AS attrs,
+                               max(Value) - min(Value) AS delta
+                        FROM points
+                        WHERE series IN (
+                        SELECT series FROM points WHERE 1
+                        GROUP BY series ORDER BY count() DESC LIMIT 8
+                      )
+                        GROUP BY ts, series, resource, attrs
+                      )
+                      GROUP BY ts, series
+                      ORDER BY ts
+      replica-operations:
+        kind: Panel
+        spec:
+          display:
+            name: Replicated operations
+            description: Needs mongodb.operation.repl.count, which the receiver leaves off. Empty on a standalone server.
+          plugin:
+            kind: TimeSeriesChart
+            spec:
+              unit: ""
+              showLegend: true
+              stacked: false
+          queries:
+            - kind: ClickHouseSQL
+              spec:
+                plugin:
+                  kind: ClickHouseSQL
+                  spec:
+                    query: |-
+                      WITH points AS (SELECT TimeUnix, ResourceAttributes, Attributes, Value, Attributes['operation'] AS series FROM metrics_gauge WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'mongodb.operation.repl.count' UNION ALL SELECT TimeUnix, ResourceAttributes, Attributes, Value, Attributes['operation'] AS series FROM metrics_sum WHERE TimeUnix >= {from:String} AND TimeUnix <= {to:String} AND MetricName = 'mongodb.operation.repl.count')
+                      SELECT ts, series, sum(delta) AS value
+                      FROM (
+                        SELECT toStartOfInterval(TimeUnix, INTERVAL {step:UInt32} * 6 SECOND) AS ts, series,
+                               ResourceAttributes AS resource, Attributes AS attrs,
+                               max(Value) - min(Value) AS delta
+                        FROM points
+                        WHERE series IN (
+                        SELECT series FROM points WHERE 1
+                        GROUP BY series ORDER BY count() DESC LIMIT 8
+                      )
+                        GROUP BY ts, series, resource, attrs
+                      )
+                      GROUP BY ts, series
+                      ORDER BY ts
+    layouts:
+      - kind: Grid
+        spec:
+          items:
+            - x: 0
+              y: 0
+              width: 5
+              height: 5
+              content:
+                $ref: "#/spec/panels/uptime"
+            - x: 5
+              y: 0
+              width: 5
+              height: 5
+              content:
+                $ref: "#/spec/panels/databases"
+            - x: 10
+              y: 0
+              width: 5
+              height: 5
+              content:
+                $ref: "#/spec/panels/collections"
+            - x: 15
+              y: 0
+              width: 5
+              height: 5
+              content:
+                $ref: "#/spec/panels/connections"
+            - x: 20
+              y: 0
+              width: 4
+              height: 5
+              content:
+                $ref: "#/spec/panels/cache-hit"
+            - x: 0
+              y: 5
+              width: 12
+              height: 8
+              content:
+                $ref: "#/spec/panels/operations"
+            - x: 12
+              y: 5
+              width: 12
+              height: 8
+              content:
+                $ref: "#/spec/panels/document-operations"
+            - x: 0
+              y: 13
+              width: 12
+              height: 8
+              content:
+                $ref: "#/spec/panels/operation-time"
+            - x: 12
+              y: 13
+              width: 12
+              height: 8
+              content:
+                $ref: "#/spec/panels/connection-types"
+            - x: 0
+              y: 21
+              width: 12
+              height: 8
+              content:
+                $ref: "#/spec/panels/cache-operations"
+            - x: 12
+              y: 21
+              width: 12
+              height: 8
+              content:
+                $ref: "#/spec/panels/global-lock-time"
+            - x: 0
+              y: 29
+              width: 12
+              height: 8
+              content:
+                $ref: "#/spec/panels/memory"
+            - x: 12
+              y: 29
+              width: 12
+              height: 8
+              content:
+                $ref: "#/spec/panels/network-io"
+            - x: 0
+              y: 37
+              width: 12
+              height: 8
+              content:
+                $ref: "#/spec/panels/data-size"
+            - x: 12
+              y: 37
+              width: 12
+              height: 8
+              content:
+                $ref: "#/spec/panels/index-size"
+            - x: 0
+              y: 45
+              width: 12
+              height: 8
+              content:
+                $ref: "#/spec/panels/index-access"
+            - x: 12
+              y: 45
+              width: 12
+              height: 8
+              content:
+                $ref: "#/spec/panels/replica-operations"

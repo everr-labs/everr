@@ -1,4 +1,5 @@
 import { FilterCombobox } from "@everr/ui/components/filter-combobox";
+import { FilterSearchBar } from "@everr/ui/components/filter-search-bar";
 import { Input } from "@everr/ui/components/input";
 import { Label } from "@everr/ui/components/label";
 import {
@@ -9,7 +10,6 @@ import type { TimeRange } from "@everr/ui/lib/time-range";
 import { type ReactNode, useId, useRef, useState } from "react";
 import { AttributeFilterSection } from "../../attribute-filter/ui/attribute-filter-section";
 import { ExploreFilterRail } from "../../filters/ui/explore-filter-rail";
-import { FilterSearchBar } from "../../filters/ui/filter-search-bar";
 import type { TracesRepositoryLike } from "../data/repository";
 import type { AttributeFilter } from "../data/schemas";
 import type { ServiceIdentity } from "../data/types";
@@ -88,7 +88,6 @@ export function TraceFilters({
       <FilterSearchBar
         id="traces-search"
         label="Search"
-        showLabel
         value={value.name}
         onChange={(name) => onChange({ name })}
         placeholder="Filter by span name"
