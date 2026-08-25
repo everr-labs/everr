@@ -6,22 +6,48 @@ spec:
   runbook: demo-alerts
   display:
     name: Always firing (demo)
-    description: Multi-series rule for exercising the alerting UI. It always returns three stable instances, two breaching and one healthy.
+    description: >-
+      Request latency for four services, two of which are permanently over
+      the 500ms threshold. Values move: a daily traffic curve, per-minute
+      jitter, and an occasional spike, so the instance lanes have a shape to
+      read instead of a flat bar. `reports` runs only ten minutes out of
+      every thirty, which is what a gap in a lane looks like.
   evaluationInterval: 1m
   notificationMessage:
-    title: "Demo alert: ${source} is firing"
-    description: "${source} returned ${value}. This rule exists to test multi-instance alerting."
+    title: "Demo alert: ${service} p95 is over budget"
+    description: "${service} answered at ${value}ms. This rule exists to test multi-instance alerting."
   condition:
     operator: gte
-    threshold: 2
-  instanceLabels: [source]
+    threshold: 500
+  instanceLabels: [service]
+  # Synthetic, but shaped like a real p95: a daily load curve on top of a
+  # per-service baseline, minute-resolution jitter, and a spike roughly every
+  # half hour. The bands never cross the threshold by accident: checkout-api
+  # and payments stay above 500 at their lowest, search and reports below it
+  # at their highest, spikes included.
   query: |
+    WITH
+      toUnixTimestamp(now()) AS t,
+      intDiv(t, 60) AS minute,
+      -- 0 at midnight UTC, 1 at midday: the traffic the latency follows.
+      0.5 - 0.5 * cos((t % 86400) / 86400. * 2 * pi()) AS load
     SELECT
-      source,
-      value
+      service,
+      round(
+        base
+          + swing * load
+          + jitter * ((cityHash64(minute, service) % 1000) / 1000. - 0.5)
+          + if(cityHash64(minute, service, 'spike') % 29 = 0, spike, 0),
+        1
+      ) AS value
     FROM VALUES(
-      'source String, value UInt64',
-      ('api', 1),
-      ('worker', 2),
-      ('scheduler', 3)
+      'service String, base Float64, swing Float64, jitter Float64, spike Float64',
+      ('checkout-api', 610, 120, 45, 780),
+      ('payments',     880, 240, 70, 1500),
+      ('search',       170,  70, 50, 160),
+      ('reports',      205,  55, 40, 0)
     )
+    -- A batch service that is not always up: its lane reads "not evaluated"
+    -- for twenty minutes out of thirty. It never breaches, so the rule's own
+    -- firing pair is unaffected.
+    WHERE service != 'reports' OR minute % 30 < 10

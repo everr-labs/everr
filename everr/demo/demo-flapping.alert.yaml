@@ -6,16 +6,43 @@ spec:
   runbook: demo-alerts
   display:
     name: Flapping (demo)
-    description: Fires for three minutes, resolves for three minutes, forever. Exercises firing and resolved transitions, notification churn, and event history in the alerting UI.
+    description: >-
+      A 5xx rate that swells over the 3% threshold and subsides again on a
+      twelve-minute cycle, so it spends about six minutes firing and six
+      resolved, forever. Exercises firing and resolved transitions,
+      notification churn, and event history. A second endpoint stays healthy
+      an order of magnitude lower, which is what the shared value axis is
+      there to show.
   evaluationInterval: 1m
   notificationMessage:
-    title: "Demo alert: flapping is in its on phase"
-    description: "This rule alternates between firing and resolved every three minutes to test state transitions in the UI."
-  instanceLabels: [phase]
+    title: "Demo alert: ${endpoint} is returning 5xx"
+    description: "${endpoint} is at ${value}% errors. This rule swells over the threshold and back every twelve minutes to test state transitions in the UI."
+  instanceLabels: [endpoint]
   condition:
-    operator: eq
-    threshold: 1
+    operator: gte
+    threshold: 3
+  # The swell is a cosine rather than a square wave: at a one-minute interval
+  # a three-minute on/off cycle drew three bars a phase, which is a barcode,
+  # not a curve. Twelve minutes gives the lane a rise and a fall to read and
+  # still transitions five times an hour.
   query: |
+    WITH
+      toUnixTimestamp(now()) AS t,
+      intDiv(t, 60) AS minute,
+      0.5 - 0.5 * cos(t / 720. * 2 * pi()) AS surge
     SELECT
-      'flapper' AS phase,
-      toUInt8(intDiv(toUnixTimestamp(now()), 180) % 2 = 0) AS value
+      endpoint,
+      round(
+        greatest(
+          0,
+          base
+            + span * surge
+            + jitter * ((cityHash64(minute, endpoint) % 1000) / 1000. - 0.5)
+        ),
+        2
+      ) AS value
+    FROM VALUES(
+      'endpoint String, base Float64, span Float64, jitter Float64',
+      ('POST /checkout', 0.6, 5.4, 0.9),
+      ('GET /search',    0.2, 0.9, 0.4)
+    )

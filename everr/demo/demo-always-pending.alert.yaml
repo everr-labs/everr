@@ -7,30 +7,45 @@ spec:
   display:
     name: Always pending (demo)
     description: >-
-      Permanently pending rule for exercising the pending state in the
-      alerting UI. The condition holds for four minutes out of every five,
-      but `for` demands ten continuous minutes: the one-minute gap resets the
-      `for` clock every cycle (and stays under `resolveAfter`, so the
-      instance is never dropped back to inactive). It can neither fire nor
-      leave pending.
+      A worker queue that backs up for four minutes and drains on the fifth,
+      against a `for` of ten continuous minutes: the drain minute drops the
+      backlog under the threshold and resets the `for` clock every cycle (and
+      stays under `resolveAfter`, so the instance is never dropped back to
+      inactive). It can neither fire nor leave pending. The sawtooth is what
+      the pending state looks like on the instance chart.
   evaluationInterval: 1m
   # Longer than the condition can ever continuously hold (4m), so the fire
   # threshold is unreachable by construction.
   for: 10m
-  # The 1-minute gap is one evaluation, occasionally two as the tick drifts;
+  # The drain minute is one evaluation, occasionally two as the tick drifts;
   # 3 keeps the pending instance held through it rather than dropped.
   resolveAfter: 3
   notificationMessage:
     title: "Demo alert: always-pending fired"
     description: >-
       This rule is constructed never to fire. If this notification arrived,
-      the `for` clock did not reset across an absent gap: file a bug against
-      the engine's state machine.
-  instanceLabels: [phase]
+      the `for` clock did not reset across the drain minute: file a bug
+      against the engine's state machine.
+  instanceLabels: [queue]
   condition:
-    operator: eq
-    threshold: 1
+    operator: gte
+    threshold: 500
+  # `ingest` climbs from ~1000 to ~2100 across the four backlog minutes and
+  # falls to a couple of hundred on the drain, so it is over 500 for exactly
+  # four minutes in five. `webhooks` rides the same cycle two orders of
+  # magnitude lower and never breaches.
   query: |
+    WITH
+      toUnixTimestamp(now()) AS t,
+      intDiv(t, 60) % 5 AS phase
     SELECT
-      'limbo' AS phase,
-      toUInt8(intDiv(toUnixTimestamp(now()), 60) % 5 != 0) AS value
+      queue,
+      round(
+        if(phase = 0, drained, backlog + climb * phase)
+          + noise * ((cityHash64(intDiv(t, 60), queue) % 1000) / 1000.)
+      ) AS value
+    FROM VALUES(
+      'queue String, drained Float64, backlog Float64, climb Float64, noise Float64',
+      ('ingest',   120, 700, 330, 150),
+      ('webhooks',  15,  45,  22,  40)
+    )

@@ -1,0 +1,41 @@
+kind: AlertRule
+metadata:
+  name: demo-broken-query
+  project: demo
+spec:
+  runbook: demo-alerts
+  display:
+    name: Broken query (demo)
+    description: >-
+      Its query throws for three minutes out of every fifteen, the way a rule
+      breaks when the table under it is dropped or renamed and then comes
+      back. Exercises the degraded ("not evaluating") state, the last-error
+      line, evaluation_failed events, and the gap they leave in the instance
+      chart. The value it reports in between is a connection-pool utilization
+      that never reaches the threshold, so the rule never fires: degraded and
+      firing are different facts and this rule only demonstrates the first.
+  evaluationInterval: 1m
+  notificationMessage:
+    title: "Demo alert: broken query fired"
+    description: "This rule is constructed never to fire: ${scope} was at ${value}% pool utilization, well under the threshold."
+  instanceLabels: [scope]
+  condition:
+    operator: gte
+    threshold: 95
+  # throwIf returns 0 when it does not throw, so it adds to the reading
+  # without changing it. The failure window is a function of the clock, not of
+  # when the rule was applied: an absolute timestamp here goes stale and
+  # leaves the rule permanently broken instead of intermittently.
+  query: |
+    WITH
+      toUnixTimestamp(now()) AS t,
+      intDiv(t, 60) AS minute
+    SELECT
+      'orders-db' AS scope,
+      round(
+        45
+          + 25 * (0.5 - 0.5 * cos(t / 900. * 2 * pi()))
+          + 12 * ((cityHash64(minute, 'pool') % 1000) / 1000. - 0.5)
+          + throwIf(minute % 15 >= 12, 'demo: upstream table is gone'),
+        1
+      ) AS value
