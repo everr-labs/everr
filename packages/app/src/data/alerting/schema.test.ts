@@ -3,8 +3,6 @@ import {
   ALERTING_MATCHER_LABEL_MAX,
   ALERTING_MATCHER_VALUE_MAX,
   ALERTING_MATCHERS_MAX,
-  AlertingChannelSchema,
-  AlertingDefaultDestinationInputSchema,
   AlertingRuleViewSchema,
   AlertingSilenceInputSchema,
 } from "./schema";
@@ -88,24 +86,6 @@ it("rejects any silence op that is not exact matching", () => {
   }
 });
 
-it("rejects an unknown tier and duplicate channels in the default destination", () => {
-  expect(
-    AlertingDefaultDestinationInputSchema.safeParse({
-      tiers: { all: ["team-slack"] },
-    }).success,
-  ).toBe(true);
-  expect(
-    AlertingDefaultDestinationInputSchema.safeParse({
-      tiers: { paging: ["team-slack"] },
-    }).success,
-  ).toBe(false);
-  expect(
-    AlertingDefaultDestinationInputSchema.safeParse({
-      tiers: { all: ["team-slack", "team-slack"] },
-    }).success,
-  ).toBe(false);
-});
-
 it("bounds matcher counts and label and value lengths", () => {
   const matchers = (count: number, value = "pay") =>
     Array.from({ length: count }, () => ({ label: "team", op: "eq", value }));
@@ -151,15 +131,4 @@ it("drops a client-supplied silence author", () => {
     author: "someone else",
   });
   expect(parsed).not.toHaveProperty("author");
-});
-
-it("rejects a channel with an unknown config type", () => {
-  expect(() =>
-    AlertingChannelSchema.parse({
-      id: "c",
-      tenant: "t",
-      name: "pigeon",
-      config: { type: "carrier-pigeon" },
-    }),
-  ).toThrow();
 });

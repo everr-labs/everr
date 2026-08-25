@@ -1,8 +1,4 @@
-import type {
-  AlertingAlert,
-  AlertingMatcher,
-  AlertingRuleView,
-} from "../types";
+import type { AlertingMatcher } from "../types";
 
 /** Missing labels match as empty strings. Matching is exact only. */
 export function alertingMatcherMatches(
@@ -25,11 +21,6 @@ export function alertingMatchersMatch(
   return matchers.every((m) => alertingMatcherMatches(m, labels));
 }
 
-/** No matchers = matches every alert. */
-export function alertingIsCatchAll(matchers: AlertingMatcher[]): boolean {
-  return matchers.length === 0;
-}
-
 /** Dispatcher labels, with system-owned values winning on collision. */
 export function alertingSyntheticLabels(
   labels: Record<string, string>,
@@ -45,18 +36,6 @@ export function alertingSyntheticLabels(
     status: opts.status,
     rule: opts.rule,
   };
-}
-
-/** Dispatch-time labels of a live rule instance. */
-export function alertingDispatchLabels(
-  alert: Pick<AlertingAlert, "labels" | "rule">,
-  rule: Pick<AlertingRuleView, "spec"> | undefined,
-): Record<string, string> {
-  return alertingSyntheticLabels(alert.labels, {
-    severity: rule?.spec.severity ?? "info",
-    status: "firing",
-    rule: alert.rule,
-  });
 }
 
 /** Half-open: a silence covers its start instant and not its end instant. */

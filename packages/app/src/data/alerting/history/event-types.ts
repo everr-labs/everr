@@ -9,14 +9,17 @@
  * is a compile error at every reader and writer, not a silently empty query
  * result.
  */
-export type AlertHistoryEventType =
-  | "evaluation_succeeded"
-  | "evaluation_failed"
-  | "instance_pending"
-  | "instance_fired"
-  | "instance_resolved"
-  | "instance_closed"
-  | "notification_deferred"
-  | "notification_suppressed"
-  | "delivery_succeeded"
-  | "delivery_failed";
+const ALERT_HISTORY_EVENT_TYPES = [
+  "evaluation_succeeded",
+  "evaluation_failed",
+  "instance_pending",
+  "instance_fired",
+  "instance_resolved",
+  "instance_closed",
+  "notification_deferred",
+  "notification_suppressed",
+  "delivery_succeeded",
+  "delivery_failed",
+] as const;
+
+export type AlertHistoryEventType = (typeof ALERT_HISTORY_EVENT_TYPES)[number];

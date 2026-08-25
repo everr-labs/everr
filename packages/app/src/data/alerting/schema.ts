@@ -1,6 +1,5 @@
 import { z } from "zod";
 import { PreviewStatusSchema } from "@/data/previews/overlay";
-import { ALERTING_DEFAULT_TIERS } from "./delivery/defaults";
 import {
   alertingChannelNamesSchema,
   alertingResourceNameSchema,
@@ -116,20 +115,6 @@ export const AlertingRuleViewSchema = AlertingRuleSchema.extend({
   previewStatus: PreviewStatusSchema.optional(),
 });
 
-export const AlertingAlertSchema = z.object({
-  key: z.string(),
-  fingerprint: z.string(),
-  rule: z.string(),
-  tenant: z.string(),
-  status: AlertingInstanceStatusSchema,
-  labels: z.record(z.string(), z.string()),
-  value: z.number().nullable(),
-  pending_since: AlertingTimestampNullable.optional(),
-  active_since: AlertingTimestampNullable,
-  last_seen: AlertingTimestampNullable,
-  absent_count: z.number().int(),
-});
-
 // Secret fields come back redacted ("***") on read.
 export const AlertingChannelConfigSchema = z.discriminatedUnion("type", [
   z.object({ type: z.literal("webhook"), url: z.string() }),
@@ -162,31 +147,6 @@ export const AlertingChannelInputSchema = z.object({
 // config is what lets a rename leave the credential alone without the caller
 // having to read it back first, which it could not do anyway.
 export const AlertingChannelUpdateSchema = AlertingChannelInputSchema.partial();
-
-export const AlertingChannelSchema = z.object({
-  id: z.string(),
-  tenant: z.string(),
-  name: z.string(),
-  config: AlertingChannelConfigSchema,
-});
-
-// The org default destination, keyed by tier. "all" is the unsplit mode and
-// never coexists with severity tiers; the repository enforces that, since a
-// record schema cannot.
-export const AlertingDefaultDestinationInputSchema = z.object({
-  tiers: z
-    .partialRecord(
-      z.enum(ALERTING_DEFAULT_TIERS),
-      z.array(z.string().min(1)).max(16),
-    )
-    .refine(
-      (tiers) =>
-        Object.values(tiers).every(
-          (channels) => new Set(channels).size === channels.length,
-        ),
-      { message: "channels must be unique within a tier" },
-    ),
-});
 
 export const AlertingRuleInputSchema = AlertingRuleSpecSchema.extend({
   name: alertingResourceNameSchema,

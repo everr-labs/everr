@@ -1,8 +1,6 @@
 import { describe, expect, it } from "vitest";
-import type { AlertingMatcher, AlertingRuleView } from "../types";
+import type { AlertingMatcher } from "../types";
 import {
-  alertingDispatchLabels,
-  alertingIsCatchAll,
   alertingMatcherMatches,
   alertingMatchersMatch,
   alertingMatchingSilence,
@@ -72,23 +70,6 @@ describe("alertingSyntheticLabels", () => {
       status: "firing",
       rule: "r-1",
     });
-  });
-});
-
-describe("alertingDispatchLabels", () => {
-  it("resolves severity from the rule", () => {
-    const labels = alertingDispatchLabels(
-      { labels: { team: "pay" }, rule: "r-1" },
-      { spec: { severity: "warning" } as AlertingRuleView["spec"] },
-    );
-    expect(labels.severity).toBe("warning");
-  });
-});
-
-describe("alertingIsCatchAll", () => {
-  it("recognizes only an explicit route without matchers", () => {
-    expect(alertingIsCatchAll([])).toBe(true);
-    expect(alertingIsCatchAll([matcher("ne", "")])).toBe(false);
   });
 });
 

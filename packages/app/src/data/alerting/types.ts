@@ -1,6 +1,5 @@
 import type { z } from "zod";
 import type {
-  AlertingAlertSchema,
   AlertingChannelConfigSchema,
   AlertingMatcherSchema,
   AlertingRuleConditionSchema,
@@ -25,7 +24,6 @@ export type AlertingRule = z.infer<typeof AlertingRuleSchema>;
 export type AlertingRuleInput = z.infer<typeof AlertingRuleInputSchema>;
 export type AlertingRuleUpdate = z.infer<typeof AlertingRuleUpdateSchema>;
 export type AlertingRuleView = z.infer<typeof AlertingRuleViewSchema>;
-export type AlertingAlert = z.infer<typeof AlertingAlertSchema>;
 
 /** One bounded result-row sample captured from a successful rule evaluation. */
 export type AlertingEvaluationSample = {

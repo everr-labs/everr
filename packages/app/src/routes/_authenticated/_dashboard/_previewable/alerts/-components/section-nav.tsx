@@ -2,17 +2,11 @@ import { Button } from "@everr/ui/components/button";
 import { Sheet, SheetContent, SheetTitle } from "@everr/ui/components/sheet";
 import { useMediaQuery } from "@everr/ui/hooks/use-media-query";
 import { Link } from "@tanstack/react-router";
-import { BellOff, Flame, Menu, Send, SlidersHorizontal } from "lucide-react";
+import { BellOff, Flame, Menu, Send } from "lucide-react";
 import { useState } from "react";
 
 const DESTINATIONS = [
   { to: "/alerts", label: "Triage", icon: Flame, exact: true },
-  {
-    to: "/alerts/rules",
-    label: "All Rules",
-    icon: SlidersHorizontal,
-    exact: false,
-  },
   {
     to: "/alerts/silences",
     label: "Silences",
