@@ -1,12 +1,8 @@
 import { errorIssueCountExpr } from "@everr/telemetry-explorer/errors";
 import { resolveTimeRange } from "@everr/ui/lib/time-range";
 import { TimeRangeInputSchema } from "@/data/analytics/schemas";
-import {
-  nonEmptyResourceAttribute,
-  resourceAttribute,
-} from "@/data/run-query-helpers";
 import { createAuthenticatedServerFn } from "@/lib/serverFn";
-import { getBucketGranularity } from "@/lib/time-range";
+import { type BucketGranularity, getBucketGranularity } from "@/lib/time-range";
 import { bucketExpr, bucketGrid } from "./buckets";
 
 export interface HomeService {
@@ -36,17 +32,43 @@ function fillSeries<Key extends string>(
 }
 
 /**
- * `GROUP BY ... WITH ROLLUP` appends one extra row per query holding the
- * range-wide total, with every grouping key defaulted. For a `String` bucket
- * key that default is the empty string, which no real bucket key can collide
- * with, so it doubles as the marker for "this is the total row".
+ * Each query below aggregates one table at three grains at once: per bucket,
+ * per second key (service, or PR), and range-wide. `GROUP BY GROUPING SETS`
+ * computes exactly those three and nothing else, so the table is read once
+ * instead of once per grain, and the cross product `CUBE` would add is never
+ * built.
+ *
+ * A row's grain cannot be read off its key columns: the keys not in a set come
+ * back defaulted to the empty string, which collides with the real rows whose
+ * `ServiceName` or PR url is genuinely empty. `grouping()` reports whether a
+ * key was aggregated away rather than grouped on, which separates the two, so
+ * every query labels its own rows with a `multiIf` over `grouping()` as `kind`
+ * and callers match on the label.
  */
-const ROLLUP_TOTAL_BUCKET = "";
+type RowKind = "bucket" | "service" | "pr" | "total";
 
-function rollupTotal<Row extends { bucket: string }>(
+function ofKind<Row extends { kind: RowKind }>(
   rows: Row[],
-): Row | undefined {
-  return rows.find((r) => r.bucket === ROLLUP_TOTAL_BUCKET);
+  kind: RowKind,
+): Row[] {
+  return rows.filter((r) => r.kind === kind);
+}
+
+function totalRow<Row extends { kind: RowKind }>(rows: Row[]): Row | undefined {
+  return rows.find((r) => r.kind === "total");
+}
+
+/**
+ * The median, interpolated between the two middle values on an even count, to
+ * match the `quantile(0.5)` this used to be computed with in ClickHouse.
+ */
+function median(values: number[]): number {
+  if (values.length === 0) return 0;
+  const sorted = [...values].sort((a, b) => a - b);
+  const mid = (sorted.length - 1) / 2;
+  const lower = sorted[Math.floor(mid)];
+  const upper = sorted[Math.ceil(mid)];
+  return lower + (upper - lower) * (mid - Math.floor(mid));
 }
 
 function* interleave<T>(a: readonly T[], b: readonly T[]): Generator<T> {
@@ -86,6 +108,109 @@ function topServices(
   return picked;
 }
 
+/**
+ * The three statements the overview runs, built for one bucket granularity.
+ *
+ * Kept apart from the handler so the SQL can be read on its own, rather than
+ * only in the middle of the request that runs it: these are the queries that
+ * decide how fast Home loads.
+ *
+ * The SQL is written out in full, so what runs can be read straight off the
+ * page and pasted into a ClickHouse client. Only two things are interpolated,
+ * and neither can be a literal here: the bucket expression, which is the one
+ * part granularity changes, and the error fingerprint, which has to stay the
+ * same expression the errors surface counts issues with.
+ *
+ * Both time filters are bound through `{fromTime:String}` / `{toTime:String}`.
+ * `logs` timestamps its rows with `TimestampTime`, `traces` with `Timestamp`.
+ */
+function buildHomeQueries(granularity: BucketGranularity): {
+  logsSql: string;
+  tracesSql: string;
+  ciSql: string;
+} {
+  const logsSql = `
+      SELECT
+        ${bucketExpr("TimestampTime", granularity)} AS bucket,
+        ServiceName AS service,
+        multiIf(grouping(bucket) = 0, 'bucket', grouping(service) = 0, 'service', 'total') AS kind,
+        count() AS logCount,
+        ${errorIssueCountExpr()} AS issueCount
+      FROM logs
+      WHERE TimestampTime >= parseDateTimeBestEffort({fromTime:String})
+        AND TimestampTime <= parseDateTimeBestEffort({toTime:String})
+      GROUP BY GROUPING SETS ((bucket), (service), ())
+    `;
+
+  const tracesSql = `
+      SELECT
+        ${bucketExpr("Timestamp", granularity)} AS bucket,
+        ServiceName AS service,
+        multiIf(grouping(bucket) = 0, 'bucket', grouping(service) = 0, 'service', 'total') AS kind,
+        uniqIf(TraceId, TraceId != '') AS traceCount
+      FROM traces
+      WHERE Timestamp >= parseDateTimeBestEffort({fromTime:String})
+        AND Timestamp <= parseDateTimeBestEffort({toTime:String})
+      GROUP BY GROUPING SETS ((bucket), (service), ())
+    `;
+
+  /**
+   * The run id, the PR url and the task result each live on their own spans
+   * of a run, so none of them can be filtered before the rows are grouped
+   * into runs. Filtering the result first would leave `lastTimestamp` as the
+   * last result bearing span rather than the last span of the run, and a run
+   * whose closing span crosses a bucket boundary would then be counted one
+   * bucket early, or fall off the end of the grid entirely. All three are
+   * pulled up with `max` and filtered afterwards, which keeps the same set of
+   * runs.
+   *
+   * The time filter is the one predicate that stays ahead of the group, and
+   * it defines what a run means here: the spans it has inside the selected
+   * range. A run still going at the range end is therefore counted at its
+   * last span inside the range, not at the span that closes it. Moving the
+   * time filter after the group would read the whole table on every load,
+   * since nothing would be left to prune partitions or the primary index on.
+   *
+   * The `mapContains` beside it is not redundant with the `!= ''` that
+   * follows: it lets the `idx_res_attr_key` bloom skip index drop granules
+   * that carry no run id at all, before any value is read.
+   *
+   * Run counts and PR durations sit at different grains, so the grouping
+   * sets here are per bucket and per PR rather than per bucket and per
+   * service. Requiring a result keeps the PR median over the same population
+   * the run count reports, rather than dragging it down with the partial
+   * duration of an in-flight run. The median itself is taken from the per-PR
+   * rows in the handler, since an aggregate over one grouping set's rows is
+   * not something the same query can also return.
+   */
+  const ciSql = `
+      SELECT
+        ${bucketExpr("lastTimestamp", granularity)} AS bucket,
+        pr,
+        multiIf(grouping(bucket) = 0, 'bucket', grouping(pr) = 0, 'pr', 'total') AS kind,
+        count() AS runCount,
+        sum(runDurationMs) AS prTotalMs
+      FROM (
+        SELECT
+          ResourceAttributes['cicd.pipeline.run.id'] AS run_id,
+          max(ResourceAttributes['everr.git.pull_requests.url']) AS pr,
+          max(ResourceAttributes['cicd.pipeline.task.run.result']) AS result,
+          max(Timestamp) AS lastTimestamp,
+          max(Duration) / 1000000 AS runDurationMs
+        FROM traces
+        WHERE Timestamp >= parseDateTimeBestEffort({fromTime:String})
+          AND Timestamp <= parseDateTimeBestEffort({toTime:String})
+          AND mapContains(ResourceAttributes, 'cicd.pipeline.run.id')
+          AND ResourceAttributes['cicd.pipeline.run.id'] != ''
+        GROUP BY run_id
+      )
+      WHERE result != ''
+      GROUP BY GROUPING SETS ((bucket), (pr), ())
+    `;
+
+  return { logsSql, tracesSql, ciSql };
+}
+
 export const getHomeOverview = createAuthenticatedServerFn({ method: "GET" })
   .inputValidator(TimeRangeInputSchema)
   .handler(async ({ data: { timeRange }, context: { clickhouse } }) => {
@@ -93,139 +218,29 @@ export const getHomeOverview = createAuthenticatedServerFn({ method: "GET" })
     const granularity = getBucketGranularity(fromDate, toDate);
     const grid = bucketGrid(fromDate, toDate, granularity);
     const params = { fromTime: fromISO, toTime: toISO };
-    const timeFilter = `Timestamp >= parseDateTimeBestEffort({fromTime:String}) AND Timestamp <= parseDateTimeBestEffort({toTime:String})`;
-    const logsTimeFilter = `TimestampTime >= parseDateTimeBestEffort({fromTime:String}) AND TimestampTime <= parseDateTimeBestEffort({toTime:String})`;
+    const { logsSql, tracesSql, ciSql } = buildHomeQueries(granularity);
 
-    const logsSql = `
-      SELECT
-        ${bucketExpr("TimestampTime", granularity)} AS bucket,
-        count() AS logCount,
-        ${errorIssueCountExpr()} AS issueCount
-      FROM logs
-      WHERE ${logsTimeFilter}
-      GROUP BY bucket WITH ROLLUP
-    `;
-
-    const tracesSql = `
-      SELECT
-        ${bucketExpr("Timestamp", granularity)} AS bucket,
-        uniqIf(TraceId, TraceId != '') AS traceCount
-      FROM traces
-      WHERE ${timeFilter}
-      GROUP BY bucket WITH ROLLUP
-    `;
-
-    const traceServicesSql = `
-      SELECT
-        ServiceName AS service,
-        uniqIf(TraceId, TraceId != '') AS traceCount
-      FROM traces
-      WHERE ${timeFilter} AND ServiceName != ''
-      GROUP BY service
-    `;
-
-    const logServicesSql = `
-      SELECT
-        ServiceName AS service,
-        count() AS logCount,
-        ${errorIssueCountExpr()} AS errorCount
-      FROM logs
-      WHERE ${logsTimeFilter} AND ServiceName != ''
-      GROUP BY service
-    `;
-
-    /**
-     * The task result lives on its own spans of a run, so it cannot be
-     * filtered before the rows are grouped into runs. Filtering first would
-     * leave `lastTimestamp` as the last result bearing span rather than the
-     * last span of the run, and a run whose closing span crosses a bucket
-     * boundary would then be counted one bucket early, or fall off the end of
-     * the grid entirely. The result is pulled up with `max` and filtered
-     * afterwards, which keeps the same set of runs.
-     *
-     * The time filter is the one predicate that stays ahead of the group, and
-     * it defines what a run means here: the spans it has inside the selected
-     * range. A run still going at the range end is therefore counted at its
-     * last span inside the range, not at the span that closes it. Moving the
-     * time filter after the group would read the whole table on every load,
-     * since nothing would be left to prune partitions or the primary index on.
-     */
-    const ciSql = `
-      SELECT
-        ${bucketExpr("lastTimestamp", granularity)} AS bucket,
-        count() AS runCount
-      FROM (
-        SELECT run_id, lastTimestamp
-        FROM (
-          SELECT
-            ${resourceAttribute("cicd.pipeline.run.id")} AS run_id,
-            max(${resourceAttribute("cicd.pipeline.task.run.result")}) AS result,
-            max(Timestamp) AS lastTimestamp
-          FROM traces
-          WHERE ${timeFilter}
-            AND ${nonEmptyResourceAttribute("cicd.pipeline.run.id")}
-          GROUP BY run_id
-        )
-        WHERE result != ''
-      )
-      GROUP BY bucket WITH ROLLUP
-    `;
-
-    /**
-     * The PR url and the task result live on different spans of a run, so
-     * neither can be filtered before the rows are grouped into runs. Both are
-     * pulled up with `max` and filtered afterwards. Requiring a result keeps
-     * this median over the same population the run count above reports, rather
-     * than dragging it down with the partial duration of an in-flight run.
-     */
-    const prTimeSql = `
-      SELECT quantile(0.5)(prTotalMs) AS prMedianTotalTimeMs
-      FROM (
-        SELECT pr, sum(runDurationMs) AS prTotalMs
-        FROM (
-          SELECT
-            ${resourceAttribute("cicd.pipeline.run.id")} AS run_id,
-            max(${resourceAttribute("everr.git.pull_requests.url")}) AS pr,
-            max(${resourceAttribute("cicd.pipeline.task.run.result")}) AS result,
-            max(Duration) / 1000000 AS runDurationMs
-          FROM traces
-          WHERE ${timeFilter}
-            AND ${nonEmptyResourceAttribute("cicd.pipeline.run.id")}
-          GROUP BY run_id
-        )
-        WHERE pr != '' AND result != ''
-        GROUP BY pr
-      )
-    `;
-
-    const [
-      logsRows,
-      tracesRows,
-      traceServiceRows,
-      logServiceRows,
-      ciRows,
-      prTimeRows,
-    ] = await Promise.all([
+    const [logsRows, tracesRows, ciRows] = await Promise.all([
       clickhouse.query<{
+        kind: RowKind;
         bucket: string;
+        service: string;
         logCount: string;
         issueCount: string;
       }>(logsSql, params),
-      clickhouse.query<{ bucket: string; traceCount: string }>(
-        tracesSql,
-        params,
-      ),
-      clickhouse.query<{ service: string; traceCount: string }>(
-        traceServicesSql,
-        params,
-      ),
       clickhouse.query<{
+        kind: RowKind;
+        bucket: string;
         service: string;
-        logCount: string;
-        errorCount: string;
-      }>(logServicesSql, params),
-      clickhouse.query<{ bucket: string; runCount: string }>(ciSql, params),
-      clickhouse.query<{ prMedianTotalTimeMs: string }>(prTimeSql, params),
+        traceCount: string;
+      }>(tracesSql, params),
+      clickhouse.query<{
+        kind: RowKind;
+        bucket: string;
+        pr: string;
+        runCount: string;
+        prTotalMs: string;
+      }>(ciSql, params),
     ]);
 
     const services = new Map<string, HomeService>();
@@ -237,38 +252,46 @@ export const getHomeOverview = createAuthenticatedServerFn({ method: "GET" })
       }
       return entry;
     };
-    for (const row of traceServiceRows) {
+    // The unnamed service was filtered out in SQL when the per-service totals
+    // were their own query. It is dropped here instead, so the bucket series
+    // and range totals sharing the scan keep counting every row.
+    const named = <Row extends { service: string }>(rows: Row[]) =>
+      rows.filter((r) => r.service !== "");
+
+    for (const row of named(ofKind(tracesRows, "service"))) {
       service(row.service).traceCount = Number(row.traceCount);
     }
-    for (const row of logServiceRows) {
+    for (const row of named(ofKind(logsRows, "service"))) {
       const entry = service(row.service);
       entry.logCount = Number(row.logCount);
-      entry.errorCount = Number(row.errorCount);
+      entry.errorCount = Number(row.issueCount);
     }
 
     const serviceList = topServices(services.values(), MAX_SERVICES);
 
-    const logsTotal = rollupTotal(logsRows);
-    const totalRuns = Number(rollupTotal(ciRows)?.runCount ?? 0);
+    const logsTotal = totalRow(logsRows);
+    const prTotals = ofKind(ciRows, "pr")
+      .filter((r) => r.pr !== "")
+      .map((r) => Number(r.prTotalMs));
 
     return {
       logs: {
         total: Number(logsTotal?.logCount ?? 0),
-        series: fillSeries(grid, logsRows, "logCount"),
+        series: fillSeries(grid, ofKind(logsRows, "bucket"), "logCount"),
       },
       traces: {
-        total: Number(rollupTotal(tracesRows)?.traceCount ?? 0),
-        series: fillSeries(grid, tracesRows, "traceCount"),
+        total: Number(totalRow(tracesRows)?.traceCount ?? 0),
+        series: fillSeries(grid, ofKind(tracesRows, "bucket"), "traceCount"),
       },
       services: serviceList,
       errors: {
         issues: Number(logsTotal?.issueCount ?? 0),
-        series: fillSeries(grid, logsRows, "issueCount"),
+        series: fillSeries(grid, ofKind(logsRows, "bucket"), "issueCount"),
       },
       ci: {
-        totalRuns,
-        prMedianTotalTimeMs: Number(prTimeRows[0]?.prMedianTotalTimeMs ?? 0),
-        series: fillSeries(grid, ciRows, "runCount"),
+        totalRuns: Number(totalRow(ciRows)?.runCount ?? 0),
+        prMedianTotalTimeMs: median(prTotals),
+        series: fillSeries(grid, ofKind(ciRows, "bucket"), "runCount"),
       },
     } satisfies HomeOverview;
   });
