@@ -206,7 +206,7 @@ const RAIL_TOOLTIP_WARM_MS = 400;
 const RAIL_TOOLTIP_OFFSET_PX = 6;
 
 type RailTooltipContextValue = {
-  show: (anchor: HTMLElement, label: string) => void;
+  show: (anchor: HTMLElement, label: string, section?: string) => void;
   hide: () => void;
 };
 
@@ -214,6 +214,10 @@ const RailTooltipContext = createContext<RailTooltipContextValue | null>(null);
 
 type RailTooltipState = {
   label: string;
+  /** The group heading the item sits under. Collapsing the rail hides every
+   *  `SidebarGroupLabel`, so the tooltip is the only place left that says
+   *  which section an icon belongs to. */
+  section?: string;
   top: number;
   left: number;
   visible: boolean;
@@ -233,13 +237,14 @@ function RailTooltipProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const show = useCallback(
-    (anchor: HTMLElement, label: string) => {
+    (anchor: HTMLElement, label: string, section?: string) => {
       window.clearTimeout(openTimer.current);
       window.clearTimeout(closeTimer.current);
       const rect = anchor.getBoundingClientRect();
       const wasVisible = tipRef.current?.visible ?? false;
       const next = {
         label,
+        section,
         top: rect.top + rect.height / 2,
         left: rect.right + RAIL_TOOLTIP_OFFSET_PX,
         visible: true,
@@ -285,12 +290,22 @@ function RailTooltipProvider({ children }: { children: React.ReactNode }) {
             role="tooltip"
             data-slot="sidebar-rail-tooltip"
             className={cn(
-              "bg-sidebar text-sidebar-foreground border-sidebar-border pointer-events-none fixed z-50 -translate-y-1/2 rounded-md border px-3 py-1.5 text-xs whitespace-nowrap shadow-md duration-150 ease-out",
+              "bg-sidebar text-sidebar-foreground border-sidebar-border pointer-events-none fixed z-50 -translate-y-1/2 rounded-md border px-3 text-xs whitespace-nowrap shadow-md duration-150 ease-out",
+              // Two stacked lines need the room a single label does not.
+              tip.section ? "py-2" : "py-1.5",
               tip.slide ? "transition-[top,opacity]" : "transition-opacity",
               tip.visible ? "opacity-100" : "opacity-0",
             )}
             style={{ top: tip.top, left: tip.left }}
           >
+            {tip.section && (
+              // Set in the same voice as `SidebarGroupLabel`, so the collapsed
+              // rail restores the heading it hid rather than inventing a
+              // second way of naming a section.
+              <span className="text-sidebar-foreground/50 mb-0.5 block text-[10px] font-medium uppercase leading-none tracking-[0.12em]">
+                {tip.section}
+              </span>
+            )}
             {tip.label}
           </div>,
           document.body,
@@ -658,12 +673,14 @@ function SidebarMenuButton({
   variant = "default",
   size = "default",
   tooltip,
+  tooltipSection,
   className,
   ...props
 }: useRender.ComponentProps<"button"> &
   React.ComponentProps<"button"> & {
     isActive?: boolean;
     tooltip?: string;
+    tooltipSection?: string;
   } & VariantProps<typeof sidebarMenuButtonVariants>) {
   const { isMobile, state } = useSidebar();
   const railTooltip = useContext(RailTooltipContext);
@@ -679,11 +696,13 @@ function SidebarMenuButton({
       {
         className: cn(sidebarMenuButtonVariants({ variant, size }), className),
         onMouseEnter: tooltipActive
-          ? (event) => railTooltip.show(event.currentTarget, tooltip)
+          ? (event) =>
+              railTooltip.show(event.currentTarget, tooltip, tooltipSection)
           : undefined,
         onMouseLeave: tooltipActive ? railTooltip.hide : undefined,
         onFocus: tooltipActive
-          ? (event) => railTooltip.show(event.currentTarget, tooltip)
+          ? (event) =>
+              railTooltip.show(event.currentTarget, tooltip, tooltipSection)
           : undefined,
         onBlur: tooltipActive ? railTooltip.hide : undefined,
       },
