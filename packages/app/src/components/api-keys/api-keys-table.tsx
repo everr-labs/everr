@@ -14,11 +14,18 @@ import { Button } from "@everr/ui/components/button";
 import { Card, CardContent } from "@everr/ui/components/card";
 import { type Column, DataTable } from "@everr/ui/components/data-table";
 import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from "@everr/ui/components/empty";
+import {
   Tooltip,
   TooltipContent,
   TooltipTrigger,
 } from "@everr/ui/components/tooltip";
-import { Globe } from "lucide-react";
+import { Globe, KeyRound, type LucideIcon } from "lucide-react";
 import { toast } from "sonner";
 import { CreateApiKeyDialog } from "@/components/api-keys/create-api-key-dialog";
 import { formatDate } from "@/components/users-management/format-date";
@@ -293,11 +300,28 @@ function publicColumns(onRevoke: RevokeFn): Column<ApiKey>[] {
   ];
 }
 
-function SectionEmpty({ children }: { children: React.ReactNode }) {
+// A section with no keys still has to say what belongs there and why. The
+// button that creates one sits in the section header just above, so the state
+// stays a briefing, not a second copy of the same control.
+function SectionEmpty({
+  icon: Icon,
+  title,
+  children,
+}: {
+  icon: LucideIcon;
+  title: string;
+  children: React.ReactNode;
+}) {
   return (
-    <p className="text-muted-foreground px-3 py-8 text-center text-sm text-balance">
-      {children}
-    </p>
+    <Empty className="border-0 py-10">
+      <EmptyHeader>
+        <EmptyMedia variant="icon">
+          <Icon />
+        </EmptyMedia>
+        <EmptyTitle>{title}</EmptyTitle>
+        <EmptyDescription>{children}</EmptyDescription>
+      </EmptyHeader>
+    </Empty>
   );
 }
 
@@ -334,9 +358,10 @@ export function ApiKeysSections({ keys }: ApiKeysSectionsProps) {
               rowKey={(row) => row.id}
             />
           ) : (
-            <SectionEmpty>
-              No organization keys yet. Create one for servers, CLIs, and
-              collectors.
+            <SectionEmpty icon={KeyRound} title="No organization keys yet">
+              Create one to send OpenTelemetry data from servers, CLIs, and
+              collectors, or to manage dashboards, runbooks, and alerts with{" "}
+              <code className="font-mono text-[0.7rem]">everr apply</code>.
             </SectionEmpty>
           )}
         </CardContent>
@@ -371,9 +396,9 @@ export function ApiKeysSections({ keys }: ApiKeysSectionsProps) {
                 rowKey={(row) => row.id}
               />
             ) : (
-              <SectionEmpty>
-                No public keys yet. Create one to send telemetry straight from a
-                web page.
+              <SectionEmpty icon={Globe} title="No public keys yet">
+                Create one to send telemetry straight from a web page: page
+                views, web vitals, and front-end errors.
               </SectionEmpty>
             )}
           </CardContent>
