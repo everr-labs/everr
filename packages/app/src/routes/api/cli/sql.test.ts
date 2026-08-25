@@ -6,6 +6,7 @@ vi.mock("@/lib/clickhouse", () => ({
 }));
 
 import { querySqlApi } from "@/lib/clickhouse";
+import { SCHEMA_PROBE_MESSAGE } from "@/lib/sql-api-error";
 import { Route } from "./sql";
 
 const mockedQuerySqlApi = vi.mocked(querySqlApi);
@@ -108,11 +109,6 @@ describe("/api/cli/sql", () => {
       error: "Syntax error near nope",
     });
   });
-
-  const SCHEMA_PROBE_MESSAGE =
-    "Query references a table that doesn't exist or isn't available to you. " +
-    "Readable tables: traces, logs, metrics_gauge, metrics_sum, " +
-    "metrics_histogram, metrics_exponential_histogram, metrics_summary.";
 
   async function postSql(body: string) {
     return getHandler()({

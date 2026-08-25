@@ -385,6 +385,11 @@ pub struct KindResult {
     /// Live resources taken over from another owning repo (only with `--adopt`).
     #[serde(default)]
     pub adopted: Vec<String>,
+    /// Non-fatal advisory about how this kind was reconciled (e.g. preview
+    /// rules evaluate suppressed; a pruned runbook is still linked from
+    /// another repo's live alert).
+    #[serde(default)]
+    pub note: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize, PartialEq)]
@@ -593,6 +598,30 @@ mod tests {
     }
 
     #[test]
+    fn classify_rejects_cc_alert_rule_as_unsupported() {
+        let cc_rule = ResourceDocument {
+            path: "cc-rule.yaml".into(),
+            document: serde_json::json!({"kind": "CCAlertRule"}),
+        };
+        let err = classify_documents(vec![cc_rule]).unwrap_err().to_string();
+        assert!(err.contains("CCAlertRule"), "got: {err}");
+        assert!(err.contains("Dashboard, Runbook, AlertRule"), "got: {err}");
+    }
+
+    #[test]
+    fn classify_rejects_cc_receiver_as_unsupported() {
+        let cc_receiver = ResourceDocument {
+            path: "cc-receiver.yaml".into(),
+            document: serde_json::json!({"kind": "CCReceiver"}),
+        };
+        let err = classify_documents(vec![cc_receiver])
+            .unwrap_err()
+            .to_string();
+        assert!(err.contains("CCReceiver"), "got: {err}");
+        assert!(err.contains("Dashboard, Runbook, AlertRule"), "got: {err}");
+    }
+
+    #[test]
     fn classify_accepts_runbook_and_notebook_alias() {
         let runbook = ResourceDocument {
             path: "a.yaml".into(),
@@ -792,16 +821,22 @@ mod tests {
         let s: ApplySummary = serde_json::from_value(serde_json::json!({
             "dryRun": true,
             "results": [
-                {"kind": "Dashboard", "created": ["a"], "updated": [], "deleted": ["b"]}
+                {"kind": "Dashboard", "created": ["a"], "updated": [], "deleted": ["b"]},
+                {"kind": "AlertRule", "created": [], "updated": [], "deleted": [], "note": "preview rules evaluate suppressed"}
             ],
             "organization": {"id": "org-1", "name": "Acme"}
         }))
         .unwrap();
         assert!(s.dry_run);
-        assert_eq!(s.results.len(), 1);
+        assert_eq!(s.results.len(), 2);
         assert_eq!(s.results[0].kind, "Dashboard");
         assert_eq!(s.results[0].created, vec!["a".to_string()]);
         assert_eq!(s.results[0].deleted, vec!["b".to_string()]);
+        assert_eq!(s.results[0].note, None);
+        assert_eq!(
+            s.results[1].note.as_deref(),
+            Some("preview rules evaluate suppressed")
+        );
         assert_eq!(s.organization.name, "Acme");
     }
 }

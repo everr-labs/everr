@@ -36,25 +36,27 @@ spec:
   evaluationInterval: 1m
   notificationMessage:
     title: "${ServiceName} event loop is lagging"
-    description: "p99 event loop delay averaged ${p99_delay_ms}ms over the last 5 minutes"
+    description: "p99 event loop delay averaged ${value}ms over the last 5 minutes"
+  condition:
+    operator: gt
+    threshold: 100
   query: |
     SELECT
       ServiceName,
-      round(avg(Value) * 1000, 1) AS p99_delay_ms
+      round(avg(Value) * 1000, 1) AS value
     FROM metrics_gauge
     WHERE MetricName = 'nodejs.eventloop.delay.p99'
       AND TimeUnix >= now() - INTERVAL 5 MINUTE
     GROUP BY ServiceName
-    HAVING p99_delay_ms > 100
-    ORDER BY p99_delay_ms DESC
+    ORDER BY value DESC
 ```
 
 A few things worth noting:
 
 - `metadata.name` is the rule's **slug** and identity. Use lowercase letters, digits, and hyphens.
-- The query **is** the condition: one row per service over the threshold → each such service is a firing instance; nothing over the threshold → no rows → resolved. `nodejs.eventloop.delay.p99` is reported in seconds, so the query converts it to milliseconds. A healthy service sits around 10ms, so `HAVING p99_delay_ms > 100` stays quiet until the event loop is genuinely blocked. Tune that number to your services. Averaging over the 5-minute window keeps a single momentary blip from paging.
+- The query returns one row per service, including healthy services, with the measured signal aliased to the required numeric `value` column. `condition` fires only rows above 100ms. This lets the same query display useful data when no alert is firing. `nodejs.eventloop.delay.p99` is reported in seconds, so the query converts it to milliseconds. Tune the threshold to your services. Averaging over the 5-minute window keeps a single momentary blip from paging.
 - `ServiceName` is a string column, so Everr uses it as each instance's identity automatically: one alert instance per service.
-- `notificationMessage` is templated with `${ServiceName}` and `${p99_delay_ms}` from that instance's row; only columns the query returns can be referenced.
+- `notificationMessage` is templated with `${ServiceName}` and `${value}` from that instance's row; only columns the query returns can be referenced.
 - `evaluationInterval: 1m` runs the query once a minute, the minimum. See the [AlertRule spec](/docs/reference/alert-spec) for every field and constraint.
 - Link a runbook to the rule with `spec.runbook` so responders get a documented procedure when it fires.
 
@@ -97,17 +99,17 @@ If there are no changes, apply prints `Nothing to apply.` and exits without prom
 
 Open Everr and go to **Alerts** (`/alerts`). Your `eventloop-delay` rule appears in the **Rules** list with its current state. Open it:
 
-- The **Configuration** card shows the evaluation interval, instance labels, and the **Last evaluated** time.
-- When a service crosses the threshold, the **Firing instances** card lists one row per firing service with a **Firing since** time. If nothing is firing, it shows the resolved state.
+- The facts under the title say how the rule behaves: its severity, how often it evaluates, how long a breach has to last before it fires, how many non-breaching evaluations resolve it, and where it delivers.
+- **Breaching instances** counts the instances over the threshold right now. The **Signal history** chart below plots the rule's own signal against its threshold, so a breach that comes and goes is visible.
 - If the query errors, the rule shows an evaluation error on the detail page. Fix the SQL and re-apply.
 
 ## Get notified
 
-Seeing the alert fire in the UI needs no setup. To actually receive it via Telegram or Slack, configure a channel.
+Seeing the alert fire in the UI needs no setup. To actually receive it, create a channel on the Notifications page: Slack, Discord, Telegram, or any HTTPS webhook. Your first channel becomes the organization's default destination, so one channel is a complete setup. See [Set up alert notifications](/docs/guides/set-up-notifications).
 
 ## Change and re-apply
 
-Edit the file (say, tighten the threshold to `HAVING p99_delay_ms > 200`) and apply again. A changed rule is updated in place; the slug and URL don't change because the slug didn't. Reconciliation is delete-by-default within the repoid: delete the file and apply, and Everr removes the rule.
+Edit the file (say, tighten `condition.threshold` to `200`) and apply again. A changed rule is updated in place; the slug and URL don't change because the slug didn't. Reconciliation is delete-by-default within the repoid: delete the file and apply, and Everr removes the rule.
 
 ```sh
 rm everr/eventloop-delay.alert.yaml

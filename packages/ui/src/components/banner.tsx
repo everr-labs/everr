@@ -15,16 +15,19 @@ const bannerVariants = cva("flex items-center gap-2 text-sm", {
   defaultVariants: { variant: "neutral" },
 });
 
+// The outline sits on an overlay pseudo-element, not on the frame itself: an
+// inset ring is a box-shadow, and CSS paints box-shadows below the element's
+// descendants, so any content scrolling inside the frame covers it.
 const bannerFrameVariants = cva(
-  "flex min-h-0 flex-1 flex-col ring-2 ring-inset",
+  "relative flex min-h-0 flex-1 flex-col after:pointer-events-none after:absolute after:inset-0 after:z-20 after:ring-2 after:ring-inset",
   {
     variants: {
       variant: {
-        neutral: "ring-border",
-        info: "ring-sky-500",
-        success: "ring-emerald-500",
-        warning: "ring-amber-500",
-        danger: "ring-red-500",
+        neutral: "after:ring-border",
+        info: "after:ring-sky-500",
+        success: "after:ring-emerald-500",
+        warning: "after:ring-amber-500",
+        danger: "after:ring-red-500",
       },
     },
     defaultVariants: { variant: "neutral" },

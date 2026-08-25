@@ -3,7 +3,7 @@ title: Dashboard Spec
 description: The full Perses-compatible dashboard file format Everr validates and renders.
 ---
 
-A dashboard file is a [Perses](https://perses.dev)-style resource with three top-level keys. Everr validates it on `everr apply` and again on read; the whole document is stored **verbatim**, so unknown Perses fields — at the top level or inside `spec` — survive a read/apply round-trip unchanged. (The folder path is the one piece of state kept outside the document: it's derived from the file's directory, not declared in the file.)
+A dashboard file is a [Perses](https://perses.dev)-style resource with three top-level keys. Everr validates it on `everr apply` and again on read; the whole document is stored **verbatim**, so unknown Perses fields (at the top level or inside `spec`) survive a read/apply round-trip unchanged. (The folder path is the one piece of state kept outside the document: it's derived from the file's directory, not declared in the file.)
 
 ```yaml
 kind: Dashboard
@@ -17,7 +17,7 @@ spec:
 | Key | Type | Notes |
 | --- | --- | --- |
 | `kind` | `"Dashboard"` | Selects the reconciler. Required. |
-| `metadata.name` | string | The **slug** — identity within its project, and the URL segment. Set it explicitly; the file is named `<slug>.dashboard.yaml` to match. See [Slug rules](#slug-rules). |
+| `metadata.name` | string | The **slug**: identity within its project, and the URL segment. Set it explicitly; the file is named `<slug>.dashboard.yaml` to match. See [Slug rules](#slug-rules). |
 | `metadata.project` | string | Groups dashboards into a named set. Optional; defaults to `default`. Identity is `project` + `slug`, so two projects can share the same slug without colliding. |
 | `spec` | object | The dashboard contents, below. |
 
@@ -70,12 +70,12 @@ display:
 
 ### Query parameters
 
-Every dashboard query — panel queries and variable [options queries](/docs/reference/variables) alike — is run with these ClickHouse parameters bound. They are always provided (referencing them never errors, and unreferenced parameters are ignored), but they are **not** injected into the SQL — the query must reference them. Usage guide: [Time range parameters](/docs/reference/visualizations#time-range-parameters).
+Every dashboard query (panel queries and variable [options queries](/docs/reference/variables) alike) is run with these ClickHouse parameters bound. They are always provided (referencing them never errors, and unreferenced parameters are ignored), but they are **not** injected into the SQL: the query must reference them. Usage guide: [Time range parameters](/docs/reference/visualizations#time-range-parameters).
 
 | Parameter | Value |
 | --- | --- |
-| `{from:String}` / `{to:String}` | The dashboard's selected time range — UTC datetimes in `YYYY-MM-DD HH:MM:SS.mmm` form (millisecond precision; compare them directly rather than assuming whole seconds). |
-| `{step:UInt32}` | Adaptive bucket width in seconds: the range divided by a ~500-point budget, snapped up to the next clock-aligned width — 1/2/5/10/15/20/30s, 1/2/5/10/15/30m, 1/2/3/6/12h, 1d, then whole days. |
+| `{from:String}` / `{to:String}` | The dashboard's selected time range, as UTC datetimes in `YYYY-MM-DD HH:MM:SS.mmm` form (millisecond precision; compare them directly rather than assuming whole seconds). |
+| `{step:UInt32}` | Adaptive bucket width in seconds: the range divided by a ~500-point budget, snapped up to the next clock-aligned width: 1/2/5/10/15/20/30s, 1/2/5/10/15/30m, 1/2/3/6/12h, 1d, then whole days. |
 
 ### Grid layout
 
@@ -142,7 +142,7 @@ The slug (from `metadata.name`; set it explicitly under the `<slug>.dashboard.ya
 
 - use only lowercase letters, digits, and hyphens,
 - not start or end with a hyphen,
-- be 1–200 characters.
+- be 1 to 200 characters.
 
 A slug must be unique within a project; applying two files that resolve to the same slug within the same project fails.
 

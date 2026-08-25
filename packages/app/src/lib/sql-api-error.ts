@@ -1,4 +1,5 @@
 import { ClickHouseError } from "@clickhouse/client";
+import { SQL_API_TENANT_TABLES } from "@/lib/sql-api-tables";
 
 // ClickHouse spells out exact table/column names in access-denied errors and
 // returns distinct errors for "exists but no read grant" vs "doesn't exist".
@@ -13,8 +14,7 @@ const SCHEMA_PROBE_ERROR_CODES = new Set(["497", "60", "81"]);
 
 export const SCHEMA_PROBE_MESSAGE =
   "Query references a table that doesn't exist or isn't available to you. " +
-  "Readable tables: traces, logs, metrics_gauge, metrics_sum, " +
-  "metrics_histogram, metrics_exponential_histogram, metrics_summary.";
+  `Readable tables: ${SQL_API_TENANT_TABLES.join(", ")}.`;
 
 export function sanitizeSqlApiError(error: unknown): string {
   if (

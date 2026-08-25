@@ -25,6 +25,9 @@ catalog:
 
 minimumReleaseAge: 4320
 allowBuilds:
+  # Its install script is `node -e ""`. The engine is not built here at all:
+  # it arrives prebuilt as a per-platform package (@chdb/lib-<os>-<arch>).
+  chdb: false
   core-js: false
   esbuild: false
   fallow: false

@@ -88,6 +88,5 @@ export const testDataSpec = z.discriminatedUnion("scenario", [
 
 export type TestDataSpec = z.infer<typeof testDataSpec>;
 export type RandomWalkSpec = z.infer<typeof randomWalkSpec>;
-export type TableSpec = z.infer<typeof tableSpec>;
-export type CsvSpec = z.infer<typeof csvSpec>;
+export type TableScenarioSpec = z.infer<typeof tableSpec>;
 export type GeoSpec = z.infer<typeof geoSpec>;

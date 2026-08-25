@@ -1,6 +1,7 @@
 import { createHmac, randomUUID } from "node:crypto";
 import { env } from "@/env";
 import { createClient } from "@/lib/clickhouse-client";
+import { SQL_API_TENANT_TABLES } from "@/lib/sql-api-tables";
 import { instrumentClickhouseOperation } from "@/telemetry/clickhouse";
 
 // The client default of 2500ms forces a fresh TLS handshake on most queries
@@ -21,10 +22,17 @@ export type ClickhouseQuery = <T>(
   params?: Record<string, unknown>,
 ) => Promise<T[]>;
 
+type AppQuerySettings = NonNullable<
+  Parameters<typeof clickhouse.query>[0]["clickhouse_settings"]
+>;
+
 export async function query<T>(
   query: string,
   organizationId: string,
   query_params?: Record<string, unknown>,
+  // Per-query, not a client default: this client is shared with dashboards,
+  // where a global execution-time cap could cut off a legitimate long scan.
+  clickhouse_settings?: AppQuerySettings,
 ): Promise<T[]> {
   if (typeof organizationId !== "string" || !organizationId) {
     throw new Error("Missing ClickHouse tenant context");
@@ -38,6 +46,8 @@ export async function query<T>(
         query_params,
         format: "JSONEachRow",
         clickhouse_settings: {
+          ...clickhouse_settings,
+          // Last, so a caller-supplied setting can never override the tenant scope.
           SQL_everr_tenant_id: organizationId,
         },
       }),
@@ -46,19 +56,15 @@ export async function query<T>(
   return result.json<T>();
 }
 
-// Tables that get a per-org row policy provisioned. Must match the read tables
-// granted to sql_api_role in clickhouse/init/15-create-sql-api-role.sql. The
-// canonical readable-table list — exported so callers (e.g. the MCP tool
-// description) advertise exactly these instead of hand-syncing copies.
-export const SQL_API_TENANT_TABLES = [
-  "traces",
-  "logs",
-  "metrics_gauge",
-  "metrics_sum",
-  "metrics_histogram",
-  "metrics_exponential_histogram",
-  "metrics_summary",
-] as const;
+// Every provisioning statement interpolates the organization id into DDL: the
+// username inside backticks, and the tenant id inside the row policy's string
+// literal. better-auth generates the id today, so it is not caller-chosen,
+// and this keeps it that way rather than trusting that it stays true.
+function assertSqlApiOrgId(organizationId: string): void {
+  if (!/^[A-Za-z0-9_-]+$/.test(organizationId)) {
+    throw new Error("organization id is not safe to interpolate into DDL");
+  }
+}
 
 function sqlApiOrgUserName(organizationId: string): string {
   return `sql_api_org_${organizationId}`;
@@ -125,6 +131,8 @@ export async function querySqlApi<T>(
 export interface SqlApiResult<T> {
   rows: T[];
   columns: string[];
+  /** ClickHouse type per column, parallel to `columns` ("" when absent). */
+  columnTypes: string[];
 }
 
 export async function querySqlApiWithMeta<T>(
@@ -141,12 +149,13 @@ export async function querySqlApiWithMeta<T>(
   );
 
   const body = (await result.json()) as {
-    meta?: { name: string }[];
+    meta?: { name: string; type?: string }[];
     data?: T[];
   };
   return {
     rows: body.data ?? [],
     columns: (body.meta ?? []).map((m) => m.name),
+    columnTypes: (body.meta ?? []).map((m) => m.type ?? ""),
   };
 }
 
@@ -201,7 +210,7 @@ type AdminInsertSettings = Parameters<
 >[0]["clickhouse_settings"];
 
 // Generic admin-client insert for app-owned tables; row typing lives with the
-// feature that owns the table (e.g. server/alerts/events.ts).
+// feature that owns the table.
 export async function insertAdminRows(
   table: string,
   rows: object[],
@@ -227,6 +236,7 @@ export async function insertAdminRows(
 export async function provisionSqlApiOrgUser(
   organizationId: string,
 ): Promise<void> {
+  assertSqlApiOrgId(organizationId);
   const username = sqlApiOrgUserName(organizationId);
   const password = sqlApiOrgPassword(organizationId);
   const tenantLiteral = `'${organizationId}'`;
@@ -261,6 +271,7 @@ export async function provisionSqlApiOrgUser(
 export async function deprovisionSqlApiOrgUser(
   organizationId: string,
 ): Promise<void> {
+  assertSqlApiOrgId(organizationId);
   const username = sqlApiOrgUserName(organizationId);
 
   for (const table of SQL_API_TENANT_TABLES) {

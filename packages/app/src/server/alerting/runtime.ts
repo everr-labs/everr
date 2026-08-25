@@ -1,0 +1,118 @@
+import { context, ROOT_CONTEXT } from "@opentelemetry/api";
+import {
+  type ParsedCronItem,
+  parseCronItems,
+  type TaskList,
+} from "graphile-worker";
+import {
+  ALERT_FLUSH_GROUP_TASK,
+  ALERT_PROCESS_EVENT_TASK,
+  ALERT_SEND_DELIVERY_TASK,
+} from "@/data/alerting/delivery/tasks";
+import { ALERT_PROJECT_LIFECYCLE_TASK } from "@/data/alerting/history/tasks";
+import {
+  ALERT_EVALUATE_TASK,
+  type EvaluatePayload,
+} from "@/data/alerting/scheduling/evaluation-jobs.server";
+import { serverLogger } from "@/telemetry/logger";
+import { flushAlertGroup } from "./delivery/flush-group";
+import { processAlertEvent } from "./delivery/process-event";
+import { sendAlertDelivery } from "./delivery/send-delivery";
+import { evaluateAlert } from "./evaluation/rule";
+import { projectAlertLifecycle } from "./history/project-lifecycle";
+import { cleanupAlertingHistory } from "./maintenance/cleanup";
+import { scanDueAlerts } from "./scheduling/scanner";
+import { withAlertJobSpan } from "./telemetry";
+
+const ALERT_SCAN_TASK = "alerts/scan";
+const ALERT_RETENTION_TASK = "alerts/retention";
+
+/**
+ * The task list is the one place every alerting job passes through, so the
+ * span starts here rather than in seven handlers. Handlers enrich the active
+ * span with the identity they discover (rule, episode, channel) instead of
+ * opening a child span just to hold attributes.
+ */
+function jobTraceparent(payload: unknown): string | null {
+  if (typeof payload !== "object" || payload === null) return null;
+  const value = (payload as { traceparent?: unknown }).traceparent;
+  return typeof value === "string" ? value : null;
+}
+
+function alertJob(
+  name: string,
+  run: (payload: unknown) => Promise<void>,
+): (payload: unknown) => Promise<void> {
+  return context.bind(ROOT_CONTEXT, async (payload: unknown) => {
+    await withAlertJobSpan(name, { traceparent: jobTraceparent(payload) }, () =>
+      run(payload),
+    );
+  });
+}
+
+export const alertTaskList: TaskList = {
+  [ALERT_SCAN_TASK]: alertJob("alerts.jobs.scan", async () => {
+    await scanDueAlerts();
+  }),
+  [ALERT_EVALUATE_TASK]: alertJob("alerts.jobs.evaluate", async (payload) => {
+    await evaluateAlert(payload as EvaluatePayload);
+  }),
+  [ALERT_PROCESS_EVENT_TASK]: alertJob(
+    "alerts.jobs.process_event",
+    async (payload) => {
+      await processAlertEvent(payload);
+    },
+  ),
+  [ALERT_FLUSH_GROUP_TASK]: alertJob(
+    "alerts.jobs.flush_group",
+    async (payload) => {
+      await flushAlertGroup(payload);
+    },
+  ),
+  [ALERT_SEND_DELIVERY_TASK]: alertJob(
+    "alerts.jobs.send_delivery",
+    async (payload) => {
+      await sendAlertDelivery(payload);
+    },
+  ),
+  [ALERT_PROJECT_LIFECYCLE_TASK]: alertJob(
+    "alerts.jobs.project_lifecycle",
+    async (payload) => {
+      await projectAlertLifecycle(payload);
+    },
+  ),
+  [ALERT_RETENTION_TASK]: alertJob("alerts.jobs.retention", async () => {
+    const counts = await cleanupAlertingHistory();
+    const deleted = Object.values(counts).reduce(
+      (sum, count) => sum + count,
+      0,
+    );
+    if (deleted > 0) {
+      serverLogger.info("alerts.retention.deleted", {
+        "alerts.retention.alert_evaluations": counts.alertEvaluations,
+        "alerts.retention.deliveries": counts.deliveries,
+        "alerts.retention.events": counts.events,
+        "alerts.retention.notification_groups": counts.notificationGroups,
+        "alerts.retention.silences": counts.silences,
+        "alerts.retention.instances": counts.instances,
+      });
+    }
+  }),
+};
+
+export const alertCronItems: ParsedCronItem[] = parseCronItems([
+  {
+    task: ALERT_SCAN_TASK,
+    match: "* * * * *",
+    identifier: "alerts-scan",
+    options: { backfillPeriod: 0 },
+  },
+  {
+    task: ALERT_RETENTION_TASK,
+    // Hourly, not daily: a day between runs let the backlog outrun what one
+    // run's time budget can drain.
+    match: "43 * * * *",
+    identifier: "alerts-retention",
+    options: { backfillPeriod: 0 },
+  },
+]);

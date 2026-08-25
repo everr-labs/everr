@@ -5,47 +5,47 @@ description: Reference for all Everr CLI commands.
 
 ## Cloud
 
-- `everr cloud login` — authenticate with your Everr account
-- `everr cloud logout` — sign out
-- `everr cloud query "<SQL>"` — run a read-only SQL query against your cloud telemetry and CI data
+- `everr cloud login`: authenticate with your Everr account
+- `everr cloud logout`: sign out
+- `everr cloud query "<SQL>"`: run a read-only SQL query against your cloud telemetry and CI data
   - `--format <json|ndjson|table>` output format (default: `table` in a terminal, `ndjson` otherwise)
 
 ## Setup
 
-- `everr setup` — run the guided setup wizard, including optional skills installation
-- `everr init` — import runs for the current repository
+- `everr setup`: run the guided setup wizard, including optional skills installation
+- `everr init`: import runs for the current repository
 
 ## Skills
 
-- `everr skills list [--project|--global] [--agent <codex|claude-code|cursor|all>]` — list bundled Everr skills
-- `everr skills install [--all] [--project|--global] [--agent ...] [--force] [--dry-run]` — install all bundled skills; omitting `--all` in a terminal asks for confirmation
-- `everr skills update [SKILL]... [--project|--global] [--agent ...] [--dry-run]` — update installed bundled skills
-- `everr skills uninstall [SKILL]... [--all] [--project|--global] [--agent ...] [--yes] [--dry-run]` — uninstall bundled skills
+- `everr skills list [--project|--global] [--agent <codex|claude-code|cursor|all>]`: list bundled Everr skills
+- `everr skills install [--all] [--project|--global] [--agent ...] [--force] [--dry-run]`: install all bundled skills; omitting `--all` in a terminal asks for confirmation
+- `everr skills update [SKILL]... [--project|--global] [--agent ...] [--dry-run]`: update installed bundled skills
+- `everr skills uninstall [SKILL]... [--all] [--project|--global] [--agent ...] [--yes] [--dry-run]`: uninstall bundled skills
 
 ## CI/CD status
 
-- `everr ci status` — show the current commit's pipeline state (`state`, `active`, `completed`)
+- `everr ci status`: show the current commit's pipeline state (`state`, `active`, `completed`)
   - `--commit <sha>` target a specific commit
   - `--run-id <id>` target a specific run
   - `--branch <name>` / `--repo <repo>` override repository context
 
-- `everr ci watch` — wait until the current `HEAD` commit finishes; exits non-zero if any run fails
+- `everr ci watch`: wait until the current `HEAD` commit finishes; exits non-zero if any run fails
   - `--commit <sha>` target a specific commit
   - `--attempt <n>` target a specific retry attempt
   - `--run-id <id>` target a specific run
   - `--fail-fast` exit immediately when any run fails
 
-- `everr ci runs` — list recent runs
+- `everr ci runs`: list recent runs
   - `--branch <name>` / `--current-branch` filter by branch
   - `--conclusion <success|failure|cancellation>` filter by outcome
   - `--workflow-name <name>` filter by workflow
   - `--run-id <id>` fetch a specific run
   - `--from <expr>` / `--to <expr>` restrict to a time range (accepts [date math](/docs/reference/datemath), e.g. `now-7d`)
 
-- `everr ci show <trace_id>` — show jobs and steps for a run
+- `everr ci show <trace_id>`: show jobs and steps for a run
   - `--failed` show only failed jobs and their failed steps
 
-- `everr ci logs <trace_id> --job-name <job> --step-number <n>` — print step logs (last 1000 lines by default)
+- `everr ci logs <trace_id> --job-name <job> --step-number <n>`: print step logs (last 1000 lines by default)
   - `--job-name <job>` / `--job-id <id>` select a job (required)
   - `--step-number <n>` / `--log-failed` select a step (exactly one required)
   - `--tail <n>` how many lines from the bottom
@@ -57,18 +57,18 @@ Collection-style commands accept `--limit <n>` and `--offset <n>` for pagination
 
 ## Local telemetry
 
-- `everr local start` — start the local OpenTelemetry collector
+- `everr local start`: start the local OpenTelemetry collector
   - `--quiet` suppress the collector URL output after startup
-- `everr local status` — check whether the local OpenTelemetry collector is running and print local OTLP/SQL URLs
-- `everr local query "<SQL>"` — query local telemetry with read-only SQL
+- `everr local status`: check whether the local OpenTelemetry collector is running and print local OTLP/SQL URLs
+- `everr local query "<SQL>"`: query local telemetry with read-only SQL
   - `--format <json|ndjson|table>` output format (default: `table` in a terminal, `ndjson` otherwise)
-- `everr wrap -- <command>` — run a command normally and mirror stdout/stderr into local telemetry
+- `everr wrap -- <command>`: run a command normally and mirror stdout/stderr into local telemetry
   - Requires a running collector; if unavailable, the command is not run
   - Preserves the wrapped command's non-zero exit code
 
 ## Dashboards (gitops)
 
-- `everr apply <dir>` — reconcile a directory of resource definitions (`.yaml`/`.yml`/`.json`) into Everr. By convention the directory is `everr/` at your repo root, holding flat, kind-suffixed files: `*.dashboard.yaml`, `*.alert.yaml`, `*.runbook.yaml` (the legacy `*.notebook.yaml` suffix is still recognized). Apply discovers `kind: Dashboard`, `kind: AlertRule`, and `kind: Runbook` documents under the directory, routing by the `kind:` field (the suffix is a naming convention only). The `repoid` is inferred from the repository's `origin` remote, normalized to the slug `host/owner/repo` (for example `git@github.com:Acme/API.git` becomes `github.com/acme/api`). No manifest is needed. An optional `everr.yaml` (or `everr.yml`) at the apply root overrides the inferred identity; it accepts exactly one key, `repoid`, a non-empty string. Apply errors only when there is neither a usable `origin` remote nor an `everr.yaml` manifest. The repoid is the authoritative reconcile scope, the apply ownership boundary. Within that repoid it makes the live resources match the tree: new files are created, changed files updated, and removed files **deleted**. Dashboards may set an optional `metadata.project` (defaults to `default`) to namespace identity and URL. See [Observability as code](/docs/concepts/observability-as-code).
+- `everr apply <dir>`: reconcile a directory of resource definitions (`.yaml`/`.yml`/`.json`) into Everr. By convention the directory is `everr/` at your repo root, holding flat, kind-suffixed files: `*.dashboard.yaml`, `*.alert.yaml`, `*.runbook.yaml` (the legacy `*.notebook.yaml` suffix is still recognized). Apply discovers `kind: Dashboard`, `kind: AlertRule`, and `kind: Runbook` documents under the directory, routing by the `kind:` field (the suffix is a naming convention only). The `repoid` is inferred from the repository's `origin` remote, normalized to the slug `host/owner/repo` (for example `git@github.com:Acme/API.git` becomes `github.com/acme/api`). No manifest is needed. An optional `everr.yaml` (or `everr.yml`) at the apply root overrides the inferred identity; it accepts exactly one key, `repoid`, a non-empty string. Apply errors only when there is neither a usable `origin` remote nor an `everr.yaml` manifest. The repoid is the authoritative reconcile scope, the apply ownership boundary. Within that repoid it makes the live resources match the tree: new files are created, changed files updated, and removed files **deleted**. Dashboards may set an optional `metadata.project` (defaults to `default`) to namespace identity and URL. See [Observability as code](/docs/concepts/observability-as-code).
   - `<dir>` directory to read resource files from (recursively), e.g. `./everr`; any subdirectories become folder paths
   - `--preview [NAME]` apply into a preview namespace instead of the live state and print a shareable link; `NAME` defaults to the current git branch (pass it explicitly in CI or on a detached HEAD). Previews apply without confirmation, alert rules in them evaluate but never notify, and each preview expires automatically 7 days after its last apply
   - `--dry-run` compute and print the diff without writing
@@ -81,4 +81,4 @@ Collection-style commands accept `--limit <n>` and `--offset <n>` for pagination
 
 ## Other
 
-- `everr uninstall` — remove all config files, log out, and print the command to remove the CLI binary
+- `everr uninstall`: remove all config files, log out, and print the command to remove the CLI binary

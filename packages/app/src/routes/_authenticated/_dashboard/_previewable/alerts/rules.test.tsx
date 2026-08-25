@@ -1,0 +1,339 @@
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import {
+  createMemoryHistory,
+  createRootRoute,
+  createRoute,
+  createRouter,
+  Outlet,
+  RouterProvider,
+} from "@tanstack/react-router";
+import { render, screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { alertingRuleViewFixture as alertingRule } from "@/data/alerting/test-fixtures";
+import type { AlertingAlert } from "@/data/alerting/types";
+import { RULES_PAGE } from "./-components/rules/list";
+import { Route as AlertsRulesFileRoute } from "./rules";
+
+const mocks = vi.hoisted(() => ({
+  listAlertingAlerts: vi.fn(),
+  listAlertingRules: vi.fn(),
+  pauseAlertingRule: vi.fn(),
+  resumeAlertingRule: vi.fn(),
+}));
+
+vi.mock("@/data/alerting/instances/server", () => ({
+  listAlertingAlerts: mocks.listAlertingAlerts,
+}));
+vi.mock("@/data/alerting/rules/server", () => ({
+  listAlertingRules: mocks.listAlertingRules,
+  pauseAlertingRule: mocks.pauseAlertingRule,
+  resumeAlertingRule: mocks.resumeAlertingRule,
+}));
+
+function alertingAlert(overrides: Partial<AlertingAlert> = {}): AlertingAlert {
+  // The engine never sets `active_since` until an instance fires; a pending
+  // instance's timeline lives in `pending_since` instead. So a "pending"
+  // override must not inherit the firing defaults below.
+  const status = overrides.status ?? "firing";
+  return {
+    key: "rule-1:fp-1",
+    fingerprint: "fp-1",
+    rule: "rule-1",
+    tenant: "org1",
+    status: "firing",
+    labels: { host: "web-1" },
+    value: 42,
+    active_since:
+      status === "pending"
+        ? null
+        : new Date(Date.now() - 300_000).toISOString(),
+    pending_since:
+      status === "pending"
+        ? new Date(Date.now() - 120_000).toISOString()
+        : null,
+    last_seen: new Date().toISOString(),
+    absent_count: 0,
+    ...overrides,
+  };
+}
+
+function renderRulesPage(options: { initialEntry?: string } = {}) {
+  const { initialEntry = "/alerts/rules" } = options;
+  const rootRoute = createRootRoute({ component: Outlet });
+  const authenticatedRoute = createRoute({
+    getParentRoute: () => rootRoute,
+    id: "_authenticated",
+    component: Outlet,
+  });
+  const dashboardRoute = createRoute({
+    getParentRoute: () => authenticatedRoute,
+    id: "_dashboard",
+    component: Outlet,
+  });
+  const alertsLayoutRoute = createRoute({
+    getParentRoute: () => dashboardRoute,
+    path: "alerts",
+    component: Outlet,
+  });
+  const rulesRoute = createRoute({
+    getParentRoute: () => alertsLayoutRoute,
+    path: "rules",
+    component: AlertsRulesFileRoute.options.component,
+  });
+  const routeTree = rootRoute.addChildren([
+    authenticatedRoute.addChildren([
+      dashboardRoute.addChildren([alertsLayoutRoute.addChildren([rulesRoute])]),
+    ]),
+  ]);
+
+  const history = createMemoryHistory({ initialEntries: [initialEntry] });
+  const queryClient = new QueryClient({
+    defaultOptions: { queries: { retry: false } },
+  });
+  const router = createRouter({ routeTree, history, context: { queryClient } });
+
+  render(
+    <QueryClientProvider client={queryClient}>
+      <RouterProvider router={router} />
+    </QueryClientProvider>,
+  );
+  return { router, queryClient };
+}
+
+/** The row that holds one rule's line, scoped by its display name so a status
+ *  label rendered against the wrong rule cannot pass a bare getByText. */
+function ruleRow(name: string) {
+  return screen.getByRole("listitem", { name });
+}
+
+beforeEach(() => {
+  for (const fn of Object.values(mocks)) fn.mockReset();
+});
+
+describe("/alerts/rules", () => {
+  it("lists a firing rule and a quiet rule, and says which is firing", async () => {
+    mocks.listAlertingRules.mockResolvedValue([
+      alertingRule({ id: "rule-1", name: "default/noisy" }),
+      alertingRule({ id: "rule-2", name: "default/calm" }),
+    ]);
+    mocks.listAlertingAlerts.mockResolvedValue([
+      alertingAlert({ rule: "rule-1", status: "firing" }),
+    ]);
+
+    renderRulesPage();
+
+    expect(await screen.findByText("noisy")).toBeInTheDocument();
+    expect(screen.getByText("calm")).toBeInTheDocument();
+    // Assert the pairing, not just that both words are on the page: a status
+    // label rendered against the wrong rule would pass a bare getByText.
+    expect(ruleRow("noisy")).toHaveTextContent("Firing");
+    expect(ruleRow("calm")).toHaveTextContent("OK");
+  });
+
+  it("labels a rule with only a pending instance Pending, not Firing", async () => {
+    mocks.listAlertingRules.mockResolvedValue([
+      alertingRule({ id: "rule-1", name: "default/limbo" }),
+    ]);
+    mocks.listAlertingAlerts.mockResolvedValue([
+      alertingAlert({ rule: "rule-1", status: "pending" }),
+    ]);
+
+    renderRulesPage();
+
+    expect(await screen.findByText("limbo")).toBeInTheDocument();
+    // The same instance reads "PENDING SINCE" on Triage: this list must not
+    // claim it as firing just because it is one of the two active states.
+    expect(ruleRow("limbo")).toHaveTextContent("Pending");
+    expect(ruleRow("limbo")).not.toHaveTextContent("Firing");
+  });
+
+  it("pages the rule list past its cap", async () => {
+    const overflow = 10;
+    const total = RULES_PAGE + overflow;
+    mocks.listAlertingRules.mockResolvedValue(
+      Array.from({ length: total }, (_, i) =>
+        alertingRule({
+          id: `quiet-${String(i).padStart(2, "0")}`,
+          name: `default/quiet-${String(i).padStart(2, "0")}`,
+          spec: {
+            annotations: {
+              "everr.display.name": `Quiet ${String(i).padStart(2, "0")}`,
+            },
+          },
+        }),
+      ),
+    );
+    mocks.listAlertingAlerts.mockResolvedValue([]);
+    const firstHidden = `Quiet ${String(RULES_PAGE).padStart(2, "0")}`;
+
+    const user = userEvent.setup();
+    renderRulesPage();
+
+    const region = await screen.findByRole("region", { name: "All rules" });
+    // The card itself renders before its data does, so its first row must be
+    // awaited rather than read straight off the loading skeleton.
+    expect(await within(region).findByText("Quiet 00")).toBeInTheDocument();
+    expect(within(region).queryByText(firstHidden)).not.toBeInTheDocument();
+    expect(
+      within(region).getByText(`${overflow} more of ${total}`),
+    ).toBeInTheDocument();
+
+    await user.click(within(region).getByRole("button", { name: "Load more" }));
+
+    expect(within(region).getByText(firstHidden)).toBeInTheDocument();
+  });
+
+  it("labels a degraded rule, on a preview branch as much as on live", async () => {
+    const degraded = (id: string, name: string, previewId: string | null) =>
+      alertingRule({
+        id,
+        name,
+        previewId,
+        health: {
+          status: "degraded",
+          consecutive_failures: 3,
+          degraded_since: new Date().toISOString(),
+          last_error: "boom",
+          last_error_at: new Date().toISOString(),
+        },
+      });
+    const live = degraded("rule-live", "default/live-rule", null);
+    const onBranch = degraded("rule-preview", "default/branch-rule", "pr-1");
+    // The real server only returns `onBranch` when asked for that preview's
+    // scope: the fixture must react to the call args, or this test would pass
+    // even if the page never asked for the preview scope.
+    mocks.listAlertingRules.mockImplementation(async (opts) =>
+      opts?.data?.preview === "pr-1" ? [live, onBranch] : [live],
+    );
+    mocks.listAlertingAlerts.mockResolvedValue([]);
+
+    renderRulesPage({ initialEntry: "/alerts/rules?preview=pr-1" });
+
+    // The card renders before its data does, so the first label read must be
+    // awaited rather than taken off the loading skeleton.
+    expect(await screen.findByText("live-rule")).toBeInTheDocument();
+    expect(ruleRow("live-rule")).toHaveTextContent("Degraded");
+    // A rule on a branch evaluates on schedule like any other, so its own
+    // state is what this column reports. That it belongs to the branch is the
+    // badge's business, and the badge does not displace the state.
+    expect(ruleRow("branch-rule")).toHaveTextContent("Degraded");
+  });
+
+  it("says how each rule differs from live under a preview", async () => {
+    mocks.listAlertingRules.mockResolvedValue([
+      alertingRule({
+        id: "rule-edited",
+        name: "default/edited",
+        previewId: "pr-1",
+        previewStatus: "changed",
+      }),
+      alertingRule({
+        id: "rule-new",
+        name: "default/fresh",
+        previewId: "pr-1",
+        previewStatus: "added",
+      }),
+      alertingRule({
+        id: "rule-same",
+        name: "default/same",
+        previewId: "pr-1",
+        previewStatus: "unchanged",
+      }),
+      alertingRule({
+        id: "rule-gone",
+        name: "default/gone",
+        previewStatus: "removed",
+      }),
+    ]);
+    mocks.listAlertingAlerts.mockResolvedValue([]);
+
+    renderRulesPage({ initialEntry: "/alerts/rules?preview=pr-1" });
+
+    expect(await screen.findByText("edited")).toBeInTheDocument();
+    expect(ruleRow("edited")).toHaveTextContent("Changed");
+    expect(ruleRow("fresh")).toHaveTextContent("Added");
+    expect(ruleRow("gone")).toHaveTextContent("Removed");
+    // A rule the branch touched not at all earns no badge: every row wearing
+    // one would tell the reader nothing about where to look.
+    expect(ruleRow("same")).not.toHaveTextContent("Changed");
+    // The status column must not claim a deleted rule is OK: this page's
+    // instances are the preview's, and it has none for a live-only rule.
+    expect(ruleRow("gone")).not.toHaveTextContent("OK");
+  });
+
+  it("keeps a preview-only rule off the list without ?preview=", async () => {
+    mocks.listAlertingAlerts.mockResolvedValue([]);
+    const liveRule = alertingRule({ id: "rule-live", name: "default/live" });
+    const previewOnly = alertingRule({
+      id: "rule-preview",
+      name: "default/branch-only",
+      previewId: "pr-1",
+    });
+    mocks.listAlertingRules.mockImplementation(async (opts) =>
+      opts?.data?.preview === "pr-1" ? [liveRule, previewOnly] : [liveRule],
+    );
+
+    renderRulesPage();
+
+    const region = await screen.findByRole("region", { name: "All rules" });
+    await within(region).findByText("live");
+    expect(
+      within(region).queryByRole("listitem", { name: "branch-only" }),
+    ).not.toBeInTheDocument();
+    expect(mocks.listAlertingRules).toHaveBeenCalledWith(undefined);
+  });
+
+  // Pausing lives here and on the rule detail page now, not on the triage
+  // board. The refresh after it must target the SAME preview scope the page
+  // is reading, or the updated list never lands.
+  it("refreshes within the current preview scope after pausing a rule", async () => {
+    const previewRule = alertingRule({
+      id: "eeeeeeee-1111-2222-3333-444444444444",
+      name: "default/preview-check",
+      previewId: "pr-1",
+      spec: {
+        ...alertingRule().spec,
+        annotations: { "everr.display.name": "Preview check" },
+      },
+    });
+    mocks.listAlertingRules.mockImplementation(async (opts) =>
+      opts?.data?.preview === "pr-1" ? [previewRule] : [],
+    );
+    mocks.listAlertingAlerts.mockResolvedValue([]);
+    mocks.pauseAlertingRule.mockResolvedValue({ ok: true });
+
+    const user = userEvent.setup();
+    renderRulesPage({ initialEntry: "/alerts/rules?preview=pr-1" });
+
+    const region = await screen.findByRole("region", { name: "All rules" });
+    await within(region).findByText("Preview check");
+    const callsBeforePause = mocks.listAlertingRules.mock.calls.length;
+
+    await user.click(within(region).getByRole("button", { name: "Pause" }));
+    const confirm = await screen.findByRole("alertdialog");
+    await user.click(
+      within(confirm).getByRole("button", { name: "Pause rule" }),
+    );
+
+    await waitFor(() => expect(mocks.pauseAlertingRule).toHaveBeenCalled());
+    await waitFor(() =>
+      expect(mocks.listAlertingRules.mock.calls.length).toBeGreaterThan(
+        callsBeforePause,
+      ),
+    );
+    expect(mocks.listAlertingRules).toHaveBeenLastCalledWith({
+      data: { preview: "pr-1" },
+    });
+  });
+
+  it("tells the reader how to define rules when there are none", async () => {
+    mocks.listAlertingRules.mockResolvedValue([]);
+    mocks.listAlertingAlerts.mockResolvedValue([]);
+
+    renderRulesPage();
+
+    const region = await screen.findByRole("region", { name: "All rules" });
+    expect(await within(region).findByText("everr apply")).toBeInTheDocument();
+  });
+});

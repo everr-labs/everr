@@ -47,16 +47,26 @@ const context = cliSessionContext();
 
 beforeEach(() => vi.clearAllMocks());
 
-describe("/api/cli/repos", () => {
-  it("returns empty array when no active installation exists", async () => {
-    mockDbInstallations(mockedDb, [
-      { status: "uninstalled", installationId: 1 },
-    ]);
+function callRepos() {
+  return getHandler()({
+    request: new Request("http://localhost/api/cli/repos"),
+    context,
+  });
+}
 
-    const response = await getHandler()({
-      request: new Request("http://localhost/api/cli/repos"),
-      context,
-    });
+describe("/api/cli/repos", () => {
+  it.each([
+    { label: "no installations at all", installations: [] },
+    {
+      label: "only uninstalled installations",
+      installations: [{ status: "uninstalled", installationId: 1 }],
+    },
+  ])("returns an empty list when the tenant has $label", async ({
+    installations,
+  }) => {
+    mockDbInstallations(mockedDb, installations);
+
+    const response = await callRepos();
 
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual([]);
@@ -74,10 +84,7 @@ describe("/api/cli/repos", () => {
       >[number],
     ]);
 
-    const response = await getHandler()({
-      request: new Request("http://localhost/api/cli/repos"),
-      context,
-    });
+    const response = await callRepos();
 
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual([
@@ -87,7 +94,7 @@ describe("/api/cli/repos", () => {
     expect(mockedListRepos).toHaveBeenCalledWith(99);
   });
 
-  it("returns empty array when the active installation is missing in GitHub", async () => {
+  it("returns an empty list when GitHub 404s for the installation", async () => {
     mockDbInstallations(mockedDb, [{ status: "active", installationId: 99 }]);
     mockedListRepos.mockRejectedValueOnce(
       new GitHubApiError(
@@ -96,69 +103,28 @@ describe("/api/cli/repos", () => {
       ),
     );
 
-    const response = await getHandler()({
-      request: new Request("http://localhost/api/cli/repos"),
-      context,
-    });
+    const response = await callRepos();
 
     expect(response.status).toBe(200);
     expect(await response.json()).toEqual([]);
     expect(mockedListRepos).toHaveBeenCalledWith(99);
   });
 
-  it("returns empty array when the installation repositories endpoint 404s", async () => {
+  it.each([
+    {
+      label: "GitHub API errors that are not 404",
+      error: new GitHubApiError(500, "GitHub API error: status=500 body={}"),
+      message: "GitHub API error: status=500 body={}",
+    },
+    {
+      label: "unexpected repository lookup errors",
+      error: new Error("GitHub unavailable"),
+      message: "GitHub unavailable",
+    },
+  ])("rethrows $label", async ({ error, message }) => {
     mockDbInstallations(mockedDb, [{ status: "active", installationId: 99 }]);
-    mockedListRepos.mockRejectedValueOnce(
-      new GitHubApiError(
-        404,
-        'GitHub API error: GET https://api.github.com/installation/repositories?per_page=100 status=404 body={"message":"Not Found"}',
-      ),
-    );
+    mockedListRepos.mockRejectedValueOnce(error);
 
-    const response = await getHandler()({
-      request: new Request("http://localhost/api/cli/repos"),
-      context,
-    });
-
-    expect(response.status).toBe(200);
-    expect(await response.json()).toEqual([]);
-    expect(mockedListRepos).toHaveBeenCalledWith(99);
-  });
-
-  it("rethrows GitHub API errors that are not 404", async () => {
-    mockDbInstallations(mockedDb, [{ status: "active", installationId: 99 }]);
-    mockedListRepos.mockRejectedValueOnce(
-      new GitHubApiError(500, "GitHub API error: status=500 body={}"),
-    );
-
-    await expect(
-      getHandler()({
-        request: new Request("http://localhost/api/cli/repos"),
-        context,
-      }),
-    ).rejects.toThrow("GitHub API error: status=500 body={}");
-  });
-
-  it("rethrows unexpected GitHub repository lookup errors", async () => {
-    mockDbInstallations(mockedDb, [{ status: "active", installationId: 99 }]);
-    mockedListRepos.mockRejectedValueOnce(new Error("GitHub unavailable"));
-
-    await expect(
-      getHandler()({
-        request: new Request("http://localhost/api/cli/repos"),
-        context,
-      }),
-    ).rejects.toThrow("GitHub unavailable");
-  });
-
-  it("returns empty array when tenant has no installations", async () => {
-    mockDbInstallations(mockedDb, []);
-
-    const response = await getHandler()({
-      request: new Request("http://localhost/api/cli/repos"),
-      context,
-    });
-
-    expect(await response.json()).toEqual([]);
+    await expect(callRepos()).rejects.toThrow(message);
   });
 });

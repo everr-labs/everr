@@ -1,5 +1,6 @@
 import { createMiddleware } from "@tanstack/react-start";
 import { eq } from "drizzle-orm";
+import { parseAlertingPrincipal } from "@/data/alerting/session";
 import { db } from "@/db/client";
 import { organization } from "@/db/schema";
 import { hasApiKeyScope } from "@/lib/api-key-scopes";
@@ -114,13 +115,19 @@ export async function resolveApplyAuth(headers: Headers): Promise<ApplyAuth> {
  * Build the org-scoped server-fn context from resolved apply auth. Pure and
  * framework-free so it can be unit-tested. Exposes the resolved org both as the
  * active org and as `context.organization` (for the apply response echo).
+ *
+ * `session.principalId` is what tells the alerting session boundary that
+ * `user.id` holds a principal string (an API key has no user id) rather than a
+ * user id, so the actor it derives names the right principal.
  */
 export function buildApplyContext(apiAuth: ApplyAuth) {
   return {
     session: {
       session: { activeOrganizationId: apiAuth.organizationId },
       user: { id: apiAuth.principalId },
+      principalId: apiAuth.principalId,
     },
+    actor: parseAlertingPrincipal(apiAuth.principalId),
     organization: {
       id: apiAuth.organizationId,
       name: apiAuth.organizationName,

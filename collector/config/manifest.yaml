@@ -9,6 +9,7 @@ dist:
 exporters:
   - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/exporter/clickhouseexporter v0.152.0
   - gomod: go.opentelemetry.io/collector/exporter/debugexporter v0.152.0
+  - gomod: go.opentelemetry.io/collector/exporter/otlphttpexporter v0.152.0
 
 connectors: []
 
@@ -17,11 +18,13 @@ processors:
   - gomod: go.opentelemetry.io/collector/processor/memorylimiterprocessor v0.152.0
   - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/processor/resourceprocessor v0.152.0
   - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/processor/attributesprocessor v0.152.0
+  - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/processor/filterprocessor v0.152.0
 
 extensions:
   - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/extension/healthcheckextension v0.152.0
   - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/extension/storage/filestorage v0.152.0
   - gomod: github.com/everr-labs/everr/collector/extension/everrapikeyauth v0.152.0
+  - gomod: github.com/open-telemetry/opentelemetry-collector-contrib/extension/bearertokenauthextension v0.152.0
 
 receivers:
   - gomod: github.com/everr-labs/everr/collector/receiver/githubactionsreceiver v0.152.0

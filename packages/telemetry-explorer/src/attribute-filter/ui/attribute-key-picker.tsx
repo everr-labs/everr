@@ -138,10 +138,7 @@ export function AttributeKeyPicker({
         <Plus className="size-3.5" />
         Filter
       </PopoverTrigger>
-      <PopoverContent
-        align="start"
-        className="w-(--radix-popper-anchor-width) min-w-56 p-0"
-      >
+      <PopoverContent align="start" className="w-(--anchor-width) min-w-56 p-0">
         <Command className="p-0">
           <CommandInput
             wrapperClassName="p-0 border-b"

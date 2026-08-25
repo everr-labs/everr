@@ -10,28 +10,30 @@ import { captureError, getTelemetryTracer, SpanKind } from "@/telemetry/node";
 
 const startupTracer = getTelemetryTracer("everr-app.startup");
 
-await startupTracer.startActiveSpan(
-  "startup.database_migration",
-  { kind: SpanKind.INTERNAL },
-  async (span) => {
-    try {
-      await migrate(db, { migrationsFolder: "./drizzle" });
-    } catch (error) {
-      captureError(error, {
-        "everr.error.source": "startup.database_migration",
-      });
-      throw error;
-    } finally {
-      span.end();
-    }
-  },
-);
+if (process.env.TSS_PRERENDERING !== "true") {
+  await startupTracer.startActiveSpan(
+    "startup.database_migration",
+    { kind: SpanKind.INTERNAL },
+    async (span) => {
+      try {
+        await migrate(db, { migrationsFolder: "./drizzle" });
+      } catch (error) {
+        captureError(error, {
+          "everr.error.source": "startup.database_migration",
+        });
+        throw error;
+      } finally {
+        span.end();
+      }
+    },
+  );
 
-void startWorkerRuntime().catch((error) => {
-  captureError(error, {
-    "everr.error.source": "startup.worker_runtime",
+  void startWorkerRuntime().catch((error) => {
+    captureError(error, {
+      "everr.error.source": "startup.worker_runtime",
+    });
   });
-});
+}
 
 const handler = defineHandlerCallback((ctx) => {
   return defaultStreamHandler(ctx);

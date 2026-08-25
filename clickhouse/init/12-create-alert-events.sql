@@ -1,44 +1,144 @@
--- Alert event history. Canonical alert events live in app.alert_events and are
--- projected into app.logs so `everr cloud query` can query them via the
--- existing logs surface.
-SET allow_suspicious_ttl_expressions = 1;
-
+-- The column reference lives in the alerting surface design doc and must stay
+-- in lockstep with it.
 CREATE TABLE IF NOT EXISTS app.alert_events
 (
-  event_id UUID DEFAULT generateUUIDv4(),
-  -- String, not UUID: application organization ids are text and the retention
-  -- dictionary is keyed by tenant_id String.
-  tenant_id String,
-  alert_definition_id String,
-  repoid String,
-  slug String,
-  -- Preview namespace ('' = live). Drives ServiceName / deployment.environment
-  -- in the logs projection below so preview alerts land under their own service.
-  preview String DEFAULT '',
+  -- UUIDv7 on evaluation and transition rows, so UUIDv7ToDateTime(event_id)
+  -- recovers the creation time and equals the PostgreSQL journal row it
+  -- projects. Outcome rows carry a deterministic id instead, so a retried
+  -- projection converges on one row instead of appending a second: from the
+  -- journal event and the delivery key on a delivery, from the notification
+  -- event alone on a terminal suppression (one per chain), and from the
+  -- notification event and the silence on a hold (one per silence that
+  -- holds the chain).
+  event_id UUID DEFAULT generateUUIDv7(),
+  -- Correlates the rows produced by one notification: the transition and the
+  -- hold, suppression or delivery rows that follow it in later jobs. Transitions set
+  -- this to their own event_id. Evaluation and lifecycle-only rows leave it
+  -- zero.
+  notification_event_id UUID DEFAULT toUUID('00000000-0000-0000-0000-000000000000'),
+  -- One continuous breach of an instance: the pending or fired event's id,
+  -- carried on every lifecycle row of that episode. Zero elsewhere.
+  episode_id UUID DEFAULT toUUID('00000000-0000-0000-0000-000000000000'),
+  tenant_id LowCardinality(String),
+  alert_definition_id UUID,
+  repoid LowCardinality(String),
+  -- The rule's full path, `project/slug`, as formatResourceName writes it.
+  -- Not the bare slug: `WHERE slug = 'high-5xx'` returns zero rows, silently.
+  slug LowCardinality(String),
+  preview_id UUID DEFAULT toUUID('00000000-0000-0000-0000-000000000000'),
+  -- DEFAULT, not MATERIALIZED: a MATERIALIZED column is invisible to SELECT *,
+  -- and nobody should have to type the zero-UUID sentinel to filter previews.
+  is_live Bool DEFAULT preview_id = toUUID('00000000-0000-0000-0000-000000000000'),
   event_type LowCardinality(String),
-  evaluation_scheduled_at DateTime64(3) DEFAULT toDateTime64(0, 3),
-  event_time DateTime64(3) DEFAULT now64(3),
-  event_date Date DEFAULT toDate(event_time),
-  row_count UInt32 DEFAULT 0,
-  evidence_truncated UInt8 DEFAULT 0,
-  evidence_json String DEFAULT '{}',
-  delivery_targets Map(String, Array(String)) DEFAULT map(),
-  silence_id String DEFAULT '',
+  -- Zero (epoch) off evaluation rows; never dateDiff against it there. Every
+  -- writer sends this explicitly; the DEFAULT documents the sentinel in
+  -- SHOW CREATE rather than changing what gets written.
+  evaluation_scheduled_at DateTime64(3) DEFAULT toDateTime64(0, 3) CODEC(Delta, ZSTD(1)),
+  event_time DateTime64(3) DEFAULT now64(3) CODEC(Delta, ZSTD(1)),
+  row_count UInt64 DEFAULT 0,
+  evidence_truncated Bool DEFAULT false,
+  evidence_json String DEFAULT '{}' CODEC(ZSTD(6)),
+  samples_truncated Bool DEFAULT false,
+  samples_json String DEFAULT '[]' CODEC(ZSTD(6)),
+  -- Frozen agent-facing content on lifecycle rows, documented keys
+  -- {summary, description, links: {runbook, alert}, condition}. Read-out
+  -- facts, never predicates; predicates get typed columns.
+  context_json String DEFAULT '{}' CODEC(ZSTD(6)),
+  -- Sanitized at the write boundary: never a URL or token, because provider
+  -- error text embeds webhook URLs and this table cannot forget.
+  error String DEFAULT '',
   instance_fingerprint String DEFAULT '',
-  instance_labels_json String DEFAULT '{}',
-  INDEX alert_def_skip_idx alert_definition_id TYPE bloom_filter GRANULARITY 4
+  instance_labels Map(LowCardinality(String), String) DEFAULT map(),
+  -- Resolved at write time: an instance label naming a service, else 'alert'.
+  service_name LowCardinality(String) DEFAULT 'alert',
+  -- Validated at the spec boundary, not here: an Enum would make the
+  -- non-throwing writer drop rows when a severity is added.
+  severity LowCardinality(String) DEFAULT 'info',
+  -- The rule never notifies at all. A preview copy is the only cause today,
+  -- so this equals NOT is_live on every row; it stays its own column because
+  -- the fact it states is "nothing was sent for this rule", which a future
+  -- reason would join rather than replace. Set on every row; unrelated to
+  -- `silenced`, which is per notification.
+  rule_muted Bool DEFAULT false,
+  -- On terminal instance rows: condition_cleared on instance_resolved;
+  -- pending_cleared, labels_changed, rule_paused, rule_deleted or
+  -- preview_deleted on instance_closed; rule_paused, rule_deleted,
+  -- no_longer_firing or no_channels on a terminal notification_suppressed.
+  -- Always empty on notification_deferred: a hold is not a decision.
+  -- The closed vocabulary lives in ALERTING_LIFECYCLE_REASONS
+  -- (src/data/alerting/vocabulary.ts).
+  reason LowCardinality(String) DEFAULT '',
+  -- Notification outcome, frozen at the moment it was decided. A silence
+  -- created later never rewrites what these say happened. Meaningful only on
+  -- notification_deferred and notification_suppressed rows: a deferred row
+  -- says a silence holds the notification now and it may still go out, a
+  -- suppressed row says it never will.
+  silenced Bool DEFAULT false,
+  silence_id UUID DEFAULT toUUID('00000000-0000-0000-0000-000000000000'),
+  -- Frozen from the silence so the row reads without PostgreSQL: the id alone
+  -- is a dead end for a one-endpoint caller.
+  silence_comment String DEFAULT '',
+  silence_matchers_json String DEFAULT '',
+  -- Channel type to the channel names it reached. Denormalized so a delivery
+  -- trail never needs a join back to PostgreSQL. Never carries a URL, a token,
+  -- or a chat id: see deliveryTargets in delivery/history.ts.
+  delivery_targets Map(String, Array(String)) DEFAULT map(),
+  -- The PostgreSQL delivery key: which physical send a row belongs to, so a
+  -- fan-out that reached several notifications in one message reads as one
+  -- message. Empty off delivery rows.
+  delivery_dedup_key String DEFAULT '',
+  INDEX alert_def_skip_idx alert_definition_id TYPE bloom_filter GRANULARITY 4,
+  INDEX alert_notification_skip_idx notification_event_id TYPE bloom_filter GRANULARITY 4
 )
 ENGINE = MergeTree
-PARTITION BY toYYYYMM(event_date)
--- Dominant read: per-alert history by tenant + repoid + slug over a time range.
+-- The second dimension keeps every query on transitions and deliveries
+-- off the evaluation rows, which outnumber
+-- everything else by two orders of magnitude. Partitioning on event_time
+-- itself (not a date column) is what lets a plain event_time bound prune:
+-- ClickHouse does not infer a DEFAULT relation between two columns.
+PARTITION BY (toYYYYMM(event_time), event_type IN ('evaluation_succeeded', 'evaluation_failed'))
+-- Dominant read: per-alert history by tenant + slug over a time range.
 -- ORDER BY is immutable, so this intentionally prioritizes alert filters over
--- date-only scans; monthly partitions handle lifecycle pruning. event_type is
--- low-cardinality (~6 values) and filtered in every query, so it sits before
--- the time column. alert_definition_id is always filtered but higher
--- cardinality; a bloom skip index covers it.
-ORDER BY (tenant_id, repoid, slug, event_type, event_time, event_id)
-TTL toDateTime(event_time) + INTERVAL dictGetOrDefault('app.tenant_retention', 'logs_days', tenant_id, toUInt32(3650)) DAY
-SETTINGS index_granularity = 8192;
+-- date-only scans.
+--
+-- repoid is deliberately absent. It scopes ownership for `everr apply`, not
+-- lookup: alert_definitions_live_project_slug_uq makes project/slug unique per
+-- organization on its own, so every reader already identifies a rule without
+-- it. Carrying it here cost nothing in bytes and everything in practice: a
+-- reader that omitted the second key column silently lost the index for slug
+-- too, which is what every query on this table did. A sorting key holds what
+-- readers filter on and nothing else. Previews, which may repeat a path, are
+-- separated by preview_id / is_live, never by repoid.
+--
+-- event_type is low-cardinality and filtered in nearly every query, so it sits
+-- before the time column: the evaluation rows outnumber everything else by two
+-- orders of magnitude, and selecting or excluding them has to be a range scan
+-- rather than a per-row test. A reader wanting the newest rows of any type
+-- should still name the types it wants in a positive IN, not a negation.
+--
+-- alert_definition_id and notification_event_id are high-cardinality and
+-- covered by bloom skip indexes instead. event_time before event_id also rules
+-- out ever collapsing rows by id: a ReplacingMergeTree matches on the whole
+-- sorting key, so two writes of one row that disagree on event_time stay two
+-- rows. Convergence is a write-side property here; see Idempotence in the
+-- surface design doc.
+ORDER BY (tenant_id, slug, event_type, event_time, event_id)
+-- Evaluation rows expire at min(30, tenant retention) days: they exist for
+-- staleness and rule-health reads, and their partitions drop whole. Everything
+-- else lives at the tenant retention.
+TTL toDateTime(event_time) + INTERVAL least(toUInt32(30), dictGetOrDefault('app.tenant_retention', 'logs_days', tenant_id, toUInt32(3650))) DAY DELETE WHERE event_type IN ('evaluation_succeeded', 'evaluation_failed'),
+    toDateTime(event_time) + INTERVAL dictGetOrDefault('app.tenant_retention', 'logs_days', tenant_id, toUInt32(3650)) DAY DELETE WHERE event_type NOT IN ('evaluation_succeeded', 'evaluation_failed')
+-- Both writers in server/alerting/history/clickhouse.ts set
+-- insert_deduplication_token from the sorted row ids, which dedups under
+-- async_insert as well as a synchronous insert. The window is bounded, so it
+-- backs up row-level determinism rather than replacing it: the projection runs
+-- as a Graphile task with retries, and a retry must converge on one write
+-- rather than append duplicate terminals.
+-- allow_suspicious_ttl_expressions rides the statement, not the session, so
+-- SHOW CREATE matches migrated deployments. Every later ALTER on this table
+-- needs the same setting: an ALTER re-validates the TTL, and dictGetOrDefault
+-- fails that check without it.
+SETTINGS index_granularity = 8192, non_replicated_deduplication_window = 10000, allow_suspicious_ttl_expressions = 1;
 
 GRANT SELECT ON app.alert_events TO app_ro;
 GRANT INSERT, SELECT ON app.alert_events TO web_app_admin;
@@ -50,47 +150,3 @@ ON app.alert_events
 FOR SELECT
 USING tenant_id = getSetting('SQL_everr_tenant_id')
 TO app_ro;
-
--- Fresh init path: there are no existing alert rows to backfill. The
--- incremental MV projects future app.alert_events inserts into app.logs.
-CREATE MATERIALIZED VIEW IF NOT EXISTS app.alert_events_logs_mv
-TO app.logs
-AS
-SELECT
-  toDateTime64(event_time, 9) AS Timestamp,
-  toDateTime(event_time) AS TimestampTime,
-  '' AS TraceId,
-  '' AS SpanId,
-  toUInt8(0) AS TraceFlags,
-  'INFO' AS SeverityText,
-  toUInt8(9) AS SeverityNumber,
-  -- Preview alerts get their own service; live alerts stay 'alert'.
-  if(preview = '', 'alert', 'alert-preview') AS ServiceName,
-  concat('alert ', slug, ' ', event_type) AS Body,
-  '' AS ResourceSchemaUrl,
-  -- Env facet ('deployment.environment' resource attr): the preview name for
-  -- preview alerts, 'production' for live.
-  map(
-    'everr.tenant.id', tenant_id,
-    'deployment.environment', if(preview = '', 'production', preview)
-  ) AS ResourceAttributes,
-  '' AS ScopeSchemaUrl,
-  'everr.alerting' AS ScopeName,
-  '' AS ScopeVersion,
-  map() AS ScopeAttributes,
-  map(
-    'alert.slug', slug,
-    'alert.preview', preview,
-    'alert.event_type', event_type,
-    'alert.delivery_targets', toJSONString(delivery_targets),
-    'alert.silenced', if(silence_id = '', 'false', 'true'),
-    'alert.row_count', toString(row_count),
-    'alert.evidence_truncated', toString(evidence_truncated),
-    'alert.evidence_json', evidence_json,
-    'alert.instance_fingerprint', instance_fingerprint,
-    'alert.instance_labels', instance_labels_json
-  ) AS LogAttributes,
-  concat('alert.', slug, '.', event_type) AS EventName,
-  -- Required for app.logs RLS and TTL; ResourceAttributes alone is not enough.
-  tenant_id AS tenant_id
-FROM app.alert_events;

@@ -1,0 +1,126 @@
+import { createHash } from "node:crypto";
+import { and, eq, inArray } from "drizzle-orm";
+import {
+  ALERTING_DEFAULT_GROUP_BY,
+  type AlertingDefaultTier,
+} from "@/data/alerting/delivery/defaults";
+import { alertingSyntheticLabels } from "@/data/alerting/silences/matching";
+import { db } from "@/db/client";
+import {
+  alertDefaultChannels,
+  alertDefinitions,
+  type alertEvents,
+} from "@/db/schema";
+
+function stableJson(value: Record<string, string>) {
+  return JSON.stringify(
+    Object.fromEntries(
+      Object.entries(value).sort(([a], [b]) => a.localeCompare(b)),
+    ),
+  );
+}
+
+export function alertDeliveryHash(...parts: string[]) {
+  return createHash("sha256").update(parts.join("\0")).digest("hex");
+}
+
+export function alertEventDispatchLabels(
+  event: typeof alertEvents.$inferSelect,
+) {
+  return alertingSyntheticLabels(event.instanceLabels, {
+    severity: event.severity,
+    status: event.eventType === "instance_resolved" ? "resolved" : "firing",
+    rule: event.sourceDefinitionId,
+  });
+}
+
+type DispatchTarget = {
+  defaultTier: AlertingDefaultTier | null;
+  directAlertDefinitionId: string | null;
+  groupKey: string;
+};
+
+function groupLabelsFor(event: typeof alertEvents.$inferSelect) {
+  const labels = alertEventDispatchLabels(event);
+  return Object.fromEntries(
+    ALERTING_DEFAULT_GROUP_BY.map((key) => [key, labels[key] ?? ""]),
+  );
+}
+
+async function directDispatchTarget(
+  event: typeof alertEvents.$inferSelect,
+): Promise<DispatchTarget | null> {
+  // Declared, not resolved: a rule that names channels is a direct target
+  // even while none of those names exist yet. The flush resolves the names
+  // and records a no-channel terminal when nothing matches, rather than the
+  // rule silently rejoining the default destination.
+  const [definition] = await db
+    .select({ spec: alertDefinitions.spec })
+    .from(alertDefinitions)
+    .where(
+      and(
+        eq(alertDefinitions.organizationId, event.organizationId),
+        eq(alertDefinitions.id, event.sourceDefinitionId),
+      ),
+    )
+    .limit(1);
+  if ((definition?.spec.notifications?.channels ?? []).length === 0)
+    return null;
+
+  return {
+    defaultTier: null,
+    directAlertDefinitionId: event.sourceDefinitionId,
+    groupKey: alertDeliveryHash(
+      "direct",
+      event.sourceDefinitionId,
+      stableJson(groupLabelsFor(event)),
+    ),
+  };
+}
+
+/**
+ * The default-destination tier this event delivers to: the "all" tier when
+ * the org has not split by severity, else the event's own severity tier. A
+ * tier is only its channel rows, so a tier with no channels does not resolve
+ * and the event gets no target at all. `processAlertEvent` ends such a chain
+ * with a `no_channels` terminal itself, because no group and no flush ever
+ * run to end it.
+ */
+async function defaultDispatchTarget(
+  event: typeof alertEvents.$inferSelect,
+): Promise<DispatchTarget | null> {
+  const tiers = await db
+    .selectDistinct({ tier: alertDefaultChannels.tier })
+    .from(alertDefaultChannels)
+    .where(
+      and(
+        eq(alertDefaultChannels.organizationId, event.organizationId),
+        inArray(alertDefaultChannels.tier, ["all", event.severity]),
+      ),
+    );
+  const tier = tiers.some((row) => row.tier === "all")
+    ? ("all" as const)
+    : tiers.length > 0
+      ? event.severity
+      : null;
+  if (tier === null) return null;
+
+  return {
+    defaultTier: tier,
+    directAlertDefinitionId: null,
+    groupKey: alertDeliveryHash(
+      "default",
+      tier,
+      stableJson(groupLabelsFor(event)),
+    ),
+  };
+}
+
+export async function dispatchTargetForEvent(
+  event: typeof alertEvents.$inferSelect,
+): Promise<DispatchTarget | null> {
+  // A rule naming its own channels opts out of the default destination.
+  const direct = await directDispatchTarget(event);
+  if (direct) return direct;
+  return await defaultDispatchTarget(event);
+}

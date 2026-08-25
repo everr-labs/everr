@@ -23,6 +23,7 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { Loader2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { siGoogle } from "simple-icons";
+import { PageHeader } from "@/components/page-header";
 import { deleteCurrentUserAccount } from "@/data/account-settings";
 import { authClient } from "@/lib/auth-client";
 
@@ -178,12 +179,10 @@ function AccountSettingsPage() {
 
   return (
     <div className="mx-auto flex w-full max-w-3xl flex-col gap-3">
-      <div>
-        <h1 className="text-xl font-bold tracking-tight">Account Settings</h1>
-        <p className="text-muted-foreground">
-          Manage your profile and account lifecycle.
-        </p>
-      </div>
+      <PageHeader
+        title="Account Settings"
+        lede="Manage your profile and account lifecycle."
+      />
 
       {/* TODO: Replace WorkOS UserProfile/UserSecurity widgets with better-auth equivalents */}
 

@@ -28,6 +28,7 @@ function PreviewableLayout() {
   // touches the content edges; every other route gets the padded page scroll.
   const matches = useMatches();
   let status: PreviewStatus | undefined;
+  let hidePreviewFrame = false;
   let fullBleed = false;
   for (const match of matches) {
     if (!match.routeId.startsWith(Route.id)) continue;
@@ -36,6 +37,9 @@ function PreviewableLayout() {
       | { previewStatus?: PreviewStatus }
       | undefined;
     if (data?.previewStatus !== undefined) status = data.previewStatus;
+    if (match.staticData?.hidePreviewFrame !== undefined) {
+      hidePreviewFrame = match.staticData.hidePreviewFrame;
+    }
   }
 
   const content = fullBleed ? (
@@ -43,14 +47,21 @@ function PreviewableLayout() {
       <Outlet />
     </div>
   ) : (
-    <div className="min-h-0 flex-1 overflow-auto overscroll-y-contain">
+    // `lg:flex lg:flex-col` (matching `ScrollPage`'s wrapper) is what lets
+    // `PageContainer`'s own `flex-1 min-h-0` resolve to a real height here: a
+    // block box doesn't hand a percentage/flex height down to its children, so
+    // without this, PageContainer (and anything under it, like the alerting
+    // section rail) has no definite height to fill and falls back to sizing
+    // from its content. Scoped to `lg:` so mobile, which never asked for a
+    // definite height here, is unaffected.
+    <div className="min-h-0 flex-1 overflow-auto overscroll-y-contain lg:flex lg:flex-col">
       <PageContainer>
         <Outlet />
       </PageContainer>
     </div>
   );
 
-  if (!name) return content;
+  if (!name || hidePreviewFrame) return content;
 
   return (
     <PreviewFrame

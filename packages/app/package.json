@@ -74,6 +74,8 @@
     "zod": "catalog:"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "^0.5.4",
+    "@opentelemetry/sdk-trace-node": "^2.7.1",
     "@tanstack/devtools-vite": "^0.6.0",
     "@tanstack/react-devtools": "^0.10.2",
     "@tanstack/react-form-devtools": "^0.2.26",
@@ -92,12 +94,14 @@
     "@types/react-dom": "catalog:",
     "@types/topojson-client": "^3.1.5",
     "@vitejs/plugin-react": "catalog:",
+    "chdb": "^3.2.0",
     "dotenv": "^17.4.2",
     "drizzle-kit": "^0.31.10",
     "jsdom": "^29.1.1",
     "nitro": "catalog:",
     "smee-client": "^5.0.0",
     "typescript": "catalog:",
-    "vite": "catalog:"
+    "vite": "catalog:",
+    "vite-plugin-svgr": "^5.2.0"
   }
 }

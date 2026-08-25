@@ -1,0 +1,100 @@
+import type { AlertingChannelConfig } from "@/data/alerting/types";
+import { truncateWithEllipsis } from "@/lib/truncate";
+import { CHANNEL_TEXT_MAX } from "../channel-text-limits";
+import { type ChannelNotification, composeText } from "./message";
+import {
+  ChannelSendError,
+  isPermanentStatus,
+  SEND_TIMEOUT_MS,
+} from "./outbound";
+
+// Alert messages are deliberately plain text. With no parse_mode and no
+// inline buttons, Telegram has nothing to validate or reject, so a send fails
+// only for a real delivery problem.
+async function sendTelegramMessage(
+  botToken: string,
+  chatId: string,
+  text: string,
+): Promise<void> {
+  const token = botToken.trim();
+  if (!token) {
+    // No retry can supply a token the channel does not hold.
+    throw new ChannelSendError("Telegram bot token is not configured", {
+      permanent: true,
+    });
+  }
+
+  // A truncated alert beats a dropped one. The caller composes to the same
+  // limit; this is the belt, so a future caller that forgets cannot produce a
+  // send Telegram rejects outright.
+  const bounded = truncateWithEllipsis(text, CHANNEL_TEXT_MAX.telegram);
+
+  // The endpoint is ours, not the channel's, so this is the one provider that
+  // needs no outbound-URL guard: no user input reaches the host.
+  const response = await fetch(
+    `https://api.telegram.org/bot${token}/sendMessage`,
+    {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ chat_id: chatId, text: bounded }),
+      signal: AbortSignal.timeout(SEND_TIMEOUT_MS),
+    },
+  );
+
+  if (!response.ok) {
+    throw new ChannelSendError(
+      `telegram sendMessage failed: ${response.status}`,
+      {
+        permanent: isPermanentStatus(response.status),
+        status: response.status,
+        responseBody: await response.text().catch(() => ""),
+      },
+    );
+  }
+}
+
+/**
+ * One channel fans out to every chat id it carries.
+ *
+ * The verdicts are collected, not raced. `Promise.all` would let whichever
+ * recipient rejected first stand for the whole delivery, so one chat that
+ * blocked the bot could end a delivery another chat would accept on the next
+ * attempt. A fan-out fails permanently only when no retry could help any
+ * recipient.
+ *
+ * A retry still re-sends to recipients that already succeeded: there is no
+ * per-recipient delivery state. The failure count is reported, never which
+ * chats, because chat ids are addresses and the error text reaches the
+ * history row.
+ */
+export async function sendTelegramNotification(
+  config: Extract<AlertingChannelConfig, { type: "telegram" }>,
+  notification: ChannelNotification,
+): Promise<void> {
+  const text = composeText(notification, CHANNEL_TEXT_MAX.telegram);
+  const results = await Promise.allSettled(
+    config.chat_ids.map((chatId) =>
+      sendTelegramMessage(config.bot_token, chatId, text),
+    ),
+  );
+  const failures = results
+    .filter((result) => result.status === "rejected")
+    .map((result) => result.reason as unknown);
+  if (failures.length === 0) return;
+
+  const permanent = failures.every(
+    (reason) => reason instanceof ChannelSendError && reason.permanent,
+  );
+  const first = failures[0];
+  const detail = first instanceof Error ? first.message : String(first);
+  throw new ChannelSendError(
+    `telegram delivery failed for ${failures.length} of ${config.chat_ids.length} chats: ${detail}`,
+    {
+      permanent,
+      // Telegram's own answer travels on, so the trail keeps the one detail
+      // that names the cause ("chat not found", "bot was blocked").
+      responseBody:
+        first instanceof ChannelSendError ? first.responseBody : undefined,
+    },
+  );
+}

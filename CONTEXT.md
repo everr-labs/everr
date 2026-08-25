@@ -158,16 +158,16 @@ _Avoid_: chart (one kind, not the category), viz (informal), panel type
 A multi-page Markdown document with embedded Panels and shared variables — the umbrella concept for any such as-code document, whether used for incident response, an agent skill, or an investigation doc.
 _Avoid_: Notebook (former name — renamed June 2026; see ADR 0002). Still accepted in config for back-compat: `kind: Notebook` ≡ `kind: Runbook` and `.notebook.yaml` is recognized, but `Runbook` is canonical everywhere new.
 
-**Alert**:
-A rule that runs a query on a schedule and notifies when it returns rows; an empty result means resolved.
-_Avoid_: monitor
-
 **Apply**:
-The idempotent operation (`everr apply`) that reconciles the Dashboards, Alerts, and Runbooks in a directory to match their as-code definitions.
+The idempotent operation (`everr apply`) that reconciles the Dashboards, Alert rules, and Runbooks in a directory to match their as-code definitions.
 _Avoid_: deploy, sync, push
 
+**Preview**:
+A temporary, isolated projection of a branch's as-code resources. Its alerts are evaluated without sending notifications, and all resources owned by the Preview expire together.
+_Avoid_: preview namespace, environment
+
 **Repoid**:
-The stable identity that scopes ownership: every Dashboard, Alert, and Runbook is owned by exactly one Repoid, and apply only ever touches resources under it. Inferred from the repository's `origin` remote (normalized to the `host/owner/repo` slug) unless a Manifest pins one explicitly.
+The stable identity that scopes ownership: every dashboard, alert, and runbook is owned by exactly one Repoid, and apply only ever touches resources under it. Inferred from the repository's `origin` remote (normalized to the `host/owner/repo` slug) unless a Manifest pins one explicitly.
 _Avoid_: repo id, ownership key
 
 **Ownership boundary**:
@@ -181,6 +181,127 @@ _Avoid_: config file, everr.yaml (name the concept, not the filename)
 **Adopt**:
 Taking over resources another Repoid owns by re-applying them under yours (`everr apply --adopt`). Deliberately targeted: only the resources present in the applied tree change owner; everything else the other Repoid owns is left untouched.
 _Avoid_: take over, claim
+
+### Alerting
+
+**Alert rule**:
+The as-code definition (the `AlertRule` config kind) that evaluates a query on a schedule against a Condition and tracks one Alert instance for each result series.
+_Avoid_: monitor, alert definition (a schema-level name), "alert" alone for the rule (ambiguous with a firing instance)
+
+**Condition**:
+The threshold expression an Alert rule compares its query result against. A property of the rule only.
+_Avoid_: matcher (label matching, a different thing), trigger
+
+**Alert instance**:
+The per-series state an Alert rule tracks: one instance for each distinct label set the rule's query returns, with a stable identity across evaluations. Its states are inactive, Pending, and Firing.
+_Avoid_: alert (ambiguous), series
+
+**Severity**:
+The rule-declared importance of its alerts: info, warning, or critical.
+_Avoid_: priority, level
+
+**Breaching**:
+An Alert instance whose current value satisfies the rule's Condition. Breaching includes both Pending and Firing instances.
+_Avoid_: active (ambiguous), firing (a narrower state)
+
+**Pending**:
+A Breaching Alert instance whose Condition has not yet held for the required duration. The clock restarts if the condition clears or the rule goes unobserved.
+
+**Firing**:
+A Breaching Alert instance whose Condition has held for the required duration and is eligible for notification.
+_Avoid_: breaching (a broader state)
+
+**Resolved**:
+A previously Firing Alert instance whose Condition cleared. A notifying transition: recovery is announced to the same channels that were paged.
+_Avoid_: closed (an end without a notifying recovery)
+
+**Closed**:
+An Alert instance whose Episode ended without a notifying recovery, always with a reason: the pending window cleared, the labels changed, or the rule was paused or deleted (or its Preview removed). Nobody is paged for a closure.
+_Avoid_: resolved (a notifying recovery)
+
+**Episode**:
+One continuous breach of an Alert instance, from leaving inactive (entering Pending or Firing) until it is Resolved or Closed. The unit of incident duration and of history grouping.
+_Avoid_: incident (broader, cross-alert), occurrence
+
+**Paused**:
+An Alert rule taken out of evaluation entirely: it cannot fire, resolve, or degrade, its open instances are Closed, and resuming starts from live data with no backfill of the gap.
+_Avoid_: muted (still evaluated), disabled, inactive (an instance state)
+
+**Muted**:
+An Alert rule that is evaluated but never notifies. Today only Preview copies are Muted. A property of the rule, unrelated to Silences.
+_Avoid_: paused (not evaluated at all), suppressed (one notification's terminal decision)
+
+**Degraded**:
+An Alert rule whose query is failing, so nothing is evaluated: nothing new can fire and its numbers stop moving until the query recovers.
+_Avoid_: unhealthy, broken
+
+**Triage**:
+The surface for what needs attention now: only rules with Breaching instances, with their delivery and silence facts alongside.
+_Avoid_: overview, inbox
+
+**Matcher**:
+A label-matching expression (label, operator, value) used by Silences to select alerts. Equality operators only.
+_Avoid_: condition (the rule's threshold), filter
+
+**Notification channel**:
+An Organization-owned delivery endpoint: a webhook, Slack, Discord, or Telegram destination.
+_Avoid_: receiver, destination, route
+
+**Default destination**:
+The Organization-wide set of Notification channels every alert delivers to unless its rule names Direct channels. Either one channel list for all alerts, or split by Severity with one list per tier.
+_Avoid_: route, receiver, catch-all
+
+**Severity split**:
+The Default destination mode with one channel list per Severity tier. A tier with no channels is a delivery gap: those alerts are Undelivered.
+_Avoid_: routing, escalation
+
+**Direct channels**:
+Notification channels attached to an Alert rule itself. When present, the Default destination is never consulted for that rule's alerts.
+_Avoid_: explicit destination, direct destinations, inline channel
+
+**Notification group**:
+The batch a delivery target accumulates before one notification goes out, grouped by rule and Severity with a fixed wait and pacing interval. Distinct from Triage's per-rule grouping.
+_Avoid_: batch, bucket
+
+**Delivery**:
+One notification sent to one Notification channel, succeeding or failing as a unit.
+_Avoid_: send, dispatch
+
+**Delivery pipeline**:
+The whole chain a notifying transition travels: journaled event, targeting, grouping, and the Delivery itself. Reserved for this chain; the Triage stats strip is not a pipeline.
+_Avoid_: pipeline (bare, ambiguous with CI)
+
+**Undelivered**:
+A Firing alert that nothing will deliver: it names no Direct channels and the Default destination has none for its Severity, or the Direct channels it names do not exist. The Triage board currently detects the first case only.
+_Avoid_: unrouted, undeliverable, not delivered (prose, not the term)
+
+**Silence**:
+A time-bounded mute a person creates with Matchers. Notifications for matching alerts are Deferred while the window is open and go out late if the alert still fires when it ends. Cancelling a Silence closes its window early.
+_Avoid_: mute (see Muted), snooze
+
+**Deferred**:
+A notification withheld for now by a Silence and reconsidered later. It may still be delivered late. Recorded in history as a Hold, which the later delivery or Suppression closes.
+_Avoid_: suppressed (a terminal decision), dropped
+
+**Suppressed**:
+The terminal decision that one notification will never be delivered, always recorded with its reason.
+_Avoid_: deferred (may still deliver), muted (rule-level)
+
+**Hold**:
+The history row a Deferred notification leaves, naming the Silence that holds it. One per Silence that holds a chain. A hold with no later delivery or Suppression on the same chain is held right now.
+_Avoid_: lock, freeze
+
+**Journal**:
+The authoritative record of every durable alerting decision, committed atomically with the decision it records. The source every Projection is repaired from.
+_Avoid_: log, history (the queryable surface, not the record of authority)
+
+**Projection**:
+A best-effort queryable copy of journaled facts. Never authoritative, always repairable from the Journal.
+_Avoid_: replica (implies authority), mirror
+
+**Reconciliation**:
+The periodic repair that diffs the Journal against a Projection and re-inserts what is missing.
+_Avoid_: backfill, sync
 
 ### Agent integration
 
