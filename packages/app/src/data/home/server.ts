@@ -119,14 +119,13 @@ function topServices(
 /**
  * The three statements the overview runs, built for one bucket granularity.
  *
- * Kept apart from the handler so the SQL can be read and exercised on its own,
- * rather than only through an authenticated request: these are the queries that
- * decide how fast Home loads, so they need to be runnable against a real
- * ClickHouse in isolation.
+ * Kept apart from the handler so the SQL can be read on its own, rather than
+ * only in the middle of the request that runs it: these are the queries that
+ * decide how fast Home loads.
  *
  * Both time filters are bound through `{fromTime:String}` / `{toTime:String}`.
  */
-export function buildHomeQueries(granularity: BucketGranularity): {
+function buildHomeQueries(granularity: BucketGranularity): {
   logsSql: string;
   tracesSql: string;
   ciSql: string;
