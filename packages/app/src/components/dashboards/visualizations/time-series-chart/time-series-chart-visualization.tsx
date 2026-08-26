@@ -3,6 +3,8 @@ import {
   ChartLegend,
   ChartLegendContent,
 } from "@everr/ui/components/chart";
+import { CursorTooltip } from "@everr/ui/components/cursor-tooltip";
+import { SeriesTooltipContent } from "@everr/ui/components/series-tooltip";
 import { LineChart as LineChartIcon } from "lucide-react";
 import { useCallback, useMemo, useRef, useState } from "react";
 import {
@@ -15,7 +17,6 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { CursorTooltip } from "@/components/cursor-tooltip";
 import {
   hoverMarkers,
   markerTolerance,
@@ -29,7 +30,6 @@ import {
   SERIES_COLORS,
 } from "../data-utils";
 import type { VisualizationProps } from "../index";
-import { SeriesTooltipContent } from "../series-tooltip";
 import type { TimeSeriesChartSpec } from "./spec";
 import { buildChartModel, buildStackedData, TS_KEY } from "./time-series-data";
 

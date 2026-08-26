@@ -17,14 +17,14 @@ export interface SeriesTooltipRow {
 /**
  * The shared tooltip content for chart visualizations: a title (timestamp or
  * category) over a swatch · label · value grid. Chrome-free so it can sit
- * inside `CursorTooltip` (which supplies the card and positioning) — shared by
+ * inside `CursorTooltip` (which supplies the card and positioning). Shared by
  * the time-series, bar, and other chart visualizations.
  */
 export function SeriesTooltipContent({
   title,
   rows,
 }: {
-  /** Omitted entirely when nullish — e.g. an ungrouped treemap tile. */
+  /** Omitted entirely when nullish, e.g. an ungrouped treemap tile. */
   title?: ReactNode;
   rows: SeriesTooltipRow[];
 }) {

@@ -1,5 +1,5 @@
+import type { SeriesTooltipRow } from "@everr/ui/components/series-tooltip";
 import { useCallback, useState } from "react";
-import type { SeriesTooltipRow } from "@/components/dashboards/visualizations/series-tooltip";
 import { formatValue } from "@/data/alerting/triage/format";
 import type {
   InstanceValuePoint,

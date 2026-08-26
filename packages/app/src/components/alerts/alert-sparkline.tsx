@@ -1,6 +1,6 @@
+import { CursorTooltip } from "@everr/ui/components/cursor-tooltip";
+import { SeriesTooltipContent } from "@everr/ui/components/series-tooltip";
 import { useMemo } from "react";
-import { CursorTooltip } from "@/components/cursor-tooltip";
-import { SeriesTooltipContent } from "@/components/dashboards/visualizations/series-tooltip";
 import { formatElapsed } from "@/data/alerting/triage/format";
 import type { AlertSparkData } from "@/data/alerting/triage/view";
 import {

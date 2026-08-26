@@ -1,7 +1,7 @@
+import { CursorTooltip } from "@everr/ui/components/cursor-tooltip";
+import { SeriesTooltipContent } from "@everr/ui/components/series-tooltip";
 import { cn } from "@everr/ui/lib/utils";
 import { memo, useMemo } from "react";
-import { CursorTooltip } from "@/components/cursor-tooltip";
-import { SeriesTooltipContent } from "@/components/dashboards/visualizations/series-tooltip";
 import { formatElapsed } from "@/data/alerting/triage/format";
 import type {
   ChartWindow,

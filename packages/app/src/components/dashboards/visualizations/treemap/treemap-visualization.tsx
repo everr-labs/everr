@@ -1,7 +1,7 @@
+import { SeriesTooltipContent } from "@everr/ui/components/series-tooltip";
 import { LayoutGrid } from "lucide-react";
 import { useMemo } from "react";
 import type { VisualizationProps } from "../index";
-import { SeriesTooltipContent } from "../series-tooltip";
 import { formatStatValue } from "../stat-chart/stat-calculations";
 import type { TreemapSpec } from "./spec";
 import { TreemapChart } from "./treemap-chart";

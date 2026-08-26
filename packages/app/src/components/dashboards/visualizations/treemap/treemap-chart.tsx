@@ -1,6 +1,6 @@
+import { CursorTooltip } from "@everr/ui/components/cursor-tooltip";
 import { type ReactNode, useState } from "react";
 import { ResponsiveContainer, Treemap } from "recharts";
-import { CursorTooltip } from "@/components/cursor-tooltip";
 
 export interface TreemapTileDatum {
   name: string;

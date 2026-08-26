@@ -1,6 +1,7 @@
+import { CursorTooltip } from "@everr/ui/components/cursor-tooltip";
+import { SeriesTooltipContent } from "@everr/ui/components/series-tooltip";
 import { Grid3x3 } from "lucide-react";
 import { useCallback, useMemo, useRef, useState } from "react";
-import { CursorTooltip } from "@/components/cursor-tooltip";
 import { normalizeValue } from "../color-scale";
 import {
   createTimeTickFormatter,
@@ -8,7 +9,6 @@ import {
   SERIES_COLORS,
 } from "../data-utils";
 import type { VisualizationProps } from "../index";
-import { SeriesTooltipContent } from "../series-tooltip";
 import { formatStatValue } from "../stat-chart/stat-calculations";
 import { heatmapColor, heatmapColorRgb, isDarkColor } from "./heatmap-colors";
 import { buildHeatmapModel, type HeatmapCell } from "./heatmap-data";
