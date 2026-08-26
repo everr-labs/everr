@@ -14,7 +14,7 @@ const WINDOW = { from: new Date(NOW.getTime() - 60 * MINUTE), to: NOW };
 type ValueRow = {
   slug: string;
   fingerprint: string;
-  labels_json: string;
+  sample_labels: string;
   bucket: string;
   last: number;
   low: number;
@@ -33,7 +33,7 @@ function row(overrides: Partial<ValueRow> = {}): ValueRow {
   return {
     slug: "demo/latency",
     fingerprint: "a",
-    labels_json: '{"host":"a"}',
+    sample_labels: '{"host":"a"}',
     bucket: bucketAt(10),
     last: 50,
     low: 50,
@@ -120,7 +120,7 @@ describe("loadInstanceValues", () => {
       rows.push(
         row({
           fingerprint,
-          labels_json: `{"host":"${fingerprint}"}`,
+          sample_labels: `{"host":"${fingerprint}"}`,
           last: 10 + i,
           low: 10 + i,
           high: 10 + i,
@@ -130,7 +130,7 @@ describe("loadInstanceValues", () => {
     rows.push(
       row({
         fingerprint: "hot",
-        labels_json: '{"host":"hot"}',
+        sample_labels: '{"host":"hot"}',
         last: 101,
         low: 101,
         high: 101,
@@ -159,9 +159,9 @@ describe("loadInstanceValues", () => {
 
   it("names lanes from the caller's labels first, then the rows', and survives a label set that will not parse", async () => {
     const { query } = queryReturning([
-      row({ fingerprint: "named-by-caller", labels_json: '{"host":"row"}' }),
-      row({ fingerprint: "named-by-row", labels_json: '{"host":"row"}' }),
-      row({ fingerprint: "unlabelled", labels_json: "not json" }),
+      row({ fingerprint: "named-by-caller", sample_labels: '{"host":"row"}' }),
+      row({ fingerprint: "named-by-row", sample_labels: '{"host":"row"}' }),
+      row({ fingerprint: "unlabelled", sample_labels: "not json" }),
     ]);
     const out = await loadInstanceValues(query, {
       rules: [LATENCY],
@@ -183,7 +183,7 @@ describe("loadInstanceValues", () => {
   it("keeps rules apart by path and leaves out a rule that evaluated nothing", async () => {
     const { query } = queryReturning([
       row({ slug: "demo/latency" }),
-      row({ slug: "demo/errors", fingerprint: "b", labels_json: "{}" }),
+      row({ slug: "demo/errors", fingerprint: "b", sample_labels: "{}" }),
     ]);
     const out = await loadInstanceValues(query, {
       rules: [

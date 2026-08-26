@@ -88,7 +88,9 @@ export type PriorStateRow = {
   instance_fingerprint: string;
   // Not `event_type`: an aggregate aliased to the column it reads shadows
   // that column in the WHERE clause, and ClickHouse rejects the whole query
-  // rather than resolving it.
+  // rather than resolving it. It does not always reject. Where the alias and
+  // the column have different types the predicate simply matches nothing, so
+  // no read in this file aliases an expression to the name it reads.
   last_event_type: LifecycleEventType;
 };
 
@@ -209,14 +211,15 @@ export function loadLastEvaluation(
 export function loadInstanceLabels(
   query: ClickhouseQuery,
   opts: { path: string; windowFrom: Date; windowTo: Date },
-): Promise<
-  { instance_fingerprint: string; instance_labels: Record<string, string> }[]
-> {
+): Promise<{ instance_fingerprint: string; labels: Record<string, string> }[]> {
   return query<{
     instance_fingerprint: string;
-    instance_labels: Record<string, string>;
+    // Not `instance_labels`: an aggregate aliased to the column it reads
+    // shadows that column, and the two other reads in this file that did it
+    // were a rejected query and a silently empty one.
+    labels: Record<string, string>;
   }>(
-    `SELECT instance_fingerprint, any(instance_labels) AS instance_labels
+    `SELECT instance_fingerprint, any(instance_labels) AS labels
        FROM app.alert_events
       WHERE slug = {slug:String}
         AND is_live
@@ -252,11 +255,16 @@ export async function loadSilenceImpact(
     Math.min(...silences.map((s) => s.startsAt.getTime())),
   ).toISOString();
   const rows = await query<{
-    silence_id: string;
+    // Not `silence_id`: an expression aliased to the column it reads shadows
+    // that column in the WHERE clause. Here the shadow is silent rather than
+    // rejected, because the alias is a String and the predicate compares it to
+    // an Array(UUID): nothing matches, no error is raised, and every silence
+    // reports having withheld nothing.
+    sid: string;
     held: string;
     dropped: string;
   }>(
-    `SELECT toString(silence_id) AS silence_id,
+    `SELECT toString(silence_id) AS sid,
             toString(uniqExactIf(notification_event_id, event_type = 'notification_deferred')) AS held,
             toString(uniqExactIf(notification_event_id, event_type = 'notification_suppressed')) AS dropped
        FROM app.alert_events
@@ -270,7 +278,7 @@ export async function loadSilenceImpact(
   );
   return new Map(
     rows.map((r) => [
-      r.silence_id,
+      r.sid,
       { held: Number(r.held), dropped: Number(r.dropped) },
     ]),
   );
@@ -356,7 +364,10 @@ export async function loadInstanceValues(
   const rows = await query<{
     slug: string;
     fingerprint: string;
-    labels_json: string;
+    // Not `labels_json`: the same self-shadowing alias as the two reads above.
+    // Harmless here, since no predicate names it, and renamed anyway so the
+    // pattern is not left in the file for the next reader to copy.
+    sample_labels: string;
     bucket: string;
     last: number;
     low: number;
@@ -364,7 +375,7 @@ export async function loadInstanceValues(
   }>(
     `SELECT slug,
             fingerprint,
-            any(labels_json) AS labels_json,
+            any(labels_json) AS sample_labels,
             toStartOfInterval(event_time, INTERVAL {bucket:UInt32} SECOND) AS bucket,
             argMax(v, event_time) AS last,
             min(v) AS low,
@@ -411,7 +422,7 @@ export async function loadInstanceValues(
     byInstance.set(row.fingerprint, list);
     buckets.set(row.slug, byInstance);
     if (!labels.has(row.fingerprint)) {
-      labels.set(row.fingerprint, formatLabels(parseLabels(row.labels_json)));
+      labels.set(row.fingerprint, formatLabels(parseLabels(row.sample_labels)));
     }
   }
   for (const [fingerprint, label] of opts.labels ?? []) {

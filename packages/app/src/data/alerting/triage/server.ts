@@ -204,10 +204,7 @@ export const getAlertDetail = createAuthenticatedServerFn({ method: "GET" })
       labels: new Map([
         ...instanceLabels.map(
           (row) =>
-            [
-              row.instance_fingerprint,
-              formatLabels(row.instance_labels ?? {}),
-            ] as const,
+            [row.instance_fingerprint, formatLabels(row.labels ?? {})] as const,
         ),
         ...lastSamples.map(
           (sample) =>
