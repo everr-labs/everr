@@ -1,4 +1,40 @@
-import { describe, expect, it, vi } from "vitest";
+import { APIError } from "better-auth/api";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+// The `user` row the invitation guard reads for the address it was given.
+// An empty array is an address nobody holds.
+let recipientRows: Array<{ isServiceAccount: boolean }> = [];
+
+vi.mock("@/db/client", () => ({
+  db: {
+    select: () => {
+      // biome-ignore lint/suspicious/noExplicitAny: a query-builder passthrough mock has no fixed shape.
+      const chain: any = {
+        from: () => chain,
+        where: () => chain,
+        limit: async () => recipientRows,
+      };
+      return chain;
+    },
+  },
+}));
+
+const createInvitation = vi.fn();
+
+vi.mock("@/lib/auth.server", () => ({
+  auth: {
+    api: {
+      getSession: vi.fn(),
+      createInvitation: (...args: unknown[]) => createInvitation(...args),
+    },
+  },
+}));
+
+vi.mock("@tanstack/react-start/server", () => ({
+  getRequestHeaders: () => new Headers({ cookie: "better-auth.session=x" }),
+}));
+
+import { inviteMember } from "@/data/invite";
 import {
   deriveInvitationLookup,
   type InvitationRow,
@@ -247,5 +283,52 @@ describe("resolveInvitationLoader", () => {
       organizationName: "Acme",
       invitedEmail: "a@x.com",
     });
+  });
+});
+
+describe("inviteMember", () => {
+  beforeEach(() => {
+    createInvitation.mockReset();
+    recipientRows = [];
+  });
+
+  it("refuses to invite a service account", async () => {
+    recipientRows = [{ isServiceAccount: true }];
+
+    await expect(
+      inviteMember({
+        data: { email: "deploy-bot@svc.everr.invalid", role: "member" },
+      } as never),
+    ).rejects.toThrow(/service account/i);
+    expect(createInvitation).not.toHaveBeenCalled();
+  });
+
+  it("invites a real address with the chosen role", async () => {
+    createInvitation.mockResolvedValue({ id: "inv_1", status: "pending" });
+
+    const result = await inviteMember({
+      data: { email: "new.hire@example.com", role: "admin" },
+    } as never);
+
+    expect(createInvitation).toHaveBeenCalledWith(
+      expect.objectContaining({
+        body: { email: "new.hire@example.com", role: "admin" },
+      }),
+    );
+    expect(result).toEqual({ id: "inv_1", status: "pending" });
+  });
+
+  it("passes a refusal from better-auth back with its message intact", async () => {
+    createInvitation.mockRejectedValue(
+      new APIError("BAD_REQUEST", {
+        message: "User is already a member of this organization",
+      }),
+    );
+
+    await expect(
+      inviteMember({
+        data: { email: "already.here@example.com", role: "member" },
+      } as never),
+    ).rejects.toThrow("User is already a member of this organization");
   });
 });

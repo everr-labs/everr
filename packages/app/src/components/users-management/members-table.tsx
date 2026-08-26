@@ -19,8 +19,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@everr/ui/components/select";
+import { Bot } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
+import type { ServiceAccountSummary } from "@/data/service-accounts";
 import { formatDate } from "./format-date";
 import {
   type Member,
@@ -32,6 +34,11 @@ import {
 interface MembersTableProps {
   members: Member[];
   currentUserId: string | undefined;
+  // The organization's service accounts, from the list the page already
+  // holds. Undefined while that list loads: a row nobody knows to be a
+  // machine reads as a person, so the badge and the guards appear once the
+  // list arrives.
+  serviceAccounts: ServiceAccountSummary[] | undefined;
 }
 
 interface RoleChangePending {
@@ -41,12 +48,22 @@ interface RoleChangePending {
   nextRole: OrgRole;
 }
 
-export function MembersTable({ members, currentUserId }: MembersTableProps) {
+export function MembersTable({
+  members,
+  currentUserId,
+  serviceAccounts,
+}: MembersTableProps) {
   const updateRole = useUpdateMemberRole();
   const remove = useRemoveMember();
   const [rolePending, setRolePending] = useState<RoleChangePending | null>(
     null,
   );
+
+  const serviceAccountUserIds = new Set(
+    (serviceAccounts ?? []).map((account) => account.userId),
+  );
+  const isServiceAccount = (row: Member) =>
+    serviceAccountUserIds.has(row.userId);
 
   const ownerCount = members.filter((m) => m.role === "owner").length;
 
@@ -81,10 +98,16 @@ export function MembersTable({ members, currentUserId }: MembersTableProps) {
     {
       header: "Name",
       cell: (row) => (
-        <span>
+        <span className="inline-flex items-center gap-1.5">
           {row.user?.name ?? "—"}
           {row.userId === currentUserId && (
-            <span className="ml-1.5 text-xs text-muted-foreground">(you)</span>
+            <span className="text-xs text-muted-foreground">(you)</span>
+          )}
+          {isServiceAccount(row) && (
+            <Badge variant="outline" className="gap-1">
+              <Bot />
+              Service account
+            </Badge>
           )}
         </span>
       ),
@@ -127,7 +150,9 @@ export function MembersTable({ members, currentUserId }: MembersTableProps) {
             <SelectContent>
               <SelectItem value="member">Member</SelectItem>
               <SelectItem value="admin">Admin</SelectItem>
-              <SelectItem value="owner">Owner</SelectItem>
+              {!isServiceAccount(row) && (
+                <SelectItem value="owner">Owner</SelectItem>
+              )}
             </SelectContent>
           </Select>
         );
@@ -142,7 +167,11 @@ export function MembersTable({ members, currentUserId }: MembersTableProps) {
       cell: (row) => {
         const isSelf = row.userId === currentUserId;
         const isLastOwner = row.role === "owner" && ownerCount <= 1;
-        if (isSelf || isLastOwner) return null;
+        // A service account is deleted from the Service accounts table
+        // below, which also removes its membership. Removing it here
+        // instead would leave the account, its secrets, and its user row
+        // behind with no membership to act through.
+        if (isSelf || isLastOwner || isServiceAccount(row)) return null;
         const memberName = row.user?.name ?? row.user?.email ?? "this member";
 
         return (

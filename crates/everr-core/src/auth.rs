@@ -1,6 +1,7 @@
 use std::time::{Duration, Instant};
 
 use anyhow::{Context, Result, bail};
+use reqwest::StatusCode;
 use reqwest::header::CONTENT_TYPE;
 use serde::Deserialize;
 use tokio::time::sleep;
@@ -172,6 +173,81 @@ pub fn session_from_device_token(
     build_session(config.api_base_url.clone(), token)
 }
 
+#[derive(Debug, Deserialize)]
+struct ServiceAccountTokenResponse {
+    token: String,
+    // Not read yet. No caller tracks expiry, and none re-exchanges on a 401 either:
+    // the CLI exchanges once per process and caches the session, so a process that
+    // runs longer than the token's hour fails instead of refreshing. Refresh on 401
+    // is a known gap, not a behavior that exists.
+    #[allow(dead_code)]
+    expires_at: String,
+}
+
+/// How long to wait before the single retry of a rate limited exchange.
+const RATE_LIMIT_RETRY_DELAY: Duration = Duration::from_secs(2);
+
+pub async fn exchange_service_account_secret(config: &AuthConfig, secret: &str) -> Result<Session> {
+    exchange_service_account_secret_after(config, secret, RATE_LIMIT_RETRY_DELAY).await
+}
+
+async fn exchange_service_account_secret_after(
+    config: &AuthConfig,
+    secret: &str,
+    retry_delay: Duration,
+) -> Result<Session> {
+    let client = build_http_client()?;
+    let mut response = post_service_account_secret(&client, config, secret).await?;
+
+    // Nobody attends an unattended run, so one retry here is the difference
+    // between a command that recovers from a burst of agents sharing an
+    // egress address and one that fails the whole job.
+    if response.status() == StatusCode::TOO_MANY_REQUESTS {
+        sleep(retry_delay).await;
+        response = post_service_account_secret(&client, config, secret).await?;
+    }
+
+    if !response.status().is_success() {
+        if response.status() == StatusCode::TOO_MANY_REQUESTS {
+            bail!(
+                "the service account token endpoint rate limited this request and the retry that followed it; retry later"
+            );
+        }
+        bail!("the service account secret was rejected");
+    }
+
+    let body: ServiceAccountTokenResponse = response
+        .json()
+        .await
+        .context("failed to read the service account token response")?;
+
+    if body.token.trim().is_empty() {
+        bail!("received an empty service account token");
+    }
+
+    Ok(Session {
+        api_base_url: config.api_base_url.clone(),
+        token: body.token,
+    })
+}
+
+async fn post_service_account_secret(
+    client: &reqwest::Client,
+    config: &AuthConfig,
+    secret: &str,
+) -> Result<reqwest::Response> {
+    client
+        .post(format!(
+            "{}/api/service-accounts/token",
+            config.api_base_url
+        ))
+        .header(CONTENT_TYPE, "application/json")
+        .json(&serde_json::json!({ "secret": secret }))
+        .send()
+        .await
+        .context("failed to reach the service account token endpoint")
+}
+
 fn build_http_client() -> Result<reqwest::Client> {
     reqwest::Client::builder()
         .build()
@@ -269,7 +345,16 @@ async fn complete_device_authorization_with_url(
 
 #[cfg(test)]
 mod tests {
-    use super::{AuthConfig, DeviceTokenResponse, session_from_device_token};
+    use std::time::Duration;
+
+    use super::{
+        AuthConfig, DeviceTokenResponse, exchange_service_account_secret,
+        exchange_service_account_secret_after, session_from_device_token,
+    };
+
+    // The tests below drive the retry with no delay so they never wait for
+    // the real one.
+    const NO_DELAY: Duration = Duration::ZERO;
 
     #[test]
     fn session_from_device_token_rejects_blank_tokens() {
@@ -284,5 +369,98 @@ mod tests {
         .expect_err("blank token should fail");
 
         assert_eq!(error.to_string(), "received an empty access token");
+    }
+
+    #[tokio::test]
+    async fn exchange_service_account_secret_rejects_an_empty_token() {
+        let mut server = mockito::Server::new_async().await;
+        server
+            .mock("POST", "/api/service-accounts/token")
+            .with_status(200)
+            .with_header("content-type", "application/json")
+            .with_body(r#"{"token":"","expires_at":"2026-01-01T00:00:00Z"}"#)
+            .create_async()
+            .await;
+        let config = AuthConfig {
+            api_base_url: server.url(),
+        };
+
+        let error = exchange_service_account_secret(&config, "sa-secret")
+            .await
+            .expect_err("an empty token should fail");
+
+        assert_eq!(error.to_string(), "received an empty service account token");
+    }
+
+    #[tokio::test]
+    async fn exchange_service_account_secret_retries_once_when_rate_limited() {
+        // Agents behind one egress address share the endpoint's bucket, so a
+        // burst can rate limit a run that nobody is there to start again.
+        let mut server = mockito::Server::new_async().await;
+        let limited = server
+            .mock("POST", "/api/service-accounts/token")
+            .with_status(429)
+            .expect(1)
+            .create_async()
+            .await;
+        let issued = server
+            .mock("POST", "/api/service-accounts/token")
+            .with_status(200)
+            .with_header("content-type", "application/json")
+            .with_body(r#"{"token":"st_abc","expires_at":"2026-01-01T00:00:00Z"}"#)
+            .expect(1)
+            .create_async()
+            .await;
+        let config = AuthConfig {
+            api_base_url: server.url(),
+        };
+
+        let session = exchange_service_account_secret_after(&config, "sa-secret", NO_DELAY)
+            .await
+            .expect("the retry should succeed");
+
+        assert_eq!(session.token, "st_abc");
+        limited.assert_async().await;
+        issued.assert_async().await;
+    }
+
+    #[tokio::test]
+    async fn exchange_service_account_secret_reports_rate_limiting_distinctly() {
+        let mut server = mockito::Server::new_async().await;
+        server
+            .mock("POST", "/api/service-accounts/token")
+            .with_status(429)
+            .create_async()
+            .await;
+        let config = AuthConfig {
+            api_base_url: server.url(),
+        };
+
+        let error = exchange_service_account_secret_after(&config, "sa-secret", NO_DELAY)
+            .await
+            .expect_err("a 429 that repeats should fail");
+
+        let message = error.to_string();
+        assert!(message.contains("retry"), "message was: {message}");
+        assert!(!message.contains("rejected"), "message was: {message}");
+    }
+
+    #[tokio::test]
+    async fn exchange_service_account_secret_reports_other_failures_as_rejected() {
+        let mut server = mockito::Server::new_async().await;
+        server
+            .mock("POST", "/api/service-accounts/token")
+            .with_status(401)
+            .create_async()
+            .await;
+        let config = AuthConfig {
+            api_base_url: server.url(),
+        };
+
+        let error = exchange_service_account_secret(&config, "sa-secret")
+            .await
+            .expect_err("a 401 should fail");
+
+        assert_eq!(error.to_string(), "the service account secret was rejected");
     }
 }

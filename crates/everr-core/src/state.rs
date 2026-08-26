@@ -207,6 +207,21 @@ impl AppStateStore {
         bail!(NO_ACTIVE_SESSION);
     }
 
+    /// Picks the session to use for a request. An already exchanged session (for
+    /// example a service account token) always wins over the stored session, so a
+    /// machine principal never depends on a human having logged in on this device.
+    pub fn resolve_session(
+        &self,
+        expected_api_base_url: &str,
+        exchanged: Option<&Session>,
+    ) -> Result<Session> {
+        if let Some(session) = exchanged {
+            return Ok(session.clone());
+        }
+
+        self.load_session_for_api_base_url(expected_api_base_url)
+    }
+
     /// Deletes the state file entirely, removing all session and settings data.
     pub fn wipe(&self) -> Result<()> {
         let path = self.session_file_path()?;
@@ -436,6 +451,48 @@ mod tests {
                 Some("https://app.everr.dev")
             );
             assert!(state.settings.wizard_state.wizard_completed);
+        });
+    }
+
+    #[test]
+    fn service_account_secret_takes_precedence_over_a_stored_session() {
+        with_temp_config_home(|store| {
+            store
+                .save_session(&Session {
+                    api_base_url: "http://localhost:5173".to_string(),
+                    token: "stored-human-token".to_string(),
+                })
+                .expect("save session");
+
+            let resolved = store
+                .resolve_session(
+                    "http://localhost:5173",
+                    Some(&Session {
+                        api_base_url: "http://localhost:5173".to_string(),
+                        token: "st_exchanged".to_string(),
+                    }),
+                )
+                .expect("resolve session");
+
+            assert_eq!(resolved.token, "st_exchanged");
+        });
+    }
+
+    #[test]
+    fn a_stored_session_is_used_when_no_secret_is_set() {
+        with_temp_config_home(|store| {
+            store
+                .save_session(&Session {
+                    api_base_url: "http://localhost:5173".to_string(),
+                    token: "stored-human-token".to_string(),
+                })
+                .expect("save session");
+
+            let resolved = store
+                .resolve_session("http://localhost:5173", None)
+                .expect("resolve session");
+
+            assert_eq!(resolved.token, "stored-human-token");
         });
     }
 

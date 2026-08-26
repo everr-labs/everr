@@ -38,6 +38,7 @@ async fn main() -> Result<()> {
         command_telemetry::record_invocation(&cli, argv);
         update_notice::maybe_print(&cli).await;
         let result = run_command(cli.command).await;
+        let result = auth::rewrite_reauth_error_for_service_account(result);
         command_telemetry::record_result(command, subcommand, &result);
         result
     }
