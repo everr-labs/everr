@@ -34,12 +34,19 @@ import {
   loadRuleInstances,
   loadRules,
   rulePath,
+  ruleTitle,
   triageStatus,
 } from "./rules";
-import { loadOpenSilences, loadSilencesInWindow } from "./silences";
+import {
+  loadOpenSilences,
+  loadSilencesForPage,
+  loadSilencesInWindow,
+  silencePageRow,
+} from "./silences";
 import { loadInstanceValues, parseSamples, type ValueRule } from "./values";
 import type {
   AlertDetail,
+  AlertSilencesPageData,
   AlertTriageData,
   RuleStateHistoryData,
 } from "./view";
@@ -226,4 +233,34 @@ export const getAlertDetail = createAuthenticatedServerFn({ method: "GET" })
       lastSamples,
       values,
     });
+  });
+
+export const getAlertSilences = createAuthenticatedServerFn({ method: "GET" })
+  .inputValidator(z.object({ from: z.string(), to: z.string() }))
+  .handler(async ({ data, context }): Promise<AlertSilencesPageData> => {
+    const organizationId = context.session.session.activeOrganizationId;
+    const now = new Date();
+    const { fromDate, toDate } = resolveTimeRange(data);
+
+    // The rules ride along for the dialog: a silence has to name one, and a
+    // page that spans rules has none to assume.
+    const [silences, definitions] = await Promise.all([
+      loadSilencesForPage(organizationId, fromDate, toDate),
+      loadRules(organizationId),
+    ]);
+    const impacts = await loadSilenceImpact(context.clickhouse.query, silences);
+
+    return {
+      silences: silences.map((row) =>
+        silencePageRow(
+          row,
+          now,
+          impacts.get(row.id) ?? { held: 0, dropped: 0 },
+        ),
+      ),
+      rules: definitions.map((row) => ({
+        path: rulePath(row),
+        name: ruleTitle(row),
+      })),
+    };
   });

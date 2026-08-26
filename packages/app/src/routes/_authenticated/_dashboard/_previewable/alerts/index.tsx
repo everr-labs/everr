@@ -286,6 +286,7 @@ function AlertingTriagePage() {
           fact, spelled as a bug. */}
       <SilenceDialog
         key={silenceTarget ? JSON.stringify(silenceTarget) : "closed"}
+        open={silenceTarget !== null}
         path={silenceTarget?.path ?? null}
         seed={silenceTarget?.seed}
         instanceCount={silenceAlert?.instances ?? 0}

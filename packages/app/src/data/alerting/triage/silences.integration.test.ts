@@ -28,7 +28,13 @@ vi.mock(
   async () => import("@/server/alerting/testing/test-clickhouse"),
 );
 
-import { loadOpenSilences, loadSilencesInWindow, silenceFor } from "./silences";
+import {
+  loadOpenSilences,
+  loadSilencesForPage,
+  loadSilencesInWindow,
+  silenceFor,
+  silencePageRow,
+} from "./silences";
 
 const harness = useAlertingHarness();
 
@@ -180,5 +186,67 @@ describe("the Silences the Triage screen reads", () => {
 
     expect(critical.map((row) => row.id)).toEqual([bySeverity.id]);
     expect(warning).toEqual([]);
+  });
+});
+
+describe("the Silences the Silences page lists", () => {
+  it("keeps every open Silence and only the closed ones that overlap the range", async () => {
+    const active = await insertSilence(harness().db, {
+      startsAt: at(-2),
+      endsAt: at(1),
+    });
+    // Open, but a week away from the range asked about.
+    const scheduled = await insertSilence(harness().db, {
+      startsAt: at(24 * 7),
+      endsAt: at(24 * 7 + 1),
+    });
+    const closedInRange = await insertSilence(harness().db, {
+      startsAt: at(-5),
+      endsAt: at(-4),
+    });
+    await insertSilence(harness().db, { startsAt: at(-30), endsAt: at(-29) });
+
+    const silences = await loadSilencesForPage(TEST_ORG, at(-6), at(0));
+
+    expect(silences.map((row) => row.id).sort()).toEqual(
+      [active.id, scheduled.id, closedInRange.id].sort(),
+    );
+  });
+
+  it("prints the rule as one matcher among the others, and names it for a repeat", async () => {
+    const { id } = await insertSilence(harness().db, {
+      matchers: [...ruleMatcher, { label: "region", op: "eq", value: "eu" }],
+      startsAt: at(-2),
+      endsAt: at(1),
+    });
+    const rows = await loadSilencesForPage(TEST_ORG, at(-1), at(0));
+    const row = rows.find((r) => r.id === id);
+    if (!row) throw new Error("silence not listed");
+
+    const page = silencePageRow(row, new Date(), { held: 2, dropped: 0 });
+
+    expect(page.state).toBe("active");
+    expect(page.matchers).toBe(`rule=${RULE_PATH} region=eu`);
+    expect(page.rule).toBe(RULE_PATH);
+    expect(page.scope).toBe("region=eu");
+    expect(page.impact).toBe("held 2");
+  });
+
+  it("has no rule to repeat when the Silence named none", async () => {
+    const { id } = await insertSilence(harness().db, {
+      matchers: [{ label: "environment", op: "eq", value: "staging" }],
+      startsAt: at(-2),
+      endsAt: at(1),
+    });
+    const rows = await loadSilencesForPage(TEST_ORG, at(-1), at(0));
+    const row = rows.find((r) => r.id === id);
+    if (!row) throw new Error("silence not listed");
+
+    const page = silencePageRow(row, new Date(), { held: 0, dropped: 0 });
+
+    expect(page.rule).toBeNull();
+    expect(page.matchers).toBe("environment=staging");
+    expect(page.scope).toBe("environment=staging");
+    expect(page.impact).toBeNull();
   });
 });

@@ -269,6 +269,41 @@ export type AlertDetail = {
   forClause: string;
 };
 
+/**
+ * One silence as the Silences page lists it, across every rule in the
+ * Organization. Unlike `AlertSilenceRecord`, which lists the silences of one
+ * rule and so leaves the rule unsaid, this row prints every matcher: on a page
+ * that spans rules, the rule is the fact that tells two rows apart, and it is
+ * one matcher among the others rather than a title the rest narrow.
+ */
+export type AlertSilencePageRow = {
+  id: string;
+  startsAt: string;
+  endsAt: string;
+  state: AlertSilenceRecord["state"];
+  canceledAt: string | null;
+  /** Every matcher, formatted and space-separated. Empty when the silence
+   *  has none, which the row shows by printing nothing. */
+  matchers: string;
+  /** The rule the silence names, when it names exactly one; what "Silence
+   *  again" opens the dialog on. `null` for a silence written outside this
+   *  screen that names no rule, or more than one. */
+  rule: string | null;
+  /** Matchers beyond the rule, formatted, to seed a new silence from. */
+  scope: string;
+  impact: string | null;
+  comment: string;
+  author: string;
+};
+
+/** A rule the silence dialog can be pointed at, when it opens with none. */
+export type SilenceRuleChoice = { path: string; name: string };
+
+export type AlertSilencesPageData = {
+  silences: AlertSilencePageRow[];
+  rules: SilenceRuleChoice[];
+};
+
 /** The durations the silence dialog offers. The label and what it means travel
  *  together, so the two cannot drift apart and nothing has to parse a label
  *  back into a number: the dialog holds one of these and hands on its

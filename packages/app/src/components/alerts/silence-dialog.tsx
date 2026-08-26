@@ -17,7 +17,10 @@ import {
   SelectValue,
 } from "@everr/ui/components/select";
 import { useState } from "react";
-import { SILENCE_DURATIONS } from "@/data/alerting/triage/view";
+import {
+  SILENCE_DURATIONS,
+  type SilenceRuleChoice,
+} from "@/data/alerting/triage/view";
 
 export type SilenceDraft = {
   path: string;
@@ -39,15 +42,23 @@ const DEFAULT_DURATION: SilenceDuration = SILENCE_DURATIONS[1];
  * row, and an unexplained silence is how alerting rots).
  */
 export function SilenceDialog({
+  open,
   path,
+  rules,
   seed,
   instanceCount,
   pending,
   onClose,
   onConfirm,
 }: {
-  /** The rule being silenced, or `null` when the dialog is closed. */
+  open: boolean;
+  /** The rule being silenced. `null` when the dialog opens without one,
+   *  which only happens where `rules` offers a choice. */
   path: string | null;
+  /** The rules the reader may point the silence at. Given on the page that
+   *  spans rules, where "New silence" has no rule to assume; absent on the
+   *  triage screen, where the row that opened the dialog is the rule. */
+  rules?: SilenceRuleChoice[];
   /** Starting matchers and comment, when the dialog was opened from a silence
    *  that has already closed. The caller remounts the dialog per opening (see
    *  the `key` at the call site), so these are read once, as the initial state
@@ -64,6 +75,7 @@ export function SilenceDialog({
   // The whole entry, not its label: the confirm hands on `minutes`, and
   // nothing has to turn a label back into a number on the way out.
   const [duration, setDuration] = useState<SilenceDuration>(DEFAULT_DURATION);
+  const [rulePath, setRulePath] = useState(path);
   const [matchers, setMatchers] = useState(seed?.matchers ?? "");
   const [comment, setComment] = useState(seed?.comment ?? "");
 
@@ -77,7 +89,7 @@ export function SilenceDialog({
 
   return (
     <Dialog
-      open={path !== null}
+      open={open}
       onOpenChange={(next) => {
         if (!next && !pending) onClose();
       }}
@@ -94,8 +106,30 @@ export function SilenceDialog({
 
         <div className="space-y-4">
           <div className="space-y-1.5">
-            <Label>Rule</Label>
-            <p className="font-mono text-sm">{path}</p>
+            <Label htmlFor={rules ? "silence-rule" : undefined}>Rule</Label>
+            {rules ? (
+              <Select
+                value={rulePath ?? ""}
+                onValueChange={(v) => setRulePath(v || null)}
+              >
+                <SelectTrigger id="silence-rule" className="w-full font-mono">
+                  <SelectValue placeholder="Choose a rule" />
+                </SelectTrigger>
+                <SelectContent>
+                  {rules.map((rule) => (
+                    <SelectItem
+                      key={rule.path}
+                      value={rule.path}
+                      className="font-mono"
+                    >
+                      {rule.path}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            ) : (
+              <p className="font-mono text-sm">{rulePath}</p>
+            )}
           </div>
 
           <div className="grid grid-cols-[8rem_minmax(0,1fr)] gap-3">
@@ -157,11 +191,11 @@ export function SilenceDialog({
             Cancel
           </Button>
           <Button
-            disabled={pending}
+            disabled={pending || rulePath === null}
             onClick={() => {
-              if (path)
+              if (rulePath)
                 onConfirm({
-                  path,
+                  path: rulePath,
                   minutes: duration.minutes,
                   matchers,
                   comment,

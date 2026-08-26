@@ -1,6 +1,11 @@
 import type { TimeRange } from "@everr/ui/lib/time-range";
 import { type QueryClient, queryOptions } from "@tanstack/react-query";
-import { getAlertDetail, getAlertTriage, getRuleStateHistory } from "./server";
+import {
+  getAlertDetail,
+  getAlertSilences,
+  getAlertTriage,
+  getRuleStateHistory,
+} from "./server";
 
 const alertingQueryKey = ["alerting", "triage"] as const;
 
@@ -41,4 +46,15 @@ export const alertDetailOptions = (
         data: { path: path ?? "", from: range.from, to: range.to },
       }),
     enabled: Boolean(path),
+  });
+
+export const alertSilencesOptions = (range: TimeRange) =>
+  queryOptions({
+    // Under the triage key on purpose: silencing and cancelling from either
+    // screen change what both list, and one invalidation has to reach both.
+    queryKey: [...alertingQueryKey, "silences", range.from, range.to],
+    queryFn: () => getAlertSilences({ data: range }),
+    // "Ends in 4m" and a silence that has just lapsed are the two facts the
+    // page is read for, and both go stale on their own.
+    refetchInterval: 30_000,
   });
