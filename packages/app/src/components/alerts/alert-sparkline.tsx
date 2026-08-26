@@ -34,7 +34,8 @@ export function AlertSparkline({
   /** For the accessible description; the visible label is the row's own. */
   name: string;
 }) {
-  const scrub = useChartScrub(spark.windowMinutes);
+  const { minutes: windowMinutes, endsAt } = spark.window;
+  const scrub = useChartScrub(windowMinutes);
   const { hovered } = scrub;
 
   // None of the geometry depends on the pointer, and the pointer moves at
@@ -46,7 +47,7 @@ export function AlertSparkline({
     const points = new Map<number, number>();
     for (const instance of spark.instances) {
       for (const point of instance.points) {
-        if (point.at > spark.windowMinutes) continue;
+        if (point.at > windowMinutes) continue;
         points.set(
           point.at,
           Math.max(points.get(point.at) ?? -Infinity, point.high),
@@ -61,8 +62,7 @@ export function AlertSparkline({
     const values = series.map((p) => p.value);
     const min = Math.min(...values);
     const max = Math.max(...values);
-    const x = (at: number) =>
-      ((spark.windowMinutes - at) / spark.windowMinutes) * WIDTH;
+    const x = (at: number) => ((windowMinutes - at) / windowMinutes) * WIDTH;
     const y = (value: number) =>
       max === min
         ? HEIGHT / 2
@@ -76,7 +76,7 @@ export function AlertSparkline({
       .join(" ");
     const area = `${line} L${x(series[series.length - 1].at).toFixed(1)} ${HEIGHT} L${x(series[0].at).toFixed(1)} ${HEIGHT} Z`;
     return { line, area, min, max };
-  }, [spark]);
+  }, [spark.instances, windowMinutes]);
 
   if (!shape) return <div style={{ width: WIDTH, height: HEIGHT }} />;
 
@@ -87,7 +87,7 @@ export function AlertSparkline({
         height={HEIGHT}
         viewBox={`0 0 ${WIDTH} ${HEIGHT}`}
         role="img"
-        aria-label={`${name}: worst instance between ${shape.min} and ${shape.max} over the last ${formatElapsed(spark.windowMinutes * 60_000)}`}
+        aria-label={`${name}: worst instance between ${shape.min} and ${shape.max} over the last ${formatElapsed(windowMinutes * 60_000)}`}
         onMouseMove={scrub.onMouseMove}
         onMouseLeave={scrub.onMouseLeave}
       >
@@ -106,12 +106,8 @@ export function AlertSparkline({
           <ChartCrosshair left={scrub.left} />
           <CursorTooltip x={hovered.clientX} y={hovered.clientY}>
             <SeriesTooltipContent
-              title={tooltipTime(spark.endsAt, hovered.at)}
-              rows={instanceRowsAt(
-                spark.instances,
-                hovered.at,
-                spark.windowMinutes,
-              )}
+              title={tooltipTime(endsAt, hovered.at)}
+              rows={instanceRowsAt(spark.instances, hovered.at, windowMinutes)}
             />
           </CursorTooltip>
         </>

@@ -8,6 +8,10 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { z } from "zod";
+import { AlertDetailPanel } from "@/components/alerts/alert-detail-panel";
+import { RuleInventory } from "@/components/alerts/rule-inventory";
+import { SilenceDialog } from "@/components/alerts/silence-dialog";
+import { TriageList } from "@/components/alerts/triage-list";
 import { ResourceEmptyState } from "@/components/resource-empty-state";
 import {
   expireAlertSilence,
@@ -20,12 +24,7 @@ import {
   invalidateAlertTriage,
   ruleStateHistoryOptions,
 } from "@/data/alerting/triage/options";
-import { silenceDurationMinutes } from "@/data/alerting/triage/view";
 import { useTimeRange } from "@/hooks/use-time-range";
-import { AlertDetailPanel } from "./-components/alert-detail-panel";
-import { RuleInventory } from "./-components/rule-inventory";
-import { SilenceDialog } from "./-components/silence-dialog";
-import { TriageList } from "./-components/triage-list";
 
 type SilenceTarget = {
   path: string;
@@ -243,8 +242,7 @@ function AlertingTriagePage() {
         {rules.length > 0 && (
           <RuleInventory
             rules={rules}
-            history={history.data ?? {}}
-            historyPending={history.isPending}
+            history={history.data}
             openPath={openPath ?? null}
             onOpen={openAlert}
           />
@@ -298,7 +296,7 @@ function AlertingTriagePage() {
             {
               data: {
                 path: draft.path,
-                durationMinutes: silenceDurationMinutes(draft.duration),
+                durationMinutes: draft.minutes,
                 matchers: draft.matchers,
                 comment: draft.comment,
               },

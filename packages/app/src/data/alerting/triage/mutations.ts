@@ -12,9 +12,8 @@ import {
   expireSilence,
 } from "@/data/alerting/silences/repository";
 import type { AlertingMatcher } from "@/data/alerting/types";
-import { parseResourceName } from "@/data/as-code/identity";
 import { createAuthenticatedServerFn } from "@/lib/serverFn";
-import { ruleIdForPath } from "./rules";
+import { loadRule } from "./rules";
 import { RULE_LABEL } from "./silences";
 
 /** Free-form `key=value` pairs, space or comma separated. Anything that is not
@@ -48,26 +47,25 @@ export const silenceAlertRule = createAuthenticatedServerFn({ method: "POST" })
     }),
   )
   .handler(async ({ data, context }) => {
-    // Validates the shape before it reaches the repository, and proves the
-    // rule exists in this org before muting something by name.
-    parseResourceName(data.path);
+    const scope = alertingMutationScope(context.session);
+    // The rule has to exist in this org before anything is muted by its name,
+    // and the path has to be one before it reaches the database. Same
+    // resolution as pausing: the two must not disagree about what a path is.
+    await loadRule(scope.organizationId, data.path);
     const now = new Date();
-    const silence = await createSilence(
-      alertingMutationScope(context.session),
-      {
-        // The rule matcher is always present: a silence with only instance
-        // matchers would mute that label across every rule in the org.
-        matchers: [
-          { label: RULE_LABEL, op: "eq", value: data.path },
-          ...parseMatchers(data.matchers),
-        ],
-        starts_at: now.toISOString(),
-        ends_at: new Date(
-          now.getTime() + data.durationMinutes * 60_000,
-        ).toISOString(),
-        comment: data.comment,
-      },
-    );
+    const silence = await createSilence(scope, {
+      // The rule matcher is always present: a silence with only instance
+      // matchers would mute that label across every rule in the org.
+      matchers: [
+        { label: RULE_LABEL, op: "eq", value: data.path },
+        ...parseMatchers(data.matchers),
+      ],
+      starts_at: now.toISOString(),
+      ends_at: new Date(
+        now.getTime() + data.durationMinutes * 60_000,
+      ).toISOString(),
+      comment: data.comment,
+    });
     return { id: silence.id };
   });
 
@@ -83,7 +81,7 @@ export const setAlertRulePaused = createAuthenticatedServerFn({
   .inputValidator(z.object({ path: z.string(), paused: z.boolean() }))
   .handler(async ({ data, context }) => {
     const scope = alertingMutationScope(context.session);
-    const id = await ruleIdForPath(scope.organizationId, data.path);
+    const { id } = await loadRule(scope.organizationId, data.path);
     await (data.paused ? pauseRule(scope, id) : resumeRule(scope, id));
     return { paused: data.paused };
   });

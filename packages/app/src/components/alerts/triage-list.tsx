@@ -2,28 +2,9 @@ import { Button } from "@everr/ui/components/button";
 import { Meter } from "@everr/ui/components/meter";
 import { cn } from "@everr/ui/lib/utils";
 import { BellOff, Send } from "lucide-react";
-import { useMemo } from "react";
 import type { TriageAlert, TriageStatus } from "@/data/alerting/triage/view";
-import { ALERTING_SEVERITIES } from "@/data/alerting/vocabulary";
 import { AlertSparkline } from "./alert-sparkline";
 import { STATUS_META, StatusChip } from "./alert-status";
-
-/** Worst first. A rule we cannot evaluate outranks one that is firing: a
- *  missing verdict hides an unknown number of firing instances. */
-const BAND_ORDER: TriageStatus[] = ["degraded", "firing", "pending"];
-
-/** The two orders as lookups rather than `indexOf` scans: the comparator runs
- *  them once per comparison, not once per row. */
-const bandRank = rankOf(BAND_ORDER);
-
-/** Worst first, which is the vocabulary read backwards: `ALERTING_SEVERITIES`
- *  is ascending, and it is the list the Zod and Postgres enums are built from,
- *  so a severity added there cannot fall out of this sort. */
-const severityRank = rankOf([...ALERTING_SEVERITIES].reverse());
-
-function rankOf<T extends string>(order: readonly T[]): Record<T, number> {
-  return Object.fromEntries(order.map((k, i) => [k, i])) as Record<T, number>;
-}
 
 /** "firing for", not "since": the row already says how long, and the verb
  *  names which clock is running. */
@@ -32,19 +13,6 @@ const SINCE_LABEL: Record<TriageStatus, string> = {
   firing: "firing for",
   pending: "pending for",
 };
-
-/** A silenced rule is still firing, so it stays in its own band, dimmed in
- *  place. Exiling it to the bottom would hide the fact that the thing you
- *  silenced is still happening. */
-function sortForTriage(alerts: TriageAlert[]) {
-  return alerts.slice().sort((a, b) => {
-    const band = bandRank[a.status] - bandRank[b.status];
-    if (band !== 0) return band;
-    const sev = severityRank[a.severity] - severityRank[b.severity];
-    if (sev !== 0) return sev;
-    return Number(Boolean(a.silence)) - Number(Boolean(b.silence));
-  });
-}
 
 function BandHeader({
   status,
@@ -232,27 +200,23 @@ export function TriageList({
   onSilence,
   onExpireSilence,
 }: {
+  /** In triage order, as the server returns them: the list draws a band
+   *  header wherever the status changes and never re-sorts. What "worst
+   *  first" means is alerting semantics, and it lives with the rest of them. */
   alerts: TriageAlert[];
   openPath: string | null;
   onOpen: (path: string) => void;
   onSilence: (path: string) => void;
   onExpireSilence: (path: string) => void;
 }) {
-  // Sorting and counting are the whole list's worth of work, and neither
-  // depends on which row is open or which one the pointer is over.
-  const { sorted, counts } = useMemo(() => {
-    const sorted = sortForTriage(alerts);
-    const counts = new Map<TriageStatus, number>();
-    for (const a of sorted)
-      counts.set(a.status, (counts.get(a.status) ?? 0) + 1);
-    return { sorted, counts };
-  }, [alerts]);
+  const counts = new Map<TriageStatus, number>();
+  for (const a of alerts) counts.set(a.status, (counts.get(a.status) ?? 0) + 1);
 
   let band: TriageStatus | null = null;
 
   return (
     <div className="border-b">
-      {sorted.map((alert, index) => {
+      {alerts.map((alert, index) => {
         const startsBand = alert.status !== band;
         band = alert.status;
         return (

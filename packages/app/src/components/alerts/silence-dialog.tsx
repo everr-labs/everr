@@ -21,10 +21,15 @@ import { SILENCE_DURATIONS } from "@/data/alerting/triage/view";
 
 export type SilenceDraft = {
   path: string;
-  duration: string;
+  minutes: number;
   matchers: string;
   comment: string;
 };
+
+type SilenceDuration = (typeof SILENCE_DURATIONS)[number];
+
+/** An hour. */
+const DEFAULT_DURATION: SilenceDuration = SILENCE_DURATIONS[1];
 
 /**
  * Silencing is the one destructive-ish act available from triage, so it asks
@@ -56,7 +61,9 @@ export function SilenceDialog({
   onClose: () => void;
   onConfirm: (draft: SilenceDraft) => void;
 }) {
-  const [duration, setDuration] = useState("1h");
+  // The whole entry, not its label: the confirm hands on `minutes`, and
+  // nothing has to turn a label back into a number on the way out.
+  const [duration, setDuration] = useState<SilenceDuration>(DEFAULT_DURATION);
   const [matchers, setMatchers] = useState(seed?.matchers ?? "");
   const [comment, setComment] = useState(seed?.comment ?? "");
 
@@ -95,11 +102,16 @@ export function SilenceDialog({
             <div className="space-y-1.5">
               <Label htmlFor="silence-duration">Duration</Label>
               <Select
-                value={duration}
-                onValueChange={(v) => setDuration(v ?? "1h")}
+                value={duration.label}
+                onValueChange={(v) =>
+                  setDuration(
+                    SILENCE_DURATIONS.find((d) => d.label === v) ??
+                      DEFAULT_DURATION,
+                  )
+                }
               >
                 <SelectTrigger id="silence-duration" className="w-full">
-                  <SelectValue>{duration}</SelectValue>
+                  <SelectValue>{duration.label}</SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   {SILENCE_DURATIONS.map((d) => (
@@ -125,7 +137,7 @@ export function SilenceDialog({
               off, and until when?"), so one line answers it under both rather
               than two hints splitting the reader's attention. */}
           <p className="text-xs text-muted-foreground">
-            Silences for {duration} · {scope}
+            Silences for {duration.label} · {scope}
           </p>
 
           <div className="space-y-1.5">
@@ -147,10 +159,16 @@ export function SilenceDialog({
           <Button
             disabled={pending}
             onClick={() => {
-              if (path) onConfirm({ path, duration, matchers, comment });
+              if (path)
+                onConfirm({
+                  path,
+                  minutes: duration.minutes,
+                  matchers,
+                  comment,
+                });
             }}
           >
-            {pending ? "Silencing…" : `Silence for ${duration}`}
+            {pending ? "Silencing…" : `Silence for ${duration.label}`}
           </Button>
         </DialogFooter>
       </DialogContent>

@@ -59,17 +59,41 @@ export type TriageAlert = {
   /** Instances the rule currently tracks, for the silence matcher preview. */
   instances: number;
   /** The row's sparkline: what each instance measured over the selected window.
-   *  The
-   *  line draws the worst of them, and the hover names all of them, the same
-   *  way the two charts on this screen do. */
+   *  The line draws the worst of them, and the hover names all of them, the
+   *  same way the two charts on this screen do. */
   spark: AlertSparkData;
+};
+
+/**
+ * The window a chart's data is measured against. Every window-relative number
+ * on this screen (`at`, `from`, `to`) is minutes before `endsAt`, and `endsAt`
+ * is the server's own end of window at the moment it read the data.
+ *
+ * It travels with the data rather than being re-resolved in the browser: a
+ * relative range ("last hour") resolves to a different instant on every fetch,
+ * and a chart that pinned its right edge at mount time would draw a refetch's
+ * points minutes to the left of where they happened.
+ */
+export type ChartWindow = {
+  minutes: number;
+  /** Epoch ms at the right edge. */
+  endsAt: number;
 };
 
 export type AlertSparkData = {
   instances: InstanceValueSeries[];
-  windowMinutes: number;
-  /** Epoch ms at the right edge, so the tooltip can print a clock time. */
-  endsAt: number;
+  window: ChartWindow;
+};
+
+export type AlertTriageData = {
+  /** In triage order: worst band first (degraded, then firing, then pending),
+   *  the higher severity first within a band, and silenced rules after the
+   *  rest of their band rather than exiled to the bottom, because the thing
+   *  that was silenced is still happening. Ties keep the inventory's order,
+   *  so a row and its inventory entry never disagree about which of two
+   *  same-named rules comes first. The list renders this order as is. */
+  alerts: TriageAlert[];
+  rules: RuleInventoryRow[];
 };
 
 export type RuleInventoryRow = {
@@ -123,6 +147,12 @@ export type LifecycleEvent = {
 export type RuleStateHistory = {
   segments: RuleStateSegment[];
   instances: InstanceValueSeries[];
+};
+
+export type RuleStateHistoryData = {
+  window: ChartWindow;
+  /** By rule path. Every live rule has an entry, quiet ones included. */
+  rules: Record<string, RuleStateHistory>;
 };
 
 export type InstanceValueSeries = {
@@ -201,14 +231,19 @@ export type AlertDetail = {
   name: string;
   severity: AlertingSeverity;
   status: RuleInventoryState;
-  /** How long the current state has held. `null` for a rule that is quiet. */
+  /** How long `status` has held: the silence for a silenced rule, the fire
+   *  for a firing one, the failure for a degraded one. `null` for a rule that
+   *  is quiet or paused, which have no clock running. */
   since: string | null;
   condition: string;
   description: string;
-  /** What delivery did with the last verdict. */
+  /** What delivery is doing about `status`, ready to print beside it: what
+   *  the journal did with the last verdict, or, for a silenced or paused
+   *  rule, what the state stops and whether evaluation goes on. */
   notification: string;
   /** Numeric threshold, for placing the guide line on the signal chart. */
   threshold: number;
+  window: ChartWindow;
   /** One lane per Alert instance, breaching first. */
   instanceValues: InstanceValueSeries[];
   /** Instances the lane cap left out, so the chart can say so. */
@@ -232,13 +267,12 @@ export type AlertDetail = {
   activeSilenceId: string | null;
   /** `spec.for`, formatted, for the evaluation-state chain. */
   forClause: string;
-  /** A paused rule is not evaluated at all: it is not silenced, it is off. */
-  paused: boolean;
 };
 
 /** The durations the silence dialog offers. The label and what it means travel
  *  together, so the two cannot drift apart and nothing has to parse a label
- *  back into a number. */
+ *  back into a number: the dialog holds one of these and hands on its
+ *  `minutes`. */
 export const SILENCE_DURATIONS = [
   { label: "30m", minutes: 30 },
   { label: "1h", minutes: 60 },
@@ -247,9 +281,3 @@ export const SILENCE_DURATIONS = [
   { label: "12h", minutes: 720 },
   { label: "24h", minutes: 1440 },
 ] as const;
-
-/** An hour when the label is not one of the offered ones, which only a hand-
- *  edited request produces: the server validates the window either way. */
-export function silenceDurationMinutes(label: string): number {
-  return SILENCE_DURATIONS.find((d) => d.label === label)?.minutes ?? 60;
-}

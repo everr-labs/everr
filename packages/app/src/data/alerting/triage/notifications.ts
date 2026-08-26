@@ -125,14 +125,29 @@ export function hasDeliveryTarget(
   return tiers.has("all") || tiers.has(row.spec.severity);
 }
 
-/** The notification story for the row, from what the journal actually did
- *  with the last verdict rather than from the rule's own state. */
+/** Everything delivery knows about one rule right now, gathered once so the
+ *  board and the detail read the same facts. */
+export type DeliveryFacts = {
+  /** The journal's last word on the rule; absent before it has said any. */
+  latest: NotificationFact | undefined;
+  /** The silence in force for the rule, if any. */
+  silence: SilenceRow | null;
+  /** Notifications that silence is holding. */
+  held: number;
+  hasTarget: boolean;
+};
+
+/**
+ * The notification story for the row, from what the journal actually did with
+ * the last verdict rather than from the rule's own state.
+ *
+ * Under a silence it says what the silence is doing to delivery and nothing
+ * about the silence itself: the row's chip and the detail's header both name
+ * the silence already, and this is the phrase that follows the name.
+ */
 export function notificationText(
   row: DefinitionRow,
-  fact: NotificationFact | undefined,
-  silence: SilenceRow | null,
-  held: number,
-  hasTarget: boolean,
+  delivery: DeliveryFacts,
   now: Date,
 ): string {
   if (row.degradedSince !== null) {
@@ -144,14 +159,16 @@ export function notificationText(
       : "";
     return `no verdict since ${since}${cap}`;
   }
-  if (silence) {
+  if (delivery.silence) {
+    const { held } = delivery;
     return held > 0
       ? `${held} ${held === 1 ? "notification" : "notifications"} held · none sent`
-      : "silenced · nothing will be sent";
+      : "nothing will be sent";
   }
   if (row.currentState === "pending") {
     return "not notified · pending never delivers";
   }
+  const fact = delivery.latest;
   if (!fact) return "nothing sent yet";
   const ago = formatElapsed(now.getTime() - fact.occurredAt.getTime());
   if (fact.suppressed) return `notification suppressed · ${ago} ago`;
@@ -162,7 +179,7 @@ export function notificationText(
   // instance had stopped firing before delivery ran. Reading the stamp alone
   // reported these as delivered.
   if (!fact.grouped) {
-    return hasTarget
+    return delivery.hasTarget
       ? `not sent · stopped firing first · ${ago} ago`
       : "not sent · no channel for this rule";
   }

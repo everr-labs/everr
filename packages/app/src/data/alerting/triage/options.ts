@@ -36,11 +36,9 @@ export const alertDetailOptions = (
     // The range is part of the key: the detail's silence list is scoped to it,
     // so a range change has to refetch rather than serve the old window.
     queryKey: [...alertingQueryKey, "detail", path ?? "", range.from, range.to],
-    queryFn: () => {
-      const [project, ...rest] = (path ?? "").split("/");
-      return getAlertDetail({
-        data: { project, slug: rest.join("/"), from: range.from, to: range.to },
-      });
-    },
-    enabled: Boolean(path?.includes("/")),
+    queryFn: () =>
+      getAlertDetail({
+        data: { path: path ?? "", from: range.from, to: range.to },
+      }),
+    enabled: Boolean(path),
   });

@@ -82,14 +82,17 @@ export async function loadRules(
     .map((entry) => entry.row);
 }
 
-/** One live rule by its as-code identity. Not found is the caller's 404: the
- *  name came from the URL or from a row on the screen, and either way the
- *  rule it named is gone. */
+/**
+ * One live rule by its `project/slug` path, the only identity the screen
+ * knows a rule by. The shape is checked before it reaches the database, and
+ * not found is the caller's 404: the name came from the URL or from a row on
+ * the screen, and either way the rule it named is gone.
+ */
 export async function loadRule(
   organizationId: string,
-  project: string,
-  slug: string,
+  path: string,
 ): Promise<DefinitionRow> {
+  const { project, slug } = parseResourceName(path);
   const [row] = await db
     .select()
     .from(alertDefinitions)
@@ -103,17 +106,6 @@ export async function loadRule(
     .limit(1);
   if (!row) throw notFound();
   return row;
-}
-
-/** The rule behind a `project/slug` path, which is the only identity the
- *  screen knows a rule by. Validates the shape before it reaches the
- *  database. */
-export async function ruleIdForPath(
-  organizationId: string,
-  path: string,
-): Promise<string> {
-  const { project, slug } = parseResourceName(path);
-  return (await loadRule(organizationId, project, slug)).id;
 }
 
 export async function loadInstances(

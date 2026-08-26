@@ -4,6 +4,7 @@ import { CursorTooltip } from "@/components/cursor-tooltip";
 import { SeriesTooltipContent } from "@/components/dashboards/visualizations/series-tooltip";
 import { formatElapsed } from "@/data/alerting/triage/format";
 import type {
+  ChartWindow,
   InstanceValueSeries,
   RuleStateSegment,
 } from "@/data/alerting/triage/view";
@@ -49,16 +50,15 @@ function formatAgo(minutes: number) {
 export const RuleStateChart = memo(function RuleStateChart({
   segments,
   instances,
-  windowMinutes,
-  windowTo,
+  window: { minutes: windowMinutes, endsAt: windowTo },
   name,
 }: {
   segments: RuleStateSegment[];
   /** The values behind the states, for the tooltip. */
   instances: InstanceValueSeries[];
-  windowMinutes: number;
-  /** Epoch ms at the right edge, so the tooltip can print a clock time. */
-  windowTo: number;
+  /** The window the segments and values are measured against: the server's,
+   *  which read them, not one resolved here. */
+  window: ChartWindow;
   /** For the accessible description; the visible label is the row's own. */
   name: string;
 }) {

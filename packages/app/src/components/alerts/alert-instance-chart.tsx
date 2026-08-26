@@ -2,10 +2,10 @@ import { useMemo } from "react";
 import { CursorTooltip } from "@/components/cursor-tooltip";
 import { SeriesTooltipContent } from "@/components/dashboards/visualizations/series-tooltip";
 import type {
+  ChartWindow,
   InstanceValuePoint,
   InstanceValueSeries,
 } from "@/data/alerting/triage/view";
-import { useTimeRange } from "@/hooks/use-time-range";
 import {
   BREACHING,
   ChartCrosshair,
@@ -15,7 +15,6 @@ import {
   QUIET,
   tooltipTime,
   useChartScrub,
-  useChartWindow,
 } from "./chart-crosshair";
 import { StateChartAxis } from "./rule-state-chart";
 
@@ -342,18 +341,18 @@ export function AlertInstanceChart({
   lanes,
   hidden,
   threshold,
+  window: { minutes, endsAt: windowTo },
   bucketMinutes,
   intervalMinutes,
 }: {
   lanes: InstanceValueSeries[];
   hidden: number;
   threshold: number;
+  /** The window the lanes were read over, from the same response. */
+  window: ChartWindow;
   bucketMinutes: number;
   intervalMinutes: number;
 }) {
-  // The topnav picker, same range the detail was queried with.
-  const { timeRange } = useTimeRange();
-  const { minutes, windowTo } = useChartWindow(timeRange);
   // One instant across every lane: the comparison the stacked lanes exist for
   // is "what were the others doing when this one crossed".
   const scrub = useChartScrub(minutes);

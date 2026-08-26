@@ -1,41 +1,10 @@
-import { resolveTimeRange, type TimeRange } from "@everr/ui/lib/time-range";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useState } from "react";
 import type { SeriesTooltipRow } from "@/components/dashboards/visualizations/series-tooltip";
 import { formatValue } from "@/data/alerting/triage/format";
 import type {
   InstanceValuePoint,
   InstanceValueSeries,
 } from "@/data/alerting/triage/view";
-
-/** Falls back to a day when the range is unresolvable, which only a malformed
- *  URL produces: an axis with no span would divide by zero. */
-const FALLBACK_WINDOW_MINUTES = 24 * 60;
-
-/**
- * The window every alerting chart measures against: how many minutes it spans,
- * and the epoch ms at its right edge.
- *
- * Both charts and the inventory read the same range out of the URL, and the
- * wire format for a segment or a value point is minutes before that right
- * edge, so a consumer that resolved the range differently would draw its data
- * somewhere the axis is not.
- */
-export function useChartWindow(range: TimeRange) {
-  // `useTimeRange` hands back a fresh object each render; the two strings it is
-  // built from are what actually changes.
-  return useMemo(() => {
-    try {
-      const { fromDate, toDate } = resolveTimeRange(range);
-      const minutes = (toDate.getTime() - fromDate.getTime()) / 60_000;
-      return {
-        minutes: minutes > 0 ? minutes : FALLBACK_WINDOW_MINUTES,
-        windowTo: toDate.getTime(),
-      };
-    } catch {
-      return { minutes: FALLBACK_WINDOW_MINUTES, windowTo: Date.now() };
-    }
-  }, [range.from, range.to]);
-}
 
 /** An evaluated value as the charts print it: the formatter's own rounding,
  *  falling back to the raw number when it has nothing to say about it. */

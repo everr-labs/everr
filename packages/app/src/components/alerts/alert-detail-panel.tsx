@@ -7,7 +7,6 @@ import {
 } from "@everr/ui/components/tooltip";
 import { cn } from "@everr/ui/lib/utils";
 import { ArrowUpRight, NotebookText, X } from "lucide-react";
-import { formatElapsed } from "@/data/alerting/triage/format";
 import type {
   AlertDetail,
   RuleInventoryState,
@@ -84,21 +83,6 @@ function statePhrase(state: RuleInventoryState, since: string | null) {
   return since === "just now" ? `${label} just now` : `${label} for ${since}`;
 }
 
-/** What the state means for delivery. `notification` already answers it for
- *  every state; silenced and paused both stop notifications, and only the
- *  second one also stops evaluating, which is the difference readers ask
- *  about. */
-function consequence(state: RuleInventoryState, notification: string) {
-  if (state === "silenced") {
-    // The delivery line names the silence too, and the phrase beside it has
-    // already said so; two "silenced" in one sentence read as two facts.
-    const delivery = notification.replace(/^silenced · /, "");
-    return `${delivery} · rule keeps evaluating`;
-  }
-  if (state === "paused") return "nothing will be sent · rule is not evaluated";
-  return notification;
-}
-
 /** The panel is mounted the moment a rule is picked, so the column has to
  *  stand up before the detail query answers. Sized like the real thing: the
  *  chart lane, the timeline, the definition table. */
@@ -163,26 +147,9 @@ export function AlertDetailPanel({
   onTogglePaused: (paused: boolean) => void;
   pausePending: boolean;
 }) {
-  const state: RuleInventoryState | null = detail
-    ? detail.paused
-      ? "paused"
-      : detail.status
-    : null;
-  // A silenced rule is still firing, so `detail.since` dates the fire, not the
-  // silence. The phrase says "Silenced", so it has to count from the silence.
-  //
-  // Which silence is not "the newest active one": a whole-rule silence
-  // outranks an instance-scoped one, and the server already made that call
-  // when it decided the rule was silenced at all. Reading its verdict back is
-  // what keeps this duration and the button beside it talking about the same
-  // row.
-  const activeSilence = detail?.silences.find(
-    (s) => s.id === detail.activeSilenceId,
-  );
-  const since =
-    state === "silenced" && activeSilence
-      ? formatElapsed(Date.now() - new Date(activeSilence.startsAt).getTime())
-      : (detail?.since ?? null);
+  // Off, not muted: `status` already says so, and everything below the header
+  // is frozen at the moment evaluation stopped.
+  const paused = detail?.status === "paused";
 
   return (
     <div className="flex h-full min-h-0 flex-col bg-muted/10">
@@ -220,21 +187,21 @@ export function AlertDetailPanel({
             Silences section now carries Cancel on the row it belongs to, and
             a second button naming no particular silence was the vaguer of the
             two. */}
-        {detail && state && (
+        {detail && (
           <p className="flex min-w-0 items-baseline gap-2 text-xs">
-            <StatusIcon status={state} className="size-3 self-center" />
+            <StatusIcon status={detail.status} className="size-3 self-center" />
             <span className="font-medium whitespace-nowrap">
-              {statePhrase(state, since)}
+              {statePhrase(detail.status, detail.since)}
             </span>
             <span className="min-w-0 truncate font-mono text-muted-foreground">
-              {consequence(state, detail.notification)}
+              {detail.notification}
             </span>
           </p>
         )}
 
         {/* The warning belongs beside the state line: everything below the
             header is the frozen data it warns about. */}
-        {detail?.paused && (
+        {paused && (
           <p className="rounded-md border border-chart-2/40 bg-chart-2/8 px-3 py-2 text-xs text-chart-2">
             Instances and state below are frozen at the moment this rule stopped
             evaluating.
@@ -263,9 +230,9 @@ export function AlertDetailPanel({
                   size="sm"
                   variant="ghost"
                   disabled={pausePending}
-                  onClick={() => onTogglePaused(!detail.paused)}
+                  onClick={() => onTogglePaused(!paused)}
                 >
-                  {detail.paused ? "Resume" : "Pause"}
+                  {paused ? "Resume" : "Pause"}
                 </Button>
                 {/* Only rules that declare `link.runbook` get the button: an
                     action that goes nowhere is worse than a missing one. */}
@@ -303,6 +270,7 @@ export function AlertDetailPanel({
                 lanes={detail.instanceValues}
                 hidden={detail.hiddenInstanceValues}
                 threshold={detail.threshold}
+                window={detail.window}
                 bucketMinutes={detail.bucketMinutes}
                 intervalMinutes={detail.intervalMinutes}
               />

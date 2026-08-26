@@ -3,21 +3,19 @@ import { cn } from "@everr/ui/lib/utils";
 import type {
   RuleInventoryRow,
   RuleStateHistory,
+  RuleStateHistoryData,
 } from "@/data/alerting/triage/view";
-import { useTimeRange } from "@/hooks/use-time-range";
 import { SeverityLabel, StatusIcon } from "./alert-status";
-import { useChartWindow } from "./chart-crosshair";
-
-/** Shared empties: a fresh `[]` per rule per render would defeat the memo on
- *  `RuleStateChart`, which every row of a long inventory carries. */
-const NO_SEGMENTS: RuleStateHistory["segments"] = [];
-const NO_INSTANCES: RuleStateHistory["instances"] = [];
-
 import {
   RuleStateChart,
   StateChartAxis,
   StateChartLegend,
 } from "./rule-state-chart";
+
+/** Shared empties: a fresh `[]` per rule per render would defeat the memo on
+ *  `RuleStateChart`, which every row of a long inventory carries. */
+const NO_SEGMENTS: RuleStateHistory["segments"] = [];
+const NO_INSTANCES: RuleStateHistory["instances"] = [];
 
 // Sized against the list column, not the window: the detail panel takes its
 // width from this list, and a viewport breakpoint cannot see that happen.
@@ -43,22 +41,19 @@ const COLUMN_LABEL =
 export function RuleInventory({
   rules,
   history,
-  historyPending,
   openPath,
   onOpen,
 }: {
   rules: RuleInventoryRow[];
-  /** States and instance values per rule path, for the selected window. */
-  history: Record<string, RuleStateHistory>;
-  historyPending: boolean;
+  /** States and instance values per rule, over the window the server read
+   *  them for. `undefined` until that query answers: the chart column, axis
+   *  included, stands in with skeletons, because the axis is measured
+   *  against the same window as the tracks and has nothing to say before
+   *  the response names it. */
+  history: RuleStateHistoryData | undefined;
   openPath: string | null;
   onOpen: (path: string) => void;
 }) {
-  // The topnav picker, same as every other section: one time control in one
-  // place, and the range travels in the URL with the rest of the app's state.
-  const { timeRange } = useTimeRange();
-  const { minutes, windowTo } = useChartWindow(timeRange);
-
   return (
     <section className="pb-6">
       {/* The legend leads the only charts left on the page: the reader meets
@@ -76,7 +71,11 @@ export function RuleInventory({
       <div className={cn(COLUMNS, "px-3 pb-1.5")}>
         <h2 className="text-sm font-medium">All rules</h2>
         <div className="hidden @[44rem]/list:block">
-          <StateChartAxis windowMinutes={minutes} />
+          {history ? (
+            <StateChartAxis windowMinutes={history.window.minutes} />
+          ) : (
+            <Skeleton className="h-3 w-full rounded-sm" />
+          )}
         </div>
         <span className={cn(COLUMN_LABEL, "hidden @[50rem]/list:block")}>
           Severity
@@ -120,16 +119,15 @@ export function RuleInventory({
             </button>
           </div>
           <div className="hidden @[44rem]/list:block">
-            {historyPending ? (
-              <Skeleton className="h-3.5 w-full rounded-sm" />
-            ) : (
+            {history ? (
               <RuleStateChart
-                segments={history[row.path]?.segments ?? NO_SEGMENTS}
-                instances={history[row.path]?.instances ?? NO_INSTANCES}
-                windowMinutes={minutes}
-                windowTo={windowTo}
+                segments={history.rules[row.path]?.segments ?? NO_SEGMENTS}
+                instances={history.rules[row.path]?.instances ?? NO_INSTANCES}
+                window={history.window}
                 name={row.name}
               />
+            ) : (
+              <Skeleton className="h-3.5 w-full rounded-sm" />
             )}
           </div>
           <SeverityLabel
