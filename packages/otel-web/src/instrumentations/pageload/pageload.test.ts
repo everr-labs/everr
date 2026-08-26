@@ -138,8 +138,8 @@ function loaf(over?: Partial<FakeLoaf>): FakeLoaf {
 let observers: Map<string, (list: { getEntries: () => unknown[] }) => void>;
 let buffered: boolean | undefined;
 let disconnected: boolean;
-let loafThrows: boolean;
-let lcpThrows: boolean;
+// The entry types that the browser does not support.
+let unsupported: Set<string>;
 // The LCP entries that the browser did not deliver to the callback yet. The
 // code gets them with takeRecords() when the window stops.
 let pendingLcp: Array<{ startTime: number }>;
@@ -150,8 +150,7 @@ function stubTiming() {
   observers = new Map();
   buffered = undefined;
   disconnected = false;
-  loafThrows = false;
-  lcpThrows = false;
+  unsupported = new Set();
   pendingLcp = [];
   loadEventEnd = 0;
   class PO {
@@ -161,10 +160,7 @@ function stubTiming() {
       this.cb = cb;
     }
     observe(opts: { type: string; buffered?: boolean }) {
-      if (opts.type === "long-animation-frame" && loafThrows)
-        throw new TypeError("unsupported");
-      if (opts.type === "largest-contentful-paint" && lcpThrows)
-        throw new TypeError("unsupported");
+      if (unsupported.has(opts.type)) throw new TypeError("unsupported");
       buffered = opts.buffered;
       this.type = opts.type;
       observers.set(opts.type, this.cb);
@@ -203,11 +199,19 @@ function setReadyState(value: string) {
   Object.defineProperty(document, "readyState", { value, configurable: true });
 }
 
+function setVisibility(value: string) {
+  Object.defineProperty(document, "visibilityState", {
+    value,
+    configurable: true,
+  });
+}
+
 beforeEach(() => {
   vi.useFakeTimers();
   spans = [];
   roots = [];
   setReadyState("loading");
+  setVisibility("visible");
   stubTiming();
 });
 
@@ -402,7 +406,7 @@ describe("long animation frames", () => {
   });
 
   it("still captures the waterfall when LoAF observation is unsupported", () => {
-    loafThrows = true;
+    unsupported.add("long-animation-frame");
     start();
     feed({});
     expect(spans).toHaveLength(1);
@@ -464,7 +468,7 @@ describe("the PageLoad root", () => {
   });
 
   it("ends at the load event when the browser has no LCP", () => {
-    lcpThrows = true;
+    unsupported.add("largest-contentful-paint");
     loadEventEnd = 2500.2;
     start();
     feed({});
@@ -474,15 +478,37 @@ describe("the PageLoad root", () => {
   });
 
   it("ends now without an LCP and before the load event", () => {
-    lcpThrows = true;
+    unsupported.add("largest-contentful-paint");
     vi.setSystemTime(TIME_ORIGIN + 10000);
     start(3000, 10000);
     vi.advanceTimersByTime(10000);
     expect(roots[0].end).toBe(TIME_ORIGIN + 20000);
   });
 
+  it("goes out when the page becomes hidden, before the window stops", () => {
+    // A user who leaves early. The children went out already, and the root
+    // must go out with the exit flush, or the trace has no root.
+    start();
+    feed({});
+    feedLcp(400);
+    setVisibility("hidden");
+    document.dispatchEvent(new Event("visibilitychange", { bubbles: true }));
+    expect(roots).toHaveLength(1);
+    expect(roots[0].end).toBe(TIME_ORIGIN + 400);
+    // The window continues, and the later resources are still children.
+    feed({});
+    expect(spans[1].parentSpanId).toBe(roots[0].spanId);
+  });
+
+  it("goes out at pagehide", () => {
+    start();
+    window.dispatchEvent(new Event("pagehide"));
+    expect(roots).toHaveLength(1);
+  });
+
   it("goes out one time only", () => {
     start();
+    window.dispatchEvent(new Event("pagehide"));
     stop();
     stop();
     expect(roots).toHaveLength(1);

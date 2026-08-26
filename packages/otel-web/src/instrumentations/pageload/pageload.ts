@@ -30,10 +30,12 @@ import { scriptAttrs } from "../performance/shared.js";
 // the buffered option, and thus they also give the entries from before the
 // setup. They stop at the `load` event plus settleMs, which gets the resources
 // that load late, or at ceilingMs from the setup. The first of the two events
-// stops them, and the SDK then sends the root span. A resource after the LCP
-// is a child that ends after its parent, and that is correct: the root gives
-// the interval to the largest paint, and the window gives the resources. An
-// SPA navigation never opens this window again.
+// stops them, and the SDK then sends the root span. The root also goes out
+// when the page becomes hidden, because a user who leaves before the window
+// stops must not leave the children without their root. A resource after the
+// LCP is a child that ends after its parent, and that is correct: the root
+// gives the interval to the largest paint, and the window gives the resources.
+// An SPA navigation never opens this window again.
 //
 // The attributes agree with the semconv when it gives a name. The url.full
 // attribute has no query string, the same as in a network span, because a query
@@ -199,10 +201,22 @@ export function startPageLoad(
   // its time, and it does not complete the value at an input, different from
   // the LCP vital: this span gives the interval on the timeline, and the vital
   // gives the metric.
-  let lcp: number | undefined;
+  let lcp = 0;
   let lcpPo: PerformanceObserver | undefined;
   const takeLcp = (entries: PerformanceEntry[]) => {
     for (const entry of entries) lcp = entry.startTime;
+  };
+  // Ends the root one time. The entries that the observer did not deliver
+  // yet come first. Without an LCP and before the load event, the root ends
+  // now.
+  const endRoot = () => {
+    if (lcpPo) takeLcp(lcpPo.takeRecords());
+    const end =
+      lcp || performance.getEntriesByType("navigation")[0]?.loadEventEnd;
+    root.end(end ? epoch(end) : undefined);
+  };
+  const onHide = () => {
+    if (document.visibilityState === "hidden") endRoot();
   };
   try {
     lcpPo = new PerformanceObserver((list) => takeLcp(list.getEntries()));
@@ -212,24 +226,20 @@ export function startPageLoad(
   }
   let settle: ReturnType<typeof setTimeout> | undefined;
   const stop = () => {
+    endRoot();
     po.disconnect();
     loafPo?.disconnect();
     lcpPo?.disconnect();
     clearTimeout(settle);
     clearTimeout(ceiling);
     removeEventListener("load", onLoad);
-    // The entries that the observer did not deliver yet.
-    if (lcpPo) takeLcp(lcpPo.takeRecords());
-    // Without an LCP and before the load event, the root ends now.
-    const end =
-      lcp ??
-      (
-        performance.getEntriesByType("navigation")[0] as
-          | PerformanceNavigationTiming
-          | undefined
-      )?.loadEventEnd;
-    root.end(end ? epoch(end) : undefined);
+    removeEventListener("pagehide", endRoot);
+    removeEventListener("visibilitychange", onHide);
   };
+  // The same two events as the exit flush of the SDK. This listener registers
+  // before that flush, and thus the root is in the batch that the flush sends.
+  addEventListener("pagehide", endRoot);
+  addEventListener("visibilitychange", onHide);
   const onLoad = () => {
     settle = setTimeout(stop, settleMs);
   };

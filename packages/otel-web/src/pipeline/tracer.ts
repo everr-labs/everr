@@ -20,6 +20,7 @@ import type {
   Context,
   Exception,
   Span,
+  SpanContext,
   SpanOptions,
   Tracer,
 } from "@opentelemetry/api";
@@ -31,22 +32,24 @@ import type { AttrValue, EmitSpan } from "./emitter.js";
 const toMs = (time: unknown): number | undefined =>
   typeof time === "number" ? time : undefined;
 
-// The key of the parent span in a context from childOf(). The @opentelemetry/api
+// The key of the parent span context in a Context. The @opentelemetry/api
 // context keys are not available at run time, and thus the tracer has its own
-// key. The context is empty for each other key.
+// key, and it reads it through getValue(). A context from a different source
+// gives no parent, and the span is a root.
 const PARENT = Symbol();
-type ParentContext = Context & { [PARENT]?: Span };
 
 /**
  * A context that makes `parent` the parent of the next span. Use it as the
- * third argument of `tracer.startSpan(name, options, childOf(parent))`.
+ * third argument of `tracer.startSpan(name, options, childOf(parent))`. The
+ * context holds the one key, and it is immutable.
  */
 export function childOf(parent: Span): Context {
-  const context: ParentContext = {
-    [PARENT]: parent,
-    getValue: () => undefined,
-    setValue: () => context,
-    deleteValue: () => context,
+  const spanContext = parent.spanContext();
+  const same = () => context;
+  const context: Context = {
+    getValue: (key) => (key === PARENT ? spanContext : undefined),
+    setValue: same,
+    deleteValue: same,
   };
   return context;
 }
@@ -57,15 +60,14 @@ export function createTracer(emitSpan: EmitSpan): Tracer {
     options?: SpanOptions,
     context?: Context,
   ): Span => {
-    // One read of the CSPRNG gives the two ids, the same as in the network
-    // signal. A child keeps the trace id of its parent.
-    const parent = (context as ParentContext | undefined)?.[
-      PARENT
-    ]?.spanContext();
-    const ids = randomHex(24);
+    // One read of the CSPRNG gives the ids, the same as in the network
+    // signal. A child keeps the trace id of its parent, and thus it reads only
+    // the bytes of its span id.
+    const parent = context?.getValue(PARENT) as SpanContext | undefined;
+    const ids = randomHex(parent ? 8 : 24);
     const spanContext = {
       traceId: parent?.traceId ?? ids.slice(0, 32),
-      spanId: ids.slice(32),
+      spanId: ids.slice(-16),
       traceFlags: 1, // always sampled
     };
     const attributes: Record<string, AttrValue> = {};

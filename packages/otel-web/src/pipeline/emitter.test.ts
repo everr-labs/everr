@@ -224,6 +224,16 @@ describe("createEmitter", () => {
   });
 });
 
+/** The spans on the wire of the first sent batch. */
+const wireSpans = () =>
+  (
+    sent[0].payload as unknown as {
+      resourceSpans: Array<{
+        scopeSpans: Array<{ spans: Array<Record<string, unknown>> }>;
+      }>;
+    }
+  ).resourceSpans[0].scopeSpans[0].spans;
+
 describe("span pipeline", () => {
   it("ships spans as OTLP resourceSpans to the sibling /v1/traces path", async () => {
     [emit, flush, exitFlush, emitSpan] = makeEmitter(() => ({
@@ -265,16 +275,11 @@ describe("span pipeline", () => {
       1,
       2,
       {},
-      false,
+      undefined,
       "b".repeat(16),
     );
     await flush();
-    const payload = sent[0].payload as unknown as {
-      resourceSpans: Array<{
-        scopeSpans: Array<{ spans: Array<Record<string, unknown>> }>;
-      }>;
-    };
-    const [root, child] = payload.resourceSpans[0].scopeSpans[0].spans;
+    const [root, child] = wireSpans();
     expect(root.parentSpanId).toBeUndefined();
     expect(child.parentSpanId).toBe("b".repeat(16));
   });

@@ -15,11 +15,12 @@ module.exports = [
     limit: "3.5 KB",
   },
   {
+    // Raised for the parent span support in the tracer.
     name: "core + errors",
     path: "dist/index.js",
     import: "{ WebSDK, errors }",
     gzip: true,
-    limit: "4 KB",
+    limit: "4.1 KB",
   },
   {
     // Raised for the exit-flush budget code (refer to pipeline/emitter.ts)

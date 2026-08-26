@@ -62,15 +62,6 @@ describe("instrumentation tracer", () => {
     expect(childWire.parentSpanId).toBe(parentWire.spanId);
   });
 
-  it("makes a new trace without a context", async () => {
-    start();
-    tracer.startSpan("a").end();
-    tracer.startSpan("b").end();
-    const [a, b] = await spans();
-    expect(a.traceId).not.toBe(b.traceId);
-    expect(a.parentSpanId).toBeUndefined();
-  });
-
   it("ships an ended span with its own sampled trace, CLIENT kind, and attributes", async () => {
     start();
     const span = tracer.startSpan("work", {
@@ -84,6 +75,7 @@ describe("instrumentation tracer", () => {
     expect(wire.kind).toBe(3); // CLIENT
     expect(wire.traceId).toMatch(/^[0-9a-f]{32}$/);
     expect(wire.spanId).toMatch(/^[0-9a-f]{16}$/);
+    expect(wire.parentSpanId).toBeUndefined();
     const a = attrs(wire);
     expect(a["everr.step"]).toBe("one");
     expect(a["everr.count"]).toBe("2");

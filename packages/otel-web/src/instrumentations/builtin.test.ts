@@ -249,9 +249,8 @@ describe("performance({ pageLoad })", () => {
       },
     ]);
     await client?.flush();
-    const [span] = batches
-      .flatMap((b) => b.spans)
-      .filter((s) => s.name === "pageLoad.asset.script");
+    const wire = () => batches.flatMap((b) => b.spans);
+    const [span] = wire().filter((s) => s.name === "pageLoad.asset.script");
     expect(attrs(span)["url.full"]).toBe("https://cdn.example.com/app.js");
     // The envelope also writes the shared session context on the resource
     // spans.
@@ -261,9 +260,7 @@ describe("performance({ pageLoad })", () => {
     expect(fire).toBeUndefined();
     // The teardown stops the window, and the PageLoad root goes out with the
     // trace of its children.
-    const [root] = batches
-      .flatMap((b) => b.spans)
-      .filter((s) => s.name === "PageLoad");
+    const [root] = wire().filter((s) => s.name === "PageLoad");
     expect(root.traceId).toBe(span.traceId);
     expect(span.parentSpanId).toBe(root.spanId);
   });
