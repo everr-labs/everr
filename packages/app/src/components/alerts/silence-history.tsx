@@ -1,7 +1,7 @@
 import { Button } from "@everr/ui/components/button";
 import { cn } from "@everr/ui/lib/utils";
 import { BellOff } from "lucide-react";
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import type { AlertSilenceRecord } from "@/data/alerting/triage/view";
 import { Section } from "./detail-section";
 
@@ -143,23 +143,32 @@ function SilenceRow({
   const open = isOpen(record);
   const bounds = windowBounds(record);
   const spoken = `${bounds.start.text} to ${bounds.end.text}`;
+  // Only the facts this silence actually carries, so the row never prints a
+  // placeholder for one it does not. A silence with no matchers is an
+  // unnarrowed one, which the row already says by not narrowing it, and "no
+  // comment, unknown author" reads as a person declining to explain
+  // themselves: a claim the row is in no position to make.
+  const facts = [
+    !record.wholeRule && record.matchers.trim()
+      ? { key: "matchers", text: record.matchers, mono: true }
+      : null,
+    record.impact ? { key: "impact", text: record.impact, mono: true } : null,
+    record.comment
+      ? { key: "comment", text: record.comment, mono: false }
+      : null,
+    record.author ? { key: "author", text: record.author, mono: false } : null,
+  ].filter((fact) => fact !== null);
 
   return (
-    <li className="flex flex-col gap-1 border-t py-2.5 first:border-t-0">
+    // The dot hangs in its own column rather than riding inside the label.
+    // The panel is narrow enough that the facts wrap under the state on most
+    // rows, and a wrapped line that starts at the dot instead of at the label
+    // leaves the whole section looking a character left-ragged.
+    <li className="grid grid-cols-[0.375rem_1fr] items-baseline gap-x-1.5 border-t py-2.5 first:border-t-0">
+      <span className={cn("size-1.5 -translate-y-px rounded-full", meta.dot)} />
       <div className="flex items-baseline justify-between gap-3">
         <div className="flex min-w-0 flex-wrap items-baseline gap-x-2.5 gap-y-1">
-          <span
-            className={cn(
-              "flex shrink-0 items-center gap-1.5 text-xs font-medium",
-              meta.text,
-            )}
-          >
-            <span
-              className={cn(
-                "size-1.5 shrink-0 translate-y-px rounded-full",
-                meta.dot,
-              )}
-            />
+          <span className={cn("shrink-0 text-xs font-medium", meta.text)}>
             {meta.label}
           </span>
           {/* The bounds themselves, not a phrase about them. The row is read
@@ -173,6 +182,30 @@ function SilenceRow({
           {inForce && (
             <span className="shrink-0 rounded-sm bg-muted px-1.5 py-0.5 text-[0.6875rem] leading-none text-muted-foreground">
               in force
+            </span>
+          )}
+          {/* Everything else the row knows, as one more item in the same wrap
+              group. Most silences carry one or two short facts, and a row that
+              spent a whole second line on two words left the section looking
+              left-ragged; as a wrap item the facts sit after the window when
+              they fit and take their own line only when they have earned one.
+
+              Mono for the facts the system derived, sans for the ones a person
+              typed, which is how the panel's own header splits the two. The
+              group's own gap is what separates it from the window, so nothing
+              here opens with a dangling separator on the line it wraps to. */}
+          {facts.length > 0 && (
+            <span className="min-w-0 text-xs text-muted-foreground">
+              {facts.map((fact, index) => (
+                <Fragment key={fact.key}>
+                  {index > 0 && <Separator />}
+                  {fact.mono ? (
+                    <span className="font-mono">{fact.text}</span>
+                  ) : (
+                    fact.text
+                  )}
+                </Fragment>
+              ))}
             </span>
           )}
         </div>
@@ -204,38 +237,6 @@ function SilenceRow({
           {open ? "Cancel" : "Silence again"}
         </Button>
       </div>
-
-      {/* Everything else the row knows, on one line. What it covered, what
-          that cost, and who asked for it are each a few words; three lines
-          of a few words each read as more row than there is. Mono for the
-          facts the system derived, sans for the ones a person typed, which
-          is how the panel's own header splits the two. */}
-      <p className="text-xs text-muted-foreground">
-        <span className="font-mono">
-          {record.wholeRule ? "whole rule" : record.matchers}
-        </span>
-        {record.impact && (
-          <>
-            <Separator />
-            <span className="font-mono">{record.impact}</span>
-          </>
-        )}
-        {/* Nothing stands in for an absent comment or author. "No comment,
-            Guido D'Orsi" read as a person declining to explain themselves,
-            which is a claim the row is in no position to make. */}
-        {record.comment && (
-          <>
-            <Separator />
-            {record.comment}
-          </>
-        )}
-        {record.author && (
-          <>
-            <Separator />
-            {record.author}
-          </>
-        )}
-      </p>
     </li>
   );
 }
