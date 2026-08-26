@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   compareRuleLabels,
   formatElapsed,
+  formatSincePhrase,
   formatValue,
   silenceImpact,
 } from "./format";
@@ -28,6 +29,26 @@ describe("formatElapsed", () => {
 
   it("never counts backwards from a stamp in the future", () => {
     expect(formatElapsed(-60_000)).toBe("just now");
+  });
+});
+
+describe("formatSincePhrase", () => {
+  const now = new Date("2026-08-26T12:00:00Z");
+
+  it("gives an elapsed time the preposition that starts a sentence", () => {
+    expect(formatSincePhrase(new Date("2026-08-26T11:46:00Z"), now)).toBe(
+      "since 14m",
+    );
+  });
+
+  it("leaves the sub-minute phrase bare, because it takes no preposition", () => {
+    expect(formatSincePhrase(new Date("2026-08-26T11:59:50Z"), now)).toBe(
+      "just now",
+    );
+  });
+
+  it("has nothing to say about a stamp that was never set", () => {
+    expect(formatSincePhrase(null, now)).toBeNull();
   });
 });
 

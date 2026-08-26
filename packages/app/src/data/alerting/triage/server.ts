@@ -16,14 +16,11 @@ import {
 import { formatLabels } from "./format";
 import {
   loadInstanceLabels,
-  loadInstanceValues,
   loadLastEvaluation,
   loadLifecycleEvents,
   loadPriorStates,
   loadRecentTimeline,
   loadSilenceImpact,
-  parseSamples,
-  type ValueRule,
 } from "./history";
 import {
   loadDefaultTiers,
@@ -40,6 +37,7 @@ import {
   triageStatus,
 } from "./rules";
 import { loadActiveSilences, loadSilencesInWindow } from "./silences";
+import { loadInstanceValues, parseSamples, type ValueRule } from "./values";
 import type {
   AlertDetail,
   AlertTriageData,

@@ -21,10 +21,14 @@ import type {
   AlertingSeverity,
 } from "@/data/alerting/types";
 import { ALERTING_SEVERITIES } from "@/data/alerting/vocabulary";
-import { formatClock, formatElapsed, formatSince, formatValue } from "./format";
 import {
-  type InstanceLanes,
-  type InstanceValues,
+  formatClock,
+  formatElapsed,
+  formatSince,
+  formatSincePhrase,
+  formatValue,
+} from "./format";
+import {
   type LifecycleEventRow,
   lifecycleLine,
   type PriorStateRow,
@@ -57,6 +61,7 @@ import {
   silenceRecord,
   silenceView,
 } from "./silences";
+import type { InstanceLanes, InstanceValues } from "./values";
 import type {
   AlertDetail,
   AlertTriageData,
@@ -341,16 +346,28 @@ export type AlertDetailInput = DeliverySource & {
 };
 
 /**
+ * How long a pause has been in force and who put it there, as
+ * "since 14m by Ada". The state word beside it already says the rule is
+ * paused, so the line adds only the trail. Rules paused before the trail
+ * columns existed carry none, and say nothing rather than guess.
+ */
+function pauseTrail(definition: DefinitionRow, now: Date): string {
+  const when = formatSincePhrase(definition.pausedAt, now);
+  if (!when) return "";
+  const who = definition.pausedBy?.trim();
+  return who ? `${when} by ${who}` : when;
+}
+
+/**
  * What the state means for delivery, as the one phrase printed beside it.
- * Silenced and paused both stop notifications, and only the second one also
- * stops evaluating, which is the difference readers ask about.
+ * Silenced rules keep evaluating, which is the difference from a pause that
+ * readers ask about; a paused rule prints its trail instead, because nothing
+ * about delivery is left to say.
  */
 function detailNotification(
   status: RuleInventoryState,
   delivery: string,
 ): string {
-  if (status === "paused")
-    return "nothing will be sent · rule is not evaluated";
   if (status === "silenced") return `${delivery} · rule keeps evaluating`;
   return delivery;
 }
@@ -388,10 +405,13 @@ export function assembleAlertDetail(input: AlertDetailInput): AlertDetail {
     description:
       spec.annotations?.[ANN_DISPLAY_DESCRIPTION]?.trim() ||
       "This rule declares no description.",
-    notification: detailNotification(
-      status,
-      notificationText(definition, delivery, now),
-    ),
+    notification:
+      status === "paused"
+        ? pauseTrail(definition, now)
+        : detailNotification(
+            status,
+            notificationText(definition, delivery, now),
+          ),
     threshold: spec.condition.threshold,
     window: chartWindow(input.window),
     instanceValues: lanes.lanes,

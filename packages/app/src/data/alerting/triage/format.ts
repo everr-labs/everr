@@ -22,6 +22,17 @@ export function formatSince(from: Date | null, now: Date): string | null {
 }
 
 /**
+ * The same elapsed time as a phrase that can start a sentence: "since 14m",
+ * or the bare "just now", which takes no preposition. The preposition lives
+ * here because only this module knows which phrasings `formatElapsed` emits.
+ */
+export function formatSincePhrase(from: Date | null, now: Date): string | null {
+  const since = formatSince(from, now);
+  if (since === null) return null;
+  return since === "just now" ? since : `since ${since}`;
+}
+
+/**
  * Evaluated values keep the precision they were measured at, capped: a p99 of
  * 412.38176 is noise past the first decimal, and an integer count must not
  * grow a ".0" it never had.

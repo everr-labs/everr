@@ -19,10 +19,10 @@ import {
   type TriageInput,
 } from "./assemble";
 import { formatClock } from "./format";
-import type { InstanceValues } from "./history";
 import type { NotificationFact } from "./notifications";
 import type { DefinitionRow, InstanceRow } from "./rules";
 import type { SilenceRow } from "./silences";
+import type { InstanceValues } from "./values";
 import type { InstanceValueSeries } from "./view";
 
 const MINUTE = 60_000;
@@ -63,6 +63,9 @@ function definition(
     createdAt: NOW,
     updatedAt: NOW,
     active: true,
+    pausedAt: null,
+    pausedByPrincipal: null,
+    pausedBy: null,
     lastError: null,
     currentState: "unknown",
     consecutiveFailures: 0,
@@ -504,11 +507,32 @@ describe("assembleAlertDetail", () => {
         currentState: "firing",
       }),
     });
-    expect(out).toMatchObject({
-      status: "paused",
-      since: null,
-      notification: "nothing will be sent · rule is not evaluated",
+    expect(out).toMatchObject({ status: "paused", since: null });
+  });
+
+  it("names how long a pause has run and who started it", () => {
+    const out = detail({
+      definition: definition({
+        slug: "latency",
+        active: false,
+        pausedAt: minutesAgo(14),
+        pausedByPrincipal: "user:u1",
+        pausedBy: "Ada",
+      }),
     });
+    expect(out.notification).toBe("since 14m by Ada");
+  });
+
+  it("says nothing when the pause trail predates the columns", () => {
+    const out = detail({
+      definition: definition({
+        slug: "latency",
+        active: false,
+        pausedAt: null,
+        pausedBy: null,
+      }),
+    });
+    expect(out.notification).toBe("");
   });
 
   it("dates a firing rule from its worst instance and reads delivery from the journal", () => {

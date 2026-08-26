@@ -29,9 +29,16 @@ export async function loadLatestNotifications(
   definitionIds: string[],
 ): Promise<Map<string, NotificationFact>> {
   if (definitionIds.length === 0) return new Map();
-  // One row per rule: the journal is append-only and indexed on
-  // (organization, slug, occurred_at DESC), so DISTINCT ON walks one index
-  // entry per rule instead of sorting the whole journal.
+  // One row per rule, as one index walk per rule.
+  //
+  // Written as a LATERAL over the ids rather than as DISTINCT ON over the
+  // journal. The two return the same rows, but DISTINCT ON has to order the
+  // whole matching set to pick its firsts, and no index offers that order, so
+  // it reads every notifying row in the organization and sorts them on disk to
+  // keep one per rule. PostgreSQL has no loose index scan to turn that back
+  // into a walk, so the walk is spelled out: one ordered probe of
+  // alert_events_org_definition_kind_idx per id, which costs the rule count
+  // rather than the journal size.
   const rows = await db.execute<{
     source_definition_id: string;
     event_type: string;
@@ -43,21 +50,30 @@ export async function loadLatestNotifications(
     grouped: boolean;
     flushed: boolean;
   }>(sql`
-    SELECT DISTINCT ON (e.source_definition_id)
-      e.source_definition_id, e.event_type, e.occurred_at, e.processed_at,
-      e.suppressed, e.silence_id, e.notification_title,
+    SELECT
+      latest.source_definition_id, latest.event_type, latest.occurred_at,
+      latest.processed_at, latest.suppressed, latest.silence_id,
+      latest.notification_title,
       -- A processed event that never joined a group was ended by a terminal:
       -- the stamp alone says the pipeline let go of it, not that it sent
       -- anything.
       m.event_id IS NOT NULL AS grouped,
       m.flushed_at IS NOT NULL AS flushed
-    FROM alert_events e
+    -- sql.param, not a bare interpolation: the template spreads a plain array
+    -- into one placeholder per element, which unnest cannot take.
+    FROM unnest(${sql.param(definitionIds)}::uuid[]) AS definition_id
+    CROSS JOIN LATERAL (
+      SELECT e.id, e.source_definition_id, e.event_type, e.occurred_at,
+             e.processed_at, e.suppressed, e.silence_id, e.notification_title
+        FROM alert_events e
+       WHERE e.organization_id = ${organizationId}
+         AND e.source_definition_id = definition_id
+         AND e.kind = 'notifying'
+       ORDER BY e.occurred_at DESC
+       LIMIT 1
+    ) AS latest
     LEFT JOIN alert_notification_group_events m
-      ON m.organization_id = e.organization_id AND m.event_id = e.id
-    WHERE e.organization_id = ${organizationId}
-      AND e.kind = 'notifying'
-      AND ${inArray(sql`e.source_definition_id`, definitionIds)}
-    ORDER BY e.source_definition_id, e.occurred_at DESC
+      ON m.organization_id = ${organizationId} AND m.event_id = latest.id
   `);
   return new Map(
     rows.rows.map((r) => [
