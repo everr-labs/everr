@@ -92,10 +92,10 @@ async function verifyToken(_req: Request, bearerToken?: string) {
     // issuer/jwksUrl must be passed explicitly: the resource client derives them
     // from auth.options.baseURL, which omits the /api/auth mount path, so it
     // would otherwise check the wrong issuer and fetch BETTER_AUTH_URL/jwks (404).
-    payload = (await mcpResourceClient().verifyAccessToken(bearerToken, {
+    payload = (await mcpResourceClient().verifyBearerToken(bearerToken, {
       jwksUrl: `${AUTH_ISSUER}/jwks`,
       verifyOptions: { audience: MCP_RESOURCE, issuer: AUTH_ISSUER },
-      scopes: ["observability:read"],
+      requiredScopes: ["observability:read"],
     })) as Record<string, unknown>;
   } catch {
     return undefined; // bad sig/aud/iss/scope/expiry

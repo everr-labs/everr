@@ -46,6 +46,10 @@ export const account = pgTable(
   "account",
   {
     id: text("id").primaryKey(),
+    // 1.7 keys an account on (issuer, accountId), not providerId alone. The
+    // issuer is the provider's real OIDC issuer where it has one
+    // ("https://accounts.google.com"), else a synthetic "local:<providerId>".
+    issuer: text("issuer").notNull(),
     accountId: text("account_id").notNull(),
     providerId: text("provider_id").notNull(),
     userId: text("user_id")
@@ -63,7 +67,13 @@ export const account = pgTable(
       .$onUpdate(() => /* @__PURE__ */ new Date())
       .notNull(),
   },
-  (table) => [index("account_userId_idx").on(table.userId)],
+  (table) => [
+    index("account_userId_idx").on(table.userId),
+    uniqueIndex("account_issuer_accountId_uidx").on(
+      table.issuer,
+      table.accountId,
+    ),
+  ],
 );
 
 export const verification = pgTable(
@@ -136,18 +146,26 @@ export const invitation = pgTable(
   ],
 );
 
-export const deviceCode = pgTable("device_code", {
-  id: text("id").primaryKey(),
-  deviceCode: text("device_code").notNull(),
-  userCode: text("user_code").notNull(),
-  userId: text("user_id"),
-  expiresAt: timestamp("expires_at").notNull(),
-  status: text("status").notNull(),
-  lastPolledAt: timestamp("last_polled_at"),
-  pollingInterval: integer("polling_interval"),
-  clientId: text("client_id"),
-  scope: text("scope"),
-});
+export const deviceCode = pgTable(
+  "device_code",
+  {
+    id: text("id").primaryKey(),
+    deviceCode: text("device_code").notNull(),
+    userCode: text("user_code").notNull(),
+    userId: text("user_id"),
+    expiresAt: timestamp("expires_at").notNull(),
+    status: text("status").notNull(),
+    lastPolledAt: timestamp("last_polled_at"),
+    pollingInterval: integer("polling_interval"),
+    clientId: text("client_id"),
+    scope: text("scope"),
+  },
+  // 1.7 looks a code up through `consumeOne`, which needs these to be unique.
+  (table) => [
+    uniqueIndex("device_code_deviceCode_uidx").on(table.deviceCode),
+    uniqueIndex("device_code_userCode_uidx").on(table.userCode),
+  ],
+);
 
 export const apikey = pgTable(
   "apikey",

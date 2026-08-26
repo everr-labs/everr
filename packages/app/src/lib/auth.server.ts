@@ -176,6 +176,24 @@ const selectedOrgId = (activeOrganizationId: unknown): string | undefined =>
     ? activeOrganizationId
     : undefined;
 
+// The caller's role in the organization their session has active, or null when
+// there is no active org or no membership in it.
+async function activeOrgRole(session: {
+  userId: string;
+  activeOrganizationId?: unknown;
+}): Promise<string | null> {
+  const orgId = selectedOrgId(session.activeOrganizationId);
+  if (!orgId) return null;
+  const [row] = await db
+    .select({ role: member.role })
+    .from(member)
+    .where(
+      and(eq(member.userId, session.userId), eq(member.organizationId, orgId)),
+    )
+    .limit(1);
+  return row?.role ?? null;
+}
+
 export const auth = betterAuth({
   baseURL: env.BETTER_AUTH_URL,
   secret: env.BETTER_AUTH_SECRET,
@@ -445,11 +463,29 @@ export const auth = betterAuth({
       consentPage: "/mcp/consent",
       allowDynamicClientRegistration: true,
       allowUnauthenticatedClientRegistration: true,
-      validAudiences: [MCP_RESOURCE],
-      // The RFC 8414 authorization-server metadata is served at
-      // "/.well-known/oauth-authorization-server/api/auth" (see the route of the
-      // same path); silence better-auth's startup check now that it exists.
-      silenceWarnings: { oauthAuthServerConfig: true },
+      // Required, not optional: 1.7 refuses `configure-client-credentials-scopes`
+      // outright unless this hook exists, so without it no client can ever hold
+      // a machine scope. Registration stays open (an MCP client registers
+      // dynamically, unauthenticated, before anyone consents); everything that
+      // manages an existing client is owner or admin only, matching how org
+      // ingest keys are already gated in `orgAc` above.
+      clientPrivileges: async ({ action, session }) => {
+        if (!session) return false;
+        if (action === "create") return true;
+        const role = await activeOrgRole(session);
+        return role === "owner" || role === "admin";
+      },
+      // 1.7 replaced `validAudiences` with `resources`: the audience is now a
+      // persisted `oauthResource` row with its own token policy, not a bare
+      // allow-list. `silenceWarnings` went away in the same release.
+      resources: [MCP_RESOURCE],
+      // Declaring the resource is not enough. 1.7 checks per-client access to
+      // it (RFC 8707 section 3), and an MCP client registers here dynamically,
+      // so nothing links it: its token request would come back
+      // `invalid_target`. Linking on registration keeps that check on rather
+      // than turning it off with `enforcePerClientResources: false`. There is
+      // one resource, and every client that registers wants exactly it.
+      clientRegistrationDefaultResources: [MCP_RESOURCE],
       scopes: [
         "openid",
         "profile",
