@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { OtlpSpan } from "../test-kit.js";
 import {
   type BeforeSend,
   createEmitter,
@@ -228,9 +229,7 @@ describe("createEmitter", () => {
 const wireSpans = () =>
   (
     sent[0].payload as unknown as {
-      resourceSpans: Array<{
-        scopeSpans: Array<{ spans: Array<Record<string, unknown>> }>;
-      }>;
+      resourceSpans: Array<{ scopeSpans: Array<{ spans: OtlpSpan[] }> }>;
     }
   ).resourceSpans[0].scopeSpans[0].spans;
 

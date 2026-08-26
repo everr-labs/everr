@@ -199,19 +199,23 @@ function setReadyState(value: string) {
   Object.defineProperty(document, "readyState", { value, configurable: true });
 }
 
-function setVisibility(value: string) {
-  Object.defineProperty(document, "visibilityState", {
-    value,
-    configurable: true,
-  });
-}
+// The hide listeners, as ctx.onHide of the SDK keeps them. The test calls
+// hide() as the SDK does at pagehide and at the hidden state.
+let hideListeners: Set<() => void>;
+const onHide = (listener: () => void) => {
+  hideListeners.add(listener);
+  return () => hideListeners.delete(listener);
+};
+const hide = () => {
+  for (const listener of hideListeners) listener();
+};
 
 beforeEach(() => {
   vi.useFakeTimers();
   spans = [];
   roots = [];
+  hideListeners = new Set();
   setReadyState("loading");
-  setVisibility("visible");
   stubTiming();
 });
 
@@ -222,7 +226,7 @@ afterEach(() => {
 });
 
 const start = (settleMs = 3000, ceilingMs = 10000) => {
-  stop = startPageLoad(tracer, settleMs, ceilingMs);
+  stop = startPageLoad(tracer, onHide, settleMs, ceilingMs);
 };
 
 describe("asset waterfall", () => {
@@ -509,8 +513,7 @@ describe("the pageLoad root", () => {
     start();
     feed({});
     feedLcp(400);
-    setVisibility("hidden");
-    document.dispatchEvent(new Event("visibilitychange", { bubbles: true }));
+    hide();
     expect(roots).toHaveLength(1);
     expect(roots[0].end).toBe(TIME_ORIGIN + 400);
     // The LCP ended the root, even at the hidden event.
@@ -522,20 +525,31 @@ describe("the pageLoad root", () => {
     expect(spans[1].traceId).not.toBe(roots[0].traceId);
   });
 
-  it("goes out at pagehide, and says so without an LCP", () => {
+  it("says hidden when the page hides without an LCP and before load", () => {
     unsupported.add("largest-contentful-paint");
     start();
-    window.dispatchEvent(new Event("pagehide"));
+    hide();
     expect(roots).toHaveLength(1);
     expect(roots[0].attrs["everr.browser.page_load.end"]).toBe("hidden");
   });
 
-  it("goes out one time only", () => {
+  it("goes out one time only, and keeps the first end attribute", () => {
+    unsupported.add("largest-contentful-paint");
     start();
-    window.dispatchEvent(new Event("pagehide"));
+    hide();
+    hide();
+    loadEventEnd = 900;
     stop();
     stop();
     expect(roots).toHaveLength(1);
+    expect(roots[0].attrs["everr.browser.page_load.end"]).toBe("hidden");
+  });
+
+  it("removes its hide listener at teardown", () => {
+    start();
+    expect(hideListeners.size).toBe(1);
+    stop();
+    expect(hideListeners.size).toBe(0);
   });
 });
 
@@ -578,6 +592,7 @@ describe("the pageLoad option", () => {
   const ctx = (sessionId: string): InstrumentationContext =>
     ({
       tracer,
+      onHide,
       ids: () => ({ visitorId: "v", sessionId }),
     }) as unknown as InstrumentationContext;
 

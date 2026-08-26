@@ -19,8 +19,8 @@
 // call until its end(). A span from startSpan is a child of the active span,
 // when there is one, or a root. Thus the rule is the time, and not the cause:
 // each span that starts while the page load root is active joins its trace.
-// The active spans are a stack. A startActiveSpan inside an active span makes
-// a child, and the end() of that child makes the parent active again. The
+// The active spans are a stack, and the most recent is the parent of a new
+// span. The end() of a span removes it from the stack, in any sequence. The
 // tracer ignores the context argument of the two functions.
 
 import type { Exception, Span, SpanOptions, Tracer } from "@opentelemetry/api";
@@ -33,20 +33,16 @@ const toMs = (time: unknown): number | undefined =>
   typeof time === "number" ? time : undefined;
 
 export function createTracer(emitSpan: EmitSpan): Tracer {
-  // The active span, or undefined when there is none.
-  let active: Span | undefined;
+  // The active spans, the most recent last.
+  const active: Span[] = [];
 
-  // Makes a span. The onEnd function runs at the first end(), before the
-  // emit. The active span, when there is one, is the parent.
-  const make = (
-    name: string,
-    options?: SpanOptions,
-    onEnd?: () => void,
-  ): Span => {
+  // Makes a span. The most recent active span, when there is one, is the
+  // parent.
+  const make = (name: string, options?: SpanOptions): Span => {
     // One read of the CSPRNG gives the ids, the same as in the network
     // signal. A child keeps the trace id of its parent, and thus it reads only
     // the bytes of its span id.
-    const parent = active?.spanContext();
+    const parent = active[active.length - 1]?.spanContext();
     const ids = randomHex(parent ? 8 : 24);
     const spanContext = {
       traceId: parent?.traceId ?? ids.slice(0, 32),
@@ -63,13 +59,13 @@ export function createTracer(emitSpan: EmitSpan): Tracer {
       spanContext: () => spanContext,
       // The code copies the attributes without a change. The AttrValue types of
       // the emitter give the rules. The caller is responsible for an array
-      // value.
+      // value. An ended span accepts no attribute, the same as in OTel.
       setAttribute: (key, value) => {
-        attributes[key] = value as AttrValue;
+        if (!ended) attributes[key] = value as AttrValue;
         return span;
       },
       setAttributes: (attrs) => {
-        Object.assign(attributes, attrs);
+        if (!ended) Object.assign(attributes, attrs);
         return span;
       },
       addEvent: () => span,
@@ -101,7 +97,8 @@ export function createTracer(emitSpan: EmitSpan): Tracer {
       end: (endTime) => {
         if (ended) return;
         ended = true;
-        onEnd?.();
+        const index = active.indexOf(span);
+        if (index >= 0) active.splice(index, 1);
         emitSpan(
           spanContext.traceId,
           spanContext.spanId,
@@ -121,18 +118,13 @@ export function createTracer(emitSpan: EmitSpan): Tracer {
   return {
     startSpan: (name, options) => make(name, options),
     // This function accepts all the argument sequences. The function to call is
-    // always the last argument. The options are the first argument when more
-    // than one argument comes before the function. The span is active from
-    // this call until its end(), which makes the previous span active again.
+    // always the last argument, and the options are the first argument when
+    // there is one before it. The span is active from this call until its
+    // end().
     startActiveSpan: ((name: string, ...rest: unknown[]) => {
-      const fn = rest[rest.length - 1] as (span: Span) => unknown;
-      const options =
-        rest.length > 1 ? (rest[0] as SpanOptions | undefined) : undefined;
-      const previous = active;
-      const span = make(name, options, () => {
-        if (active === span) active = previous;
-      });
-      active = span;
+      const fn = rest.pop() as (span: Span) => unknown;
+      const span = make(name, rest[0] as SpanOptions | undefined);
+      active.push(span);
       return fn(span);
     }) as Tracer["startActiveSpan"],
   };

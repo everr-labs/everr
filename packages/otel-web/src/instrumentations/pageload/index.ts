@@ -37,6 +37,7 @@ export function pageLoad(options?: PageLoadOptions): Instrumentation {
   return function pageLoad(ctx) {
     return startPageLoad(
       ctx.tracer,
+      ctx.onHide,
       options?.settleMs ?? 3000,
       options?.ceilingMs ?? 10000,
     );

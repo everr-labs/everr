@@ -78,6 +78,35 @@ describe("instrumentation tracer", () => {
     expect(by("in-outer").traceId).toBe(by("outer").traceId);
   });
 
+  it("drops an active span that ends before its child", async () => {
+    // The parent ends first. The child is then the only active span, and a
+    // new span is its child. When the child ends, no span is active.
+    start();
+    const outer = tracer.startActiveSpan("outer", (span) => span);
+    const inner = tracer.startActiveSpan("inner", (span) => span);
+    outer.end();
+    tracer.startSpan("in-inner").end();
+    inner.end();
+    tracer.startSpan("alone").end();
+    const wire = await spans();
+    const by = (name: string) => wire.find((s) => s.name === name) as OtlpSpan;
+    expect(by("in-inner").parentSpanId).toBe(by("inner").spanId);
+    expect(by("alone").parentSpanId).toBeUndefined();
+  });
+
+  it("accepts no attribute after the end", async () => {
+    start();
+    const span = tracer.startSpan("work", { attributes: { a: 1 } });
+    span.end();
+    span.setAttribute("late", true);
+    span.setAttributes({ later: true });
+    const [wire] = await spans();
+    const a = attrs(wire);
+    expect(a.a).toBe("1");
+    expect(a.late).toBeUndefined();
+    expect(a.later).toBeUndefined();
+  });
+
   it("returns the value of the function and ends nothing by itself", async () => {
     start();
     const value = tracer.startActiveSpan("work", (span) => {
