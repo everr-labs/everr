@@ -63,7 +63,10 @@ export const account = pgTable(
       .$onUpdate(() => /* @__PURE__ */ new Date())
       .notNull(),
   },
-  (table) => [index("account_userId_idx").on(table.userId)],
+  (table) => [
+    index("account_userId_idx").on(table.userId),
+    uniqueIndex("account_providerId_accountId_uidx").on(table.providerId, table.accountId),
+  ],
 );
 
 export const verification = pgTable(
@@ -136,18 +139,26 @@ export const invitation = pgTable(
   ],
 );
 
-export const deviceCode = pgTable("device_code", {
-  id: text("id").primaryKey(),
-  deviceCode: text("device_code").notNull(),
-  userCode: text("user_code").notNull(),
-  userId: text("user_id"),
-  expiresAt: timestamp("expires_at").notNull(),
-  status: text("status").notNull(),
-  lastPolledAt: timestamp("last_polled_at"),
-  pollingInterval: integer("polling_interval"),
-  clientId: text("client_id"),
-  scope: text("scope"),
-});
+export const deviceCode = pgTable(
+  "device_code",
+  {
+    id: text("id").primaryKey(),
+    deviceCode: text("device_code").notNull(),
+    userCode: text("user_code").notNull(),
+    userId: text("user_id"),
+    expiresAt: timestamp("expires_at").notNull(),
+    status: text("status").notNull(),
+    lastPolledAt: timestamp("last_polled_at"),
+    pollingInterval: integer("polling_interval"),
+    clientId: text("client_id"),
+    scope: text("scope"),
+  },
+  // 1.7 looks a code up through `consumeOne`, which needs these to be unique.
+  (table) => [
+    uniqueIndex("device_code_deviceCode_uidx").on(table.deviceCode),
+    uniqueIndex("device_code_userCode_uidx").on(table.userCode),
+  ],
+);
 
 export const apikey = pgTable(
   "apikey",

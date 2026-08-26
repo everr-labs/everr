@@ -58,10 +58,11 @@ export interface PolarGateway {
   createMember(this: void, customerId: string, person: Person): Promise<BillingMember>;
   updateMember(
     this: void,
+    customerId: string,
     id: string,
     input: { name?: string; email?: string; role?: BillingMember["role"] },
   ): Promise<BillingMember>;
-  deleteMember(this: void, id: string): Promise<void>;
+  deleteMember(this: void, customerId: string, id: string): Promise<void>;
   portal(this: void, customerId: string, memberId: string): Promise<string>;
   checkout(this: void, id: string): Promise<Checkout>;
   checkouts(this: void, customerId: string): Promise<Checkout[]>;

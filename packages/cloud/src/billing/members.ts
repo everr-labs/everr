@@ -35,7 +35,7 @@ export function createBillingMembers({ polar }: BillingDependencies) {
     const current = await resolveMember(customerId, person, remote);
     const role = person.id === ownerUserId ? "owner" : "billing_manager";
     if (current.role !== role || current.name !== person.name || current.email !== person.email)
-      await polar.updateMember(current.id, {
+      await polar.updateMember(customerId, current.id, {
         role,
         name: person.name,
         ...(current.email !== person.email ? { email: person.email } : {}),
@@ -59,7 +59,7 @@ export function createBillingMembers({ polar }: BillingDependencies) {
           "owner_required",
           "Transfer billing ownership before removing its owner.",
         );
-      await polar.deleteMember(current.id);
+      await polar.deleteMember(customerId, current.id);
     }
   };
 }

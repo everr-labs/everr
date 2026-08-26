@@ -123,6 +123,20 @@ const selectedOrgId = (activeOrganizationId: unknown): string | undefined =>
     ? activeOrganizationId
     : undefined;
 
+async function activeOrgRole(
+  db: Database,
+  session: { userId: string; activeOrganizationId?: unknown },
+): Promise<string | null> {
+  const organizationId = selectedOrgId(session.activeOrganizationId);
+  if (!organizationId) return null;
+  const [membership] = await db
+    .select({ role: member.role })
+    .from(member)
+    .where(and(eq(member.userId, session.userId), eq(member.organizationId, organizationId)))
+    .limit(1);
+  return membership?.role ?? null;
+}
+
 export interface IdentityDependencies {
   database: Database;
   baseURL: string;
@@ -381,11 +395,14 @@ export function createApplicationAuth(
         consentPage: "/mcp/consent",
         allowDynamicClientRegistration: true,
         allowUnauthenticatedClientRegistration: true,
-        validAudiences: [`${baseURL.replace(/\/$/, "")}/mcp`],
-        // The RFC 8414 authorization-server metadata is served at
-        // "/.well-known/oauth-authorization-server/api/auth" (see the route of the
-        // same path); silence better-auth's startup check now that it exists.
-        silenceWarnings: { oauthAuthServerConfig: true },
+        clientPrivileges: async ({ action, session }) => {
+          if (!session) return false;
+          if (action === "create") return true;
+          const role = await activeOrgRole(db, session);
+          return role === "owner" || role === "admin";
+        },
+        resources: [`${baseURL.replace(/\/$/, "")}/mcp`],
+        clientRegistrationDefaultResources: [`${baseURL.replace(/\/$/, "")}/mcp`],
         scopes: ["openid", "profile", "email", "offline_access", "observability:read"],
         postLogin: {
           // `page` + `shouldRedirect` are required by the type, but we never

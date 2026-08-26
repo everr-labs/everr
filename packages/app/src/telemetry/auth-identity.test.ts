@@ -594,8 +594,21 @@ it.each(
       accessTokenExpiresAt: new Date(Date.now() + 3_600_000),
     }));
     const getUserInfo = vi.fn(async () => ({
-      user: { id: "provider-user", name: "Provider User", emailVerified: true },
-      data: {},
+      user: { name: "Provider User", email: "provider@example.test", emailVerified: true },
+      data: {
+        aud: "test-client",
+        azp: "test-client",
+        email: "provider@example.test",
+        email_verified: true,
+        exp: Math.floor(Date.now() / 1000) + 3600,
+        family_name: "User",
+        given_name: "Provider",
+        iat: Math.floor(Date.now() / 1000),
+        iss: "https://accounts.google.com",
+        name: "Provider User",
+        picture: "",
+        sub: "provider-user",
+      },
     }));
     const auth = createTestAuth(undefined, { enabled: true, strategy }, false, {
       google: {
@@ -639,7 +652,7 @@ it.each(
     }
     cookie = [...cookies].map(([name, value]) => `${name}=${value}`).join("; ");
     const adapter = (await auth.$context).internalAdapter;
-    await adapter.createAccount({
+    const account = await adapter.createAccount({
       userId: user.id,
       providerId: "google",
       accountId: "provider-account",
@@ -650,7 +663,7 @@ it.each(
     const request = () =>
       auth.handler(
         new Request(
-          `http://localhost:5173/api/auth${endpoint}${endpoint === "/account-info" ? "?providerId=google&accountId=provider-account" : ""}`,
+          `http://localhost:5173/api/auth${endpoint}${endpoint === "/account-info" ? `?accountId=${account.id}` : ""}`,
           {
             method: endpoint === "/account-info" ? "GET" : "POST",
             headers: {
@@ -662,8 +675,7 @@ it.each(
               ? {}
               : {
                   body: JSON.stringify({
-                    providerId: "google",
-                    accountId: "provider-account",
+                    accountId: account.id,
                   }),
                 }),
           },
@@ -672,10 +684,10 @@ it.each(
     const lookup = vi.spyOn(adapter, "findSession");
     try {
       const valid = await request();
-      expect(valid.status).toBe(200);
+      expect(valid.status, await valid.clone().text()).toBe(200);
       expect(await valid.json()).toMatchObject(
         endpoint === "/account-info"
-          ? { user: { id: "provider-user" } }
+          ? { user: { name: "Provider User" }, account: { id: account.id } }
           : {
               accessToken:
                 endpoint === "/refresh-token"
