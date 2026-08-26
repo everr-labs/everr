@@ -1,6 +1,6 @@
 import { CursorTooltip } from "@everr/ui/components/cursor-tooltip";
 import { SeriesTooltipContent } from "@everr/ui/components/series-tooltip";
-import { useMemo } from "react";
+import { useId, useMemo } from "react";
 import { formatElapsed } from "@/data/alerting/triage/format";
 import type { AlertSparkData } from "@/data/alerting/triage/view";
 import {
@@ -35,6 +35,7 @@ export function AlertSparkline({
   name: string;
 }) {
   const { minutes: windowMinutes, endsAt } = spark.window;
+  const gradientId = useId();
   const scrub = useChartScrub(windowMinutes);
   const { hovered } = scrub;
 
@@ -91,12 +92,18 @@ export function AlertSparkline({
         onMouseMove={scrub.onMouseMove}
         onMouseLeave={scrub.onMouseLeave}
       >
-        <path d={shape.area} fill={tone} opacity={0.15} />
+        <defs>
+          <linearGradient id={gradientId} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="5%" stopColor={tone} stopOpacity={0.8} />
+            <stop offset="95%" stopColor={tone} stopOpacity={0.1} />
+          </linearGradient>
+        </defs>
+        <path d={shape.area} fill={`url(#${gradientId})`} />
         <path
           d={shape.line}
           fill="none"
           stroke={tone}
-          strokeWidth={1.25}
+          strokeWidth={1}
           strokeLinecap="round"
           strokeLinejoin="round"
         />
