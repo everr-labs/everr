@@ -1,4 +1,3 @@
-import type { ChartConfig } from "@everr/ui/components/chart";
 import {
   detectTimeKey,
   getGroupKeys,
@@ -10,7 +9,23 @@ import {
 } from "../data-utils";
 import type { QueryResultRow } from "../index";
 
-export const TS_KEY = "__ts";
+export interface TimeSeries {
+  /** Opaque, sequential id (`s0`, `s1`, …) — never derived from the name, so
+   * two names that would mangle to the same string can't collide. */
+  key: string;
+  label: string;
+  color: string;
+  /** One entry per timestamp in `TimeSeriesFrame.x`. `null` means this series
+   * has no sample there — a gap, unless the panel connects nulls. */
+  values: Array<number | null>;
+}
+
+export interface TimeSeriesFrame {
+  /** The shared, ascending time axis in ms. uPlot aligns every series to one
+   * x array, so a timestamp any series samples appears here once. */
+  x: number[];
+  series: TimeSeries[];
+}
 
 function detectInterval(timestamps: number[]): number | null {
   if (timestamps.length < 2) return null;
@@ -22,119 +37,86 @@ function detectInterval(timestamps: number[]): number | null {
   return diffs[Math.floor(diffs.length / 2)]!;
 }
 
-/** Sort the merged timeline and clamp it to the domain (no gap markers — this
- * array drives the x-axis and the crosshair/tooltip lookup, not the lines). */
-function clampMerged(
-  byTs: Map<number, Record<string, unknown>>,
-  domain: [number, number],
-): Array<Record<string, unknown>> {
-  return [...byTs.values()]
-    .filter((r) => {
-      const ts = r[TS_KEY] as number;
-      return ts >= domain[0] && ts <= domain[1];
-    })
-    .sort((a, b) => (a[TS_KEY] as number) - (b[TS_KEY] as number));
-}
-
 /**
- * Build one line's data from its OWN samples (ts → value), independent of any
- * other series' timestamps. Each line is rendered with its own array so a
- * timestamp where only another series has a point is simply absent here — it
- * never becomes a hole that breaks the line. We do NOT snap onto an
- * epoch-aligned grid: every in-range point keeps its real timestamp. A single
- * null marker is inserted when two consecutive points of THIS series are more
- * than ~1.5× its own typical interval apart, so a non-connecting line shows the
- * genuine gap.
+ * One series' in-domain samples, plus the timestamps where its line must break.
  *
  * Domain clamping treats each point as a BUCKET, not an instant: a bucketed
- * timestamp (e.g. ClickHouse `toStartOfInterval`) labels the bucket's start,
- * so the bucket just before `from` still covers in-range rows whenever `from`
- * isn't bucket-aligned. That point is kept when its bucket overlaps the
- * domain; it sits left of the axis and the line clips at the plot edge
- * (Grafana-style) instead of silently losing up to a bucket of data.
+ * timestamp (e.g. ClickHouse `toStartOfInterval`) labels the bucket's start, so
+ * the bucket just before `from` still covers in-range rows whenever `from`
+ * isn't bucket-aligned. That point is kept when its bucket overlaps the domain;
+ * it sits left of the axis and the line clips at the plot edge (Grafana-style)
+ * instead of silently losing up to a bucket of data.
+ *
+ * Break markers are emitted when two consecutive samples of THIS series are
+ * more than ~1.5× its own typical interval apart. Without them a long outage
+ * between two samples would draw as one smooth curve across the whole gap,
+ * since nothing else puts an x position in there. One marker sits a bucket
+ * after the gap opens and another a bucket before it closes, so the curve
+ * leaves and re-enters the gap at its edges rather than arcing across it —
+ * a stacked panel, which reads a missing sample as a zero contribution, would
+ * otherwise ramp smoothly through hours of no data.
  */
-function buildSeriesData(
+function clampSamples(
   samples: Map<number, number | null>,
-  renderKey: string,
   domain: [number, number],
-): Array<Record<string, unknown>> {
+): { points: Map<number, number | null>; breaks: number[] } {
   const sorted = [...samples.entries()].sort((a, b) => a[0] - b[0]);
   // Inferred from ALL samples, pre-clamp, so the leading bucket's width is
   // known even when only one point lands inside the domain.
   const interval = detectInterval(sorted.map(([ts]) => ts));
-  const points = sorted.filter(([ts]) => {
+  const kept = sorted.filter(([ts]) => {
     if (ts > domain[1]) return false;
     if (ts >= domain[0]) return true;
     return interval !== null && ts + interval > domain[0];
   });
 
-  const gapThreshold = interval ? interval * 1.5 : null;
-
-  const result: Array<Record<string, unknown>> = [];
-  for (let i = 0; i < points.length; i++) {
-    const [ts, value] = points[i]!;
-    if (i > 0 && interval && gapThreshold) {
-      const prevTs = points[i - 1]![0];
-      if (ts - prevTs > gapThreshold) {
-        result.push({ [TS_KEY]: prevTs + interval, [renderKey]: null });
+  const breaks: number[] = [];
+  if (interval !== null) {
+    for (let i = 1; i < kept.length; i++) {
+      const prevTs = kept[i - 1]![0];
+      const ts = kept[i]![0];
+      if (ts - prevTs > interval * 1.5) {
+        breaks.push(prevTs + interval, ts - interval);
       }
     }
-    result.push({ [TS_KEY]: ts, [renderKey]: value });
   }
-  return result;
+
+  return { points: new Map(kept), breaks };
 }
 
 /**
- * Stacking renders every series from ONE shared array (recharts accumulates
- * `stackId` series row-by-row across the chart-level data), so each merged
- * timestamp must carry a number for every series. A missing or null sample
- * means "this series contributes nothing to the bucket" — fill it with 0;
- * leaving it undefined would corrupt the running stack offset for the series
+ * Running totals for a stacked chart, in series order.
+ *
+ * A null sample means "this series contributes nothing to the bucket" — it
+ * counts as 0; leaving it null would break the running total for every band
  * above it.
  */
-export function buildStackedData(
-  chartData: Array<Record<string, unknown>>,
-  valueKeys: string[],
-): Array<Record<string, unknown>> {
-  return chartData.map((row) => {
-    const filled: Record<string, unknown> = { [TS_KEY]: row[TS_KEY] };
-    for (const key of valueKeys) {
-      const value = row[key];
-      filled[key] = typeof value === "number" ? value : 0;
-    }
-    return filled;
-  });
-}
-
-export interface ChartModel {
-  /** Merged timeline (all series by timestamp). Drives the x-axis domain and
-   * the crosshair/tooltip lookup — NOT the lines. */
-  chartData: Array<Record<string, unknown>>;
-  valueKeys: string[];
-  chartConfig: ChartConfig;
-  /** Per-series data arrays, keyed by render key. Each `<Line>` renders from its
-   * own array so it connects its own points regardless of other series. */
-  seriesData: Record<string, Array<Record<string, unknown>>>;
+export function buildStackedValues(series: TimeSeries[]): number[][] {
+  const running: number[] = [];
+  return series.map((s) =>
+    s.values.map((value, i) => {
+      running[i] = (running[i] ?? 0) + (value ?? 0);
+      return running[i]!;
+    }),
+  );
 }
 
 /**
- * Builds a chart model by merging rows from every query result set onto a
+ * Builds the uPlot frame by merging rows from every query result set onto a
  * single shared timeline keyed by timestamp. Rows that share a timestamp —
  * whether across different queries OR within a single query — are merged into
- * one entry, so a single set containing duplicate timestamps is collapsed
+ * one x position, so a single set containing duplicate timestamps is collapsed
  * last-write-wins. This merge is intentional: it's how multiple queries' series
  * land on one x-axis.
  */
 export function buildChartModel(
   dataSets: QueryResultRow[][],
   domain: [number, number],
-): ChartModel {
-  const chartConfig: ChartConfig = {};
-  const valueKeys: string[] = [];
+): TimeSeriesFrame {
   // Per render key: its own samples (ts → value), collapsed last-write-wins on
-  // duplicate timestamps. The single source of truth — both the per-series
-  // line data and the merged timeline derive from it.
+  // duplicate timestamps. The single source of truth the frame derives from.
   const samplesByKey = new Map<string, Map<number, number | null>>();
+  const metaByKey = new Map<string, { label: string; color: string }>();
   let seriesIndex = 0;
 
   dataSets.forEach((data) => {
@@ -146,9 +128,9 @@ export function buildChartModel(
     const rawValueKeys = getValueKeys(data, tk);
 
     let rows: QueryResultRow[];
-    // The series' source names: pivoted group values, or raw value-column names.
-    // Each is unique within its result set and is used as the human-readable
-    // legend/tooltip label.
+    // The series' source names: pivoted group values, or raw value-column
+    // names. Each is unique within its result set and is used as the
+    // human-readable legend/tooltip label.
     let seriesNames: string[];
 
     if (groupKeys.length >= 1 && rawValueKeys.length === 1) {
@@ -165,20 +147,14 @@ export function buildChartModel(
       seriesNames = rawValueKeys;
     }
 
-    // Render keys are opaque, sequential ids (`s0`, `s1`, …) — never derived
-    // from the name. This guarantees a unique, valid CSS-var/dataKey identifier
-    // per series, so distinct names that would mangle to the same string (e.g.
-    // `a-b` and `a b`) can't collide and overwrite each other. The original name
-    // stays as the label.
     const renderKeyByName = new Map<string, string>();
     for (const name of seriesNames) {
       const renderKey = `s${seriesIndex}`;
       renderKeyByName.set(name, renderKey);
-      valueKeys.push(renderKey);
-      chartConfig[renderKey] = {
+      metaByKey.set(renderKey, {
         label: name,
-        color: SERIES_COLORS[seriesIndex % SERIES_COLORS.length],
-      };
+        color: SERIES_COLORS[seriesIndex % SERIES_COLORS.length]!,
+      });
       samplesByKey.set(renderKey, new Map());
       seriesIndex++;
     }
@@ -187,13 +163,12 @@ export function buildChartModel(
       const ts = toTimestamp(row[tk]);
       if (ts === null) continue;
       for (const name of seriesNames) {
-        // Only record a sample where this series actually has one. A pivoted row
-        // carries only the groups present at its timestamp, so a missing key is
-        // "not sampled here" — NOT a gap — and must not appear in this series'
-        // data (where it would break the line).
+        // Only record a sample where this series actually has one. A pivoted
+        // row carries only the groups present at its timestamp, so a missing
+        // key is "not sampled here".
         if (!(name in row)) continue;
-        // Coerce numeric strings (quoted ClickHouse aggregates) to numbers so
-        // recharts plots them; non-numeric values become null (a gap).
+        // Coerce numeric strings (quoted ClickHouse aggregates) to numbers;
+        // non-numeric values become null (a gap).
         samplesByKey
           .get(renderKeyByName.get(name)!)!
           .set(ts, toNumber(row[name]));
@@ -201,24 +176,28 @@ export function buildChartModel(
     }
   });
 
-  const byTs = new Map<number, Record<string, unknown>>();
-  const seriesData: Record<string, Array<Record<string, unknown>>> = {};
+  const clamped = new Map<string, Map<number, number | null>>();
+  const timestamps = new Set<number>();
   for (const [key, samples] of samplesByKey) {
-    for (const [ts, value] of samples) {
-      let entry = byTs.get(ts);
-      if (!entry) {
-        entry = { [TS_KEY]: ts };
-        byTs.set(ts, entry);
-      }
-      entry[key] = value;
-    }
-    seriesData[key] = buildSeriesData(samples, key, domain);
+    const { points, breaks } = clampSamples(samples, domain);
+    clamped.set(key, points);
+    for (const ts of points.keys()) timestamps.add(ts);
+    // A break marker is an x position no series samples, so every series is
+    // null there and the line breaks — which is what a gap should look like.
+    for (const ts of breaks) timestamps.add(ts);
   }
 
-  return {
-    chartData: clampMerged(byTs, domain),
-    valueKeys,
-    chartConfig,
-    seriesData,
-  };
+  const x = [...timestamps].sort((a, b) => a - b);
+  const series: TimeSeries[] = [];
+  for (const [key, points] of clamped) {
+    const meta = metaByKey.get(key)!;
+    series.push({
+      key,
+      label: meta.label,
+      color: meta.color,
+      values: x.map((ts) => (points.has(ts) ? points.get(ts)! : null)),
+    });
+  }
+
+  return { x, series };
 }

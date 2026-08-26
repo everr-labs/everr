@@ -1,21 +1,7 @@
-import {
-  ChartContainer,
-  ChartLegend,
-  ChartLegendContent,
-} from "@everr/ui/components/chart";
 import { LineChart as LineChartIcon } from "lucide-react";
-import { useCallback, useMemo, useRef, useState } from "react";
-import {
-  Area,
-  CartesianGrid,
-  ComposedChart,
-  Line,
-  ReferenceArea,
-  ReferenceDot,
-  ReferenceLine,
-  XAxis,
-  YAxis,
-} from "recharts";
+import { useEffect, useMemo, useRef, useState } from "react";
+import type uPlot from "uplot";
+import UPlot from "uplot";
 import { CursorTooltip } from "@/components/cursor-tooltip";
 import {
   createTimeTickFormatter,
@@ -25,26 +11,84 @@ import {
 import type { VisualizationProps } from "../index";
 import { SeriesTooltipContent } from "../series-tooltip";
 import type { TimeSeriesChartSpec } from "./spec";
-import { buildChartModel, buildStackedData, TS_KEY } from "./time-series-data";
+import { buildChartModel, buildStackedValues } from "./time-series-data";
+import { TimeSeriesLegend } from "./time-series-legend";
+import { UplotChart, type UplotOptions } from "./uplot-chart";
 
 const BRUSH_COLOR = SERIES_COLORS[0]!;
 const MAX_X_TICKS = 6;
+/** Ignore a brush that selects less than a second — it's a click, not a zoom. */
+const MIN_ZOOM_MS = 1000;
+const AXIS_FONT = "12px system-ui, sans-serif";
 
-function getPlotArea(container: HTMLElement): DOMRect | null {
-  const grid = container.querySelector(".recharts-cartesian-grid");
-  return grid?.getBoundingClientRect() ?? null;
+/**
+ * `SERIES_COLORS` are literal `hsl(h, s%, l%)` strings; areas and the brush
+ * want the same hue at partial opacity. Anything else passes through opaque.
+ */
+function withAlpha(color: string, alpha: number): string {
+  return color.startsWith("hsl(")
+    ? `hsla(${color.slice(4, -1)}, ${alpha})`
+    : color;
 }
 
-function pxToTimestamp(
-  clientX: number,
-  plotRect: DOMRect,
-  domain: [number, number],
-): number {
-  const ratio = Math.max(
-    0,
-    Math.min(1, (clientX - plotRect.left) / plotRect.width),
+const cssColorCache = new Map<string, string>();
+
+/**
+ * A theme token as a literal color. The chart draws to a canvas, which can't
+ * resolve `var(--border)`, so the value is measured off a throwaway element.
+ */
+function cssColor(token: string, fallback: string): string {
+  const cached = cssColorCache.get(token);
+  if (cached !== undefined) return cached;
+  if (typeof document === "undefined") return fallback;
+
+  const probe = document.createElement("span");
+  probe.style.color = `var(${token})`;
+  probe.style.display = "none";
+  document.body.appendChild(probe);
+  const resolved = getComputedStyle(probe).color || fallback;
+  probe.remove();
+
+  cssColorCache.set(token, resolved);
+  return resolved;
+}
+
+function pathBuilder(curveType: TimeSeriesChartSpec["curveType"]) {
+  const paths = UPlot.paths!;
+  switch (curveType) {
+    // The step happens before the point (align -1) or after it (align 1).
+    case "stepBefore":
+      return paths.stepped!({ align: -1 });
+    case "stepAfter":
+      return paths.stepped!({ align: 1 });
+    // `monotone` and `natural` reach here from panels written before smoothing
+    // was deprecated; they draw straight, and the panel says so.
+    default:
+      return paths.linear!();
+  }
+}
+
+/**
+ * uPlot gives an axis a fixed width unless told otherwise, which clips wide
+ * labels ("4,288MB" renders as "88MB"). Measure the widest one instead.
+ */
+function measureAxisSize(u: uPlot, values: string[] | null, gap: number) {
+  const longest = (values ?? []).reduce(
+    (acc, value) => (value.length > acc.length ? value : acc),
+    "",
   );
-  return domain[0] + ratio * (domain[1] - domain[0]);
+  if (longest === "") return gap;
+  u.ctx.save();
+  u.ctx.font = AXIS_FONT;
+  const width = u.ctx.measureText(longest).width;
+  u.ctx.restore();
+  return Math.ceil(width) + gap;
+}
+
+interface CursorState {
+  idx: number;
+  clientX: number;
+  clientY: number;
 }
 
 export function TimeSeriesChartVisualization({
@@ -56,106 +100,215 @@ export function TimeSeriesChartVisualization({
   const { showLegend, connectNulls, lineWidth, unit, curveType, stacked } =
     spec;
 
-  const containerRef = useRef<HTMLDivElement>(null);
-  const plotRectRef = useRef<DOMRect | null>(null);
-  const [brushStart, setBrushStart] = useState<number | null>(null);
-  const [brushEnd, setBrushEnd] = useState<number | null>(null);
-  const [tooltipState, setTooltipState] = useState<{
-    clientX: number;
-    clientY: number;
-    index: number;
-  } | null>(null);
+  const [cursor, setCursor] = useState<CursorState | null>(null);
+  const draggingRef = useRef(false);
+
+  const onTimeRangeChangeRef = useRef(onTimeRangeChange);
+  useEffect(() => {
+    onTimeRangeChangeRef.current = onTimeRangeChange;
+  }, [onTimeRangeChange]);
 
   const domain = useMemo<[number, number]>(
     () => [timeRange.from.getTime(), timeRange.to.getTime()],
     [timeRange],
   );
 
-  const { chartData, valueKeys, chartConfig, seriesData } = useMemo(
+  const frame = useMemo(
     () => buildChartModel(data ?? [], domain),
     [data, domain],
   );
 
-  const stackedData = useMemo(
-    () => (stacked ? buildStackedData(chartData, valueKeys) : null),
-    [stacked, chartData, valueKeys],
+  const alignedData = useMemo<uPlot.AlignedData>(() => {
+    const values = stacked
+      ? buildStackedValues(frame.series)
+      : frame.series.map((s) => s.values);
+    return [frame.x, ...values] as uPlot.AlignedData;
+  }, [frame, stacked]);
+
+  const formatValue = useMemo(
+    () => (value: number) => (unit ? `${value}${unit}` : String(value)),
+    [unit],
   );
 
-  const ticks = useMemo(() => generateTimeTicks(domain, MAX_X_TICKS), [domain]);
+  const options = useMemo<UplotOptions>(() => {
+    const axisColor = cssColor("--muted-foreground", "#8a8a8a");
+    const gridColor = cssColor("--border", "#d4d4d8");
+    const pointStroke = cssColor("--card", "#ffffff");
+    const ticks = generateTimeTicks(domain, MAX_X_TICKS);
+    const formatTick = createTimeTickFormatter(domain);
+    let stopDragTracking: (() => void) | undefined;
 
-  const handleChartMouseMove = useCallback(
-    (e: React.MouseEvent) => {
-      if (!containerRef.current || chartData.length === 0) return;
-      const plotRect = getPlotArea(containerRef.current);
-      if (!plotRect) return;
-      const ts = pxToTimestamp(e.clientX, plotRect, domain);
-      let nearest = 0;
-      let minDist = Math.abs((chartData[0]![TS_KEY] as number) - ts);
-      for (let i = 1; i < chartData.length; i++) {
-        const dist = Math.abs((chartData[i]![TS_KEY] as number) - ts);
-        if (dist < minDist) {
-          minDist = dist;
-          nearest = i;
-        }
-      }
-      setTooltipState({
-        clientX: e.clientX,
-        clientY: e.clientY,
-        index: nearest,
-      });
-    },
-    [domain, chartData],
-  );
+    return {
+      // The x axis is pinned to the panel's time range rather than to the
+      // data: the leading bucket kept by the frame sits before `from`, and
+      // letting it stretch the axis would misplace every other point.
+      scales: {
+        x: { time: false, range: () => domain },
+        // Lines auto-range to the data (a flat series near 11ms is worth
+        // seeing at 11ms, not squashed against a zero baseline), but a stacked
+        // band is a quantity piled on zero — cutting the baseline off would
+        // make the areas mean nothing.
+        y: stacked
+          ? {
+              range: (_u, min, max) =>
+                UPlot.rangeNum(Math.min(0, min), max, 0.1, true),
+            }
+          : {},
+      },
+      padding: [8, 12, 0, 0],
+      legend: { show: false },
+      cursor: {
+        y: false,
+        drag: { x: true, y: false, setScale: false, dist: 4 },
+        points: { size: 8, width: 2, stroke: () => pointStroke },
+        // Snap the crosshair onto the sample the tooltip is reporting — left
+        // free, the two disagree by however far the nearest sample is, which
+        // on a sparse panel is hours. A drag is exempt: uPlot draws the
+        // selection from this same position, and a zoom has to be able to
+        // start and end between samples.
+        move: (u, left, top) => {
+          if (draggingRef.current || left < 0) return [left, top];
+          const ts = u.data[0][u.posToIdx(left)];
+          return ts == null ? [left, top] : [u.valToPos(ts, "x"), top];
+        },
+      },
+      axes: [
+        {
+          stroke: axisColor,
+          font: AXIS_FONT,
+          gap: 8,
+          ticks: { show: false },
+          border: { show: false },
+          grid: { show: false },
+          splits: () => ticks,
+          values: (_u, splits) => splits.map(formatTick),
+        },
+        {
+          stroke: axisColor,
+          font: AXIS_FONT,
+          gap: 8,
+          ticks: { show: false },
+          border: { show: false },
+          grid: { stroke: gridColor, width: 1 },
+          values: (_u, splits) => splits.map(formatValue),
+          size: (u, values) => measureAxisSize(u, values, 12),
+        },
+      ],
+      series: [
+        {},
+        ...frame.series.map((s) => ({
+          label: s.label,
+          stroke: s.color,
+          width: lineWidth,
+          spanGaps: connectNulls,
+          paths: pathBuilder(curveType),
+          points: { show: false },
+          ...(stacked ? { fill: withAlpha(s.color, 0.4) } : {}),
+        })),
+      ],
+      // Stacked series carry running totals, so each band is the strip between
+      // its own line and the one below it. The bottom series has nothing below
+      // it and fills to zero on its own.
+      bands: stacked
+        ? frame.series
+            .slice(1)
+            .map((_, i) => ({ series: [i + 2, i + 1] as [number, number] }))
+        : undefined,
+      hooks: {
+        ready: [
+          (u: uPlot) => {
+            const down = () => {
+              draggingRef.current = true;
+            };
+            const up = () => {
+              draggingRef.current = false;
+            };
+            // Capture phase: uPlot computes the drag's start position from
+            // `cursor.move` inside its own mousedown handler, so the flag has
+            // to be set before that handler runs or the start snaps.
+            u.over.addEventListener("mousedown", down, true);
+            // On the document, not the plot: a drag often ends outside it.
+            document.addEventListener("mouseup", up);
+            stopDragTracking = () => {
+              u.over.removeEventListener("mousedown", down, true);
+              document.removeEventListener("mouseup", up);
+            };
+          },
+        ],
+        destroy: [
+          () => {
+            stopDragTracking?.();
+            draggingRef.current = false;
+          },
+        ],
+        setCursor: [
+          (u: uPlot) => {
+            const { idx, left, top } = u.cursor;
+            if (idx == null || left == null || left < 0) {
+              setCursor(null);
+              return;
+            }
+            const rect = u.over.getBoundingClientRect();
+            setCursor({
+              idx,
+              clientX: rect.left + left,
+              clientY: rect.top + (top ?? 0),
+            });
+          },
+        ],
+        setSelect: [
+          (u: uPlot) => {
+            const { left, width } = u.select;
+            if (width <= 0) return;
+            const from = u.posToVal(left, "x");
+            const to = u.posToVal(left + width, "x");
+            // Clear before dispatching: the new time range rebuilds the chart,
+            // and a leftover selection would be drawn over it.
+            u.setSelect({ left: 0, top: 0, width: 0, height: 0 }, false);
+            if (to - from > MIN_ZOOM_MS) {
+              onTimeRangeChangeRef.current({
+                from: new Date(from),
+                to: new Date(to),
+              });
+            }
+          },
+        ],
+      },
+    };
+  }, [
+    frame.series,
+    domain,
+    lineWidth,
+    connectNulls,
+    curveType,
+    stacked,
+    formatValue,
+  ]);
 
-  const handleChartMouseLeave = useCallback(() => {
-    setTooltipState(null);
-  }, []);
+  // Everything the options close over that is worth a rebuilt canvas. A new
+  // frame with the same series line-up is a `setData` update, not a rebuild.
+  const optionsKey = [
+    frame.series.map((s) => `${s.key}:${s.label}`).join("|"),
+    domain[0],
+    domain[1],
+    lineWidth,
+    connectNulls,
+    curveType,
+    stacked,
+    unit,
+  ].join("/");
 
-  const handlePointerDown = useCallback(
-    (e: React.PointerEvent) => {
-      if (!containerRef.current) return;
-      const plotRect = getPlotArea(containerRef.current);
-      if (!plotRect) return;
-      plotRectRef.current = plotRect;
-      const ts = pxToTimestamp(e.clientX, plotRect, domain);
-      setBrushStart(ts);
-      setBrushEnd(null);
-      (e.target as HTMLElement).setPointerCapture(e.pointerId);
-    },
-    [domain],
-  );
-
-  const handlePointerMove = useCallback(
-    (e: React.PointerEvent) => {
-      if (brushStart == null || !plotRectRef.current) return;
-      const ts = pxToTimestamp(e.clientX, plotRectRef.current, domain);
-      setBrushEnd(ts);
-    },
-    [brushStart, domain],
-  );
-
-  const handlePointerUp = useCallback(() => {
-    if (brushStart != null && brushEnd != null) {
-      const from = Math.min(brushStart, brushEnd);
-      const to = Math.max(brushStart, brushEnd);
-      if (to - from > 1000) {
-        onTimeRangeChange({ from: new Date(from), to: new Date(to) });
-      }
-    }
-    setBrushStart(null);
-    setBrushEnd(null);
-    plotRectRef.current = null;
-  }, [brushStart, brushEnd, onTimeRangeChange]);
-
-  // `valueKeys.length === 0` means rows came back but none had a numeric column
-  // to plot — buildChartModel still emits timestamp-only entries, so guard on it
-  // explicitly instead of letting an axis-only, line-less chart render.
-  if (!data || chartData.length === 0 || valueKeys.length === 0) {
+  // A frame with no series or no timestamps would render as an axis-only,
+  // line-less chart — guard on both explicitly.
+  if (!data || frame.series.length === 0 || frame.x.length === 0) {
+    // Rows but no series means the query returned no numeric column to plot,
+    // which is a different problem from a query that returned nothing.
+    const hasRows = data?.some((rows) => rows?.length > 0) ?? false;
     const message = !data
       ? "Configure a query to see results"
-      : chartData.length === 0
-        ? "No data in this time range"
-        : "No numeric data to plot";
+      : hasRows && frame.series.length === 0
+        ? "No numeric data to plot"
+        : "No data in this time range";
     return (
       <div className="flex h-full flex-col items-center justify-center gap-2 text-muted-foreground">
         <LineChartIcon className="size-8" />
@@ -164,139 +317,46 @@ export function TimeSeriesChartVisualization({
     );
   }
 
-  const tooltipRow = tooltipState ? chartData[tooltipState.index] : undefined;
-  const tooltipTs = tooltipRow ? (tooltipRow[TS_KEY] as number) : undefined;
+  const tooltipRows = cursor
+    ? frame.series
+        .map((s) => ({ series: s, value: s.values[cursor.idx] }))
+        .filter((row) => row.value != null)
+        .map(({ series, value }) => ({
+          key: series.key,
+          color: series.color,
+          label: series.label,
+          value: formatValue(value!),
+        }))
+    : [];
+
+  const legendItems = frame.series.map((s) => ({
+    key: s.key,
+    label: s.label,
+    color: s.color,
+  }));
 
   return (
-    // biome-ignore lint/a11y/noStaticElementInteractions: chart interaction area
     <div
-      ref={containerRef}
-      className="relative h-full w-full select-none"
-      onMouseMove={handleChartMouseMove}
-      onMouseLeave={handleChartMouseLeave}
-      onPointerDown={handlePointerDown}
-      onPointerMove={handlePointerMove}
-      onPointerUp={handlePointerUp}
+      className="flex h-full w-full select-none flex-col"
+      style={
+        {
+          "--brush-fill": withAlpha(BRUSH_COLOR, 0.15),
+          "--brush-stroke": withAlpha(BRUSH_COLOR, 0.3),
+        } as React.CSSProperties
+      }
     >
-      <ChartContainer config={chartConfig} className="h-full w-full">
-        <ComposedChart
-          data={stackedData ?? chartData}
-          margin={{ left: 12, right: 12, top: 8 }}
-        >
-          <CartesianGrid vertical={false} />
-          <XAxis
-            dataKey={TS_KEY}
-            type="number"
-            domain={domain}
-            ticks={ticks}
-            tickLine={false}
-            axisLine={false}
-            tickMargin={8}
-            tickFormatter={createTimeTickFormatter(domain)}
-            // Hard domain: the leading bucket kept by buildSeriesData sits
-            // before `from` — clip its line at the plot edge instead of letting
-            // recharts stretch the axis to fit it (which would also skew the
-            // linear px↔ts mapping the brush and crosshair rely on).
-            allowDataOverflow
-          />
-          <YAxis
-            tickLine={false}
-            axisLine={false}
-            tickMargin={8}
-            tickFormatter={(v) => (unit ? `${v}${unit}` : String(v))}
-          />
-          {showLegend && <ChartLegend content={<ChartLegendContent />} />}
-          {valueKeys.map((key) =>
-            stacked ? (
-              // Stacked areas must all read from the chart-level data (the
-              // zero-filled merged timeline) — recharts accumulates stackId
-              // offsets across that shared array, not across per-series ones.
-              <Area
-                key={key}
-                stackId="stack"
-                dataKey={key}
-                type={curveType}
-                stroke={`var(--color-${key})`}
-                fill={`var(--color-${key})`}
-                fillOpacity={0.4}
-                strokeWidth={lineWidth}
-                dot={false}
-                isAnimationActive={false}
-              />
-            ) : (
-              <Line
-                key={key}
-                // Each line renders from its own data so it connects its own
-                // points regardless of where other series have samples.
-                data={seriesData[key]}
-                dataKey={key}
-                type={curveType}
-                stroke={`var(--color-${key})`}
-                strokeWidth={lineWidth}
-                dot={false}
-                connectNulls={connectNulls}
-                isAnimationActive={false}
-              />
-            ),
-          )}
-          {tooltipTs !== undefined && (
-            <ReferenceLine
-              x={tooltipTs}
-              stroke="var(--border)"
-              strokeDasharray="3 3"
-            />
-          )}
-          {tooltipTs !== undefined &&
-            (() => {
-              // In stacked mode each dot sits at the series' cumulative top
-              // (the running sum in render order), matching where the band
-              // edge is drawn — not at the raw value.
-              let stackTop = 0;
-              return valueKeys.map((key) => {
-                const val = tooltipRow?.[key];
-                const raw = typeof val === "number" ? val : 0;
-                stackTop += raw;
-                if (typeof val !== "number") return null;
-                return (
-                  <ReferenceDot
-                    key={key}
-                    x={tooltipTs}
-                    y={stacked ? stackTop : val}
-                    r={4}
-                    fill={chartConfig[key]?.color}
-                    stroke="var(--card)"
-                    strokeWidth={2}
-                  />
-                );
-              });
-            })()}
-          {brushStart != null && brushEnd != null && (
-            <ReferenceArea
-              x1={brushStart}
-              x2={brushEnd}
-              fill={BRUSH_COLOR}
-              fillOpacity={0.15}
-              stroke={BRUSH_COLOR}
-              strokeOpacity={0.3}
-            />
-          )}
-        </ComposedChart>
-      </ChartContainer>
-      {tooltipRow && (
-        <CursorTooltip x={tooltipState!.clientX} y={tooltipState!.clientY}>
+      <UplotChart
+        options={options}
+        optionsKey={optionsKey}
+        data={alignedData}
+        className="min-h-0 flex-1 [&_.u-cursor-x]:border-border [&_.u-cursor-x]:border-dashed [&_.u-select]:border [&_.u-select]:border-[var(--brush-stroke)] [&_.u-select]:bg-[var(--brush-fill)]"
+      />
+      {showLegend && <TimeSeriesLegend items={legendItems} />}
+      {cursor && tooltipRows.length > 0 && (
+        <CursorTooltip x={cursor.clientX} y={cursor.clientY}>
           <SeriesTooltipContent
-            title={new Date(tooltipTs!).toLocaleString()}
-            rows={valueKeys
-              .filter((key) => tooltipRow[key] != null)
-              .map((key) => {
-                const val = tooltipRow[key];
-                return {
-                  key,
-                  color: chartConfig[key]?.color,
-                  label: chartConfig[key]?.label ?? key,
-                  value: unit ? `${val}${unit}` : String(val),
-                };
-              })}
+            title={new Date(frame.x[cursor.idx]!).toLocaleString()}
+            rows={tooltipRows}
           />
         </CursorTooltip>
       )}

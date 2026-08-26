@@ -20,6 +20,7 @@ catalog:
   recharts: "^2.15.4"
   tailwindcss: ^4.3.0
   typescript: ^6.0.3
+  uplot: ^1.6.32
   vite: ^8.0.11
   zod: ^4.4.3
 
