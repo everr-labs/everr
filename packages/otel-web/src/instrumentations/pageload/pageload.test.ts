@@ -22,7 +22,7 @@ type Recorded = {
 };
 // The children: the resources and the long animation frames.
 let spans: Recorded[];
-// The PageLoad root spans. The SDK sends the root when the window stops.
+// The pageLoad root spans. The SDK sends the root when the window stops.
 let roots: Recorded[];
 let stop: () => void;
 
@@ -31,7 +31,7 @@ let stop: () => void;
 // the span.
 const tracer = createTracer(
   (traceId, spanId, name, start, end, a, _error, parentSpanId) => {
-    (name === "PageLoad" ? roots : spans).push({
+    (name === "pageLoad" ? roots : spans).push({
       traceId,
       spanId,
       parentSpanId,
@@ -338,7 +338,7 @@ describe("long animation frames", () => {
     start();
     feedLoaf(loaf());
     expect(spans).toHaveLength(1);
-    expect(spans[0].name).toBe("long_animation_frame");
+    expect(spans[0].name).toBe("pageLoad.long_animation_frame");
     expect(spans[0].duration).toBe(241);
     expect(attrs()).toMatchObject({
       "everr.browser.long_animation_frame.blocking_duration": 190,
@@ -422,7 +422,7 @@ describe("long animation frames", () => {
   });
 });
 
-describe("the PageLoad root", () => {
+describe("the pageLoad root", () => {
   it("is the parent of each resource and frame, in one trace", () => {
     start();
     feed({});
@@ -439,12 +439,28 @@ describe("the PageLoad root", () => {
     }
   });
 
+  it("is the parent of any span of the SDK until its end, and none after", () => {
+    // The request spans of the network signal, and each other span, use the
+    // same tracer. A span that starts in the load joins the trace. A span
+    // after the end of the root is its own trace.
+    start();
+    tracer.startSpan("GET /api/me").end();
+    stop();
+    tracer.startSpan("GET /api/later").end();
+    const [inLoad, after] = spans;
+    expect(inLoad.parentSpanId).toBe(roots[0].spanId);
+    expect(inLoad.traceId).toBe(roots[0].traceId);
+    expect(after.parentSpanId).toBeUndefined();
+    expect(after.traceId).not.toBe(roots[0].traceId);
+  });
+
   it("starts at the time origin and ends at the most recent LCP entry", () => {
     start();
     feedLcp(300.4, 1200.6);
     stop();
     expect(roots[0].start).toBe(TIME_ORIGIN);
     expect(roots[0].end).toBe(TIME_ORIGIN + 1201);
+    expect(roots[0].attrs["everr.browser.page_load.end"]).toBe("lcp");
   });
 
   it("observes LCP buffered and reads the entries not delivered yet", () => {
@@ -475,14 +491,16 @@ describe("the PageLoad root", () => {
     stop();
     expect(spans[0].name).toBe("pageLoad.asset.script");
     expect(roots[0].end).toBe(TIME_ORIGIN + 2500);
+    expect(roots[0].attrs["everr.browser.page_load.end"]).toBe("load");
   });
 
-  it("ends now without an LCP and before the load event", () => {
+  it("ends now at the ceiling without an LCP and before the load event", () => {
     unsupported.add("largest-contentful-paint");
     vi.setSystemTime(TIME_ORIGIN + 10000);
     start(3000, 10000);
     vi.advanceTimersByTime(10000);
     expect(roots[0].end).toBe(TIME_ORIGIN + 20000);
+    expect(roots[0].attrs["everr.browser.page_load.end"]).toBe("ceiling");
   });
 
   it("goes out when the page becomes hidden, before the window stops", () => {
@@ -495,15 +513,21 @@ describe("the PageLoad root", () => {
     document.dispatchEvent(new Event("visibilitychange", { bubbles: true }));
     expect(roots).toHaveLength(1);
     expect(roots[0].end).toBe(TIME_ORIGIN + 400);
-    // The window continues, and the later resources are still children.
+    // The LCP ended the root, even at the hidden event.
+    expect(roots[0].attrs["everr.browser.page_load.end"]).toBe("lcp");
+    // The window continues, but the root ended: a later resource is its own
+    // trace.
     feed({});
-    expect(spans[1].parentSpanId).toBe(roots[0].spanId);
+    expect(spans[1].parentSpanId).toBeUndefined();
+    expect(spans[1].traceId).not.toBe(roots[0].traceId);
   });
 
-  it("goes out at pagehide", () => {
+  it("goes out at pagehide, and says so without an LCP", () => {
+    unsupported.add("largest-contentful-paint");
     start();
     window.dispatchEvent(new Event("pagehide"));
     expect(roots).toHaveLength(1);
+    expect(roots[0].attrs["everr.browser.page_load.end"]).toBe("hidden");
   });
 
   it("goes out one time only", () => {

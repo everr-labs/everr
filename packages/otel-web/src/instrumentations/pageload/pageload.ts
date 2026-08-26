@@ -1,25 +1,31 @@
 /// <reference path="../../dom.d.ts" />
 import type { Tracer } from "@opentelemetry/api";
-import { childOf } from "../../pipeline/tracer.js";
 import { scriptAttrs } from "../performance/shared.js";
 
-// The window of the page load. The code makes one `PageLoad` root span for the
+// The window of the page load. The code makes one `pageLoad` root span for the
 // trace of the load. It starts at the time origin of the document, and it ends
-// at the LCP: the start of the most recent largest-contentful-paint entry. The
-// spans below are its children. Thus the trace timeline shows the resources
-// and the delays before the largest paint, in one trace. A browser without LCP
-// ends the root at the end of the `load` event.
+// at the LCP: the start of the most recent largest-contentful-paint entry. A
+// browser without LCP ends the root at the end of the `load` event. The root
+// is the active span of the tracer until its end. Thus each span of the SDK
+// that starts in that interval is its child: the spans below, the request
+// spans of the network signal, and a slow_interaction span. A request also
+// sends the trace id of the root in its traceparent header, and thus the spans
+// of the server join the same trace. The trace timeline then shows the
+// resources, the requests, and the delays before the largest paint, in one
+// trace. The `everr.browser.page_load.end` attribute of the root gives the
+// event that ended it: `lcp`, `load` (no LCP, the load event), `hidden` (the
+// page became hidden before the two), or `ceiling` (the window closed before
+// the two).
 //
 // A Resource Timing observer with the buffered option gives the entries, and
 // the code makes one `pageLoad.asset.<initiator_type>` CLIENT span for each
 // static resource in the first load: a script, a CSS file, an image, a font, a
 // link, an iframe, and the equivalent resources. A LoAF observer with the
 // buffered option gives the long animation frames, and the code makes one
-// `long_animation_frame` span for each interval when the main thread stops.
-// Chrome 123 and the later versions have that observer. Thus the sequence of
-// the resources and the delays that they caused give one description of the
-// slow operations on the trace timeline, with the request spans of the network
-// signal.
+// `pageLoad.long_animation_frame` span for each interval when the main thread
+// stops. Chrome 123 and the later versions have that observer. Thus the
+// sequence of the resources and the delays that they caused give one
+// description of the slow operations on the trace timeline.
 //
 // The code ignores the fetch entries and the XHR entries. The network
 // instrumentation captures the traffic of the app. Two records for one request
@@ -62,8 +68,14 @@ export function startPageLoad(
   // The timestamps of an entry are relative to the time origin, but a span uses
   // milliseconds from the epoch.
   const epoch = (time: number) => Math.round(performance.timeOrigin + time);
-  const root = tracer.startSpan("PageLoad", { startTime: epoch(0) });
-  const inRoot = childOf(root);
+  // The root is the active span until its end. The function gives the span
+  // back, because the observers below start later, and the span stays active
+  // for them.
+  const root = tracer.startActiveSpan(
+    "pageLoad",
+    { startTime: epoch(0) },
+    (span) => span,
+  );
   // The end is the start plus the duration after the code rounds it. Thus the
   // duration of the span is the duration of the entry, and the rounding of the
   // start does not change it.
@@ -75,7 +87,7 @@ export function startPageLoad(
   ) => {
     const start = epoch(startTime);
     tracer
-      .startSpan(name, { startTime: start, attributes }, inRoot)
+      .startSpan(name, { startTime: start, attributes })
       .end(start + Math.round(duration));
   };
 
@@ -159,7 +171,7 @@ export function startPageLoad(
     // same frame.
     const styleAndLayout =
       entry.startTime + entry.duration - entry.styleAndLayoutStart + forced;
-    span("long_animation_frame", entry.startTime, entry.duration, {
+    span("pageLoad.long_animation_frame", entry.startTime, entry.duration, {
       "everr.browser.long_animation_frame.blocking_duration": Math.round(
         entry.blockingDuration,
       ),
@@ -208,15 +220,20 @@ export function startPageLoad(
   };
   // Ends the root one time. The entries that the observer did not deliver
   // yet come first. Without an LCP and before the load event, the root ends
-  // now.
-  const endRoot = () => {
+  // now, and `reason` says why.
+  const endRoot = (reason: "hidden" | "ceiling") => {
     if (lcpPo) takeLcp(lcpPo.takeRecords());
-    const end =
-      lcp || performance.getEntriesByType("navigation")[0]?.loadEventEnd;
+    const load = performance.getEntriesByType("navigation")[0]?.loadEventEnd;
+    const end = lcp || load;
+    root.setAttribute(
+      "everr.browser.page_load.end",
+      lcp ? "lcp" : load ? "load" : reason,
+    );
     root.end(end ? epoch(end) : undefined);
   };
+  const onPageHide = () => endRoot("hidden");
   const onHide = () => {
-    if (document.visibilityState === "hidden") endRoot();
+    if (document.visibilityState === "hidden") endRoot("hidden");
   };
   try {
     lcpPo = new PerformanceObserver((list) => takeLcp(list.getEntries()));
@@ -226,19 +243,19 @@ export function startPageLoad(
   }
   let settle: ReturnType<typeof setTimeout> | undefined;
   const stop = () => {
-    endRoot();
+    endRoot("ceiling");
     po.disconnect();
     loafPo?.disconnect();
     lcpPo?.disconnect();
     clearTimeout(settle);
     clearTimeout(ceiling);
     removeEventListener("load", onLoad);
-    removeEventListener("pagehide", endRoot);
+    removeEventListener("pagehide", onPageHide);
     removeEventListener("visibilitychange", onHide);
   };
   // The same two events as the exit flush of the SDK. This listener registers
   // before that flush, and thus the root is in the batch that the flush sends.
-  addEventListener("pagehide", endRoot);
+  addEventListener("pagehide", onPageHide);
   addEventListener("visibilitychange", onHide);
   const onLoad = () => {
     settle = setTimeout(stop, settleMs);

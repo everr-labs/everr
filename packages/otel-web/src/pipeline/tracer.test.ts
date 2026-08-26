@@ -7,7 +7,6 @@ import {
   type OtlpSpan,
   startClient,
 } from "../test-kit.js";
-import { childOf } from "./tracer.js";
 
 // The tracer that ctx.tracer gives to an instrumentation. It is a small
 // @opentelemetry/api Tracer on the span pipeline of the SDK. These tests use it
@@ -39,27 +38,54 @@ afterEach(async () => {
 });
 
 describe("instrumentation tracer", () => {
-  it("makes a child in the trace of the parent with childOf()", async () => {
+  it("parents a span to the active span, from startActiveSpan until its end", async () => {
     start();
-    const parent = tracer.startSpan("PageLoad");
-    const child = tracer.startSpan("work", {}, childOf(parent));
+    const parent = tracer.startActiveSpan("pageLoad", (span) => span);
+    // The function returned. In OTel the span is then not active. In this
+    // SDK, it is active until its end.
+    const child = tracer.startSpan("work");
     child.end();
     parent.end();
-    const [childWire, parentWire] = await spans();
-    expect(parentWire.name).toBe("PageLoad");
+    const after = tracer.startSpan("later");
+    after.end();
+    const [childWire, parentWire, afterWire] = await spans();
+    expect(parentWire.name).toBe("pageLoad");
     expect(parentWire.parentSpanId).toBeUndefined();
     expect(childWire.traceId).toBe(parentWire.traceId);
     expect(childWire.spanId).not.toBe(parentWire.spanId);
     expect(childWire.parentSpanId).toBe(parentWire.spanId);
+    expect(afterWire.parentSpanId).toBeUndefined();
+    expect(afterWire.traceId).not.toBe(parentWire.traceId);
   });
 
-  it("passes the context through startActiveSpan", async () => {
+  it("stacks the active spans", async () => {
     start();
-    const parent = tracer.startSpan("PageLoad");
-    tracer.startActiveSpan("work", {}, childOf(parent), (span) => span.end());
-    parent.end();
-    const [childWire, parentWire] = await spans();
-    expect(childWire.parentSpanId).toBe(parentWire.spanId);
+    const outer = tracer.startActiveSpan("outer", (span) => span);
+    const inner = tracer.startActiveSpan(
+      "inner",
+      { attributes: {} },
+      (span) => span,
+    );
+    tracer.startSpan("in-inner").end();
+    inner.end();
+    tracer.startSpan("in-outer").end();
+    outer.end();
+    const wire = await spans();
+    const by = (name: string) => wire.find((s) => s.name === name) as OtlpSpan;
+    expect(by("inner").parentSpanId).toBe(by("outer").spanId);
+    expect(by("in-inner").parentSpanId).toBe(by("inner").spanId);
+    expect(by("in-outer").parentSpanId).toBe(by("outer").spanId);
+    expect(by("in-outer").traceId).toBe(by("outer").traceId);
+  });
+
+  it("returns the value of the function and ends nothing by itself", async () => {
+    start();
+    const value = tracer.startActiveSpan("work", (span) => {
+      span.end();
+      return 42;
+    });
+    expect(value).toBe(42);
+    expect(await spans()).toHaveLength(1);
   });
 
   it("ships an ended span with its own sampled trace, CLIENT kind, and attributes", async () => {

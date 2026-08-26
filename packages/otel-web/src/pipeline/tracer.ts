@@ -9,21 +9,21 @@
 // The implementation has these limits. The SDK always samples a span. The code
 // makes the ids locally and gives them with spanContext(), and thus an
 // instrumentation can send them to a server. The kind is CLIENT, the same as
-// each span of the SDK. There is no context manager. Thus startActiveSpan calls
-// its function but does not make the span active. A span is its own trace,
-// except when the caller gives the context from childOf(parent) as the third
-// argument of startSpan: the new span then joins the trace of the parent as
-// its child. The tracer accepts the events and the links, but it discards
-// them, because the payload carries neither of them.
+// each span of the SDK. The tracer accepts the events and the links, but it
+// discards them, because the payload carries neither of them.
+//
+// There is no context manager, and the active span has a rule of its own. In
+// OTel, a span is active for the synchronous duration of the function of
+// startActiveSpan, and a context manager carries it into the callbacks. This
+// SDK has no such manager: a span from startActiveSpan is active from that
+// call until its end(). A span from startSpan is a child of the active span,
+// when there is one, or a root. Thus the rule is the time, and not the cause:
+// each span that starts while the page load root is active joins its trace.
+// The active spans are a stack. A startActiveSpan inside an active span makes
+// a child, and the end() of that child makes the parent active again. The
+// tracer ignores the context argument of the two functions.
 
-import type {
-  Context,
-  Exception,
-  Span,
-  SpanContext,
-  SpanOptions,
-  Tracer,
-} from "@opentelemetry/api";
+import type { Exception, Span, SpanOptions, Tracer } from "@opentelemetry/api";
 import { randomHex } from "../state/session.js";
 import type { AttrValue, EmitSpan } from "./emitter.js";
 
@@ -32,38 +32,21 @@ import type { AttrValue, EmitSpan } from "./emitter.js";
 const toMs = (time: unknown): number | undefined =>
   typeof time === "number" ? time : undefined;
 
-// The key of the parent span context in a Context. The @opentelemetry/api
-// context keys are not available at run time, and thus the tracer has its own
-// key, and it reads it through getValue(). A context from a different source
-// gives no parent, and the span is a root.
-const PARENT = Symbol();
-
-/**
- * A context that makes `parent` the parent of the next span. Use it as the
- * third argument of `tracer.startSpan(name, options, childOf(parent))`. The
- * context holds the one key, and it is immutable.
- */
-export function childOf(parent: Span): Context {
-  const spanContext = parent.spanContext();
-  const same = () => context;
-  const context: Context = {
-    getValue: (key) => (key === PARENT ? spanContext : undefined),
-    setValue: same,
-    deleteValue: same,
-  };
-  return context;
-}
-
 export function createTracer(emitSpan: EmitSpan): Tracer {
-  const startSpan = (
+  // The active span, or undefined when there is none.
+  let active: Span | undefined;
+
+  // Makes a span. The onEnd function runs at the first end(), before the
+  // emit. The active span, when there is one, is the parent.
+  const make = (
     name: string,
     options?: SpanOptions,
-    context?: Context,
+    onEnd?: () => void,
   ): Span => {
     // One read of the CSPRNG gives the ids, the same as in the network
     // signal. A child keeps the trace id of its parent, and thus it reads only
     // the bytes of its span id.
-    const parent = context?.getValue(PARENT) as SpanContext | undefined;
+    const parent = active?.spanContext();
     const ids = randomHex(parent ? 8 : 24);
     const spanContext = {
       traceId: parent?.traceId ?? ids.slice(0, 32),
@@ -118,6 +101,7 @@ export function createTracer(emitSpan: EmitSpan): Tracer {
       end: (endTime) => {
         if (ended) return;
         ended = true;
+        onEnd?.();
         emitSpan(
           spanContext.traceId,
           spanContext.spanId,
@@ -135,18 +119,21 @@ export function createTracer(emitSpan: EmitSpan): Tracer {
   };
 
   return {
-    startSpan,
+    startSpan: (name, options) => make(name, options),
     // This function accepts all the argument sequences. The function to call is
-    // always the last argument. The options are the first argument and the
-    // context is the second argument when they come before the function. The
-    // code does not make the span active.
+    // always the last argument. The options are the first argument when more
+    // than one argument comes before the function. The span is active from
+    // this call until its end(), which makes the previous span active again.
     startActiveSpan: ((name: string, ...rest: unknown[]) => {
       const fn = rest[rest.length - 1] as (span: Span) => unknown;
       const options =
         rest.length > 1 ? (rest[0] as SpanOptions | undefined) : undefined;
-      const context =
-        rest.length > 2 ? (rest[1] as Context | undefined) : undefined;
-      return fn(startSpan(name, options, context));
+      const previous = active;
+      const span = make(name, options, () => {
+        if (active === span) active = previous;
+      });
+      active = span;
+      return fn(span);
     }) as Tracer["startActiveSpan"],
   };
 }
