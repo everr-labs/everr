@@ -48,7 +48,11 @@ interface RuleFixture {
 
 interface RuleOverrides {
   organizationId?: string;
+  project?: string;
   slug?: string;
+  /** Merged over the default `summary`, so a case can give a rule the
+   *  `everr.display.name` the inventory prints it under. */
+  annotations?: Record<string, string>;
   sql?: string;
   forSecs?: number;
   intervalSecs?: number;
@@ -74,7 +78,10 @@ function ruleSpec(overrides: RuleOverrides): AlertingRuleSpec {
     // sample row's value of 42.
     condition: { operator: "gt", threshold: 0 },
     severity: overrides.severity ?? "warning",
-    annotations: { summary: "{{ labels.service }} is breaching" },
+    annotations: {
+      summary: "{{ labels.service }} is breaching",
+      ...overrides.annotations,
+    },
     resolve_after: overrides.resolveAfter ?? 1,
     ...(overrides.notificationChannels
       ? { notifications: { channels: overrides.notificationChannels } }
@@ -99,7 +106,7 @@ export async function insertRule(
       .values({
         organizationId: overrides.organizationId ?? TEST_ORG,
         repoid: "repo_test",
-        project: "default",
+        project: overrides.project ?? "default",
         slug: overrides.slug ?? "checkout-latency",
         spec: ruleSpec(overrides),
         previewId: overrides.previewId ?? null,
@@ -294,6 +301,7 @@ export async function insertSilence(
   overrides: {
     organizationId?: string;
     matchers?: AlertingMatcher[];
+    startsAt?: Date;
     endsAt?: Date;
     comment?: string;
   } = {},
@@ -306,7 +314,7 @@ export async function insertSilence(
       matchers: overrides.matchers ?? [
         { label: "service", op: "eq", value: "checkout" },
       ],
-      startsAt: now,
+      startsAt: overrides.startsAt ?? now,
       endsAt: overrides.endsAt ?? new Date(now.getTime() + 3_600_000),
       ...(overrides.comment === undefined
         ? {}

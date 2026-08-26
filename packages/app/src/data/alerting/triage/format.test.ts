@@ -1,5 +1,55 @@
 import { describe, expect, it } from "vitest";
-import { compareRuleLabels, silenceImpact } from "./format";
+import {
+  compareRuleLabels,
+  formatElapsed,
+  formatValue,
+  silenceImpact,
+} from "./format";
+
+describe("formatElapsed", () => {
+  it("calls anything under a minute now, because that is what it reads as", () => {
+    expect(formatElapsed(0)).toBe("just now");
+    expect(formatElapsed(29_000)).toBe("just now");
+    // Rounded, not floored: 30 seconds is nearer a minute than nothing.
+    expect(formatElapsed(30_000)).toBe("1m");
+  });
+
+  it("counts in minutes up to an hour, then in hours and minutes", () => {
+    expect(formatElapsed(59 * 60_000)).toBe("59m");
+    expect(formatElapsed(60 * 60_000)).toBe("1h");
+    expect(formatElapsed(372 * 60_000)).toBe("6h 12m");
+  });
+
+  it("switches to days at two days, and drops an hour count of nothing", () => {
+    expect(formatElapsed(47 * 3_600_000)).toBe("47h");
+    expect(formatElapsed(48 * 3_600_000)).toBe("2d");
+    expect(formatElapsed(76 * 3_600_000)).toBe("3d 4h");
+  });
+
+  it("never counts backwards from a stamp in the future", () => {
+    expect(formatElapsed(-60_000)).toBe("just now");
+  });
+});
+
+describe("formatValue", () => {
+  it("never grows a decimal on a count that never had one", () => {
+    expect(formatValue(42)).toBe("42");
+    expect(formatValue(0)).toBe("0");
+  });
+
+  it("keeps two decimals below ten and one above, where the rest is noise", () => {
+    expect(formatValue(1.23456)).toBe("1.23");
+    expect(formatValue(412.38176)).toBe("412.4");
+    expect(formatValue(-1.23456)).toBe("-1.23");
+    expect(formatValue(-412.38176)).toBe("-412.4");
+  });
+
+  it("has nothing to print for a rule that measured nothing", () => {
+    expect(formatValue(null)).toBeNull();
+    expect(formatValue(Number.NaN)).toBeNull();
+    expect(formatValue(Number.POSITIVE_INFINITY)).toBeNull();
+  });
+});
 
 describe("silenceImpact", () => {
   it("keeps holds and suppressions apart: one may still go out, one never will", () => {

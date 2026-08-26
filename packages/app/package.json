@@ -97,6 +97,7 @@
     "chdb": "^3.2.0",
     "dotenv": "^17.4.2",
     "drizzle-kit": "^0.31.10",
+    "fast-check": "^4.9.0",
     "jsdom": "^29.1.1",
     "nitro": "catalog:",
     "smee-client": "^5.0.0",

@@ -173,7 +173,7 @@ const SEVERITY_RANK = Object.fromEntries(
 /** A silenced rule is still firing, so it stays in its own band, after the
  *  rest of it. Exiling it to the bottom would hide the fact that the thing
  *  you silenced is still happening. */
-function byTriageOrder(a: TriageAlert, b: TriageAlert): number {
+export function byTriageOrder(a: TriageAlert, b: TriageAlert): number {
   return (
     BAND_RANK[a.status] - BAND_RANK[b.status] ||
     SEVERITY_RANK[a.severity] - SEVERITY_RANK[b.severity] ||

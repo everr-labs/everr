@@ -18,7 +18,7 @@ import { RULE_LABEL } from "./silences";
 
 /** Free-form `key=value` pairs, space or comma separated. Anything that is not
  *  a pair is rejected rather than silently widening the silence. */
-function parseMatchers(input: string): AlertingMatcher[] {
+export function parseMatchers(input: string): AlertingMatcher[] {
   return input
     .split(/[\s,]+/)
     .filter(Boolean)
