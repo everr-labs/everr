@@ -39,9 +39,14 @@ import {
   sendVerificationEmail,
 } from "@/lib/email.server";
 import { MCP_RESOURCE } from "@/lib/mcp-resource";
-import { deletePostgresOrganizationData } from "@/lib/organization-data-cleanup.server";
+import {
+  deleteOrganizationServiceAccounts,
+  deletePostgresOrganizationData,
+} from "@/lib/organization-data-cleanup.server";
 import { ensurePolarCustomerForOrg, polarClient } from "@/lib/polar.server";
 import { resolveRetention } from "@/lib/retention";
+import { serviceAccountOrganizationHooks } from "@/lib/service-account-member-guards.server";
+import { serviceAccountPlugin } from "@/lib/service-account-plugin";
 import { exceptionAttributes, serverLogger } from "@/telemetry/logger";
 
 type PolarSubscriptionPayload = {
@@ -217,6 +222,18 @@ export const auth = betterAuth({
     deleteUser: {
       enabled: true,
     },
+    additionalFields: {
+      // `input: false` plus a default keeps every client-facing write path
+      // (sign-up, update-user, an OAuth profile) from setting the flag: only
+      // the service-account create path writes it, through the internal
+      // adapter.
+      isServiceAccount: {
+        type: "boolean",
+        required: false,
+        defaultValue: false,
+        input: false,
+      },
+    },
   },
   onAPIError: {
     errorURL: "/auth/error",
@@ -346,6 +363,12 @@ export const auth = betterAuth({
         });
       },
       organizationHooks: {
+        // Every guard that keeps a machine principal out of the human
+        // membership paths. service-account-contract.test.ts runs this same
+        // object against a real better-auth instance, so an upgrade that
+        // renamed a hook or moved where it fires fails there rather than
+        // opening silently here.
+        ...serviceAccountOrganizationHooks,
         afterCreateOrganization: async ({ organization, user: creator }) => {
           try {
             await ensurePolarCustomerForOrg({
@@ -390,6 +413,12 @@ export const auth = betterAuth({
               "organization.id": organization.id,
             });
           }
+        },
+        // The member rows still exist here, which is what says which
+        // machine users belong to this organization. After the delete they
+        // are gone and those users would stay behind forever.
+        beforeDeleteOrganization: async ({ organization }) => {
+          await deleteOrganizationServiceAccounts(organization.id);
         },
         afterDeleteOrganization: async ({ organization }) => {
           try {
@@ -442,6 +471,7 @@ export const auth = betterAuth({
       },
     ]),
     bearer(),
+    serviceAccountPlugin(),
     polar({
       client: polarClient,
       createCustomerOnSignUp: false,

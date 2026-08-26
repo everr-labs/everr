@@ -1,9 +1,15 @@
 import { createServerFn } from "@tanstack/react-start";
+import { getRequestHeaders } from "@tanstack/react-start/server";
 import { and, eq } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db/client";
 import { invitation, member, organization, user } from "@/db/schema";
-import { createPartiallyAuthenticatedServerFn } from "@/lib/serverFn";
+import { auth } from "@/lib/auth.server";
+import {
+  createAuthenticatedServerFn,
+  createPartiallyAuthenticatedServerFn,
+} from "@/lib/serverFn";
+import { assertInvitationRecipientAllowed } from "@/lib/service-account-member-guards.server";
 import {
   deriveInvitationLookup,
   type InvitationLookup,
@@ -50,4 +56,27 @@ export const isMemberOfOrg = createPartiallyAuthenticatedServerFn({
       )
       .limit(1);
     return { isMember: Boolean(row) };
+  });
+
+const InviteMemberInput = z
+  .object({
+    email: z.string().trim().min(1, "Email is required"),
+    role: z.enum(["member", "admin", "owner"]),
+  })
+  .strict();
+
+// A service account's membership comes from the account itself, so an
+// invitation to one is a dead end. The same guard runs on the organization
+// plugin's `beforeCreateInvitation` hook, which is the security boundary
+// (`/organization/invite-member` is client-callable and bypasses this server
+// function); calling it here gives the UI the refusal before the round trip.
+export const inviteMember = createAuthenticatedServerFn({ method: "POST" })
+  .inputValidator(InviteMemberInput)
+  .handler(async ({ data }) => {
+    await assertInvitationRecipientAllowed(data.email);
+
+    return auth.api.createInvitation({
+      body: { email: data.email, role: data.role },
+      headers: getRequestHeaders(),
+    });
   });

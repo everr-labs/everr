@@ -3,6 +3,7 @@ import {
   useMutation,
   useQueryClient,
 } from "@tanstack/react-query";
+import { inviteMember } from "@/data/invite";
 import { authClient } from "@/lib/auth-client";
 
 type ListMembersResult = Awaited<
@@ -77,15 +78,11 @@ export function invitationsQueryOptions() {
 export function useInviteMember() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async (vars: { email: string; role: OrgRole }) => {
-      const res = await authClient.organization.inviteMember({
-        email: vars.email,
-        role: vars.role,
-      });
-      if (res.error)
-        throw new Error(res.error.message ?? "Failed to send invitation");
-      return res.data;
-    },
+    // Routed through the server function so the service-account domain
+    // guard (`@/data/invite`) sits on every invite, not only the ones the
+    // UI happens to filter.
+    mutationFn: (vars: { email: string; role: OrgRole }) =>
+      inviteMember({ data: { email: vars.email, role: vars.role } }),
     onSuccess: () => {
       void qc.invalidateQueries({ queryKey: invitationsQueryKey });
     },

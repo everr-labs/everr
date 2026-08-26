@@ -3,16 +3,24 @@ use std::time::{Duration, Instant};
 use anyhow::{Result, anyhow, bail};
 use everr_core::api::ApiClient;
 use everr_core::auth::{
-    AuthConfig, DeviceAuthorization, DevicePollStatus, build_auth_http_client, login_with_prompt,
-    poll_device_authorization, session_from_device_token, start_device_authorization,
+    AuthConfig, DeviceAuthorization, DevicePollStatus, build_auth_http_client,
+    exchange_service_account_secret, login_with_prompt, poll_device_authorization,
+    session_from_device_token, start_device_authorization,
 };
 use everr_core::build;
 use everr_core::state::{AppStateStore, Session};
+use tokio::sync::OnceCell;
 use tokio::time::sleep;
 
 use crate::cli::LoginArgs;
 
 const API_BASE_URL_OVERRIDE_ENV: &str = "EVERR_API_BASE_URL_FOR_TESTS";
+const SERVICE_ACCOUNT_SECRET_ENV: &str = "EVERR_SERVICE_ACCOUNT_SECRET";
+
+// A CLI run is short and the exchanged token lives an hour, so one exchange
+// per process is enough. Caching it here also keeps it out of the state
+// file: it is short-lived, and persisting it would outlive its usefulness.
+static SERVICE_ACCOUNT_SESSION: OnceCell<Session> = OnceCell::const_new();
 
 pub async fn login(_args: LoginArgs) -> Result<()> {
     let config = resolve_auth_config()?;
@@ -166,10 +174,41 @@ pub fn logout() -> Result<()> {
     Ok(())
 }
 
+/// A 401 mid-run can mean the exchanged service-account token was refused
+/// (the secret got revoked, or `watch`'s reconnect hit a stale token). But
+/// `ReauthenticationRequired`'s message tells a human to `cloud login`, and no
+/// human is attending an unattended run to act on it. When the run is on a
+/// service-account session, replace that message with one that points at the
+/// secret instead. The token endpoint doesn't distinguish unknown, revoked,
+/// and expired secrets, so this doesn't guess which one applied either.
+pub fn rewrite_reauth_error_for_service_account(result: Result<()>) -> Result<()> {
+    rewrite_reauth_error(result, is_using_service_account())
+}
+
+fn rewrite_reauth_error(result: Result<()>, using_service_account: bool) -> Result<()> {
+    result.map_err(|error| {
+        if using_service_account && everr_core::api::is_reauthentication_required(&error) {
+            anyhow!(
+                "the service account's token was refused; check that \
+                 {SERVICE_ACCOUNT_SECRET_ENV} is set to a valid secret"
+            )
+        } else {
+            error
+        }
+    })
+}
+
+fn is_using_service_account() -> bool {
+    std::env::var(SERVICE_ACCOUNT_SECRET_ENV)
+        .map(|value| trimmed_non_empty(&value).is_some())
+        .unwrap_or(false)
+}
+
 pub async fn require_session_with_refresh() -> Result<Session> {
     let store = state_store();
     let api_base_url = current_api_base_url()?;
-    match store.load_session_for_api_base_url(&api_base_url) {
+    let exchanged = service_account_session(&api_base_url).await?;
+    match store.resolve_session(&api_base_url, exchanged.as_ref()) {
         Ok(session) => Ok(session),
         Err(error) => {
             if error.to_string().contains("no active session") {
@@ -179,6 +218,33 @@ pub async fn require_session_with_refresh() -> Result<Session> {
             }
         }
     }
+}
+
+/// Exchanges `EVERR_SERVICE_ACCOUNT_SECRET` for a session, if the variable is
+/// set. The exchange happens once per process; later calls reuse the cached
+/// session instead of hitting the token endpoint again.
+async fn service_account_session(api_base_url: &str) -> Result<Option<Session>> {
+    resolve_service_account_session(&SERVICE_ACCOUNT_SESSION, api_base_url).await
+}
+
+async fn resolve_service_account_session(
+    cache: &OnceCell<Session>,
+    api_base_url: &str,
+) -> Result<Option<Session>> {
+    let Ok(secret) = std::env::var(SERVICE_ACCOUNT_SECRET_ENV) else {
+        return Ok(None);
+    };
+    let Some(secret) = trimmed_non_empty(&secret) else {
+        return Ok(None);
+    };
+
+    let config = AuthConfig {
+        api_base_url: api_base_url.to_string(),
+    };
+    let session = cache
+        .get_or_try_init(|| exchange_service_account_secret(&config, secret))
+        .await?;
+    Ok(Some(session.clone()))
 }
 
 pub fn resolve_auth_config() -> Result<AuthConfig> {
@@ -329,6 +395,149 @@ mod tests {
         assert_eq!(session.token, "token-123");
     }
 
+    // ENV_LOCK must stay held for the whole test, including the await: it
+    // serializes environment mutation across concurrent test threads, and
+    // each test here both sets the environment and awaits with it set.
+    #[allow(clippy::await_holding_lock)]
+    #[tokio::test(flavor = "current_thread")]
+    async fn service_account_session_is_none_when_env_var_unset() {
+        let _guard = ENV_LOCK
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        unsafe {
+            std::env::remove_var(super::SERVICE_ACCOUNT_SECRET_ENV);
+        }
+
+        let cache = tokio::sync::OnceCell::new();
+        let session = super::resolve_service_account_session(&cache, "https://app.everr.dev")
+            .await
+            .expect("no secret should not error");
+
+        assert!(session.is_none());
+    }
+
+    #[allow(clippy::await_holding_lock)]
+    #[tokio::test(flavor = "current_thread")]
+    async fn service_account_session_is_none_when_env_var_is_blank() {
+        let _guard = ENV_LOCK
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        unsafe {
+            std::env::set_var(super::SERVICE_ACCOUNT_SECRET_ENV, "   ");
+        }
+
+        let cache = tokio::sync::OnceCell::new();
+        let session = super::resolve_service_account_session(&cache, "https://app.everr.dev")
+            .await
+            .expect("a blank secret should not error");
+
+        assert!(session.is_none());
+
+        unsafe {
+            std::env::remove_var(super::SERVICE_ACCOUNT_SECRET_ENV);
+        }
+    }
+
+    #[allow(clippy::await_holding_lock)]
+    #[tokio::test(flavor = "current_thread")]
+    async fn service_account_session_exchanges_the_secret_for_a_session() {
+        let _guard = ENV_LOCK
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        let mut server = Server::new_async().await;
+        let token_mock = server
+            .mock("POST", "/api/service-accounts/token")
+            .with_status(200)
+            .with_header("content-type", "application/json")
+            .with_body(r#"{"token":"sa-token-123","expires_at":"2026-01-01T00:00:00Z"}"#)
+            .create_async()
+            .await;
+
+        unsafe {
+            std::env::set_var(super::SERVICE_ACCOUNT_SECRET_ENV, "sa-secret");
+        }
+
+        let cache = tokio::sync::OnceCell::new();
+        let session = super::resolve_service_account_session(&cache, &server.url())
+            .await
+            .expect("exchange should succeed")
+            .expect("a set secret should produce a session");
+
+        token_mock.assert_async().await;
+        assert_eq!(session.token, "sa-token-123");
+        assert_eq!(session.api_base_url, server.url());
+
+        unsafe {
+            std::env::remove_var(super::SERVICE_ACCOUNT_SECRET_ENV);
+        }
+    }
+
+    #[allow(clippy::await_holding_lock)]
+    #[tokio::test(flavor = "current_thread")]
+    async fn service_account_session_reuses_the_cached_session() {
+        let _guard = ENV_LOCK
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        let mut server = Server::new_async().await;
+        let token_mock = server
+            .mock("POST", "/api/service-accounts/token")
+            .with_status(200)
+            .with_header("content-type", "application/json")
+            .with_body(r#"{"token":"sa-token-123","expires_at":"2026-01-01T00:00:00Z"}"#)
+            .create_async()
+            .await;
+
+        unsafe {
+            std::env::set_var(super::SERVICE_ACCOUNT_SECRET_ENV, "sa-secret");
+        }
+
+        let cache = tokio::sync::OnceCell::new();
+        super::resolve_service_account_session(&cache, &server.url())
+            .await
+            .expect("first exchange should succeed");
+        super::resolve_service_account_session(&cache, &server.url())
+            .await
+            .expect("second call should reuse the cached session");
+
+        // The mock expects exactly one call; a second exchange would fail this.
+        token_mock.assert_async().await;
+
+        unsafe {
+            std::env::remove_var(super::SERVICE_ACCOUNT_SECRET_ENV);
+        }
+    }
+
+    #[allow(clippy::await_holding_lock)]
+    #[tokio::test(flavor = "current_thread")]
+    async fn service_account_session_rejection_does_not_leak_the_secret() {
+        let _guard = ENV_LOCK
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        let mut server = Server::new_async().await;
+        server
+            .mock("POST", "/api/service-accounts/token")
+            .with_status(401)
+            .create_async()
+            .await;
+
+        unsafe {
+            std::env::set_var(super::SERVICE_ACCOUNT_SECRET_ENV, "super-secret-value");
+        }
+
+        let cache = tokio::sync::OnceCell::new();
+        let error = super::resolve_service_account_session(&cache, &server.url())
+            .await
+            .expect_err("a rejected secret should error");
+
+        let message = error.to_string();
+        assert!(!message.contains("super-secret-value"));
+        assert!(message.contains("rejected"));
+
+        unsafe {
+            std::env::remove_var(super::SERVICE_ACCOUNT_SECRET_ENV);
+        }
+    }
+
     #[tokio::test(flavor = "current_thread")]
     async fn setup_login_stops_when_authorization_is_denied() {
         let _guard = ENV_LOCK
@@ -364,5 +573,95 @@ mod tests {
 
         token_mock.assert_async().await;
         assert_eq!(error.to_string(), "device authentication was denied");
+    }
+
+    async fn reauthentication_required_error(status: usize) -> anyhow::Error {
+        let mut server = Server::new_async().await;
+        server
+            .mock("GET", "/api/cli/runs/status")
+            .with_status(status)
+            .create_async()
+            .await;
+        let session = everr_core::state::Session {
+            api_base_url: server.url(),
+            token: "sa-token".to_string(),
+        };
+        let client = everr_core::api::ApiClient::from_session(&session).expect("client");
+        client
+            .get_status(&[])
+            .await
+            .expect_err("a 401 response should fail")
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn rewrite_reauth_error_points_at_the_secret_for_service_accounts() {
+        let error = reauthentication_required_error(401).await;
+
+        let rewritten = super::rewrite_reauth_error(Err(error), true)
+            .expect_err("a reauth error should stay an error");
+
+        let message = rewritten.to_string();
+        assert!(
+            message.contains("service account"),
+            "message was: {message}"
+        );
+        assert!(
+            message.contains(super::SERVICE_ACCOUNT_SECRET_ENV),
+            "message was: {message}"
+        );
+        assert!(!message.contains("cloud login"), "message was: {message}");
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn rewrite_reauth_error_leaves_human_sessions_untouched() {
+        let error = reauthentication_required_error(401).await;
+        let original_message = error.to_string();
+
+        let rewritten = super::rewrite_reauth_error(Err(error), false)
+            .expect_err("a reauth error should stay an error");
+
+        assert_eq!(rewritten.to_string(), original_message);
+        assert!(rewritten.to_string().contains("cloud login"));
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn rewrite_reauth_error_leaves_unrelated_errors_untouched() {
+        let error = anyhow::anyhow!("some other failure");
+        let message = error.to_string();
+
+        let rewritten = super::rewrite_reauth_error(Err(error), true)
+            .expect_err("an unrelated error should stay an error");
+
+        assert_eq!(rewritten.to_string(), message);
+    }
+
+    #[allow(clippy::await_holding_lock)]
+    #[tokio::test(flavor = "current_thread")]
+    async fn is_using_service_account_is_true_when_the_secret_is_set() {
+        let _guard = ENV_LOCK
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        unsafe {
+            std::env::set_var(super::SERVICE_ACCOUNT_SECRET_ENV, "sa-secret");
+        }
+
+        assert!(super::is_using_service_account());
+
+        unsafe {
+            std::env::remove_var(super::SERVICE_ACCOUNT_SECRET_ENV);
+        }
+    }
+
+    #[allow(clippy::await_holding_lock)]
+    #[tokio::test(flavor = "current_thread")]
+    async fn is_using_service_account_is_false_when_the_secret_is_unset() {
+        let _guard = ENV_LOCK
+            .lock()
+            .unwrap_or_else(|poisoned| poisoned.into_inner());
+        unsafe {
+            std::env::remove_var(super::SERVICE_ACCOUNT_SECRET_ENV);
+        }
+
+        assert!(!super::is_using_service_account());
     }
 }

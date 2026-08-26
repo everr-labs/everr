@@ -85,6 +85,13 @@
       "when": 1787701242767,
       "tag": "0011_better_auth_1_7",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1787780821769,
+      "tag": "0012_service_accounts",
+      "breakpoints": true
     }
   ]
 }

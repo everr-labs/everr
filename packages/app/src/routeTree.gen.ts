@@ -40,6 +40,7 @@ import { Route as ApiCliRunsRouteImport } from './routes/api/cli/runs'
 import { Route as ApiCliSqlRouteImport } from './routes/api/cli/sql'
 import { Route as ApiEventsStreamRouteImport } from './routes/api/events/stream'
 import { Route as ApiInternalVerifyKeyRouteImport } from './routes/api/internal/verify-key'
+import { Route as ApiServiceAccountsTokenRouteImport } from './routes/api/service-accounts/token'
 import { Route as DotwellKnownOauthAuthorizationServerApiAuthRouteImport } from './routes/[.]well-known/oauth-authorization-server/api/auth'
 import { Route as AuthGuestAuthForgotPasswordRouteImport } from './routes/_auth/_guest/auth/forgot-password'
 import { Route as AuthGuestAuthResetPasswordRouteImport } from './routes/_auth/_guest/auth/reset-password'
@@ -242,6 +243,11 @@ const ApiEventsStreamRoute = ApiEventsStreamRouteImport.update({
 const ApiInternalVerifyKeyRoute = ApiInternalVerifyKeyRouteImport.update({
   id: '/api/internal/verify-key',
   path: '/api/internal/verify-key',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiServiceAccountsTokenRoute = ApiServiceAccountsTokenRouteImport.update({
+  id: '/api/service-accounts/token',
+  path: '/api/service-accounts/token',
   getParentRoute: () => rootRouteImport,
 } as any)
 const DotwellKnownOauthAuthorizationServerApiAuthRoute =
@@ -556,6 +562,7 @@ export interface FileRoutesByFullPath {
   '/api/cli/sql': typeof ApiCliSqlRoute
   '/api/events/stream': typeof ApiEventsStreamRoute
   '/api/internal/verify-key': typeof ApiInternalVerifyKeyRoute
+  '/api/service-accounts/token': typeof ApiServiceAccountsTokenRoute
   '/dashboards': typeof AuthenticatedDashboardPreviewableDashboardsRouteRouteWithChildren
   '/runbooks': typeof AuthenticatedDashboardPreviewableRunbooksRouteRouteWithChildren
   '/runs/$traceId': typeof AuthenticatedDashboardRunsTraceIdRouteRouteWithChildren
@@ -630,6 +637,7 @@ export interface FileRoutesByTo {
   '/api/cli/sql': typeof ApiCliSqlRoute
   '/api/events/stream': typeof ApiEventsStreamRoute
   '/api/internal/verify-key': typeof ApiInternalVerifyKeyRoute
+  '/api/service-accounts/token': typeof ApiServiceAccountsTokenRoute
   '/.well-known/oauth-authorization-server/api/auth': typeof DotwellKnownOauthAuthorizationServerApiAuthRoute
   '/auth/forgot-password': typeof AuthGuestAuthForgotPasswordRoute
   '/auth/reset-password': typeof AuthGuestAuthResetPasswordRoute
@@ -709,6 +717,7 @@ export interface FileRoutesById {
   '/api/cli/sql': typeof ApiCliSqlRoute
   '/api/events/stream': typeof ApiEventsStreamRoute
   '/api/internal/verify-key': typeof ApiInternalVerifyKeyRoute
+  '/api/service-accounts/token': typeof ApiServiceAccountsTokenRoute
   '/_authenticated/_dashboard/_previewable/dashboards': typeof AuthenticatedDashboardPreviewableDashboardsRouteRouteWithChildren
   '/_authenticated/_dashboard/_previewable/runbooks': typeof AuthenticatedDashboardPreviewableRunbooksRouteRouteWithChildren
   '/_authenticated/_dashboard/runs/$traceId': typeof AuthenticatedDashboardRunsTraceIdRouteRouteWithChildren
@@ -787,6 +796,7 @@ export interface FileRouteTypes {
     | '/api/cli/sql'
     | '/api/events/stream'
     | '/api/internal/verify-key'
+    | '/api/service-accounts/token'
     | '/dashboards'
     | '/runbooks'
     | '/runs/$traceId'
@@ -861,6 +871,7 @@ export interface FileRouteTypes {
     | '/api/cli/sql'
     | '/api/events/stream'
     | '/api/internal/verify-key'
+    | '/api/service-accounts/token'
     | '/.well-known/oauth-authorization-server/api/auth'
     | '/auth/forgot-password'
     | '/auth/reset-password'
@@ -939,6 +950,7 @@ export interface FileRouteTypes {
     | '/api/cli/sql'
     | '/api/events/stream'
     | '/api/internal/verify-key'
+    | '/api/service-accounts/token'
     | '/_authenticated/_dashboard/_previewable/dashboards'
     | '/_authenticated/_dashboard/_previewable/runbooks'
     | '/_authenticated/_dashboard/runs/$traceId'
@@ -1005,6 +1017,7 @@ export interface RootRouteChildren {
   ApiAuthSplatRoute: typeof ApiAuthSplatRoute
   ApiEventsStreamRoute: typeof ApiEventsStreamRoute
   ApiInternalVerifyKeyRoute: typeof ApiInternalVerifyKeyRoute
+  ApiServiceAccountsTokenRoute: typeof ApiServiceAccountsTokenRoute
   ApiGithubInstallCallbackRoute: typeof ApiGithubInstallCallbackRoute
   ApiGithubInstallStartRoute: typeof ApiGithubInstallStartRoute
 }
@@ -1226,6 +1239,13 @@ declare module '@tanstack/react-router' {
       path: '/api/internal/verify-key'
       fullPath: '/api/internal/verify-key'
       preLoaderRoute: typeof ApiInternalVerifyKeyRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/service-accounts/token': {
+      id: '/api/service-accounts/token'
+      path: '/api/service-accounts/token'
+      fullPath: '/api/service-accounts/token'
+      preLoaderRoute: typeof ApiServiceAccountsTokenRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/.well-known/oauth-authorization-server/api/auth': {
@@ -1979,6 +1999,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiAuthSplatRoute: ApiAuthSplatRoute,
   ApiEventsStreamRoute: ApiEventsStreamRoute,
   ApiInternalVerifyKeyRoute: ApiInternalVerifyKeyRoute,
+  ApiServiceAccountsTokenRoute: ApiServiceAccountsTokenRoute,
   ApiGithubInstallCallbackRoute: ApiGithubInstallCallbackRoute,
   ApiGithubInstallStartRoute: ApiGithubInstallStartRoute,
 }

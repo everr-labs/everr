@@ -9,6 +9,9 @@ import { Skeleton } from "@everr/ui/components/skeleton";
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, redirect } from "@tanstack/react-router";
 import { getRequestHeaders } from "@tanstack/react-start/server";
+import { CreateServiceAccountDialog } from "@/components/service-accounts/create-service-account-dialog";
+import { serviceAccountsQueryOptions } from "@/components/service-accounts/queries";
+import { ServiceAccountsTable } from "@/components/service-accounts/service-accounts-table";
 import { InvitationsTable } from "@/components/users-management/invitations-table";
 import { InviteMemberDialog } from "@/components/users-management/invite-member-dialog";
 import { MembersTable } from "@/components/users-management/members-table";
@@ -66,6 +69,7 @@ function UsersManagementPage() {
   const currentUserId = session?.user?.id;
   const members = useQuery(membersQueryOptions());
   const invitations = useQuery(invitationsQueryOptions());
+  const serviceAccounts = useQuery(serviceAccountsQueryOptions());
 
   const pendingInvitations = invitations.data ?? [];
 
@@ -103,7 +107,24 @@ function UsersManagementPage() {
             <MembersTable
               members={members.data ?? []}
               currentUserId={currentUserId}
+              serviceAccounts={serviceAccounts.data}
             />
+          )}
+        </CardContent>
+      </Card>
+
+      <Card inset="flush-content">
+        <CardHeader>
+          <CardTitle>Service accounts</CardTitle>
+          <CardAction>
+            <CreateServiceAccountDialog />
+          </CardAction>
+        </CardHeader>
+        <CardContent>
+          {serviceAccounts.isPending ? (
+            <MembersSkeleton />
+          ) : (
+            <ServiceAccountsTable accounts={serviceAccounts.data ?? []} />
           )}
         </CardContent>
       </Card>

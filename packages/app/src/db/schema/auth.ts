@@ -14,6 +14,12 @@ export const user = pgTable("user", {
   name: text("name").notNull(),
   email: text("email").notNull().unique(),
   emailVerified: boolean("email_verified").default(false).notNull(),
+  // A machine principal, not a person. It is a member like anyone else, so
+  // authorization never reads this; only the paths that assume a human do,
+  // and every one of them reads it back from this row. A service-account
+  // session is built by the plugin rather than loaded, so the flag is not on
+  // the session user and nothing may treat it as if it were.
+  isServiceAccount: boolean("is_service_account").default(false).notNull(),
   image: text("image"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at")
