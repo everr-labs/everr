@@ -10,7 +10,7 @@ import {
   BREACHING,
   ChartCrosshair,
   instanceRowsAt,
-  nearestPoint,
+  pointNear,
   printValue,
   QUIET,
   tooltipTime,
@@ -153,7 +153,11 @@ function Lane({
 
   const guide =
     threshold > domain.min && threshold < domain.max ? y(threshold) : null;
-  const marker = hoveredAt == null ? null : nearestPoint(visible, hoveredAt);
+  // Only the reading the pointer is actually over: a lane that stopped
+  // evaluating gets no mark for an instant inside its gap, so the mark and the
+  // tooltip row appear and disappear together.
+  const marker =
+    hoveredAt == null ? null : pointNear(visible, hoveredAt, bucketMinutes / 2);
 
   if (visible.length === 0) {
     return (
@@ -358,6 +362,19 @@ export function AlertInstanceChart({
   const scrub = useChartScrub(minutes);
   const { hovered } = scrub;
 
+  // Only the instances that measured something under the pointer. Half a
+  // bucket either side of the pointer is the bucket it is on: an instance that
+  // has no reading there is left out of the card rather than represented by
+  // whichever of its readings happens to be closest, which would print a
+  // number from another instant as if it were this one's.
+  const rows = useMemo(
+    () =>
+      hovered
+        ? instanceRowsAt(lanes, hovered.at, minutes, bucketMinutes / 2)
+        : [],
+    [lanes, hovered, minutes, bucketMinutes],
+  );
+
   return (
     <div className="flex flex-col gap-2 px-3">
       <figure
@@ -407,11 +424,11 @@ export function AlertInstanceChart({
         )}
       </figure>
 
-      {hovered && (
+      {hovered && rows.length > 0 && (
         <CursorTooltip x={hovered.clientX} y={hovered.clientY}>
           <SeriesTooltipContent
             title={tooltipTime(windowTo, hovered.at)}
-            rows={instanceRowsAt(lanes, hovered.at, minutes)}
+            rows={rows}
           />
         </CursorTooltip>
       )}

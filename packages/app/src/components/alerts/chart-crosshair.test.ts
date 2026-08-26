@@ -4,6 +4,7 @@ import {
   BREACHING,
   instanceRowsAt,
   nearestPoint,
+  pointNear,
   printValue,
   QUIET,
   tooltipTime,
@@ -144,5 +145,39 @@ describe("every Alert instance at one instant", () => {
     );
 
     expect(rows[0].value).toBe("not evaluated");
+  });
+});
+
+describe("the reading the pointer is over", () => {
+  it("takes a reading within the tolerance", () => {
+    const points = [point({ at: 30 }), point({ at: 12 })];
+
+    expect(pointNear(points, 10, 2.5)?.at).toBe(12);
+  });
+
+  it("has nothing to say about an instant no reading covers", () => {
+    // A lane that evaluated at 30 and again at 5 measured nothing at 17.
+    const points = [point({ at: 30 }), point({ at: 5 })];
+
+    expect(pointNear(points, 17, 2.5)).toBeNull();
+  });
+});
+
+describe("every Alert instance at one instant, bounded", () => {
+  it("leaves out an instance that measured nothing under the pointer", () => {
+    const rows = instanceRowsAt(
+      [
+        series("here", [point({ at: 11, value: 90 })]),
+        series("gap", [point({ at: 40, value: 20 })]),
+        series("silent", []),
+      ],
+      10,
+      60,
+      2.5,
+    );
+
+    // No "not evaluated" row and no number borrowed from 40 minutes away:
+    // only the instance that has a reading at the instant asked about.
+    expect(rows.map((row) => [row.key, row.value])).toEqual([["here", "90"]]);
   });
 });

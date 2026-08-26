@@ -106,6 +106,27 @@ export function nearestPoint(
   return best;
 }
 
+/**
+ * The reading the pointer is over, rather than whichever one is closest.
+ *
+ * `nearestPoint` always answers, however far away its answer sits. Inside a
+ * stretch a lane never evaluated that answer is a reading from either side of
+ * the gap, printed as if it belonged to the instant under the pointer. This
+ * one has nothing to say about an instant no reading covers, which is the
+ * honest answer.
+ */
+export function pointNear(
+  points: InstanceValuePoint[],
+  at: number,
+  /** How far from the pointer a reading can sit and still be the one it is
+   *  asking about. Half a bucket, so it covers the bucket it is drawn on. */
+  tolerance: number,
+  within = Infinity,
+) {
+  const nearest = nearestPoint(points, at, within);
+  return nearest && Math.abs(nearest.at - at) <= tolerance ? nearest : null;
+}
+
 /** Absolute clock time, the way every other chart tooltip in the app prints
  *  it. "3.0d ago" is the axis's unit, not a tooltip's: a responder comparing
  *  the chart against a log needs the time itself. */
@@ -125,15 +146,30 @@ export function instanceRowsAt(
   instances: InstanceValueSeries[],
   minutesAgo: number,
   windowMinutes: number,
+  /** How far from the pointer a reading can sit and still answer for it. Left
+   *  open, every instance keeps a row and the nearest reading fills it,
+   *  however distant. Given a bound, an instance that measured nothing under
+   *  the pointer is left out rather than answered for with a number from
+   *  somewhere else on its lane. */
+  tolerance = Infinity,
 ): SeriesTooltipRow[] {
-  return instances.map((instance) => {
-    const nearest = nearestPoint(instance.points, minutesAgo, windowMinutes);
-    return {
+  const bounded = Number.isFinite(tolerance);
+  const rows: SeriesTooltipRow[] = [];
+  for (const instance of instances) {
+    const nearest = pointNear(
+      instance.points,
+      minutesAgo,
+      tolerance,
+      windowMinutes,
+    );
+    if (bounded && !nearest) continue;
+    rows.push({
       key: instance.fingerprint,
       color: nearest?.breaching ? BREACHING : QUIET,
       label: instance.labels,
       value: nearest ? printValue(nearest.value) : "not evaluated",
       active: nearest?.breaching,
-    };
-  });
+    });
+  }
+  return rows;
 }
