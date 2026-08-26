@@ -5,16 +5,8 @@ import { BellOff, Plus } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
 import { formatElapsed } from "@/data/alerting/triage/format";
 import type { AlertSilenceRecord } from "@/data/alerting/triage/view";
+import type { SilenceSeed } from "./silence-dialog";
 import { isOpen, STATE_META, windowBounds } from "./silence-state";
-
-/** What a new silence starts from: the rule it names, if any, and the
- *  matchers beyond it. "New silence" starts from nothing; "Silence again"
- *  from the closed row it was pressed on. */
-export type SilenceSeed = {
-  rule: string | null;
-  matchers: string;
-  comment: string;
-};
 
 const COLUMNS =
   "grid grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_9rem_7rem_6rem] items-center gap-4";

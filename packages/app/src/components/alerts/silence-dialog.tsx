@@ -16,8 +16,20 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@everr/ui/components/select";
+import { useQuery } from "@tanstack/react-query";
 import { useState } from "react";
+import { alertRulePathsOptions } from "@/data/alerting/triage/options";
 import { SILENCE_DURATIONS } from "@/data/alerting/triage/view";
+
+/** What a silence starts from. A rule when the row that opened the dialog is
+ *  one; `null` where there is no rule to assume, and the dialog offers the
+ *  choice itself. Matchers and comment are what a repeat of a closed silence
+ *  carries over; a fresh silence leaves them empty. */
+export type SilenceSeed = {
+  rule: string | null;
+  matchers: string;
+  comment: string;
+};
 
 /** What the dialog hands back: the input of `silenceAlertRule`, so neither
  *  caller translates it. */
@@ -41,42 +53,73 @@ const DEFAULT_DURATION: SilenceDuration = SILENCE_DURATIONS[1];
  * row, and an unexplained silence is how alerting rots).
  */
 export function SilenceDialog({
-  open,
-  path,
-  rules,
   seed,
-  instanceCount,
+  instanceCount = 0,
   pending,
   onClose,
   onConfirm,
 }: {
-  open: boolean;
-  /** The rule being silenced. `null` when the dialog opens without one,
-   *  which only happens where `rules` offers a choice. */
-  path: string | null;
-  /** The rule paths the reader may point the silence at. Given on the page
-   *  that spans rules, where "New silence" has no rule to assume; absent on
-   *  the triage screen, where the row that opened the dialog is the rule. */
-  rules?: string[];
-  /** Starting matchers and comment, when the dialog was opened from a silence
-   *  that has already closed. The caller remounts the dialog per opening (see
-   *  the `key` at the call site), so these are read once, as the initial state
-   *  of fields the reader then owns. */
-  seed?: { matchers: string; comment: string };
-  /** How many instances the rule currently has, for the matcher preview. */
-  instanceCount: number;
+  /** What this opening starts from; `null` while the dialog is closed. */
+  seed: SilenceSeed | null;
+  /** How many instances the rule currently has, for the matcher preview.
+   *  Only the triage screen knows; elsewhere the preview names the scope. */
+  instanceCount?: number;
   /** The silence is being written. The dialog stays open and inert until the
    *  server answers: closing early would leave the reader unsure it happened. */
   pending: boolean;
   onClose: () => void;
   onConfirm: (draft: SilenceDraft) => void;
 }) {
+  return (
+    <Dialog
+      open={seed !== null}
+      onOpenChange={(next) => {
+        if (!next && !pending) onClose();
+      }}
+    >
+      {seed && (
+        // Remounted per opening, so the fields start from whatever seeded
+        // this one instead of holding the last opening's text. A `key` says
+        // that in one line; syncing props into state with an effect would be
+        // the same fact, spelled as a bug.
+        <SilenceForm
+          key={JSON.stringify(seed)}
+          seed={seed}
+          instanceCount={instanceCount}
+          pending={pending}
+          onClose={onClose}
+          onConfirm={onConfirm}
+        />
+      )}
+    </Dialog>
+  );
+}
+
+function SilenceForm({
+  seed,
+  instanceCount,
+  pending,
+  onClose,
+  onConfirm,
+}: {
+  seed: SilenceSeed;
+  instanceCount: number;
+  pending: boolean;
+  onClose: () => void;
+  onConfirm: (draft: SilenceDraft) => void;
+}) {
+  // Only fetched when there is a choice to offer: with a rule in hand the
+  // list is never read.
+  const choices = useQuery({
+    ...alertRulePathsOptions(),
+    enabled: seed.rule === null,
+  });
   // The whole entry, not its label: the confirm hands on `minutes`, and
   // nothing has to turn a label back into a number on the way out.
   const [duration, setDuration] = useState<SilenceDuration>(DEFAULT_DURATION);
-  const [rulePath, setRulePath] = useState(path);
-  const [matchers, setMatchers] = useState(seed?.matchers ?? "");
-  const [comment, setComment] = useState(seed?.comment ?? "");
+  const [rulePath, setRulePath] = useState(seed.rule);
+  const [matchers, setMatchers] = useState(seed.matchers);
+  const [comment, setComment] = useState(seed.comment);
 
   // A degraded rule has no instances to count, so the preview names the scope
   // rather than claiming it matches nothing.
@@ -87,120 +130,114 @@ export function SilenceDialog({
       : "matches the whole rule";
 
   return (
-    <Dialog
-      open={open}
-      onOpenChange={(next) => {
-        if (!next && !pending) onClose();
-      }}
-    >
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle>Silence alert</DialogTitle>
-          <DialogDescription>
-            Notifications stop. The rule keeps evaluating, and held
-            notifications are marked{" "}
-            <span className="font-mono">suppressed</span>.
-          </DialogDescription>
-        </DialogHeader>
+    <DialogContent className="sm:max-w-md">
+      <DialogHeader>
+        <DialogTitle>Silence alert</DialogTitle>
+        <DialogDescription>
+          Notifications stop. The rule keeps evaluating, and held notifications
+          are marked <span className="font-mono">suppressed</span>.
+        </DialogDescription>
+      </DialogHeader>
 
-        <div className="space-y-4">
+      <div className="space-y-4">
+        <div className="space-y-1.5">
+          <Label htmlFor={seed.rule === null ? "silence-rule" : undefined}>
+            Rule
+          </Label>
+          {seed.rule === null ? (
+            <Select
+              value={rulePath ?? ""}
+              onValueChange={(v) => setRulePath(v || null)}
+            >
+              <SelectTrigger id="silence-rule" className="w-full font-mono">
+                <SelectValue placeholder="Choose a rule" />
+              </SelectTrigger>
+              <SelectContent>
+                {(choices.data ?? []).map((rule) => (
+                  <SelectItem key={rule} value={rule} className="font-mono">
+                    {rule}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          ) : (
+            <p className="font-mono text-sm">{rulePath}</p>
+          )}
+        </div>
+
+        <div className="grid grid-cols-[8rem_minmax(0,1fr)] gap-3">
           <div className="space-y-1.5">
-            <Label htmlFor={rules ? "silence-rule" : undefined}>Rule</Label>
-            {rules ? (
-              <Select
-                value={rulePath ?? ""}
-                onValueChange={(v) => setRulePath(v || null)}
-              >
-                <SelectTrigger id="silence-rule" className="w-full font-mono">
-                  <SelectValue placeholder="Choose a rule" />
-                </SelectTrigger>
-                <SelectContent>
-                  {rules.map((rule) => (
-                    <SelectItem key={rule} value={rule} className="font-mono">
-                      {rule}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            ) : (
-              <p className="font-mono text-sm">{rulePath}</p>
-            )}
+            <Label htmlFor="silence-duration">Duration</Label>
+            <Select
+              value={duration.label}
+              onValueChange={(v) =>
+                setDuration(
+                  SILENCE_DURATIONS.find((d) => d.label === v) ??
+                    DEFAULT_DURATION,
+                )
+              }
+            >
+              <SelectTrigger id="silence-duration" className="w-full">
+                <SelectValue>{duration.label}</SelectValue>
+              </SelectTrigger>
+              <SelectContent>
+                {SILENCE_DURATIONS.map((d) => (
+                  <SelectItem key={d.label} value={d.label}>
+                    {d.label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
-
-          <div className="grid grid-cols-[8rem_minmax(0,1fr)] gap-3">
-            <div className="space-y-1.5">
-              <Label htmlFor="silence-duration">Duration</Label>
-              <Select
-                value={duration.label}
-                onValueChange={(v) =>
-                  setDuration(
-                    SILENCE_DURATIONS.find((d) => d.label === v) ??
-                      DEFAULT_DURATION,
-                  )
-                }
-              >
-                <SelectTrigger id="silence-duration" className="w-full">
-                  <SelectValue>{duration.label}</SelectValue>
-                </SelectTrigger>
-                <SelectContent>
-                  {SILENCE_DURATIONS.map((d) => (
-                    <SelectItem key={d.label} value={d.label}>
-                      {d.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="silence-matchers">Matchers</Label>
-              <Input
-                id="silence-matchers"
-                value={matchers}
-                onChange={(e) => setMatchers(e.target.value)}
-                placeholder="empty = whole rule"
-                autoComplete="off"
-              />
-            </div>
-          </div>
-          {/* Both fields answer the same question ("what am I about to turn
-              off, and until when?"), so one line answers it under both rather
-              than two hints splitting the reader's attention. */}
-          <p className="text-xs text-muted-foreground">
-            Silences for {duration.label} · {scope}
-          </p>
-
           <div className="space-y-1.5">
-            <Label htmlFor="silence-comment">Comment</Label>
+            <Label htmlFor="silence-matchers">Matchers</Label>
             <Input
-              id="silence-comment"
-              value={comment}
-              onChange={(e) => setComment(e.target.value)}
-              placeholder="Why this is silenced"
+              id="silence-matchers"
+              value={matchers}
+              onChange={(e) => setMatchers(e.target.value)}
+              placeholder="empty = whole rule"
               autoComplete="off"
             />
           </div>
         </div>
+        {/* Both fields answer the same question ("what am I about to turn
+              off, and until when?"), so one line answers it under both rather
+              than two hints splitting the reader's attention. */}
+        <p className="text-xs text-muted-foreground">
+          Silences for {duration.label} · {scope}
+        </p>
 
-        <DialogFooter>
-          <Button variant="ghost" onClick={onClose} disabled={pending}>
-            Cancel
-          </Button>
-          <Button
-            disabled={pending || rulePath === null}
-            onClick={() => {
-              if (rulePath)
-                onConfirm({
-                  path: rulePath,
-                  durationMinutes: duration.minutes,
-                  matchers,
-                  comment,
-                });
-            }}
-          >
-            {pending ? "Silencing…" : `Silence for ${duration.label}`}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
+        <div className="space-y-1.5">
+          <Label htmlFor="silence-comment">Comment</Label>
+          <Input
+            id="silence-comment"
+            value={comment}
+            onChange={(e) => setComment(e.target.value)}
+            placeholder="Why this is silenced"
+            autoComplete="off"
+          />
+        </div>
+      </div>
+
+      <DialogFooter>
+        <Button variant="ghost" onClick={onClose} disabled={pending}>
+          Cancel
+        </Button>
+        <Button
+          disabled={pending || rulePath === null}
+          onClick={() => {
+            if (rulePath)
+              onConfirm({
+                path: rulePath,
+                durationMinutes: duration.minutes,
+                matchers,
+                comment,
+              });
+          }}
+        >
+          {pending ? "Silencing…" : `Silence for ${duration.label}`}
+        </Button>
+      </DialogFooter>
+    </DialogContent>
   );
 }

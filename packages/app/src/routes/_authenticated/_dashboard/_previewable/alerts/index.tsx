@@ -10,7 +10,10 @@ import { toast } from "sonner";
 import { z } from "zod";
 import { AlertDetailPanel } from "@/components/alerts/alert-detail-panel";
 import { RuleInventory } from "@/components/alerts/rule-inventory";
-import { SilenceDialog } from "@/components/alerts/silence-dialog";
+import {
+  SilenceDialog,
+  type SilenceSeed,
+} from "@/components/alerts/silence-dialog";
 import { TriageList } from "@/components/alerts/triage-list";
 import { ResourceEmptyState } from "@/components/resource-empty-state";
 import { setAlertRulePaused } from "@/data/alerting/triage/mutations";
@@ -22,11 +25,6 @@ import {
 } from "@/data/alerting/triage/options";
 import { useSilenceMutations } from "@/hooks/use-silence-mutations";
 import { useTimeRange } from "@/hooks/use-time-range";
-
-type SilenceTarget = {
-  path: string;
-  seed?: { matchers: string; comment: string };
-};
 
 export const Route = createFileRoute(
   "/_authenticated/_dashboard/_previewable/alerts/",
@@ -74,9 +72,7 @@ function AlertingTriagePage() {
   const { timeRange } = useTimeRange();
   // Not just the path: the dialog is also opened from a closed silence in the
   // detail panel, which hands it the matchers and comment to start from.
-  const [silenceTarget, setSilenceTarget] = useState<SilenceTarget | null>(
-    null,
-  );
+  const [silenceTarget, setSilenceTarget] = useState<SilenceSeed | null>(null);
   const isNarrow = useMediaQuery(NARROW_QUERY);
 
   const triage = useQuery(alertTriageOptions(timeRange));
@@ -147,7 +143,7 @@ function AlertingTriagePage() {
   const alerts = triage.data?.alerts ?? [];
   const rules = triage.data?.rules ?? [];
   const silenceAlert = silenceTarget
-    ? alerts.find((a) => a.path === silenceTarget.path)
+    ? alerts.find((a) => a.path === silenceTarget.rule)
     : undefined;
 
   if (!triage.isPending && rules.length === 0) {
@@ -171,7 +167,13 @@ function AlertingTriagePage() {
       detail={detail.data ?? null}
       onClose={() => setOpen(undefined)}
       onCancelSilence={(id) => cancelSilence.mutate({ data: { id } })}
-      onSilence={(seed) => setSilenceTarget({ path: openPath, seed })}
+      onSilence={(seed) =>
+        setSilenceTarget({
+          rule: openPath,
+          matchers: seed?.matchers ?? "",
+          comment: seed?.comment ?? "",
+        })
+      }
       silencePending={silence.isPending || cancelSilence.isPending}
       pausePending={setPaused.isPending}
       onTogglePaused={(paused) =>
@@ -204,7 +206,9 @@ function AlertingTriagePage() {
               alerts={alerts}
               openPath={openPath ?? null}
               onOpen={openAlert}
-              onSilence={(path) => setSilenceTarget({ path })}
+              onSilence={(path) =>
+                setSilenceTarget({ rule: path, matchers: "", comment: "" })
+              }
               onExpireSilence={(path) => {
                 const id = alerts.find((a) => a.path === path)?.silence?.id;
                 if (id) cancelSilence.mutate({ data: { id } });
@@ -257,15 +261,8 @@ function AlertingTriagePage() {
         )
       )}
 
-      {/* Remounted per opening, so the fields start from whatever seeded this
-          one instead of holding the last opening's text. A `key` says that in
-          one line; syncing props into state with an effect would be the same
-          fact, spelled as a bug. */}
       <SilenceDialog
-        key={silenceTarget ? JSON.stringify(silenceTarget) : "closed"}
-        open={silenceTarget !== null}
-        path={silenceTarget?.path ?? null}
-        seed={silenceTarget?.seed}
+        seed={silenceTarget}
         instanceCount={silenceAlert?.instances ?? 0}
         pending={silence.isPending}
         onClose={() => setSilenceTarget(null)}
