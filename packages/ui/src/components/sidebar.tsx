@@ -2,6 +2,7 @@ import { mergeProps } from "@base-ui/react/merge-props";
 import { useRender } from "@base-ui/react/use-render";
 import { Button } from "@everr/ui/components/button";
 import { Input } from "@everr/ui/components/input";
+import { ScrollArea } from "@everr/ui/components/scroll-area";
 import { Separator } from "@everr/ui/components/separator";
 import {
   Sheet,
@@ -518,17 +519,24 @@ function SidebarSeparator({
   );
 }
 
-function SidebarContent({ className, ...props }: React.ComponentProps<"div">) {
+function SidebarContent({
+  className,
+  children,
+  ...props
+}: React.ComponentProps<"div">) {
   return (
-    <div
+    <ScrollArea
       data-slot="sidebar-content"
       data-sidebar="content"
       className={cn(
-        "no-scrollbar gap-0 flex min-h-0 flex-1 flex-col overflow-auto group-data-[collapsible=icon]:overflow-hidden",
+        "min-h-0 flex-1 group-data-[collapsible=icon]:overflow-hidden",
         className,
       )}
+      viewportClassName="flex flex-col gap-0"
       {...props}
-    />
+    >
+      {children}
+    </ScrollArea>
   );
 }
 

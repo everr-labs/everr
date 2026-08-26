@@ -6,6 +6,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@everr/ui/components/card";
+import { CodeBlock } from "@everr/ui/components/code-block";
 import { type Column, DataTable } from "@everr/ui/components/data-table";
 import {
   Dialog,
@@ -365,18 +366,21 @@ function AlertDetailPage() {
             <div className="flex flex-col gap-4">
               <DefinitionTable rows={definitionRows} />
               {detail.lastEvaluationError && (
-                <pre className="max-h-32 overflow-auto rounded bg-muted/30 p-2 text-xs text-destructive">
+                <CodeBlock
+                  className="max-h-32 rounded bg-muted/30"
+                  codeClassName="p-2 text-destructive"
+                >
                   {detail.lastEvaluationError}
-                </pre>
+                </CodeBlock>
               )}
 
               <div className="flex flex-col gap-1.5">
                 <span className="font-medium text-muted-foreground text-xs">
                   Query
                 </span>
-                <pre className="max-h-72 overflow-auto rounded-md border border-border/60 bg-muted/20 p-3 text-xs leading-relaxed">
+                <CodeBlock className="max-h-72 rounded-md border border-border/60 bg-muted/20">
                   {detail.parsedQuery}
-                </pre>
+                </CodeBlock>
               </div>
             </div>
           </CardContent>

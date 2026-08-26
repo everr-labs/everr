@@ -12,6 +12,7 @@ import {
 } from "@everr/ui/components/dialog";
 import { Input } from "@everr/ui/components/input";
 import { Label } from "@everr/ui/components/label";
+import { ScrollArea } from "@everr/ui/components/scroll-area";
 import { Skeleton } from "@everr/ui/components/skeleton";
 import { Switch } from "@everr/ui/components/switch";
 import { cn } from "@everr/ui/lib/utils";
@@ -500,37 +501,42 @@ function NotificationSettingsDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle>Notification settings</DialogTitle>
-          <DialogDescription>
-            Choose where firing alerts are delivered for everyone in this
-            organization.{" "}
-            <a
-              className="underline underline-offset-4"
-              href="https://everr.dev/docs/guides/set-up-notifications"
-              target="_blank"
-              rel="noreferrer"
-            >
-              Learn more
-            </a>
-            .
-          </DialogDescription>
-        </DialogHeader>
-        {settings.isError ? (
-          <p className="text-destructive text-sm" role="alert">
-            Unable to load notification settings.
-          </p>
-        ) : settings.data ? (
-          // Mounted fresh on every dialog open (the popup unmounts on close),
-          // so the form reads its defaults once — no effect syncing state.
-          <NotificationSettingsForm
-            initial={settings.data.delivery}
-            onClose={() => onOpenChange(false)}
-          />
-        ) : (
-          <Skeleton className="h-48 w-full" />
-        )}
+      <DialogContent className="flex max-h-[85vh] flex-col sm:max-w-md">
+        <ScrollArea
+          className="min-h-0 flex-1"
+          viewportClassName="flex flex-col gap-4"
+        >
+          <DialogHeader>
+            <DialogTitle>Notification settings</DialogTitle>
+            <DialogDescription>
+              Choose where firing alerts are delivered for everyone in this
+              organization.{" "}
+              <a
+                className="underline underline-offset-4"
+                href="https://everr.dev/docs/guides/set-up-notifications"
+                target="_blank"
+                rel="noreferrer"
+              >
+                Learn more
+              </a>
+              .
+            </DialogDescription>
+          </DialogHeader>
+          {settings.isError ? (
+            <p className="text-destructive text-sm" role="alert">
+              Unable to load notification settings.
+            </p>
+          ) : settings.data ? (
+            // Mounted fresh on every dialog open (the popup unmounts on close),
+            // so the form reads its defaults once — no effect syncing state.
+            <NotificationSettingsForm
+              initial={settings.data.delivery}
+              onClose={() => onOpenChange(false)}
+            />
+          ) : (
+            <Skeleton className="h-48 w-full" />
+          )}
+        </ScrollArea>
       </DialogContent>
     </Dialog>
   );

@@ -1,3 +1,4 @@
+import { ScrollArea } from "@everr/ui/components/scroll-area";
 import { createContext, type ReactNode, useContext } from "react";
 import { createPortal } from "react-dom";
 
@@ -37,5 +38,31 @@ export function PageTitleBar({
         : null}
       {right && actions ? createPortal(actions, right) : null}
     </>
+  );
+}
+
+/**
+ * A page of stacked sections under the title bar, scrolling as one. The window
+ * itself never scrolls, so the sections do.
+ */
+export function SectionsPage({
+  title,
+  actions,
+  children,
+}: {
+  title?: ReactNode;
+  actions?: ReactNode;
+  children: ReactNode;
+}) {
+  return (
+    <div className="flex h-full flex-col overflow-hidden">
+      <PageTitleBar title={title} actions={actions} />
+      <ScrollArea
+        className="min-h-0 flex-1"
+        viewportClassName="grid divide-y divide-white/[0.08]"
+      >
+        {children}
+      </ScrollArea>
+    </div>
   );
 }

@@ -1,3 +1,4 @@
+import { ScrollArea } from "@everr/ui/components/scroll-area";
 import { cn } from "@everr/ui/lib/utils";
 import { Gauge } from "lucide-react";
 import { useMemo } from "react";
@@ -116,11 +117,12 @@ export function GaugeChartVisualization({
   const maxText = formatAxisEnd(max, unit);
 
   return (
-    <div
-      className={cn(
-        "flex h-full flex-wrap justify-center",
+    <ScrollArea
+      className="h-full"
+      viewportClassName={cn(
+        "flex flex-wrap justify-center",
         horizontal
-          ? "content-center-safe gap-x-6 gap-y-4 overflow-y-auto px-1"
+          ? "content-center-safe gap-x-6 gap-y-4 px-1"
           : "items-stretch gap-4",
       )}
     >
@@ -176,7 +178,7 @@ export function GaugeChartVisualization({
           />
         );
       })}
-    </div>
+    </ScrollArea>
   );
 }
 

@@ -1,4 +1,5 @@
 import { type Column, DataTable } from "@everr/ui/components/data-table";
+import { ScrollArea } from "@everr/ui/components/scroll-area";
 import {
   ToggleGroup,
   ToggleGroupItem,
@@ -74,7 +75,7 @@ export function TableVisualization({
           fit (a non-scrollable scroll container with overscroll-behavior:none
           blocks scroll chaining), leaving the dashboard unscrollable from
           above this panel. */}
-      <div className="min-h-0 flex-1 overflow-auto">
+      <ScrollArea className="min-h-0 flex-1" orientation="both">
         {rows.length === 0 ? (
           <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
             No rows
@@ -86,9 +87,11 @@ export function TableVisualization({
             rowKey={(_, i) => String(i)}
             stickyHeader={spec.stickyHeader}
             bordered
+            // The panel above owns the scroll box this table sits in.
+            scrollable={false}
           />
         )}
-      </div>
+      </ScrollArea>
     </div>
   );
 }

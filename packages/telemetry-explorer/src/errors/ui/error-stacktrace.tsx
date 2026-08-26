@@ -1,3 +1,4 @@
+import { CodeBlock } from "@everr/ui/components/code-block";
 import { CopyValueButton } from "@everr/ui/components/detail-panel";
 
 export function ErrorStacktrace({
@@ -19,9 +20,9 @@ export function ErrorStacktrace({
           className="opacity-100 focus-visible:opacity-100"
         />
       </div>
-      <pre className="max-h-[28rem] overflow-auto rounded-md bg-muted/40 p-3 text-xs leading-relaxed">
+      <CodeBlock className="max-h-[28rem] rounded-md bg-muted/40">
         <code className="font-mono">{stacktrace}</code>
-      </pre>
+      </CodeBlock>
     </section>
   );
 }

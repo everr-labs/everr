@@ -1,4 +1,5 @@
 import "@testing-library/jest-dom/vitest";
+import "@everr/ui/testing/jsdom-shims";
 import { cleanup } from "@testing-library/react";
 import { afterEach, vi } from "vitest";
 import {

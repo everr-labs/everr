@@ -134,7 +134,7 @@ export const StickyHeader: Story = {
     ],
     rowKey: (row: ServiceRow) => `${row.service}-${row.environment}`,
     stickyHeader: true,
-    containerClassName: "h-56 overflow-auto rounded-lg border border-border",
+    containerClassName: "h-56 rounded-lg border border-border",
   },
 };
 

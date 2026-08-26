@@ -1,3 +1,4 @@
+import { ScrollArea } from "@everr/ui/components/scroll-area";
 import { Grid3x3 } from "lucide-react";
 import { useCallback, useMemo, useRef, useState } from "react";
 import { CursorTooltip } from "@/components/cursor-tooltip";
@@ -159,7 +160,7 @@ export function HeatmapVisualization({
         {/* No overscroll-none here: rows usually fit, and a non-scrollable
             scroll container with overscroll-behavior:none swallows wheel
             events instead of letting the page scroll. */}
-        <div className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden">
+        <ScrollArea className="min-h-0 flex-1">
           <div className="flex h-full min-h-fit flex-col">
             {yBuckets.map((bucket, b) => (
               <div key={bucket} className="flex min-h-4 flex-1 items-stretch">
@@ -209,7 +210,7 @@ export function HeatmapVisualization({
               </div>
             ))}
           </div>
-        </div>
+        </ScrollArea>
 
         {/* time axis, aligned with the cell tracks */}
         <div className="flex h-5 shrink-0 items-start overflow-hidden">
