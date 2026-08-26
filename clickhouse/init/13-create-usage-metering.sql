@@ -1,6 +1,9 @@
--- Per-tenant ingest metering. RowBytes is the canonical billable-size contract
--- for each raw landing table. Incremental materialized views aggregate new rows
--- into an hourly SummingMergeTree ledger using ClickHouse arrival time in UTC.
+-- Canonical per-tenant ingest metering migration for fresh and existing
+-- clusters. Apply it to production through ClickHouse Console or Terraform.
+-- It is repeatable and intentionally does not backfill historical rows.
+-- RowBytes is the billable-size contract for each raw landing table.
+-- Incremental materialized views aggregate new rows into an hourly
+-- SummingMergeTree ledger using ClickHouse arrival time in UTC.
 
 ALTER TABLE otel.otel_traces
   ADD COLUMN IF NOT EXISTS RowBytes UInt64 MATERIALIZED byteSize(

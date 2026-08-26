@@ -6,9 +6,8 @@ package sqltemplates
 import "fmt"
 
 // Keep these expressions in step with the matching RowBytes expressions in
-// clickhouse/init/13-create-usage-metering.sql and
-// clickhouse/apply-usage-metering.sql. They intentionally cover the cloud
-// schema's source columns and exclude local-only materialized helpers.
+// clickhouse/init/13-create-usage-metering.sql. They intentionally cover the
+// cloud schema's source columns and exclude local-only materialized helpers.
 const (
 	TracesRowBytesExpression = `byteSize(
     Timestamp,

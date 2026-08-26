@@ -55,19 +55,97 @@ assert_eq() {
   fi
 }
 
+assert_contains() {
+  local label="$1"
+  local expected="$2"
+  local actual="$3"
+  if [[ "$actual" != *"$expected"* ]]; then
+    fail "$label: expected output to contain '$expected', got '$actual'"
+  fi
+}
+
+apply_usage_metering() {
+  docker exec --interactive "$container_name" clickhouse-client \
+    --user default \
+    --password "$admin_password" \
+    --multiquery < "$repo_root/clickhouse/init/13-create-usage-metering.sql"
+}
+
+validate_collector_settings() {
+  assert_eq \
+    "explicit UTC DateTime" \
+    "DateTime('UTC')" \
+    "$(ch_as collector_rw collector-dev "SELECT toTypeName(now('UTC'))")"
+  assert_eq \
+    "collector materialized columns excluded from wildcard reads" \
+    "0" \
+    "$(ch_as collector_rw collector-dev "SELECT value FROM system.settings WHERE name = 'asterisk_include_materialized_columns'")"
+  assert_eq \
+    "collector materialized view errors enabled" \
+    "0" \
+    "$(ch_as collector_rw collector-dev "SELECT value FROM system.settings WHERE name = 'materialized_views_ignore_errors'")"
+  assert_eq \
+    "collector async inserts enabled" \
+    "1" \
+    "$(ch_as collector_rw collector-dev "SELECT value FROM system.settings WHERE name = 'async_insert'")"
+  assert_eq \
+    "collector waits for async inserts" \
+    "1" \
+    "$(ch_as collector_rw collector-dev "SELECT value FROM system.settings WHERE name = 'wait_for_async_insert'")"
+  assert_eq \
+    "collector dependent view deduplication enabled" \
+    "1" \
+    "$(ch_as collector_rw collector-dev "SELECT value FROM system.settings WHERE name = 'deduplicate_blocks_in_dependent_materialized_views'")"
+}
+
+validate_usage_schema() {
+  assert_eq \
+    "usage ledger engine" \
+    "SummingMergeTree" \
+    "$(ch "SELECT engine FROM system.tables WHERE database = 'app' AND name = 'tenant_usage'")"
+  assert_eq \
+    "usage ledger bucket type" \
+    "DateTime('UTC')" \
+    "$(ch "SELECT type FROM system.columns WHERE database = 'app' AND table = 'tenant_usage' AND name = 'bucket'")"
+  assert_eq \
+    "usage ledger partition key" \
+    "toYYYYMM(bucket)" \
+    "$(ch "SELECT partition_key FROM system.tables WHERE database = 'app' AND name = 'tenant_usage'")"
+  assert_eq \
+    "usage ledger sorting key" \
+    "tenant_id, bucket, meter" \
+    "$(ch "SELECT sorting_key FROM system.tables WHERE database = 'app' AND name = 'tenant_usage'")"
+  assert_eq \
+    "usage ledger has no TTL" \
+    "1" \
+    "$(ch "SELECT positionCaseInsensitive(create_table_query, ' TTL ') = 0 FROM system.tables WHERE database = 'app' AND name = 'tenant_usage'")"
+  assert_eq \
+    "metering materialized view count" \
+    "7" \
+    "$(ch "SELECT count() FROM system.tables WHERE database = 'app' AND name LIKE 'tenant_usage%_mv'")"
+  assert_eq \
+    "materialized RowBytes column count" \
+    "7" \
+    "$(ch "SELECT count() FROM system.columns WHERE database = 'otel' AND name = 'RowBytes' AND default_kind = 'MATERIALIZED' AND startsWith(default_expression, 'byteSize(')")"
+
+  local policy
+  policy="$(ch "SHOW CREATE ROW POLICY tenant_filter_tenant_usage ON app.tenant_usage")"
+  assert_contains \
+    "tenant usage row policy predicate" \
+    "USING tenant_id = getSetting('SQL_everr_tenant_id')" \
+    "$policy"
+  assert_contains \
+    "tenant usage row policy assignment" \
+    "TO app_ro" \
+    "$policy"
+}
+
 command -v docker >/dev/null 2>&1 || fail "docker is required"
 
-# The apply body must remain identical to the fresh-init body. Header comments
-# differ because the files serve different operators.
-if ! diff -u \
-  <(sed -n '/^ALTER TABLE otel\.otel_traces/,$p' "$repo_root/clickhouse/init/13-create-usage-metering.sql") \
-  <(sed -n '/^ALTER TABLE otel\.otel_traces/,$p' "$repo_root/clickhouse/apply-usage-metering.sql"); then
-  fail "fresh-init and existing-cluster SQL bodies differ"
-fi
-
 # Start the pinned base image without the repository's init directory, then run
-# every pre-feature init file explicitly. This proves that the cloud apply path
-# installs the feature instead of merely reapplying an already initialized 13.
+# every pre-feature init file explicitly. This proves that the canonical
+# migration upgrades an existing cluster instead of only initializing a fresh
+# one.
 docker run --detach \
   --name "$container_name" \
   --env CLICKHOUSE_USER=default \
@@ -135,44 +213,12 @@ assert_eq \
   "1" \
   "$(ch "SELECT RowBytes FROM otel.otel_logs WHERE Body = 'before usage apply'")"
 
-docker cp "$repo_root/clickhouse/usage-metering-rollout.sh" \
-  "$container_name:/tmp/usage-metering-rollout.sh"
-docker cp "$repo_root/clickhouse/apply-usage-metering.sql" \
-  "$container_name:/tmp/apply-usage-metering.sql"
-docker exec "$container_name" chmod +x /tmp/usage-metering-rollout.sh
-
-# Preflight runs as the actual collector identity, while apply and schema
-# validation run as the administrator.
-docker exec "$container_name" /tmp/usage-metering-rollout.sh preflight \
-  --user collector_rw --password collector-dev \
-  --async_insert=1 \
-  --wait_for_async_insert=1 \
-  --deduplicate_blocks_in_dependent_materialized_views=1 \
-  --materialized_views_ignore_errors=0 \
-  --asterisk_include_materialized_columns=0 >/dev/null
-docker exec "$container_name" /tmp/usage-metering-rollout.sh apply \
-  --user default --password "$admin_password" >/dev/null
-docker exec "$container_name" /tmp/usage-metering-rollout.sh validate-schema \
-  --user default --password "$admin_password" >/dev/null
+validate_collector_settings
+apply_usage_metering
+validate_usage_schema
 
 server_version="$(ch "SELECT version()")"
 [[ "$server_version" == 26.2.* ]] || fail "expected ClickHouse 26.2, got $server_version"
-assert_eq \
-  "MATERIALIZED columns excluded from wildcard reads" \
-  "0" \
-  "$(ch "SELECT value FROM system.settings WHERE name = 'asterisk_include_materialized_columns'")"
-assert_eq \
-  "usage bucket type" \
-  "DateTime('UTC')" \
-  "$(ch "SELECT type FROM system.columns WHERE database = 'app' AND table = 'tenant_usage' AND name = 'bucket'")"
-assert_eq \
-  "usage sorting key" \
-  "tenant_id, bucket, meter" \
-  "$(ch "SELECT sorting_key FROM system.tables WHERE database = 'app' AND name = 'tenant_usage'")"
-assert_eq \
-  "metering materialized view count" \
-  "7" \
-  "$(ch "SELECT count() FROM system.tables WHERE database = 'app' AND name LIKE 'tenant_usage%_mv'")"
 assert_eq \
   "stale expression converged" \
   "1" \
@@ -185,8 +231,6 @@ assert_eq \
   "historical row is not backfilled" \
   "0" \
   "$(ch "SELECT sum(items) FROM app.tenant_usage WHERE tenant_id = 'tenant-stale'")"
-
-validation_bucket="$(ch "SELECT toString(toStartOfHour(now('UTC')), 'UTC')")"
 
 ch_as collector_rw collector-dev "
   INSERT INTO otel.otel_traces
@@ -342,14 +386,6 @@ assert_eq \
   "5" \
   "$(ch "SELECT sum(items) FROM app.tenant_usage WHERE tenant_id = 'tenant-a' AND meter = 'metrics'")"
 
-docker exec \
-  --env USAGE_METERING_VALIDATION_TENANT_ID=tenant-a \
-  --env USAGE_METERING_VALIDATION_TENANT_IS_DEDICATED=yes \
-  --env USAGE_METERING_VALIDATION_RUN_ID="$validation_run_id" \
-  --env USAGE_METERING_VALIDATION_BUCKET="$validation_bucket" \
-  "$container_name" /tmp/usage-metering-rollout.sh validate-data \
-  --user default --password "$admin_password" >/dev/null
-
 assert_eq "trace fan-out" "1" "$(ch "SELECT count() FROM app.traces WHERE tenant_id = 'tenant-a'")"
 assert_eq "log fan-out" "1" "$(ch "SELECT count() FROM app.logs WHERE tenant_id = 'tenant-a'")"
 assert_eq "gauge fan-out" "1" "$(ch "SELECT count() FROM app.metrics_gauge WHERE tenant_id = 'tenant-a'")"
@@ -407,13 +443,11 @@ assert_eq \
   "9" \
   "$(ch_as web_app_admin web-app-admin-dev "SELECT sum(items) FROM app.tenant_usage")"
 
-# Repeat the full rollout while multiple tenant rows already exist. The policy
-# is replaced in one DDL statement, expressions converge again, and neither
-# views nor counters are duplicated.
-docker exec "$container_name" /tmp/usage-metering-rollout.sh apply \
-  --user default --password "$admin_password" >/dev/null
-docker exec "$container_name" /tmp/usage-metering-rollout.sh validate-schema \
-  --user default --password "$admin_password" >/dev/null
+# Repeat the migration while multiple tenant rows already exist. The policy is
+# replaced in one DDL statement, expressions converge again, and neither views
+# nor counters are duplicated.
+apply_usage_metering
+validate_usage_schema
 assert_eq \
   "tenant-a RLS after populated reapply" \
   "7" \

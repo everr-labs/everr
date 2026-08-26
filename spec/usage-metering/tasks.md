@@ -26,10 +26,10 @@
    mapping traces, logs, and all metric tables to the three meters.
    (Design: Usage ledger and materialized views, Data Models)
 
-5. [x] Add the repeatable cloud schema apply SQL containing the same column,
-   table, grant, policy, and materialized-view definitions as fresh init while
-   keeping additive backfill statements out of the file.
-   (Design: ClickHouse landing tables, Documentation and rollout)
+5. [x] Use `clickhouse/init/13-create-usage-metering.sql` as the single
+   repeatable migration for fresh initialization, ClickHouse Console, and
+   Terraform while keeping additive backfill statements out of the file.
+   (Design: ClickHouse landing tables, Deployment)
 
 6. [x] Add executable ClickHouse integration coverage using a disposable 26.2
    instance. Insert all seven source shapes and assert each stored `RowBytes`
@@ -66,12 +66,11 @@
     every corrected boundary.
     (Design: Subscription period, App read path, Billing UI)
 
-11. [x] Harden repeat rollout behavior. Atomically replace the tenant row
-    policy, converge stale `RowBytes` expressions for subsequent inserts, add
-    executable target preflight and validation, and exercise a genuine
-    existing-cluster upgrade plus populated repeat apply in Docker.
-    (Design: ClickHouse landing tables, Documentation and rollout, Testing
-    Strategy)
+11. [x] Harden repeat migration behavior. Atomically replace the tenant row
+    policy, converge stale `RowBytes` expressions for subsequent inserts,
+    document the infrastructure-owned collector settings, and exercise a
+    genuine existing-cluster upgrade plus populated repeat apply in Docker.
+    (Design: ClickHouse landing tables, Deployment, Testing Strategy)
 
 12. [x] Add a focused ClickHouse CI workflow that runs the behavioral usage
     metering harness whenever the ClickHouse implementation or workflow

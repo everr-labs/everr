@@ -23,7 +23,7 @@ decimal gigabytes, where one GB is exactly `1_000_000_000` bytes.
 
 Usage buckets use UTC arrival time. Existing telemetry is not automatically
 backfilled. Any historical backfill is an explicit, opt-in operation outside
-the repeatable schema apply file.
+the canonical migration.
 
 ## Architecture / Components
 
@@ -51,12 +51,12 @@ ALTER TABLE otel.otel_logs
   );
 ```
 
-The repeatable cloud apply file contains the same schema, grant, policy, and
-materialized-view statements. Each `ADD COLUMN IF NOT EXISTS` is followed by a
-`MODIFY COLUMN` with the canonical expression so existing clusters converge
-when a landing-table schema changes. The modify affects subsequent inserts and
-does not rewrite historical parts. The file does not contain additive backfill
-inserts.
+The same file is the single production migration source. Operators execute it
+through ClickHouse Console or Terraform. Each `ADD COLUMN IF NOT EXISTS` is
+followed by a `MODIFY COLUMN` with the canonical expression so existing
+clusters converge when a landing-table schema changes. The modify affects
+subsequent inserts and does not rewrite historical parts. The migration does
+not contain additive backfill inserts.
 
 ### Usage ledger and materialized views
 
@@ -173,18 +173,21 @@ failing.
 Supporting components live outside the route directory so TanStack Router does
 not treat them as routes.
 
-### Documentation and rollout
+### Deployment
 
 Pricing documentation defines the byte-based billable unit and uses the same
 signal-specific retention values as `packages/app/src/lib/retention.ts`.
 
-Cloud rollout uses `clickhouse/usage-metering-rollout.sh` and
-`clickhouse/USAGE_METERING_ROLLOUT.md`. It first verifies the target version
-and the collector user's effective settings, applies the repeatable SQL,
-records the metering cutover window, validates the installed schema, and
-compares fresh tagged signals with the ledger. Historical backfill is optional
-and uses a separately controlled procedure so retries cannot double-count live
-usage in the cutover partition.
+Production deployment applies `clickhouse/init/13-create-usage-metering.sql`
+through ClickHouse Console or Terraform. Developer machines do not connect
+directly to the production database. Infrastructure configuration owns the
+collector settings required for billing correctness: `async_insert=1`,
+`wait_for_async_insert=1`, `materialized_views_ignore_errors=0`,
+`deduplicate_blocks_in_dependent_materialized_views=1`, and
+`asterisk_include_materialized_columns=0`.
+
+Historical backfill is optional and uses a separately controlled procedure so
+retries cannot double-count live usage in the cutover partition.
 
 Before the app is deployed, the normal release process must generate and apply
 the PostgreSQL migration for `current_period_start`. Existing active or
@@ -271,8 +274,8 @@ the pricing contract. Verify cloud ClickHouse is at least 26.1 because the
 collector uses asynchronous inserts and dependent-view deduplication is part
 of billing correctness. The harness starts from the pre-feature schema, proves
 that a stale materialized expression converges for future inserts, and repeats
-the rollout after attributed and unattributed rows exist. A focused CI workflow
-runs this behavioral harness for every `clickhouse/**` change.
+the canonical migration after attributed and unattributed rows exist. A focused
+CI workflow runs this behavioral harness for every `clickhouse/**` change.
 
 ### App tests
 
