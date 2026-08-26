@@ -4,29 +4,16 @@ import { cn } from "@everr/ui/lib/utils";
 import { BellOff, Plus } from "lucide-react";
 import { PageHeader } from "@/components/page-header";
 import { formatElapsed } from "@/data/alerting/triage/format";
-import type { AlertSilencePageRow } from "@/data/alerting/triage/view";
+import type { AlertSilenceRecord } from "@/data/alerting/triage/view";
+import { isOpen, STATE_META, windowBounds } from "./silence-state";
 
-/** Where a silence may be reopened from: the rule it named and the matchers
- *  beyond it, which is what the dialog starts from. */
-export type SilenceAgainSeed = {
+/** What a new silence starts from: the rule it names, if any, and the
+ *  matchers beyond it. "New silence" starts from nothing; "Silence again"
+ *  from the closed row it was pressed on. */
+export type SilenceSeed = {
   rule: string | null;
-  seed: { matchers: string; comment: string };
-};
-
-const STATE_LABEL: Record<AlertSilencePageRow["state"], string> = {
-  active: "Active",
-  scheduled: "Scheduled",
-  expired: "Expired",
-  cancelled: "Cancelled",
-};
-
-// The same marks the detail's silence list uses, so a silence reads the same
-// on both screens: filled while muting, hollow while waiting, dim once over.
-const STATE_DOT: Record<AlertSilencePageRow["state"], string> = {
-  active: "bg-chart-2",
-  scheduled: "border border-chart-2 bg-transparent",
-  expired: "bg-muted-foreground/40",
-  cancelled: "border border-muted-foreground/50 bg-transparent",
+  matchers: string;
+  comment: string;
 };
 
 const COLUMNS =
@@ -34,30 +21,14 @@ const COLUMNS =
 const COLUMN_LABEL =
   "font-mono text-[0.6875rem] tracking-wider text-muted-foreground uppercase";
 
-const dayLabel = (at: Date) =>
-  at.toLocaleDateString(undefined, { month: "short", day: "numeric" });
-const clockLabel = (at: Date) =>
-  at.toLocaleTimeString(undefined, {
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  });
-const stamp = (iso: string) => {
-  const at = new Date(iso);
-  return `${dayLabel(at)}, ${clockLabel(at)}`;
-};
-
-const isOpen = (row: AlertSilencePageRow) =>
-  row.state === "active" || row.state === "scheduled";
-
 /** "ends in 2h 10m" for a silence that is muting, "starts in 4h" for one that
  *  will; a closed one just says which way it closed. */
-function stateText(row: AlertSilencePageRow, now: number): string {
+function stateText(row: AlertSilenceRecord, now: number): string {
   if (row.state === "active")
     return `ends in ${formatElapsed(new Date(row.endsAt).getTime() - now)}`;
   if (row.state === "scheduled")
     return `starts in ${formatElapsed(new Date(row.startsAt).getTime() - now)}`;
-  return STATE_LABEL[row.state];
+  return STATE_META[row.state].label;
 }
 
 function Row({
@@ -67,13 +38,14 @@ function Row({
   onCancel,
   onSilenceAgain,
 }: {
-  row: AlertSilencePageRow;
+  row: AlertSilenceRecord;
   now: number;
   pending: boolean;
   onCancel: (id: string) => void;
-  onSilenceAgain: (seed: SilenceAgainSeed) => void;
+  onSilenceAgain: (seed: SilenceSeed) => void;
 }) {
-  const open = isOpen(row);
+  const open = isOpen(row.state);
+  const bounds = windowBounds(row);
   return (
     <li
       className={cn(
@@ -87,7 +59,7 @@ function Row({
           <span
             className={cn(
               "size-1.5 shrink-0 rounded-full",
-              STATE_DOT[row.state],
+              STATE_META[row.state].dot,
             )}
           />
           {/* The matchers are the silence: there is no name to put above
@@ -105,10 +77,9 @@ function Row({
         )}
       </div>
       <span className="truncate font-mono text-xs tabular-nums text-muted-foreground">
-        {/* A cancelled window closes at the stamp that recorded the act. The
-            write collapsed `endsAt` to the same instant, give or take the
-            transaction, and the two can disagree at the minute this prints. */}
-        {stamp(row.startsAt)} → {stamp(row.canceledAt ?? row.endsAt)}
+        <time dateTime={bounds.start.iso}>{bounds.start.text}</time>
+        {" → "}
+        <time dateTime={bounds.end.iso}>{bounds.end.text}</time>
       </span>
       <span className="font-mono text-xs tabular-nums">
         {stateText(row, now)}
@@ -139,7 +110,8 @@ function Row({
             onClick={() =>
               onSilenceAgain({
                 rule: row.rule,
-                seed: { matchers: row.scope, comment: row.comment },
+                matchers: row.scope,
+                comment: row.comment,
               })
             }
           >
@@ -160,9 +132,9 @@ function Section({
 }: {
   title: string;
   hint?: string;
-  rows: AlertSilencePageRow[];
+  rows: AlertSilenceRecord[];
   empty: string;
-  children: (row: AlertSilencePageRow) => React.ReactNode;
+  children: (row: AlertSilenceRecord) => React.ReactNode;
 }) {
   return (
     <section>
@@ -217,12 +189,12 @@ export function SilencesPage({
   onSilenceAgain,
 }: {
   /** `null` while loading. */
-  silences: AlertSilencePageRow[] | null;
+  silences: AlertSilenceRecord[] | null;
   /** A silence write is in flight; every silence control goes inert. */
   pending: boolean;
   onNew: () => void;
   onCancel: (id: string) => void;
-  onSilenceAgain: (seed: SilenceAgainSeed) => void;
+  onSilenceAgain: (seed: SilenceSeed) => void;
 }) {
   // One reading of the clock per render, so two rows cannot disagree about
   // what "in 4m" is measured from.
@@ -232,9 +204,9 @@ export function SilencesPage({
   const scheduled = rows
     .filter((row) => row.state === "scheduled")
     .sort((a, b) => a.startsAt.localeCompare(b.startsAt));
-  const closed = rows.filter((row) => !isOpen(row));
+  const closed = rows.filter((row) => !isOpen(row.state));
 
-  const row = (record: AlertSilencePageRow) => (
+  const row = (record: AlertSilenceRecord) => (
     <Row
       key={record.id}
       row={record}

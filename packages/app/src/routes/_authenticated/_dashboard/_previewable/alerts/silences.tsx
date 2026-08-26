@@ -1,21 +1,17 @@
 import { RetryError } from "@everr/ui/components/retry-error";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
-import { toast } from "sonner";
 import { SilenceDialog } from "@/components/alerts/silence-dialog";
 import {
-  type SilenceAgainSeed,
+  type SilenceSeed,
   SilencesPage,
 } from "@/components/alerts/silences-page";
 import {
-  expireAlertSilence,
-  silenceAlertRule,
-} from "@/data/alerting/triage/mutations";
-import {
+  alertRulePathsOptions,
   alertSilencesOptions,
-  invalidateAlertTriage,
 } from "@/data/alerting/triage/options";
+import { useSilenceMutations } from "@/hooks/use-silence-mutations";
 import { useTimeRange } from "@/hooks/use-time-range";
 
 export const Route = createFileRoute(
@@ -29,32 +25,11 @@ export const Route = createFileRoute(
 });
 
 function AlertingSilencesPage() {
-  const queryClient = useQueryClient();
   const { timeRange } = useTimeRange();
   const silences = useQuery(alertSilencesOptions(timeRange));
-  // Which silence the dialog starts from: "New silence" starts from nothing,
-  // "Silence again" from the closed row it was pressed on.
-  const [target, setTarget] = useState<SilenceAgainSeed | null>(null);
-
-  const refresh = () => invalidateAlertTriage(queryClient);
-
-  const silence = useMutation({
-    mutationFn: silenceAlertRule,
-    onSuccess: async (_result, variables) => {
-      await refresh();
-      toast.success(`Silenced ${variables.data.path}`);
-    },
-    onError: (error: Error) => toast.error(error.message),
-  });
-
-  const cancelSilence = useMutation({
-    mutationFn: expireAlertSilence,
-    onSuccess: async () => {
-      await refresh();
-      toast.success("Silence cancelled");
-    },
-    onError: (error: Error) => toast.error(error.message),
-  });
+  const rulePaths = useQuery(alertRulePathsOptions());
+  const { silence, cancelSilence } = useSilenceMutations();
+  const [seed, setSeed] = useState<SilenceSeed | null>(null);
 
   if (silences.isError) {
     return (
@@ -69,38 +44,26 @@ function AlertingSilencesPage() {
   return (
     <>
       <SilencesPage
-        silences={silences.data?.silences ?? null}
+        silences={silences.data ?? null}
         pending={silence.isPending || cancelSilence.isPending}
-        onNew={() =>
-          setTarget({ rule: null, seed: { matchers: "", comment: "" } })
-        }
+        onNew={() => setSeed({ rule: null, matchers: "", comment: "" })}
         onCancel={(id) => cancelSilence.mutate({ data: { id } })}
-        onSilenceAgain={setTarget}
+        onSilenceAgain={setSeed}
       />
       {/* Remounted per opening (see the `key`) so the fields start from
           whatever seeded this one rather than the last opening's text. */}
       <SilenceDialog
-        key={target ? JSON.stringify(target) : "closed"}
-        open={target !== null}
-        path={target?.rule ?? null}
-        rules={silences.data?.rules ?? []}
-        seed={target?.seed}
+        key={seed ? JSON.stringify(seed) : "closed"}
+        open={seed !== null}
+        path={seed?.rule ?? null}
+        rules={rulePaths.data ?? []}
+        seed={seed ?? undefined}
         instanceCount={0}
         pending={silence.isPending}
-        onClose={() => setTarget(null)}
-        onConfirm={(draft) => {
-          silence.mutate(
-            {
-              data: {
-                path: draft.path,
-                durationMinutes: draft.minutes,
-                matchers: draft.matchers,
-                comment: draft.comment,
-              },
-            },
-            { onSuccess: () => setTarget(null) },
-          );
-        }}
+        onClose={() => setSeed(null)}
+        onConfirm={(draft) =>
+          silence.mutate({ data: draft }, { onSuccess: () => setSeed(null) })
+        }
       />
     </>
   );

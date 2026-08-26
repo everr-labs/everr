@@ -206,13 +206,19 @@ export type AlertSilenceRecord = {
   endsAt: string;
   /** `scheduled` has not started, `cancelled` was ended by a person. */
   state: "active" | "scheduled" | "expired" | "cancelled";
-  /** Matchers beyond the rule itself, formatted; empty means the whole rule. */
+  /** Every matcher, formatted and space-separated, the rule among them: on
+   *  a screen that spans rules it is the fact that tells two rows apart, and
+   *  it is one matcher like the others rather than a title the rest narrow.
+   *  Empty when the silence has none. */
   matchers: string;
-  /** Whether those matchers leave anything out. The empty `matchers` string
-   *  already implies it, but absence of text is not a statement, and the
-   *  difference between muting a rule and muting one instance of it is the
-   *  single most consequential thing a row here says. */
-  wholeRule: boolean;
+  /** The rule the silence names, when it names exactly one; what "Silence
+   *  again" opens the dialog on. `null` for a silence written outside these
+   *  screens that names no rule, or more than one. */
+  rule: string | null;
+  /** The matchers beyond the rule, formatted. Empty means the whole rule,
+   *  and the difference between muting a rule and muting one instance of it
+   *  is the single most consequential thing a row says. */
+  scope: string;
   /** When a person closed the window early; `null` if nobody did. `endsAt`
    *  was collapsed to the same instant by the write that cancelled it, give
    *  or take the transaction, so the row prints this stamp instead: the two
@@ -267,41 +273,6 @@ export type AlertDetail = {
   activeSilenceId: string | null;
   /** `spec.for`, formatted, for the evaluation-state chain. */
   forClause: string;
-};
-
-/**
- * One silence as the Silences page lists it, across every rule in the
- * Organization. Unlike `AlertSilenceRecord`, which lists the silences of one
- * rule and so leaves the rule unsaid, this row prints every matcher: on a page
- * that spans rules, the rule is the fact that tells two rows apart, and it is
- * one matcher among the others rather than a title the rest narrow.
- */
-export type AlertSilencePageRow = {
-  id: string;
-  startsAt: string;
-  endsAt: string;
-  state: AlertSilenceRecord["state"];
-  canceledAt: string | null;
-  /** Every matcher, formatted and space-separated. Empty when the silence
-   *  has none, which the row shows by printing nothing. */
-  matchers: string;
-  /** The rule the silence names, when it names exactly one; what "Silence
-   *  again" opens the dialog on. `null` for a silence written outside this
-   *  screen that names no rule, or more than one. */
-  rule: string | null;
-  /** Matchers beyond the rule, formatted, to seed a new silence from. */
-  scope: string;
-  impact: string | null;
-  comment: string;
-  author: string;
-};
-
-/** A rule the silence dialog can be pointed at, when it opens with none. */
-export type SilenceRuleChoice = { path: string; name: string };
-
-export type AlertSilencesPageData = {
-  silences: AlertSilencePageRow[];
-  rules: SilenceRuleChoice[];
 };
 
 /** The durations the silence dialog offers. The label and what it means travel

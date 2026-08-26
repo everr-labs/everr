@@ -55,6 +55,7 @@ import {
 } from "./rules";
 import { type LifecycleRow, ruleStateSegments } from "./segments";
 import {
+  NO_IMPACT,
   type SilenceImpactCounts,
   type SilenceRow,
   silenceFor,
@@ -433,11 +434,7 @@ export function assembleAlertDetail(input: AlertDetailInput): AlertDetail {
       query: spec.sql,
     },
     silences: input.windowSilences.map((row) =>
-      silenceRecord(
-        row,
-        now,
-        input.silenceImpacts.get(row.id) ?? { held: 0, dropped: 0 },
-      ),
+      silenceRecord(row, now, input.silenceImpacts.get(row.id) ?? NO_IMPACT),
     ),
     activeSilenceId: silence?.id ?? null,
     forClause: formatDurationSeconds(spec.for_secs),

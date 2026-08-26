@@ -588,13 +588,11 @@ describe("assembleAlertDetail", () => {
       ["cancelled", "cancelled"],
     ]);
     expect(out.silences[0]).toMatchObject({
-      matchers: "host!=a",
-      wholeRule: false,
+      scope: "host!=a",
       impact: "held 3 · dropped 1",
     });
     expect(out.silences[3]).toMatchObject({
-      matchers: "",
-      wholeRule: true,
+      scope: "",
       impact: null,
       canceledAt: minutesAgo(45).toISOString(),
       comment: "false positive",

@@ -34,19 +34,19 @@ import {
   loadRuleInstances,
   loadRules,
   rulePath,
-  ruleTitle,
   triageStatus,
 } from "./rules";
 import {
   loadOpenSilences,
   loadSilencesForPage,
   loadSilencesInWindow,
-  silencePageRow,
+  NO_IMPACT,
+  silenceRecord,
 } from "./silences";
 import { loadInstanceValues, parseSamples, type ValueRule } from "./values";
 import type {
   AlertDetail,
-  AlertSilencesPageData,
+  AlertSilenceRecord,
   AlertTriageData,
   RuleStateHistoryData,
 } from "./view";
@@ -237,30 +237,30 @@ export const getAlertDetail = createAuthenticatedServerFn({ method: "GET" })
 
 export const getAlertSilences = createAuthenticatedServerFn({ method: "GET" })
   .inputValidator(z.object({ from: z.string(), to: z.string() }))
-  .handler(async ({ data, context }): Promise<AlertSilencesPageData> => {
+  .handler(async ({ data, context }): Promise<AlertSilenceRecord[]> => {
     const organizationId = context.session.session.activeOrganizationId;
     const now = new Date();
     const { fromDate, toDate } = resolveTimeRange(data);
 
-    // The rules ride along for the dialog: a silence has to name one, and a
-    // page that spans rules has none to assume.
-    const [silences, definitions] = await Promise.all([
-      loadSilencesForPage(organizationId, fromDate, toDate),
-      loadRules(organizationId),
-    ]);
+    const silences = await loadSilencesForPage(
+      organizationId,
+      fromDate,
+      toDate,
+    );
     const impacts = await loadSilenceImpact(context.clickhouse.query, silences);
-
-    return {
-      silences: silences.map((row) =>
-        silencePageRow(
-          row,
-          now,
-          impacts.get(row.id) ?? { held: 0, dropped: 0 },
-        ),
-      ),
-      rules: definitions.map((row) => ({
-        path: rulePath(row),
-        name: ruleTitle(row),
-      })),
-    };
+    return silences.map((row) =>
+      silenceRecord(row, now, impacts.get(row.id) ?? NO_IMPACT),
+    );
   });
+
+/** The rules a silence may be pointed at, for the dialog that opens with none
+ *  to assume. Its own read: the list changes when rules are applied, not
+ *  every time the silences page polls. */
+export const getAlertRulePaths = createAuthenticatedServerFn({
+  method: "GET",
+}).handler(async ({ context }): Promise<string[]> => {
+  const definitions = await loadRules(
+    context.session.session.activeOrganizationId,
+  );
+  return definitions.map(rulePath);
+});

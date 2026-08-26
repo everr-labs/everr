@@ -33,7 +33,7 @@ import {
   loadSilencesForPage,
   loadSilencesInWindow,
   silenceFor,
-  silencePageRow,
+  silenceRecord,
 } from "./silences";
 
 const harness = useAlertingHarness();
@@ -223,7 +223,7 @@ describe("the Silences the Silences page lists", () => {
     const row = rows.find((r) => r.id === id);
     if (!row) throw new Error("silence not listed");
 
-    const page = silencePageRow(row, new Date(), { held: 2, dropped: 0 });
+    const page = silenceRecord(row, new Date(), { held: 2, dropped: 0 });
 
     expect(page.state).toBe("active");
     expect(page.matchers).toBe(`rule=${RULE_PATH} region=eu`);
@@ -242,7 +242,7 @@ describe("the Silences the Silences page lists", () => {
     const row = rows.find((r) => r.id === id);
     if (!row) throw new Error("silence not listed");
 
-    const page = silencePageRow(row, new Date(), { held: 0, dropped: 0 });
+    const page = silenceRecord(row, new Date(), { held: 0, dropped: 0 });
 
     expect(page.rule).toBeNull();
     expect(page.matchers).toBe("environment=staging");

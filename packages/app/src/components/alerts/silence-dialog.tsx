@@ -17,14 +17,13 @@ import {
   SelectValue,
 } from "@everr/ui/components/select";
 import { useState } from "react";
-import {
-  SILENCE_DURATIONS,
-  type SilenceRuleChoice,
-} from "@/data/alerting/triage/view";
+import { SILENCE_DURATIONS } from "@/data/alerting/triage/view";
 
+/** What the dialog hands back: the input of `silenceAlertRule`, so neither
+ *  caller translates it. */
 export type SilenceDraft = {
   path: string;
-  minutes: number;
+  durationMinutes: number;
   matchers: string;
   comment: string;
 };
@@ -55,10 +54,10 @@ export function SilenceDialog({
   /** The rule being silenced. `null` when the dialog opens without one,
    *  which only happens where `rules` offers a choice. */
   path: string | null;
-  /** The rules the reader may point the silence at. Given on the page that
-   *  spans rules, where "New silence" has no rule to assume; absent on the
-   *  triage screen, where the row that opened the dialog is the rule. */
-  rules?: SilenceRuleChoice[];
+  /** The rule paths the reader may point the silence at. Given on the page
+   *  that spans rules, where "New silence" has no rule to assume; absent on
+   *  the triage screen, where the row that opened the dialog is the rule. */
+  rules?: string[];
   /** Starting matchers and comment, when the dialog was opened from a silence
    *  that has already closed. The caller remounts the dialog per opening (see
    *  the `key` at the call site), so these are read once, as the initial state
@@ -117,12 +116,8 @@ export function SilenceDialog({
                 </SelectTrigger>
                 <SelectContent>
                   {rules.map((rule) => (
-                    <SelectItem
-                      key={rule.path}
-                      value={rule.path}
-                      className="font-mono"
-                    >
-                      {rule.path}
+                    <SelectItem key={rule} value={rule} className="font-mono">
+                      {rule}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -196,7 +191,7 @@ export function SilenceDialog({
               if (rulePath)
                 onConfirm({
                   path: rulePath,
-                  minutes: duration.minutes,
+                  durationMinutes: duration.minutes,
                   matchers,
                   comment,
                 });

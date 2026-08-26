@@ -13,17 +13,14 @@ import { RuleInventory } from "@/components/alerts/rule-inventory";
 import { SilenceDialog } from "@/components/alerts/silence-dialog";
 import { TriageList } from "@/components/alerts/triage-list";
 import { ResourceEmptyState } from "@/components/resource-empty-state";
-import {
-  expireAlertSilence,
-  setAlertRulePaused,
-  silenceAlertRule,
-} from "@/data/alerting/triage/mutations";
+import { setAlertRulePaused } from "@/data/alerting/triage/mutations";
 import {
   alertDetailOptions,
   alertTriageOptions,
   invalidateAlertTriage,
   ruleStateHistoryOptions,
 } from "@/data/alerting/triage/options";
+import { useSilenceMutations } from "@/hooks/use-silence-mutations";
 import { useTimeRange } from "@/hooks/use-time-range";
 
 type SilenceTarget = {
@@ -87,15 +84,7 @@ function AlertingTriagePage() {
   const detail = useQuery(alertDetailOptions(openPath, timeRange));
 
   const refresh = () => invalidateAlertTriage(queryClient);
-
-  const silence = useMutation({
-    mutationFn: silenceAlertRule,
-    onSuccess: async (_result, variables) => {
-      await refresh();
-      toast.success(`Silenced ${variables.data.path}`);
-    },
-    onError: (error: Error) => toast.error(error.message),
-  });
+  const { silence, cancelSilence } = useSilenceMutations();
 
   const setPaused = useMutation({
     mutationFn: setAlertRulePaused,
@@ -104,18 +93,6 @@ function AlertingTriagePage() {
       toast.success(
         `${result.paused ? "Paused" : "Resumed"} ${variables.data.path}`,
       );
-    },
-    onError: (error: Error) => toast.error(error.message),
-  });
-
-  // "Cancel", not "expire": a silence expires when its window runs out, and
-  // this closes the window early. The two are separate states in the list
-  // below, so the button that produces one must not be named after the other.
-  const cancelSilence = useMutation({
-    mutationFn: expireAlertSilence,
-    onSuccess: async () => {
-      await refresh();
-      toast.success("Silence cancelled");
     },
     onError: (error: Error) => toast.error(error.message),
   });
@@ -294,14 +271,7 @@ function AlertingTriagePage() {
         onClose={() => setSilenceTarget(null)}
         onConfirm={(draft) => {
           silence.mutate(
-            {
-              data: {
-                path: draft.path,
-                durationMinutes: draft.minutes,
-                matchers: draft.matchers,
-                comment: draft.comment,
-              },
-            },
+            { data: draft },
             { onSuccess: () => setSilenceTarget(null) },
           );
         }}

@@ -12,17 +12,16 @@ import type { AlertingMatcher } from "@/data/alerting/types";
 import { db } from "@/db/client";
 import { alertSilences } from "@/db/schema";
 import { formatElapsed, silenceImpact } from "./format";
-import type {
-  AlertSilencePageRow,
-  AlertSilenceRecord,
-  AlertSilenceView,
-} from "./view";
+import type { AlertSilenceRecord, AlertSilenceView } from "./view";
 
 export type SilenceRow = typeof alertSilences.$inferSelect;
 
 /** What a silence did to delivery: notifications it is still sitting on, and
  *  ones it dropped for good. */
 export type SilenceImpactCounts = { held: number; dropped: number };
+
+/** What a silence did to delivery when history has no row for it. */
+export const NO_IMPACT: SilenceImpactCounts = { held: 0, dropped: 0 };
 
 /**
  * Every silence that has not closed yet, the ones still to start included: the
@@ -106,10 +105,11 @@ export async function loadSilencesForPage(
     .limit(PAGE_LIMIT);
 }
 
-/** Retention keeps closed silences for 90 days, and an Organization that
- *  writes more than this many in a range that wide has a different problem
- *  than a list that stops. */
-const PAGE_LIMIT = 500;
+/** As many as `loadSilenceImpact` counts for in one read. Retention keeps
+ *  closed silences for 90 days, and an Organization that writes more than
+ *  this many in a range that wide has a different problem than a list that
+ *  stops. */
+const PAGE_LIMIT = 200;
 
 function isWholeRuleSilence(matchers: AlertingMatcher[]): boolean {
   return matchers.every((m) => m.label === "rule");
@@ -169,50 +169,27 @@ const formatMatchers = (matchers: AlertingMatcher[]): string =>
     .map((m) => `${m.label}${m.op === "ne" ? "!=" : "="}${m.value}`)
     .join(" ");
 
-/** Everything the app knows about a silence, for the detail's own list. */
+/** Everything the app knows about a silence, for the two screens that list
+ *  them. */
 export function silenceRecord(
   row: SilenceRow,
   now: Date,
   counts: SilenceImpactCounts,
 ): AlertSilenceRecord {
-  // The rule matcher is on every silence this screen writes and is what
-  // selected the row in the first place, so listing it back says nothing.
-  const scoped = row.matchers.filter((m) => m.label !== "rule");
-  return {
-    id: row.id,
-    startsAt: row.startsAt.toISOString(),
-    endsAt: row.endsAt.toISOString(),
-    state: silenceState(row, now),
-    matchers: formatMatchers(scoped),
-    wholeRule: scoped.length === 0,
-    canceledAt: row.canceledAt?.toISOString() ?? null,
-    impact: silenceImpact(counts),
-    comment: row.comment,
-    author: row.author,
-  };
-}
-
-/** The same silence as the Silences page lists it, rule included. */
-export function silencePageRow(
-  row: SilenceRow,
-  now: Date,
-  counts: SilenceImpactCounts,
-): AlertSilencePageRow {
   const rules = row.matchers.filter(
     (m) => m.label === RULE_LABEL && m.op === "eq",
   );
-  const scoped = row.matchers.filter((m) => m.label !== RULE_LABEL);
   return {
     id: row.id,
     startsAt: row.startsAt.toISOString(),
     endsAt: row.endsAt.toISOString(),
     state: silenceState(row, now),
-    canceledAt: row.canceledAt?.toISOString() ?? null,
     matchers: formatMatchers(row.matchers),
-    // A silence written outside this screen can name a rule twice, or with
+    // A silence written outside these screens can name a rule twice, or with
     // `!=`, and "silence this rule again" has no one rule to mean then.
     rule: rules.length === 1 ? rules[0].value : null,
-    scope: formatMatchers(scoped),
+    scope: formatMatchers(row.matchers.filter((m) => m.label !== RULE_LABEL)),
+    canceledAt: row.canceledAt?.toISOString() ?? null,
     impact: silenceImpact(counts),
     comment: row.comment,
     author: row.author,

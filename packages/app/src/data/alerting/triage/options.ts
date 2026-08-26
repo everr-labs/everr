@@ -2,6 +2,7 @@ import type { TimeRange } from "@everr/ui/lib/time-range";
 import { type QueryClient, queryOptions } from "@tanstack/react-query";
 import {
   getAlertDetail,
+  getAlertRulePaths,
   getAlertSilences,
   getAlertTriage,
   getRuleStateHistory,
@@ -57,4 +58,13 @@ export const alertSilencesOptions = (range: TimeRange) =>
     // "Ends in 4m" and a silence that has just lapsed are the two facts the
     // page is read for, and both go stale on their own.
     refetchInterval: 30_000,
+  });
+
+export const alertRulePathsOptions = () =>
+  queryOptions({
+    queryKey: [...alertingQueryKey, "rule-paths"],
+    queryFn: () => getAlertRulePaths(),
+    // Rules change by an apply, not by the minute; the silence writes that
+    // invalidate the triage key refetch this too, which is harmless and rare.
+    staleTime: 5 * 60_000,
   });

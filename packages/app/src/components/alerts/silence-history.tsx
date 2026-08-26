@@ -4,41 +4,7 @@ import { BellOff } from "lucide-react";
 import { Fragment, useState } from "react";
 import type { AlertSilenceRecord } from "@/data/alerting/triage/view";
 import { Section } from "./detail-section";
-
-/** What a person may still do to a silence in each state. A window that has
- *  closed cannot be reopened, so the only move left on a past silence is to
- *  write a new one shaped like it. */
-const STATE_META: Record<
-  AlertSilenceRecord["state"],
-  { label: string; dot: string; text: string }
-> = {
-  active: {
-    label: "Active",
-    dot: "bg-chart-2",
-    text: "text-foreground",
-  },
-  // Hollow rather than filled: it is a window that exists but is not muting
-  // anything yet, and the reader has to be able to tell at a glance which of
-  // several rows is the one costing them notifications right now.
-  scheduled: {
-    label: "Scheduled",
-    dot: "border border-chart-2 bg-transparent",
-    text: "text-foreground",
-  },
-  expired: {
-    label: "Expired",
-    dot: "bg-muted-foreground/40",
-    text: "text-muted-foreground",
-  },
-  // Distinct from `expired` on purpose. "Ran its course" and "somebody ended
-  // it early" are different answers to why the pages came back, and the
-  // glossary keeps `cancel` for the second one.
-  cancelled: {
-    label: "Cancelled",
-    dot: "border border-muted-foreground/50 bg-transparent",
-    text: "text-muted-foreground",
-  },
-};
+import { isOpen, STATE_META, windowBounds } from "./silence-state";
 
 /** Active first, then what is coming, then history. Within each group the
  *  server's newest-first order stands, except for scheduled silences, which
@@ -56,9 +22,6 @@ const GROUP_ORDER: Record<AlertSilenceRecord["state"], number> = {
  *  below it off the panel. */
 const CLOSED_PREVIEW = 4;
 
-const isOpen = (record: AlertSilenceRecord) =>
-  record.state === "active" || record.state === "scheduled";
-
 function sortSilences(
   silences: AlertSilenceRecord[],
   activeSilenceId: string | null,
@@ -73,47 +36,6 @@ function sortSilences(
     if (a.state === "scheduled") return a.startsAt.localeCompare(b.startsAt);
     return b.startsAt.localeCompare(a.startsAt);
   });
-}
-
-const dayLabel = (at: Date) =>
-  at.toLocaleDateString(undefined, { month: "short", day: "numeric" });
-
-const clockLabel = (at: Date) =>
-  at.toLocaleTimeString(undefined, {
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-    hour12: false,
-  });
-
-/**
- * Both bounds of the window, to the second. Whether a given notification fell
- * inside it is what this row gets read for, and a bound rounded to the minute
- * cannot answer that for an event stamped four seconds in.
- *
- * A window that opens and closes on one day prints that day once. Most do,
- * and repeating it wraps the second bound onto its own line in a panel this
- * narrow.
- */
-function windowBounds(record: AlertSilenceRecord) {
-  const start = new Date(record.startsAt);
-  // Cancelling collapses `ends_at` to the cancel instant, give or take the
-  // transaction that wrote it. That jitter is under a second and invisible
-  // until the bounds are printed to one, so a cancelled window closes at the
-  // stamp that recorded the act rather than at the window it overwrote.
-  const endIso = record.canceledAt ?? record.endsAt;
-  const end = new Date(endIso);
-  const sameDay = start.toDateString() === end.toDateString();
-  return {
-    start: {
-      iso: record.startsAt,
-      text: `${dayLabel(start)}, ${clockLabel(start)}`,
-    },
-    end: {
-      iso: endIso,
-      text: sameDay ? clockLabel(end) : `${dayLabel(end)}, ${clockLabel(end)}`,
-    },
-  };
 }
 
 /** Its own element rather than a character written into either string: the
@@ -140,7 +62,7 @@ function SilenceRow({
   // A window that is still open can be closed early; one that has closed can
   // only be written again. Both are one button, in the same place, so the row
   // never has to explain which of the two it is offering.
-  const open = isOpen(record);
+  const open = isOpen(record.state);
   const bounds = windowBounds(record);
   const spoken = `${bounds.start.text} to ${bounds.end.text}`;
   // Only the facts this silence actually carries, so the row never prints a
@@ -149,9 +71,7 @@ function SilenceRow({
   // comment, unknown author" reads as a person declining to explain
   // themselves: a claim the row is in no position to make.
   const facts = [
-    !record.wholeRule && record.matchers.trim()
-      ? { key: "matchers", text: record.matchers, mono: true }
-      : null,
+    record.scope ? { key: "matchers", text: record.scope, mono: true } : null,
     record.impact ? { key: "impact", text: record.impact, mono: true } : null,
     record.comment
       ? { key: "comment", text: record.comment, mono: false }
@@ -229,7 +149,7 @@ function SilenceRow({
             open
               ? onCancel(record.id)
               : onSilence({
-                  matchers: record.matchers,
+                  matchers: record.scope,
                   comment: record.comment,
                 })
           }
@@ -272,7 +192,7 @@ export function SilenceHistory({
 }) {
   const [showAllClosed, setShowAllClosed] = useState(false);
   const ordered = sortSilences(silences, activeSilenceId);
-  const closedCount = ordered.filter((record) => !isOpen(record)).length;
+  const closedCount = ordered.filter((record) => !isOpen(record.state)).length;
   const hidden = showAllClosed ? 0 : Math.max(0, closedCount - CLOSED_PREVIEW);
   const visible =
     hidden === 0 ? ordered : ordered.slice(0, ordered.length - hidden);
