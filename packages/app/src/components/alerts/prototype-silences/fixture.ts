@@ -1,15 +1,14 @@
-// PROTOTYPE, throwaway fixture data for the silences page variants.
-// Three variants of /alerts/silences, switchable via `?variant=`, on the
-// existing route. Delete this directory when a variant has won.
+// PROTOTYPE, throwaway fixture data for the silences page. Delete this file
+// when the page reads real silences.
 
 export type SilenceState = "active" | "scheduled" | "expired" | "cancelled";
 
 export type SilenceFixture = {
   id: string;
   state: SilenceState;
-  /** `rule` matcher value, `null` when the silence spans several rules. */
-  rule: string | null;
-  /** Matchers beyond the rule, formatted; empty means the whole rule. */
+  /** Every matcher, formatted. The rule is one of them like any other: a
+   *  silence on `rule=a` and one on `environment=staging` are the same kind
+   *  of thing, and the page reads them in the same column. */
   matchers: string;
   startsAt: string;
   endsAt: string;
@@ -24,14 +23,13 @@ const NOW = new Date("2026-08-26T14:20:00Z").getTime();
 const at = (minutesFromNow: number) =>
   new Date(NOW + minutesFromNow * 60_000).toISOString();
 
-export const FIXTURE_NOW = new Date(NOW);
+const FIXTURE_NOW = new Date(NOW);
 
 export const SILENCES: SilenceFixture[] = [
   {
     id: "sil_01",
     state: "active",
-    rule: "checkout/api-error-rate",
-    matchers: "",
+    matchers: "rule=checkout/api-error-rate",
     startsAt: at(-95),
     endsAt: at(145),
     canceledAt: null,
@@ -43,8 +41,7 @@ export const SILENCES: SilenceFixture[] = [
   {
     id: "sil_02",
     state: "active",
-    rule: "ingest/queue-lag",
-    matchers: "region=eu-west-1",
+    matchers: "rule=ingest/queue-lag region=eu-west-1",
     startsAt: at(-30),
     endsAt: at(30),
     canceledAt: null,
@@ -56,7 +53,6 @@ export const SILENCES: SilenceFixture[] = [
   {
     id: "sil_03",
     state: "active",
-    rule: null,
     matchers: "environment=staging",
     startsAt: at(-1440),
     endsAt: at(8640),
@@ -69,8 +65,7 @@ export const SILENCES: SilenceFixture[] = [
   {
     id: "sil_04",
     state: "scheduled",
-    rule: "web/lcp-p75",
-    matchers: "",
+    matchers: "rule=web/lcp-p75",
     startsAt: at(220),
     endsAt: at(340),
     canceledAt: null,
@@ -82,8 +77,7 @@ export const SILENCES: SilenceFixture[] = [
   {
     id: "sil_05",
     state: "scheduled",
-    rule: "billing/invoice-job-failures",
-    matchers: "",
+    matchers: "rule=billing/invoice-job-failures",
     startsAt: at(1500),
     endsAt: at(1620),
     canceledAt: null,
@@ -95,8 +89,7 @@ export const SILENCES: SilenceFixture[] = [
   {
     id: "sil_06",
     state: "expired",
-    rule: "checkout/api-error-rate",
-    matchers: "",
+    matchers: "rule=checkout/api-error-rate",
     startsAt: at(-1560),
     endsAt: at(-1500),
     canceledAt: null,
@@ -108,8 +101,7 @@ export const SILENCES: SilenceFixture[] = [
   {
     id: "sil_07",
     state: "cancelled",
-    rule: "ingest/queue-lag",
-    matchers: "region=us-east-1",
+    matchers: "rule=ingest/queue-lag region=us-east-1",
     startsAt: at(-2900),
     endsAt: at(-2780),
     canceledAt: at(-2780),
@@ -121,8 +113,7 @@ export const SILENCES: SilenceFixture[] = [
   {
     id: "sil_08",
     state: "expired",
-    rule: "web/lcp-p75",
-    matchers: "page=/pricing",
+    matchers: "rule=web/lcp-p75 page=/pricing",
     startsAt: at(-4400),
     endsAt: at(-4160),
     canceledAt: null,
@@ -134,8 +125,7 @@ export const SILENCES: SilenceFixture[] = [
   {
     id: "sil_09",
     state: "expired",
-    rule: "db/replica-lag",
-    matchers: "",
+    matchers: "rule=db/replica-lag",
     startsAt: at(-7300),
     endsAt: at(-7000),
     canceledAt: null,
@@ -147,7 +137,6 @@ export const SILENCES: SilenceFixture[] = [
   {
     id: "sil_10",
     state: "cancelled",
-    rule: null,
     matchers: "environment=staging",
     startsAt: at(-10100),
     endsAt: at(-9950),
@@ -172,9 +161,6 @@ export const STATE_DOT: Record<SilenceState, string> = {
   expired: "bg-muted-foreground/40",
   cancelled: "border border-muted-foreground/50 bg-transparent",
 };
-
-export const scope = (s: SilenceFixture) =>
-  s.matchers ? s.matchers : "whole rule";
 
 export const impact = (s: SilenceFixture) => {
   const parts: string[] = [];

@@ -1,6 +1,6 @@
-// PROTOTYPE, variant A: "What is muting right now". Three stacked sections
-// (in force, coming up, history) with one dense grid row per silence. The
-// active section is the control surface; history is evidence.
+// PROTOTYPE, on fixture data: "What is muting right now". Three stacked
+// sections (active, coming up, history) with one dense grid row per silence.
+// The active section is the control surface; history is evidence.
 import { Button } from "@everr/ui/components/button";
 import { cn } from "@everr/ui/lib/utils";
 import { BellOff, Plus } from "lucide-react";
@@ -12,11 +12,8 @@ import {
   type SilenceFixture,
   STATE_DOT,
   STATE_LABEL,
-  scope,
   stamp,
 } from "./fixture";
-
-export const nameA = "Grouped by state";
 
 const COLUMNS =
   "grid grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_9rem_7rem_6rem] items-center gap-4";
@@ -38,12 +35,13 @@ function Row({ s }: { s: SilenceFixture }) {
           <span
             className={cn("size-1.5 shrink-0 rounded-full", STATE_DOT[s.state])}
           />
-          <span className="truncate font-medium">
-            {s.rule ?? "Several rules"}
-          </span>
-          <span className="shrink-0 font-mono text-xs text-muted-foreground">
-            {scope(s)}
-          </span>
+          {/* The matchers are the silence: there is no name to put above
+              them, and the rule is one matcher among the others rather than a
+              title the rest narrow. A silence with none prints nothing here;
+              absence of text is the statement. */}
+          {s.matchers && (
+            <span className="truncate font-mono text-xs">{s.matchers}</span>
+          )}
         </div>
         {s.comment && (
           <p className="mt-0.5 truncate pl-3.5 text-xs text-muted-foreground">
@@ -116,7 +114,7 @@ function Section({
   );
 }
 
-export function VariantA() {
+export function SilencesPage() {
   const active = SILENCES.filter((s) => s.state === "active");
   const scheduled = SILENCES.filter((s) => s.state === "scheduled").sort(
     (a, b) => a.startsAt.localeCompare(b.startsAt),
@@ -130,7 +128,7 @@ export function VariantA() {
       <PageHeader
         title="Silences"
         icon={BellOff}
-        lede={`${active.length} in force, holding ${held} notifications. Silenced alerts stay visible but are not delivered.`}
+        lede={`${active.length} active, holding ${held} notifications. Silenced alerts stay visible but are not delivered.`}
         actions={
           <Button size="sm">
             <Plus className="size-4" />
@@ -138,7 +136,7 @@ export function VariantA() {
           </Button>
         }
       />
-      <Section title="In force" rows={active} />
+      <Section title="Active" rows={active} />
       <Section title="Coming up" hint="soonest first" rows={scheduled} />
       <Section title="History" hint="last 90 days" rows={closed} />
     </div>

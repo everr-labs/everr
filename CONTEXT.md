@@ -279,6 +279,10 @@ _Avoid_: unrouted, undeliverable, not delivered (prose, not the term)
 A time-bounded mute a person creates with Matchers. Notifications for matching alerts are Deferred while the window is open and go out late if the alert still fires when it ends. Cancelling a Silence closes its window early.
 _Avoid_: mute (see Muted), snooze
 
+**Active silence**:
+A Silence whose window covers now. A Silence whose window has not opened yet is scheduled; one whose window has closed is expired, or cancelled if a person closed it early.
+_Avoid_: in force, live, current
+
 **Deferred**:
 A notification withheld for now by a Silence and reconsidered later. It may still be delivered late. Recorded in history as a Hold, which the later delivery or Suppression closes.
 _Avoid_: suppressed (a terminal decision), dropped
