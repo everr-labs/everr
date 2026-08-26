@@ -23,11 +23,15 @@ catalog:
   vite: ^8.0.11
   zod: ^4.4.3
 
+overrides:
+  testcontainers: 12.0.4
 minimumReleaseAge: 4320
 allowBuilds:
   core-js: false
+  cpu-features: false
   esbuild: false
   fallow: false
   lefthook: true
   msw: false
   protobufjs: false
+  ssh2: false

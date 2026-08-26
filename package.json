@@ -18,11 +18,14 @@
     "changeset:tag": "changeset tag",
     "postinstall": "lefthook install",
     "test": "vitest",
+    "test:clickhouse": "vitest run --config clickhouse/vitest.config.ts",
     "test:watch": "vitest --watch --ui"
   },
   "devDependencies": {
     "@biomejs/biome": "2.4.15",
     "@changesets/cli": "^2.31.0",
+    "@clickhouse/client": "^1.18.4",
+    "@testcontainers/clickhouse": "12.0.4",
     "@vitest/coverage-v8": "^4.1.5",
     "@vitest/ui": "4.1.5",
     "fallow": "^2.75.0",
