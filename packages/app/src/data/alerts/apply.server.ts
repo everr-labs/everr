@@ -54,6 +54,8 @@ interface ApplyAlertsResult {
   deleted: string[];
   adopted: string[];
   conflicts: OwnershipConflict[];
+  /** Alert rules carry no panels, so nothing here is ever deprecated yet. */
+  warnings: string[];
 }
 
 function pathForLink(path: string): string {
@@ -448,6 +450,7 @@ export const applyAlertSpecs: Reconciler = async ({
     deleted: deletes.map((row) => row.slug),
     adopted,
     conflicts,
+    warnings: [],
   };
 
   if (dryRun) return summary;

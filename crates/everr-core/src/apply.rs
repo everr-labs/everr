@@ -385,6 +385,10 @@ pub struct KindResult {
     /// Live resources taken over from another owning repo (only with `--adopt`).
     #[serde(default)]
     pub adopted: Vec<String>,
+    /// Non-fatal notices about the applied files, e.g. a panel option the app
+    /// has deprecated. The apply succeeded; these say what to migrate.
+    #[serde(default)]
+    pub warnings: Vec<String>,
 }
 
 #[derive(Debug, Clone, Deserialize, PartialEq)]

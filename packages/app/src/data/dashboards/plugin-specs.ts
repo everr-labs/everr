@@ -1,5 +1,6 @@
 import type * as z from "zod";
 import { barChartSpec } from "@/components/dashboards/visualizations/bar-chart/spec";
+import type { SpecDeprecation } from "@/components/dashboards/visualizations/deprecations";
 import { gaugeChartSpec } from "@/components/dashboards/visualizations/gauge-chart/spec";
 import { geoMapSpec } from "@/components/dashboards/visualizations/geo-map/spec";
 import { heatmapSpec } from "@/components/dashboards/visualizations/heatmap/spec";
@@ -8,7 +9,10 @@ import { statChartSpec } from "@/components/dashboards/visualizations/stat-chart
 import { stateTimelineSpec } from "@/components/dashboards/visualizations/state-timeline/spec";
 import { statusHistorySpec } from "@/components/dashboards/visualizations/status-history/spec";
 import { tableSpec } from "@/components/dashboards/visualizations/table/spec";
-import { timeSeriesChartSpec } from "@/components/dashboards/visualizations/time-series-chart/spec";
+import {
+  timeSeriesChartDeprecations,
+  timeSeriesChartSpec,
+} from "@/components/dashboards/visualizations/time-series-chart/spec";
 import { treemapSpec } from "@/components/dashboards/visualizations/treemap/spec";
 import { testDataSpec } from "./testdata/spec";
 
@@ -31,6 +35,22 @@ export const panelPluginSpecs: Record<string, z.ZodType> = {
   Table: tableSpec,
   TimeSeriesChart: timeSeriesChartSpec,
   Treemap: treemapSpec,
+};
+
+/**
+ * Options per panel plugin kind that still parse but no longer do what they
+ * say. Read from the raw spec, not the parsed one, so the original value is
+ * available to name in the message.
+ *
+ * A kind with nothing deprecated is simply absent. Keeping this beside the
+ * schemas is deliberate: both the render path and the apply path need it, and
+ * both already load this module.
+ */
+export const panelPluginDeprecations: Record<
+  string,
+  (raw: unknown) => SpecDeprecation[]
+> = {
+  TimeSeriesChart: timeSeriesChartDeprecations,
 };
 
 /**

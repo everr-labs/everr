@@ -148,6 +148,7 @@ describe("applyRunbookSpecs", () => {
       deleted: ["old"],
       adopted: [],
       conflicts: [],
+      warnings: [],
     });
   });
 

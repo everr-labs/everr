@@ -13,7 +13,7 @@ describe("parseSpecLenient", () => {
     expect(warnings).toEqual([]);
     expect(spec.unit).toBe("ms");
     expect(spec.lineWidth).toBe(2);
-    expect(spec.curveType).toBe("monotone");
+    expect(spec.curveType).toBe("linear");
   });
 
   it("drops an invalid option to its default and warns with the path", () => {
@@ -34,7 +34,7 @@ describe("parseSpecLenient", () => {
       showLegend: true,
     });
     expect(spec.lineWidth).toBe(1.5);
-    expect(spec.curveType).toBe("monotone");
+    expect(spec.curveType).toBe("linear");
     expect(spec.showLegend).toBe(true);
     expect(warnings).toHaveLength(2);
   });
