@@ -296,6 +296,7 @@ func renderCreateTracesJSONTableSQL(cfg *Config) string {
 	ttlExpr := internal.GenerateTTLExpr(cfg.TTL, "toDateTime(Timestamp)")
 	return fmt.Sprintf(sqltemplates.TracesJSONCreateTable,
 		cfg.database(), cfg.TracesTableName, cfg.clusterString(),
+		sqltemplates.TracesRowBytesExpression,
 		cfg.tableEngineString(),
 		ttlExpr,
 	)
@@ -307,6 +308,16 @@ func createTraceJSONTables(ctx context.Context, cfg *Config, db driver.Conn) err
 	}
 	if err := db.Exec(ctx, renderCreateTracesJSONTableSQL(cfg)); err != nil {
 		return fmt.Errorf("exec create json traces table sql: %w", err)
+	}
+	if err := migrateRowBytesColumn(
+		ctx,
+		db,
+		cfg.database(),
+		cfg.TracesTableName,
+		cfg.clusterString(),
+		sqltemplates.TracesRowBytesExpression,
+	); err != nil {
+		return err
 	}
 	if err := db.Exec(ctx, renderCreateTraceIDTsTableSQL(cfg)); err != nil {
 		return fmt.Errorf("exec create traceID timestamp table sql: %w", err)

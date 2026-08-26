@@ -71,6 +71,16 @@ func (e *logsExporter) start(ctx context.Context, _ component.Host) error {
 		if migrateErr := migrateLogsTable(ctx, e.cfg, e.db); migrateErr != nil {
 			return migrateErr
 		}
+		if migrateErr := migrateRowBytesColumn(
+			ctx,
+			e.db,
+			e.cfg.database(),
+			e.cfg.LogsTableName,
+			e.cfg.clusterString(),
+			sqltemplates.LogsRowBytesExpression,
+		); migrateErr != nil {
+			return migrateErr
+		}
 	}
 
 	err = e.detectSchemaFeatures(ctx)
@@ -242,12 +252,13 @@ var versionFullTextSearch = proto.Version{Major: 26, Minor: 2}
 func renderCreateLogsTableSQL(cfg *Config, hasFullTextSearch bool) (string, error) {
 	ttlExpr := internal.GenerateTTLExpr(cfg.TTL, "toDateTime(Timestamp)")
 	data := sqltemplates.CreateTableData{
-		Database:          cfg.database(),
-		TableName:         cfg.LogsTableName,
-		ClusterString:     cfg.clusterString(),
-		Engine:            cfg.tableEngineString(),
-		TTL:               ttlExpr,
-		HasFullTextSearch: hasFullTextSearch,
+		Database:           cfg.database(),
+		TableName:          cfg.LogsTableName,
+		ClusterString:      cfg.clusterString(),
+		Engine:             cfg.tableEngineString(),
+		TTL:                ttlExpr,
+		HasFullTextSearch:  hasFullTextSearch,
+		RowBytesExpression: sqltemplates.LogsRowBytesExpression,
 	}
 
 	var buf bytes.Buffer

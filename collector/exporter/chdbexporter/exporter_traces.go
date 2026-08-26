@@ -207,6 +207,7 @@ func renderCreateTracesTableSQL(cfg *Config) string {
 	ttlExpr := internal.GenerateTTLExpr(cfg.TTL, "toDateTime(Timestamp)")
 	return fmt.Sprintf(sqltemplates.TracesCreateTable,
 		cfg.database(), cfg.TracesTableName, cfg.clusterString(),
+		sqltemplates.TracesRowBytesExpression,
 		cfg.tableEngineString(),
 		ttlExpr,
 	)
@@ -236,6 +237,16 @@ func createTraceTables(ctx context.Context, cfg *Config, db driver.Conn) error {
 	}
 	if err := db.Exec(ctx, renderCreateTracesTableSQL(cfg)); err != nil {
 		return fmt.Errorf("exec create traces table sql: %w", err)
+	}
+	if err := migrateRowBytesColumn(
+		ctx,
+		db,
+		cfg.database(),
+		cfg.TracesTableName,
+		cfg.clusterString(),
+		sqltemplates.TracesRowBytesExpression,
+	); err != nil {
+		return err
 	}
 	if err := db.Exec(ctx, renderCreateTraceIDTsTableSQL(cfg)); err != nil {
 		return fmt.Errorf("exec create traceID timestamp table sql: %w", err)

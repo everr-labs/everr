@@ -1,6 +1,7 @@
 package chdbexporter
 
 import (
+	"fmt"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -116,6 +117,21 @@ func TestFactoryCreatesCloudNamedTablesWithoutViews(t *testing.T) {
 	require.Contains(t, queries, "CREATE TABLE IF NOT EXISTS `default`.`logs`")
 	require.Contains(t, queries, `CREATE TABLE IF NOT EXISTS "default"."traces"`)
 	require.Contains(t, queries, `CREATE TABLE IF NOT EXISTS "default"."metrics_gauge"`)
+	for _, table := range []string{
+		"logs",
+		"traces",
+		"metrics_gauge",
+		"metrics_sum",
+		"metrics_histogram",
+		"metrics_exponential_histogram",
+		"metrics_summary",
+	} {
+		require.Contains(
+			t,
+			queries,
+			fmt.Sprintf(`ALTER TABLE "default".%q ADD COLUMN IF NOT EXISTS `+"`RowBytes`"+` UInt64 MATERIALIZED byteSize(`, table),
+		)
+	}
 	require.NotContains(t, queries, "CREATE VIEW ")
 }
 
