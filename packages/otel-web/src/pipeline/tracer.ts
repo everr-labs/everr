@@ -6,16 +6,23 @@
 // module imports @opentelemetry/api for the types only. Thus there is no
 // dependency at run time, and the code uses no global provider.
 //
-// The implementation has these limits. Each span is its own trace, and the SDK
-// always samples it. The code makes the ids locally and gives them with
-// spanContext(), and thus an instrumentation can send them to a server. The
-// kind is CLIENT, the same as each span of the SDK. There is no context
-// manager. Thus startActiveSpan calls its function but does not make the span
-// active, and one span is never the parent of a different span. The tracer
-// accepts the events and the links, but it discards them, because the payload
-// carries neither of them.
+// The implementation has these limits. The SDK always samples a span. The code
+// makes the ids locally and gives them with spanContext(), and thus an
+// instrumentation can send them to a server. The kind is CLIENT, the same as
+// each span of the SDK. There is no context manager. Thus startActiveSpan calls
+// its function but does not make the span active. A span is its own trace,
+// except when the caller gives the context from childOf(parent) as the third
+// argument of startSpan: the new span then joins the trace of the parent as
+// its child. The tracer accepts the events and the links, but it discards
+// them, because the payload carries neither of them.
 
-import type { Exception, Span, SpanOptions, Tracer } from "@opentelemetry/api";
+import type {
+  Context,
+  Exception,
+  Span,
+  SpanOptions,
+  Tracer,
+} from "@opentelemetry/api";
 import { randomHex } from "../state/session.js";
 import type { AttrValue, EmitSpan } from "./emitter.js";
 
@@ -24,13 +31,40 @@ import type { AttrValue, EmitSpan } from "./emitter.js";
 const toMs = (time: unknown): number | undefined =>
   typeof time === "number" ? time : undefined;
 
+// The key of the parent span in a context from childOf(). The @opentelemetry/api
+// context keys are not available at run time, and thus the tracer has its own
+// key. The context is empty for each other key.
+const PARENT = Symbol();
+type ParentContext = Context & { [PARENT]?: Span };
+
+/**
+ * A context that makes `parent` the parent of the next span. Use it as the
+ * third argument of `tracer.startSpan(name, options, childOf(parent))`.
+ */
+export function childOf(parent: Span): Context {
+  const context: ParentContext = {
+    [PARENT]: parent,
+    getValue: () => undefined,
+    setValue: () => context,
+    deleteValue: () => context,
+  };
+  return context;
+}
+
 export function createTracer(emitSpan: EmitSpan): Tracer {
-  const startSpan = (name: string, options?: SpanOptions): Span => {
+  const startSpan = (
+    name: string,
+    options?: SpanOptions,
+    context?: Context,
+  ): Span => {
     // One read of the CSPRNG gives the two ids, the same as in the network
-    // signal.
+    // signal. A child keeps the trace id of its parent.
+    const parent = (context as ParentContext | undefined)?.[
+      PARENT
+    ]?.spanContext();
     const ids = randomHex(24);
     const spanContext = {
-      traceId: ids.slice(0, 32),
+      traceId: parent?.traceId ?? ids.slice(0, 32),
       spanId: ids.slice(32),
       traceFlags: 1, // always sampled
     };
@@ -90,6 +124,7 @@ export function createTracer(emitSpan: EmitSpan): Tracer {
           toMs(endTime) ?? Date.now(),
           attributes,
           errored,
+          parent?.spanId,
         );
       },
     };
@@ -100,14 +135,16 @@ export function createTracer(emitSpan: EmitSpan): Tracer {
   return {
     startSpan,
     // This function accepts all the argument sequences. The function to call is
-    // always the last argument. The options are the first argument when more
-    // than one argument comes before the function. The code does not make the
-    // span active.
+    // always the last argument. The options are the first argument and the
+    // context is the second argument when they come before the function. The
+    // code does not make the span active.
     startActiveSpan: ((name: string, ...rest: unknown[]) => {
       const fn = rest[rest.length - 1] as (span: Span) => unknown;
       const options =
         rest.length > 1 ? (rest[0] as SpanOptions | undefined) : undefined;
-      return fn(startSpan(name, options));
+      const context =
+        rest.length > 2 ? (rest[1] as Context | undefined) : undefined;
+      return fn(startSpan(name, options, context));
     }) as Tracer["startActiveSpan"],
   };
 }

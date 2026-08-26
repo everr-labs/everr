@@ -7,6 +7,7 @@ import {
   type OtlpSpan,
   startClient,
 } from "../test-kit.js";
+import { childOf } from "./tracer.js";
 
 // The tracer that ctx.tracer gives to an instrumentation. It is a small
 // @opentelemetry/api Tracer on the span pipeline of the SDK. These tests use it
@@ -38,6 +39,38 @@ afterEach(async () => {
 });
 
 describe("instrumentation tracer", () => {
+  it("makes a child in the trace of the parent with childOf()", async () => {
+    start();
+    const parent = tracer.startSpan("PageLoad");
+    const child = tracer.startSpan("work", {}, childOf(parent));
+    child.end();
+    parent.end();
+    const [childWire, parentWire] = await spans();
+    expect(parentWire.name).toBe("PageLoad");
+    expect(parentWire.parentSpanId).toBeUndefined();
+    expect(childWire.traceId).toBe(parentWire.traceId);
+    expect(childWire.spanId).not.toBe(parentWire.spanId);
+    expect(childWire.parentSpanId).toBe(parentWire.spanId);
+  });
+
+  it("passes the context through startActiveSpan", async () => {
+    start();
+    const parent = tracer.startSpan("PageLoad");
+    tracer.startActiveSpan("work", {}, childOf(parent), (span) => span.end());
+    parent.end();
+    const [childWire, parentWire] = await spans();
+    expect(childWire.parentSpanId).toBe(parentWire.spanId);
+  });
+
+  it("makes a new trace without a context", async () => {
+    start();
+    tracer.startSpan("a").end();
+    tracer.startSpan("b").end();
+    const [a, b] = await spans();
+    expect(a.traceId).not.toBe(b.traceId);
+    expect(a.parentSpanId).toBeUndefined();
+  });
+
   it("ships an ended span with its own sampled trace, CLIENT kind, and attributes", async () => {
     start();
     const span = tracer.startSpan("work", {

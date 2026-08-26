@@ -1,12 +1,20 @@
 /// <reference path="../../dom.d.ts" />
 import type { Tracer } from "@opentelemetry/api";
+import { childOf } from "../../pipeline/tracer.js";
 import { scriptAttrs } from "../performance/shared.js";
 
-// The window of the page load. A Resource Timing observer with the buffered
-// option gives the entries, and the code makes one `GET <url>` CLIENT span for
-// each static resource in the first load: a script, a CSS file, an image, a
-// font, a link, an iframe, and the equivalent resources. A LoAF observer with
-// the buffered option gives the long animation frames, and the code makes one
+// The window of the page load. The code makes one `PageLoad` root span for the
+// trace of the load. It starts at the time origin of the document, and it ends
+// at the LCP: the start of the most recent largest-contentful-paint entry. The
+// spans below are its children. Thus the trace timeline shows the resources
+// and the delays before the largest paint, in one trace. A browser without LCP
+// ends the root at the end of the `load` event.
+//
+// A Resource Timing observer with the buffered option gives the entries, and
+// the code makes one `pageLoad.asset.<initiator_type>` CLIENT span for each
+// static resource in the first load: a script, a CSS file, an image, a font, a
+// link, an iframe, and the equivalent resources. A LoAF observer with the
+// buffered option gives the long animation frames, and the code makes one
 // `long_animation_frame` span for each interval when the main thread stops.
 // Chrome 123 and the later versions have that observer. Thus the sequence of
 // the resources and the delays that they caused give one description of the
@@ -22,7 +30,10 @@ import { scriptAttrs } from "../performance/shared.js";
 // the buffered option, and thus they also give the entries from before the
 // setup. They stop at the `load` event plus settleMs, which gets the resources
 // that load late, or at ceilingMs from the setup. The first of the two events
-// stops them. An SPA navigation never opens this window again.
+// stops them, and the SDK then sends the root span. A resource after the LCP
+// is a child that ends after its parent, and that is correct: the root gives
+// the interval to the largest paint, and the window gives the resources. An
+// SPA navigation never opens this window again.
 //
 // The attributes agree with the semconv when it gives a name. The url.full
 // attribute has no query string, the same as in a network span, because a query
@@ -47,18 +58,22 @@ export function startPageLoad(
   ceilingMs: number,
 ): () => void {
   // The timestamps of an entry are relative to the time origin, but a span uses
-  // milliseconds from the epoch. The end is the start plus the duration after
-  // the code rounds it. Thus the duration of the span is the duration of the
-  // entry, and the rounding of the start does not change it.
+  // milliseconds from the epoch.
+  const epoch = (time: number) => Math.round(performance.timeOrigin + time);
+  const root = tracer.startSpan("PageLoad", { startTime: epoch(0) });
+  const inRoot = childOf(root);
+  // The end is the start plus the duration after the code rounds it. Thus the
+  // duration of the span is the duration of the entry, and the rounding of the
+  // start does not change it.
   const span = (
     name: string,
     startTime: number,
     duration: number,
     attributes: Record<string, string | number | boolean | undefined>,
   ) => {
-    const start = Math.round(performance.timeOrigin + startTime);
+    const start = epoch(startTime);
     tracer
-      .startSpan(name, { startTime: start, attributes })
+      .startSpan(name, { startTime: start, attributes }, inRoot)
       .end(start + Math.round(duration));
   };
 
@@ -84,12 +99,12 @@ export function startPageLoad(
     // not permit the detailed timestamps. Then each phase below is an incorrect
     // zero. Thus the code writes none of them.
     const timed = entry.responseStart > 0;
-    // A request for a resource is always a GET, and the full URL without the
-    // query string gives the exact resource. The initiator type between the
-    // method and the target separates the asset waterfall from the fetch spans
-    // at a glance, for example `GET asset:script /app.js`. The URL of a
-    // resource does not change, and thus a query can use this name.
-    span(`GET asset:${initiatorType} ${url}`, entry.startTime, entry.duration, {
+    // The name has the initiator type and not the URL, for example
+    // `pageLoad.asset.script`. A URL frequently has a hash of the content, and
+    // a name with the URL changes at each deployment. A name from the type is
+    // the same for each load, and thus a query can group the spans by name.
+    // The url.full attribute gives the exact resource.
+    span(`pageLoad.asset.${initiatorType}`, entry.startTime, entry.duration, {
       "url.full": url,
       "http.response.status_code": responseStatus || undefined,
       "everr.browser.asset.initiator_type": initiatorType,
@@ -179,13 +194,41 @@ export function startPageLoad(
     // SDK sends only the resource spans.
   }
 
+  // The LCP candidate. The browser sends a new entry each time a larger
+  // element paints, and the most recent entry is the LCP. The code keeps only
+  // its time, and it does not complete the value at an input, different from
+  // the LCP vital: this span gives the interval on the timeline, and the vital
+  // gives the metric.
+  let lcp: number | undefined;
+  let lcpPo: PerformanceObserver | undefined;
+  const takeLcp = (entries: PerformanceEntry[]) => {
+    for (const entry of entries) lcp = entry.startTime;
+  };
+  try {
+    lcpPo = new PerformanceObserver((list) => takeLcp(list.getEntries()));
+    lcpPo.observe({ type: "largest-contentful-paint", buffered: true });
+  } catch {
+    // A browser without LCP. The root ends at the load event.
+  }
   let settle: ReturnType<typeof setTimeout> | undefined;
   const stop = () => {
     po.disconnect();
     loafPo?.disconnect();
+    lcpPo?.disconnect();
     clearTimeout(settle);
     clearTimeout(ceiling);
     removeEventListener("load", onLoad);
+    // The entries that the observer did not deliver yet.
+    if (lcpPo) takeLcp(lcpPo.takeRecords());
+    // Without an LCP and before the load event, the root ends now.
+    const end =
+      lcp ??
+      (
+        performance.getEntriesByType("navigation")[0] as
+          | PerformanceNavigationTiming
+          | undefined
+      )?.loadEventEnd;
+    root.end(end ? epoch(end) : undefined);
   };
   const onLoad = () => {
     settle = setTimeout(stop, settleMs);

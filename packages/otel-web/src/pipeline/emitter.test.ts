@@ -256,6 +256,29 @@ describe("span pipeline", () => {
     expect(keys).toContain("http.request.method");
   });
 
+  it("ships the parent span id of a child, and none for a root", async () => {
+    emitSpan("a".repeat(32), "b".repeat(16), "PageLoad", 1, 2, {});
+    emitSpan(
+      "a".repeat(32),
+      "c".repeat(16),
+      "work",
+      1,
+      2,
+      {},
+      false,
+      "b".repeat(16),
+    );
+    await flush();
+    const payload = sent[0].payload as unknown as {
+      resourceSpans: Array<{
+        scopeSpans: Array<{ spans: Array<Record<string, unknown>> }>;
+      }>;
+    };
+    const [root, child] = payload.resourceSpans[0].scopeSpans[0].spans;
+    expect(root.parentSpanId).toBeUndefined();
+    expect(child.parentSpanId).toBe("b".repeat(16));
+  });
+
   it("marks error spans with OTLP status ERROR", async () => {
     emitSpan("a".repeat(32), "b".repeat(16), "GET /api", 1, 2, {}, true);
     await flush();
