@@ -49,7 +49,7 @@ async function storedSilence(id: string) {
 
 describe("silencing an Alert rule from the Triage screen", () => {
   it("scopes the Silence to the rule, never to the label alone", async () => {
-    await insertRule(harness().db, {
+    const rule = await insertRule(harness().db, {
       organizationId: SESSION_ORG,
       slug: "checkout-latency",
     });
@@ -66,14 +66,17 @@ describe("silencing an Alert rule from the Triage screen", () => {
     // The rule Matcher comes first and is always present. Without it this
     // Silence would mute host=web-1 across every Alert rule the Organization
     // has, not one rule on one host.
+    // Its value is the rule's row id, not the path the caller sent: the
+    // mutation resolves the one into the other, and delivery matches on the
+    // id it stored.
     expect((await storedSilence(id)).matchers).toEqual([
-      { label: "rule", op: "eq", value: PATH },
+      { label: "rule", op: "eq", value: rule.id },
       { label: "host", op: "eq", value: "web-1" },
     ]);
   });
 
   it("writes a whole-rule Silence when no Matchers were typed", async () => {
-    await insertRule(harness().db, {
+    const rule = await insertRule(harness().db, {
       organizationId: SESSION_ORG,
       slug: "checkout-latency",
     });
@@ -83,7 +86,7 @@ describe("silencing an Alert rule from the Triage screen", () => {
     });
 
     expect((await storedSilence(id)).matchers).toEqual([
-      { label: "rule", op: "eq", value: PATH },
+      { label: "rule", op: "eq", value: rule.id },
     ]);
   });
 

@@ -84,7 +84,7 @@ describe("deferSuppressedEvent", () => {
   const now = new Date("2026-08-10T10:00:00Z");
   const silence = {
     id: "5cbb1c68-5cc9-4444-8000-000000000001",
-    ends_at: "2026-08-10T11:00:00Z",
+    endsAt: new Date("2026-08-10T11:00:00Z"),
   } as unknown as NonNullable<Parameters<typeof deferSuppressedEvent>[1]>;
   const event = {
     id: "019c3aba-29f8-7d6e-9e55-301cf47fa80d",
@@ -107,7 +107,7 @@ describe("deferSuppressedEvent", () => {
       {
         eventId: event.id,
         keySuffix: "2026-08-10T11:00:00.000Z",
-        runAt: new Date(silence.ends_at),
+        runAt: silence.endsAt,
       },
     ]);
     // The hold is recorded even though the notification is not decided: a

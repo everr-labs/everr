@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest";
+import type { alertEvents } from "@/db/schema";
 import type { AlertingMatcher } from "../types";
 import {
-  alertingMatcherMatches,
-  alertingMatchersMatch,
-  alertingMatchingSilence,
-  alertingSyntheticLabels,
+  eventSubject,
+  matchingSilence,
+  ruleSubject,
+  silenceIsInForce,
+  silenceSelects,
 } from "./matching";
 
 function matcher(
@@ -15,98 +17,163 @@ function matcher(
   return { label, op, value };
 }
 
-describe("alertingMatcherMatches", () => {
-  // A missing label reads as the empty string, so `ne` matches it.
-  it.each<[AlertingMatcher["op"], string, Record<string, string>, boolean]>([
-    ["eq", "pay", { team: "pay" }, true],
-    ["eq", "pay", { team: "core" }, false],
-    ["eq", "pay", {}, false],
-    ["eq", "", {}, true],
-    ["ne", "pay", { team: "core" }, true],
-    ["ne", "pay", {}, true],
-    ["ne", "pay", { team: "pay" }, false],
-  ])("team %s %s against %j is %s", (op, value, labels, expected) => {
-    expect(alertingMatcherMatches(matcher(op, value), labels)).toBe(expected);
+const RULE_ID = "0e1c2b8f-4a3d-4c2b-9f11-5a7c9d2e8b41";
+
+function event(
+  overrides: Partial<typeof alertEvents.$inferSelect> = {},
+): typeof alertEvents.$inferSelect {
+  return {
+    sourceDefinitionId: RULE_ID,
+    severity: "critical",
+    eventType: "instance_fired",
+    instanceLabels: { team: "pay" },
+    ...overrides,
+  } as typeof alertEvents.$inferSelect;
+}
+
+describe("the subject a silence is matched against", () => {
+  it("names the rule by its row id from either side", () => {
+    // The one fact both sides have to agree on. They each built their own
+    // label set once, and they spelled the rule differently: a silence written
+    // from the screen then matched nothing the pipeline evaluated, and the
+    // screen still said the rule was silenced.
+    const fromEvent = eventSubject(event());
+    const fromRule = ruleSubject(RULE_ID, "critical");
+
+    expect(fromEvent.rule).toBe(RULE_ID);
+    expect(fromRule.rule).toBe(RULE_ID);
   });
 
-  // Matching is exact: a value that reads as a pattern is compared literally.
-  it("compares pattern-looking values literally", () => {
-    expect(
-      alertingMatcherMatches(matcher("eq", "^pay.*"), { team: "pay" }),
-    ).toBe(false);
-    expect(
-      alertingMatcherMatches(matcher("eq", "^pay.*"), { team: "^pay.*" }),
-    ).toBe(true);
-  });
-});
+  it("lets the synthetics win over a user label of the same name", () => {
+    const subject = eventSubject(
+      event({
+        severity: "critical",
+        instanceLabels: { team: "pay", severity: "user-set", rule: "user-set" },
+      }),
+    );
 
-describe("alertingMatchersMatch", () => {
-  it("requires every matcher to match, and is vacuously true with none", () => {
-    expect(alertingMatchersMatch([], { team: "pay" })).toBe(true);
-
-    const matchers = [
-      matcher("eq", "pay"),
-      matcher("eq", "critical", "severity"),
-    ];
-    expect(
-      alertingMatchersMatch(matchers, { team: "pay", severity: "critical" }),
-    ).toBe(true);
-    expect(
-      alertingMatchersMatch(matchers, { team: "pay", severity: "warning" }),
-    ).toBe(false);
-  });
-});
-
-describe("alertingSyntheticLabels", () => {
-  it("adds severity/status/rule, letting synthetics win over same-named user labels", () => {
-    expect(
-      alertingSyntheticLabels(
-        { team: "pay", severity: "user-set" },
-        { severity: "critical", status: "firing", rule: "r-1" },
-      ),
-    ).toEqual({
+    expect(subject).toEqual({
       team: "pay",
       severity: "critical",
       status: "firing",
-      rule: "r-1",
+      rule: RULE_ID,
+    });
+  });
+
+  it("reads a resolve as resolved, so a silence may scope to one or the other", () => {
+    const subject = eventSubject(event({ eventType: "instance_resolved" }));
+
+    expect(subject.status).toBe("resolved");
+  });
+
+  // A rule has no instance labels of its own, so a silence scoped to one
+  // instance does not select the whole rule.
+  it("gives a rule the rule's own labels and nothing else", () => {
+    const subject = ruleSubject(RULE_ID, "warning");
+
+    expect(subject).toEqual({
+      rule: RULE_ID,
+      severity: "warning",
+      status: "firing",
     });
   });
 });
 
-describe("alertingMatchingSilence", () => {
-  const now = Date.parse("2026-07-01T12:00:00Z");
-  const active = {
-    id: "s-active",
-    matchers: [matcher("eq", "pay")],
-    starts_at: "2026-07-01T11:00:00Z",
-    ends_at: "2026-07-01T13:00:00Z",
-  };
+describe("silenceSelects", () => {
+  const subject = eventSubject(event());
 
-  it("returns the active silence whose matchers all match, ignoring the rest", () => {
-    expect(alertingMatchingSilence({ team: "pay" }, [active], now)).toBe(
-      active,
-    );
-
-    const expired = { ...active, ends_at: "2026-07-01T11:30:00Z" };
-    const scheduled = { ...active, starts_at: "2026-07-01T12:30:00Z" };
-    expect(
-      alertingMatchingSilence({ team: "pay" }, [expired, scheduled], now),
-    ).toBe(null);
-    expect(alertingMatchingSilence({ team: "core" }, [active], now)).toBe(null);
+  // A missing label reads as the empty string, so `ne` selects it.
+  it.each<[AlertingMatcher["op"], string, string, boolean]>([
+    ["eq", "pay", "team", true],
+    ["eq", "pay", "squad", false],
+    ["eq", "", "squad", true],
+    ["ne", "pay", "team", false],
+    ["ne", "pay", "squad", true],
+  ])("%s %s on %s is %s", (op, value, label, expected) => {
+    expect(silenceSelects([matcher(op, value, label)], subject)).toBe(expected);
   });
 
-  it("matches rule-scoped matchers against synthetic labels", () => {
-    const ruleScoped = {
-      ...active,
-      matchers: [matcher("eq", "pay"), matcher("eq", "r-1", "rule")],
+  it("requires every matcher, and selects everything with none", () => {
+    expect(silenceSelects([], subject)).toBe(true);
+    expect(
+      silenceSelects(
+        [matcher("eq", "pay"), matcher("eq", "critical", "severity")],
+        subject,
+      ),
+    ).toBe(true);
+    expect(
+      silenceSelects(
+        [matcher("eq", "pay"), matcher("eq", "warning", "severity")],
+        subject,
+      ),
+    ).toBe(false);
+  });
+
+  // Matching is exact: a value that reads as a pattern is compared literally.
+  it("compares pattern-looking values literally", () => {
+    expect(silenceSelects([matcher("eq", "^pay.*")], subject)).toBe(false);
+    expect(
+      silenceSelects(
+        [matcher("eq", "^pay.*")],
+        eventSubject(event({ instanceLabels: { team: "^pay.*" } })),
+      ),
+    ).toBe(true);
+  });
+});
+
+describe("silenceIsInForce", () => {
+  const now = new Date("2026-07-01T12:00:00Z");
+
+  // Half-open: the start instant is covered, the end instant is not.
+  it.each<[string, string, boolean]>([
+    ["2026-07-01T11:00:00Z", "2026-07-01T13:00:00Z", true],
+    ["2026-07-01T12:00:00Z", "2026-07-01T13:00:00Z", true],
+    ["2026-07-01T11:00:00Z", "2026-07-01T12:00:00Z", false],
+    ["2026-07-01T12:30:00Z", "2026-07-01T13:00:00Z", false],
+  ])("%s to %s covers noon: %s", (startsAt, endsAt, expected) => {
+    expect(
+      silenceIsInForce(
+        { startsAt: new Date(startsAt), endsAt: new Date(endsAt) },
+        now,
+      ),
+    ).toBe(expected);
+  });
+});
+
+describe("matchingSilence", () => {
+  const now = new Date("2026-07-01T12:00:00Z");
+  const inForce = {
+    id: "s-active",
+    matchers: [matcher("eq", "pay")],
+    startsAt: new Date("2026-07-01T11:00:00Z"),
+    endsAt: new Date("2026-07-01T13:00:00Z"),
+  };
+  const subject = eventSubject(event());
+
+  it("returns the silence in force whose matchers all select, ignoring the rest", () => {
+    expect(matchingSilence(subject, [inForce], now)).toBe(inForce);
+
+    const expired = { ...inForce, endsAt: new Date("2026-07-01T11:30:00Z") };
+    const scheduled = {
+      ...inForce,
+      startsAt: new Date("2026-07-01T12:30:00Z"),
     };
-    const labels = alertingSyntheticLabels(
-      { team: "pay" },
-      { severity: "critical", status: "firing", rule: "r-1" },
-    );
-    expect(alertingMatchingSilence(labels, [ruleScoped], now)).toBe(ruleScoped);
-    expect(alertingMatchingSilence({ team: "pay" }, [ruleScoped], now)).toBe(
-      null,
-    );
+    expect(matchingSilence(subject, [expired, scheduled], now)).toBe(null);
+    expect(
+      matchingSilence(
+        eventSubject(event({ instanceLabels: { team: "core" } })),
+        [inForce],
+        now,
+      ),
+    ).toBe(null);
+  });
+
+  it("selects a whole-rule silence by the id the dialog wrote", () => {
+    const wholeRule = {
+      ...inForce,
+      matchers: [matcher("eq", RULE_ID, "rule")],
+    };
+
+    expect(matchingSilence(subject, [wholeRule], now)).toBe(wholeRule);
   });
 });

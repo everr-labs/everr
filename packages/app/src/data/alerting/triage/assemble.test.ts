@@ -103,17 +103,18 @@ function instance(
   };
 }
 
-/** A silence on `path`, whole-rule unless given more matchers. */
+/** A silence on the rule with this row id, whole-rule unless given more
+ *  matchers. Definitions here are built with `id-${slug}`. */
 function silence(
-  path: string,
+  ruleId: string,
   overrides: Partial<SilenceRow> = {},
 ): SilenceRow {
   return {
-    id: `silence-${path}`,
+    id: `silence-${ruleId}`,
     organizationId: "org",
     startsAt: minutesAgo(5),
     endsAt: minutesAgo(-55),
-    matchers: [{ label: "rule", op: "eq", value: path }],
+    matchers: [{ label: "rule", op: "eq", value: ruleId }],
     comment: "",
     author: "",
     authorPrincipal: "",
@@ -191,7 +192,7 @@ describe("assembleTriage", () => {
     ];
     const { alerts, rules } = triage({
       definitions,
-      silences: [silence("demo/d")],
+      silences: [silence("id-d")],
     });
 
     expect(alerts.map((a) => a.path)).toEqual([
@@ -285,19 +286,19 @@ describe("assembleTriage", () => {
 
   it("attributes a rule to the whole-rule silence over an instance-scoped one", () => {
     const rule = definition({ slug: "latency", currentState: "firing" });
-    const partial = silence("demo/latency", {
+    const partial = silence("id-latency", {
       id: "partial",
       startsAt: minutesAgo(10),
       matchers: [
-        { label: "rule", op: "eq", value: "demo/latency" },
+        { label: "rule", op: "eq", value: "id-latency" },
         { label: "host", op: "eq", value: "a" },
       ],
     });
-    const whole = silence("demo/latency", { id: "whole" });
+    const whole = silence("id-latency", { id: "whole" });
     const paused = definition({ slug: "paused", active: false });
     const { alerts, rules } = triage({
       definitions: [rule, paused],
-      silences: [partial, whole, silence("demo/paused")],
+      silences: [partial, whole, silence("id-paused")],
       held: new Map([[rule.id, 2]]),
     });
 
@@ -400,7 +401,7 @@ describe("assembleRuleStateHistory", () => {
     const b = definition({ slug: "b", currentState: "firing" });
     const out = history({
       definitions: [a, b],
-      silences: [silence("demo/a", { startsAt: minutesAgo(20) })],
+      silences: [silence("id-a", { startsAt: minutesAgo(20) })],
       events: [
         {
           slug: "demo/a",
@@ -475,15 +476,15 @@ describe("assembleAlertDetail", () => {
 
   it("counts a silenced rule's clock from the silence and says evaluation goes on", () => {
     const rule = definition({ slug: "latency", currentState: "firing" });
-    const partial = silence("demo/latency", {
+    const partial = silence("id-latency", {
       id: "partial",
       startsAt: minutesAgo(30),
       matchers: [
-        { label: "rule", op: "eq", value: "demo/latency" },
+        { label: "rule", op: "eq", value: "id-latency" },
         { label: "host", op: "eq", value: "a" },
       ],
     });
-    const whole = silence("demo/latency", { id: "whole" });
+    const whole = silence("id-latency", { id: "whole" });
     const out = detail({
       definition: rule,
       instances: [instance(rule.id, { activeSince: minutesAgo(40) })],
@@ -552,23 +553,23 @@ describe("assembleAlertDetail", () => {
 
   it("lists every silence that overlapped the window with its state and what it withheld", () => {
     const scoped = [
-      { label: "rule", op: "eq", value: "demo/latency" },
+      { label: "rule", op: "eq", value: "id-latency" },
       { label: "host", op: "ne", value: "a" },
     ] as const;
     const out = detail({
       windowSilences: [
-        silence("demo/latency", { id: "active", matchers: [...scoped] }),
-        silence("demo/latency", {
+        silence("id-latency", { id: "active", matchers: [...scoped] }),
+        silence("id-latency", {
           id: "scheduled",
           startsAt: minutesAgo(-10),
           endsAt: minutesAgo(-70),
         }),
-        silence("demo/latency", {
+        silence("id-latency", {
           id: "expired",
           startsAt: minutesAgo(120),
           endsAt: minutesAgo(60),
         }),
-        silence("demo/latency", {
+        silence("id-latency", {
           id: "cancelled",
           startsAt: minutesAgo(50),
           endsAt: minutesAgo(45),

@@ -4,7 +4,6 @@ import {
   ALERTING_DEFAULT_GROUP_BY,
   type AlertingDefaultTier,
 } from "@/data/alerting/delivery/defaults";
-import { alertingSyntheticLabels } from "@/data/alerting/silences/matching";
 import { db } from "@/db/client";
 import {
   alertDefaultChannels,
@@ -24,24 +23,30 @@ export function alertDeliveryHash(...parts: string[]) {
   return createHash("sha256").update(parts.join("\0")).digest("hex");
 }
 
-export function alertEventDispatchLabels(
-  event: typeof alertEvents.$inferSelect,
-) {
-  return alertingSyntheticLabels(event.instanceLabels, {
-    severity: event.severity,
-    status: event.eventType === "instance_resolved" ? "resolved" : "firing",
-    rule: event.sourceDefinitionId,
-  });
-}
-
 type DispatchTarget = {
   defaultTier: AlertingDefaultTier | null;
   directAlertDefinitionId: string | null;
   groupKey: string;
 };
 
+/**
+ * The labels a notification batches by. `rule` is the definition's row id,
+ * because a group key has to be unique and a live rule and a preview of it
+ * legitimately share `project/slug`.
+ *
+ * `eventSubject` reaches the same value for its own reason, and the two stay
+ * separate anyway. They answer different questions, and only one of them picks
+ * a subset of the labels; a single function serving both is what let them
+ * drift apart before, and agreeing today is a decision each states for itself
+ * rather than a coupling.
+ */
 function groupLabelsFor(event: typeof alertEvents.$inferSelect) {
-  const labels = alertEventDispatchLabels(event);
+  const labels: Record<string, string> = {
+    ...event.instanceLabels,
+    rule: event.sourceDefinitionId,
+    severity: event.severity,
+    status: event.eventType === "instance_resolved" ? "resolved" : "firing",
+  };
   return Object.fromEntries(
     ALERTING_DEFAULT_GROUP_BY.map((key) => [key, labels[key] ?? ""]),
   );

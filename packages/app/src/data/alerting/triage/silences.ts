@@ -3,10 +3,7 @@
  * what it looks like on a row, and the record the detail lists.
  */
 import { and, desc, eq, gt, gte, lte, sql } from "drizzle-orm";
-import {
-  alertingMatchersMatch,
-  alertingSyntheticLabels,
-} from "@/data/alerting/silences/matching";
+import { ruleSubject, silenceSelects } from "@/data/alerting/silences/matching";
 import type { AlertingMatcher } from "@/data/alerting/types";
 import { db } from "@/db/client";
 import { alertSilences } from "@/db/schema";
@@ -14,11 +11,6 @@ import { formatElapsed, silenceImpact } from "./format";
 import type { AlertSilenceRecord, AlertSilenceView } from "./view";
 
 export type SilenceRow = typeof alertSilences.$inferSelect;
-
-/** The label a silence matches a whole rule on. Dispatch labels carry the
- *  rule's `project/slug` under this key, so a silence scoped to it and nothing
- *  else is a whole-rule silence. */
-export const RULE_LABEL = "rule";
 
 /** What a silence did to delivery: notifications it is still sitting on, and
  *  ones it dropped for good. */
@@ -48,7 +40,7 @@ export async function loadActiveSilences(
  */
 export async function loadSilencesInWindow(
   organizationId: string,
-  path: string,
+  ruleId: string,
   severity: string,
   from: Date,
   to: Date,
@@ -64,20 +56,12 @@ export async function loadSilencesInWindow(
       ),
     )
     .orderBy(desc(alertSilences.startsAt));
-  const labels = ruleLabels(path, severity);
-  return rows.filter((row) => alertingMatchersMatch(row.matchers, labels));
+  const subject = ruleSubject(ruleId, severity);
+  return rows.filter((row) => silenceSelects(row.matchers, subject));
 }
 
 function isWholeRuleSilence(matchers: AlertingMatcher[]): boolean {
-  return matchers.every((m) => m.label === RULE_LABEL);
-}
-
-/** What a rule's silence matchers are tested against. */
-function ruleLabels(path: string, severity: string): Record<string, string> {
-  return alertingSyntheticLabels(
-    {},
-    { rule: path, severity, status: "firing" },
-  );
+  return matchers.every((m) => m.label === "rule");
 }
 
 /**
@@ -86,14 +70,14 @@ function ruleLabels(path: string, severity: string): Record<string, string> {
  * being muted, and the row says so differently.
  */
 export function silenceFor(
-  path: string,
+  ruleId: string,
   severity: string,
   silences: SilenceRow[],
   now: Date,
 ): SilenceRow | null {
-  const labels = ruleLabels(path, severity);
+  const subject = ruleSubject(ruleId, severity);
   const matching = silences.filter(
-    (s) => s.startsAt <= now && alertingMatchersMatch(s.matchers, labels),
+    (s) => s.startsAt <= now && silenceSelects(s.matchers, subject),
   );
   return (
     matching.find((s) => isWholeRuleSilence(s.matchers)) ?? matching[0] ?? null
@@ -129,7 +113,7 @@ export function silenceRecord(
           : "active";
   // The rule matcher is on every silence this screen writes and is what
   // selected the row in the first place, so listing it back says nothing.
-  const scoped = row.matchers.filter((m) => m.label !== RULE_LABEL);
+  const scoped = row.matchers.filter((m) => m.label !== "rule");
   return {
     id: row.id,
     startsAt: row.startsAt.toISOString(),

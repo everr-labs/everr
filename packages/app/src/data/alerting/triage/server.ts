@@ -162,7 +162,7 @@ export const getAlertDetail = createAuthenticatedServerFn({ method: "GET" })
       loadActiveSilences(organizationId),
       loadSilencesInWindow(
         organizationId,
-        path,
+        definition.id,
         spec.severity,
         fromDate,
         toDate,

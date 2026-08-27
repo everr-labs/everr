@@ -1,6 +1,9 @@
 import { and, eq, gt, inArray, isNull, lte } from "drizzle-orm";
 import { enqueueProcessAlertEvent } from "@/data/alerting/delivery/tasks";
-import { alertingMatchingSilence } from "@/data/alerting/silences/matching";
+import {
+  eventSubject,
+  matchingSilence,
+} from "@/data/alerting/silences/matching";
 import { db } from "@/db/client";
 import { alertEvents, alertInstances, alertSilences } from "@/db/schema";
 import {
@@ -9,7 +12,6 @@ import {
   recordAlertHistory,
 } from "../history/clickhouse";
 import { instanceKey } from "./grouping";
-import { alertEventDispatchLabels } from "./targeting";
 
 type ActiveSilence = Awaited<ReturnType<typeof loadActiveSilences>>[number];
 
@@ -20,7 +22,7 @@ type ActiveSilence = Awaited<ReturnType<typeof loadActiveSilences>>[number];
  * issue hundreds of identical org-wide scans.
  */
 export async function loadActiveSilences(organizationId: string, now: Date) {
-  const silences = await db
+  return db
     .select()
     .from(alertSilences)
     .where(
@@ -30,11 +32,6 @@ export async function loadActiveSilences(organizationId: string, now: Date) {
         gt(alertSilences.endsAt, now),
       ),
     );
-  return silences.map((silence) => ({
-    ...silence,
-    starts_at: silence.startsAt.toISOString(),
-    ends_at: silence.endsAt.toISOString(),
-  }));
 }
 
 export function matchSilence(
@@ -42,14 +39,12 @@ export function matchSilence(
   silences: ActiveSilence[],
   now: Date,
 ) {
-  return alertingMatchingSilence(
-    alertEventDispatchLabels(event),
-    silences,
-    now.getTime(),
-  );
+  return matchingSilence(eventSubject(event), silences, now);
 }
 
-export async function matchingSilence(
+/** The silence covering this event right now, loading the org's own. Use
+ *  `matchSilence` where a batch is being weighed, so the scan happens once. */
+export async function silenceForEvent(
   event: typeof alertEvents.$inferSelect,
   now: Date,
 ) {
@@ -126,7 +121,7 @@ export async function loadFiringInstanceKeys(
 
 export async function deferSuppressedEvent(
   event: typeof alertEvents.$inferSelect,
-  silence: NonNullable<Awaited<ReturnType<typeof matchingSilence>>>,
+  silence: NonNullable<Awaited<ReturnType<typeof silenceForEvent>>>,
   now: Date,
 ) {
   const shouldRetry =
@@ -157,7 +152,7 @@ export async function deferSuppressedEvent(
       .returning({ id: alertEvents.id });
     if (stamped.length === 0) return false;
     if (shouldRetry) {
-      const runAt = new Date(silence.ends_at);
+      const runAt = silence.endsAt;
       await enqueueProcessAlertEvent(tx, event.id, {
         keySuffix: runAt.toISOString(),
         runAt,
