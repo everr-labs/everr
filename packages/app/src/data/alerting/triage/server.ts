@@ -32,6 +32,7 @@ import {
   loadInstances,
   loadRule,
   loadRuleInstances,
+  loadRulePaths,
   loadRules,
   rulePath,
   triageStatus,
@@ -40,8 +41,7 @@ import {
   loadOpenSilences,
   loadSilencesForPage,
   loadSilencesInWindow,
-  NO_IMPACT,
-  silenceRecord,
+  silenceRecords,
 } from "./silences";
 import { loadInstanceValues, parseSamples, type ValueRule } from "./values";
 import type {
@@ -195,28 +195,30 @@ export const getAlertDetail = createAuthenticatedServerFn({ method: "GET" })
     ]);
 
     const lastSamples = parseSamples(lastEvaluation[0]?.samples_json ?? "[]");
-    const silenceImpacts = await loadSilenceImpact(
-      context.clickhouse.query,
-      windowSilences,
-    );
-    const values = await loadInstanceValues(context.clickhouse.query, {
-      rules: [valueRule(definition)],
-      from: fromDate,
-      to: toDate,
-      // The chart names its lanes, and a fingerprint is not a name: instances
-      // that have since closed are named from the window's rows, and the ones
-      // the last evaluation saw from its own samples.
-      labels: new Map([
-        ...instanceLabels.map(
-          (row) =>
-            [row.instance_fingerprint, formatLabels(row.labels ?? {})] as const,
-        ),
-        ...lastSamples.map(
-          (sample) =>
-            [sample.fingerprint, formatLabels(sample.labels ?? {})] as const,
-        ),
-      ]),
-    });
+    const [silenceImpacts, values] = await Promise.all([
+      loadSilenceImpact(context.clickhouse.query, windowSilences),
+      loadInstanceValues(context.clickhouse.query, {
+        rules: [valueRule(definition)],
+        from: fromDate,
+        to: toDate,
+        // The chart names its lanes, and a fingerprint is not a name: instances
+        // that have since closed are named from the window's rows, and the ones
+        // the last evaluation saw from its own samples.
+        labels: new Map([
+          ...instanceLabels.map(
+            (row) =>
+              [
+                row.instance_fingerprint,
+                formatLabels(row.labels ?? {}),
+              ] as const,
+          ),
+          ...lastSamples.map(
+            (sample) =>
+              [sample.fingerprint, formatLabels(sample.labels ?? {})] as const,
+          ),
+        ]),
+      }),
+    ]);
 
     return assembleAlertDetail({
       now,
@@ -248,9 +250,7 @@ export const getAlertSilences = createAuthenticatedServerFn({ method: "GET" })
       toDate,
     );
     const impacts = await loadSilenceImpact(context.clickhouse.query, silences);
-    return silences.map((row) =>
-      silenceRecord(row, now, impacts.get(row.id) ?? NO_IMPACT),
-    );
+    return silenceRecords(silences, now, impacts);
   });
 
 /** The rules a silence may be pointed at, for the dialog that opens with none
@@ -258,9 +258,7 @@ export const getAlertSilences = createAuthenticatedServerFn({ method: "GET" })
  *  every time the silences page polls. */
 export const getAlertRulePaths = createAuthenticatedServerFn({
   method: "GET",
-}).handler(async ({ context }): Promise<string[]> => {
-  const definitions = await loadRules(
-    context.session.session.activeOrganizationId,
-  );
-  return definitions.map(rulePath);
-});
+}).handler(
+  ({ context }): Promise<string[]> =>
+    loadRulePaths(context.session.session.activeOrganizationId),
+);

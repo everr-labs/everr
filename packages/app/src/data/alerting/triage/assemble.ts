@@ -55,11 +55,10 @@ import {
 } from "./rules";
 import { type LifecycleRow, ruleStateSegments } from "./segments";
 import {
-  NO_IMPACT,
   type SilenceImpactCounts,
   type SilenceRow,
   silenceFor,
-  silenceRecord,
+  silenceRecords,
   silenceView,
 } from "./silences";
 import type { InstanceLanes, InstanceValues } from "./values";
@@ -433,9 +432,7 @@ export function assembleAlertDetail(input: AlertDetailInput): AlertDetail {
       lastEvaluatedAt: definition.lastSeenAt?.toISOString() ?? null,
       query: spec.sql,
     },
-    silences: input.windowSilences.map((row) =>
-      silenceRecord(row, now, input.silenceImpacts.get(row.id) ?? NO_IMPACT),
-    ),
+    silences: silenceRecords(input.windowSilences, now, input.silenceImpacts),
     activeSilenceId: silence?.id ?? null,
     forClause: formatDurationSeconds(spec.for_secs),
   };

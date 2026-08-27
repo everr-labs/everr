@@ -21,7 +21,7 @@ export type SilenceRow = typeof alertSilences.$inferSelect;
 export type SilenceImpactCounts = { held: number; dropped: number };
 
 /** What a silence did to delivery when history has no row for it. */
-export const NO_IMPACT: SilenceImpactCounts = { held: 0, dropped: 0 };
+const NO_IMPACT: SilenceImpactCounts = { held: 0, dropped: 0 };
 
 /**
  * Every silence that has not closed yet, the ones still to start included: the
@@ -81,8 +81,8 @@ export async function loadSilencesInWindow(
  * week; the closed ones are evidence, and the range is what bounds evidence
  * on every other screen here.
  *
- * Newest window first. The page regroups by state and re-sorts the scheduled
- * ones as a queue, so this order only settles ties within a group.
+ * Newest window first. The page regroups into what is open and what has
+ * closed, so this order only settles ties within a group.
  */
 export async function loadSilencesForPage(
   organizationId: string,
@@ -194,4 +194,17 @@ export function silenceRecord(
     comment: row.comment,
     author: row.author,
   };
+}
+
+/** The records for a list of rows, each with whatever history counted for it.
+ *  One place decides that a silence history has no row for withheld nothing,
+ *  so the two screens that list silences cannot answer that differently. */
+export function silenceRecords(
+  rows: SilenceRow[],
+  now: Date,
+  impacts: Map<string, SilenceImpactCounts>,
+): AlertSilenceRecord[] {
+  return rows.map((row) =>
+    silenceRecord(row, now, impacts.get(row.id) ?? NO_IMPACT),
+  );
 }

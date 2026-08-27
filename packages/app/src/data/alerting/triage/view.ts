@@ -129,14 +129,6 @@ export type LifecycleEvent = {
 };
 
 /**
- * One Alert instance's evaluated values over the queried window.
- *
- * The lane is the instance, and the panel stacks one per instance so the
- * reader compares series against each other and against the Condition on a
- * single axis, which is the comparison a rule with more than one instance
- * exists to make.
- */
-/**
  * One rule's row in the state chart: the states it was in, and the values its
  * instances measured while it was in them.
  *
@@ -155,6 +147,14 @@ export type RuleStateHistoryData = {
   rules: Record<string, RuleStateHistory>;
 };
 
+/**
+ * One Alert instance's evaluated values over the queried window.
+ *
+ * The lane is the instance, and the panel stacks one per instance so the
+ * reader compares series against each other and against the Condition on a
+ * single axis, which is the comparison a rule with more than one instance
+ * exists to make.
+ */
 export type InstanceValueSeries = {
   fingerprint: string;
   /** The Alert instance's label set, formatted. */

@@ -27,7 +27,7 @@ export function runbookLabel(href: string): string {
   return segments[segments.length - 1] || href;
 }
 
-export function rulePath(row: DefinitionRow): string {
+export function rulePath(row: Pick<DefinitionRow, "project" | "slug">): string {
   return formatResourceName(row.project, row.slug);
 }
 
@@ -80,6 +80,27 @@ export async function loadRules(
     .map((row) => ({ row, label: ruleTitle(row), path: rulePath(row) }))
     .sort(compareRuleLabels)
     .map((entry) => entry.row);
+}
+
+/**
+ * Just the paths, for the picker that only ever prints one. `loadRules`
+ * selects every column, `spec` included, and the SQL of every rule in the org
+ * is a large thing to read to write a list of `project/slug` strings.
+ *
+ * Ordered by the two columns the list shows, rather than by the display title
+ * `loadRules` sorts on: the picker prints paths, and a list sorted on text it
+ * does not print reads as unsorted.
+ */
+export async function loadRulePaths(organizationId: string): Promise<string[]> {
+  const rows = await db
+    .select({
+      project: alertDefinitions.project,
+      slug: alertDefinitions.slug,
+    })
+    .from(alertDefinitions)
+    .where(liveRulesFilter(organizationId))
+    .orderBy(alertDefinitions.project, alertDefinitions.slug);
+  return rows.map(rulePath);
 }
 
 /**
